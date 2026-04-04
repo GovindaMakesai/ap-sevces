@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Help Center - AP Services</title>
+    
+    <!-- Font Awesome 6 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    
+    <!-- Google Fonts - Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- Help Center Specific Styles -->
+    <style>
+        .help-page {
+            background: var(--gray-50);
+            min-height: calc(100vh - var(--header-height) - var(--footer-height));
+            padding: var(--spacing-xl) 0;
+        }
+
+        .help-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 var(--spacing-md);
+        }
+
+        /* Header */
+        .help-header {
+            text-align: center;
+            margin-bottom: var(--spacing-xl);
+        }
+
+        .help-header h1 {
+            font-size: 2.5rem;
+            color: var(--gray-800);
+            margin-bottom: var(--spacing-sm);
+        }
+
+        .help-header p {
+            color: var(--gray-600);
+            font-size: 1.1rem;
+        }
+
+        /* Search */
+        .help-search {
+            max-width: 600px;
+            margin: 0 auto var(--spacing-xl);
+            position: relative;
+        }
+
+        .help-search i {
+            position: absolute;
+            left: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--gray-400);
+        }
+
+        .help-search input {
+            width: 100%;
+            padding: 1rem 1rem 1rem 3rem;
+            border: 2px solid var(--gray-200);
+            border-radius: var(--radius-full);
+            font-size: 1.1rem;
+            transition: all var(--transition-fast);
+        }
+
+        .help-search input:focus {
+            outline: none;
+            border-color: var(--primary-500);
+            box-shadow: 0 0 0 4px var(--primary-100);
+        }
+
+        /* Category Grid */
+        .category-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: var(--spacing-lg);
+            margin-bottom: var(--spacing-xl);
+        }
+
+        .category-card {
+            background: white;
+            border-radius: var(--radius-xl);
+            padding: var(--spacing-xl);
+            text-align: center;
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--gray-200);
+            transition: all var(--transition-base);
+            cursor: pointer;
+        }
+
+        .category-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-xl);
+            border-color: var(--primary-300);
+        }
+
+        .category-icon {
+            width: 80px;
+            height: 80px;
+            background: var(--primary-100);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto var(--spacing-md);
+            color: var(--primary-700);
+            font-size: 2rem;
+            transition: all var(--transition-base);
+        }
+
+        .category-card:hover .category-icon {
+            background: var(--primary-600);
+            color: white;
+            transform: scale(1.1);
+        }
+
+        .category-card h3 {
+            margin-bottom: var(--spacing-xs);
+        }
+
+        .category-card p {
+            color: var(--gray-600);
+            font-size: var(--font-size-sm);
+        }
+
+        /* FAQ Section */
+        .faq-section {
+            background: white;
+            border-radius: var(--radius-xl);
+            padding: var(--spacing-xl);
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--gray-200);
+            margin-bottom: var(--spacing-xl);
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            margin-bottom: var(--spacing-lg);
+            color: var(--gray-800);
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-xs);
+        }
+
+        .section-title i {
+            color: var(--primary-600);
+        }
+
+        .faq-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: var(--spacing-md);
+        }
+
+        .faq-item {
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+        }
+
+        .faq-question {
+            padding: var(--spacing-md);
+            background: var(--gray-50);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-weight: 600;
+            transition: all var(--transition-fast);
+        }
+
+        .faq-question:hover {
+            background: var(--gray-100);
+        }
+
+        .faq-question i {
+            transition: transform var(--transition-fast);
+        }
+
+        .faq-question.active i {
+            transform: rotate(180deg);
+        }
+
+        .faq-answer {
+            padding: 0;
+            max-height: 0;
+            overflow: hidden;
+            transition: all var(--transition-base);
+            background: white;
+        }
+
+        .faq-answer.show {
+            padding: var(--spacing-md);
+            max-height: 500px;
+            border-top: 1px solid var(--gray-200);
+        }
+
+        .faq-answer p {
+            color: var(--gray-600);
+            line-height: 1.6;
+        }
+
+        /* Contact Section */
+        .contact-section {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: var(--spacing-lg);
+            margin-bottom: var(--spacing-xl);
+        }
+
+        .contact-card {
+            background: white;
+            border-radius: var(--radius-xl);
+            padding: var(--spacing-xl);
+            text-align: center;
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--gray-200);
+        }
+
+        .contact-icon {
+            width: 70px;
+            height: 70px;
+            background: var(--primary-100);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto var(--spacing-md);
+            color: var(--primary-700);
+            font-size: 1.8rem;
+        }
+
+        .contact-card h3 {
+            margin-bottom: var(--spacing-xs);
+        }
+
+        .contact-card p {
+            color: var(--gray-600);
+            margin-bottom: var(--spacing-md);
+        }
+
+        .contact-link {
+            color: var(--primary-600);
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .contact-link:hover {
+            text-decoration: underline;
+        }
+
+        /* Guide Cards */
+        .guides-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: var(--spacing-lg);
+        }
+
+        .guide-card {
+            background: white;
+            border-radius: var(--radius-xl);
+            overflow: hidden;
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--gray-200);
+            transition: all var(--transition-base);
+            cursor: pointer;
+        }
+
+        .guide-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-xl);
+        }
+
+        .guide-image {
+            height: 160px;
+            background: var(--primary-100);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary-700);
+            font-size: 3rem;
+        }
+
+        .guide-content {
+            padding: var(--spacing-lg);
+        }
+
+        .guide-content h3 {
+            margin-bottom: var(--spacing-xs);
+        }
+
+        .guide-content p {
+            color: var(--gray-600);
+            font-size: var(--font-size-sm);
+            margin-bottom: var(--spacing-md);
+        }
+
+        .guide-link {
+            color: var(--primary-600);
+            font-weight: 600;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .guide-link:hover {
+            gap: 8px;
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .category-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .faq-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .contact-section {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .guides-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .category-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .contact-section {
+                grid-template-columns: 1fr;
+            }
+
+            .guides-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .help-header h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-content">
+                <a href="/" class="logo">AP<span>Services</span></a>
+                <div class="nav-links"></div>
+                <button class="mobile-menu-btn"><i class="fas fa-bars"></i></button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Help Page -->
+    <section class="help-page">
+        <div class="help-container">
+            <!-- Header -->
+            <div class="help-header">
+                <h1>How can we help you?</h1>
+                <p>Search for answers or browse by category</p>
+            </div>
+
+            <!-- Search -->
+            <div class="help-search">
+                <i class="fas fa-search"></i>
+                <input type="text" placeholder="Search for help articles..." id="helpSearch">
+            </div>
+
+            <!-- Category Grid -->
+            <div class="category-grid">
+                <div class="category-card" onclick="filterByCategory('bookings')">
+                    <div class="category-icon">
+                        <i class="fas fa-calendar-check"></i>
+                    </div>
+                    <h3>Bookings</h3>
+                    <p>Managing your bookings</p>
+                </div>
+                <div class="category-card" onclick="filterByCategory('payments')">
+                    <div class="category-icon">
+                        <i class="fas fa-credit-card"></i>
+                    </div>
+                    <h3>Payments</h3>
+                    <p>Billing & refunds</p>
+                </div>
+                <div class="category-card" onclick="filterByCategory('account')">
+                    <div class="category-icon">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <h3>Account</h3>
+                    <p>Profile & settings</p>
+                </div>
+                <div class="category-card" onclick="filterByCategory('workers')">
+                    <div class="category-icon">
+                        <i class="fas fa-hard-hat"></i>
+                    </div>
+                    <h3>Professionals</h3>
+                    <p>Working with pros</p>
+                </div>
+            </div>
+
+            <!-- FAQ Section -->
+            <div class="faq-section">
+                <h2 class="section-title">
+                    <i class="fas fa-question-circle"></i>
+                    Frequently Asked Questions
+                </h2>
+
+                <div class="faq-grid">
+                    <!-- FAQ Item 1 -->
+                    <div class="faq-item">
+                        <div class="faq-question" onclick="toggleFaq(this)">
+                            <span>How do I book a service?</span>
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                        <div class="faq-answer">
+                            <p>To book a service, simply browse our service categories, select the service you need, choose a professional based on ratings and reviews, select your preferred date and time, and confirm your booking. You'll receive a confirmation once the professional accepts your request.</p>
+                        </div>
+                    </div>
+
+                    <!-- FAQ Item 2 -->
+                    <div class="faq-item">
+                        <div class="faq-question" onclick="toggleFaq(this)">
+                            <span>How do I cancel a booking?</span>
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                        <div class="faq-answer">
+                            <p>You can cancel a booking from your dashboard. Go to "My Bookings," find the booking you want to cancel, and click "Cancel Booking." Cancellations made at least 2 hours before the scheduled time are free. Late cancellations may incur a fee.</p>
+                        </div>
+                    </div>
+
+                    <!-- FAQ Item 3 -->
+                    <div class="faq-item">
+                        <div class="faq-question" onclick="toggleFaq(this)">
+                            <span>How are professionals verified?</span>
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                        <div class="faq-answer">
+                            <p>All professionals undergo a thorough verification process including ID verification, background checks, and skill assessments. We also collect customer reviews to ensure quality and reliability.</p>
+                        </div>
+                    </div>
+
+                    <!-- FAQ Item 4 -->
+                    <div class="faq-item">
+                        <div class="faq-question" onclick="toggleFaq(this)">
+                            <span>What payment methods are accepted?</span>
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                        <div class="faq-answer">
+                            <p>We accept all major credit/debit cards (Visa, Mastercard, RuPay), UPI (Google Pay, PhonePe, Paytm), net banking from all major banks, and various wallets. You can also pay with cash on delivery.</p>
+                        </div>
+                    </div>
+
+                    <!-- FAQ Item 5 -->
+                    <div class="faq-item">
+                        <div class="faq-question" onclick="toggleFaq(this)">
+                            <span>How do I become a professional?</span>
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                        <div class="faq-answer">
+                            <p>Click on "Become a Pro" in the navigation menu, fill out the application form with your details, upload required documents, and submit for verification. Our team will review and get back to you within 2-3 business days.</p>
+                        </div>
+                    </div>
+
+                    <!-- FAQ Item 6 -->
+                    <div class="faq-item">
+                        <div class="faq-question" onclick="toggleFaq(this)">
+                            <span>What if I'm not satisfied with the service?</span>
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                        <div class="faq-answer">
+                            <p>Your satisfaction is our priority. If you're not happy with the service, please contact us within 24 hours. We'll review the issue and work with you and the professional to find a resolution, which may include a refund or re-service.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Contact Section -->
+            <h2 class="section-title">
+                <i class="fas fa-headset"></i>
+                Get in Touch
+            </h2>
+
+            <div class="contact-section">
+                <div class="contact-card">
+                    <div class="contact-icon">
+                        <i class="fas fa-phone"></i>
+                    </div>
+                    <h3>Phone Support</h3>
+                    <p>Available 24/7 for urgent issues</p>
+                    <a href="tel:18001234567" class="contact-link">1800-123-4567</a>
+                </div>
+
+                <div class="contact-card">
+                    <div class="contact-icon">
+                        <i class="fas fa-envelope"></i>
+                    </div>
+                    <h3>Email Support</h3>
+                    <p>Get a response within 2 hours</p>
+                    <a href="mailto:support@apservices.com" class="contact-link">support@apservices.com</a>
+                </div>
+
+                <div class="contact-card">
+                    <div class="contact-icon">
+                        <i class="fas fa-comment"></i>
+                    </div>
+                    <h3>Live Chat</h3>
+                    <p>Chat with our support team</p>
+                    <a href="#" class="contact-link" onclick="startLiveChat()">Start Chat</a>
+                </div>
+            </div>
+
+            <!-- Guides Section -->
+            <h2 class="section-title">
+                <i class="fas fa-book-open"></i>
+                Help Guides
+            </h2>
+
+            <div class="guides-grid">
+                <div class="guide-card" onclick="viewGuide('getting-started')">
+                    <div class="guide-image">
+                        <i class="fas fa-rocket"></i>
+                    </div>
+                    <div class="guide-content">
+                        <h3>Getting Started</h3>
+                        <p>New to AP Services? Learn the basics</p>
+                        <span class="guide-link">Read Guide <i class="fas fa-arrow-right"></i></span>
+                    </div>
+                </div>
+
+                <div class="guide-card" onclick="viewGuide('safety-tips')">
+                    <div class="guide-image">
+                        <i class="fas fa-shield-alt"></i>
+                    </div>
+                    <div class="guide-content">
+                        <h3>Safety Tips</h3>
+                        <p>Stay safe while using our platform</p>
+                        <span class="guide-link">Read Guide <i class="fas fa-arrow-right"></i></span>
+                    </div>
+                </div>
+
+                <div class="guide-card" onclick="viewGuide('payment-security')">
+                    <div class="guide-image">
+                        <i class="fas fa-lock"></i>
+                    </div>
+                    <div class="guide-content">
+                        <h3>Payment Security</h3>
+                        <p>Understanding our secure payments</p>
+                        <span class="guide-link">Read Guide <i class="fas fa-arrow-right"></i></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Still Need Help -->
+            <div style="text-align: center; margin-top: var(--spacing-xl); padding: var(--spacing-xl); background: var(--primary-50); border-radius: var(--radius-xl);">
+                <h3 style="margin-bottom: var(--spacing-sm);">Still Need Help?</h3>
+                <p style="color: var(--gray-600); margin-bottom: var(--spacing-lg);">Can't find what you're looking for? Our support team is here to help.</p>
+                <button class="btn-primary" onclick="contactSupport()">Contact Support</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-col">
+                    <h3>AP<span style="color: var(--primary-500);">Services</span></h3>
+                    <p>Your trusted platform for booking professional home services.</p>
+                    <div class="social-links">
+                        <a href="#"><i class="fab fa-facebook-f"></i></a>
+                        <a href="#"><i class="fab fa-instagram"></i></a>
+                        <a href="#"><i class="fab fa-twitter"></i></a>
+                        <a href="#"><i class="fab fa-linkedin-in"></i></a>
+                    </div>
+                </div>
+                <div class="footer-col">
+                    <h4>Quick Links</h4>
+                    <ul>
+                        <li><a href="/about.html">About Us</a></li>
+                        <li><a href="/contact.html">Contact</a></li>
+                        <li><a href="/privacy.html">Privacy Policy</a></li>
+                        <li><a href="/terms.html">Terms of Service</a></li>
+                    </ul>
+                </div>
+                <div class="footer-col">
+                    <h4>Services</h4>
+                    <ul>
+                        <li><a href="/services/plumbing.html">Plumbing</a></li>
+                        <li><a href="/services/electrical.html">Electrical</a></li>
+                        <li><a href="/services/cleaning.html">Cleaning</a></li>
+                        <li><a href="/services/beauty.html">Beauty</a></li>
+                    </ul>
+                </div>
+                <div class="footer-col">
+                    <h4>Support</h4>
+                    <ul>
+                        <li><a href="/help.html">Help Center</a></li>
+                        <li><a href="/faq.html">FAQ</a></li>
+                        <li><a href="/contact.html">Contact Us</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 AP Services. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Toast Container -->
+    <div id="toast" class="toast"></div>
+
+    <script src="app.js"></script>
+    
+    <script>
+        function toggleFaq(element) {
+            element.classList.toggle('active');
+            const answer = element.nextElementSibling;
+            answer.classList.toggle('show');
+            
+            // Close other FAQs
+            document.querySelectorAll('.faq-question').forEach(q => {
+                if (q !== element && q.classList.contains('active')) {
+                    q.classList.remove('active');
+                    q.nextElementSibling.classList.remove('show');
+                }
+            });
+        }
+
+        function filterByCategory(category) {
+            Toast.show(`Showing articles in: ${category}`, 'info');
+            // In production, filter FAQ items
+        }
+
+        function startLiveChat() {
+            Toast.show('Live chat coming soon!', 'info');
+        }
+
+        function viewGuide(guide) {
+            Toast.show(`Opening guide: ${guide}`, 'info');
+            // In production, navigate to guide page
+        }
+
+        function contactSupport() {
+            window.location.href = '/contact.html';
+        }
+
+        // Search functionality
+        document.getElementById('helpSearch').addEventListener('input', function(e) {
+            const searchTerm = e.target.value.toLowerCase();
+            if (searchTerm.length > 2) {
+                Toast.show(`Searching for: ${searchTerm}`, 'info');
+                // In production, filter FAQ items
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Services - AP Services</title>
+    
+    <!-- Font Awesome 6 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    
+    <!-- Google Fonts - Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="styles.css">
+    
+    <style>
+        /* Copy all your existing CSS here - keep it exactly the same */
+        /* ==================== SERVICES PAGE STYLES ==================== */
+        .services-page {
+            background: var(--gray-50);
+            min-height: calc(100vh - var(--header-height) - var(--footer-height));
+            padding: var(--spacing-xl) 0;
+        }
+
+        .page-header {
+            background: linear-gradient(135deg, var(--primary-600), var(--primary-800));
+            color: white;
+            padding: var(--spacing-2xl) 0;
+            margin-bottom: var(--spacing-xl);
+            border-radius: 0 0 var(--radius-2xl) var(--radius-2xl);
+        }
+
+        .services-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: var(--spacing-lg);
+            margin-top: var(--spacing-xl);
+        }
+
+        .service-card {
+            background: white;
+            border-radius: var(--radius-xl);
+            overflow: hidden;
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--gray-200);
+            transition: all var(--transition-base);
+            cursor: pointer;
+        }
+
+        .service-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-xl);
+            border-color: var(--primary-200);
+        }
+
+        .service-image {
+            height: 160px;
+            background: var(--gray-200);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--gray-500);
+            font-size: 3rem;
+        }
+
+        .service-content {
+            padding: var(--spacing-lg);
+        }
+
+        .service-category {
+            color: var(--primary-600);
+            font-weight: 600;
+            font-size: var(--font-size-xs);
+            text-transform: uppercase;
+            margin-bottom: var(--spacing-xs);
+        }
+
+        .service-content h3 {
+            font-size: 1.2rem;
+            margin-bottom: var(--spacing-xs);
+        }
+
+        .service-description {
+            color: var(--gray-600);
+            font-size: var(--font-size-sm);
+            margin-bottom: var(--spacing-sm);
+            line-height: 1.5;
+        }
+
+        .service-meta {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            margin-bottom: var(--spacing-sm);
+        }
+
+        .service-rating {
+            background: #fef3c7;
+            padding: 4px 8px;
+            border-radius: var(--radius-full);
+            color: #92400e;
+            font-weight: 600;
+            font-size: var(--font-size-xs);
+        }
+
+        .service-rating i {
+            color: #fbbf24;
+        }
+
+        .service-bookings {
+            color: var(--gray-500);
+            font-size: var(--font-size-xs);
+        }
+
+        .service-price {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary-600);
+            margin: var(--spacing-sm) 0;
+        }
+
+        .price-unit {
+            font-size: var(--font-size-sm);
+            font-weight: 400;
+            color: var(--gray-600);
+        }
+
+        .service-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top: 1px solid var(--gray-200);
+            padding-top: var(--spacing-md);
+        }
+
+        .provider-info {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-xs);
+        }
+
+        .provider-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--primary-100);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary-700);
+            font-weight: 700;
+            font-size: var(--font-size-xs);
+        }
+
+        .provider-name {
+            font-weight: 600;
+            font-size: var(--font-size-sm);
+            color: var(--gray-700);
+        }
+
+        .verified-badge {
+            color: var(--success);
+            font-size: var(--font-size-xs);
+        }
+
+        .book-btn {
+            padding: 0.5rem 1.5rem;
+            background: var(--primary-600);
+            color: white;
+            border: none;
+            border-radius: var(--radius-lg);
+            font-weight: 600;
+            font-size: var(--font-size-sm);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+
+        .book-btn:hover {
+            background: var(--primary-700);
+        }
+
+        /* Loading and Empty States */
+        .loading-spinner {
+            text-align: center;
+            padding: 3rem;
+            color: var(--gray-500);
+        }
+
+        .loading-spinner i {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .error-message {
+            text-align: center;
+            padding: 3rem;
+            color: var(--error);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: var(--gray-600);
+        }
+
+        .empty-state i {
+            font-size: 4rem;
+            color: var(--gray-300);
+            margin-bottom: 1rem;
+        }
+
+        .container {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 2rem 0;
+        }
+
+        .results-count strong {
+            font-size: 1.2rem;
+            color: var(--gray-900);
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-content">
+                <a href="/" class="logo">AP<span>Services</span></a>
+                <div class="nav-links"></div>
+                <button class="mobile-menu-btn"><i class="fas fa-bars"></i></button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Page Header -->
+    <section class="page-header">
+        <div class="container">
+            <h1>Professional Services</h1>
+            <p>Find trusted professionals for all your needs</p>
+        </div>
+    </section>
+
+    <!-- Services Section -->
+    <section class="services-page">
+        <div class="container">
+            <!-- Results Header -->
+            <div class="results-header">
+                <div class="results-count">
+                    <strong id="totalCount">0</strong> services found
+                </div>
+            </div>
+
+            <!-- Services Grid -->
+            <div id="servicesGrid" class="services-grid">
+                <div class="loading-spinner">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <p>Loading services...</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-col">
+                    <h3>AP<span style="color: var(--primary-500);">Services</span></h3>
+                    <p>Your trusted platform for booking professional home services.</p>
+                    <div class="social-links">
+                        <a href="#"><i class="fab fa-facebook-f"></i></a>
+                        <a href="#"><i class="fab fa-instagram"></i></a>
+                        <a href="#"><i class="fab fa-twitter"></i></a>
+                        <a href="#"><i class="fab fa-linkedin-in"></i></a>
+                    </div>
+                </div>
+                <div class="footer-col">
+                    <h4>Quick Links</h4>
+                    <ul>
+                        <li><a href="/about.html">About Us</a></li>
+                        <li><a href="/contact.html">Contact</a></li>
+                        <li><a href="/privacy.html">Privacy Policy</a></li>
+                        <li><a href="/terms.html">Terms of Service</a></li>
+                    </ul>
+                </div>
+                <div class="footer-col">
+                    <h4>Services</h4>
+                    <ul>
+                        <li><a href="/services/plumbing.html">Plumbing</a></li>
+                        <li><a href="/services/electrical.html">Electrical</a></li>
+                        <li><a href="/services/cleaning.html">Cleaning</a></li>
+                        <li><a href="/services/beauty.html">Beauty</a></li>
+                    </ul>
+                </div>
+                <div class="footer-col">
+                    <h4>Support</h4>
+                    <ul>
+                        <li><a href="/help.html">Help Center</a></li>
+                        <li><a href="/faq.html">FAQ</a></li>
+                        <li><a href="/contact.html">Contact Us</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 AP Services. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Toast Container -->
+    <div id="toast" class="toast"></div>
+
+    <!-- Load app.js -->
+    <script src="app.js"></script>
+    
+    <script>
+// Add this at the beginning of your services.html script
+const BACKEND_URL = 'https://ap-services-marketplace.onrender.com';
+
+function getImageUrl(path) {
+    if (!path) return null;
+    if (path.startsWith('http')) return path;
+    const cleanPath = path.startsWith('/') ? path : `/${path}`;
+    return `${BACKEND_URL}${cleanPath}`;
+}
+        // ==================== SERVICES PAGE - REAL API INTEGRATION ====================
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            loadServices();
+        });
+
+        // Load services from API
+        async function loadServices() {
+            const servicesGrid = document.getElementById('servicesGrid');
+            const totalCount = document.getElementById('totalCount');
+            
+            try {
+                // Get URL parameters for filtering
+                const urlParams = new URLSearchParams(window.location.search);
+                const category = urlParams.get('category');
+                const search = urlParams.get('q');
+                
+                // Build API URL with filters
+                let url = '/services';
+                const params = new URLSearchParams();
+                if (category) params.append('category', category);
+                if (search) params.append('search', search);
+                if (params.toString()) url += '?' + params.toString();
+                
+                console.log('📡 Fetching services from:', url);
+                
+                // Call the API
+                const response = await API.get(url);
+                console.log('✅ API Response:', response);
+                
+                const services = response.data || [];
+                totalCount.textContent = services.length;
+                
+                if (services.length === 0) {
+                    showEmptyState(servicesGrid, 'No services found');
+                    return;
+                }
+                
+                renderServices(services);
+                
+            } catch (error) {
+                console.error('❌ Failed to load services:', error);
+                showError(servicesGrid, error.message);
+            }
+        }
+
+        // Render services in grid
+      function renderServices(services) {
+    const servicesGrid = document.getElementById('servicesGrid');
+    
+    servicesGrid.innerHTML = services.map(service => {
+        const imageUrl = getImageUrl(service.image_url);
+        
+        return `
+            <div class="service-card" onclick="viewService('${service.id}')">
+                <div class="service-image">
+                    ${imageUrl ? 
+                        `<img src="${imageUrl}" alt="${service.name}">` : 
+                        `<i class="fas fa-${service.icon || 'tools'}"></i>`
+                    }
+                </div>
+                <div class="service-content">
+                    <div class="service-category">${service.category}</div>
+                    <h3>${service.name}</h3>
+                    <p class="service-description">${service.description || ''}</p>
+                    <div class="service-price">₹${service.base_price}</div>
+                    <button class="book-btn" onclick="event.stopPropagation(); bookService('${service.id}')">
+                        Book Now
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+        // Show loading state
+        function showLoading(container) {
+            container.innerHTML = `
+                <div class="loading-spinner">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <p>Loading services...</p>
+                </div>
+            `;
+        }
+
+        // Show empty state
+        function showEmptyState(container, message) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-search"></i>
+                    <h3>${message}</h3>
+                    <p>Try adjusting your search or check back later</p>
+                </div>
+            `;
+        }
+
+        // Show error state
+        function showError(container, message) {
+            container.innerHTML = `
+                <div class="error-message">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <h3>Failed to load services</h3>
+                    <p>${message}</p>
+                    <button class="book-btn" onclick="location.reload()" style="margin-top: 1rem;">
+                        Try Again
+                    </button>
+                </div>
+            `;
+        }
+
+        // View service details
+        window.viewService = function(serviceId) {
+            window.location.href = `/service-details.html?id=${serviceId}`;
+        };
+
+        // Book service
+        window.bookService = function(serviceId) {
+            const user = Auth?.getUser();
+            
+            if (!user) {
+                Toast.show('Please login to book a service', 'warning');
+                window.location.href = `/login.html?redirect=${encodeURIComponent(window.location.href)}`;
+                return;
+            }
+            
+            window.location.href = `/booking.html?service=${serviceId}`;
+        };
+
+        // Handle URL parameters on page load
+        function handleUrlParams() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const category = urlParams.get('category');
+            const search = urlParams.get('q');
+            
+            if (category || search) {
+                // Update page title to reflect filter
+                document.querySelector('.page-header h1').textContent = 
+                    category ? `${category} Services` : 'Search Results';
+            }
+        }
+
+        // Initialize
+        handleUrlParams();
+    </script>
+</body>
+</html>

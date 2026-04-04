@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Test</title>
+</head>
+<body>
+    <h1>API Connection Test</h1>
+    <div id="status" style="padding: 20px; margin: 20px; border: 1px solid #ccc;"></div>
+    
+    <script>
+        async function testAPI() {
+            const status = document.getElementById('status');
+            
+            try {
+                status.innerHTML = '🔄 Testing connection to backend...';
+                
+                // Test 1: Health check
+                const healthResponse = await fetch('https://ap-services-marketplace.onrender.com/api/health');
+                const healthData = await healthResponse.json();
+                
+                status.innerHTML += '<br>✅ Health check: ' + JSON.stringify(healthData);
+                
+                // Test 2: Services API
+                const servicesResponse = await fetch('https://ap-services-marketplace.onrender.com/api/services');
+                const servicesData = await servicesResponse.json();
+                
+                status.innerHTML += '<br>✅ Services API: Found ' + (servicesData.data?.length || 0) + ' services';
+                
+                if (servicesData.data && servicesData.data.length > 0) {
+                    status.innerHTML += '<br>📊 First service: ' + servicesData.data[0].name;
+                }
+                
+            } catch (error) {
+                status.innerHTML = '❌ ERROR: ' + error.message;
+                console.error(error);
+            }
+        }
+        
+        testAPI();
+    </script>
+</body>
+</html>

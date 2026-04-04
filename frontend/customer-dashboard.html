@@ -1,0 +1,2212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Dashboard - AP Services</title>
+    
+    <!-- Font Awesome 6 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    
+    <!-- Google Fonts - Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Chart.js for statistics -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- Dashboard Specific Styles -->
+    <style>
+        .notifications-panel {
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    width: 380px;
+    max-height: 500px;
+    background: white;
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-xl);
+    z-index: 1000;
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--gray-200);
+}
+
+.notifications-panel.show {
+    display: flex;
+}
+
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-bottom: 1px solid var(--gray-200);
+    background: white;
+}
+
+.notifications-list {
+    flex: 1;
+    overflow-y: auto;
+    max-height: 400px;
+}
+
+.notification-item {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-bottom: 1px solid var(--gray-100);
+    cursor: pointer;
+    transition: background var(--transition-fast);
+}
+
+.notification-item:hover {
+    background: var(--gray-50);
+}
+
+.notification-item.unread {
+    background: var(--primary-50);
+}
+
+.notification-icon {
+    width: 40px;
+    height: 40px;
+    background: var(--gray-100);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--primary-600);
+}
+
+.notification-content {
+    flex: 1;
+}
+
+.notification-title {
+    font-weight: 600;
+    margin-bottom: 2px;
+}
+
+.notification-message {
+    color: var(--gray-600);
+    font-size: var(--font-size-sm);
+    margin-bottom: 2px;
+}
+
+.notification-time {
+    font-size: var(--font-size-xs);
+    color: var(--gray-500);
+}
+
+.panel-footer {
+    padding: var(--spacing-sm) var(--spacing-lg);
+    border-top: 1px solid var(--gray-200);
+    text-align: center;
+}
+
+.notification-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: var(--error);
+    color: white;
+    border-radius: 50%;
+    min-width: 18px;
+    height: 18px;
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+}
+        /* ==================== DASHBOARD STYLES ==================== */
+        .dashboard-page {
+            background: var(--gray-50);
+            min-height: calc(100vh - var(--header-height) - var(--footer-height));
+            padding: var(--spacing-xl) 0;
+        }
+
+        .dashboard-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 var(--spacing-md);
+        }
+
+        /* ==================== WELCOME BANNER ==================== */
+        .welcome-banner {
+            background: linear-gradient(135deg, var(--primary-600), var(--primary-800));
+            border-radius: var(--radius-2xl);
+            padding: var(--spacing-2xl);
+            color: white;
+            margin-bottom: var(--spacing-xl);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .welcome-banner::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -10%;
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 70%);
+            border-radius: 50%;
+        }
+
+        .welcome-banner::after {
+            content: '';
+            position: absolute;
+            bottom: -50%;
+            left: -10%;
+            width: 300px;
+            height: 300px;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 70%);
+            border-radius: 50%;
+        }
+
+        .welcome-content {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: var(--spacing-lg);
+        }
+
+        .welcome-text h1 {
+            font-size: 2.5rem;
+            margin-bottom: var(--spacing-xs);
+            color: white;
+        }
+
+        .welcome-text p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .welcome-stats {
+            display: flex;
+            gap: var(--spacing-xl);
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 800;
+            line-height: 1.2;
+        }
+
+        .stat-label {
+            font-size: var(--font-size-sm);
+            opacity: 0.8;
+        }
+
+        /* ==================== DASHBOARD LAYOUT ==================== */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            gap: var(--spacing-xl);
+        }
+
+        /* ==================== SIDEBAR ==================== */
+        .dashboard-sidebar {
+            background: white;
+            border-radius: var(--radius-xl);
+            padding: var(--spacing-lg);
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--gray-200);
+            height: fit-content;
+            position: sticky;
+            top: calc(var(--header-height) + var(--spacing-md));
+        }
+
+        .profile-summary {
+            text-align: center;
+            padding-bottom: var(--spacing-lg);
+            border-bottom: 1px solid var(--gray-200);
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .profile-avatar {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            margin: 0 auto var(--spacing-md);
+            position: relative;
+            cursor: pointer;
+        }
+
+        .profile-avatar img {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid var(--primary-200);
+        }
+
+        .avatar-overlay {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 32px;
+            height: 32px;
+            background: var(--primary-600);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            cursor: pointer;
+            border: 2px solid white;
+            transition: all var(--transition-fast);
+        }
+
+        .avatar-overlay:hover {
+            background: var(--primary-700);
+            transform: scale(1.1);
+        }
+
+        .profile-name {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--gray-800);
+            margin-bottom: 4px;
+        }
+
+        .profile-email {
+            color: var(--gray-600);
+            font-size: var(--font-size-sm);
+            margin-bottom: var(--spacing-sm);
+        }
+
+        .profile-phone {
+            color: var(--gray-600);
+            font-size: var(--font-size-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+        }
+
+        .sidebar-nav {
+            display: flex;
+            flex-direction: column;
+            gap: var(--spacing-xs);
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            padding: var(--spacing-sm) var(--spacing-md);
+            border-radius: var(--radius-lg);
+            color: var(--gray-700);
+            transition: all var(--transition-fast);
+            cursor: pointer;
+            border: none;
+            background: none;
+            width: 100%;
+            text-align: left;
+        }
+
+        .nav-item:hover {
+            background: var(--gray-100);
+            color: var(--primary-600);
+        }
+
+        .nav-item.active {
+            background: var(--primary-50);
+            color: var(--primary-600);
+            font-weight: 600;
+        }
+
+        .nav-item i {
+            width: 24px;
+            font-size: 1.1rem;
+        }
+
+        .nav-item .badge {
+            margin-left: auto;
+            background: var(--primary-600);
+            color: white;
+            font-size: var(--font-size-xs);
+            padding: 2px 8px;
+        }
+
+        .sidebar-footer {
+            margin-top: var(--spacing-xl);
+            padding-top: var(--spacing-lg);
+            border-top: 1px solid var(--gray-200);
+        }
+
+        .logout-btn {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            padding: var(--spacing-sm) var(--spacing-md);
+            border-radius: var(--radius-lg);
+            color: var(--error);
+            transition: all var(--transition-fast);
+            cursor: pointer;
+            border: none;
+            background: none;
+            width: 100%;
+            text-align: left;
+        }
+
+        .logout-btn:hover {
+            background: #fee2e2;
+        }
+
+        /* ==================== MAIN CONTENT ==================== */
+        .dashboard-main {
+            background: white;
+            border-radius: var(--radius-xl);
+            padding: var(--spacing-xl);
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--gray-200);
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: var(--spacing-lg);
+            flex-wrap: wrap;
+            gap: var(--spacing-md);
+        }
+
+        .section-header h2 {
+            font-size: 1.5rem;
+            color: var(--gray-800);
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-xs);
+        }
+
+        .section-header h2 i {
+            color: var(--primary-600);
+        }
+
+        .header-actions {
+            display: flex;
+            gap: var(--spacing-sm);
+        }
+
+        /* ==================== STATS CARDS ==================== */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: var(--spacing-md);
+            margin-bottom: var(--spacing-xl);
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, var(--primary-50), white);
+            border-radius: var(--radius-xl);
+            padding: var(--spacing-lg);
+            border: 1px solid var(--primary-100);
+            transition: all var(--transition-base);
+        }
+
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .stat-icon {
+            width: 50px;
+            height: 50px;
+            background: var(--primary-600);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.5rem;
+            margin-bottom: var(--spacing-md);
+        }
+
+        .stat-card h4 {
+            color: var(--gray-600);
+            font-size: var(--font-size-sm);
+            margin-bottom: 4px;
+        }
+
+        .stat-card .stat-number {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--gray-800);
+        }
+
+        /* ==================== BOOKINGS TABS ==================== */
+        .bookings-tabs {
+            display: flex;
+            gap: var(--spacing-xs);
+            margin-bottom: var(--spacing-lg);
+            border-bottom: 2px solid var(--gray-200);
+            padding-bottom: var(--spacing-sm);
+            overflow-x: auto;
+        }
+
+        .tab-btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: var(--radius-lg);
+            background: none;
+            color: var(--gray-600);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            white-space: nowrap;
+        }
+
+        .tab-btn:hover {
+            color: var(--primary-600);
+            background: var(--gray-100);
+        }
+
+        .tab-btn.active {
+            background: var(--primary-600);
+            color: white;
+        }
+
+        /* ==================== BOOKINGS LIST ==================== */
+        .bookings-list {
+            display: flex;
+            flex-direction: column;
+            gap: var(--spacing-md);
+        }
+
+        .booking-card {
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-xl);
+            padding: var(--spacing-lg);
+            transition: all var(--transition-base);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .booking-card:hover {
+            border-color: var(--primary-300);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .booking-status {
+            position: absolute;
+            top: 0;
+            right: 0;
+            padding: 0.5rem 2rem;
+            font-size: var(--font-size-xs);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            transform: rotate(45deg) translate(30px, -15px);
+            width: 150px;
+            text-align: center;
+        }
+
+        .booking-status.pending {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .booking-status.confirmed {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .booking-status.completed {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .booking-status.cancelled {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .booking-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: var(--spacing-md);
+            flex-wrap: wrap;
+            gap: var(--spacing-sm);
+        }
+
+        .booking-service {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+        }
+
+        .service-icon {
+            width: 50px;
+            height: 50px;
+            background: var(--primary-100);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary-700);
+            font-size: 1.3rem;
+        }
+
+        .service-info h4 {
+            font-size: 1.1rem;
+            margin-bottom: 4px;
+        }
+
+        .service-info p {
+            color: var(--gray-600);
+            font-size: var(--font-size-sm);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .booking-id {
+            color: var(--gray-500);
+            font-size: var(--font-size-xs);
+        }
+
+        .booking-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: var(--spacing-md);
+            margin-bottom: var(--spacing-md);
+        }
+
+        .detail-item {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            color: var(--gray-700);
+        }
+
+        .detail-item i {
+            width: 20px;
+            color: var(--primary-600);
+        }
+
+        .booking-actions {
+            display: flex;
+            gap: var(--spacing-sm);
+            margin-top: var(--spacing-md);
+            padding-top: var(--spacing-md);
+            border-top: 1px solid var(--gray-200);
+            flex-wrap: wrap;
+        }
+
+        .action-btn {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--gray-300);
+            border-radius: var(--radius-lg);
+            background: white;
+            color: var(--gray-700);
+            font-size: var(--font-size-sm);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .action-btn:hover {
+            background: var(--gray-100);
+            border-color: var(--gray-400);
+        }
+
+        .action-btn.primary {
+            background: var(--primary-600);
+            color: white;
+            border-color: var(--primary-600);
+        }
+
+        .action-btn.primary:hover {
+            background: var(--primary-700);
+        }
+
+        .action-btn.danger {
+            color: var(--error);
+            border-color: var(--error);
+        }
+
+        .action-btn.danger:hover {
+            background: #fee2e2;
+        }
+
+        /* ==================== EMPTY STATE ==================== */
+        .empty-state {
+            text-align: center;
+            padding: var(--spacing-3xl) var(--spacing-xl);
+        }
+
+        .empty-state i {
+            font-size: 4rem;
+            color: var(--gray-300);
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .empty-state h3 {
+            font-size: 1.5rem;
+            color: var(--gray-700);
+            margin-bottom: var(--spacing-sm);
+        }
+
+        .empty-state p {
+            color: var(--gray-600);
+            margin-bottom: var(--spacing-lg);
+        }
+
+        /* ==================== PROFILE FORM ==================== */
+        .profile-form {
+            max-width: 600px;
+        }
+
+        .form-group {
+            margin-bottom: var(--spacing-md);
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: var(--spacing-xs);
+            font-weight: 600;
+            color: var(--gray-700);
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            border: 1px solid var(--gray-300);
+            border-radius: var(--radius-lg);
+            font-size: var(--font-size-base);
+            transition: all var(--transition-fast);
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary-500);
+            box-shadow: 0 0 0 3px var(--primary-100);
+        }
+
+        .form-control:disabled {
+            background: var(--gray-100);
+            cursor: not-allowed;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--spacing-md);
+        }
+
+        .save-btn {
+            padding: 1rem 2rem;
+            background: var(--primary-600);
+            color: white;
+            border: none;
+            border-radius: var(--radius-lg);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all var(--transition-base);
+            margin-top: var(--spacing-lg);
+        }
+
+        .save-btn:hover {
+            background: var(--primary-700);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        /* ==================== REVIEW MODAL ==================== */
+        .rating-input {
+            display: flex;
+            flex-direction: row-reverse;
+            justify-content: flex-end;
+            gap: 4px;
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .rating-input input {
+            display: none;
+        }
+
+        .rating-input label {
+            font-size: 2rem;
+            color: var(--gray-300);
+            cursor: pointer;
+            transition: color var(--transition-fast);
+        }
+
+        .rating-input label:hover,
+        .rating-input label:hover ~ label,
+        .rating-input input:checked ~ label {
+            color: #fbbf24;
+        }
+
+        /* ==================== NOTIFICATIONS PANEL ==================== */
+        .notifications-list {
+            display: flex;
+            flex-direction: column;
+            gap: var(--spacing-sm);
+        }
+
+        .notification-item {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-md);
+            padding: var(--spacing-md);
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-lg);
+            transition: all var(--transition-fast);
+            cursor: pointer;
+        }
+
+        .notification-item:hover {
+            background: var(--gray-50);
+        }
+
+        .notification-item.unread {
+            background: var(--primary-50);
+            border-color: var(--primary-200);
+        }
+
+        .notification-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--primary-100);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary-700);
+        }
+
+        .notification-content {
+            flex: 1;
+        }
+
+        .notification-content h4 {
+            font-size: var(--font-size-base);
+            margin-bottom: 2px;
+        }
+
+        .notification-content p {
+            color: var(--gray-600);
+            font-size: var(--font-size-sm);
+        }
+
+        .notification-time {
+            color: var(--gray-500);
+            font-size: var(--font-size-xs);
+        }
+
+        /* ==================== RESPONSIVE ==================== */
+        @media (max-width: 1024px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .dashboard-sidebar {
+                position: static;
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .welcome-content {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .welcome-stats {
+                width: 100%;
+                justify-content: space-between;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .booking-header {
+                flex-direction: column;
+            }
+
+            .booking-details {
+                grid-template-columns: 1fr;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .bookings-tabs {
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .welcome-stats {
+                flex-direction: column;
+                gap: var(--spacing-md);
+            }
+
+            .stat-item {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                width: 100%;
+            }
+
+            .booking-actions {
+                flex-direction: column;
+            }
+
+            .action-btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-content">
+                <a href="/" class="logo">AP<span>Services</span></a>
+                
+                <div class="nav-links">
+                    <!-- Dynamically populated by app.js -->
+                </div>
+                
+                <button class="mobile-menu-btn">
+                    <i class="fas fa-bars"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+<div class="notifications-panel" id="notificationsPanel">
+    <div class="panel-header">
+        <h3><i class="fas fa-bell"></i> Notifications</h3>
+        <button onclick="markAllNotificationsRead()" class="btn-small">Mark all read</button>
+    </div>
+    <div class="notifications-list" id="notificationsList">
+        <div class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Loading...</div>
+    </div>
+    <div class="panel-footer">
+        <button onclick="loadMoreNotifications()" class="btn-outline">Load More</button>
+    </div>
+</div>
+    <!-- Dashboard Page -->
+    <section class="dashboard-page">
+        <div class="dashboard-container">
+            <!-- Welcome Banner -->
+            <div class="welcome-banner">
+                <div class="welcome-content">
+                    <div class="welcome-text">
+                        <h1>Welcome back, <span id="userName">John!</span></h1>
+                        <p>Manage your bookings, profile, and preferences</p>
+                    </div>
+                    <div class="welcome-stats">
+                        <div class="stat-item">
+                            <div class="stat-value" id="totalBookings">24</div>
+                            <div class="stat-label">Total Bookings</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="completedBookings">18</div>
+                            <div class="stat-label">Completed</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="activeBookings">3</div>
+                            <div class="stat-label">Active</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dashboard Grid -->
+            <div class="dashboard-grid">
+                <!-- Sidebar -->
+                <aside class="dashboard-sidebar">
+                    <div class="profile-summary">
+                        <div class="profile-avatar" onclick="document.getElementById('avatarUpload').click()">
+                            <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100" alt="Profile" id="profileAvatar">
+                            <div class="avatar-overlay">
+                                <i class="fas fa-camera"></i>
+                            </div>
+                            <input type="file" id="avatarUpload" accept="image/*" style="display: none;">
+                        </div>
+                        <div class="profile-name" id="sidebarName">John Doe</div>
+                        <div class="profile-email" id="sidebarEmail">john@example.com</div>
+                        <div class="profile-phone" id="sidebarPhone">
+                            <i class="fas fa-phone"></i> +91 98765 43210
+                        </div>
+                    </div>
+
+                    <div class="sidebar-nav">
+                        <button class="nav-item active" data-section="overview">
+                            <i class="fas fa-home"></i>
+                            Overview
+                        </button>
+                        <button class="nav-item" data-section="bookings">
+                            <i class="fas fa-calendar-check"></i>
+                            My Bookings
+                            <span class="badge" id="bookingBadge">3</span>
+                        </button>
+                        <button class="nav-item" data-section="profile">
+                            <i class="fas fa-user"></i>
+                            Profile Settings
+                        </button>
+                        <button class="nav-item" data-section="addresses">
+                            <i class="fas fa-map-marker-alt"></i>
+                            Saved Addresses
+                        </button>
+                        <button class="nav-item" data-section="payments">
+                            <i class="fas fa-credit-card"></i>
+                            Payment Methods
+                        </button>
+                        <button class="nav-item" data-section="notifications">
+                            <i class="fas fa-bell"></i>
+                            Notifications
+                            <span class="badge" id="notificationBadge">2</span>
+                        </button>
+                        <button class="nav-item" data-section="reviews">
+                            <i class="fas fa-star"></i>
+                            My Reviews
+                        </button>
+                        <button class="nav-item" data-section="favorites">
+                            <i class="fas fa-heart"></i>
+                            Favorite Pros
+                        </button>
+                    </div>
+
+                    <div class="sidebar-footer">
+                        <button class="logout-btn" onclick="logout()">
+                            <i class="fas fa-sign-out-alt"></i>
+                            Logout
+                        </button>
+                    </div>
+                </aside>
+
+                <!-- Main Content -->
+                <main class="dashboard-main" id="dashboardMain">
+                    <!-- Overview Section (Default) -->
+                    <div class="dashboard-section active" id="overview-section">
+                        <div class="section-header">
+                            <h2><i class="fas fa-chart-pie"></i> Overview</h2>
+                        </div>
+
+                        <!-- Stats Cards -->
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <div class="stat-icon">
+                                    <i class="fas fa-calendar-check"></i>
+                                </div>
+                                <h4>Total Bookings</h4>
+                                <div class="stat-number" id="statTotal">24</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon">
+                                    <i class="fas fa-clock"></i>
+                                </div>
+                                <h4>Pending</h4>
+                                <div class="stat-number" id="statPending">2</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon">
+                                    <i class="fas fa-check-circle"></i>
+                                </div>
+                                <h4>Completed</h4>
+                                <div class="stat-number" id="statCompleted">18</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon">
+                                    <i class="fas fa-times-circle"></i>
+                                </div>
+                                <h4>Cancelled</h4>
+                                <div class="stat-number" id="statCancelled">4</div>
+                            </div>
+                        </div>
+
+                        <!-- Recent Bookings -->
+                        <div class="section-header" style="margin-top: var(--spacing-xl);">
+                            <h3>Recent Bookings</h3>
+                            <button class="btn-outline" onclick="switchSection('bookings')">View All</button>
+                        </div>
+                        
+                        <div class="bookings-list" id="recentBookings">
+                            <!-- Dynamic content will be loaded here -->
+                        </div>
+                    </div>
+
+                    <!-- Bookings Section -->
+                    <div class="dashboard-section" id="bookings-section" style="display: none;">
+                        <div class="section-header">
+                            <h2><i class="fas fa-calendar-check"></i> My Bookings</h2>
+                        </div>
+
+                        <!-- Booking Tabs -->
+                        <div class="bookings-tabs">
+                            <button class="tab-btn active" data-status="all">All</button>
+                            <button class="tab-btn" data-status="pending">Pending</button>
+                            <button class="tab-btn" data-status="confirmed">Confirmed</button>
+                            <button class="tab-btn" data-status="completed">Completed</button>
+                            <button class="tab-btn" data-status="cancelled">Cancelled</button>
+                        </div>
+
+                        <!-- Bookings List -->
+                        <div class="bookings-list" id="bookingsList">
+                            <!-- Dynamic content will be loaded here -->
+                        </div>
+                    </div>
+
+                    <!-- Profile Section -->
+                    <div class="dashboard-section" id="profile-section" style="display: none;">
+                        <div class="section-header">
+                            <h2><i class="fas fa-user"></i> Profile Settings</h2>
+                        </div>
+
+                        <form class="profile-form" id="profileForm">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label">First Name</label>
+                                    <input type="text" class="form-control" id="firstName" value="John">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Last Name</label>
+                                    <input type="text" class="form-control" id="lastName" value="Doe">
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Email Address</label>
+                                <input type="email" class="form-control" id="profileEmail" value="john.doe@example.com" disabled>
+                                <small style="color: var(--gray-500);">Email cannot be changed</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Phone Number</label>
+                                <input type="tel" class="form-control" id="profilePhone" value="9876543210">
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Date of Birth</label>
+                                <input type="date" class="form-control" id="dob" value="1990-01-01">
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Gender</label>
+                                <select class="form-control" id="gender">
+                                    <option value="male">Male</option>
+                                    <option value="female">Female</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </div>
+
+                            <button type="submit" class="save-btn">Save Changes</button>
+                        </form>
+                    </div>
+
+                    <!-- Addresses Section -->
+                    <div class="dashboard-section" id="addresses-section" style="display: none;">
+                        <div class="section-header">
+                            <h2><i class="fas fa-map-marker-alt"></i> Saved Addresses</h2>
+                            <button class="btn-primary" onclick="showAddAddressModal()">
+                                <i class="fas fa-plus"></i> Add New
+                            </button>
+                        </div>
+
+                        <div class="addresses-list" id="addressesList">
+                            <!-- Dynamic content will be loaded here -->
+                        </div>
+                    </div>
+
+                    <!-- Payments Section -->
+                    <div class="dashboard-section" id="payments-section" style="display: none;">
+                        <div class="section-header">
+                            <h2><i class="fas fa-credit-card"></i> Payment Methods</h2>
+                            <button class="btn-primary" onclick="showAddPaymentModal()">
+                                <i class="fas fa-plus"></i> Add Method
+                            </button>
+                        </div>
+
+                        <div class="payment-methods-list" id="paymentMethodsList">
+                            <!-- Dynamic content will be loaded here -->
+                        </div>
+                    </div>
+
+                    <!-- Notifications Section -->
+                    <div class="dashboard-section" id="notifications-section" style="display: none;">
+                        <div class="section-header">
+                            <h2><i class="fas fa-bell"></i> Notifications</h2>
+                            <button class="btn-outline" onclick="markAllRead()">Mark all as read</button>
+                        </div>
+
+                        <div class="notifications-list" id="notificationsList">
+                            <!-- Dynamic content will be loaded here -->
+                        </div>
+                    </div>
+
+                    <!-- Reviews Section -->
+                    <div class="dashboard-section" id="reviews-section" style="display: none;">
+                        <div class="section-header">
+                            <h2><i class="fas fa-star"></i> My Reviews</h2>
+                        </div>
+
+                        <div class="reviews-list" id="reviewsList">
+                            <!-- Dynamic content will be loaded here -->
+                        </div>
+                    </div>
+
+                    <!-- Favorites Section -->
+                    <div class="dashboard-section" id="favorites-section" style="display: none;">
+                        <div class="section-header">
+                            <h2><i class="fas fa-heart"></i> Favorite Professionals</h2>
+                        </div>
+
+                        <div class="favorites-grid" id="favoritesList">
+                            <!-- Dynamic content will be loaded here -->
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </div>
+    </section>
+
+    <!-- Review Modal -->
+    <div class="modal" id="reviewModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Write a Review</h3>
+                <button class="modal-close" onclick="closeModal('reviewModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Rating</label>
+                    <div class="rating-input">
+                        <input type="radio" name="rating" id="star5" value="5">
+                        <label for="star5"><i class="fas fa-star"></i></label>
+                        <input type="radio" name="rating" id="star4" value="4">
+                        <label for="star4"><i class="fas fa-star"></i></label>
+                        <input type="radio" name="rating" id="star3" value="3">
+                        <label for="star3"><i class="fas fa-star"></i></label>
+                        <input type="radio" name="rating" id="star2" value="2">
+                        <label for="star2"><i class="fas fa-star"></i></label>
+                        <input type="radio" name="rating" id="star1" value="1">
+                        <label for="star1"><i class="fas fa-star"></i></label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Review Title</label>
+                    <input type="text" class="form-control" id="reviewTitle" placeholder="Summarize your experience">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Your Review</label>
+                    <textarea class="form-control" id="reviewText" rows="4" placeholder="Tell us about your experience..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Add Photos (Optional)</label>
+                    <input type="file" class="form-control" id="reviewPhotos" accept="image/*" multiple>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-outline" onclick="closeModal('reviewModal')">Cancel</button>
+                <button class="btn-primary" onclick="submitReview()">Submit Review</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Address Modal -->
+    <div class="modal" id="addressModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add New Address</h3>
+                <button class="modal-close" onclick="closeModal('addressModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Address Type</label>
+                    <select class="form-control" id="modalAddressType">
+                        <option value="home">Home</option>
+                        <option value="office">Office</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">House/Flat No.</label>
+                    <input type="text" class="form-control" id="modalHouseNo" placeholder="e.g., Flat 101">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Street Address</label>
+                    <input type="text" class="form-control" id="modalStreet" placeholder="Street name, area">
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">City</label>
+                        <input type="text" class="form-control" id="modalCity" placeholder="City">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Pincode</label>
+                        <input type="text" class="form-control" id="modalPincode" placeholder="6-digit pincode" maxlength="6">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Landmark (Optional)</label>
+                    <input type="text" class="form-control" id="modalLandmark" placeholder="Nearby landmark">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Phone Number</label>
+                    <input type="tel" class="form-control" id="modalPhone" placeholder="10-digit mobile number" maxlength="10">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-outline" onclick="closeModal('addressModal')">Cancel</button>
+                <button class="btn-primary" onclick="saveAddress()">Save Address</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-col">
+                    <h3>AP<span style="color: var(--primary-500);">Services</span></h3>
+                    <p>Your trusted platform for booking professional home services.</p>
+                    <div class="social-links">
+                        <a href="#"><i class="fab fa-facebook-f"></i></a>
+                        <a href="#"><i class="fab fa-instagram"></i></a>
+                        <a href="#"><i class="fab fa-twitter"></i></a>
+                        <a href="#"><i class="fab fa-linkedin-in"></i></a>
+                    </div>
+                </div>
+                <div class="footer-col">
+                    <h4>Quick Links</h4>
+                    <ul>
+                        <li><a href="/about.html">About Us</a></li>
+                        <li><a href="/contact.html">Contact</a></li>
+                        <li><a href="/privacy.html">Privacy Policy</a></li>
+                        <li><a href="/terms.html">Terms of Service</a></li>
+                    </ul>
+                </div>
+                <div class="footer-col">
+                    <h4>Services</h4>
+                    <ul>
+                        <li><a href="/services/plumbing.html">Plumbing</a></li>
+                        <li><a href="/services/electrical.html">Electrical</a></li>
+                        <li><a href="/services/cleaning.html">Cleaning</a></li>
+                        <li><a href="/services/beauty.html">Beauty</a></li>
+                    </ul>
+                </div>
+                <div class="footer-col">
+                    <h4>Support</h4>
+                    <ul>
+                        <li><a href="/help.html">Help Center</a></li>
+                        <li><a href="/faq.html">FAQ</a></li>
+                        <li><a href="/contact.html">Contact Us</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 AP Services. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Toast Container -->
+    <div id="toast" class="toast"></div>
+    
+   <script src="app.js"></script>
+
+<script>
+    // ==================== CUSTOMER DASHBOARD JAVASCRIPT ====================
+    // Configuration
+    const API_BASE_URL = 'https://ap-services-marketplace.onrender.com/api';
+    const BACKEND_URL = 'https://ap-services-marketplace.onrender.com';
+
+    // Helper for image URLs
+    function getImageUrl(path) {
+        if (!path) return null;
+        if (path.startsWith('http')) return path;
+        const cleanPath = path.startsWith('/') ? path : `/${path}`;
+        return `${BACKEND_URL}${cleanPath}`;
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // Check authentication
+        if (!Auth.checkAuth()) {
+            Toast.show('Please login to access dashboard', 'warning');
+            setTimeout(() => {
+                window.location.href = '/login.html';
+            }, 1500);
+            return;
+        }
+
+        // Load user data from API
+        loadUserData();
+        loadBookingsFromAPI();
+        loadAddresses();
+        loadPaymentMethods();
+        
+        // Setup event listeners
+        setupNavigation();
+        setupBookingTabs();
+        setupProfileForm();
+    });
+
+    // ==================== LOAD USER DATA FROM API ====================
+    async function loadUserData() {
+        try {
+            const user = Auth.getUser();
+            
+            if (user) {
+                document.getElementById('userName').textContent = user.first_name || 'User';
+                document.getElementById('sidebarName').textContent = `${user.first_name || ''} ${user.last_name || ''}`;
+                document.getElementById('sidebarEmail').textContent = user.email || '';
+                document.getElementById('sidebarPhone').innerHTML = `<i class="fas fa-phone"></i> ${user.phone || ''}`;
+                
+                // Pre-fill profile form
+                document.getElementById('firstName').value = user.first_name || '';
+                document.getElementById('lastName').value = user.last_name || '';
+                document.getElementById('profileEmail').value = user.email || '';
+                document.getElementById('profilePhone').value = user.phone || '';
+            }
+        } catch (error) {
+            console.error('Failed to load user data:', error);
+        }
+    }
+
+    // ==================== LOAD BOOKINGS FROM REAL API ====================
+    async function loadBookingsFromAPI(filter = 'all') {
+        try {
+            const response = await API.get('/bookings/customer');
+            
+            if (response.success && response.data) {
+                const bookings = response.data;
+                
+                // Update stats
+                updateBookingStats(bookings);
+                
+                // Filter bookings
+                let filteredBookings = bookings;
+                if (filter !== 'all') {
+                    filteredBookings = bookings.filter(b => b.status === filter);
+                }
+                
+                // Render recent (first 3)
+                renderRecentBookings(bookings.slice(0, 3));
+                
+                // Render all filtered
+                renderBookings(filteredBookings);
+            } else {
+                // Fallback to localStorage if API fails
+                loadBookingsFromLocalStorage(filter);
+            }
+        } catch (error) {
+            console.error('Failed to load bookings from API:', error);
+            loadBookingsFromLocalStorage(filter);
+        }
+    }
+
+    // Fallback: Load from localStorage
+    function loadBookingsFromLocalStorage(filter = 'all') {
+        const bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
+        
+        updateBookingStats(bookings);
+        
+        let filteredBookings = bookings;
+        if (filter !== 'all') {
+            filteredBookings = bookings.filter(b => b.status === filter);
+        }
+        
+        renderRecentBookings(bookings.slice(0, 3));
+        renderBookings(filteredBookings);
+    }
+
+    // Update dashboard stats
+    function updateBookingStats(bookings) {
+        const total = bookings.length;
+        const completed = bookings.filter(b => b.status === 'completed').length;
+        const pending = bookings.filter(b => b.status === 'pending').length;
+        const confirmed = bookings.filter(b => b.status === 'confirmed').length;
+        const cancelled = bookings.filter(b => b.status === 'cancelled').length;
+        const active = pending + confirmed;
+        
+        document.getElementById('totalBookings').textContent = total;
+        document.getElementById('completedBookings').textContent = completed;
+        document.getElementById('activeBookings').textContent = active;
+        document.getElementById('bookingBadge').textContent = pending;
+        
+        document.getElementById('statTotal').textContent = total;
+        document.getElementById('statPending').textContent = pending;
+        document.getElementById('statCompleted').textContent = completed;
+        document.getElementById('statCancelled').textContent = cancelled;
+    }
+
+    // Render recent bookings
+    function renderRecentBookings(bookings) {
+        const container = document.getElementById('recentBookings');
+        
+        if (!bookings || bookings.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-calendar-times"></i>
+                    <h3>No recent bookings</h3>
+                    <p>Book a service to get started</p>
+                    <button class="btn-primary" onclick="window.location.href='/services.html'">
+                        Browse Services
+                    </button>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = bookings.map(booking => createBookingCard(booking)).join('');
+    }
+
+    // Render all bookings
+    function renderBookings(bookings) {
+        const container = document.getElementById('bookingsList');
+        
+        if (!bookings || bookings.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-calendar-times"></i>
+                    <h3>No bookings found</h3>
+                    <p>Try changing your filter or book a new service</p>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = bookings.map(booking => createBookingCard(booking)).join('');
+    }
+
+    // Create booking card HTML
+    function createBookingCard(booking) {
+        const statusColors = {
+            pending: 'pending',
+            accepted: 'confirmed',
+            confirmed: 'confirmed',
+            in_progress: 'confirmed',
+            completed: 'completed',
+            cancelled: 'cancelled'
+        };
+
+        const statusLabels = {
+            pending: 'Pending',
+            accepted: 'Confirmed',
+            confirmed: 'Confirmed',
+            in_progress: 'In Progress',
+            completed: 'Completed',
+            cancelled: 'Cancelled'
+        };
+
+        const status = booking.status || 'pending';
+        const workerName = booking.worker_first_name || booking.worker_name || 'Professional';
+        const serviceName = booking.service_name || 'Service';
+        const bookingDate = booking.booking_date || booking.created_at;
+        const startTime = booking.start_time || '10:00 AM';
+        const amount = booking.final_amount || booking.total_amount || 0;
+        const address = booking.customer_address || 'Address not specified';
+        const bookingId = booking.booking_number || booking.id;
+
+        const actions = {
+            pending: `
+                <button class="action-btn primary" onclick="viewBooking('${booking.id}')">
+                    <i class="fas fa-eye"></i> View Details
+                </button>
+                <button class="action-btn danger" onclick="cancelBooking('${booking.id}')">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+            `,
+            accepted: `
+                <button class="action-btn primary" onclick="viewBooking('${booking.id}')">
+                    <i class="fas fa-eye"></i> View Details
+                </button>
+                <button class="action-btn" onclick="chatWithWorker('${booking.worker_id}')">
+                    <i class="fas fa-comment"></i> Chat
+                </button>
+                <button class="action-btn danger" onclick="cancelBooking('${booking.id}')">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+            `,
+            confirmed: `
+                <button class="action-btn primary" onclick="viewBooking('${booking.id}')">
+                    <i class="fas fa-eye"></i> View Details
+                </button>
+                <button class="action-btn" onclick="chatWithWorker('${booking.worker_id}')">
+                    <i class="fas fa-comment"></i> Chat
+                </button>
+                <button class="action-btn danger" onclick="cancelBooking('${booking.id}')">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+            `,
+            in_progress: `
+                <button class="action-btn primary" onclick="viewBooking('${booking.id}')">
+                    <i class="fas fa-eye"></i> View Details
+                </button>
+                <button class="action-btn" onclick="chatWithWorker('${booking.worker_id}')">
+                    <i class="fas fa-comment"></i> Chat
+                </button>
+            `,
+            completed: `
+                <button class="action-btn primary" onclick="viewBooking('${booking.id}')">
+                    <i class="fas fa-eye"></i> View Details
+                </button>
+                <button class="action-btn" onclick="rebook('${booking.id}')">
+                    <i class="fas fa-redo"></i> Rebook
+                </button>
+                <button class="action-btn" onclick="writeReview('${booking.id}')">
+                    <i class="fas fa-star"></i> Write Review
+                </button>
+            `,
+            cancelled: `
+                <button class="action-btn primary" onclick="viewBooking('${booking.id}')">
+                    <i class="fas fa-eye"></i> View Details
+                </button>
+                <button class="action-btn" onclick="rebook('${booking.id}')">
+                    <i class="fas fa-redo"></i> Book Again
+                </button>
+            `
+        };
+
+        return `
+            <div class="booking-card">
+                <div class="booking-status ${statusColors[status] || status}">
+                    ${statusLabels[status] || status}
+                </div>
+                
+                <div class="booking-header">
+                    <div class="booking-service">
+                        <div class="service-icon">
+                            <i class="fas fa-tools"></i>
+                        </div>
+                        <div class="service-info">
+                            <h4>${serviceName}</h4>
+                            <p><i class="fas fa-user"></i> ${workerName}</p>
+                        </div>
+                    </div>
+                    <div class="booking-id">#${bookingId}</div>
+                </div>
+
+                <div class="booking-details">
+                    <div class="detail-item">
+                        <i class="fas fa-calendar"></i>
+                        <span>${new Date(bookingDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                    </div>
+                    <div class="detail-item">
+                        <i class="fas fa-clock"></i>
+                        <span>${startTime}</span>
+                    </div>
+                    <div class="detail-item">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <span>${address}</span>
+                    </div>
+                    <div class="detail-item">
+                        <i class="fas fa-rupee-sign"></i>
+                        <span>₹${amount}</span>
+                    </div>
+                </div>
+
+                <div class="booking-actions">
+                    ${actions[status] || actions.pending}
+                </div>
+            </div>
+        `;
+    }
+
+    // ==================== ADDRESSES ====================
+    function loadAddresses() {
+        const addresses = JSON.parse(localStorage.getItem('addresses')) || [];
+        const container = document.getElementById('addressesList');
+        
+        if (addresses.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-map-marker-alt"></i>
+                    <h3>No saved addresses</h3>
+                    <p>Add an address to make booking faster</p>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = addresses.map((addr, index) => `
+            <div class="address-card">
+                <span class="address-type">${addr.type}</span>
+                <p class="address-text">${addr.houseNo}, ${addr.street}</p>
+                <p class="address-text">${addr.city} - ${addr.pincode}</p>
+                ${addr.landmark ? `<p class="address-text">Landmark: ${addr.landmark}</p>` : ''}
+                <p class="address-phone">
+                    <i class="fas fa-phone"></i> ${addr.phone}
+                </p>
+                <div style="display: flex; gap: var(--spacing-sm); margin-top: var(--spacing-md);">
+                    <button class="btn-small btn-outline" onclick="editAddress(${index})">
+                        <i class="fas fa-edit"></i> Edit
+                    </button>
+                    <button class="btn-small btn-outline" onclick="deleteAddress(${index})">
+                        <i class="fas fa-trash"></i> Delete
+                    </button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // ==================== PAYMENT METHODS ====================
+    function loadPaymentMethods() {
+        const payments = JSON.parse(localStorage.getItem('paymentMethods')) || [];
+        const container = document.getElementById('paymentMethodsList');
+        
+        if (payments.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-credit-card"></i>
+                    <h3>No payment methods</h3>
+                    <p>Add a payment method for faster checkout</p>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = payments.map(payment => `
+            <div class="payment-card" style="border: 1px solid var(--gray-200); border-radius: var(--radius-lg); padding: var(--spacing-lg); margin-bottom: var(--spacing-md);">
+                <div style="display: flex; align-items: center; gap: var(--spacing-md);">
+                    <i class="fas fa-${payment.type === 'card' ? 'credit-card' : 'mobile-alt'}" style="font-size: 2rem; color: var(--primary-600);"></i>
+                    <div>
+                        ${payment.type === 'card' ? 
+                            `<h4>Card ending in ${payment.last4}</h4>
+                             <p>Expires ${payment.expiry}</p>` :
+                            `<h4>UPI ID: ${payment.id}</h4>`
+                        }
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // ==================== NOTIFICATIONS ====================
+    function loadNotifications() {
+        const notifications = JSON.parse(localStorage.getItem('notifications')) || [];
+        
+        document.getElementById('notificationBadge').textContent = notifications.filter(n => !n.read).length;
+
+        const container = document.getElementById('notificationsList');
+        
+        if (notifications.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-bell-slash"></i>
+                    <h3>No notifications</h3>
+                    <p>You're all caught up!</p>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = notifications.map(notif => `
+            <div class="notification-item ${!notif.read ? 'unread' : ''}" onclick="markNotificationRead('${notif.id}')">
+                <div class="notification-icon">
+                    <i class="fas ${notif.icon || 'fa-bell'}"></i>
+                </div>
+                <div class="notification-content">
+                    <h4>${notif.title}</h4>
+                    <p>${notif.message}</p>
+                </div>
+                <div class="notification-time">${notif.time || 'Just now'}</div>
+            </div>
+        `).join('');
+    }
+
+    // ==================== NAVIGATION ====================
+    function setupNavigation() {
+        const navItems = document.querySelectorAll('.nav-item');
+        
+        navItems.forEach(item => {
+            item.addEventListener('click', function() {
+                navItems.forEach(nav => nav.classList.remove('active'));
+                this.classList.add('active');
+                
+                const section = this.dataset.section;
+                switchSection(section);
+            });
+        });
+    }
+
+    function switchSection(section) {
+        document.querySelectorAll('.dashboard-section').forEach(s => s.style.display = 'none');
+        const activeSection = document.getElementById(`${section}-section`);
+        if (activeSection) {
+            activeSection.style.display = 'block';
+        }
+        window.location.hash = section;
+    }
+
+    // ==================== BOOKING TABS ====================
+    function setupBookingTabs() {
+        const tabs = document.querySelectorAll('.tab-btn');
+        
+        tabs.forEach(tab => {
+            tab.addEventListener('click', function() {
+                tabs.forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+                
+                loadBookingsFromAPI(this.dataset.status);
+            });
+        });
+    }
+
+    // ==================== PROFILE FORM ====================
+    function setupProfileForm() {
+        const form = document.getElementById('profileForm');
+        
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const profileData = {
+                first_name: document.getElementById('firstName').value,
+                last_name: document.getElementById('lastName').value,
+                phone: document.getElementById('profilePhone').value
+            };
+            
+            try {
+                const response = await API.put('/users/profile', profileData);
+                if (response.success) {
+                    Toast.show('Profile updated successfully!', 'success');
+                    
+                    // Update sidebar
+                    document.getElementById('sidebarName').textContent = `${profileData.first_name} ${profileData.last_name}`;
+                    document.getElementById('sidebarPhone').innerHTML = `<i class="fas fa-phone"></i> +91 ${profileData.phone}`;
+                    
+                    // Update stored user
+                    const user = Auth.getUser();
+                    user.first_name = profileData.first_name;
+                    user.last_name = profileData.last_name;
+                    user.phone = profileData.phone;
+                    localStorage.setItem('user', JSON.stringify(user));
+                }
+            } catch (error) {
+                Toast.show('Failed to update profile', 'error');
+            }
+        });
+    }
+// ==================== NOTIFICATIONS FUNCTIONS ====================
+let notificationsPage = 1;
+let hasMoreNotifications = true;
+
+async function loadNotifications(append = false) {
+    try {
+        const response = await API.get(`/notifications?page=${notificationsPage}&limit=10`);
+        
+        if (response.success) {
+            const notifications = response.data.notifications || response.data || [];
+            const unreadCount = response.unreadCount || 0;
+            const container = document.getElementById('notificationsList');
+            
+            if (!append) {
+                container.innerHTML = '';
+            }
+            
+            if (notifications.length === 0 && notificationsPage === 1) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 2rem;">
+                        <i class="fas fa-bell-slash" style="font-size: 2rem; color: var(--gray-300); margin-bottom: 0.5rem;"></i>
+                        <p style="color: var(--gray-500);">No notifications yet</p>
+                    </div>
+                `;
+                hasMoreNotifications = false;
+                return;
+            }
+            
+            notifications.forEach(notification => {
+                container.appendChild(createNotificationElement(notification));
+            });
+            
+            hasMoreNotifications = notifications.length === 10;
+            
+            // Update unread badge
+            updateUnreadBadge(unreadCount);
+        }
+    } catch (error) {
+        console.error('Failed to load notifications:', error);
+        const container = document.getElementById('notificationsList');
+        if (container && !append) {
+            container.innerHTML = `
+                <div style="text-align: center; padding: 2rem;">
+                    <i class="fas fa-exclamation-circle" style="font-size: 2rem; color: var(--error); margin-bottom: 0.5rem;"></i>
+                    <p style="color: var(--gray-500);">Failed to load notifications</p>
+                    <button onclick="loadNotifications()" style="margin-top: 0.5rem; padding: 0.25rem 0.75rem; background: var(--primary-600); color: white; border: none; border-radius: 0.5rem; cursor: pointer;">Retry</button>
+                </div>
+            `;
+        }
+    }
+}
+
+function createNotificationElement(notification) {
+    const div = document.createElement('div');
+    div.className = `notification-item ${!notification.is_read ? 'unread' : ''}`;
+    div.onclick = () => handleNotificationClick(notification);
+    
+    const icon = getNotificationIcon(notification.type);
+    
+    div.innerHTML = `
+        <div class="notification-icon">
+            <i class="fas ${icon}"></i>
+        </div>
+        <div class="notification-content">
+            <div class="notification-title">${escapeHtml(notification.title || 'Notification')}</div>
+            <div class="notification-message">${escapeHtml(notification.message || '')}</div>
+            <div class="notification-time">${formatTime(notification.created_at)}</div>
+        </div>
+    `;
+    
+    return div;
+}
+
+function getNotificationIcon(type) {
+    const icons = {
+        booking_created: 'fa-calendar-plus',
+        booking_accepted: 'fa-check-circle',
+        booking_rejected: 'fa-times-circle',
+        booking_completed: 'fa-check-double',
+        booking_cancelled: 'fa-ban',
+        payment_received: 'fa-rupee-sign',
+        new_review: 'fa-star',
+        reminder: 'fa-bell',
+        system: 'fa-info-circle',
+        message: 'fa-envelope'
+    };
+    return icons[type] || 'fa-bell';
+}
+
+function formatTime(timestamp) {
+    if (!timestamp) return 'Just now';
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diff = now - date;
+    
+    if (diff < 60000) return 'Just now';
+    if (diff < 3600000) return `${Math.floor(diff / 60000)} min ago`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)} hours ago`;
+    if (diff < 604800000) return `${Math.floor(diff / 86400000)} days ago`;
+    return date.toLocaleDateString();
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+async function handleNotificationClick(notification) {
+    // Mark as read if unread
+    if (!notification.is_read && notification.id) {
+        try {
+            await API.put(`/notifications/${notification.id}/read`);
+        } catch (error) {
+            console.error('Failed to mark as read:', error);
+        }
+    }
+    
+    // Handle navigation based on notification type or data
+    if (notification.data) {
+        if (notification.data.booking_id) {
+            window.location.href = `/booking-details.html?id=${notification.data.booking_id}`;
+        } else if (notification.data.payment_id) {
+            window.location.href = `/payments.html`;
+        } else if (notification.data.review_id) {
+            window.location.href = `/worker-profile.html?id=${notification.data.worker_id}`;
+        } else if (notification.data.worker_id) {
+            window.location.href = `/worker-profile.html?id=${notification.data.worker_id}`;
+        }
+    } else if (notification.booking_id) {
+        window.location.href = `/booking-details.html?id=${notification.booking_id}`;
+    }
+    
+    // Close panel
+    document.getElementById('notificationsPanel').classList.remove('show');
+}
+
+async function markAllNotificationsRead() {
+    try {
+        const response = await API.put('/notifications/read-all');
+        if (response.success) {
+            Toast.show('All notifications marked as read', 'success');
+            notificationsPage = 1;
+            loadNotifications();
+            updateUnreadBadge(0);
+        }
+    } catch (error) {
+        console.error('Failed to mark all as read:', error);
+        Toast.show('Failed to mark all as read', 'error');
+    }
+}
+
+function loadMoreNotifications() {
+    if (hasMoreNotifications) {
+        notificationsPage++;
+        loadNotifications(true);
+    } else {
+        Toast.show('No more notifications', 'info');
+    }
+}
+
+function toggleNotificationsPanel() {
+    const panel = document.getElementById('notificationsPanel');
+    const isOpen = panel.classList.contains('show');
+    
+    if (!isOpen) {
+        notificationsPage = 1;
+        loadNotifications();
+        panel.classList.add('show');
+    } else {
+        panel.classList.remove('show');
+    }
+}
+
+function updateUnreadBadge(count) {
+    const badge = document.getElementById('notificationBadge');
+    if (badge) {
+        if (count > 0) {
+            badge.textContent = count > 99 ? '99+' : count;
+            badge.style.display = 'flex';
+        } else {
+            badge.style.display = 'none';
+        }
+    }
+}
+
+// Close panel when clicking outside
+function setupNotificationsClickOutside() {
+    document.addEventListener('click', function(event) {
+        const panel = document.getElementById('notificationsPanel');
+        const bell = document.querySelector('.notification-bell-wrapper');
+        
+        if (panel && panel.classList.contains('show')) {
+            if (!panel.contains(event.target) && !bell?.contains(event.target)) {
+                panel.classList.remove('show');
+            }
+        }
+    });
+}
+
+// Add bell click handler after DOM loads
+document.addEventListener('DOMContentLoaded', function() {
+    const bell = document.querySelector('.notification-bell-wrapper');
+    if (bell) {
+        bell.addEventListener('click', function(e) {
+            e.stopPropagation();
+            toggleNotificationsPanel();
+        });
+    }
+    setupNotificationsClickOutside();
+    
+    // Load initial unread count
+    loadUnreadCount();
+});
+
+async function loadUnreadCount() {
+    try {
+        const response = await API.get('/notifications/unread-count');
+        if (response.success) {
+            updateUnreadBadge(response.count || 0);
+        }
+    } catch (error) {
+        console.error('Failed to load unread count:', error);
+    }
+}
+    // ==================== ACTION FUNCTIONS ====================
+    window.viewBooking = function(bookingId) {
+        window.location.href = `/booking-details.html?id=${bookingId}`;
+    };
+
+    window.cancelBooking = async function(bookingId) {
+        if (!confirm('Are you sure you want to cancel this booking?')) return;
+        
+        try {
+            const response = await API.put(`/bookings/${bookingId}/status`, {
+                status: 'cancelled',
+                reason: 'Cancelled by customer'
+            });
+            
+            if (response.success) {
+                Toast.show('Booking cancelled successfully', 'success');
+                loadBookingsFromAPI();
+            }
+        } catch (error) {
+            Toast.show('Failed to cancel booking', 'error');
+        }
+    };
+
+    window.chatWithWorker = function(workerId) {
+        window.location.href = `/chat.html?worker=${workerId}`;
+    };
+
+    window.rebook = function(bookingId) {
+        window.location.href = `/booking.html?rebook=${bookingId}`;
+    };
+
+    window.writeReview = function(bookingId) {
+        document.getElementById('reviewModal').classList.add('show');
+        window.currentBookingId = bookingId;
+    };
+
+    window.submitReview = async function() {
+        const rating = document.querySelector('input[name="rating"]:checked')?.value;
+        const title = document.getElementById('reviewTitle').value;
+        const comment = document.getElementById('reviewText').value;
+        
+        if (!rating) {
+            Toast.show('Please select a rating', 'error');
+            return;
+        }
+        
+        try {
+            const response = await API.post('/reviews', {
+                booking_id: window.currentBookingId,
+                rating: parseInt(rating),
+                title: title,
+                comment: comment
+            });
+            
+            if (response.success) {
+                Toast.show('Review submitted successfully! Thank you!', 'success');
+                closeModal('reviewModal');
+                document.getElementById('reviewForm').reset();
+            }
+        } catch (error) {
+            Toast.show('Failed to submit review', 'error');
+        }
+    };
+
+    window.markNotificationRead = function(notificationId) {
+        const notifications = JSON.parse(localStorage.getItem('notifications') || []);
+        const updated = notifications.map(n => 
+            n.id === notificationId ? { ...n, read: true } : n
+        );
+        localStorage.setItem('notifications', JSON.stringify(updated));
+        loadNotifications();
+        Toast.show('Notification marked as read', 'info');
+    };
+
+    window.markAllRead = function() {
+        const notifications = JSON.parse(localStorage.getItem('notifications') || []);
+        const updated = notifications.map(n => ({ ...n, read: true }));
+        localStorage.setItem('notifications', JSON.stringify(updated));
+        loadNotifications();
+        Toast.show('All notifications marked as read', 'info');
+    };
+
+    window.bookWorker = function(workerId) {
+        window.location.href = `/booking.html?worker=${workerId}`;
+    };
+
+    window.logout = function() {
+        Auth.logout();
+    };
+
+    window.showAddAddressModal = function() {
+        document.getElementById('addressModal').classList.add('show');
+    };
+
+    window.closeModal = function(modalId) {
+        document.getElementById(modalId).classList.remove('show');
+    };
+
+    window.saveAddress = function() {
+        const newAddress = {
+            type: document.getElementById('modalAddressType').value,
+            houseNo: document.getElementById('modalHouseNo').value,
+            street: document.getElementById('modalStreet').value,
+            city: document.getElementById('modalCity').value,
+            pincode: document.getElementById('modalPincode').value,
+            landmark: document.getElementById('modalLandmark').value,
+            phone: document.getElementById('modalPhone').value
+        };
+
+        if (!newAddress.houseNo || !newAddress.street || !newAddress.city || !newAddress.pincode || !newAddress.phone) {
+            Toast.show('Please fill all required fields', 'error');
+            return;
+        }
+
+        if (newAddress.pincode.length !== 6 || !/^\d+$/.test(newAddress.pincode)) {
+            Toast.show('Please enter valid 6-digit pincode', 'error');
+            return;
+        }
+
+        if (newAddress.phone.length !== 10 || !/^\d+$/.test(newAddress.phone)) {
+            Toast.show('Please enter valid 10-digit phone number', 'error');
+            return;
+        }
+
+        const addresses = JSON.parse(localStorage.getItem('addresses') || []);
+        addresses.push(newAddress);
+        localStorage.setItem('addresses', JSON.stringify(addresses));
+
+        Toast.show('Address saved successfully!', 'success');
+        closeModal('addressModal');
+        loadAddresses();
+    };
+
+    // Handle avatar upload
+    document.getElementById('avatarUpload').addEventListener('change', function(e) {
+        if (this.files && this.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('profileAvatar').src = e.target.result;
+                localStorage.setItem('profileAvatar', e.target.result);
+                Toast.show('Profile picture updated!', 'success');
+            };
+            reader.readAsDataURL(this.files[0]);
+        }
+    });
+
+    // Load saved avatar
+    const savedAvatar = localStorage.getItem('profileAvatar');
+    if (savedAvatar) {
+        document.getElementById('profileAvatar').src = savedAvatar;
+    }
+
+    // Check URL hash for initial section
+    if (window.location.hash) {
+        const section = window.location.hash.substring(1);
+        switchSection(section);
+        
+        document.querySelectorAll('.nav-item').forEach(item => {
+            if (item.dataset.section === section) {
+                item.classList.add('active');
+            } else {
+                item.classList.remove('active');
+            }
+        });
+    }
+</script>
+</body>
+</html>

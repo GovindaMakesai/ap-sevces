@@ -1,0 +1,64 @@
+{
+  "name": "ap-services-ui",
+  "version": 2,
+  "builds": [
+    {
+      "src": "frontend/**",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/",
+      "dest": "/frontend/index.html"
+    },
+    {
+      "src": "/index.html",
+      "dest": "/frontend/index.html"
+    },
+    {
+      "src": "/login.html",
+      "dest": "/frontend/login.html"
+    },
+    {
+      "src": "/register.html",
+      "dest": "/frontend/register.html"
+    },
+    {
+      "src": "/services.html",
+      "dest": "/frontend/services.html"
+    },
+    {
+      "src": "/worker-profile.html",
+      "dest": "/frontend/worker-profile.html"
+    },
+    {
+      "src": "/booking.html",
+      "dest": "/frontend/booking.html"
+    },
+    {
+      "src": "/customer-dashboard.html",
+      "dest": "/frontend/customer-dashboard.html"
+    },
+    {
+      "src": "/worker-dashboard.html",
+      "dest": "/frontend/worker-dashboard.html"
+    },
+    {
+      "src": "/admin-dashboard.html",
+      "dest": "/frontend/admin-dashboard.html"
+    },
+    {
+      "src": "/styles.css",
+      "dest": "/frontend/styles.css"
+    },
+    {
+      "src": "/app.js",
+      "dest": "/frontend/app.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/frontend/$1"
+    }
+  ]
+}

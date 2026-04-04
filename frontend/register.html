@@ -1,0 +1,1854 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign Up - AP Services</title>
+    
+    <!-- Font Awesome 6 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    
+    <!-- Google Fonts - Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="styles.css">
+    
+    <style>
+        /* ==================== REGISTRATION PAGE STYLES ==================== */
+        :root {
+            --primary-50: #eff6ff;
+            --primary-100: #dbeafe;
+            --primary-200: #bfdbfe;
+            --primary-300: #93c5fd;
+            --primary-400: #60a5fa;
+            --primary-500: #3b82f6;
+            --primary-600: #2563eb;
+            --primary-700: #1d4ed8;
+            --primary-800: #1e40af;
+            --primary-900: #1e3a8a;
+            
+            --secondary-50: #f0fdf4;
+            --secondary-100: #dcfce7;
+            --secondary-200: #bbf7d0;
+            --secondary-300: #86efac;
+            --secondary-400: #4ade80;
+            --secondary-500: #22c55e;
+            --secondary-600: #16a34a;
+            --secondary-700: #15803d;
+            --secondary-800: #166534;
+            --secondary-900: #14532d;
+            
+            --gray-50: #f9fafb;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-300: #d1d5db;
+            --gray-400: #9ca3af;
+            --gray-500: #6b7280;
+            --gray-600: #4b5563;
+            --gray-700: #374151;
+            --gray-800: #1f2937;
+            --gray-900: #111827;
+            
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --info: #3b82f6;
+            
+            --spacing-xs: 0.5rem;
+            --spacing-sm: 0.75rem;
+            --spacing-md: 1rem;
+            --spacing-lg: 1.5rem;
+            --spacing-xl: 2rem;
+            --spacing-2xl: 3rem;
+            
+            --radius-lg: 0.5rem;
+            --radius-xl: 0.75rem;
+            --radius-2xl: 1rem;
+            --radius-full: 9999px;
+            
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            
+            --transition-base: 0.3s ease;
+            --transition-fast: 0.15s ease;
+            
+            --header-height: 80px;
+            --footer-height: 400px;
+            --font-size-xs: 0.75rem;
+            --font-size-sm: 0.875rem;
+            --font-size-base: 1rem;
+            --font-size-lg: 1.125rem;
+            --font-size-xl: 1.25rem;
+            --font-size-2xl: 1.5rem;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            color: var(--gray-800);
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 0 var(--spacing-lg);
+        }
+
+        /* Navbar Styles */
+        .navbar {
+            background: white;
+            box-shadow: var(--shadow-md);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            height: var(--header-height);
+        }
+
+        .nav-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: var(--header-height);
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: var(--gray-900);
+            text-decoration: none;
+        }
+
+        .logo span {
+            color: var(--primary-600);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: var(--spacing-xl);
+        }
+
+        .nav-links a {
+            color: var(--gray-700);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color var(--transition-fast);
+        }
+
+        .nav-links a:hover {
+            color: var(--primary-600);
+        }
+
+        .mobile-menu-btn {
+            display: none;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            color: var(--gray-700);
+            cursor: pointer;
+        }
+
+        /* Footer Styles */
+        .footer {
+            background: var(--gray-900);
+            color: white;
+            padding: var(--spacing-2xl) 0 var(--spacing-xl);
+            margin-top: var(--spacing-2xl);
+        }
+
+        .footer-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: var(--spacing-xl);
+            margin-bottom: var(--spacing-xl);
+        }
+
+        .footer-col h3 {
+            font-size: 1.25rem;
+            margin-bottom: var(--spacing-md);
+        }
+
+        .footer-col h4 {
+            font-size: 1rem;
+            margin-bottom: var(--spacing-md);
+            color: var(--gray-400);
+        }
+
+        .footer-col p {
+            color: var(--gray-400);
+            margin-bottom: var(--spacing-md);
+        }
+
+        .footer-col ul {
+            list-style: none;
+        }
+
+        .footer-col ul li {
+            margin-bottom: var(--spacing-sm);
+        }
+
+        .footer-col ul li a {
+            color: var(--gray-400);
+            text-decoration: none;
+            transition: color var(--transition-fast);
+        }
+
+        .footer-col ul li a:hover {
+            color: white;
+        }
+
+        .social-links {
+            display: flex;
+            gap: var(--spacing-md);
+        }
+
+        .social-links a {
+            color: var(--gray-400);
+            font-size: 1.25rem;
+            transition: color var(--transition-fast);
+        }
+
+        .social-links a:hover {
+            color: white;
+        }
+
+        .footer-bottom {
+            text-align: center;
+            padding-top: var(--spacing-xl);
+            border-top: 1px solid var(--gray-800);
+            color: var(--gray-400);
+        }
+
+        /* Toast Styles */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 1rem 1.5rem;
+            background: white;
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-xl);
+            display: none;
+            align-items: center;
+            gap: 0.75rem;
+            z-index: 9999;
+            max-width: 400px;
+            animation: slideInRight 0.3s ease;
+        }
+
+        .toast.show {
+            display: flex;
+        }
+
+        .toast.success {
+            background: var(--success);
+            color: white;
+        }
+
+        .toast.error {
+            background: var(--error);
+            color: white;
+        }
+
+        .toast.info {
+            background: var(--info);
+            color: white;
+        }
+
+        .toast.warning {
+            background: var(--warning);
+            color: white;
+        }
+
+        .toast i {
+            font-size: 1.25rem;
+        }
+
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+
+        @keyframes spin {
+            to {
+                transform: translate(-50%, -50%) rotate(360deg);
+            }
+        }
+
+        .btn-outline {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--primary-600);
+            background: transparent;
+            color: var(--primary-600);
+            border-radius: var(--radius-lg);
+            font-weight: 500;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+
+        .btn-outline:hover {
+            background: var(--primary-600);
+            color: white;
+        }
+
+        .btn-small {
+            font-size: var(--font-size-sm);
+            padding: 0.375rem 0.75rem;
+        }
+
+        /* ==================== REGISTRATION PAGE STYLES ==================== */
+        .register-page {
+            min-height: calc(100vh - var(--header-height) - var(--footer-height));
+            background: linear-gradient(135deg, #f0f9ff 0%, #f5f0ff 100%);
+            padding: var(--spacing-xl) 0;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .register-page::before {
+            content: '';
+            position: absolute;
+            top: -30%;
+            right: -10%;
+            width: 800px;
+            height: 800px;
+            background: radial-gradient(circle, rgba(37, 99, 235, 0.05) 0%, rgba(37, 99, 235, 0) 70%);
+            border-radius: 50%;
+        }
+
+        .register-page::after {
+            content: '';
+            position: absolute;
+            bottom: -20%;
+            left: -10%;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(16, 185, 129, 0.05) 0%, rgba(16, 185, 129, 0) 70%);
+            border-radius: 50%;
+        }
+
+        .register-container {
+            max-width: 600px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+            animation: slideUp 0.6s ease;
+        }
+
+        .register-card {
+            background: white;
+            border-radius: var(--radius-2xl);
+            padding: var(--spacing-2xl);
+            box-shadow: var(--shadow-xl);
+            border: 1px solid var(--gray-200);
+            backdrop-filter: blur(10px);
+        }
+
+        .register-header {
+            text-align: center;
+            margin-bottom: var(--spacing-xl);
+        }
+
+        .register-header h1 {
+            font-size: 2rem;
+            margin-bottom: var(--spacing-xs);
+            color: var(--gray-900);
+        }
+
+        .register-header p {
+            color: var(--gray-600);
+            font-size: var(--font-size-base);
+        }
+
+        .register-header p a {
+            color: var(--primary-600);
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .register-header p a:hover {
+            text-decoration: underline;
+        }
+
+        /* User Type Toggle */
+        .user-type-toggle {
+            display: flex;
+            gap: var(--spacing-sm);
+            margin-bottom: var(--spacing-xl);
+            padding: var(--spacing-xs);
+            background: var(--gray-100);
+            border-radius: var(--radius-xl);
+            border: 1px solid var(--gray-200);
+        }
+
+        .user-type-btn {
+            flex: 1;
+            padding: 1rem;
+            border: none;
+            border-radius: var(--radius-lg);
+            font-weight: 600;
+            font-size: var(--font-size-base);
+            cursor: pointer;
+            transition: all var(--transition-base);
+            background: transparent;
+            color: var(--gray-600);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--spacing-xs);
+        }
+
+        .user-type-btn i {
+            font-size: 1.1rem;
+        }
+
+        .user-type-btn.active {
+            background: white;
+            color: var(--primary-600);
+            box-shadow: var(--shadow-md);
+        }
+
+        .user-type-btn.customer.active {
+            color: var(--primary-600);
+        }
+
+        .user-type-btn.worker.active {
+            color: var(--secondary-600);
+        }
+
+        /* Progress Bar */
+        .progress-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: var(--spacing-xl);
+            position: relative;
+        }
+
+        .progress-bar::before {
+            content: '';
+            position: absolute;
+            top: 15px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--gray-200);
+            z-index: 1;
+        }
+
+        .progress-step {
+            position: relative;
+            z-index: 2;
+            background: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: 2px solid var(--gray-300);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            color: var(--gray-500);
+            transition: all var(--transition-base);
+        }
+
+        .progress-step.completed {
+            background: var(--success);
+            border-color: var(--success);
+            color: white;
+        }
+
+        .progress-step.active {
+            border-color: var(--primary-600);
+            color: var(--primary-600);
+            font-weight: 700;
+            transform: scale(1.2);
+        }
+
+        .progress-label {
+            position: absolute;
+            top: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: var(--font-size-xs);
+            color: var(--gray-600);
+            white-space: nowrap;
+        }
+
+        /* Form Styles */
+        .form-step {
+            display: none;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .form-step.active {
+            display: block;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--spacing-md);
+        }
+
+        .form-group {
+            margin-bottom: var(--spacing-md);
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: var(--spacing-xs);
+            font-weight: 600;
+            color: var(--gray-700);
+            font-size: var(--font-size-sm);
+        }
+
+        .form-label i {
+            color: var(--primary-600);
+            margin-right: 4px;
+        }
+
+        .input-group {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .input-icon {
+            position: absolute;
+            left: 1rem;
+            color: var(--gray-400);
+            font-size: 1rem;
+            transition: color var(--transition-fast);
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 0.875rem 1rem 0.875rem 2.5rem;
+            border: 1px solid var(--gray-300);
+            border-radius: var(--radius-lg);
+            font-size: var(--font-size-base);
+            transition: all var(--transition-fast);
+            background: var(--gray-50);
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary-500);
+            background: white;
+            box-shadow: 0 0 0 4px var(--primary-100);
+        }
+
+        .form-control:focus + .input-icon {
+            color: var(--primary-600);
+        }
+
+        .form-control.error {
+            border-color: var(--error);
+            background-color: #fff5f5;
+        }
+
+        .error-message {
+            color: var(--error);
+            font-size: var(--font-size-sm);
+            margin-top: 4px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 1rem;
+            color: var(--gray-400);
+            cursor: pointer;
+            font-size: 1.1rem;
+        }
+
+        .password-toggle:hover {
+            color: var(--primary-600);
+        }
+
+        /* Password Strength */
+        .password-strength {
+            margin-top: var(--spacing-xs);
+        }
+
+        .strength-bars {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 4px;
+        }
+
+        .strength-bar {
+            flex: 1;
+            height: 4px;
+            background: var(--gray-200);
+            border-radius: var(--radius-full);
+            transition: all var(--transition-fast);
+        }
+
+        .strength-bar.weak {
+            background: var(--error);
+        }
+
+        .strength-bar.medium {
+            background: var(--warning);
+        }
+
+        .strength-bar.strong {
+            background: var(--success);
+        }
+
+        .strength-text {
+            font-size: var(--font-size-xs);
+            color: var(--gray-600);
+        }
+
+        /* OTP Verification */
+        .otp-container {
+            display: flex;
+            gap: var(--spacing-sm);
+            justify-content: center;
+            margin: var(--spacing-lg) 0;
+        }
+
+        .otp-input {
+            width: 50px;
+            height: 50px;
+            text-align: center;
+            font-size: 1.5rem;
+            font-weight: 700;
+            border: 1px solid var(--gray-300);
+            border-radius: var(--radius-lg);
+            background: var(--gray-50);
+        }
+
+        .otp-input:focus {
+            outline: none;
+            border-color: var(--primary-500);
+            box-shadow: 0 0 0 4px var(--primary-100);
+        }
+
+        .timer {
+            text-align: center;
+            color: var(--gray-600);
+            font-size: var(--font-size-sm);
+            margin-top: var(--spacing-sm);
+        }
+
+        .resend-btn {
+            background: none;
+            border: none;
+            color: var(--primary-600);
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+
+        .resend-btn:disabled {
+            color: var(--gray-400);
+            cursor: not-allowed;
+            text-decoration: none;
+        }
+
+        /* Worker Specific Fields */
+        .worker-fields {
+            border-top: 2px solid var(--gray-200);
+            padding-top: var(--spacing-lg);
+            margin-top: var(--spacing-lg);
+        }
+
+        .worker-fields h3 {
+            margin-bottom: var(--spacing-md);
+            color: var(--gray-800);
+        }
+
+        .skills-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--spacing-xs);
+            margin-top: var(--spacing-sm);
+        }
+
+        .skill-tag {
+            padding: 0.5rem 1rem;
+            background: var(--gray-100);
+            border: 1px solid var(--gray-300);
+            border-radius: var(--radius-full);
+            font-size: var(--font-size-sm);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+
+        .skill-tag:hover {
+            background: var(--primary-100);
+            border-color: var(--primary-300);
+        }
+
+        .skill-tag.selected {
+            background: var(--primary-600);
+            color: white;
+            border-color: var(--primary-600);
+        }
+
+        .document-upload {
+            border: 2px dashed var(--gray-300);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-xl);
+            text-align: center;
+            cursor: pointer;
+            transition: all var(--transition-base);
+            background: var(--gray-50);
+            margin-bottom: var(--spacing-md);
+        }
+
+        .document-upload:hover {
+            border-color: var(--primary-500);
+            background: var(--primary-50);
+        }
+
+        .document-upload i {
+            font-size: 2.5rem;
+            color: var(--primary-600);
+            margin-bottom: var(--spacing-sm);
+        }
+
+        .document-upload p {
+            color: var(--gray-600);
+            margin-bottom: var(--spacing-xs);
+        }
+
+        .document-upload small {
+            color: var(--gray-500);
+            font-size: var(--font-size-xs);
+        }
+
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            padding: var(--spacing-sm);
+            background: var(--primary-50);
+            border-radius: var(--radius-lg);
+            margin-top: var(--spacing-sm);
+        }
+
+        .file-info i {
+            color: var(--success);
+        }
+
+        /* Checkbox Group */
+        .checkbox-group {
+            display: flex;
+            align-items: flex-start;
+            gap: var(--spacing-sm);
+            margin: var(--spacing-lg) 0;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            margin-top: 2px;
+            accent-color: var(--primary-600);
+        }
+
+        .checkbox-group label {
+            color: var(--gray-600);
+            font-size: var(--font-size-sm);
+            line-height: 1.5;
+        }
+
+        .checkbox-group a {
+            color: var(--primary-600);
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        /* Buttons */
+        .form-navigation {
+            display: flex;
+            justify-content: space-between;
+            gap: var(--spacing-md);
+            margin-top: var(--spacing-xl);
+        }
+
+        .nav-btn {
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: var(--radius-lg);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all var(--transition-base);
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-xs);
+        }
+
+        .nav-btn.prev {
+            background: var(--gray-200);
+            color: var(--gray-700);
+        }
+
+        .nav-btn.prev:hover:not(:disabled) {
+            background: var(--gray-300);
+        }
+
+        .nav-btn.next, .nav-btn.submit {
+            background: var(--primary-600);
+            color: white;
+            margin-left: auto;
+        }
+
+        .nav-btn.next:hover:not(:disabled), .nav-btn.submit:hover:not(:disabled) {
+            background: var(--primary-700);
+            transform: translateX(5px);
+        }
+
+        .nav-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-loading {
+            position: relative;
+            color: transparent !important;
+        }
+
+        .btn-loading::after {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 20px;
+            height: 20px;
+            border: 2px solid white;
+            border-top-color: transparent;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            animation: spin 1s linear infinite;
+        }
+
+        /* Benefits Card */
+        .benefits-card {
+            margin-top: var(--spacing-xl);
+            background: linear-gradient(135deg, var(--primary-50), var(--secondary-50));
+            border-radius: var(--radius-xl);
+            padding: var(--spacing-lg);
+            border: 1px solid var(--primary-200);
+        }
+
+        .benefits-card h3 {
+            color: var(--primary-800);
+            margin-bottom: var(--spacing-md);
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-xs);
+        }
+
+        .benefits-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: var(--spacing-sm);
+        }
+
+        .benefit-item {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-xs);
+            color: var(--primary-700);
+            font-size: var(--font-size-sm);
+        }
+
+        .benefit-item i {
+            color: var(--success);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .nav-links {
+                display: none;
+            }
+
+            .mobile-menu-btn {
+                display: block;
+            }
+
+            .footer-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .register-container {
+                max-width: 90%;
+            }
+
+            .register-card {
+                padding: var(--spacing-xl);
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .progress-label {
+                display: none;
+            }
+
+            .otp-container {
+                gap: var(--spacing-xs);
+            }
+
+            .otp-input {
+                width: 40px;
+                height: 40px;
+                font-size: 1.2rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .footer-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .register-card {
+                padding: var(--spacing-lg);
+            }
+
+            .user-type-toggle {
+                flex-direction: column;
+            }
+
+            .benefits-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .form-navigation {
+                flex-direction: column;
+            }
+
+            .nav-btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-content">
+                <a href="/" class="logo">AP<span>Services</span></a>
+                
+                <div class="nav-links">
+                    <a href="/">Home</a>
+                    <a href="/services.html">Services</a>
+                    <a href="/about.html">About</a>
+                    <a href="/contact.html">Contact</a>
+                    <a href="/login.html">Login</a>
+                </div>
+                
+                <button class="mobile-menu-btn">
+                    <i class="fas fa-bars"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Registration Section -->
+    <section class="register-page">
+        <div class="register-container">
+            <div class="register-card">
+                <div class="register-header">
+                    <h1>Create Your Account</h1>
+                    <p>Already have an account? <a href="/login.html">Sign in</a></p>
+                </div>
+
+                <!-- User Type Toggle -->
+                <div class="user-type-toggle">
+                    <button class="user-type-btn customer active" id="customerTypeBtn">
+                        <i class="fas fa-user"></i>
+                        Join as Customer
+                    </button>
+                    <button class="user-type-btn worker" id="workerTypeBtn">
+                        <i class="fas fa-hard-hat"></i>
+                        Join as Professional
+                    </button>
+                </div>
+
+                <!-- Progress Bar -->
+                <div class="progress-bar">
+                    <div class="progress-step active" id="step1">
+                        1
+                        <span class="progress-label">Basic Info</span>
+                    </div>
+                    <div class="progress-step" id="step2">
+                        2
+                        <span class="progress-label">Contact</span>
+                    </div>
+                    <div class="progress-step" id="step3">
+                        3
+                        <span class="progress-label">Verification</span>
+                    </div>
+                </div>
+
+                <!-- Registration Form -->
+                <form id="registerForm" novalidate>
+                    <!-- Step 1: Basic Information -->
+                    <div class="form-step active" id="step1Content">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">
+                                    <i class="fas fa-user"></i> First Name
+                                </label>
+                                <div class="input-group">
+                                    <i class="fas fa-user input-icon"></i>
+                                    <input type="text" class="form-control" id="firstName" 
+                                           placeholder="Enter first name" required>
+                                </div>
+                                <div class="error-message" id="firstNameError"></div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">
+                                    <i class="fas fa-user"></i> Last Name
+                                </label>
+                                <div class="input-group">
+                                    <i class="fas fa-user input-icon"></i>
+                                    <input type="text" class="form-control" id="lastName" 
+                                           placeholder="Enter last name" required>
+                                </div>
+                                <div class="error-message" id="lastNameError"></div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">
+                                <i class="fas fa-envelope"></i> Email Address
+                            </label>
+                            <div class="input-group">
+                                <i class="fas fa-envelope input-icon"></i>
+                                <input type="email" class="form-control" id="email" 
+                                       placeholder="Enter your email" required>
+                            </div>
+                            <div class="error-message" id="emailError"></div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">
+                                <i class="fas fa-lock"></i> Password
+                            </label>
+                            <div class="input-group">
+                                <i class="fas fa-lock input-icon"></i>
+                                <input type="password" class="form-control" id="password" 
+                                       placeholder="Create a password" required>
+                                <i class="fas fa-eye password-toggle" id="togglePassword"></i>
+                            </div>
+                            <div class="password-strength" id="passwordStrength">
+                                <div class="strength-bars">
+                                    <div class="strength-bar"></div>
+                                    <div class="strength-bar"></div>
+                                    <div class="strength-bar"></div>
+                                </div>
+                                <span class="strength-text">Enter a password</span>
+                            </div>
+                            <div class="error-message" id="passwordError"></div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">
+                                <i class="fas fa-lock"></i> Confirm Password
+                            </label>
+                            <div class="input-group">
+                                <i class="fas fa-lock input-icon"></i>
+                                <input type="password" class="form-control" id="confirmPassword" 
+                                       placeholder="Confirm your password" required>
+                            </div>
+                            <div class="error-message" id="confirmPasswordError"></div>
+                        </div>
+
+                        <!-- Worker specific fields (hidden by default) -->
+                        <div class="worker-fields" id="workerFields" style="display: none;">
+                            <h3>Professional Information</h3>
+                            
+                            <div class="form-group">
+                                <label class="form-label">
+                                    <i class="fas fa-briefcase"></i> Years of Experience
+                                </label>
+                                <select class="form-control" id="experience">
+                                    <option value="">Select experience</option>
+                                    <option value="0-1">Less than 1 year</option>
+                                    <option value="1-3">1-3 years</option>
+                                    <option value="3-5">3-5 years</option>
+                                    <option value="5-10">5-10 years</option>
+                                    <option value="10+">10+ years</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">
+                                    <i class="fas fa-tools"></i> Select Your Skills
+                                </label>
+                                <div class="skills-tags" id="skillsTags">
+                                    <span class="skill-tag">Plumbing</span>
+                                    <span class="skill-tag">Electrical</span>
+                                    <span class="skill-tag">Carpentry</span>
+                                    <span class="skill-tag">Painting</span>
+                                    <span class="skill-tag">Cleaning</span>
+                                    <span class="skill-tag">Beauty</span>
+                                    <span class="skill-tag">AC Repair</span>
+                                    <span class="skill-tag">Tutoring</span>
+                                    <span class="skill-tag">Yoga</span>
+                                    <span class="skill-tag">Security</span>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">
+                                    <i class="fas fa-rupee-sign"></i> Hourly Rate (₹)
+                                </label>
+                                <div class="input-group">
+                                    <i class="fas fa-rupee-sign input-icon"></i>
+                                    <input type="number" class="form-control" id="hourlyRate" 
+                                           placeholder="e.g., 500">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Contact Information -->
+                    <div class="form-step" id="step2Content">
+                        <div class="form-group">
+                            <label class="form-label">
+                                <i class="fas fa-phone"></i> Phone Number
+                            </label>
+                            <div class="input-group">
+                                <i class="fas fa-phone input-icon"></i>
+                                <input type="tel" class="form-control" id="phone" 
+                                       placeholder="Enter 10-digit mobile number" 
+                                       pattern="[0-9]{10}" maxlength="10" required>
+                            </div>
+                            <div class="error-message" id="phoneError"></div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">
+                                <i class="fas fa-map-marker-alt"></i> City
+                            </label>
+                            <select class="form-control" id="city" required>
+                                <option value="">Select your city</option>
+                                <option value="mumbai">Mumbai</option>
+                                <option value="delhi">Delhi-NCR</option>
+                                <option value="bangalore">Bangalore</option>
+                                <option value="pune">Pune</option>
+                                <option value="chennai">Chennai</option>
+                                <option value="kolkata">Kolkata</option>
+                                <option value="hyderabad">Hyderabad</option>
+                                <option value="ahmedabad">Ahmedabad</option>
+                            </select>
+                            <div class="error-message" id="cityError"></div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">
+                                <i class="fas fa-map-pin"></i> Full Address
+                            </label>
+                            <textarea class="form-control" id="address" rows="3" 
+                                      placeholder="Enter your complete address"></textarea>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Pincode</label>
+                                <input type="text" class="form-control" id="pincode" 
+                                       placeholder="6-digit pincode" maxlength="6">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Locality</label>
+                                <input type="text" class="form-control" id="locality" 
+                                       placeholder="e.g., Andheri East">
+                            </div>
+                        </div>
+
+                        <!-- Document upload for workers -->
+                        <div id="workerDocuments" style="display: none;">
+                            <h3>Verification Documents</h3>
+                            
+                            <div class="document-upload" id="idProofUpload">
+                                <i class="fas fa-cloud-upload-alt"></i>
+                                <p>Upload ID Proof (Aadhar/Voter ID/Passport)</p>
+                                <small>Supported formats: JPG, PNG, PDF (Max 5MB)</small>
+                                <input type="file" id="idProof" accept=".jpg,.jpeg,.png,.pdf" style="display: none;">
+                            </div>
+                            <div class="file-info" id="idProofInfo" style="display: none;"></div>
+
+                            <div class="document-upload" id="addressProofUpload" style="margin-top: var(--spacing-md);">
+                                <i class="fas fa-cloud-upload-alt"></i>
+                                <p>Upload Address Proof (Utility Bill/Bank Statement)</p>
+                                <small>Supported formats: JPG, PNG, PDF (Max 5MB)</small>
+                                <input type="file" id="addressProof" accept=".jpg,.jpeg,.png,.pdf" style="display: none;">
+                            </div>
+                            <div class="file-info" id="addressProofInfo" style="display: none;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Step 3: Verification -->
+                    <div class="form-step" id="step3Content">
+                        <div class="form-group">
+                            <label class="form-label">
+                                <i class="fas fa-mobile-alt"></i> Verify Phone Number
+                            </label>
+                            <p style="color: var(--gray-600); margin-bottom: var(--spacing-md);">
+                                We've sent a 6-digit OTP to <span id="displayPhone">+91 98765 43210</span>
+                            </p>
+                            
+                            <div class="otp-container">
+                                <input type="text" class="otp-input" maxlength="1" pattern="[0-9]" inputmode="numeric">
+                                <input type="text" class="otp-input" maxlength="1" pattern="[0-9]" inputmode="numeric">
+                                <input type="text" class="otp-input" maxlength="1" pattern="[0-9]" inputmode="numeric">
+                                <input type="text" class="otp-input" maxlength="1" pattern="[0-9]" inputmode="numeric">
+                                <input type="text" class="otp-input" maxlength="1" pattern="[0-9]" inputmode="numeric">
+                                <input type="text" class="otp-input" maxlength="1" pattern="[0-9]" inputmode="numeric">
+                            </div>
+
+                            <div class="timer" id="otpTimer">
+                                Time remaining: <span id="timer">02:00</span>
+                            </div>
+
+                            <div style="text-align: center; margin-top: var(--spacing-sm);">
+                                <button type="button" class="resend-btn" id="resendOtp" disabled>
+                                    Resend OTP
+                                </button>
+                            </div>
+                            <div class="error-message" id="otpError"></div>
+                        </div>
+
+                        <!-- Terms and Conditions -->
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="terms" required>
+                            <label for="terms">
+                                I agree to the <a href="/terms.html">Terms of Service</a> and 
+                                <a href="/privacy.html">Privacy Policy</a>. I confirm that I am 
+                                at least 18 years old.
+                            </label>
+                        </div>
+
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="updates">
+                            <label for="updates">
+                                I would like to receive updates and offers via email/SMS
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Navigation Buttons -->
+                    <div class="form-navigation">
+                        <button type="button" class="nav-btn prev" id="prevBtn" disabled>
+                            <i class="fas fa-arrow-left"></i> Previous
+                        </button>
+                        <button type="button" class="nav-btn next" id="nextBtn">
+                            Next <i class="fas fa-arrow-right"></i>
+                        </button>
+                        <button type="submit" class="nav-btn submit" id="submitBtn" style="display: none;">
+                            <i class="fas fa-check-circle"></i> Create Account
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Benefits Card -->
+                <div class="benefits-card">
+                    <h3><i class="fas fa-gem"></i> Why join AP Services?</h3>
+                    <div class="benefits-grid">
+                        <div class="benefit-item">
+                            <i class="fas fa-check-circle"></i>
+                            <span>50+ service categories</span>
+                        </div>
+                        <div class="benefit-item">
+                            <i class="fas fa-check-circle"></i>
+                            <span>Verified customers</span>
+                        </div>
+                        <div class="benefit-item">
+                            <i class="fas fa-check-circle"></i>
+                            <span>Secure payments</span>
+                        </div>
+                        <div class="benefit-item">
+                            <i class="fas fa-check-circle"></i>
+                            <span>24/7 support</span>
+                        </div>
+                        <div class="benefit-item">
+                            <i class="fas fa-check-circle"></i>
+                            <span>Insurance coverage</span>
+                        </div>
+                        <div class="benefit-item">
+                            <i class="fas fa-check-circle"></i>
+                            <span>Flexible hours</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-col">
+                    <h3>AP<span style="color: var(--primary-500);">Services</span></h3>
+                    <p>Your trusted platform for booking professional home services.</p>
+                    <div class="social-links">
+                        <a href="#"><i class="fab fa-facebook-f"></i></a>
+                        <a href="#"><i class="fab fa-instagram"></i></a>
+                        <a href="#"><i class="fab fa-twitter"></i></a>
+                        <a href="#"><i class="fab fa-linkedin-in"></i></a>
+                    </div>
+                </div>
+                <div class="footer-col">
+                    <h4>Quick Links</h4>
+                    <ul>
+                        <li><a href="/about.html">About Us</a></li>
+                        <li><a href="/contact.html">Contact</a></li>
+                        <li><a href="/privacy.html">Privacy Policy</a></li>
+                        <li><a href="/terms.html">Terms of Service</a></li>
+                    </ul>
+                </div>
+                <div class="footer-col">
+                    <h4>Services</h4>
+                    <ul>
+                        <li><a href="/services/plumbing.html">Plumbing</a></li>
+                        <li><a href="/services/electrical.html">Electrical</a></li>
+                        <li><a href="/services/cleaning.html">Cleaning</a></li>
+                        <li><a href="/services/beauty.html">Beauty</a></li>
+                    </ul>
+                </div>
+                <div class="footer-col">
+                    <h4>Support</h4>
+                    <ul>
+                        <li><a href="/help.html">Help Center</a></li>
+                        <li><a href="/faq.html">FAQ</a></li>
+                        <li><a href="/contact.html">Contact Us</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 AP Services. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Toast Container -->
+    <div id="toast" class="toast"></div>
+
+    <!-- Load the real app.js with API calls -->
+    <script src="app.js"></script>
+    
+    <script>
+        // ==================== REGISTRATION PAGE JAVASCRIPT ====================
+        document.addEventListener('DOMContentLoaded', function() {
+            // DOM Elements
+            const customerTypeBtn = document.getElementById('customerTypeBtn');
+            const workerTypeBtn = document.getElementById('workerTypeBtn');
+            const workerFields = document.getElementById('workerFields');
+            const workerDocuments = document.getElementById('workerDocuments');
+            const steps = document.querySelectorAll('.progress-step');
+            const stepContents = document.querySelectorAll('.form-step');
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            const submitBtn = document.getElementById('submitBtn');
+            const form = document.getElementById('registerForm');
+            
+            let currentStep = 1;
+            let userType = 'customer';
+            let otpTimer;
+            let timeLeft = 120; // 2 minutes in seconds
+            let selectedSkills = [];
+
+            // ==================== USER TYPE TOGGLE ====================
+            customerTypeBtn.addEventListener('click', function() {
+                this.classList.add('active');
+                workerTypeBtn.classList.remove('active');
+                workerFields.style.display = 'none';
+                workerDocuments.style.display = 'none';
+                userType = 'customer';
+                updateProgressLabels();
+            });
+
+            workerTypeBtn.addEventListener('click', function() {
+                this.classList.add('active');
+                customerTypeBtn.classList.remove('active');
+                workerFields.style.display = 'block';
+                workerDocuments.style.display = 'block';
+                userType = 'worker';
+                updateProgressLabels();
+            });
+
+            function updateProgressLabels() {
+                const labels = document.querySelectorAll('.progress-label');
+                if (userType === 'worker') {
+                    labels[0].textContent = 'Basic Info';
+                    labels[1].textContent = 'Professional';
+                    labels[2].textContent = 'Verification';
+                } else {
+                    labels[0].textContent = 'Basic Info';
+                    labels[1].textContent = 'Contact';
+                    labels[2].textContent = 'Verification';
+                }
+            }
+
+            // ==================== PASSWORD STRENGTH ====================
+            const passwordInput = document.getElementById('password');
+            const strengthBars = document.querySelectorAll('.strength-bar');
+            const strengthText = document.querySelector('.strength-text');
+
+            passwordInput.addEventListener('input', function() {
+                const password = this.value;
+                const strength = calculatePasswordStrength(password);
+                
+                strengthBars.forEach((bar, index) => {
+                    bar.className = 'strength-bar';
+                    if (index < strength.score) {
+                        bar.classList.add(strength.level);
+                    }
+                });
+                
+                strengthText.textContent = strength.message;
+            });
+
+            function calculatePasswordStrength(password) {
+                let score = 0;
+                let level = 'weak';
+                let message = 'Weak password';
+                
+                if (password.length >= 8) score++;
+                if (password.match(/[a-z]+/)) score++;
+                if (password.match(/[A-Z]+/)) score++;
+                if (password.match(/[0-9]+/)) score++;
+                if (password.match(/[$@#&!]+/)) score++;
+                
+                if (score >= 4) {
+                    level = 'strong';
+                    message = 'Strong password';
+                } else if (score >= 3) {
+                    level = 'medium';
+                    message = 'Medium password';
+                } else {
+                    level = 'weak';
+                    message = 'Weak password';
+                }
+                
+                return { score, level, message };
+            }
+
+            // ==================== SKILLS TAGS ====================
+            const skillTags = document.querySelectorAll('.skill-tag');
+            skillTags.forEach(tag => {
+                tag.addEventListener('click', function() {
+                    this.classList.toggle('selected');
+                    const skill = this.textContent;
+                    if (this.classList.contains('selected')) {
+                        selectedSkills.push(skill);
+                    } else {
+                        selectedSkills = selectedSkills.filter(s => s !== skill);
+                    }
+                });
+            });
+
+            // ==================== PASSWORD TOGGLE ====================
+            document.getElementById('togglePassword').addEventListener('click', function() {
+                const password = document.getElementById('password');
+                const type = password.getAttribute('type') === 'password' ? 'text' : 'password';
+                password.setAttribute('type', type);
+                this.classList.toggle('fa-eye');
+                this.classList.toggle('fa-eye-slash');
+            });
+
+            // ==================== DOCUMENT UPLOAD ====================
+            setupDocumentUpload('idProofUpload', 'idProof', 'idProofInfo', 'ID Proof');
+            setupDocumentUpload('addressProofUpload', 'addressProof', 'addressProofInfo', 'Address Proof');
+
+            function setupDocumentUpload(uploadId, inputId, infoId, docName) {
+                const uploadArea = document.getElementById(uploadId);
+                const fileInput = document.getElementById(inputId);
+                const fileInfo = document.getElementById(infoId);
+
+                uploadArea.addEventListener('click', () => fileInput.click());
+
+                fileInput.addEventListener('change', function(e) {
+                    if (this.files && this.files[0]) {
+                        const file = this.files[0];
+                        if (file.size > 5 * 1024 * 1024) {
+                            Toast.show('File size should be less than 5MB', 'error');
+                            return;
+                        }
+                        
+                        fileInfo.innerHTML = `
+                            <i class="fas fa-check-circle"></i>
+                            <span>${docName}: ${file.name}</span>
+                        `;
+                        fileInfo.style.display = 'flex';
+                    }
+                });
+            }
+
+            // ==================== STEP NAVIGATION ====================
+            function showStep(step) {
+                stepContents.forEach(content => content.classList.remove('active'));
+                steps.forEach(s => s.classList.remove('active', 'completed'));
+                
+                document.getElementById(`step${step}Content`).classList.add('active');
+                
+                for (let i = 1; i < step; i++) {
+                    document.getElementById(`step${i}`).classList.add('completed');
+                }
+                document.getElementById(`step${step}`).classList.add('active');
+                
+                // Update buttons
+                prevBtn.disabled = step === 1;
+                
+                if (step === 3) {
+                    nextBtn.style.display = 'none';
+                    submitBtn.style.display = 'flex';
+                    startOtpTimer();
+                } else {
+                    nextBtn.style.display = 'flex';
+                    submitBtn.style.display = 'none';
+                }
+            }
+
+            nextBtn.addEventListener('click', async function() {
+                if (await validateStep(currentStep)) {
+                    currentStep++;
+                    showStep(currentStep);
+                }
+            });
+
+            prevBtn.addEventListener('click', function() {
+                currentStep--;
+                showStep(currentStep);
+            });
+
+            // ==================== STEP VALIDATION ====================
+            async function validateStep(step) {
+                switch(step) {
+                    case 1:
+                        return validateStep1();
+                    case 2:
+                        return validateStep2();
+                    default:
+                        return true;
+                }
+            }
+
+            function validateStep1() {
+                let isValid = true;
+                
+                // First Name
+                const firstName = document.getElementById('firstName');
+                if (!firstName.value.trim()) {
+                    showError('firstNameError', 'First name is required');
+                    firstName.classList.add('error');
+                    isValid = false;
+                } else {
+                    clearError('firstNameError');
+                    firstName.classList.remove('error');
+                }
+                
+                // Last Name
+                const lastName = document.getElementById('lastName');
+                if (!lastName.value.trim()) {
+                    showError('lastNameError', 'Last name is required');
+                    lastName.classList.add('error');
+                    isValid = false;
+                } else {
+                    clearError('lastNameError');
+                    lastName.classList.remove('error');
+                }
+                
+                // Email
+                const email = document.getElementById('email');
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!email.value.trim()) {
+                    showError('emailError', 'Email is required');
+                    email.classList.add('error');
+                    isValid = false;
+                } else if (!emailRegex.test(email.value)) {
+                    showError('emailError', 'Invalid email format');
+                    email.classList.add('error');
+                    isValid = false;
+                } else {
+                    clearError('emailError');
+                    email.classList.remove('error');
+                }
+                
+                // Password
+                const password = document.getElementById('password');
+                if (!password.value) {
+                    showError('passwordError', 'Password is required');
+                    password.classList.add('error');
+                    isValid = false;
+                } else if (password.value.length < 6) {
+                    showError('passwordError', 'Password must be at least 6 characters');
+                    password.classList.add('error');
+                    isValid = false;
+                } else {
+                    clearError('passwordError');
+                    password.classList.remove('error');
+                }
+                
+                // Confirm Password
+                const confirmPassword = document.getElementById('confirmPassword');
+                if (confirmPassword.value !== password.value) {
+                    showError('confirmPasswordError', 'Passwords do not match');
+                    confirmPassword.classList.add('error');
+                    isValid = false;
+                } else {
+                    clearError('confirmPasswordError');
+                    confirmPassword.classList.remove('error');
+                }
+                
+                // Worker specific validation
+                if (userType === 'worker') {
+                    const experience = document.getElementById('experience');
+                    if (!experience.value) {
+                        Toast.show('Please select your experience', 'error');
+                        isValid = false;
+                    }
+                    
+                    if (selectedSkills.length === 0) {
+                        Toast.show('Please select at least one skill', 'error');
+                        isValid = false;
+                    }
+                    
+                    const hourlyRate = document.getElementById('hourlyRate');
+                    if (!hourlyRate.value || hourlyRate.value < 100) {
+                        Toast.show('Please enter a valid hourly rate (min ₹100)', 'error');
+                        isValid = false;
+                    }
+                }
+                
+                return isValid;
+            }
+
+            function validateStep2() {
+                let isValid = true;
+                
+                // Phone
+                const phone = document.getElementById('phone');
+                const phoneRegex = /^[0-9]{10}$/;
+                if (!phone.value) {
+                    showError('phoneError', 'Phone number is required');
+                    phone.classList.add('error');
+                    isValid = false;
+                } else if (!phoneRegex.test(phone.value)) {
+                    showError('phoneError', 'Enter valid 10-digit number');
+                    phone.classList.add('error');
+                    isValid = false;
+                } else {
+                    clearError('phoneError');
+                    phone.classList.remove('error');
+                    document.getElementById('displayPhone').textContent = `+91 ${phone.value}`;
+                }
+                
+                // City
+                const city = document.getElementById('city');
+                if (!city.value) {
+                    showError('cityError', 'Please select your city');
+                    city.classList.add('error');
+                    isValid = false;
+                } else {
+                    clearError('cityError');
+                    city.classList.remove('error');
+                }
+                
+                // Documents for workers
+                if (userType === 'worker') {
+                    const idProof = document.getElementById('idProof').files;
+                    const addressProof = document.getElementById('addressProof').files;
+                    
+                    if (idProof.length === 0) {
+                        Toast.show('Please upload ID proof', 'error');
+                        isValid = false;
+                    }
+                    
+                    if (addressProof.length === 0) {
+                        Toast.show('Please upload address proof', 'error');
+                        isValid = false;
+                    }
+                }
+                
+                return isValid;
+            }
+
+            function showError(elementId, message) {
+                document.getElementById(elementId).innerHTML = `<i class="fas fa-exclamation-circle"></i> ${message}`;
+            }
+
+            function clearError(elementId) {
+                document.getElementById(elementId).innerHTML = '';
+            }
+
+            // ==================== OTP TIMER ====================
+            function startOtpTimer() {
+                const timerDisplay = document.getElementById('timer');
+                const resendBtn = document.getElementById('resendOtp');
+                timeLeft = 120;
+                
+                if (otpTimer) clearInterval(otpTimer);
+                
+                otpTimer = setInterval(() => {
+                    const minutes = Math.floor(timeLeft / 60);
+                    const seconds = timeLeft % 60;
+                    timerDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                    
+                    if (timeLeft <= 0) {
+                        clearInterval(otpTimer);
+                        resendBtn.disabled = false;
+                        timerDisplay.textContent = '00:00';
+                    }
+                    timeLeft--;
+                }, 1000);
+            }
+
+            // ==================== OTP INPUT ====================
+            const otpInputs = document.querySelectorAll('.otp-input');
+            otpInputs.forEach((input, index) => {
+                input.addEventListener('input', function() {
+                    this.value = this.value.replace(/[^0-9]/g, '');
+                    if (this.value && index < otpInputs.length - 1) {
+                        otpInputs[index + 1].focus();
+                    }
+                });
+                
+                input.addEventListener('keydown', function(e) {
+                    if (e.key === 'Backspace' && !this.value && index > 0) {
+                        otpInputs[index - 1].focus();
+                    }
+                });
+            });
+
+            // ==================== RESEND OTP ====================
+            document.getElementById('resendOtp').addEventListener('click', function() {
+                this.disabled = true;
+                startOtpTimer();
+                Toast.show('OTP resent successfully!', 'success');
+            });
+
+            // ==================== FORM SUBMISSION - REAL BACKEND ====================
+            form.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                // Validate OTP
+                const otp = Array.from(otpInputs).map(input => input.value).join('');
+                if (otp.length !== 6) {
+                    document.getElementById('otpError').innerHTML = '<i class="fas fa-exclamation-circle"></i> Please enter complete OTP';
+                    return;
+                }
+                
+                // Check terms
+                if (!document.getElementById('terms').checked) {
+                    Toast.show('Please accept terms and conditions', 'error');
+                    return;
+                }
+                
+                // Show loading
+                submitBtn.classList.add('btn-loading');
+                submitBtn.disabled = true;
+                
+                try {
+                    // Prepare registration data
+                    const registrationData = {
+                        first_name: document.getElementById('firstName').value,
+                        last_name: document.getElementById('lastName').value,
+                        email: document.getElementById('email').value,
+                        phone: document.getElementById('phone').value,
+                        password: document.getElementById('password').value,
+                        user_type: userType
+                    };
+                    
+                    // Add optional fields if present
+                    if (document.getElementById('city').value) {
+                        registrationData.city = document.getElementById('city').value;
+                    }
+                    
+                    if (document.getElementById('address').value) {
+                        registrationData.address = document.getElementById('address').value;
+                    }
+                    
+                    // Call the REAL Auth.register from app.js
+                    const response = await Auth.register(registrationData);
+                    
+                    if (response && response.success) {
+                        Toast.show('Registration successful! Redirecting to login...', 'success');
+                        setTimeout(() => {
+                            window.location.href = '/login.html?registered=success';
+                        }, 2000);
+                    }
+                } catch (error) {
+                    console.error('Registration error:', error);
+                    Toast.show(error.message || 'Registration failed', 'error');
+                } finally {
+                    submitBtn.classList.remove('btn-loading');
+                    submitBtn.disabled = false;
+                }
+            });
+
+            // ==================== DEMO FILL (Dev only) ====================
+            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                const demoBtn = document.createElement('button');
+                demoBtn.className = 'btn-outline btn-small';
+                demoBtn.style.marginTop = '10px';
+                demoBtn.innerHTML = '<i class="fas fa-flask"></i> Fill Demo Data';
+                demoBtn.onclick = fillDemoData;
+                document.querySelector('.form-navigation').appendChild(demoBtn);
+            }
+
+            function fillDemoData() {
+                document.getElementById('firstName').value = 'John';
+                document.getElementById('lastName').value = 'Doe';
+                document.getElementById('email').value = 'john@example.com';
+                document.getElementById('password').value = 'Password123';
+                document.getElementById('confirmPassword').value = 'Password123';
+                document.getElementById('phone').value = '9876543210';
+                document.getElementById('city').value = 'mumbai';
+                document.getElementById('address').value = '123, Main Street';
+                document.getElementById('pincode').value = '400001';
+                document.getElementById('locality').value = 'Andheri East';
+                Toast.show('Demo data filled!', 'info');
+            }
+        });
+    </script>
+</body>
+</html>

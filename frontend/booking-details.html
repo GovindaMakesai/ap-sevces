@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Booking Details - AP Services</title>
+    
+    <!-- Font Awesome 6 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    
+    <!-- Google Fonts - Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- Booking Details Specific Styles -->
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #f9fafb;
+            line-height: 1.5;
+            color: #1f2937;
+        }
+
+        :root {
+            --primary-50: #eff6ff;
+            --primary-100: #dbeafe;
+            --primary-600: #2563eb;
+            --primary-700: #1d4ed8;
+            --gray-50: #f9fafb;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-300: #d1d5db;
+            --gray-500: #6b7280;
+            --gray-600: #4b5563;
+            --gray-700: #374151;
+            --gray-800: #1f2937;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+            --radius-lg: 0.75rem;
+            --radius-xl: 1rem;
+            --radius-2xl: 1.5rem;
+            --radius-full: 9999px;
+            --spacing-xs: 0.5rem;
+            --spacing-sm: 0.75rem;
+            --spacing-md: 1rem;
+            --spacing-lg: 1.5rem;
+            --spacing-xl: 2rem;
+            --spacing-2xl: 2.5rem;
+            --transition-base: 0.2s ease;
+            --transition-fast: 0.15s ease;
+            --header-height: 72px;
+            --footer-height: 320px;
+        }
+
+        .navbar {
+            background: white;
+            box-shadow: var(--shadow-sm);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .nav-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 0;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 800;
+            text-decoration: none;
+            color: var(--gray-800);
+        }
+
+        .logo span {
+            color: var(--primary-600);
+        }
+
+        .mobile-menu-btn {
+            display: none;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+
+        .footer {
+            background: #1f2937;
+            color: white;
+            padding: 3rem 0 1.5rem;
+            margin-top: 3rem;
+        }
+
+        .footer-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .footer-col h3, .footer-col h4 {
+            margin-bottom: 1rem;
+        }
+
+        .footer-col ul {
+            list-style: none;
+        }
+
+        .footer-col ul li {
+            margin-bottom: 0.5rem;
+        }
+
+        .footer-col a {
+            color: #9ca3af;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .footer-col a:hover {
+            color: white;
+        }
+
+        .social-links {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .social-links a {
+            color: #9ca3af;
+            font-size: 1.2rem;
+        }
+
+        .footer-bottom {
+            text-align: center;
+            padding-top: 1.5rem;
+            border-top: 1px solid #374151;
+            color: #9ca3af;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 var(--spacing-md);
+        }
+
+        .booking-details-page {
+            background: var(--gray-50);
+            min-height: calc(100vh - var(--header-height) - var(--footer-height));
+            padding: var(--spacing-xl) 0;
+        }
+
+        .breadcrumb {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-xs);
+            margin-bottom: var(--spacing-lg);
+            color: var(--gray-600);
+            background: white;
+            padding: var(--spacing-sm) var(--spacing-lg);
+            border-radius: var(--radius-full);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .breadcrumb a {
+            color: var(--gray-600);
+            text-decoration: none;
+        }
+
+        .breadcrumb a:hover {
+            color: var(--primary-600);
+        }
+
+        .breadcrumb i {
+            font-size: 0.8rem;
+        }
+
+        .breadcrumb .active {
+            color: var(--primary-600);
+            font-weight: 600;
+        }
+
+        .booking-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--spacing-xl);
+            flex-wrap: wrap;
+            gap: var(--spacing-md);
+        }
+
+        .booking-header h1 {
+            font-size: 2rem;
+            color: var(--gray-800);
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 0.5rem 1.5rem;
+            border-radius: var(--radius-full);
+            font-weight: 600;
+            font-size: 0.875rem;
+        }
+
+        .status-badge.pending { background: #fef3c7; color: #92400e; }
+        .status-badge.confirmed { background: #dbeafe; color: #1e40af; }
+        .status-badge.completed { background: #d1fae5; color: #065f46; }
+        .status-badge.cancelled { background: #fee2e2; color: #991b1b; }
+        .status-badge.in-progress { background: #fff3cd; color: #856404; }
+
+        .details-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: var(--spacing-xl);
+        }
+
+        .detail-card {
+            background: white;
+            border-radius: var(--radius-xl);
+            padding: var(--spacing-xl);
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--gray-200);
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .card-title {
+            font-size: 1.3rem;
+            margin-bottom: var(--spacing-lg);
+            color: var(--gray-800);
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-xs);
+            padding-bottom: var(--spacing-sm);
+            border-bottom: 2px solid var(--gray-200);
+        }
+
+        .card-title i {
+            color: var(--primary-600);
+        }
+
+        .service-info {
+            display: flex;
+            gap: var(--spacing-lg);
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .service-icon {
+            width: 80px;
+            height: 80px;
+            background: var(--primary-100);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary-700);
+            font-size: 2rem;
+        }
+
+        .service-details h2 {
+            font-size: 1.5rem;
+            margin-bottom: var(--spacing-xs);
+        }
+
+        .service-meta {
+            display: flex;
+            gap: var(--spacing-md);
+            color: var(--gray-600);
+            flex-wrap: wrap;
+        }
+
+        .service-meta span {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .worker-profile {
+            display: flex;
+            gap: var(--spacing-lg);
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .worker-avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: var(--primary-100);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary-700);
+            font-size: 2rem;
+            font-weight: 700;
+        }
+
+        .worker-info h3 {
+            font-size: 1.2rem;
+            margin-bottom: 4px;
+        }
+
+        .worker-rating {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            color: #fbbf24;
+            margin-bottom: 4px;
+        }
+
+        .worker-rating span {
+            color: var(--gray-600);
+            font-size: 0.875rem;
+        }
+
+        .icon-btn {
+            background: var(--gray-100);
+            border: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .icon-btn:hover {
+            background: var(--gray-200);
+        }
+
+        .timeline {
+            position: relative;
+            padding-left: var(--spacing-xl);
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 7px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: var(--gray-200);
+        }
+
+        .timeline-item {
+            position: relative;
+            padding-bottom: var(--spacing-lg);
+        }
+
+        .timeline-dot {
+            position: absolute;
+            left: -25px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: white;
+            border: 2px solid var(--primary-600);
+            z-index: 1;
+        }
+
+        .timeline-item.completed .timeline-dot {
+            background: var(--success);
+            border-color: var(--success);
+        }
+
+        .timeline-item.active .timeline-dot {
+            background: var(--primary-600);
+            border-color: var(--primary-600);
+            box-shadow: 0 0 0 4px var(--primary-100);
+        }
+
+        .timeline-content {
+            background: var(--gray-50);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-md);
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: var(--spacing-md);
+        }
+
+        .info-item {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            padding: var(--spacing-sm);
+            background: var(--gray-50);
+            border-radius: var(--radius-lg);
+        }
+
+        .info-item i {
+            width: 40px;
+            height: 40px;
+            background: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary-600);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .price-breakdown {
+            background: var(--gray-50);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-lg);
+        }
+
+        .price-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: var(--spacing-sm);
+            color: var(--gray-600);
+        }
+
+        .price-row.total {
+            font-weight: 700;
+            font-size: 1.2rem;
+            color: var(--gray-800);
+            padding-top: var(--spacing-md);
+            margin-top: var(--spacing-md);
+            border-top: 2px solid var(--gray-300);
+        }
+
+        .payment-status {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            padding: var(--spacing-md);
+            background: var(--gray-50);
+            border-radius: var(--radius-lg);
+            margin-top: var(--spacing-md);
+        }
+
+        .address-card {
+            background: var(--gray-50);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-lg);
+        }
+
+        .address-type {
+            display: inline-block;
+            padding: 0.25rem 1rem;
+            background: var(--primary-100);
+            color: var(--primary-700);
+            border-radius: var(--radius-full);
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-bottom: var(--spacing-sm);
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: var(--spacing-md);
+            margin-top: var(--spacing-xl);
+            flex-wrap: wrap;
+        }
+
+        .action-btn {
+            flex: 1;
+            min-width: 200px;
+            padding: 1rem;
+            border: none;
+            border-radius: var(--radius-lg);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all var(--transition-base);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--spacing-xs);
+        }
+
+        .action-btn.primary { background: var(--primary-600); color: white; }
+        .action-btn.secondary { background: white; color: var(--primary-600); border: 2px solid var(--primary-600); }
+        .action-btn.danger { background: white; color: var(--error); border: 2px solid var(--error); }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.show { display: flex; }
+        .modal-content {
+            background: white;
+            border-radius: var(--radius-2xl);
+            padding: var(--spacing-2xl);
+            max-width: 500px;
+            width: 90%;
+        }
+
+        .cancel-reason {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            padding: var(--spacing-sm);
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-lg);
+            margin-bottom: var(--spacing-xs);
+            cursor: pointer;
+        }
+
+        .cancel-reason.selected {
+            background: var(--primary-50);
+            border-color: var(--primary-600);
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #1f2937;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 3000;
+        }
+
+        .toast.show { opacity: 1; }
+
+        /* Review Section Styles */
+        .review-form {
+            margin-top: 1.5rem;
+            padding: 1.5rem;
+            background: #f9fafb;
+            border-radius: 0.75rem;
+            border: 1px solid #e5e7eb;
+        }
+
+        .rating-input {
+            margin-bottom: 1.25rem;
+        }
+
+        .rating-input label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: #374151;
+        }
+
+        .rating-input .stars i {
+            font-size: 1.75rem;
+            cursor: pointer;
+            margin-right: 0.25rem;
+            transition: color 0.2s;
+            color: #d1d5db;
+        }
+
+        .rating-input .stars i:hover,
+        .rating-input .stars i.active {
+            color: #fbbf24;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+            color: #374151;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+            font-family: inherit;
+            transition: border-color 0.2s;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .btn-primary {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            width: 100%;
+        }
+
+        .btn-primary:hover {
+            background: #1d4ed8;
+        }
+
+        .btn-outline {
+            background: white;
+            border: 1px solid #e5e7eb;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+        }
+
+        .alert-warning {
+            background: #fffbeb;
+            border-left: 4px solid #f59e0b;
+            padding: 0.75rem;
+            margin: 1rem 0;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            color: #92400e;
+        }
+
+        .modal-footer {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+            margin-top: 1.5rem;
+        }
+
+        @media (max-width: 768px) {
+            .details-grid { grid-template-columns: 1fr; }
+            .info-grid { grid-template-columns: 1fr; }
+            .action-buttons { flex-direction: column; }
+            .mobile-menu-btn { display: block; }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-content">
+                <a href="/" class="logo">AP<span>Services</span></a>
+                <div class="nav-links"></div>
+                <button class="mobile-menu-btn"><i class="fas fa-bars"></i></button>
+            </div>
+        </div>
+    </nav>
+
+    <section class="booking-details-page">
+        <div class="container">
+            <div class="breadcrumb">
+                <a href="/">Home</a> <i class="fas fa-chevron-right"></i>
+                <a href="/customer-dashboard.html">Dashboard</a> <i class="fas fa-chevron-right"></i>
+                <span class="active">Booking Details</span>
+            </div>
+
+            <div class="booking-header">
+                <h1>Booking Details</h1>
+                <span class="status-badge confirmed" id="bookingStatus">Confirmed</span>
+            </div>
+
+            <div class="details-grid">
+                <div class="left-column">
+                    <div class="detail-card">
+                        <h3 class="card-title"><i class="fas fa-tools"></i> Service Details</h3>
+                        <div class="service-info">
+                            <div class="service-icon"><i class="fas fa-wrench"></i></div>
+                            <div class="service-details">
+                                <h2 id="serviceName">Plumbing Repair</h2>
+                                <div class="service-meta">
+                                    <span><i class="fas fa-clock"></i> <span id="durationText">2 hours</span></span>
+                                    <span><i class="fas fa-calendar"></i> <span id="dateText">15 Mar 2024</span></span>
+                                    <span><i class="fas fa-clock"></i> <span id="timeText">10:00 AM</span></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="detail-card">
+                        <h3 class="card-title"><i class="fas fa-user"></i> Professional Details</h3>
+                        <div class="worker-profile">
+                            <div class="worker-avatar" id="workerAvatar">RK</div>
+                            <div class="worker-info">
+                                <h3 id="workerName">Rajesh Kumar</h3>
+                                <div class="worker-rating">
+                                    <i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star-half-alt"></i>
+                                    <span id="ratingText">(4.9) 328 reviews</span>
+                                </div>
+                                <div class="worker-specialty" id="workerSpecialty">Plumbing Expert</div>
+                            </div>
+                            <div class="worker-actions">
+                                <button class="icon-btn" onclick="viewWorkerProfile()"><i class="fas fa-eye"></i></button>
+                                <button class="icon-btn" onclick="chatWithWorker()"><i class="fas fa-comment"></i></button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="detail-card">
+                        <h3 class="card-title"><i class="fas fa-history"></i> Booking Timeline</h3>
+                        <div class="timeline" id="timelineContainer"></div>
+                    </div>
+
+                    <!-- REVIEW SECTION - Dynamically shown for completed bookings -->
+                    <div id="reviewSection" style="display: none;">
+                        <div class="review-form">
+                            <h3 style="margin-bottom: 1rem;">✍️ Write a Review</h3>
+                            
+                            <div class="rating-input">
+                                <label>Your Rating:</label>
+                                <div class="stars" id="ratingStars">
+                                    <i class="far fa-star" data-rating="1"></i>
+                                    <i class="far fa-star" data-rating="2"></i>
+                                    <i class="far fa-star" data-rating="3"></i>
+                                    <i class="far fa-star" data-rating="4"></i>
+                                    <i class="far fa-star" data-rating="5"></i>
+                                </div>
+                                <input type="hidden" id="reviewRating" value="0">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Review Title</label>
+                                <input type="text" id="reviewTitle" class="form-control" placeholder="Summarize your experience">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Your Review</label>
+                                <textarea id="reviewComment" rows="4" class="form-control" placeholder="Tell us about your experience with the professional..."></textarea>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Add Photos (Optional)</label>
+                                <input type="file" id="reviewPhotos" multiple accept="image/*" class="form-control">
+                            </div>
+                            
+                            <button onclick="submitReview()" class="btn-primary">Submit Review</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="right-column">
+                    <div class="detail-card">
+                        <h3 class="card-title"><i class="fas fa-info-circle"></i> Booking Information</h3>
+                        <div class="info-grid" id="bookingInfoGrid"></div>
+                    </div>
+
+                    <div class="detail-card">
+                        <h3 class="card-title"><i class="fas fa-map-marker-alt"></i> Service Address</h3>
+                        <div class="address-card" id="addressCard"></div>
+                    </div>
+
+                    <div class="detail-card">
+                        <h3 class="card-title"><i class="fas fa-credit-card"></i> Payment Details</h3>
+                        <div class="price-breakdown" id="priceBreakdown"></div>
+                        <div class="payment-status" id="paymentStatusDiv"></div>
+                        <p class="payment-method" style="margin-top: var(--spacing-md); color: var(--gray-600);" id="paymentMethodText"></p>
+                    </div>
+
+                    <div class="action-buttons">
+                        <button class="action-btn secondary" onclick="chatWithWorker()"><i class="fas fa-comment"></i> Chat</button>
+                        <button class="action-btn primary" onclick="rescheduleBooking()"><i class="fas fa-calendar-alt"></i> Reschedule</button>
+                        <button class="action-btn danger" onclick="showCancelModal()"><i class="fas fa-times"></i> Cancel Booking</button>
+                    </div>
+
+                    <div style="text-align: center; margin-top: var(--spacing-lg);">
+                        <p style="color: var(--gray-600);"><i class="fas fa-question-circle"></i> Need help? <a href="#" style="color: var(--primary-600);">Contact Support</a></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="modal" id="cancelModal"><div class="modal-content"><div class="modal-header"><h3>Cancel Booking</h3><button class="modal-close" onclick="closeModal('cancelModal')">&times;</button></div><div class="modal-body"><p>Please select a reason:</p><div class="cancel-reasons" id="cancelReasons"></div><div class="alert-warning"><i class="fas fa-exclamation-triangle"></i> Cancellations within 2 hours may incur a fee.</div></div><div class="modal-footer"><button class="btn-outline" onclick="closeModal('cancelModal')">Keep Booking</button><button class="btn-danger" onclick="confirmCancellation()">Confirm</button></div></div></div>
+
+    <footer class="footer"><div class="container"><div class="footer-grid"><div class="footer-col"><h3>AP<span style="color:#3b82f6">Services</span></h3><p>Your trusted home service platform.</p><div class="social-links"><a href="#"><i class="fab fa-facebook-f"></i></a><a href="#"><i class="fab fa-instagram"></i></a></div></div><div class="footer-col"><h4>Quick Links</h4><ul><li><a href="#">About</a></li><li><a href="#">Contact</a></li></ul></div></div><div class="footer-bottom"><p>&copy; 2024 AP Services.</p></div></div></footer>
+
+    <div id="toast" class="toast"></div>
+
+    <script>
+        const Toast = { show: (msg, type) => { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3000); } };
+        
+        let currentBooking = null;
+
+        function loadBookingDetails(bookingId) {
+            // Mock data with COMPLETED status to demonstrate review section
+            const mockData = {
+                'BK24031501': {
+                    status: 'completed',  // Change to 'completed' to show review section
+                    serviceName: 'Plumbing Repair',
+                    duration: '2 hours',
+                    date: '15 Mar 2024',
+                    time: '10:00 AM - 12:00 PM',
+                    workerName: 'Rajesh Kumar',
+                    workerAvatar: 'RK',
+                    workerRating: 4.9,
+                    workerReviews: 328,
+                    workerSpecialty: 'Plumbing Expert',
+                    addressType: 'Home',
+                    address: 'Flat 101, Sunshine Apartments, MG Road, Andheri East, Mumbai - 400069',
+                    addressPhone: '+91 98765 43210',
+                    bookingId: '#BK24031501',
+                    contactNumber: '+91 98765 43210',
+                    serviceCharge: 499,
+                    platformFee: 49,
+                    gst: 90,
+                    discount: 100,
+                    total: 638,
+                    transactionId: 'TXN240315001',
+                    paymentMethod: 'Credit Card (ending in 4242)',
+                    paymentStatus: 'success',
+                    timeline: [
+                        { status: 'Booking Created', time: '15 Mar 2024, 09:30 AM', completed: true },
+                        { status: 'Confirmed by Professional', time: '15 Mar 2024, 09:45 AM', completed: true },
+                        { status: 'Service Scheduled', time: '15 Mar 2024', completed: true },
+                        { status: 'Service Completed', time: '15 Mar 2024, 12:15 PM', completed: true }
+                    ]
+                }
+            };
+            currentBooking = mockData[bookingId] || mockData['BK24031501'];
+            renderUI(currentBooking);
+        }
+
+        function renderUI(booking) {
+            document.getElementById('bookingStatus').textContent = booking.status.charAt(0).toUpperCase() + booking.status.slice(1);
+            document.getElementById('bookingStatus').className = `status-badge ${booking.status}`;
+            document.getElementById('serviceName').textContent = booking.serviceName;
+            document.getElementById('durationText').textContent = booking.duration;
+            document.getElementById('dateText').textContent = booking.date;
+            document.getElementById('timeText').textContent = booking.time.split(' - ')[0];
+            document.getElementById('workerAvatar').textContent = booking.workerAvatar;
+            document.getElementById('workerName').textContent = booking.workerName;
+            document.getElementById('ratingText').textContent = `(${booking.workerRating}) ${booking.workerReviews} reviews`;
+            document.getElementById('workerSpecialty').textContent = booking.workerSpecialty;
+
+            // Timeline
+            const timelineHtml = booking.timeline.map(item => `
+                <div class="timeline-item ${item.completed ? 'completed' : ''}">
+                    <div class="timeline-dot"></div>
+                    <div class="timeline-content"><h4>${item.status}</h4><div class="timeline-time">${item.time || 'Pending'}</div></div>
+                </div>
+            `).join('');
+            document.getElementById('timelineContainer').innerHTML = timelineHtml;
+
+            // Booking Info
+            document.getElementById('bookingInfoGrid').innerHTML = `
+                <div class="info-item"><i class="fas fa-calendar"></i><div><h4>Booking Date</h4><p>${booking.date}</p></div></div>
+                <div class="info-item"><i class="fas fa-clock"></i><div><h4>Time</h4><p>${booking.time}</p></div></div>
+                <div class="info-item"><i class="fas fa-hashtag"></i><div><h4>Booking ID</h4><p>${booking.bookingId}</p></div></div>
+                <div class="info-item"><i class="fas fa-phone"></i><div><h4>Contact</h4><p>${booking.contactNumber}</p></div></div>
+            `;
+            document.getElementById('addressCard').innerHTML = `<span class="address-type">${booking.addressType}</span><p class="address-text">${booking.address.replace(/,/g, ',<br>')}</p><p><i class="fas fa-phone"></i> ${booking.addressPhone}</p>`;
+            
+            document.getElementById('priceBreakdown').innerHTML = `
+                <div class="price-row"><span>Service Charge</span><span>₹${booking.serviceCharge}</span></div>
+                <div class="price-row"><span>Platform Fee</span><span>₹${booking.platformFee}</span></div>
+                <div class="price-row"><span>GST (18%)</span><span>₹${booking.gst}</span></div>
+                ${booking.discount ? `<div class="price-row discount"><span>Coupon Discount</span><span>-₹${booking.discount}</span></div>` : ''}
+                <div class="price-row total"><span>Total Amount</span><span>₹${booking.total}</span></div>
+            `;
+            document.getElementById('paymentStatusDiv').innerHTML = `<i class="fas fa-check-circle"></i><div><h4>Payment Successful</h4><p>Transaction ID: ${booking.transactionId}</p></div>`;
+            document.getElementById('paymentMethodText').innerHTML = `<i class="fas fa-credit-card"></i> Paid via: ${booking.paymentMethod}`;
+
+            // Show review section ONLY for completed bookings
+            const reviewSection = document.getElementById('reviewSection');
+            if (booking.status === 'completed') {
+                reviewSection.style.display = 'block';
+            } else {
+                reviewSection.style.display = 'none';
+            }
+        }
+
+        // Rating stars interaction
+        function initRatingStars() {
+            const stars = document.querySelectorAll('#ratingStars i');
+            stars.forEach(star => {
+                star.addEventListener('click', function() {
+                    const rating = parseInt(this.dataset.rating);
+                    document.getElementById('reviewRating').value = rating;
+                    stars.forEach((s, idx) => {
+                        if (idx < rating) {
+                            s.classList.remove('far');
+                            s.classList.add('fas');
+                            s.classList.add('active');
+                        } else {
+                            s.classList.remove('fas');
+                            s.classList.add('far');
+                            s.classList.remove('active');
+                        }
+                    });
+                });
+            });
+        }
+
+        async function submitReview() {
+            const rating = document.getElementById('reviewRating').value;
+            const title = document.getElementById('reviewTitle').value.trim();
+            const comment = document.getElementById('reviewComment').value.trim();
+            
+            if (!rating || rating === '0') {
+                Toast.show('Please select a rating', 'error');
+                return;
+            }
+            if (!comment) {
+                Toast.show('Please share your experience', 'error');
+                return;
+            }
+            
+            // Simulate API call
+            Toast.show('Review submitted successfully! Thank you for your feedback!', 'success');
+            document.getElementById('reviewSection').style.display = 'none';
+            // Reset form
+            document.getElementById('reviewTitle').value = '';
+            document.getElementById('reviewComment').value = '';
+            document.getElementById('reviewRating').value = '0';
+            document.querySelectorAll('#ratingStars i').forEach(s => {
+                s.classList.remove('fas', 'active');
+                s.classList.add('far');
+            });
+        }
+
+        function viewWorkerProfile() { Toast.show('Worker profile coming soon', 'info'); }
+        function chatWithWorker() { Toast.show('Chat feature coming soon', 'info'); }
+        function rescheduleBooking() { Toast.show('Reschedule feature coming soon', 'info'); }
+        function showCancelModal() { document.getElementById('cancelModal').classList.add('show'); }
+        function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+        function confirmCancellation() { Toast.show('Booking cancelled successfully', 'success'); closeModal('cancelModal'); document.getElementById('bookingStatus').textContent = 'Cancelled'; document.getElementById('bookingStatus').className = 'status-badge cancelled'; document.getElementById('reviewSection').style.display = 'none'; }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const bookingId = urlParams.get('id') || 'BK24031501';
+            loadBookingDetails(bookingId);
+            initRatingStars();
+            
+            // Populate cancel reasons
+            const reasons = ['Change of plans', 'Found another professional', 'Booked by mistake', 'Professional unresponsive', 'Other reason'];
+            const container = document.getElementById('cancelReasons');
+            container.innerHTML = reasons.map(r => `<div class="cancel-reason" data-reason="${r}"><i class="fas fa-circle"></i><span>${r}</span></div>`).join('');
+            document.querySelectorAll('.cancel-reason').forEach(el => {
+                el.addEventListener('click', function() {
+                    document.querySelectorAll('.cancel-reason').forEach(r => r.classList.remove('selected'));
+                    this.classList.add('selected');
+                });
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,1107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Professional Profile - AP Services</title>
+    
+    <!-- Font Awesome 6 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    
+    <!-- Google Fonts - Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Flatpickr Calendar -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- Worker Profile Specific Styles -->
+    <style>
+        /* ==================== WORKER PROFILE STYLES ==================== */
+        .profile-page {
+            background: var(--gray-50);
+            min-height: calc(100vh - var(--header-height) - var(--footer-height));
+            padding: var(--spacing-xl) 0;
+        }
+
+        /* ==================== PROFILE HEADER ==================== */
+        .profile-header {
+            background: linear-gradient(135deg, var(--primary-600), var(--primary-800));
+            color: white;
+            padding: var(--spacing-2xl) 0;
+            margin-bottom: var(--spacing-xl);
+            border-radius: 0 0 var(--radius-2xl) var(--radius-2xl);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .profile-header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -10%;
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 70%);
+            border-radius: 50%;
+        }
+
+        .profile-header::after {
+            content: '';
+            position: absolute;
+            bottom: -50%;
+            left: -10%;
+            width: 300px;
+            height: 300px;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 70%);
+            border-radius: 50%;
+        }
+
+        .profile-header .container {
+            position: relative;
+            z-index: 1;
+        }
+
+        .breadcrumb {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-xs);
+            margin-bottom: var(--spacing-lg);
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .breadcrumb a {
+            color: white;
+            text-decoration: none;
+        }
+
+        .breadcrumb a:hover {
+            text-decoration: underline;
+        }
+
+        .breadcrumb i {
+            font-size: 0.8rem;
+        }
+
+        .profile-header-content {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-xl);
+            flex-wrap: wrap;
+        }
+
+        .profile-avatar-wrapper {
+            position: relative;
+        }
+
+        .profile-avatar {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            border: 4px solid white;
+            box-shadow: var(--shadow-xl);
+            object-fit: cover;
+            background: var(--gray-200);
+        }
+
+        .verified-badge {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            width: 30px;
+            height: 30px;
+            background: var(--success);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            border: 2px solid white;
+            font-size: 0.9rem;
+        }
+
+        .profile-title {
+            flex: 1;
+        }
+
+        .profile-title h1 {
+            font-size: 2.5rem;
+            margin-bottom: var(--spacing-xs);
+            color: white;
+        }
+
+        .profile-title .category {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            margin-bottom: var(--spacing-sm);
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            flex-wrap: wrap;
+        }
+
+        .rating-large {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-xs);
+            background: rgba(255, 255, 255, 0.2);
+            padding: 0.5rem 1rem;
+            border-radius: var(--radius-full);
+            width: fit-content;
+        }
+
+        .rating-large i {
+            color: #fbbf24;
+        }
+
+        .rating-number {
+            font-size: 1.2rem;
+            font-weight: 700;
+            margin-right: 4px;
+        }
+
+        .rating-count {
+            opacity: 0.8;
+            font-size: var(--font-size-sm);
+        }
+
+        /* ==================== PROFILE NAVIGATION ==================== */
+        .profile-nav {
+            background: white;
+            border-radius: var(--radius-xl);
+            padding: var(--spacing-sm);
+            margin-bottom: var(--spacing-xl);
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--gray-200);
+            display: flex;
+            gap: var(--spacing-xs);
+            flex-wrap: wrap;
+        }
+
+        .profile-nav-btn {
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: var(--radius-lg);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            background: transparent;
+            color: var(--gray-600);
+            flex: 1;
+            white-space: nowrap;
+        }
+
+        .profile-nav-btn:hover {
+            background: var(--gray-100);
+            color: var(--primary-600);
+        }
+
+        .profile-nav-btn.active {
+            background: var(--primary-600);
+            color: white;
+        }
+
+        /* ==================== MAIN CONTENT LAYOUT ==================== */
+        .profile-layout {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: var(--spacing-xl);
+        }
+
+        /* ==================== LEFT COLUMN ==================== */
+        .profile-left {
+            background: white;
+            border-radius: var(--radius-xl);
+            padding: var(--spacing-xl);
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--gray-200);
+        }
+
+        .profile-section {
+            margin-bottom: var(--spacing-xl);
+        }
+
+        .profile-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .section-title {
+            font-size: 1.3rem;
+            margin-bottom: var(--spacing-lg);
+            color: var(--gray-800);
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-xs);
+            padding-bottom: var(--spacing-sm);
+            border-bottom: 2px solid var(--gray-200);
+        }
+
+        .section-title i {
+            color: var(--primary-600);
+        }
+
+        /* About Section */
+        .about-text {
+            color: var(--gray-700);
+            line-height: 1.8;
+            margin-bottom: var(--spacing-md);
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: var(--spacing-md);
+            margin-top: var(--spacing-md);
+        }
+
+        .info-item {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            padding: var(--spacing-sm);
+            background: var(--gray-50);
+            border-radius: var(--radius-lg);
+        }
+
+        .info-item i {
+            width: 40px;
+            height: 40px;
+            background: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary-600);
+            font-size: 1.1rem;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .info-item-content h4 {
+            font-size: var(--font-size-sm);
+            color: var(--gray-600);
+            margin-bottom: 2px;
+        }
+
+        .info-item-content p {
+            font-weight: 600;
+            color: var(--gray-800);
+            margin: 0;
+        }
+
+        /* Skills Section */
+        .skills-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--spacing-sm);
+        }
+
+        .skill-badge {
+            padding: 0.6rem 1.2rem;
+            background: var(--primary-50);
+            color: var(--primary-700);
+            border-radius: var(--radius-full);
+            font-weight: 600;
+            font-size: var(--font-size-sm);
+            border: 1px solid var(--primary-200);
+            transition: all var(--transition-fast);
+        }
+
+        .skill-badge:hover {
+            background: var(--primary-600);
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        /* Portfolio Section */
+        .portfolio-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: var(--spacing-sm);
+        }
+
+        .portfolio-item {
+            position: relative;
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            aspect-ratio: 1;
+            cursor: pointer;
+        }
+
+        .portfolio-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform var(--transition-base);
+        }
+
+        .portfolio-item:hover img {
+            transform: scale(1.1);
+        }
+
+        .portfolio-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity var(--transition-base);
+        }
+
+        .portfolio-item:hover .portfolio-overlay {
+            opacity: 1;
+        }
+
+        .portfolio-overlay i {
+            color: white;
+            font-size: 2rem;
+        }
+
+        /* ==================== ENHANCED REVIEWS SECTION ==================== */
+        .reviews-section {
+            margin-top: var(--spacing-lg);
+        }
+
+        .rating-summary {
+            background: var(--gray-50);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-lg);
+            margin-bottom: var(--spacing-lg);
+            display: flex;
+            gap: var(--spacing-xl);
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .average-rating {
+            text-align: center;
+            min-width: 120px;
+        }
+
+        .rating-number {
+            font-size: 3rem;
+            font-weight: 800;
+            color: var(--gray-800);
+            line-height: 1;
+        }
+
+        .stars {
+            display: inline-flex;
+            gap: 2px;
+            margin: var(--spacing-xs) 0;
+        }
+
+        .stars i {
+            font-size: 1rem;
+            color: #fbbf24;
+        }
+
+        .review-count {
+            font-size: var(--font-size-sm);
+            color: var(--gray-500);
+        }
+
+        .rating-breakdown {
+            flex: 1;
+        }
+
+        .rating-bar-item {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            margin-bottom: var(--spacing-xs);
+        }
+
+        .rating-bar-label {
+            width: 45px;
+            font-size: var(--font-size-sm);
+            color: var(--gray-600);
+        }
+
+        .rating-bar-progress {
+            flex: 1;
+            height: 8px;
+            background: var(--gray-300);
+            border-radius: var(--radius-full);
+            overflow: hidden;
+        }
+
+        .rating-bar-fill {
+            height: 100%;
+            background: #fbbf24;
+            border-radius: var(--radius-full);
+        }
+
+        .rating-bar-count {
+            width: 35px;
+            font-size: var(--font-size-sm);
+            color: var(--gray-600);
+            text-align: right;
+        }
+
+        /* Review Cards */
+        .reviews-list {
+            display: flex;
+            flex-direction: column;
+            gap: var(--spacing-md);
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .review-card {
+            padding: var(--spacing-lg);
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-lg);
+            transition: all var(--transition-fast);
+            background: white;
+        }
+
+        .review-card:hover {
+            box-shadow: var(--shadow-md);
+            border-color: var(--primary-200);
+        }
+
+        .review-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            gap: var(--spacing-sm);
+            margin-bottom: var(--spacing-sm);
+        }
+
+        .reviewer {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .reviewer strong {
+            font-size: 1rem;
+            color: var(--gray-800);
+        }
+
+        .reviewer .stars i {
+            font-size: 0.8rem;
+        }
+
+        .review-date {
+            font-size: var(--font-size-xs);
+            color: var(--gray-500);
+        }
+
+        .review-card h4 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin: var(--spacing-xs) 0;
+            color: var(--gray-800);
+        }
+
+        .review-card p {
+            color: var(--gray-600);
+            line-height: 1.6;
+            margin: var(--spacing-xs) 0;
+        }
+
+        .review-images {
+            display: flex;
+            gap: var(--spacing-xs);
+            margin-top: var(--spacing-sm);
+            flex-wrap: wrap;
+        }
+
+        .review-images img {
+            width: 70px;
+            height: 70px;
+            border-radius: var(--radius-md);
+            object-fit: cover;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .review-images img:hover {
+            transform: scale(1.05);
+        }
+
+        .helpful-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 0.4rem 1rem;
+            margin-top: var(--spacing-sm);
+            border: 1px solid var(--gray-300);
+            border-radius: var(--radius-full);
+            background: white;
+            color: var(--gray-600);
+            font-size: var(--font-size-xs);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+
+        .helpful-btn:hover {
+            background: var(--primary-50);
+            border-color: var(--primary-400);
+            color: var(--primary-600);
+        }
+
+        .btn-outline {
+            width: 100%;
+            padding: 0.8rem;
+            background: white;
+            border: 2px solid var(--primary-600);
+            border-radius: var(--radius-lg);
+            color: var(--primary-600);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+
+        .btn-outline:hover {
+            background: var(--primary-50);
+            transform: translateY(-2px);
+        }
+
+        /* ==================== RIGHT COLUMN (BOOKING CARD) ==================== */
+        .profile-right {
+            position: sticky;
+            top: calc(var(--header-height) + var(--spacing-md));
+            height: fit-content;
+        }
+
+        .booking-card {
+            background: white;
+            border-radius: var(--radius-xl);
+            padding: var(--spacing-xl);
+            box-shadow: var(--shadow-xl);
+            border: 1px solid var(--gray-200);
+        }
+
+        .booking-card h3 {
+            font-size: 1.3rem;
+            margin-bottom: var(--spacing-lg);
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-xs);
+            color: var(--gray-800);
+        }
+
+        .price-tag {
+            text-align: center;
+            padding: var(--spacing-lg);
+            background: linear-gradient(135deg, var(--primary-50), var(--primary-100));
+            border-radius: var(--radius-lg);
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .price-tag .price {
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: var(--primary-700);
+        }
+
+        .service-select {
+            width: 100%;
+            padding: 1rem;
+            border: 1px solid var(--gray-300);
+            border-radius: var(--radius-lg);
+            margin-bottom: var(--spacing-md);
+            font-size: 1rem;
+        }
+
+        .calendar-container {
+            margin-bottom: var(--spacing-md);
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 0.8rem;
+            border: 1px solid var(--gray-300);
+            border-radius: var(--radius-lg);
+            font-family: inherit;
+        }
+
+        .time-slots {
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .time-slots h4 {
+            margin-bottom: var(--spacing-sm);
+            color: var(--gray-700);
+        }
+
+        .slots-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: var(--spacing-xs);
+        }
+
+        .time-slot {
+            padding: 0.75rem;
+            text-align: center;
+            border: 1px solid var(--gray-300);
+            border-radius: var(--radius-lg);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            font-size: var(--font-size-sm);
+        }
+
+        .time-slot:hover:not(.booked) {
+            border-color: var(--primary-400);
+            background: var(--primary-50);
+        }
+
+        .time-slot.selected {
+            background: var(--primary-600);
+            color: white;
+            border-color: var(--primary-600);
+        }
+
+        .time-slot.booked {
+            background: var(--gray-200);
+            color: var(--gray-500);
+            cursor: not-allowed;
+            text-decoration: line-through;
+        }
+
+        .booking-summary {
+            background: var(--gray-50);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-lg);
+            margin: var(--spacing-lg) 0;
+        }
+
+        .summary-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: var(--spacing-sm);
+            color: var(--gray-600);
+        }
+
+        .summary-total {
+            display: flex;
+            justify-content: space-between;
+            font-weight: 700;
+            font-size: 1.2rem;
+            color: var(--gray-800);
+            padding-top: var(--spacing-sm);
+            border-top: 1px solid var(--gray-300);
+            margin-top: var(--spacing-sm);
+        }
+
+        .book-now-btn {
+            width: 100%;
+            padding: 1rem;
+            background: var(--primary-600);
+            color: white;
+            border: none;
+            border-radius: var(--radius-lg);
+            font-weight: 700;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all var(--transition-base);
+            margin-bottom: var(--spacing-md);
+        }
+
+        .book-now-btn:hover {
+            background: var(--primary-700);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .contact-btn {
+            width: 100%;
+            padding: 1rem;
+            background: white;
+            color: var(--primary-600);
+            border: 2px solid var(--primary-600);
+            border-radius: var(--radius-lg);
+            font-weight: 600;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all var(--transition-base);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--spacing-xs);
+        }
+
+        .badge-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--spacing-xs);
+            margin-top: var(--spacing-md);
+        }
+
+        .badge {
+            padding: 0.5rem 1rem;
+            background: var(--gray-100);
+            border-radius: var(--radius-full);
+            font-size: var(--font-size-xs);
+            color: var(--gray-700);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        /* Image Modal */
+        .image-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .image-modal.show {
+            display: flex;
+        }
+
+        .modal-image {
+            max-width: 90%;
+            max-height: 90%;
+            border-radius: var(--radius-lg);
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 2rem;
+            right: 2rem;
+            color: white;
+            font-size: 2rem;
+            cursor: pointer;
+            background: none;
+            border: none;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #1f2937;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 3000;
+        }
+
+        .toast.show { opacity: 1; }
+
+        @media (max-width: 1024px) {
+            .profile-layout { grid-template-columns: 1fr; }
+            .profile-right { position: static; }
+        }
+
+        @media (max-width: 768px) {
+            .profile-header-content { flex-direction: column; text-align: center; }
+            .info-grid { grid-template-columns: 1fr; }
+            .portfolio-grid { grid-template-columns: repeat(2, 1fr); }
+            .slots-grid { grid-template-columns: repeat(2, 1fr); }
+            .rating-summary { flex-direction: column; align-items: flex-start; }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-content">
+                <a href="/" class="logo">AP<span>Services</span></a>
+                <div class="nav-links"></div>
+                <button class="mobile-menu-btn"><i class="fas fa-bars"></i></button>
+            </div>
+        </div>
+    </nav>
+
+    <section class="profile-header">
+        <div class="container">
+            <div class="breadcrumb">
+                <a href="/">Home</a> <i class="fas fa-chevron-right"></i>
+                <a href="/services.html">Services</a> <i class="fas fa-chevron-right"></i>
+                <span id="workerName">Rajesh Kumar</span>
+            </div>
+            <div class="profile-header-content">
+                <div class="profile-avatar-wrapper">
+                    <img src="https://images.unsplash.com/photo-1560250097-0b93528c311a?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=80" alt="Profile" class="profile-avatar" id="profileAvatar">
+                    <div class="verified-badge"><i class="fas fa-check"></i></div>
+                </div>
+                <div class="profile-title">
+                    <h1 id="workerFullName">Rajesh Kumar</h1>
+                    <div class="category">
+                        <span id="workerCategory"><i class="fas fa-wrench"></i> Plumbing Expert</span>
+                        <span id="workerExperience"><i class="fas fa-briefcase"></i> 12 years experience</span>
+                    </div>
+                    <div class="rating-large">
+                        <i class="fas fa-star"></i>
+                        <span><span class="rating-number" id="workerRating">4.9</span> <span class="rating-count">(328 reviews)</span></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="profile-page">
+        <div class="container">
+            <div class="profile-nav">
+                <button class="profile-nav-btn active" data-tab="about">About</button>
+                <button class="profile-nav-btn" data-tab="services">Services</button>
+                <button class="profile-nav-btn" data-tab="portfolio">Portfolio</button>
+                <button class="profile-nav-btn" data-tab="reviews">Reviews</button>
+            </div>
+
+            <div class="profile-layout">
+                <div class="profile-left" id="profileContent">
+                    <!-- About Tab -->
+                    <div class="tab-content active" id="about-tab">
+                        <div class="profile-section">
+                            <h3 class="section-title"><i class="fas fa-user-circle"></i> About Me</h3>
+                            <p class="about-text" id="workerBio"></p>
+                            <div class="info-grid" id="infoGrid"></div>
+                        </div>
+                        <div class="profile-section">
+                            <h3 class="section-title"><i class="fas fa-tools"></i> Skills & Expertise</h3>
+                            <div class="skills-container" id="skillsList"></div>
+                        </div>
+                    </div>
+
+                    <!-- Services Tab -->
+                    <div class="tab-content" id="services-tab" style="display: none;">
+                        <h3 class="section-title"><i class="fas fa-tools"></i> Services Offered</h3>
+                        <div id="servicesList"></div>
+                    </div>
+
+                    <!-- Portfolio Tab -->
+                    <div class="tab-content" id="portfolio-tab" style="display: none;">
+                        <h3 class="section-title"><i class="fas fa-images"></i> Work Portfolio</h3>
+                        <div class="portfolio-grid" id="portfolioGrid"></div>
+                    </div>
+
+                    <!-- Reviews Tab - Enhanced with full API integration -->
+                    <div class="tab-content" id="reviews-tab" style="display: none;">
+                        <div class="reviews-section">
+                            <h3 class="section-title"><i class="fas fa-star"></i> Customer Reviews</h3>
+                            <div class="rating-summary" id="ratingSummary">
+                                <div class="average-rating">
+                                    <span class="rating-number" id="avgRating">0.0</span>
+                                    <div class="stars" id="avgStars"></div>
+                                    <span class="review-count" id="totalReviews">0 reviews</span>
+                                </div>
+                                <div class="rating-breakdown" id="ratingBreakdown"></div>
+                            </div>
+                            <div id="reviewsList" class="reviews-list"></div>
+                            <button id="loadMoreReviewsBtn" class="btn-outline">Load More Reviews</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column - Booking Card -->
+                <div class="profile-right">
+                    <div class="booking-card">
+                        <h3><i class="fas fa-calendar-check"></i> Book Service</h3>
+                        <div class="price-tag">
+                            <span class="price" id="hourlyRate">₹499</span>
+                            <span class="unit">/hour</span>
+                        </div>
+                        <select class="service-select" id="serviceSelect">
+                            <option value="">Select Service</option>
+                            <option value="plumbing">Plumbing Repair</option>
+                            <option value="installation">Pipe Installation</option>
+                            <option value="emergency">Emergency Service (+₹200)</option>
+                        </select>
+                        <div class="date-selection">
+                            <label><i class="fas fa-calendar"></i> Select Date</label>
+                            <div class="calendar-container">
+                                <input type="text" id="datePicker" class="form-control" placeholder="Select date">
+                            </div>
+                        </div>
+                        <div class="time-slots">
+                            <h4><i class="fas fa-clock"></i> Available Slots</h4>
+                            <div class="slots-grid" id="timeSlots"></div>
+                        </div>
+                        <div class="booking-summary">
+                            <div class="summary-item"><span>Service Charge</span><span id="serviceCharge">₹499</span></div>
+                            <div class="summary-item"><span>Platform Fee</span><span id="platformFee">₹49</span></div>
+                            <div class="summary-total"><span>Total</span><span id="totalAmount">₹548</span></div>
+                        </div>
+                        <button class="book-now-btn" id="bookNowBtn"><i class="fas fa-calendar-check"></i> Proceed to Book</button>
+                        <button class="contact-btn" id="contactBtn"><i class="fas fa-comment"></i> Chat with Me</button>
+                        <div class="badge-container">
+                            <span class="badge"><i class="fas fa-check-circle"></i> Background Verified</span>
+                            <span class="badge"><i class="fas fa-shield-alt"></i> Insured</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="image-modal" id="imageModal">
+        <button class="modal-close"><i class="fas fa-times"></i></button>
+        <img src="" alt="Portfolio" class="modal-image" id="modalImage">
+    </div>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid"><div class="footer-col"><h3>AP<span style="color:#3b82f6">Services</span></h3><p>Your trusted platform.</p></div></div>
+            <div class="footer-bottom"><p>&copy; 2024 AP Services.</p></div>
+        </div>
+    </footer>
+
+    <div id="toast" class="toast"></div>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
+    <script>
+        const Toast = { show: (msg) => { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3000); } };
+        
+        let workerId = null;
+        let workerData = null;
+        let selectedDate = null, selectedTime = null, selectedService = null;
+        let currentReviewPage = 1;
+        let hasMoreReviews = true;
+
+        // Mock data generator
+        function generateMockWorker() {
+            return {
+                id: 1, fullName: 'Rajesh Kumar', category: 'Plumbing', experience: 12, rating: 4.9, totalReviews: 328,
+                bio: 'Experienced plumber with over 12 years in residential and commercial plumbing. Certified and insured.',
+                memberSince: 'Jan 2020', jobsCompleted: 1247, serviceArea: 'Mumbai (Up to 15km)', responseTime: '< 30 minutes',
+                hourlyRate: 499, skills: ['Pipe Installation', 'Leak Repair', 'Bathroom Fitting', 'Water Heater', 'Drain Cleaning'],
+                services: [{ name: 'Plumbing Repair', price: 499, duration: 1 }, { name: 'Pipe Installation', price: 699, duration: 2 }, { name: 'Emergency Service', price: 699, duration: 1 }],
+                portfolio: ['https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=300', 'https://images.unsplash.com/photo-1581094794329-c8112c4e5190?w=300', 'https://images.unsplash.com/photo-1581091226033-d5c48150dbaa?w=300'],
+                reviews: [
+                    { id: 1, firstName: 'Amit', lastName: 'Sharma', rating: 5, title: 'Excellent work!', comment: 'Fixed the leak quickly and professionally.', createdAt: '2024-03-10', helpfulCount: 12, images: [] },
+                    { id: 2, firstName: 'Priya', lastName: 'Patel', rating: 5, title: 'Very professional', comment: 'Arrived on time and did a great job.', createdAt: '2024-03-05', helpfulCount: 8, images: [] },
+                    { id: 3, firstName: 'Vikram', lastName: 'Singh', rating: 4, title: 'Good service', comment: 'Satisfied with the work.', createdAt: '2024-02-28', helpfulCount: 5, images: [] }
+                ]
+            };
+        }
+
+        function renderProfile() {
+            document.getElementById('workerFullName').textContent = workerData.fullName;
+            document.getElementById('workerCategory').innerHTML = `<i class="fas fa-wrench"></i> ${workerData.category} Expert`;
+            document.getElementById('workerExperience').innerHTML = `<i class="fas fa-briefcase"></i> ${workerData.experience} years`;
+            document.getElementById('workerRating').textContent = workerData.rating;
+            document.getElementById('workerBio').textContent = workerData.bio;
+            document.getElementById('hourlyRate').textContent = `₹${workerData.hourlyRate}`;
+            document.getElementById('infoGrid').innerHTML = `
+                <div class="info-item"><i class="fas fa-calendar-alt"></i><div><h4>Member Since</h4><p>${workerData.memberSince}</p></div></div>
+                <div class="info-item"><i class="fas fa-check-circle"></i><div><h4>Jobs Completed</h4><p>${workerData.jobsCompleted}</p></div></div>
+                <div class="info-item"><i class="fas fa-map-marker-alt"></i><div><h4>Service Area</h4><p>${workerData.serviceArea}</p></div></div>
+                <div class="info-item"><i class="fas fa-clock"></i><div><h4>Response Time</h4><p>${workerData.responseTime}</p></div></div>
+            `;
+            document.getElementById('skillsList').innerHTML = workerData.skills.map(s => `<span class="skill-badge">${s}</span>`).join('');
+            document.getElementById('servicesList').innerHTML = workerData.services.map(s => `<div style="margin-bottom:1rem; padding:1rem; background:#f9fafb; border-radius:0.75rem;"><h4>${s.name}</h4><p>₹${s.price} / ${s.duration} hour(s)</p></div>`).join('');
+            document.getElementById('portfolioGrid').innerHTML = workerData.portfolio.map(img => `<div class="portfolio-item" onclick="openImageModal('${img}')"><img src="${img}"><div class="portfolio-overlay"><i class="fas fa-search-plus"></i></div></div>`).join('');
+        }
+
+        function updateRatingSummary() {
+            const avg = workerData.rating;
+            document.getElementById('avgRating').textContent = avg.toFixed(1);
+            document.getElementById('totalReviews').textContent = `${workerData.totalReviews} reviews`;
+            const starsHtml = Array(5).fill().map((_, i) => `<i class="fas fa-star"></i>`).join('');
+            document.getElementById('avgStars').innerHTML = starsHtml;
+            const breakdown = [85, 10, 3, 1, 1];
+            document.getElementById('ratingBreakdown').innerHTML = [5,4,3,2,1].map((star, idx) => `
+                <div class="rating-bar-item"><span class="rating-bar-label">${star} Star</span><div class="rating-bar-progress"><div class="rating-bar-fill" style="width: ${breakdown[idx]}%"></div></div><span class="rating-bar-count">${Math.round(workerData.totalReviews * breakdown[idx]/100)}</span></div>
+            `).join('');
+        }
+
+        function displayReviews(reviews) {
+            const container = document.getElementById('reviewsList');
+            if (!reviews || reviews.length === 0) { container.innerHTML = '<p>No reviews yet. Be the first to review!</p>'; return; }
+            container.innerHTML = reviews.map(r => `
+                <div class="review-card">
+                    <div class="review-header"><div class="reviewer"><strong>${r.firstName} ${r.lastName}</strong><div class="stars">${Array(5).fill().map((_, i) => `<i class="fas fa-star" style="color: ${i < r.rating ? '#fbbf24' : '#d1d5db'}"></i>`).join('')}</div></div><div class="review-date">${new Date(r.createdAt).toLocaleDateString()}</div></div>
+                    <h4>${r.title || 'Customer Review'}</h4>
+                    <p>${r.comment || 'No comment provided.'}</p>
+                    ${r.images && r.images.length ? `<div class="review-images">${r.images.map(img => `<img src="${img}" onclick="openImageModal('${img}')">`).join('')}</div>` : ''}
+                    <button onclick="markHelpful(${r.id})" class="helpful-btn"><i class="far fa-thumbs-up"></i> Helpful (${r.helpfulCount || 0})</button>
+                </div>
+            `).join('');
+        }
+
+        async function loadReviews(page = 1) {
+            // Mock pagination
+            const allReviews = workerData.reviews;
+            const start = (page-1)*5;
+            const paginated = allReviews.slice(start, start+5);
+            displayReviews(paginated);
+            hasMoreReviews = start + 5 < allReviews.length;
+            document.getElementById('loadMoreReviewsBtn').style.display = hasMoreReviews ? 'block' : 'none';
+        }
+
+        window.markHelpful = function(reviewId) {
+            Toast.show('Thanks for your feedback!', 'success');
+        };
+
+        window.openImageModal = function(src) {
+            document.getElementById('modalImage').src = src;
+            document.getElementById('imageModal').classList.add('show');
+            document.body.style.overflow = 'hidden';
+        };
+
+        function initCalendar() {
+            flatpickr("#datePicker", { minDate: "today", maxDate: new Date().fp_incr(30), onChange: (dates, str) => { selectedDate = str; generateTimeSlots(); } });
+        }
+
+        function generateTimeSlots() {
+            const slots = ['09:00 AM', '10:00 AM', '11:00 AM', '12:00 PM', '02:00 PM', '03:00 PM', '04:00 PM', '05:00 PM'];
+            document.getElementById('timeSlots').innerHTML = slots.map(slot => `<div class="time-slot" onclick="selectTimeSlot(this)" data-time="${slot}">${slot}</div>`).join('');
+        }
+
+        window.selectTimeSlot = function(el) {
+            document.querySelectorAll('.time-slot').forEach(s => s.classList.remove('selected'));
+            el.classList.add('selected');
+            selectedTime = el.dataset.time;
+        };
+
+        function updatePrice() {
+            let base = workerData?.hourlyRate || 499;
+            let fee = Math.round(base * 0.1);
+            document.getElementById('serviceCharge').textContent = `₹${base}`;
+            document.getElementById('platformFee').textContent = `₹${fee}`;
+            document.getElementById('totalAmount').textContent = `₹${base + fee}`;
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            workerId = urlParams.get('id') || '1';
+            workerData = generateMockWorker();
+            renderProfile();
+            updateRatingSummary();
+            loadReviews(1);
+            initCalendar();
+            generateTimeSlots();
+            updatePrice();
+
+            // Tab switching
+            document.querySelectorAll('.profile-nav-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    document.querySelectorAll('.profile-nav-btn').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    const tab = this.dataset.tab;
+                    document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+                    document.getElementById(`${tab}-tab`).style.display = 'block';
+                });
+            });
+
+            document.getElementById('serviceSelect').addEventListener('change', e => { selectedService = e.target.value; updatePrice(); });
+            document.getElementById('bookNowBtn').addEventListener('click', () => { if(!selectedDate || !selectedTime || !selectedService) Toast.show('Please select date, time and service'); else Toast.show('Proceeding to booking...'); });
+            document.getElementById('contactBtn').addEventListener('click', () => Toast.show('Chat feature coming soon'));
+            document.getElementById('loadMoreReviewsBtn').addEventListener('click', () => { currentReviewPage++; loadReviews(currentReviewPage); });
+            document.querySelector('.modal-close').addEventListener('click', () => { document.getElementById('imageModal').classList.remove('show'); document.body.style.overflow = 'auto'; });
+            document.getElementById('imageModal').addEventListener('click', (e) => { if(e.target === document.getElementById('imageModal')) { document.getElementById('imageModal').classList.remove('show'); document.body.style.overflow = 'auto'; } });
+        });
+    </script>
+</body>
+</html>
