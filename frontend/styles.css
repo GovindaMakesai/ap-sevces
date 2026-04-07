@@ -556,6 +556,61 @@ a:hover {
     color: var(--gray-400);
 }
 
+/* -------------------- Floating Demo FAB -------------------- */
+.fab-container {
+ position: fixed;
+ left: 1rem;
+ bottom: 1rem;
+ z-index: 1001;
+}
+
+.fab-main {
+ width: 52px;
+ height: 52px;
+ border: none;
+ border-radius: 50%;
+ background: var(--primary-600);
+ color: #fff;
+ box-shadow: var(--shadow-lg);
+ cursor: pointer;
+ display: flex;
+ align-items: center;
+ justify-content: center;
+}
+
+.fab-menu {
+ display: none;
+ position: absolute;
+ bottom: 64px;
+ left: 0;
+ background: #fff;
+ border: 1px solid var(--gray-200);
+ border-radius: var(--radius-md);
+ box-shadow: var(--shadow-xl);
+ padding: 0.5rem;
+}
+
+.fab-menu.show {
+ display: flex;
+ flex-direction: column;
+ gap: 0.35rem;
+}
+
+.fab-item {
+ width: 40px;
+ height: 40px;
+ border-radius: 50%;
+ background: var(--primary-50);
+ color: var(--primary-700);
+ display: flex;
+ align-items: center;
+ justify-content: center;
+}
+
+.fab-item:hover {
+ background: var(--primary-100);
+}
+
 /* -------------------- Alerts & Toasts -------------------- */
 .alert {
     padding: var(--spacing-sm) var(--spacing-md);
