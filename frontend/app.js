@@ -583,6 +583,46 @@ const UI = {
     }
 };
 
+// ==================== LEGACY LINK NORMALIZATION ====================
+const LinkFixer = {
+    routeMap: {
+        '/about.html': '/help.html',
+        '/careers.html': '/help.html',
+        '/blog.html': '/help.html',
+        '/press.html': '/help.html',
+        '/contact.html': '/help.html',
+        '/safety.html': '/help.html',
+        '/terms.html': '/help.html',
+        '/faq.html': '/help.html',
+        '/privacy.html': '/privacypolicy.html',
+        '/worker-register.html': '/worker-dashboard.html',
+        '/forgot-password.html': '/login.html'
+    },
+
+    normalizeUrl(href) {
+        if (!href || href.startsWith('http') || href.startsWith('#') || href.startsWith('javascript:')) {
+            return href;
+        }
+
+        if (/^\/services\/.+\.html$/i.test(href)) {
+            return '/services.html';
+        }
+
+        return this.routeMap[href] || href;
+    },
+
+    apply() {
+        const links = document.querySelectorAll('a[href]');
+        links.forEach((link) => {
+            const oldHref = link.getAttribute('href');
+            const newHref = this.normalizeUrl(oldHref);
+            if (newHref !== oldHref) {
+                link.setAttribute('href', newHref);
+            }
+        });
+    }
+};
+
 // ==================== LOCATION SERVICE ====================
 const LocationService = {
     async getCurrentLocation() {
@@ -711,6 +751,7 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('✅ DOM loaded');
     Auth.checkAuth();
     UI.updateNavbar();
+    LinkFixer.apply();
     PWA.init();
 });
 
@@ -725,6 +766,7 @@ window.BookingsAPI = BookingsAPI;
 window.ReviewsAPI = ReviewsAPI;
 window.Toast = Toast;
 window.UI = UI;
+window.LinkFixer = LinkFixer;
 window.LocationService = LocationService;
 window.PWA = PWA;
 

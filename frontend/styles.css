@@ -1017,6 +1017,10 @@ a:hover {
         grid-template-columns: 1fr;
         gap: var(--spacing-lg);
     }
+
+ .fab-container {
+ display: none;
+ }
     
     h1 {
         font-size: 2rem;

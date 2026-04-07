@@ -948,10 +948,24 @@
             
             .app-buttons {
                 justify-content: center;
+                flex-direction: column;
             }
             
             .app-image {
                 display: none;
+            }
+
+            .app-content h2 {
+                font-size: 2rem;
+            }
+
+            .app-content p {
+                font-size: 1.05rem;
+            }
+
+            .app-features {
+                grid-template-columns: 1fr;
+                justify-items: start;
             }
             
             .steps-grid {
@@ -983,6 +997,10 @@
             .hero-stats {
                 flex-direction: column;
                 gap: var(--spacing-md);
+            }
+
+            .app-content h2 {
+                font-size: 1.7rem;
             }
         }
 
