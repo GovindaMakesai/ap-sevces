@@ -45,8 +45,56 @@
       "dest": "/frontend/worker-dashboard.html"
     },
     {
+      "src": "/worker-register.html",
+      "dest": "/frontend/worker-dashboard.html"
+    },
+    {
       "src": "/admin-dashboard.html",
       "dest": "/frontend/admin-dashboard.html"
+    },
+    {
+      "src": "/about.html",
+      "dest": "/frontend/help.html"
+    },
+    {
+      "src": "/contact.html",
+      "dest": "/frontend/help.html"
+    },
+    {
+      "src": "/careers.html",
+      "dest": "/frontend/help.html"
+    },
+    {
+      "src": "/blog.html",
+      "dest": "/frontend/help.html"
+    },
+    {
+      "src": "/press.html",
+      "dest": "/frontend/help.html"
+    },
+    {
+      "src": "/safety.html",
+      "dest": "/frontend/help.html"
+    },
+    {
+      "src": "/faq.html",
+      "dest": "/frontend/help.html"
+    },
+    {
+      "src": "/terms.html",
+      "dest": "/frontend/help.html"
+    },
+    {
+      "src": "/privacy.html",
+      "dest": "/frontend/privacypolicy.html"
+    },
+    {
+      "src": "/forgot-password.html",
+      "dest": "/frontend/login.html"
+    },
+    {
+      "src": "/services/(.*)\\.html",
+      "dest": "/frontend/services.html"
     },
     {
       "src": "/styles.css",

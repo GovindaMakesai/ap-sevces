@@ -3,7 +3,7 @@
 
 // ==================== CONFIGURATION ====================
 const LIVE_FRONTEND_URL = 'https://ap-services-xi.vercel.app';
-const LIVE_API_URL = `${LIVE_FRONTEND_URL}/api`;
+const LIVE_API_URL = 'https://ap-sevces.onrender.com/api';
 const LOCAL_API_URL = 'http://localhost:5000/api';
 const LOCAL_FRONTEND_URL = 'http://localhost:3000';
 
@@ -547,7 +547,7 @@ const UI = {
         } else {
             navLinks.innerHTML = `
                 <a href="/services.html">Services</a>
-                <a href="/worker-register.html">Become a Pro</a>
+                <a href="/worker-dashboard.html">Become a Pro</a>
                 <a href="/login.html" class="btn-outline">Login</a>
                 <a href="/register.html" class="btn-primary">Sign Up</a>
             `;
@@ -631,11 +631,87 @@ const LocationService = {
     }
 };
 
+// ==================== PWA INSTALLATION ====================
+const PWA = {
+    deferredPrompt: null,
+
+    init() {
+        if (!('serviceWorker' in navigator)) {
+            return;
+        }
+
+        window.addEventListener('beforeinstallprompt', (event) => {
+            event.preventDefault();
+            this.deferredPrompt = event;
+            this.updateInstallButtons(true);
+        });
+
+        window.addEventListener('appinstalled', () => {
+            this.deferredPrompt = null;
+            this.updateInstallButtons(false);
+            Toast.show('AP Services installed successfully!', 'success');
+        });
+
+        this.registerServiceWorker();
+        this.bindInstallButtons();
+    },
+
+    async registerServiceWorker() {
+        try {
+            await navigator.serviceWorker.register('/sw.js');
+            console.log('✅ Service Worker registered');
+        } catch (error) {
+            console.error('❌ Service Worker registration failed:', error);
+        }
+    },
+
+    bindInstallButtons() {
+        const installButton = document.getElementById('installAppBtn');
+        if (installButton) {
+            installButton.addEventListener('click', () => this.install());
+        }
+
+        const iosHelpButton = document.getElementById('iosInstallHelpBtn');
+        if (iosHelpButton) {
+            iosHelpButton.addEventListener('click', () => {
+                Toast.show('On iPhone: Share -> Add to Home Screen', 'info', 5000);
+            });
+        }
+
+        const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+        if (isIOS && installButton) {
+            installButton.style.display = 'none';
+        }
+    },
+
+    updateInstallButtons(canInstall) {
+        const installButton = document.getElementById('installAppBtn');
+        if (!installButton) return;
+        installButton.style.display = canInstall ? 'flex' : 'none';
+    },
+
+    async install() {
+        if (!this.deferredPrompt) {
+            Toast.show('Install prompt is not available right now.', 'warning');
+            return;
+        }
+
+        this.deferredPrompt.prompt();
+        const choiceResult = await this.deferredPrompt.userChoice;
+        if (choiceResult.outcome === 'accepted') {
+            Toast.show('Installing AP Services...', 'info');
+        }
+        this.deferredPrompt = null;
+        this.updateInstallButtons(false);
+    }
+};
+
 // ==================== INITIALIZE ====================
 document.addEventListener('DOMContentLoaded', () => {
     console.log('✅ DOM loaded');
     Auth.checkAuth();
     UI.updateNavbar();
+    PWA.init();
 });
 
 // Make all functions globally available
@@ -650,6 +726,7 @@ window.ReviewsAPI = ReviewsAPI;
 window.Toast = Toast;
 window.UI = UI;
 window.LocationService = LocationService;
+window.PWA = PWA;
 
 console.log('✅ App.js initialized');
 console.log('📦 Available APIs:', { 

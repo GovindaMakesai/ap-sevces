@@ -3,7 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#2563eb">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="AP Services">
     <title>AP Services - Professional Services at Your Doorstep</title>
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/icons/icon-192.svg">
     
     <!-- Font Awesome 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -1331,14 +1337,14 @@
                     <p>Book services on the go, track your bookings in real-time, and chat with professionals instantly.</p>
                     
                     <div class="app-buttons">
-                        <a href="#" class="app-btn">
+                        <button type="button" class="app-btn" id="installAppBtn">
                             <i class="fab fa-google-play"></i>
-                            <span>GET IT ON <strong>Google Play</strong></span>
-                        </a>
-                        <a href="#" class="app-btn">
+                            <span>INSTALL NOW <strong>Add to Home Screen</strong></span>
+                        </button>
+                        <button type="button" class="app-btn" id="iosInstallHelpBtn">
                             <i class="fab fa-apple"></i>
-                            <span>Download on <strong>App Store</strong></span>
-                        </a>
+                            <span>iPhone Guide <strong>How to Install</strong></span>
+                        </button>
                     </div>
                     
                     <div class="app-features">
@@ -1391,7 +1397,7 @@
                     <a href="/register.html" class="btn-primary btn-large cta-btn">
                         Sign Up as Customer
                     </a>
-                    <a href="/worker-register.html" class="btn-outline btn-large cta-btn">
+                    <a href="/worker-dashboard.html" class="btn-outline btn-large cta-btn">
                         Become a Professional
                     </a>
                 </div>
@@ -1418,22 +1424,22 @@
                 <div class="footer-col">
                     <h4>Quick Links</h4>
                     <ul>
-                        <li><a href="/about.html">About Us</a></li>
-                        <li><a href="/careers.html">Careers</a></li>
-                        <li><a href="/blog.html">Blog</a></li>
-                        <li><a href="/press.html">Press</a></li>
-                        <li><a href="/contact.html">Contact Us</a></li>
+                        <li><a href="/help.html">About Us</a></li>
+                        <li><a href="/help.html">Careers</a></li>
+                        <li><a href="/help.html">Blog</a></li>
+                        <li><a href="/help.html">Press</a></li>
+                        <li><a href="/help.html">Contact Us</a></li>
                     </ul>
                 </div>
                 
                 <div class="footer-col">
                     <h4>Services</h4>
                     <ul>
-                        <li><a href="/services/plumbing.html">Plumbing</a></li>
-                        <li><a href="/services/electrical.html">Electrical</a></li>
-                        <li><a href="/services/cleaning.html">Cleaning</a></li>
-                        <li><a href="/services/painting.html">Painting</a></li>
-                        <li><a href="/services/beauty.html">Beauty & Salon</a></li>
+                        <li><a href="/services.html?category=plumbing">Plumbing</a></li>
+                        <li><a href="/services.html?category=electrical">Electrical</a></li>
+                        <li><a href="/services.html?category=cleaning">Cleaning</a></li>
+                        <li><a href="/services.html?category=painting">Painting</a></li>
+                        <li><a href="/services.html?category=beauty">Beauty & Salon</a></li>
                     </ul>
                 </div>
                 
@@ -1441,10 +1447,10 @@
                     <h4>Support</h4>
                     <ul>
                         <li><a href="/help.html">Help Center</a></li>
-                        <li><a href="/safety.html">Safety</a></li>
-                        <li><a href="/privacy.html">Privacy Policy</a></li>
-                        <li><a href="/terms.html">Terms of Service</a></li>
-                        <li><a href="/faq.html">FAQ</a></li>
+                        <li><a href="/help.html">Safety</a></li>
+                        <li><a href="/privacypolicy.html">Privacy Policy</a></li>
+                        <li><a href="/help.html">Terms of Service</a></li>
+                        <li><a href="/help.html">FAQ</a></li>
                     </ul>
                 </div>
                 
@@ -1521,7 +1527,7 @@
 
     <script>
         // ==================== HOMEPAGE SPECIFIC CODE ====================
-        const BACKEND_URL = 'https://ap-services-marketplace.onrender.com';
+        const BACKEND_URL = 'https://ap-sevces.onrender.com';
 
         function getImageUrl(path) {
             if (!path) return null;
