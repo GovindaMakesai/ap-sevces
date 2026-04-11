@@ -1,13 +1,13 @@
 // backend/server.js - CLEAN VERSION
 
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
+
 const express = require('express');
 const cors = require('cors');
-const dotenv = require('dotenv');
-const path = require('path');
 const multer = require('multer');
 const bcrypt = require('bcryptjs');
 const notificationRoutes = require('./routes/notifications');
-dotenv.config();
 
 const { storage } = require('./config/cloudinary');
 const upload = multer({ storage });

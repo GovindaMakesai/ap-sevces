@@ -3,7 +3,7 @@
 
 // ==================== CONFIGURATION ====================
 const LIVE_FRONTEND_URL = 'https://ap-services-xi.vercel.app';
-const LIVE_API_URL = 'https://ap-sevces.onrender.com/api';
+const LIVE_API_URL = 'https://ap-services-marketplace.onrender.com/api';
 const LOCAL_API_URL = 'http://localhost:5000/api';
 const LOCAL_FRONTEND_URL = 'http://localhost:3000';
 
@@ -71,7 +71,23 @@ const API = {
             
             if (!response.ok) {
                 console.error('❌ API Error Response:', data);
-                throw new Error(typeof data === 'string' ? data : (data.message || `HTTP error ${response.status}`));
+                if (typeof data === 'object' && data !== null) {
+                    if (Array.isArray(data.errors) && data.errors.length) {
+                        const first = data.errors[0];
+                        const msg = first.msg || first.message || 'Validation failed';
+                        const err = new Error(msg);
+                        err.status = response.status;
+                        throw err;
+                    }
+                    if (data.message) {
+                        const err = new Error(data.message);
+                        err.status = response.status;
+                        throw err;
+                    }
+                }
+                const err = new Error(typeof data === 'string' ? data : `HTTP error ${response.status}`);
+                err.status = response.status;
+                throw err;
             }
             
             console.log('✅ API Success:', data);
@@ -306,7 +322,6 @@ const Auth = {
             return response;
         } catch (error) {
             console.error('❌ Login error:', error);
-            Toast.show(error.message || 'Login failed', 'error');
             throw error;
         }
     },
@@ -315,15 +330,9 @@ const Auth = {
         try {
             console.log('📝 Registration attempt:', userData.email);
             const response = await API.post('/auth/register', userData);
-            
-            if (response.success) {
-                Toast.show('Registration successful! Please login.', 'success');
-                setTimeout(() => window.location.href = '/login.html?registered=success', 2000);
-            }
             return response;
         } catch (error) {
             console.error('❌ Registration error:', error);
-            Toast.show(error.message || 'Registration failed', 'error');
             throw error;
         }
     },
@@ -356,6 +365,33 @@ const Auth = {
     
     getUser() { return AppState.user; },
     getToken() { return AppState.token; },
+
+    async refreshSession() {
+        const token = localStorage.getItem('token');
+        if (!token) return false;
+        AppState.token = token;
+        try {
+            const res = await API.get('/auth/me');
+            if (res.success && res.data && res.data.user) {
+                AppState.user = res.data.user;
+                localStorage.setItem('user', JSON.stringify(res.data.user));
+                return true;
+            }
+        } catch (e) {
+            console.warn('Session refresh failed:', e);
+            if (e.status === 401) {
+                this.tokenInvalidCleanup();
+            }
+        }
+        return false;
+    },
+
+    tokenInvalidCleanup() {
+        AppState.token = null;
+        AppState.user = null;
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+    },
     
     // Check if current user is admin
     isAdmin() {
@@ -747,9 +783,12 @@ const PWA = {
 };
 
 // ==================== INITIALIZE ====================
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     console.log('✅ DOM loaded');
     Auth.checkAuth();
+    if (AppState.token) {
+        await Auth.refreshSession();
+    }
     UI.updateNavbar();
     LinkFixer.apply();
     PWA.init();

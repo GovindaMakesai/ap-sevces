@@ -1,15 +1,21 @@
 const dns = require("dns");
 dns.setDefaultResultOrder("ipv4first");
 
+const path = require("path");
 const { Pool } = require("pg");
-require("dotenv").config();
+require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 
-// ✅ HARDCODED CONNECTION (temporary)
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  throw new Error("DATABASE_URL is not set. Add it to backend/.env");
+}
+
+const useSsl =
+  !/localhost|127\.0\.0\.1/i.test(connectionString);
+
 const pool = new Pool({
-  connectionString: "postgresql://postgres:nTmQsf0QvSwQt4CR@db.gglaxjbqygwzqcsimtmh.supabase.co:5432/postgres",
-  ssl: {
-    rejectUnauthorized: false,
-  },
+  connectionString,
+  ssl: useSsl ? { rejectUnauthorized: false } : false,
 });
 
 const testConnection = async () => {

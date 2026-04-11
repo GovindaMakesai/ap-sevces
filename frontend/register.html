@@ -1231,11 +1231,14 @@
                             <label class="form-label">
                                 <i class="fas fa-mobile-alt"></i> Verify Phone Number
                             </label>
-                            <p style="color: var(--gray-600); margin-bottom: var(--spacing-md);">
-                                We've sent a 6-digit OTP to <span id="displayPhone">+91 98765 43210</span>
+                            <p style="color: var(--gray-600); margin-bottom: var(--spacing-md); line-height: 1.5;">
+                                SMS is not connected on this build yet. Use verification code
+                                <strong style="color: var(--primary-700); user-select: all;">123456</strong>
+                                in the boxes below (you can also paste into the first box). Phone:
+                                <span id="displayPhone">+91 …</span>
                             </p>
                             
-                            <div class="otp-container">
+                            <div class="otp-container" id="otpContainer">
                                 <input type="text" class="otp-input" maxlength="1" pattern="[0-9]" inputmode="numeric">
                                 <input type="text" class="otp-input" maxlength="1" pattern="[0-9]" inputmode="numeric">
                                 <input type="text" class="otp-input" maxlength="1" pattern="[0-9]" inputmode="numeric">
@@ -1396,6 +1399,9 @@
             let timeLeft = 120; // 2 minutes in seconds
             let selectedSkills = [];
 
+            /** Until SMS (Twilio / MSG91 / etc.) is wired, this is the only accepted code. */
+            const PLACEHOLDER_SMS_OTP = '123456';
+
             // ==================== USER TYPE TOGGLE ====================
             customerTypeBtn.addEventListener('click', function() {
                 this.classList.add('active');
@@ -1542,6 +1548,7 @@
                     nextBtn.style.display = 'none';
                     submitBtn.style.display = 'flex';
                     startOtpTimer();
+                    prefillPlaceholderOtp();
                 } else {
                     nextBtn.style.display = 'flex';
                     submitBtn.style.display = 'none';
@@ -1744,14 +1751,27 @@
 
             // ==================== OTP INPUT ====================
             const otpInputs = document.querySelectorAll('.otp-input');
+
+            function prefillPlaceholderOtp() {
+                const digits = PLACEHOLDER_SMS_OTP.split('');
+                otpInputs.forEach((input, i) => {
+                    input.value = digits[i] || '';
+                });
+                document.getElementById('otpError').innerHTML = '';
+            }
+
+            function getOtpString() {
+                return Array.from(otpInputs).map((input) => input.value).join('');
+            }
+
             otpInputs.forEach((input, index) => {
                 input.addEventListener('input', function() {
-                    this.value = this.value.replace(/[^0-9]/g, '');
+                    this.value = this.value.replace(/[^0-9]/g, '').slice(-1);
                     if (this.value && index < otpInputs.length - 1) {
                         otpInputs[index + 1].focus();
                     }
                 });
-                
+
                 input.addEventListener('keydown', function(e) {
                     if (e.key === 'Backspace' && !this.value && index > 0) {
                         otpInputs[index - 1].focus();
@@ -1759,23 +1779,42 @@
                 });
             });
 
+            document.getElementById('otpContainer').addEventListener('paste', function(e) {
+                e.preventDefault();
+                const text = (e.clipboardData || window.clipboardData).getData('text') || '';
+                const digits = text.replace(/\D/g, '').slice(0, otpInputs.length).split('');
+                otpInputs.forEach((input, i) => {
+                    input.value = digits[i] || '';
+                });
+                const lastFilled = Math.min(digits.length, otpInputs.length) - 1;
+                if (lastFilled >= 0) {
+                    otpInputs[Math.max(0, lastFilled)].focus();
+                }
+            });
+
             // ==================== RESEND OTP ====================
             document.getElementById('resendOtp').addEventListener('click', function() {
                 this.disabled = true;
                 startOtpTimer();
-                Toast.show('OTP resent successfully!', 'success');
+                prefillPlaceholderOtp();
+                Toast.show('Use code 123456 (SMS not enabled yet).', 'info');
             });
 
             // ==================== FORM SUBMISSION - REAL BACKEND ====================
             form.addEventListener('submit', async function(e) {
                 e.preventDefault();
                 
-                // Validate OTP
-                const otp = Array.from(otpInputs).map(input => input.value).join('');
+                const otp = getOtpString();
                 if (otp.length !== 6) {
-                    document.getElementById('otpError').innerHTML = '<i class="fas fa-exclamation-circle"></i> Please enter complete OTP';
+                    document.getElementById('otpError').innerHTML = '<i class="fas fa-exclamation-circle"></i> Please enter all 6 digits';
                     return;
                 }
+                if (otp !== PLACEHOLDER_SMS_OTP) {
+                    document.getElementById('otpError').innerHTML =
+                        '<i class="fas fa-exclamation-circle"></i> Invalid code. Use <strong>123456</strong> until SMS verification is enabled.';
+                    return;
+                }
+                document.getElementById('otpError').innerHTML = '';
                 
                 // Check terms
                 if (!document.getElementById('terms').checked) {
@@ -1790,10 +1829,10 @@
                 try {
                     // Prepare registration data
                     const registrationData = {
-                        first_name: document.getElementById('firstName').value,
-                        last_name: document.getElementById('lastName').value,
-                        email: document.getElementById('email').value,
-                        phone: document.getElementById('phone').value,
+                        first_name: document.getElementById('firstName').value.trim(),
+                        last_name: document.getElementById('lastName').value.trim(),
+                        email: document.getElementById('email').value.trim(),
+                        phone: document.getElementById('phone').value.trim(),
                         password: document.getElementById('password').value,
                         user_type: userType
                     };
@@ -1806,6 +1845,12 @@
                     if (document.getElementById('address').value) {
                         registrationData.address = document.getElementById('address').value;
                     }
+
+                    if (userType === 'worker') {
+                        registrationData.experience = document.getElementById('experience').value;
+                        registrationData.hourly_rate = document.getElementById('hourlyRate').value;
+                        registrationData.skills = [...selectedSkills];
+                    }
                     
                     // Call the REAL Auth.register from app.js
                     const response = await Auth.register(registrationData);
@@ -1814,7 +1859,9 @@
                         Toast.show('Registration successful! Redirecting to login...', 'success');
                         setTimeout(() => {
                             window.location.href = '/login.html?registered=success';
-                        }, 2000);
+                        }, 1500);
+                    } else if (response && !response.success) {
+                        Toast.show(response.message || 'Registration failed', 'error');
                     }
                 } catch (error) {
                     console.error('Registration error:', error);
@@ -1836,9 +1883,10 @@
             }
 
             function fillDemoData() {
+                const unique = Date.now().toString(36);
                 document.getElementById('firstName').value = 'John';
                 document.getElementById('lastName').value = 'Doe';
-                document.getElementById('email').value = 'john@example.com';
+                document.getElementById('email').value = `john.demo.${unique}@example.com`;
                 document.getElementById('password').value = 'Password123';
                 document.getElementById('confirmPassword').value = 'Password123';
                 document.getElementById('phone').value = '9876543210';
@@ -1846,7 +1894,8 @@
                 document.getElementById('address').value = '123, Main Street';
                 document.getElementById('pincode').value = '400001';
                 document.getElementById('locality').value = 'Andheri East';
-                Toast.show('Demo data filled!', 'info');
+                prefillPlaceholderOtp();
+                Toast.show('Demo data filled (OTP 123456).', 'info');
             }
         });
     </script>

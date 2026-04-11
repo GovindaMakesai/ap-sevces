@@ -777,6 +777,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const passwordInput = document.getElementById('password');
     const togglePassword = document.getElementById('togglePassword');
     const alertContainer = document.getElementById('alertContainer');
+    const loginBtn = document.getElementById('loginBtn');
     
     // Email validation regex
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -828,12 +829,20 @@ document.addEventListener('DOMContentLoaded', function() {
             showAlert('Please enter both email and password', 'error');
             return;
         }
+
+        if (!emailRegex.test(email)) {
+            showAlert('Please enter a valid email address', 'error');
+            return;
+        }
+        
+        loginBtn.disabled = true;
+        loginBtn.classList.add('btn-loading');
+        const loginBtnDefaultHtml = loginBtn.innerHTML;
+        loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing in...';
         
         try {
-            // Call Auth.login from app.js
             await Auth.login(email, password);
             
-            // Save email if remember me is checked
             if (rememberMe) {
                 localStorage.setItem('savedEmail', email);
             } else {
@@ -843,6 +852,10 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (error) {
             console.error('Login failed:', error);
             showAlert(error.message || 'Login failed', 'error');
+        } finally {
+            loginBtn.disabled = false;
+            loginBtn.classList.remove('btn-loading');
+            loginBtn.innerHTML = loginBtnDefaultHtml;
         }
     });
     
