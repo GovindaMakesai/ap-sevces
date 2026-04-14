@@ -211,7 +211,7 @@ const generateOAuthPassword = () => {
     return `google_${crypto.randomBytes(24).toString('hex')}`;
 };
 
-const getFrontendBaseUrl = () => process.env.FRONTEND_URL || 'http://localhost:5500';
+const getFrontendBaseUrl = () => process.env.FRONTEND_URL || 'https://ap-sevces.vercel.app';
 const buildLoginSuccessUrl = (token) =>
     `${getFrontendBaseUrl()}/login-success.html?token=${encodeURIComponent(token)}`;
 
