@@ -62,6 +62,27 @@ class User {
         const query = 'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1';
         await db.query(query, [id]);
     }
+
+    static async ensureGoogleColumns() {
+        await db.query(`
+            ALTER TABLE users
+            ADD COLUMN IF NOT EXISTS provider VARCHAR(50),
+            ADD COLUMN IF NOT EXISTS provider_id VARCHAR(255),
+            ADD COLUMN IF NOT EXISTS name VARCHAR(255)
+        `);
+    }
+
+    static async setProvider(id, provider, providerId, name) {
+        const query = `
+            UPDATE users
+            SET provider = $1,
+                provider_id = $2,
+                name = $3,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = $4
+        `;
+        await db.query(query, [provider, providerId, name || null, id]);
+    }
 }
 
 module.exports = User;

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Signing You In...</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;">
+        <h2>Signing you in...</h2>
+        <p id="statusText">Please wait while we complete login.</p>
+    </div>
+
+    <script src="app.js"></script>
+    <script>
+        (async function completeOAuthLogin() {
+            const statusText = document.getElementById('statusText');
+            const params = new URLSearchParams(window.location.search);
+            const token = params.get('token');
+
+            if (!token) {
+                statusText.textContent = 'Missing login token. Redirecting to login.';
+                setTimeout(() => { window.location.href = '/login.html'; }, 1200);
+                return;
+            }
+
+            localStorage.setItem('token', token);
+
+            try {
+                if (window.Auth && typeof window.Auth.refreshSession === 'function') {
+                    const ok = await window.Auth.refreshSession();
+                    if (!ok) throw new Error('Session refresh failed');
+                }
+
+                const userRaw = localStorage.getItem('user');
+                const user = userRaw ? JSON.parse(userRaw) : null;
+                if (!user) throw new Error('User profile unavailable');
+
+                if (user.role === 'admin') {
+                    window.location.href = '/admin-dashboard.html';
+                } else if (user.role === 'worker') {
+                    window.location.href = '/worker-dashboard.html';
+                } else {
+                    window.location.href = '/customer-dashboard.html';
+                }
+            } catch (error) {
+                console.error('OAuth login completion failed:', error);
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                statusText.textContent = 'Login failed. Redirecting to login.';
+                setTimeout(() => { window.location.href = '/login.html'; }, 1400);
+            }
+        })();
+    </script>
+</body>
+</html>

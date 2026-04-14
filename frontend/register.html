@@ -1232,9 +1232,7 @@
                                 <i class="fas fa-mobile-alt"></i> Verify Phone Number
                             </label>
                             <p style="color: var(--gray-600); margin-bottom: var(--spacing-md); line-height: 1.5;">
-                                SMS is not connected on this build yet. Use verification code
-                                <strong style="color: var(--primary-700); user-select: all;">123456</strong>
-                                in the boxes below (you can also paste into the first box). Phone:
+                                Enter the 6-digit OTP sent to your phone number:
                                 <span id="displayPhone">+91 …</span>
                             </p>
                             
@@ -1375,6 +1373,11 @@
     <!-- Toast Container -->
     <div id="toast" class="toast"></div>
 
+    <div id="recaptcha-container" style="display:none;"></div>
+
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+
     <!-- Load the real app.js with API calls -->
     <script src="app.js"></script>
     
@@ -1398,9 +1401,42 @@
             let otpTimer;
             let timeLeft = 120; // 2 minutes in seconds
             let selectedSkills = [];
+            let otpSentPhone = '';
+            let confirmationResult = null;
+            let firebaseIdToken = '';
+            const blockedTestPhones = ['7988819180', '9896699933'];
 
-            /** Until SMS (Twilio / MSG91 / etc.) is wired, this is the only accepted code. */
-            const PLACEHOLDER_SMS_OTP = '123456';
+            const firebaseConfig = {
+                apiKey: "AIzaSyCE7Xk1PXuIFNdTU-x37AqFUooJzu7vdj8",
+                authDomain: "muqaddas-technology.firebaseapp.com",
+                databaseURL: "https://muqaddas-technology-default-rtdb.asia-southeast1.firebasedatabase.app",
+                projectId: "muqaddas-technology",
+                storageBucket: "muqaddas-technology.firebasestorage.app",
+                messagingSenderId: "312265965405",
+                appId: "1:312265965405:web:2dcab49d02bf65f13272b4",
+                measurementId: "G-BCC8Z6KT79"
+            };
+
+            firebase.initializeApp(firebaseConfig);
+            const firebaseAuth = firebase.auth();
+            window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
+                size: 'invisible'
+            });
+            window.recaptchaVerifier.render();
+
+            function getFirebaseErrorMessage(error) {
+                const code = error?.code || '';
+                if (code === 'auth/invalid-phone-number') return 'Invalid phone number format.';
+                if (code === 'auth/too-many-requests') return 'Too many OTP requests. Please try again later.';
+                if (code === 'auth/quota-exceeded') return 'Firebase SMS quota exceeded. Add billing or wait for quota reset.';
+                if (code === 'auth/captcha-check-failed') return 'reCAPTCHA failed. Please retry.';
+                if (code === 'auth/app-not-authorized') return 'This domain is not authorized in Firebase Authentication settings.';
+                return error?.message || 'Failed to send OTP via Firebase';
+            }
+
+            function isBlockedTestPhone(phone) {
+                return blockedTestPhones.includes(String(phone || '').trim());
+            }
 
             // ==================== USER TYPE TOGGLE ====================
             customerTypeBtn.addEventListener('click', function() {
@@ -1548,7 +1584,6 @@
                     nextBtn.style.display = 'none';
                     submitBtn.style.display = 'flex';
                     startOtpTimer();
-                    prefillPlaceholderOtp();
                 } else {
                     nextBtn.style.display = 'flex';
                     submitBtn.style.display = 'none';
@@ -1557,6 +1592,27 @@
 
             nextBtn.addEventListener('click', async function() {
                 if (await validateStep(currentStep)) {
+                    if (currentStep === 2) {
+                        nextBtn.disabled = true;
+                        nextBtn.classList.add('btn-loading');
+                        try {
+                            const phone = document.getElementById('phone').value.trim();
+                            if (isBlockedTestPhone(phone)) {
+                                Toast.show('This is a Firebase test number. Use a real mobile number to receive real SMS OTP.', 'warning', 7000);
+                                return;
+                            }
+                            confirmationResult = await firebaseAuth.signInWithPhoneNumber(`+91${phone}`, window.recaptchaVerifier);
+                            otpSentPhone = phone;
+                            firebaseIdToken = '';
+                            Toast.show('OTP sent to your phone number', 'success');
+                        } catch (error) {
+                            Toast.show(getFirebaseErrorMessage(error), 'error');
+                            return;
+                        } finally {
+                            nextBtn.disabled = false;
+                            nextBtn.classList.remove('btn-loading');
+                        }
+                    }
                     currentStep++;
                     showStep(currentStep);
                 }
@@ -1683,6 +1739,10 @@
                     showError('phoneError', 'Enter valid 10-digit number');
                     phone.classList.add('error');
                     isValid = false;
+                } else if (isBlockedTestPhone(phone.value)) {
+                    showError('phoneError', 'Use a real mobile number for real SMS OTP (not Firebase test number)');
+                    phone.classList.add('error');
+                    isValid = false;
                 } else {
                     clearError('phoneError');
                     phone.classList.remove('error');
@@ -1752,14 +1812,6 @@
             // ==================== OTP INPUT ====================
             const otpInputs = document.querySelectorAll('.otp-input');
 
-            function prefillPlaceholderOtp() {
-                const digits = PLACEHOLDER_SMS_OTP.split('');
-                otpInputs.forEach((input, i) => {
-                    input.value = digits[i] || '';
-                });
-                document.getElementById('otpError').innerHTML = '';
-            }
-
             function getOtpString() {
                 return Array.from(otpInputs).map((input) => input.value).join('');
             }
@@ -1796,8 +1848,22 @@
             document.getElementById('resendOtp').addEventListener('click', function() {
                 this.disabled = true;
                 startOtpTimer();
-                prefillPlaceholderOtp();
-                Toast.show('Use code 123456 (SMS not enabled yet).', 'info');
+                const phone = document.getElementById('phone').value.trim();
+                if (isBlockedTestPhone(phone)) {
+                    Toast.show('This is a Firebase test number. Use a real mobile number to receive real SMS OTP.', 'warning', 7000);
+                    this.disabled = false;
+                    return;
+                }
+                firebaseAuth.signInWithPhoneNumber(`+91${phone}`, window.recaptchaVerifier)
+                    .then((result) => {
+                        confirmationResult = result;
+                        otpSentPhone = phone;
+                        firebaseIdToken = '';
+                        Toast.show('OTP resent successfully', 'success');
+                    })
+                    .catch((error) => {
+                        Toast.show(getFirebaseErrorMessage(error), 'error');
+                    });
             });
 
             // ==================== FORM SUBMISSION - REAL BACKEND ====================
@@ -1809,12 +1875,26 @@
                     document.getElementById('otpError').innerHTML = '<i class="fas fa-exclamation-circle"></i> Please enter all 6 digits';
                     return;
                 }
-                if (otp !== PLACEHOLDER_SMS_OTP) {
+                const phone = document.getElementById('phone').value.trim();
+                if (!otpSentPhone || otpSentPhone !== phone) {
                     document.getElementById('otpError').innerHTML =
-                        '<i class="fas fa-exclamation-circle"></i> Invalid code. Use <strong>123456</strong> until SMS verification is enabled.';
+                        '<i class="fas fa-exclamation-circle"></i> Please resend OTP and try again.';
                     return;
                 }
-                document.getElementById('otpError').innerHTML = '';
+                if (!confirmationResult) {
+                    document.getElementById('otpError').innerHTML =
+                        '<i class="fas fa-exclamation-circle"></i> Please send OTP again.';
+                    return;
+                }
+                try {
+                    const userCredential = await confirmationResult.confirm(otp);
+                    firebaseIdToken = await userCredential.user.getIdToken();
+                    document.getElementById('otpError').innerHTML = '';
+                } catch (error) {
+                    document.getElementById('otpError').innerHTML =
+                        `<i class="fas fa-exclamation-circle"></i> ${error.message || 'Invalid OTP'}`;
+                    return;
+                }
                 
                 // Check terms
                 if (!document.getElementById('terms').checked) {
@@ -1834,7 +1914,9 @@
                         email: document.getElementById('email').value.trim(),
                         phone: document.getElementById('phone').value.trim(),
                         password: document.getElementById('password').value,
-                        user_type: userType
+                        user_type: userType,
+                        otp,
+                        firebase_id_token: firebaseIdToken
                     };
                     
                     // Add optional fields if present
@@ -1894,8 +1976,7 @@
                 document.getElementById('address').value = '123, Main Street';
                 document.getElementById('pincode').value = '400001';
                 document.getElementById('locality').value = 'Andheri East';
-                prefillPlaceholderOtp();
-                Toast.show('Demo data filled (OTP 123456).', 'info');
+                Toast.show('Demo data filled!', 'info');
             }
         });
     </script>

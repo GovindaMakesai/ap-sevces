@@ -860,12 +860,19 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     // Social login handlers
-    document.getElementById('googleLogin').addEventListener('click', () => 
-        Toast.show('Google login coming soon!', 'info'));
-    document.getElementById('facebookLogin').addEventListener('click', () => 
-        Toast.show('Facebook login coming soon!', 'info'));
-    document.getElementById('githubLogin').addEventListener('click', () => 
-        Toast.show('GitHub login coming soon!', 'info'));
+    const AUTH_BASE_URL = (typeof CONFIG !== 'undefined' && CONFIG.API_URL)
+        ? CONFIG.API_URL.replace(/\/api$/, '')
+        : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? 'http://localhost:5000'
+            : 'https://ap-sevces.onrender.com');
+
+    function redirectToOAuth(provider) {
+        window.location.href = `${AUTH_BASE_URL}/auth/${provider}`;
+    }
+
+    document.getElementById('googleLogin').addEventListener('click', () => redirectToOAuth('google'));
+    document.getElementById('facebookLogin').addEventListener('click', () => redirectToOAuth('facebook'));
+    document.getElementById('githubLogin').addEventListener('click', () => redirectToOAuth('github'));
     
     // Demo credentials (development only)
     if (window.location.hostname === 'localhost') {

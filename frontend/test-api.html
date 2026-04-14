@@ -15,13 +15,13 @@
                 status.innerHTML = '🔄 Testing connection to backend...';
                 
                 // Test 1: Health check
-                const healthResponse = await fetch('https://ap-services-marketplace.onrender.com/api/health');
+                const healthResponse = await fetch('https://ap-sevces.onrender.com/api/health');
                 const healthData = await healthResponse.json();
                 
                 status.innerHTML += '<br>✅ Health check: ' + JSON.stringify(healthData);
                 
                 // Test 2: Services API
-                const servicesResponse = await fetch('https://ap-services-marketplace.onrender.com/api/services');
+                const servicesResponse = await fetch('https://ap-sevces.onrender.com/api/services');
                 const servicesData = await servicesResponse.json();
                 
                 status.innerHTML += '<br>✅ Services API: Found ' + (servicesData.data?.length || 0) + ' services';

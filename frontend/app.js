@@ -3,9 +3,9 @@
 
 // ==================== CONFIGURATION ====================
 const LIVE_FRONTEND_URL = 'https://ap-services-xi.vercel.app';
-const LIVE_API_URL = 'https://ap-services-marketplace.onrender.com/api';
+const LIVE_API_URL = 'https://ap-sevces.onrender.com/api';
 const LOCAL_API_URL = 'http://localhost:5000/api';
-const LOCAL_FRONTEND_URL = 'http://localhost:3000';
+const LOCAL_FRONTEND_URL = 'http://localhost:5500';
 
 const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
