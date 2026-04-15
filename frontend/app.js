@@ -711,6 +711,7 @@ const LocationService = {
 const PWA = {
     deferredPrompt: null,
     canPromptInstall: false,
+    manualInstallHintShown: false,
 
     isIOS() {
         return /iphone|ipad|ipod/i.test(navigator.userAgent);
@@ -801,7 +802,6 @@ const PWA = {
                 Toast.show('On iPhone: Share -> Add to Home Screen', 'info', 5000);
                 return;
             }
-            Toast.show('Install is not available yet. Use browser menu -> Add to Home Screen / Install app.', 'warning', 6500);
             return;
         }
 

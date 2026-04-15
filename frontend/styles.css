@@ -1018,9 +1018,11 @@ a:hover {
         gap: var(--spacing-lg);
     }
 
- .fab-container {
- display: none;
- }
+    .fab-container {
+        display: block;
+        left: 0.75rem;
+        bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+    }
     
     h1 {
         font-size: 2rem;

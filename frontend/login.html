@@ -865,7 +865,22 @@ document.addEventListener('DOMContentLoaded', function() {
         : 'https://ap-sevces.onrender.com';
 
     function redirectToOAuth(provider) {
-        window.location.href = `${AUTH_BASE_URL}/auth/${provider}`;
+        const authUrl = `${AUTH_BASE_URL}/auth/${provider}`;
+        const isStandalone =
+            window.matchMedia('(display-mode: standalone)').matches ||
+            window.navigator.standalone === true;
+
+        // In installed PWA mode, opening OAuth in a browser tab/window
+        // is more reliable for third-party login cookie flows.
+        if (isStandalone) {
+            const opened = window.open(authUrl, '_blank', 'noopener,noreferrer');
+            if (!opened) {
+                window.location.href = authUrl;
+            }
+            return;
+        }
+
+        window.location.href = authUrl;
     }
 
     document.getElementById('googleLogin').addEventListener('click', () => redirectToOAuth('google'));

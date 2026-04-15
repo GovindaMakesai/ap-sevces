@@ -1,11 +1,12 @@
-const CACHE_NAME = 'ap-services-v4';
+const CACHE_NAME = 'ap-services-v5';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/styles.css',
   '/app.js',
   '/manifest.json',
-  '/IMG-20260402-WA0042%20(2).jpg'
+  '/icons/icon-192.svg',
+  '/icons/icon-512.svg'
 ];
 
 self.addEventListener('install', (event) => {
