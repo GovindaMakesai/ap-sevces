@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Completing sign-in…</title>
+    <style>
+        body { font-family: system-ui, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #f5f5f5; color: #333; }
+    </style>
+    <script>
+        (function () {
+            // OAuth must finish on the API host (Passport exchanges the ?code= once).
+            var OAUTH_API_BASE = 'https://ap-sevces.onrender.com';
+            var path = window.location.pathname || '';
+            var search = window.location.search || '';
+            var hash = window.location.hash || '';
+            var allowed = path.startsWith('/auth/') || path === '/api/google/callback';
+            if (!allowed) {
+                window.location.replace('/');
+                return;
+            }
+            window.location.replace(OAUTH_API_BASE + path + search + hash);
+        })();
+    </script>
+</head>
+<body>
+    <p>Redirecting to complete sign-in…</p>
+</body>
+</html>

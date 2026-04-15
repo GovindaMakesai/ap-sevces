@@ -230,7 +230,8 @@ const generateOAuthPassword = () => {
 const getFrontendBaseUrl = () => process.env.FRONTEND_URL || 'https://ap-sevces.vercel.app';
 const buildOAuthSuccessUrl = (token) => {
     const absoluteSuccessUrl = process.env.OAUTH_SUCCESS_URL;
-    const successPath = process.env.OAUTH_SUCCESS_PATH || '/dashboard';
+    // Vercel static site has no /dashboard route; login-success.html stores token and routes by role.
+    const successPath = process.env.OAUTH_SUCCESS_PATH || '/login-success.html';
     const rawBase = absoluteSuccessUrl || `${getFrontendBaseUrl()}${successPath}`;
     const separator = rawBase.includes('?') ? '&' : '?';
     return `${rawBase}${separator}token=${encodeURIComponent(token)}`;

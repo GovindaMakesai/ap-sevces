@@ -21,6 +21,34 @@
       "dest": "/frontend/login.html"
     },
     {
+      "src": "/login-success.html",
+      "dest": "/frontend/login-success.html"
+    },
+    {
+      "src": "/dashboard",
+      "dest": "/frontend/dashboard.html"
+    },
+    {
+      "src": "/dashboard.html",
+      "dest": "/frontend/dashboard.html"
+    },
+    {
+      "src": "/auth/google/callback",
+      "dest": "/frontend/oauth-callback-bridge.html"
+    },
+    {
+      "src": "/auth/github/callback",
+      "dest": "/frontend/oauth-callback-bridge.html"
+    },
+    {
+      "src": "/auth/facebook/callback",
+      "dest": "/frontend/oauth-callback-bridge.html"
+    },
+    {
+      "src": "/api/google/callback",
+      "dest": "/frontend/oauth-callback-bridge.html"
+    },
+    {
       "src": "/register.html",
       "dest": "/frontend/register.html"
     },
