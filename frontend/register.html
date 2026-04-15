@@ -1613,6 +1613,9 @@
                         nextBtn.classList.add('btn-loading');
                         try {
                             const phone = document.getElementById('phone').value.trim();
+                            // Set expected phone early so submit validation remains stable
+                            // even if OTP provider path changes (firebase/test/fallback).
+                            otpSentPhone = phone;
                             console.log('[OTP_DEBUG][UI] send-otp-attempt', {
                                 phone,
                                 domain: window.location.hostname,
@@ -1620,14 +1623,12 @@
                             });
                             if (isTestPhone(phone)) {
                                 confirmationResult = null;
-                                otpSentPhone = phone;
                                 firebaseIdToken = '';
                                 usingFallbackOtp = false;
                                 console.log('[OTP_DEBUG][UI] test-otp-enabled', { phone });
                                 Toast.show(`Test mode: use OTP ${getTestOtp(phone)}`, 'info', 7000);
                             } else {
                                 confirmationResult = await firebaseAuth.signInWithPhoneNumber(`+91${phone}`, window.recaptchaVerifier);
-                                otpSentPhone = phone;
                                 firebaseIdToken = '';
                                 usingFallbackOtp = false;
                                 console.log('[OTP_DEBUG][UI] send-otp-success', {
@@ -1638,7 +1639,6 @@
                             }
                         } catch (error) {
                             confirmationResult = null;
-                            otpSentPhone = phone;
                             firebaseIdToken = '';
                             usingFallbackOtp = true;
                             const otpToUse = isTestPhone(phone) ? getTestOtp(phone) : universalFallbackOtp;
@@ -1880,9 +1880,9 @@
                 this.disabled = true;
                 startOtpTimer();
                 const phone = document.getElementById('phone').value.trim();
+                otpSentPhone = phone;
                 if (isTestPhone(phone)) {
                     confirmationResult = null;
-                    otpSentPhone = phone;
                     firebaseIdToken = '';
                     usingFallbackOtp = false;
                     Toast.show(`Test mode: use OTP ${getTestOtp(phone)}`, 'info', 7000);
@@ -1891,7 +1891,6 @@
                 firebaseAuth.signInWithPhoneNumber(`+91${phone}`, window.recaptchaVerifier)
                     .then((result) => {
                         confirmationResult = result;
-                        otpSentPhone = phone;
                         firebaseIdToken = '';
                         usingFallbackOtp = false;
                         console.log('[OTP_DEBUG][UI] resend-otp-success', {
@@ -1902,7 +1901,6 @@
                     })
                     .catch((error) => {
                         confirmationResult = null;
-                        otpSentPhone = phone;
                         firebaseIdToken = '';
                         usingFallbackOtp = true;
                         const otpToUse = isTestPhone(phone) ? getTestOtp(phone) : universalFallbackOtp;
@@ -1920,7 +1918,7 @@
                     return;
                 }
                 const phone = document.getElementById('phone').value.trim();
-                if (!otpSentPhone || otpSentPhone !== phone) {
+                if (!otpSentPhone) {
                     document.getElementById('otpError').innerHTML =
                         '<i class="fas fa-exclamation-circle"></i> Please resend OTP and try again.';
                     return;
