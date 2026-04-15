@@ -115,8 +115,6 @@ const ensureGoogleCode = (req, res, next) => {
 };
 
 // Public routes
-router.post('/send-signup-otp', authController.sendSignupOtp);
-router.post('/verify-signup-otp', authController.verifySignupOtp);
 router.post('/register', validateRegistration, checkValidation, authController.register);
 router.post('/login', validateLogin, checkValidation, authController.login);
 router.get('/me', verifyToken, authController.getMe);

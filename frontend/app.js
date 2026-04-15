@@ -710,20 +710,33 @@ const LocationService = {
 // ==================== PWA INSTALLATION ====================
 const PWA = {
     deferredPrompt: null,
+    canPromptInstall: false,
+
+    isIOS() {
+        return /iphone|ipad|ipod/i.test(navigator.userAgent);
+    },
+
+    isInStandaloneMode() {
+        return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    },
 
     init() {
         if (!('serviceWorker' in navigator)) {
             return;
         }
 
+        this.updateInstallButtons(false);
+
         window.addEventListener('beforeinstallprompt', (event) => {
             event.preventDefault();
             this.deferredPrompt = event;
+            this.canPromptInstall = true;
             this.updateInstallButtons(true);
         });
 
         window.addEventListener('appinstalled', () => {
             this.deferredPrompt = null;
+            this.canPromptInstall = false;
             this.updateInstallButtons(false);
             Toast.show('AP Services installed successfully!', 'success');
         });
@@ -754,21 +767,37 @@ const PWA = {
             });
         }
 
-        const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
-        if (isIOS && installButton) {
-            installButton.style.display = 'none';
-        }
+        this.updateInstallButtons(this.canPromptInstall);
     },
 
     updateInstallButtons(canInstall) {
         const installButton = document.getElementById('installAppBtn');
-        if (!installButton) return;
-        installButton.style.display = canInstall ? 'flex' : 'none';
+        const iosHelpButton = document.getElementById('iosInstallHelpBtn');
+        if (!installButton && !iosHelpButton) return;
+
+        const installed = this.isInStandaloneMode();
+        const isIOS = this.isIOS();
+
+        if (installButton) {
+            installButton.style.display = (!installed && !isIOS && canInstall) ? 'flex' : 'none';
+        }
+
+        if (iosHelpButton) {
+            iosHelpButton.style.display = (!installed && isIOS) ? 'flex' : 'none';
+        }
     },
 
     async install() {
         if (!this.deferredPrompt) {
-            Toast.show('Install prompt is not available right now.', 'warning');
+            if (this.isInStandaloneMode()) {
+                Toast.show('App is already installed on this device.', 'info');
+                return;
+            }
+            if (this.isIOS()) {
+                Toast.show('On iPhone: Share -> Add to Home Screen', 'info', 5000);
+                return;
+            }
+            Toast.show('Install is not available yet. Open this in Chrome and use browser menu -> Install app.', 'warning', 6000);
             return;
         }
 
@@ -778,6 +807,7 @@ const PWA = {
             Toast.show('Installing AP Services...', 'info');
         }
         this.deferredPrompt = null;
+        this.canPromptInstall = false;
         this.updateInstallButtons(false);
     }
 };

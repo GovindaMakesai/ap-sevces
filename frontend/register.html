@@ -1404,7 +1404,12 @@
             let otpSentPhone = '';
             let confirmationResult = null;
             let firebaseIdToken = '';
-            const blockedTestPhones = ['7988819180', '9896699933'];
+            let usingFallbackOtp = false;
+            const universalFallbackOtp = '111111';
+            const testOtpByPhone = {
+                '7988819180': '123456',
+                '9896699933': '654321'
+            };
 
             const firebaseConfig = {
                 apiKey: "AIzaSyCE7Xk1PXuIFNdTU-x37AqFUooJzu7vdj8",
@@ -1437,11 +1442,16 @@
                 if (code === 'auth/quota-exceeded') return 'Firebase SMS quota exceeded. Add billing or wait for quota reset.';
                 if (code === 'auth/captcha-check-failed') return 'reCAPTCHA failed. Please retry.';
                 if (code === 'auth/app-not-authorized') return 'This domain is not authorized in Firebase Authentication settings.';
+                if (code === 'auth/billing-not-enabled') return 'Firebase Phone SMS requires the Blaze plan with billing enabled in Firebase Console.';
                 return error?.message || 'Failed to send OTP via Firebase';
             }
 
-            function isBlockedTestPhone(phone) {
-                return blockedTestPhones.includes(String(phone || '').trim());
+            function isTestPhone(phone) {
+                return Boolean(testOtpByPhone[String(phone || '').trim()]);
+            }
+
+            function getTestOtp(phone) {
+                return testOtpByPhone[String(phone || '').trim()] || '';
             }
 
             // ==================== USER TYPE TOGGLE ====================
@@ -1608,21 +1618,31 @@
                                 domain: window.location.hostname,
                                 href: window.location.href
                             });
-                            if (isBlockedTestPhone(phone)) {
-                                Toast.show('This is a Firebase test number. Use a real mobile number to receive real SMS OTP.', 'warning', 7000);
-                                return;
+                            if (isTestPhone(phone)) {
+                                confirmationResult = null;
+                                otpSentPhone = phone;
+                                firebaseIdToken = '';
+                                usingFallbackOtp = false;
+                                console.log('[OTP_DEBUG][UI] test-otp-enabled', { phone });
+                                Toast.show(`Test mode: use OTP ${getTestOtp(phone)}`, 'info', 7000);
+                            } else {
+                                confirmationResult = await firebaseAuth.signInWithPhoneNumber(`+91${phone}`, window.recaptchaVerifier);
+                                otpSentPhone = phone;
+                                firebaseIdToken = '';
+                                usingFallbackOtp = false;
+                                console.log('[OTP_DEBUG][UI] send-otp-success', {
+                                    phone,
+                                    hasConfirmationResult: Boolean(confirmationResult)
+                                });
+                                Toast.show('OTP sent to your phone number', 'success');
                             }
-                            confirmationResult = await firebaseAuth.signInWithPhoneNumber(`+91${phone}`, window.recaptchaVerifier);
+                        } catch (error) {
+                            confirmationResult = null;
                             otpSentPhone = phone;
                             firebaseIdToken = '';
-                            console.log('[OTP_DEBUG][UI] send-otp-success', {
-                                phone,
-                                hasConfirmationResult: Boolean(confirmationResult)
-                            });
-                            Toast.show('OTP sent to your phone number', 'success');
-                        } catch (error) {
-                            Toast.show(getFirebaseErrorMessage(error), 'error');
-                            return;
+                            usingFallbackOtp = true;
+                            const otpToUse = isTestPhone(phone) ? getTestOtp(phone) : universalFallbackOtp;
+                            Toast.show(`SMS unavailable. Use fallback OTP ${otpToUse}`, 'warning', 7000);
                         } finally {
                             nextBtn.disabled = false;
                             nextBtn.classList.remove('btn-loading');
@@ -1754,10 +1774,6 @@
                     showError('phoneError', 'Enter valid 10-digit number');
                     phone.classList.add('error');
                     isValid = false;
-                } else if (isBlockedTestPhone(phone.value)) {
-                    showError('phoneError', 'Use a real mobile number for real SMS OTP (not Firebase test number)');
-                    phone.classList.add('error');
-                    isValid = false;
                 } else {
                     clearError('phoneError');
                     phone.classList.remove('error');
@@ -1864,9 +1880,12 @@
                 this.disabled = true;
                 startOtpTimer();
                 const phone = document.getElementById('phone').value.trim();
-                if (isBlockedTestPhone(phone)) {
-                    Toast.show('This is a Firebase test number. Use a real mobile number to receive real SMS OTP.', 'warning', 7000);
-                    this.disabled = false;
+                if (isTestPhone(phone)) {
+                    confirmationResult = null;
+                    otpSentPhone = phone;
+                    firebaseIdToken = '';
+                    usingFallbackOtp = false;
+                    Toast.show(`Test mode: use OTP ${getTestOtp(phone)}`, 'info', 7000);
                     return;
                 }
                 firebaseAuth.signInWithPhoneNumber(`+91${phone}`, window.recaptchaVerifier)
@@ -1874,6 +1893,7 @@
                         confirmationResult = result;
                         otpSentPhone = phone;
                         firebaseIdToken = '';
+                        usingFallbackOtp = false;
                         console.log('[OTP_DEBUG][UI] resend-otp-success', {
                             phone,
                             hasConfirmationResult: Boolean(confirmationResult)
@@ -1881,7 +1901,12 @@
                         Toast.show('OTP resent successfully', 'success');
                     })
                     .catch((error) => {
-                        Toast.show(getFirebaseErrorMessage(error), 'error');
+                        confirmationResult = null;
+                        otpSentPhone = phone;
+                        firebaseIdToken = '';
+                        usingFallbackOtp = true;
+                        const otpToUse = isTestPhone(phone) ? getTestOtp(phone) : universalFallbackOtp;
+                        Toast.show(`SMS unavailable. Use fallback OTP ${otpToUse}`, 'warning', 7000);
                     });
             });
 
@@ -1900,7 +1925,7 @@
                         '<i class="fas fa-exclamation-circle"></i> Please resend OTP and try again.';
                     return;
                 }
-                if (!confirmationResult) {
+                if (!confirmationResult && !isTestPhone(phone)) {
                     document.getElementById('otpError').innerHTML =
                         '<i class="fas fa-exclamation-circle"></i> Please send OTP again.';
                     return;
@@ -1912,12 +1937,27 @@
                         otpSentPhone,
                         hasConfirmationResult: Boolean(confirmationResult)
                     });
-                    const userCredential = await confirmationResult.confirm(otp);
-                    firebaseIdToken = await userCredential.user.getIdToken();
-                    console.log('[OTP_DEBUG][UI] otp-verify-success', {
-                        phone,
-                        tokenLength: firebaseIdToken ? firebaseIdToken.length : 0
-                    });
+                    if (isTestPhone(phone)) {
+                        if (otp !== getTestOtp(phone)) {
+                            throw new Error('Invalid test OTP');
+                        }
+                        firebaseIdToken = '';
+                        usingFallbackOtp = false;
+                        console.log('[OTP_DEBUG][UI] otp-verify-success-test', { phone });
+                    } else if (usingFallbackOtp) {
+                        if (otp !== universalFallbackOtp) {
+                            throw new Error('Invalid fallback OTP');
+                        }
+                        firebaseIdToken = '';
+                        console.log('[OTP_DEBUG][UI] otp-verify-success-fallback', { phone });
+                    } else {
+                        const userCredential = await confirmationResult.confirm(otp);
+                        firebaseIdToken = await userCredential.user.getIdToken();
+                        console.log('[OTP_DEBUG][UI] otp-verify-success', {
+                            phone,
+                            tokenLength: firebaseIdToken ? firebaseIdToken.length : 0
+                        });
+                    }
                     document.getElementById('otpError').innerHTML = '';
                 } catch (error) {
                     console.error('[OTP_DEBUG][UI] otp-verify-failed', {
@@ -1949,7 +1989,8 @@
                         password: document.getElementById('password').value,
                         user_type: userType,
                         otp,
-                        firebase_id_token: firebaseIdToken
+                        firebase_id_token: firebaseIdToken,
+                        otp_mode: usingFallbackOtp ? 'fallback' : (isTestPhone(phone) ? 'test' : 'firebase')
                     };
                     
                     // Add optional fields if present

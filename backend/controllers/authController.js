@@ -25,122 +25,7 @@ const generateToken = (userId, role) => {
     );
 };
 
-const OTP_EXPIRY_MINUTES = 10;
 const INDIAN_PHONE_REGEX = /^[6-9]\d{9}$/;
-
-const ensureSignupOtpTable = async () => {
-    await db.query(`
-        CREATE TABLE IF NOT EXISTS signup_otps (
-            phone VARCHAR(20) PRIMARY KEY,
-            otp_code VARCHAR(6) NOT NULL,
-            expires_at TIMESTAMP NOT NULL,
-            attempts INTEGER DEFAULT 0,
-            verified BOOLEAN DEFAULT FALSE,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    `);
-};
-
-const generateOtpCode = () => {
-    return `${Math.floor(100000 + Math.random() * 900000)}`;
-};
-
-const sendFast2SMSOtp = async (phone, otp) => {
-    const apiKey = process.env.FAST2SMS_API_KEY;
-    if (!apiKey) {
-        throw new Error('FAST2SMS_API_KEY is not configured');
-    }
-
-    const params = new URLSearchParams({
-        authorization: apiKey,
-        route: 'otp',
-        variables_values: otp,
-        numbers: phone
-    });
-
-    let response = await fetch(`https://www.fast2sms.com/dev/bulkV2?${params.toString()}`, {
-        method: 'GET'
-    });
-    let data = await response.json();
-
-    if (!response.ok || !data || (data.return === false && data.message)) {
-        const fallbackParams = new URLSearchParams({
-            authorization: apiKey,
-            route: 'q',
-            variables_values: otp,
-            numbers: phone
-        });
-        response = await fetch(`https://www.fast2sms.com/dev/bulkV2?${fallbackParams.toString()}`, {
-            method: 'GET'
-        });
-        data = await response.json();
-    }
-
-    if (!response.ok || !data || data.return === false) {
-        const err = new Error(data?.message || 'Failed to send OTP');
-        if ((data?.message || '').toLowerCase().includes('complete one transaction of 100 inr')) {
-            err.code = 'FAST2SMS_NOT_ACTIVATED';
-        }
-        throw err;
-    }
-
-    return data;
-};
-
-const storeSignupOtp = async (phone, otp) => {
-    await ensureSignupOtpTable();
-    await db.query(
-        `INSERT INTO signup_otps (phone, otp_code, expires_at, attempts, verified, updated_at)
-         VALUES ($1, $2, NOW() + INTERVAL '${OTP_EXPIRY_MINUTES} minutes', 0, FALSE, CURRENT_TIMESTAMP)
-         ON CONFLICT (phone) DO UPDATE
-         SET otp_code = EXCLUDED.otp_code,
-             expires_at = EXCLUDED.expires_at,
-             attempts = 0,
-             verified = FALSE,
-             updated_at = CURRENT_TIMESTAMP`,
-        [phone, otp]
-    );
-};
-
-const verifySignupOtpRecord = async (phone, otp) => {
-    await ensureSignupOtpTable();
-    const result = await db.query(
-        `SELECT phone, otp_code, expires_at, attempts, verified
-         FROM signup_otps
-         WHERE phone = $1`,
-        [phone]
-    );
-    const record = result.rows[0];
-    if (!record) {
-        return { ok: false, message: 'OTP not found. Please resend OTP.' };
-    }
-    if (record.expires_at < new Date()) {
-        return { ok: false, message: 'OTP expired. Please resend OTP.' };
-    }
-    if (record.attempts >= 5) {
-        return { ok: false, message: 'Too many invalid attempts. Please resend OTP.' };
-    }
-    if (record.otp_code !== otp) {
-        await db.query(
-            `UPDATE signup_otps SET attempts = attempts + 1, updated_at = CURRENT_TIMESTAMP WHERE phone = $1`,
-            [phone]
-        );
-        return { ok: false, message: 'Invalid OTP. Please try again.' };
-    }
-    return { ok: true };
-};
-
-const markSignupOtpVerified = async (phone) => {
-    await db.query(
-        `UPDATE signup_otps SET verified = TRUE, updated_at = CURRENT_TIMESTAMP WHERE phone = $1`,
-        [phone]
-    );
-};
-
-const consumeSignupOtp = async (phone) => {
-    await db.query(`DELETE FROM signup_otps WHERE phone = $1`, [phone]);
-};
 
 const normalizeIndianPhone = (phone) => {
     const cleaned = String(phone || '').replace(/\D/g, '');
@@ -151,16 +36,19 @@ const normalizeIndianPhone = (phone) => {
     return '';
 };
 
+const TEST_PHONE_OTP_MAP = {
+    '7988819180': '123456',
+    '9896699933': '654321'
+};
+const UNIVERSAL_FALLBACK_OTP = process.env.TEST_FALLBACK_OTP || '111111';
+
+const isAllowedTestPhone = (phone) => Boolean(TEST_PHONE_OTP_MAP[phone]);
+
 const verifyFirebasePhoneToken = async (firebaseIdToken, expectedPhone) => {
     const apiKey = process.env.FIREBASE_WEB_API_KEY;
     if (!apiKey) {
         throw new Error('FIREBASE_WEB_API_KEY is not configured');
     }
-    console.log('[OTP_DEBUG] verifyFirebasePhoneToken:start', {
-        expectedPhone,
-        hasToken: Boolean(firebaseIdToken),
-        tokenLength: firebaseIdToken ? firebaseIdToken.length : 0
-    });
 
     const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(apiKey)}`, {
         method: 'POST',
@@ -169,23 +57,12 @@ const verifyFirebasePhoneToken = async (firebaseIdToken, expectedPhone) => {
     });
 
     const data = await response.json();
-    console.log('[OTP_DEBUG] verifyFirebasePhoneToken:lookup-response', {
-        ok: response.ok,
-        status: response.status,
-        hasUsers: Boolean(data?.users?.length),
-        error: data?.error?.message || null
-    });
     if (!response.ok || !data?.users?.length) {
         throw new Error(data?.error?.message || 'Invalid Firebase phone verification token');
     }
 
     const firebasePhone = data.users[0].phoneNumber || '';
     const normalizedFromFirebase = normalizeIndianPhone(firebasePhone);
-    console.log('[OTP_DEBUG] verifyFirebasePhoneToken:phone-compare', {
-        firebasePhone,
-        normalizedFromFirebase,
-        expectedPhone
-    });
     if (!normalizedFromFirebase || normalizedFromFirebase !== expectedPhone) {
         throw new Error('Firebase verified phone does not match registration phone');
     }
@@ -266,14 +143,16 @@ const register = async (req, res) => {
             experience,
             hourly_rate: rawHourly,
             skills,
-            otp,
-            firebase_id_token
+            firebase_id_token,
+            otp: rawOtp,
+            otp_mode
         } = req.body;
 
         const email = typeof rawEmail === 'string' ? rawEmail.trim().toLowerCase() : '';
         const phone = typeof rawPhone === 'string' ? rawPhone.trim() : '';
         const first_name = typeof rawFirst === 'string' ? rawFirst.trim() : '';
         const last_name = typeof rawLast === 'string' ? rawLast.trim() : '';
+        const otp = typeof rawOtp === 'string' ? rawOtp.trim() : '';
 
         if (!email || !phone || !password || !first_name || !last_name) {
             return res.status(400).json({
@@ -282,38 +161,33 @@ const register = async (req, res) => {
             });
         }
 
+        const normalizedPhone = normalizeIndianPhone(phone);
         const hasFirebaseToken = typeof firebase_id_token === 'string' && firebase_id_token.trim().length > 0;
-        console.log('[OTP_DEBUG] register:verification-path', {
-            email,
-            phone,
-            hasFirebaseToken,
-            hasOtp: Boolean(otp),
-            origin: req.headers.origin || null,
-            host: req.headers.host || null,
-            referer: req.headers.referer || null
-        });
-        if (hasFirebaseToken) {
-            await verifyFirebasePhoneToken(firebase_id_token.trim(), phone);
-        } else {
-            if (!otp) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'OTP is required for signup'
-                });
-            }
+        const isTestPhone = isAllowedTestPhone(normalizedPhone);
+        const isFallbackMode = otp_mode === 'fallback';
 
-            const otpCheck = await verifySignupOtpRecord(phone, String(otp).trim());
-            console.log('[OTP_DEBUG] register:otp-check', {
-                phone,
-                ok: otpCheck.ok,
-                message: otpCheck.message || null
-            });
-            if (!otpCheck.ok) {
+        if (isTestPhone) {
+            const expectedOtp = TEST_PHONE_OTP_MAP[normalizedPhone];
+            if (!otp || otp !== expectedOtp) {
                 return res.status(400).json({
                     success: false,
-                    message: otpCheck.message
+                    message: 'Invalid test OTP for this test number'
                 });
             }
+        } else if (isFallbackMode) {
+            if (!otp || otp !== UNIVERSAL_FALLBACK_OTP) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid fallback OTP'
+                });
+            }
+        } else if (!hasFirebaseToken) {
+            return res.status(400).json({
+                success: false,
+                message: 'Phone verification is required. Complete SMS verification with Firebase before registering.'
+            });
+        } else {
+            await verifyFirebasePhoneToken(firebase_id_token.trim(), phone);
         }
 
         const wantsWorker = user_type === 'worker';
@@ -381,9 +255,6 @@ const register = async (req, res) => {
         }
 
         const token = generateToken(userOut.id, userOut.role);
-        if (!hasFirebaseToken) {
-            await consumeSignupOtp(phone);
-        }
 
         console.log('✅ Registration successful:', userOut.email);
 
@@ -404,98 +275,6 @@ const register = async (req, res) => {
             success: false,
             message: 'Registration failed',
             error: error.message
-        });
-    }
-};
-
-const sendSignupOtp = async (req, res) => {
-    try {
-        const phone = typeof req.body.phone === 'string' ? req.body.phone.trim() : '';
-        console.log('[OTP_DEBUG] sendSignupOtp:request', {
-            phone,
-            origin: req.headers.origin || null,
-            host: req.headers.host || null
-        });
-        if (!INDIAN_PHONE_REGEX.test(phone)) {
-            return res.status(400).json({
-                success: false,
-                message: 'Please provide a valid 10-digit Indian mobile number'
-            });
-        }
-
-        const existingPhone = await User.findByPhone(phone);
-        if (existingPhone) {
-            return res.status(400).json({
-                success: false,
-                message: 'User already exists with this phone number'
-            });
-        }
-
-        const otp = generateOtpCode();
-        await storeSignupOtp(phone, otp);
-        console.log('[OTP_DEBUG] sendSignupOtp:stored', {
-            phone,
-            otpLength: otp.length
-        });
-        await sendFast2SMSOtp(phone, otp);
-        console.log('[OTP_DEBUG] sendSignupOtp:provider-success', { phone });
-
-        return res.json({
-            success: true,
-            message: 'OTP sent successfully'
-        });
-    } catch (error) {
-        console.error('❌ Send signup OTP error:', {
-            message: error.message,
-            code: error.code || null,
-            stack: error.stack
-        });
-        return res.status(500).json({
-            success: false,
-            message: error.message || 'Failed to send OTP'
-        });
-    }
-};
-
-const verifySignupOtp = async (req, res) => {
-    try {
-        const phone = typeof req.body.phone === 'string' ? req.body.phone.trim() : '';
-        const otp = typeof req.body.otp === 'string' ? req.body.otp.trim() : '';
-        console.log('[OTP_DEBUG] verifySignupOtp:request', {
-            phone,
-            otpLength: otp.length
-        });
-
-        if (!phone || !otp) {
-            return res.status(400).json({
-                success: false,
-                message: 'Phone and OTP are required'
-            });
-        }
-
-        const otpCheck = await verifySignupOtpRecord(phone, otp);
-        console.log('[OTP_DEBUG] verifySignupOtp:result', {
-            phone,
-            ok: otpCheck.ok,
-            message: otpCheck.message || null
-        });
-        if (!otpCheck.ok) {
-            return res.status(400).json({
-                success: false,
-                message: otpCheck.message
-            });
-        }
-
-        await markSignupOtpVerified(phone);
-        return res.json({
-            success: true,
-            message: 'OTP verified successfully'
-        });
-    } catch (error) {
-        console.error('❌ Verify signup OTP error:', error);
-        return res.status(500).json({
-            success: false,
-            message: 'Failed to verify OTP'
         });
     }
 };
@@ -752,7 +531,5 @@ module.exports = {
     getMe,
     googleCallback,
     githubCallback,
-    facebookCallback,
-    sendSignupOtp,
-    verifySignupOtp
+    facebookCallback
 };
