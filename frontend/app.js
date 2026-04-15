@@ -779,7 +779,10 @@ const PWA = {
         const isIOS = this.isIOS();
 
         if (installButton) {
-            installButton.style.display = (!installed && !isIOS && canInstall) ? 'flex' : 'none';
+            // Keep visible on non-iOS so users can still see manual install guidance
+            // even when beforeinstallprompt has not fired yet.
+            installButton.style.display = (!installed && !isIOS) ? 'flex' : 'none';
+            installButton.disabled = false;
         }
 
         if (iosHelpButton) {
