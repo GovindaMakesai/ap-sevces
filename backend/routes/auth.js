@@ -15,7 +15,10 @@ const {
 
 const frontendBaseUrl = process.env.FRONTEND_URL || 'https://ap-sevces.vercel.app';
 const oauthFailureRedirect = `${frontendBaseUrl}/login.html?error=oauth_auth_failed`;
-const googleCallbackURL = process.env.GOOGLE_CALLBACK_URL || 'https://ap-sevces.onrender.com/auth/google/callback';
+const googleCallbackURL =
+    process.env.GOOGLE_REDIRECT_URI ||
+    process.env.GOOGLE_CALLBACK_URL ||
+    'https://ap-sevces.onrender.com/auth/google/callback';
 const githubCallbackURL = process.env.GITHUB_CALLBACK_URL || 'https://ap-sevces.onrender.com/auth/github/callback';
 const facebookCallbackURL = process.env.FACEBOOK_CALLBACK_URL || 'https://ap-sevces.onrender.com/auth/facebook/callback';
 const facebookAuthorizationBase = 'https://www.facebook.com/v3.2/dialog/oauth';
@@ -101,6 +104,16 @@ const ensureFacebookCode = (req, res, next) => {
     return next();
 };
 
+const ensureGoogleCode = (req, res, next) => {
+    if (!req.query.code) {
+        return res.status(400).json({
+            success: false,
+            message: 'Missing Google authorization code'
+        });
+    }
+    return next();
+};
+
 // Public routes
 router.post('/send-signup-otp', authController.sendSignupOtp);
 router.post('/verify-signup-otp', authController.verifySignupOtp);
@@ -111,11 +124,13 @@ if (isGoogleConfigured) {
     router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'], session: false }));
     router.get(
         '/google/callback',
+        ensureGoogleCode,
         passport.authenticate('google', { session: false, failureRedirect: oauthFailureRedirect }),
         authController.googleCallback
     );
     router.get(
         '/api/google/callback',
+        ensureGoogleCode,
         passport.authenticate('google', { session: false, failureRedirect: oauthFailureRedirect }),
         authController.googleCallback
     );

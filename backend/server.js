@@ -32,6 +32,7 @@ const allowedOrigins = [
     'http://localhost:5000',
     'http://localhost:5500',
     'http://127.0.0.1:5500',
+    'https://ap-sevces.vercel.app',
     'https://ap-services-xi.vercel.app',
     'https://ap-services-marketplace.vercel.app',
     'https://ap-services-marketplace.onrender.com',

@@ -1426,6 +1426,12 @@
 
             function getFirebaseErrorMessage(error) {
                 const code = error?.code || '';
+                console.error('[OTP_DEBUG][FIREBASE]', {
+                    code,
+                    message: error?.message || '',
+                    domain: window.location.hostname,
+                    href: window.location.href
+                });
                 if (code === 'auth/invalid-phone-number') return 'Invalid phone number format.';
                 if (code === 'auth/too-many-requests') return 'Too many OTP requests. Please try again later.';
                 if (code === 'auth/quota-exceeded') return 'Firebase SMS quota exceeded. Add billing or wait for quota reset.';
@@ -1597,6 +1603,11 @@
                         nextBtn.classList.add('btn-loading');
                         try {
                             const phone = document.getElementById('phone').value.trim();
+                            console.log('[OTP_DEBUG][UI] send-otp-attempt', {
+                                phone,
+                                domain: window.location.hostname,
+                                href: window.location.href
+                            });
                             if (isBlockedTestPhone(phone)) {
                                 Toast.show('This is a Firebase test number. Use a real mobile number to receive real SMS OTP.', 'warning', 7000);
                                 return;
@@ -1604,6 +1615,10 @@
                             confirmationResult = await firebaseAuth.signInWithPhoneNumber(`+91${phone}`, window.recaptchaVerifier);
                             otpSentPhone = phone;
                             firebaseIdToken = '';
+                            console.log('[OTP_DEBUG][UI] send-otp-success', {
+                                phone,
+                                hasConfirmationResult: Boolean(confirmationResult)
+                            });
                             Toast.show('OTP sent to your phone number', 'success');
                         } catch (error) {
                             Toast.show(getFirebaseErrorMessage(error), 'error');
@@ -1859,6 +1874,10 @@
                         confirmationResult = result;
                         otpSentPhone = phone;
                         firebaseIdToken = '';
+                        console.log('[OTP_DEBUG][UI] resend-otp-success', {
+                            phone,
+                            hasConfirmationResult: Boolean(confirmationResult)
+                        });
                         Toast.show('OTP resent successfully', 'success');
                     })
                     .catch((error) => {
@@ -1887,10 +1906,24 @@
                     return;
                 }
                 try {
+                    console.log('[OTP_DEBUG][UI] otp-verify-attempt', {
+                        phone,
+                        otpLength: otp.length,
+                        otpSentPhone,
+                        hasConfirmationResult: Boolean(confirmationResult)
+                    });
                     const userCredential = await confirmationResult.confirm(otp);
                     firebaseIdToken = await userCredential.user.getIdToken();
+                    console.log('[OTP_DEBUG][UI] otp-verify-success', {
+                        phone,
+                        tokenLength: firebaseIdToken ? firebaseIdToken.length : 0
+                    });
                     document.getElementById('otpError').innerHTML = '';
                 } catch (error) {
+                    console.error('[OTP_DEBUG][UI] otp-verify-failed', {
+                        code: error?.code || '',
+                        message: error?.message || ''
+                    });
                     document.getElementById('otpError').innerHTML =
                         `<i class="fas fa-exclamation-circle"></i> ${error.message || 'Invalid OTP'}`;
                     return;
@@ -1936,6 +1969,10 @@
                     
                     // Call the REAL Auth.register from app.js
                     const response = await Auth.register(registrationData);
+                    console.log('[OTP_DEBUG][UI] register-response', {
+                        success: Boolean(response && response.success),
+                        message: response?.message || null
+                    });
                     
                     if (response && response.success) {
                         Toast.show('Registration successful! Redirecting to login...', 'success');

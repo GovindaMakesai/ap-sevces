@@ -2,7 +2,7 @@
 // AP Services Frontend - Complete Working Version with FormData Support
 
 // ==================== CONFIGURATION ====================
-const LIVE_FRONTEND_URL = 'https://ap-services-xi.vercel.app';
+const LIVE_FRONTEND_URL = 'https://ap-sevces.vercel.app';
 const LIVE_API_URL = 'https://ap-sevces.onrender.com/api';
 const LOCAL_API_URL = 'http://localhost:5000/api';
 const LOCAL_FRONTEND_URL = 'http://localhost:5500';
@@ -57,7 +57,7 @@ const API = {
                 headers,
                 body,
                 mode: 'cors',
-                credentials: 'omit'
+                credentials: 'include'
             });
             
             // Try to parse JSON response

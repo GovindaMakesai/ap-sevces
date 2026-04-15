@@ -156,6 +156,11 @@ const verifyFirebasePhoneToken = async (firebaseIdToken, expectedPhone) => {
     if (!apiKey) {
         throw new Error('FIREBASE_WEB_API_KEY is not configured');
     }
+    console.log('[OTP_DEBUG] verifyFirebasePhoneToken:start', {
+        expectedPhone,
+        hasToken: Boolean(firebaseIdToken),
+        tokenLength: firebaseIdToken ? firebaseIdToken.length : 0
+    });
 
     const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(apiKey)}`, {
         method: 'POST',
@@ -164,12 +169,23 @@ const verifyFirebasePhoneToken = async (firebaseIdToken, expectedPhone) => {
     });
 
     const data = await response.json();
+    console.log('[OTP_DEBUG] verifyFirebasePhoneToken:lookup-response', {
+        ok: response.ok,
+        status: response.status,
+        hasUsers: Boolean(data?.users?.length),
+        error: data?.error?.message || null
+    });
     if (!response.ok || !data?.users?.length) {
         throw new Error(data?.error?.message || 'Invalid Firebase phone verification token');
     }
 
     const firebasePhone = data.users[0].phoneNumber || '';
     const normalizedFromFirebase = normalizeIndianPhone(firebasePhone);
+    console.log('[OTP_DEBUG] verifyFirebasePhoneToken:phone-compare', {
+        firebasePhone,
+        normalizedFromFirebase,
+        expectedPhone
+    });
     if (!normalizedFromFirebase || normalizedFromFirebase !== expectedPhone) {
         throw new Error('Firebase verified phone does not match registration phone');
     }
@@ -212,8 +228,13 @@ const generateOAuthPassword = () => {
 };
 
 const getFrontendBaseUrl = () => process.env.FRONTEND_URL || 'https://ap-sevces.vercel.app';
-const buildLoginSuccessUrl = (token) =>
-    `${getFrontendBaseUrl()}/login-success.html?token=${encodeURIComponent(token)}`;
+const buildOAuthSuccessUrl = (token) => {
+    const absoluteSuccessUrl = process.env.OAUTH_SUCCESS_URL;
+    const successPath = process.env.OAUTH_SUCCESS_PATH || '/dashboard';
+    const rawBase = absoluteSuccessUrl || `${getFrontendBaseUrl()}${successPath}`;
+    const separator = rawBase.includes('?') ? '&' : '?';
+    return `${rawBase}${separator}token=${encodeURIComponent(token)}`;
+};
 
 const generateGooglePhoneCandidate = (providerId, offset = 0) => {
     const digits = String(providerId || '').replace(/\D/g, '');
@@ -261,6 +282,15 @@ const register = async (req, res) => {
         }
 
         const hasFirebaseToken = typeof firebase_id_token === 'string' && firebase_id_token.trim().length > 0;
+        console.log('[OTP_DEBUG] register:verification-path', {
+            email,
+            phone,
+            hasFirebaseToken,
+            hasOtp: Boolean(otp),
+            origin: req.headers.origin || null,
+            host: req.headers.host || null,
+            referer: req.headers.referer || null
+        });
         if (hasFirebaseToken) {
             await verifyFirebasePhoneToken(firebase_id_token.trim(), phone);
         } else {
@@ -272,6 +302,11 @@ const register = async (req, res) => {
             }
 
             const otpCheck = await verifySignupOtpRecord(phone, String(otp).trim());
+            console.log('[OTP_DEBUG] register:otp-check', {
+                phone,
+                ok: otpCheck.ok,
+                message: otpCheck.message || null
+            });
             if (!otpCheck.ok) {
                 return res.status(400).json({
                     success: false,
@@ -375,6 +410,11 @@ const register = async (req, res) => {
 const sendSignupOtp = async (req, res) => {
     try {
         const phone = typeof req.body.phone === 'string' ? req.body.phone.trim() : '';
+        console.log('[OTP_DEBUG] sendSignupOtp:request', {
+            phone,
+            origin: req.headers.origin || null,
+            host: req.headers.host || null
+        });
         if (!INDIAN_PHONE_REGEX.test(phone)) {
             return res.status(400).json({
                 success: false,
@@ -392,14 +432,23 @@ const sendSignupOtp = async (req, res) => {
 
         const otp = generateOtpCode();
         await storeSignupOtp(phone, otp);
+        console.log('[OTP_DEBUG] sendSignupOtp:stored', {
+            phone,
+            otpLength: otp.length
+        });
         await sendFast2SMSOtp(phone, otp);
+        console.log('[OTP_DEBUG] sendSignupOtp:provider-success', { phone });
 
         return res.json({
             success: true,
             message: 'OTP sent successfully'
         });
     } catch (error) {
-        console.error('❌ Send signup OTP error:', error);
+        console.error('❌ Send signup OTP error:', {
+            message: error.message,
+            code: error.code || null,
+            stack: error.stack
+        });
         return res.status(500).json({
             success: false,
             message: error.message || 'Failed to send OTP'
@@ -411,6 +460,10 @@ const verifySignupOtp = async (req, res) => {
     try {
         const phone = typeof req.body.phone === 'string' ? req.body.phone.trim() : '';
         const otp = typeof req.body.otp === 'string' ? req.body.otp.trim() : '';
+        console.log('[OTP_DEBUG] verifySignupOtp:request', {
+            phone,
+            otpLength: otp.length
+        });
 
         if (!phone || !otp) {
             return res.status(400).json({
@@ -420,6 +473,11 @@ const verifySignupOtp = async (req, res) => {
         }
 
         const otpCheck = await verifySignupOtpRecord(phone, otp);
+        console.log('[OTP_DEBUG] verifySignupOtp:result', {
+            phone,
+            ok: otpCheck.ok,
+            message: otpCheck.message || null
+        });
         if (!otpCheck.ok) {
             return res.status(400).json({
                 success: false,
@@ -568,7 +626,7 @@ const googleCallback = async (req, res) => {
         }
 
         const token = generateToken(user.id, user.role);
-        return res.redirect(buildLoginSuccessUrl(token));
+        return res.redirect(buildOAuthSuccessUrl(token));
     } catch (error) {
         console.error('❌ Google callback error:', error);
         return res.status(500).json({
@@ -622,7 +680,7 @@ const githubCallback = async (req, res) => {
         }
 
         const token = generateToken(user.id, user.role);
-        return res.redirect(buildLoginSuccessUrl(token));
+        return res.redirect(buildOAuthSuccessUrl(token));
     } catch (error) {
         console.error('❌ GitHub callback error:', error);
         return res.status(500).json({
@@ -676,7 +734,7 @@ const facebookCallback = async (req, res) => {
         }
 
         const token = generateToken(user.id, user.role);
-        return res.redirect(buildLoginSuccessUrl(token));
+        return res.redirect(buildOAuthSuccessUrl(token));
     } catch (error) {
         console.error('❌ Facebook callback error:', error);
         return res.status(500).json({

@@ -860,11 +860,9 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     // Social login handlers
-    const AUTH_BASE_URL = (typeof CONFIG !== 'undefined' && CONFIG.API_URL)
-        ? CONFIG.API_URL.replace(/\/api$/, '')
-        : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-            ? 'http://localhost:5000'
-            : 'https://ap-sevces.onrender.com');
+    const AUTH_BASE_URL = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+        ? 'http://localhost:5000'
+        : 'https://ap-sevces.onrender.com';
 
     function redirectToOAuth(provider) {
         window.location.href = `${AUTH_BASE_URL}/auth/${provider}`;
