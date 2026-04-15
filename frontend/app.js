@@ -728,7 +728,8 @@ const PWA = {
         this.updateInstallButtons(false);
 
         window.addEventListener('beforeinstallprompt', (event) => {
-            event.preventDefault();
+            // Allow native browser install UI while also keeping a handle
+            // for the in-app install button.
             this.deferredPrompt = event;
             this.canPromptInstall = true;
             this.updateInstallButtons(true);
@@ -800,7 +801,7 @@ const PWA = {
                 Toast.show('On iPhone: Share -> Add to Home Screen', 'info', 5000);
                 return;
             }
-            Toast.show('Install is not available yet. Open this in Chrome and use browser menu -> Install app.', 'warning', 6000);
+            Toast.show('Install is not available yet. Use browser menu -> Add to Home Screen / Install app.', 'warning', 6500);
             return;
         }
 
