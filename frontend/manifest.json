@@ -10,15 +10,15 @@
   "theme_color": "#2563eb",
   "icons": [
     {
-      "src": "/icons/icon-192.svg",
+      "src": "/IMG-20260402-WA0042%20(2).jpg",
       "sizes": "192x192",
-      "type": "image/svg+xml",
+      "type": "image/jpeg",
       "purpose": "any maskable"
     },
     {
-      "src": "/icons/icon-512.svg",
+      "src": "/IMG-20260402-WA0042%20(2).jpg",
       "sizes": "512x512",
-      "type": "image/svg+xml",
+      "type": "image/jpeg",
       "purpose": "any maskable"
     }
   ]

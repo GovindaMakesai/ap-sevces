@@ -1,12 +1,11 @@
-const CACHE_NAME = 'ap-services-v2';
+const CACHE_NAME = 'ap-services-v4';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/styles.css',
   '/app.js',
   '/manifest.json',
-  '/icons/icon-192.svg',
-  '/icons/icon-512.svg'
+  '/IMG-20260402-WA0042%20(2).jpg'
 ];
 
 self.addEventListener('install', (event) => {
@@ -31,6 +30,31 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+  const requestUrl = new URL(event.request.url);
+  const isSameOrigin = requestUrl.origin === self.location.origin;
+  const isHtmlNavigation =
+    event.request.mode === 'navigate' ||
+    (event.request.headers.get('accept') || '').includes('text/html');
+  const isCriticalScript = isSameOrigin && requestUrl.pathname === '/app.js';
+
+  if (isSameOrigin && (isHtmlNavigation || isCriticalScript)) {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
+          }
+          return networkResponse;
+        })
+        .catch(async () => {
+          const cached = await caches.match(event.request);
+          if (cached) return cached;
+          return caches.match('/index.html');
+        })
+    );
+    return;
+  }
 
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
