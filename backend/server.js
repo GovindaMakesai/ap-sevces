@@ -4,11 +4,16 @@ const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const express = require('express');
+const http = require('http');
 const cors = require('cors');
 const multer = require('multer');
 const bcrypt = require('bcryptjs');
 const passport = require('passport');
+const { Server } = require('socket.io');
 const notificationRoutes = require('./routes/notifications');
+const messageRoutes = require('./routes/messages');
+const { connectMongo } = require('./config/mongodb');
+const { registerChatSocket } = require('./socket/chatSocket');
 
 const { storage } = require('./config/cloudinary');
 const upload = multer({ storage });
@@ -24,6 +29,7 @@ const reviewRoutes = require('./routes/reviews');
 const adminRoutes = require('./routes/admin');
 
 const app = express();
+const server = http.createServer(app);
 const PORT = process.env.PORT || 5000;
 
 // CORS
@@ -71,6 +77,7 @@ app.use('/api/bookings', bookingRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/messages', messageRoutes);
 
 // ==================== TEMPORARY DEBUG ENDPOINTS ====================
 app.get('/api/health', async (req, res) => {
@@ -108,6 +115,16 @@ app.use((err, req, res, next) => {
     res.status(500).json({ success: false, message: err.message });
 });
 
-app.listen(PORT, '0.0.0.0', () => {
+const io = new Server(server, {
+    cors: {
+        origin: allowedOrigins,
+        credentials: true
+    }
+});
+
+registerChatSocket(io);
+connectMongo();
+
+server.listen(PORT, '0.0.0.0', () => {
     console.log(`✅ Server running on port ${PORT}`);
 });

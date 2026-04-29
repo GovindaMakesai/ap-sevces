@@ -1041,13 +1041,21 @@
 
     <!-- Emoji Mart Library -->
     <script src="https://cdn.jsdelivr.net/npm/emoji-mart@latest/dist/emoji-mart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
     
     <script src="app.js"></script>
     
     <script>
         // ==================== CHAT JAVASCRIPT ====================
-        document.addEventListener('DOMContentLoaded', function() {
-            loadChatList();
+        document.addEventListener('DOMContentLoaded', async function() {
+            if (!Auth.checkAuth()) {
+                Toast.show('Please login to use chat', 'warning');
+                setTimeout(() => { window.location.href = '/login.html'; }, 800);
+                return;
+            }
+            setupSocketListeners();
+            await loadConversations();
             setupChatSearch();
             setupChatTabs();
             
@@ -1055,7 +1063,21 @@
             const urlParams = new URLSearchParams(window.location.search);
             const chatId = urlParams.get('id');
             if (chatId) {
-                loadChat(chatId);
+                const existingConversation = useChatStore.getState().conversations.find((conv) => String(conv.id) === String(chatId));
+                if (existingConversation) {
+                    await loadChat(chatId);
+                } else {
+                    try {
+                        const response = await axiosClient.post('/conversations', { receiverId: chatId });
+                        const conversationId = response.data?.data?.conversationId;
+                        await loadConversations();
+                        if (conversationId) {
+                            await loadChat(conversationId);
+                        }
+                    } catch (error) {
+                        Toast.show('Could not open this conversation', 'error');
+                    }
+                }
             }
         });
 
@@ -1066,73 +1088,69 @@
         let callTimer = null;
         let callSeconds = 0;
 
+        const token = localStorage.getItem('token');
+        const axiosClient = axios.create({
+            baseURL: `${CONFIG.API_URL}/messages`,
+            headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+
+        const socketService = (() => {
+            let socket = null;
+            return {
+                connect() {
+                    if (!token || socket) return socket;
+                    socket = io(CONFIG.API_URL.replace('/api', ''), {
+                        auth: { token },
+                        transports: ['websocket']
+                    });
+                    return socket;
+                },
+                get() {
+                    return socket;
+                }
+            };
+        })();
+
+        const useChatStore = (() => {
+            const state = {
+                conversations: [],
+                messages: {},
+                activeConversationId: null
+            };
+            const listeners = new Set();
+            return {
+                getState: () => state,
+                setState: (partial) => {
+                    Object.assign(state, typeof partial === 'function' ? partial(state) : partial);
+                    listeners.forEach((cb) => cb(state));
+                },
+                subscribe: (cb) => {
+                    listeners.add(cb);
+                    return () => listeners.delete(cb);
+                }
+            };
+        })();
+
+        function formatTime(dateValue) {
+            if (!dateValue) return '';
+            const date = new Date(dateValue);
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function initialsFromName(first, last) {
+            const a = (first || '').trim().charAt(0);
+            const b = (last || '').trim().charAt(0);
+            return `${a}${b}`.toUpperCase() || 'U';
+        }
+
         // ==================== CHAT LIST ====================
         function loadChatList() {
             const chatList = document.getElementById('chatList');
-            
-            // Mock chat data
-            const chats = [
-                {
-                    id: 1,
-                    name: 'Rajesh Kumar',
-                    avatar: 'RK',
-                    lastMessage: 'I can come by tomorrow at 10 AM',
-                    time: '5 min ago',
-                    unread: 2,
-                    status: 'online',
-                    category: 'Plumbing Expert',
-                    bookingId: 'BK001'
-                },
-                {
-                    id: 2,
-                    name: 'Priya Sharma',
-                    avatar: 'PS',
-                    lastMessage: 'Thank you for the service!',
-                    time: '1 hour ago',
-                    unread: 0,
-                    status: 'offline',
-                    category: 'Beautician',
-                    bookingId: 'BK002'
-                },
-                {
-                    id: 3,
-                    name: 'Suresh Patel',
-                    avatar: 'SP',
-                    lastMessage: 'Is the electrical work urgent?',
-                    time: '2 hours ago',
-                    unread: 1,
-                    status: 'online',
-                    category: 'Electrician',
-                    bookingId: 'BK003'
-                },
-                {
-                    id: 4,
-                    name: 'Amit Singh',
-                    avatar: 'AS',
-                    lastMessage: 'I have completed the work',
-                    time: '1 day ago',
-                    unread: 0,
-                    status: 'offline',
-                    category: 'AC Repair',
-                    bookingId: 'BK004'
-                },
-                {
-                    id: 5,
-                    name: 'Neha Gupta',
-                    avatar: 'NG',
-                    lastMessage: 'Can you send me the estimate?',
-                    time: '2 days ago',
-                    unread: 0,
-                    status: 'offline',
-                    category: 'Home Nurse',
-                    bookingId: 'BK005'
-                }
-            ];
-
-            chatList.innerHTML = chats.map(chat => `
-                <div class="chat-item ${chat.id === currentChatId ? 'active' : ''}" onclick="loadChat(${chat.id})">
+            const { conversations, activeConversationId } = useChatStore.getState();
+            chatList.innerHTML = conversations.map((chat) => `
+                <div class="chat-item ${String(chat.id) === String(activeConversationId || '') ? 'active' : ''}" data-chat-id="${chat.id}" onclick="loadChat('${chat.id}', this)">
                     <div class="chat-avatar">
-                        <div class="avatar-placeholder">${chat.avatar}</div>
+                        <div class="avatar-placeholder">${chat.avatar || initialsFromName(chat.first_name, chat.last_name)}</div>
                         <span class="status-dot ${chat.status}"></span>
                     </div>
                     <div class="chat-info">
@@ -1200,33 +1218,54 @@
             });
         }
 
+        async function loadConversations() {
+            try {
+                const response = await axiosClient.get('/conversations');
+                const conversations = (response.data?.data?.conversations || []).map((conv) => ({
+                    id: String(conv.id),
+                    name: `${conv.otherUser?.first_name || 'User'} ${conv.otherUser?.last_name || ''}`.trim(),
+                    first_name: conv.otherUser?.first_name || 'User',
+                    last_name: conv.otherUser?.last_name || '',
+                    avatar: initialsFromName(conv.otherUser?.first_name, conv.otherUser?.last_name),
+                    status: 'online',
+                    unread: 0,
+                    bookingId: null,
+                    category: conv.otherUser?.role || 'customer',
+                    lastMessage: conv.lastMessageText || 'No messages yet',
+                    time: formatTime(conv.lastMessageAt),
+                    otherUserId: String(conv.otherUser?.id || '')
+                }));
+                useChatStore.setState({ conversations });
+                loadChatList();
+            } catch (error) {
+                Toast.show(error?.response?.data?.message || 'Failed to load conversations', 'error');
+            }
+        }
+
         // ==================== LOAD CHAT ====================
-        function loadChat(chatId) {
-            currentChatId = chatId;
+        async function loadChat(chatId, sourceElement) {
+            currentChatId = String(chatId);
+            useChatStore.setState({ activeConversationId: currentChatId });
+            const socket = socketService.get();
+            if (socket) {
+                socket.emit('join_conversation', { conversationId: currentChatId });
+            }
             
             // Update active state in sidebar
             document.querySelectorAll('.chat-item').forEach(item => {
                 item.classList.remove('active');
             });
-            event.currentTarget.classList.add('active');
+            const activeNode = sourceElement || document.querySelector(`.chat-item[data-chat-id="${currentChatId}"]`);
+            if (activeNode) activeNode.classList.add('active');
             
             // Show active chat, hide empty state
             document.getElementById('emptyChat').style.display = 'none';
             document.getElementById('activeChat').style.display = 'flex';
             
-            // Load messages
-            loadMessages(chatId);
-            
-            // Update chat header (mock data)
-            const chats = {
-                1: { name: 'Rajesh Kumar', avatar: 'RK', status: 'online', category: 'Plumbing Expert' },
-                2: { name: 'Priya Sharma', avatar: 'PS', status: 'offline', category: 'Beautician' },
-                3: { name: 'Suresh Patel', avatar: 'SP', status: 'online', category: 'Electrician' },
-                4: { name: 'Amit Singh', avatar: 'AS', status: 'offline', category: 'AC Repair' },
-                5: { name: 'Neha Gupta', avatar: 'NG', status: 'offline', category: 'Home Nurse' }
-            };
-            
-            const chat = chats[chatId];
+            const chat = useChatStore.getState().conversations.find(item => String(item.id) === String(currentChatId));
+            if (!chat) return;
+
+            await loadMessages(currentChatId);
             document.getElementById('chatUserName').textContent = chat.name;
             document.getElementById('chatAvatar').textContent = chat.avatar;
             document.getElementById('userStatusText').textContent = chat.status === 'online' ? 'Online' : 'Offline';
@@ -1240,30 +1279,29 @@
         }
 
         // ==================== MESSAGES ====================
-        function loadMessages(chatId) {
+        async function loadMessages(chatId) {
             const messagesContainer = document.getElementById('messagesContainer');
-            
-            // Mock messages data
-            const messages = {
-                1: [
-                    { type: 'received', text: 'Hi, I saw your booking for plumbing repair.', time: '10:30 AM', status: 'read' },
-                    { type: 'sent', text: 'Yes, I need help with a leaking pipe.', time: '10:32 AM', status: 'read' },
-                    { type: 'received', text: 'I can come by tomorrow at 10 AM. Will that work?', time: '10:33 AM', status: 'read' },
-                    { type: 'sent', text: 'That works perfectly. What will be the cost?', time: '10:35 AM', status: 'delivered' },
-                    { type: 'received', text: 'It will be ₹499 for the visit, plus any parts if needed.', time: '10:36 AM', status: 'delivered' },
-                    { type: 'received', text: 'Here\'s my previous work:', time: '10:36 AM', status: 'delivered', image: 'https://via.placeholder.com/200x150' }
-                ],
-                2: [
-                    { type: 'received', text: 'Thank you for booking my service!', time: 'Yesterday', status: 'read' },
-                    { type: 'sent', text: 'You\'re welcome! The service was great.', time: 'Yesterday', status: 'read' }
-                ],
-                3: [
-                    { type: 'received', text: 'Hi, is the electrical work urgent?', time: '2 hours ago', status: 'read' },
-                    { type: 'sent', text: 'Yes, it\'s quite urgent. One switch is sparking.', time: '2 hours ago', status: 'delivered' }
-                ]
-            };
-
-            const chatMessages = messages[chatId] || messages[1];
+            try {
+                const response = await axiosClient.get(`/${chatId}`);
+                const serverMessages = response.data?.data?.messages || [];
+                const mapped = serverMessages.map((msg) => ({
+                    id: String(msg.id),
+                    type: String(msg.senderId) === String(AppState.user?.id) ? 'sent' : 'received',
+                    text: msg.text,
+                    status: 'read',
+                    time: formatTime(msg.createdAt),
+                    createdAt: msg.createdAt
+                }));
+                useChatStore.setState((state) => ({
+                    messages: {
+                        ...state.messages,
+                        [chatId]: mapped
+                    }
+                }));
+            } catch (error) {
+                Toast.show(error?.response?.data?.message || 'Failed to load messages', 'error');
+            }
+            const chatMessages = useChatStore.getState().messages[chatId] || [];
             
             messagesContainer.innerHTML = renderMessages(chatMessages);
             scrollToBottom();
@@ -1274,12 +1312,12 @@
             let lastDate = '';
             
             messages.forEach(msg => {
-                const currentDate = new Date().toDateString(); // Simplified for demo
+                const currentDate = new Date(msg.createdAt || Date.now()).toDateString();
                 
                 if (currentDate !== lastDate) {
                     html += `
                         <div class="message-date-divider">
-                            <span class="date-text">Today</span>
+                            <span class="date-text">${new Date(msg.createdAt || Date.now()).toLocaleDateString()}</span>
                         </div>
                     `;
                     lastDate = currentDate;
@@ -1313,65 +1351,76 @@
             const input = document.getElementById('messageInput');
             const message = input.value.trim();
             
-            if (!message) return;
-            
-            // Add message to UI
-            const messagesContainer = document.getElementById('messagesContainer');
-            const messageHtml = `
-                <div class="message-wrapper sent new-message">
-                    <div class="message-bubble">
-                        <div class="message-content">
-                            ${message}
-                        </div>
-                        <div class="message-time">
-                            <span>Just now</span>
-                            <span class="message-status">
-                                <i class="fas fa-check"></i>
-                            </span>
-                        </div>
-                    </div>
-                </div>
-            `;
-            
-            messagesContainer.insertAdjacentHTML('beforeend', messageHtml);
+            if (!message || !currentChatId) return;
+            const conversations = useChatStore.getState().conversations;
+            const activeConversation = conversations.find((conv) => String(conv.id) === String(currentChatId));
+            if (!activeConversation?.otherUserId) return;
+
+            const optimisticId = `temp-${Date.now()}`;
+            const optimisticMessage = {
+                id: optimisticId,
+                type: 'sent',
+                text: message,
+                status: 'delivered',
+                time: formatTime(new Date()),
+                createdAt: new Date().toISOString()
+            };
+            useChatStore.setState((state) => ({
+                messages: {
+                    ...state.messages,
+                    [currentChatId]: [...(state.messages[currentChatId] || []), optimisticMessage]
+                }
+            }));
+            renderActiveMessages();
             input.value = '';
-            
-            // Auto-resize textarea
             input.style.height = 'auto';
-            
-            scrollToBottom();
-            
-            // Simulate reply after 2 seconds
-            setTimeout(simulateReply, 2000);
+
+            const socket = socketService.get();
+            socket.emit('send_message', {
+                receiverId: activeConversation.otherUserId,
+                text: message
+            }, async (ack) => {
+                if (!ack?.ok) {
+                    Toast.show(ack?.message || 'Failed to send message', 'error');
+                    await loadMessages(currentChatId);
+                }
+            });
         }
 
-        function simulateReply() {
-            const replies = [
-                "Thanks for your message!",
-                "I'll get back to you soon.",
-                "That sounds good.",
-                "Can you share more details?",
-                "I understand. Let me check."
-            ];
-            
-            const randomReply = replies[Math.floor(Math.random() * replies.length)];
-            
+        function renderActiveMessages() {
             const messagesContainer = document.getElementById('messagesContainer');
-            const messageHtml = `
-                <div class="message-wrapper received new-message">
-                    <div class="message-bubble">
-                        <div class="message-content">
-                            ${randomReply}
-                        </div>
-                        <div class="message-time">
-                            <span>Just now</span>
-                        </div>
-                    </div>
-                </div>
-            `;
-            
-            messagesContainer.insertAdjacentHTML('beforeend', messageHtml);
+            const chatMessages = useChatStore.getState().messages[currentChatId] || [];
+            messagesContainer.innerHTML = renderMessages(chatMessages);
             scrollToBottom();
+        }
+
+        function setupSocketListeners() {
+            const socket = socketService.connect();
+            if (!socket) return;
+
+            socket.on('receive_message', async (payload) => {
+                const message = {
+                    id: String(payload.id),
+                    type: String(payload.senderId) === String(AppState.user?.id) ? 'sent' : 'received',
+                    text: payload.text,
+                    status: 'read',
+                    time: formatTime(payload.createdAt),
+                    createdAt: payload.createdAt
+                };
+
+                const conversationId = String(payload.conversationId);
+                useChatStore.setState((state) => ({
+                    messages: {
+                        ...state.messages,
+                        [conversationId]: [...(state.messages[conversationId] || []), message]
+                    }
+                }));
+
+                if (String(currentChatId) === conversationId) {
+                    renderActiveMessages();
+                }
+                await loadConversations();
+            });
         }
 
         // ==================== TYPING INDICATOR ====================
@@ -1402,13 +1451,11 @@
         }
 
         function showTypingIndicator() {
-            // In production, emit socket event
-            console.log('User is typing...');
+            // Reserved for future typing event
         }
 
         function hideTypingIndicator() {
-            // In production, emit socket event
-            console.log('User stopped typing');
+            // Reserved for future typing event
         }
 
         // ==================== FILE UPLOAD ====================
