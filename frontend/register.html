@@ -2034,30 +2034,6 @@
                 }
             });
 
-            // ==================== DEMO FILL (Dev only) ====================
-            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-                const demoBtn = document.createElement('button');
-                demoBtn.className = 'btn-outline btn-small';
-                demoBtn.style.marginTop = '10px';
-                demoBtn.innerHTML = '<i class="fas fa-flask"></i> Fill Demo Data';
-                demoBtn.onclick = fillDemoData;
-                document.querySelector('.form-navigation').appendChild(demoBtn);
-            }
-
-            function fillDemoData() {
-                const unique = Date.now().toString(36);
-                document.getElementById('firstName').value = 'John';
-                document.getElementById('lastName').value = 'Doe';
-                document.getElementById('email').value = `john.demo.${unique}@example.com`;
-                document.getElementById('password').value = 'Password123';
-                document.getElementById('confirmPassword').value = 'Password123';
-                document.getElementById('phone').value = '9876543210';
-                document.getElementById('city').value = 'mumbai';
-                document.getElementById('address').value = '123, Main Street';
-                document.getElementById('pincode').value = '400001';
-                document.getElementById('locality').value = 'Andheri East';
-                Toast.show('Demo data filled!', 'info');
-            }
         });
     </script>
 </body>

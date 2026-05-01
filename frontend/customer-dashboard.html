@@ -1367,6 +1367,13 @@
             }, 1500);
             return;
         }
+        const user = Auth.getUser();
+        if (user?.role && user.role !== 'customer') {
+            const roleRoute = user.role === 'worker' ? '/worker-dashboard.html' : '/admin-dashboard.html';
+            Toast.show(`Redirecting to your ${user.role} dashboard`, 'info');
+            setTimeout(() => { window.location.href = roleRoute; }, 700);
+            return;
+        }
 
         // Load user data from API
         loadUserData();
@@ -1406,47 +1413,30 @@
     async function loadBookingsFromAPI(filter = 'all') {
         try {
             const response = await API.get('/bookings/customer');
-            
-            if (response.success && response.data) {
-                const bookings = response.data;
-                
-                // Update stats
-                updateBookingStats(bookings);
-                
-                // Filter bookings
-                let filteredBookings = bookings;
-                if (filter !== 'all') {
-                    filteredBookings = bookings.filter(b => b.status === filter);
-                }
-                
-                // Render recent (first 3)
-                renderRecentBookings(bookings.slice(0, 3));
-                
-                // Render all filtered
-                renderBookings(filteredBookings);
-            } else {
-                // Fallback to localStorage if API fails
-                loadBookingsFromLocalStorage(filter);
+            const bookingsRaw = response?.data?.bookings || response?.data || [];
+            const bookings = Array.isArray(bookingsRaw) ? bookingsRaw : [];
+
+            // Update stats
+            updateBookingStats(bookings);
+
+            // Filter bookings
+            let filteredBookings = bookings;
+            if (filter !== 'all') {
+                filteredBookings = bookings.filter(b => b.status === filter);
             }
+
+            // Render recent (first 3)
+            renderRecentBookings(bookings.slice(0, 3));
+
+            // Render all filtered
+            renderBookings(filteredBookings);
         } catch (error) {
             console.error('Failed to load bookings from API:', error);
-            loadBookingsFromLocalStorage(filter);
+            updateBookingStats([]);
+            renderRecentBookings([]);
+            renderBookings([]);
+            Toast.show('Failed to load bookings from server', 'error');
         }
-    }
-
-    // Fallback: Load from localStorage
-    function loadBookingsFromLocalStorage(filter = 'all') {
-        const bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
-        
-        updateBookingStats(bookings);
-        
-        let filteredBookings = bookings;
-        if (filter !== 'all') {
-            filteredBookings = bookings.filter(b => b.status === filter);
-        }
-        
-        renderRecentBookings(bookings.slice(0, 3));
-        renderBookings(filteredBookings);
     }
 
     // Update dashboard stats
@@ -1707,39 +1697,6 @@
                         }
                     </div>
                 </div>
-            </div>
-        `).join('');
-    }
-
-    // ==================== NOTIFICATIONS ====================
-    function loadNotifications() {
-        const notifications = JSON.parse(localStorage.getItem('notifications')) || [];
-        
-        document.getElementById('notificationBadge').textContent = notifications.filter(n => !n.read).length;
-
-        const container = document.getElementById('notificationsPanelList');
-        
-        if (notifications.length === 0) {
-            container.innerHTML = `
-                <div class="empty-state">
-                    <i class="fas fa-bell-slash"></i>
-                    <h3>No notifications</h3>
-                    <p>You're all caught up!</p>
-                </div>
-            `;
-            return;
-        }
-
-        container.innerHTML = notifications.map(notif => `
-            <div class="notification-item ${!notif.read ? 'unread' : ''}" onclick="markNotificationRead('${notif.id}')">
-                <div class="notification-icon">
-                    <i class="fas ${notif.icon || 'fa-bell'}"></i>
-                </div>
-                <div class="notification-content">
-                    <h4>${notif.title}</h4>
-                    <p>${notif.message}</p>
-                </div>
-                <div class="notification-time">${notif.time || 'Just now'}</div>
             </div>
         `).join('');
     }
@@ -2109,22 +2066,8 @@ async function loadUnreadCount() {
         }
     };
 
-    window.markNotificationRead = function(notificationId) {
-        const notifications = JSON.parse(localStorage.getItem('notifications') || []);
-        const updated = notifications.map(n => 
-            n.id === notificationId ? { ...n, read: true } : n
-        );
-        localStorage.setItem('notifications', JSON.stringify(updated));
-        loadNotifications();
-        Toast.show('Notification marked as read', 'info');
-    };
-
     window.markAllRead = function() {
-        const notifications = JSON.parse(localStorage.getItem('notifications') || []);
-        const updated = notifications.map(n => ({ ...n, read: true }));
-        localStorage.setItem('notifications', JSON.stringify(updated));
-        loadNotifications();
-        Toast.show('All notifications marked as read', 'info');
+        markAllNotificationsRead();
     };
 
     window.bookWorker = function(workerId) {

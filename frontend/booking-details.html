@@ -830,14 +830,54 @@
             return items;
         }
 
+        function normalizeBooking(booking, bookingRef) {
+            if (!booking) return null;
+            const hasBookingShape =
+                booking.success !== false &&
+                (booking.booking_date || booking.service_name || booking.worker_id || booking.booking_number || booking.id);
+            if (!hasBookingShape) return null;
+            return {
+                ...booking,
+                id: booking.id || bookingRef,
+                booking_number: booking.booking_number || bookingRef
+            };
+        }
+
+        async function findBookingFromCustomerList(bookingRef) {
+            try {
+                const response = await API.get('/bookings/customer');
+                const list = response?.data || response?.data?.data || [];
+                if (!Array.isArray(list)) return null;
+                const match = list.find((b) =>
+                    String(b.id) === String(bookingRef) ||
+                    String(b.booking_number || '').toLowerCase() === String(bookingRef).toLowerCase()
+                );
+                return normalizeBooking(match, bookingRef);
+            } catch (_err) {
+                return null;
+            }
+        }
+
         async function loadBookingDetails(bookingId) {
             try {
                 const response = await API.get(`/bookings/${bookingId}`);
-                const booking = response?.data || response?.data?.data || response;
-                if (!booking || !booking.id) throw new Error('Booking not found');
-                currentBooking = booking;
-                renderUI(booking);
+                const booking = normalizeBooking((response?.data || response?.data?.data || response), bookingId);
+                if (booking) {
+                    currentBooking = booking;
+                    renderUI(booking);
+                    return;
+                }
+                throw new Error('Booking not found');
             } catch (error) {
+                const apiListMatch = await findBookingFromCustomerList(bookingId);
+                if (apiListMatch) {
+                    currentBooking = apiListMatch;
+                    renderUI(apiListMatch);
+                    Notifier.show('Loaded booking from your bookings list', 'info');
+                    return;
+                }
+
+                currentBooking = null;
                 Notifier.show(error.message || 'Failed to load booking details', 'error');
             }
         }
@@ -931,19 +971,23 @@
         }
 
         function viewWorkerProfile() {
-            if (!currentBooking?.worker_id) return Notifier.show('Worker not found', 'error');
+            if (!currentBooking?.worker_id) return Notifier.show('Worker profile unavailable for this booking', 'warning');
             window.location.href = `/worker-profile.html?id=${currentBooking.worker_id}`;
         }
 
         function chatWithWorker() {
             if (!currentBooking) return;
             const receiverId = currentBooking.worker_user_id || currentBooking.worker_id;
-            if (!receiverId) return Notifier.show('Worker chat unavailable', 'error');
+            if (!receiverId) return Notifier.show('Chat unavailable for this booking record', 'warning');
             window.location.href = `/chat.html?id=${receiverId}`;
         }
 
         function rescheduleBooking() {
             if (!currentBooking) return;
+            if (!currentBooking.service_id) {
+                Notifier.show('Reschedule unavailable: missing service mapping for this booking', 'warning');
+                return;
+            }
             const qs = new URLSearchParams({
                 rebook: currentBooking.id,
                 service: currentBooking.service_id || '',

@@ -800,7 +800,14 @@ document.addEventListener('DOMContentLoaded', function() {
     // Check URL parameters for messages
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('registered') === 'success') {
-        showAlert('Registration successful! Please login.', 'success');
+        const registeredRole = (urlParams.get('role') || '').toLowerCase();
+        if (registeredRole === 'worker') {
+            showAlert('Professional registration successful! Please login.', 'success');
+        } else if (registeredRole === 'customer') {
+            showAlert('Customer registration successful! Please login.', 'success');
+        } else {
+            showAlert('Registration successful! Please login.', 'success');
+        }
     } else if (urlParams.get('reset') === 'success') {
         showAlert('Password reset successful! Please login.', 'success');
     }
@@ -892,26 +899,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('facebookLogin').addEventListener('click', () => redirectToOAuth('facebook'));
     document.getElementById('githubLogin').addEventListener('click', () => redirectToOAuth('github'));
     
-    // Demo credentials (development only)
-    if (window.location.hostname === 'localhost') {
-        const demoBtn = document.createElement('div');
-        demoBtn.style.marginTop = '10px';
-        demoBtn.style.textAlign = 'center';
-        demoBtn.innerHTML = `
-            <button class="btn-outline btn-small" onclick="fillDemoCredentials()" style="font-size: 0.8rem;">
-                <i class="fas fa-flask"></i> Fill Demo
-            </button>
-        `;
-        document.querySelector('.auth-card').appendChild(demoBtn);
-    }
 });
-
-// Demo credentials function
-function fillDemoCredentials() {
-    document.getElementById('email').value = 'customer@demo.com';
-    document.getElementById('password').value = 'password123';
-    Toast.show('Demo credentials filled!', 'info');
-}
 
 // Forgot password
 document.querySelector('.forgot-password')?.addEventListener('click', function(e) {
