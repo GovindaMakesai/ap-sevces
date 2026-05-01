@@ -1256,8 +1256,8 @@
 <script>
     // ==================== BOOKING PAGE JAVASCRIPT ====================
     // Configuration
-    const API_BASE_URL = 'https://ap-sevces.onrender.com/api';
-    const BACKEND_URL = 'https://ap-sevces.onrender.com';
+    const API_BASE_URL = window.CONFIG?.API_URL || 'https://ap-sevces.onrender.com/api';
+    const BACKEND_URL = window.CONFIG?.BACKEND_URL || 'https://ap-sevces.onrender.com';
 
     // Helper function for image URLs
     function getImageUrl(path) {
@@ -1894,25 +1894,23 @@
                     document.getElementById('confirmTime').textContent = bookingData.time;
                     
                     confirmationModal.classList.add('show');
-                    
-                    // Save to localStorage
-                    const bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
-                    bookings.unshift({
-                        ...bookingPayload,
-                        booking_number: bookingNumber,
-                        created_at: new Date().toISOString(),
-                        status: 'pending',
-                        worker_name: bookingData.workerName
-                    });
-                    localStorage.setItem('bookings', JSON.stringify(bookings.slice(0, 20)));
-                    
+
                     Toast.show('Booking confirmed successfully!', 'success');
                 } else {
                     throw new Error(response.message || 'Booking failed');
                 }
             } catch (error) {
                 console.error('Booking error:', error);
-                Toast.show(error.message || 'Booking failed. Please try again.', 'error');
+                if (error?.status === 401) {
+                    Toast.show('Session expired. Please login again.', 'error');
+                    setTimeout(() => {
+                        window.location.href = `/login.html?redirect=${encodeURIComponent(window.location.href)}`;
+                    }, 1000);
+                } else if (error?.message?.includes('Failed to fetch')) {
+                    Toast.show('Cannot reach booking server. Please try again shortly.', 'error');
+                } else {
+                    Toast.show(error.message || 'Booking failed. Please try again.', 'error');
+                }
             } finally {
                 confirmBtn.classList.remove('btn-loading');
                 confirmBtn.disabled = false;

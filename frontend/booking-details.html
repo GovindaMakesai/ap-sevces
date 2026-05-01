@@ -853,8 +853,8 @@
 
         async function findBookingFromCustomerList(bookingRef) {
             try {
-                const response = await API.get('/bookings/customer');
-                const list = response?.data || response?.data?.data || [];
+                const response = await API.get('/bookings');
+                const list = response?.data || [];
                 if (!Array.isArray(list)) return null;
                 const match = list.find((b) =>
                     String(b.id) === String(bookingRef) ||
@@ -864,6 +864,21 @@
             } catch (_err) {
                 return null;
             }
+        }
+
+        function renderBookingUnavailable(message) {
+            const grid = document.querySelector('.details-grid');
+            if (!grid) return;
+            grid.innerHTML = `
+                <div class="detail-card" style="grid-column: 1 / -1; text-align: center;">
+                    <h3 class="card-title" style="justify-content: center;"><i class="fas fa-calendar-times"></i> Booking Unavailable</h3>
+                    <p style="color: var(--gray-600); margin-bottom: 1rem;">${message}</p>
+                    <div style="display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap;">
+                        <button class="btn-outline" onclick="window.location.href='/customer-dashboard.html#bookings'">Go To My Bookings</button>
+                        <button class="btn-primary" onclick="window.location.href='/services.html'">Book A Service</button>
+                    </div>
+                </div>
+            `;
         }
 
         async function loadBookingDetails(bookingId) {
@@ -886,7 +901,18 @@
                 }
 
                 currentBooking = null;
-                Notifier.show(error.message || 'Failed to load booking details', 'error');
+                if (error?.status === 401) {
+                    Notifier.show('Session expired. Please login again.', 'error');
+                    setTimeout(() => {
+                        window.location.href = `/login.html?redirect=${encodeURIComponent(window.location.href)}`;
+                    }, 1000);
+                    return;
+                }
+                const errorMessage = error?.message?.includes('Failed to fetch')
+                    ? 'Unable to reach booking server right now.'
+                    : (error.message || 'Failed to load booking details');
+                renderBookingUnavailable(errorMessage);
+                Notifier.show(errorMessage, 'error');
             }
         }
 
@@ -1052,6 +1078,7 @@
             const urlParams = new URLSearchParams(window.location.search);
             const bookingId = urlParams.get('id');
             if (!bookingId) {
+                renderBookingUnavailable('Missing booking reference. Open booking details from your dashboard.');
                 Notifier.show('Missing booking id', 'error');
                 return;
             }

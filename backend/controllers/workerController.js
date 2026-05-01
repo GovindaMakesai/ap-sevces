@@ -547,6 +547,7 @@ exports.updateWorkerProfile = async (req, res) => {
     try {
         const userId = req.userId;
         const { bio, hourly_rate, phone, first_name, last_name } = req.body;
+        const worker = await Worker.findByUserId(userId);
         
         // Update user
         if (first_name || last_name || phone) {
@@ -578,7 +579,6 @@ exports.updateWorkerProfile = async (req, res) => {
         }
         
         // Update worker profile
-        const worker = await Worker.findByUserId(userId);
         if (worker && (bio !== undefined || hourly_rate !== undefined)) {
             const workerUpdates = [];
             const workerValues = [];
@@ -603,6 +603,13 @@ exports.updateWorkerProfile = async (req, res) => {
                 `, workerValues);
             }
         }
+
+        if (!worker) {
+            return res.status(404).json({
+                success: false,
+                message: 'Worker profile not found. Please complete worker registration first.'
+            });
+        }
         
         res.json({
             success: true,
@@ -611,9 +618,15 @@ exports.updateWorkerProfile = async (req, res) => {
         
     } catch (error) {
         console.error('❌ Update profile error:', error);
+        if (error?.code === '23505') {
+            return res.status(400).json({
+                success: false,
+                message: 'Phone number is already in use by another account'
+            });
+        }
         res.status(500).json({
             success: false,
-            message: 'Failed to update profile'
+            message: error.message || 'Failed to update profile'
         });
     }
 };

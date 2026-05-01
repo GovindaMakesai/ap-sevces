@@ -73,9 +73,9 @@ class Booking {
                    s.category as service_category
             FROM bookings b
             JOIN users c ON b.customer_id = c.id
-            JOIN workers w ON b.worker_id = w.id
-            JOIN users u ON w.user_id = u.id
-            JOIN services s ON b.service_id = s.id
+            LEFT JOIN workers w ON b.worker_id = w.id
+            LEFT JOIN users u ON w.user_id = u.id
+            LEFT JOIN services s ON b.service_id = s.id
             WHERE b.id::text = $1 OR b.booking_number = $1
         `;
         
@@ -94,9 +94,9 @@ class Booking {
                    s.name as service_name,
                    s.category as service_category
             FROM bookings b
-            JOIN workers w ON b.worker_id = w.id
-            JOIN users u ON w.user_id = u.id
-            JOIN services s ON b.service_id = s.id
+            LEFT JOIN workers w ON b.worker_id = w.id
+            LEFT JOIN users u ON w.user_id = u.id
+            LEFT JOIN services s ON b.service_id = s.id
             WHERE b.customer_id = $1
         `;
         
@@ -113,34 +113,31 @@ class Booking {
         return result.rows;
     }
 
-    // backend/models/Booking.js
-// Update the getByWorker method
-
-static async getByWorker(workerId, status = null) {
-    let query = `
-        SELECT b.*,
-               u.first_name as customer_first_name,
-               u.last_name as customer_last_name,
-               u.phone as customer_phone,
-               s.name as service_name
-        FROM bookings b
-        JOIN users u ON b.customer_id = u.id
-        JOIN services s ON b.service_id = s.id
-        WHERE b.worker_id = $1
-    `;
-    
-    const params = [workerId];
-    
-    if (status && status !== 'all') {
-        query += ` AND b.status = $2`;
-        params.push(status);
+    static async getByWorker(workerId, status = null) {
+        let query = `
+            SELECT b.*,
+                   u.first_name as customer_first_name,
+                   u.last_name as customer_last_name,
+                   u.phone as customer_phone,
+                   s.name as service_name
+            FROM bookings b
+            JOIN users u ON b.customer_id = u.id
+            LEFT JOIN services s ON b.service_id = s.id
+            WHERE b.worker_id = $1
+        `;
+        
+        const params = [workerId];
+        
+        if (status && status !== 'all') {
+            query += ` AND b.status = $2`;
+            params.push(status);
+        }
+        
+        query += ` ORDER BY b.created_at DESC`;
+        
+        const result = await db.query(query, params);
+        return result.rows;
     }
-    
-    query += ` ORDER BY b.created_at DESC`;
-    
-    const result = await db.query(query, params);
-    return result.rows;
-}
     // Check worker availability
     static async checkAvailability(workerId, bookingDate, startTime, endTime) {
         const query = `
@@ -160,35 +157,31 @@ static async getByWorker(workerId, status = null) {
         return parseInt(result.rows[0].conflicts) === 0;
     }
 
-    // Update booking status
-    // backend/models/Booking.js
-// Update the updateStatus method
-
-static async updateStatus(id, status, userId = null, reason = null) {
-    try {
-        let query = `
-            UPDATE bookings 
-            SET status = $1, updated_at = CURRENT_TIMESTAMP
-        `;
-        const params = [status];
-        
-        if (status === 'completed') {
-            query += `, completed_at = CURRENT_TIMESTAMP`;
-        } else if (status === 'cancelled') {
-            query += `, cancelled_at = CURRENT_TIMESTAMP, cancelled_by = $2, cancellation_reason = $3`;
-            params.push(userId, reason);
+    static async updateStatus(id, status, userId = null, reason = null) {
+        try {
+            let query = `
+                UPDATE bookings 
+                SET status = $1, updated_at = CURRENT_TIMESTAMP
+            `;
+            const params = [status];
+            
+            if (status === 'completed') {
+                query += `, completed_at = CURRENT_TIMESTAMP`;
+            } else if (status === 'cancelled') {
+                query += `, cancelled_at = CURRENT_TIMESTAMP, cancelled_by = $2, cancellation_reason = $3`;
+                params.push(userId, reason);
+            }
+            
+            query += ` WHERE id = $${params.length + 1} RETURNING *`;
+            params.push(id);
+            
+            const result = await db.query(query, params);
+            return result.rows[0];
+        } catch (error) {
+            console.error('Update status error:', error);
+            throw error;
         }
-        
-        query += ` WHERE id = $${params.length + 1} RETURNING *`;
-        params.push(id);
-        
-        const result = await db.query(query, params);
-        return result.rows[0];
-    } catch (error) {
-        console.error('Update status error:', error);
-        throw error;
     }
-}
     // Get worker's upcoming bookings
     static async getUpcomingBookings(workerId) {
         const query = `

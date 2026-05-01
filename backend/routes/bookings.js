@@ -43,6 +43,7 @@ router.use(verifyToken);
 // Booking routes
 router.post('/', validateBooking, bookingController.createBooking);
 router.post('/check-availability', bookingController.checkAvailability);
+router.get('/', bookingController.getBookings);
 router.get('/customer', bookingController.getCustomerBookings);
 router.get('/customer/upcoming', bookingController.getCustomerUpcoming);
 router.get('/worker', bookingController.getWorkerBookings);

@@ -1347,8 +1347,8 @@
 <script>
     // ==================== CUSTOMER DASHBOARD JAVASCRIPT ====================
     // Configuration
-    const API_BASE_URL = 'https://ap-sevces.onrender.com/api';
-    const BACKEND_URL = 'https://ap-sevces.onrender.com';
+    const API_BASE_URL = window.CONFIG?.API_URL || 'https://ap-sevces.onrender.com/api';
+    const BACKEND_URL = window.CONFIG?.BACKEND_URL || 'https://ap-sevces.onrender.com';
 
     // Helper for image URLs
     function getImageUrl(path) {
@@ -1412,8 +1412,9 @@
     // ==================== LOAD BOOKINGS FROM REAL API ====================
     async function loadBookingsFromAPI(filter = 'all') {
         try {
-            const response = await API.get('/bookings/customer');
-            const bookingsRaw = response?.data?.bookings || response?.data || [];
+            const endpoint = filter === 'all' ? '/bookings' : `/bookings?status=${encodeURIComponent(filter)}`;
+            const response = await API.get(endpoint);
+            const bookingsRaw = response?.data || [];
             const bookings = Array.isArray(bookingsRaw) ? bookingsRaw : [];
 
             // Update stats
@@ -1422,7 +1423,11 @@
             // Filter bookings
             let filteredBookings = bookings;
             if (filter !== 'all') {
-                filteredBookings = bookings.filter(b => b.status === filter);
+                if (filter === 'confirmed') {
+                    filteredBookings = bookings.filter(b => ['accepted', 'confirmed', 'in_progress'].includes(b.status));
+                } else {
+                    filteredBookings = bookings.filter(b => b.status === filter);
+                }
             }
 
             // Render recent (first 3)
@@ -1435,7 +1440,18 @@
             updateBookingStats([]);
             renderRecentBookings([]);
             renderBookings([]);
-            Toast.show('Failed to load bookings from server', 'error');
+            if (error?.status === 401) {
+                Toast.show('Session expired. Please login again.', 'error');
+                setTimeout(() => {
+                    window.location.href = `/login.html?redirect=${encodeURIComponent(window.location.href)}`;
+                }, 1000);
+                return;
+            }
+            if (error?.message?.includes('Failed to fetch')) {
+                Toast.show('Booking service is currently unavailable. Try again shortly.', 'error');
+                return;
+            }
+            Toast.show(error?.message || 'Failed to load bookings from server', 'error');
         }
     }
 
@@ -2112,7 +2128,7 @@ async function loadUnreadCount() {
             return;
         }
 
-        const addresses = JSON.parse(localStorage.getItem('addresses') || []);
+        const addresses = JSON.parse(localStorage.getItem('addresses') || '[]');
         addresses.push(newAddress);
         localStorage.setItem('addresses', JSON.stringify(addresses));
 

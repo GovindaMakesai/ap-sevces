@@ -1626,16 +1626,26 @@ async function loadReviews() {
     // Profile form
     document.getElementById('profileForm')?.addEventListener('submit', async function(e) {
         e.preventDefault();
+        const submitBtn = this.querySelector('button[type="submit"]');
         const userData = {
-            first_name: document.getElementById('firstName').value,
-            last_name: document.getElementById('lastName').value,
-            phone: document.getElementById('phone').value,
-            bio: document.getElementById('bio').value,
+            first_name: document.getElementById('firstName').value.trim(),
+            last_name: document.getElementById('lastName').value.trim(),
+            phone: document.getElementById('phone').value.trim(),
+            bio: document.getElementById('bio').value.trim(),
             hourly_rate: document.getElementById('hourlyRate').value
         };
+
+        if (userData.phone && !/^\d{10}$/.test(userData.phone)) {
+            Toast.show('Please enter a valid 10-digit phone number', 'error');
+            return;
+        }
         
         try {
-            await API.put('/workers/profile', userData);
+            if (submitBtn) submitBtn.disabled = true;
+            const response = await API.put('/workers/profile', userData);
+            if (!response?.success) {
+                throw new Error(response?.message || 'Failed to update profile');
+            }
             Toast.show('Profile updated successfully!', 'success');
             await loadWorkerData();
             
@@ -1646,7 +1656,9 @@ async function loadReviews() {
             user.phone = userData.phone;
             localStorage.setItem('user', JSON.stringify(user));
         } catch (error) {
-            Toast.show('Failed to update profile', 'error');
+            Toast.show(error.message || 'Failed to update profile', 'error');
+        } finally {
+            if (submitBtn) submitBtn.disabled = false;
         }
     });
 
@@ -1665,7 +1677,10 @@ async function loadReviews() {
                 this.classList.add('active');
                 const section = this.dataset.section;
                 document.querySelectorAll('.dashboard-section').forEach(s => s.classList.remove('active'));
-                document.getElementById(`${section}-section`).classList.add('active');
+                const targetSection = document.getElementById(`${section}-section`);
+                if (targetSection) {
+                    targetSection.classList.add('active');
+                }
                 window.location.hash = section;
             });
         });

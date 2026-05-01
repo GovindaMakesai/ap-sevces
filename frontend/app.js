@@ -13,6 +13,7 @@ const CONFIG = {
     API_URL: IS_LOCAL ? LOCAL_API_URL : LIVE_API_URL,
     FRONTEND_URL: IS_LOCAL ? LOCAL_FRONTEND_URL : LIVE_FRONTEND_URL
 };
+CONFIG.BACKEND_URL = CONFIG.API_URL.replace(/\/api\/?$/, '');
 
 console.log('🚀 App.js loaded');
 console.log('📡 API URL:', CONFIG.API_URL);
@@ -847,6 +848,7 @@ window.UI = UI;
 window.LinkFixer = LinkFixer;
 window.LocationService = LocationService;
 window.PWA = PWA;
+window.CONFIG = CONFIG;
 
 console.log('✅ App.js initialized');
 console.log('📦 Available APIs:', { 

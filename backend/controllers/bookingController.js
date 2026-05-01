@@ -93,6 +93,14 @@ exports.createBooking = async (req, res) => {
             });
         }
 
+        console.log('✅ Booking created', {
+            booking_id: booking.id,
+            booking_number: booking.booking_number,
+            customer_id,
+            worker_id,
+            service_id
+        });
+
         res.status(201).json({
             success: true,
             message: 'Booking created successfully',
@@ -109,6 +117,54 @@ exports.createBooking = async (req, res) => {
     }
 };
 
+// @desc    Get bookings for logged-in user
+// @route   GET /api/bookings
+// @access  Private
+exports.getBookings = async (req, res) => {
+    try {
+        const { status } = req.query;
+        const normalizedStatus = status === 'confirmed' ? 'accepted' : status;
+
+        if (req.userRole === 'worker') {
+            const worker = await Worker.findByUserId(req.userId);
+            if (!worker) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Worker profile not found'
+                });
+            }
+
+            const bookings = await Booking.getByWorker(worker.id, normalizedStatus);
+            const stats = await Booking.getWorkerStats(worker.id);
+            console.log('📦 Fetched worker bookings', { user_id: req.userId, worker_id: worker.id, count: bookings.length, status: normalizedStatus || 'all' });
+
+            return res.json({
+                success: true,
+                count: bookings.length,
+                stats,
+                data: bookings
+            });
+        }
+
+        const bookings = await Booking.getByCustomer(req.userId, normalizedStatus);
+        const stats = await Booking.getCustomerStats(req.userId);
+        console.log('📦 Fetched customer bookings', { user_id: req.userId, count: bookings.length, status: normalizedStatus || 'all' });
+
+        return res.json({
+            success: true,
+            count: bookings.length,
+            stats,
+            data: bookings
+        });
+    } catch (error) {
+        console.error('❌ Get bookings error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch bookings'
+        });
+    }
+};
+
 // @desc    Get booking by ID
 // @route   GET /api/bookings/:id
 // @access  Private
@@ -119,6 +175,7 @@ exports.getBookingById = async (req, res) => {
         const booking = await Booking.getById(bookingId);
         
         if (!booking) {
+            console.warn('⚠️ Booking lookup failed', { booking_ref: bookingId, user_id: req.userId });
             return res.status(404).json({
                 success: false,
                 message: 'Booking not found'
@@ -152,9 +209,11 @@ exports.getBookingById = async (req, res) => {
 exports.getCustomerBookings = async (req, res) => {
     try {
         const { status } = req.query;
+        const normalizedStatus = status === 'confirmed' ? 'accepted' : status;
         
-        const bookings = await Booking.getByCustomer(req.userId, status);
+        const bookings = await Booking.getByCustomer(req.userId, normalizedStatus);
         const stats = await Booking.getCustomerStats(req.userId);
+        console.log('📦 Fetched customer bookings', { user_id: req.userId, count: bookings.length, status: normalizedStatus || 'all' });
 
         res.json({
             success: true,
@@ -189,13 +248,15 @@ exports.getWorkerBookings = async (req, res) => {
         }
 
         const { status } = req.query;
+        const normalizedStatus = status === 'confirmed' ? 'accepted' : status;
         
         let bookings = [];
         let stats = {};
         
         try {
-            bookings = await Booking.getByWorker(worker.id, status);
+            bookings = await Booking.getByWorker(worker.id, normalizedStatus);
             stats = await Booking.getWorkerStats(worker.id);
+            console.log('📦 Fetched worker bookings', { user_id: userId, worker_id: worker.id, count: bookings.length, status: normalizedStatus || 'all' });
         } catch (dbError) {
             console.error('Database error in getWorkerBookings:', dbError);
             bookings = [];
