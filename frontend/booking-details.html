@@ -296,6 +296,10 @@
             flex-wrap: wrap;
         }
 
+        .worker-profile.hidden {
+            display: none;
+        }
+
         .worker-avatar {
             width: 80px;
             height: 80px;
@@ -470,6 +474,10 @@
             gap: var(--spacing-md);
             margin-top: var(--spacing-xl);
             flex-wrap: wrap;
+        }
+
+        .action-buttons .action-btn.hidden {
+            display: none;
         }
 
         .action-btn {
@@ -704,7 +712,7 @@
 
                     <div class="detail-card">
                         <h3 class="card-title"><i class="fas fa-user"></i> Professional Details</h3>
-                        <div class="worker-profile">
+                        <div class="worker-profile" id="workerProfileSection">
                             <div class="worker-avatar" id="workerAvatar">RK</div>
                             <div class="worker-info">
                                 <h3 id="workerName">Rajesh Kumar</h3>
@@ -782,8 +790,8 @@
                     </div>
 
                     <div class="action-buttons">
-                        <button class="action-btn secondary" onclick="chatWithWorker()"><i class="fas fa-comment"></i> Chat</button>
-                        <button class="action-btn primary" onclick="rescheduleBooking()"><i class="fas fa-calendar-alt"></i> Reschedule</button>
+                        <button class="action-btn secondary" id="chatActionBtn" onclick="chatWithWorker()"><i class="fas fa-comment"></i> Chat</button>
+                        <button class="action-btn primary" id="rescheduleActionBtn" onclick="rescheduleBooking()"><i class="fas fa-calendar-alt"></i> Reschedule</button>
                         <button class="action-btn danger" onclick="showCancelModal()"><i class="fas fa-times"></i> Cancel Booking</button>
                     </div>
 
@@ -886,7 +894,8 @@
             const badgeClass = formatStatusBadge(booking.status);
             const startTime = booking.start_time || '--';
             const endTime = booking.end_time || '--';
-            const workerName = `${booking.worker_first_name || ''} ${booking.worker_last_name || ''}`.trim() || 'Professional';
+            const hasWorker = Boolean(booking.worker_id || booking.worker_user_id);
+            const workerName = `${booking.worker_first_name || ''} ${booking.worker_last_name || ''}`.trim();
             const workerAvatar = `${(booking.worker_first_name || 'P').charAt(0)}${(booking.worker_last_name || 'R').charAt(0)}`.toUpperCase();
             const totalAmount = Number(booking.final_amount || booking.total_amount || 0);
             const platformFee = Number(booking.platform_fee || 0);
@@ -899,10 +908,25 @@
             document.getElementById('durationText').textContent = `${booking.duration_hours || 1} hour(s)`;
             document.getElementById('dateText').textContent = formatDateLabel(booking.booking_date);
             document.getElementById('timeText').textContent = startTime;
-            document.getElementById('workerAvatar').textContent = workerAvatar;
-            document.getElementById('workerName').textContent = workerName;
-            document.getElementById('ratingText').textContent = '(See profile)';
-            document.getElementById('workerSpecialty').textContent = booking.service_category || 'Professional';
+            const workerProfileSection = document.getElementById('workerProfileSection');
+            const chatActionBtn = document.getElementById('chatActionBtn');
+            const rescheduleActionBtn = document.getElementById('rescheduleActionBtn');
+            if (hasWorker && workerName) {
+                workerProfileSection.classList.remove('hidden');
+                document.getElementById('workerAvatar').textContent = workerAvatar;
+                document.getElementById('workerName').textContent = workerName;
+                document.getElementById('ratingText').textContent = '(See profile)';
+                document.getElementById('workerSpecialty').textContent = booking.service_category || 'Professional';
+                chatActionBtn.classList.remove('hidden');
+            } else {
+                workerProfileSection.classList.add('hidden');
+                chatActionBtn.classList.add('hidden');
+            }
+            if (booking.service_id) {
+                rescheduleActionBtn.classList.remove('hidden');
+            } else {
+                rescheduleActionBtn.classList.add('hidden');
+            }
 
             const timelineHtml = buildTimeline(booking).map(item => `
                 <div class="timeline-item ${item.completed ? 'completed' : ''}">

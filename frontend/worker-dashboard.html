@@ -973,8 +973,9 @@
 
         const user = Auth.getUser();
         if (user?.role !== 'worker') {
-            Toast.show('Access denied. Worker only.', 'error');
-            setTimeout(() => window.location.href = '/', 1500);
+            const roleRoute = user?.role === 'customer' ? '/customer-dashboard.html' : '/admin-dashboard.html';
+            Toast.show(`Redirecting to your ${user?.role || 'account'} dashboard`, 'info');
+            setTimeout(() => window.location.href = roleRoute, 700);
             return;
         }
 
@@ -987,6 +988,7 @@
         setupEventListeners();
         setupAvailabilityToggle();
         setupJobFilter();
+        applyInitialSectionFromHash();
         
         // Listen for booking updates (if using Socket.IO)
         setupSocketListeners();
@@ -1266,11 +1268,10 @@ async function loadUnreadCount() {
     async function loadWorkerData() {
         try {
             const response = await API.get('/workers/dashboard/stats');
-            if (response.success) {
-                workerData = response.data;
-                updateProfileUI();
-                updateOverviewStats();
-            }
+            const data = response?.data || response?.data?.data || {};
+            workerData = data;
+            updateProfileUI();
+            updateOverviewStats();
         } catch (error) {
             console.error('Failed to load worker data:', error);
             Toast.show('Failed to load profile', 'error');
@@ -1311,14 +1312,14 @@ async function loadUnreadCount() {
     async function loadJobs(filter = 'all') {
         try {
             const response = await API.get(`/bookings/worker?status=${filter === 'all' ? '' : filter}`);
-            if (response.success) {
-                displayJobs(response.data);
-                updateStats(response.data);
-                
-                // Update pending badge
-                const pendingCount = response.data.filter(b => b.status === 'pending').length;
-                document.getElementById('pendingJobsBadge').textContent = pendingCount;
-            }
+            const bookingsRaw = response?.data?.bookings || response?.data || [];
+            const bookings = Array.isArray(bookingsRaw) ? bookingsRaw : [];
+            displayJobs(bookings);
+            updateStats(bookings);
+            
+            // Update pending badge
+            const pendingCount = bookings.filter(b => b.status === 'pending').length;
+            document.getElementById('pendingJobsBadge').textContent = pendingCount;
         } catch (error) {
             console.error('Failed to load jobs:', error);
             document.getElementById('jobsList').innerHTML = `
@@ -1429,16 +1430,14 @@ async function loadUnreadCount() {
     async function loadEarnings() {
         try {
             const response = await API.get('/workers/earnings');
-            if (response.success) {
-                const earnings = response.data;
-                document.getElementById('earningsTotal').textContent = `₹${earnings.total || 0}`;
-                document.getElementById('platformFeeTotal').textContent = `₹${earnings.platform_fee || 0}`;
-                document.getElementById('netEarnings').textContent = `₹${earnings.net || 0}`;
-                document.getElementById('pendingPayout').textContent = `₹${earnings.pending || 0}`;
-                
-                if (earnings.transactions) {
-                    displayTransactions(earnings.transactions);
-                }
+            const earnings = response?.data || response?.data?.data || {};
+            document.getElementById('earningsTotal').textContent = `₹${earnings.total || 0}`;
+            document.getElementById('platformFeeTotal').textContent = `₹${earnings.platform_fee || 0}`;
+            document.getElementById('netEarnings').textContent = `₹${earnings.net || 0}`;
+            document.getElementById('pendingPayout').textContent = `₹${earnings.pending || 0}`;
+            
+            if (earnings.transactions) {
+                displayTransactions(earnings.transactions);
             }
         } catch (error) {
             console.error('Failed to load earnings:', error);
@@ -1469,7 +1468,6 @@ async function loadUnreadCount() {
     }
 
     // Load reviews
-   // Load reviews - FIXED VERSION
 async function loadReviews() {
     try {
         const user = Auth.getUser();
@@ -1483,24 +1481,16 @@ async function loadReviews() {
         // First, get the worker profile to get the correct worker ID
         const workerResponse = await API.get(`/workers/user/${userId}`);
         
-        let workerId;
-        if (workerResponse.success && workerResponse.data) {
-            workerId = workerResponse.data.id;
-        } else {
-            // Fallback: try direct worker lookup
-            const workersResponse = await API.get(`/workers?userId=${userId}`);
-            if (workersResponse.success && workersResponse.data.length > 0) {
-                workerId = workersResponse.data[0].id;
-            } else {
-                console.error('Worker profile not found');
-                document.getElementById('reviewsList').innerHTML = `
-                    <div class="empty-state">
-                        <i class="fas fa-user-slash"></i>
-                        <p>Worker profile not found. Please complete your registration.</p>
-                    </div>
-                `;
-                return;
-            }
+        const workerId = workerResponse?.data?.id || workerResponse?.data?.data?.id;
+        if (!workerId) {
+            console.error('Worker profile not found');
+            document.getElementById('reviewsList').innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-user-slash"></i>
+                    <p>Worker profile not found. Please complete your registration.</p>
+                </div>
+            `;
+            return;
         }
         
         console.log('📦 Fetching reviews for worker ID:', workerId);
@@ -1508,32 +1498,28 @@ async function loadReviews() {
         const response = await API.get(`/reviews/worker/${workerId}`);
         console.log('📦 Reviews response:', response);
         
-        if (response.success) {
-            const data = response.data;
-            const reviews = data.reviews || data.data?.reviews || [];
-            const summary = data.summary || data.data?.summary || {};
-            
-            const avgRating = parseFloat(summary.average_rating) || 0;
-            const totalReviews = parseInt(summary.total_reviews) || 0;
-            
-            document.getElementById('reviewAvgRating').textContent = avgRating.toFixed(1);
-            document.getElementById('reviewTotalCount').textContent = `${totalReviews} reviews`;
-            
-            const stars = generateStars(avgRating);
-            document.getElementById('reviewStars').innerHTML = stars;
-            
-            displayReviews(reviews);
-            
-            // Also update the sidebar rating
-            if (document.getElementById('workerRating')) {
-                document.getElementById('workerRating').innerHTML = `
-                    <i class="fas fa-star"></i>
-                    <span>${avgRating.toFixed(1)}</span>
-                    <span>(${totalReviews} reviews)</span>
-                `;
-            }
-        } else {
-            throw new Error(response.message || 'Failed to load reviews');
+        const data = response?.data || response?.data?.data || {};
+        const reviews = data.reviews || data.data?.reviews || [];
+        const summary = data.summary || data.data?.summary || {};
+        
+        const avgRating = parseFloat(summary.average_rating) || 0;
+        const totalReviews = parseInt(summary.total_reviews) || 0;
+        
+        document.getElementById('reviewAvgRating').textContent = avgRating.toFixed(1);
+        document.getElementById('reviewTotalCount').textContent = `${totalReviews} reviews`;
+        
+        const stars = generateStars(avgRating);
+        document.getElementById('reviewStars').innerHTML = stars;
+        
+        displayReviews(reviews);
+        
+        // Also update the sidebar rating
+        if (document.getElementById('workerRating')) {
+            document.getElementById('workerRating').innerHTML = `
+                <i class="fas fa-star"></i>
+                <span>${avgRating.toFixed(1)}</span>
+                <span>(${totalReviews} reviews)</span>
+            `;
         }
     } catch (error) {
         console.error('Failed to load reviews:', error);
@@ -1634,7 +1620,7 @@ async function loadReviews() {
 
     // Request withdrawal
     window.requestWithdrawal = function() {
-        Toast.show('Withdrawal request submitted!', 'success');
+        Toast.show('Withdrawal requests are not available yet in backend', 'info');
     };
 
     // Profile form
@@ -1680,6 +1666,7 @@ async function loadReviews() {
                 const section = this.dataset.section;
                 document.querySelectorAll('.dashboard-section').forEach(s => s.classList.remove('active'));
                 document.getElementById(`${section}-section`).classList.add('active');
+                window.location.hash = section;
             });
         });
         
@@ -1694,8 +1681,18 @@ async function loadReviews() {
         }
     }
 
+    function applyInitialSectionFromHash() {
+        const requested = (window.location.hash || '').replace('#', '').trim();
+        if (!requested) return;
+        const nav = document.querySelector(`.nav-item[data-section="${requested}"]`);
+        if (nav) {
+            nav.click();
+        }
+    }
+
     window.switchSection = function(section) {
-        document.querySelector(`.nav-item[data-section="${section}"]`).click();
+        const target = document.querySelector(`.nav-item[data-section="${section}"]`);
+        if (target) target.click();
     };
 
     window.logout = function() {
@@ -1708,6 +1705,10 @@ async function loadReviews() {
         await refreshAllData();
         Toast.show('Dashboard refreshed!', 'success');
     };
+
+    window.addEventListener('beforeunload', () => {
+        if (refreshInterval) clearInterval(refreshInterval);
+    });
 </script>
 </body>
 </html>

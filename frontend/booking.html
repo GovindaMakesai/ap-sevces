@@ -180,6 +180,21 @@
             box-shadow: var(--shadow-md);
         }
 
+        .service-image-fallback {
+            width: 120px;
+            height: 120px;
+            border-radius: var(--radius-lg);
+            border: 3px solid white;
+            box-shadow: var(--shadow-md);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: #dbeafe;
+            color: #1d4ed8;
+            font-size: 2rem;
+            font-weight: 700;
+        }
+
         .service-info {
             flex: 1;
         }
@@ -873,6 +888,7 @@
                     <!-- Service Summary -->
                     <div class="service-summary" id="serviceSummary">
                         <img src="" alt="Professional" class="service-image" id="workerImage">
+                        <div class="service-image-fallback" id="workerImageFallback">PR</div>
                         <div class="service-info">
                             <h2 id="workerName">Rajesh Kumar</h2>
                             <div class="service-meta">
@@ -1290,6 +1306,32 @@
             availableWorkers: []
         };
 
+        function getInitials(name) {
+            const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+            if (parts.length === 0) return 'PR';
+            return parts.slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join('');
+        }
+
+        function setWorkerImage(imageUrl, displayName = 'Professional') {
+            const workerImage = document.getElementById('workerImage');
+            const fallback = document.getElementById('workerImageFallback');
+            fallback.textContent = getInitials(displayName);
+            workerImage.alt = displayName;
+            workerImage.onerror = function() {
+                this.style.display = 'none';
+                fallback.style.display = 'flex';
+            };
+            if (imageUrl) {
+                workerImage.style.display = 'block';
+                fallback.style.display = 'none';
+                workerImage.src = imageUrl;
+            } else {
+                workerImage.removeAttribute('src');
+                workerImage.style.display = 'none';
+                fallback.style.display = 'flex';
+            }
+        }
+
         // DOM Elements
         const steps = document.querySelectorAll('.booking-step');
         const stepIndicators = {
@@ -1369,9 +1411,7 @@
                 document.getElementById('workerExperience').textContent = 'Available Now';
                 
                 const imageUrl = getImageUrl(service.image_url);
-                if (imageUrl) {
-                    document.getElementById('workerImage').src = imageUrl;
-                }
+                setWorkerImage(imageUrl, service.name);
                 
                 // Display service option
                 serviceOptions.innerHTML = `
@@ -1421,9 +1461,7 @@
                     document.getElementById('workerRating').textContent = `⭐ ${worker.rating || 'New'} (${worker.total_reviews || 0} reviews)`;
                     document.getElementById('workerExperience').textContent = `${worker.experience_years || 0} years exp`;
                     
-                    if (worker.profile_photo_url) {
-                        document.getElementById('workerImage').src = getImageUrl(worker.profile_photo_url);
-                    }
+                    setWorkerImage(getImageUrl(worker.profile_photo_url), `${worker.first_name || ''} ${worker.last_name || ''}`.trim());
                     
                     updateSummary();
                     
@@ -1492,9 +1530,7 @@
                     document.getElementById('workerExperience').textContent = bookingData.workerExperience;
                     
                     const workerImage = worker.profile_photo_url || worker.image_url;
-                    if (workerImage) {
-                        document.getElementById('workerImage').src = getImageUrl(workerImage);
-                    }
+                    setWorkerImage(getImageUrl(workerImage), bookingData.workerName || bookingData.serviceName || 'Professional');
                 }
             } catch (error) {
                 console.error('Failed to load worker details:', error);

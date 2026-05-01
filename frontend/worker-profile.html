@@ -959,6 +959,7 @@
 
     <div id="toast" class="toast"></div>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="app.js"></script>
 
     <script>
         const Toast = { show: (msg) => { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3000); } };
@@ -969,39 +970,78 @@
         let currentReviewPage = 1;
         let hasMoreReviews = true;
 
-        // Mock data generator
-        function generateMockWorker() {
+        function buildFallbackAvatarName(fullName) {
+            const parts = String(fullName || '').trim().split(/\s+/).filter(Boolean);
+            if (parts.length === 0) return 'Professional';
+            return parts.slice(0, 2).map((p) => p.charAt(0).toUpperCase()).join('');
+        }
+
+        function normalizeWorkerData(payload) {
+            const fullName = `${payload?.first_name || ''} ${payload?.last_name || ''}`.trim() || payload?.full_name || 'Professional';
+            const category = payload?.service_category || payload?.category || 'Service';
             return {
-                id: 1, fullName: 'Rajesh Kumar', category: 'Plumbing', experience: 12, rating: 4.9, totalReviews: 328,
-                bio: 'Experienced plumber with over 12 years in residential and commercial plumbing. Certified and insured.',
-                memberSince: 'Jan 2020', jobsCompleted: 1247, serviceArea: 'Mumbai (Up to 15km)', responseTime: '< 30 minutes',
-                hourlyRate: 499, skills: ['Pipe Installation', 'Leak Repair', 'Bathroom Fitting', 'Water Heater', 'Drain Cleaning'],
-                services: [{ name: 'Plumbing Repair', price: 499, duration: 1 }, { name: 'Pipe Installation', price: 699, duration: 2 }, { name: 'Emergency Service', price: 699, duration: 1 }],
-                portfolio: ['https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=300', 'https://images.unsplash.com/photo-1581094794329-c8112c4e5190?w=300', 'https://images.unsplash.com/photo-1581091226033-d5c48150dbaa?w=300'],
-                reviews: [
-                    { id: 1, firstName: 'Amit', lastName: 'Sharma', rating: 5, title: 'Excellent work!', comment: 'Fixed the leak quickly and professionally.', createdAt: '2024-03-10', helpfulCount: 12, images: [] },
-                    { id: 2, firstName: 'Priya', lastName: 'Patel', rating: 5, title: 'Very professional', comment: 'Arrived on time and did a great job.', createdAt: '2024-03-05', helpfulCount: 8, images: [] },
-                    { id: 3, firstName: 'Vikram', lastName: 'Singh', rating: 4, title: 'Good service', comment: 'Satisfied with the work.', createdAt: '2024-02-28', helpfulCount: 5, images: [] }
-                ]
+                id: payload?.id || workerId,
+                fullName,
+                category,
+                experience: Number(payload?.experience_years || payload?.experience || 0),
+                rating: Number(payload?.rating || payload?.average_rating || 0),
+                totalReviews: Number(payload?.total_reviews || 0),
+                bio: payload?.bio || 'No profile bio available yet.',
+                memberSince: payload?.created_at ? new Date(payload.created_at).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : '--',
+                jobsCompleted: Number(payload?.completed_jobs || payload?.jobs_completed || 0),
+                serviceArea: payload?.service_area || payload?.city || '--',
+                responseTime: payload?.response_time || '--',
+                hourlyRate: Number(payload?.hourly_rate || 0),
+                skills: Array.isArray(payload?.skills) ? payload.skills : [],
+                services: Array.isArray(payload?.services) ? payload.services : [],
+                portfolio: Array.isArray(payload?.portfolio) ? payload.portfolio : [],
+                avatarUrl: payload?.profile_photo_url || payload?.avatar_url || ''
             };
         }
 
         function renderProfile() {
             document.getElementById('workerFullName').textContent = workerData.fullName;
+            document.getElementById('workerName').textContent = workerData.fullName;
             document.getElementById('workerCategory').innerHTML = `<i class="fas fa-wrench"></i> ${workerData.category} Expert`;
             document.getElementById('workerExperience').innerHTML = `<i class="fas fa-briefcase"></i> ${workerData.experience} years`;
             document.getElementById('workerRating').textContent = workerData.rating;
             document.getElementById('workerBio').textContent = workerData.bio;
             document.getElementById('hourlyRate').textContent = `₹${workerData.hourlyRate}`;
+            const avatarEl = document.getElementById('profileAvatar');
+            if (workerData.avatarUrl) {
+                avatarEl.src = workerData.avatarUrl;
+            }
+            avatarEl.alt = workerData.fullName || 'Professional';
+            avatarEl.onerror = function() {
+                this.style.display = 'none';
+                const wrapper = this.closest('.profile-avatar-wrapper');
+                if (!wrapper.querySelector('.profile-avatar-fallback')) {
+                    const fallback = document.createElement('div');
+                    fallback.className = 'profile-avatar profile-avatar-fallback';
+                    fallback.style.display = 'flex';
+                    fallback.style.alignItems = 'center';
+                    fallback.style.justifyContent = 'center';
+                    fallback.style.fontSize = '2rem';
+                    fallback.style.fontWeight = '700';
+                    fallback.textContent = buildFallbackAvatarName(workerData.fullName);
+                    wrapper.insertBefore(fallback, wrapper.firstChild);
+                }
+            };
             document.getElementById('infoGrid').innerHTML = `
                 <div class="info-item"><i class="fas fa-calendar-alt"></i><div><h4>Member Since</h4><p>${workerData.memberSince}</p></div></div>
                 <div class="info-item"><i class="fas fa-check-circle"></i><div><h4>Jobs Completed</h4><p>${workerData.jobsCompleted}</p></div></div>
                 <div class="info-item"><i class="fas fa-map-marker-alt"></i><div><h4>Service Area</h4><p>${workerData.serviceArea}</p></div></div>
                 <div class="info-item"><i class="fas fa-clock"></i><div><h4>Response Time</h4><p>${workerData.responseTime}</p></div></div>
             `;
-            document.getElementById('skillsList').innerHTML = workerData.skills.map(s => `<span class="skill-badge">${s}</span>`).join('');
-            document.getElementById('servicesList').innerHTML = workerData.services.map(s => `<div style="margin-bottom:1rem; padding:1rem; background:#f9fafb; border-radius:0.75rem;"><h4>${s.name}</h4><p>₹${s.price} / ${s.duration} hour(s)</p></div>`).join('');
-            document.getElementById('portfolioGrid').innerHTML = workerData.portfolio.map(img => `<div class="portfolio-item" onclick="openImageModal('${img}')"><img src="${img}"><div class="portfolio-overlay"><i class="fas fa-search-plus"></i></div></div>`).join('');
+            document.getElementById('skillsList').innerHTML = workerData.skills.length
+                ? workerData.skills.map(s => `<span class="skill-badge">${s}</span>`).join('')
+                : '<p>No listed skills yet.</p>';
+            document.getElementById('servicesList').innerHTML = workerData.services.length
+                ? workerData.services.map(s => `<div style="margin-bottom:1rem; padding:1rem; background:#f9fafb; border-radius:0.75rem;"><h4>${s.name || 'Service'}</h4><p>₹${s.price || s.base_price || 0} / ${s.duration || s.duration_hours || 1} hour(s)</p></div>`).join('')
+                : '<p>No services listed yet.</p>';
+            document.getElementById('portfolioGrid').innerHTML = workerData.portfolio.length
+                ? workerData.portfolio.map(img => `<div class="portfolio-item" onclick="openImageModal('${img}')"><img src="${img}" alt="Work sample" onerror="this.closest('.portfolio-item').remove()"><div class="portfolio-overlay"><i class="fas fa-search-plus"></i></div></div>`).join('')
+                : '<p>No portfolio images available.</p>';
         }
 
         function updateRatingSummary() {
@@ -1021,23 +1061,27 @@
             if (!reviews || reviews.length === 0) { container.innerHTML = '<p>No reviews yet. Be the first to review!</p>'; return; }
             container.innerHTML = reviews.map(r => `
                 <div class="review-card">
-                    <div class="review-header"><div class="reviewer"><strong>${r.firstName} ${r.lastName}</strong><div class="stars">${Array(5).fill().map((_, i) => `<i class="fas fa-star" style="color: ${i < r.rating ? '#fbbf24' : '#d1d5db'}"></i>`).join('')}</div></div><div class="review-date">${new Date(r.createdAt).toLocaleDateString()}</div></div>
+                    <div class="review-header"><div class="reviewer"><strong>${r.firstName || r.first_name || 'Customer'} ${r.lastName || r.last_name || ''}</strong><div class="stars">${Array(5).fill().map((_, i) => `<i class="fas fa-star" style="color: ${i < Number(r.rating || 0) ? '#fbbf24' : '#d1d5db'}"></i>`).join('')}</div></div><div class="review-date">${new Date(r.createdAt || r.created_at || Date.now()).toLocaleDateString()}</div></div>
                     <h4>${r.title || 'Customer Review'}</h4>
                     <p>${r.comment || 'No comment provided.'}</p>
-                    ${r.images && r.images.length ? `<div class="review-images">${r.images.map(img => `<img src="${img}" onclick="openImageModal('${img}')">`).join('')}</div>` : ''}
-                    <button onclick="markHelpful(${r.id})" class="helpful-btn"><i class="far fa-thumbs-up"></i> Helpful (${r.helpfulCount || 0})</button>
+                    ${r.images && r.images.length ? `<div class="review-images">${r.images.map(img => `<img src="${img}" alt="Review image" onerror="this.remove()" onclick="openImageModal('${img}')">`).join('')}</div>` : ''}
+                    <button onclick="markHelpful(${r.id || 0})" class="helpful-btn"><i class="far fa-thumbs-up"></i> Helpful (${r.helpfulCount || r.helpful_count || 0})</button>
                 </div>
             `).join('');
         }
 
         async function loadReviews(page = 1) {
-            // Mock pagination
-            const allReviews = workerData.reviews;
-            const start = (page-1)*5;
-            const paginated = allReviews.slice(start, start+5);
-            displayReviews(paginated);
-            hasMoreReviews = start + 5 < allReviews.length;
-            document.getElementById('loadMoreReviewsBtn').style.display = hasMoreReviews ? 'block' : 'none';
+            try {
+                const response = await API.get(`/reviews/worker/${workerId}?page=${page}&limit=5`);
+                const data = response?.data || response?.data?.data || {};
+                const reviews = data.reviews || [];
+                displayReviews(reviews);
+                hasMoreReviews = page < (data.pagination?.totalPages || 1);
+                document.getElementById('loadMoreReviewsBtn').style.display = hasMoreReviews ? 'block' : 'none';
+            } catch (_error) {
+                displayReviews([]);
+                document.getElementById('loadMoreReviewsBtn').style.display = 'none';
+            }
         }
 
         window.markHelpful = function(reviewId) {
@@ -1073,16 +1117,37 @@
             document.getElementById('totalAmount').textContent = `₹${base + fee}`;
         }
 
-        document.addEventListener('DOMContentLoaded', () => {
+        async function loadWorkerProfile() {
+            try {
+                const response = await API.get(`/workers/${workerId}`);
+                const payload = response?.data || response?.data?.data || response;
+                if (!payload || payload.success === false) throw new Error('Worker profile unavailable');
+                workerData = normalizeWorkerData(payload);
+                renderProfile();
+                updateRatingSummary();
+                await loadReviews(1);
+                updatePrice();
+            } catch (_err) {
+                Toast.show('Professional profile unavailable', 'warning');
+                document.getElementById('workerFullName').textContent = 'Professional unavailable';
+                document.getElementById('workerName').textContent = 'Professional unavailable';
+                document.getElementById('workerBio').textContent = 'This professional profile is not available.';
+                document.getElementById('bookNowBtn').disabled = true;
+                document.getElementById('contactBtn').disabled = true;
+                document.getElementById('reviewsList').innerHTML = '<p>Reviews unavailable.</p>';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
             const urlParams = new URLSearchParams(window.location.search);
-            workerId = urlParams.get('id') || '1';
-            workerData = generateMockWorker();
-            renderProfile();
-            updateRatingSummary();
-            loadReviews(1);
+            workerId = urlParams.get('id');
+            if (!workerId) {
+                Toast.show('Missing professional id', 'warning');
+                return;
+            }
             initCalendar();
             generateTimeSlots();
-            updatePrice();
+            await loadWorkerProfile();
 
             // Tab switching
             document.querySelectorAll('.profile-nav-btn').forEach(btn => {
@@ -1112,7 +1177,7 @@
             document.getElementById('contactBtn').addEventListener('click', async () => {
                 try {
                     const response = await API.get(`/workers/${workerId}`);
-                    const receiverId = response?.data?.user_id || workerId;
+                    const receiverId = response?.data?.user_id || response?.data?.data?.user_id || workerId;
                     window.location.href = `/chat.html?id=${receiverId}`;
                 } catch (_err) {
                     window.location.href = `/chat.html?id=${workerId}`;
