@@ -2014,9 +2014,13 @@
                     });
                     
                     if (response && response.success) {
-                        Toast.show('Registration successful! Redirecting to login...', 'success');
+                        const role = response?.data?.user?.role || userType;
+                        const roleMessage = role === 'worker'
+                            ? 'Professional signup successful! Please login to continue as Professional.'
+                            : 'Customer signup successful! Please login to continue.';
+                        Toast.show(roleMessage, 'success');
                         setTimeout(() => {
-                            window.location.href = '/login.html?registered=success';
+                            window.location.href = `/login.html?registered=success&role=${encodeURIComponent(role)}`;
                         }, 1500);
                     } else if (response && !response.success) {
                         Toast.show(response.message || 'Registration failed', 'error');

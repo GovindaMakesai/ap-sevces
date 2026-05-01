@@ -76,7 +76,7 @@ class Booking {
             JOIN workers w ON b.worker_id = w.id
             JOIN users u ON w.user_id = u.id
             JOIN services s ON b.service_id = s.id
-            WHERE b.id = $1
+            WHERE b.id::text = $1 OR b.booking_number = $1
         `;
         
         const result = await db.query(query, [id]);

@@ -26,6 +26,17 @@
             }
 
             localStorage.setItem('token', token);
+            const appRedirect = params.get('app_redirect') || localStorage.getItem('app_redirect') || '';
+
+            // If login completed in external browser during app OAuth,
+            // force a deep-link bounce back into the native app.
+            if (appRedirect && /^apservices:\/\//i.test(appRedirect)) {
+                const separator = appRedirect.includes('?') ? '&' : '?';
+                const deepLink = `${appRedirect}${separator}token=${encodeURIComponent(token)}`;
+                statusText.textContent = 'Returning to app...';
+                window.location.href = deepLink;
+                return;
+            }
 
             try {
                 if (window.Auth && typeof window.Auth.refreshSession === 'function') {

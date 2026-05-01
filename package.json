@@ -7,7 +7,8 @@
     "start": "node backend/server.js",
     "dev": "nodemon backend/server.js",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "db:schema": "node database/run-schema.js"
+    "db:schema": "node database/run-schema.js",
+    "db:seed:test": "node database/seeds/test-data-seed.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",

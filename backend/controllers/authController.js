@@ -126,16 +126,16 @@ const generateOAuthPassword = () => {
 
 const getFrontendBaseUrl = () => process.env.FRONTEND_URL || 'https://ap-sevces.vercel.app';
 const buildOAuthSuccessUrl = (token, appRedirect = '') => {
-    if (appRedirect) {
-        const separator = appRedirect.includes('?') ? '&' : '?';
-        return `${appRedirect}${separator}token=${encodeURIComponent(token)}`;
-    }
     const absoluteSuccessUrl = process.env.OAUTH_SUCCESS_URL;
     // Vercel static site has no /dashboard route; login-success.html stores token and routes by role.
     const successPath = process.env.OAUTH_SUCCESS_PATH || '/login-success.html';
     const rawBase = absoluteSuccessUrl || `${getFrontendBaseUrl()}${successPath}`;
+    const params = new URLSearchParams({ token });
+    if (appRedirect) {
+        params.set('app_redirect', appRedirect);
+    }
     const separator = rawBase.includes('?') ? '&' : '?';
-    return `${rawBase}${separator}token=${encodeURIComponent(token)}`;
+    return `${rawBase}${separator}${params.toString()}`;
 };
 
 const generateGooglePhoneCandidate = (providerId, offset = 0) => {
@@ -249,7 +249,7 @@ const register = async (req, res) => {
             password,
             first_name,
             last_name,
-            role: 'customer'
+            role: wantsWorker ? 'worker' : 'customer'
         });
 
         let userOut = { ...newUser };
