@@ -801,172 +801,213 @@
 
     <div id="toast" class="toast"></div>
 
+    <script src="app.js"></script>
     <script>
-        const Toast = { show: (msg, type) => { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3000); } };
-        
+        const ToastFallback = { show: (msg) => { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3000); } };
+        const Notifier = (window.Toast && typeof window.Toast.show === 'function') ? window.Toast : ToastFallback;
         let currentBooking = null;
 
-        function loadBookingDetails(bookingId) {
-            // Mock data with COMPLETED status to demonstrate review section
-            const mockData = {
-                'BK24031501': {
-                    status: 'completed',  // Change to 'completed' to show review section
-                    serviceName: 'Plumbing Repair',
-                    duration: '2 hours',
-                    date: '15 Mar 2024',
-                    time: '10:00 AM - 12:00 PM',
-                    workerName: 'Rajesh Kumar',
-                    workerAvatar: 'RK',
-                    workerRating: 4.9,
-                    workerReviews: 328,
-                    workerSpecialty: 'Plumbing Expert',
-                    addressType: 'Home',
-                    address: 'Flat 101, Sunshine Apartments, MG Road, Andheri East, Mumbai - 400069',
-                    addressPhone: '+91 98765 43210',
-                    bookingId: '#BK24031501',
-                    contactNumber: '+91 98765 43210',
-                    serviceCharge: 499,
-                    platformFee: 49,
-                    gst: 90,
-                    discount: 100,
-                    total: 638,
-                    transactionId: 'TXN240315001',
-                    paymentMethod: 'Credit Card (ending in 4242)',
-                    paymentStatus: 'success',
-                    timeline: [
-                        { status: 'Booking Created', time: '15 Mar 2024, 09:30 AM', completed: true },
-                        { status: 'Confirmed by Professional', time: '15 Mar 2024, 09:45 AM', completed: true },
-                        { status: 'Service Scheduled', time: '15 Mar 2024', completed: true },
-                        { status: 'Service Completed', time: '15 Mar 2024, 12:15 PM', completed: true }
-                    ]
-                }
-            };
-            currentBooking = mockData[bookingId] || mockData['BK24031501'];
-            renderUI(currentBooking);
+        function formatDateLabel(dateValue) {
+            if (!dateValue) return '--';
+            return new Date(dateValue).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+        }
+
+        function formatStatusBadge(status) {
+            const normalized = status === 'accepted' ? 'confirmed' : (status || 'pending');
+            return normalized === 'in_progress' ? 'in-progress' : normalized;
+        }
+
+        function buildTimeline(booking) {
+            const items = [
+                { status: 'Booking Created', completed: true, time: booking.created_at },
+                { status: 'Confirmed by Professional', completed: ['accepted', 'confirmed', 'in_progress', 'completed'].includes(booking.status), time: booking.updated_at },
+                { status: 'Service In Progress', completed: ['in_progress', 'completed'].includes(booking.status), time: booking.updated_at },
+                { status: 'Service Completed', completed: booking.status === 'completed', time: booking.updated_at }
+            ];
+            if (booking.status === 'cancelled' || booking.status === 'rejected') {
+                items.push({ status: 'Booking Cancelled', completed: true, time: booking.updated_at });
+            }
+            return items;
+        }
+
+        async function loadBookingDetails(bookingId) {
+            try {
+                const response = await API.get(`/bookings/${bookingId}`);
+                const booking = response?.data || response?.data?.data || response;
+                if (!booking || !booking.id) throw new Error('Booking not found');
+                currentBooking = booking;
+                renderUI(booking);
+            } catch (error) {
+                Notifier.show(error.message || 'Failed to load booking details', 'error');
+            }
         }
 
         function renderUI(booking) {
-            document.getElementById('bookingStatus').textContent = booking.status.charAt(0).toUpperCase() + booking.status.slice(1);
-            document.getElementById('bookingStatus').className = `status-badge ${booking.status}`;
-            document.getElementById('serviceName').textContent = booking.serviceName;
-            document.getElementById('durationText').textContent = booking.duration;
-            document.getElementById('dateText').textContent = booking.date;
-            document.getElementById('timeText').textContent = booking.time.split(' - ')[0];
-            document.getElementById('workerAvatar').textContent = booking.workerAvatar;
-            document.getElementById('workerName').textContent = booking.workerName;
-            document.getElementById('ratingText').textContent = `(${booking.workerRating}) ${booking.workerReviews} reviews`;
-            document.getElementById('workerSpecialty').textContent = booking.workerSpecialty;
+            const badgeClass = formatStatusBadge(booking.status);
+            const startTime = booking.start_time || '--';
+            const endTime = booking.end_time || '--';
+            const workerName = `${booking.worker_first_name || ''} ${booking.worker_last_name || ''}`.trim() || 'Professional';
+            const workerAvatar = `${(booking.worker_first_name || 'P').charAt(0)}${(booking.worker_last_name || 'R').charAt(0)}`.toUpperCase();
+            const totalAmount = Number(booking.final_amount || booking.total_amount || 0);
+            const platformFee = Number(booking.platform_fee || 0);
+            const gst = Math.max(0, Math.round((totalAmount - platformFee) * 0.18));
+            const serviceCharge = Math.max(0, totalAmount - platformFee - gst);
 
-            // Timeline
-            const timelineHtml = booking.timeline.map(item => `
+            document.getElementById('bookingStatus').textContent = (booking.status || 'pending').replace('_', ' ').replace(/\b\w/g, (m) => m.toUpperCase());
+            document.getElementById('bookingStatus').className = `status-badge ${badgeClass}`;
+            document.getElementById('serviceName').textContent = booking.service_name || 'Service';
+            document.getElementById('durationText').textContent = `${booking.duration_hours || 1} hour(s)`;
+            document.getElementById('dateText').textContent = formatDateLabel(booking.booking_date);
+            document.getElementById('timeText').textContent = startTime;
+            document.getElementById('workerAvatar').textContent = workerAvatar;
+            document.getElementById('workerName').textContent = workerName;
+            document.getElementById('ratingText').textContent = '(See profile)';
+            document.getElementById('workerSpecialty').textContent = booking.service_category || 'Professional';
+
+            const timelineHtml = buildTimeline(booking).map(item => `
                 <div class="timeline-item ${item.completed ? 'completed' : ''}">
                     <div class="timeline-dot"></div>
-                    <div class="timeline-content"><h4>${item.status}</h4><div class="timeline-time">${item.time || 'Pending'}</div></div>
+                    <div class="timeline-content"><h4>${item.status}</h4><div class="timeline-time">${item.time ? new Date(item.time).toLocaleString('en-IN') : 'Pending'}</div></div>
                 </div>
             `).join('');
             document.getElementById('timelineContainer').innerHTML = timelineHtml;
 
-            // Booking Info
             document.getElementById('bookingInfoGrid').innerHTML = `
-                <div class="info-item"><i class="fas fa-calendar"></i><div><h4>Booking Date</h4><p>${booking.date}</p></div></div>
-                <div class="info-item"><i class="fas fa-clock"></i><div><h4>Time</h4><p>${booking.time}</p></div></div>
-                <div class="info-item"><i class="fas fa-hashtag"></i><div><h4>Booking ID</h4><p>${booking.bookingId}</p></div></div>
-                <div class="info-item"><i class="fas fa-phone"></i><div><h4>Contact</h4><p>${booking.contactNumber}</p></div></div>
+                <div class="info-item"><i class="fas fa-calendar"></i><div><h4>Booking Date</h4><p>${formatDateLabel(booking.booking_date)}</p></div></div>
+                <div class="info-item"><i class="fas fa-clock"></i><div><h4>Time</h4><p>${startTime} - ${endTime}</p></div></div>
+                <div class="info-item"><i class="fas fa-hashtag"></i><div><h4>Booking ID</h4><p>#${booking.booking_number || booking.id}</p></div></div>
+                <div class="info-item"><i class="fas fa-phone"></i><div><h4>Contact</h4><p>${booking.customer_phone || '--'}</p></div></div>
             `;
-            document.getElementById('addressCard').innerHTML = `<span class="address-type">${booking.addressType}</span><p class="address-text">${booking.address.replace(/,/g, ',<br>')}</p><p><i class="fas fa-phone"></i> ${booking.addressPhone}</p>`;
-            
-            document.getElementById('priceBreakdown').innerHTML = `
-                <div class="price-row"><span>Service Charge</span><span>₹${booking.serviceCharge}</span></div>
-                <div class="price-row"><span>Platform Fee</span><span>₹${booking.platformFee}</span></div>
-                <div class="price-row"><span>GST (18%)</span><span>₹${booking.gst}</span></div>
-                ${booking.discount ? `<div class="price-row discount"><span>Coupon Discount</span><span>-₹${booking.discount}</span></div>` : ''}
-                <div class="price-row total"><span>Total Amount</span><span>₹${booking.total}</span></div>
-            `;
-            document.getElementById('paymentStatusDiv').innerHTML = `<i class="fas fa-check-circle"></i><div><h4>Payment Successful</h4><p>Transaction ID: ${booking.transactionId}</p></div>`;
-            document.getElementById('paymentMethodText').innerHTML = `<i class="fas fa-credit-card"></i> Paid via: ${booking.paymentMethod}`;
 
-            // Show review section ONLY for completed bookings
-            const reviewSection = document.getElementById('reviewSection');
-            if (booking.status === 'completed') {
-                reviewSection.style.display = 'block';
-            } else {
-                reviewSection.style.display = 'none';
-            }
+            const address = booking.customer_address || 'Address not provided';
+            document.getElementById('addressCard').innerHTML = `<span class="address-type">Service Address</span><p class="address-text">${address.replace(/,/g, ',<br>')}</p>`;
+            document.getElementById('priceBreakdown').innerHTML = `
+                <div class="price-row"><span>Service Charge</span><span>₹${serviceCharge}</span></div>
+                <div class="price-row"><span>Platform Fee</span><span>₹${platformFee}</span></div>
+                <div class="price-row"><span>GST</span><span>₹${gst}</span></div>
+                <div class="price-row total"><span>Total Amount</span><span>₹${totalAmount}</span></div>
+            `;
+            document.getElementById('paymentStatusDiv').innerHTML = `<i class="fas fa-check-circle"></i><div><h4>${booking.payment_status || 'Pending'}</h4><p>Transaction ID: ${booking.transaction_id || 'N/A'}</p></div>`;
+            document.getElementById('paymentMethodText').innerHTML = `<i class="fas fa-credit-card"></i> Paid via: ${booking.payment_method || 'N/A'}`;
+            document.getElementById('reviewSection').style.display = booking.status === 'completed' ? 'block' : 'none';
         }
 
-        // Rating stars interaction
         function initRatingStars() {
             const stars = document.querySelectorAll('#ratingStars i');
-            stars.forEach(star => {
+            stars.forEach((star) => {
                 star.addEventListener('click', function() {
-                    const rating = parseInt(this.dataset.rating);
+                    const rating = parseInt(this.dataset.rating, 10);
                     document.getElementById('reviewRating').value = rating;
                     stars.forEach((s, idx) => {
-                        if (idx < rating) {
-                            s.classList.remove('far');
-                            s.classList.add('fas');
-                            s.classList.add('active');
-                        } else {
-                            s.classList.remove('fas');
-                            s.classList.add('far');
-                            s.classList.remove('active');
-                        }
+                        s.classList.toggle('fas', idx < rating);
+                        s.classList.toggle('far', idx >= rating);
+                        s.classList.toggle('active', idx < rating);
                     });
                 });
             });
         }
 
         async function submitReview() {
-            const rating = document.getElementById('reviewRating').value;
+            if (!currentBooking?.id) return;
+            const rating = Number(document.getElementById('reviewRating').value || 0);
             const title = document.getElementById('reviewTitle').value.trim();
             const comment = document.getElementById('reviewComment').value.trim();
-            
-            if (!rating || rating === '0') {
-                Toast.show('Please select a rating', 'error');
-                return;
+            if (!rating) return Notifier.show('Please select a rating', 'error');
+            if (!comment) return Notifier.show('Please share your experience', 'error');
+            try {
+                const response = await API.post('/reviews', {
+                    booking_id: currentBooking.id,
+                    rating,
+                    title,
+                    comment
+                });
+                if (response.success) {
+                    Notifier.show('Review submitted successfully', 'success');
+                    document.getElementById('reviewSection').style.display = 'none';
+                }
+            } catch (error) {
+                Notifier.show(error.message || 'Failed to submit review', 'error');
             }
-            if (!comment) {
-                Toast.show('Please share your experience', 'error');
-                return;
-            }
-            
-            // Simulate API call
-            Toast.show('Review submitted successfully! Thank you for your feedback!', 'success');
-            document.getElementById('reviewSection').style.display = 'none';
-            // Reset form
-            document.getElementById('reviewTitle').value = '';
-            document.getElementById('reviewComment').value = '';
-            document.getElementById('reviewRating').value = '0';
-            document.querySelectorAll('#ratingStars i').forEach(s => {
-                s.classList.remove('fas', 'active');
-                s.classList.add('far');
-            });
         }
 
-        function viewWorkerProfile() { Toast.show('Worker profile coming soon', 'info'); }
-        function chatWithWorker() { Toast.show('Chat feature coming soon', 'info'); }
-        function rescheduleBooking() { Toast.show('Reschedule feature coming soon', 'info'); }
+        function viewWorkerProfile() {
+            if (!currentBooking?.worker_id) return Notifier.show('Worker not found', 'error');
+            window.location.href = `/worker-profile.html?id=${currentBooking.worker_id}`;
+        }
+
+        function chatWithWorker() {
+            if (!currentBooking) return;
+            const receiverId = currentBooking.worker_user_id || currentBooking.worker_id;
+            if (!receiverId) return Notifier.show('Worker chat unavailable', 'error');
+            window.location.href = `/chat.html?id=${receiverId}`;
+        }
+
+        function rescheduleBooking() {
+            if (!currentBooking) return;
+            const qs = new URLSearchParams({
+                rebook: currentBooking.id,
+                service: currentBooking.service_id || '',
+                worker: currentBooking.worker_id || '',
+                date: (currentBooking.booking_date || '').split('T')[0] || '',
+                time: currentBooking.start_time || ''
+            });
+            window.location.href = `/booking.html?${qs.toString()}`;
+        }
+
         function showCancelModal() { document.getElementById('cancelModal').classList.add('show'); }
         function closeModal(id) { document.getElementById(id).classList.remove('show'); }
-        function confirmCancellation() { Toast.show('Booking cancelled successfully', 'success'); closeModal('cancelModal'); document.getElementById('bookingStatus').textContent = 'Cancelled'; document.getElementById('bookingStatus').className = 'status-badge cancelled'; document.getElementById('reviewSection').style.display = 'none'; }
 
-        document.addEventListener('DOMContentLoaded', () => {
+        async function confirmCancellation() {
+            if (!currentBooking?.id) return;
+            const selectedReason = document.querySelector('.cancel-reason.selected')?.dataset.reason || 'Cancelled by customer';
+            try {
+                const response = await API.put(`/bookings/${currentBooking.id}/status`, {
+                    status: 'cancelled',
+                    reason: selectedReason
+                });
+                if (response.success) {
+                    Notifier.show('Booking cancelled successfully', 'success');
+                    closeModal('cancelModal');
+                    await loadBookingDetails(currentBooking.id);
+                }
+            } catch (error) {
+                Notifier.show(error.message || 'Failed to cancel booking', 'error');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!Auth.checkAuth()) {
+                Notifier.show('Please login first', 'warning');
+                setTimeout(() => { window.location.href = '/login.html'; }, 800);
+                return;
+            }
             const urlParams = new URLSearchParams(window.location.search);
-            const bookingId = urlParams.get('id') || 'BK24031501';
-            loadBookingDetails(bookingId);
+            const bookingId = urlParams.get('id');
+            if (!bookingId) {
+                Notifier.show('Missing booking id', 'error');
+                return;
+            }
             initRatingStars();
-            
-            // Populate cancel reasons
+            await loadBookingDetails(bookingId);
+
             const reasons = ['Change of plans', 'Found another professional', 'Booked by mistake', 'Professional unresponsive', 'Other reason'];
             const container = document.getElementById('cancelReasons');
             container.innerHTML = reasons.map(r => `<div class="cancel-reason" data-reason="${r}"><i class="fas fa-circle"></i><span>${r}</span></div>`).join('');
-            document.querySelectorAll('.cancel-reason').forEach(el => {
+            document.querySelectorAll('.cancel-reason').forEach((el) => {
                 el.addEventListener('click', function() {
-                    document.querySelectorAll('.cancel-reason').forEach(r => r.classList.remove('selected'));
+                    document.querySelectorAll('.cancel-reason').forEach((r) => r.classList.remove('selected'));
                     this.classList.add('selected');
                 });
             });
         });
+
+        window.viewWorkerProfile = viewWorkerProfile;
+        window.chatWithWorker = chatWithWorker;
+        window.rescheduleBooking = rescheduleBooking;
+        window.showCancelModal = showCancelModal;
+        window.closeModal = closeModal;
+        window.confirmCancellation = confirmCancellation;
+        window.submitReview = submitReview;
     </script>
 </body>
 </html>

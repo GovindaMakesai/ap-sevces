@@ -65,6 +65,7 @@ class Booking {
                    c.last_name as customer_last_name,
                    c.phone as customer_phone,
                    w.id as worker_id,
+                   u.id as worker_user_id,
                    u.first_name as worker_first_name,
                    u.last_name as worker_last_name,
                    u.phone as worker_phone,
@@ -87,6 +88,7 @@ class Booking {
         let query = `
             SELECT b.*,
                    w.id as worker_id,
+                   u.id as worker_user_id,
                    u.first_name as worker_first_name,
                    u.last_name as worker_last_name,
                    s.name as service_name,

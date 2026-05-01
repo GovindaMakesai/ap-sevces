@@ -29,6 +29,7 @@ router.get('/dashboard/stats', verifyToken, workerController.getDashboardStats);
 router.get('/dashboard', verifyToken, workerController.getDashboard);
 router.get('/earnings', verifyToken, workerController.getEarnings);  // ← BEFORE /:id
 router.put('/profile', verifyToken, workerController.updateWorkerProfile);
+router.put('/schedule', verifyToken, workerController.updateWorkerSchedule);
 router.get('/user/:userId', workerController.getWorkerByUserId);
 router.get('/:id', workerController.getWorkerProfile);
 

@@ -1353,7 +1353,10 @@
 
             try {
                 const response = await API.get(`/services/${bookingData.serviceId}`);
-                const service = response.data;
+                const service = response?.data?.id ? response.data : (response?.data?.data || response);
+                if (!service || !service.id) {
+                    throw new Error('Invalid service response');
+                }
                 
                 bookingData.service = service;
                 bookingData.serviceName = service.name;
@@ -1436,7 +1439,7 @@
 
         // Display worker selection dropdown
         function displayWorkerSelection(workers) {
-            const serviceSelector = document.querySelector('.service-selector');
+            const serviceSelector = document.querySelector('.service-selector') || document.getElementById('serviceOptions')?.parentElement;
             if (!serviceSelector) return;
             
             // Remove existing worker select if any
@@ -1832,7 +1835,7 @@
                 
                 const bookingPayload = {
                     worker_id: bookingData.workerId,
-                    service_id: bookingData.service.id,
+                    service_id: bookingData.service?.id || bookingData.serviceId,
                     booking_date: bookingData.date,
                     start_time: formattedTime,
                     duration_hours: bookingData.serviceDuration || 1,

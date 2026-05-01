@@ -1061,11 +1061,13 @@
             
             // Check for chat ID in URL
             const urlParams = new URLSearchParams(window.location.search);
-            const chatId = urlParams.get('id');
+            const chatId = urlParams.get('id') || urlParams.get('worker');
             if (chatId) {
-                const existingConversation = useChatStore.getState().conversations.find((conv) => String(conv.id) === String(chatId));
+                const existingConversation = useChatStore.getState().conversations.find((conv) =>
+                    String(conv.id) === String(chatId) || String(conv.otherUserId) === String(chatId)
+                );
                 if (existingConversation) {
-                    await loadChat(chatId);
+                    await loadChat(existingConversation.id);
                 } else {
                     try {
                         const response = await axiosClient.post('/conversations', { receiverId: chatId });

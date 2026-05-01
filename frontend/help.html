@@ -625,6 +625,9 @@
     <script src="app.js"></script>
     
     <script>
+        let activeCategory = 'all';
+        const faqCategoryMap = ['bookings', 'bookings', 'workers', 'payments', 'workers', 'account'];
+
         function toggleFaq(element) {
             element.classList.toggle('active');
             const answer = element.nextElementSibling;
@@ -639,31 +642,70 @@
             });
         }
 
+        function applyFaqFilters() {
+            const searchTerm = document.getElementById('helpSearch').value.trim().toLowerCase();
+            const faqItems = Array.from(document.querySelectorAll('.faq-item'));
+            let visibleCount = 0;
+
+            faqItems.forEach((item) => {
+                const category = item.dataset.category || 'all';
+                const haystack = item.textContent.toLowerCase();
+                const categoryMatch = activeCategory === 'all' || category === activeCategory;
+                const searchMatch = !searchTerm || haystack.includes(searchTerm);
+                const visible = categoryMatch && searchMatch;
+                item.style.display = visible ? '' : 'none';
+                if (visible) visibleCount += 1;
+            });
+
+            if (searchTerm.length > 2) {
+                Toast.show(visibleCount > 0 ? `Found ${visibleCount} result(s)` : 'No matching help articles found', visibleCount > 0 ? 'success' : 'warning');
+            }
+        }
+
         function filterByCategory(category) {
-            Toast.show(`Showing articles in: ${category}`, 'info');
-            // In production, filter FAQ items
+            activeCategory = category;
+            applyFaqFilters();
+            Toast.show(`Showing ${category} help articles`, 'info');
         }
 
         function startLiveChat() {
-            Toast.show('Live chat coming soon!', 'info');
+            if (!Auth.checkAuth()) {
+                window.location.href = '/login.html?redirect=/chat.html';
+                return;
+            }
+            window.location.href = '/chat.html';
         }
 
         function viewGuide(guide) {
-            Toast.show(`Opening guide: ${guide}`, 'info');
-            // In production, navigate to guide page
+            const queryByGuide = {
+                'getting-started': 'book',
+                'safety-tips': 'safe',
+                'payment-security': 'payment'
+            };
+            const query = queryByGuide[guide] || '';
+            document.getElementById('helpSearch').value = query;
+            activeCategory = guide === 'payment-security' ? 'payments' : 'all';
+            applyFaqFilters();
+            document.querySelector('.faq-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
 
         function contactSupport() {
-            window.location.href = '/contact.html';
+            const user = Auth.getUser();
+            const subject = encodeURIComponent('AP Services Support Request');
+            const body = encodeURIComponent(`Hi Support Team,\n\nI need help with:\n\nUser: ${user?.email || 'Guest'}\n\nThanks.`);
+            window.location.href = `mailto:support@apservices.com?subject=${subject}&body=${body}`;
         }
 
         // Search functionality
         document.getElementById('helpSearch').addEventListener('input', function(e) {
-            const searchTerm = e.target.value.toLowerCase();
-            if (searchTerm.length > 2) {
-                Toast.show(`Searching for: ${searchTerm}`, 'info');
-                // In production, filter FAQ items
-            }
+            applyFaqFilters();
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('.faq-item').forEach((item, index) => {
+                item.dataset.category = faqCategoryMap[index] || 'account';
+            });
+            applyFaqFilters();
         });
     </script>
 </body>

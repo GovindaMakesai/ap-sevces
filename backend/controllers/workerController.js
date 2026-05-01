@@ -617,6 +617,56 @@ exports.updateWorkerProfile = async (req, res) => {
         });
     }
 };
+
+// @desc    Update worker weekly schedule
+// @route   PUT /api/workers/schedule
+// @access  Private (Worker only)
+exports.updateWorkerSchedule = async (req, res) => {
+    try {
+        const userId = req.userId;
+        const { schedule } = req.body;
+
+        if (!schedule || typeof schedule !== 'object') {
+            return res.status(400).json({
+                success: false,
+                message: 'Valid schedule object is required'
+            });
+        }
+
+        const worker = await Worker.findByUserId(userId);
+        if (!worker) {
+            return res.status(404).json({
+                success: false,
+                message: 'Worker profile not found'
+            });
+        }
+
+        await db.query(`
+            ALTER TABLE workers
+            ADD COLUMN IF NOT EXISTS work_schedule JSONB DEFAULT '{}'::jsonb
+        `);
+
+        const result = await db.query(`
+            UPDATE workers
+            SET work_schedule = $1::jsonb,
+                updated_at = NOW()
+            WHERE id = $2
+            RETURNING id, work_schedule
+        `, [JSON.stringify(schedule), worker.id]);
+
+        res.json({
+            success: true,
+            message: 'Schedule updated successfully',
+            data: result.rows[0]
+        });
+    } catch (error) {
+        console.error('❌ Update schedule error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to update schedule'
+        });
+    }
+};
 module.exports = {
     registerAsWorker: exports.registerAsWorker,
     getAllWorkers: exports.getAllWorkers,
@@ -628,5 +678,6 @@ module.exports = {
     getDashboardStats: exports.getDashboardStats,
     getEarnings: exports.getEarnings,
     updateWorkerProfile: exports.updateWorkerProfile,
+    updateWorkerSchedule: exports.updateWorkerSchedule,
     getWorkerByUserId: exports.getWorkerByUserId
 };

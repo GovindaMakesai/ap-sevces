@@ -34,6 +34,13 @@ const missingProviderHandler = (provider, envKeys) => (req, res) => {
 const isGoogleConfigured = Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 const isGithubConfigured = Boolean(process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET);
 const isFacebookConfigured = Boolean(process.env.FACEBOOK_APP_ID && process.env.FACEBOOK_APP_SECRET);
+const normalizeOAuthRole = (value) => (['customer', 'worker', 'admin'].includes(value) ? value : 'customer');
+const buildOAuthState = (req) => {
+    const role = normalizeOAuthRole(String(req.query.role || 'customer').toLowerCase());
+    const appRedirect = typeof req.query.app_redirect === 'string' ? req.query.app_redirect : '';
+    const payload = JSON.stringify({ role, appRedirect });
+    return Buffer.from(payload, 'utf8').toString('base64url');
+};
 
 if (isGoogleConfigured && !passport._strategy('google')) {
     passport.use(new GoogleStrategy(
@@ -119,7 +126,13 @@ router.post('/register', validateRegistration, checkValidation, authController.r
 router.post('/login', validateLogin, checkValidation, authController.login);
 router.get('/me', verifyToken, authController.getMe);
 if (isGoogleConfigured) {
-    router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'], session: false }));
+    router.get('/google', (req, res, next) => {
+        passport.authenticate('google', {
+            scope: ['profile', 'email'],
+            session: false,
+            state: buildOAuthState(req)
+        })(req, res, next);
+    });
     router.get(
         '/google/callback',
         ensureGoogleCode,
@@ -140,7 +153,13 @@ if (isGoogleConfigured) {
 }
 
 if (isGithubConfigured) {
-    router.get('/github', passport.authenticate('github', { scope: ['user:email'], session: false }));
+    router.get('/github', (req, res, next) => {
+        passport.authenticate('github', {
+            scope: ['user:email'],
+            session: false,
+            state: buildOAuthState(req)
+        })(req, res, next);
+    });
     router.get(
         '/github/callback',
         passport.authenticate('github', { session: false, failureRedirect: oauthFailureRedirect }),
@@ -154,7 +173,8 @@ if (isGithubConfigured) {
 
 if (isFacebookConfigured) {
     router.get('/facebook', (req, res) => {
-        const authUrl = `${facebookAuthorizationBase}?client_id=${encodeURIComponent(process.env.FACEBOOK_APP_ID)}&redirect_uri=${encodeURIComponent(facebookCallbackURL)}&scope=email&response_type=code`;
+        const state = buildOAuthState(req);
+        const authUrl = `${facebookAuthorizationBase}?client_id=${encodeURIComponent(process.env.FACEBOOK_APP_ID)}&redirect_uri=${encodeURIComponent(facebookCallbackURL)}&scope=email&response_type=code&state=${encodeURIComponent(state)}`;
         return res.redirect(authUrl);
     });
     router.get(

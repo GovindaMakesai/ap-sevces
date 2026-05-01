@@ -122,6 +122,14 @@ exports.sendMessage = async (req, res) => {
             });
         }
 
+        const receiverUser = await User.findById(String(receiverId));
+        if (!receiverUser) {
+            return res.status(404).json({
+                success: false,
+                message: 'Receiver user not found'
+            });
+        }
+
         const participants = normalizeParticipantIds(senderId, receiverId);
         let conversation = await Conversation.findOne({ participants });
 

@@ -100,12 +100,36 @@ const buildFacebookProfileData = (profile) => {
     return { email, name: displayName || 'Facebook User', first_name, last_name };
 };
 
+const parseOAuthState = (stateValue) => {
+    if (!stateValue) return { role: 'customer', appRedirect: '' };
+    try {
+        const decoded = Buffer.from(String(stateValue), 'base64url').toString('utf8');
+        const parsed = JSON.parse(decoded);
+        return {
+            role: String(parsed.role || 'customer').toLowerCase(),
+            appRedirect: typeof parsed.appRedirect === 'string' ? parsed.appRedirect : ''
+        };
+    } catch (_err) {
+        return { role: String(stateValue).toLowerCase(), appRedirect: '' };
+    }
+};
+
+const normalizeRequestedRole = (roleValue) => {
+    const role = String(roleValue || '').toLowerCase();
+    if (role === 'worker' || role === 'admin' || role === 'customer') return role;
+    return 'customer';
+};
+
 const generateOAuthPassword = () => {
     return `google_${crypto.randomBytes(24).toString('hex')}`;
 };
 
 const getFrontendBaseUrl = () => process.env.FRONTEND_URL || 'https://ap-sevces.vercel.app';
-const buildOAuthSuccessUrl = (token) => {
+const buildOAuthSuccessUrl = (token, appRedirect = '') => {
+    if (appRedirect) {
+        const separator = appRedirect.includes('?') ? '&' : '?';
+        return `${appRedirect}${separator}token=${encodeURIComponent(token)}`;
+    }
     const absoluteSuccessUrl = process.env.OAUTH_SUCCESS_URL;
     // Vercel static site has no /dashboard route; login-success.html stores token and routes by role.
     const successPath = process.env.OAUTH_SUCCESS_PATH || '/login-success.html';
@@ -377,6 +401,8 @@ const googleCallback = async (req, res) => {
         const provider = 'google';
         const providerId = profile.id;
         const { email, displayName, first_name, last_name } = buildGoogleProfileData(profile);
+        const oauthState = parseOAuthState(req.query.state);
+        const requestedRole = normalizeRequestedRole(oauthState.role);
 
         if (!email) {
             return res.status(400).json({
@@ -396,7 +422,7 @@ const googleCallback = async (req, res) => {
                 password: randomPassword,
                 first_name,
                 last_name,
-                role: 'customer'
+                role: requestedRole
             });
             await User.setProvider(created.id, provider, providerId, displayName);
             user = await User.findById(created.id);
@@ -406,7 +432,7 @@ const googleCallback = async (req, res) => {
         }
 
         const token = generateToken(user.id, user.role);
-        return res.redirect(buildOAuthSuccessUrl(token));
+        return res.redirect(buildOAuthSuccessUrl(token, oauthState.appRedirect));
     } catch (error) {
         console.error('❌ Google callback error:', error);
         return res.status(500).json({
@@ -431,6 +457,8 @@ const githubCallback = async (req, res) => {
         const provider = 'github';
         const providerId = profile.id;
         const { email, name, first_name, last_name } = buildGithubProfileData(profile);
+        const oauthState = parseOAuthState(req.query.state);
+        const requestedRole = normalizeRequestedRole(oauthState.role);
 
         if (!email) {
             return res.status(400).json({
@@ -450,7 +478,7 @@ const githubCallback = async (req, res) => {
                 password: randomPassword,
                 first_name,
                 last_name,
-                role: 'customer'
+                role: requestedRole
             });
             await User.setProvider(created.id, provider, providerId, name);
             user = await User.findById(created.id);
@@ -460,7 +488,7 @@ const githubCallback = async (req, res) => {
         }
 
         const token = generateToken(user.id, user.role);
-        return res.redirect(buildOAuthSuccessUrl(token));
+        return res.redirect(buildOAuthSuccessUrl(token, oauthState.appRedirect));
     } catch (error) {
         console.error('❌ GitHub callback error:', error);
         return res.status(500).json({
@@ -485,6 +513,8 @@ const facebookCallback = async (req, res) => {
         const provider = 'facebook';
         const providerId = profile.id;
         const { email, name, first_name, last_name } = buildFacebookProfileData(profile);
+        const oauthState = parseOAuthState(req.query.state);
+        const requestedRole = normalizeRequestedRole(oauthState.role);
 
         if (!email) {
             return res.status(400).json({
@@ -504,7 +534,7 @@ const facebookCallback = async (req, res) => {
                 password: randomPassword,
                 first_name,
                 last_name,
-                role: 'customer'
+                role: requestedRole
             });
             await User.setProvider(created.id, provider, providerId, name);
             user = await User.findById(created.id);
@@ -514,7 +544,7 @@ const facebookCallback = async (req, res) => {
         }
 
         const token = generateToken(user.id, user.role);
-        return res.redirect(buildOAuthSuccessUrl(token));
+        return res.redirect(buildOAuthSuccessUrl(token, oauthState.appRedirect));
     } catch (error) {
         console.error('❌ Facebook callback error:', error);
         return res.status(500).json({

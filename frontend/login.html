@@ -865,7 +865,12 @@ document.addEventListener('DOMContentLoaded', function() {
         : 'https://ap-sevces.onrender.com';
 
     function redirectToOAuth(provider) {
-        const authUrl = `${AUTH_BASE_URL}/auth/${provider}`;
+        const roleFromUrl = new URLSearchParams(window.location.search).get('role') || 'customer';
+        const appRedirect =
+            new URLSearchParams(window.location.search).get('app_redirect') ||
+            localStorage.getItem('app_redirect') ||
+            '';
+        const authUrl = `${AUTH_BASE_URL}/auth/${provider}?role=${encodeURIComponent(roleFromUrl)}${appRedirect ? `&app_redirect=${encodeURIComponent(appRedirect)}` : ''}`;
         const isStandalone =
             window.matchMedia('(display-mode: standalone)').matches ||
             window.navigator.standalone === true;

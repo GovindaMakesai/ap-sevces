@@ -1096,8 +1096,28 @@
             });
 
             document.getElementById('serviceSelect').addEventListener('change', e => { selectedService = e.target.value; updatePrice(); });
-            document.getElementById('bookNowBtn').addEventListener('click', () => { if(!selectedDate || !selectedTime || !selectedService) Toast.show('Please select date, time and service'); else Toast.show('Proceeding to booking...'); });
-            document.getElementById('contactBtn').addEventListener('click', () => Toast.show('Chat feature coming soon'));
+            document.getElementById('bookNowBtn').addEventListener('click', () => {
+                if(!selectedDate || !selectedTime || !selectedService) {
+                    Toast.show('Please select date, time and service');
+                    return;
+                }
+                const params = new URLSearchParams({
+                    worker: workerId,
+                    service: selectedService,
+                    date: selectedDate,
+                    time: selectedTime
+                });
+                window.location.href = `/booking.html?${params.toString()}`;
+            });
+            document.getElementById('contactBtn').addEventListener('click', async () => {
+                try {
+                    const response = await API.get(`/workers/${workerId}`);
+                    const receiverId = response?.data?.user_id || workerId;
+                    window.location.href = `/chat.html?id=${receiverId}`;
+                } catch (_err) {
+                    window.location.href = `/chat.html?id=${workerId}`;
+                }
+            });
             document.getElementById('loadMoreReviewsBtn').addEventListener('click', () => { currentReviewPage++; loadReviews(currentReviewPage); });
             document.querySelector('.modal-close').addEventListener('click', () => { document.getElementById('imageModal').classList.remove('show'); document.body.style.overflow = 'auto'; });
             document.getElementById('imageModal').addEventListener('click', (e) => { if(e.target === document.getElementById('imageModal')) { document.getElementById('imageModal').classList.remove('show'); document.body.style.overflow = 'auto'; } });

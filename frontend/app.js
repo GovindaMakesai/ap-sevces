@@ -819,6 +819,11 @@ const PWA = {
 // ==================== INITIALIZE ====================
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('✅ DOM loaded');
+    const launchParams = new URLSearchParams(window.location.search);
+    const appRedirectFromQuery = launchParams.get('app_redirect');
+    if (appRedirectFromQuery) {
+        localStorage.setItem('app_redirect', appRedirectFromQuery);
+    }
     Auth.checkAuth();
     if (AppState.token) {
         await Auth.refreshSession();

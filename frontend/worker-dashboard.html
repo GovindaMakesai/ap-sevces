@@ -627,6 +627,10 @@
             <div class="nav-content">
                 <a href="/" class="logo">AP<span>Services</span></a>
                 <div class="nav-links"></div>
+                <div class="notification-bell-wrapper" title="Notifications">
+                    <i class="fas fa-bell"></i>
+                    <span class="notification-badge" id="notificationBadge" style="display:none;">0</span>
+                </div>
                 <button class="mobile-menu-btn"><i class="fas fa-bars"></i></button>
             </div>
         </div>
@@ -1042,7 +1046,7 @@ async function loadNotifications(append = false) {
         
         if (response.success) {
             const notifications = response.data.notifications || response.data || [];
-            const unreadCount = response.unreadCount || 0;
+            const unreadCount = response.unreadCount || response.data?.unreadCount || 0;
             const container = document.getElementById('notificationsList');
             
             if (!append) {
@@ -1252,7 +1256,7 @@ async function loadUnreadCount() {
     try {
         const response = await API.get('/notifications/unread-count');
         if (response.success) {
-            updateUnreadBadge(response.count || 0);
+            updateUnreadBadge(response.unreadCount || response.data?.unreadCount || response.count || 0);
         }
     } catch (error) {
         console.error('Failed to load unread count:', error);
@@ -1608,8 +1612,24 @@ async function loadReviews() {
     }
 
     // Save schedule
-    window.saveSchedule = function() {
-        Toast.show('Schedule saved successfully!', 'success');
+    window.saveSchedule = async function() {
+        const schedule = {
+            monday: { start: document.getElementById('monStart').value, end: document.getElementById('monEnd').value, off: false },
+            tuesday: { start: document.getElementById('tueStart').value, end: document.getElementById('tueEnd').value, off: false },
+            wednesday: { start: document.getElementById('wedStart').value, end: document.getElementById('wedEnd').value, off: false },
+            thursday: { start: document.getElementById('thuStart').value, end: document.getElementById('thuEnd').value, off: false },
+            friday: { start: document.getElementById('friStart').value, end: document.getElementById('friEnd').value, off: false },
+            saturday: { start: document.getElementById('satStart').value, end: document.getElementById('satEnd').value, off: false },
+            sunday: { off: document.getElementById('sunOff').checked }
+        };
+        try {
+            const response = await API.put('/workers/schedule', { schedule });
+            if (response.success) {
+                Toast.show('Schedule saved successfully!', 'success');
+            }
+        } catch (error) {
+            Toast.show(error.message || 'Failed to save schedule', 'error');
+        }
     };
 
     // Request withdrawal
