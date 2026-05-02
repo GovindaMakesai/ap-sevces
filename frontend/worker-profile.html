@@ -843,7 +843,7 @@
                     </div>
                     <div class="rating-large">
                         <i class="fas fa-star"></i>
-                        <span><span class="rating-number" id="workerRating">4.9</span> <span class="rating-count">(328 reviews)</span></span>
+                        <span><span class="rating-number" id="workerRating">4.9</span> <span class="rating-count" id="workerRatingCount">(0 reviews)</span></span>
                     </div>
                 </div>
             </div>
@@ -913,10 +913,7 @@
                             <span class="unit">/hour</span>
                         </div>
                         <select class="service-select" id="serviceSelect">
-                            <option value="">Select Service</option>
-                            <option value="plumbing">Plumbing Repair</option>
-                            <option value="installation">Pipe Installation</option>
-                            <option value="emergency">Emergency Service (+₹200)</option>
+                            <option value="">Loading services…</option>
                         </select>
                         <div class="date-selection">
                             <label><i class="fas fa-calendar"></i> Select Date</label>
@@ -962,8 +959,14 @@
     <script src="app.js"></script>
 
     <script>
-        const Toast = { show: (msg) => { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3000); } };
-        
+        const WORKER_MEDIA_BASE = window.CONFIG?.BACKEND_URL || 'https://ap-sevces.onrender.com';
+        function workerMediaUrl(path) {
+            if (!path) return '';
+            if (String(path).startsWith('http')) return path;
+            const clean = String(path).startsWith('/') ? path : `/${path}`;
+            return `${WORKER_MEDIA_BASE}${clean}`;
+        }
+
         let workerId = null;
         let workerData = null;
         let selectedDate = null, selectedTime = null, selectedService = null;
@@ -995,18 +998,36 @@
                 skills: Array.isArray(payload?.skills) ? payload.skills : [],
                 services: Array.isArray(payload?.services) ? payload.services : [],
                 portfolio: Array.isArray(payload?.portfolio) ? payload.portfolio : [],
-                avatarUrl: payload?.profile_photo_url || payload?.avatar_url || ''
+                avatarUrl: workerMediaUrl(payload?.profile_photo_url || payload?.profile_pic || payload?.avatar_url || '')
             };
+        }
+
+        function populateServiceSelect() {
+            const sel = document.getElementById('serviceSelect');
+            if (!sel || !workerData) return;
+            const svcs = workerData.services || [];
+            if (!svcs.length) {
+                sel.innerHTML = '<option value="">No services linked to this profile yet</option>';
+                return;
+            }
+            sel.innerHTML = '<option value="">Select Service</option>' +
+                svcs.map((s) => {
+                    const price = s.custom_rate != null && s.custom_rate !== '' ? s.custom_rate : (s.base_price ?? workerData.hourlyRate ?? '');
+                    return `<option value="${s.id}">${s.name || 'Service'} — ₹${price}</option>`;
+                }).join('');
         }
 
         function renderProfile() {
             document.getElementById('workerFullName').textContent = workerData.fullName;
             document.getElementById('workerName').textContent = workerData.fullName;
-            document.getElementById('workerCategory').innerHTML = `<i class="fas fa-wrench"></i> ${workerData.category} Expert`;
-            document.getElementById('workerExperience').innerHTML = `<i class="fas fa-briefcase"></i> ${workerData.experience} years`;
-            document.getElementById('workerRating').textContent = workerData.rating;
-            document.getElementById('workerBio').textContent = workerData.bio;
-            document.getElementById('hourlyRate').textContent = `₹${workerData.hourlyRate}`;
+            document.getElementById('workerCategory').innerHTML = `<i class="fas fa-briefcase"></i> ${workerData.category}`;
+            document.getElementById('workerExperience').innerHTML = `<i class="fas fa-briefcase"></i> ${workerData.experience} years experience`;
+            document.getElementById('workerRating').textContent = workerData.rating ? Number(workerData.rating).toFixed(1) : 'New';
+            const rc = document.getElementById('workerRatingCount');
+            if (rc) rc.textContent = `(${workerData.totalReviews || 0} reviews)`;
+            document.getElementById('workerBio').textContent = workerData.bio || 'This professional has not added a bio yet.';
+            const rate = workerData.hourlyRate || ((workerData.services && workerData.services[0] && (workerData.services[0].base_price || workerData.services[0].custom_rate)) || null) || 499;
+            document.getElementById('hourlyRate').textContent = `₹${rate}`;
             const avatarEl = document.getElementById('profileAvatar');
             if (workerData.avatarUrl) {
                 avatarEl.src = workerData.avatarUrl;
@@ -1042,10 +1063,11 @@
             document.getElementById('portfolioGrid').innerHTML = workerData.portfolio.length
                 ? workerData.portfolio.map(img => `<div class="portfolio-item" onclick="openImageModal('${img}')"><img src="${img}" alt="Work sample" onerror="this.closest('.portfolio-item').remove()"><div class="portfolio-overlay"><i class="fas fa-search-plus"></i></div></div>`).join('')
                 : '<p>No portfolio images available.</p>';
+            populateServiceSelect();
         }
 
         function updateRatingSummary() {
-            const avg = workerData.rating;
+            const avg = Number(workerData.rating) || 0;
             document.getElementById('avgRating').textContent = avg.toFixed(1);
             document.getElementById('totalReviews').textContent = `${workerData.totalReviews} reviews`;
             const starsHtml = Array(5).fill().map((_, i) => `<i class="fas fa-star"></i>`).join('');
@@ -1073,10 +1095,12 @@
         async function loadReviews(page = 1) {
             try {
                 const response = await API.get(`/reviews/worker/${workerId}?page=${page}&limit=5`);
-                const data = response?.data || response?.data?.data || {};
+                const data = response?.data && response.data.reviews !== undefined ? response.data : {};
                 const reviews = data.reviews || [];
                 displayReviews(reviews);
-                hasMoreReviews = page < (data.pagination?.totalPages || 1);
+                const lim = Number(data.pagination?.limit) || 5;
+                const total = Number(data.pagination?.total) || reviews.length;
+                hasMoreReviews = page * lim < total;
                 document.getElementById('loadMoreReviewsBtn').style.display = hasMoreReviews ? 'block' : 'none';
             } catch (_error) {
                 displayReviews([]);
@@ -1110,8 +1134,15 @@
         };
 
         function updatePrice() {
+            const sel = document.getElementById('serviceSelect');
             let base = workerData?.hourlyRate || 499;
-            let fee = Math.round(base * 0.1);
+            if (sel && sel.value && workerData?.services?.length) {
+                const s = workerData.services.find((x) => String(x.id) === String(sel.value));
+                if (s) {
+                    base = Number(s.custom_rate != null && s.custom_rate !== '' ? s.custom_rate : (s.base_price || base)) || base;
+                }
+            }
+            const fee = Math.round(base * 0.1);
             document.getElementById('serviceCharge').textContent = `₹${base}`;
             document.getElementById('platformFee').textContent = `₹${fee}`;
             document.getElementById('totalAmount').textContent = `₹${base + fee}`;
@@ -1120,12 +1151,13 @@
         async function loadWorkerProfile() {
             try {
                 const response = await API.get(`/workers/${workerId}`);
-                const payload = response?.data || response?.data?.data || response;
-                if (!payload || payload.success === false) throw new Error('Worker profile unavailable');
+                const payload = response?.data;
+                if (!payload || response.success === false || (typeof payload === 'object' && payload.success === false)) {
+                    throw new Error('Worker profile unavailable');
+                }
                 workerData = normalizeWorkerData(payload);
                 renderProfile();
                 updateRatingSummary();
-                await loadReviews(1);
                 updatePrice();
             } catch (_err) {
                 Toast.show('Professional profile unavailable', 'warning');
@@ -1135,6 +1167,12 @@
                 document.getElementById('bookNowBtn').disabled = true;
                 document.getElementById('contactBtn').disabled = true;
                 document.getElementById('reviewsList').innerHTML = '<p>Reviews unavailable.</p>';
+                return;
+            }
+            try {
+                await loadReviews(1);
+            } catch (_e) {
+                displayReviews([]);
             }
         }
 

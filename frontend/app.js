@@ -571,13 +571,22 @@ const UI = {
     updateNavbar() {
         const navLinks = document.querySelector('.nav-links');
         if (!navLinks) return;
-        
+        // Homepage builds its own nav (search + demo dropdown + auth) in index.html
+        if (document.querySelector('.nav-content .search-bar')) {
+            return;
+        }
+
         const user = Auth.getUser();
         
         if (user) {
+            const role = user.role || 'customer';
+            const proLink = role === 'customer'
+                ? '<a href="/worker-dashboard.html">Become a Pro</a>'
+                : '<a href="/customer-dashboard.html">My bookings</a>';
             navLinks.innerHTML = `
                 <a href="/services.html">Services</a>
-                <a href="/${user.role}-dashboard.html">Dashboard</a>
+                ${proLink}
+                <a href="/${role}-dashboard.html">Dashboard</a>
                 <span class="user-name">Hi, ${user.first_name}</span>
                 <button class="btn-outline" onclick="Auth.logout()">Logout</button>
             `;

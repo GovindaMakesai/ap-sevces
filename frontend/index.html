@@ -1556,12 +1556,44 @@
 
         const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+        function refreshHomeNavbarAuth() {
+            const navLinks = document.querySelector('.nav-links');
+            if (!navLinks || typeof Auth === 'undefined') return;
+            const demoEl = navLinks.querySelector('.dropdown');
+            const demoHtml = demoEl ? demoEl.outerHTML : '';
+            const user = Auth.getUser();
+            if (user) {
+                const role = user.role || 'customer';
+                const proLink = role === 'customer'
+                    ? '<a href="/worker-dashboard.html">Become a Pro</a>'
+                    : '<a href="/customer-dashboard.html">My bookings</a>';
+                navLinks.innerHTML = `
+                    <a href="/services.html">Services</a>
+                    ${proLink}
+                    <a href="/${role}-dashboard.html">Dashboard</a>
+                    <span class="user-name">Hi, ${user.first_name}</span>
+                    <button type="button" class="btn-outline" onclick="Auth.logout()">Logout</button>
+                    ${demoHtml}
+                `;
+            } else {
+                navLinks.innerHTML = `
+                    <a href="/services.html">Services</a>
+                    <a href="/worker-dashboard.html">Become a Pro</a>
+                    ${demoHtml}
+                    <a href="/login.html" class="btn-outline">Login</a>
+                    <a href="/register.html" class="btn-primary">Sign Up</a>
+                `;
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', async function() {
             console.log('✅ Homepage loaded');
+            refreshHomeNavbarAuth();
             await loadCategories();
             await loadFeaturedPros();
             await loadTestimonials();
-            
+            refreshHomeNavbarAuth();
+
             // Search functionality
             const searchBtn = document.getElementById('searchBtn');
             const heroSearch = document.getElementById('heroSearch');

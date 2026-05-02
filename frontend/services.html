@@ -443,7 +443,7 @@ function getImageUrl(path) {
 
         // View service details
         window.viewService = function(serviceId) {
-            window.location.href = `/service-details.html?id=${serviceId}`;
+            window.location.href = `/booking.html?service=${encodeURIComponent(serviceId)}`;
         };
 
         // Book service

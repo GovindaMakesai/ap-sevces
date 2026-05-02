@@ -720,6 +720,10 @@
                             <h2><i class="fas fa-chart-line"></i> Performance Overview</h2>
                         </div>
 
+                        <div class="notice-banner" style="background: var(--primary-50); border: 1px solid var(--primary-200); border-radius: var(--radius-lg); padding: 1rem 1.25rem; margin-bottom: var(--spacing-lg); color: var(--gray-800); line-height: 1.5;">
+                            <strong>Two different dashboards:</strong> This page shows <em>jobs where you are the professional</em> (assigned to you). If you booked someone else as a customer, open <a href="/customer-dashboard.html" style="color: var(--primary-700); font-weight: 600;">My bookings</a> from the top menu. Professionals can be customers too—that is normal.
+                        </div>
+
                         <div class="stats-grid">
                             <div class="stat-card">
                                 <h4>Total Earnings</h4>
@@ -1312,8 +1316,10 @@ async function loadUnreadCount() {
     async function loadJobs(filter = 'all') {
         try {
             const response = await API.get(`/bookings/worker?status=${filter === 'all' ? '' : filter}`);
-            const bookingsRaw = response?.data?.bookings || response?.data || [];
-            const bookings = Array.isArray(bookingsRaw) ? bookingsRaw : [];
+            const raw = response?.data;
+            const bookings = Array.isArray(raw)
+                ? raw
+                : (Array.isArray(raw?.bookings) ? raw.bookings : (Array.isArray(response?.bookings) ? response.bookings : []));
             displayJobs(bookings);
             updateStats(bookings);
             

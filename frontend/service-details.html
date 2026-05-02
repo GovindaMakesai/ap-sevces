@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Redirecting…</title>
+    <script>
+        (function () {
+            var id = new URLSearchParams(window.location.search).get('id');
+            if (id) {
+                window.location.replace('/booking.html?service=' + encodeURIComponent(id));
+            } else {
+                window.location.replace('/services.html');
+            }
+        })();
+    </script>
+</head>
+<body>
+    <p style="font-family: system-ui; padding: 2rem;">Redirecting to booking…</p>
+</body>
+</html>

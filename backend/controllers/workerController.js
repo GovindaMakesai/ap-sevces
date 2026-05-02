@@ -380,10 +380,20 @@ exports.getDashboard = async (req, res) => {
             LIMIT 5
         `, [worker.id]);
 
+        const row = stats.rows[0] || {};
+        const statsOut = {
+            pending_jobs: parseInt(row.pending_jobs, 10) || 0,
+            completed_jobs: parseInt(row.completed_jobs, 10) || 0,
+            pending_bookings: parseInt(row.pending_jobs, 10) || 0,
+            completed_bookings: parseInt(row.completed_jobs, 10) || 0,
+            total_earnings: parseFloat(row.total_earnings) || 0,
+            avg_rating: parseFloat(row.avg_rating) || 0
+        };
+
         res.json({
             success: true,
             data: {
-                stats: stats.rows[0],
+                stats: statsOut,
                 recent_bookings: recentBookings.rows,
                 profile: worker
             }
@@ -464,10 +474,23 @@ exports.getDashboardStats = async (req, res) => {
             LIMIT 5
         `, [worker.id]);
 
+        const row = stats.rows[0] || {};
+        const statsOut = {
+            pending_jobs: parseInt(row.pending_jobs, 10) || 0,
+            accepted_jobs: parseInt(row.accepted_jobs, 10) || 0,
+            completed_jobs: parseInt(row.completed_jobs, 10) || 0,
+            pending_bookings: parseInt(row.pending_jobs, 10) || 0,
+            accepted_bookings: parseInt(row.accepted_jobs, 10) || 0,
+            completed_bookings: parseInt(row.completed_jobs, 10) || 0,
+            total_earnings: parseFloat(row.total_earnings) || 0,
+            avg_rating: parseFloat(row.avg_rating) || 0,
+            total_reviews: parseInt(row.total_reviews, 10) || 0
+        };
+
         res.json({
             success: true,
             data: {
-                stats: stats.rows[0],
+                stats: statsOut,
                 recent_bookings: recentBookings.rows,
                 profile: worker
             }

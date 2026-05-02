@@ -411,8 +411,20 @@
                 </div>
             </div>
 
+            <!-- Visible articles for selected category (toast alone was confusing) -->
+            <div id="helpTopicPanel" class="faq-section" style="margin-bottom: var(--spacing-xl);">
+                <h2 class="section-title">
+                    <i class="fas fa-book-open"></i>
+                    <span id="helpTopicTitle">Help topics</span>
+                </h2>
+                <p id="helpTopicIntro" style="color: var(--gray-600); margin-bottom: var(--spacing-md);">
+                    Choose a category above. Quick guides appear here and related questions stay visible in the FAQ below.
+                </p>
+                <div id="helpTopicBody" style="color: var(--gray-700); line-height: 1.7;"></div>
+            </div>
+
             <!-- FAQ Section -->
-            <div class="faq-section">
+            <div class="faq-section" id="helpFaqSection">
                 <h2 class="section-title">
                     <i class="fas fa-question-circle"></i>
                     Frequently Asked Questions
@@ -628,6 +640,23 @@
         let activeCategory = 'all';
         const faqCategoryMap = ['bookings', 'bookings', 'workers', 'payments', 'workers', 'account'];
 
+        const categoryArticlesHtml = {
+            all: '<p>Select <strong>Bookings</strong>, <strong>Payments</strong>, <strong>Account</strong>, or <strong>Professionals</strong> above to see focused tips.</p>',
+            bookings: '<ul style="margin:0;padding-left:1.25rem;"><li>Book from <a href="/services.html">Services</a>, pick a professional, then choose date and address.</li><li>Track status under <a href="/customer-dashboard.html">Customer Dashboard</a>.</li><li>Cancel from your booking card when plans change (see FAQ).</li></ul>',
+            payments: '<ul style="margin:0;padding-left:1.25rem;"><li>Supported methods include card, UPI, net banking, and cash on delivery where enabled.</li><li>Platform fee and GST are shown before you confirm.</li><li>For billing issues, use <strong>Contact Support</strong> below.</li></ul>',
+            account: '<ul style="margin:0;padding-left:1.25rem;"><li>Update your profile from your dashboard settings.</li><li>Use <strong>Logout</strong> on shared devices.</li><li>Workers and customers use the same login; your role sets which dashboard opens.</li></ul>',
+            workers: '<ul style="margin:0;padding-left:1.25rem;"><li><strong>Become a Pro</strong> registers your worker profile; an admin may need to approve you before you appear in search.</li><li>You must offer at least one catalog service so customers can book you.</li><li>Jobs assigned <em>to you</em> appear on the <a href="/worker-dashboard.html">Worker Dashboard</a>. Bookings you make as a customer appear under <a href="/customer-dashboard.html">My bookings</a>.</li></ul>'
+        };
+
+        function renderTopicPanel() {
+            const body = document.getElementById('helpTopicBody');
+            const title = document.getElementById('helpTopicTitle');
+            if (!body || !title) return;
+            const key = activeCategory === 'all' ? 'all' : activeCategory;
+            title.textContent = key === 'all' ? 'Help topics' : `${key.charAt(0).toUpperCase() + key.slice(1)} — quick guide`;
+            body.innerHTML = categoryArticlesHtml[key] || categoryArticlesHtml.all;
+        }
+
         function toggleFaq(element) {
             element.classList.toggle('active');
             const answer = element.nextElementSibling;
@@ -664,8 +693,15 @@
 
         function filterByCategory(category) {
             activeCategory = category;
+            renderTopicPanel();
             applyFaqFilters();
-            Toast.show(`Showing ${category} help articles`, 'info');
+            Toast.show(
+                category === 'all'
+                    ? 'Showing all FAQs'
+                    : `Category: ${category} — see the guide above and matching FAQs below`,
+                'info'
+            );
+            document.getElementById('helpFaqSection')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
 
         function startLiveChat() {
@@ -705,6 +741,7 @@
             document.querySelectorAll('.faq-item').forEach((item, index) => {
                 item.dataset.category = faqCategoryMap[index] || 'account';
             });
+            renderTopicPanel();
             applyFaqFilters();
         });
     </script>
