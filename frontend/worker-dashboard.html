@@ -961,7 +961,12 @@
 
 <script>
     // ==================== WORKER DASHBOARD ====================
-    const API_BASE_URL = 'https://ap-sevces.onrender.com/api';
+    const API_BASE_URL = (typeof CONFIG !== 'undefined' && CONFIG.API_URL)
+        ? CONFIG.API_URL
+        : 'https://ap-sevces.onrender.com/api';
+    const SOCKET_BASE = (typeof CONFIG !== 'undefined' && CONFIG.BACKEND_URL)
+        ? CONFIG.BACKEND_URL
+        : 'https://ap-sevces.onrender.com';
     
     let workerData = null;
     let currentFilter = 'all';
@@ -1021,7 +1026,7 @@
     function setupSocketListeners() {
         // Check if socket is available
         if (typeof io !== 'undefined') {
-            const socket = io(API_BASE_URL, {
+            const socket = io(SOCKET_BASE, {
                 auth: { token: localStorage.getItem('token') }
             });
             

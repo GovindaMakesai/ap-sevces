@@ -296,7 +296,7 @@ const AdminAPI = {
 
 // ==================== AUTH SERVICE ====================
 const Auth = {
-    async login(email, password) {
+    async login(email, password, options = {}) {
         try {
             console.log('🔐 Login attempt:', email);
             const response = await API.post('/auth/login', { email, password });
@@ -309,8 +309,18 @@ const Auth = {
                 localStorage.setItem('user', JSON.stringify(response.data.user));
                 
                 Toast.show(`Welcome back, ${response.data.user.first_name}!`, 'success');
+
+                const safeRedirect = typeof options.redirectUrl === 'string'
+                    && options.redirectUrl.startsWith('/')
+                    && !options.redirectUrl.startsWith('//')
+                    ? options.redirectUrl
+                    : null;
                 
                 setTimeout(() => {
+                    if (safeRedirect) {
+                        window.location.href = safeRedirect;
+                        return;
+                    }
                     if (response.data.user.role === 'admin') {
                         window.location.href = '/admin-dashboard.html';
                     } else if (response.data.user.role === 'worker') {
@@ -568,36 +578,72 @@ const Toast = {
 
 // ==================== UI HELPERS ====================
 const UI = {
+    /**
+     * Logged-out nav (web). "Become a Pro" → full signup where user can pick Professional.
+     */
+    standardNavLoggedOutHtml() {
+        return `
+                <a href="/services.html">Services</a>
+                <a href="/register.html">Become a Pro</a>
+                <a href="/help.html">Help</a>
+                <a href="/login.html" class="btn-outline">Login</a>
+                <a href="/register.html" class="btn-primary">Sign Up</a>
+            `;
+    },
+
+    /**
+     * Logged-in nav by role: customers see bookings + apply; workers see bookings + pro dashboard.
+     */
+    standardNavLoggedInHtml(user) {
+        const role = user.role || 'customer';
+        const first = user.first_name || 'there';
+        const help = '<a href="/help.html">Help</a>';
+        const hi = `<span class="user-name">Hi, ${first}</span>`;
+        const logout = '<button type="button" class="btn-outline" onclick="Auth.logout()">Logout</button>';
+
+        if (role === 'admin') {
+            return `
+                <a href="/services.html">Services</a>
+                <a href="/admin-dashboard.html">Admin</a>
+                <a href="/customer-dashboard.html">My bookings</a>
+                ${help}
+                ${hi}
+                ${logout}
+            `;
+        }
+
+        if (role === 'worker') {
+            return `
+                <a href="/services.html">Services</a>
+                <a href="/customer-dashboard.html">My bookings</a>
+                <a href="/worker-dashboard.html">Pro dashboard</a>
+                ${help}
+                ${hi}
+                ${logout}
+            `;
+        }
+
+        return `
+                <a href="/services.html">Services</a>
+                <a href="/customer-dashboard.html">My bookings</a>
+                <a href="/become-a-pro.html">Become a Pro</a>
+                ${help}
+                ${hi}
+                ${logout}
+            `;
+    },
+
     updateNavbar() {
         const navLinks = document.querySelector('.nav-links');
         if (!navLinks) return;
-        // Homepage builds its own nav (search + demo dropdown + auth) in index.html
         if (document.querySelector('.nav-content .search-bar')) {
             return;
         }
 
         const user = Auth.getUser();
-        
-        if (user) {
-            const role = user.role || 'customer';
-            const proLink = role === 'customer'
-                ? '<a href="/worker-dashboard.html">Become a Pro</a>'
-                : '<a href="/customer-dashboard.html">My bookings</a>';
-            navLinks.innerHTML = `
-                <a href="/services.html">Services</a>
-                ${proLink}
-                <a href="/${role}-dashboard.html">Dashboard</a>
-                <span class="user-name">Hi, ${user.first_name}</span>
-                <button class="btn-outline" onclick="Auth.logout()">Logout</button>
-            `;
-        } else {
-            navLinks.innerHTML = `
-                <a href="/services.html">Services</a>
-                <a href="/worker-dashboard.html">Become a Pro</a>
-                <a href="/login.html" class="btn-outline">Login</a>
-                <a href="/register.html" class="btn-primary">Sign Up</a>
-            `;
-        }
+        navLinks.innerHTML = user
+            ? UI.standardNavLoggedInHtml(user)
+            : UI.standardNavLoggedOutHtml();
     },
     
     showLoader(container) {
@@ -641,7 +687,7 @@ const LinkFixer = {
         '/terms.html': '/help.html',
         '/faq.html': '/help.html',
         '/privacy.html': '/privacypolicy.html',
-        '/worker-register.html': '/worker-dashboard.html',
+        '/worker-register.html': '/register.html',
         '/forgot-password.html': '/login.html'
     },
 

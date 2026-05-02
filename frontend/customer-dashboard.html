@@ -170,6 +170,25 @@
             border-radius: 50%;
         }
 
+        .dashboard-notice {
+            background: var(--primary-50);
+            border: 1px solid var(--primary-200);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-md) var(--spacing-lg);
+            margin-bottom: var(--spacing-lg);
+            color: var(--gray-800);
+        }
+
+        .dashboard-notice p {
+            margin: 0;
+            line-height: 1.5;
+        }
+
+        .dashboard-notice a {
+            color: var(--primary-700);
+            font-weight: 600;
+        }
+
         .welcome-content {
             position: relative;
             z-index: 1;
@@ -923,7 +942,7 @@
                 <div class="welcome-content">
                     <div class="welcome-text">
                         <h1>Welcome back, <span id="userName">John!</span></h1>
-                        <p>Manage your bookings, profile, and preferences</p>
+                        <p id="welcomeSubline">Manage bookings you made as a customer, your profile, and preferences.</p>
                     </div>
                     <div class="welcome-stats">
                         <div class="stat-item">
@@ -940,6 +959,10 @@
                         </div>
                     </div>
                 </div>
+            </div>
+
+            <div id="workerCustomerNotice" class="dashboard-notice" style="display: none;">
+                <p><i class="fas fa-briefcase"></i> <strong>Pro account:</strong> Below are services <em>you booked as a customer</em>. For jobs where you are the professional, open <a href="/worker-dashboard.html">Worker dashboard</a>.</p>
             </div>
 
             <!-- Dashboard Grid -->
@@ -1368,11 +1391,14 @@
             return;
         }
         const user = Auth.getUser();
-        if (user?.role && user.role !== 'customer') {
-            const roleRoute = user.role === 'worker' ? '/worker-dashboard.html' : '/admin-dashboard.html';
-            Toast.show(`Redirecting to your ${user.role} dashboard`, 'info');
-            setTimeout(() => { window.location.href = roleRoute; }, 700);
-            return;
+        if (user?.role === 'worker') {
+            const n = document.getElementById('workerCustomerNotice');
+            if (n) n.style.display = 'block';
+            const sub = document.getElementById('welcomeSubline');
+            if (sub) sub.textContent = 'You are viewing bookings where you are the customer. Open Pro dashboard for jobs assigned to you.';
+        } else if (user?.role === 'admin') {
+            const sub = document.getElementById('welcomeSubline');
+            if (sub) sub.textContent = 'Customer bookings for this account. Use Admin for platform management.';
         }
 
         // Load user data from API
@@ -1412,7 +1438,9 @@
     // ==================== LOAD BOOKINGS FROM REAL API ====================
     async function loadBookingsFromAPI(filter = 'all') {
         try {
-            const endpoint = filter === 'all' ? '/bookings' : `/bookings?status=${encodeURIComponent(filter)}`;
+            const endpoint = filter === 'all'
+                ? '/bookings/customer'
+                : `/bookings/customer?status=${encodeURIComponent(filter)}`;
             const response = await API.get(endpoint);
             const bookingsRaw = response?.data || [];
             const bookings = Array.isArray(bookingsRaw) ? bookingsRaw : [];

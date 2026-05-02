@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node backend/server.js",
     "dev": "nodemon backend/server.js",
+    "build": "node scripts/build-web.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "db:schema": "node database/run-schema.js",
     "db:seed:test": "node database/seeds/test-data-seed.js"

@@ -73,8 +73,12 @@
       "dest": "/frontend/worker-dashboard.html"
     },
     {
+      "src": "/become-a-pro.html",
+      "dest": "/frontend/become-a-pro.html"
+    },
+    {
       "src": "/worker-register.html",
-      "dest": "/frontend/worker-dashboard.html"
+      "dest": "/frontend/register.html"
     },
     {
       "src": "/admin-dashboard.html",

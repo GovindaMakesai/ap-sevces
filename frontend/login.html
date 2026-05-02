@@ -848,7 +848,8 @@ document.addEventListener('DOMContentLoaded', function() {
         loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing in...';
         
         try {
-            await Auth.login(email, password);
+            const next = new URLSearchParams(window.location.search).get('redirect');
+            await Auth.login(email, password, { redirectUrl: next || undefined });
             
             if (rememberMe) {
                 localStorage.setItem('savedEmail', email);

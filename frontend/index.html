@@ -1004,65 +1004,6 @@
             }
         }
 
-        /* ==================== DROPDOWN MENU ==================== */
-        .dropdown {
-            position: relative;
-            display: inline-block;
-        }
-
-        .dropdown-toggle {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            cursor: pointer;
-            color: var(--gray-700);
-            text-decoration: none;
-            padding: 0.5rem;
-        }
-
-        .dropdown-toggle:hover {
-            color: var(--primary-600);
-        }
-
-        .dropdown-menu {
-            display: none;
-            position: absolute;
-            top: 100%;
-            left: 0;
-            background: white;
-            min-width: 200px;
-            box-shadow: var(--shadow-lg);
-            border-radius: var(--radius-lg);
-            padding: var(--spacing-xs);
-            z-index: 1000;
-            border: 1px solid var(--gray-200);
-        }
-
-        .dropdown:hover .dropdown-menu {
-            display: block;
-        }
-
-        .dropdown-menu a {
-            display: block;
-            padding: var(--spacing-sm) var(--spacing-md);
-            color: var(--gray-700);
-            text-decoration: none;
-            border-radius: var(--radius-md);
-            transition: all var(--transition-fast);
-            cursor: pointer;
-        }
-
-        .dropdown-menu a:hover {
-            background: var(--gray-100);
-            color: var(--primary-600);
-        }
-
-        .dropdown-menu i {
-            width: 20px;
-            margin-right: 8px;
-            color: var(--primary-600);
-        }
-
         /* Ensure nav links are clickable */
         .nav-links a, .nav-links button {
             cursor: pointer;
@@ -1083,27 +1024,8 @@
                 
                 <div class="nav-links">
                     <a href="/services.html">Services</a>
-                    <a href="/worker-dashboard.html">Become a Pro</a>
-                    
-                    <!-- Demo Pages Dropdown -->
-                    <div class="dropdown">
-                        <a href="#" class="dropdown-toggle">Demo Pages <i class="fas fa-chevron-down"></i></a>
-                        <div class="dropdown-menu">
-                            <a href="/booking-details.html?id=BK001">
-                                <i class="fas fa-calendar-alt"></i> Booking Details
-                            </a>
-                            <a href="/payment.html">
-                                <i class="fas fa-credit-card"></i> Payment Demo
-                            </a>
-                            <a href="/chat.html?id=1">
-                                <i class="fas fa-comment"></i> Live Chat
-                            </a>
-                            <a href="/help.html">
-                                <i class="fas fa-question-circle"></i> Help Center
-                            </a>
-                        </div>
-                    </div>
-                    
+                    <a href="/register.html">Become a Pro</a>
+                    <a href="/help.html">Help</a>
                     <a href="/login.html" class="btn-outline">Login</a>
                     <a href="/register.html" class="btn-primary">Sign Up</a>
                 </div>
@@ -1415,7 +1337,7 @@
                     <a href="/register.html" class="btn-primary btn-large cta-btn">
                         Sign Up as Customer
                     </a>
-                    <a href="/worker-dashboard.html" class="btn-outline btn-large cta-btn">
+                    <a href="/register.html" class="btn-outline btn-large cta-btn">
                         Become a Professional
                     </a>
                 </div>
@@ -1469,24 +1391,6 @@
                         <li><a href="/privacypolicy.html">Privacy Policy</a></li>
                         <li><a href="/help.html">Terms of Service</a></li>
                         <li><a href="/help.html">FAQ</a></li>
-                    </ul>
-                </div>
-                
-                <div class="footer-col">
-                    <h4>Quick Demo</h4>
-                    <ul>
-                        <li><a href="/booking-details.html?id=BK001">
-                            <i class="fas fa-calendar-alt"></i> Booking Details
-                        </a></li>
-                        <li><a href="/payment.html">
-                            <i class="fas fa-credit-card"></i> Payment Demo
-                        </a></li>
-                        <li><a href="/chat.html?id=1">
-                            <i class="fas fa-comment"></i> Live Chat
-                        </a></li>
-                        <li><a href="/help.html">
-                            <i class="fas fa-question-circle"></i> Help Center
-                        </a></li>
                     </ul>
                 </div>
                 
@@ -1558,32 +1462,9 @@
 
         function refreshHomeNavbarAuth() {
             const navLinks = document.querySelector('.nav-links');
-            if (!navLinks || typeof Auth === 'undefined') return;
-            const demoEl = navLinks.querySelector('.dropdown');
-            const demoHtml = demoEl ? demoEl.outerHTML : '';
+            if (!navLinks || typeof Auth === 'undefined' || typeof UI === 'undefined') return;
             const user = Auth.getUser();
-            if (user) {
-                const role = user.role || 'customer';
-                const proLink = role === 'customer'
-                    ? '<a href="/worker-dashboard.html">Become a Pro</a>'
-                    : '<a href="/customer-dashboard.html">My bookings</a>';
-                navLinks.innerHTML = `
-                    <a href="/services.html">Services</a>
-                    ${proLink}
-                    <a href="/${role}-dashboard.html">Dashboard</a>
-                    <span class="user-name">Hi, ${user.first_name}</span>
-                    <button type="button" class="btn-outline" onclick="Auth.logout()">Logout</button>
-                    ${demoHtml}
-                `;
-            } else {
-                navLinks.innerHTML = `
-                    <a href="/services.html">Services</a>
-                    <a href="/worker-dashboard.html">Become a Pro</a>
-                    ${demoHtml}
-                    <a href="/login.html" class="btn-outline">Login</a>
-                    <a href="/register.html" class="btn-primary">Sign Up</a>
-                `;
-            }
+            navLinks.innerHTML = user ? UI.standardNavLoggedInHtml(user) : UI.standardNavLoggedOutHtml();
         }
 
         document.addEventListener('DOMContentLoaded', async function() {
@@ -1959,7 +1840,6 @@
             
             // Fix all navigation links
             fixLinks('.nav-links a');
-            fixLinks('.dropdown-menu a');
             fixLinks('.footer a');
             fixLinks('.popular-tag');
             fixLinks('.view-all-btn');
