@@ -11,9 +11,6 @@
     <!-- Google Fonts - Inter -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     
-    <!-- Emoji Picker -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/emoji-mart@latest/css/emoji-mart.css">
-    
     <!-- Custom Styles -->
     <link rel="stylesheet" href="styles.css">
     
@@ -606,16 +603,42 @@
 
         .emoji-picker {
             position: absolute;
-            bottom: 60px;
+            bottom: 52px;
             left: 0;
-            z-index: 1000;
+            z-index: 5000;
             display: none;
-            box-shadow: var(--shadow-xl);
+            width: min(300px, 85vw);
+            max-height: 240px;
+            overflow-y: auto;
+            background: white;
+            border: 1px solid var(--gray-200);
             border-radius: var(--radius-lg);
+            padding: 10px;
+            box-shadow: var(--shadow-xl);
         }
 
         .emoji-picker.show {
             display: block;
+        }
+
+        .emoji-picker-grid {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 2px;
+        }
+
+        .emoji-picker-grid button {
+            font-size: 1.35rem;
+            line-height: 1.2;
+            padding: 6px 4px;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            border-radius: 6px;
+        }
+
+        .emoji-picker-grid button:hover {
+            background: var(--gray-100);
         }
 
         /* ==================== IMAGE MODAL ==================== */
@@ -662,7 +685,7 @@
             width: 100%;
             height: 100%;
             background: rgba(0, 0, 0, 0.8);
-            z-index: 2000;
+            z-index: 10050;
             align-items: center;
             justify-content: center;
         }
@@ -932,7 +955,7 @@
                             <div class="chat-input-wrapper">
                                 <div class="chat-input-actions">
                                     <div class="emoji-picker-container">
-                                        <button class="chat-input-action emoji-btn" onclick="toggleEmojiPicker()">
+                                        <button type="button" class="chat-input-action emoji-btn" onclick="toggleEmojiPicker(event)">
                                             <i class="far fa-smile"></i>
                                         </button>
                                         <div class="emoji-picker" id="emojiPicker"></div>
@@ -1035,7 +1058,6 @@
     <div id="toast" class="toast"></div>
 
     <!-- Emoji Mart Library -->
-    <script src="https://cdn.jsdelivr.net/npm/emoji-mart@latest/dist/emoji-mart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
     
@@ -1153,6 +1175,18 @@
         let typingTimeout;
         let callTimer = null;
         let callSeconds = 0;
+        let callAutoEndTimer = null;
+
+        const CHAT_QUICK_EMOJIS = [
+            '😀', '😃', '😄', '😁', '😅', '😂', '🤣', '😊',
+            '😍', '🥰', '😘', '😗', '😙', '😚', '🙂', '😉',
+            '😇', '🥲', '😌', '😛', '😜', '😝', '🤑', '🤗',
+            '🤔', '🤐', '🤨', '😐', '😑', '😶', '😏', '😒',
+            '🙄', '😬', '🤥', '😌', '😔', '😪', '🤤', '😴',
+            '👍', '👎', '👌', '✌️', '🤞', '🤝', '🙏', '💪',
+            '❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '💯',
+            '🔥', '✨', '⭐', '🎉', '✅', '❌', '⚠️', '💬'
+        ];
 
         const token = localStorage.getItem('token');
         const axiosClient = axios.create({
@@ -1610,38 +1644,48 @@
             Toast.show(`Downloading ${filename}...`, 'info');
         }
 
-        // ==================== EMOJI PICKER ====================
-        function toggleEmojiPicker() {
+        // ==================== EMOJI PICKER (built-in — no Emoji Mart CDN) ====================
+        function buildEmojiPickerGrid() {
             const picker = document.getElementById('emojiPicker');
-            picker.classList.toggle('show');
-            
-            if (!picker.innerHTML) {
-                // Initialize emoji picker
-                const emojiPicker = new EmojiMart.Picker({
-                    onSelect: (emoji) => {
-                        const input = document.getElementById('messageInput');
-                        input.value += emoji.native;
-                        input.focus();
-                        picker.classList.remove('show');
-                    },
-                    theme: 'light',
-                    set: 'apple',
-                    showPreview: false
+            if (picker.dataset.built === '1') return;
+            const grid = document.createElement('div');
+            grid.className = 'emoji-picker-grid';
+            CHAT_QUICK_EMOJIS.forEach((ch) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.textContent = ch;
+                btn.title = ch;
+                btn.addEventListener('click', (ev) => {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    const input = document.getElementById('messageInput');
+                    input.value += ch;
+                    input.focus();
+                    picker.classList.remove('show');
                 });
-                
-                picker.innerHTML = '';
-                picker.appendChild(emojiPicker);
-            }
+                grid.appendChild(btn);
+            });
+            picker.innerHTML = '';
+            picker.appendChild(grid);
+            picker.dataset.built = '1';
         }
 
-        // Close emoji picker when clicking outside
+        function toggleEmojiPicker(ev) {
+            if (ev) {
+                ev.preventDefault();
+                ev.stopPropagation();
+            }
+            const picker = document.getElementById('emojiPicker');
+            buildEmojiPickerGrid();
+            picker.classList.toggle('show');
+        }
+
         document.addEventListener('click', function(e) {
             const picker = document.getElementById('emojiPicker');
-            const emojiBtn = document.querySelector('.emoji-btn');
-            
-            if (!picker.contains(e.target) && !emojiBtn.contains(e.target)) {
-                picker.classList.remove('show');
-            }
+            const wrap = document.querySelector('.emoji-picker-container');
+            if (!picker || !wrap) return;
+            if (wrap.contains(e.target)) return;
+            picker.classList.remove('show');
         });
 
         // ==================== IMAGE MODAL ====================
@@ -1660,36 +1704,54 @@
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') {
                 closeImageModal();
-                document.getElementById('callModal').classList.remove('show');
+                const callEl = document.getElementById('callModal');
+                if (callEl && callEl.classList.contains('show')) {
+                    endCall();
+                }
             }
         });
 
-        // ==================== CALL FUNCTIONALITY ====================
+        // ==================== CALL FUNCTIONALITY (demo UI — no real WebRTC yet) ====================
         function showCallModal(type) {
+            if (!currentChatId) {
+                Toast.show('Open a chat first, then try call (demo)', 'warning');
+                return;
+            }
             const modal = document.getElementById('callModal');
+            if (!modal) return;
             const status = document.getElementById('callStatus');
-            const actions = document.getElementById('callActions');
             const icon = document.getElementById('callAvatarIcon');
-            
+            const nameEl = document.getElementById('chatUserName');
+            const who = nameEl ? nameEl.textContent.trim() : 'contact';
+
+            if (callAutoEndTimer) {
+                clearTimeout(callAutoEndTimer);
+                callAutoEndTimer = null;
+            }
+
             if (type === 'video') {
-                status.textContent = 'Video Calling...';
+                status.textContent = `Video call (demo) — ${who}`;
                 icon.className = 'fas fa-video';
             } else {
-                status.textContent = 'Calling...';
+                status.textContent = `Voice call (demo) — ${who}`;
                 icon.className = 'fas fa-phone';
             }
-            
+
             modal.classList.add('show');
-            
-            // Auto reject after 30 seconds (demo)
-            setTimeout(() => {
-                if (modal.classList.contains('show') && status.textContent.includes('Calling')) {
+            document.body.style.overflow = 'hidden';
+
+            callAutoEndTimer = setTimeout(() => {
+                if (modal.classList.contains('show') && status.textContent.includes('demo')) {
                     endCall();
                 }
             }, 30000);
         }
 
         function acceptCall() {
+            if (callAutoEndTimer) {
+                clearTimeout(callAutoEndTimer);
+                callAutoEndTimer = null;
+            }
             document.getElementById('callStatus').textContent = 'Connected';
             document.getElementById('callActions').innerHTML = `
                 <button class="call-action reject" onclick="endCall()">
@@ -1712,8 +1774,15 @@
 
         function endCall() {
             clearInterval(callTimer);
-            document.getElementById('callModal').classList.remove('show');
-            
+            callTimer = null;
+            if (callAutoEndTimer) {
+                clearTimeout(callAutoEndTimer);
+                callAutoEndTimer = null;
+            }
+            const modal = document.getElementById('callModal');
+            if (modal) modal.classList.remove('show');
+            document.body.style.overflow = '';
+
             // Reset call actions
             setTimeout(() => {
                 document.getElementById('callActions').innerHTML = `
