@@ -77,11 +77,12 @@ async function appendMessage(conversationId, senderId, receiverId, text) {
          RETURNING id, conversation_id, sender_id, receiver_id, body, created_at`,
         [conversationId, senderId, receiverId, text.trim()]
     );
+    const preview = text.trim().startsWith('__IMG__:') ? '📷 Photo' : text.trim();
     await db.query(
         `UPDATE conversations
          SET last_message_text = $1, last_message_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
          WHERE id = $2`,
-        [text.trim(), conversationId]
+        [preview.slice(0, 500), conversationId]
     );
     return msg.rows[0];
 }

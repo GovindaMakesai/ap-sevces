@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const chatService = require('../services/chatService');
+const { normalizeOutgoingChatMessage } = require('../utils/chatMessageFormat');
 
 function registerChatSocket(io) {
     io.use((socket, next) => {
@@ -46,14 +47,7 @@ function registerChatSocket(io) {
                     text
                 );
 
-                const normalized = {
-                    id: String(message.id),
-                    conversationId: String(conversation.id),
-                    senderId: String(message.sender_id),
-                    receiverId: String(message.receiver_id),
-                    text: message.text,
-                    createdAt: message.created_at
-                };
+                const normalized = normalizeOutgoingChatMessage(message, conversation.id);
 
                 io.to(`conversation:${conversation.id}`).emit('receive_message', normalized);
                 io.to(`user:${receiverUserId}`).emit('receive_message', normalized);

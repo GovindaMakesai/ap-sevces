@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const chatService = require('../services/chatService');
+const { splitMessageBody, normalizeOutgoingChatMessage } = require('../utils/chatMessageFormat');
 
 async function enrichConversation(conversation, currentUserId) {
     const otherId = chatService.otherParticipantId(conversation, currentUserId);
@@ -103,12 +104,18 @@ exports.getOrCreateConversation = async (req, res) => {
 exports.sendMessage = async (req, res) => {
     try {
         const senderId = String(req.userId);
-        const { receiverId, text } = req.body;
+        const receiverId = req.body.receiverId;
+        let text = typeof req.body.text === 'string' ? req.body.text : '';
 
-        if (!receiverId || !text || !text.trim()) {
+        if (req.file) {
+            text = `__IMG__:/uploads/chat/${req.file.filename}`;
+        }
+
+        text = text.trim();
+        if (!receiverId || !text) {
             return res.status(400).json({
                 success: false,
-                message: 'receiverId and text are required'
+                message: 'receiverId and a message (text or image) are required'
             });
         }
 
@@ -118,21 +125,11 @@ exports.sendMessage = async (req, res) => {
             text
         );
 
-        const normalized = {
-            id: String(message.id),
-            conversationId: String(conversation.id),
-            senderId: String(message.sender_id),
-            receiverId: String(message.receiver_id),
-            text: message.text,
-            createdAt: message.created_at
-        };
+        const normalized = normalizeOutgoingChatMessage(message, conversation.id);
 
         const io = req.app.get('io');
         if (io) {
             io.to(`conversation:${conversation.id}`).emit('receive_message', normalized);
-            // Receiver may not have joined the conversation room (e.g. on message list).
-            // Do not emit to sender's user room — they are already in conversation room
-            // when chatting, which would duplicate the event on the same socket.
             io.to(`user:${receiverUserId}`).emit('receive_message', normalized);
         }
 
@@ -140,14 +137,7 @@ exports.sendMessage = async (req, res) => {
             success: true,
             data: {
                 conversationId: String(conversation.id),
-                message: {
-                    id: normalized.id,
-                    conversationId: normalized.conversationId,
-                    senderId: normalized.senderId,
-                    receiverId: normalized.receiverId,
-                    text: normalized.text,
-                    createdAt: normalized.createdAt
-                },
+                message: normalized,
                 receiverUserId
             }
         });
@@ -192,14 +182,18 @@ exports.getMessages = async (req, res) => {
                 otherUser: meta.otherUser,
                 lastMessageText: meta.lastMessageText,
                 lastMessageAt: meta.lastMessageAt,
-                messages: messages.map((msg) => ({
-                    id: String(msg.id),
-                    conversationId: String(msg.conversation_id),
-                    senderId: String(msg.sender_id),
-                    receiverId: String(msg.receiver_id),
-                    text: msg.body,
-                    createdAt: msg.created_at
-                }))
+                messages: messages.map((msg) => {
+                    const { text, imageUrl } = splitMessageBody(msg.body);
+                    return {
+                        id: String(msg.id),
+                        conversationId: String(msg.conversation_id),
+                        senderId: String(msg.sender_id),
+                        receiverId: String(msg.receiver_id),
+                        text,
+                        imageUrl,
+                        createdAt: msg.created_at
+                    };
+                })
             }
         });
     } catch (error) {
