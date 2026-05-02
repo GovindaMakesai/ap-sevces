@@ -41,6 +41,7 @@
             border: 1px solid var(--gray-200);
             height: calc(100vh - 200px);
             min-height: 600px;
+            min-width: 0;
         }
 
         /* ==================== CHAT SIDEBAR ==================== */
@@ -256,9 +257,11 @@
             display: flex;
             flex-direction: column;
             background: white;
+            min-height: 0;
         }
 
         .chat-header {
+            flex-shrink: 0;
             padding: var(--spacing-lg);
             border-bottom: 1px solid var(--gray-200);
             display: flex;
@@ -326,7 +329,8 @@
 
         /* ==================== MESSAGES AREA ==================== */
         .messages-container {
-            flex: 1;
+            flex: 1 1 0;
+            min-height: 0;
             overflow-y: auto;
             padding: var(--spacing-lg);
             background: var(--gray-50);
@@ -513,6 +517,7 @@
 
         /* ==================== CHAT INPUT ==================== */
         .chat-input-container {
+            flex-shrink: 0;
             padding: var(--spacing-lg);
             border-top: 1px solid var(--gray-200);
             background: white;
@@ -914,7 +919,7 @@
                     </div>
 
                     <!-- Active Chat (Hidden by default) -->
-                    <div id="activeChat" style="display: none; height: 100%; flex-direction: column;">
+                    <div id="activeChat" style="display: none; height: 100%; min-height: 0; flex-direction: column;">
                         <!-- Chat Header -->
                         <div class="chat-header">
                             <div class="chat-user-info" id="chatUserInfo">
@@ -1409,14 +1414,21 @@
                 const response = await axiosClient.get(`/${chatId}`);
                 const serverMessages = response.data?.data?.messages || [];
                 const me = getMyUserId();
-                const mapped = serverMessages.map((msg) => ({
-                    id: String(msg.id),
-                    type: String(msg.senderId) === me ? 'sent' : 'received',
-                    text: msg.text,
-                    status: 'read',
-                    time: formatTime(msg.createdAt),
-                    createdAt: msg.createdAt
-                }));
+                const seen = new Set();
+                const mapped = [];
+                for (const msg of serverMessages) {
+                    const id = String(msg.id);
+                    if (seen.has(id)) continue;
+                    seen.add(id);
+                    mapped.push({
+                        id,
+                        type: String(msg.senderId) === me ? 'sent' : 'received',
+                        text: msg.text,
+                        status: 'read',
+                        time: formatTime(msg.createdAt),
+                        createdAt: msg.createdAt
+                    });
+                }
                 useChatStore.setState((state) => ({
                     messages: {
                         ...state.messages,
@@ -1523,12 +1535,19 @@
                 };
 
                 const conversationId = String(payload.conversationId);
-                useChatStore.setState((state) => ({
-                    messages: {
-                        ...state.messages,
-                        [conversationId]: [...(state.messages[conversationId] || []), message]
+                const mid = message.id;
+                useChatStore.setState((state) => {
+                    const existing = state.messages[conversationId] || [];
+                    if (existing.some((m) => String(m.id) === mid)) {
+                        return {};
                     }
-                }));
+                    return {
+                        messages: {
+                            ...state.messages,
+                            [conversationId]: [...existing, message]
+                        }
+                    };
+                });
 
                 if (String(currentChatId) === conversationId) {
                     renderActiveMessages();

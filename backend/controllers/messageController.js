@@ -130,8 +130,10 @@ exports.sendMessage = async (req, res) => {
         const io = req.app.get('io');
         if (io) {
             io.to(`conversation:${conversation.id}`).emit('receive_message', normalized);
+            // Receiver may not have joined the conversation room (e.g. on message list).
+            // Do not emit to sender's user room — they are already in conversation room
+            // when chatting, which would duplicate the event on the same socket.
             io.to(`user:${receiverUserId}`).emit('receive_message', normalized);
-            io.to(`user:${senderId}`).emit('receive_message', normalized);
         }
 
         res.status(201).json({

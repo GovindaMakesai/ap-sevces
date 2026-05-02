@@ -57,7 +57,6 @@ function registerChatSocket(io) {
 
                 io.to(`conversation:${conversation.id}`).emit('receive_message', normalized);
                 io.to(`user:${receiverUserId}`).emit('receive_message', normalized);
-                io.to(`user:${socket.userId}`).emit('receive_message', normalized);
 
                 if (ack) ack({ ok: true, data: normalized });
             } catch (error) {
