@@ -105,6 +105,33 @@ CREATE TABLE IF NOT EXISTS reviews (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- ==================== CHAT (PostgreSQL — works without MongoDB) ====================
+CREATE TABLE IF NOT EXISTS conversations (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_low UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_high UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    last_message_text TEXT DEFAULT '',
+    last_message_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (user_low, user_high)
+);
+
+CREATE INDEX IF NOT EXISTS idx_conversations_user_low ON conversations(user_low);
+CREATE INDEX IF NOT EXISTS idx_conversations_user_high ON conversations(user_high);
+CREATE INDEX IF NOT EXISTS idx_conversations_last_message ON conversations(last_message_at DESC);
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    sender_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    receiver_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    body TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_messages_conversation ON chat_messages(conversation_id, created_at);
+
 -- Insert sample services
 INSERT INTO services (name, category, description, icon, base_price, price_type) VALUES
     ('Plumbing Repair', 'Plumbing', 'Fix leaking pipes, faucets, and bathroom fittings', 'wrench', 399, 'hourly'),

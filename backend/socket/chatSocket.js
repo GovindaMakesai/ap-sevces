@@ -1,6 +1,5 @@
 const jwt = require('jsonwebtoken');
-const Conversation = require('../models/Conversation');
-const Message = require('../models/Message');
+const chatService = require('../services/chatService');
 
 function registerChatSocket(io) {
     io.use((socket, next) => {
@@ -23,9 +22,10 @@ function registerChatSocket(io) {
         socket.on('join_conversation', async ({ conversationId }) => {
             if (!conversationId) return;
             try {
-                const conversation = await Conversation.findById(conversationId);
+                const conversation = await chatService.getConversationById(conversationId);
                 if (!conversation) return;
-                if (!conversation.participants.includes(socket.userId)) return;
+                const ok = await chatService.userParticipates(conversation, socket.userId);
+                if (!ok) return;
                 socket.join(`conversation:${conversationId}`);
             } catch (error) {
                 console.error('join_conversation error:', error.message);
@@ -40,46 +40,33 @@ function registerChatSocket(io) {
                     return;
                 }
 
-                const participants = [String(socket.userId), String(receiverId)].sort();
-                let conversation = await Conversation.findOne({ participants });
-                if (!conversation) {
-                    conversation = await Conversation.create({ participants });
-                }
-
-                const message = await Message.create({
-                    conversationId: conversation._id,
-                    senderId: socket.userId,
-                    receiverId: String(receiverId),
-                    text: text.trim()
-                });
-
-                conversation.lastMessageText = message.text;
-                conversation.lastMessageAt = message.createdAt;
-                await conversation.save();
+                const { conversation, message, receiverUserId } = await chatService.sendBetweenUsers(
+                    socket.userId,
+                    receiverId,
+                    text
+                );
 
                 const normalized = {
-                    id: String(message._id),
-                    conversationId: String(conversation._id),
-                    senderId: String(message.senderId),
-                    receiverId: String(message.receiverId),
+                    id: String(message.id),
+                    conversationId: String(conversation.id),
+                    senderId: String(message.sender_id),
+                    receiverId: String(message.receiver_id),
                     text: message.text,
-                    createdAt: message.createdAt
+                    createdAt: message.created_at
                 };
 
-                io.to(`conversation:${conversation._id}`).emit('receive_message', normalized);
-                io.to(`user:${receiverId}`).emit('receive_message', normalized);
+                io.to(`conversation:${conversation.id}`).emit('receive_message', normalized);
+                io.to(`user:${receiverUserId}`).emit('receive_message', normalized);
                 io.to(`user:${socket.userId}`).emit('receive_message', normalized);
 
                 if (ack) ack({ ok: true, data: normalized });
             } catch (error) {
                 console.error('send_message socket error:', error.message);
-                if (ack) ack({ ok: false, message: 'Failed to send message' });
+                if (ack) ack({ ok: false, message: error.message || 'Failed to send message' });
             }
         });
 
-        socket.on('disconnect', () => {
-            // no-op for now
-        });
+        socket.on('disconnect', () => {});
     });
 }
 

@@ -1,25 +1,20 @@
-const Conversation = require('../models/Conversation');
-const Message = require('../models/Message');
 const User = require('../models/User');
-
-function normalizeParticipantIds(senderId, receiverId) {
-    return [String(senderId), String(receiverId)].sort();
-}
+const chatService = require('../services/chatService');
 
 async function enrichConversation(conversation, currentUserId) {
-    const otherParticipantId = conversation.participants.find((id) => id !== String(currentUserId));
+    const otherId = chatService.otherParticipantId(conversation, currentUserId);
     let otherUser = null;
-    if (otherParticipantId) {
+    if (otherId) {
         try {
-            otherUser = await User.findById(otherParticipantId);
-        } catch (error) {
+            otherUser = await User.findById(otherId);
+        } catch (_e) {
             otherUser = null;
         }
     }
 
     return {
-        id: conversation._id,
-        participants: conversation.participants,
+        id: String(conversation.id),
+        participants: [String(conversation.user_low), String(conversation.user_high)],
         otherUser: otherUser
             ? {
                 id: String(otherUser.id),
@@ -28,25 +23,22 @@ async function enrichConversation(conversation, currentUserId) {
                 role: otherUser.role
             }
             : {
-                id: otherParticipantId || null,
+                id: otherId,
                 first_name: 'User',
                 last_name: '',
                 role: 'customer'
             },
-        lastMessageText: conversation.lastMessageText,
-        lastMessageAt: conversation.lastMessageAt,
-        updatedAt: conversation.updatedAt
+        lastMessageText: conversation.last_message_text || '',
+        lastMessageAt: conversation.last_message_at,
+        updatedAt: conversation.updated_at
     };
 }
 
 exports.listConversations = async (req, res) => {
     try {
         const currentUserId = String(req.userId);
-        const conversations = await Conversation.find({
-            participants: currentUserId
-        }).sort({ lastMessageAt: -1 });
-
-        const enriched = await Promise.all(conversations.map((conv) => enrichConversation(conv, currentUserId)));
+        const rows = await chatService.listConversationsForUser(currentUserId);
+        const enriched = await Promise.all(rows.map((conv) => enrichConversation(conv, currentUserId)));
 
         res.json({
             success: true,
@@ -73,25 +65,30 @@ exports.getOrCreateConversation = async (req, res) => {
             });
         }
 
-        if (String(receiverId) === currentUserId) {
+        const resolvedReceiver = await chatService.resolveToUserId(receiverId);
+        if (!resolvedReceiver) {
+            return res.status(404).json({
+                success: false,
+                message: 'Receiver not found'
+            });
+        }
+
+        if (resolvedReceiver === currentUserId) {
             return res.status(400).json({
                 success: false,
                 message: 'Cannot create conversation with yourself'
             });
         }
 
-        const participants = normalizeParticipantIds(currentUserId, receiverId);
-        let conversation = await Conversation.findOne({ participants });
-        if (!conversation) {
-            conversation = await Conversation.create({
-                participants
-            });
-        }
+        const conversation = await chatService.findOrCreateConversationByUserIds(
+            currentUserId,
+            resolvedReceiver
+        );
 
         res.json({
             success: true,
             data: {
-                conversationId: conversation._id
+                conversationId: String(conversation.id)
             }
         });
     } catch (error) {
@@ -115,60 +112,49 @@ exports.sendMessage = async (req, res) => {
             });
         }
 
-        if (String(receiverId) === senderId) {
-            return res.status(400).json({
-                success: false,
-                message: 'Cannot send message to yourself'
-            });
-        }
-
-        const receiverUser = await User.findById(String(receiverId));
-        if (!receiverUser) {
-            return res.status(404).json({
-                success: false,
-                message: 'Receiver user not found'
-            });
-        }
-
-        const participants = normalizeParticipantIds(senderId, receiverId);
-        let conversation = await Conversation.findOne({ participants });
-
-        if (!conversation) {
-            conversation = await Conversation.create({
-                participants
-            });
-        }
-
-        const message = await Message.create({
-            conversationId: conversation._id,
+        const { conversation, message, receiverUserId } = await chatService.sendBetweenUsers(
             senderId,
-            receiverId: String(receiverId),
-            text: text.trim()
-        });
+            receiverId,
+            text
+        );
 
-        conversation.lastMessageText = message.text;
-        conversation.lastMessageAt = message.createdAt;
-        await conversation.save();
+        const normalized = {
+            id: String(message.id),
+            conversationId: String(conversation.id),
+            senderId: String(message.sender_id),
+            receiverId: String(message.receiver_id),
+            text: message.text,
+            createdAt: message.created_at
+        };
+
+        const io = req.app.get('io');
+        if (io) {
+            io.to(`conversation:${conversation.id}`).emit('receive_message', normalized);
+            io.to(`user:${receiverUserId}`).emit('receive_message', normalized);
+            io.to(`user:${senderId}`).emit('receive_message', normalized);
+        }
 
         res.status(201).json({
             success: true,
             data: {
-                conversationId: conversation._id,
+                conversationId: String(conversation.id),
                 message: {
-                    id: message._id,
-                    conversationId: message.conversationId,
-                    senderId: message.senderId,
-                    receiverId: message.receiverId,
-                    text: message.text,
-                    createdAt: message.createdAt
-                }
+                    id: normalized.id,
+                    conversationId: normalized.conversationId,
+                    senderId: normalized.senderId,
+                    receiverId: normalized.receiverId,
+                    text: normalized.text,
+                    createdAt: normalized.createdAt
+                },
+                receiverUserId
             }
         });
     } catch (error) {
         console.error('sendMessage error:', error);
-        res.status(500).json({
+        const status = error.status || 500;
+        res.status(status).json({
             success: false,
-            message: 'Failed to send message'
+            message: error.message || 'Failed to send message'
         });
     }
 };
@@ -178,7 +164,7 @@ exports.getMessages = async (req, res) => {
         const currentUserId = String(req.userId);
         const { conversationId } = req.params;
 
-        const conversation = await Conversation.findById(conversationId);
+        const conversation = await chatService.getConversationById(conversationId);
         if (!conversation) {
             return res.status(404).json({
                 success: false,
@@ -186,26 +172,27 @@ exports.getMessages = async (req, res) => {
             });
         }
 
-        if (!conversation.participants.includes(currentUserId)) {
+        const allowed = await chatService.userParticipates(conversation, currentUserId);
+        if (!allowed) {
             return res.status(403).json({
                 success: false,
                 message: 'Not authorized to view this conversation'
             });
         }
 
-        const messages = await Message.find({ conversationId }).sort({ createdAt: 1 });
+        const messages = await chatService.listMessages(conversationId);
 
         res.json({
             success: true,
             data: {
-                conversationId: conversation._id,
+                conversationId: String(conversation.id),
                 messages: messages.map((msg) => ({
-                    id: msg._id,
-                    conversationId: msg.conversationId,
-                    senderId: msg.senderId,
-                    receiverId: msg.receiverId,
-                    text: msg.text,
-                    createdAt: msg.createdAt
+                    id: String(msg.id),
+                    conversationId: String(msg.conversation_id),
+                    senderId: String(msg.sender_id),
+                    receiverId: String(msg.receiver_id),
+                    text: msg.body,
+                    createdAt: msg.created_at
                 }))
             }
         });

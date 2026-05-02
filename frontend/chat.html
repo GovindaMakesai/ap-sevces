@@ -1091,15 +1091,36 @@
             headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
 
+        function getMyUserId() {
+            try {
+                if (AppState.user?.id) return String(AppState.user.id);
+                const raw = localStorage.getItem('user');
+                if (raw) {
+                    const u = JSON.parse(raw);
+                    if (u?.id) return String(u.id);
+                }
+            } catch (_e) { /* ignore */ }
+            return '';
+        }
+
         const socketService = (() => {
             let socket = null;
             return {
                 connect() {
-                    if (!token || socket) return socket;
-                    socket = io(CONFIG.API_URL.replace('/api', ''), {
-                        auth: { token },
-                        transports: ['websocket']
-                    });
+                    if (!token) return null;
+                    if (socket && socket.connected) return socket;
+                    if (!socket) {
+                        socket = io(CONFIG.API_URL.replace(/\/api\/?$/, ''), {
+                            auth: { token },
+                            transports: ['websocket', 'polling'],
+                            reconnection: true,
+                            reconnectionAttempts: 8,
+                            timeout: 20000
+                        });
+                        socket.on('connect_error', (err) => {
+                            console.warn('Chat socket:', err?.message || err);
+                        });
+                    }
                     return socket;
                 },
                 get() {
@@ -1284,9 +1305,10 @@
             try {
                 const response = await axiosClient.get(`/${chatId}`);
                 const serverMessages = response.data?.data?.messages || [];
+                const me = getMyUserId();
                 const mapped = serverMessages.map((msg) => ({
                     id: String(msg.id),
-                    type: String(msg.senderId) === String(AppState.user?.id) ? 'sent' : 'received',
+                    type: String(msg.senderId) === me ? 'sent' : 'received',
                     text: msg.text,
                     status: 'read',
                     time: formatTime(msg.createdAt),
@@ -1347,44 +1369,32 @@
         }
 
         // ==================== SEND MESSAGE ====================
-        function sendMessage() {
+        async function sendMessage() {
             const input = document.getElementById('messageInput');
             const message = input.value.trim();
             
             if (!message || !currentChatId) return;
             const conversations = useChatStore.getState().conversations;
             const activeConversation = conversations.find((conv) => String(conv.id) === String(currentChatId));
-            if (!activeConversation?.otherUserId) return;
+            if (!activeConversation?.otherUserId) {
+                Toast.show('Cannot send: open a conversation with someone first', 'warning');
+                return;
+            }
 
-            const optimisticId = `temp-${Date.now()}`;
-            const optimisticMessage = {
-                id: optimisticId,
-                type: 'sent',
-                text: message,
-                status: 'delivered',
-                time: formatTime(new Date()),
-                createdAt: new Date().toISOString()
-            };
-            useChatStore.setState((state) => ({
-                messages: {
-                    ...state.messages,
-                    [currentChatId]: [...(state.messages[currentChatId] || []), optimisticMessage]
-                }
-            }));
-            renderActiveMessages();
             input.value = '';
             input.style.height = 'auto';
 
-            const socket = socketService.get();
-            socket.emit('send_message', {
-                receiverId: activeConversation.otherUserId,
-                text: message
-            }, async (ack) => {
-                if (!ack?.ok) {
-                    Toast.show(ack?.message || 'Failed to send message', 'error');
-                    await loadMessages(currentChatId);
-                }
-            });
+            try {
+                await axiosClient.post('/send', {
+                    receiverId: activeConversation.otherUserId,
+                    text: message
+                });
+                await loadMessages(currentChatId);
+                await loadConversations();
+            } catch (e) {
+                Toast.show(e?.response?.data?.message || e.message || 'Failed to send message', 'error');
+                await loadMessages(currentChatId);
+            }
         }
 
         function renderActiveMessages() {
@@ -1399,9 +1409,10 @@
             if (!socket) return;
 
             socket.on('receive_message', async (payload) => {
+                const me = getMyUserId();
                 const message = {
                     id: String(payload.id),
-                    type: String(payload.senderId) === String(AppState.user?.id) ? 'sent' : 'received',
+                    type: String(payload.senderId) === me ? 'sent' : 'received',
                     text: payload.text,
                     status: 'read',
                     time: formatTime(payload.createdAt),
