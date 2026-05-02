@@ -1,4 +1,4 @@
-import { SafeAreaView, StyleSheet } from 'react-native';
+import { Platform, SafeAreaView, StyleSheet } from 'react-native';
 import { useEffect, useMemo, useRef } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { WebView } from 'react-native-webview';
@@ -10,8 +10,13 @@ const APP_REDIRECT_SCHEME = 'apservices://oauth-complete';
 export default function App() {
   const webViewRef = useRef(null);
   const launchUrl = useMemo(() => {
+    const params = new URLSearchParams({
+      app_redirect: APP_REDIRECT_SCHEME,
+      source: 'expo-app',
+      v: String(Date.now())
+    });
     const separator = FRONTEND_URL.includes('?') ? '&' : '?';
-    return `${FRONTEND_URL}${separator}app_redirect=${encodeURIComponent(APP_REDIRECT_SCHEME)}`;
+    return `${FRONTEND_URL}${separator}${params.toString()}`;
   }, []);
 
   const injectTokenAndRedirect = (token) => {
@@ -93,6 +98,11 @@ export default function App() {
         ref={webViewRef}
         source={{ uri: launchUrl }}
         onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
+        javaScriptEnabled
+        domStorageEnabled
+        cacheEnabled={false}
+        cacheMode={Platform.OS === 'android' ? 'LOAD_NO_CACHE' : undefined}
+        sharedCookiesEnabled
       />
     </SafeAreaView>
   );

@@ -24,8 +24,35 @@ exports.getWorkersForService = async (req, res) => {
         const serviceCategory = serviceResult.rows[0].category;
         console.log('📦 Service category:', serviceCategory);
         
-        // Get workers that offer services in THIS CATEGORY
-        const query = `
+        // Prefer exact service match first; if none, fallback to same-category workers.
+        const exactServiceStrictQuery = `
+            SELECT DISTINCT w.id, w.user_id, w.bio, w.experience_years, w.hourly_rate, 
+                   w.rating, w.total_reviews, w.is_available,
+                   u.first_name, u.last_name, u.email, u.phone, u.profile_pic
+            FROM workers w
+            JOIN users u ON w.user_id = u.id
+            JOIN worker_services ws ON w.id = ws.worker_id
+            WHERE ws.service_id = $1
+              AND w.is_available = true
+              AND ws.is_available = true
+              AND (w.is_approved = true OR w.approval_status = 'approved')
+            ORDER BY w.rating DESC NULLS LAST
+        `;
+
+        const exactServiceRelaxedQuery = `
+            SELECT DISTINCT w.id, w.user_id, w.bio, w.experience_years, w.hourly_rate, 
+                   w.rating, w.total_reviews, w.is_available,
+                   u.first_name, u.last_name, u.email, u.phone, u.profile_pic
+            FROM workers w
+            JOIN users u ON w.user_id = u.id
+            JOIN worker_services ws ON w.id = ws.worker_id
+            WHERE ws.service_id = $1
+              AND w.is_available = true
+              AND ws.is_available = true
+            ORDER BY w.rating DESC NULLS LAST
+        `;
+
+        const categoryFallbackQuery = `
             SELECT DISTINCT w.id, w.user_id, w.bio, w.experience_years, w.hourly_rate, 
                    w.rating, w.total_reviews, w.is_available,
                    u.first_name, u.last_name, u.email, u.phone, u.profile_pic
@@ -34,22 +61,51 @@ exports.getWorkersForService = async (req, res) => {
             JOIN worker_services ws ON w.id = ws.worker_id
             JOIN services s ON ws.service_id = s.id
             WHERE s.category = $1
-              AND w.is_approved = true 
               AND w.is_available = true
               AND ws.is_available = true
             ORDER BY w.rating DESC NULLS LAST
         `;
-        
-        const result = await db.query(query, [serviceCategory]);
-        console.log('📦 Workers found for category:', result.rows.length);
-        
-        if (result.rows.length > 0) {
-            console.log('👤 First worker:', result.rows[0].first_name, result.rows[0].last_name);
+
+        const anyAvailableWorkersQuery = `
+            SELECT DISTINCT w.id, w.user_id, w.bio, w.experience_years, w.hourly_rate, 
+                   w.rating, w.total_reviews, w.is_available,
+                   u.first_name, u.last_name, u.email, u.phone, u.profile_pic
+            FROM workers w
+            JOIN users u ON w.user_id = u.id
+            WHERE w.is_available = true
+              AND (w.is_approved = true OR w.approval_status = 'approved')
+            ORDER BY w.rating DESC NULLS LAST
+        `;
+
+        let result = await db.query(exactServiceStrictQuery, [id]);
+        let source = 'exact_service_strict';
+
+        if (result.rows.length === 0) {
+            result = await db.query(exactServiceRelaxedQuery, [id]);
+            source = 'exact_service_relaxed';
         }
+
+        if (result.rows.length === 0) {
+            result = await db.query(categoryFallbackQuery, [serviceCategory]);
+            source = 'category_fallback';
+        }
+
+        if (result.rows.length === 0) {
+            result = await db.query(anyAvailableWorkersQuery);
+            source = 'all_available_fallback';
+        }
+
+        console.log('📦 Workers found:', {
+            count: result.rows.length,
+            source,
+            service_id: id,
+            category: serviceCategory
+        });
         
         res.json({
             success: true,
             count: result.rows.length,
+            source,
             data: result.rows
         });
         

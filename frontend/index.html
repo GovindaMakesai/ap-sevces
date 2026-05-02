@@ -1545,7 +1545,7 @@
 
     <script>
         // ==================== HOMEPAGE SPECIFIC CODE ====================
-        const BACKEND_URL = 'https://ap-sevces.onrender.com';
+        const BACKEND_URL = window.CONFIG?.BACKEND_URL || 'https://ap-sevces.onrender.com';
 
         function getImageUrl(path) {
             if (!path) return null;
@@ -1553,6 +1553,8 @@
             const cleanPath = path.startsWith('/') ? path : `/${path}`;
             return `${BACKEND_URL}${cleanPath}`;
         }
+
+        const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
         document.addEventListener('DOMContentLoaded', async function() {
             console.log('✅ Homepage loaded');
@@ -1715,10 +1717,31 @@
         async function loadFeaturedPros() {
             const grid = document.getElementById('featuredPros');
             if (!grid) return;
-            
+
+            try {
+                const res = await API.get('/workers?limit=6');
+                const rows = Array.isArray(res?.data) ? res.data : [];
+                if (rows.length > 0) {
+                    const pros = rows.map((w) => ({
+                        id: w.id,
+                        name: `${w.first_name || ''} ${w.last_name || ''}`.trim() || 'Professional',
+                        category: w.category || 'Home services',
+                        experience: `${w.experience_years != null ? w.experience_years : 0} yrs`,
+                        distance: 'Nearby',
+                        price: w.hourly_rate || 399,
+                        rating: w.rating != null ? Number(w.rating) : 5,
+                        image: getImageUrl(w.profile_pic) || 'https://images.unsplash.com/photo-1560250097-0b93528c311a?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=80'
+                    }));
+                    displayFeaturedPros(pros);
+                    return;
+                }
+            } catch (e) {
+                console.warn('Featured pros API failed, using static examples', e);
+            }
+
             const mockPros = [
                 {
-                    id: 1,
+                    id: null,
                     name: 'Rajesh Kumar',
                     category: 'Plumbing Expert',
                     experience: '12 yrs',
@@ -1728,7 +1751,7 @@
                     image: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=80'
                 },
                 {
-                    id: 2,
+                    id: null,
                     name: 'Priya Sharma',
                     category: 'Beautician & Makeup',
                     experience: '8 yrs',
@@ -1738,7 +1761,7 @@
                     image: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=80'
                 },
                 {
-                    id: 3,
+                    id: null,
                     name: 'Suresh Patel',
                     category: 'Electrician',
                     experience: '15 yrs',
@@ -1748,7 +1771,7 @@
                     image: 'https://images.unsplash.com/photo-1556157382-97eda2d62296?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=80'
                 }
             ];
-            
+
             displayFeaturedPros(mockPros);
         }
 
@@ -1791,10 +1814,10 @@
                                 ₹${pro.price} <span>/hour</span>
                             </div>
                             <div class="pro-actions">
-                                <button class="btn-outline" onclick="window.location.href='/worker-profile.html?id=${pro.id}'">
+                                <button class="btn-outline" onclick="window.location.href='${pro.id && uuidRe.test(String(pro.id)) ? `/worker-profile.html?id=${pro.id}` : '/services.html'}'">
                                     View Profile
                                 </button>
-                                <button class="btn-primary" onclick="window.location.href='/booking.html?worker=${pro.id}'">
+                                <button class="btn-primary" onclick="window.location.href='${pro.id && uuidRe.test(String(pro.id)) ? `/booking.html?worker=${pro.id}` : '/services.html'}'">
                                     Book Now
                                 </button>
                             </div>

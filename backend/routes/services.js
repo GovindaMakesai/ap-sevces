@@ -10,9 +10,8 @@ router.get('/categories/all', serviceController.getCategories);
 router.get('/popular', serviceController.getPopularServices);
 router.get('/search', serviceController.searchServices);
 router.get('/category/:category', serviceController.getServicesByCategory);
-router.get('/:id', serviceController.getServiceById);
-
 router.get('/:id/workers', serviceController.getWorkersForService);
+router.get('/:id', serviceController.getServiceById);
 
 // Admin only routes
 router.post('/', 

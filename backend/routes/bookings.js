@@ -37,12 +37,13 @@ const validateBooking = [
         .withMessage('Customer address is required')
 ];
 
-// All booking routes require authentication
+// Public: used by booking wizard before confirm (also works when logged out for slot hints)
+router.post('/check-availability', bookingController.checkAvailability);
+
+// All other booking routes require authentication
 router.use(verifyToken);
 
-// Booking routes
 router.post('/', validateBooking, bookingController.createBooking);
-router.post('/check-availability', bookingController.checkAvailability);
 router.get('/', bookingController.getBookings);
 router.get('/customer', bookingController.getCustomerBookings);
 router.get('/customer/upcoming', bookingController.getCustomerUpcoming);

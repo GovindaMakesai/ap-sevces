@@ -52,27 +52,4 @@ router.put('/availability',
     workerController.updateAvailability
 );
 
-// Worker dashboard endpoints
-router.get('/dashboard',
-    verifyToken,
-    workerController.getDashboard
-);
-
-router.get('/dashboard/stats',
-    verifyToken,
-    workerController.getDashboardStats
-);
-
-// Worker earnings
-router.get('/earnings',
-    verifyToken,
-    workerController.getEarnings
-);
-
-// Worker profile
-router.put('/profile',
-    verifyToken,
-    workerController.updateWorkerProfile
-);
-
 module.exports = router;

@@ -1306,6 +1306,17 @@
             availableWorkers: []
         };
 
+        function syncWorkerAvailabilityState() {
+            const hasWorkers = Array.isArray(bookingData.availableWorkers) && bookingData.availableWorkers.length > 0;
+            if (currentStep === 1) {
+                nextBtn.disabled = !hasWorkers;
+                nextBtn.title = hasWorkers ? '' : 'No professionals are available for this service yet';
+            } else {
+                nextBtn.disabled = false;
+                nextBtn.title = '';
+            }
+        }
+
         function getInitials(name) {
             const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
             if (parts.length === 0) return 'PR';
@@ -1356,6 +1367,70 @@
         const applyCouponBtn = document.getElementById('applyCoupon');
         const couponInput = document.getElementById('couponCode');
 
+        function formatBackendTimeToDisplay(hhmm) {
+            if (!hhmm || typeof hhmm !== 'string') return null;
+            const parts = hhmm.trim().split(':');
+            if (parts.length < 2) return hhmm;
+            let h = parseInt(parts[0], 10);
+            const m = parts[1].replace(/\D/g, '').slice(0, 2) || '00';
+            if (Number.isNaN(h)) return hhmm;
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            const h12 = h % 12 || 12;
+            return `${h12}:${m.padStart(2, '0')} ${ampm}`;
+        }
+
+        async function hydrateFromRebook(bookingId) {
+            try {
+                const res = await API.get(`/bookings/${encodeURIComponent(bookingId)}`);
+                const b = res?.data;
+                if (!b || !b.service_id) {
+                    Toast.show('Could not load that booking for rebook', 'error');
+                    return;
+                }
+                bookingData.workerId = b.worker_id || bookingData.workerId;
+                bookingData.serviceId = b.service_id;
+                if (b.booking_date) {
+                    bookingData.date = String(b.booking_date).split('T')[0];
+                }
+                if (b.start_time) {
+                    bookingData.time = formatBackendTimeToDisplay(b.start_time);
+                }
+                let phone = '9999999999';
+                try {
+                    const u = JSON.parse(localStorage.getItem('user') || 'null');
+                    if (u && u.phone) phone = String(u.phone).replace(/\D/g, '').slice(-10) || phone;
+                } catch (_e) { /* ignore */ }
+                bookingData.address = {
+                    type: 'Previous booking',
+                    houseNo: '—',
+                    street: b.customer_address || 'Same address as before',
+                    city: '—',
+                    pincode: '400001',
+                    phone
+                };
+            } catch (err) {
+                console.error('Rebook load failed:', err);
+                Toast.show(err.message || 'Could not load booking to rebook', 'error');
+            }
+        }
+
+        async function resolveServiceFromWorker() {
+            if (!bookingData.workerId || bookingData.serviceId) return;
+            try {
+                const response = await API.get(`/workers/${bookingData.workerId}`);
+                const w = response?.data;
+                if (!w || !Array.isArray(w.services) || w.services.length === 0) {
+                    Toast.show('This professional has no services yet. Browse services to book.', 'warning');
+                    return;
+                }
+                bookingData.serviceId = w.services[0].id;
+                console.log('📎 Resolved service from worker profile:', bookingData.serviceId);
+            } catch (err) {
+                console.error(err);
+                Toast.show('Could not load services for this professional', 'error');
+            }
+        }
+
         // ==================== INITIALIZATION ====================
         async function init() {
             // Check authentication
@@ -1369,10 +1444,16 @@
 
             // Get parameters from URL
             const urlParams = new URLSearchParams(window.location.search);
+            const rebookId = urlParams.get('rebook');
             bookingData.workerId = urlParams.get('worker');
             bookingData.serviceId = urlParams.get('service');
             bookingData.date = urlParams.get('date');
             bookingData.time = urlParams.get('time');
+
+            if (rebookId) {
+                await hydrateFromRebook(rebookId);
+            }
+            await resolveServiceFromWorker();
 
             console.log('📅 Booking data from URL:', { workerId: bookingData.workerId, serviceId: bookingData.serviceId });
 
@@ -1403,7 +1484,8 @@
                 bookingData.service = service;
                 bookingData.serviceName = service.name;
                 bookingData.servicePrice = parseFloat(service.base_price);
-                bookingData.serviceDuration = service.price_type === 'hourly' ? 1 : 0;
+                // Backend requires duration_hours between 0.5 and 12; fixed-price jobs still use a 1h slot.
+                bookingData.serviceDuration = 1;
                 
                 // Update UI
                 document.getElementById('workerName').textContent = service.name;
@@ -1441,36 +1523,53 @@
                 
                 const response = await API.get(`/services/${bookingData.serviceId}/workers`);
                 console.log('📦 Workers response:', response);
-                
-                if (response.success && response.data && response.data.length > 0) {
-                    bookingData.availableWorkers = response.data;
-                    
-                    // Auto-select the first worker
-                    bookingData.workerId = response.data[0].id;
-                    console.log('✅ Auto-selected worker:', response.data[0].first_name, response.data[0].last_name);
+                let workers = Array.isArray(response?.data) ? response.data : [];
+                if (bookingData.workerId && !workers.some((w) => w.id === bookingData.workerId)) {
+                    try {
+                        const wr = await API.get(`/workers/${bookingData.workerId}`);
+                        const wd = wr?.data;
+                        if (wd && wd.id) {
+                            workers = [wd, ...workers];
+                        }
+                    } catch (_e) { /* keep list as-is */ }
+                }
+                bookingData.availableWorkers = workers;
+
+                if (workers.length > 0) {
+                    const preferred = bookingData.workerId && workers.some((w) => w.id === bookingData.workerId);
+                    if (!preferred) {
+                        bookingData.workerId = workers[0].id;
+                    }
+                    const selectedWorker = workers.find((w) => w.id === bookingData.workerId) || workers[0];
+                    console.log('✅ Worker for booking:', selectedWorker.first_name, selectedWorker.last_name);
                     
                     // Display worker selection dropdown
-                    displayWorkerSelection(response.data);
+                    displayWorkerSelection(workers);
                     
-                    // Load worker details
                     await loadWorkerDetails(bookingData.workerId);
                     
-                    // Update worker info in UI
-                    const worker = response.data[0];
+                    const worker = selectedWorker;
                     document.getElementById('workerName').textContent = `${worker.first_name} ${worker.last_name}`;
                     document.getElementById('workerRating').textContent = `⭐ ${worker.rating || 'New'} (${worker.total_reviews || 0} reviews)`;
                     document.getElementById('workerExperience').textContent = `${worker.experience_years || 0} years exp`;
                     
-                    setWorkerImage(getImageUrl(worker.profile_photo_url), `${worker.first_name || ''} ${worker.last_name || ''}`.trim());
+                    setWorkerImage(getImageUrl(worker.profile_photo_url || worker.profile_pic), `${worker.first_name || ''} ${worker.last_name || ''}`.trim());
                     
                     updateSummary();
                     
                 } else {
+                    bookingData.workerId = null;
                     console.log('⚠️ No workers available for this service');
+                    displayWorkerSelection([]);
                     Toast.show('No professionals available for this service yet', 'warning');
                 }
+                syncWorkerAvailabilityState();
             } catch (error) {
                 console.error('❌ Failed to load workers:', error);
+                bookingData.workerId = null;
+                bookingData.availableWorkers = [];
+                displayWorkerSelection([]);
+                syncWorkerAvailabilityState();
                 Toast.show('Unable to load professionals', 'error');
             }
         }
@@ -1484,34 +1583,38 @@
             const existingSelect = document.getElementById('workerSelect');
             if (existingSelect) existingSelect.remove();
             
+            const hasWorkers = Array.isArray(workers) && workers.length > 0;
             const workerSelectHtml = `
                 <div class="worker-selection" style="margin-top: var(--spacing-md);">
                     <label class="form-label" style="display: block; margin-bottom: var(--spacing-xs); font-weight: 600;">
                         <i class="fas fa-user"></i> Select Professional
                     </label>
-                    <select id="workerSelect" class="form-control" style="width: 100%; padding: 0.75rem; border-radius: var(--radius-lg);">
-                        ${workers.map(worker => `
+                    <select id="workerSelect" class="form-control" style="width: 100%; padding: 0.75rem; border-radius: var(--radius-lg);" ${hasWorkers ? '' : 'disabled'}>
+                        ${hasWorkers ? workers.map(worker => `
                             <option value="${worker.id}" ${bookingData.workerId === worker.id ? 'selected' : ''}>
                                 ${worker.first_name || 'Professional'} ${worker.last_name || ''} - ₹${worker.hourly_rate || 399}/hour 
                                 ${worker.rating ? `(⭐ ${worker.rating})` : '(New)'}
                                 ${worker.experience_years ? `• ${worker.experience_years} yrs exp` : ''}
                             </option>
-                        `).join('')}
+                        `).join('') : '<option value="">No professionals available right now</option>'}
                     </select>
                     <small style="color: var(--gray-600); font-size: var(--font-size-xs); margin-top: 4px; display: block;">
-                        Choose your preferred professional for this service
+                        ${hasWorkers ? 'Choose your preferred professional for this service' : 'Please try another service or check back soon'}
                     </small>
                 </div>
             `;
             
             serviceSelector.insertAdjacentHTML('beforeend', workerSelectHtml);
-            
-            document.getElementById('workerSelect').addEventListener('change', async function() {
-                bookingData.workerId = this.value;
-                console.log('Worker changed to:', bookingData.workerId);
-                await loadWorkerDetails(bookingData.workerId);
-                updateSummary();
-            });
+
+            const workerSelectElement = document.getElementById('workerSelect');
+            if (hasWorkers && workerSelectElement) {
+                workerSelectElement.addEventListener('change', async function() {
+                    bookingData.workerId = this.value;
+                    console.log('Worker changed to:', bookingData.workerId);
+                    await loadWorkerDetails(bookingData.workerId);
+                    updateSummary();
+                });
+            }
         }
 
         // Load worker details
@@ -1576,11 +1679,23 @@
                 }
                 
                 displayTimeSlots(availableSlots);
+                if (bookingData.time) {
+                    const slotEl = Array.from(document.querySelectorAll('.time-slot')).find(
+                        (el) => el.dataset.time === bookingData.time
+                    );
+                    if (slotEl) window.selectTimeSlot(slotEl);
+                }
             } catch (error) {
                 console.error('Failed to check availability:', error);
                 const defaultSlots = ['09:00 AM', '10:00 AM', '11:00 AM', '12:00 PM', 
                                       '02:00 PM', '03:00 PM', '04:00 PM', '05:00 PM'];
                 displayTimeSlots(defaultSlots);
+                if (bookingData.time) {
+                    const slotEl = Array.from(document.querySelectorAll('.time-slot')).find(
+                        (el) => el.dataset.time === bookingData.time
+                    );
+                    if (slotEl) window.selectTimeSlot(slotEl);
+                }
             }
         }
 
@@ -1803,6 +1918,7 @@
             }
 
             currentStep = step;
+            syncWorkerAvailabilityState();
         }
 
         function validateStep(step) {
@@ -1810,6 +1926,10 @@
                 case 1:
                     if (!bookingData.service) {
                         Toast.show('Please select a service', 'error');
+                        return false;
+                    }
+                    if (!Array.isArray(bookingData.availableWorkers) || bookingData.availableWorkers.length === 0) {
+                        Toast.show('No professionals are available for this service right now. Please choose another service.', 'warning');
                         return false;
                     }
                     if (!bookingData.workerId) {
@@ -1874,7 +1994,7 @@
                     service_id: bookingData.service?.id || bookingData.serviceId,
                     booking_date: bookingData.date,
                     start_time: formattedTime,
-                    duration_hours: bookingData.serviceDuration || 1,
+                    duration_hours: Math.max(0.5, parseFloat(bookingData.serviceDuration) || 1),
                     customer_address: `${bookingData.address.houseNo}, ${bookingData.address.street}, ${bookingData.address.city} - ${bookingData.address.pincode}`,
                     customer_notes: '',
                     total_amount: bookingData.totalAmount,
