@@ -1054,29 +1054,98 @@
             setupChatSearch();
             setupChatTabs();
             
-            // Check for chat ID in URL
             const urlParams = new URLSearchParams(window.location.search);
-            const chatId = urlParams.get('id') || urlParams.get('worker');
-            if (chatId) {
-                const existingConversation = useChatStore.getState().conversations.find((conv) =>
-                    String(conv.id) === String(chatId) || String(conv.otherUserId) === String(chatId)
-                );
-                if (existingConversation) {
-                    await loadChat(existingConversation.id);
-                } else {
-                    try {
-                        const response = await axiosClient.post('/conversations', { receiverId: chatId });
-                        const conversationId = response.data?.data?.conversationId;
-                        await loadConversations();
-                        if (conversationId) {
-                            await loadChat(conversationId);
-                        }
-                    } catch (error) {
-                        Toast.show('Could not open this conversation', 'error');
-                    }
-                }
+            const chatParam = urlParams.get('conversation') || urlParams.get('id') || urlParams.get('worker');
+            if (chatParam) {
+                await openChatFromUrlParam(chatParam.trim());
             }
         });
+
+        function upsertConversationInStore(conv) {
+            useChatStore.setState((state) => {
+                const rest = state.conversations.filter((c) => String(c.id) !== String(conv.id));
+                return { conversations: [conv, ...rest] };
+            });
+        }
+
+        function mapApiConversationToListItem(convId, otherUser, lastMessageText, lastMessageAt) {
+            const ou = otherUser || {};
+            const name = `${ou.first_name || 'User'} ${ou.last_name || ''}`.trim();
+            return {
+                id: String(convId),
+                name,
+                first_name: ou.first_name || 'User',
+                last_name: ou.last_name || '',
+                avatar: initialsFromName(ou.first_name, ou.last_name),
+                status: 'online',
+                unread: 0,
+                bookingId: null,
+                category: ou.role || 'customer',
+                lastMessage: lastMessageText || 'No messages yet',
+                time: formatTime(lastMessageAt),
+                otherUserId: String(ou.id || '')
+            };
+        }
+
+        /**
+         * ?id= may be a conversation UUID (deep link) OR another user's id / worker profile id.
+         */
+        async function openChatFromUrlParam(rawId) {
+            const id = String(rawId).trim();
+            if (!id) return;
+
+            const existing = useChatStore.getState().conversations.find((conv) =>
+                String(conv.id) === id || String(conv.otherUserId) === id
+            );
+            if (existing) {
+                await loadChat(existing.id);
+                return;
+            }
+
+            try {
+                const r = await axiosClient.get(`/${encodeURIComponent(id)}`);
+                const d = r.data?.data;
+                if (r.data?.success && d?.conversationId && d.otherUser) {
+                    const item = mapApiConversationToListItem(
+                        d.conversationId,
+                        d.otherUser,
+                        d.lastMessageText,
+                        d.lastMessageAt
+                    );
+                    upsertConversationInStore(item);
+                    loadChatList();
+                    await loadChat(d.conversationId);
+                    return;
+                }
+            } catch (e) {
+                const st = e.response?.status;
+                if (st && st !== 404 && st !== 403) {
+                    Toast.show(e.response?.data?.message || 'Could not open chat', 'error');
+                    return;
+                }
+                if (st === 403) {
+                    Toast.show(e.response?.data?.message || 'Not allowed to view this chat', 'error');
+                    return;
+                }
+            }
+
+            try {
+                const response = await axiosClient.post('/conversations', { receiverId: id });
+                const conversationId = response.data?.data?.conversationId;
+                await loadConversations();
+                if (conversationId) {
+                    await loadChat(conversationId);
+                } else {
+                    Toast.show('Could not create conversation', 'error');
+                }
+            } catch (error) {
+                const msg = error?.response?.data?.message
+                    || (error?.response?.status === 404
+                        ? 'User not found. Open chat from a profile (Chat with me) or check the link.'
+                        : 'Could not open this conversation');
+                Toast.show(msg, 'error');
+            }
+        }
 
         // ==================== STATE ====================
         let currentChatId = null;

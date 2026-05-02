@@ -13,6 +13,7 @@ const { Server } = require('socket.io');
 const notificationRoutes = require('./routes/notifications');
 const messageRoutes = require('./routes/messages');
 const { connectMongo } = require('./config/mongodb');
+const { ensureChatSchema } = require('./config/ensureChatSchema');
 const { registerChatSocket } = require('./socket/chatSocket');
 
 const { storage } = require('./config/cloudinary');
@@ -126,6 +127,11 @@ app.set('io', io);
 registerChatSocket(io);
 connectMongo();
 
-server.listen(PORT, '0.0.0.0', () => {
-    console.log(`✅ Server running on port ${PORT}`);
-});
+async function startServer() {
+    await ensureChatSchema();
+    server.listen(PORT, '0.0.0.0', () => {
+        console.log(`✅ Server running on port ${PORT}`);
+    });
+}
+
+startServer();

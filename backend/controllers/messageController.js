@@ -181,11 +181,15 @@ exports.getMessages = async (req, res) => {
         }
 
         const messages = await chatService.listMessages(conversationId);
+        const meta = await enrichConversation(conversation, currentUserId);
 
         res.json({
             success: true,
             data: {
                 conversationId: String(conversation.id),
+                otherUser: meta.otherUser,
+                lastMessageText: meta.lastMessageText,
+                lastMessageAt: meta.lastMessageAt,
                 messages: messages.map((msg) => ({
                     id: String(msg.id),
                     conversationId: String(msg.conversation_id),
