@@ -22,6 +22,7 @@ router.get('/analytics', adminController.getAnalytics);
 router.get('/users', adminController.getAllUsers);
 router.get('/users/:userId', adminController.getUserById);
 router.put('/users/:userId/status', adminController.updateUserStatus);
+router.put('/users/:userId', adminController.updateUserDetails);
 
 // Worker Management
 router.get('/workers', adminController.getAllWorkers);

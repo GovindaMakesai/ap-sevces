@@ -1,5 +1,6 @@
 // backend/controllers/adminController.js
 const db = require('../config/database');
+const bcrypt = require('bcryptjs');
 
 // ==================== DASHBOARD STATS ====================
 const getDashboardStats = async (req, res) => {
@@ -164,6 +165,86 @@ const updateUserStatus = async (req, res) => {
     } catch (error) {
         console.error('❌ Update user status error:', error);
         res.status(500).json({ success: false, message: 'Failed to update user status' });
+    }
+};
+
+const updateUserDetails = async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const { first_name, last_name, email, phone, role, password } = req.body;
+
+        const existing = await db.query('SELECT id FROM users WHERE id = $1', [userId]);
+        if (existing.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        if (email) {
+            const emailTaken = await db.query('SELECT id FROM users WHERE email = $1 AND id <> $2', [email, userId]);
+            if (emailTaken.rows.length > 0) {
+                return res.status(400).json({ success: false, message: 'Email already in use by another user' });
+            }
+        }
+
+        if (phone) {
+            const phoneTaken = await db.query('SELECT id FROM users WHERE phone = $1 AND id <> $2', [phone, userId]);
+            if (phoneTaken.rows.length > 0) {
+                return res.status(400).json({ success: false, message: 'Phone already in use by another user' });
+            }
+        }
+
+        const fields = [];
+        const values = [];
+        let index = 1;
+
+        if (first_name !== undefined) {
+            fields.push(`first_name = $${index++}`);
+            values.push(first_name);
+        }
+        if (last_name !== undefined) {
+            fields.push(`last_name = $${index++}`);
+            values.push(last_name);
+        }
+        if (email !== undefined) {
+            fields.push(`email = $${index++}`);
+            values.push(String(email).trim().toLowerCase());
+        }
+        if (phone !== undefined) {
+            fields.push(`phone = $${index++}`);
+            values.push(String(phone).trim());
+        }
+        if (role !== undefined) {
+            fields.push(`role = $${index++}`);
+            values.push(role);
+        }
+        if (password !== undefined && String(password).trim() !== '') {
+            const passwordHash = await bcrypt.hash(String(password).trim(), 10);
+            fields.push(`password_hash = $${index++}`);
+            values.push(passwordHash);
+        }
+
+        if (fields.length === 0) {
+            return res.status(400).json({ success: false, message: 'No valid fields provided for update' });
+        }
+
+        fields.push('updated_at = CURRENT_TIMESTAMP');
+        values.push(userId);
+
+        const result = await db.query(
+            `UPDATE users
+             SET ${fields.join(', ')}
+             WHERE id = $${index}
+             RETURNING id, email, phone, first_name, last_name, role, is_active, is_verified, created_at`,
+            values
+        );
+
+        res.json({
+            success: true,
+            message: 'User updated successfully',
+            data: result.rows[0]
+        });
+    } catch (error) {
+        console.error('❌ Update user details error:', error);
+        res.status(500).json({ success: false, message: 'Failed to update user details' });
     }
 };
 
@@ -348,24 +429,72 @@ const getAllServices = async (req, res) => {
     }
 };
 
+const parseIdsInput = (rawValue) => {
+    if (rawValue === undefined || rawValue === null || rawValue === '') return [];
+    if (Array.isArray(rawValue)) return rawValue.filter(Boolean);
+    if (typeof rawValue === 'string') {
+        try {
+            const parsed = JSON.parse(rawValue);
+            return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+        } catch (error) {
+            return rawValue.split(',').map((item) => item.trim()).filter(Boolean);
+        }
+    }
+    return [];
+};
+
+const assignProfessionalsToService = async (serviceId, professionalIds) => {
+    if (!Array.isArray(professionalIds)) return;
+
+    await db.query(
+        'UPDATE worker_services SET is_available = false WHERE service_id = $1',
+        [serviceId]
+    );
+
+    if (professionalIds.length === 0) {
+        return;
+    }
+
+    for (const workerId of professionalIds) {
+        await db.query(
+            `INSERT INTO worker_services (worker_id, service_id, is_available)
+             VALUES ($1, $2, true)
+             ON CONFLICT (worker_id, service_id)
+             DO UPDATE SET is_available = true`,
+            [workerId, serviceId]
+        );
+    }
+};
+
 const createService = async (req, res) => {
     try {
         const { name, category, description, icon, base_price, price_type } = req.body;
+        const professionalIds = parseIdsInput(req.body.professional_ids);
         
         console.log('📝 Creating service:', { name, category, description, icon, base_price, price_type });
-        
+
+        await db.query('BEGIN');
         const result = await db.query(`
             INSERT INTO services (name, category, description, icon, base_price, price_type)
             VALUES ($1, $2, $3, $4, $5, $6)
             RETURNING *
         `, [name, category, description, icon, base_price, price_type]);
+        const createdService = result.rows[0];
+
+        await assignProfessionalsToService(createdService.id, professionalIds);
+        await db.query('COMMIT');
 
         res.status(201).json({
             success: true,
             message: 'Service created successfully',
-            data: result.rows[0]
+            data: createdService
         });
     } catch (error) {
+        try {
+            await db.query('ROLLBACK');
+        } catch (rollbackError) {
+            console.error('❌ Rollback failed:', rollbackError);
+        }
         console.error('❌ Create service error:', error);
         res.status(500).json({ 
             success: false, 
@@ -379,6 +508,8 @@ const updateService = async (req, res) => {
     try {
         const { serviceId } = req.params;
         const updates = req.body;
+        const professionalIdsProvided = Object.prototype.hasOwnProperty.call(req.body, 'professional_ids');
+        const professionalIds = parseIdsInput(req.body.professional_ids);
         
         console.log('📝 Updating service:', serviceId, updates);
 
@@ -432,14 +563,21 @@ const updateService = async (req, res) => {
             RETURNING *
         `;
 
+        await db.query('BEGIN');
         const result = await db.query(query, values);
 
         if (result.rows.length === 0) {
+            await db.query('ROLLBACK');
             return res.status(404).json({
                 success: false,
                 message: 'Service not found'
             });
         }
+
+        if (professionalIdsProvided) {
+            await assignProfessionalsToService(serviceId, professionalIds);
+        }
+        await db.query('COMMIT');
 
         res.json({
             success: true,
@@ -448,6 +586,11 @@ const updateService = async (req, res) => {
         });
 
     } catch (error) {
+        try {
+            await db.query('ROLLBACK');
+        } catch (rollbackError) {
+            console.error('❌ Rollback failed:', rollbackError);
+        }
         console.error('❌ Update service error:', error);
         res.status(500).json({
             success: false,
@@ -577,6 +720,7 @@ module.exports = {
     getAllUsers,
     getUserById,
     updateUserStatus,
+    updateUserDetails,
     getAllWorkers,
     getWorkerDetails,  // ← Now defined!
     approveWorker,

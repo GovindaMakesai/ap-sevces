@@ -1798,7 +1798,7 @@
     <div class="modal" id="addUserModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>Add New User</h3>
+                <h3 id="userModalTitle">Add New User</h3>
                 <button class="modal-close" onclick="closeModal('addUserModal')">&times;</button>
             </div>
             <div class="modal-body">
@@ -1824,14 +1824,14 @@
                         </select>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Temporary Password</label>
-                        <input type="text" class="form-control" id="newUserPassword" value="Welcome@123" readonly>
+                        <label class="form-label">Password</label>
+                        <input type="text" class="form-control" id="newUserPassword" value="Welcome@123">
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
                 <button class="btn-outline" onclick="closeModal('addUserModal')">Cancel</button>
-                <button class="btn-primary" onclick="addUser()">Create User</button>
+                <button class="btn-primary" id="userModalSaveBtn" onclick="saveUser()">Create User</button>
             </div>
         </div>
     </div>
@@ -2041,6 +2041,7 @@
         // ==================== USERS MANAGEMENT ====================
         let currentUserPage = 1;
         let totalUserPages = 1;
+        let editingUserId = null;
 
         async function loadUsers(page = 1) {
             try {
@@ -2408,6 +2409,11 @@
 
         // ==================== MODAL FUNCTIONS ====================
         window.showAddUserModal = function() {
+            editingUserId = null;
+            document.getElementById('userModalTitle').textContent = 'Add New User';
+            document.getElementById('userModalSaveBtn').textContent = 'Create User';
+            document.getElementById('addUserForm').reset();
+            document.getElementById('newUserPassword').value = 'Welcome@123';
             document.getElementById('addUserModal').classList.add('show');
         };
 
@@ -2420,27 +2426,66 @@
             if (modalId === 'approveWorkerModal') {
                 pendingApprovalWorkerId = null;
             }
+            if (modalId === 'addUserModal') {
+                editingUserId = null;
+            }
         };
 
-        window.addUser = async function() {
+        window.editUser = async function(userId) {
+            try {
+                const response = await API.get(`/admin/users/${userId}`);
+                if (!response.success) {
+                    Toast.show('Failed to load user details', 'error');
+                    return;
+                }
+
+                const user = response.data;
+                editingUserId = userId;
+                document.getElementById('userModalTitle').textContent = 'Edit User';
+                document.getElementById('userModalSaveBtn').textContent = 'Save Changes';
+                document.getElementById('newUserName').value = `${user.first_name || ''} ${user.last_name || ''}`.trim();
+                document.getElementById('newUserEmail').value = user.email || '';
+                document.getElementById('newUserPhone').value = user.phone || '';
+                document.getElementById('newUserRole').value = user.role || 'customer';
+                document.getElementById('newUserPassword').value = '';
+                document.getElementById('addUserModal').classList.add('show');
+            } catch (error) {
+                Toast.show('Failed to load user details', 'error');
+            }
+        };
+
+        window.saveUser = async function() {
+            const fullName = (document.getElementById('newUserName').value || '').trim();
+            const [firstName, ...restName] = fullName.split(' ').filter(Boolean);
+            const lastName = restName.join(' ');
+            if (!firstName || !lastName) {
+                Toast.show('Please enter full name (first and last name)', 'warning');
+                return;
+            }
+
             const userData = {
-                first_name: document.getElementById('newUserName').value.split(' ')[0],
-                last_name: document.getElementById('newUserName').value.split(' ').slice(1).join(' ') || 'User',
+                first_name: firstName,
+                last_name: lastName,
                 email: document.getElementById('newUserEmail').value,
                 phone: document.getElementById('newUserPhone').value,
-                password: document.getElementById('newUserPassword').value,
                 role: document.getElementById('newUserRole').value
             };
+            const passwordValue = (document.getElementById('newUserPassword').value || '').trim();
+            if (passwordValue) {
+                userData.password = passwordValue;
+            }
 
             try {
-                const response = await API.post('/auth/register', userData);
+                const response = editingUserId
+                    ? await API.put(`/admin/users/${editingUserId}`, userData)
+                    : await API.post('/auth/register', userData);
                 if (response.success) {
-                    Toast.show('User created successfully!', 'success');
+                    Toast.show(editingUserId ? 'User updated successfully!' : 'User created successfully!', 'success');
                     closeModal('addUserModal');
                     loadUsers();
                 }
             } catch (error) {
-                Toast.show('Failed to create user', 'error');
+                Toast.show(error?.message || 'Failed to save user', 'error');
             }
         };
 

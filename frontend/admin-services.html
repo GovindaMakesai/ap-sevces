@@ -300,18 +300,21 @@
         .modal-content {
             background: white;
             border-radius: var(--radius-2xl);
-            padding: var(--spacing-2xl);
-            max-width: 600px;
-            width: 90%;
-            max-height: 90vh;
-            overflow-y: auto;
+            max-width: 780px;
+            width: min(92vw, 780px);
+            max-height: 88vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: var(--shadow-xl);
         }
 
         .modal-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: var(--spacing-lg);
+            padding: var(--spacing-lg) var(--spacing-xl);
+            border-bottom: 1px solid var(--gray-200);
         }
 
         .modal-header h2 {
@@ -324,6 +327,23 @@
             font-size: 1.5rem;
             cursor: pointer;
             color: var(--gray-500);
+            line-height: 1;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-close:hover {
+            background: var(--gray-100);
+            color: var(--gray-700);
+        }
+
+        #serviceForm {
+            padding: var(--spacing-lg) var(--spacing-xl) var(--spacing-md);
+            overflow-y: auto;
         }
 
         .form-group {
@@ -343,6 +363,13 @@
             border: 1px solid var(--gray-300);
             border-radius: var(--radius-lg);
             font-size: 1rem;
+            background: white;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary-500);
+            box-shadow: 0 0 0 3px var(--primary-100);
         }
 
         .form-row {
@@ -406,6 +433,39 @@
             gap: var(--spacing-sm);
             justify-content: flex-end;
             margin-top: var(--spacing-xl);
+            padding-top: var(--spacing-md);
+            border-top: 1px solid var(--gray-200);
+            position: sticky;
+            bottom: 0;
+            background: white;
+        }
+
+        .professional-list {
+            border: 1px solid var(--gray-300);
+            border-radius: var(--radius-lg);
+            max-height: 220px;
+            overflow-y: auto;
+            padding: var(--spacing-sm);
+            background: var(--gray-50);
+        }
+
+        .professional-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.45rem 0.5rem;
+            border-radius: 0.4rem;
+            cursor: pointer;
+        }
+
+        .professional-item:hover {
+            background: white;
+        }
+
+        .professional-empty {
+            color: var(--gray-500);
+            font-size: 0.9rem;
+            padding: 0.5rem;
         }
 
         .loading-spinner {
@@ -441,6 +501,17 @@
         }
 
         @media (max-width: 768px) {
+            .modal-content {
+                width: 96vw;
+                max-height: 92vh;
+            }
+
+            .modal-header,
+            #serviceForm {
+                padding-left: var(--spacing-md);
+                padding-right: var(--spacing-md);
+            }
+
             .form-row {
                 grid-template-columns: 1fr;
             }
@@ -562,6 +633,13 @@
                     </div>
                 </div>
 
+                <div class="form-group">
+                    <label>Assign Professionals</label>
+                    <div id="professionalList" class="professional-list">
+                        <div class="professional-empty">Loading professionals...</div>
+                    </div>
+                </div>
+
                 <div class="modal-footer">
                     <button type="button" class="btn-outline" onclick="closeModal()">Cancel</button>
                     <button type="submit" class="btn-primary" id="saveBtn">Save Service</button>
@@ -581,6 +659,8 @@
     // State
     let currentServiceId = null;
     let selectedFile = null;
+    let availableProfessionals = [];
+    let selectedProfessionalIds = [];
 
     // Helper function to get correct image URL
     function getImageUrl(path) {
@@ -602,9 +682,59 @@
 
     // Load services on page load
     document.addEventListener('DOMContentLoaded', async () => {
+        await loadProfessionals();
         await loadServices();
         // setupEventListeners(); // REMOVED - function doesn't exist
     });
+
+    async function loadProfessionals() {
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`${API_BASE_URL}/admin/workers?status=approved&limit=200`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            const data = await response.json();
+            if (data.success) {
+                availableProfessionals = (data.data || []).filter(worker =>
+                    worker.approval_status === 'approved' || worker.is_approved
+                );
+            } else {
+                availableProfessionals = [];
+            }
+        } catch (error) {
+            console.error('Error loading professionals:', error);
+            availableProfessionals = [];
+        }
+        renderProfessionalList();
+    }
+
+    function renderProfessionalList() {
+        const container = document.getElementById('professionalList');
+        if (!container) return;
+
+        if (!availableProfessionals.length) {
+            container.innerHTML = '<div class="professional-empty">No approved professionals found</div>';
+            return;
+        }
+
+        const selectedSet = new Set(selectedProfessionalIds);
+        container.innerHTML = availableProfessionals.map(worker => {
+            const name = `${worker.first_name || ''} ${worker.last_name || ''}`.trim() || worker.email || 'Professional';
+            return `
+                <label class="professional-item">
+                    <input
+                        type="checkbox"
+                        class="professional-checkbox"
+                        value="${worker.id}"
+                        ${selectedSet.has(worker.id) ? 'checked' : ''}
+                    />
+                    <span>${name}</span>
+                </label>
+            `;
+        }).join('');
+    }
 
     // Load services from API
     async function loadServices() {
@@ -675,10 +805,12 @@
     // Show add modal
     function showAddServiceModal() {
         currentServiceId = null;
+        selectedProfessionalIds = [];
         document.getElementById('modalTitle').textContent = 'Add Service';
         document.getElementById('serviceForm').reset();
         document.getElementById('imagePreview').style.display = 'none';
         selectedFile = null;
+        renderProfessionalList();
         document.getElementById('serviceModal').classList.add('show');
     }
 
@@ -704,6 +836,10 @@
                 document.getElementById('servicePrice').value = service.base_price;
                 document.getElementById('servicePriceType').value = service.price_type;
                 document.getElementById('serviceStatus').value = service.is_active;
+                selectedProfessionalIds = Array.isArray(service.workers)
+                    ? service.workers.map(worker => worker.id)
+                    : [];
+                renderProfessionalList();
                 
                 if (service.image_url) {
                     const preview = document.getElementById('imagePreview');
@@ -740,6 +876,8 @@
         formData.append('base_price', document.getElementById('servicePrice').value);
         formData.append('price_type', document.getElementById('servicePriceType').value);
         formData.append('is_active', document.getElementById('serviceStatus').value);
+        const selectedIds = Array.from(document.querySelectorAll('.professional-checkbox:checked')).map(input => input.value);
+        formData.append('professional_ids', JSON.stringify(selectedIds));
 
         if (selectedFile) {
             formData.append('image', selectedFile);
@@ -838,6 +976,7 @@
         document.getElementById('serviceModal').classList.remove('show');
         document.getElementById('imagePreview').style.display = 'none';
         selectedFile = null;
+        selectedProfessionalIds = [];
     }
 
     // Close modal on outside click

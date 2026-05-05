@@ -124,6 +124,19 @@ const generateOAuthPassword = () => {
     return `google_${crypto.randomBytes(24).toString('hex')}`;
 };
 
+const isAdminRequest = (req) => {
+    try {
+        const authHeader = req.headers.authorization || '';
+        if (!authHeader.startsWith('Bearer ')) return false;
+        const token = authHeader.split(' ')[1];
+        if (!token || !process.env.JWT_SECRET) return false;
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        return decoded?.role === 'admin';
+    } catch (_error) {
+        return false;
+    }
+};
+
 const getFrontendBaseUrl = () => process.env.FRONTEND_URL || 'https://ap-sevces.vercel.app';
 const buildOAuthSuccessUrl = (token, appRedirect = '') => {
     const absoluteSuccessUrl = process.env.OAUTH_SUCCESS_URL;
@@ -177,6 +190,7 @@ const register = async (req, res) => {
         const first_name = typeof rawFirst === 'string' ? rawFirst.trim() : '';
         const last_name = typeof rawLast === 'string' ? rawLast.trim() : '';
         const otp = typeof rawOtp === 'string' ? rawOtp.trim() : '';
+        const adminRequest = isAdminRequest(req);
 
         if (!email || !phone || !password || !first_name || !last_name) {
             return res.status(400).json({
@@ -190,31 +204,37 @@ const register = async (req, res) => {
         const isTestPhone = isAllowedTestPhone(normalizedPhone);
         const isFallbackMode = otp_mode === 'fallback';
 
-        if (isTestPhone) {
-            const expectedOtp = TEST_PHONE_OTP_MAP[normalizedPhone];
-            if (!otp || otp !== expectedOtp) {
+        if (!adminRequest) {
+            if (isTestPhone) {
+                const expectedOtp = TEST_PHONE_OTP_MAP[normalizedPhone];
+                if (!otp || otp !== expectedOtp) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Invalid test OTP for this test number'
+                    });
+                }
+            } else if (isFallbackMode) {
+                if (!otp || otp !== UNIVERSAL_FALLBACK_OTP) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Invalid fallback OTP'
+                    });
+                }
+            } else if (!hasFirebaseToken) {
                 return res.status(400).json({
                     success: false,
-                    message: 'Invalid test OTP for this test number'
+                    message: 'Phone verification is required. Complete SMS verification with Firebase before registering.'
                 });
+            } else {
+                await verifyFirebasePhoneToken(firebase_id_token.trim(), phone);
             }
-        } else if (isFallbackMode) {
-            if (!otp || otp !== UNIVERSAL_FALLBACK_OTP) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Invalid fallback OTP'
-                });
-            }
-        } else if (!hasFirebaseToken) {
-            return res.status(400).json({
-                success: false,
-                message: 'Phone verification is required. Complete SMS verification with Firebase before registering.'
-            });
-        } else {
-            await verifyFirebasePhoneToken(firebase_id_token.trim(), phone);
         }
 
-        const wantsWorker = user_type === 'worker';
+        const requestedRole = adminRequest
+            ? String(req.body.role || user_type || 'customer').toLowerCase()
+            : String(user_type || 'customer').toLowerCase();
+        const role = ['customer', 'worker', 'admin'].includes(requestedRole) ? requestedRole : 'customer';
+        const wantsWorker = role === 'worker';
         if (wantsWorker) {
             const hourly = parseFloat(rawHourly);
             if (!experience || Number.isNaN(hourly) || hourly < 100) {
@@ -249,7 +269,7 @@ const register = async (req, res) => {
             password,
             first_name,
             last_name,
-            role: wantsWorker ? 'worker' : 'customer'
+            role
         });
 
         let userOut = { ...newUser };
