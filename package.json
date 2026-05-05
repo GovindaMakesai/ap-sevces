@@ -10,6 +10,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "db:schema": "node database/run-schema.js",
     "db:migrate:booking-audit": "node database/migrate-booking-audit-columns.js",
+    "db:migrate:reviews-rich": "node database/migrate-reviews-rich-fields.js",
     "db:seed:test": "node database/seeds/test-data-seed.js"
   },
   "dependencies": {

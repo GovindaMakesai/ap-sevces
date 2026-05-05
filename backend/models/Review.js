@@ -22,14 +22,28 @@ class Review {
             }
             
             // Create review
-            const query = `
-                INSERT INTO reviews (booking_id, customer_id, worker_id, rating, title, comment, images)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
-                RETURNING *
-            `;
-            
-            const values = [booking_id, customer_id, worker_id, rating, title, comment, images || []];
-            const result = await client.query(query, values);
+            let result;
+            try {
+                const query = `
+                    INSERT INTO reviews (booking_id, customer_id, worker_id, rating, title, comment, images)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    RETURNING *
+                `;
+                const values = [booking_id, customer_id, worker_id, rating, title || null, comment || null, images || []];
+                result = await client.query(query, values);
+            } catch (insertError) {
+                // Backward compatible fallback for environments where migration has not run yet.
+                if (!String(insertError.message || '').toLowerCase().includes('column')) {
+                    throw insertError;
+                }
+                const fallbackQuery = `
+                    INSERT INTO reviews (booking_id, customer_id, worker_id, rating, comment)
+                    VALUES ($1, $2, $3, $4, $5)
+                    RETURNING *
+                `;
+                const fallbackValues = [booking_id, customer_id, worker_id, rating, comment || null];
+                result = await client.query(fallbackQuery, fallbackValues);
+            }
             const review = result.rows[0];
             
             // Update worker's average rating
@@ -139,15 +153,29 @@ class Review {
 
     // Mark review as helpful
     static async markHelpful(reviewId, userId) {
-        const query = `
-            UPDATE reviews 
-            SET helpful_count = helpful_count + 1
-            WHERE id = $1
-            RETURNING helpful_count
-        `;
-        
-        const result = await db.query(query, [reviewId]);
-        return result.rows[0];
+        try {
+            const query = `
+                UPDATE reviews
+                SET helpful_count = COALESCE(helpful_count, 0) + 1
+                WHERE id = $1
+                RETURNING helpful_count
+            `;
+            const result = await db.query(query, [reviewId]);
+            if (result.rows.length === 0) {
+                throw new Error('Review not found');
+            }
+            return result.rows[0];
+        } catch (error) {
+            if (!String(error.message || '').toLowerCase().includes('column')) {
+                throw error;
+            }
+            // Backward compatible fallback when helpful_count column is unavailable.
+            const exists = await db.query('SELECT id FROM reviews WHERE id = $1', [reviewId]);
+            if (exists.rows.length === 0) {
+                throw new Error('Review not found');
+            }
+            return { helpful_count: 0 };
+        }
     }
 
     // Check if user can review a booking

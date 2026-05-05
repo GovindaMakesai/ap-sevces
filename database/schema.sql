@@ -101,7 +101,10 @@ CREATE TABLE IF NOT EXISTS reviews (
     customer_id UUID REFERENCES users(id) ON DELETE CASCADE,
     worker_id UUID REFERENCES workers(id) ON DELETE CASCADE,
     rating INTEGER CHECK (rating BETWEEN 1 AND 5),
+    title VARCHAR(255),
     comment TEXT,
+    images TEXT[] DEFAULT ARRAY[]::TEXT[],
+    helpful_count INTEGER DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
