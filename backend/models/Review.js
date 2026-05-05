@@ -24,6 +24,7 @@ class Review {
             // Create review
             let result;
             try {
+                await client.query('SAVEPOINT review_rich_insert');
                 const query = `
                     INSERT INTO reviews (booking_id, customer_id, worker_id, rating, title, comment, images)
                     VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -36,6 +37,7 @@ class Review {
                 if (!String(insertError.message || '').toLowerCase().includes('column')) {
                     throw insertError;
                 }
+                await client.query('ROLLBACK TO SAVEPOINT review_rich_insert');
                 const fallbackQuery = `
                     INSERT INTO reviews (booking_id, customer_id, worker_id, rating, comment)
                     VALUES ($1, $2, $3, $4, $5)
