@@ -4,63 +4,51 @@ const db = require('../config/database');
 class Review {
     // Create a new review
     static async create(reviewData) {
-        const client = await db.pool.connect();
-        
-        try {
-            await client.query('BEGIN');
-            
-            const { booking_id, customer_id, worker_id, rating, title, comment, images } = reviewData;
-            
-            // Check if review already exists for this booking
-            const existing = await client.query(
-                'SELECT id FROM reviews WHERE booking_id = $1',
-                [booking_id]
-            );
-            
-            if (existing.rows.length > 0) {
-                throw new Error('Review already exists for this booking');
-            }
-            
-            // Create review
-            let result;
-            try {
-                await client.query('SAVEPOINT review_rich_insert');
-                const query = `
-                    INSERT INTO reviews (booking_id, customer_id, worker_id, rating, title, comment, images)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7)
-                    RETURNING *
-                `;
-                const values = [booking_id, customer_id, worker_id, rating, title || null, comment || null, images || []];
-                result = await client.query(query, values);
-            } catch (insertError) {
-                // Backward compatible fallback for environments where migration has not run yet.
-                if (!String(insertError.message || '').toLowerCase().includes('column')) {
-                    throw insertError;
-                }
-                await client.query('ROLLBACK TO SAVEPOINT review_rich_insert');
-                const fallbackQuery = `
-                    INSERT INTO reviews (booking_id, customer_id, worker_id, rating, comment)
-                    VALUES ($1, $2, $3, $4, $5)
-                    RETURNING *
-                `;
-                const fallbackValues = [booking_id, customer_id, worker_id, rating, comment || null];
-                result = await client.query(fallbackQuery, fallbackValues);
-            }
-            const review = result.rows[0];
-            
-            // Update worker's average rating
-            await this.updateWorkerRating(client, worker_id);
-            
-            await client.query('COMMIT');
-            
-            return review;
-            
-        } catch (error) {
-            await client.query('ROLLBACK');
-            throw error;
-        } finally {
-            client.release();
+        const { booking_id, customer_id, worker_id, rating, title, comment, images } = reviewData;
+
+        // Check if review already exists for this booking
+        const existing = await db.query(
+            'SELECT id FROM reviews WHERE booking_id = $1',
+            [booking_id]
+        );
+
+        if (existing.rows.length > 0) {
+            throw new Error('Review already exists for this booking');
         }
+
+        // Create review with rich fields when available; fallback for old schemas.
+        let result;
+        try {
+            const query = `
+                INSERT INTO reviews (booking_id, customer_id, worker_id, rating, title, comment, images)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                RETURNING *
+            `;
+            const values = [booking_id, customer_id, worker_id, rating, title || null, comment || null, images || []];
+            result = await db.query(query, values);
+        } catch (insertError) {
+            if (!String(insertError.message || '').toLowerCase().includes('column')) {
+                throw insertError;
+            }
+            const fallbackQuery = `
+                INSERT INTO reviews (booking_id, customer_id, worker_id, rating, comment)
+                VALUES ($1, $2, $3, $4, $5)
+                RETURNING *
+            `;
+            const fallbackValues = [booking_id, customer_id, worker_id, rating, comment || null];
+            result = await db.query(fallbackQuery, fallbackValues);
+        }
+
+        const review = result.rows[0];
+
+        // Best-effort rating refresh; don't fail review creation because of this.
+        try {
+            await this.updateWorkerRating(db, worker_id);
+        } catch (ratingError) {
+            console.error('Update worker rating warning:', ratingError.message);
+        }
+
+        return review;
     }
 
     // Update worker's average rating
