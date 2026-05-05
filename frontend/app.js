@@ -578,6 +578,53 @@ const Toast = {
 
 // ==================== UI HELPERS ====================
 const UI = {
+    ensureAuthNavStyles() {
+        if (document.getElementById('auth-nav-fallback-styles')) return;
+        const style = document.createElement('style');
+        style.id = 'auth-nav-fallback-styles';
+        style.textContent = `
+            .auth-nav-btn {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 0.4rem;
+                padding: 0.5rem 0.9rem;
+                border-radius: 0.6rem;
+                border: 1px solid transparent;
+                font-weight: 600;
+                font-size: 0.92rem;
+                line-height: 1;
+                text-decoration: none;
+                cursor: pointer;
+                background: transparent;
+                transition: all 0.2s ease;
+                white-space: nowrap;
+            }
+            .auth-nav-outline {
+                color: #2563eb;
+                border-color: #2563eb;
+                background: #ffffff;
+            }
+            .auth-nav-outline:hover {
+                background: #eff6ff;
+            }
+            .auth-nav-primary {
+                color: #ffffff;
+                border-color: #2563eb;
+                background: #2563eb;
+            }
+            .auth-nav-primary:hover {
+                background: #1d4ed8;
+                border-color: #1d4ed8;
+            }
+            .user-name {
+                font-weight: 600;
+                color: #374151;
+                white-space: nowrap;
+            }
+        `;
+        document.head.appendChild(style);
+    },
     /**
      * Logged-out nav (web). "Become a Pro" → full signup where user can pick Professional.
      */
@@ -586,8 +633,8 @@ const UI = {
                 <a href="/services.html">Services</a>
                 <a href="/register.html">Become a Pro</a>
                 <a href="/help.html">Help</a>
-                <a href="/login.html" class="btn-outline">Login</a>
-                <a href="/register.html" class="btn-primary">Sign Up</a>
+                <a href="/login.html" class="btn-outline auth-nav-btn auth-nav-outline">Login</a>
+                <a href="/register.html" class="btn-primary auth-nav-btn auth-nav-primary">Sign Up</a>
             `;
     },
 
@@ -599,7 +646,7 @@ const UI = {
         const first = user.first_name || 'there';
         const help = '<a href="/help.html">Help</a>';
         const hi = `<span class="user-name">Hi, ${first}</span>`;
-        const logout = '<button type="button" class="btn-outline" onclick="Auth.logout()">Logout</button>';
+        const logout = '<button type="button" class="btn-outline auth-nav-btn auth-nav-outline" onclick="Auth.logout()">Logout</button>';
 
         if (role === 'admin') {
             return `
@@ -636,6 +683,7 @@ const UI = {
     updateNavbar() {
         const navLinks = document.querySelector('.nav-links');
         if (!navLinks) return;
+        UI.ensureAuthNavStyles();
         if (document.querySelector('.nav-content .search-bar')) {
             return;
         }
