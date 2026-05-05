@@ -165,11 +165,9 @@ class Booking {
             `;
             const params = [status];
             
-            if (status === 'completed') {
-                query += `, completed_at = CURRENT_TIMESTAMP`;
-            } else if (status === 'cancelled') {
-                query += `, cancelled_at = CURRENT_TIMESTAMP, cancelled_by = $2, cancellation_reason = $3`;
-                params.push(userId, reason);
+            if (status === 'cancelled') {
+                query += `, cancellation_reason = $2`;
+                params.push(reason || null);
             }
             
             query += ` WHERE id = $${params.length + 1} RETURNING *`;
