@@ -879,6 +879,91 @@
             justify-content: flex-end;
         }
 
+        .service-assign-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: var(--spacing-sm);
+            margin-top: var(--spacing-sm);
+        }
+
+        .service-assign-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 0.75rem;
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-lg);
+            background: var(--gray-50);
+        }
+
+        .service-assign-item input[type="checkbox"] {
+            accent-color: var(--primary-600);
+        }
+
+        .footer {
+            margin-top: var(--spacing-xl);
+            background: var(--gray-900);
+            color: var(--gray-200);
+            padding: 2.5rem 0 1rem;
+        }
+
+        .footer-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            gap: var(--spacing-xl);
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .footer-col h3,
+        .footer-col h4 {
+            color: white;
+            margin-bottom: var(--spacing-sm);
+        }
+
+        .footer-col p {
+            color: var(--gray-400);
+        }
+
+        .footer-col ul {
+            list-style: none;
+            display: grid;
+            gap: 0.4rem;
+        }
+
+        .footer-col a {
+            color: var(--gray-300);
+            text-decoration: none;
+            transition: color var(--transition-fast);
+        }
+
+        .footer-col a:hover {
+            color: white;
+        }
+
+        .social-links {
+            margin-top: var(--spacing-sm);
+            display: flex;
+            gap: 0.6rem;
+        }
+
+        .social-links a {
+            width: 34px;
+            height: 34px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .footer-bottom {
+            border-top: 1px solid rgba(255, 255, 255, 0.12);
+            padding-top: var(--spacing-md);
+            text-align: center;
+            color: var(--gray-400);
+            font-size: 0.9rem;
+        }
+
         /* ==================== FORMS ==================== */
         .form-group {
             margin-bottom: var(--spacing-md);
@@ -1067,6 +1152,11 @@
 
             .modal-footer button {
                 width: 100%;
+            }
+
+            .footer-grid {
+                grid-template-columns: 1fr;
+                gap: var(--spacing-lg);
             }
 
             .date-range {
@@ -1785,6 +1875,23 @@
         </div>
     </div>
 
+    <div class="modal" id="approveWorkerModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Approve Worker & Assign Services</h3>
+                <button class="modal-close" onclick="closeModal('approveWorkerModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Select at least one service this professional can offer.</p>
+                <div id="approveServiceList" class="service-assign-list"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-outline" onclick="closeModal('approveWorkerModal')">Cancel</button>
+                <button class="btn-primary" onclick="confirmApproveWorker()">Approve Worker</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Footer -->
     <footer class="footer">
         <div class="container">
@@ -1988,6 +2095,7 @@
         // ==================== WORKERS MANAGEMENT ====================
         let currentWorkerPage = 1;
         let currentWorkerTab = 'pending';
+        let pendingApprovalWorkerId = null;
 
         async function loadWorkers(page = 1, status = currentWorkerTab) {
             try {
@@ -2029,7 +2137,7 @@
                         <div class="action-buttons">
                             <button class="icon-btn" onclick="viewWorkerDetails('${worker.id}')"><i class="fas fa-eye"></i></button>
                             ${worker.approval_status === 'pending' ? `
-                                <button class="icon-btn approve" onclick="approveWorker('${worker.id}')"><i class="fas fa-check"></i></button>
+                                <button class="icon-btn approve" onclick="openApproveWorkerModal('${worker.id}')"><i class="fas fa-check"></i></button>
                                 <button class="icon-btn delete" onclick="rejectWorker('${worker.id}')"><i class="fas fa-times"></i></button>
                             ` : ''}
                         </div>
@@ -2198,11 +2306,61 @@
         }
 
         // ==================== ACTION HANDLERS ====================
-        window.approveWorker = async function(workerId) {
+        window.openApproveWorkerModal = async function(workerId) {
+            pendingApprovalWorkerId = workerId;
+            const list = document.getElementById('approveServiceList');
+            list.innerHTML = '<div class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Loading services...</div>';
+            document.getElementById('approveWorkerModal').classList.add('show');
+
             try {
-                const response = await API.put(`/admin/workers/${workerId}/approve`, { status: 'approved' });
+                const servicesResponse = await API.get('/admin/services');
+                if (!servicesResponse.success || !Array.isArray(servicesResponse.data) || servicesResponse.data.length === 0) {
+                    list.innerHTML = '<div class="empty-state">No services available</div>';
+                    return;
+                }
+
+                const activeServices = servicesResponse.data.filter(service => service.is_active);
+                if (activeServices.length === 0) {
+                    list.innerHTML = '<div class="empty-state">No active services available</div>';
+                    return;
+                }
+
+                list.innerHTML = activeServices.map(service => `
+                    <label class="service-assign-item">
+                        <input type="checkbox" name="approveService" value="${service.id}">
+                        <span>${service.name}</span>
+                    </label>
+                `).join('');
+            } catch (error) {
+                console.error('Failed to load services for assignment:', error);
+                list.innerHTML = '<div class="empty-state">Failed to load services</div>';
+            }
+        };
+
+        window.confirmApproveWorker = async function() {
+            if (!pendingApprovalWorkerId) {
+                Toast.show('No worker selected', 'error');
+                return;
+            }
+
+            const selectedServiceIds = Array.from(
+                document.querySelectorAll('#approveServiceList input[name="approveService"]:checked')
+            ).map(input => input.value);
+
+            if (selectedServiceIds.length === 0) {
+                Toast.show('Please select at least one service', 'warning');
+                return;
+            }
+
+            try {
+                const response = await API.put(`/admin/workers/${pendingApprovalWorkerId}/approve`, {
+                    status: 'approved',
+                    service_ids: selectedServiceIds
+                });
                 if (response.success) {
                     Toast.show('Worker approved successfully!', 'success');
+                    closeModal('approveWorkerModal');
+                    pendingApprovalWorkerId = null;
                     loadWorkers(currentWorkerPage, currentWorkerTab);
                     loadDashboardStats();
                 }
@@ -2259,6 +2417,9 @@
 
         window.closeModal = function(modalId) {
             document.getElementById(modalId).classList.remove('show');
+            if (modalId === 'approveWorkerModal') {
+                pendingApprovalWorkerId = null;
+            }
         };
 
         window.addUser = async function() {

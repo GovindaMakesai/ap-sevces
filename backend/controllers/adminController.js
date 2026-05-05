@@ -268,11 +268,12 @@ const getWorkerDetails = async (req, res) => {
 const approveWorker = async (req, res) => {
     try {
         const { workerId } = req.params;
-        const { status } = req.body;
+        const { status, service_ids } = req.body;
 
+        await db.query('BEGIN');
         const result = await db.query(`
-            UPDATE workers 
-            SET approval_status = $1, 
+            UPDATE workers
+            SET approval_status = $1,
                 is_approved = $2,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = $3
@@ -280,15 +281,39 @@ const approveWorker = async (req, res) => {
         `, [status, status === 'approved', workerId]);
 
         if (result.rows.length === 0) {
+            await db.query('ROLLBACK');
             return res.status(404).json({ success: false, message: 'Worker not found' });
         }
 
+        if (status === 'approved' && Array.isArray(service_ids) && service_ids.length > 0) {
+            await db.query(
+                'UPDATE worker_services SET is_available = false WHERE worker_id = $1',
+                [workerId]
+            );
+
+            for (const serviceId of service_ids) {
+                await db.query(
+                    `INSERT INTO worker_services (worker_id, service_id, is_available)
+                     VALUES ($1, $2, true)
+                     ON CONFLICT (worker_id, service_id)
+                     DO UPDATE SET is_available = true`,
+                    [workerId, serviceId]
+                );
+            }
+        }
+
+        await db.query('COMMIT');
         res.json({
             success: true,
             message: `Worker ${status} successfully`,
             data: result.rows[0]
         });
     } catch (error) {
+        try {
+            await db.query('ROLLBACK');
+        } catch (rollbackError) {
+            console.error('❌ Rollback failed:', rollbackError);
+        }
         console.error('❌ Approve worker error:', error);
         res.status(500).json({ success: false, message: 'Failed to update worker status' });
     }

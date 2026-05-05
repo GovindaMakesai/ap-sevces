@@ -9,6 +9,8 @@ const APP_REDIRECT_SCHEME = 'apservices://oauth-complete';
 
 export default function App() {
   const webViewRef = useRef(null);
+  const pendingTokenRef = useRef('');
+  const webViewReadyRef = useRef(false);
   const launchUrl = useMemo(() => {
     const params = new URLSearchParams({
       app_redirect: APP_REDIRECT_SCHEME,
@@ -20,17 +22,26 @@ export default function App() {
   }, []);
 
   const injectTokenAndRedirect = (token) => {
-    if (!token || !webViewRef.current) return;
+    if (!token || !webViewRef.current || !webViewReadyRef.current) return false;
     const script = `
       (function() {
         try {
           localStorage.setItem('token', ${JSON.stringify(token)});
+          localStorage.removeItem('app_redirect');
           window.location.href = '/login-success.html?token=' + encodeURIComponent(${JSON.stringify(token)});
         } catch (e) {}
       })();
       true;
     `;
     webViewRef.current.injectJavaScript(script);
+    return true;
+  };
+
+  const queueOrInjectToken = (token) => {
+    if (!token) return;
+    pendingTokenRef.current = token;
+    const used = injectTokenAndRedirect(token);
+    if (used) pendingTokenRef.current = '';
   };
 
   useEffect(() => {
@@ -38,9 +49,7 @@ export default function App() {
       try {
         const parsed = Linking.parse(url);
         const token = parsed?.queryParams?.token;
-        if (typeof token === 'string' && token.length > 0) {
-          injectTokenAndRedirect(token);
-        }
+        if (typeof token === 'string' && token.length > 0) queueOrInjectToken(token);
       } catch (_err) {}
     };
 
@@ -68,7 +77,7 @@ export default function App() {
       const parsed = Linking.parse(url);
       const token = parsed?.queryParams?.token;
       if (typeof token === 'string' && token.length > 0) {
-        injectTokenAndRedirect(token);
+        queueOrInjectToken(token);
       }
       return false;
     }
@@ -97,6 +106,13 @@ export default function App() {
       <WebView
         ref={webViewRef}
         source={{ uri: launchUrl }}
+        onLoadEnd={() => {
+          webViewReadyRef.current = true;
+          if (pendingTokenRef.current) {
+            const used = injectTokenAndRedirect(pendingTokenRef.current);
+            if (used) pendingTokenRef.current = '';
+          }
+        }}
         onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
         javaScriptEnabled
         domStorageEnabled
