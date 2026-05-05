@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin User Details | AP Services</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        body { background: #f8fafc; }
+        .page { padding: 2rem 0; }
+        .card {
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.75rem;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.08);
+            padding: 1.25rem;
+        }
+        .head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            gap: 1rem;
+        }
+        .title { font-size: 1.25rem; font-weight: 700; }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.75rem;
+        }
+        .item {
+            border: 1px solid #e5e7eb;
+            border-radius: 0.6rem;
+            padding: 0.75rem;
+            background: #f9fafb;
+        }
+        .item-label { color: #6b7280; font-size: 0.85rem; }
+        .item-value { color: #111827; font-weight: 600; margin-top: 0.2rem; }
+        @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-content">
+                <a href="/" class="logo">AP<span>Services</span></a>
+                <div class="nav-links"></div>
+            </div>
+        </div>
+    </nav>
+
+    <section class="page">
+        <div class="container">
+            <div class="card">
+                <div class="head">
+                    <h1 class="title"><i class="fas fa-user"></i> User Details</h1>
+                    <a class="btn-outline" href="/admin-dashboard.html"><i class="fas fa-arrow-left"></i> Back to Dashboard</a>
+                </div>
+                <div id="content">Loading user details...</div>
+            </div>
+        </div>
+    </section>
+
+    <div id="toast" class="toast"></div>
+    <script src="app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!Auth.checkAuth()) {
+                window.location.href = '/login.html';
+                return;
+            }
+            const me = Auth.getUser();
+            if (me?.role !== 'admin') {
+                window.location.href = '/';
+                return;
+            }
+
+            const userId = new URLSearchParams(window.location.search).get('id');
+            if (!userId) {
+                document.getElementById('content').innerHTML = '<p>Missing user id.</p>';
+                return;
+            }
+
+            try {
+                const res = await API.get(`/admin/users/${userId}`);
+                if (!res.success) throw new Error('Failed to fetch user');
+                const user = res.data;
+                document.getElementById('content').innerHTML = `
+                    <div class="grid">
+                        <div class="item"><div class="item-label">Full Name</div><div class="item-value">${user.first_name || ''} ${user.last_name || ''}</div></div>
+                        <div class="item"><div class="item-label">Email</div><div class="item-value">${user.email || '-'}</div></div>
+                        <div class="item"><div class="item-label">Phone</div><div class="item-value">${user.phone || '-'}</div></div>
+                        <div class="item"><div class="item-label">Role</div><div class="item-value">${user.role || '-'}</div></div>
+                        <div class="item"><div class="item-label">Active</div><div class="item-value">${user.is_active ? 'Yes' : 'No'}</div></div>
+                        <div class="item"><div class="item-label">Verified</div><div class="item-value">${user.is_verified ? 'Yes' : 'No'}</div></div>
+                        <div class="item"><div class="item-label">Created</div><div class="item-value">${user.created_at ? new Date(user.created_at).toLocaleString() : '-'}</div></div>
+                    </div>
+                `;
+            } catch (error) {
+                document.getElementById('content').innerHTML = '<p>Failed to load user details.</p>';
+            }
+        });
+    </script>
+</body>
+</html>
