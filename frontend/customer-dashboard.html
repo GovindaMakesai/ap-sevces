@@ -48,13 +48,13 @@
     background: white;
 }
 
-.notifications-list {
+#notificationsPanelList {
     flex: 1;
     overflow-y: auto;
     max-height: 400px;
 }
 
-.notification-item {
+#notificationsPanelList .notification-item {
     display: flex;
     align-items: flex-start;
     gap: var(--spacing-sm);
@@ -64,15 +64,15 @@
     transition: background var(--transition-fast);
 }
 
-.notification-item:hover {
+#notificationsPanelList .notification-item:hover {
     background: var(--gray-50);
 }
 
-.notification-item.unread {
+#notificationsPanelList .notification-item.unread {
     background: var(--primary-50);
 }
 
-.notification-icon {
+#notificationsPanelList .notification-icon {
     width: 40px;
     height: 40px;
     background: var(--gray-100);
@@ -83,22 +83,22 @@
     color: var(--primary-600);
 }
 
-.notification-content {
+#notificationsPanelList .notification-content {
     flex: 1;
 }
 
-.notification-title {
+#notificationsPanelList .notification-title {
     font-weight: 600;
     margin-bottom: 2px;
 }
 
-.notification-message {
+#notificationsPanelList .notification-message {
     color: var(--gray-600);
     font-size: var(--font-size-sm);
     margin-bottom: 2px;
 }
 
-.notification-time {
+#notificationsPanelList .notification-time {
     font-size: var(--font-size-xs);
     color: var(--gray-500);
 }
@@ -775,16 +775,16 @@
             color: #fbbf24;
         }
 
-        /* ==================== NOTIFICATIONS PANEL ==================== */
-        .notifications-list {
+        /* ==================== IN-PAGE NOTIFICATIONS (dashboard section) ==================== */
+        #notificationsList {
             display: flex;
             flex-direction: column;
             gap: var(--spacing-sm);
         }
 
-        .notification-item {
+        #notificationsList .notification-item {
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             gap: var(--spacing-md);
             padding: var(--spacing-md);
             border: 1px solid var(--gray-200);
@@ -793,16 +793,16 @@
             cursor: pointer;
         }
 
-        .notification-item:hover {
+        #notificationsList .notification-item:hover {
             background: var(--gray-50);
         }
 
-        .notification-item.unread {
+        #notificationsList .notification-item.unread {
             background: var(--primary-50);
             border-color: var(--primary-200);
         }
 
-        .notification-icon {
+        #notificationsList .notification-icon {
             width: 40px;
             height: 40px;
             background: var(--primary-100);
@@ -811,25 +811,150 @@
             align-items: center;
             justify-content: center;
             color: var(--primary-700);
+            flex-shrink: 0;
         }
 
-        .notification-content {
+        #notificationsList .notification-content {
             flex: 1;
+            min-width: 0;
         }
 
-        .notification-content h4 {
+        #notificationsList .notification-content h4 {
             font-size: var(--font-size-base);
             margin-bottom: 2px;
         }
 
-        .notification-content p {
+        #notificationsList .notification-content p {
+            color: var(--gray-600);
+            font-size: var(--font-size-sm);
+            word-break: break-word;
+        }
+
+        #notificationsList .notification-time {
+            color: var(--gray-500);
+            font-size: var(--font-size-xs);
+        }
+
+        /* ==================== ADDRESSES / PAYMENTS / FAVORITES / REVIEWS ==================== */
+        .address-card {
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-xl);
+            padding: var(--spacing-lg);
+            margin-bottom: var(--spacing-md);
+            background: white;
+            position: relative;
+        }
+
+        .address-type {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: var(--radius-full);
+            font-size: var(--font-size-xs);
+            font-weight: 600;
+            text-transform: capitalize;
+            background: var(--primary-50);
+            color: var(--primary-700);
+            margin-bottom: var(--spacing-sm);
+        }
+
+        .address-text {
+            margin: 0 0 var(--spacing-xs);
+            color: var(--gray-800);
+            line-height: 1.45;
+            word-break: break-word;
+        }
+
+        .address-phone {
+            color: var(--gray-600);
+            font-size: var(--font-size-sm);
+            margin: var(--spacing-xs) 0 0;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .address-card .address-actions {
+            display: flex;
+            gap: var(--spacing-sm);
+            margin-top: var(--spacing-md);
+            flex-wrap: wrap;
+        }
+
+        .dashboard-payment-card {
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-lg);
+            margin-bottom: var(--spacing-md);
+            background: white;
+        }
+
+        .dashboard-payment-card .payment-card-inner {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-md);
+            min-width: 0;
+        }
+
+        .dashboard-payment-card .payment-card-inner i.payment-card-icon {
+            font-size: 2rem;
+            color: var(--primary-600);
+            flex-shrink: 0;
+        }
+
+        .dashboard-payment-card h4 {
+            margin: 0 0 4px;
+            font-size: 1rem;
+            word-break: break-word;
+        }
+
+        .dashboard-payment-card .payment-card-body {
+            min-width: 0;
+            flex: 1;
+        }
+
+        .dashboard-payment-card p {
+            margin: 0;
             color: var(--gray-600);
             font-size: var(--font-size-sm);
         }
 
-        .notification-time {
-            color: var(--gray-500);
-            font-size: var(--font-size-xs);
+        .favorites-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: var(--spacing-md);
+        }
+
+        .favorite-pro-card {
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-xl);
+            padding: var(--spacing-lg);
+            background: white;
+            display: flex;
+            flex-direction: column;
+            gap: var(--spacing-sm);
+            min-width: 0;
+        }
+
+        .reviews-list {
+            display: flex;
+            flex-direction: column;
+            gap: var(--spacing-md);
+        }
+
+        .review-card-dash {
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-xl);
+            padding: var(--spacing-lg);
+            background: var(--gray-50);
+        }
+
+        .dashboard-section {
+            min-width: 0;
+        }
+
+        #dashboardMain {
+            min-width: 0;
+            overflow-x: hidden;
         }
 
         /* ==================== RESPONSIVE ==================== */
@@ -848,26 +973,122 @@
         }
 
         @media (max-width: 768px) {
+            .dashboard-page {
+                padding: var(--spacing-md) 0;
+            }
+
+            .dashboard-container {
+                padding: 0 var(--spacing-sm);
+            }
+
+            .welcome-banner {
+                padding: var(--spacing-lg);
+                margin-bottom: var(--spacing-lg);
+            }
+
+            .welcome-banner::before,
+            .welcome-banner::after {
+                display: none;
+            }
+
+            .welcome-text h1 {
+                font-size: 1.6rem;
+                line-height: 1.2;
+            }
+
+            .welcome-text p {
+                font-size: 0.95rem;
+            }
+
             .welcome-content {
                 flex-direction: column;
                 align-items: flex-start;
+                gap: var(--spacing-md);
             }
 
             .welcome-stats {
                 width: 100%;
                 justify-content: space-between;
+                gap: var(--spacing-md);
+            }
+
+            .stat-value {
+                font-size: 1.4rem;
+            }
+
+            .dashboard-main {
+                padding: var(--spacing-md);
+                border-radius: var(--radius-lg);
+            }
+
+            .section-header h2 {
+                font-size: 1.2rem;
             }
 
             .stats-grid {
-                grid-template-columns: 1fr;
+                grid-template-columns: repeat(2, 1fr);
+                gap: var(--spacing-sm);
+            }
+
+            .stat-card {
+                padding: var(--spacing-md);
+            }
+
+            .stat-card .stat-number {
+                font-size: 1.4rem;
+            }
+
+            .stat-icon {
+                width: 40px;
+                height: 40px;
+                font-size: 1.1rem;
+                margin-bottom: var(--spacing-sm);
+            }
+
+            /* Replace rotated ribbon with simple top-right pill so it stops overflowing the card on small screens */
+            .booking-card {
+                padding: var(--spacing-md);
+                padding-top: 2.75rem;
+            }
+
+            .booking-status {
+                position: absolute;
+                top: 10px;
+                right: 10px;
+                transform: none;
+                width: auto;
+                padding: 4px 10px;
+                border-radius: 9999px;
+                font-size: 0.7rem;
+                letter-spacing: 0.3px;
             }
 
             .booking-header {
                 flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .booking-id {
+                font-size: 0.7rem;
+            }
+
+            .service-info h4 {
+                font-size: 1rem;
+            }
+
+            .service-icon {
+                width: 42px;
+                height: 42px;
+                font-size: 1.1rem;
             }
 
             .booking-details {
-                grid-template-columns: 1fr;
+                grid-template-columns: 1fr 1fr;
+                gap: var(--spacing-sm);
+            }
+
+            .detail-item {
+                font-size: 0.85rem;
             }
 
             .form-row {
@@ -878,20 +1099,180 @@
                 flex-wrap: nowrap;
                 overflow-x: auto;
                 -webkit-overflow-scrolling: touch;
+                gap: 4px;
+            }
+
+            .tab-btn {
+                padding: 0.5rem 0.9rem;
+                font-size: 0.85rem;
+            }
+
+            /* Bell dropdown: fit small screens */
+            .notifications-panel {
+                left: var(--spacing-sm);
+                right: var(--spacing-sm);
+                width: auto;
+                max-height: min(72vh, 520px);
+                top: calc(var(--header-height) + 8px);
+            }
+
+            .panel-header {
+                flex-wrap: wrap;
+                gap: var(--spacing-sm);
+            }
+
+            .panel-header .btn-small {
+                font-size: var(--font-size-xs);
+            }
+
+            /* Sidebar: horizontal pill nav instead of a tall stack */
+            .dashboard-sidebar {
+                position: sticky;
+                top: var(--header-height);
+                z-index: 50;
+                padding: var(--spacing-sm);
+                margin-bottom: var(--spacing-md);
+                border-radius: var(--radius-lg);
+                box-shadow: var(--shadow-sm);
+            }
+
+            .profile-summary {
+                display: flex;
+                flex-direction: row;
+                align-items: center;
+                text-align: left;
+                gap: var(--spacing-md);
+                padding-bottom: var(--spacing-md);
+                margin-bottom: var(--spacing-sm);
+                border-bottom: 1px solid var(--gray-200);
+            }
+
+            .profile-avatar {
+                width: 56px;
+                height: 56px;
+                margin: 0;
+                flex-shrink: 0;
+            }
+
+            .profile-name {
+                font-size: 1rem;
+            }
+
+            .profile-email,
+            .profile-phone {
+                font-size: 0.8rem;
+            }
+
+            .sidebar-nav {
+                display: flex;
+                flex-direction: row;
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                gap: 8px;
+                padding: var(--spacing-xs) 0 var(--spacing-sm);
+                margin: 0;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: none;
+            }
+
+            .sidebar-nav::-webkit-scrollbar {
+                display: none;
+            }
+
+            .nav-item {
+                flex: 0 0 auto;
+                width: auto;
+                min-height: 44px;
+                padding: 10px 14px;
+                border-radius: 9999px;
+                font-size: 0.8rem;
+                white-space: nowrap;
+            }
+
+            .nav-item i {
+                font-size: 0.95rem;
+            }
+
+            .nav-item .badge {
+                margin-left: 6px;
+                padding: 1px 6px;
+                font-size: 10px;
+            }
+
+            .sidebar-footer {
+                margin-top: var(--spacing-sm);
+                padding-top: var(--spacing-sm);
+                border-top: 1px solid var(--gray-200);
+            }
+
+            .logout-btn {
+                justify-content: center;
+                border-radius: var(--radius-lg);
+            }
+
+            .section-header {
+                flex-direction: column;
+                align-items: stretch;
+                gap: var(--spacing-sm);
+            }
+
+            .section-header .btn-outline,
+            .section-header .btn-primary {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .section-header h3 {
+                font-size: 1.1rem;
+            }
+
+            .save-btn {
+                width: 100%;
+                box-sizing: border-box;
+            }
+
+            .modal .modal-content {
+                width: min(96vw, 520px);
+                max-height: min(88vh, 720px);
+                overflow-y: auto;
+                margin: var(--spacing-md);
+            }
+
+            .favorites-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .dashboard-payment-card .payment-card-inner {
+                align-items: flex-start;
+            }
+
+            .empty-state {
+                padding: var(--spacing-xl) var(--spacing-md);
+            }
+
+            .empty-state i {
+                font-size: 3rem;
             }
         }
 
         @media (max-width: 480px) {
             .welcome-stats {
-                flex-direction: column;
-                gap: var(--spacing-md);
+                flex-direction: row;
+                flex-wrap: wrap;
+                gap: var(--spacing-sm);
             }
 
             .stat-item {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                width: 100%;
+                flex: 1 1 30%;
+                text-align: center;
+            }
+
+            .stat-value {
+                font-size: 1.25rem;
+            }
+
+            .booking-details {
+                grid-template-columns: 1fr;
             }
 
             .booking-actions {
@@ -899,6 +1280,24 @@
             }
 
             .action-btn {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .dashboard-payment-card .payment-card-inner {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .address-card .address-actions {
+                flex-direction: column;
+            }
+
+            .address-card .address-actions .btn-small {
                 width: 100%;
                 justify-content: center;
             }
@@ -1701,7 +2100,7 @@
                 <p class="address-phone">
                     <i class="fas fa-phone"></i> ${addr.phone}
                 </p>
-                <div style="display: flex; gap: var(--spacing-sm); margin-top: var(--spacing-md);">
+                <div class="address-actions">
                     <button class="btn-small btn-outline" onclick="editAddress(${index})">
                         <i class="fas fa-edit"></i> Edit
                     </button>
@@ -1730,10 +2129,10 @@
         }
 
         container.innerHTML = payments.map(payment => `
-            <div class="payment-card" style="border: 1px solid var(--gray-200); border-radius: var(--radius-lg); padding: var(--spacing-lg); margin-bottom: var(--spacing-md);">
-                <div style="display: flex; align-items: center; gap: var(--spacing-md);">
-                    <i class="fas fa-${payment.type === 'card' ? 'credit-card' : 'mobile-alt'}" style="font-size: 2rem; color: var(--primary-600);"></i>
-                    <div>
+            <div class="dashboard-payment-card payment-card">
+                <div class="payment-card-inner">
+                    <i class="fas fa-${payment.type === 'card' ? 'credit-card' : 'mobile-alt'} payment-card-icon"></i>
+                    <div class="payment-card-body">
                         ${payment.type === 'card' ? 
                             `<h4>Card ending in ${payment.last4}</h4>
                              <p>Expires ${payment.expiry}</p>` :
@@ -1767,6 +2166,13 @@
             activeSection.style.display = 'block';
         }
         window.location.hash = section;
+
+        const mainEl = document.getElementById('dashboardMain');
+        if (mainEl && typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 768px)').matches) {
+            requestAnimationFrame(() => {
+                mainEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+        }
     }
 
     // ==================== BOOKING TABS ====================

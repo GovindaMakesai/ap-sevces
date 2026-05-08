@@ -768,6 +768,27 @@
             box-shadow: 0 0 20px rgba(239, 68, 68, 0.5);
         }
 
+        /* Back button (mobile only) */
+        .chat-back-btn {
+            display: none;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: none;
+            background: var(--gray-100);
+            color: var(--gray-700);
+            margin-right: var(--spacing-xs);
+            font-size: 1rem;
+            cursor: pointer;
+            flex-shrink: 0;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .chat-back-btn:hover {
+            background: var(--gray-200);
+        }
+
         /* ==================== RESPONSIVE ==================== */
         @media (max-width: 1024px) {
             .chat-layout {
@@ -776,17 +797,73 @@
         }
 
         @media (max-width: 768px) {
-            .chat-layout {
-                grid-template-columns: 1fr;
-                grid-template-rows: 260px 1fr;
+            /* Reclaim full screen for chat on phones */
+            .chat-page {
+                padding: 0;
+                min-height: auto;
+                background: white;
             }
 
+            .chat-container {
+                padding: 0;
+                max-width: 100%;
+            }
+
+            .chat-layout {
+                grid-template-columns: 1fr;
+                grid-template-rows: 1fr;
+                gap: 0;
+                border-radius: 0;
+                border: none;
+                box-shadow: none;
+                height: calc(100dvh - var(--header-height));
+                min-height: 0;
+            }
+
+            /* Single-pane on mobile: show sidebar OR chat, not both */
             .chat-sidebar {
-                display: flex;
                 width: 100%;
-                max-height: 260px;
+                max-height: none;
                 border-right: none;
-                border-bottom: 1px solid var(--gray-200);
+                border-bottom: none;
+            }
+
+            .chat-main {
+                display: none;
+            }
+
+            body.chat-active .chat-sidebar {
+                display: none;
+            }
+
+            body.chat-active .chat-main {
+                display: flex;
+            }
+
+            /* Hide page footer on chat for more vertical space */
+            body:has(.chat-page) > .footer,
+            .chat-page ~ .footer {
+                display: none;
+            }
+
+            .sidebar-header {
+                padding: var(--spacing-md);
+            }
+
+            .chat-tabs {
+                padding: var(--spacing-xs) var(--spacing-sm);
+            }
+
+            .chat-header {
+                padding: var(--spacing-sm) var(--spacing-md);
+            }
+
+            .chat-back-btn {
+                display: inline-flex;
+            }
+
+            .messages-container {
+                padding: var(--spacing-md);
             }
 
             .message-bubble {
@@ -798,14 +875,23 @@
             }
 
             .chat-action-btn {
-                width: 35px;
-                height: 35px;
+                width: 36px;
+                height: 36px;
+            }
+
+            .chat-input-container {
+                padding: var(--spacing-sm);
+                padding-bottom: calc(var(--spacing-sm) + env(safe-area-inset-bottom, 0px));
             }
         }
 
         @media (max-width: 480px) {
             .chat-header {
                 padding: var(--spacing-sm);
+            }
+
+            .chat-user-details h3 {
+                font-size: 1rem;
             }
 
             .messages-container {
@@ -922,6 +1008,9 @@
                     <div id="activeChat" style="display: none; height: 100%; min-height: 0; flex-direction: column;">
                         <!-- Chat Header -->
                         <div class="chat-header">
+                            <button type="button" class="chat-back-btn" onclick="closeMobileChat()" aria-label="Back to conversations">
+                                <i class="fas fa-arrow-left"></i>
+                            </button>
                             <div class="chat-user-info" id="chatUserInfo">
                                 <div class="chat-avatar">
                                     <div class="avatar-placeholder" id="chatAvatar">RK</div>
@@ -1421,6 +1510,7 @@
             // Show active chat, hide empty state
             document.getElementById('emptyChat').style.display = 'none';
             document.getElementById('activeChat').style.display = 'flex';
+            document.body.classList.add('chat-active');
             
             const chat = useChatStore.getState().conversations.find(item => String(item.id) === String(currentChatId));
             if (!chat) return;
@@ -1862,6 +1952,11 @@
             document.getElementById('chatSidebar').classList.toggle('show-mobile');
         }
 
+        // Close active chat on mobile and return to conversation list
+        function closeMobileChat() {
+            document.body.classList.remove('chat-active');
+        }
+
         // Export functions for global use
         window.loadChat = loadChat;
         window.sendMessage = sendMessage;
@@ -1875,6 +1970,7 @@
         window.endCall = endCall;
         window.showUserInfo = showUserInfo;
         window.handleKeyPress = handleKeyPress;
+        window.closeMobileChat = closeMobileChat;
     </script>
 </body>
 </html>
