@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS bookings (
     customer_id UUID REFERENCES users(id) ON DELETE CASCADE,
     worker_id UUID REFERENCES workers(id) ON DELETE CASCADE,
     service_id UUID REFERENCES services(id),
-    status VARCHAR(50) DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'in_progress', 'completed', 'cancelled', 'rejected')),
+    status VARCHAR(50) DEFAULT 'pending' CHECK (status IN ('payment_review', 'pending', 'accepted', 'in_progress', 'completed', 'cancelled', 'rejected')),
     booking_date DATE NOT NULL,
     start_time TIME NOT NULL,
     end_time TIME NOT NULL,
@@ -87,12 +87,20 @@ CREATE TABLE IF NOT EXISTS bookings (
     platform_fee DECIMAL(10, 2) DEFAULT 0,
     final_amount DECIMAL(10, 2) NOT NULL,
     payment_status VARCHAR(50) DEFAULT 'pending',
+    payment_method VARCHAR(50),
+    payment_reference VARCHAR(120),
+    payment_submitted_at TIMESTAMP,
+    payment_reviewed_at TIMESTAMP,
+    payment_reviewed_by UUID REFERENCES users(id),
+    payment_rejection_reason TEXT,
     customer_address TEXT NOT NULL,
     customer_notes TEXT,
     cancellation_reason TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE INDEX IF NOT EXISTS idx_bookings_payment_status ON bookings(payment_status);
 
 -- ==================== REVIEWS TABLE ====================
 CREATE TABLE IF NOT EXISTS reviews (

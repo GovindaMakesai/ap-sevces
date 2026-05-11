@@ -671,6 +671,187 @@ const getAllBookings = async (req, res) => {
     }
 };
 
+// ==================== PAYMENT MANAGEMENT ====================
+const getPaymentsSummary = async (req, res) => {
+    try {
+        const result = await db.query(`
+            SELECT
+                COALESCE(SUM(CASE WHEN payment_status = 'paid' THEN final_amount ELSE 0 END), 0) as total_collected,
+                COALESCE(SUM(CASE WHEN payment_status = 'paid' AND status <> 'completed' THEN final_amount - platform_fee ELSE 0 END), 0) as pending_payouts,
+                COALESCE(SUM(CASE WHEN payment_status = 'paid' THEN platform_fee ELSE 0 END), 0) as platform_fees,
+                COALESCE(SUM(CASE WHEN payment_status = 'rejected' THEN final_amount ELSE 0 END), 0) as total_refunds,
+                COUNT(CASE WHEN payment_status = 'under_review' THEN 1 END) as pending_reviews
+            FROM bookings
+        `);
+
+        res.json({
+            success: true,
+            data: result.rows[0]
+        });
+    } catch (error) {
+        console.error('❌ Get payments summary error:', error);
+        res.status(500).json({ success: false, message: 'Failed to get payments summary' });
+    }
+};
+
+const getPayments = async (req, res) => {
+    try {
+        const { status, page = 1, limit = 20 } = req.query;
+        const offset = (page - 1) * limit;
+        const params = [];
+        let paramIndex = 1;
+
+        let query = `
+            SELECT b.id,
+                   b.id as booking_id,
+                   b.booking_number,
+                   b.final_amount as amount,
+                   b.platform_fee,
+                   b.payment_status,
+                   b.payment_method,
+                   b.payment_reference,
+                   b.payment_submitted_at,
+                   b.payment_reviewed_at,
+                   b.payment_rejection_reason,
+                   b.created_at,
+                   CONCAT(c.first_name, ' ', c.last_name) as customer_name,
+                   CONCAT(w.first_name, ' ', w.last_name) as worker_name,
+                   s.name as service_name
+            FROM bookings b
+            JOIN users c ON b.customer_id = c.id
+            JOIN workers wk ON b.worker_id = wk.id
+            JOIN users w ON wk.user_id = w.id
+            JOIN services s ON b.service_id = s.id
+            WHERE (b.payment_method = 'qr_manual'
+                   OR b.payment_status IN ('under_review', 'paid', 'rejected'))
+        `;
+
+        if (status && status !== 'all') {
+            query += ` AND b.payment_status = $${paramIndex}`;
+            params.push(status);
+            paramIndex++;
+        }
+
+        query += ` ORDER BY COALESCE(b.payment_submitted_at, b.created_at) DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+        params.push(limit, offset);
+
+        const result = await db.query(query, params);
+
+        res.json({
+            success: true,
+            data: result.rows,
+            pagination: {
+                page: parseInt(page),
+                limit: parseInt(limit)
+            }
+        });
+    } catch (error) {
+        console.error('❌ Get payments error:', error);
+        res.status(500).json({ success: false, message: 'Failed to get payments' });
+    }
+};
+
+const approvePayment = async (req, res) => {
+    const client = await db.pool.connect();
+    try {
+        const { bookingId } = req.params;
+
+        await client.query('BEGIN');
+        const result = await client.query(`
+            UPDATE bookings b
+            SET payment_status = 'paid',
+                status = 'pending',
+                payment_reviewed_at = CURRENT_TIMESTAMP,
+                payment_reviewed_by = $2,
+                payment_rejection_reason = NULL,
+                updated_at = CURRENT_TIMESTAMP
+            FROM workers wk
+            WHERE b.worker_id = wk.id
+              AND b.id = $1
+            RETURNING b.*, wk.user_id as worker_user_id
+        `, [bookingId, req.userId]);
+
+        if (result.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ success: false, message: 'Booking not found' });
+        }
+
+        await client.query('COMMIT');
+        const booking = result.rows[0];
+
+        const io = req.app.get('io');
+        if (io) {
+            io.to(`worker:${booking.worker_user_id}`).emit('new-booking', {
+                message: 'Payment approved. New booking request available',
+                booking
+            });
+            io.to(`user:${booking.customer_id}`).emit('booking-update', {
+                message: 'Payment approved',
+                booking
+            });
+        }
+
+        res.json({
+            success: true,
+            message: 'Payment approved and booking released to worker',
+            data: booking
+        });
+    } catch (error) {
+        try {
+            await client.query('ROLLBACK');
+        } catch (rollbackError) {
+            console.error('❌ Rollback failed:', rollbackError);
+        }
+        console.error('❌ Approve payment error:', error);
+        res.status(500).json({ success: false, message: 'Failed to approve payment' });
+    } finally {
+        client.release();
+    }
+};
+
+const rejectPayment = async (req, res) => {
+    try {
+        const { bookingId } = req.params;
+        const { reason } = req.body;
+        const rejectionReason = String(reason || 'Payment could not be verified').trim();
+
+        const result = await db.query(`
+            UPDATE bookings
+            SET payment_status = 'rejected',
+                status = 'cancelled',
+                cancellation_reason = $2,
+                payment_reviewed_at = CURRENT_TIMESTAMP,
+                payment_reviewed_by = $3,
+                payment_rejection_reason = $2,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = $1
+            RETURNING *
+        `, [bookingId, rejectionReason, req.userId]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Booking not found' });
+        }
+
+        const booking = result.rows[0];
+        const io = req.app.get('io');
+        if (io) {
+            io.to(`user:${booking.customer_id}`).emit('booking-update', {
+                message: 'Payment rejected',
+                booking
+            });
+        }
+
+        res.json({
+            success: true,
+            message: 'Payment rejected',
+            data: booking
+        });
+    } catch (error) {
+        console.error('❌ Reject payment error:', error);
+        res.status(500).json({ success: false, message: 'Failed to reject payment' });
+    }
+};
+
 // ==================== ANALYTICS ====================
 const getAnalytics = async (req, res) => {
     try {
@@ -729,5 +910,9 @@ module.exports = {
     updateService,
     deleteService,
     getAllBookings,
+    getPaymentsSummary,
+    getPayments,
+    approvePayment,
+    rejectPayment,
     getAnalytics
 };

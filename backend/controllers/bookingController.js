@@ -20,7 +20,8 @@ exports.createBooking = async (req, res) => {
         const customer_id = req.userId;
         const {
             worker_id, service_id, booking_date, start_time,
-            duration_hours, customer_address, customer_notes
+            duration_hours, customer_address, customer_notes,
+            payment_method, payment_reference
         } = req.body;
 
         if (!worker_id) {
@@ -70,6 +71,14 @@ exports.createBooking = async (req, res) => {
         const platform_fee = Math.round(total_amount * 0.1);
         const final_amount = total_amount + platform_fee;
 
+        const isManualQrPayment = payment_method === 'qr_manual';
+        if (isManualQrPayment && !String(payment_reference || '').trim()) {
+            return res.status(400).json({
+                success: false,
+                message: 'Payment reference is required for QR payments'
+            });
+        }
+
         const booking = await Booking.create({
             customer_id,
             worker_id,
@@ -82,11 +91,16 @@ exports.createBooking = async (req, res) => {
             platform_fee,
             final_amount,
             customer_address,
-            customer_notes
+            customer_notes,
+            status: isManualQrPayment ? 'payment_review' : 'pending',
+            payment_status: isManualQrPayment ? 'under_review' : 'pending',
+            payment_method: payment_method || null,
+            payment_reference: payment_reference ? String(payment_reference).trim() : null,
+            payment_submitted_at: isManualQrPayment ? new Date() : null
         });
 
         const io = req.app.get('io');
-        if (io) {
+        if (io && booking.status !== 'payment_review') {
             io.to(`worker:${worker.user_id}`).emit('new-booking', {
                 message: 'You have a new booking request',
                 booking: booking
@@ -103,7 +117,9 @@ exports.createBooking = async (req, res) => {
 
         res.status(201).json({
             success: true,
-            message: 'Booking created successfully',
+            message: isManualQrPayment
+                ? 'Payment submitted for admin review'
+                : 'Booking created successfully',
             data: booking
         });
 

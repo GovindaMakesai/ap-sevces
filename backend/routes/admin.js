@@ -38,4 +38,10 @@ router.delete('/services/:serviceId', adminController.deleteService);
 // Booking Management
 router.get('/bookings', adminController.getAllBookings);
 
+// Payment Management
+router.get('/payments/summary', adminController.getPaymentsSummary);
+router.get('/payments', adminController.getPayments);
+router.put('/payments/:bookingId/approve', adminController.approvePayment);
+router.put('/payments/:bookingId/reject', adminController.rejectPayment);
+
 module.exports = router;

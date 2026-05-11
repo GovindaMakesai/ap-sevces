@@ -554,6 +554,51 @@
             font-weight: 600;
         }
 
+        .qr-payment-card {
+            text-align: center;
+            background: white;
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-xl);
+            padding: var(--spacing-lg);
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .qr-code-box {
+            width: 220px;
+            min-height: 220px;
+            margin: 0 auto var(--spacing-md);
+            border: 2px dashed var(--primary-300);
+            border-radius: var(--radius-xl);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            background: var(--primary-50);
+        }
+
+        .qr-code-box img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .qr-fallback {
+            color: var(--primary-700);
+            font-weight: 700;
+            padding: var(--spacing-lg);
+        }
+
+        .payment-note {
+            display: flex;
+            gap: var(--spacing-sm);
+            align-items: flex-start;
+            background: #fef3c7;
+            color: #92400e;
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-md);
+            margin-top: var(--spacing-md);
+        }
+
         /* ==================== BOOKING SUMMARY ==================== */
         .booking-summary {
             background: linear-gradient(135deg, var(--gray-50), white);
@@ -996,107 +1041,47 @@
                 <div class="booking-step" id="step4" style="display: none;">
                     <div class="payment-grid">
                         <div class="payment-methods">
-                            <h3>Select Payment Method</h3>
+                            <h3>Scan & Pay</h3>
                             
-                            <div class="payment-option selected" data-payment="card" id="cardOption">
-                                <i class="fas fa-credit-card"></i>
+                            <div class="payment-option selected" data-payment="qr_manual" id="qrOption">
+                                <i class="fas fa-qrcode"></i>
                                 <div class="payment-option-info">
-                                    <h4>Credit/Debit Card</h4>
-                                    <p>Pay via Visa, Mastercard, RuPay</p>
+                                    <h4>QR Code Payment</h4>
+                                    <p>Pay now and submit details for admin verification</p>
                                 </div>
                             </div>
 
-                            <div class="payment-option" data-payment="upi" id="upiOption">
-                                <i class="fas fa-mobile-alt"></i>
-                                <div class="payment-option-info">
-                                    <h4>UPI</h4>
-                                    <p>Google Pay, PhonePe, Paytm</p>
-                                </div>
-                            </div>
-
-                            <div class="payment-option" data-payment="netbanking" id="netbankingOption">
-                                <i class="fas fa-university"></i>
-                                <div class="payment-option-info">
-                                    <h4>Net Banking</h4>
-                                    <p>All major banks</p>
-                                </div>
-                            </div>
-
-                            <div class="payment-option" data-payment="wallet" id="walletOption">
-                                <i class="fas fa-wallet"></i>
-                                <div class="payment-option-info">
-                                    <h4>Wallet</h4>
-                                    <p>Paytm, Amazon Pay, Mobikwik</p>
-                                </div>
-                            </div>
-
-                            <div class="payment-option" data-payment="cod" id="codOption">
-                                <i class="fas fa-money-bill-wave"></i>
-                                <div class="payment-option-info">
-                                    <h4>Cash on Delivery</h4>
-                                    <p>Pay after service completion</p>
-                                </div>
+                            <div class="payment-note">
+                                <i class="fas fa-info-circle"></i>
+                                <span>Your booking will move forward only after an admin confirms this payment.</span>
                             </div>
                         </div>
 
                         <div class="payment-details" id="paymentDetails">
-                            <!-- Card Payment Demo -->
-                            <div class="card-demo" id="cardDetails">
-                                <p><i class="fas fa-lock"></i> Test Card (Demo)</p>
-                                <p>Card: 4242 4242 4242 4242</p>
-                                <p>Expiry: 12/25 | CVV: 123</p>
-                            </div>
-
-                            <!-- UPI Apps -->
-                            <div id="upiDetails" style="display: none;">
-                                <h4 style="margin-bottom: var(--spacing-md);">Choose UPI App</h4>
-                                <div class="upi-options">
-                                    <div class="upi-app">
-                                        <i class="fab fa-google-pay"></i>
-                                        <span>Google Pay</span>
+                            <div id="qrDetails">
+                                <div class="qr-payment-card">
+                                    <div class="qr-code-box">
+                                        <img src="assets/payment-qr.png" alt="Payment QR Code" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                        <div class="qr-fallback" style="display: none;">
+                                            Add your QR image at<br>frontend/assets/payment-qr.png
+                                        </div>
                                     </div>
-                                    <div class="upi-app">
-                                        <i class="fas fa-phone-alt"></i>
-                                        <span>PhonePe</span>
-                                    </div>
-                                    <div class="upi-app">
-                                        <i class="fas fa-mobile-alt"></i>
-                                        <span>Paytm</span>
-                                    </div>
+                                    <h4>Pay ₹<span id="qrAmount">0</span></h4>
+                                    <p style="color: var(--gray-600); margin: 0;">Scan this QR using any UPI app, then enter the UTR/reference below.</p>
                                 </div>
-                                <div class="form-group" style="margin-top: var(--spacing-md);">
-                                    <label class="form-label">Enter UPI ID</label>
-                                    <input type="text" class="form-control" placeholder="username@okhdfcbank">
+
+                                <div class="form-group">
+                                    <label class="form-label">Payment Reference / UTR Number</label>
+                                    <input type="text" class="form-control" id="paymentReference" placeholder="Enter UTR or transaction reference">
                                 </div>
-                            </div>
 
-                            <!-- Net Banking -->
-                            <div id="netbankingDetails" style="display: none;">
-                                <select class="form-control">
-                                    <option value="">Select Bank</option>
-                                    <option value="sbi">State Bank of India</option>
-                                    <option value="hdfc">HDFC Bank</option>
-                                    <option value="icici">ICICI Bank</option>
-                                    <option value="axis">Axis Bank</option>
-                                    <option value="kotak">Kotak Mahindra</option>
-                                </select>
-                            </div>
-
-                            <!-- Wallet -->
-                            <div id="walletDetails" style="display: none;">
-                                <select class="form-control">
-                                    <option value="">Select Wallet</option>
-                                    <option value="paytm">Paytm Wallet</option>
-                                    <option value="amazon">Amazon Pay</option>
-                                    <option value="mobikwik">Mobikwik</option>
-                                </select>
-                            </div>
-
-                            <!-- COD -->
-                            <div id="codDetails" style="display: none;">
-                                <div class="alert alert-info">
-                                    <i class="fas fa-info-circle"></i>
-                                    Pay ₹<span id="codAmount">548</span> in cash when the professional arrives.
+                                <label style="display: flex; gap: var(--spacing-xs); align-items: flex-start; color: var(--gray-700);">
+                                    <input type="checkbox" id="paymentConfirmCheckbox" style="margin-top: 4px;">
+                                    <span>I have paid the full amount using the QR code above.</span>
+                                </label>
+                                <div class="alert alert-info" style="margin-top: var(--spacing-md);">
+                                    <i class="fas fa-clock"></i>
+                                    Admin will verify your payment. The professional receives this booking after approval.
                                 </div>
                             </div>
                         </div>
@@ -1156,7 +1141,7 @@
                         Next <i class="fas fa-arrow-right"></i>
                     </button>
                     <button class="nav-btn confirm" id="confirmBtn" style="display: none;">
-                        <i class="fas fa-check-circle"></i> Confirm Booking
+                        <i class="fas fa-check-circle"></i> Submit Payment for Review
                     </button>
                 </div>
             </div>
@@ -1169,8 +1154,8 @@
             <div class="success-icon">
                 <i class="fas fa-check"></i>
             </div>
-            <h2>Booking Confirmed!</h2>
-            <p>Your service has been booked successfully</p>
+            <h2 id="confirmationTitle">Payment Submitted!</h2>
+            <p id="confirmationMessage">Your booking will continue after admin approval.</p>
             
             <div class="booking-number">
                 <p>Booking Number</p>
@@ -1300,7 +1285,9 @@
             date: null,
             time: null,
             address: null,
-            paymentMethod: 'card',
+            paymentMethod: 'qr_manual',
+            paymentReference: '',
+            paymentConfirmed: false,
             couponApplied: null,
             totalAmount: 0,
             availableWorkers: []
@@ -1366,6 +1353,8 @@
         const confirmationModal = document.getElementById('confirmationModal');
         const applyCouponBtn = document.getElementById('applyCoupon');
         const couponInput = document.getElementById('couponCode');
+        const paymentReferenceInput = document.getElementById('paymentReference');
+        const paymentConfirmCheckbox = document.getElementById('paymentConfirmCheckbox');
 
         function formatBackendTimeToDisplay(hhmm) {
             if (!hhmm || typeof hhmm !== 'string') return null;
@@ -1803,13 +1792,15 @@
                 
                 const method = this.dataset.payment;
                 bookingData.paymentMethod = method;
-                
-                document.getElementById('cardDetails').style.display = method === 'card' ? 'block' : 'none';
-                document.getElementById('upiDetails').style.display = method === 'upi' ? 'block' : 'none';
-                document.getElementById('netbankingDetails').style.display = method === 'netbanking' ? 'block' : 'none';
-                document.getElementById('walletDetails').style.display = method === 'wallet' ? 'block' : 'none';
-                document.getElementById('codDetails').style.display = method === 'cod' ? 'block' : 'none';
             });
+        });
+
+        paymentReferenceInput.addEventListener('input', function() {
+            bookingData.paymentReference = this.value.trim();
+        });
+
+        paymentConfirmCheckbox.addEventListener('change', function() {
+            bookingData.paymentConfirmed = this.checked;
         });
 
         // ==================== COUPON ====================
@@ -1874,7 +1865,8 @@
             document.getElementById('summaryPlatformFee').textContent = `₹${platformFee}`;
             document.getElementById('summaryGST').textContent = `₹${gst}`;
             document.getElementById('summaryTotal').textContent = `₹${total}`;
-            document.getElementById('codAmount').textContent = total;
+            const qrAmount = document.getElementById('qrAmount');
+            if (qrAmount) qrAmount.textContent = total;
         }
 
         // ==================== STEP NAVIGATION ====================
@@ -1953,6 +1945,18 @@
                         return false;
                     }
                     return true;
+                case 4:
+                    bookingData.paymentReference = paymentReferenceInput.value.trim();
+                    bookingData.paymentConfirmed = paymentConfirmCheckbox.checked;
+                    if (!bookingData.paymentReference) {
+                        Toast.show('Please enter payment reference/UTR number', 'error');
+                        return false;
+                    }
+                    if (!bookingData.paymentConfirmed) {
+                        Toast.show('Please confirm that you have paid using the QR code', 'error');
+                        return false;
+                    }
+                    return true;
                 default:
                     return true;
             }
@@ -1999,7 +2003,9 @@
                     customer_notes: '',
                     total_amount: bookingData.totalAmount,
                     platform_fee: Math.round(bookingData.servicePrice * 0.1),
-                    final_amount: bookingData.totalAmount
+                    final_amount: bookingData.totalAmount,
+                    payment_method: bookingData.paymentMethod,
+                    payment_reference: bookingData.paymentReference
                 };
 
                 console.log('📝 Creating booking:', bookingPayload);
@@ -2012,10 +2018,12 @@
                     document.getElementById('bookingNumber').textContent = bookingNumber;
                     document.getElementById('confirmDate').textContent = new Date(bookingData.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
                     document.getElementById('confirmTime').textContent = bookingData.time;
+                    document.getElementById('confirmationTitle').textContent = 'Payment Submitted!';
+                    document.getElementById('confirmationMessage').textContent = 'Admin will verify your payment, then your booking will be sent to the professional.';
                     
                     confirmationModal.classList.add('show');
 
-                    Toast.show('Booking confirmed successfully!', 'success');
+                    Toast.show('Payment submitted for admin review!', 'success');
                 } else {
                     throw new Error(response.message || 'Booking failed');
                 }

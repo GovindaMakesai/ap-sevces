@@ -637,12 +637,15 @@
         .status-badge.active,
         .status-badge.approved,
         .status-badge.completed,
+        .status-badge.paid,
         .status-badge.verified {
             background: #d1fae5;
             color: #065f46;
         }
 
-        .status-badge.pending {
+        .status-badge.pending,
+        .status-badge.payment_review,
+        .status-badge.under_review {
             background: #fef3c7;
             color: #92400e;
         }
@@ -1603,7 +1606,7 @@
                                 <div class="stat-value" id="platformFees">₹0</div>
                             </div>
                             <div class="stat-card">
-                                <h4>Refunds</h4>
+                                <h4>Pending Reviews</h4>
                                 <div class="stat-value" id="totalRefunds">₹0</div>
                             </div>
                         </div>
@@ -1619,13 +1622,15 @@
                                         <th>Worker</th>
                                         <th>Amount</th>
                                         <th>Platform Fee</th>
+                                        <th>Reference</th>
                                         <th>Status</th>
                                         <th>Date</th>
+                                        <th>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody id="paymentsTable">
                                     <tr>
-                                        <td colspan="8" class="loading-spinner">
+                                        <td colspan="10" class="loading-spinner">
                                             <i class="fas fa-spinner fa-spin"></i> Loading payments...
                                         </td>
                                     </tr>
@@ -2234,7 +2239,7 @@
                     document.getElementById('totalCollected').textContent = '₹' + (response.data.total_collected || 0).toLocaleString();
                     document.getElementById('pendingPayouts').textContent = '₹' + (response.data.pending_payouts || 0).toLocaleString();
                     document.getElementById('platformFees').textContent = '₹' + (response.data.platform_fees || 0).toLocaleString();
-                    document.getElementById('totalRefunds').textContent = '₹' + (response.data.total_refunds || 0).toLocaleString();
+                    document.getElementById('totalRefunds').textContent = (response.data.pending_reviews || 0).toLocaleString();
                 }
 
                 const transactions = await API.get('/admin/payments?limit=10');
@@ -2249,23 +2254,65 @@
         function displayPayments(payments) {
             const tbody = document.getElementById('paymentsTable');
             if (!payments || payments.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No payments found</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="10" class="empty-state">No payments found</td></tr>';
                 return;
             }
 
             tbody.innerHTML = payments.map(payment => `
                 <tr>
                     <td>${payment.transaction_id || payment.id}</td>
-                    <td>${payment.booking_id || ''}</td>
+                    <td>${payment.booking_number || payment.booking_id || ''}</td>
                     <td>${payment.customer_name || ''}</td>
                     <td>${payment.worker_name || ''}</td>
                     <td>₹${payment.amount || 0}</td>
                     <td>₹${payment.platform_fee || 0}</td>
+                    <td>${payment.payment_reference || '-'}</td>
                     <td><span class="status-badge ${payment.payment_status}">${payment.payment_status || 'pending'}</span></td>
                     <td>${new Date(payment.created_at).toLocaleDateString()}</td>
+                    <td>
+                        <div class="action-buttons">
+                            ${payment.payment_status === 'under_review' ? `
+                                <button class="icon-btn approve" onclick="approvePayment('${payment.booking_id}')"><i class="fas fa-check"></i></button>
+                                <button class="icon-btn delete" onclick="rejectPayment('${payment.booking_id}')"><i class="fas fa-times"></i></button>
+                            ` : `
+                                <button class="icon-btn" onclick="viewBookingDetails('${payment.booking_id}')"><i class="fas fa-eye"></i></button>
+                            `}
+                        </div>
+                    </td>
                 </tr>
             `).join('');
         }
+
+        window.approvePayment = async function(bookingId) {
+            try {
+                const response = await API.put(`/admin/payments/${bookingId}/approve`, {});
+                if (response.success) {
+                    Toast.show('Payment approved. Booking released to worker.', 'success');
+                    loadPayments();
+                    loadBookings(currentBookingPage);
+                    loadDashboardStats();
+                }
+            } catch (error) {
+                Toast.show(error.message || 'Failed to approve payment', 'error');
+            }
+        };
+
+        window.rejectPayment = async function(bookingId) {
+            const reason = prompt('Why is this payment being rejected?', 'Payment could not be verified');
+            if (reason === null) return;
+
+            try {
+                const response = await API.put(`/admin/payments/${bookingId}/reject`, { reason });
+                if (response.success) {
+                    Toast.show('Payment rejected', 'info');
+                    loadPayments();
+                    loadBookings(currentBookingPage);
+                    loadDashboardStats();
+                }
+            } catch (error) {
+                Toast.show(error.message || 'Failed to reject payment', 'error');
+            }
+        };
 
         // ==================== REVIEWS MANAGEMENT ====================
         async function loadReviews() {

@@ -21,7 +21,10 @@ class Booking {
             const {
                 customer_id, worker_id, service_id, booking_date,
                 start_time, end_time, duration_hours, total_amount,
-                platform_fee, final_amount, customer_address, customer_notes
+                platform_fee, final_amount, customer_address, customer_notes,
+                status = 'pending', payment_status = 'pending',
+                payment_method = null, payment_reference = null,
+                payment_submitted_at = null
             } = bookingData;
             
             const query = `
@@ -29,9 +32,11 @@ class Booking {
                     booking_number, customer_id, worker_id, service_id,
                     booking_date, start_time, end_time, duration_hours,
                     total_amount, platform_fee, final_amount,
-                    customer_address, customer_notes, status
+                    customer_address, customer_notes, status,
+                    payment_status, payment_method, payment_reference,
+                    payment_submitted_at
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'pending')
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
                 RETURNING *
             `;
             
@@ -39,7 +44,9 @@ class Booking {
                 bookingNumber, customer_id, worker_id, service_id,
                 booking_date, start_time, end_time, duration_hours,
                 total_amount, platform_fee, final_amount,
-                customer_address, customer_notes
+                customer_address, customer_notes, status,
+                payment_status, payment_method, payment_reference,
+                payment_submitted_at
             ];
             
             const result = await client.query(query, values);
@@ -124,6 +131,7 @@ class Booking {
             JOIN users u ON b.customer_id = u.id
             LEFT JOIN services s ON b.service_id = s.id
             WHERE b.worker_id = $1
+              AND b.status <> 'payment_review'
         `;
         
         const params = [workerId];
@@ -145,7 +153,7 @@ class Booking {
             FROM bookings
             WHERE worker_id = $1
               AND booking_date = $2
-              AND status IN ('pending', 'accepted', 'in_progress')
+              AND status IN ('payment_review', 'pending', 'accepted', 'in_progress')
               AND (
                   (start_time <= $3 AND end_time > $3)
                   OR (start_time < $4 AND end_time >= $4)

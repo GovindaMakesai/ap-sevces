@@ -14,6 +14,7 @@ const notificationRoutes = require('./routes/notifications');
 const messageRoutes = require('./routes/messages');
 const { connectMongo } = require('./config/mongodb');
 const { ensureChatSchema } = require('./config/ensureChatSchema');
+const { ensurePaymentSchema } = require('./config/ensurePaymentSchema');
 const { registerChatSocket } = require('./socket/chatSocket');
 
 const { storage } = require('./config/cloudinary');
@@ -129,6 +130,7 @@ connectMongo();
 
 async function startServer() {
     await ensureChatSchema();
+    await ensurePaymentSchema();
     server.listen(PORT, '0.0.0.0', () => {
         console.log(`✅ Server running on port ${PORT}`);
     });
