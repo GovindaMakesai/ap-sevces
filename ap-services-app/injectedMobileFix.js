@@ -1,4 +1,5 @@
 import { AP_EXPO_APP_ADMIN_CSS } from './apExpoAppAdminCss';
+import { MOBILE_NAV_SHEET_JS, MOBILE_NAV_SHEET_CSS } from './mobileNavSheet';
 
 /**
  * Injected into WebView so dashboard mobile layout works in the Expo app
@@ -241,125 +242,97 @@ body.ap-dashboard-active {
 `;
 
 export function getMobileDashboardInjectScript() {
-  const cssJson = JSON.stringify(MOBILE_DASHBOARD_CSS + AP_EXPO_APP_ADMIN_CSS);
+  const cssJson = JSON.stringify(
+    MOBILE_DASHBOARD_CSS + AP_EXPO_APP_ADMIN_CSS + MOBILE_NAV_SHEET_CSS
+  );
   return `
+${MOBILE_NAV_SHEET_JS}
 (function() {
-  function inject() {
-    document.documentElement.classList.add('ap-expo-app');
-    if (document.body) document.body.classList.add('ap-expo-app');
-    var css = ${cssJson};
-    var style = document.getElementById('ap-app-mobile-dashboard-fix');
-    if (!style) {
-      style = document.createElement('style');
-      style.id = 'ap-app-mobile-dashboard-fix';
-      (document.head || document.documentElement).appendChild(style);
+  if (window.__apExpoInjectBootstrapped) {
+    if (typeof window.__apExpoRunInject === 'function') window.__apExpoRunInject();
+    return true;
+  }
+  window.__apExpoInjectBootstrapped = true;
+
+  window.__apExpoRunInject = function() {
+    if (!document.body) return;
+    try {
+      if (typeof apCloseNavSheet === 'function') apCloseNavSheet();
+      document.documentElement.classList.add('ap-expo-app');
+      document.body.classList.add('ap-expo-app');
+      var css = ${cssJson};
+      var style = document.getElementById('ap-app-mobile-dashboard-fix');
+      if (!style) {
+        style = document.createElement('style');
+        style.id = 'ap-app-mobile-dashboard-fix';
+        (document.head || document.documentElement).appendChild(style);
+      }
+      if (style.textContent !== css) style.textContent = css;
+      if (document.querySelector('.dashboard-page')) {
+        document.body.classList.add('ap-dashboard-active');
+      } else {
+        document.body.classList.remove('ap-dashboard-active');
+      }
+      var vp = document.querySelector('meta[name="viewport"]');
+      if (vp) {
+        vp.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover');
+      } else {
+        vp = document.createElement('meta');
+        vp.name = 'viewport';
+        vp.content = 'width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover';
+        (document.head || document.documentElement).appendChild(vp);
+      }
+      apBindMobileNavSheet();
+      apFixDashboardSidebar();
+      if (window.UI && typeof UI.enhanceDashboardSidebar === 'function') {
+        try { UI.enhanceDashboardSidebar(); } catch (e) {}
+      }
+    } catch (err) {
+      console.warn('[ap-expo] inject failed', err);
     }
-    if (style.textContent !== css) style.textContent = css;
-    if (document.querySelector('.dashboard-page')) {
-      document.body.classList.add('ap-dashboard-active');
-    }
-    var vp = document.querySelector('meta[name="viewport"]');
-    if (vp) {
-      vp.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover');
-    } else {
-      vp = document.createElement('meta');
-      vp.name = 'viewport';
-      vp.content = 'width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover';
-      (document.head || document.documentElement).appendChild(vp);
-    }
-    apBindMobileNav();
-    apEnsureNavbarFilled();
-    if (window.UI) {
-      try {
-        if (typeof UI.initMobileNav === 'function') UI.initMobileNav();
-        if (typeof UI.enhanceDashboardSidebar === 'function') UI.enhanceDashboardSidebar();
-      } catch (e) {}
-    }
+  };
+
+  var injectTimer = null;
+  function scheduleInject() {
+    if (injectTimer) clearTimeout(injectTimer);
+    injectTimer = setTimeout(function() {
+      injectTimer = null;
+      window.__apExpoRunInject();
+    }, 120);
   }
 
-  function apEnsureNavbarFilled() {
-    var navLinks = document.querySelector('.navbar .nav-links');
-    if (!navLinks || navLinks.children.length > 0) return;
-    if (window.UI && typeof UI.updateNavbar === 'function') {
-      try { UI.updateNavbar(); } catch (e) {}
-    }
-  }
-
-  function apToggleNav(btn) {
-    apEnsureNavbarFilled();
-    var navContent = btn.closest('.nav-content');
-    var navLinks = navContent && navContent.querySelector('.nav-links');
-    if (!navLinks) return;
-    var open = !navLinks.classList.contains('show');
-    navLinks.classList.toggle('show', open);
-    navLinks.style.display = open ? 'flex' : 'none';
-    navLinks.style.flexDirection = 'column';
-    document.body.classList.toggle('nav-menu-open', open);
-    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-    btn.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
-    var icon = btn.querySelector('i');
-    if (icon) {
-      icon.classList.toggle('fa-bars', !open);
-      icon.classList.toggle('fa-times', open);
-    }
-  }
-
-  function apBindMobileNav() {
-    document.querySelectorAll('.navbar .mobile-menu-btn').forEach(function (btn) {
-      if (btn.dataset.apNavBound === '1') return;
-      btn.dataset.apNavBound = '1';
-      btn.setAttribute('type', 'button');
-      if (!btn.getAttribute('aria-label')) btn.setAttribute('aria-label', 'Open menu');
-      var onPress = function (e) {
-        if (e) {
-          e.preventDefault();
-          e.stopPropagation();
-        }
-        apToggleNav(btn);
-      };
-      btn.addEventListener('click', onPress, true);
-    });
-  }
-
-  if (!window.__apNavOutsideBound) {
-    window.__apNavOutsideBound = true;
-    document.addEventListener('click', function (e) {
-      setTimeout(function () {
-        var openNav = document.querySelector('.navbar .nav-links.show');
-        if (!openNav) return;
-        var navContent = openNav.closest('.nav-content');
-        var btn = navContent && navContent.querySelector('.mobile-menu-btn');
-        if (openNav.contains(e.target) || (btn && btn.contains(e.target))) return;
-        openNav.classList.remove('show');
-        openNav.style.display = 'none';
-        document.body.classList.remove('nav-menu-open');
-        if (btn) {
-          btn.setAttribute('aria-expanded', 'false');
-          btn.setAttribute('aria-label', 'Open menu');
-          var icon = btn.querySelector('i');
-          if (icon) {
-            icon.classList.add('fa-bars');
-            icon.classList.remove('fa-times');
-          }
-        }
-      }, 200);
-    });
-    document.addEventListener('keydown', function (e) {
-      if (e.key !== 'Escape') return;
-      var openNav = document.querySelector('.navbar .nav-links.show');
-      if (!openNav) return;
-      openNav.classList.remove('show');
-      document.body.classList.remove('nav-menu-open');
-    });
-  }
-  inject();
+  scheduleInject();
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', inject);
+    document.addEventListener('DOMContentLoaded', scheduleInject, { once: true });
   }
-  window.addEventListener('load', inject);
-  try {
-    new MutationObserver(inject).observe(document.documentElement, { childList: true, subtree: true });
-  } catch (e) {}
+  window.addEventListener('load', scheduleInject, { once: true });
+
+  if (!window.__apExpoNavObserver) {
+    window.__apExpoNavObserver = true;
+    try {
+      var obs = new MutationObserver(function(mutations) {
+        var needsNav = false;
+        for (var i = 0; i < mutations.length; i++) {
+          var nodes = mutations[i].addedNodes;
+          for (var j = 0; j < nodes.length; j++) {
+            var n = nodes[j];
+            if (n.nodeType !== 1) continue;
+            if (n.matches && (n.matches('.navbar') || n.matches('.mobile-menu-btn') || n.matches('.dashboard-sidebar'))) {
+              needsNav = true;
+              break;
+            }
+            if (n.querySelector && (n.querySelector('.navbar') || n.querySelector('.mobile-menu-btn') || n.querySelector('.dashboard-sidebar'))) {
+              needsNav = true;
+              break;
+            }
+          }
+          if (needsNav) break;
+        }
+        if (needsNav) scheduleInject();
+      });
+      obs.observe(document.documentElement, { childList: true, subtree: true });
+    } catch (e) {}
+  }
 })();
 true;
 `;

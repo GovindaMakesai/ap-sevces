@@ -691,11 +691,12 @@ const UI = {
         const navLinks = document.querySelector('.nav-links');
         if (!navLinks) return;
         UI.ensureAuthNavStyles();
-        if (document.querySelector('.nav-content .search-bar')) {
+        const user = Auth.getUser();
+        const hasSearchBar = !!document.querySelector('.nav-content .search-bar');
+        if (hasSearchBar && !document.documentElement.classList.contains('ap-expo-app')) {
             return;
         }
 
-        const user = Auth.getUser();
         navLinks.innerHTML = user
             ? UI.standardNavLoggedInHtml(user)
             : UI.standardNavLoggedOutHtml();
@@ -748,6 +749,7 @@ const UI = {
     initMobileNav() {
         const navbar = document.querySelector('.navbar');
         if (!navbar) return;
+        if (document.documentElement.classList.contains('ap-expo-app')) return;
 
         navbar.querySelectorAll('.mobile-menu-btn').forEach((btn) => {
             if (btn.dataset.apNavBound === '1') return;

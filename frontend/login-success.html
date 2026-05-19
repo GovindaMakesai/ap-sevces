@@ -57,6 +57,16 @@
                 }
             }
 
+            const appRedirect = params.get('app_redirect') || localStorage.getItem('app_redirect') || '';
+
+            if (appRedirect && /^(apservices|exp):\/\//i.test(appRedirect)) {
+                statusText.textContent = 'Returning to app...';
+                const separator = appRedirect.includes('?') ? '&' : '?';
+                const deepLink = appRedirect + separator + 'token=' + encodeURIComponent(token);
+                window.location.replace(deepLink);
+                return;
+            }
+
             if (inExpoApp) {
                 statusText.textContent = 'Opening your dashboard...';
                 try {
@@ -67,22 +77,6 @@
                     statusText.textContent = 'Login failed. Redirecting to login...';
                     setTimeout(() => { window.location.replace('/login.html'); }, 1400);
                 }
-                return;
-            }
-
-            const appRedirect = params.get('app_redirect') || localStorage.getItem('app_redirect') || '';
-
-            if (appRedirect && /^(apservices|exp):\/\//i.test(appRedirect)) {
-                statusText.textContent = 'Returning to app...';
-                const separator = appRedirect.includes('?') ? '&' : '?';
-                const deepLink = appRedirect + separator + 'token=' + encodeURIComponent(token);
-                // Let the native auth session read this HTTPS URL and close first.
-                setTimeout(function () {
-                    window.location.replace(deepLink);
-                }, 1200);
-                setTimeout(function () {
-                    statusText.textContent = 'Close this tab, then open AP Services on your phone.';
-                }, 3500);
                 return;
             }
 

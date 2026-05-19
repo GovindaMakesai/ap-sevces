@@ -3,7 +3,7 @@ export const MOBILE_NAV_SHEET_JS = `
 function apCloseNavSheet() {
   var sheet = document.getElementById('ap-mobile-nav-sheet');
   if (sheet) sheet.remove();
-  document.body.classList.remove('ap-nav-sheet-open');
+  if (document.body) document.body.classList.remove('ap-nav-sheet-open');
   document.querySelectorAll('.mobile-menu-btn').forEach(function (btn) {
     var icon = btn.querySelector('i');
     btn.setAttribute('aria-expanded', 'false');
@@ -57,13 +57,13 @@ function apOpenNavSheet(btn) {
     try { UI.updateNavbar(); } catch (e) {}
   }
 
-  var sheet = document.createElement("motion");
+  var sheet = document.createElement('div');
   sheet.id = 'ap-mobile-nav-sheet';
   sheet.setAttribute('role', 'dialog');
   sheet.setAttribute('aria-modal', 'true');
   sheet.innerHTML =
-    '<motion class="ap-nav-sheet-backdrop" data-ap-close="1"></motion>' +
-    '<motion class="ap-nav-sheet-panel"></motion>';
+    '<div class="ap-nav-sheet-backdrop" data-ap-close="1"></div>' +
+    '<div class="ap-nav-sheet-panel"></div>';
 
   var panel = sheet.querySelector('.ap-nav-sheet-panel');
   var links = apBuildTopLinks();
@@ -107,6 +107,7 @@ function apOpenNavSheet(btn) {
   }
 
   sheet.querySelector('[data-ap-close]').addEventListener('click', apCloseNavSheet);
+  if (!document.body) return;
   document.body.appendChild(sheet);
   document.body.classList.add('ap-nav-sheet-open');
 
@@ -129,9 +130,15 @@ function apToggleNavSheet(btn) {
 }
 
 function apBindMobileNavSheet() {
+  document.querySelectorAll('.navbar .nav-links.show').forEach(function (el) {
+    el.classList.remove('show');
+    el.style.display = 'none';
+  });
+  if (document.body) document.body.classList.remove('nav-menu-open');
   document.querySelectorAll('.navbar .mobile-menu-btn').forEach(function (btn) {
     if (btn.dataset.apSheetBound === '1') return;
     btn.dataset.apSheetBound = '1';
+    btn.dataset.apNavBound = '1';
     btn.setAttribute('type', 'button');
     btn.addEventListener('click', function (e) {
       e.preventDefault();
@@ -214,6 +221,15 @@ export const MOBILE_NAV_SHEET_CSS = `
 .ap-nav-sheet-logout {
   color: #dc2626 !important;
   justify-content: center !important;
+}
+#ap-mobile-nav-sheet .ap-nav-sheet-panel > * {
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+.ap-nav-sheet-dash-item,
+.ap-nav-sheet-dash-item span,
+.ap-nav-sheet-dash-item i {
+  color: #111827 !important;
 }
 html.ap-expo-app .dashboard-nav-toggle {
   display: none !important;

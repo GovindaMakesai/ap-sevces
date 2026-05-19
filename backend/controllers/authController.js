@@ -143,14 +143,16 @@ const isNativeAppRedirect = (value) => /^(exp|apservices):\/\//i.test(String(val
 
 const buildOAuthSuccessUrl = (token, appRedirect = '') => {
     const safeRedirect = String(appRedirect || '').trim();
+    // Native app (Expo): redirect straight to custom scheme so Chrome Custom Tab closes and returns to the app.
+    if (safeRedirect && isNativeAppRedirect(safeRedirect)) {
+        const separator = safeRedirect.includes('?') ? '&' : '?';
+        return `${safeRedirect}${separator}token=${encodeURIComponent(token)}`;
+    }
     const absoluteSuccessUrl = process.env.OAUTH_SUCCESS_URL;
     const successPath = process.env.OAUTH_SUCCESS_PATH || '/login-success.html';
     const rawBase = absoluteSuccessUrl || `${getFrontendBaseUrl()}${successPath}`;
     const params = new URLSearchParams({ token });
-    if (safeRedirect && isNativeAppRedirect(safeRedirect)) {
-        params.set('source', 'expo-app');
-        params.set('app_redirect', safeRedirect);
-    } else if (safeRedirect) {
+    if (safeRedirect) {
         params.set('app_redirect', safeRedirect);
     }
     const separator = rawBase.includes('?') ? '&' : '?';

@@ -12,9 +12,19 @@ WebBrowser.maybeCompleteAuthSession();
 const FRONTEND_URL =
   (process.env.EXPO_PUBLIC_WEB_URL || 'https://ap-sevces.vercel.app').replace(/\/$/, '');
 const API_BASE_URL = 'https://ap-sevces.onrender.com';
+/** Deep link the system OAuth browser closes on (apservices:// or exp:// in Expo Go). */
 const APP_RETURN_URL = Linking.createURL('oauth-complete');
+/** Fallback when the API still redirects to the web login-success page first. */
 const LOGIN_SUCCESS_PREFIX = `${FRONTEND_URL}/login-success.html`;
 const MOBILE_INJECT_SCRIPT = getMobileDashboardInjectScript();
+
+function isOAuthReturnUrl(url) {
+  if (!url) return false;
+  const u = String(url);
+  if (u.startsWith('apservices://') || u.startsWith('exp://')) return true;
+  if (u.includes('login-success')) return true;
+  return false;
+}
 
 function extractToken(url) {
   if (!url) return '';
@@ -51,8 +61,17 @@ export default function App() {
     return `${FRONTEND_URL}${sep}${params.toString()}`;
   }, []);
 
-  const injectMobileLayout = useCallback(() => {
-    webViewRef.current?.injectJavaScript(MOBILE_INJECT_SCRIPT);
+  const lastInjectedUrlRef = useRef('');
+
+  const injectMobileLayout = useCallback((pageUrl) => {
+    if (!webViewRef.current) return;
+    const url = pageUrl || '';
+    if (url && url === lastInjectedUrlRef.current) return;
+    if (url) lastInjectedUrlRef.current = url;
+    // Defer so DOM is ready; avoids white screen from early inject crashes.
+    setTimeout(() => {
+      webViewRef.current?.injectJavaScript(MOBILE_INJECT_SCRIPT);
+    }, 250);
   }, []);
 
   const finishLoginInWebView = useCallback((token) => {
@@ -107,10 +126,18 @@ export default function App() {
         `&app_redirect=${encodeURIComponent(APP_RETURN_URL)}`;
 
       try {
-        const result = await WebBrowser.openAuthSessionAsync(
-          authUrl,
-          LOGIN_SUCCESS_PREFIX
-        );
+        if (Platform.OS === 'android') {
+          try {
+            await WebBrowser.warmUpAsync();
+          } catch (_e) {
+            /* optional */
+          }
+        }
+
+        const result = await WebBrowser.openAuthSessionAsync(authUrl, APP_RETURN_URL, {
+          showInRecents: true,
+          preferEphemeralSession: false,
+        });
 
         if (result.type === 'success' && result.url) {
           const token = extractToken(result.url);
@@ -119,14 +146,37 @@ export default function App() {
             return;
           }
         }
+
+        // HTTPS login-success fallback (before API deploy) or Android dismiss quirk
+        if (result.type === 'success' && result.url?.includes('login-success')) {
+          const token = extractToken(result.url);
+          if (token) {
+            await applyOAuthToken(token);
+            return;
+          }
+        }
+
+        if (pendingTokenRef.current) {
+          await applyOAuthToken(pendingTokenRef.current);
+        }
       } catch (err) {
         console.warn('OAuth session failed', err);
+        if (pendingTokenRef.current) {
+          await applyOAuthToken(pendingTokenRef.current);
+        }
       } finally {
         oauthBusyRef.current = false;
         try {
           await WebBrowser.dismissBrowser();
         } catch (_e) {
           /* ignore */
+        }
+        if (Platform.OS === 'android') {
+          try {
+            await WebBrowser.coolDownAsync();
+          } catch (_e) {
+            /* optional */
+          }
         }
       }
     },
@@ -135,8 +185,11 @@ export default function App() {
 
   useEffect(() => {
     const handleDeepLink = ({ url }) => {
+      if (!isOAuthReturnUrl(url)) return;
       const token = extractToken(url);
-      if (token) applyOAuthToken(token);
+      if (!token) return;
+      pendingTokenRef.current = token;
+      applyOAuthToken(token);
     };
 
     const subscription = Linking.addEventListener('url', handleDeepLink);
@@ -152,13 +205,10 @@ export default function App() {
   const handleOAuthUrl = useCallback(
     (url) => {
       const token = extractToken(url);
-      if (token && url.includes('login-success')) {
-        applyOAuthToken(token);
-        return true;
-      }
 
-      if (url.startsWith('apservices://') || url.startsWith('exp://')) {
-        if (token) applyOAuthToken(token);
+      if (token && isOAuthReturnUrl(url)) {
+        pendingTokenRef.current = token;
+        applyOAuthToken(token);
         return true;
       }
 
@@ -191,13 +241,14 @@ export default function App() {
     }
 
     const shouldOpenExternal =
-      hostname === 'accounts.google.com' ||
-      hostname.endsWith('.google.com') ||
-      hostname === 'github.com' ||
-      hostname.endsWith('.github.com') ||
-      hostname === 'facebook.com' ||
-      hostname.endsWith('.facebook.com') ||
-      hostname === 'm.facebook.com';
+      !oauthBusyRef.current &&
+      (hostname === 'accounts.google.com' ||
+        hostname.endsWith('.google.com') ||
+        hostname === 'github.com' ||
+        hostname.endsWith('.github.com') ||
+        hostname === 'facebook.com' ||
+        hostname.endsWith('.facebook.com') ||
+        hostname === 'm.facebook.com');
 
     if (shouldOpenExternal) {
       Linking.openURL(url).catch(() => {});
@@ -212,19 +263,31 @@ export default function App() {
       <StatusBar style="dark" />
       <WebView
         ref={webViewRef}
+        style={styles.webview}
         source={{ uri: launchUrl }}
-        injectedJavaScript={MOBILE_INJECT_SCRIPT}
-        onLoadEnd={() => {
+        startInLoadingState
+        onLoadStart={() => {
+          lastInjectedUrlRef.current = '';
+        }}
+        onLoadEnd={(e) => {
           webViewReadyRef.current = true;
-          injectMobileLayout();
+          const url = e?.nativeEvent?.url || '';
+          injectMobileLayout(url);
           if (pendingTokenRef.current) {
             finishLoginInWebView(pendingTokenRef.current);
           }
         }}
         onNavigationStateChange={(nav) => {
-          injectMobileLayout();
           const url = nav?.url || '';
-          handleOAuthUrl(url);
+          if (handleOAuthUrl(url)) {
+            webViewRef.current?.stopLoading();
+          }
+        }}
+        onError={(e) => {
+          console.warn('WebView error', e?.nativeEvent);
+        }}
+        onHttpError={(e) => {
+          console.warn('WebView HTTP error', e?.nativeEvent?.statusCode, e?.nativeEvent?.url);
         }}
         onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
         javaScriptEnabled
@@ -241,4 +304,5 @@ export default function App() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#ffffff' },
+  webview: { flex: 1, backgroundColor: '#ffffff' },
 });
