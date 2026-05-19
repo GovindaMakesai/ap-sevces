@@ -1445,6 +1445,10 @@
     <div id="toast" class="toast"></div>
 
     <!-- Scripts -->
+    <link rel="stylesheet" href="admin-mobile-app.css">
+    <script>
+      if (window.ReactNativeWebView) document.documentElement.classList.add('ap-expo-app');
+    </script>
     <script src="app.js"></script>
 
     <script>
@@ -1854,15 +1858,6 @@
                     if (dropdown) {
                         dropdown.classList.toggle('active');
                     }
-                });
-            }
-            
-            // Fix mobile menu button
-            const mobileBtn = document.querySelector('.mobile-menu-btn');
-            const navLinks = document.querySelector('.nav-links');
-            if (mobileBtn && navLinks) {
-                mobileBtn.addEventListener('click', function() {
-                    navLinks.classList.toggle('show');
                 });
             }
             

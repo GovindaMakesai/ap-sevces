@@ -1,0 +1,144 @@
+/**
+ * Shared login + register auth UI — load after page inline styles.
+ * Fixes blue buttons with dark/black text and inconsistent link colors.
+ */
+
+.auth-page .login-btn,
+.register-page .nav-btn.next,
+.register-page .nav-btn.submit {
+    background: #2563eb !important;
+    color: #ffffff !important;
+    border: none !important;
+    font-family: inherit;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.auth-page .login-btn:hover:not(:disabled),
+.register-page .nav-btn.next:hover:not(:disabled),
+.register-page .nav-btn.submit:hover:not(:disabled) {
+    background: #1d4ed8 !important;
+    color: #ffffff !important;
+}
+
+.auth-page .login-btn i,
+.register-page .nav-btn.next i,
+.register-page .nav-btn.submit i {
+    color: #ffffff !important;
+}
+
+.auth-page .login-btn:disabled,
+.register-page .nav-btn:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
+.register-page .nav-btn.prev {
+    background: #f3f4f6 !important;
+    color: #374151 !important;
+    border: 1px solid #e5e7eb !important;
+}
+
+.register-page .nav-btn.prev i {
+    color: #374151 !important;
+}
+
+.register-page .nav-btn.prev:hover:not(:disabled) {
+    background: #e5e7eb !important;
+    color: #111827 !important;
+}
+
+/* User type toggle — one clear active state (blue, not mixed green/black) */
+.register-page .user-type-btn {
+    color: #4b5563 !important;
+    background: transparent !important;
+}
+
+.register-page .user-type-btn i {
+    color: inherit !important;
+}
+
+.register-page .user-type-btn.active,
+.register-page .user-type-btn.customer.active,
+.register-page .user-type-btn.worker.active {
+    background: #ffffff !important;
+    color: #2563eb !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+}
+
+.register-page .user-type-btn.active i {
+    color: #2563eb !important;
+}
+
+/* Body text vs links */
+.auth-page .auth-header h1,
+.register-page .register-header h1 {
+    color: #111827 !important;
+}
+
+.auth-page .auth-header p,
+.register-page .register-header p {
+    color: #4b5563 !important;
+}
+
+.auth-page .auth-header p a,
+.register-page .register-header p a {
+    color: #2563eb !important;
+    font-weight: 600;
+}
+
+.register-page .form-label {
+    color: #374151 !important;
+}
+
+.register-page .form-control {
+    color: #111827 !important;
+    background: #f9fafb !important;
+}
+
+.register-page .form-control::placeholder {
+    color: #9ca3af !important;
+}
+
+.register-page .checkbox-group label {
+    color: #4b5563 !important;
+}
+
+.register-page .checkbox-group a {
+    color: #2563eb !important;
+}
+
+.register-page .resend-btn {
+    color: #2563eb !important;
+    background: none !important;
+}
+
+/* Social login buttons */
+.auth-page .social-btn {
+    color: #374151 !important;
+    background: #ffffff !important;
+}
+
+.auth-page .social-btn:hover {
+    color: #111827 !important;
+}
+
+@media (max-width: 768px) {
+    .auth-page .login-btn,
+    .register-page .nav-btn.next,
+    .register-page .nav-btn.submit,
+    .register-page .nav-btn.prev {
+        width: 100%;
+        min-height: 48px;
+        justify-content: center;
+    }
+
+    .register-page .form-navigation {
+        flex-direction: column;
+    }
+
+    .register-page .nav-btn.next,
+    .register-page .nav-btn.submit {
+        margin-left: 0 !important;
+        transform: none !important;
+    }
+}

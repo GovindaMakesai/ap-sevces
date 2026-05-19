@@ -1,0 +1,40 @@
+/** Keep in sync with frontend/admin-mobile-app.css */
+export const AP_EXPO_APP_ADMIN_CSS = `
+html.ap-expo-app,html.ap-expo-app body{overflow-x:hidden!important;max-width:100%!important;width:100%!important}
+html.ap-expo-app .dashboard-page,html.ap-expo-app .admin-page,html.ap-expo-app .page,html.ap-expo-app .container,html.ap-expo-app .dashboard-container,html.ap-expo-app .dashboard-page>.container{max-width:100%!important;min-width:0!important;overflow-x:hidden!important;box-sizing:border-box!important}
+html.ap-expo-app .dashboard-grid{display:grid!important;grid-template-columns:1fr!important;width:100%!important;max-width:100%!important;min-width:0!important;gap:12px!important}
+html.ap-expo-app .dashboard-grid>*{min-width:0!important;max-width:100%!important}
+html.ap-expo-app .dashboard-sidebar{position:static!important;width:100%!important;max-width:100%!important;min-width:0!important;height:auto!important;padding:12px!important;overflow:hidden!important;box-sizing:border-box!important}
+html.ap-expo-app .dashboard-sidebar .admin-profile,html.ap-expo-app .dashboard-sidebar .profile-summary{display:grid!important;grid-template-columns:48px minmax(0,1fr)!important;grid-template-rows:auto auto!important;column-gap:10px!important;row-gap:2px!important;align-items:center!important;text-align:left!important;width:100%!important;max-width:100%!important;min-width:0!important;margin-bottom:10px!important;padding-bottom:10px!important;box-sizing:border-box!important}
+html.ap-expo-app .dashboard-sidebar .admin-avatar,html.ap-expo-app .dashboard-sidebar .profile-avatar{width:48px!important;height:48px!important;min-width:48px!important;max-width:48px!important;margin:0!important;grid-column:1!important;grid-row:1/span 2!important;font-size:1.1rem!important}
+html.ap-expo-app .dashboard-sidebar .admin-name,html.ap-expo-app .dashboard-sidebar .profile-name{grid-column:2!important;grid-row:1!important;min-width:0!important;font-size:.95rem!important;overflow-wrap:anywhere!important;word-break:break-word!important}
+html.ap-expo-app .dashboard-sidebar .admin-role,html.ap-expo-app .dashboard-sidebar .profile-rating{grid-column:2!important;grid-row:2!important;min-width:0!important}
+html.ap-expo-app .dashboard-sidebar .admin-email,html.ap-expo-app .dashboard-sidebar .profile-email,html.ap-expo-app .dashboard-sidebar .profile-phone,html.ap-expo-app .dashboard-sidebar .profile-stats{display:none!important}
+html.ap-expo-app .dashboard-nav-toggle{display:flex!important;width:100%!important;max-width:100%!important;box-sizing:border-box!important}
+html.ap-expo-app .dashboard-sidebar--mobile .sidebar-nav{display:none!important;flex-direction:column!important;flex-wrap:nowrap!important;align-items:stretch!important;overflow-x:hidden!important;overflow-y:auto!important;width:100%!important;max-width:100%!important;min-width:0!important;max-height:min(55vh,420px)!important;gap:4px!important;margin:0!important;padding:4px 0!important;box-sizing:border-box!important}
+html.ap-expo-app .dashboard-sidebar--mobile .sidebar-nav.is-open{display:flex!important}
+html.ap-expo-app .dashboard-sidebar--mobile .sidebar-nav .nav-item{display:flex!important;visibility:visible!important;opacity:1!important}
+html.ap-expo-app .dashboard-sidebar .sidebar-nav .nav-item,html.ap-expo-app .sidebar-nav .nav-item,html.ap-expo-app .dashboard-sidebar .nav-item{display:flex!important;align-items:center!important;flex:0 0 auto!important;flex-wrap:wrap!important;gap:6px!important;width:100%!important;max-width:100%!important;min-width:0!important;min-height:44px!important;padding:10px 12px!important;white-space:normal!important;overflow-wrap:anywhere!important;word-break:break-word!important;text-align:left!important;justify-content:flex-start!important;box-sizing:border-box!important}
+html.ap-expo-app .sidebar-nav .nav-item i,html.ap-expo-app .nav-item i{width:1.25rem!important;flex-shrink:0!important}
+html.ap-expo-app .sidebar-nav .nav-item .badge,html.ap-expo-app .nav-item .badge{margin-left:auto!important;flex-shrink:0!important}
+html.ap-expo-app .dashboard-sidebar .sidebar-footer{display:none!important}
+html.ap-expo-app .dashboard-main,html.ap-expo-app #dashboardMain{width:100%!important;max-width:100%!important;min-width:0!important;overflow-x:hidden!important;box-sizing:border-box!important;padding:12px!important}
+html.ap-expo-app .filter-bar{flex-direction:column!important;align-items:stretch!important}
+html.ap-expo-app .search-box,html.ap-expo-app .filter-select,html.ap-expo-app .filter-bar>*{min-width:0!important;max-width:100%!important;width:100%!important;box-sizing:border-box!important}
+html.ap-expo-app .admin-header,html.ap-expo-app .section-header,html.ap-expo-app .head{flex-direction:column!important;align-items:stretch!important}
+html.ap-expo-app .header-actions,html.ap-expo-app .header-actions>*,html.ap-expo-app .admin-header .btn-primary,html.ap-expo-app .admin-header .btn-outline{width:100%!important;max-width:100%!important;min-width:0!important;box-sizing:border-box!important}
+html.ap-expo-app .stats-grid,html.ap-expo-app .quick-actions{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+html.ap-expo-app .services-grid{grid-template-columns:1fr!important}
+html.ap-expo-app .table-container{display:block!important;width:100%!important;max-width:100%!important;overflow-x:auto!important;-webkit-overflow-scrolling:touch}
+html.ap-expo-app .tabs,html.ap-expo-app .bookings-tabs{max-width:100%!important;overflow-x:auto!important;-webkit-overflow-scrolling:touch}
+html.ap-expo-app .tab-btn{white-space:normal!important;flex-shrink:1!important}
+html.ap-expo-app .grid{grid-template-columns:1fr!important}
+html.ap-expo-app .navbar{z-index:1100!important}
+html.ap-expo-app .navbar .nav-content{position:relative!important;display:flex!important;flex-wrap:wrap!important;align-items:center!important;gap:.5rem!important}
+html.ap-expo-app .navbar .search-bar{display:none!important}
+html.ap-expo-app .navbar .mobile-menu-btn{display:flex!important;align-items:center!important;justify-content:center!important;min-width:44px!important;min-height:44px!important;flex-shrink:0!important;margin-left:auto!important;z-index:1102!important;cursor:pointer!important;pointer-events:auto!important;touch-action:manipulation}
+html.ap-expo-app .navbar .nav-content>.nav-links{display:none!important;flex-direction:column!important;align-items:stretch!important;position:absolute!important;top:100%!important;left:0!important;right:0!important;width:100%!important;max-height:min(72vh,520px)!important;overflow-y:auto!important;background:#fff!important;padding:1rem!important;box-shadow:0 10px 15px -3px rgba(0,0,0,.1)!important;border-top:1px solid #e5e7eb!important;z-index:1101!important;box-sizing:border-box!important}
+html.ap-expo-app .navbar .nav-content>.nav-links.show{display:flex!important}
+html.ap-expo-app .navbar .nav-content>.nav-links a,html.ap-expo-app .navbar .nav-content>.nav-links button,html.ap-expo-app .navbar .nav-content>.nav-links .user-name{display:flex!important;width:100%!important;justify-content:center!important;align-items:center!important;text-align:center!important;min-height:44px!important;box-sizing:border-box!important;color:#374151!important;visibility:visible!important;opacity:1!important}
+html.ap-expo-app body.nav-menu-open{overflow:hidden!important}
+`;

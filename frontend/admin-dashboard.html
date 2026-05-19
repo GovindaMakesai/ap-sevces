@@ -18,6 +18,8 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     
+    <link rel="stylesheet" href="styles.css">
+    
     <style>
         /* ==================== GLOBAL STYLES ==================== */
         :root {
@@ -102,7 +104,7 @@
             box-shadow: var(--shadow-sm);
             position: sticky;
             top: 0;
-            z-index: 1000;
+            z-index: 1100;
             height: var(--header-height);
         }
 
@@ -124,10 +126,16 @@
             color: var(--primary-600);
         }
 
-        .nav-links {
-            display: flex;
-            align-items: center;
-            gap: var(--spacing-lg);
+        .nav-content {
+            position: relative;
+        }
+
+        @media (min-width: 769px) {
+            html:not(.ap-expo-app) .navbar .nav-content > .nav-links {
+                display: flex;
+                align-items: center;
+                gap: var(--spacing-lg);
+            }
         }
 
         .nav-links a {
@@ -172,6 +180,8 @@
             display: grid;
             grid-template-columns: 280px 1fr;
             gap: var(--spacing-xl);
+            min-width: 0;
+            max-width: 100%;
         }
 
         /* ==================== SIDEBAR ==================== */
@@ -591,7 +601,11 @@
 
         /* ==================== TABLES ==================== */
         .table-container {
+            display: block;
+            width: 100%;
+            max-width: 100%;
             overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
             border-radius: var(--radius-lg);
             border: 1px solid var(--gray-200);
             margin-bottom: var(--spacing-lg);
@@ -1127,22 +1141,144 @@
         }
 
         @media (max-width: 768px) {
-            .nav-links {
+            .dashboard-page {
+                overflow-x: clip;
+            }
+
+            .dashboard-sidebar {
+                position: static;
+                width: 100%;
+                max-width: 100%;
+                min-width: 0;
+                overflow: hidden;
+                box-sizing: border-box;
+            }
+
+            .dashboard-sidebar .admin-profile {
+                display: grid;
+                grid-template-columns: 48px minmax(0, 1fr);
+                text-align: left;
+                width: 100%;
+                max-width: 100%;
+                min-width: 0;
+            }
+
+            .dashboard-sidebar .admin-avatar {
+                width: 48px;
+                height: 48px;
+                min-width: 48px;
+                margin: 0;
+                grid-column: 1;
+                grid-row: 1 / span 2;
+            }
+
+            .dashboard-sidebar .admin-name {
+                grid-column: 2;
+                grid-row: 1;
+                min-width: 0;
+                overflow-wrap: anywhere;
+            }
+
+            .dashboard-sidebar .admin-role {
+                grid-column: 2;
+                grid-row: 2;
+            }
+
+            .dashboard-sidebar .admin-email {
                 display: none;
             }
 
-            .mobile-menu-btn {
-                display: block;
+            .dashboard-sidebar .sidebar-nav {
+                display: flex;
+                flex-direction: column;
+                flex-wrap: nowrap;
+                overflow-x: hidden;
+                width: 100%;
+                max-width: 100%;
+                min-width: 0;
+            }
+
+            .dashboard-sidebar .sidebar-nav .nav-item {
+                width: 100%;
+                max-width: 100%;
+                min-width: 0;
+                white-space: normal;
+                overflow-wrap: anywhere;
+                box-sizing: border-box;
+            }
+
+            .search-box,
+            .filter-select {
+                min-width: 0;
+            }
+
+            .dashboard-page > .container {
+                padding-left: var(--spacing-sm);
+                padding-right: var(--spacing-sm);
+                max-width: 100%;
+                min-width: 0;
+            }
+
+            .dashboard-grid {
+                min-width: 0;
+                max-width: 100%;
+            }
+
+            .dashboard-main {
+                min-width: 0;
+                max-width: 100%;
+                padding: var(--spacing-md);
+                overflow-x: hidden;
             }
 
             .stats-grid,
             .quick-actions {
-                grid-template-columns: 1fr;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .stat-card {
+                min-width: 0;
+            }
+
+            .navbar .nav-content > .nav-links:not(.show) {
+                display: none;
+            }
+
+            .navbar .nav-content > .nav-links.show {
+                display: flex;
             }
 
             .filter-bar {
                 flex-direction: column;
                 align-items: stretch;
+                padding: var(--spacing-md);
+            }
+
+            .search-box,
+            .filter-select {
+                min-width: 0;
+                width: 100%;
+            }
+
+            .section-header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .section-header h2 {
+                font-size: 1.15rem;
+                flex-wrap: wrap;
+            }
+
+            .header-actions {
+                flex-direction: column;
+                width: 100%;
+            }
+
+            .header-actions .btn-primary,
+            .header-actions .btn-outline {
+                width: 100%;
+                justify-content: center;
             }
 
             .form-row {
@@ -1164,13 +1300,75 @@
 
             .date-range {
                 width: 100%;
+                flex-wrap: wrap;
             }
 
             .date-range input {
                 width: 100%;
+                max-width: 100%;
+                min-width: 0;
+            }
+
+            .charts-grid {
+                grid-template-columns: 1fr;
+                min-width: 0;
+            }
+
+            .chart-card {
+                min-width: 0;
+                overflow: hidden;
+            }
+
+            .table-container {
+                display: block;
+                width: 100%;
+                max-width: 100%;
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .table-container table {
+                min-width: 480px;
+            }
+
+            .table-container th,
+            .table-container td {
+                padding: 0.5rem 0.65rem;
+                font-size: 0.8rem;
+            }
+
+            .table-container td {
+                max-width: 120px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            .action-buttons {
+                flex-wrap: wrap;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .stats-grid,
+            .quick-actions {
+                grid-template-columns: 1fr;
+            }
+
+            .dashboard-main {
+                padding: var(--spacing-sm);
+            }
+
+            .table-container table {
+                min-width: 420px;
             }
         }
     </style>
+    <link rel="stylesheet" href="dashboard-mobile.css">
+    <link rel="stylesheet" href="admin-mobile-app.css">
+    <link rel="stylesheet" href="admin-shared.css">
+    <script>
+      if (window.ReactNativeWebView) document.documentElement.classList.add('ap-expo-app');
+    </script>
 </head>
 <body>
     <!-- Navbar -->
@@ -1183,7 +1381,7 @@
                     <!-- Dynamically populated -->
                 </div>
                 
-                <button class="mobile-menu-btn">
+                <button type="button" class="mobile-menu-btn" aria-label="Open menu">
                     <i class="fas fa-bars"></i>
                 </button>
             </div>
@@ -2575,6 +2773,11 @@
             document.getElementById(`${section}-section`).classList.add('active');
             currentSection = section;
             window.location.hash = section;
+
+            if (typeof UI !== 'undefined') {
+                UI.closeDashboardSidebarNav?.();
+                UI.scrollDashboardMainIntoView?.();
+            }
 
             // Load section-specific data if needed
             if (section === 'payments') loadPayments();

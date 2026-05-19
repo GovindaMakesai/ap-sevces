@@ -7,7 +7,9 @@ const LIVE_API_URL = 'https://ap-sevces.onrender.com/api';
 const LOCAL_API_URL = 'http://localhost:5000/api';
 const LOCAL_FRONTEND_URL = 'http://localhost:5500';
 
-const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const IS_CAPACITOR = Boolean(window.Capacitor?.isNativePlatform?.());
+const IS_EXPO_WEBVIEW = Boolean(window.ReactNativeWebView);
+const IS_LOCAL = !IS_CAPACITOR && !IS_EXPO_WEBVIEW && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
 const CONFIG = {
     API_URL: IS_LOCAL ? LOCAL_API_URL : LIVE_API_URL,
@@ -316,19 +318,24 @@ const Auth = {
                     ? options.redirectUrl
                     : null;
                 
-                setTimeout(() => {
+                const go = () => {
                     if (safeRedirect) {
-                        window.location.href = safeRedirect;
+                        window.location.replace(safeRedirect);
                         return;
                     }
                     if (response.data.user.role === 'admin') {
-                        window.location.href = '/admin-dashboard.html';
+                        window.location.replace('/admin-dashboard.html');
                     } else if (response.data.user.role === 'worker') {
-                        window.location.href = '/worker-dashboard.html';
+                        window.location.replace('/worker-dashboard.html');
                     } else {
-                        window.location.href = '/customer-dashboard.html';
+                        window.location.replace('/customer-dashboard.html');
                     }
-                }, 1500);
+                };
+                if (IS_EXPO_WEBVIEW) {
+                    go();
+                } else {
+                    setTimeout(go, 1500);
+                }
             }
             return response;
         } catch (error) {
@@ -692,6 +699,7 @@ const UI = {
         navLinks.innerHTML = user
             ? UI.standardNavLoggedInHtml(user)
             : UI.standardNavLoggedOutHtml();
+        UI.initMobileNav();
     },
     
     showLoader(container) {
@@ -720,6 +728,192 @@ const UI = {
             month: 'short',
             year: 'numeric'
         });
+    },
+
+    setNavMenuOpen(navLinks, btn, open) {
+        if (!navLinks || !btn) return;
+        const icon = btn.querySelector('i');
+        navLinks.classList.toggle('show', open);
+        navLinks.style.display = open ? 'flex' : 'none';
+        navLinks.style.flexDirection = 'column';
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        btn.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+        document.body.classList.toggle('nav-menu-open', open);
+        if (icon) {
+            icon.classList.toggle('fa-bars', !open);
+            icon.classList.toggle('fa-times', open);
+        }
+    },
+
+    initMobileNav() {
+        const navbar = document.querySelector('.navbar');
+        if (!navbar) return;
+
+        navbar.querySelectorAll('.mobile-menu-btn').forEach((btn) => {
+            if (btn.dataset.apNavBound === '1') return;
+            btn.dataset.apNavBound = '1';
+            btn.setAttribute('type', 'button');
+            if (!btn.getAttribute('aria-label')) btn.setAttribute('aria-label', 'Open menu');
+
+            const onPress = (e) => {
+                if (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+                const navContent = btn.closest('.nav-content');
+                let links = navContent?.querySelector('.nav-links');
+                if (!links) return;
+                if (links.children.length === 0) UI.updateNavbar();
+                links = navContent?.querySelector('.nav-links') || links;
+                UI.setNavMenuOpen(links, btn, !links.classList.contains('show'));
+            };
+
+            btn.addEventListener('click', onPress, true);
+        });
+
+        if (window.__apNavOutsideBound) return;
+        window.__apNavOutsideBound = true;
+
+        document.addEventListener('click', (e) => {
+            setTimeout(() => {
+                const openNav = document.querySelector('.navbar .nav-links.show');
+                if (!openNav) return;
+                const btn = openNav.closest('.nav-content')?.querySelector('.mobile-menu-btn');
+                if (openNav.contains(e.target) || btn?.contains(e.target)) return;
+                UI.setNavMenuOpen(openNav, btn, false);
+            }, 80);
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key !== 'Escape') return;
+            const openNav = document.querySelector('.navbar .nav-links.show');
+            if (!openNav) return;
+            const btn = openNav.closest('.nav-content')?.querySelector('.mobile-menu-btn');
+            UI.setNavMenuOpen(openNav, btn, false);
+        });
+
+        navbar.addEventListener('click', (e) => {
+            const link = e.target.closest('.nav-links a, .nav-links button');
+            if (!link || link.classList.contains('mobile-menu-btn')) return;
+            const navLinks = link.closest('.nav-links');
+            const btn = navLinks?.closest('.nav-content')?.querySelector('.mobile-menu-btn');
+            if (navLinks && btn) UI.setNavMenuOpen(navLinks, btn, false);
+        });
+    },
+
+    closeDashboardSidebarNav() {
+        const sidebarNav = document.querySelector('.dashboard-sidebar .sidebar-nav');
+        const sidebar = document.querySelector('.dashboard-sidebar');
+        if (!sidebarNav || !sidebar) return;
+        sidebarNav.classList.remove('is-open');
+        sidebar.querySelector('.dashboard-nav-toggle')?.classList.remove('is-open');
+        sidebar.querySelector('.dashboard-nav-toggle')?.setAttribute('aria-expanded', 'false');
+    },
+
+    scrollDashboardMainIntoView() {
+        const mobile =
+            window.matchMedia('(max-width: 1024px)').matches
+            || document.documentElement.classList.contains('ap-expo-app');
+        if (!mobile) return;
+        const mainEl = document.querySelector('.dashboard-main') || document.getElementById('dashboardMain');
+        if (!mainEl) return;
+        requestAnimationFrame(() => {
+            mainEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+    },
+
+    enhanceDashboardSidebar() {
+        const sidebar = document.querySelector('.dashboard-sidebar');
+        const sidebarNav = sidebar?.querySelector('.sidebar-nav');
+        if (!sidebar || !sidebarNav) return;
+        if (sidebar.dataset.sidebarEnhanced === 'true') {
+            const mobile =
+                window.matchMedia('(max-width: 1024px)').matches
+                || document.documentElement.classList.contains('ap-expo-app');
+            if (mobile) {
+                sidebar.classList.add('dashboard-sidebar--mobile');
+                sidebarNav.classList.add('is-open');
+                sidebarNav.style.display = 'flex';
+                sidebarNav.style.flexDirection = 'column';
+            }
+            return;
+        }
+        sidebar.dataset.sidebarEnhanced = 'true';
+
+        const isMobileLayout = () =>
+            window.matchMedia('(max-width: 1024px)').matches
+            || document.documentElement.classList.contains('ap-expo-app');
+        let toggleBtn = null;
+
+        const getActiveLabel = () => {
+            const active = sidebarNav.querySelector('.nav-item.active');
+            if (!active) return 'Dashboard sections';
+            return active.textContent.replace(/\s+/g, ' ').trim();
+        };
+
+        const setNavOpen = (open) => {
+            sidebarNav.classList.toggle('is-open', open);
+            sidebarNav.style.display = open ? 'flex' : 'none';
+            sidebarNav.style.flexDirection = 'column';
+            if (toggleBtn) {
+                toggleBtn.classList.toggle('is-open', open);
+                toggleBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+            }
+        };
+
+        const ensureToggle = () => {
+            if (!toggleBtn) {
+                toggleBtn = document.createElement('button');
+                toggleBtn.type = 'button';
+                toggleBtn.className = 'dashboard-nav-toggle';
+                toggleBtn.setAttribute('aria-expanded', 'false');
+                toggleBtn.setAttribute('aria-label', 'Open dashboard sections');
+                toggleBtn.innerHTML = '<span class="dashboard-nav-toggle-label"></span><i class="fas fa-chevron-down toggle-icon" aria-hidden="true"></i>';
+                toggleBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    sidebar.dataset.navTouched = 'true';
+                    setNavOpen(!sidebarNav.classList.contains('is-open'));
+                });
+                sidebarNav.parentNode.insertBefore(toggleBtn, sidebarNav);
+            }
+            const label = toggleBtn.querySelector('.dashboard-nav-toggle-label');
+            if (label) label.textContent = getActiveLabel();
+        };
+
+        const applyLayout = () => {
+            if (isMobileLayout()) {
+                ensureToggle();
+                sidebar.classList.add('dashboard-sidebar--mobile');
+                /* Keep menu usable on first paint — user can collapse via toggle */
+                if (toggleBtn && !sidebar.dataset.navTouched) {
+                    setNavOpen(true);
+                }
+            } else {
+                setNavOpen(false);
+                sidebar.classList.remove('dashboard-sidebar--mobile');
+            }
+        };
+
+        sidebarNav.querySelectorAll('.nav-item').forEach((item) => {
+            item.addEventListener('click', () => {
+                if (!isMobileLayout()) return;
+                const label = toggleBtn?.querySelector('.dashboard-nav-toggle-label');
+                if (label) label.textContent = item.textContent.replace(/\s+/g, ' ').trim();
+                setNavOpen(false);
+                UI.closeDashboardSidebarNav();
+                UI.scrollDashboardMainIntoView();
+            });
+        });
+
+        const observer = new MutationObserver(() => {
+            if (!isMobileLayout() || !toggleBtn) return;
+            const label = toggleBtn.querySelector('.dashboard-nav-toggle-label');
+            if (label) label.textContent = getActiveLabel();
+        });
+        observer.observe(sidebarNav, { attributes: true, subtree: true, attributeFilter: ['class'] });
+
+        window.matchMedia('(max-width: 1024px)').addEventListener('change', applyLayout);
+        applyLayout();
     }
 };
 
@@ -923,6 +1117,9 @@ const PWA = {
 // ==================== INITIALIZE ====================
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('✅ DOM loaded');
+    if (window.ReactNativeWebView) {
+        document.documentElement.classList.add('ap-expo-app');
+    }
     const launchParams = new URLSearchParams(window.location.search);
     const appRedirectFromQuery = launchParams.get('app_redirect');
     if (appRedirectFromQuery) {
@@ -933,9 +1130,31 @@ document.addEventListener('DOMContentLoaded', async () => {
         await Auth.refreshSession();
     }
     UI.updateNavbar();
+    UI.initMobileNav();
+    UI.enhanceDashboardSidebar();
+
+    const navLinksEl = document.querySelector('.navbar .nav-links');
+    if (navLinksEl && !navLinksEl.dataset.navObserveInit) {
+        navLinksEl.dataset.navObserveInit = 'true';
+        new MutationObserver(() => UI.initMobileNav()).observe(navLinksEl, { childList: true, subtree: true });
+    }
     LinkFixer.apply();
     PWA.init();
 });
+
+// Run dashboard mobile nav as soon as sidebar exists (avoids wide horizontal pill flash)
+if (document.querySelector('.dashboard-sidebar')) {
+    const runSidebarEnhance = () => {
+        if (typeof UI !== 'undefined' && UI.enhanceDashboardSidebar) {
+            UI.enhanceDashboardSidebar();
+        }
+    };
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', runSidebarEnhance);
+    } else {
+        runSidebarEnhance();
+    }
+}
 
 // Make all functions globally available
 window.AppState = AppState;

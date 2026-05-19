@@ -138,14 +138,20 @@ const isAdminRequest = (req) => {
 };
 
 const getFrontendBaseUrl = () => process.env.FRONTEND_URL || 'https://ap-sevces.vercel.app';
+
+const isNativeAppRedirect = (value) => /^(exp|apservices):\/\//i.test(String(value || '').trim());
+
 const buildOAuthSuccessUrl = (token, appRedirect = '') => {
+    const safeRedirect = String(appRedirect || '').trim();
     const absoluteSuccessUrl = process.env.OAUTH_SUCCESS_URL;
-    // Vercel static site has no /dashboard route; login-success.html stores token and routes by role.
     const successPath = process.env.OAUTH_SUCCESS_PATH || '/login-success.html';
     const rawBase = absoluteSuccessUrl || `${getFrontendBaseUrl()}${successPath}`;
     const params = new URLSearchParams({ token });
-    if (appRedirect) {
-        params.set('app_redirect', appRedirect);
+    if (safeRedirect && isNativeAppRedirect(safeRedirect)) {
+        params.set('source', 'expo-app');
+        params.set('app_redirect', safeRedirect);
+    } else if (safeRedirect) {
+        params.set('app_redirect', safeRedirect);
     }
     const separator = rawBase.includes('?') ? '&' : '?';
     return `${rawBase}${separator}${params.toString()}`;

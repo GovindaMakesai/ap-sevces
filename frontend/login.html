@@ -304,17 +304,25 @@
 
         .login-btn {
             width: 100%;
-            padding: 1rem;
+            min-height: 48px;
+            padding: 0.875rem 1rem;
             background: var(--primary-600);
             color: white;
             border: none;
             border-radius: var(--radius-lg);
             font-weight: 700;
-            font-size: 1.1rem;
+            font-size: 1rem;
+            font-family: inherit;
             cursor: pointer;
-            transition: all var(--transition-base);
+            transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
             position: relative;
             overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
         }
 
         .login-btn::before {
@@ -537,26 +545,45 @@
 
         /* ==================== RESPONSIVE ==================== */
         @media (max-width: 768px) {
+            .auth-page {
+                padding: var(--spacing-md) var(--spacing-sm);
+                align-items: flex-start;
+            }
+
             .auth-container {
-                max-width: 90%;
+                max-width: 100%;
+                width: 100%;
             }
 
             .auth-card {
-                padding: var(--spacing-xl);
+                padding: var(--spacing-lg);
+                border-radius: var(--radius-xl);
             }
 
             .auth-header h1 {
-                font-size: 1.75rem;
+                font-size: 1.5rem;
             }
 
             .benefits-list {
                 grid-template-columns: 1fr;
             }
+
+            .login-btn {
+                width: 100%;
+                min-height: 48px;
+                font-size: 1rem;
+            }
+
+            .social-btn {
+                width: 100%;
+                min-height: 48px;
+                justify-content: center;
+            }
         }
 
         @media (max-width: 480px) {
             .auth-card {
-                padding: var(--spacing-lg);
+                padding: var(--spacing-md);
             }
 
             .form-options {
@@ -567,8 +594,14 @@
             .social-login {
                 flex-direction: column;
             }
+
+            .login-btn:hover {
+                transform: none;
+            }
         }
     </style>
+    <link rel="stylesheet" href="admin-shared.css">
+    <link rel="stylesheet" href="auth-pages.css">
 </head>
 <body>
     <!-- Navbar -->
@@ -581,7 +614,7 @@
                     <!-- Dynamically populated by app.js -->
                 </div>
                 
-                <button class="mobile-menu-btn">
+                <button type="button" class="mobile-menu-btn" aria-label="Open menu">
                     <i class="fas fa-bars"></i>
                 </button>
             </div>
@@ -878,13 +911,22 @@ document.addEventListener('DOMContentLoaded', function() {
             new URLSearchParams(window.location.search).get('app_redirect') ||
             localStorage.getItem('app_redirect') ||
             '';
+        const inExpoApp =
+            Boolean(window.ReactNativeWebView) ||
+            new URLSearchParams(window.location.search).get('source') === 'expo-app';
+
         const authUrl = `${AUTH_BASE_URL}/auth/${provider}?role=${encodeURIComponent(roleFromUrl)}${appRedirect ? `&app_redirect=${encodeURIComponent(appRedirect)}` : ''}`;
+
+        if (inExpoApp) {
+            /* App.js intercepts this navigation and opens the system OAuth browser */
+            window.location.href = authUrl;
+            return;
+        }
+
         const isStandalone =
             window.matchMedia('(display-mode: standalone)').matches ||
             window.navigator.standalone === true;
 
-        // In installed PWA mode, opening OAuth in a browser tab/window
-        // is more reliable for third-party login cookie flows.
         if (isStandalone) {
             const opened = window.open(authUrl, '_blank', 'noopener,noreferrer');
             if (!opened) {

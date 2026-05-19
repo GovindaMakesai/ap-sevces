@@ -6,6 +6,7 @@
     <title>Admin Worker Details | AP Services</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="admin-mobile-app.css">
     <style>
         body { background: #f8fafc; }
         .page { padding: 2rem 0; }
@@ -37,7 +38,11 @@
         }
         .item-label { color: #6b7280; font-size: 0.85rem; }
         .item-value { color: #111827; font-weight: 600; margin-top: 0.2rem; }
-        @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
+        @media (max-width: 768px) {
+            .grid { grid-template-columns: 1fr; }
+            .head { flex-direction: column; align-items: stretch; }
+            .head .btn-outline { width: 100%; text-align: center; justify-content: center; }
+        }
     </style>
 </head>
 <body>
@@ -46,6 +51,7 @@
             <div class="nav-content">
                 <a href="/" class="logo">AP<span>Services</span></a>
                 <div class="nav-links"></div>
+                <button type="button" class="mobile-menu-btn" aria-label="Open menu"><i class="fas fa-bars"></i></button>
             </div>
         </div>
     </nav>

@@ -130,9 +130,15 @@
             color: var(--primary-600);
         }
 
-        .nav-links {
-            display: flex;
-            gap: var(--spacing-xl);
+        .nav-content {
+            position: relative;
+        }
+
+        @media (min-width: 769px) {
+            .nav-links {
+                display: flex;
+                gap: var(--spacing-xl);
+            }
         }
 
         .nav-links a {
@@ -446,7 +452,7 @@
         }
 
         .user-type-btn.worker.active {
-            color: var(--secondary-600);
+            color: var(--primary-600);
         }
 
         /* Progress Bar */
@@ -563,16 +569,18 @@
             font-size: var(--font-size-base);
             transition: all var(--transition-fast);
             background: var(--gray-50);
+            color: var(--gray-900);
         }
 
         .form-control:focus {
             outline: none;
             border-color: var(--primary-500);
             background: white;
+            color: var(--gray-900);
             box-shadow: 0 0 0 4px var(--primary-100);
         }
 
-        .form-control:focus + .input-icon {
+        .input-group:focus-within .input-icon {
             color: var(--primary-600);
         }
 
@@ -827,15 +835,25 @@
             background: var(--gray-300);
         }
 
-        .nav-btn.next, .nav-btn.submit {
+        .nav-btn.next,
+        .nav-btn.submit {
             background: var(--primary-600);
-            color: white;
+            color: #ffffff;
             margin-left: auto;
+            min-height: 48px;
+            font-family: inherit;
+            box-sizing: border-box;
         }
 
-        .nav-btn.next:hover:not(:disabled), .nav-btn.submit:hover:not(:disabled) {
+        .nav-btn.next i,
+        .nav-btn.submit i {
+            color: #ffffff;
+        }
+
+        .nav-btn.next:hover:not(:disabled),
+        .nav-btn.submit:hover:not(:disabled) {
             background: var(--primary-700);
-            transform: translateX(5px);
+            color: #ffffff;
         }
 
         .nav-btn:disabled {
@@ -899,12 +917,12 @@
 
         /* Responsive */
         @media (max-width: 768px) {
-            .nav-links {
-                display: none;
-            }
-
             .mobile-menu-btn {
-                display: block;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                min-width: 44px;
+                min-height: 44px;
             }
 
             .footer-grid {
@@ -965,6 +983,8 @@
             }
         }
     </style>
+    <link rel="stylesheet" href="admin-shared.css">
+    <link rel="stylesheet" href="auth-pages.css">
 </head>
 <body>
     <!-- Navbar -->
@@ -981,7 +1001,7 @@
                     <a href="/login.html">Login</a>
                 </div>
                 
-                <button class="mobile-menu-btn">
+                <button type="button" class="mobile-menu-btn" aria-label="Open menu">
                     <i class="fas fa-bars"></i>
                 </button>
             </div>

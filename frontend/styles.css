@@ -387,6 +387,9 @@ a:hover {
     align-items: center;
     justify-content: space-between;
     height: 100%;
+    position: relative;
+    gap: var(--spacing-sm);
+    min-width: 0;
 }
 
 .logo {
@@ -401,9 +404,14 @@ a:hover {
 }
 
 .nav-links {
-    display: flex;
     align-items: center;
     gap: var(--spacing-lg);
+}
+
+@media (min-width: 769px) {
+    html:not(.ap-expo-app) .navbar .nav-content > .nav-links {
+        display: flex;
+    }
 }
 
 .nav-links a {
@@ -445,6 +453,37 @@ a:hover {
     font-size: 1.5rem;
     color: var(--gray-700);
     cursor: pointer;
+}
+
+.notification-bell-wrapper {
+    position: relative;
+    flex-shrink: 0;
+    padding: 0.35rem 0.5rem;
+    cursor: pointer;
+    color: var(--gray-700);
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.navbar-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    flex-shrink: 0;
+}
+
+/* Notifications dropdown — fit small screens */
+@media (max-width: 768px) {
+    .notifications-panel {
+        left: var(--spacing-sm);
+        right: var(--spacing-sm);
+        width: auto !important;
+        max-height: min(72vh, 520px);
+        top: calc(var(--header-height) + 8px);
+    }
 }
 
 /* -------------------- Search Bar -------------------- */
@@ -985,24 +1024,89 @@ a:hover {
 }
 
 @media (max-width: 768px) {
-    .nav-links {
+    :root {
+        --header-height: 64px;
+    }
+
+    .container {
+        padding-left: var(--spacing-sm);
+        padding-right: var(--spacing-sm);
+    }
+
+    .logo {
+        font-size: 1.25rem;
+        flex-shrink: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    /* Higher specificity so dashboard inline CSS cannot break the mobile menu */
+    .navbar .nav-content > .nav-links {
         display: none;
         position: absolute;
-        top: var(--header-height);
+        top: 100%;
         left: 0;
+        right: 0;
         width: 100%;
+        max-height: min(72vh, 520px);
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
         background: white;
         flex-direction: column;
-        padding: var(--spacing-lg);
-        box-shadow: var(--shadow-md);
+        align-items: stretch;
+        gap: var(--spacing-sm);
+        padding: var(--spacing-md);
+        box-shadow: var(--shadow-lg);
+        border-top: 1px solid var(--gray-200);
+        z-index: 1001;
     }
     
-    .nav-links.show {
+    .navbar .nav-content > .nav-links.show {
         display: flex;
+    }
+
+    .navbar-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        flex-shrink: 0;
+        margin-left: auto;
+    }
+
+    .nav-links a,
+    .nav-links .auth-nav-btn,
+    .nav-links button {
+        width: 100%;
+        justify-content: center;
+        text-align: center;
+        padding: 0.75rem 1rem;
+    }
+
+    .nav-links .user-name {
+        display: block;
+        width: 100%;
+        text-align: center;
+        padding: 0.35rem 0;
     }
     
     .mobile-menu-btn {
-        display: block;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 44px;
+        min-height: 44px;
+        flex-shrink: 0;
+    }
+
+    body.nav-menu-open {
+        overflow: hidden;
+    }
+
+    html,
+    body {
+        overflow-x: hidden;
     }
     
     .search-bar {
@@ -1046,6 +1150,653 @@ a:hover {
         left: 1rem;
         right: 1rem;
         min-width: auto;
+    }
+}
+
+/* -------------------- Dashboard mobile layout -------------------- */
+.dashboard-nav-toggle {
+    display: none;
+}
+
+.dashboard-page {
+    overflow-x: clip;
+    max-width: 100%;
+}
+
+.dashboard-page .container,
+.dashboard-container {
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.dashboard-grid {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.dashboard-grid > * {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.dashboard-main,
+#dashboardMain {
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: hidden;
+    box-sizing: border-box;
+}
+
+@media (max-width: 1024px) {
+    .dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .dashboard-sidebar {
+        position: static;
+    }
+}
+
+@media (max-width: 768px) {
+    .dashboard-page {
+        padding: var(--spacing-md) 0;
+    }
+
+    .dashboard-container {
+        padding-left: var(--spacing-sm);
+        padding-right: var(--spacing-sm);
+    }
+
+    .dashboard-grid {
+        gap: var(--spacing-md);
+    }
+
+    .dashboard-sidebar {
+        position: sticky;
+        top: var(--header-height);
+        z-index: 50;
+        padding: var(--spacing-sm);
+        margin-bottom: var(--spacing-md);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-sm);
+        height: auto;
+        max-width: 100%;
+        overflow: hidden;
+    }
+
+    .dashboard-sidebar .profile-summary,
+    .dashboard-sidebar .admin-profile {
+        display: grid;
+        grid-template-columns: 48px minmax(0, 1fr);
+        grid-template-rows: auto auto;
+        column-gap: var(--spacing-sm);
+        row-gap: 2px;
+        align-items: center;
+        text-align: left;
+        padding-bottom: var(--spacing-sm);
+        margin-bottom: var(--spacing-sm);
+        border-bottom: 1px solid var(--gray-200);
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+    }
+
+    .dashboard-sidebar .profile-avatar,
+    .dashboard-sidebar .admin-avatar {
+        width: 48px;
+        height: 48px;
+        min-width: 48px;
+        margin: 0;
+        flex-shrink: 0;
+        font-size: 1.1rem;
+        grid-column: 1;
+        grid-row: 1 / span 2;
+    }
+
+    .dashboard-sidebar .profile-name,
+    .dashboard-sidebar .admin-name {
+        font-size: 0.95rem;
+        margin-bottom: 0;
+        grid-column: 2;
+        grid-row: 1;
+        min-width: 0;
+        overflow-wrap: anywhere;
+    }
+
+    .dashboard-sidebar .profile-email,
+    .dashboard-sidebar .profile-phone,
+    .dashboard-sidebar .admin-email,
+    .dashboard-sidebar .admin-role {
+        font-size: 0.75rem;
+        grid-column: 2;
+        min-width: 0;
+        overflow-wrap: anywhere;
+    }
+
+    .dashboard-sidebar .admin-name {
+        grid-row: 1;
+    }
+
+    .dashboard-sidebar .admin-role {
+        grid-row: 2;
+    }
+
+    .dashboard-sidebar .admin-email {
+        display: none;
+    }
+
+    .dashboard-sidebar .profile-rating {
+        grid-column: 2;
+        grid-row: 2;
+        justify-content: flex-start;
+        font-size: var(--font-size-xs);
+        margin: 0;
+        min-width: 0;
+    }
+
+    .dashboard-sidebar .profile-stats {
+        display: none;
+    }
+
+    /* Collapsible section menu (toggle injected by app.js) */
+    .dashboard-nav-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        gap: var(--spacing-sm);
+        padding: 0.65rem 0.9rem;
+        margin-bottom: var(--spacing-xs);
+        border: 1px solid var(--gray-200);
+        border-radius: var(--radius-lg);
+        background: var(--gray-50);
+        color: var(--gray-800);
+        font-weight: 600;
+        font-size: 0.9rem;
+        cursor: pointer;
+        min-height: 44px;
+    }
+
+    .dashboard-nav-toggle .toggle-icon {
+        transition: transform var(--transition-fast);
+        color: var(--gray-500);
+    }
+
+    .dashboard-nav-toggle.is-open .toggle-icon {
+        transform: rotate(180deg);
+    }
+
+    .dashboard-nav-toggle-label {
+        flex: 1;
+        text-align: left;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    /* Mobile: always vertical nav — never horizontal pills (prevents page overflow) */
+    .dashboard-sidebar .sidebar-nav {
+        display: flex;
+        flex-direction: column;
+        flex-wrap: nowrap;
+        overflow-x: hidden;
+        overflow-y: visible;
+        width: 100%;
+        max-width: 100%;
+        gap: 4px;
+        padding: var(--spacing-xs) 0;
+        margin: 0;
+        box-sizing: border-box;
+    }
+
+    .dashboard-sidebar--mobile .sidebar-nav {
+        display: none;
+        max-height: min(55vh, 420px);
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .dashboard-sidebar--mobile .sidebar-nav.is-open {
+        display: flex;
+    }
+
+    .dashboard-sidebar .sidebar-nav .nav-item,
+    .dashboard-sidebar--mobile .sidebar-nav .nav-item {
+        flex: none;
+        width: 100%;
+        max-width: 100%;
+        min-height: 44px;
+        padding: 0.65rem 0.9rem;
+        border-radius: var(--radius-md);
+        font-size: 0.875rem;
+        white-space: normal;
+        text-align: left;
+        justify-content: flex-start;
+        box-sizing: border-box;
+    }
+
+    .dashboard-sidebar .sidebar-nav .nav-item i,
+    .dashboard-sidebar--mobile .sidebar-nav .nav-item i {
+        width: 1.25rem;
+        flex-shrink: 0;
+        font-size: 0.95rem;
+    }
+
+    .dashboard-sidebar .sidebar-nav .nav-item .badge {
+        margin-left: 6px;
+        padding: 1px 6px;
+        font-size: 10px;
+    }
+
+    .dashboard-sidebar .sidebar-footer {
+        display: none;
+    }
+
+    .dashboard-main,
+    #dashboardMain {
+        padding: var(--spacing-md);
+        border-radius: var(--radius-lg);
+    }
+
+    .dashboard-page .section-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: var(--spacing-sm);
+    }
+
+    .dashboard-page .section-header h2 {
+        font-size: 1.2rem;
+    }
+
+    .dashboard-page .header-actions {
+        flex-direction: column;
+        align-items: stretch;
+        width: 100%;
+        gap: var(--spacing-sm);
+    }
+
+    .dashboard-page .header-actions .btn-outline,
+    .dashboard-page .header-actions .btn-primary,
+    .dashboard-page .header-actions button {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .dashboard-page .date-range {
+        width: 100%;
+    }
+
+    .dashboard-page .date-range input {
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    .dashboard-page .filter-bar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .dashboard-page .search-box,
+    .dashboard-page .filter-select {
+        min-width: 0;
+        width: 100%;
+        flex: none;
+    }
+
+    .dashboard-page .tabs,
+    .dashboard-page .tabs-container,
+    .dashboard-page .bookings-tabs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .dashboard-page .table-container {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .dashboard-page .welcome-banner,
+    .dashboard-container .welcome-banner {
+        padding: var(--spacing-md) var(--spacing-sm);
+        margin-bottom: var(--spacing-md);
+        border-radius: var(--radius-lg);
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+
+    .dashboard-page .welcome-banner::before,
+    .dashboard-page .welcome-banner::after,
+    .dashboard-container .welcome-banner::before,
+    .dashboard-container .welcome-banner::after {
+        display: none;
+    }
+
+    .dashboard-page .welcome-content,
+    .dashboard-container .welcome-content {
+        flex-direction: column;
+        align-items: stretch;
+        gap: var(--spacing-md);
+        width: 100%;
+        min-width: 0;
+    }
+
+    .dashboard-page .welcome-text,
+    .dashboard-container .welcome-text {
+        min-width: 0;
+        width: 100%;
+        max-width: 100%;
+    }
+
+    .dashboard-page .welcome-text h1,
+    .dashboard-container .welcome-text h1 {
+        font-size: clamp(1.15rem, 4.5vw, 1.5rem);
+        line-height: 1.3;
+        margin-bottom: 0.35rem;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+
+    .dashboard-page .welcome-text p,
+    .dashboard-container .welcome-text p {
+        font-size: 0.875rem;
+        line-height: 1.45;
+        overflow-wrap: anywhere;
+    }
+
+    .dashboard-page .welcome-stats,
+    .dashboard-container .welcome-stats {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        width: 100%;
+        gap: var(--spacing-xs);
+        min-width: 0;
+    }
+
+    .dashboard-page .welcome-stats .stat-item,
+    .dashboard-container .welcome-stats .stat-item {
+        min-width: 0;
+        padding: 0.25rem;
+    }
+
+    .dashboard-page .welcome-stats .stat-value,
+    .dashboard-container .welcome-stats .stat-value {
+        font-size: clamp(1rem, 3.5vw, 1.35rem);
+        line-height: 1.2;
+    }
+
+    .dashboard-page .welcome-stats .stat-label,
+    .dashboard-container .welcome-stats .stat-label {
+        font-size: 0.7rem;
+        line-height: 1.2;
+        overflow-wrap: anywhere;
+    }
+
+    .dashboard-page .availability-badge,
+    .dashboard-container .availability-badge {
+        width: 100%;
+        max-width: 100%;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        box-sizing: border-box;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.85rem;
+    }
+
+    /* Worker / customer booking cards & main panels */
+    .dashboard-page .bookings-list,
+    .dashboard-container .bookings-list,
+    .dashboard-page .booking-card,
+    .dashboard-container .booking-card {
+        max-width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+    }
+
+    .dashboard-page .booking-card,
+    .dashboard-container .booking-card {
+        padding: var(--spacing-md);
+        overflow: hidden;
+    }
+
+    .dashboard-page .booking-header,
+    .dashboard-container .booking-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--spacing-sm);
+    }
+
+    .dashboard-page .booking-service,
+    .dashboard-container .booking-service {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .dashboard-page .booking-service h4,
+    .dashboard-page .booking-service p,
+    .dashboard-container .booking-service h4,
+    .dashboard-container .booking-service p {
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+
+    .dashboard-page .booking-details,
+    .dashboard-container .booking-details {
+        grid-template-columns: 1fr;
+        gap: var(--spacing-sm);
+    }
+
+    .dashboard-page .detail-item,
+    .dashboard-container .detail-item {
+        min-width: 0;
+        overflow-wrap: anywhere;
+    }
+
+    .dashboard-page .booking-actions,
+    .dashboard-container .booking-actions {
+        flex-direction: column;
+    }
+
+    .dashboard-page .booking-actions .action-btn,
+    .dashboard-container .booking-actions .action-btn {
+        width: 100%;
+        justify-content: center;
+        text-align: center;
+    }
+
+    .dashboard-page .notice-banner,
+    .dashboard-container .notice-banner {
+        max-width: 100%;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+        box-sizing: border-box;
+        padding: var(--spacing-sm) !important;
+        font-size: 0.875rem;
+    }
+
+    .dashboard-page .filter-select,
+    .dashboard-container .filter-select,
+    .dashboard-main .filter-select {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+    }
+
+    .dashboard-page .weekday-row,
+    .dashboard-container .weekday-row {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: var(--spacing-sm);
+    }
+
+    .dashboard-page .time-slot-selector,
+    .dashboard-container .time-slot-selector {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.35rem;
+        width: 100%;
+    }
+
+    .dashboard-page .time-slot-selector input,
+    .dashboard-container .time-slot-selector input {
+        flex: 1 1 6rem;
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .dashboard-page .transactions-list > div,
+    .dashboard-main .transactions-list > div {
+        max-width: 100%;
+        overflow-wrap: anywhere;
+    }
+
+    /* Admin & dashboard tables */
+    .dashboard-page .table-container,
+    #dashboardMain .table-container {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        margin-left: 0;
+        margin-right: 0;
+    }
+
+    .dashboard-page .table-container table,
+    #dashboardMain .table-container table {
+        width: 100%;
+        min-width: 520px;
+    }
+
+    .dashboard-page .table-container th,
+    .dashboard-page .table-container td,
+    #dashboardMain .table-container th,
+    #dashboardMain .table-container td {
+        padding: 0.5rem 0.65rem;
+        font-size: 0.8rem;
+        vertical-align: middle;
+    }
+
+    .dashboard-page .table-container td,
+    #dashboardMain .table-container td {
+        max-width: 140px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .dashboard-page .action-buttons,
+    #dashboardMain .action-buttons {
+        flex-wrap: wrap;
+        gap: 4px;
+    }
+
+    .dashboard-page .icon-btn,
+    #dashboardMain .icon-btn {
+        width: 30px;
+        height: 30px;
+        flex-shrink: 0;
+    }
+
+    .dashboard-page .stats-grid,
+    #dashboardMain .stats-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--spacing-sm);
+    }
+
+    .dashboard-page .stat-card,
+    #dashboardMain .stat-card {
+        min-width: 0;
+        padding: var(--spacing-md);
+    }
+
+    .dashboard-page .stat-card .stat-value,
+    #dashboardMain .stat-card .stat-value {
+        font-size: clamp(1.1rem, 4vw, 1.5rem);
+        overflow-wrap: anywhere;
+    }
+
+    .dashboard-page .charts-grid,
+    #dashboardMain .charts-grid {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .dashboard-page .chart-card,
+    #dashboardMain .chart-card {
+        min-width: 0;
+        max-width: 100%;
+        overflow: hidden;
+    }
+
+    .dashboard-page .chart-card canvas,
+    #dashboardMain .chart-card canvas {
+        max-width: 100% !important;
+        height: auto !important;
+    }
+
+    .dashboard-page .quick-actions,
+    #dashboardMain .quick-actions {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--spacing-sm);
+    }
+
+    .dashboard-page .filter-bar,
+    #dashboardMain .filter-bar {
+        padding: var(--spacing-md);
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+
+    .dashboard-page .date-range input,
+    #dashboardMain .date-range input {
+        max-width: 100%;
+        min-width: 0;
+    }
+}
+
+@media (max-width: 480px) {
+    .dashboard-sidebar .profile-email,
+    .dashboard-sidebar .profile-phone,
+    .dashboard-sidebar .admin-email {
+        display: none;
+    }
+
+    .dashboard-page .welcome-stats,
+    .dashboard-container .welcome-stats {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 4px;
+    }
+
+    .dashboard-page .welcome-stats .stat-label,
+    .dashboard-container .welcome-stats .stat-label {
+        font-size: 0.65rem;
+    }
+
+    .dashboard-page .stats-grid,
+    #dashboardMain .stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .dashboard-page .quick-actions,
+    #dashboardMain .quick-actions {
+        grid-template-columns: 1fr;
+    }
+
+    .dashboard-main,
+    #dashboardMain {
+        padding: var(--spacing-sm);
+    }
+
+    .dashboard-page .table-container th,
+    .dashboard-page .table-container td,
+    #dashboardMain .table-container th,
+    #dashboardMain .table-container td {
+        padding: 0.4rem 0.5rem;
+        font-size: 0.75rem;
     }
 }
 
