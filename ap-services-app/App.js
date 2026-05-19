@@ -18,12 +18,10 @@ const APP_RETURN_URL = Linking.createURL('oauth-complete');
 const LOGIN_SUCCESS_PREFIX = `${FRONTEND_URL}/login-success.html`;
 const MOBILE_INJECT_SCRIPT = getMobileDashboardInjectScript();
 
-function isOAuthReturnUrl(url) {
+function isNativeOAuthReturnUrl(url) {
   if (!url) return false;
   const u = String(url);
-  if (u.startsWith('apservices://') || u.startsWith('exp://')) return true;
-  if (u.includes('login-success')) return true;
-  return false;
+  return u.startsWith('apservices://') || u.startsWith('exp://');
 }
 
 function extractToken(url) {
@@ -31,6 +29,7 @@ function extractToken(url) {
   try {
     const parsed = Linking.parse(url);
     const t = parsed?.queryParams?.token;
+    if (Array.isArray(t) && t[0]) return String(t[0]);
     if (typeof t === 'string' && t) return t;
   } catch (_e) {
     /* fall through */
@@ -75,7 +74,7 @@ export default function App() {
   }, []);
 
   const finishLoginInWebView = useCallback((token) => {
-    if (!token || token === handledTokenRef.current) return;
+    if (!token) return;
     if (!webViewRef.current || !webViewReadyRef.current) {
       pendingTokenRef.current = token;
       return;
@@ -84,18 +83,44 @@ export default function App() {
     handledTokenRef.current = token;
     pendingTokenRef.current = '';
 
-    const successPath =
-      '/login-success.html?token=' +
-      encodeURIComponent(token) +
-      '&source=expo-app';
+    const tokenJson = JSON.stringify(token);
+    const apiBase = JSON.stringify(`${API_BASE_URL}/api`);
+    const fallbackSuccess = JSON.stringify(
+      `${FRONTEND_URL}/login-success.html?token=${encodeURIComponent(token)}&source=expo-app`
+    );
 
     const script = `
       (function() {
         try {
-          localStorage.setItem('token', ${JSON.stringify(token)});
+          localStorage.setItem('token', ${tokenJson});
           localStorage.removeItem('app_redirect');
         } catch (e) {}
-        window.location.replace(${JSON.stringify(successPath)});
+        var api = ${apiBase};
+        fetch(api + '/auth/me', {
+          headers: { Authorization: 'Bearer ' + ${tokenJson} }
+        })
+          .then(function(res) { return res.json(); })
+          .then(function(data) {
+            if (!data || !data.success || !data.data || !data.data.user) {
+              throw new Error((data && data.message) || 'Profile load failed');
+            }
+            var user = data.data.user;
+            try {
+              localStorage.setItem('user', JSON.stringify(user));
+              if (window.AppState) {
+                window.AppState.token = ${tokenJson};
+                window.AppState.user = user;
+              }
+            } catch (e) {}
+            var path = '/customer-dashboard.html';
+            if (user.role === 'admin') path = '/admin-dashboard.html';
+            else if (user.role === 'worker') path = '/worker-dashboard.html';
+            window.location.replace(path);
+          })
+          .catch(function(err) {
+            console.warn('[ap-expo] auth/me failed, using login-success fallback', err);
+            window.location.replace(${fallbackSuccess});
+          });
       })();
       true;
     `;
@@ -119,6 +144,7 @@ export default function App() {
     async (provider, role = 'customer') => {
       if (oauthBusyRef.current) return;
       oauthBusyRef.current = true;
+      handledTokenRef.current = '';
 
       const authUrl =
         `${API_BASE_URL}/auth/${provider}` +
@@ -185,7 +211,7 @@ export default function App() {
 
   useEffect(() => {
     const handleDeepLink = ({ url }) => {
-      if (!isOAuthReturnUrl(url)) return;
+      if (!isNativeOAuthReturnUrl(url)) return;
       const token = extractToken(url);
       if (!token) return;
       pendingTokenRef.current = token;
@@ -206,7 +232,8 @@ export default function App() {
     (url) => {
       const token = extractToken(url);
 
-      if (token && isOAuthReturnUrl(url)) {
+      // Only native deep links — let login-success.html load normally in the WebView.
+      if (token && isNativeOAuthReturnUrl(url)) {
         pendingTokenRef.current = token;
         applyOAuthToken(token);
         return true;

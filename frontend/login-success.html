@@ -43,7 +43,10 @@
                     throw new Error(data.message || 'Could not load profile');
                 }
                 localStorage.setItem('user', JSON.stringify(data.data.user));
-                if (window.AppState) AppState.user = data.data.user;
+                if (window.AppState) {
+                    AppState.token = token;
+                    AppState.user = data.data.user;
+                }
                 return data.data.user;
             }
 
@@ -57,17 +60,9 @@
                 }
             }
 
-            const appRedirect = params.get('app_redirect') || localStorage.getItem('app_redirect') || '';
-
-            if (appRedirect && /^(apservices|exp):\/\//i.test(appRedirect)) {
-                statusText.textContent = 'Returning to app...';
-                const separator = appRedirect.includes('?') ? '&' : '?';
-                const deepLink = appRedirect + separator + 'token=' + encodeURIComponent(token);
-                window.location.replace(deepLink);
-                return;
-            }
-
+            // Already inside the Expo WebView — finish login here (do not deep-link out again).
             if (inExpoApp) {
+                try { localStorage.removeItem('app_redirect'); } catch (e) {}
                 statusText.textContent = 'Opening your dashboard...';
                 try {
                     const user = await loadUserAndGoDashboard();
@@ -77,6 +72,16 @@
                     statusText.textContent = 'Login failed. Redirecting to login...';
                     setTimeout(() => { window.location.replace('/login.html'); }, 1400);
                 }
+                return;
+            }
+
+            const appRedirect = params.get('app_redirect') || localStorage.getItem('app_redirect') || '';
+
+            if (appRedirect && /^(apservices|exp):\/\//i.test(appRedirect)) {
+                statusText.textContent = 'Returning to app...';
+                const separator = appRedirect.includes('?') ? '&' : '?';
+                const deepLink = appRedirect + separator + 'token=' + encodeURIComponent(token);
+                window.location.replace(deepLink);
                 return;
             }
 
