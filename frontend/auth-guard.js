@@ -1,5 +1,5 @@
 /**
- * Native app auth gate — login/signup first, then app by role.
+ * Native app auth gate — login first, then app. Avoids redirect loops.
  */
 (function () {
   const AUTH_PAGES = ['/app-auth.html', '/login.html', '/register.html', '/login-success.html'];
@@ -57,24 +57,35 @@
   async function validateSession() {
     const token = localStorage.getItem('token');
     if (!token) return false;
+
     try {
       if (window.Auth && typeof Auth.refreshSession === 'function') {
-        return await Auth.refreshSession();
+        const ok = await Auth.refreshSession();
+        if (ok) return true;
+        if (!localStorage.getItem('token')) return false;
+        return true;
       }
       const api = (window.CONFIG && CONFIG.API_URL) || 'https://ap-sevces.onrender.com/api';
       const res = await fetch(api + '/auth/me', {
         headers: { Authorization: 'Bearer ' + token },
       });
-      const data = await res.json();
-      if (!res.ok || !data.success || !data.data?.user) return false;
-      localStorage.setItem('user', JSON.stringify(data.data.user));
-      if (window.AppState) {
-        AppState.token = token;
-        AppState.user = data.data.user;
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        return false;
+      }
+      if (res.ok && data.success && data.data?.user) {
+        localStorage.setItem('user', JSON.stringify(data.data.user));
+        if (window.AppState) {
+          AppState.token = token;
+          AppState.user = data.data.user;
+        }
+        return true;
       }
       return true;
     } catch (_e) {
-      return false;
+      return Boolean(localStorage.getItem('token'));
     }
   }
 
@@ -104,37 +115,40 @@
     if (!isNative() || !isLoggedIn()) return;
     const ok = await validateSession();
     if (!ok) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
       markGuestUi();
       return;
     }
     markAuthedUi();
-    window.location.replace(homeUrl(getUser()));
+    const dest = homeUrl(getUser());
+    if (!pathEnds(dest.split('?')[0])) {
+      window.location.replace(dest);
+    }
   }
 
   async function requireAuth() {
     if (!isNative()) return;
 
+    if (pathEnds('/login-success.html')) return;
+
     if (isAuthPage()) {
       markGuestUi();
       bindAuthNavLinks();
-      if (isLoggedIn() && !window.__apNavLock) {
-        setTimeout(() => redirectIfAlreadyLoggedIn(), 50);
+      if (isLoggedIn()) {
+        await redirectIfAlreadyLoggedIn();
       }
       return;
     }
 
     if (!isLoggedIn()) {
       markGuestUi();
-      window.location.replace('/app-auth.html?app=1');
+      if (!pathEnds('/app-auth.html')) {
+        window.location.replace('/app-auth.html?app=1');
+      }
       return;
     }
 
     const ok = await validateSession();
     if (!ok) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
       markGuestUi();
       window.location.replace('/app-auth.html?app=1');
       return;
@@ -161,7 +175,6 @@
     if (window.__AUTH_GUARD_RAN__) return;
     window.__AUTH_GUARD_RAN__ = true;
     if (!isNative()) return;
-    markGuestUi();
     requireAuth();
   }
 

@@ -311,6 +311,20 @@ export default function App() {
     [applyOAuthToken, startOAuthInBrowser]
   );
 
+  const onWebViewMessage = useCallback(
+    (event) => {
+      try {
+        const data = JSON.parse(event.nativeEvent.data);
+        if (data.type === 'oauth' && data.provider) {
+          startOAuthInBrowser(data.provider, data.role || 'customer');
+        }
+      } catch (_e) {
+        /* not our message */
+      }
+    },
+    [startOAuthInBrowser]
+  );
+
   const onShouldStartLoadWithRequest = (request) => {
     const url = request?.url || '';
     if (handleOAuthUrl(url)) return false;
@@ -396,6 +410,7 @@ export default function App() {
           }
         }}
         onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
+        onMessage={onWebViewMessage}
         javaScriptEnabled
         domStorageEnabled
         cacheEnabled={false}

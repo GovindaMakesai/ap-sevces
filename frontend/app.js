@@ -420,9 +420,11 @@ const Auth = {
             console.warn('Session refresh failed:', e);
             if (e.status === 401) {
                 this.tokenInvalidCleanup();
+                return false;
             }
+            return Boolean(localStorage.getItem('token'));
         }
-        return false;
+        return Boolean(localStorage.getItem('token'));
     },
 
     tokenInvalidCleanup() {
@@ -1138,13 +1140,16 @@ const PWA = {
 };
 
 // ==================== NATIVE APP SHELL (all pages) ====================
+function pathEnds(p) {
+    return (window.location.pathname || '').toLowerCase().endsWith(p);
+}
+
 function isAuthPath() {
-    const path = (window.location.pathname || '').toLowerCase();
     return (
-        path.endsWith('/app-auth.html') ||
-        path.endsWith('/login.html') ||
-        path.endsWith('/register.html') ||
-        path.endsWith('/login-success.html')
+        pathEnds('/app-auth.html') ||
+        pathEnds('/login.html') ||
+        pathEnds('/register.html') ||
+        pathEnds('/login-success.html')
     );
 }
 
@@ -1201,13 +1206,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (isNativeAppContext()) {
         document.documentElement.classList.add('ap-expo-app');
     }
+    const onAuthScreen =
+        pathEnds('/app-auth.html') ||
+        pathEnds('/login.html') ||
+        pathEnds('/register.html') ||
+        pathEnds('/login-success.html');
+    if (isNativeAppContext() && !onAuthScreen && !localStorage.getItem('token')) {
+        window.location.replace('/app-auth.html?app=1');
+        return;
+    }
     const launchParams = new URLSearchParams(window.location.search);
     const appRedirectFromQuery = launchParams.get('app_redirect');
     if (appRedirectFromQuery) {
         localStorage.setItem('app_redirect', appRedirectFromQuery);
     }
     Auth.checkAuth();
-    if (AppState.token) {
+    if (AppState.token && !(isNativeAppContext() && onAuthScreen)) {
         await Auth.refreshSession();
     }
     if (!isNativeAppContext()) {

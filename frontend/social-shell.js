@@ -225,12 +225,6 @@
   }
 
   function initPage(config) {
-    const inApp =
-      window.__AP_NATIVE_APP__ || window.ReactNativeWebView || window.Capacitor;
-    if (inApp && !localStorage.getItem('token')) {
-      window.location.replace('/app-auth.html?app=1');
-      return;
-    }
     markNativeApp();
     const active = config.activeNav || 'explore';
     const mount = document.getElementById('social-bottom-nav-mount');

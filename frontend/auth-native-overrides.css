@@ -24,6 +24,21 @@ html.auth-native .register-page {
   min-height: 100dvh !important;
   padding: max(12px, env(safe-area-inset-top)) 12px calc(20px + env(safe-area-inset-bottom)) !important;
   background: transparent !important;
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: center !important;
+}
+
+html.auth-native .auth-container,
+html.auth-native .register-container {
+  width: 100% !important;
+  max-width: 480px !important;
+  margin: 0 auto !important;
+}
+
+html.auth-native .auth-benefits,
+html.auth-native .auth-testimonial {
+  margin-top: 16px !important;
 }
 
 html.auth-native .auth-page::before,
