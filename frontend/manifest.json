@@ -2,12 +2,12 @@
   "name": "AP Services",
   "short_name": "APServices",
   "description": "Book trusted home services near you.",
-  "start_url": "/",
+  "start_url": "/explore.html",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#ffffff",
-  "theme_color": "#2563eb",
+  "background_color": "#faf6ee",
+  "theme_color": "#c9a227",
   "icons": [
     {
       "src": "/icons/icon-192.svg",

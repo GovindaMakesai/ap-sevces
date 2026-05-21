@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en" class="social-video-page">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#000000">
+  <title>Video - AP Services</title>
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="social-theme.css">
+</head>
+<body class="social-video-page">
+  <header class="social-video-top">
+    <div class="social-main-tabs">
+      <a href="/explore.html?tab=following">Following</a>
+      <a href="/video.html" class="active">Video</a>
+      <a href="/square.html">Square</a>
+      <a href="/topics.html">Topics</a>
+      <a href="/video.html" class="social-icon-btn" style="margin-left:auto;background:rgba(255,255,255,0.2);color:#fff"><i class="fas fa-camera"></i></a>
+    </div>
+  </header>
+
+  <div class="social-video-stage" id="videoStage">
+    <img id="videoBg" src="https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=800&q=80" alt="">
+  </div>
+
+  <div class="social-video-actions">
+    <div><button type="button" aria-label="Like"><i class="fas fa-heart"></i></button><div class="count" id="likeCount">1.2k</div></div>
+    <div><button type="button" onclick="location.href='/chat.html'" aria-label="Comment"><i class="fas fa-comment"></i></button></div>
+    <div><button type="button" class="gift-btn" onclick="location.href='/store.html'" aria-label="Gift"><i class="fas fa-gift"></i></button></div>
+    <div><button type="button" aria-label="Share"><i class="fas fa-paper-plane"></i></button><div class="count">7</div></div>
+  </div>
+
+  <div class="social-video-user">
+    <img id="videoAvatar" src="" alt="">
+    <div>
+      <div class="name" id="videoName">AP Services Pro</div>
+    </div>
+    <button type="button" class="follow-btn" onclick="location.href='/services.html'">Follow</button>
+  </div>
+
+  <div id="social-bottom-nav-mount"></div>
+
+  <script src="app.js"></script>
+  <script src="social-shell.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      SocialShell.markNativeApp();
+      document.getElementById('social-bottom-nav-mount').innerHTML =
+        SocialShell.renderBottomNav('video');
+      const pros = await SocialShell.fetchPros(5);
+      let i = 0;
+      const show = () => {
+        const p = pros[i % pros.length];
+        document.getElementById('videoBg').src = p.image;
+        document.getElementById('videoAvatar').src = p.image;
+        document.getElementById('videoName').textContent = p.name;
+        i++;
+      };
+      show();
+      setInterval(show, 8000);
+      document.getElementById('videoStage').addEventListener('click', () => {
+        const p = pros[i % pros.length];
+        if (p.id) location.href = '/worker-profile.html?id=' + p.id;
+        else location.href = '/services.html';
+      });
+    });
+  </script>
+</body>
+</html>

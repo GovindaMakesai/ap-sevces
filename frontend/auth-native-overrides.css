@@ -1,0 +1,182 @@
+/**
+ * Native app auth — overrides ALL legacy blue (styles.css / auth-pages.css / inline).
+ * Load last on app-auth, login, register, login-success.
+ */
+html.auth-native,
+html.auth-native body {
+  background: #faf6ee !important;
+  background-image: radial-gradient(circle at 20% 0%, rgba(201, 162, 39, 0.14) 0%, transparent 48%),
+    radial-gradient(circle at 80% 10%, rgba(245, 158, 11, 0.07) 0%, transparent 42%) !important;
+  color: #5c4210 !important;
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+html.auth-native .navbar,
+html.auth-native .footer,
+html.auth-native footer {
+  display: none !important;
+  height: 0 !important;
+}
+
+html.auth-native .auth-page,
+html.auth-native .register-page {
+  min-height: 100dvh !important;
+  padding: max(12px, env(safe-area-inset-top)) 12px calc(20px + env(safe-area-inset-bottom)) !important;
+  background: transparent !important;
+}
+
+html.auth-native .auth-page::before,
+html.auth-native .auth-page::after {
+  display: none !important;
+}
+
+html.auth-native .auth-card,
+html.auth-native .register-card,
+html.auth-native .auth-container .auth-card {
+  background: #fffdf8 !important;
+  border: 1px solid rgba(201, 162, 39, 0.28) !important;
+  border-radius: 20px !important;
+  box-shadow: 0 12px 32px rgba(107, 79, 16, 0.1) !important;
+}
+
+html.auth-native .auth-logo,
+html.auth-native .auth-logo span,
+html.auth-native .auth-header h1,
+html.auth-native .register-header h1 {
+  color: #5c4210 !important;
+}
+
+html.auth-native .auth-logo span {
+  color: #c9a227 !important;
+}
+
+html.auth-native .auth-header p,
+html.auth-native .register-header p {
+  color: #8b6914 !important;
+}
+
+html.auth-native .auth-header p a,
+html.auth-native .register-header p a,
+html.auth-native a.forgot-password,
+html.auth-native .register-page .checkbox-group a,
+html.auth-native .register-page .resend-btn {
+  color: #a67c1a !important;
+}
+
+html.auth-native .login-btn,
+html.auth-native .auth-page .login-btn,
+html.auth-native .register-page .nav-btn.next,
+html.auth-native .register-page .nav-btn.submit {
+  background: linear-gradient(135deg, #ff8c42, #f59e0b) !important;
+  color: #fff !important;
+  border: none !important;
+  border-radius: 999px !important;
+  box-shadow: 0 6px 18px rgba(245, 158, 11, 0.35) !important;
+}
+
+html.auth-native .login-btn i,
+html.auth-native .register-page .nav-btn.next i,
+html.auth-native .register-page .nav-btn.submit i {
+  color: #fff !important;
+}
+
+html.auth-native .register-page .nav-btn.prev {
+  background: #fff !important;
+  color: #6b4f10 !important;
+  border: 1px solid rgba(201, 162, 39, 0.35) !important;
+}
+
+html.auth-native .user-type-btn.active,
+html.auth-native .user-type-btn.customer.active,
+html.auth-native .user-type-btn.worker.active,
+html.auth-native .register-page .user-type-btn.active {
+  color: #a67c1a !important;
+  border-color: #c9a227 !important;
+  background: #fffdf8 !important;
+  box-shadow: 0 2px 8px rgba(201, 162, 39, 0.2) !important;
+}
+
+html.auth-native .user-type-btn.active i {
+  color: #c9a227 !important;
+}
+
+html.auth-native .form-control,
+html.auth-native .register-page .form-control {
+  background: #fff !important;
+  border: 1px solid rgba(201, 162, 39, 0.35) !important;
+  color: #5c4210 !important;
+  border-radius: 12px !important;
+}
+
+html.auth-native .form-control:focus {
+  border-color: #c9a227 !important;
+  box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.2) !important;
+  outline: none !important;
+}
+
+html.auth-native .input-icon {
+  color: #c9a227 !important;
+}
+
+html.auth-native .social-btn,
+html.auth-native .auth-page .social-btn {
+  background: #fff !important;
+  border: 1px solid #e5e7eb !important;
+  color: #374151 !important;
+  border-radius: 12px !important;
+}
+
+html.auth-native .divider::before,
+html.auth-native .divider::after {
+  background: rgba(201, 162, 39, 0.3) !important;
+}
+
+html.auth-native .divider span {
+  color: #b8a88a !important;
+}
+
+html.auth-native .progress-step.active .step-number,
+html.auth-native .progress-step.completed .step-number {
+  background: #c9a227 !important;
+  border-color: #c9a227 !important;
+}
+
+html.auth-native .progress-step.active .step-label {
+  color: #a67c1a !important;
+}
+
+html.auth-native .benefits-title,
+html.auth-native .benefit-item span {
+  color: #6b4f10 !important;
+}
+
+html.auth-native .benefit-item i,
+html.auth-native .benefits-title i {
+  color: #c9a227 !important;
+}
+
+html.auth-native .auth-testimonial,
+html.auth-native .testimonial-quote {
+  color: #6b4f10 !important;
+  background: rgba(201, 162, 39, 0.08) !important;
+  border-color: rgba(201, 162, 39, 0.2) !important;
+}
+
+html.auth-native .register-page {
+  background: transparent !important;
+}
+
+html.auth-native .register-page .form-label {
+  color: #6b4f10 !important;
+}
+
+/* Kill any remaining primary/blue CSS variables */
+html.auth-native {
+  --primary-50: #fdf8eb !important;
+  --primary-100: #f5e6c8 !important;
+  --primary-200: #e8d4a8 !important;
+  --primary-500: #c9a227 !important;
+  --primary-600: #a67c1a !important;
+  --primary-700: #8b6914 !important;
+}

@@ -11,6 +11,13 @@ const IS_CAPACITOR = Boolean(window.Capacitor?.isNativePlatform?.());
 const IS_EXPO_WEBVIEW = Boolean(window.ReactNativeWebView);
 const IS_LOCAL = !IS_CAPACITOR && !IS_EXPO_WEBVIEW && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
+function isNativeAppContext() {
+    if (window.__AP_NATIVE_APP__) return true;
+    if (IS_EXPO_WEBVIEW || IS_CAPACITOR) return true;
+    const q = new URLSearchParams(window.location.search);
+    return q.get('app') === '1' || q.get('source') === 'expo-app';
+}
+
 const CONFIG = {
     API_URL: IS_LOCAL ? LOCAL_API_URL : LIVE_API_URL,
     FRONTEND_URL: IS_LOCAL ? LOCAL_FRONTEND_URL : LIVE_FRONTEND_URL
@@ -323,6 +330,19 @@ const Auth = {
                         window.location.replace(safeRedirect);
                         return;
                     }
+                    if (isNativeAppContext()) {
+                        const u = response.data.user;
+                        const dest =
+                            window.AppAuth && typeof AppAuth.homeUrl === 'function'
+                                ? AppAuth.homeUrl(u)
+                                : u.role === 'admin'
+                                  ? '/admin-dashboard.html?app=1'
+                                  : u.role === 'worker'
+                                    ? '/worker-dashboard.html?app=1'
+                                    : '/explore.html?app=1';
+                        window.location.replace(dest);
+                        return;
+                    }
                     if (response.data.user.role === 'admin') {
                         window.location.replace('/admin-dashboard.html');
                     } else if (response.data.user.role === 'worker') {
@@ -361,7 +381,8 @@ const Auth = {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         Toast.show('Logged out successfully', 'success');
-        setTimeout(() => window.location.href = '/', 1500);
+        const dest = isNativeAppContext() ? '/app-auth.html?app=1' : '/';
+        setTimeout(() => window.location.replace(dest), 600);
     },
     
     checkAuth() {
@@ -1116,10 +1137,68 @@ const PWA = {
     }
 };
 
+// ==================== NATIVE APP SHELL (all pages) ====================
+function isAuthPath() {
+    const path = (window.location.pathname || '').toLowerCase();
+    return (
+        path.endsWith('/app-auth.html') ||
+        path.endsWith('/login.html') ||
+        path.endsWith('/register.html') ||
+        path.endsWith('/login-success.html')
+    );
+}
+
+function bootstrapNativeAppShell() {
+    if (!isNativeAppContext()) return;
+    document.documentElement.classList.add('ap-expo-app', 'social-app');
+    window.__AP_NATIVE_APP__ = true;
+    if (!document.querySelector('link[href*="social-theme.css"]')) {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = '/social-theme.css';
+        document.head.appendChild(link);
+    }
+    if (!document.querySelector('script[src*="auth-guard.js"]')) {
+        const guard = document.createElement('script');
+        guard.src = '/auth-guard.js';
+        guard.async = false;
+        document.head.appendChild(guard);
+    }
+    if (!isAuthPath() && localStorage.getItem('token')) {
+        if (!document.querySelector('script[src*="social-bridge.js"]')) {
+            const script = document.createElement('script');
+            script.src = '/social-bridge.js';
+            script.async = true;
+            document.head.appendChild(script);
+        }
+        if (!document.querySelector('script[src*="social-shell.js"]')) {
+            const shell = document.createElement('script');
+            shell.src = '/social-shell.js';
+            shell.async = true;
+            document.head.appendChild(shell);
+        }
+    }
+}
+
+bootstrapNativeAppShell();
+
 // ==================== INITIALIZE ====================
+function loadSocialShellIfNeeded() {
+    const path = (window.location.pathname || '').replace(/\/$/, '');
+    const socialPages = [
+        '/explore.html', '/party.html', '/video.html', '/square.html', '/topics.html',
+        '/store.html', '/vip.html', '/rankings.html', '/profile-tab.html', '/privileges.html',
+    ];
+    const isSocial = socialPages.some((p) => path.endsWith(p));
+    if (isSocial || isNativeAppContext()) {
+        document.documentElement.classList.add('social-app');
+    }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('✅ DOM loaded');
-    if (window.ReactNativeWebView) {
+    loadSocialShellIfNeeded();
+    if (isNativeAppContext()) {
         document.documentElement.classList.add('ap-expo-app');
     }
     const launchParams = new URLSearchParams(window.location.search);
@@ -1131,8 +1210,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (AppState.token) {
         await Auth.refreshSession();
     }
-    UI.updateNavbar();
-    UI.initMobileNav();
+    if (!isNativeAppContext()) {
+        UI.updateNavbar();
+        UI.initMobileNav();
+    }
     UI.enhanceDashboardSidebar();
 
     const navLinksEl = document.querySelector('.navbar .nav-links');

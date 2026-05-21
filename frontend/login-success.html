@@ -1,113 +1,140 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Signing You In...</title>
-    <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#fdf9f0">
+  <title>Signing You In - AP Services</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="social-theme.css">
+  <link rel="stylesheet" href="social-auth.css">
+  <link rel="stylesheet" href="auth-native-overrides.css">
+  <script src="social-auth-init.js"></script>
 </head>
-<body>
-    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;">
-        <h2>Signing you in...</h2>
-        <p id="statusText">Please wait while we complete login.</p>
-    </div>
+<body class="auth-success-page">
+  <div class="auth-success-card" id="card">
+    <div class="auth-success-spinner" id="spinner"></div>
+    <h2 id="title">Signing you in</h2>
+    <p id="statusText">Please wait…</p>
+    <a href="/login.html?app=1" class="auth-success-back" id="backBtn" style="display:none">Back to Sign In</a>
+  </div>
 
-    <script src="app.js"></script>
-    <script>
-        (async function completeOAuthLogin() {
-            const statusText = document.getElementById('statusText');
-            const params = new URLSearchParams(window.location.search);
-            const token = params.get('token');
+  <script src="app.js"></script>
+  <script src="auth-guard.js"></script>
+  <script>
+    (async function completeOAuthLogin() {
+      const statusText = document.getElementById('statusText');
+      const title = document.getElementById('title');
+      const card = document.getElementById('card');
+      const spinner = document.getElementById('spinner');
+      const backBtn = document.getElementById('backBtn');
 
-            if (!token) {
-                statusText.textContent = 'Missing login token. Redirecting to login.';
-                setTimeout(() => { window.location.replace('/login.html'); }, 1200);
-                return;
-            }
+      const params = new URLSearchParams(window.location.search);
+      const hashParams = new URLSearchParams((window.location.hash || '').replace(/^#/, ''));
+      const inExpoApp =
+        Boolean(window.ReactNativeWebView) ||
+        params.get('source') === 'expo-app' ||
+        params.get('app') === '1';
 
-            localStorage.setItem('token', token);
+      function getToken() {
+        return (
+          params.get('token') ||
+          hashParams.get('token') ||
+          localStorage.getItem('token') ||
+          ''
+        );
+      }
 
-            const inExpoApp = Boolean(window.ReactNativeWebView) || params.get('source') === 'expo-app';
+      function waitForToken(ms) {
+        return new Promise((resolve) => {
+          const start = Date.now();
+          const tick = () => {
+            const t = getToken();
+            if (t) return resolve(t);
+            if (Date.now() - start >= ms) return resolve('');
+            setTimeout(tick, 120);
+          };
+          tick();
+        });
+      }
 
-            async function loadUserAndGoDashboard() {
-                if (window.Auth && typeof Auth.refreshSession === 'function') {
-                    const ok = await Auth.refreshSession();
-                    if (ok) return Auth.getUser();
-                }
-                const apiBase = (window.CONFIG && CONFIG.API_URL) || 'https://ap-sevces.onrender.com/api';
-                const res = await fetch(apiBase + '/auth/me', {
-                    headers: { Authorization: 'Bearer ' + token }
-                });
-                const data = await res.json();
-                if (!res.ok || !data.success || !data.data?.user) {
-                    throw new Error(data.message || 'Could not load profile');
-                }
-                localStorage.setItem('user', JSON.stringify(data.data.user));
-                if (window.AppState) {
-                    AppState.token = token;
-                    AppState.user = data.data.user;
-                }
-                return data.data.user;
-            }
+      function showError(msg) {
+        spinner.style.display = 'none';
+        card.classList.add('is-error');
+        title.textContent = 'Sign in issue';
+        statusText.textContent = msg;
+        backBtn.style.display = 'inline-block';
+      }
 
-            function goDashboard(user) {
-                if (user.role === 'admin') {
-                    window.location.replace('/admin-dashboard.html');
-                } else if (user.role === 'worker') {
-                    window.location.replace('/worker-dashboard.html');
-                } else {
-                    window.location.replace('/customer-dashboard.html');
-                }
-            }
+      let token = getToken();
+      if (!token && inExpoApp) {
+        statusText.textContent = 'Completing sign in with the app…';
+        token = await waitForToken(4000);
+      }
 
-            // Already inside the Expo WebView — finish login here (do not deep-link out again).
-            if (inExpoApp) {
-                try { localStorage.removeItem('app_redirect'); } catch (e) {}
-                statusText.textContent = 'Opening your dashboard...';
-                try {
-                    const user = await loadUserAndGoDashboard();
-                    goDashboard(user);
-                } catch (error) {
-                    console.error('Expo login-success:', error);
-                    statusText.textContent = 'Login failed. Redirecting to login...';
-                    setTimeout(() => { window.location.replace('/login.html'); }, 1400);
-                }
-                return;
-            }
+      if (!token) {
+        showError('We could not verify your session. Please try signing in again.');
+        setTimeout(() => {
+          window.location.replace('/login.html?app=1');
+        }, 2800);
+        return;
+      }
 
-            const appRedirect = params.get('app_redirect') || localStorage.getItem('app_redirect') || '';
+      localStorage.setItem('token', token);
+      if (window.AppState) AppState.token = token;
 
-            if (appRedirect && /^(apservices|exp):\/\//i.test(appRedirect)) {
-                statusText.textContent = 'Returning to app...';
-                const separator = appRedirect.includes('?') ? '&' : '?';
-                const deepLink = appRedirect + separator + 'token=' + encodeURIComponent(token);
-                window.location.replace(deepLink);
-                return;
-            }
+      async function loadUser() {
+        if (window.Auth && typeof Auth.refreshSession === 'function') {
+          const ok = await Auth.refreshSession();
+          if (ok) return Auth.getUser();
+        }
+        const apiBase = (window.CONFIG && CONFIG.API_URL) || 'https://ap-sevces.onrender.com/api';
+        const res = await fetch(apiBase + '/auth/me', {
+          headers: { Authorization: 'Bearer ' + token },
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success || !data.data?.user) {
+          throw new Error(data.message || 'Could not load profile');
+        }
+        localStorage.setItem('user', JSON.stringify(data.data.user));
+        if (window.AppState) AppState.user = data.data.user;
+        return data.data.user;
+      }
 
-            statusText.textContent = 'Finishing sign-in...';
-            try {
-                if (window.Auth && typeof Auth.refreshSession === 'function') {
-                    const ok = await Auth.refreshSession();
-                    if (!ok) throw new Error('Session refresh failed');
-                }
-                const userRaw = localStorage.getItem('user');
-                const user = userRaw ? JSON.parse(userRaw) : null;
-                if (!user) throw new Error('User profile unavailable');
-                if (user.role === 'admin') {
-                    window.location.replace('/admin-dashboard.html');
-                } else if (user.role === 'worker') {
-                    window.location.replace('/worker-dashboard.html');
-                } else {
-                    window.location.replace('/customer-dashboard.html');
-                }
-            } catch (error) {
-                localStorage.removeItem('token');
-                localStorage.removeItem('user');
-                statusText.textContent = 'Login failed. Redirecting to login.';
-                setTimeout(() => { window.location.replace('/login.html'); }, 1400);
-            }
-        })();
-    </script>
+      function goNext(user) {
+        const u = user || getUserFromStorage();
+        if (window.AppAuth && u) {
+          window.location.replace(window.AppAuth.homeUrl(u));
+          return;
+        }
+        const q = inExpoApp ? '?app=1' : '';
+        if (u && u.role === 'admin') window.location.replace('/admin-dashboard.html' + q);
+        else if (u && u.role === 'worker') window.location.replace('/worker-dashboard.html' + q);
+        else window.location.replace('/explore.html' + q);
+      }
+
+      function getUserFromStorage() {
+        try {
+          return JSON.parse(localStorage.getItem('user') || 'null');
+        } catch (_e) {
+          return null;
+        }
+      }
+
+      try {
+        localStorage.removeItem('app_redirect');
+      } catch (_e) {}
+
+      statusText.textContent = 'Welcome! Opening your feed…';
+      try {
+        const user = await loadUser();
+        goNext(user);
+      } catch (err) {
+        console.error('login-success:', err);
+        showError(err.message || 'Login failed. Please try again.');
+        setTimeout(() => window.location.replace('/login.html?app=1'), 2500);
+      }
+    })();
+  </script>
 </body>
 </html>

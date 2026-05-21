@@ -137,6 +137,82 @@
       "dest": "/frontend/app.js"
     },
     {
+      "src": "/social-theme.css",
+      "dest": "/frontend/social-theme.css"
+    },
+    {
+      "src": "/social-shell.js",
+      "dest": "/frontend/social-shell.js"
+    },
+    {
+      "src": "/social-bridge.js",
+      "dest": "/frontend/social-bridge.js"
+    },
+    {
+      "src": "/social-auth.css",
+      "dest": "/frontend/social-auth.css"
+    },
+    {
+      "src": "/social-auth-init.js",
+      "dest": "/frontend/social-auth-init.js"
+    },
+    {
+      "src": "/app-auth.html",
+      "dest": "/frontend/app-auth.html"
+    },
+    {
+      "src": "/auth-guard.js",
+      "dest": "/frontend/auth-guard.js"
+    },
+    {
+      "src": "/auth-oauth.js",
+      "dest": "/frontend/auth-oauth.js"
+    },
+    {
+      "src": "/auth-native-overrides.css",
+      "dest": "/frontend/auth-native-overrides.css"
+    },
+    {
+      "src": "/explore.html",
+      "dest": "/frontend/explore.html"
+    },
+    {
+      "src": "/party.html",
+      "dest": "/frontend/party.html"
+    },
+    {
+      "src": "/video.html",
+      "dest": "/frontend/video.html"
+    },
+    {
+      "src": "/square.html",
+      "dest": "/frontend/square.html"
+    },
+    {
+      "src": "/topics.html",
+      "dest": "/frontend/topics.html"
+    },
+    {
+      "src": "/store.html",
+      "dest": "/frontend/store.html"
+    },
+    {
+      "src": "/vip.html",
+      "dest": "/frontend/vip.html"
+    },
+    {
+      "src": "/rankings.html",
+      "dest": "/frontend/rankings.html"
+    },
+    {
+      "src": "/profile-tab.html",
+      "dest": "/frontend/profile-tab.html"
+    },
+    {
+      "src": "/privileges.html",
+      "dest": "/frontend/privileges.html"
+    },
+    {
       "src": "/(.*)",
       "dest": "/frontend/$1"
     }

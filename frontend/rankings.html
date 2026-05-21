@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#4c1d95">
+  <title>Rankings - AP Services</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="social-theme.css">
+</head>
+<body class="social-rank-page">
+  <header class="social-vip-header" style="background:transparent">
+    <a href="/explore.html" style="color:#fff"><i class="fas fa-arrow-left"></i></a>
+    <div class="social-main-tabs" style="flex:1;justify-content:center">
+      <a href="/rankings.html" class="active" style="color:#fff">Host</a>
+      <a href="/rankings.html?tab=rich" style="color:rgba(255,255,255,0.6)">Rich</a>
+      <a href="/rankings.html?tab=gift" style="color:rgba(255,255,255,0.6)">Gift</a>
+      <a href="/rankings.html?tab=video" style="color:rgba(255,255,255,0.6)">Video</a>
+    </div>
+    <a href="/help.html" style="color:#fff"><i class="fas fa-question-circle"></i></a>
+  </header>
+
+  <div class="social-rank-tabs">
+    <a href="#">Mon.-Thu.</a>
+    <a href="#" class="active">Fri.-Sun.</a>
+    <a href="#">Rocket Host <i class="fas fa-check-circle" style="color:#60a5fa;font-size:11px"></i></a>
+    <a href="#">Star host</a>
+    <a href="/services.html" class="social-global-pill" style="margin-left:auto;border-color:rgba(255,255,255,0.3);color:#fff">🇮🇳 <i class="fas fa-chevron-down" style="font-size:10px"></i></a>
+  </div>
+
+  <div class="social-rank-promo">
+    <span class="flags">🇮🇳 LINK 🇳🇵</span>
+    <p>Weekly ranking rewards — top hosts win coins</p>
+    <span class="dates">18/05/2026 - 28/05/2026 (UTC+8)</span>
+  </div>
+  <p class="social-rank-rule">Live Duration ≥ 3 hours, no violations</p>
+
+  <div class="social-rank-card social-rank-card--pink">
+    <p style="font-size:12px;margin-bottom:8px">🪙 21,500,000 · 2026.05.21</p>
+    <div class="social-podium">
+      <div class="slot"><div class="medal">2</div><p>4,000,000 🪙</p></div>
+      <div class="slot"><div class="medal">1</div><p>8,000,000 🪙</p></div>
+      <div class="slot"><div class="medal">3</div><p>2,000,000 🪙</p></div>
+    </div>
+    <p style="text-align:center;font-size:12px;margin-top:8px;opacity:0.85">Show <i class="fas fa-chevron-down"></i></p>
+  </div>
+
+  <div class="social-rank-card">
+    <p style="font-size:12px;opacity:0.9;margin-bottom:8px">🪙 64,500,000 · 2026.05.22 - 2026.05.24</p>
+    <div class="social-podium">
+      <div class="slot"><div class="medal">2</div><p>12,000,000 🪙</p></div>
+      <div class="slot"><div class="medal">1</div><p>24,000,000 🪙</p></div>
+      <div class="slot"><div class="medal">3</div><p>6,000,000 🪙</p></div>
+    </div>
+    <p style="text-align:center;font-size:12px;margin-top:8px;opacity:0.8">Show <i class="fas fa-chevron-down"></i></p>
+  </div>
+
+  <div class="social-rank-card" style="background:linear-gradient(135deg,#7c3aed,#5b21b6)">
+    <p style="font-size:12px;margin-bottom:12px">2026.05.15 - 2026.05.17 →</p>
+    <div class="social-podium">
+      <div class="slot"><div class="medal" style="background:url(https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100) center/cover">2</div><p>4,500,000</p></div>
+      <div class="slot"><div class="medal" style="background:url(https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100) center/cover">1</div><p>12,000,000</p></div>
+      <div class="slot"><div class="medal">3</div><p>3,000,000</p></div>
+    </div>
+  </div>
+
+  <p style="text-align:center;padding:12px;font-size:12px;opacity:0.7">Top pros by bookings &amp; ratings — <a href="/services.html" style="color:#fbbf24">Browse services</a></p>
+  <div id="social-bottom-nav-mount"></div>
+
+  <script src="app.js"></script>
+  <script src="social-shell.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      SocialShell.initPage({ activeNav: 'rankings' });
+    });
+  </script>
+</body>
+</html>

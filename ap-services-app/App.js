@@ -1,6 +1,7 @@
-import { Platform, SafeAreaView, StyleSheet } from 'react-native';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { Platform, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
+import Constants from 'expo-constants';
 import { WebView } from 'react-native-webview';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
@@ -8,15 +9,53 @@ import { getMobileDashboardInjectScript } from './injectedMobileFix';
 
 WebBrowser.maybeCompleteAuthSession();
 
-/** Production site. Override in `.env` with EXPO_PUBLIC_WEB_URL for local frontend testing. */
+const PRODUCTION_WEB = 'https://ap-sevces.vercel.app';
+const DEV_WEB_PORT = 5500;
+
+/** Same LAN IP as the Expo QR code (e.g. 192.168.1.9). */
+function getExpoLanHost() {
+  const raw =
+    Constants.expoConfig?.hostUri ||
+    Constants.linkingUri ||
+    Constants.expoGoConfig?.debuggerHost ||
+    Constants.manifest2?.extra?.expoGo?.debuggerHost ||
+    Constants.manifest?.debuggerHost ||
+    '';
+  const s = String(raw);
+  const m = s.match(/(?:\/\/|@)([\d.]+)/) || s.match(/^([\d.]+):/);
+  const host = m?.[1];
+  if (host && host !== '127.0.0.1' && host !== 'localhost') return host;
+  return null;
+}
+
+function resolveFrontendBase() {
+  if (process.env.EXPO_PUBLIC_WEB_URL) {
+    return process.env.EXPO_PUBLIC_WEB_URL.replace(/\/$/, '');
+  }
+  if (__DEV__) {
+    const lan = getExpoLanHost();
+    if (lan) return `http://${lan}:${DEV_WEB_PORT}`;
+  }
+  return PRODUCTION_WEB;
+}
+
+const FRONTEND_BASE = resolveFrontendBase();
+const IS_DEV_LOCAL =
+  __DEV__ && (FRONTEND_BASE.includes(`:${DEV_WEB_PORT}`) || Boolean(process.env.EXPO_PUBLIC_WEB_URL));
+
+/** App always opens Sign Up / Sign In first. Legacy skip: EXPO_PUBLIC_WEB_ENTRY=legacy */
 const FRONTEND_URL =
-  (process.env.EXPO_PUBLIC_WEB_URL || 'https://ap-sevces.vercel.app').replace(/\/$/, '');
+  process.env.EXPO_PUBLIC_WEB_ENTRY === 'legacy'
+    ? FRONTEND_BASE
+    : `${FRONTEND_BASE}/app-auth.html`;
 const API_BASE_URL = 'https://ap-sevces.onrender.com';
 /** Deep link the system OAuth browser closes on (apservices:// or exp:// in Expo Go). */
 const APP_RETURN_URL = Linking.createURL('oauth-complete');
 /** Fallback when the API still redirects to the web login-success page first. */
-const LOGIN_SUCCESS_PREFIX = `${FRONTEND_URL}/login-success.html`;
+const LOGIN_SUCCESS_PREFIX = `${FRONTEND_BASE}/login-success.html`;
 const MOBILE_INJECT_SCRIPT = getMobileDashboardInjectScript();
+/** Runs before page paint — marks every WebView page as native app shell */
+const APP_SHELL_BOOTSTRAP = `(function(){try{document.documentElement.classList.add('ap-expo-app','social-app','auth-native');window.__AP_NATIVE_APP__=true;document.documentElement.style.background='#faf6ee';if(document.body)document.body.style.background='#faf6ee';}catch(e){}})();true;`;
 
 function isNativeOAuthReturnUrl(url) {
   if (!url) return false;
@@ -49,11 +88,24 @@ export default function App() {
   const webViewReadyRef = useRef(false);
   const handledTokenRef = useRef('');
   const oauthBusyRef = useRef(false);
+  const [loadError, setLoadError] = useState('');
+
+  useEffect(() => {
+    console.log('[ap-services-app] WebView base:', FRONTEND_BASE);
+    console.log('[ap-services-app] Launch URL:', FRONTEND_URL);
+    if (IS_DEV_LOCAL) {
+      console.log(
+        '[ap-services-app] Dev: run npm start from ap-services-app (serves frontend/ on port',
+        DEV_WEB_PORT + ')'
+      );
+    }
+  }, []);
 
   const launchUrl = useMemo(() => {
     const params = new URLSearchParams({
       app_redirect: APP_RETURN_URL,
       source: 'expo-app',
+      app: '1',
       v: String(Date.now()),
     });
     const sep = FRONTEND_URL.includes('?') ? '&' : '?';
@@ -86,7 +138,7 @@ export default function App() {
     const tokenJson = JSON.stringify(token);
     const apiBase = JSON.stringify(`${API_BASE_URL}/api`);
     const fallbackSuccess = JSON.stringify(
-      `${FRONTEND_URL}/login-success.html?token=${encodeURIComponent(token)}&source=expo-app`
+      `${FRONTEND_BASE}/login-success.html?token=${encodeURIComponent(token)}&source=expo-app`
     );
 
     const script = `
@@ -112,9 +164,9 @@ export default function App() {
                 window.AppState.user = user;
               }
             } catch (e) {}
-            var path = '/customer-dashboard.html';
-            if (user.role === 'admin') path = '/admin-dashboard.html';
-            else if (user.role === 'worker') path = '/worker-dashboard.html';
+            var path = '/explore.html?app=1';
+            if (user.role === 'admin') path = '/admin-dashboard.html?app=1';
+            else if (user.role === 'worker') path = '/worker-dashboard.html?app=1';
             window.location.replace(path);
           })
           .catch(function(err) {
@@ -232,11 +284,14 @@ export default function App() {
     (url) => {
       const token = extractToken(url);
 
-      // Only native deep links — let login-success.html load normally in the WebView.
-      if (token && isNativeOAuthReturnUrl(url)) {
+      if (token && (isNativeOAuthReturnUrl(url) || url.includes('login-success'))) {
         pendingTokenRef.current = token;
         applyOAuthToken(token);
         return true;
+      }
+
+      if (url.includes('login-success') && !token) {
+        return false;
       }
 
       const provider = parseAuthProvider(url);
@@ -288,11 +343,25 @@ export default function App() {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
+      {loadError ? (
+        <View style={styles.errorBar}>
+          <Text style={styles.errorText}>{loadError}</Text>
+          <Text style={styles.errorHint}>
+            Stop Expo (Ctrl+C), then run: cd ap-services-app → npm start
+          </Text>
+        </View>
+      ) : null}
       <WebView
         ref={webViewRef}
         style={styles.webview}
         source={{ uri: launchUrl }}
-        startInLoadingState
+        injectedJavaScriptBeforeContentLoaded={APP_SHELL_BOOTSTRAP}
+        startInLoadingState={false}
+        pullToRefreshEnabled={false}
+        overScrollMode="never"
+        bounces={false}
+        showsHorizontalScrollIndicator={false}
+        showsVerticalScrollIndicator={false}
         onLoadStart={() => {
           lastInjectedUrlRef.current = '';
         }}
@@ -312,9 +381,19 @@ export default function App() {
         }}
         onError={(e) => {
           console.warn('WebView error', e?.nativeEvent);
+          setLoadError(
+            `Cannot load ${FRONTEND_BASE}. Run "npm start" inside ap-services-app (starts frontend on :${DEV_WEB_PORT}).`
+          );
         }}
         onHttpError={(e) => {
-          console.warn('WebView HTTP error', e?.nativeEvent?.statusCode, e?.nativeEvent?.url);
+          const code = e?.nativeEvent?.statusCode;
+          const url = e?.nativeEvent?.url || '';
+          console.warn('WebView HTTP error', code, url);
+          if (code === 404 && url.includes('explore.html')) {
+            setLoadError(
+              'explore.html not found. Use "npm start" in ap-services-app for local UI, or deploy frontend/ to Vercel.'
+            );
+          }
         }}
         onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
         javaScriptEnabled
@@ -330,6 +409,14 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#ffffff' },
-  webview: { flex: 1, backgroundColor: '#ffffff' },
+  container: { flex: 1, backgroundColor: '#fdf9f0' },
+  webview: { flex: 1, backgroundColor: '#fdf9f0' },
+  errorBar: {
+    backgroundColor: '#fef2f2',
+    borderBottomWidth: 1,
+    borderBottomColor: '#fecaca',
+    padding: 10,
+  },
+  errorText: { color: '#b91c1c', fontSize: 12, fontWeight: '700' },
+  errorHint: { color: '#7f1d1d', fontSize: 11, marginTop: 4 },
 });

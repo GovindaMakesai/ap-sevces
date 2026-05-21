@@ -8,12 +8,22 @@
     <!-- Font Awesome 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     
-    <!-- Google Fonts - Inter -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    
-    <!-- Custom Styles -->
-    <link rel="stylesheet" href="styles.css">
-    
+    <link rel="stylesheet" href="social-theme.css">
+    <link rel="stylesheet" href="social-auth.css">
+    <link rel="stylesheet" href="auth-native-overrides.css">
+    <script src="social-auth-init.js"></script>
+    <script>
+      if (!window.ReactNativeWebView && !/app=1|expo-app/.test(location.search)) {
+        var l = document.createElement('link');
+        l.rel = 'stylesheet';
+        l.href = 'styles.css';
+        document.head.appendChild(l);
+        l = document.createElement('link');
+        l.rel = 'stylesheet';
+        l.href = 'auth-pages.css';
+        document.head.appendChild(l);
+      }
+    </script>
     <style>
         /* ==================== REGISTRATION PAGE STYLES ==================== */
         :root {
@@ -983,11 +993,10 @@
             }
         }
     </style>
-    <link rel="stylesheet" href="admin-shared.css">
-    <link rel="stylesheet" href="auth-pages.css">
+    <script src="auth-guard.js"></script>
 </head>
-<body>
-    <!-- Navbar -->
+<body class="auth-native auth-guest auth-gate-page">
+    <!-- Navbar hidden in app -->
     <nav class="navbar">
         <div class="container">
             <div class="nav-content">
@@ -1014,7 +1023,8 @@
             <div class="register-card">
                 <div class="register-header">
                     <h1>Create Your Account</h1>
-                    <p>Already have an account? <a href="/login.html">Sign in</a></p>
+                    <p>Already have an account? <a href="/login.html?app=1" data-auth-nav>Sign in</a></p>
+                    <p style="margin-top:8px;font-size:13px"><a href="/app-auth.html?app=1" style="color:#a67c1a" data-auth-nav>← All sign-in options</a></p>
                 </div>
 
                 <!-- User Type Toggle -->
@@ -1404,6 +1414,14 @@
     <script>
         // ==================== REGISTRATION PAGE JAVASCRIPT ====================
         document.addEventListener('DOMContentLoaded', function() {
+            if (window.AppAuth) {
+                AppAuth.markGuestUi();
+                document.querySelectorAll('a[href*="login.html"], a[href*="app-auth.html"]').forEach((a) => {
+                  a.setAttribute('data-auth-nav', '1');
+                });
+                AppAuth.bindAuthNavLinks();
+                setTimeout(() => AppAuth.redirectIfAlreadyLoggedIn(), 80);
+            }
             // DOM Elements
             const customerTypeBtn = document.getElementById('customerTypeBtn');
             const workerTypeBtn = document.getElementById('workerTypeBtn');
@@ -2040,7 +2058,8 @@
                             : 'Customer signup successful! Please login to continue.';
                         Toast.show(roleMessage, 'success');
                         setTimeout(() => {
-                            window.location.href = `/login.html?registered=success&role=${encodeURIComponent(role)}`;
+                            const appQ = (window.ReactNativeWebView || window.__AP_NATIVE_APP__) ? '&app=1' : '';
+                            window.location.href = `/login.html?registered=success&role=${encodeURIComponent(role)}${appQ}`;
                         }, 1500);
                     } else if (response && !response.success) {
                         Toast.show(response.message || 'Registration failed', 'error');

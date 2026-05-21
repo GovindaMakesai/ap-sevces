@@ -8,12 +8,23 @@
     <!-- Font Awesome 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     
-    <!-- Google Fonts - Inter -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    
-    <!-- Custom Styles -->
-    <link rel="stylesheet" href="styles.css">
-    
+    <link rel="stylesheet" href="social-theme.css">
+    <link rel="stylesheet" href="social-auth.css">
+    <link rel="stylesheet" href="auth-native-overrides.css">
+    <script src="social-auth-init.js"></script>
+    <!-- Web-only legacy CSS (skipped in native app — no blue layout) -->
+    <script>
+      if (!window.ReactNativeWebView && !/app=1|expo-app/.test(location.search)) {
+        var l = document.createElement('link');
+        l.rel = 'stylesheet';
+        l.href = 'styles.css';
+        document.head.appendChild(l);
+        l = document.createElement('link');
+        l.rel = 'stylesheet';
+        l.href = 'auth-pages.css';
+        document.head.appendChild(l);
+      }
+    </script>
     <!-- Login Page Specific Styles -->
     <style>
         /* ==================== LOGIN PAGE SPECIFIC STYLES ==================== */
@@ -600,11 +611,9 @@
             }
         }
     </style>
-    <link rel="stylesheet" href="admin-shared.css">
-    <link rel="stylesheet" href="auth-pages.css">
 </head>
-<body>
-    <!-- Navbar -->
+<body class="auth-native auth-guest auth-gate-page">
+    <!-- Navbar hidden in app -->
     <nav class="navbar">
         <div class="container">
             <div class="nav-content">
@@ -626,9 +635,10 @@
         <div class="auth-container">
             <div class="auth-card">
                 <div class="auth-header">
-                    <a href="/" class="auth-logo">AP<span>Services</span></a>
-                    <h1>Welcome Back! 👋</h1>
-                    <p>Don't have an account? <a href="/register.html">Sign up now</a></p>
+                    <a href="/explore.html" class="auth-logo">AP<span>Services</span></a>
+                    <h1>Welcome Back</h1>
+                    <p>Don't have an account? <a href="/register.html?app=1" id="signupLink" data-auth-nav>Sign up</a></p>
+                    <p style="margin-top:8px;font-size:13px"><a href="/app-auth.html?app=1" style="color:#a67c1a" data-auth-nav>← All sign-in options</a></p>
                 </div>
 
                 <!-- Alert Container for Messages -->
@@ -801,9 +811,20 @@
 
     <!-- Toast Container -->
     <div id="toast" class="toast"></div>
-<script src="app.js"></script>
-<script>
+    <script src="app.js"></script>
+    <script src="auth-guard.js"></script>
+    <script src="auth-oauth.js"></script>
+    <script>
 document.addEventListener('DOMContentLoaded', function() {
+    if (window.AppAuth) {
+      AppAuth.markGuestUi();
+      document.querySelectorAll('a[href*="register.html"], a[href*="app-auth.html"]').forEach((a) => {
+        a.setAttribute('data-auth-nav', '1');
+      });
+      AppAuth.bindAuthNavLinks?.();
+      setTimeout(() => AppAuth.redirectIfAlreadyLoggedIn(), 80);
+    }
+    if (window.AuthOAuth) AuthOAuth.bindOAuthButtons();
     // DOM Elements
     const loginForm = document.getElementById('loginForm');
     const emailInput = document.getElementById('email');
@@ -899,48 +920,6 @@ document.addEventListener('DOMContentLoaded', function() {
             loginBtn.innerHTML = loginBtnDefaultHtml;
         }
     });
-    
-    // Social login handlers
-    const AUTH_BASE_URL = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-        ? 'http://localhost:5000'
-        : 'https://ap-sevces.onrender.com';
-
-    function redirectToOAuth(provider) {
-        const roleFromUrl = new URLSearchParams(window.location.search).get('role') || 'customer';
-        const appRedirect =
-            new URLSearchParams(window.location.search).get('app_redirect') ||
-            localStorage.getItem('app_redirect') ||
-            '';
-        const inExpoApp =
-            Boolean(window.ReactNativeWebView) ||
-            new URLSearchParams(window.location.search).get('source') === 'expo-app';
-
-        const authUrl = `${AUTH_BASE_URL}/auth/${provider}?role=${encodeURIComponent(roleFromUrl)}${appRedirect ? `&app_redirect=${encodeURIComponent(appRedirect)}` : ''}`;
-
-        if (inExpoApp) {
-            /* App.js intercepts this navigation and opens the system OAuth browser */
-            window.location.href = authUrl;
-            return;
-        }
-
-        const isStandalone =
-            window.matchMedia('(display-mode: standalone)').matches ||
-            window.navigator.standalone === true;
-
-        if (isStandalone) {
-            const opened = window.open(authUrl, '_blank', 'noopener,noreferrer');
-            if (!opened) {
-                window.location.href = authUrl;
-            }
-            return;
-        }
-
-        window.location.href = authUrl;
-    }
-
-    document.getElementById('googleLogin').addEventListener('click', () => redirectToOAuth('google'));
-    document.getElementById('facebookLogin').addEventListener('click', () => redirectToOAuth('facebook'));
-    document.getElementById('githubLogin').addEventListener('click', () => redirectToOAuth('github'));
     
 });
 

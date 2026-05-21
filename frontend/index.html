@@ -8,6 +8,15 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="AP Services">
     <title>AP Services - Professional Services at Your Doorstep</title>
+    <script>
+      (function () {
+        var q = new URLSearchParams(location.search);
+        if (window.ReactNativeWebView || window.Capacitor || q.get('app') === '1' || q.get('social') === '1' || q.get('source') === 'expo-app') {
+          q.set('app', '1');
+          location.replace('/app-auth.html?' + q.toString());
+        }
+      })();
+    </script>
     <link rel="manifest" href="/manifest.json">
     <link rel="apple-touch-icon" href="/icons/icon-192.svg">
     

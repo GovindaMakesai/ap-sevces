@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#c9a227">
+  <title>Me - AP Services</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="social-theme.css">
+</head>
+<body class="social-profile-page">
+  <div class="social-profile-hero">
+    <img id="profileAvatar" src="" alt="Profile">
+    <h2 id="profileName" style="color:var(--gold-800);font-size:20px">Guest</h2>
+    <p id="profileRole" style="color:var(--gold-600);font-size:14px;margin-top:4px">Sign in to continue</p>
+    <button type="button" class="social-btn-orange" style="max-width:200px;margin:16px auto 0" id="profileMainBtn">Sign In</button>
+  </div>
+
+  <nav class="social-menu-list">
+    <a href="#" class="social-menu-item" id="dashLink"><i class="fas fa-th-large"></i><span>My Dashboard</span><i class="fas fa-chevron-right chevron"></i></a>
+    <a href="/customer-dashboard.html#bookings" class="social-menu-item"><i class="fas fa-calendar-check"></i><span>My Bookings</span><i class="fas fa-chevron-right chevron"></i></a>
+    <a href="/store.html" class="social-menu-item"><i class="fas fa-store"></i><span>Store</span><i class="fas fa-chevron-right chevron"></i></a>
+    <a href="/vip.html" class="social-menu-item"><i class="fas fa-crown"></i><span>VIP Privileges</span><i class="fas fa-chevron-right chevron"></i></a>
+    <a href="/rankings.html" class="social-menu-item"><i class="fas fa-trophy"></i><span>Rankings</span><i class="fas fa-chevron-right chevron"></i></a>
+    <a href="/chat.html" class="social-menu-item"><i class="fas fa-comments"></i><span>Messages</span><i class="fas fa-chevron-right chevron"></i></a>
+    <a href="/services.html" class="social-menu-item"><i class="fas fa-tools"></i><span>Browse Services</span><i class="fas fa-chevron-right chevron"></i></a>
+    <a href="/become-a-pro.html" class="social-menu-item"><i class="fas fa-user-tie"></i><span>Become a Pro</span><i class="fas fa-chevron-right chevron"></i></a>
+    <a href="/help.html" class="social-menu-item"><i class="fas fa-question-circle"></i><span>Help</span><i class="fas fa-chevron-right chevron"></i></a>
+    <a href="#" class="social-menu-item" id="logoutBtn" style="display:none"><i class="fas fa-sign-out-alt"></i><span>Logout</span><i class="fas fa-chevron-right chevron"></i></a>
+  </nav>
+
+  <div id="social-bottom-nav-mount"></div>
+
+  <script src="app.js"></script>
+  <script src="social-shell.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      SocialShell.initPage({ activeNav: 'profile' });
+      const user = Auth.getUser();
+      const btn = document.getElementById('profileMainBtn');
+      const dash = document.getElementById('dashLink');
+      const logout = document.getElementById('logoutBtn');
+      if (user) {
+        const name = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email || 'User';
+        document.getElementById('profileName').textContent = name;
+        document.getElementById('profileRole').textContent = user.role === 'worker' ? 'Professional' : user.role === 'admin' ? 'Admin' : 'Customer';
+        document.getElementById('profileAvatar').src = user.profile_pic
+          ? SocialShell.getImageUrl(user.profile_pic)
+          : SocialShell.avatarFallback(name);
+        btn.textContent = 'Open Dashboard';
+        btn.onclick = () => SocialShell.redirectToDashboard();
+        dash.onclick = (e) => { e.preventDefault(); SocialShell.redirectToDashboard(); };
+        logout.style.display = 'flex';
+        logout.onclick = (e) => { e.preventDefault(); Auth.logout(); };
+      } else {
+        document.getElementById('profileAvatar').src = SocialShell.avatarFallback('Guest');
+        btn.onclick = () => { location.href = '/login.html?redirect=' + encodeURIComponent('/profile-tab.html'); };
+        dash.href = '/login.html';
+      }
+    });
+  </script>
+</body>
+</html>

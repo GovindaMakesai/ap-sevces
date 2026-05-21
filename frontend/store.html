@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#8b5cf6">
+  <title>Store - AP Services</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="social-theme.css">
+</head>
+<body class="social-store-page">
+  <header class="social-store-header">
+    <a href="/explore.html" class="social-icon-btn" style="background:#f3f4f6;color:#374151"><i class="fas fa-arrow-left"></i></a>
+    <h1>Store</h1>
+    <a href="/rankings.html" class="social-icon-btn" style="background:#fef3c7;color:#b45309"><i class="fas fa-trophy"></i></a>
+  </header>
+
+  <div class="social-cat-scroll">
+    <a href="/store.html" class="social-cat-item active"><span class="icon-wrap">🔥</span>Popular</a>
+    <a href="/vip.html" class="social-cat-item"><span class="icon-wrap">🛡️</span>Honor</a>
+    <a href="/store.html?cat=ride" class="social-cat-item"><span class="icon-wrap">🚗</span>Ride</a>
+    <a href="/store.html?cat=frame" class="social-cat-item"><span class="icon-wrap">🖼️</span>Avatar Frame</a>
+    <a href="/store.html?cat=bubble" class="social-cat-item"><span class="icon-wrap">💬</span>Chat Bubble</a>
+    <a href="/services.html" class="social-cat-item"><span class="icon-wrap"><i class="fas fa-list"></i></span>Services</a>
+  </div>
+
+  <div style="padding:0 12px 12px">
+    <div class="social-banner" style="min-height:90px;background:linear-gradient(90deg,#fbbf24,#f59e0b)">
+      <div class="social-banner-content"><h2 style="font-size:18px">Create Your Exclusive Ride</h2></div>
+    </div>
+  </div>
+
+  <h3 style="padding:8px 16px;font-size:15px;color:#374151">New This Month</h3>
+  <div class="social-store-grid" id="storeGridNew"></div>
+
+  <h3 style="padding:16px 16px 8px;font-size:15px;color:#374151">Avatar Frame</h3>
+  <div style="padding:0 12px 8px;display:flex;gap:8px">
+    <button type="button" class="social-pill-tag" style="background:var(--purple-500);color:#fff;border:none">Hot Picks</button>
+    <button type="button" class="social-pill-tag" style="background:#f3f4f6;border:none;color:#6b7280">Latest</button>
+  </div>
+  <div class="social-store-grid" id="storeGrid"></div>
+
+  <div class="social-wallet-bar">
+    <span>🪙 <strong id="coins">0</strong></span>
+    <a href="/payment.html" style="background:#3b82f6;color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;text-decoration:none">+</a>
+    <span style="margin-left:8px">🎫 <strong>0</strong></span>
+    <a href="/payment.html" style="background:#3b82f6;color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;text-decoration:none">+</a>
+    <a href="/customer-dashboard.html" style="margin-left:auto;font-size:22px;text-decoration:none" title="Bag">🎒</a>
+  </div>
+
+  <div id="social-bottom-nav-mount"></div>
+
+  <div class="social-sheet-overlay" id="itemSheet">
+    <div class="social-sheet">
+      <h2 id="sheetTitle">Item</h2>
+      <div style="text-align:center;padding:20px;background:#f0f9ff;border-radius:12px;margin-bottom:16px;font-size:64px" id="sheetEmoji">🚲</div>
+      <p><strong>Validity Period:</strong> <span class="social-pill-tag">30 Days</span></p>
+      <p style="margin:12px 0"><strong>Payment Method:</strong> 🪙 Coins</p>
+      <p style="font-size:22px;font-weight:800;margin:16px 0" id="sheetPrice">18,000 🪙</p>
+      <a href="/payment.html" class="social-btn-orange">Go to Recharge</a>
+      <button type="button" style="width:100%;margin-top:12px;padding:12px;border:none;background:#f3f4f6;border-radius:12px;cursor:pointer" onclick="document.getElementById('itemSheet').classList.remove('open')">Close</button>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+  <script src="social-shell.js"></script>
+  <script>
+    const ITEMS = [
+      { name: 'Gold Solar Crown', emoji: '👑', price: '30', ticket: true },
+      { name: 'Panther Frame', emoji: '🐆', price: '50,000' },
+      { name: 'Eagle Frame', emoji: '🦅', price: '50' , ticket: true },
+      { name: 'Toyota Ride', emoji: '🚗', price: '399,900' },
+      { name: 'Panther Ride', emoji: '🐈‍⬛', price: '699,900' },
+      { name: 'Christmas Car', emoji: '🎅', price: '399,900' },
+      { name: 'Virgo Frame', emoji: '♍', price: '69,000' },
+      { name: 'Cyberpunk', emoji: '🤖', price: '100' , ticket: true },
+      { name: 'Bike', emoji: '🚲', price: '18,000' },
+    ];
+    function renderItem(it) {
+      return `<a class="social-store-item" href="#" data-name="${it.name}" data-emoji="${it.emoji}" data-price="${it.price}">
+        <div class="img">${it.emoji}</div>
+        <h4>${it.name}</h4>
+        <div class="price">${it.ticket ? '🎫' : '🪙'} ${it.price}</div>
+      </a>`;
+    }
+    document.addEventListener('DOMContentLoaded', () => {
+      SocialShell.initPage({ activeNav: 'explore' });
+      document.getElementById('storeGridNew').innerHTML = ITEMS.slice(0, 3).map(renderItem).join('');
+      document.getElementById('storeGrid').innerHTML = ITEMS.map(renderItem).join('');
+      document.querySelectorAll('.social-store-item').forEach((el) => {
+        el.addEventListener('click', (e) => {
+          e.preventDefault();
+          document.getElementById('sheetTitle').textContent = el.dataset.name;
+          document.getElementById('sheetEmoji').textContent = el.dataset.emoji;
+          document.getElementById('sheetPrice').textContent = el.dataset.price + ' 🪙';
+          document.getElementById('itemSheet').classList.add('open');
+        });
+      });
+      document.getElementById('itemSheet').addEventListener('click', (e) => {
+        if (e.target.id === 'itemSheet') e.target.classList.remove('open');
+      });
+    });
+  </script>
+</body>
+</html>

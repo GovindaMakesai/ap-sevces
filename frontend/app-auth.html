@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en" class="auth-guest auth-native">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#fdf9f0">
+  <title>Welcome - AP Services</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="social-theme.css">
+  <link rel="stylesheet" href="social-auth.css">
+  <link rel="stylesheet" href="auth-native-overrides.css">
+  <script src="social-auth-init.js"></script>
+</head>
+<body class="auth-gate-page auth-native">
+  <div class="auth-gate-scroll">
+    <div class="auth-gate-card">
+      <a href="/app-auth.html" class="auth-logo">AP<span>Services</span></a>
+      <h1>Welcome</h1>
+      <p class="auth-gate-sub">Sign up or sign in to book pros, go live, and more.</p>
+
+      <div class="auth-social-login">
+        <button type="button" class="auth-oauth-btn google" id="googleLogin">
+          <i class="fab fa-google"></i> Continue with Google
+        </button>
+        <button type="button" class="auth-oauth-btn facebook" id="facebookLogin">
+          <i class="fab fa-facebook-f"></i> Continue with Facebook
+        </button>
+        <button type="button" class="auth-oauth-btn github" id="githubLogin">
+          <i class="fab fa-github"></i> Continue with GitHub
+        </button>
+      </div>
+
+      <div class="auth-divider"><span>OR</span></div>
+
+      <a href="/register.html?app=1" class="auth-gate-btn auth-gate-btn--primary" data-auth-nav>
+        <i class="fas fa-user-plus"></i> Sign Up with Email
+      </a>
+      <a href="/login.html?app=1" class="auth-gate-btn auth-gate-btn--secondary" data-auth-nav>
+        <i class="fas fa-envelope"></i> Sign In with Email
+      </a>
+
+      <div class="auth-benefits-compact">
+        <p class="auth-benefits-title"><i class="fas fa-shield-alt"></i> Why AP Services?</p>
+        <ul>
+          <li><i class="fas fa-check-circle"></i> Verified professionals</li>
+          <li><i class="fas fa-check-circle"></i> Secure payments</li>
+          <li><i class="fas fa-check-circle"></i> 24/7 support</li>
+          <li><i class="fas fa-check-circle"></i> Satisfaction guarantee</li>
+        </ul>
+      </div>
+
+      <blockquote class="auth-testimonial-compact">
+        “Found amazing professionals for all my home needs!”
+        <cite>— Priya Sharma, Customer</cite>
+      </blockquote>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+  <script src="auth-guard.js"></script>
+  <script src="auth-oauth.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      if (window.AuthOAuth) AuthOAuth.bindOAuthButtons();
+    });
+  </script>
+</body>
+</html>
