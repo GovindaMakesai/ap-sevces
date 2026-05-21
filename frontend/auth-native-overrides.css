@@ -8,8 +8,12 @@ html.auth-native body {
   background-image: radial-gradient(circle at 20% 0%, rgba(201, 162, 39, 0.14) 0%, transparent 48%),
     radial-gradient(circle at 80% 10%, rgba(245, 158, 11, 0.07) 0%, transparent 42%) !important;
   color: #5c4210 !important;
-  overscroll-behavior: none;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  height: auto !important;
+  min-height: 100dvh;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: auto;
 }
 
 html.auth-native .navbar,
@@ -22,11 +26,31 @@ html.auth-native footer {
 html.auth-native .auth-page,
 html.auth-native .register-page {
   min-height: 100dvh !important;
-  padding: max(12px, env(safe-area-inset-top)) 12px calc(20px + env(safe-area-inset-bottom)) !important;
+  height: auto !important;
+  padding: max(12px, env(safe-area-inset-top)) 12px calc(32px + env(safe-area-inset-bottom)) !important;
   background: transparent !important;
-  display: flex !important;
-  align-items: flex-start !important;
-  justify-content: center !important;
+  display: block !important;
+  overflow: visible !important;
+  position: relative !important;
+}
+
+html.auth-native .register-page {
+  overflow: visible !important;
+}
+
+html.auth-native .register-page::before,
+html.auth-native .register-page::after,
+html.auth-native .auth-page::before,
+html.auth-native .auth-page::after {
+  display: none !important;
+}
+
+html.auth-native .auth-gate-scroll,
+html.auth-native .auth-register-scroll {
+  min-height: 100dvh;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+  padding: max(12px, env(safe-area-inset-top)) 12px calc(24px + env(safe-area-inset-bottom));
 }
 
 html.auth-native .auth-container,

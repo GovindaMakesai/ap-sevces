@@ -1,5 +1,5 @@
 /**
- * Native app auth gate — login first, then app. Avoids redirect loops.
+ * Native app auth — Welcome first; app pages need a saved token.
  */
 (function () {
   const AUTH_PAGES = ['/app-auth.html', '/login.html', '/register.html', '/login-success.html'];
@@ -58,12 +58,18 @@
     const token = localStorage.getItem('token');
     if (!token) return false;
 
+    const cachedUser = getUser();
+    if (cachedUser && window.AppState) {
+      AppState.token = token;
+      AppState.user = cachedUser;
+    }
+
     try {
       if (window.Auth && typeof Auth.refreshSession === 'function') {
         const ok = await Auth.refreshSession();
         if (ok) return true;
         if (!localStorage.getItem('token')) return false;
-        return true;
+        return Boolean(cachedUser || getUser());
       }
       const api = (window.CONFIG && CONFIG.API_URL) || 'https://ap-sevces.onrender.com/api';
       const res = await fetch(api + '/auth/me', {
@@ -83,9 +89,9 @@
         }
         return true;
       }
-      return true;
+      return Boolean(cachedUser || getUser());
     } catch (_e) {
-      return Boolean(localStorage.getItem('token'));
+      return Boolean(localStorage.getItem('token') && (cachedUser || getUser()));
     }
   }
 
@@ -111,18 +117,18 @@
     });
   }
 
-  async function redirectIfAlreadyLoggedIn() {
-    if (!isNative() || !isLoggedIn()) return;
-    const ok = await validateSession();
-    if (!ok) {
-      markGuestUi();
-      return;
+  function completeLoginAndEnterApp(user) {
+    if (user) {
+      try {
+        localStorage.setItem('user', JSON.stringify(user));
+        if (window.AppState) {
+          AppState.user = user;
+          AppState.token = localStorage.getItem('token');
+        }
+      } catch (_e) {}
     }
     markAuthedUi();
-    const dest = homeUrl(getUser());
-    if (!pathEnds(dest.split('?')[0])) {
-      window.location.replace(dest);
-    }
+    window.location.replace(homeUrl(user || getUser()));
   }
 
   async function requireAuth() {
@@ -133,27 +139,25 @@
     if (isAuthPage()) {
       markGuestUi();
       bindAuthNavLinks();
-      if (isLoggedIn()) {
-        await redirectIfAlreadyLoggedIn();
-      }
       return;
     }
 
     if (!isLoggedIn()) {
       markGuestUi();
-      if (!pathEnds('/app-auth.html')) {
-        window.location.replace('/app-auth.html?app=1');
-      }
-      return;
-    }
-
-    const ok = await validateSession();
-    if (!ok) {
-      markGuestUi();
       window.location.replace('/app-auth.html?app=1');
       return;
     }
+
     markAuthedUi();
+
+    validateSession().then((ok) => {
+      if (!ok) {
+        markGuestUi();
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.replace('/app-auth.html?app=1');
+      }
+    });
   }
 
   window.AppAuth = {
@@ -163,7 +167,7 @@
     getUser,
     homeUrl,
     validateSession,
-    redirectIfAlreadyLoggedIn,
+    completeLoginAndEnterApp,
     requireAuth,
     markGuestUi,
     markAuthedUi,

@@ -253,7 +253,8 @@ html.auth-native .register-page .user-type-btn.active {
 }
 
 /* Full auth gate (app-auth) — all sign-in options */
-.auth-gate-page {
+.auth-gate-page,
+html.auth-native.auth-guest body {
   min-height: 100dvh;
   background: #faf6ee;
   background-image: radial-gradient(circle at 25% 0%, rgba(201, 162, 39, 0.16) 0%, transparent 50%),

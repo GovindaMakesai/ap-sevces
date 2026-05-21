@@ -73,8 +73,12 @@ function extractToken(url) {
   } catch (_e) {
     /* fall through */
   }
-  const m = String(url).match(/[?&]token=([^&#]+)/);
-  return m?.[1] ? decodeURIComponent(m[1]) : '';
+  const raw = String(url);
+  const qm = raw.match(/[?&]token=([^&#]+)/);
+  if (qm?.[1]) return decodeURIComponent(qm[1]);
+  const hash = raw.includes('#') ? raw.split('#')[1] : '';
+  const hm = hash.match(/(?:^|&)token=([^&]+)/);
+  return hm?.[1] ? decodeURIComponent(hm[1]) : '';
 }
 
 function parseAuthProvider(url) {
@@ -92,6 +96,7 @@ export default function App() {
 
   useEffect(() => {
     console.log('[ap-services-app] WebView base:', FRONTEND_BASE);
+    console.log('[ap-services-app] OAuth return URL:', APP_RETURN_URL);
     console.log('[ap-services-app] Launch URL:', FRONTEND_URL);
     if (IS_DEV_LOCAL) {
       console.log(
@@ -127,55 +132,51 @@ export default function App() {
 
   const finishLoginInWebView = useCallback((token) => {
     if (!token) return;
-    if (!webViewRef.current || !webViewReadyRef.current) {
+
+    const tokenJson = JSON.stringify(token);
+    const apiBase = JSON.stringify(`${API_BASE_URL}/api`);
+    const successPage = JSON.stringify(
+      `${FRONTEND_BASE}/login-success.html?token=${encodeURIComponent(token)}&source=expo-app&app=1`
+    );
+
+    const script = `
+      (function() {
+        var token = ${tokenJson};
+        var api = ${apiBase};
+        try {
+          localStorage.setItem('token', token);
+          localStorage.removeItem('app_redirect');
+          if (window.AppState) window.AppState.token = token;
+        } catch (e) {}
+        function go(path) { window.location.replace(path); }
+        fetch(api + '/auth/me', { headers: { Authorization: 'Bearer ' + token } })
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            var user = data && data.success && data.data && data.data.user;
+            if (!user) throw new Error('profile');
+            try {
+              localStorage.setItem('user', JSON.stringify(user));
+              if (window.AppState) window.AppState.user = user;
+            } catch (e) {}
+            var path = '/explore.html?app=1';
+            if (user.role === 'admin') path = '/admin-dashboard.html?app=1';
+            else if (user.role === 'worker') path = '/worker-dashboard.html?app=1';
+            go(path);
+          })
+          .catch(function() {
+            go(${successPage});
+          });
+      })();
+      true;
+    `;
+
+    if (!webViewRef.current) {
       pendingTokenRef.current = token;
       return;
     }
 
     handledTokenRef.current = token;
     pendingTokenRef.current = '';
-
-    const tokenJson = JSON.stringify(token);
-    const apiBase = JSON.stringify(`${API_BASE_URL}/api`);
-    const fallbackSuccess = JSON.stringify(
-      `${FRONTEND_BASE}/login-success.html?token=${encodeURIComponent(token)}&source=expo-app`
-    );
-
-    const script = `
-      (function() {
-        try {
-          localStorage.setItem('token', ${tokenJson});
-          localStorage.removeItem('app_redirect');
-        } catch (e) {}
-        var api = ${apiBase};
-        fetch(api + '/auth/me', {
-          headers: { Authorization: 'Bearer ' + ${tokenJson} }
-        })
-          .then(function(res) { return res.json(); })
-          .then(function(data) {
-            if (!data || !data.success || !data.data || !data.data.user) {
-              throw new Error((data && data.message) || 'Profile load failed');
-            }
-            var user = data.data.user;
-            try {
-              localStorage.setItem('user', JSON.stringify(user));
-              if (window.AppState) {
-                window.AppState.token = ${tokenJson};
-                window.AppState.user = user;
-              }
-            } catch (e) {}
-            var path = '/explore.html?app=1';
-            if (user.role === 'admin') path = '/admin-dashboard.html?app=1';
-            else if (user.role === 'worker') path = '/worker-dashboard.html?app=1';
-            window.location.replace(path);
-          })
-          .catch(function(err) {
-            console.warn('[ap-expo] auth/me failed, using login-success fallback', err);
-            window.location.replace(${fallbackSuccess});
-          });
-      })();
-      true;
-    `;
     webViewRef.current.injectJavaScript(script);
   }, []);
 
@@ -193,15 +194,16 @@ export default function App() {
   );
 
   const startOAuthInBrowser = useCallback(
-    async (provider, role = 'customer') => {
+    async (provider, role = 'customer', appRedirect = APP_RETURN_URL) => {
       if (oauthBusyRef.current) return;
       oauthBusyRef.current = true;
       handledTokenRef.current = '';
 
+      const redirectTarget = appRedirect || APP_RETURN_URL;
       const authUrl =
         `${API_BASE_URL}/auth/${provider}` +
         `?role=${encodeURIComponent(role)}` +
-        `&app_redirect=${encodeURIComponent(APP_RETURN_URL)}`;
+        `&app_redirect=${encodeURIComponent(redirectTarget)}`;
 
       try {
         if (Platform.OS === 'android') {
@@ -212,21 +214,22 @@ export default function App() {
           }
         }
 
-        const result = await WebBrowser.openAuthSessionAsync(authUrl, APP_RETURN_URL, {
-          showInRecents: true,
-          preferEphemeralSession: false,
-        });
+        const returnUrls = [redirectTarget, APP_RETURN_URL].filter(
+          (u, i, arr) => u && arr.indexOf(u) === i
+        );
 
-        if (result.type === 'success' && result.url) {
-          const token = extractToken(result.url);
-          if (token) {
-            await applyOAuthToken(token);
-            return;
-          }
+        let result = { type: 'cancel' };
+        for (const returnUrl of returnUrls) {
+          result = await WebBrowser.openAuthSessionAsync(authUrl, returnUrl, {
+            showInRecents: true,
+            preferEphemeralSession: false,
+          });
+          if (result.type === 'success' && result.url) break;
         }
 
-        // HTTPS login-success fallback (before API deploy) or Android dismiss quirk
-        if (result.type === 'success' && result.url?.includes('login-success')) {
+        console.log('[ap-services-app] OAuth result:', result.type, result.url || '');
+
+        if (result.type === 'success' && result.url) {
           const token = extractToken(result.url);
           if (token) {
             await applyOAuthToken(token);
@@ -285,12 +288,13 @@ export default function App() {
       const token = extractToken(url);
 
       if (token && (isNativeOAuthReturnUrl(url) || url.includes('login-success'))) {
+        if (handledTokenRef.current === token) return true;
         pendingTokenRef.current = token;
         applyOAuthToken(token);
         return true;
       }
 
-      if (url.includes('login-success') && !token) {
+      if (url.includes('login-success')) {
         return false;
       }
 
@@ -316,7 +320,11 @@ export default function App() {
       try {
         const data = JSON.parse(event.nativeEvent.data);
         if (data.type === 'oauth' && data.provider) {
-          startOAuthInBrowser(data.provider, data.role || 'customer');
+          const redirect =
+            typeof data.appRedirect === 'string' && data.appRedirect
+              ? data.appRedirect
+              : APP_RETURN_URL;
+          startOAuthInBrowser(data.provider, data.role || 'customer', redirect);
         }
       } catch (_e) {
         /* not our message */
@@ -373,7 +381,8 @@ export default function App() {
         startInLoadingState={false}
         pullToRefreshEnabled={false}
         overScrollMode="never"
-        bounces={false}
+        bounces={true}
+        nestedScrollEnabled
         showsHorizontalScrollIndicator={false}
         showsVerticalScrollIndicator={false}
         onLoadStart={() => {

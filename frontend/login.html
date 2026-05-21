@@ -608,7 +608,7 @@
         }
     </style>
 </head>
-<body class="auth-native auth-guest auth-gate-page">
+<body class="auth-native auth-guest">
     <!-- Navbar hidden in app -->
     <nav class="navbar">
         <div class="container">
@@ -626,12 +626,13 @@
         </div>
     </nav>
 
+    <div class="auth-gate-scroll">
     <!-- Login Section -->
     <section class="auth-page">
         <div class="auth-container">
             <div class="auth-card">
                 <div class="auth-header">
-                    <a href="/explore.html" class="auth-logo">AP<span>Services</span></a>
+                    <a href="/app-auth.html?app=1" class="auth-logo" data-auth-nav>AP<span>Services</span></a>
                     <h1>Welcome Back</h1>
                     <p>Don't have an account? <a href="/register.html?app=1" id="signupLink" data-auth-nav>Sign up</a></p>
                     <p style="margin-top:8px;font-size:13px"><a href="/app-auth.html?app=1" style="color:#a67c1a" data-auth-nav>← All sign-in options</a></p>
@@ -753,6 +754,7 @@
             </div>
         </div>
     </section>
+    </div>
 
     <!-- Footer -->
     <footer class="footer">
@@ -818,7 +820,6 @@ document.addEventListener('DOMContentLoaded', function() {
         a.setAttribute('data-auth-nav', '1');
       });
       AppAuth.bindAuthNavLinks?.();
-      setTimeout(() => AppAuth.redirectIfAlreadyLoggedIn(), 80);
     }
     if (window.AuthOAuth) AuthOAuth.bindOAuthButtons();
     // DOM Elements

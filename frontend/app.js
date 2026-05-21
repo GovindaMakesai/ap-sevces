@@ -11,6 +11,27 @@ const IS_CAPACITOR = Boolean(window.Capacitor?.isNativePlatform?.());
 const IS_EXPO_WEBVIEW = Boolean(window.ReactNativeWebView);
 const IS_LOCAL = !IS_CAPACITOR && !IS_EXPO_WEBVIEW && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
+function isLanDevHost() {
+    const h = window.location.hostname || '';
+    return (
+        h === 'localhost' ||
+        h === '127.0.0.1' ||
+        /^192\.168\.\d{1,3}\.\d{1,3}$/.test(h) ||
+        /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(h)
+    );
+}
+
+function resolveApiUrl() {
+    if (IS_CAPACITOR || IS_EXPO_WEBVIEW || isLanDevHost()) {
+        const port = window.location.port || (window.location.protocol === 'https:' ? '443' : '80');
+        if (isLanDevHost() || port === '5500') {
+            return `${window.location.origin.replace(/\/$/, '')}/api`;
+        }
+    }
+    if (IS_LOCAL) return LOCAL_API_URL;
+    return LIVE_API_URL;
+}
+
 function isNativeAppContext() {
     if (window.__AP_NATIVE_APP__) return true;
     if (IS_EXPO_WEBVIEW || IS_CAPACITOR) return true;
@@ -19,7 +40,7 @@ function isNativeAppContext() {
 }
 
 const CONFIG = {
-    API_URL: IS_LOCAL ? LOCAL_API_URL : LIVE_API_URL,
+    API_URL: resolveApiUrl(),
     FRONTEND_URL: IS_LOCAL ? LOCAL_FRONTEND_URL : LIVE_FRONTEND_URL
 };
 CONFIG.BACKEND_URL = CONFIG.API_URL.replace(/\/api\/?$/, '');
@@ -331,15 +352,17 @@ const Auth = {
                         return;
                     }
                     if (isNativeAppContext()) {
+                        if (window.AppAuth && typeof AppAuth.completeLoginAndEnterApp === 'function') {
+                            AppAuth.completeLoginAndEnterApp(response.data.user);
+                            return;
+                        }
                         const u = response.data.user;
                         const dest =
-                            window.AppAuth && typeof AppAuth.homeUrl === 'function'
-                                ? AppAuth.homeUrl(u)
-                                : u.role === 'admin'
-                                  ? '/admin-dashboard.html?app=1'
-                                  : u.role === 'worker'
-                                    ? '/worker-dashboard.html?app=1'
-                                    : '/explore.html?app=1';
+                            u.role === 'admin'
+                                ? '/admin-dashboard.html?app=1'
+                                : u.role === 'worker'
+                                  ? '/worker-dashboard.html?app=1'
+                                  : '/explore.html?app=1';
                         window.location.replace(dest);
                         return;
                     }
@@ -409,6 +432,14 @@ const Auth = {
         const token = localStorage.getItem('token');
         if (!token) return false;
         AppState.token = token;
+        const cached = localStorage.getItem('user');
+        if (cached) {
+            try {
+                AppState.user = JSON.parse(cached);
+            } catch (_e) {
+                /* ignore */
+            }
+        }
         try {
             const res = await API.get('/auth/me');
             if (res.success && res.data && res.data.user) {
@@ -422,9 +453,9 @@ const Auth = {
                 this.tokenInvalidCleanup();
                 return false;
             }
-            return Boolean(localStorage.getItem('token'));
+            return Boolean(AppState.user || localStorage.getItem('user'));
         }
-        return Boolean(localStorage.getItem('token'));
+        return Boolean(AppState.user || localStorage.getItem('user'));
     },
 
     tokenInvalidCleanup() {

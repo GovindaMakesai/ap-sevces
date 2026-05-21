@@ -990,9 +990,8 @@
             }
         }
     </style>
-    <script src="auth-guard.js"></script>
 </head>
-<body class="auth-native auth-guest auth-gate-page">
+<body class="auth-native auth-guest">
     <!-- Navbar hidden in app -->
     <nav class="navbar">
         <div class="container">
@@ -1014,6 +1013,7 @@
         </div>
     </nav>
 
+    <div class="auth-gate-scroll auth-register-scroll">
     <!-- Registration Section -->
     <section class="register-page">
         <div class="register-container">
@@ -1349,6 +1349,7 @@
             </div>
         </div>
     </section>
+    </div>
 
     <!-- Footer -->
     <footer class="footer">
@@ -1407,6 +1408,7 @@
 
     <!-- Load the real app.js with API calls -->
     <script src="app.js"></script>
+    <script src="auth-guard.js"></script>
     
     <script>
         // ==================== REGISTRATION PAGE JAVASCRIPT ====================
@@ -1417,7 +1419,6 @@
                   a.setAttribute('data-auth-nav', '1');
                 });
                 AppAuth.bindAuthNavLinks();
-                setTimeout(() => AppAuth.redirectIfAlreadyLoggedIn(), 80);
             }
             // DOM Elements
             const customerTypeBtn = document.getElementById('customerTypeBtn');

@@ -16,11 +16,10 @@
     <div class="auth-success-spinner" id="spinner"></div>
     <h2 id="title">Signing you in</h2>
     <p id="statusText">Please wait…</p>
-    <a href="/login.html?app=1" class="auth-success-back" id="backBtn" style="display:none">Back to Sign In</a>
+    <a href="/app-auth.html?app=1" class="auth-success-back" id="backBtn" style="display:none">Back to Welcome</a>
   </div>
 
   <script src="app.js"></script>
-  <script src="auth-guard.js"></script>
   <script>
     (async function completeOAuthLogin() {
       const statusText = document.getElementById('statusText');
@@ -66,74 +65,67 @@
         backBtn.style.display = 'inline-block';
       }
 
-      let token = getToken();
-      if (!token && inExpoApp) {
-        statusText.textContent = 'Completing sign in with the app…';
-        token = await waitForToken(4000);
-      }
-
-      if (!token) {
-        showError('We could not verify your session. Please try signing in again.');
-        setTimeout(() => {
-          window.location.replace('/login.html?app=1');
-        }, 2800);
-        return;
-      }
-
-      localStorage.setItem('token', token);
-      if (window.AppState) AppState.token = token;
-
-      async function loadUser() {
-        if (window.Auth && typeof Auth.refreshSession === 'function') {
-          const ok = await Auth.refreshSession();
-          if (ok) return Auth.getUser();
-        }
-        const apiBase = (window.CONFIG && CONFIG.API_URL) || 'https://ap-sevces.onrender.com/api';
-        const res = await fetch(apiBase + '/auth/me', {
-          headers: { Authorization: 'Bearer ' + token },
-        });
-        const data = await res.json();
-        if (!res.ok || !data.success || !data.data?.user) {
-          throw new Error(data.message || 'Could not load profile');
-        }
-        localStorage.setItem('user', JSON.stringify(data.data.user));
-        if (window.AppState) AppState.user = data.data.user;
-        return data.data.user;
-      }
-
-      function goNext(user) {
-        const u = user || getUserFromStorage();
-        if (window.AppAuth && u) {
-          window.location.replace(window.AppAuth.homeUrl(u));
+      function enterApp(user) {
+        if (window.AppAuth && typeof AppAuth.completeLoginAndEnterApp === 'function') {
+          AppAuth.completeLoginAndEnterApp(user);
           return;
         }
         const q = inExpoApp ? '?app=1' : '';
+        const u = user || null;
         if (u && u.role === 'admin') window.location.replace('/admin-dashboard.html' + q);
         else if (u && u.role === 'worker') window.location.replace('/worker-dashboard.html' + q);
         else window.location.replace('/explore.html' + q);
       }
 
-      function getUserFromStorage() {
-        try {
-          return JSON.parse(localStorage.getItem('user') || 'null');
-        } catch (_e) {
-          return null;
-        }
+      let token = getToken();
+      if (!token && inExpoApp) {
+        statusText.textContent = 'Completing sign in with the app…';
+        token = await waitForToken(8000);
+      }
+
+      if (!token) {
+        showError('We could not verify your session. Please try signing in again.');
+        setTimeout(() => window.location.replace('/app-auth.html?app=1'), 2800);
+        return;
       }
 
       try {
+        localStorage.setItem('token', token);
+        if (window.AppState) AppState.token = token;
         localStorage.removeItem('app_redirect');
       } catch (_e) {}
 
-      statusText.textContent = 'Welcome! Opening your feed…';
-      try {
-        const user = await loadUser();
-        goNext(user);
-      } catch (err) {
-        console.error('login-success:', err);
-        showError(err.message || 'Login failed. Please try again.');
-        setTimeout(() => window.location.replace('/login.html?app=1'), 2500);
+      async function loadUser() {
+        if (window.Auth && typeof Auth.refreshSession === 'function') {
+          const ok = await Auth.refreshSession();
+          if (ok && Auth.getUser()) return Auth.getUser();
+        }
+        const apiBase = (window.CONFIG && CONFIG.API_URL) || 'https://ap-sevces.onrender.com/api';
+        const res = await fetch(apiBase + '/auth/me', {
+          headers: { Authorization: 'Bearer ' + token },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.success && data.data?.user) {
+          localStorage.setItem('user', JSON.stringify(data.data.user));
+          if (window.AppState) AppState.user = data.data.user;
+          return data.data.user;
+        }
+        throw new Error(data.message || 'Could not load profile');
       }
+
+      statusText.textContent = 'Welcome! Opening your feed…';
+      let user = null;
+      try {
+        user = await loadUser();
+      } catch (err) {
+        console.warn('login-success profile load:', err);
+        try {
+          user = JSON.parse(localStorage.getItem('user') || 'null');
+        } catch (_e) {
+          user = null;
+        }
+      }
+      enterApp(user);
     })();
   </script>
 </body>

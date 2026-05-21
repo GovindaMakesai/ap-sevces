@@ -47,16 +47,25 @@ const allowedOrigins = [
     'https://ap-sevces.onrender.com'
 ];
 
+function isAllowedCorsOrigin(origin) {
+    if (!origin) return true;
+    if (allowedOrigins.indexOf(origin) !== -1) return true;
+    // Expo dev: WebView loads frontend from LAN IP (e.g. http://192.168.1.5:5500)
+    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) return true;
+    if (/^http:\/\/192\.168\.\d{1,3}\.\d{1,3}(:\d+)?$/i.test(origin)) return true;
+    if (/^http:\/\/10\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$/i.test(origin)) return true;
+    if (/^https:\/\/[\w-]+\.vercel\.app$/i.test(origin)) return true;
+    return false;
+}
+
 app.use(cors({
     origin: function(origin, callback) {
-        if (!origin) return callback(null, true);
-        if (allowedOrigins.indexOf(origin) === -1) {
-            return callback(new Error('CORS not allowed'), false);
-        }
-        return callback(null, true);
+        if (isAllowedCorsOrigin(origin)) return callback(null, true);
+        console.warn('[CORS] Blocked origin:', origin);
+        return callback(new Error('CORS not allowed'), false);
     },
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
