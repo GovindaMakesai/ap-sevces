@@ -71,7 +71,10 @@
         if (!localStorage.getItem('token')) return false;
         return Boolean(cachedUser || getUser());
       }
-      const api = (window.CONFIG && CONFIG.API_URL) || 'https://ap-sevces.onrender.com/api';
+      const api =
+        (typeof window.__AP_API_URL__ === 'string' && window.__AP_API_URL__) ||
+        (window.CONFIG && CONFIG.API_URL) ||
+        'https://ap-sevces.onrender.com/api';
       const res = await fetch(api + '/auth/me', {
         headers: { Authorization: 'Bearer ' + token },
       });

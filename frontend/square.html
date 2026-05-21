@@ -11,35 +11,26 @@
 <body>
   <header class="social-top">
     <div class="social-main-tabs">
-      <a href="/explore.html?tab=following">Following</a>
-      <a href="/video.html">Video</a>
-      <a href="/square.html" class="active">Square</a>
-      <a href="/topics.html">Topics</a>
-      <a href="/video.html" class="social-icon-btn" style="margin-left:auto"><i class="fas fa-camera"></i></a>
-    </div>
-    <div class="social-search">
-      <i class="fas fa-search"></i>
-      <input type="search" data-social-search placeholder="Search services">
+      <a href="/explore.html?tab=following&app=1">Following</a>
+      <a href="/video.html?app=1">Video</a>
+      <a href="/square.html?app=1" class="active">Square</a>
+      <a href="/topics.html?app=1">Topics</a>
+      <button type="button" class="social-icon-btn" data-social-camera style="margin-left:auto;border:none;background:#fffdf8"><i class="fas fa-camera"></i></button>
     </div>
   </header>
 
-  <section class="social-banner-wrap">
-    <div class="social-banner" style="min-height:100px;background:linear-gradient(90deg,#fbbf24,#f59e0b)">
-      <div class="social-banner-content">
-        <h2>Discover Local Pros</h2>
-        <p>Book trusted services near you</p>
-      </div>
-    </div>
-  </section>
+  <div id="social-banner-slider"></div>
 
-  <div class="social-grid" id="squareGrid"></div>
+  <div class="social-post-feed" id="squareFeed"></div>
   <div id="social-bottom-nav-mount"></div>
 
   <script src="app.js"></script>
+  <script src="social-banner-slider.js"></script>
+  <script src="social-create-post.js"></script>
   <script src="social-shell.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', () => {
-      SocialShell.initPage({ activeNav: 'explore', gridId: 'squareGrid', gridLimit: 12 });
+      SocialShell.initPage({ activeNav: 'video', squareFeed: true });
     });
   </script>
 </body>

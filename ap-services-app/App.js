@@ -48,14 +48,18 @@ const FRONTEND_URL =
   process.env.EXPO_PUBLIC_WEB_ENTRY === 'legacy'
     ? FRONTEND_BASE
     : `${FRONTEND_BASE}/app-auth.html`;
-const API_BASE_URL = 'https://ap-sevces.onrender.com';
+
+/** Native app always uses production HTTPS API (reliable on phone; UI can still be local). */
+const API_BASE_URL = 'https://ap-sevces.onrender.com/api';
+const AUTH_ORIGIN = 'https://ap-sevces.onrender.com';
 /** Deep link the system OAuth browser closes on (apservices:// or exp:// in Expo Go). */
 const APP_RETURN_URL = Linking.createURL('oauth-complete');
 /** Fallback when the API still redirects to the web login-success page first. */
 const LOGIN_SUCCESS_PREFIX = `${FRONTEND_BASE}/login-success.html`;
 const MOBILE_INJECT_SCRIPT = getMobileDashboardInjectScript();
 /** Runs before page paint — marks every WebView page as native app shell */
-const APP_SHELL_BOOTSTRAP = `(function(){try{document.documentElement.classList.add('ap-expo-app','social-app','auth-native');window.__AP_NATIVE_APP__=true;document.documentElement.style.background='#faf6ee';if(document.body)document.body.style.background='#faf6ee';}catch(e){}})();true;`;
+const PRODUCTION_API = 'https://ap-sevces.onrender.com/api';
+const APP_SHELL_BOOTSTRAP = `(function(){try{document.documentElement.classList.add('ap-expo-app','social-app','auth-native');window.__AP_NATIVE_APP__=true;window.__AP_API_URL__='${PRODUCTION_API}';document.documentElement.style.background='#faf6ee';if(document.body)document.body.style.background='#faf6ee';}catch(e){}})();true;`;
 
 function isNativeOAuthReturnUrl(url) {
   if (!url) return false;
@@ -134,7 +138,7 @@ export default function App() {
     if (!token) return;
 
     const tokenJson = JSON.stringify(token);
-    const apiBase = JSON.stringify(`${API_BASE_URL}/api`);
+    const apiBase = JSON.stringify(API_BASE_URL);
     const successPage = JSON.stringify(
       `${FRONTEND_BASE}/login-success.html?token=${encodeURIComponent(token)}&source=expo-app&app=1`
     );
@@ -201,7 +205,7 @@ export default function App() {
 
       const redirectTarget = appRedirect || APP_RETURN_URL;
       const authUrl =
-        `${API_BASE_URL}/auth/${provider}` +
+        `${AUTH_ORIGIN}/auth/${provider}` +
         `?role=${encodeURIComponent(role)}` +
         `&app_redirect=${encodeURIComponent(redirectTarget)}`;
 
@@ -299,7 +303,10 @@ export default function App() {
       }
 
       const provider = parseAuthProvider(url);
-      if (provider && url.includes(API_BASE_URL)) {
+      if (
+        provider &&
+        (url.includes('ap-sevces.onrender.com') || url.includes(AUTH_ORIGIN) || url.includes('/auth/'))
+      ) {
         let role = 'customer';
         try {
           role = new URL(url).searchParams.get('role') || 'customer';

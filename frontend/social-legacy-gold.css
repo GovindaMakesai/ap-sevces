@@ -1,0 +1,139 @@
+/**
+ * Force gold/cream social theme on legacy pages (chat, services, dashboards).
+ * Load after styles.css when .social-app or .social-bridge-mode is active.
+ */
+html.social-app,
+html.social-bridge-mode,
+html.ap-expo-app {
+  --primary-50: #fdf8eb !important;
+  --primary-100: #f5e6c8 !important;
+  --primary-200: #e8d4a8 !important;
+  --primary-300: #d4a84b !important;
+  --primary-400: #c9a227 !important;
+  --primary-500: #c9a227 !important;
+  --primary-600: #a67c1a !important;
+  --primary-700: #8b6914 !important;
+  --primary-800: #6b4f10 !important;
+  --info: #c9a227 !important;
+}
+
+html.social-app body,
+html.social-bridge-mode body {
+  background: #faf6ee !important;
+  background-image: radial-gradient(circle at 20% 0%, rgba(201, 162, 39, 0.12) 0%, transparent 45%),
+    radial-gradient(circle at 80% 8%, rgba(245, 158, 11, 0.06) 0%, transparent 40%) !important;
+  color: #5c4210 !important;
+}
+
+html.social-app .btn-primary,
+html.social-app .login-btn,
+html.social-app button.primary,
+html.social-bridge-mode .btn-primary,
+html.social-bridge-mode .login-btn,
+html.social-bridge-mode .nav-btn.next,
+html.social-bridge-mode .nav-btn.submit {
+  background: linear-gradient(135deg, #ff8c42, #f59e0b) !important;
+  border-color: transparent !important;
+  color: #fff !important;
+}
+
+html.social-app .btn-outline,
+html.social-bridge-mode .btn-outline {
+  border-color: rgba(201, 162, 39, 0.45) !important;
+  color: #a67c1a !important;
+}
+
+html.social-app .navbar,
+html.social-bridge-mode .navbar {
+  background: #fffdf8 !important;
+  border-bottom: 1px solid rgba(201, 162, 39, 0.2) !important;
+  box-shadow: 0 2px 12px rgba(107, 79, 16, 0.06) !important;
+}
+
+html.social-app .navbar .logo,
+html.social-bridge-mode .navbar .logo {
+  color: #5c4210 !important;
+}
+
+html.social-app .navbar .logo span,
+html.social-bridge-mode .navbar .logo span {
+  color: #c9a227 !important;
+}
+
+html.social-app .page-header,
+html.social-bridge-mode .page-header,
+html.social-app .hero,
+html.social-bridge-mode .social-legacy-hero {
+  background: linear-gradient(135deg, #fdf8eb, #faf6ee) !important;
+  color: #5c4210 !important;
+}
+
+html.social-app .service-card,
+html.social-app .booking-card,
+html.social-app .dashboard-card,
+html.social-bridge-mode .service-card,
+html.social-bridge-mode .booking-card,
+html.social-bridge-mode .dashboard-card,
+html.social-bridge-mode .stat-card {
+  border-color: rgba(201, 162, 39, 0.22) !important;
+  background: #fffdf8 !important;
+}
+
+html.social-app .chat-container,
+html.social-bridge-mode .chat-container,
+html.social-app .chat-sidebar,
+html.social-bridge-mode .chat-sidebar,
+html.social-app .chat-main,
+html.social-bridge-mode .chat-main {
+  background: #fffdf8 !important;
+}
+
+html.social-app .chat-sidebar .conversation.active,
+html.social-bridge-mode .chat-sidebar .conversation.active,
+html.social-app .message.sent,
+html.social-bridge-mode .message.sent {
+  background: linear-gradient(135deg, #ff8c42, #f59e0b) !important;
+  color: #fff !important;
+}
+
+html.social-app .chat-header,
+html.social-bridge-mode .chat-header {
+  background: #fffdf8 !important;
+  border-color: rgba(201, 162, 39, 0.2) !important;
+}
+
+html.social-app a,
+html.social-bridge-mode a:not(.social-bottom-nav a):not(.nav-item) {
+  color: #a67c1a;
+}
+
+html.social-app .dashboard-sidebar,
+html.social-bridge-mode .dashboard-sidebar {
+  background: #fffdf8 !important;
+  border-color: rgba(201, 162, 39, 0.2) !important;
+}
+
+html.social-app .dashboard-sidebar .nav-item.active,
+html.social-bridge-mode .dashboard-sidebar .nav-item.active,
+html.social-app .sidebar-nav .nav-item.active,
+html.social-bridge-mode .sidebar-nav .nav-item.active {
+  background: rgba(201, 162, 39, 0.15) !important;
+  color: #a67c1a !important;
+  border-color: #c9a227 !important;
+}
+
+html.social-app .welcome-banner,
+html.social-bridge-mode .welcome-banner {
+  background: linear-gradient(135deg, #ff8c42, #f59e0b) !important;
+}
+
+html.social-bridge-mode .container,
+html.social-bridge-mode main {
+  max-width: 100% !important;
+  padding-top: 8px !important;
+}
+
+html.social-bridge-mode body {
+  padding-top: 52px !important;
+  padding-bottom: calc(72px + env(safe-area-inset-bottom)) !important;
+}

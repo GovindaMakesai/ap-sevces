@@ -22,11 +22,16 @@ function isLanDevHost() {
 }
 
 function resolveApiUrl() {
-    if (IS_CAPACITOR || IS_EXPO_WEBVIEW || isLanDevHost()) {
-        const port = window.location.port || (window.location.protocol === 'https:' ? '443' : '80');
-        if (isLanDevHost() || port === '5500') {
-            return `${window.location.origin.replace(/\/$/, '')}/api`;
-        }
+    if (typeof window.__AP_API_URL__ === 'string' && window.__AP_API_URL__) {
+        return window.__AP_API_URL__.replace(/\/$/, '');
+    }
+    // Native app: always use HTTPS production API (avoids Android HTTP block + LAN CORS).
+    if (IS_EXPO_WEBVIEW || IS_CAPACITOR || window.__AP_NATIVE_APP__) {
+        return LIVE_API_URL;
+    }
+    // Desktop browser on LAN with dev proxy
+    if (isLanDevHost() && (window.location.port === '5500' || window.location.port === '')) {
+        return `${window.location.origin.replace(/\/$/, '')}/api`;
     }
     if (IS_LOCAL) return LOCAL_API_URL;
     return LIVE_API_URL;
@@ -59,74 +64,99 @@ const AppState = {
 // ==================== API SERVICE WITH FORMDATA SUPPORT ====================
 const API = {
     async request(endpoint, options = {}) {
-        const url = `${CONFIG.API_URL}${endpoint}`;
+        const bases = [CONFIG.API_URL];
+        if (!CONFIG.API_URL.includes('ap-sevces.onrender.com')) {
+            bases.push(LIVE_API_URL);
+        }
+
+        let lastError = null;
+        for (const base of bases) {
+            try {
+                return await this._fetchOnce(`${base}${endpoint}`, options);
+            } catch (error) {
+                lastError = error;
+                const isNetwork =
+                    error?.message === 'Failed to fetch' ||
+                    error?.name === 'TypeError' ||
+                    error?.message?.includes('NetworkError');
+                if (!isNetwork || base === bases[bases.length - 1]) {
+                    throw this._friendlyNetworkError(error, `${base}${endpoint}`);
+                }
+                console.warn('API retry via production:', LIVE_API_URL);
+            }
+        }
+        throw this._friendlyNetworkError(lastError, `${CONFIG.API_URL}${endpoint}`);
+    },
+
+    _friendlyNetworkError(error, url) {
+        const msg = error?.message || 'Request failed';
+        if (msg === 'Failed to fetch' || msg.includes('NetworkError')) {
+            const err = new Error(
+                'Cannot reach the server. Check your internet connection and try again. (' + url + ')'
+            );
+            err.cause = error;
+            return err;
+        }
+        return error;
+    },
+
+    async _fetchOnce(url, options = {}) {
         console.log(`📡 API Request: ${options.method || 'GET'} ${url}`);
-        
-        // Prepare headers
+
         const headers = { ...options.headers };
-        
-        // Add authorization token if available
         if (AppState.token) {
             headers['Authorization'] = `Bearer ${AppState.token}`;
         }
-        
-        // Don't set Content-Type for FormData - browser will set it with boundary
+
         const isFormData = options.body instanceof FormData;
         if (!isFormData && !headers['Content-Type']) {
             headers['Content-Type'] = 'application/json';
         }
-        
-        // Prepare body
+
         let body = options.body;
         if (!isFormData && body && typeof body === 'object') {
             body = JSON.stringify(body);
         }
-        
-        try {
-            const response = await fetch(url, {
-                ...options,
-                headers,
-                body,
-                mode: 'cors',
-                credentials: 'include'
-            });
-            
-            // Try to parse JSON response
-            let data;
-            const contentType = response.headers.get('content-type');
-            if (contentType && contentType.includes('application/json')) {
-                data = await response.json();
-            } else {
-                data = await response.text();
-            }
-            
-            if (!response.ok) {
-                console.error('❌ API Error Response:', data);
-                if (typeof data === 'object' && data !== null) {
-                    if (Array.isArray(data.errors) && data.errors.length) {
-                        const first = data.errors[0];
-                        const msg = first.msg || first.message || 'Validation failed';
-                        const err = new Error(msg);
-                        err.status = response.status;
-                        throw err;
-                    }
-                    if (data.message) {
-                        const err = new Error(data.message);
-                        err.status = response.status;
-                        throw err;
-                    }
-                }
-                const err = new Error(typeof data === 'string' ? data : `HTTP error ${response.status}`);
-                err.status = response.status;
-                throw err;
-            }
-            
-            console.log('✅ API Success:', data);
-            return data;
-        } catch (error) {
-            console.error('❌ API Request Failed:', error);
-            throw error;
+
+        const response = await fetch(url, {
+            ...options,
+            headers,
+            body,
+            mode: 'cors',
+            credentials: 'omit',
+        });
+
+        let data;
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+            data = await response.json();
+        } else {
+            data = await response.text();
         }
+
+        if (!response.ok) {
+            console.error('❌ API Error Response:', data);
+            if (typeof data === 'object' && data !== null) {
+                if (Array.isArray(data.errors) && data.errors.length) {
+                    const first = data.errors[0];
+                    const msg = first.msg || first.message || 'Validation failed';
+                    const err = new Error(msg);
+                    err.status = response.status;
+                    throw err;
+                }
+                if (data.message) {
+                    const err = new Error(data.message);
+                    err.status = response.status;
+                    throw err;
+                }
+            }
+            const err = new Error(typeof data === 'string' ? data : `HTTP error ${response.status}`);
+            err.status = response.status;
+            throw err;
+        }
+
+        console.log('✅ API Success:', data);
+        return data;
     },
     
     get(endpoint) { 
@@ -1200,19 +1230,21 @@ function bootstrapNativeAppShell() {
         guard.async = false;
         document.head.appendChild(guard);
     }
+    const socialScripts = [
+        '/social-bridge.js',
+        '/social-banner-slider.js',
+        '/social-create-post.js',
+        '/social-shell.js',
+    ];
     if (!isAuthPath() && localStorage.getItem('token')) {
-        if (!document.querySelector('script[src*="social-bridge.js"]')) {
-            const script = document.createElement('script');
-            script.src = '/social-bridge.js';
-            script.async = true;
-            document.head.appendChild(script);
-        }
-        if (!document.querySelector('script[src*="social-shell.js"]')) {
-            const shell = document.createElement('script');
-            shell.src = '/social-shell.js';
-            shell.async = true;
-            document.head.appendChild(shell);
-        }
+        socialScripts.forEach((src) => {
+            if (!document.querySelector(`script[src*="${src.split('/').pop()}"]`)) {
+                const script = document.createElement('script');
+                script.src = src;
+                script.async = false;
+                document.head.appendChild(script);
+            }
+        });
     }
 }
 

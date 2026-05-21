@@ -97,10 +97,11 @@
     const img = pro.image || avatarFallback(name);
     const tag = pro.tag || pickTag(index);
     const viewers = pro.viewers != null ? pro.viewers : 200 + Math.floor(Math.random() * 3800);
-    const href =
-      id && /^[0-9a-f-]{36}$/i.test(String(id))
+    const href = party
+      ? `/party.html?room=${encodeURIComponent(id || 'live-' + index)}`
+      : id && /^[0-9a-f-]{36}$/i.test(String(id))
         ? `/worker-profile.html?id=${id}`
-        : '/services.html';
+        : '/explore.html';
     const hot = index === 0 ? ' hot' : '';
     const top10 = index === 1 ? '<span class="tag tag-top10">TOP10 Hourly</span>' : '';
     const pk = index % 3 === 0 ? '<span class="pk-badge" aria-hidden="true">PK</span>' : '';
@@ -258,19 +259,183 @@
     if (startLive) {
       startLive.addEventListener('click', (e) => {
         e.preventDefault();
-        const user = window.Auth?.getUser?.();
-        if (user?.role === 'worker') {
-          window.location.href = '/worker-dashboard.html';
-        } else if (user) {
-          window.location.href = '/become-a-pro.html';
-        } else {
-          window.location.href =
-            '/login.html?redirect=' + encodeURIComponent('/become-a-pro.html');
-        }
+        goStartLive();
       });
     }
 
+    const bannerMount = document.getElementById('social-banner-slider');
+    if (bannerMount && window.SocialBannerSlider) {
+      SocialBannerSlider.mount(bannerMount);
+    }
+
+    if (config.squareFeed) fillSquareFeed();
+    if (config.reelsId) initReels(config.reelsId);
+    if (config.emptyState) renderEmptyState(config.emptyState);
+    if (window.SocialCreatePost) SocialCreatePost.bindCameraButtons();
+
     bindLiveCards(document);
+  }
+
+  function goStartLive() {
+    const q = '?app=1&live=1';
+    const user = window.Auth?.getUser?.();
+    if (!user) {
+      window.location.href = '/app-auth.html?app=1';
+      return;
+    }
+    if (user.role === 'worker') {
+      window.location.href = '/party.html' + q;
+      return;
+    }
+    window.location.href = '/party.html' + q;
+  }
+
+  function renderEmptyState(cfg) {
+    const el = document.getElementById(cfg.mountId);
+    if (!el) return;
+    const type = cfg.type || 'following';
+    if (type === 'following') {
+      el.innerHTML = `
+        <div class="social-empty-state">
+          <div class="illus" style="font-size:64px">📺</div>
+          <p>You haven't followed yet,<br>come to follow</p>
+          <a href="/explore.html?app=1" class="btn-open">Explore live</a>
+        </div>`;
+    } else if (type === 'nearby') {
+      el.innerHTML = `
+        <div class="social-empty-state">
+          <div class="illus" style="font-size:64px">📍</div>
+          <p>Turn on the GPS service and meet nearby friends</p>
+          <button type="button" class="btn-open" id="socialGpsOpen">Open</button>
+        </div>`;
+      document.getElementById('socialGpsOpen')?.addEventListener('click', () => {
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(() => {
+            window.location.reload();
+          });
+        }
+      });
+    } else {
+      el.innerHTML = `
+        <div class="social-empty-state">
+          <div class="illus" style="font-size:64px">📦</div>
+          <p>no more content</p>
+        </div>`;
+    }
+  }
+
+  async function fillSquareFeed() {
+    const feed = document.getElementById('squareFeed');
+    if (!feed) return;
+    let posts = [];
+    try {
+      posts = JSON.parse(localStorage.getItem('social_posts') || '[]');
+    } catch (_e) {}
+    const pros = await fetchPros(6);
+    if (!posts.length) {
+      posts = pros.map((p, i) => ({
+        id: 'm' + i,
+        caption: i % 2 ? '😭😭😭😭' : 'Great service today! #APServices #home',
+        userName: p.name,
+        minsAgo: 1 + i * 3,
+        likes: Math.floor(Math.random() * 50),
+        comments: Math.floor(Math.random() * 10),
+        image: p.image,
+        isVideo: i % 2 === 0,
+      }));
+    }
+    feed.innerHTML = posts
+      .map(
+        (p) => `
+      <article class="social-post-card">
+        <div class="social-post-media">
+          <img src="${p.image || avatarFallback(p.userName)}" alt="">
+          ${p.isVideo ? '<span class="play-badge"><i class="fas fa-play"></i></span>' : ''}
+        </div>
+        <div class="social-post-meta">${p.minsAgo || 1} mins ago</div>
+        <div class="social-post-actions">
+          <span><i class="far fa-heart"></i> ${p.likes || 0}</span>
+          <span><i class="far fa-comment"></i> ${p.comments || 0}</span>
+          <span><i class="fas fa-gift"></i></span>
+          <span><i class="far fa-paper-plane"></i></span>
+        </div>
+        <div class="social-post-user">
+          <img src="${p.image || avatarFallback(p.userName)}" alt="">
+          <div>
+            <div style="font-weight:700;font-size:14px">${p.userName} 🇮🇳 <span style="font-size:11px;background:#3b82f6;color:#fff;padding:2px 6px;border-radius:8px">18+</span></div>
+            <div class="social-post-caption">${p.caption || ''}</div>
+            <div class="social-post-translation">Translation</div>
+          </div>
+        </div>
+      </article>`
+      )
+      .join('');
+  }
+
+  async function initReels(containerId) {
+    const wrap = document.getElementById(containerId);
+    if (!wrap) return;
+    const pros = await fetchPros(8);
+    wrap.innerHTML = `
+      <div class="social-reels-scroll">
+        ${pros
+          .map(
+            (p, i) => `
+          <section class="social-reel-slide" data-index="${i}" data-href="${p.id ? '/worker-profile.html?id=' + p.id : '/party.html'}">
+            <img src="${p.image}" alt="">
+          </section>`
+          )
+          .join('')}
+      </div>`;
+    wrap.querySelectorAll('.social-reel-slide').forEach((slide) => {
+      slide.addEventListener('click', () => {
+        const href = slide.dataset.href;
+        if (href) window.location.href = withAppQuery(href);
+      });
+    });
+  }
+
+  function renderTopicsList(containerId, topics) {
+    const list = document.getElementById(containerId);
+    if (!list) return;
+    const items = topics || [
+      { title: '#Holi Video Collection Event', heat: 529819, ended: false, img: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=200' },
+      { title: '#Jayfol Dance Challenge', heat: 412200, ended: false, img: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=200' },
+      { title: '#Home Pro Tips', heat: 210440, ended: true, img: 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=200' },
+    ];
+    list.innerHTML = items
+      .map(
+        (t) => `
+      <section class="social-topic-block">
+        <div class="social-topic-head">
+          <img src="${t.img}" alt="">
+          <div style="flex:1">
+            <h3 style="font-size:15px;color:var(--gold-800);margin-bottom:6px">${t.title}</h3>
+            <span class="social-flame"><i class="fas fa-fire"></i> ${t.heat}</span>
+          </div>
+          ${t.ended ? '<span style="color:#9ca3af;font-size:13px">ended</span>' : '<button type="button" class="social-join-btn" data-join-topic>join &gt;</button>'}
+        </div>
+        <div class="social-topic-videos">
+          ${[1, 2, 3, 4]
+            .map(
+              (n) =>
+                `<div class="thumb" data-go-video><img src="https://images.unsplash.com/photo-161${n}1685778255-406106cdc4ce?w=200" alt=""><i class="fas fa-play" style="position:absolute;top:6px;right:6px;color:#fff;font-size:12px"></i></div>`
+            )
+            .join('')}
+        </div>
+      </section>`
+      )
+      .join('');
+    list.querySelectorAll('[data-join-topic]').forEach((b) => {
+      b.addEventListener('click', () => {
+        window.location.href = withAppQuery('/video.html');
+      });
+    });
+    list.querySelectorAll('[data-go-video]').forEach((b) => {
+      b.addEventListener('click', () => {
+        window.location.href = withAppQuery('/video.html');
+      });
+    });
   }
 
   function redirectToDashboard() {
@@ -290,6 +455,11 @@
     renderLiveCard,
     renderFilterChips,
     fillGrid,
+    fillSquareFeed,
+    initReels,
+    renderTopicsList,
+    renderEmptyState,
+    goStartLive,
     fetchPros,
     getImageUrl,
     avatarFallback,

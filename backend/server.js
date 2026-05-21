@@ -29,6 +29,7 @@ const serviceRoutes = require('./routes/services');
 const bookingRoutes = require('./routes/bookings');
 const reviewRoutes = require('./routes/reviews');
 const adminRoutes = require('./routes/admin');
+const liveRoutes = require('./routes/live');
 
 const app = express();
 const server = http.createServer(app);
@@ -55,6 +56,9 @@ function isAllowedCorsOrigin(origin) {
     if (/^http:\/\/192\.168\.\d{1,3}\.\d{1,3}(:\d+)?$/i.test(origin)) return true;
     if (/^http:\/\/10\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$/i.test(origin)) return true;
     if (/^https:\/\/[\w-]+\.vercel\.app$/i.test(origin)) return true;
+    // Capacitor / WebView opaque origins
+    if (/^capacitor:\/\//i.test(origin)) return true;
+    if (/^file:\/\//i.test(origin)) return true;
     return false;
 }
 
@@ -89,6 +93,7 @@ app.use('/api/reviews', reviewRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/messages', messageRoutes);
+app.use('/api/live', liveRoutes);
 
 // ==================== TEMPORARY DEBUG ENDPOINTS ====================
 app.get('/api/health', async (req, res) => {

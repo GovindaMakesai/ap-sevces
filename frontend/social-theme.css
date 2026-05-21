@@ -1,4 +1,7 @@
 /* AP Services — Native social UI (reference screenshots) */
+@import url('social-features.css');
+@import url('social-legacy-gold.css');
+
 *, *::before, *::after { box-sizing: border-box; }
 
 html.social-app {

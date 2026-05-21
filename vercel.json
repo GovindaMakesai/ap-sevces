@@ -149,6 +149,22 @@
       "dest": "/frontend/social-bridge.js"
     },
     {
+      "src": "/social-legacy-gold.css",
+      "dest": "/frontend/social-legacy-gold.css"
+    },
+    {
+      "src": "/social-features.css",
+      "dest": "/frontend/social-features.css"
+    },
+    {
+      "src": "/social-banner-slider.js",
+      "dest": "/frontend/social-banner-slider.js"
+    },
+    {
+      "src": "/social-create-post.js",
+      "dest": "/frontend/social-create-post.js"
+    },
+    {
       "src": "/social-auth.css",
       "dest": "/frontend/social-auth.css"
     },

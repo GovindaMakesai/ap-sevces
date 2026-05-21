@@ -1,18 +1,27 @@
 /**
- * OAuth — Expo opens system browser via postMessage; LAN dev uses same-origin /auth proxy.
+ * OAuth — Expo opens system browser via postMessage.
+ * API/auth always use production HTTPS (same as app.js in native app).
  */
 (function () {
+  const PRODUCTION_ORIGIN = 'https://ap-sevces.onrender.com';
+
   function getAuthOrigin() {
+    if (window.__AP_API_URL__) {
+      return window.__AP_API_URL__.replace(/\/api\/?$/, '');
+    }
+    if (window.ReactNativeWebView || window.__AP_NATIVE_APP__) {
+      return PRODUCTION_ORIGIN;
+    }
     const host = window.location.hostname || '';
     const isLan =
       host === 'localhost' ||
       host === '127.0.0.1' ||
       /^192\.168\.\d{1,3}\.\d{1,3}$/.test(host) ||
       /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host);
-    if (isLan || window.location.port === '5500') {
+    if (isLan && window.location.port === '5500') {
       return window.location.origin.replace(/\/$/, '');
     }
-    return 'https://ap-sevces.onrender.com';
+    return PRODUCTION_ORIGIN;
   }
 
   const AUTH_BASE_URL = getAuthOrigin();

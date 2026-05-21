@@ -11,42 +11,24 @@
 <body>
   <header class="social-top">
     <div class="social-main-tabs">
-      <a href="/explore.html?tab=following">Following</a>
-      <a href="/video.html">Video</a>
-      <a href="/square.html">Square</a>
-      <a href="/topics.html" class="active">Topics</a>
-      <a href="/video.html" class="social-icon-btn" style="margin-left:auto"><i class="fas fa-camera"></i></a>
+      <a href="/explore.html?tab=following&app=1">Following</a>
+      <a href="/video.html?app=1">Video</a>
+      <a href="/square.html?app=1">Square</a>
+      <a href="/topics.html?app=1" class="active">Topics</a>
+      <button type="button" class="social-icon-btn" data-social-camera style="margin-left:auto;border:none;background:#fffdf8"><i class="fas fa-camera"></i></button>
     </div>
   </header>
 
-  <div id="topicsList" style="padding-bottom:80px"></div>
+  <div id="topicsList" style="padding-bottom:88px"></div>
   <div id="social-bottom-nav-mount"></div>
 
   <script src="app.js"></script>
+  <script src="social-create-post.js"></script>
   <script src="social-shell.js"></script>
   <script>
-    const TOPICS = [
-      { title: '#Home Services Challenge', heat: 102333, ended: false, img: 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=200' },
-      { title: '#Beauty Pro Showcase', heat: 88420, ended: false, img: 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=200' },
-      { title: '#Plumber Tips Collection', heat: 56210, ended: true, img: 'https://images.unsplash.com/photo-1607472586893-edb5bde5622e?w=200' },
-    ];
     document.addEventListener('DOMContentLoaded', () => {
       SocialShell.initPage({ activeNav: 'video' });
-      const list = document.getElementById('topicsList');
-      list.innerHTML = TOPICS.map((t) => `
-        <section class="social-topic-block">
-          <div class="social-topic-head">
-            <img src="${t.img}" alt="">
-            <div style="flex:1">
-              <h3 style="font-size:15px;color:var(--gold-800);margin-bottom:6px">${t.title}</h3>
-              <span class="social-flame"><i class="fas fa-fire"></i> ${t.heat}</span>
-            </div>
-            ${t.ended ? '<span style="color:#9ca3af;font-size:13px">ended</span>' : '<a href="/services.html" class="social-join-btn">join &gt;</a>'}
-          </div>
-          <div class="social-topic-videos">
-            ${[1,2,3].map((n) => `<div class="thumb" onclick="location.href='/services.html'"><img src="https://images.unsplash.com/photo-152${n}1586771597773-747a223031c?w=200" alt=""><i class="fas fa-play" style="position:absolute;top:6px;right:6px;color:#fff;font-size:12px"></i></div>`).join('')}
-          </div>
-        </section>`).join('');
+      SocialShell.renderTopicsList('topicsList');
     });
   </script>
 </body>

@@ -4,22 +4,20 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#fdf9f0">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="mobile-web-app-capable" content="yes">
   <title>Explore - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-theme.css">
 </head>
 <body>
   <header class="social-top">
-    <div class="social-main-tabs">
-      <a href="/explore.html?tab=following">Following</a>
-      <a href="/explore.html" class="active">Explore</a>
-      <a href="/explore.html?tab=new">New</a>
-      <a href="/explore.html?tab=nearby">Nearby</a>
+    <div class="social-main-tabs" id="exploreTabs">
+      <a href="/explore.html?tab=following&app=1" data-tab="following">Following</a>
+      <a href="/explore.html?app=1" data-tab="explore" class="active">Explore</a>
+      <a href="/explore.html?tab=new&app=1" data-tab="new">New</a>
+      <a href="/explore.html?tab=nearby&app=1" data-tab="nearby">Nearby</a>
       <div class="social-top-actions">
-        <a href="/rankings.html" class="social-icon-btn" aria-label="Rankings"><i class="fas fa-trophy"></i></a>
-        <a href="/services.html" class="social-global-pill"><i class="fas fa-globe-asia"></i> Global <i class="fas fa-chevron-down" style="font-size:10px"></i></a>
+        <a href="/rankings.html?app=1" class="social-icon-btn" aria-label="Rankings"><i class="fas fa-trophy"></i></a>
+        <button type="button" class="social-global-pill" id="globalChip"><i class="fas fa-globe-asia"></i> Global</button>
       </div>
     </div>
     <div class="social-search">
@@ -29,28 +27,42 @@
     <div id="social-filter-chips-mount"></div>
   </header>
 
-  <section class="social-banner-wrap">
-    <div class="social-banner social-banner--party">
-      <div class="social-banner-content">
-        <h2>Lucky Gifts Party</h2>
-        <p>Enjoy the Event and win <span class="coin">🪙</span> 268,710,000</p>
-        <p class="social-banner-date">16/05/2026 - 22/05/2026 (UTC+8)</p>
-      </div>
-    </div>
-    <div class="social-banner-dots"><span class="active"></span><span></span><span></span></div>
-  </section>
+  <div id="social-banner-slider"></div>
 
-  <div class="social-grid" id="exploreGrid"></div>
+  <div id="exploreContent">
+    <div class="social-grid" id="exploreGrid"></div>
+  </div>
+  <div id="exploreEmpty" style="display:none"></div>
 
   <button type="button" class="social-start-live" id="social-start-live"><i class="fas fa-video"></i> Start Live</button>
   <div id="social-bottom-nav-mount"></div>
 
   <script src="app.js"></script>
   <script src="auth-guard.js"></script>
+  <script src="social-banner-slider.js"></script>
+  <script src="social-create-post.js"></script>
   <script src="social-shell.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', () => {
-      SocialShell.initPage({ activeNav: 'explore', gridId: 'exploreGrid', gridLimit: 12 });
+      const tab = new URLSearchParams(location.search).get('tab') || 'explore';
+      const activeTab = tab === 'following' || tab === 'nearby' || tab === 'new' ? tab : 'explore';
+      document.querySelectorAll('#exploreTabs a[data-tab]').forEach((a) => {
+        a.classList.toggle('active', a.dataset.tab === activeTab);
+      });
+      if (tab === 'following' || tab === 'nearby') {
+        document.getElementById('exploreContent').style.display = 'none';
+        document.getElementById('exploreEmpty').style.display = 'block';
+        SocialShell.initPage({
+          activeNav: 'explore',
+          emptyState: { mountId: 'exploreEmpty', type: tab },
+        });
+      } else {
+        document.getElementById('exploreEmpty').style.display = 'none';
+        SocialShell.initPage({ activeNav: 'explore', gridId: 'exploreGrid', gridLimit: 12 });
+      }
+      document.getElementById('globalChip')?.addEventListener('click', () => {
+        document.querySelector('.chip[data-chip="Global"]')?.click();
+      });
     });
   </script>
 </body>

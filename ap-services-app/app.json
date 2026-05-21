@@ -19,6 +19,7 @@
     "android": {
       "package": "com.apservices.app2",
       "versionCode": 9,
+      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"

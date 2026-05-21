@@ -65,12 +65,14 @@
   }
 
   function ensureStyles() {
-    if (!document.querySelector('link[href*="social-theme.css"]')) {
-      const link = document.createElement('link');
-      link.rel = 'stylesheet';
-      link.href = '/social-theme.css';
-      document.head.appendChild(link);
-    }
+    ['/social-theme.css', '/social-legacy-gold.css'].forEach((href) => {
+      if (!document.querySelector(`link[href="${href}"]`)) {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = href;
+        document.head.appendChild(link);
+      }
+    });
   }
 
   function ensureShellScript() {

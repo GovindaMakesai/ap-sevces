@@ -1,5 +1,5 @@
 /**
- * Serves frontend/ and proxies /api + /auth to Render (fixes CORS for Expo LAN dev).
+ * Serves frontend/ and proxies /api + /auth to Render (optional LAN dev helper).
  */
 const http = require('http');
 const https = require('https');
@@ -27,40 +27,43 @@ const MIME = {
   '.map': 'application/json',
 };
 
-function proxyToApi(req, res) {
-  const chunks = [];
-  req.on('data', (c) => chunks.push(c));
-  req.on('end', () => {
-    const body = Buffer.concat(chunks);
-    const opts = {
-      hostname: API_HOST,
-      port: 443,
-      path: req.url,
-      method: req.method,
-      headers: {
-        ...req.headers,
-        host: API_HOST,
-      },
-    };
-    delete opts.headers['connection'];
+function cleanProxyHeaders(reqHeaders) {
+  const h = { ...reqHeaders, host: API_HOST };
+  delete h.connection;
+  delete h['content-length'];
+  delete h['transfer-encoding'];
+  return h;
+}
 
-    const proxyReq = https.request(opts, (proxyRes) => {
-      const headers = { ...proxyRes.headers };
-      const origin = req.headers.origin;
-      if (origin) {
-        headers['access-control-allow-origin'] = origin;
-        headers['access-control-allow-credentials'] = 'true';
-      }
-      res.writeHead(proxyRes.statusCode, headers);
-      proxyRes.pipe(res);
-    });
-    proxyReq.on('error', (err) => {
-      res.writeHead(502, { 'Content-Type': 'text/plain' });
-      res.end('API proxy error: ' + err.message);
-    });
-    if (body.length) proxyReq.write(body);
-    proxyReq.end();
+function proxyToApi(req, res) {
+  const opts = {
+    hostname: API_HOST,
+    port: 443,
+    path: req.url,
+    method: req.method,
+    headers: cleanProxyHeaders(req.headers),
+  };
+
+  const proxyReq = https.request(opts, (proxyRes) => {
+    const headers = { ...proxyRes.headers };
+    const origin = req.headers.origin;
+    if (origin) {
+      headers['access-control-allow-origin'] = origin;
+      headers['access-control-allow-credentials'] = 'true';
+    }
+    headers['access-control-allow-methods'] = 'GET,POST,PUT,DELETE,PATCH,OPTIONS';
+    headers['access-control-allow-headers'] = 'Content-Type, Authorization';
+    res.writeHead(proxyRes.statusCode, headers);
+    proxyRes.pipe(res);
   });
+
+  proxyReq.on('error', (err) => {
+    console.error('[dev-server] proxy error:', err.message);
+    res.writeHead(502, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, message: 'API proxy error: ' + err.message }));
+  });
+
+  req.pipe(proxyReq);
 }
 
 function serveStatic(req, res) {
@@ -74,18 +77,6 @@ function serveStatic(req, res) {
   }
   fs.readFile(filePath, (err, data) => {
     if (err) {
-      if (urlPath.endsWith('.html') || !path.extname(urlPath)) {
-        fs.readFile(path.join(FRONTEND_DIR, 'index.html'), (e2, indexData) => {
-          if (e2) {
-            res.writeHead(404);
-            res.end('Not found');
-            return;
-          }
-          res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
-          res.end(indexData);
-        });
-        return;
-      }
       res.writeHead(404);
       res.end('Not found');
       return;
@@ -117,6 +108,18 @@ const server = http.createServer((req, res) => {
     return;
   }
   serveStatic(req, res);
+});
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`\n[dev-server] Port ${PORT} is already in use.`);
+    console.error('Stop the old server (Ctrl+C in other terminal) or run:');
+    console.error(`  netstat -ano | findstr :${PORT}`);
+    console.error('  taskkill /PID <pid> /F\n');
+  } else {
+    console.error('[dev-server] Error:', err.message);
+  }
+  process.exit(1);
 });
 
 server.listen(PORT, HOST, () => {
