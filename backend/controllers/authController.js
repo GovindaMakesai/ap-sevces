@@ -11,7 +11,7 @@ const mapExperienceRangeToYears = (range) => {
     return table[range] !== undefined ? table[range] : 1;
 };
 
-const generateToken = (userId, role) => {
+const generateToken = (userId, role, profile = {}) => {
     const secret = process.env.JWT_SECRET;
     if (!secret) {
         const err = new Error('JWT_SECRET is not configured on the server');
@@ -19,7 +19,12 @@ const generateToken = (userId, role) => {
         throw err;
     }
     return jwt.sign(
-        { userId, role },
+        {
+            userId,
+            role,
+            first_name: profile.first_name || profile.firstName || null,
+            name: profile.first_name || profile.firstName || null,
+        },
         secret,
         { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
@@ -306,7 +311,7 @@ const register = async (req, res) => {
             }
         }
 
-        const token = generateToken(userOut.id, userOut.role);
+        const token = generateToken(userOut.id, userOut.role, { first_name: userOut.first_name });
 
         console.log('✅ Registration successful:', userOut.email);
 
@@ -370,7 +375,7 @@ const login = async (req, res) => {
             });
         }
 
-        const token = generateToken(user.id, user.role);
+        const token = generateToken(user.id, user.role, { first_name: user.first_name });
         delete user.password_hash;
 
         console.log('✅ Login successful:', user.email);
@@ -459,7 +464,7 @@ const googleCallback = async (req, res) => {
             user = await User.findById(user.id);
         }
 
-        const token = generateToken(user.id, user.role);
+        const token = generateToken(user.id, user.role, { first_name: user.first_name });
         return res.redirect(buildOAuthSuccessUrl(token, oauthState.appRedirect));
     } catch (error) {
         console.error('❌ Google callback error:', error);
@@ -515,7 +520,7 @@ const githubCallback = async (req, res) => {
             user = await User.findById(user.id);
         }
 
-        const token = generateToken(user.id, user.role);
+        const token = generateToken(user.id, user.role, { first_name: user.first_name });
         return res.redirect(buildOAuthSuccessUrl(token, oauthState.appRedirect));
     } catch (error) {
         console.error('❌ GitHub callback error:', error);
@@ -571,7 +576,7 @@ const facebookCallback = async (req, res) => {
             user = await User.findById(user.id);
         }
 
-        const token = generateToken(user.id, user.role);
+        const token = generateToken(user.id, user.role, { first_name: user.first_name });
         return res.redirect(buildOAuthSuccessUrl(token, oauthState.appRedirect));
     } catch (error) {
         console.error('❌ Facebook callback error:', error);

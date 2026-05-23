@@ -607,20 +607,21 @@
       avatar.alt = item.name || 'Creator';
     }
     if (name) {
-      name.textContent = item.name;
-      name.style.cursor = 'pointer';
-      name.onclick = () => (location.href = profileUrl(item));
+      name.textContent = '@' + String(item.name || 'Creator').replace(/\s+/g, '');
     }
     if (cap) cap.textContent = item.caption || '';
     if (follow) {
       const fid = item.workerId || item.userId || item.name;
       const on = isFollowing(fid);
-      follow.textContent = on ? 'Following' : 'Follow';
+      follow.textContent = on ? '✓' : '+';
       follow.classList.toggle('is-following', on);
-      follow.onclick = () => {
+      follow.setAttribute('aria-label', on ? 'Following' : 'Follow');
+      follow.onclick = (e) => {
+        e.stopPropagation();
         const now = toggleFollow(fid);
-        follow.textContent = now ? 'Following' : 'Follow';
+        follow.textContent = now ? '✓' : '+';
         follow.classList.toggle('is-following', now);
+        follow.setAttribute('aria-label', now ? 'Following' : 'Follow');
         toast(now ? 'Following ' + item.name : 'Unfollowed');
       };
     }
@@ -631,15 +632,12 @@
     if (likeBtn) likeBtn.classList.toggle('is-liked', liked);
     if (likeCount) likeCount.textContent = formatCount(item.likes || 0);
 
-    document.querySelector('#reelActions [data-action="comment"] .count').textContent = formatCount(
-      item.comments
-    );
-    document.querySelector('#reelActions [data-action="gift"] .count').textContent = formatCount(
-      item.gifts
-    );
-    document.querySelector('#reelActions [data-action="share"] .count').textContent = formatCount(
-      item.shares
-    );
+    const cc = document.getElementById('commentCount');
+    const gc = document.getElementById('giftCount');
+    const sc = document.getElementById('shareCount');
+    if (cc) cc.textContent = formatCount(item.comments);
+    if (gc) gc.textContent = formatCount(item.gifts);
+    if (sc) sc.textContent = formatCount(item.shares);
   }
 
   function formatCount(n) {
@@ -654,8 +652,14 @@
     if (!wrap) return;
     const pros = window.SocialShell ? await SocialShell.fetchPros(8) : [];
     reelItems = await buildReelItems(pros);
+    const uiLayer = document.getElementById('reelUi');
+
     if (!reelItems.length) {
-      wrap.innerHTML = '<p style="color:#fff;text-align:center;padding:40px">No videos yet. Post from Square camera.</p>';
+      const empty = document.createElement('p');
+      empty.style.cssText = 'color:#fff;text-align:center;padding:40px;pointer-events:auto';
+      empty.textContent = 'No videos yet. Post from Square camera.';
+      wrap.insertBefore(empty, uiLayer || null);
+      if (uiLayer) uiLayer.style.display = 'none';
       return;
     }
 
@@ -670,7 +674,13 @@
       }
     });
 
-    wrap.innerHTML = `<div class="social-reels-scroll" id="reelsScroll">${reelItems
+    let scroll = document.getElementById('reelsScroll');
+    if (scroll) scroll.remove();
+
+    scroll = document.createElement('div');
+    scroll.id = 'reelsScroll';
+    scroll.className = 'social-reels-scroll';
+    scroll.innerHTML = reelItems
       .map((item, i) => {
         const media = item.isVideo
           ? `<video src="${item.mediaUrl}" playsinline loop muted data-reel-video poster="${item.thumb || ''}"></video>`
@@ -680,9 +690,10 @@
           <div class="social-reel-gradient"></div>
         </section>`;
       })
-      .join('')}</div>`;
+      .join('');
 
-    const scroll = document.getElementById('reelsScroll');
+    wrap.insertBefore(scroll, uiLayer || wrap.firstChild);
+
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((en) => {
@@ -703,10 +714,20 @@
 
     scroll.querySelectorAll('.social-reel-slide video, .social-reel-slide img').forEach((el) => markMediaOrientation(el));
 
+    scroll.querySelectorAll('.social-reel-slide').forEach((slide) => {
+      slide.addEventListener('click', (e) => {
+        if (e.target.closest('#reelUi') || e.target.closest('[data-action]')) return;
+        const vid = slide.querySelector('video[data-reel-video]');
+        if (!vid) return;
+        if (vid.paused) vid.play().catch(() => {});
+        else vid.pause();
+      });
+    });
+
     updateReelUI(reelItems[0]);
     bindReelActionsPanel();
 
-    document.getElementById('videoAvatar')?.addEventListener('click', (e) => {
+    document.getElementById('videoAvatarBtn')?.addEventListener('click', (e) => {
       e.stopPropagation();
       const item = reelItems[reelIndex];
       if (item) location.href = profileUrl(item);

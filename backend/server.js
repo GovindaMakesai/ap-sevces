@@ -1,4 +1,4 @@
-// backend/server.js - CLEAN VERSION
+// backend/server.js — AP Services production entry
 
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
@@ -6,26 +6,28 @@ require('dotenv').config({ path: path.join(__dirname, '.env') });
 const express = require('express');
 const http = require('http');
 const cors = require('cors');
-const multer = require('multer');
 const passport = require('passport');
 const { Server } = require('socket.io');
-const notificationRoutes = require('./routes/notifications');
-const messageRoutes = require('./routes/messages');
-const liveRoutes = require('./routes/live');
-const { connectMongo } = require('./config/mongodb');
+
+const { validateEnv } = require('./config/validateEnv');
 const { ensureChatSchema } = require('./config/ensureChatSchema');
 const { ensurePaymentSchema } = require('./config/ensurePaymentSchema');
 const { ensureFoundationSchema } = require('./config/ensureFoundationSchema');
+const { ensurePhase2Schema } = require('./config/ensurePhase2Schema');
 const { registerChatSocket } = require('./socket/chatSocket');
 const { registerLiveSocket } = require('./socket/liveSocket');
+const { registerPkSocket } = require('./socket/pkSocket');
+const { startScheduler, stopScheduler } = require('./lib/scheduler');
+const redis = require('./lib/redis');
+const logger = require('./lib/logger');
+const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
 const liveRoomService = require('./services/liveRoomService');
-
-const { storage } = require('./config/cloudinary');
-const upload = multer({ storage });
-
+const platformService = require('./services/platformService');
 const db = require('./config/database');
+const { connectMongo } = require('./config/mongodb');
 
-// Import routes
+validateEnv();
+
 const authRoutes = require('./routes/auth');
 const workerRoutes = require('./routes/workers');
 const serviceRoutes = require('./routes/services');
@@ -33,60 +35,66 @@ const bookingRoutes = require('./routes/bookings');
 const reviewRoutes = require('./routes/reviews');
 const adminRoutes = require('./routes/admin');
 const walletRoutes = require('./routes/wallet');
+const notificationRoutes = require('./routes/notifications');
+const messageRoutes = require('./routes/messages');
+const liveRoutes = require('./routes/live');
+const platformRoutes = require('./routes/platform');
+const webhookRoutes = require('./routes/webhooks');
 
 const app = express();
 const server = http.createServer(app);
 const PORT = process.env.PORT || 5000;
 
-// CORS
 const allowedOrigins = [
-    'http://localhost:3000',
-    'http://localhost:5000',
-    'http://localhost:5500',
-    'http://127.0.0.1:5500',
-    'https://ap-sevces.vercel.app',
-    'https://ap-services-xi.vercel.app',
-    'https://ap-services-marketplace.vercel.app',
-    'https://ap-services-marketplace.onrender.com',
-    'https://ap-sevces.onrender.com'
+  'http://localhost:3000',
+  'http://localhost:5000',
+  'http://localhost:5500',
+  'http://127.0.0.1:5500',
+  'https://ap-sevces.vercel.app',
+  'https://ap-services-xi.vercel.app',
+  'https://ap-services-marketplace.vercel.app',
+  'https://ap-services-marketplace.onrender.com',
+  'https://ap-sevces.onrender.com',
 ];
 
 function isAllowedCorsOrigin(origin) {
-    if (!origin) return true;
-    if (allowedOrigins.indexOf(origin) !== -1) return true;
-    // Expo dev: WebView loads frontend from LAN IP (e.g. http://192.168.1.5:5500)
-    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) return true;
-    if (/^http:\/\/192\.168\.\d{1,3}\.\d{1,3}(:\d+)?$/i.test(origin)) return true;
-    if (/^http:\/\/10\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$/i.test(origin)) return true;
-    if (/^https:\/\/[\w-]+\.vercel\.app$/i.test(origin)) return true;
-    // Capacitor / WebView opaque origins
-    if (/^capacitor:\/\//i.test(origin)) return true;
-    if (/^file:\/\//i.test(origin)) return true;
-    return false;
+  if (!origin) return true;
+  if (allowedOrigins.indexOf(origin) !== -1) return true;
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) return true;
+  if (/^http:\/\/192\.168\.\d{1,3}\.\d{1,3}(:\d+)?$/i.test(origin)) return true;
+  if (/^http:\/\/10\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$/i.test(origin)) return true;
+  if (/^https:\/\/[\w-]+\.vercel\.app$/i.test(origin)) return true;
+  if (/^capacitor:\/\//i.test(origin)) return true;
+  if (/^file:\/\//i.test(origin)) return true;
+  return false;
 }
 
 app.use(cors({
-    origin: function(origin, callback) {
-        if (isAllowedCorsOrigin(origin)) return callback(null, true);
-        console.warn('[CORS] Blocked origin:', origin);
-        return callback(new Error('CORS not allowed'), false);
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+  origin(origin, callback) {
+    if (isAllowedCorsOrigin(origin)) return callback(null, true);
+    logger.warn('CORS blocked', { origin });
+    return callback(new Error('CORS not allowed'), false);
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
-
 app.options('*', cors());
 
+app.use('/api/v1/webhooks', webhookRoutes);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(passport.initialize());
 app.use(express.static(path.join(__dirname, '..', 'public')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+app.use((req, res, next) => {
+  res.setHeader('X-Request-Id', req.headers['x-request-id'] || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+  next();
+});
+
 db.testConnection();
 
-// ==================== ROUTES (ONCE) ====================
 app.use('/api/auth', authRoutes);
 app.use('/auth', authRoutes);
 app.use('/api/workers', workerRoutes);
@@ -98,47 +106,67 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/live', liveRoutes);
 app.use('/api/wallet', walletRoutes);
+app.use('/api/v1', platformRoutes);
 
-// ==================== HEALTH ====================
-app.get('/api/health', async (req, res) => {
-    try {
-        const dbResult = await db.query('SELECT NOW() as time');
-        res.json({ success: true, message: 'Healthy', database: 'connected', time: dbResult.rows[0].time });
-    } catch (error) {
-        res.json({ success: true, message: 'Healthy', database: 'disconnected' });
-    }
+app.get('/api/health', async (_req, res) => {
+  const health = { success: true, status: 'online', checks: {} };
+  try {
+    const dbResult = await db.query('SELECT NOW() as time');
+    health.checks.database = { ok: true, time: dbResult.rows[0].time };
+  } catch (err) {
+    health.checks.database = { ok: false, error: err.message };
+    health.success = false;
+  }
+  health.checks.redis = { ok: redis.isEnabled(), mode: redis.isEnabled() ? 'redis' : 'memory' };
+  res.status(health.success ? 200 : 503).json(health);
 });
 
-app.get('/', (req, res) => {
-    res.json({ message: 'AP Services API is running', status: 'online' });
+app.get('/', (_req, res) => {
+  res.json({ message: 'AP Services API is running', status: 'online', version: '2.0.0' });
 });
 
-// Error handler
-app.use((err, req, res, next) => {
-    console.error('Error:', err.message);
-    res.status(500).json({ success: false, message: err.message });
-});
+app.use(notFoundHandler);
+app.use(errorHandler);
 
 const io = new Server(server, {
-    cors: {
-        origin: allowedOrigins,
-        credentials: true
-    }
+  cors: { origin: allowedOrigins, credentials: true },
 });
-
 app.set('io', io);
 registerChatSocket(io);
 registerLiveSocket(io);
+registerPkSocket(io);
+
 connectMongo();
 
 async function startServer() {
-    await ensureChatSchema();
-    await ensurePaymentSchema();
-    await ensureFoundationSchema();
-    await liveRoomService.recoverActiveRooms();
-    server.listen(PORT, '0.0.0.0', () => {
-        console.log(`✅ Server running on port ${PORT}`);
-    });
+  await ensureChatSchema();
+  await ensurePaymentSchema();
+  await ensureFoundationSchema();
+  await ensurePhase2Schema();
+  await platformService.getOrCreateTreasuryUserId();
+  await liveRoomService.recoverActiveRooms();
+  startScheduler();
+
+  server.listen(PORT, '0.0.0.0', () => {
+    logger.info('Server started', { port: PORT, redis: redis.isEnabled() });
+  });
 }
 
-startServer();
+async function shutdown(signal) {
+  logger.info('Shutdown signal', { signal });
+  stopScheduler();
+  server.close(async () => {
+    await redis.disconnect();
+    await db.pool.end();
+    process.exit(0);
+  });
+  setTimeout(() => process.exit(1), 10000).unref();
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
+
+startServer().catch((err) => {
+  logger.error('Startup failed', { error: err.message });
+  process.exit(1);
+});

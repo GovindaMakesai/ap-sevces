@@ -211,7 +211,26 @@ function registerLiveSocket(io) {
       const channel = sanitizeChannel(payload?.channel || currentChannel);
       const room = await liveRoomService.findByChannel(channel);
       if (!room) return;
-      // TODO: persist mute state to live_room_members.is_muted
+      const targetUserId = String(payload?.userId || socket.userId);
+      if (targetUserId !== socket.userId && !socket.data.isHost) return;
+      await liveRoomService.setMemberMuted(room.id, targetUserId, payload?.muted !== false);
+      const state = await liveRoomService.buildSnapshot(channel);
+      io.to(`live:${channel}`).emit('live:state', state);
+    });
+
+    socket.on('live:end', async (payload, ack) => {
+      try {
+        const channel = sanitizeChannel(payload?.channel || currentChannel);
+        if (!socket.data.isHost) {
+          if (ack) ack({ ok: false, message: 'Only host can end room' });
+          return;
+        }
+        await liveRoomService.endRoom(channel);
+        io.to(`live:${channel}`).emit('live:ended', { channel });
+        if (ack) ack({ ok: true });
+      } catch (err) {
+        if (ack) ack({ ok: false, message: err.message });
+      }
     });
 
     const handleLeave = async () => {

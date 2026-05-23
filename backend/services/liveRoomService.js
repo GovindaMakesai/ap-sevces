@@ -208,6 +208,44 @@ async function logChatEvent(liveRoomId, userId, payload) {
   );
 }
 
+async function setMemberMuted(liveRoomId, userId, muted) {
+  await db.query(
+    `UPDATE live_room_members SET is_muted = $3 WHERE live_room_id = $1 AND user_id = $2 AND left_at IS NULL`,
+    [liveRoomId, userId, Boolean(muted)]
+  );
+}
+
+async function endRoom(channel, reason = 'host_ended') {
+  const room = await findByChannel(channel);
+  if (!room || room.status === 'ended') return null;
+
+  await db.query(
+    `UPDATE live_rooms SET status = 'ended', ended_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+    [room.id]
+  );
+  await db.query(
+    `UPDATE live_room_members SET left_at = CURRENT_TIMESTAMP WHERE live_room_id = $1 AND left_at IS NULL`,
+    [room.id]
+  );
+  await db.query(
+    `INSERT INTO live_room_events (live_room_id, event_type, payload) VALUES ($1, 'room_ended', $2)`,
+    [room.id, JSON.stringify({ reason })]
+  );
+  roomCache.delete(channel);
+  return { ...room, status: 'ended' };
+}
+
+async function endIdleRooms(maxIdleMinutes = 120) {
+  const res = await db.query(
+    `UPDATE live_rooms SET status = 'ended', ended_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+     WHERE status = 'active' AND updated_at < CURRENT_TIMESTAMP - ($1 || ' minutes')::interval
+     RETURNING channel`,
+    [maxIdleMinutes]
+  );
+  for (const row of res.rows) roomCache.delete(row.channel);
+  return res.rows.length;
+}
+
 async function recoverActiveRooms() {
   const res = await db.query(`SELECT channel FROM live_rooms WHERE status = 'active'`);
   for (const row of res.rows) {
@@ -225,6 +263,9 @@ module.exports = {
   getActiveMembers,
   buildSnapshot,
   logChatEvent,
+  setMemberMuted,
+  endRoom,
+  endIdleRooms,
   recoverActiveRooms,
   roomCache,
 };

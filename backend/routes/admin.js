@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const adminController = require('../controllers/adminController');
 const walletController = require('../controllers/walletController');
+const platformController = require('../controllers/platformController');
 const { verifyToken, authorizeRoles } = require('../middleware/auth');
 const { requirePermission } = require('../middleware/permissions');
 const multer = require('multer');
@@ -53,5 +54,15 @@ router.post('/recharges/:id/reject', requirePermission('admin.recharges'), walle
 router.get('/withdrawals/pending', requirePermission('admin.withdrawals'), walletController.listPendingWithdrawals);
 router.post('/withdrawals/:id/approve', requirePermission('admin.withdrawals'), walletController.approveWithdrawal);
 router.post('/withdrawals/:id/reject', requirePermission('admin.withdrawals'), walletController.rejectWithdrawal);
+
+// Phase 2 platform admin
+router.get('/fraud', requirePermission('admin.fraud'), platformController.adminListFraud);
+router.get('/verifications/pending', requirePermission('admin.verification'), async (req, res) => {
+  const verificationService = require('../services/verificationService');
+  const data = await verificationService.listPending();
+  res.json({ success: true, data });
+});
+router.post('/verifications/:id/review', requirePermission('admin.verification'), platformController.adminReviewVerification);
+router.put('/agencies/:id/commission', requirePermission('admin.agencies'), platformController.adminSetCommission);
 
 module.exports = router;

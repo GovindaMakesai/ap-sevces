@@ -90,7 +90,7 @@ async function rejectRecharge(rechargeId, adminUserId, notes) {
 
 async function approveWithdrawal(withdrawalId, adminUserId, notes) {
   const res = await db.query(
-    `UPDATE withdrawals SET status = 'approved', reviewed_by = $1, admin_notes = $2, reviewed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+    `UPDATE withdrawals SET status = 'completed', reviewed_by = $1, admin_notes = $2, reviewed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
      WHERE id = $3 AND status = 'pending' RETURNING *`,
     [adminUserId, notes || null, withdrawalId]
   );

@@ -20,34 +20,39 @@
     </div>
   </header>
 
-  <div id="reelsMount" class="social-reels-wrap"></div>
+  <div id="reelsMount" class="social-reels-wrap">
+    <div class="social-reel-ui" id="reelUi">
+      <div class="social-reel-bottom">
+        <p class="social-reel-name" id="videoName">Creator</p>
+        <p class="social-reel-caption" id="videoCaption"></p>
+      </div>
 
-  <div class="social-video-actions" id="reelActions">
-    <div class="social-video-action-item">
-      <button type="button" data-action="like" aria-label="Like"><i class="fas fa-heart"></i></button>
-      <div class="count" id="likeCount">0</div>
-    </div>
-    <div class="social-video-action-item">
-      <button type="button" data-action="comment" aria-label="Comment"><i class="fas fa-comment"></i></button>
-      <div class="count">0</div>
-    </div>
-    <div class="social-video-action-item">
-      <button type="button" data-action="gift" class="gift-btn" aria-label="Gift"><i class="fas fa-gift"></i></button>
-      <div class="count">0</div>
-    </div>
-    <div class="social-video-action-item">
-      <button type="button" data-action="share" aria-label="Share"><i class="fas fa-paper-plane"></i></button>
-      <div class="count">0</div>
-    </div>
-  </div>
+      <div class="social-reel-rail" id="reelActions">
+        <div class="social-reel-author">
+          <button type="button" class="social-reel-avatar-btn" id="videoAvatarBtn" aria-label="View profile">
+            <img id="videoAvatar" src="" alt="">
+          </button>
+          <button type="button" class="social-reel-follow-pill" id="followBtn" aria-label="Follow">+</button>
+        </div>
 
-  <div class="social-video-user" id="reelUserBar">
-    <img id="videoAvatar" src="" alt="" role="button" tabindex="0">
-    <div>
-      <div class="name" id="videoName">Creator</div>
-      <div class="video-caption" id="videoCaption">Follow ❤️🔥</div>
+        <button type="button" class="social-reel-action" data-action="like" aria-label="Like">
+          <span class="social-reel-action-icon"><i class="fas fa-heart"></i></span>
+          <span class="social-reel-action-count" id="likeCount">0</span>
+        </button>
+        <button type="button" class="social-reel-action" data-action="comment" aria-label="Comment">
+          <span class="social-reel-action-icon"><i class="fas fa-comment"></i></span>
+          <span class="social-reel-action-count" id="commentCount">0</span>
+        </button>
+        <button type="button" class="social-reel-action is-gift" data-action="gift" aria-label="Gift">
+          <span class="social-reel-action-icon"><i class="fas fa-gift"></i></span>
+          <span class="social-reel-action-count" id="giftCount">0</span>
+        </button>
+        <button type="button" class="social-reel-action" data-action="share" aria-label="Share">
+          <span class="social-reel-action-icon"><i class="fas fa-paper-plane"></i></span>
+          <span class="social-reel-action-count" id="shareCount">0</span>
+        </button>
+      </div>
     </div>
-    <button type="button" class="follow-btn" id="followBtn">Follow</button>
   </div>
 
   <div id="social-bottom-nav-mount"></div>

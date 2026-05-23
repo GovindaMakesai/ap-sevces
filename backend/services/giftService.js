@@ -1,5 +1,11 @@
 const db = require('../config/database');
 const walletService = require('./walletService');
+const platformService = require('./platformService');
+const commissionService = require('./commissionService');
+const leaderboardService = require('./leaderboardService');
+const charityService = require('./charityService');
+const fraudService = require('./fraudService');
+const pkBattleService = require('./pkBattleService');
 
 /**
  * Atomic gift: debit sender, credit receiver (minus platform fee), log gift_transactions.
@@ -8,6 +14,8 @@ async function sendGift({ senderId, receiverId, liveRoomId, giftType, coinAmount
   const amount = BigInt(coinAmount);
   if (amount <= 0n) throw new Error('Gift amount must be positive');
   if (senderId === receiverId) throw new Error('Cannot gift yourself');
+
+  await fraudService.checkGiftAbuse(senderId, Number(amount));
 
   const settings = await walletService.getWalletSettings();
   const feePct = BigInt(settings.gift_platform_fee_pct || 20);
@@ -29,7 +37,7 @@ async function sendGift({ senderId, receiverId, liveRoomId, giftType, coinAmount
       client
     );
 
-    await walletService.creditCoins(
+    const creditResult = await walletService.creditCoins(
       receiverId,
       Number(creatorAmount),
       {
@@ -39,6 +47,13 @@ async function sendGift({ senderId, receiverId, liveRoomId, giftType, coinAmount
       },
       client
     );
+
+    if (Number(platformFee) > 0) {
+      await platformService.creditPlatformFee(Number(platformFee), {
+        reference_type: 'gift',
+        metadata: { sender_id: senderId, receiver_id: receiverId },
+      }, client);
+    }
 
     const gift = await client.query(
       `INSERT INTO gift_transactions (sender_id, receiver_id, live_room_id, gift_type, coin_amount, platform_fee, creator_amount)
@@ -53,6 +68,14 @@ async function sendGift({ senderId, receiverId, liveRoomId, giftType, coinAmount
         creatorAmount.toString(),
       ]
     );
+
+    await commissionService.distributeFromGift({
+      sourceUserId: receiverId,
+      creatorAmount: Number(creatorAmount),
+      giftTransactionId: gift.rows[0].id,
+      walletTransactionId: creditResult.transaction.id,
+      client,
+    });
 
     if (liveRoomId) {
       await client.query(
@@ -74,9 +97,21 @@ async function sendGift({ senderId, receiverId, liveRoomId, giftType, coinAmount
           }),
         ]
       );
+
+      const room = await client.query(`SELECT channel FROM live_rooms WHERE id = $1`, [liveRoomId]);
+      if (room.rows[0]?.channel) {
+        const battle = await pkBattleService.getActiveBattleByChannel(room.rows[0].channel);
+        if (battle) {
+          await pkBattleService.addGiftScore(battle.id, receiverId, Number(amount));
+        }
+      }
     }
 
     await client.query('COMMIT');
+
+    await leaderboardService.ingestGiftLeaderboards(gift.rows[0]);
+    await charityService.allocateFromGift(Number(amount), gift.rows[0].id);
+
     return {
       gift: gift.rows[0],
       platform_fee: Number(platformFee),
