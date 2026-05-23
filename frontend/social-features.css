@@ -47,6 +47,11 @@
   z-index: 1;
   background: #000;
   overflow: hidden;
+  pointer-events: none;
+}
+
+.social-reels-wrap .social-reels-scroll {
+  pointer-events: auto;
 }
 
 .social-reels-scroll {
@@ -511,6 +516,11 @@
   align-items: center;
   gap: 8px;
   padding: 12px;
+  padding-top: calc(12px + env(safe-area-inset-top, 0px));
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: var(--cream-bg);
 }
 .social-rank-back { color: var(--gold-800); font-size: 18px; text-decoration: none; width: 32px; }
 .social-rank-main-tabs { display: flex; flex: 1; justify-content: center; gap: 12px; }

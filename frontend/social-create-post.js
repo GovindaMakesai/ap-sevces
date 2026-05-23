@@ -24,6 +24,7 @@
         <div class="social-create-preview" id="socialCreatePreview">
           <img alt="" id="socialCreatePreviewImg">
           <video id="socialCreatePreviewVideo" controls playsinline style="display:none;width:100%;max-height:200px;border-radius:12px"></video>
+          <p class="social-create-progress" id="socialCreateProgress" style="display:none">Uploading…</p>
         </div>
         <input type="file" id="socialCreateFile" accept="image/*,video/*" hidden>
         <div class="social-create-visibility">
@@ -81,17 +82,26 @@
       });
     });
 
+    if (window.SocialUI) SocialUI.attachMentionAutocomplete(document.getElementById('socialCreateCaption'));
+
     return el;
   }
 
   function open() {
+    if (!window.SocialInteractions?.savePostFromForm) {
+      if (window.SocialUI) SocialUI.showError('Not ready', 'Please wait a moment and try again.');
+      return;
+    }
     const el = ensureOverlay();
     pendingFile = null;
     document.getElementById('socialCreateCaption').value = '';
     document.getElementById('socialCreatePreview').style.display = 'none';
+    document.getElementById('socialCreateProgress').style.display = 'none';
     document.getElementById('socialCreateFile').value = '';
-    document.querySelector('input[name="socialVis"][value="public"]').checked = true;
+    const pub = document.querySelector('input[name="socialVis"][value="public"]');
+    if (pub) pub.checked = true;
     el.classList.add('is-open');
+    if (window.SocialUI) SocialUI.attachMentionAutocomplete(document.getElementById('socialCreateCaption'));
   }
 
   function close() {
@@ -103,26 +113,30 @@
     const caption = document.getElementById('socialCreateCaption').value.trim();
     const vis = document.querySelector('input[name="socialVis"]:checked')?.value || 'public';
     const btn = document.getElementById('socialCreatePost');
+    const prog = document.getElementById('socialCreateProgress');
     btn.disabled = true;
     btn.textContent = 'Posting…';
+    if (prog) prog.style.display = 'block';
     try {
-      if (window.SocialInteractions?.savePostFromForm) {
-        await SocialInteractions.savePostFromForm(caption, vis, pendingFile);
-      } else {
-        throw new Error('Upload not ready');
+      if (!window.SocialInteractions?.savePostFromForm) {
+        throw new Error('Upload module not loaded. Refresh the page and try again.');
       }
+      await SocialInteractions.savePostFromForm(caption, vis, pendingFile);
       close();
-      if (window.SocialInteractions?.toast) SocialInteractions.toast('Posted to Square!');
+      if (window.SocialUI) SocialUI.showSuccess('Posted!', 'Your moment is live on Square.');
+      else if (window.SocialInteractions?.toast) SocialInteractions.toast('Posted to Square!', 'success');
       if ((window.location.pathname || '').endsWith('square.html')) {
         await SocialInteractions.renderSquareFeed('squareFeed');
       } else {
         window.location.href = '/square.html?app=1';
       }
     } catch (err) {
-      alert(err.message || 'Could not post. Try a smaller photo/video.');
+      if (window.SocialUI) SocialUI.showError('Could not post', err.message || 'Try a smaller photo or shorter video.');
+      else alert(err.message || 'Could not post.');
     } finally {
       btn.disabled = false;
       btn.textContent = 'Post';
+      if (prog) prog.style.display = 'none';
     }
   }
 

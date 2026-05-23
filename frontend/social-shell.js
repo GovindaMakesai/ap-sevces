@@ -250,13 +250,31 @@
     }
 
     document.querySelectorAll('[data-social-search]').forEach((input) => {
-      input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
+      let searchTimer;
+      input.addEventListener('input', () => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(async () => {
           const q = input.value.trim();
-          window.location.href = q
-            ? `/services.html?search=${encodeURIComponent(q)}`
-            : '/services.html';
+          const activeTab =
+            document.querySelector('#exploreTabs a.active')?.dataset?.tab ||
+            new URLSearchParams(location.search).get('tab');
+          if (activeTab === 'following') {
+            await fillFollowingView(q);
+          }
+        }, 280);
+      });
+      input.addEventListener('keydown', async (e) => {
+        if (e.key !== 'Enter') return;
+        const q = input.value.trim();
+        const activeTab = document.querySelector('#exploreTabs a.active')?.dataset?.tab;
+        if (activeTab === 'following' || new URLSearchParams(location.search).get('tab') === 'following') {
+          e.preventDefault();
+          await fillFollowingView(q);
+          return;
         }
+        window.location.href = q
+          ? `/services.html?search=${encodeURIComponent(q)}&app=1`
+          : '/services.html?app=1';
       });
     });
 
@@ -277,11 +295,50 @@
     if (config.reelsId) initReels(config.reelsId);
     if (config.emptyState) renderEmptyState(config.emptyState);
     if (window.SocialCreatePost) SocialCreatePost.bindCameraButtons();
+    if (window.SocialUI) SocialUI.bindAvatarFallbacks(document);
 
     bindLiveCards(document);
   }
 
-  function goStartLive() {
+  async function fillFollowingView(searchQuery) {
+    const mount = document.getElementById('exploreEmpty');
+    const content = document.getElementById('exploreContent');
+    if (!mount) return;
+    const follows = JSON.parse(localStorage.getItem('social_follows') || '[]');
+    let pros = await fetchPros(24);
+    if (follows.length) {
+      pros = pros.filter((p) =>
+        follows.some((f) => p.name.toLowerCase().includes(String(f).toLowerCase()) || String(f).toLowerCase().includes(p.name.toLowerCase()))
+      );
+    }
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      pros = pros.filter((p) => p.name.toLowerCase().includes(q));
+    }
+    if (!pros.length) {
+      if (content) content.style.display = 'none';
+      mount.style.display = 'block';
+      mount.innerHTML = follows.length
+        ? `<div class="social-empty-state"><p>No matches for "${searchQuery || ''}"</p></div>`
+        : `<div class="social-empty-state"><p>You haven't followed anyone yet.</p><a href="/explore.html?app=1" class="btn-open">Discover live</a></div>`;
+      return;
+    }
+    mount.style.display = 'none';
+    if (content) {
+      content.style.display = 'block';
+      let grid = document.getElementById('exploreGrid');
+      if (!grid) {
+        grid = document.createElement('div');
+        grid.id = 'exploreGrid';
+        grid.className = 'social-grid';
+        content.appendChild(grid);
+      }
+      grid.innerHTML = pros.map((p, i) => renderLiveCard(p, i, { party: false })).join('');
+      bindLiveCards(grid);
+    }
+  }
+
+  function goToStreamerCenter() {
     const user = window.Auth?.getUser?.();
     if (!user) {
       window.location.href = '/app-auth.html?app=1';
@@ -290,13 +347,41 @@
     window.location.href = '/streamer-center.html?app=1';
   }
 
+  function goStartLive() {
+    goToStreamerCenter();
+  }
+
+  function goStartLiveBroadcast() {
+    const user = window.Auth?.getUser?.();
+    if (!user) {
+      window.location.href = '/app-auth.html?app=1';
+      return;
+    }
+    const base = String(user.id || 'user').replace(/[^a-zA-Z0-9]/g, '').slice(0, 10);
+    const channel = 'live-' + base + '-' + Date.now().toString(36).slice(-6);
+    window.location.href =
+      '/live-room.html?host=1&channel=' + encodeURIComponent(channel) + '&app=1';
+  }
+
   function goStartParty() {
     const user = window.Auth?.getUser?.();
     if (!user) {
       window.location.href = '/app-auth.html?app=1';
       return;
     }
-    const channel = 'party-' + (user.id || Date.now()).toString().replace(/[^a-zA-Z0-9]/g, '').slice(0, 12);
+    const base = String(user.id || 'user').replace(/[^a-zA-Z0-9]/g, '').slice(0, 10);
+    const channel = 'party-' + base + '-' + Date.now().toString(36).slice(-6);
+    const party = {
+      channel,
+      hostId: user.id,
+      hostName: `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email?.split('@')[0] || 'Host',
+      createdAt: Date.now(),
+    };
+    try {
+      const parties = JSON.parse(localStorage.getItem('social_my_parties') || '[]');
+      parties.unshift(party);
+      localStorage.setItem('social_my_parties', JSON.stringify(parties.slice(0, 20)));
+    } catch (_e) {}
     window.location.href =
       '/party-room.html?host=1&channel=' + encodeURIComponent(channel) + '&app=1';
   }
@@ -479,7 +564,10 @@
     renderTopicsList,
     renderEmptyState,
     goStartLive,
+    goStartLiveBroadcast,
+    goToStreamerCenter,
     goStartParty,
+    fillFollowingView,
     fetchPros,
     getImageUrl,
     avatarFallback,

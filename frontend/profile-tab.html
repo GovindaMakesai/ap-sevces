@@ -7,12 +7,18 @@
   <title>Me - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-theme.css">
+  <link rel="stylesheet" href="social-features.css">
 </head>
 <body class="social-profile-page">
   <div class="social-profile-hero">
     <img id="profileAvatar" src="" alt="Profile">
     <h2 id="profileName" style="color:var(--gold-800);font-size:20px">Guest</h2>
     <p id="profileRole" style="color:var(--gold-600);font-size:14px;margin-top:4px">Sign in to continue</p>
+    <div class="social-profile-stats" id="profileStats" style="display:none">
+      <div><strong id="statFollowing">0</strong><span>Following</span></div>
+      <div><strong id="statFollowers">0</strong><span>Followers</span></div>
+      <div><strong id="statCoins">0</strong><span>Coins</span></div>
+    </div>
     <button type="button" class="social-btn-orange" style="max-width:200px;margin:16px auto 0" id="profileMainBtn">Sign In</button>
   </div>
 
@@ -32,6 +38,8 @@
   <div id="social-bottom-nav-mount"></div>
 
   <script src="app.js"></script>
+  <script src="social-ui.js"></script>
+  <script src="social-interactions.js"></script>
   <script src="social-shell.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', () => {
@@ -40,13 +48,22 @@
       const btn = document.getElementById('profileMainBtn');
       const dash = document.getElementById('dashLink');
       const logout = document.getElementById('logoutBtn');
+      const statsEl = document.getElementById('profileStats');
       if (user) {
         const name = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email || 'User';
         document.getElementById('profileName').textContent = name;
-        document.getElementById('profileRole').textContent = user.role === 'worker' ? 'Professional' : user.role === 'admin' ? 'Admin' : 'Customer';
-        document.getElementById('profileAvatar').src = user.profile_pic
-          ? SocialShell.getImageUrl(user.profile_pic)
-          : SocialShell.avatarFallback(name);
+        document.getElementById('profileRole').textContent =
+          user.role === 'worker' ? 'Professional' : user.role === 'admin' ? 'Admin' : 'Customer';
+        const pic = user.profile_pic ? SocialShell.getImageUrl(user.profile_pic) : null;
+        document.getElementById('profileAvatar').src =
+          window.SocialUI ? SocialUI.avatarUrl(name, pic) : pic || SocialShell.avatarFallback(name);
+        if (window.SocialInteractions?.getFollowStats) {
+          const s = SocialInteractions.getFollowStats(user.id);
+          document.getElementById('statFollowing').textContent = s.following;
+          document.getElementById('statFollowers').textContent = s.followers;
+          document.getElementById('statCoins').textContent = s.coins;
+          statsEl.style.display = 'flex';
+        }
         btn.textContent = 'Open Dashboard';
         btn.onclick = () => SocialShell.redirectToDashboard();
         dash.onclick = (e) => { e.preventDefault(); SocialShell.redirectToDashboard(); };
@@ -54,9 +71,12 @@
         logout.onclick = (e) => { e.preventDefault(); Auth.logout(); };
       } else {
         document.getElementById('profileAvatar').src = SocialShell.avatarFallback('Guest');
-        btn.onclick = () => { location.href = '/login.html?redirect=' + encodeURIComponent('/profile-tab.html'); };
+        btn.onclick = () => {
+          location.href = '/login.html?redirect=' + encodeURIComponent('/profile-tab.html');
+        };
         dash.href = '/login.html';
       }
+      if (window.SocialUI) SocialUI.bindAvatarFallbacks(document);
     });
   </script>
 </body>

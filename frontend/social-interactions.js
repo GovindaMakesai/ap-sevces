@@ -22,8 +22,8 @@
     return TOPIC_IMAGES[i % TOPIC_IMAGES.length];
   }
 
-  function toast(msg) {
-    if (window.SocialLive?.toast) return SocialLive.toast(msg);
+  function toast(msg, type) {
+    if (window.SocialUI?.toast) return SocialUI.toast(msg, type);
     let el = document.getElementById('socialToast');
     if (!el) {
       el = document.createElement('div');
@@ -70,11 +70,23 @@
 
   async function getMediaUrl(post) {
     if (!post) return '';
+    if (post.imageData) return post.imageData;
     if (post.mediaId) {
-      const blob = await loadBlob(post.mediaId);
-      if (blob) return URL.createObjectURL(blob);
+      try {
+        const blob = await loadBlob(post.mediaId);
+        if (blob) return URL.createObjectURL(blob);
+      } catch (_e) {}
     }
-    return post.image || post.thumb || '';
+    return post.image || post.thumb || (window.SocialUI ? SocialUI.avatarUrl(post.userName) : '');
+  }
+
+  function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.onerror = () => reject(new Error('Could not read file'));
+      r.readAsDataURL(blob);
+    });
   }
 
   function getPosts() {
@@ -149,7 +161,36 @@
     if (i >= 0) f.splice(i, 1);
     else f.push(creatorId);
     localStorage.setItem(FOLLOWS_KEY, JSON.stringify(f));
-    return i < 0;
+    const nowFollowing = i < 0;
+    if (nowFollowing) {
+      const user = window.Auth?.getUser?.();
+      if (user) {
+        const map = JSON.parse(localStorage.getItem('social_followers_map') || '{}');
+        const key = String(creatorId);
+        if (!map[key]) map[key] = [];
+        const me = user.id || user.email || user.first_name;
+        if (me && !map[key].includes(me)) map[key].push(me);
+        localStorage.setItem('social_followers_map', JSON.stringify(map));
+      }
+    }
+    return nowFollowing;
+  }
+
+  function getFollowStats(userId) {
+    const following = getFollows().length;
+    let followers = 0;
+    try {
+      const map = JSON.parse(localStorage.getItem('social_followers_map') || '{}');
+      const user = window.Auth?.getUser?.();
+      const key = String(userId || user?.id || user?.email || 'me');
+      followers = (map[key] || []).length;
+      if (!followers && user) {
+        const me = String(user.id || user.email || '');
+        followers = Object.values(map).filter((arr) => arr.some((x) => String(x) === me)).length;
+      }
+    } catch (_e) {}
+    const coins = parseInt(localStorage.getItem('social_coins') || '0', 10) || 0;
+    return { following, followers, coins };
   }
 
   function isFollowing(creatorId) {
@@ -157,39 +198,62 @@
   }
 
   async function compressImage(file, maxW) {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      const url = URL.createObjectURL(file);
-      img.onload = () => {
-        URL.revokeObjectURL(url);
-        let w = img.width;
-        let h = img.height;
-        const max = maxW || 900;
-        if (w > max) {
-          h = (h * max) / w;
-          w = max;
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width = w;
-        canvas.height = h;
-        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-        canvas.toBlob(
-          (blob) => (blob ? resolve(blob) : reject(new Error('compress failed'))),
-          'image/jpeg',
-          0.82
-        );
-      };
-      img.onerror = reject;
-      img.src = url;
-    });
+    try {
+      return await Promise.race([
+        new Promise((resolve, reject) => {
+          const img = new Image();
+          const url = URL.createObjectURL(file);
+          img.onload = () => {
+            URL.revokeObjectURL(url);
+            let w = img.width;
+            let h = img.height;
+            const max = maxW || 900;
+            if (w > max) {
+              h = (h * max) / w;
+              w = max;
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+            canvas.toBlob(
+              (blob) => (blob ? resolve(blob) : reject(new Error('compress failed'))),
+              'image/jpeg',
+              0.82
+            );
+          };
+          img.onerror = reject;
+          img.src = url;
+        }),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 12000)),
+      ]);
+    } catch (_e) {
+      return file;
+    }
+  }
+
+  async function storeMediaBlob(mediaId, blob) {
+    try {
+      await saveBlob(mediaId, blob);
+      return mediaId;
+    } catch (e) {
+      const b64 = await blobToBase64(blob);
+      if (b64.length > 3_500_000) {
+        throw new Error('File is too large for this device. Try a smaller photo or shorter video (under 3 MB).');
+      }
+      return { imageData: b64 };
+    }
   }
 
   async function savePostFromForm(caption, visibility, file) {
+    if (!caption && !file) {
+      throw new Error('Add a caption or attach a photo/video.');
+    }
     const user = window.Auth?.getUser?.();
     const id = Date.now();
     const post = {
       id,
-      caption,
+      caption: caption || '',
       visibility,
       userName: user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'You' : 'You',
       userId: user?.id || 'me',
@@ -200,21 +264,23 @@
       shares: 0,
       isVideo: false,
       mediaId: null,
-      thumb: '',
+      imageData: null,
+      thumb: window.SocialUI ? SocialUI.avatarUrl(user?.first_name || 'You') : '',
     };
 
     if (file) {
       post.isVideo = file.type.startsWith('video/');
-      if (post.isVideo && file.size > 8 * 1024 * 1024) {
-        throw new Error('Video must be under 8 MB. Try a shorter clip.');
+      if (post.isVideo && file.size > 12 * 1024 * 1024) {
+        throw new Error('Video must be under 12 MB. Trim the clip or pick a shorter one.');
       }
       let blob = file;
       if (!post.isVideo) blob = await compressImage(file);
       const mediaId = 'media-' + id;
-      await saveBlob(mediaId, blob);
-      post.mediaId = mediaId;
-      if (post.isVideo) {
-        post.thumb = TOPIC_IMAGES[0];
+      const stored = await storeMediaBlob(mediaId, blob);
+      if (typeof stored === 'string') {
+        post.mediaId = stored;
+      } else {
+        post.imageData = stored.imageData;
       }
     }
 
@@ -388,7 +454,12 @@
     const likeBtn = document.querySelector('#reelActions [data-action="like"]');
     const likeCount = document.getElementById('likeCount');
 
-    if (avatar) avatar.src = item.thumb || item.mediaUrl;
+    if (avatar) {
+      avatar.src = window.SocialUI
+        ? SocialUI.avatarUrl(item.name, item.thumb || item.mediaUrl)
+        : item.thumb || item.mediaUrl;
+      avatar.alt = item.name || 'Creator';
+    }
     if (name) {
       name.textContent = item.name;
       name.style.cursor = 'pointer';
@@ -472,7 +543,21 @@
 
     updateReelUI(reelItems[0]);
 
-    document.querySelector('#reelActions [data-action="like"]')?.addEventListener('click', () => {
+    function bindReelAction(sel, handler) {
+      const btn = document.querySelector(sel);
+      if (!btn) return;
+      const run = (e) => {
+        if (e) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+        handler();
+      };
+      btn.addEventListener('click', run);
+      btn.addEventListener('touchend', run, { passive: false });
+    }
+
+    bindReelAction('#reelActions [data-action="like"]', () => {
       const item = reelItems[reelIndex];
       if (!item?.postId) {
         item.likes += 1;
@@ -492,13 +577,13 @@
       updateReelUI(item);
     });
 
-    document.querySelector('#reelActions [data-action="comment"]')?.addEventListener('click', () => {
+    bindReelAction('#reelActions [data-action="comment"]', () => {
       const item = reelItems[reelIndex];
       if (item?.postId) openComments(item.postId);
       else toast('Comments open for your posts — create one from Square');
     });
 
-    document.querySelector('#reelActions [data-action="gift"]')?.addEventListener('click', () => {
+    bindReelAction('#reelActions [data-action="gift"]', () => {
       const item = reelItems[reelIndex];
       if (item?.postId) sendGift(item.postId);
       else {
@@ -508,7 +593,7 @@
       }
     });
 
-    document.querySelector('#reelActions [data-action="share"]')?.addEventListener('click', async () => {
+    bindReelAction('#reelActions [data-action="share"]', async () => {
       const item = reelItems[reelIndex];
       if (item?.postId) {
         await sharePost(getPosts().find((x) => String(x.id) === String(item.postId)) || { id: item.postId, caption: item.caption });
@@ -524,15 +609,23 @@
       updateReelUI(item);
     });
 
-    document.getElementById('videoAvatar')?.addEventListener('click', () => {
+    document.getElementById('followBtn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+    });
+
+    document.getElementById('videoAvatar')?.addEventListener('click', (e) => {
+      e.stopPropagation();
       const item = reelItems[reelIndex];
       if (item) location.href = profileUrl(item);
     });
 
-    document.getElementById('videoName')?.addEventListener('click', () => {
+    document.getElementById('videoName')?.addEventListener('click', (e) => {
+      e.stopPropagation();
       const item = reelItems[reelIndex];
       if (item) location.href = profileUrl(item);
     });
+
+    if (window.SocialUI) SocialUI.bindAvatarFallbacks(document);
   }
 
   async function renderSquareFeed(container) {
@@ -649,7 +742,7 @@
     list.innerHTML = items
       .map(
         (t, ti) => `
-      <section class="social-topic-block">
+      <section class="social-topic-block" data-topic-id="${ti}">
         <div class="social-topic-head">
           <img src="${t.img}" alt="" loading="lazy" onerror="this.src='${TOPIC_IMAGES[0]}'">
           <div style="flex:1">
@@ -673,10 +766,16 @@
       )
       .join('');
     list.querySelectorAll('[data-join-topic]').forEach((b) => {
-      b.addEventListener('click', () => (location.href = '/video.html?app=1'));
+      b.addEventListener('click', () => {
+        const topic = b.closest('.social-topic-block')?.dataset?.topicId || '0';
+        location.href = '/topic-watch.html?topic=' + topic + '&app=1';
+      });
     });
     list.querySelectorAll('[data-go-video]').forEach((b) => {
-      b.addEventListener('click', () => (location.href = '/video.html?app=1'));
+      b.addEventListener('click', () => {
+        const topic = b.dataset.topic || '0';
+        location.href = '/topic-watch.html?topic=' + topic + '&app=1';
+      });
     });
   }
 
@@ -689,8 +788,9 @@
         history.replaceState(null, '', '/rankings.html?tab=' + a.dataset.tab + '&app=1');
         document.querySelectorAll('.social-rank-main-tab').forEach((x) => x.classList.remove('active'));
         a.classList.add('active');
+        const picked = a.dataset.tab;
         document.querySelectorAll('[data-rank-panel]').forEach((p) => {
-          p.style.display = p.dataset.rankPanel === tab ? 'block' : 'none';
+          p.style.display = p.dataset.rankPanel === picked ? 'block' : 'none';
         });
       });
     });
@@ -760,6 +860,7 @@
     TOPIC_IMAGES,
     toast,
     openComments,
+    getFollowStats,
     profileUrl,
   };
 })();

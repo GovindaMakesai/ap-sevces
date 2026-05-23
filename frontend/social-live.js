@@ -702,7 +702,7 @@
     });
 
     document.getElementById('streamerStartLive')?.addEventListener('click', () => {
-      if (window.SocialShell?.goStartLive) SocialShell.goStartLive();
+      if (window.SocialShell?.goStartLiveBroadcast) SocialShell.goStartLiveBroadcast();
       else {
         const ch = 'live-' + Date.now();
         location.href = '/live-room.html?host=1&channel=' + ch + '&app=1';
