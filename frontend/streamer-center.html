@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#faf6ee">
+  <title>Streamer Center - AP Services</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="social-live.css">
+</head>
+<body data-live-page="streamer-center" class="streamer-page">
+  <header class="streamer-top">
+    <button type="button" class="back" onclick="history.back()"><i class="fas fa-arrow-left"></i></button>
+    <h1>Streamer Center</h1>
+    <p class="uid" id="streamerUid">ID:76471242</p>
+  </header>
+
+  <section class="streamer-card">
+    <h2>Live Stream Data <a href="/rankings.html?app=1">More data &gt;</a></h2>
+    <div class="streamer-pills">
+      <button type="button" class="active">Today</button>
+      <button type="button">This week</button>
+      <button type="button">This month</button>
+    </div>
+    <div class="streamer-metrics">
+      <div class="metric"><div class="val">00:00:00</div><div class="lbl">Hours of Live Streaming</div></div>
+      <div class="metric"><div class="val">0</div><div class="lbl">Won points</div></div>
+      <div class="metric"><div class="val">0</div><div class="lbl">New followers</div></div>
+      <div class="metric"><div class="val">0</div><div class="lbl">Average Concurrent Users</div></div>
+    </div>
+  </section>
+
+  <section class="streamer-card">
+    <h2>Last Stream Report</h2>
+    <p style="font-size:11px;color:#9ca3af;margin:-8px 0 12px">No data available (Only data from the past 90 days is shown)</p>
+    <div class="streamer-cover-box">
+      <div style="font-size:48px;opacity:0.4">📷+</div>
+      <p>Upload your own cover and start high-quality live streaming</p>
+      <button type="button" class="btn-upload">Upload a new cover</button>
+    </div>
+    <div class="streamer-metrics">
+      <div class="metric"><div class="val">00:00:00</div><div class="lbl">Hours of Live Streaming</div></div>
+      <div class="metric"><div class="val">0</div><div class="lbl">Won points</div></div>
+      <div class="metric"><div class="val">0</div><div class="lbl">New followers</div></div>
+      <div class="metric"><div class="val">0</div><div class="lbl">Audiences</div></div>
+    </div>
+  </section>
+
+  <section class="streamer-card streamer-mode-card">
+    <h2>Choose how to go live</h2>
+    <p style="font-size:13px;color:#6b7280;margin:0 0 12px">
+      <strong>Start Live</strong> = solo video stream (camera). 
+      <strong>Start Party</strong> = voice party room with seat grid.
+    </p>
+    <div class="streamer-dual-btns">
+      <button type="button" class="streamer-mode-btn streamer-mode-live" id="streamerStartLive">
+        <i class="fas fa-video"></i>
+        <span>Start Live</span>
+        <small>Video broadcast</small>
+      </button>
+      <button type="button" class="streamer-mode-btn streamer-mode-party" id="streamerStartParty">
+        <i class="fas fa-users"></i>
+        <span>Start Party</span>
+        <small>Voice + seats</small>
+      </button>
+    </div>
+  </section>
+
+  <section class="streamer-card">
+    <h2>Interactivity Tools</h2>
+    <div style="display:flex;gap:10px;margin-top:8px;flex-wrap:wrap">
+      <a href="/lucky-gifts.html?app=1" class="streamer-link-pill">Lucky Gifts</a>
+      <a href="/coins-recharge.html?app=1" class="streamer-link-pill">Recharge QR</a>
+      <a href="/store.html?app=1" class="streamer-link-pill">Gift Store</a>
+    </div>
+  </section>
+
+  <div class="streamer-bottom-spacer"></div>
+
+  <script src="app.js"></script>
+  <script src="auth-guard.js"></script>
+  <script src="social-shell.js"></script>
+  <script src="social-live.js"></script>
+</body>
+</html>

@@ -6,6 +6,7 @@
     {
       className: 'social-banner--party',
       title: 'Lucky Gifts Party',
+      href: '/lucky-gifts.html?app=1',
       html: '<p>Enjoy the Event and win <span class="coin">🪙</span> 268,710,000</p><p class="social-banner-date">16/05/2026 - 22/05/2026 (UTC+8)</p>',
     },
     {
@@ -23,8 +24,9 @@
 
   function renderSlide(b, i) {
     const center = b.center ? ' social-banner-content--center' : '';
+    const hrefAttr = b.href ? ` data-href="${b.href}" role="link" tabindex="0"` : '';
     return `
-      <div class="social-banner-slide" data-index="${i}">
+      <div class="social-banner-slide" data-index="${i}"${hrefAttr}>
         <div class="social-banner ${b.className || ''}">
           <div class="social-banner-content${center}">
             <h2>${b.title || ''}</h2>
@@ -82,6 +84,15 @@
       if (timer) clearInterval(timer);
       timer = null;
     }
+
+    container.querySelectorAll('.social-banner-slide[data-href]').forEach((slide) => {
+      const go = () => {
+        const h = slide.dataset.href;
+        if (h) window.location.href = h;
+      };
+      slide.addEventListener('click', go);
+      slide.style.cursor = 'pointer';
+    });
 
     start();
     container.addEventListener('mouseenter', stop);

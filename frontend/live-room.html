@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#000000">
+  <title>Live - AP Services</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="social-live.css">
+</head>
+<body class="live-dark" data-live-page="live-room">
+  <span class="live-status-badge" id="liveStatusBadge">Connecting…</span>
+
+  <div class="live-room">
+    <div class="live-bg" id="liveBg"></div>
+    <div id="liveRemoteHost" class="live-remote-video"></div>
+    <div id="liveLocalHost" class="live-local-video is-host-only"></div>
+    <video id="liveLocalVideo" class="live-bg live-fallback-video" playsinline muted></video>
+
+    <div class="live-overlay">
+      <header class="party-header">
+        <div class="party-host">
+          <img id="liveHostAvatar" src="" alt="">
+          <div class="party-host-meta">
+            <div class="name" id="liveHostName">Streamer</div>
+            <div class="sub"><span>❤️ 115</span> <span id="liveRoomId">ID: —</span></div>
+          </div>
+          <button type="button" class="party-follow-btn" id="partyHostFollow">+</button>
+        </div>
+        <div class="party-header-center"><span class="party-crown">👑</span></div>
+        <div class="party-header-right">
+          <div class="party-viewers">
+            <span></span><span></span><span></span>
+            <span class="party-viewer-count" id="liveViewerCount">0</span>
+          </div>
+          <button type="button" class="party-close" id="liveClose"><i class="fas fa-times"></i></button>
+        </div>
+      </header>
+
+      <div class="party-ticker">
+        <span class="party-ticker-inner">Murshad_… sent ❤️ customized gift · Pop 100+ · Tap gift to send</span>
+      </div>
+
+      <div class="party-widgets">
+        <div class="party-widget"><strong>Wish</strong> 0/11<div class="bar"><i style="width:0%"></i></div></div>
+        <div class="party-widget"><strong>🎁</strong> <span id="partyChestTimer">04:36</span></div>
+      </div>
+      <a href="/lucky-gifts.html?app=1" class="party-event-pill">Lucky Gifts<br><span class="coins">🪙 268M</span></a>
+
+      <div class="party-win-banner" id="partyWinBanner"></div>
+
+      <div class="party-chat-tabs">
+        <button type="button" data-tab="all">All</button>
+        <button type="button" data-tab="room">Room</button>
+        <button type="button" class="active" data-tab="chat">Chat</button>
+      </div>
+
+      <div class="party-chat-zone live-chat-tall">
+        <div class="party-chat-feed" id="partyChatFeed"></div>
+      </div>
+
+      <div class="live-chat-compose is-open" id="liveChatCompose">
+        <input type="text" id="liveChatInput" placeholder="Hi there! Say something…" maxlength="280" autocomplete="off">
+        <button type="button" id="liveChatSend"><i class="fas fa-paper-plane"></i></button>
+      </div>
+
+      <footer class="party-bottom-bar">
+        <button type="button" class="party-btn-follow" id="liveBtnFollow">Hi there!</button>
+        <div class="party-bottom-actions">
+          <button type="button" id="partyBtnTools"><i class="fas fa-grip"></i></button>
+          <button type="button" id="liveBtnMic"><i class="fas fa-microphone"></i></button>
+          <button type="button" id="liveBtnGift" class="party-btn-gift"><i class="fas fa-gift"></i></button>
+        </div>
+      </footer>
+    </div>
+  </div>
+
+  <div class="party-tools-sheet" id="partyToolsSheet">
+    <div class="party-tools-panel">
+      <h3>Basic Tools</h3>
+      <div class="party-tools-grid">
+        <a href="/chat.html?app=1"><span class="ico msg"><i class="fas fa-envelope"></i></span>Message</a>
+        <a href="/coins-recharge.html?app=1"><span class="ico coins"><i class="fas fa-coins"></i></span>Recharge</a>
+        <a href="/store.html?app=1"><span class="ico store"><i class="fas fa-gift"></i></span>Gifts</a>
+        <button type="button" id="partyToolsClose"><span class="ico" style="background:#6b7280"><i class="fas fa-times"></i></span>Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const ch = new URLSearchParams(location.search).get('channel') || new URLSearchParams(location.search).get('room');
+      const el = document.getElementById('liveRoomId');
+      if (el && ch) el.textContent = 'ID: ' + String(ch).slice(0, 12);
+    });
+  </script>
+  <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+  <script src="app.js"></script>
+  <script src="auth-guard.js"></script>
+  <script src="social-shell.js"></script>
+  <script src="social-live.js"></script>
+</body>
+</html>

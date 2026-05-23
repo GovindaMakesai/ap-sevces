@@ -165,6 +165,38 @@
       "dest": "/frontend/social-create-post.js"
     },
     {
+      "src": "/social-live.css",
+      "dest": "/frontend/social-live.css"
+    },
+    {
+      "src": "/social-live.js",
+      "dest": "/frontend/social-live.js"
+    },
+    {
+      "src": "/party-room.html",
+      "dest": "/frontend/party-room.html"
+    },
+    {
+      "src": "/live-room.html",
+      "dest": "/frontend/live-room.html"
+    },
+    {
+      "src": "/lucky-gifts.html",
+      "dest": "/frontend/lucky-gifts.html"
+    },
+    {
+      "src": "/streamer-center.html",
+      "dest": "/frontend/streamer-center.html"
+    },
+    {
+      "src": "/social-interactions.js",
+      "dest": "/frontend/social-interactions.js"
+    },
+    {
+      "src": "/creator-profile.html",
+      "dest": "/frontend/creator-profile.html"
+    },
+    {
       "src": "/social-auth.css",
       "dest": "/frontend/social-auth.css"
     },

@@ -7,6 +7,7 @@
   <title>Video - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-theme.css">
+  <link rel="stylesheet" href="social-features.css">
 </head>
 <body class="social-video-page">
   <header class="social-video-top">
@@ -19,20 +20,32 @@
     </div>
   </header>
 
-  <div class="social-reels-wrap" id="reelsMount"></div>
+  <div id="reelsMount" class="social-reels-wrap"></div>
 
   <div class="social-video-actions" id="reelActions">
-    <div><button type="button" aria-label="Like"><i class="fas fa-heart"></i></button><div class="count" id="likeCount">443</div></div>
-    <div><button type="button" aria-label="Comment"><i class="fas fa-comment"></i></button><div class="count">4</div></div>
-    <div><button type="button" class="gift-btn social-gift-sheet-link" onclick="location.href='/store.html?app=1'" aria-label="Gift"><i class="fas fa-gift"></i></button><div class="count">0</div></div>
-    <div><button type="button" aria-label="Share"><i class="fas fa-paper-plane"></i></button><div class="count">420</div></div>
+    <div class="social-video-action-item">
+      <button type="button" data-action="like" aria-label="Like"><i class="fas fa-heart"></i></button>
+      <div class="count" id="likeCount">0</div>
+    </div>
+    <div class="social-video-action-item">
+      <button type="button" data-action="comment" aria-label="Comment"><i class="fas fa-comment"></i></button>
+      <div class="count">0</div>
+    </div>
+    <div class="social-video-action-item">
+      <button type="button" data-action="gift" class="gift-btn" aria-label="Gift"><i class="fas fa-gift"></i></button>
+      <div class="count">0</div>
+    </div>
+    <div class="social-video-action-item">
+      <button type="button" data-action="share" aria-label="Share"><i class="fas fa-paper-plane"></i></button>
+      <div class="count">0</div>
+    </div>
   </div>
 
   <div class="social-video-user" id="reelUserBar">
-    <img id="videoAvatar" src="" alt="">
+    <img id="videoAvatar" src="" alt="" role="button" tabindex="0">
     <div>
       <div class="name" id="videoName">Creator</div>
-      <div style="font-size:12px;opacity:0.9;max-width:200px" id="videoCaption">Follow ❤️🔥</div>
+      <div class="video-caption" id="videoCaption">Follow ❤️🔥</div>
     </div>
     <button type="button" class="follow-btn" id="followBtn">Follow</button>
   </div>
@@ -40,29 +53,14 @@
   <div id="social-bottom-nav-mount"></div>
 
   <script src="app.js"></script>
+  <script src="social-interactions.js"></script>
   <script src="social-create-post.js"></script>
   <script src="social-shell.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
-      SocialShell.markNativeApp();
-      document.getElementById('social-bottom-nav-mount').innerHTML =
-        SocialShell.renderBottomNav('video');
-      await SocialShell.initReels('reelsMount');
-      SocialShell.initPage({ activeNav: 'video' });
-      const scroll = document.querySelector('.social-reels-scroll');
-      if (scroll) {
-        scroll.addEventListener('scroll', () => {
-          const h = window.innerHeight;
-          const i = Math.round(scroll.scrollTop / h);
-          const slide = scroll.querySelectorAll('.social-reel-slide')[i];
-          if (!slide) return;
-          const img = slide.querySelector('img');
-          if (img) {
-            document.getElementById('videoAvatar').src = img.src;
-            document.getElementById('videoName').textContent = 'Live creator ' + (i + 1);
-          }
-        });
-      }
+      SocialShell.initPage({ activeNav: 'video', reelsId: null });
+      await SocialInteractions.initVideoPage('reelsMount');
+      SocialCreatePost.bindCameraButtons();
     });
   </script>
 </body>

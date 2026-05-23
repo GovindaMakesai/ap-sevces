@@ -3,47 +3,42 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#120c24">
+  <meta name="theme-color" content="#fdf9f0">
   <title>VIP - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-theme.css">
+  <link rel="stylesheet" href="social-features.css">
 </head>
-<body class="social-vip-page">
-  <header class="social-vip-header">
-    <a href="/explore.html" style="color:#fff;font-size:18px"><i class="fas fa-arrow-left"></i></a>
+<body class="social-vip-page social-vip-page--gold">
+  <header class="social-vip-header social-vip-header--gold">
+    <a href="/explore.html?app=1" style="color:var(--gold-800);font-size:18px"><i class="fas fa-arrow-left"></i></a>
     <span style="flex:1"></span>
-    <i class="fas fa-crown" style="color:#fbbf24;font-size:20px"></i>
+    <i class="fas fa-crown" style="color:var(--gold-600);font-size:20px"></i>
   </header>
 
-  <div class="social-vip-tabs">
-    <a href="/vip.html?tab=guardian">Guardian</a>
-    <a href="/vip.html" class="active">VIP</a>
+  <div class="social-vip-tabs social-vip-tabs--gold">
+    <a href="/vip.html?tab=guardian&app=1" data-vtab="guardian">Guardian</a>
+    <a href="/vip.html?app=1" class="active" data-vtab="vip">VIP</a>
   </div>
 
-  <div class="social-vip-tier-tabs">
-    <a href="/vip.html?tier=normal">Normal VIP</a>
-    <a href="/vip.html?tier=super">Super VIP</a>
-    <a href="/vip.html?tier=diamond">Diamond VIP</a>
-    <a href="/vip.html?tier=svip" class="active">SVIP</a>
+  <div class="social-vip-tier-tabs social-vip-tier-tabs--gold">
+    <a href="#" data-tier="normal">Normal VIP</a>
+    <a href="#" data-tier="super">Super VIP</a>
+    <a href="#" data-tier="diamond">Diamond VIP</a>
+    <a href="#" data-tier="svip" class="active">SVIP</a>
   </div>
 
-  <div class="social-vip-card">
-    <div>
-      <h2 style="font-size:28px;font-weight:800;background:linear-gradient(90deg,#93c5fd,#c4b5fd);-webkit-background-clip:text;-webkit-text-fill-color:transparent">SVIP</h2>
-      <p style="color:rgba(255,255,255,0.7);font-size:14px;margin-top:8px">🪙 12,990,000 / Y</p>
-      <p style="color:rgba(255,255,255,0.5);font-size:12px">Get VIP &amp; Enjoy Privileges</p>
-    </div>
-    <div style="font-size:56px">👑</div>
-  </div>
+  <div class="social-vip-card social-vip-card--gold" id="vipTierCard"></div>
 
-  <p style="text-align:center;color:rgba(255,255,255,0.5);font-size:13px;margin-bottom:12px">VIP exclusive privileges 25/25</p>
+  <p style="text-align:center;color:var(--gold-700);font-size:13px;margin-bottom:12px">VIP exclusive privileges 25/25</p>
 
   <div id="vipPrivileges"></div>
 
-  <button type="button" class="social-vip-cta" onclick="location.href='/payment.html'">Open SVIP</button>
+  <button type="button" class="social-vip-cta social-vip-cta--gold" onclick="location.href='/coins-recharge.html?app=1'">Open SVIP</button>
   <div id="social-bottom-nav-mount"></div>
 
   <script src="app.js"></script>
+  <script src="social-interactions.js"></script>
   <script src="social-shell.js"></script>
   <script>
     const PRIVS = [
@@ -51,7 +46,7 @@
       { t: 'Live float tag', d: '+5/d', i: 'fa-comment' },
       { t: 'Platform Speaker', d: '+2/d', i: 'fa-bullhorn' },
       { t: 'Higher Rank', d: 'VIP users appear at the top', i: 'fa-chart-bar' },
-      { t: 'Party Room Crown Seat', d: 'All seats are Crown Seats', i: 'fa-couch', link: '/privileges.html' },
+      { t: 'Party Room Crown Seat', d: 'All seats are Crown Seats', i: 'fa-couch', link: '/privileges.html?app=1' },
       { t: 'Privileged Gifts', d: 'VIP exclusive privilege gifts', i: 'fa-gift' },
       { t: 'Invisible Visitor', d: 'Visit without leaving a record', i: 'fa-user-secret' },
       { t: '25 Person Voice Party', d: 'Up to 25 people in voice room', i: 'fa-crown' },
@@ -60,10 +55,11 @@
     document.addEventListener('DOMContentLoaded', () => {
       SocialShell.initPage({ activeNav: 'profile' });
       document.getElementById('vipPrivileges').innerHTML = PRIVS.map((p) => `
-        <div class="social-vip-privilege" ${p.link ? `onclick="location.href='${p.link}'" style="cursor:pointer"` : ''}>
+        <div class="social-vip-privilege social-vip-privilege--gold" ${p.link ? `onclick="location.href='${p.link}'" style="cursor:pointer"` : ''}>
           <div class="info"><h4>${p.t}</h4><p>${p.d}</p></div>
           <div class="ico"><i class="fas ${p.i}"></i></div>
         </div>`).join('');
+      SocialInteractions.initVipPage();
     });
   </script>
 </body>

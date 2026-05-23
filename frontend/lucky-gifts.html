@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#ff8ec8">
+  <title>Lucky Gifts Party - AP Services</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="social-live.css">
+</head>
+<body data-live-page="lucky-gifts">
+  <div class="lucky-page">
+    <a href="/party.html?app=1" style="position:fixed;left:12px;top:calc(12px + env(safe-area-inset-top,0));z-index:10;width:36px;height:36px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;color:#be185d;text-decoration:none"><i class="fas fa-arrow-left"></i></a>
+
+    <header class="lucky-hero">
+      <h1>Lucky Gifts Party</h1>
+      <p class="dates">16/05/2026 - 22/05/2026 (UTC+8)</p>
+      <div class="lucky-pool">🪙 268,710,000</div>
+    </header>
+
+    <nav class="lucky-main-tabs">
+      <a href="/lucky-gifts.html?tab=missions&app=1">MISSIONS</a>
+      <a href="/lucky-gifts.html?app=1" class="active">RANKING</a>
+    </nav>
+
+    <div class="lucky-sub-tabs">
+      <button type="button">Daily Rank 16/05-19/05</button>
+      <button type="button" class="active">3-day Rank 20/05-22/05</button>
+    </div>
+
+    <div class="lucky-gift-slider">
+      <div class="lucky-gift-track" id="luckyGiftTrack"></div>
+    </div>
+
+    <section class="lucky-board">
+      <div class="lucky-board-top">
+        <span class="timer" id="luckyTimer">22 : 11 : 55</span>
+        <span>🇮🇳 India</span>
+        <button type="button" style="border:none;background:rgba(255,255,255,0.25);color:#fff;padding:6px 12px;border-radius:999px;font-size:11px;font-weight:700;cursor:pointer">Rules</button>
+      </div>
+      <div id="luckyRankList"></div>
+    </section>
+
+    <footer class="lucky-footer">
+      <span>My Rank: -</span>
+      <span>Distance from rank: 🎉 2,367,232</span>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+  <script src="social-live.js"></script>
+</body>
+</html>

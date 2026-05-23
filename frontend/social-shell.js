@@ -97,11 +97,10 @@
     const img = pro.image || avatarFallback(name);
     const tag = pro.tag || pickTag(index);
     const viewers = pro.viewers != null ? pro.viewers : 200 + Math.floor(Math.random() * 3800);
+    const ch = encodeURIComponent(id || (party ? 'party-' : 'live-') + index);
     const href = party
-      ? `/party.html?room=${encodeURIComponent(id || 'live-' + index)}`
-      : id && /^[0-9a-f-]{36}$/i.test(String(id))
-        ? `/worker-profile.html?id=${id}`
-        : '/explore.html';
+      ? `/party-room.html?channel=${ch}&app=1`
+      : `/live-room.html?channel=${ch}&app=1`;
     const hot = index === 0 ? ' hot' : '';
     const top10 = index === 1 ? '<span class="tag tag-top10">TOP10 Hourly</span>' : '';
     const pk = index % 3 === 0 ? '<span class="pk-badge" aria-hidden="true">PK</span>' : '';
@@ -145,12 +144,18 @@
 
   function bindLiveCards(root) {
     (root || document).querySelectorAll('.social-live-card[data-href]').forEach((el) => {
-      const go = () => {
-        window.location.href = withAppQuery(el.dataset.href);
+      const go = (e) => {
+        if (e) e.preventDefault();
+        const href = withAppQuery(el.dataset.href);
+        if (href) window.location.href = href;
       };
       el.addEventListener('click', go);
+      el.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        go(e);
+      });
       el.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') go();
+        if (e.key === 'Enter') go(e);
       });
     });
   }
@@ -277,17 +282,23 @@
   }
 
   function goStartLive() {
-    const q = '?app=1&live=1';
     const user = window.Auth?.getUser?.();
     if (!user) {
       window.location.href = '/app-auth.html?app=1';
       return;
     }
-    if (user.role === 'worker') {
-      window.location.href = '/party.html' + q;
+    window.location.href = '/streamer-center.html?app=1';
+  }
+
+  function goStartParty() {
+    const user = window.Auth?.getUser?.();
+    if (!user) {
+      window.location.href = '/app-auth.html?app=1';
       return;
     }
-    window.location.href = '/party.html' + q;
+    const channel = 'party-' + (user.id || Date.now()).toString().replace(/[^a-zA-Z0-9]/g, '').slice(0, 12);
+    window.location.href =
+      '/party-room.html?host=1&channel=' + encodeURIComponent(channel) + '&app=1';
   }
 
   function renderEmptyState(cfg) {
@@ -325,6 +336,10 @@
   }
 
   async function fillSquareFeed() {
+    if (window.SocialInteractions?.renderSquareFeed) {
+      await SocialInteractions.renderSquareFeed('squareFeed');
+      return;
+    }
     const feed = document.getElementById('squareFeed');
     if (!feed) return;
     let posts = [];
@@ -395,7 +410,11 @@
     });
   }
 
-  function renderTopicsList(containerId, topics) {
+  function renderTopicsList(containerId) {
+    if (window.SocialInteractions?.renderTopics) {
+      SocialInteractions.renderTopics(containerId);
+      return;
+    }
     const list = document.getElementById(containerId);
     if (!list) return;
     const items = topics || [
@@ -460,6 +479,7 @@
     renderTopicsList,
     renderEmptyState,
     goStartLive,
+    goStartParty,
     fetchPros,
     getImageUrl,
     avatarFallback,

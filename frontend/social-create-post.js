@@ -2,6 +2,8 @@
  * Create post / moment — caption, media, @ # visibility (Public / Private).
  */
 (function () {
+  let pendingFile = null;
+
   function ensureOverlay() {
     let el = document.getElementById('social-create-overlay');
     if (el) return el;
@@ -19,7 +21,10 @@
           <button type="button" data-insert="@">@ Mention</button>
           <button type="button" data-insert="#"># Hashtag</button>
         </div>
-        <div class="social-create-preview" id="socialCreatePreview"><img alt="" id="socialCreatePreviewImg"></div>
+        <div class="social-create-preview" id="socialCreatePreview">
+          <img alt="" id="socialCreatePreviewImg">
+          <video id="socialCreatePreviewVideo" controls playsinline style="display:none;width:100%;max-height:200px;border-radius:12px"></video>
+        </div>
         <input type="file" id="socialCreateFile" accept="image/*,video/*" hidden>
         <div class="social-create-visibility">
           <label><input type="radio" name="socialVis" value="public" checked><span> Public</span></label>
@@ -49,12 +54,22 @@
     });
     fileInput.addEventListener('change', () => {
       const f = fileInput.files?.[0];
+      pendingFile = f || null;
       if (!f) return;
-      const url = URL.createObjectURL(f);
       const prev = document.getElementById('socialCreatePreview');
       const img = document.getElementById('socialCreatePreviewImg');
+      const vid = document.getElementById('socialCreatePreviewVideo');
       prev.style.display = 'block';
-      img.src = url;
+      const url = URL.createObjectURL(f);
+      if (f.type.startsWith('video/')) {
+        img.style.display = 'none';
+        vid.style.display = 'block';
+        vid.src = url;
+      } else {
+        vid.style.display = 'none';
+        img.style.display = 'block';
+        img.src = url;
+      }
     });
 
     el.querySelectorAll('[data-insert]').forEach((btn) => {
@@ -71,38 +86,43 @@
 
   function open() {
     const el = ensureOverlay();
+    pendingFile = null;
     document.getElementById('socialCreateCaption').value = '';
     document.getElementById('socialCreatePreview').style.display = 'none';
+    document.getElementById('socialCreateFile').value = '';
     document.querySelector('input[name="socialVis"][value="public"]').checked = true;
     el.classList.add('is-open');
   }
 
   function close() {
     document.getElementById('social-create-overlay')?.classList.remove('is-open');
+    pendingFile = null;
   }
 
-  function submit() {
+  async function submit() {
     const caption = document.getElementById('socialCreateCaption').value.trim();
     const vis = document.querySelector('input[name="socialVis"]:checked')?.value || 'public';
-    const posts = JSON.parse(localStorage.getItem('social_posts') || '[]');
-    const user = window.Auth?.getUser?.();
-    posts.unshift({
-      id: Date.now(),
-      caption,
-      visibility: vis,
-      userName: user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : 'You',
-      minsAgo: 0,
-      likes: 0,
-      comments: 0,
-      image: document.getElementById('socialCreatePreviewImg')?.src || '',
-    });
-    localStorage.setItem('social_posts', JSON.stringify(posts.slice(0, 50)));
-    close();
-    if (window.Toast?.show) Toast.show('Posted to Square!', 'success');
-    if ((window.location.pathname || '').endsWith('square.html')) {
-      window.location.reload();
-    } else {
-      window.location.href = '/square.html?app=1';
+    const btn = document.getElementById('socialCreatePost');
+    btn.disabled = true;
+    btn.textContent = 'Posting…';
+    try {
+      if (window.SocialInteractions?.savePostFromForm) {
+        await SocialInteractions.savePostFromForm(caption, vis, pendingFile);
+      } else {
+        throw new Error('Upload not ready');
+      }
+      close();
+      if (window.SocialInteractions?.toast) SocialInteractions.toast('Posted to Square!');
+      if ((window.location.pathname || '').endsWith('square.html')) {
+        await SocialInteractions.renderSquareFeed('squareFeed');
+      } else {
+        window.location.href = '/square.html?app=1';
+      }
+    } catch (err) {
+      alert(err.message || 'Could not post. Try a smaller photo/video.');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Post';
     }
   }
 

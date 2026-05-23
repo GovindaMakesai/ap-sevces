@@ -1,0 +1,765 @@
+/**
+ * Posts, likes, comments, gifts, share — Square + Video reels
+ */
+(function () {
+  const POSTS_KEY = 'social_posts';
+  const LIKES_KEY = 'social_likes';
+  const COMMENTS_KEY = 'social_comments';
+  const FOLLOWS_KEY = 'social_follows';
+  const IDB_NAME = 'ap_social_media';
+  const IDB_STORE = 'blobs';
+
+  const TOPIC_IMAGES = [
+    'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=400&q=80',
+    'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&q=80',
+    'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=400&q=80',
+    'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&q=80',
+    'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=400&q=80',
+    'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=400&q=80',
+  ];
+
+  function topicThumb(i) {
+    return TOPIC_IMAGES[i % TOPIC_IMAGES.length];
+  }
+
+  function toast(msg) {
+    if (window.SocialLive?.toast) return SocialLive.toast(msg);
+    let el = document.getElementById('socialToast');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'socialToast';
+      el.className = 'social-toast';
+      document.body.appendChild(el);
+    }
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(el._t);
+    el._t = setTimeout(() => el.classList.remove('show'), 2200);
+  }
+
+  function openIdb() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(IDB_NAME, 1);
+      req.onupgradeneeded = () => {
+        req.result.createObjectStore(IDB_STORE);
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async function saveBlob(id, blob) {
+    const db = await openIdb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).put(blob, id);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  async function loadBlob(id) {
+    const db = await openIdb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readonly');
+      const req = tx.objectStore(IDB_STORE).get(id);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async function getMediaUrl(post) {
+    if (!post) return '';
+    if (post.mediaId) {
+      const blob = await loadBlob(post.mediaId);
+      if (blob) return URL.createObjectURL(blob);
+    }
+    return post.image || post.thumb || '';
+  }
+
+  function getPosts() {
+    try {
+      return JSON.parse(localStorage.getItem(POSTS_KEY) || '[]');
+    } catch (_e) {
+      return [];
+    }
+  }
+
+  function savePosts(posts) {
+    localStorage.setItem(POSTS_KEY, JSON.stringify(posts.slice(0, 50)));
+  }
+
+  function getLikes() {
+    try {
+      return JSON.parse(localStorage.getItem(LIKES_KEY) || '{}');
+    } catch (_e) {
+      return {};
+    }
+  }
+
+  function setLike(postId, liked) {
+    const likes = getLikes();
+    likes[postId] = liked;
+    localStorage.setItem(LIKES_KEY, JSON.stringify(likes));
+  }
+
+  function isLiked(postId) {
+    return !!getLikes()[postId];
+  }
+
+  function getComments(postId) {
+    try {
+      const all = JSON.parse(localStorage.getItem(COMMENTS_KEY) || '{}');
+      return all[postId] || [];
+    } catch (_e) {
+      return [];
+    }
+  }
+
+  function addComment(postId, text) {
+    const all = JSON.parse(localStorage.getItem(COMMENTS_KEY) || '{}');
+    const user = window.Auth?.getUser?.();
+    const name = user
+      ? `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'You'
+      : 'You';
+    const list = all[postId] || [];
+    list.push({ id: Date.now(), user: name, text, at: Date.now() });
+    all[postId] = list;
+    localStorage.setItem(COMMENTS_KEY, JSON.stringify(all));
+    const posts = getPosts();
+    const p = posts.find((x) => String(x.id) === String(postId));
+    if (p) {
+      p.comments = list.length;
+      savePosts(posts);
+    }
+    return list.length;
+  }
+
+  function getFollows() {
+    try {
+      return JSON.parse(localStorage.getItem(FOLLOWS_KEY) || '[]');
+    } catch (_e) {
+      return [];
+    }
+  }
+
+  function toggleFollow(creatorId) {
+    const f = getFollows();
+    const i = f.indexOf(creatorId);
+    if (i >= 0) f.splice(i, 1);
+    else f.push(creatorId);
+    localStorage.setItem(FOLLOWS_KEY, JSON.stringify(f));
+    return i < 0;
+  }
+
+  function isFollowing(creatorId) {
+    return getFollows().includes(creatorId);
+  }
+
+  async function compressImage(file, maxW) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        let w = img.width;
+        let h = img.height;
+        const max = maxW || 900;
+        if (w > max) {
+          h = (h * max) / w;
+          w = max;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        canvas.toBlob(
+          (blob) => (blob ? resolve(blob) : reject(new Error('compress failed'))),
+          'image/jpeg',
+          0.82
+        );
+      };
+      img.onerror = reject;
+      img.src = url;
+    });
+  }
+
+  async function savePostFromForm(caption, visibility, file) {
+    const user = window.Auth?.getUser?.();
+    const id = Date.now();
+    const post = {
+      id,
+      caption,
+      visibility,
+      userName: user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'You' : 'You',
+      userId: user?.id || 'me',
+      minsAgo: 0,
+      likes: 0,
+      comments: 0,
+      gifts: 0,
+      shares: 0,
+      isVideo: false,
+      mediaId: null,
+      thumb: '',
+    };
+
+    if (file) {
+      post.isVideo = file.type.startsWith('video/');
+      if (post.isVideo && file.size > 8 * 1024 * 1024) {
+        throw new Error('Video must be under 8 MB. Try a shorter clip.');
+      }
+      let blob = file;
+      if (!post.isVideo) blob = await compressImage(file);
+      const mediaId = 'media-' + id;
+      await saveBlob(mediaId, blob);
+      post.mediaId = mediaId;
+      if (post.isVideo) {
+        post.thumb = TOPIC_IMAGES[0];
+      }
+    }
+
+    const posts = getPosts();
+    posts.unshift(post);
+    savePosts(posts);
+    return post;
+  }
+
+  function ensureCommentSheet() {
+    let el = document.getElementById('socialCommentSheet');
+    if (el) return el;
+    el = document.createElement('div');
+    el.id = 'socialCommentSheet';
+    el.className = 'social-comment-sheet';
+    el.innerHTML = `
+      <div class="social-comment-panel">
+        <div class="social-comment-head">
+          <h3>Comments</h3>
+          <button type="button" id="socialCommentClose"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="social-comment-list" id="socialCommentList"></div>
+        <div class="social-comment-input-row">
+          <input type="text" id="socialCommentInput" placeholder="Add a comment…" maxlength="280">
+          <button type="button" id="socialCommentSend">Post</button>
+        </div>
+      </div>`;
+    document.body.appendChild(el);
+    el.addEventListener('click', (e) => {
+      if (e.target === el) el.classList.remove('open');
+    });
+    document.getElementById('socialCommentClose').addEventListener('click', () => el.classList.remove('open'));
+    return el;
+  }
+
+  let commentPostId = null;
+
+  function openComments(postId) {
+    commentPostId = postId;
+    const sheet = ensureCommentSheet();
+    const list = document.getElementById('socialCommentList');
+    const comments = getComments(postId);
+    list.innerHTML = comments.length
+      ? comments
+          .map(
+            (c) =>
+              `<div class="social-comment-item"><strong>${escapeHtml(c.user)}</strong> ${escapeHtml(c.text)}</div>`
+          )
+          .join('')
+      : '<p class="social-comment-empty">No comments yet. Be the first!</p>';
+    sheet.classList.add('open');
+    document.getElementById('socialCommentSend').onclick = () => {
+      const inp = document.getElementById('socialCommentInput');
+      const t = (inp.value || '').trim();
+      if (!t) return;
+      const n = addComment(postId, t);
+      inp.value = '';
+      openComments(postId);
+      document.dispatchEvent(new CustomEvent('social:comment', { detail: { postId, count: n } }));
+      toast('Comment posted');
+    };
+  }
+
+  function escapeHtml(s) {
+    return String(s || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  async function sharePost(post) {
+    const url = location.origin + '/square.html?post=' + post.id + '&app=1';
+    const text = (post.caption || 'Check this out on AP Services').slice(0, 100);
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: 'AP Services', text, url });
+      } else {
+        await navigator.clipboard.writeText(url);
+        toast('Link copied');
+      }
+      const posts = getPosts();
+      const p = posts.find((x) => String(x.id) === String(post.id));
+      if (p) {
+        p.shares = (p.shares || 0) + 1;
+        savePosts(posts);
+      }
+      return true;
+    } catch (_e) {
+      toast('Share cancelled');
+      return false;
+    }
+  }
+
+  function sendGift(postId) {
+    const coins = parseInt(localStorage.getItem('social_coins') || '0', 10);
+    if (coins < 10) {
+      toast('Need coins — tap Recharge in Store');
+      setTimeout(() => (location.href = '/coins-recharge.html?app=1'), 600);
+      return;
+    }
+    localStorage.setItem('social_coins', String(coins - 10));
+    const posts = getPosts();
+    const p = posts.find((x) => String(x.id) === String(postId));
+    if (p) {
+      p.gifts = (p.gifts || 0) + 1;
+      savePosts(posts);
+    }
+    toast('Gift sent 🎁');
+    document.dispatchEvent(new CustomEvent('social:gift', { detail: { postId } }));
+  }
+
+  function profileUrl(item) {
+    if (item.workerId) return '/worker-profile.html?id=' + encodeURIComponent(item.workerId) + '&app=1';
+    return (
+      '/creator-profile.html?name=' +
+      encodeURIComponent(item.userName || item.name || 'Creator') +
+      '&app=1'
+    );
+  }
+
+  /** Video reels page */
+  let reelItems = [];
+  let reelIndex = 0;
+
+  async function buildReelItems(pros) {
+    const userPosts = getPosts().filter((p) => p.visibility !== 'private');
+    const fromPosts = await Promise.all(
+      userPosts.map(async (p, i) => ({
+        id: 'post-' + p.id,
+        postId: p.id,
+        name: p.userName,
+        userId: p.userId,
+        caption: p.caption || '',
+        likes: p.likes || 0,
+        comments: p.comments || 0,
+        gifts: p.gifts || 0,
+        shares: p.shares || 0,
+        isVideo: p.isVideo,
+        mediaUrl: await getMediaUrl(p),
+        thumb: p.thumb || (await getMediaUrl(p)),
+        workerId: null,
+      }))
+    );
+
+    const fromPros = pros.map((p, i) => ({
+      id: 'pro-' + (p.id || i),
+      postId: null,
+      name: p.name,
+      userId: p.id,
+      workerId: p.id,
+      caption: p.category || 'Follow for more 🔥',
+      likes: 200 + i * 47,
+      comments: 4 + i,
+      gifts: i % 3,
+      shares: 40 + i * 10,
+      isVideo: false,
+      mediaUrl: p.image,
+      thumb: p.image,
+    }));
+
+    return [...fromPosts, ...fromPros].filter((x) => x.mediaUrl || x.thumb);
+  }
+
+  function updateReelUI(item) {
+    if (!item) return;
+    reelIndex = reelItems.indexOf(item);
+    const avatar = document.getElementById('videoAvatar');
+    const name = document.getElementById('videoName');
+    const cap = document.getElementById('videoCaption');
+    const follow = document.getElementById('followBtn');
+    const likeBtn = document.querySelector('#reelActions [data-action="like"]');
+    const likeCount = document.getElementById('likeCount');
+
+    if (avatar) avatar.src = item.thumb || item.mediaUrl;
+    if (name) {
+      name.textContent = item.name;
+      name.style.cursor = 'pointer';
+      name.onclick = () => (location.href = profileUrl(item));
+    }
+    if (cap) cap.textContent = item.caption || '';
+    if (follow) {
+      const fid = item.workerId || item.userId || item.name;
+      const on = isFollowing(fid);
+      follow.textContent = on ? 'Following' : 'Follow';
+      follow.classList.toggle('is-following', on);
+      follow.onclick = () => {
+        const now = toggleFollow(fid);
+        follow.textContent = now ? 'Following' : 'Follow';
+        follow.classList.toggle('is-following', now);
+        toast(now ? 'Following ' + item.name : 'Unfollowed');
+      };
+    }
+
+    const liked = item.postId ? isLiked(item.postId) : false;
+    if (likeBtn) likeBtn.classList.toggle('is-liked', liked);
+    if (likeCount) likeCount.textContent = formatCount(item.likes || 0);
+
+    document.querySelector('#reelActions [data-action="comment"] .count').textContent = formatCount(
+      item.comments
+    );
+    document.querySelector('#reelActions [data-action="gift"] .count').textContent = formatCount(
+      item.gifts
+    );
+    document.querySelector('#reelActions [data-action="share"] .count').textContent = formatCount(
+      item.shares
+    );
+  }
+
+  function formatCount(n) {
+    n = Number(n) || 0;
+    if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+    return String(n);
+  }
+
+  async function initVideoPage(containerId) {
+    const wrap = document.getElementById(containerId);
+    if (!wrap) return;
+    const pros = window.SocialShell ? await SocialShell.fetchPros(8) : [];
+    reelItems = await buildReelItems(pros);
+    if (!reelItems.length) {
+      wrap.innerHTML = '<p style="color:#fff;text-align:center;padding:40px">No videos yet. Post from Square camera.</p>';
+      return;
+    }
+
+    wrap.innerHTML = `<div class="social-reels-scroll" id="reelsScroll">${reelItems
+      .map((item, i) => {
+        const media = item.isVideo
+          ? `<video src="${item.mediaUrl}" playsinline loop muted data-reel-video></video>`
+          : `<img src="${item.mediaUrl || item.thumb}" alt="">`;
+        return `<section class="social-reel-slide" data-index="${i}" data-item-id="${item.id}">
+          ${media}
+          <div class="social-reel-gradient"></div>
+        </section>`;
+      })
+      .join('')}</div>`;
+
+    const scroll = document.getElementById('reelsScroll');
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((en) => {
+          if (en.isIntersecting) {
+            const i = parseInt(en.target.dataset.index, 10);
+            reelItems[i] && updateReelUI(reelItems[i]);
+            en.target.querySelectorAll('video[data-reel-video]').forEach((v) => {
+              v.play().catch(() => {});
+            });
+          } else {
+            en.target.querySelectorAll('video[data-reel-video]').forEach((v) => v.pause());
+          }
+        });
+      },
+      { root: scroll, threshold: 0.6 }
+    );
+    scroll.querySelectorAll('.social-reel-slide').forEach((s) => observer.observe(s));
+
+    updateReelUI(reelItems[0]);
+
+    document.querySelector('#reelActions [data-action="like"]')?.addEventListener('click', () => {
+      const item = reelItems[reelIndex];
+      if (!item?.postId) {
+        item.likes += 1;
+        toast('Liked!');
+        updateReelUI(item);
+        return;
+      }
+      const liked = !isLiked(item.postId);
+      setLike(item.postId, liked);
+      const posts = getPosts();
+      const p = posts.find((x) => String(x.id) === String(item.postId));
+      if (p) {
+        p.likes = Math.max(0, (p.likes || 0) + (liked ? 1 : -1));
+        savePosts(posts);
+        item.likes = p.likes;
+      }
+      updateReelUI(item);
+    });
+
+    document.querySelector('#reelActions [data-action="comment"]')?.addEventListener('click', () => {
+      const item = reelItems[reelIndex];
+      if (item?.postId) openComments(item.postId);
+      else toast('Comments open for your posts — create one from Square');
+    });
+
+    document.querySelector('#reelActions [data-action="gift"]')?.addEventListener('click', () => {
+      const item = reelItems[reelIndex];
+      if (item?.postId) sendGift(item.postId);
+      else {
+        toast('Gift sent 🎁');
+        item.gifts = (item.gifts || 0) + 1;
+        updateReelUI(item);
+      }
+    });
+
+    document.querySelector('#reelActions [data-action="share"]')?.addEventListener('click', async () => {
+      const item = reelItems[reelIndex];
+      if (item?.postId) {
+        await sharePost(getPosts().find((x) => String(x.id) === String(item.postId)) || { id: item.postId, caption: item.caption });
+        item.shares = (item.shares || 0) + 1;
+      } else {
+        try {
+          await navigator.share?.({ title: item.name, url: profileUrl(item) });
+        } catch (_e) {
+          await navigator.clipboard.writeText(location.origin + profileUrl(item));
+          toast('Profile link copied');
+        }
+      }
+      updateReelUI(item);
+    });
+
+    document.getElementById('videoAvatar')?.addEventListener('click', () => {
+      const item = reelItems[reelIndex];
+      if (item) location.href = profileUrl(item);
+    });
+
+    document.getElementById('videoName')?.addEventListener('click', () => {
+      const item = reelItems[reelIndex];
+      if (item) location.href = profileUrl(item);
+    });
+  }
+
+  async function renderSquareFeed(container) {
+    const feed = typeof container === 'string' ? document.getElementById(container) : container;
+    if (!feed) return;
+
+    let posts = getPosts();
+    const pros = window.SocialShell ? await SocialShell.fetchPros(4) : [];
+    if (!posts.length) {
+      posts = pros.map((p, i) => ({
+        id: 'demo-' + i,
+        caption: i % 2 ? 'Great day! #APServices' : 'Book home services anytime',
+        userName: p.name,
+        minsAgo: 1 + i * 3,
+        likes: 12 + i,
+        comments: 2,
+        gifts: 0,
+        shares: 1,
+        image: p.image,
+        isVideo: false,
+        demo: true,
+      }));
+    }
+
+    const html = await Promise.all(
+      posts.map(async (p) => {
+        const url = p.demo ? p.image : await getMediaUrl(p);
+        const media = p.isVideo
+          ? `<video src="${url}" controls playsinline poster="${p.thumb || ''}"></video>`
+          : `<img src="${url || SocialShell?.avatarFallback(p.userName)}" alt="">`;
+        const liked = !p.demo && isLiked(p.id);
+        return `
+      <article class="social-post-card" data-post-id="${p.id}">
+        <div class="social-post-media">${media}
+          ${p.isVideo ? '<span class="play-badge"><i class="fas fa-play"></i></span>' : ''}
+        </div>
+        <div class="social-post-meta">${p.minsAgo || 1} mins ago</div>
+        <div class="social-post-actions">
+          <button type="button" class="social-act-btn" data-act="like" data-id="${p.id}"><i class="${liked ? 'fas' : 'far'} fa-heart"></i> <span>${p.likes || 0}</span></button>
+          <button type="button" class="social-act-btn" data-act="comment" data-id="${p.id}"><i class="far fa-comment"></i> <span>${p.comments || 0}</span></button>
+          <button type="button" class="social-act-btn" data-act="gift" data-id="${p.id}"><i class="fas fa-gift"></i> <span>${p.gifts || 0}</span></button>
+          <button type="button" class="social-act-btn" data-act="share" data-id="${p.id}"><i class="far fa-paper-plane"></i> <span>${p.shares || 0}</span></button>
+        </div>
+        <a class="social-post-user" href="${profileUrl({ userName: p.userName, userId: p.userId })}">
+          <img src="${url || SocialShell?.avatarFallback(p.userName)}" alt="">
+          <div>
+            <div class="social-post-user-name">${escapeHtml(p.userName)} 🇮🇳</div>
+            <div class="social-post-caption">${escapeHtml(p.caption || '')}</div>
+          </div>
+        </a>
+      </article>`;
+      })
+    );
+    feed.innerHTML = html.join('');
+
+    feed.querySelectorAll('[data-act="like"]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.id;
+        if (String(id).startsWith('demo-')) {
+          const s = btn.querySelector('span');
+          s.textContent = String(parseInt(s.textContent, 10) + 1);
+          btn.querySelector('i').className = 'fas fa-heart';
+          return;
+        }
+        const liked = !isLiked(id);
+        setLike(id, liked);
+        const posts = getPosts();
+        const p = posts.find((x) => String(x.id) === String(id));
+        if (p) {
+          p.likes = Math.max(0, (p.likes || 0) + (liked ? 1 : -1));
+          savePosts(posts);
+        }
+        btn.querySelector('i').className = liked ? 'fas fa-heart' : 'far fa-heart';
+        btn.querySelector('span').textContent = p?.likes || 0;
+      });
+    });
+    feed.querySelectorAll('[data-act="comment"]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (String(btn.dataset.id).startsWith('demo-')) return toast('Sign in & post to comment');
+        openComments(btn.dataset.id);
+      });
+    });
+    feed.querySelectorAll('[data-act="gift"]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (String(btn.dataset.id).startsWith('demo-')) return toast('Gift sent 🎁');
+        sendGift(btn.dataset.id);
+        const posts = getPosts();
+        const p = posts.find((x) => String(x.id) === String(btn.dataset.id));
+        if (p) btn.querySelector('span').textContent = p.gifts || 0;
+      });
+    });
+    feed.querySelectorAll('[data-act="share"]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.id;
+        if (String(id).startsWith('demo-')) return toast('Link copied');
+        const p = getPosts().find((x) => String(x.id) === String(id));
+        if (p) {
+          await sharePost(p);
+          btn.querySelector('span').textContent = p.shares || 0;
+        }
+      });
+    });
+  }
+
+  function renderTopics(containerId) {
+    const list = document.getElementById(containerId);
+    if (!list) return;
+    const items = [
+      { title: '#Holi Video Collection Event', heat: 529819, ended: false, img: TOPIC_IMAGES[0] },
+      { title: '#Jayfol Dance Challenge', heat: 412200, ended: false, img: TOPIC_IMAGES[1] },
+      { title: '#Home Pro Tips', heat: 210440, ended: true, img: TOPIC_IMAGES[2] },
+      { title: '#Live Party Moments', heat: 188900, ended: false, img: TOPIC_IMAGES[3] },
+    ];
+    list.innerHTML = items
+      .map(
+        (t, ti) => `
+      <section class="social-topic-block">
+        <div class="social-topic-head">
+          <img src="${t.img}" alt="" loading="lazy" onerror="this.src='${TOPIC_IMAGES[0]}'">
+          <div style="flex:1">
+            <h3 style="font-size:15px;color:var(--gold-800);margin-bottom:6px">${t.title}</h3>
+            <span class="social-flame"><i class="fas fa-fire"></i> ${t.heat.toLocaleString()}</span>
+          </div>
+          ${t.ended ? '<span style="color:#9ca3af;font-size:13px">ended</span>' : '<button type="button" class="social-join-btn" data-join-topic>join &gt;</button>'}
+        </div>
+        <div class="social-topic-videos">
+          ${[0, 1, 2, 3]
+            .map(
+              (n) =>
+                `<button type="button" class="thumb" data-go-video data-topic="${ti}">
+                  <img src="${topicThumb(ti * 4 + n)}" alt="" loading="lazy" onerror="this.src='${TOPIC_IMAGES[0]}'">
+                  <i class="fas fa-play"></i>
+                </button>`
+            )
+            .join('')}
+        </div>
+      </section>`
+      )
+      .join('');
+    list.querySelectorAll('[data-join-topic]').forEach((b) => {
+      b.addEventListener('click', () => (location.href = '/video.html?app=1'));
+    });
+    list.querySelectorAll('[data-go-video]').forEach((b) => {
+      b.addEventListener('click', () => (location.href = '/video.html?app=1'));
+    });
+  }
+
+  function initRankingsPage() {
+    const tab = new URLSearchParams(location.search).get('tab') || 'host';
+    document.querySelectorAll('.social-rank-main-tab').forEach((a) => {
+      a.classList.toggle('active', a.dataset.tab === tab);
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        history.replaceState(null, '', '/rankings.html?tab=' + a.dataset.tab + '&app=1');
+        document.querySelectorAll('.social-rank-main-tab').forEach((x) => x.classList.remove('active'));
+        a.classList.add('active');
+        document.querySelectorAll('[data-rank-panel]').forEach((p) => {
+          p.style.display = p.dataset.rankPanel === tab ? 'block' : 'none';
+        });
+      });
+    });
+
+    document.querySelectorAll('.social-rank-sub-tab').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.social-rank-sub-tab').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+      });
+    });
+
+    document.querySelectorAll('[data-rank-panel]').forEach((p) => {
+      p.style.display = p.dataset.rankPanel === tab ? 'block' : 'none';
+    });
+  }
+
+  function initVipPage() {
+    const tier = new URLSearchParams(location.search).get('tier') || 'svip';
+    const mainTab = new URLSearchParams(location.search).get('tab') || 'vip';
+    const tiers = {
+      normal: { name: 'Normal VIP', price: '1,290,000', emoji: '🥉' },
+      super: { name: 'Super VIP', price: '3,990,000', emoji: '🥈' },
+      diamond: { name: 'Diamond VIP', price: '8,990,000', emoji: '💎' },
+      svip: { name: 'SVIP', price: '12,990,000', emoji: '👑' },
+    };
+    const t = tiers[tier] || tiers.svip;
+
+    document.querySelectorAll('.social-vip-tier-tabs a').forEach((a) => {
+      const active = a.dataset.tier === tier;
+      a.classList.toggle('active', active);
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        history.replaceState(null, '', '/vip.html?tier=' + a.dataset.tier + '&app=1');
+        initVipPage();
+      });
+    });
+
+    document.querySelectorAll('.social-vip-tabs a').forEach((a) => {
+      a.classList.toggle('active', (a.dataset.vtab || 'vip') === mainTab);
+      a.addEventListener('click', (e) => {
+        if (a.dataset.vtab === 'guardian') return;
+        e.preventDefault();
+      });
+    });
+
+    const card = document.getElementById('vipTierCard');
+    if (card) {
+      card.innerHTML = `
+        <div>
+          <h2 style="font-size:28px;font-weight:800;color:var(--gold-700)">${t.name}</h2>
+          <p style="color:var(--gold-600);font-size:14px;margin-top:8px">🪙 ${t.price} / Y</p>
+          <p style="color:#8b6914;font-size:12px">Get VIP &amp; Enjoy Privileges</p>
+        </div>
+        <div style="font-size:56px">${t.emoji}</div>`;
+    }
+  }
+
+  window.SocialInteractions = {
+    getPosts,
+    savePostFromForm,
+    renderSquareFeed,
+    initVideoPage,
+    renderTopics,
+    initRankingsPage,
+    initVipPage,
+    topicThumb,
+    TOPIC_IMAGES,
+    toast,
+    openComments,
+    profileUrl,
+  };
+})();

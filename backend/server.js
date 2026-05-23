@@ -12,10 +12,12 @@ const passport = require('passport');
 const { Server } = require('socket.io');
 const notificationRoutes = require('./routes/notifications');
 const messageRoutes = require('./routes/messages');
+const liveRoutes = require('./routes/live');
 const { connectMongo } = require('./config/mongodb');
 const { ensureChatSchema } = require('./config/ensureChatSchema');
 const { ensurePaymentSchema } = require('./config/ensurePaymentSchema');
 const { registerChatSocket } = require('./socket/chatSocket');
+const { registerLiveSocket } = require('./socket/liveSocket');
 
 const { storage } = require('./config/cloudinary');
 const upload = multer({ storage });
@@ -29,7 +31,6 @@ const serviceRoutes = require('./routes/services');
 const bookingRoutes = require('./routes/bookings');
 const reviewRoutes = require('./routes/reviews');
 const adminRoutes = require('./routes/admin');
-const liveRoutes = require('./routes/live');
 
 const app = express();
 const server = http.createServer(app);
@@ -140,6 +141,7 @@ const io = new Server(server, {
 
 app.set('io', io);
 registerChatSocket(io);
+registerLiveSocket(io);
 connectMongo();
 
 async function startServer() {

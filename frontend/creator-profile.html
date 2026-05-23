@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#fdf9f0">
+  <title>Creator - AP Services</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="social-theme.css">
+  <link rel="stylesheet" href="social-features.css">
+</head>
+<body class="social-profile-page">
+  <header class="social-store-header">
+    <a href="javascript:history.back()" class="social-icon-btn"><i class="fas fa-arrow-left"></i></a>
+    <h1 id="creatorTitle">Creator</h1>
+    <span style="width:36px"></span>
+  </header>
+
+  <section class="creator-hero" id="creatorHero"></section>
+  <h3 class="creator-section-title">Recent posts</h3>
+  <div class="social-post-feed" id="creatorPosts"></div>
+  <div id="social-bottom-nav-mount"></div>
+
+  <script src="app.js"></script>
+  <script src="social-interactions.js"></script>
+  <script src="social-shell.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      SocialShell.initPage({ activeNav: 'video' });
+      const name = decodeURIComponent(new URLSearchParams(location.search).get('name') || 'Creator');
+      document.getElementById('creatorTitle').textContent = name;
+      const follows = JSON.parse(localStorage.getItem('social_follows') || '[]');
+      const following = follows.includes(name);
+      document.getElementById('creatorHero').innerHTML = `
+        <img class="creator-avatar" src="https://ui-avatars.com/api/?name=${encodeURIComponent(name.slice(0,2))}&background=c9a227&color=fff&size=128" alt="">
+        <h2>${name} 🇮🇳</h2>
+        <button type="button" class="creator-follow-btn ${following ? 'is-on' : ''}" id="creatorFollow">${following ? 'Following' : 'Follow'}</button>`;
+      document.getElementById('creatorFollow').onclick = () => {
+        const f = JSON.parse(localStorage.getItem('social_follows') || '[]');
+        const i = f.indexOf(name);
+        if (i >= 0) f.splice(i, 1); else f.push(name);
+        localStorage.setItem('social_follows', JSON.stringify(f));
+        location.reload();
+      };
+      const posts = (SocialInteractions.getPosts() || []).filter((p) => p.userName === name);
+      const feed = document.getElementById('creatorPosts');
+      if (!posts.length) {
+        feed.innerHTML = '<p style="text-align:center;padding:24px;color:#8b6914">No posts yet.</p>';
+      } else {
+        await SocialInteractions.renderSquareFeed(feed);
+        feed.querySelectorAll('.social-post-card').forEach((el) => {
+          if (!posts.find((p) => String(p.id) === el.dataset.postId)) el.remove();
+        });
+      }
+    });
+  </script>
+</body>
+</html>

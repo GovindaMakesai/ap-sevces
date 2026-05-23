@@ -29,10 +29,18 @@
 
   <div id="social-banner-slider"></div>
 
-  <p class="social-page-label" style="padding:0 14px 8px;font-size:13px;color:#8b6914;margin:0">Live party rooms — not the services marketplace</p>
+  <div class="party-start-banner">
+    <div>
+      <strong>Voice party room</strong>
+      <p>Up to 25 seats · gifts · chat</p>
+    </div>
+    <button type="button" class="party-start-banner-btn" id="partyStartTop">Start Party</button>
+  </div>
+
+  <p class="social-page-label" style="padding:0 14px 8px;font-size:13px;color:#8b6914;margin:0">Join a room or start your own</p>
   <div class="social-grid" id="partyGrid"></div>
 
-  <button type="button" class="social-start-live social-fab-party" id="partyFab"><i class="fas fa-video"></i> PARTY</button>
+  <button type="button" class="social-start-live social-fab-party" id="partyFab"><i class="fas fa-users"></i> Start Party</button>
   <div id="social-bottom-nav-mount"></div>
 
   <script src="app.js"></script>
@@ -42,10 +50,19 @@
   <script src="social-shell.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', () => {
+      const p = new URLSearchParams(location.search);
+      if (p.get('live') === '1') {
+        SocialShell.goStartParty();
+        return;
+      }
       SocialShell.initPage({ activeNav: 'party', gridId: 'partyGrid', gridLimit: 12, partyGrid: true });
       document.getElementById('partyFab')?.addEventListener('click', (e) => {
         e.preventDefault();
-        SocialShell.goStartLive();
+        SocialShell.goStartParty();
+      });
+      document.getElementById('partyStartTop')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        SocialShell.goStartParty();
       });
     });
   </script>

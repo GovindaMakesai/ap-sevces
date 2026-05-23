@@ -42,9 +42,9 @@
 
   <div class="social-wallet-bar">
     <span>🪙 <strong id="coins">0</strong></span>
-    <a href="/payment.html" style="background:#3b82f6;color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;text-decoration:none">+</a>
+    <a href="/coins-recharge.html?app=1" style="background:linear-gradient(135deg,#e8c56a,#c9a227);color:#3d2e08;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;text-decoration:none;font-weight:800">+</a>
     <span style="margin-left:8px">🎫 <strong>0</strong></span>
-    <a href="/payment.html" style="background:#3b82f6;color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;text-decoration:none">+</a>
+    <a href="/coins-recharge.html?app=1" style="background:linear-gradient(135deg,#e8c56a,#c9a227);color:#3d2e08;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;text-decoration:none;font-weight:800">+</a>
     <a href="/customer-dashboard.html" style="margin-left:auto;font-size:22px;text-decoration:none" title="Bag">🎒</a>
   </div>
 
@@ -57,7 +57,7 @@
       <p><strong>Validity Period:</strong> <span class="social-pill-tag">30 Days</span></p>
       <p style="margin:12px 0"><strong>Payment Method:</strong> 🪙 Coins</p>
       <p style="font-size:22px;font-weight:800;margin:16px 0" id="sheetPrice">18,000 🪙</p>
-      <a href="/payment.html" class="social-btn-orange">Go to Recharge</a>
+      <a href="/coins-recharge.html?app=1" class="social-btn-orange">Scan QR to Recharge</a>
       <button type="button" style="width:100%;margin-top:12px;padding:12px;border:none;background:#f3f4f6;border-radius:12px;cursor:pointer" onclick="document.getElementById('itemSheet').classList.remove('open')">Close</button>
     </div>
   </div>
@@ -84,6 +84,8 @@
       </a>`;
     }
     document.addEventListener('DOMContentLoaded', () => {
+      const coinsEl = document.getElementById('coins');
+      if (coinsEl) coinsEl.textContent = String(parseInt(localStorage.getItem('social_coins') || '0', 10) || 0);
       SocialShell.initPage({ activeNav: 'explore' });
       document.getElementById('storeGridNew').innerHTML = ITEMS.slice(0, 3).map(renderItem).join('');
       document.getElementById('storeGrid').innerHTML = ITEMS.map(renderItem).join('');
