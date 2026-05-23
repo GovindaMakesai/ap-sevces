@@ -62,7 +62,9 @@ html.social-app .navbar-actions {
   --social-header-h: 52px;
   --social-tabs-h: 44px;
   --social-bottom-nav-h: 62px;
+  --social-safe-top: env(safe-area-inset-top, 0px);
   --social-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --social-video-tabs-h: calc(52px + env(safe-area-inset-top, 0px));
   --radius-pill: 999px;
   --radius-card: 14px;
   --shadow-card: 0 4px 16px rgba(107, 79, 16, 0.08);
@@ -91,8 +93,38 @@ html.social-app body {
   z-index: 100;
   background: linear-gradient(180deg, #fdf9f0 0%, rgba(250, 246, 238, 0.98) 88%);
   background-image: var(--damask), linear-gradient(180deg, #fdf9f0 0%, rgba(250, 246, 238, 0.98) 88%);
-  padding: max(8px, env(safe-area-inset-top)) 12px 0;
+  padding: max(10px, var(--social-safe-top)) 12px 8px;
   border-bottom: 1px solid rgba(201, 162, 39, 0.12);
+}
+
+/* Tab pages: square, topics — content never slides under notch */
+body.social-tabs-page {
+  padding-top: 0;
+}
+
+body.social-tabs-page .social-top {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+}
+
+body.social-tabs-page .social-tabs-spacer {
+  height: var(--social-video-tabs-h);
+  flex-shrink: 0;
+}
+
+body.social-tabs-page .social-post-feed,
+body.social-tabs-page #topicsList {
+  padding-top: calc(var(--social-video-tabs-h) + 8px);
+}
+
+body.social-tabs-page #social-banner-slider {
+  padding-top: calc(var(--social-video-tabs-h) + 4px);
+}
+
+body.social-tabs-page #social-banner-slider + .social-post-feed {
+  padding-top: 0;
 }
 
 .social-main-tabs {
@@ -668,6 +700,13 @@ html.social-app body {
 .social-video-page {
   background: #000;
   padding-bottom: 0 !important;
+  padding-top: 0 !important;
+  overflow: hidden;
+}
+
+html.social-video-page.social-bridge-mode body,
+html.social-video-page.social-native body {
+  padding-top: 0 !important;
 }
 
 .social-video-page .social-bottom-nav {
@@ -689,8 +728,10 @@ html.social-app body {
   left: 0;
   right: 0;
   z-index: 50;
-  padding: 12px 8px 8px;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.5) 0%, transparent 100%);
+  padding: max(10px, var(--social-safe-top)) 8px 8px;
+  min-height: var(--social-video-tabs-h);
+  box-sizing: border-box;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.72) 0%, rgba(0, 0, 0, 0.35) 70%, transparent 100%);
 }
 
 .social-video-top .social-main-tabs a,
@@ -723,13 +764,14 @@ html.social-app body {
 .social-video-actions {
   position: fixed;
   right: 12px;
-  bottom: 120px;
-  z-index: 60;
+  bottom: calc(var(--social-bottom-nav-h) + var(--social-safe-bottom) + 88px);
+  z-index: 250;
   display: flex;
   flex-direction: column;
   gap: 20px;
   align-items: center;
   pointer-events: auto;
+  touch-action: manipulation;
 }
 
 .social-video-actions button {
@@ -766,7 +808,7 @@ html.social-app body {
   left: 12px;
   right: 80px;
   bottom: calc(var(--social-bottom-nav-h) + var(--social-safe-bottom) + 12px);
-  z-index: 55;
+  z-index: 250;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1198,12 +1240,131 @@ html.social-app body {
   background: var(--orange-cta);
   color: #fff;
   border: none;
-  padding: 6px 14px;
+  padding: 8px 16px;
   border-radius: var(--radius-pill);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   cursor: pointer;
   text-decoration: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Topic watch page */
+.social-topic-watch-page {
+  background: var(--cream-bg);
+  padding-bottom: calc(var(--social-bottom-nav-h) + var(--social-safe-bottom) + 16px);
+}
+
+.social-topic-watch-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: max(10px, var(--social-safe-top)) 12px 10px;
+  background: linear-gradient(180deg, #fffdf8 0%, rgba(255, 253, 248, 0.96) 100%);
+  border-bottom: 1px solid var(--gold-200);
+}
+
+.social-topic-watch-header h1 {
+  flex: 1;
+  text-align: center;
+  font-size: 17px;
+  color: var(--gold-800);
+  margin: 0;
+}
+
+.social-topic-watch-body {
+  padding-top: calc(var(--social-video-tabs-h) + 8px);
+}
+
+.social-topic-hero {
+  margin: 0 16px 12px;
+  border-radius: 16px;
+  overflow: hidden;
+  aspect-ratio: 16/9;
+  background: #1a1a1a;
+}
+
+.social-topic-hero img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.social-topic-desc {
+  padding: 0 16px 16px;
+  font-size: 14px;
+  color: #8b6914;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.social-topic-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 16px 20px;
+}
+
+.social-btn-outline {
+  display: block;
+  width: 100%;
+  padding: 14px;
+  border: 2px solid var(--gold-400);
+  background: #fff;
+  color: var(--gold-800);
+  border-radius: var(--radius-pill);
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+  text-align: center;
+}
+
+.social-topic-grid-title {
+  padding: 0 16px 10px;
+  font-size: 15px;
+  color: var(--gold-800);
+  margin: 0;
+}
+
+.social-topic-moment-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  padding: 0 16px 24px;
+}
+
+.social-topic-moment {
+  position: relative;
+  border: none;
+  padding: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  aspect-ratio: 3/4;
+  background: #111;
+  cursor: pointer;
+}
+
+.social-topic-moment img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.social-topic-moment span {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.25);
+  color: #fff;
+  font-size: 28px;
 }
 
 .social-flame {

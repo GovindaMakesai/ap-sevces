@@ -193,6 +193,10 @@
       "dest": "/frontend/social-interactions.js"
     },
     {
+      "src": "/social-ui.js",
+      "dest": "/frontend/social-ui.js"
+    },
+    {
       "src": "/creator-profile.html",
       "dest": "/frontend/creator-profile.html"
     },

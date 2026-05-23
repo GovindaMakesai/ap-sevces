@@ -64,7 +64,9 @@ exports.optionalAuth = (req, res, next) => {
 };
 
 
-// Role authorization middleware
+// Role authorization middleware (legacy users.role + expanded hierarchy)
+const ADMIN_ROLES = ['admin', 'super_admin', 'founder', 'ceo'];
+
 exports.authorizeRoles = (...roles) => {
     return (req, res, next) => {
 
@@ -75,7 +77,12 @@ exports.authorizeRoles = (...roles) => {
             });
         }
 
-        if (!roles.includes(req.userRole)) {
+        const allowed = new Set(roles);
+        if (roles.includes('admin')) {
+            ADMIN_ROLES.forEach((r) => allowed.add(r));
+        }
+
+        if (!allowed.has(req.userRole)) {
             return res.status(403).json({
                 success: false,
                 message: `Access denied. Required role: ${roles.join(' or ')}`

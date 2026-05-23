@@ -68,6 +68,67 @@
     });
   }
 
+  function canViewPost(post) {
+    if (!post || post.demo) return true;
+    if (post.visibility !== 'private') return true;
+    const user = window.Auth?.getUser?.();
+    const uid = user?.id || user?.email;
+    if (!uid) return false;
+    return String(post.userId) === String(uid) || post.userId === 'me';
+  }
+
+  function deletePost(postId) {
+    const posts = getPosts().filter((p) => String(p.id) !== String(postId));
+    savePosts(posts);
+  }
+
+  async function generateVideoThumb(file) {
+    return new Promise((resolve) => {
+      try {
+        const video = document.createElement('video');
+        video.preload = 'metadata';
+        video.muted = true;
+        video.playsInline = true;
+        const url = URL.createObjectURL(file);
+        video.onloadeddata = () => {
+          video.currentTime = Math.min(0.25, (video.duration || 1) * 0.05);
+        };
+        video.onseeked = () => {
+          const w = video.videoWidth || 720;
+          const h = video.videoHeight || 1280;
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          canvas.getContext('2d').drawImage(video, 0, 0, w, h);
+          URL.revokeObjectURL(url);
+          resolve(canvas.toDataURL('image/jpeg', 0.82));
+        };
+        video.onerror = () => {
+          URL.revokeObjectURL(url);
+          resolve('');
+        };
+        video.src = url;
+      } catch (_e) {
+        resolve('');
+      }
+    });
+  }
+
+  function markMediaOrientation(el) {
+    if (!el) return;
+    const apply = () => {
+      if (!el.videoWidth && !el.naturalWidth) return;
+      const w = el.videoWidth || el.naturalWidth;
+      const h = el.videoHeight || el.naturalHeight;
+      el.classList.toggle('is-portrait', h > w * 1.05);
+    };
+    if (el.tagName === 'VIDEO') {
+      el.addEventListener('loadedmetadata', apply);
+    } else {
+      el.addEventListener('load', apply);
+    }
+  }
+
   async function getMediaUrl(post) {
     if (!post) return '';
     if (post.imageData) return post.imageData;
@@ -176,7 +237,7 @@
     return nowFollowing;
   }
 
-  function getFollowStats(userId) {
+  async function getFollowStats(userId) {
     const following = getFollows().length;
     let followers = 0;
     try {
@@ -189,7 +250,11 @@
         followers = Object.values(map).filter((arr) => arr.some((x) => String(x) === me)).length;
       }
     } catch (_e) {}
-    const coins = parseInt(localStorage.getItem('social_coins') || '0', 10) || 0;
+    let coins = 0;
+    if (window.SocialWallet) {
+      const b = await SocialWallet.fetchBalance();
+      coins = b.coin_balance || 0;
+    }
     return { following, followers, coins };
   }
 
@@ -275,6 +340,10 @@
       }
       let blob = file;
       if (!post.isVideo) blob = await compressImage(file);
+      else {
+        const thumb = await generateVideoThumb(file);
+        if (thumb) post.thumb = thumb;
+      }
       const mediaId = 'media-' + id;
       const stored = await storeMediaBlob(mediaId, blob);
       if (typeof stored === 'string') {
@@ -316,10 +385,71 @@
     return el;
   }
 
+  function getReelStats() {
+    try {
+      return JSON.parse(localStorage.getItem('social_reel_stats') || '{}');
+    } catch (_e) {
+      return {};
+    }
+  }
+
+  function saveReelStats(stats) {
+    localStorage.setItem('social_reel_stats', JSON.stringify(stats));
+  }
+
+  function reelKey(item) {
+    return String(item?.postId || item?.id || 'reel');
+  }
+
+  function ensureStarterCoins() {
+    /* Balances come from backend wallet — no client-side seeding */
+    if (window.SocialWallet) SocialWallet.fetchBalance(true);
+  }
+
+  function openCommentsForItem(item) {
+    const key = reelKey(item);
+    if (item?.postId) {
+      openComments(item.postId);
+      return;
+    }
+    commentPostId = key;
+    const sheet = ensureCommentSheet();
+    const list = document.getElementById('socialCommentList');
+    const stats = getReelStats();
+    const comments = stats[key]?.comments || [];
+    list.innerHTML = comments.length
+      ? comments
+          .map(
+            (c) =>
+              `<div class="social-comment-item"><strong>${escapeHtml(c.user)}</strong> ${escapeHtml(c.text)}</div>`
+          )
+          .join('')
+      : '<p class="social-comment-empty">No comments yet. Be the first!</p>';
+    sheet.classList.add('open');
+    document.getElementById('socialCommentSend').onclick = () => {
+      const inp = document.getElementById('socialCommentInput');
+      const t = (inp.value || '').trim();
+      if (!t) return;
+      const user = window.Auth?.getUser?.();
+      const name = user
+        ? `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'You'
+        : 'You';
+      const all = getReelStats();
+      if (!all[key]) all[key] = { comments: [], likes: 0, gifts: 0, shares: 0, liked: false };
+      all[key].comments = all[key].comments || [];
+      all[key].comments.push({ user: name, text: t, at: Date.now() });
+      saveReelStats(all);
+      item.comments = all[key].comments.length;
+      inp.value = '';
+      openCommentsForItem(item);
+      updateReelUI(item);
+      toast('Comment posted');
+    };
+  }
+
   let commentPostId = null;
 
   function openComments(postId) {
-    commentPostId = postId;
     const sheet = ensureCommentSheet();
     const list = document.getElementById('socialCommentList');
     const comments = getComments(postId);
@@ -374,22 +504,38 @@
     }
   }
 
-  function sendGift(postId) {
-    const coins = parseInt(localStorage.getItem('social_coins') || '0', 10);
-    if (coins < 10) {
-      toast('Need coins — tap Recharge in Store');
-      setTimeout(() => (location.href = '/coins-recharge.html?app=1'), 600);
+  async function sendGift(postId) {
+    if (!window.SocialWallet) {
+      toast('Please log in to send gifts');
       return;
     }
-    localStorage.setItem('social_coins', String(coins - 10));
     const posts = getPosts();
     const p = posts.find((x) => String(x.id) === String(postId));
-    if (p) {
-      p.gifts = (p.gifts || 0) + 1;
-      savePosts(posts);
+    const receiverId = p?.userId;
+    if (!receiverId || receiverId === 'me') {
+      toast('Cannot send gift to this post');
+      return;
     }
-    toast('Gift sent 🎁');
-    document.dispatchEvent(new CustomEvent('social:gift', { detail: { postId } }));
+    try {
+      await SocialWallet.sendGift({
+        receiver_id: receiverId,
+        coin_amount: 10,
+        gift_type: 'post_gift',
+      });
+      if (p) {
+        p.gifts = (p.gifts || 0) + 1;
+        savePosts(posts);
+      }
+      toast('Gift sent 🎁');
+      document.dispatchEvent(new CustomEvent('social:gift', { detail: { postId } }));
+    } catch (e) {
+      if (e.status === 400 || /insufficient/i.test(e.message)) {
+        toast('Need coins — tap Recharge in Store');
+        setTimeout(() => (location.href = '/coins-recharge.html?app=1'), 600);
+      } else {
+        toast(e.message || 'Gift failed');
+      }
+    }
   }
 
   function profileUrl(item) {
@@ -406,7 +552,7 @@
   let reelIndex = 0;
 
   async function buildReelItems(pros) {
-    const userPosts = getPosts().filter((p) => p.visibility !== 'private');
+    const userPosts = getPosts().filter((p) => canViewPost(p));
     const fromPosts = await Promise.all(
       userPosts.map(async (p, i) => ({
         id: 'post-' + p.id,
@@ -479,7 +625,9 @@
       };
     }
 
-    const liked = item.postId ? isLiked(item.postId) : false;
+    const liked = item.postId
+      ? isLiked(item.postId)
+      : !!getReelStats()[reelKey(item)]?.liked;
     if (likeBtn) likeBtn.classList.toggle('is-liked', liked);
     if (likeCount) likeCount.textContent = formatCount(item.likes || 0);
 
@@ -501,6 +649,7 @@
   }
 
   async function initVideoPage(containerId) {
+    ensureStarterCoins();
     const wrap = document.getElementById(containerId);
     if (!wrap) return;
     const pros = window.SocialShell ? await SocialShell.fetchPros(8) : [];
@@ -510,10 +659,21 @@
       return;
     }
 
+    const stats = getReelStats();
+    reelItems.forEach((item) => {
+      const s = stats[reelKey(item)];
+      if (s) {
+        if (s.likes) item.likes = Math.max(item.likes || 0, s.likes);
+        if (s.comments?.length) item.comments = s.comments.length;
+        if (s.gifts) item.gifts = Math.max(item.gifts || 0, s.gifts);
+        if (s.shares) item.shares = Math.max(item.shares || 0, s.shares);
+      }
+    });
+
     wrap.innerHTML = `<div class="social-reels-scroll" id="reelsScroll">${reelItems
       .map((item, i) => {
         const media = item.isVideo
-          ? `<video src="${item.mediaUrl}" playsinline loop muted data-reel-video></video>`
+          ? `<video src="${item.mediaUrl}" playsinline loop muted data-reel-video poster="${item.thumb || ''}"></video>`
           : `<img src="${item.mediaUrl || item.thumb}" alt="">`;
         return `<section class="social-reel-slide" data-index="${i}" data-item-id="${item.id}">
           ${media}
@@ -541,77 +701,10 @@
     );
     scroll.querySelectorAll('.social-reel-slide').forEach((s) => observer.observe(s));
 
+    scroll.querySelectorAll('.social-reel-slide video, .social-reel-slide img').forEach((el) => markMediaOrientation(el));
+
     updateReelUI(reelItems[0]);
-
-    function bindReelAction(sel, handler) {
-      const btn = document.querySelector(sel);
-      if (!btn) return;
-      const run = (e) => {
-        if (e) {
-          e.preventDefault();
-          e.stopPropagation();
-        }
-        handler();
-      };
-      btn.addEventListener('click', run);
-      btn.addEventListener('touchend', run, { passive: false });
-    }
-
-    bindReelAction('#reelActions [data-action="like"]', () => {
-      const item = reelItems[reelIndex];
-      if (!item?.postId) {
-        item.likes += 1;
-        toast('Liked!');
-        updateReelUI(item);
-        return;
-      }
-      const liked = !isLiked(item.postId);
-      setLike(item.postId, liked);
-      const posts = getPosts();
-      const p = posts.find((x) => String(x.id) === String(item.postId));
-      if (p) {
-        p.likes = Math.max(0, (p.likes || 0) + (liked ? 1 : -1));
-        savePosts(posts);
-        item.likes = p.likes;
-      }
-      updateReelUI(item);
-    });
-
-    bindReelAction('#reelActions [data-action="comment"]', () => {
-      const item = reelItems[reelIndex];
-      if (item?.postId) openComments(item.postId);
-      else toast('Comments open for your posts — create one from Square');
-    });
-
-    bindReelAction('#reelActions [data-action="gift"]', () => {
-      const item = reelItems[reelIndex];
-      if (item?.postId) sendGift(item.postId);
-      else {
-        toast('Gift sent 🎁');
-        item.gifts = (item.gifts || 0) + 1;
-        updateReelUI(item);
-      }
-    });
-
-    bindReelAction('#reelActions [data-action="share"]', async () => {
-      const item = reelItems[reelIndex];
-      if (item?.postId) {
-        await sharePost(getPosts().find((x) => String(x.id) === String(item.postId)) || { id: item.postId, caption: item.caption });
-        item.shares = (item.shares || 0) + 1;
-      } else {
-        try {
-          await navigator.share?.({ title: item.name, url: profileUrl(item) });
-        } catch (_e) {
-          await navigator.clipboard.writeText(location.origin + profileUrl(item));
-          toast('Profile link copied');
-        }
-      }
-      updateReelUI(item);
-    });
-
-    document.getElementById('followBtn')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-    });
+    bindReelActionsPanel();
 
     document.getElementById('videoAvatar')?.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -628,11 +721,115 @@
     if (window.SocialUI) SocialUI.bindAvatarFallbacks(document);
   }
 
+  function bindReelActionsPanel() {
+    const panel = document.getElementById('reelActions');
+    if (!panel || panel.dataset.bound) return;
+    panel.dataset.bound = '1';
+
+    panel.addEventListener(
+      'click',
+      (e) => {
+        const btn = e.target.closest('[data-action]');
+        if (!btn || !panel.contains(btn)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        handleReelAction(btn.dataset.action);
+      },
+      true
+    );
+  }
+
+  async function handleReelAction(action) {
+    const item = reelItems[reelIndex];
+    if (!item) return;
+    const key = reelKey(item);
+    const stats = getReelStats();
+    if (!stats[key]) stats[key] = { comments: [], likes: 0, gifts: 0, shares: 0, liked: false };
+
+    if (action === 'like') {
+      if (item.postId) {
+        const liked = !isLiked(item.postId);
+        setLike(item.postId, liked);
+        const posts = getPosts();
+        const p = posts.find((x) => String(x.id) === String(item.postId));
+        if (p) {
+          p.likes = Math.max(0, (p.likes || 0) + (liked ? 1 : -1));
+          savePosts(posts);
+          item.likes = p.likes;
+        }
+      } else {
+        stats[key].liked = !stats[key].liked;
+        item.likes = Math.max(0, (item.likes || 0) + (stats[key].liked ? 1 : -1));
+        stats[key].likes = item.likes;
+        saveReelStats(stats);
+      }
+      toast(stats[key]?.liked || isLiked(item.postId) ? 'Liked!' : 'Unliked');
+      updateReelUI(item);
+      return;
+    }
+
+    if (action === 'comment') {
+      openCommentsForItem(item);
+      return;
+    }
+
+    if (action === 'gift') {
+      ensureStarterCoins();
+      if (item.postId) {
+        await sendGift(item.postId);
+      } else if (item.userId && window.SocialWallet) {
+        try {
+          await SocialWallet.sendGift({
+            receiver_id: item.userId,
+            coin_amount: 10,
+            gift_type: 'reel_gift',
+          });
+          item.gifts = (item.gifts || 0) + 1;
+          stats[key].gifts = item.gifts;
+          saveReelStats(stats);
+          toast('Gift sent 🎁');
+        } catch (e) {
+          if (/insufficient/i.test(e.message)) {
+            toast('Need coins — opening recharge');
+            setTimeout(() => (location.href = '/coins-recharge.html?app=1'), 500);
+          } else {
+            toast(e.message || 'Gift failed');
+          }
+        }
+      }
+      updateReelUI(item);
+      return;
+    }
+
+    if (action === 'share') {
+      (async () => {
+        if (item.postId) {
+          await sharePost(getPosts().find((x) => String(x.id) === String(item.postId)) || { id: item.postId, caption: item.caption });
+          item.shares = (item.shares || 0) + 1;
+        } else {
+          try {
+            if (navigator.share) await navigator.share({ title: item.name, url: location.origin + profileUrl(item) });
+            else {
+              await navigator.clipboard.writeText(location.origin + profileUrl(item));
+              toast('Link copied');
+            }
+            item.shares = (item.shares || 0) + 1;
+            stats[key].shares = item.shares;
+            saveReelStats(stats);
+          } catch (_e) {
+            toast('Share cancelled');
+          }
+        }
+        updateReelUI(item);
+      })();
+    }
+  }
+
   async function renderSquareFeed(container) {
     const feed = typeof container === 'string' ? document.getElementById(container) : container;
     if (!feed) return;
 
-    let posts = getPosts();
+    let posts = getPosts().filter((p) => canViewPost(p));
     const pros = window.SocialShell ? await SocialShell.fetchPros(4) : [];
     if (!posts.length) {
       posts = pros.map((p, i) => ({
@@ -653,14 +850,22 @@
     const html = await Promise.all(
       posts.map(async (p) => {
         const url = p.demo ? p.image : await getMediaUrl(p);
+        const thumbUrl = p.thumb || url;
+        const user = window.Auth?.getUser?.();
+        const isOwner =
+          !p.demo &&
+          user &&
+          (String(p.userId) === String(user.id) || p.userId === 'me' || String(p.userId) === String(user.email));
         const media = p.isVideo
-          ? `<video src="${url}" controls playsinline poster="${p.thumb || ''}"></video>`
+          ? `<video src="${url}" controls playsinline poster="${thumbUrl || ''}"></video>`
           : `<img src="${url || SocialShell?.avatarFallback(p.userName)}" alt="">`;
         const liked = !p.demo && isLiked(p.id);
         return `
       <article class="social-post-card" data-post-id="${p.id}">
         <div class="social-post-media">${media}
           ${p.isVideo ? '<span class="play-badge"><i class="fas fa-play"></i></span>' : ''}
+          ${p.visibility === 'private' ? '<span class="social-post-private-badge"><i class="fas fa-lock"></i> Private</span>' : ''}
+          ${isOwner ? `<button type="button" class="social-post-delete" data-delete-post="${p.id}" aria-label="Delete post"><i class="fas fa-times"></i></button>` : ''}
         </div>
         <div class="social-post-meta">${p.minsAgo || 1} mins ago</div>
         <div class="social-post-actions">
@@ -670,7 +875,7 @@
           <button type="button" class="social-act-btn" data-act="share" data-id="${p.id}"><i class="far fa-paper-plane"></i> <span>${p.shares || 0}</span></button>
         </div>
         <a class="social-post-user" href="${profileUrl({ userName: p.userName, userId: p.userId })}">
-          <img src="${url || SocialShell?.avatarFallback(p.userName)}" alt="">
+          <img src="${SocialShell?.avatarFallback(p.userName) || thumbUrl}" alt="">
           <div>
             <div class="social-post-user-name">${escapeHtml(p.userName)} 🇮🇳</div>
             <div class="social-post-caption">${escapeHtml(p.caption || '')}</div>
@@ -680,6 +885,20 @@
       })
     );
     feed.innerHTML = html.join('');
+
+    feed.querySelectorAll('[data-delete-post]').forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const id = btn.dataset.deletePost;
+        if (confirm('Delete this post?')) {
+          deletePost(id);
+          await renderSquareFeed(feed);
+          toast('Post deleted');
+        }
+      });
+    });
+    feed.querySelectorAll('.social-post-media video, .social-post-media img').forEach((el) => markMediaOrientation(el));
 
     feed.querySelectorAll('[data-act="like"]').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -749,7 +968,7 @@
             <h3 style="font-size:15px;color:var(--gold-800);margin-bottom:6px">${t.title}</h3>
             <span class="social-flame"><i class="fas fa-fire"></i> ${t.heat.toLocaleString()}</span>
           </div>
-          ${t.ended ? '<span style="color:#9ca3af;font-size:13px">ended</span>' : '<button type="button" class="social-join-btn" data-join-topic>join &gt;</button>'}
+          ${t.ended ? '<span style="color:#9ca3af;font-size:13px">ended</span>' : '<button type="button" class="social-join-btn" data-join-topic>Join room</button>'}
         </div>
         <div class="social-topic-videos">
           ${[0, 1, 2, 3]

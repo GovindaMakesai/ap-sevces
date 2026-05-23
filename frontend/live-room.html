@@ -23,11 +23,11 @@
           <img id="liveHostAvatar" src="" alt="">
           <div class="party-host-meta">
             <div class="name" id="liveHostName">Streamer</div>
-            <div class="sub"><span>❤️ 115</span> <span id="liveRoomId">ID: —</span></div>
+            <div class="sub"><span>❤️ Live</span> <span id="liveRoomId">ID: —</span></div>
           </div>
           <button type="button" class="party-follow-btn" id="partyHostFollow">+</button>
         </div>
-        <div class="party-header-center"><span class="party-crown">👑</span></div>
+        <div class="party-header-center"><span class="party-crown">🔴</span></div>
         <div class="party-header-right">
           <div class="party-viewers">
             <span></span><span></span><span></span>
@@ -38,34 +38,34 @@
       </header>
 
       <div class="party-ticker">
-        <span class="party-ticker-inner">Murshad_… sent ❤️ customized gift · Pop 100+ · Tap gift to send</span>
+        <span class="party-ticker-inner" id="liveTicker">Instagram-style live — you broadcast, viewers join to watch &amp; chat</span>
       </div>
 
-      <div class="party-widgets">
-        <div class="party-widget"><strong>Wish</strong> 0/11<div class="bar"><i style="width:0%"></i></div></div>
-        <div class="party-widget"><strong>🎁</strong> <span id="partyChestTimer">04:36</span></div>
-      </div>
-      <a href="/lucky-gifts.html?app=1" class="party-event-pill">Lucky Gifts<br><span class="coins">🪙 268M</span></a>
-
-      <div class="party-win-banner" id="partyWinBanner"></div>
-
-      <div class="party-chat-tabs">
-        <button type="button" data-tab="all">All</button>
-        <button type="button" data-tab="room">Room</button>
-        <button type="button" class="active" data-tab="chat">Chat</button>
+      <div class="live-host-bar" id="liveHostBar" style="display:none">
+        <button type="button" class="party-host-action" id="liveBtnModeVideo" data-mode="video"><i class="fas fa-video"></i> Video</button>
+        <button type="button" class="party-host-action" id="liveBtnModeAudio" data-mode="audio"><i class="fas fa-microphone"></i> Audio only</button>
+        <button type="button" class="party-host-action" id="liveBtnInvite"><i class="fas fa-share"></i> Share</button>
       </div>
 
-      <div class="party-chat-zone live-chat-tall">
-        <div class="party-chat-feed" id="partyChatFeed"></div>
+      <div class="live-spacer"></div>
+
+      <div class="party-chat-row">
+        <div class="party-chat-tabs">
+          <button type="button" class="active" data-tab="all">All</button>
+          <button type="button" data-tab="chat">Chat</button>
+        </div>
+        <div class="party-chat-zone live-chat-tall">
+          <div class="party-chat-feed" id="partyChatFeed"></div>
+        </div>
       </div>
 
       <div class="live-chat-compose is-open" id="liveChatCompose">
-        <input type="text" id="liveChatInput" placeholder="Hi there! Say something…" maxlength="280" autocomplete="off">
+        <input type="text" id="liveChatInput" placeholder="Say something…" maxlength="280" autocomplete="off">
         <button type="button" id="liveChatSend"><i class="fas fa-paper-plane"></i></button>
       </div>
 
       <footer class="party-bottom-bar">
-        <button type="button" class="party-btn-follow" id="liveBtnFollow">Hi there!</button>
+        <button type="button" class="party-btn-follow" id="liveBtnFollow">Say hi!</button>
         <div class="party-bottom-actions">
           <button type="button" id="partyBtnTools"><i class="fas fa-grip"></i></button>
           <button type="button" id="liveBtnMic"><i class="fas fa-microphone"></i></button>
@@ -77,11 +77,10 @@
 
   <div class="party-tools-sheet" id="partyToolsSheet">
     <div class="party-tools-panel">
-      <h3>Basic Tools</h3>
+      <h3>Live tools</h3>
       <div class="party-tools-grid">
-        <a href="/chat.html?app=1"><span class="ico msg"><i class="fas fa-envelope"></i></span>Message</a>
+        <a href="/chat.html?app=1"><span class="ico msg"><i class="fas fa-envelope"></i></span>Messages</a>
         <a href="/coins-recharge.html?app=1"><span class="ico coins"><i class="fas fa-coins"></i></span>Recharge</a>
-        <a href="/store.html?app=1"><span class="ico store"><i class="fas fa-gift"></i></span>Gifts</a>
         <button type="button" id="partyToolsClose"><span class="ico" style="background:#6b7280"><i class="fas fa-times"></i></span>Close</button>
       </div>
     </div>
@@ -96,6 +95,7 @@
   </script>
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script src="app.js"></script>
+  <script src="social-wallet.js"></script>
   <script src="auth-guard.js"></script>
   <script src="social-shell.js"></script>
   <script src="social-live.js"></script>

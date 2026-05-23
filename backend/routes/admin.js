@@ -1,7 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const adminController = require('../controllers/adminController');
+const walletController = require('../controllers/walletController');
 const { verifyToken, authorizeRoles } = require('../middleware/auth');
+const { requirePermission } = require('../middleware/permissions');
 const multer = require('multer');
 
 // Configure multer - ONLY ONCE!
@@ -43,5 +45,13 @@ router.get('/payments/summary', adminController.getPaymentsSummary);
 router.get('/payments', adminController.getPayments);
 router.put('/payments/:bookingId/approve', adminController.approvePayment);
 router.put('/payments/:bookingId/reject', adminController.rejectPayment);
+
+// Wallet / economy admin
+router.get('/recharges/pending', requirePermission('admin.recharges'), walletController.listPendingRecharges);
+router.post('/recharges/:id/approve', requirePermission('admin.recharges'), walletController.approveRecharge);
+router.post('/recharges/:id/reject', requirePermission('admin.recharges'), walletController.rejectRecharge);
+router.get('/withdrawals/pending', requirePermission('admin.withdrawals'), walletController.listPendingWithdrawals);
+router.post('/withdrawals/:id/approve', requirePermission('admin.withdrawals'), walletController.approveWithdrawal);
+router.post('/withdrawals/:id/reject', requirePermission('admin.withdrawals'), walletController.rejectWithdrawal);
 
 module.exports = router;

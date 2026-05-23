@@ -22,6 +22,7 @@
           <button type="button" data-insert="#"># Hashtag</button>
         </div>
         <div class="social-create-preview" id="socialCreatePreview">
+          <button type="button" class="social-create-preview-clear" id="socialCreatePreviewClear" aria-label="Remove media"><i class="fas fa-times"></i></button>
           <img alt="" id="socialCreatePreviewImg">
           <video id="socialCreatePreviewVideo" controls playsinline style="display:none;width:100%;max-height:200px;border-radius:12px"></video>
           <p class="social-create-progress" id="socialCreateProgress" style="display:none">Uploading…</p>
@@ -43,6 +44,7 @@
     });
     document.getElementById('socialCreateCancel').addEventListener('click', close);
     document.getElementById('socialCreatePost').addEventListener('click', submit);
+    document.getElementById('socialCreatePreviewClear')?.addEventListener('click', clearPreview);
 
     const fileInput = document.getElementById('socialCreateFile');
     el.querySelector('[data-pick="image"]').addEventListener('click', () => {
@@ -85,6 +87,24 @@
     if (window.SocialUI) SocialUI.attachMentionAutocomplete(document.getElementById('socialCreateCaption'));
 
     return el;
+  }
+
+  function clearPreview() {
+    pendingFile = null;
+    const prev = document.getElementById('socialCreatePreview');
+    const img = document.getElementById('socialCreatePreviewImg');
+    const vid = document.getElementById('socialCreatePreviewVideo');
+    const fileInput = document.getElementById('socialCreateFile');
+    if (prev) prev.style.display = 'none';
+    if (img) {
+      img.src = '';
+      img.style.display = 'none';
+    }
+    if (vid) {
+      vid.src = '';
+      vid.style.display = 'none';
+    }
+    if (fileInput) fileInput.value = '';
   }
 
   function open() {

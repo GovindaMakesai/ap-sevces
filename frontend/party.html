@@ -58,11 +58,11 @@
       SocialShell.initPage({ activeNav: 'party', gridId: 'partyGrid', gridLimit: 12, partyGrid: true });
       document.getElementById('partyFab')?.addEventListener('click', (e) => {
         e.preventDefault();
-        SocialShell.goStartParty();
+        SocialShell.openBroadcastPicker('party');
       });
       document.getElementById('partyStartTop')?.addEventListener('click', (e) => {
         e.preventDefault();
-        SocialShell.goStartParty();
+        SocialShell.openBroadcastPicker('party');
       });
     });
   </script>

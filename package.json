@@ -11,6 +11,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "db:schema": "node database/run-schema.js",
     "db:migrate:booking-audit": "node database/migrate-booking-audit-columns.js",
+    "db:migrate:foundation": "node -e \"require('./backend/config/ensureFoundationSchema').ensureFoundationSchema().then(()=>process.exit(0)).catch(e=>{console.error(e);process.exit(1)})\"",
     "db:migrate:reviews-rich": "node database/migrate-reviews-rich-fields.js",
     "db:seed:test": "node database/seeds/test-data-seed.js"
   },

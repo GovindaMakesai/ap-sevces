@@ -63,6 +63,7 @@
   </div>
 
   <script src="app.js"></script>
+  <script src="social-wallet.js"></script>
   <script src="social-shell.js"></script>
   <script>
     const ITEMS = [
@@ -83,9 +84,12 @@
         <div class="price">${it.ticket ? '🎫' : '🪙'} ${it.price}</div>
       </a>`;
     }
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded', async () => {
       const coinsEl = document.getElementById('coins');
-      if (coinsEl) coinsEl.textContent = String(parseInt(localStorage.getItem('social_coins') || '0', 10) || 0);
+      if (coinsEl && window.SocialWallet) {
+        const b = await SocialWallet.fetchBalance();
+        coinsEl.textContent = String(b.coin_balance || 0);
+      }
       SocialShell.initPage({ activeNav: 'explore' });
       document.getElementById('storeGridNew').innerHTML = ITEMS.slice(0, 3).map(renderItem).join('');
       document.getElementById('storeGrid').innerHTML = ITEMS.map(renderItem).join('');

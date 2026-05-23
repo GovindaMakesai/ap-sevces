@@ -7,7 +7,6 @@ const express = require('express');
 const http = require('http');
 const cors = require('cors');
 const multer = require('multer');
-const bcrypt = require('bcryptjs');
 const passport = require('passport');
 const { Server } = require('socket.io');
 const notificationRoutes = require('./routes/notifications');
@@ -16,8 +15,10 @@ const liveRoutes = require('./routes/live');
 const { connectMongo } = require('./config/mongodb');
 const { ensureChatSchema } = require('./config/ensureChatSchema');
 const { ensurePaymentSchema } = require('./config/ensurePaymentSchema');
+const { ensureFoundationSchema } = require('./config/ensureFoundationSchema');
 const { registerChatSocket } = require('./socket/chatSocket');
 const { registerLiveSocket } = require('./socket/liveSocket');
+const liveRoomService = require('./services/liveRoomService');
 
 const { storage } = require('./config/cloudinary');
 const upload = multer({ storage });
@@ -31,6 +32,7 @@ const serviceRoutes = require('./routes/services');
 const bookingRoutes = require('./routes/bookings');
 const reviewRoutes = require('./routes/reviews');
 const adminRoutes = require('./routes/admin');
+const walletRoutes = require('./routes/wallet');
 
 const app = express();
 const server = http.createServer(app);
@@ -95,30 +97,15 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/live', liveRoutes);
+app.use('/api/wallet', walletRoutes);
 
-// ==================== TEMPORARY DEBUG ENDPOINTS ====================
+// ==================== HEALTH ====================
 app.get('/api/health', async (req, res) => {
     try {
         const dbResult = await db.query('SELECT NOW() as time');
         res.json({ success: true, message: 'Healthy', database: 'connected', time: dbResult.rows[0].time });
     } catch (error) {
         res.json({ success: true, message: 'Healthy', database: 'disconnected' });
-    }
-});
-
-app.get('/api/debug/generate-hash', async (req, res) => {
-    try {
-        const password = 'Admin@123';
-        const salt = await bcrypt.genSalt(10);
-        const hash = await bcrypt.hash(password, salt);
-        res.json({ 
-            password, 
-            hash, 
-            length: hash.length,
-            note: 'Use this hash to update your database'
-        });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
     }
 });
 
@@ -147,6 +134,8 @@ connectMongo();
 async function startServer() {
     await ensureChatSchema();
     await ensurePaymentSchema();
+    await ensureFoundationSchema();
+    await liveRoomService.recoverActiveRooms();
     server.listen(PORT, '0.0.0.0', () => {
         console.log(`✅ Server running on port ${PORT}`);
     });

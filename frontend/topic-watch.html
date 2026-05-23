@@ -10,22 +10,25 @@
   <link rel="stylesheet" href="social-features.css">
 </head>
 <body class="social-topic-watch-page">
-  <header class="social-top" style="position:sticky;top:0;z-index:20;background:#fffdf8;padding-top:env(safe-area-inset-top)">
+  <header class="social-topic-watch-header">
     <button type="button" class="social-icon-btn" onclick="history.back()" aria-label="Back"><i class="fas fa-arrow-left"></i></button>
-    <h1 id="topicTitle" style="flex:1;text-align:center;font-size:17px;color:var(--gold-800)">Topic</h1>
+    <h1 id="topicTitle">Topic</h1>
     <span style="width:40px"></span>
   </header>
 
-  <div class="social-topic-hero" id="topicHero"></div>
-  <p class="social-topic-desc" id="topicDesc"></p>
+  <div class="social-topic-watch-body">
+    <div class="social-topic-hero" id="topicHero"></div>
+    <p class="social-topic-desc" id="topicDesc"></p>
 
-  <div class="social-topic-actions">
-    <button type="button" class="social-btn-orange" id="topicJoinBtn"><i class="fas fa-microphone"></i> Join room</button>
-    <button type="button" class="social-btn-outline" id="topicWatchBtn"><i class="fas fa-play"></i> Watch videos</button>
+    <div class="social-topic-actions">
+      <button type="button" class="social-btn-orange" id="topicJoinBtn"><i class="fas fa-users"></i> Join voice party</button>
+      <button type="button" class="social-btn-outline" id="topicLiveBtn"><i class="fas fa-video"></i> Go live in topic</button>
+      <button type="button" class="social-btn-outline" id="topicWatchBtn"><i class="fas fa-play"></i> Watch videos</button>
+    </div>
+
+    <h3 class="social-topic-grid-title">Moments in this topic</h3>
+    <div class="social-topic-moment-grid" id="topicMoments"></div>
   </div>
-
-  <h3 class="social-topic-grid-title">Moments in this topic</h3>
-  <div class="social-topic-moment-grid" id="topicMoments"></div>
 
   <div id="social-bottom-nav-mount"></div>
 
@@ -48,8 +51,7 @@
       const t = TOPICS[idx % TOPICS.length];
       document.getElementById('topicTitle').textContent = t.title;
       document.getElementById('topicDesc').textContent = t.desc;
-      document.getElementById('topicHero').innerHTML =
-        `<img src="${t.img}" alt="${t.title}">`;
+      document.getElementById('topicHero').innerHTML = `<img src="${t.img}" alt="${t.title}">`;
       const moments = document.getElementById('topicMoments');
       const thumbs = [
         'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=400&q=80',
@@ -58,10 +60,7 @@
         'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&q=80',
       ];
       moments.innerHTML = thumbs
-        .map(
-          (src, i) =>
-            `<button type="button" class="social-topic-moment" data-i="${i}"><img src="${src}" alt=""><span><i class="fas fa-play"></i></span></button>`
-        )
+        .map((src, i) => `<button type="button" class="social-topic-moment" data-i="${i}"><img src="${src}" alt=""><span><i class="fas fa-play"></i></span></button>`)
         .join('');
       moments.querySelectorAll('.social-topic-moment').forEach((btn) => {
         btn.addEventListener('click', () => {
@@ -69,8 +68,12 @@
         });
       });
       document.getElementById('topicJoinBtn').addEventListener('click', () => {
-        if (window.SocialShell?.goStartParty) SocialShell.goStartParty();
-        else location.href = '/party.html?live=1&app=1';
+        if (window.SocialShell?.openBroadcastPicker) SocialShell.openBroadcastPicker('party', { topic: idx });
+        else SocialShell.goStartParty();
+      });
+      document.getElementById('topicLiveBtn').addEventListener('click', () => {
+        if (window.SocialShell?.openBroadcastPicker) SocialShell.openBroadcastPicker('live', { topic: idx });
+        else SocialShell.goStartLiveBroadcast();
       });
       document.getElementById('topicWatchBtn').addEventListener('click', () => {
         location.href = '/video.html?topic=' + idx + '&app=1';

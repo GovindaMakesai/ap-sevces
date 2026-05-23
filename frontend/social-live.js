@@ -17,6 +17,7 @@
   let micMuted = false;
   let chestSec = 294;
   let teamProgress = 1;
+  let joinRequests = [];
 
   function qs(name) {
     return new URLSearchParams(location.search).get(name);
@@ -36,6 +37,11 @@
     return qs('host') === '1';
   }
 
+  let broadcastMode = 'video';
+  function initBroadcastMode() {
+    broadcastMode = (qs('mode') || 'video').toLowerCase() === 'audio' ? 'audio' : 'video';
+  }
+
   function currentUser() {
     return window.Auth?.getUser?.() || window.AppState?.user || null;
   }
@@ -51,15 +57,19 @@
     return `https://ui-avatars.com/api/?name=${n}&background=7c3aed&color=fff&size=128`;
   }
 
-  function getCoins() {
-    return parseInt(localStorage.getItem('social_coins') || '0', 10) || 0;
+  async function getCoins() {
+    if (window.SocialWallet) {
+      const b = await SocialWallet.fetchBalance();
+      return b.coin_balance || 0;
+    }
+    return 0;
   }
 
-  function spendCoins(n) {
-    const c = getCoins();
-    if (c < n) return false;
-    localStorage.setItem('social_coins', String(c - n));
-    return true;
+  async function refreshCoinDisplay() {
+    const bal = await getCoins();
+    const el = document.getElementById('giftCoinsBal');
+    if (el) el.textContent = String(bal);
+    return bal;
   }
 
   function toast(msg) {
@@ -245,6 +255,21 @@
           localTracks = [audioTrack];
           await agoraClient.publish(audioTrack);
           setLiveStatus('Party voice live', true);
+        } else if (broadcastMode === 'audio') {
+          const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+          localTracks = [audioTrack];
+          await agoraClient.publish(audioTrack);
+          const localBox = document.getElementById('liveLocalHost');
+          if (localBox) localBox.style.display = 'none';
+          const fallback = document.getElementById('liveLocalVideo');
+          if (fallback) fallback.style.display = 'none';
+          const bg = document.getElementById('liveBg');
+          if (bg) {
+            bg.style.display = 'block';
+            bg.style.background =
+              'linear-gradient(180deg, #1a0f3a 0%, #312e81 50%, #0d0820 100%)';
+          }
+          setLiveStatus('Audio live', true);
         } else {
           const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
           localTracks = [audioTrack, videoTrack];
@@ -253,7 +278,7 @@
           if (localBox) videoTrack.play(localBox);
           const fallback = document.getElementById('liveLocalVideo');
           if (fallback) fallback.style.display = 'none';
-          setLiveStatus('Broadcasting', true);
+          setLiveStatus('Video live', true);
         }
       } else {
         setLiveStatus('Watching live', true);
@@ -373,25 +398,34 @@
     const container = document.getElementById('partySeats');
     if (!container) return;
 
+    const me = displayName(currentUser());
+    const hosting = isHost();
     const host = {
-      name: hostName,
+      name: hosting ? me : hostName || 'Host',
       host: true,
-      gifts: roomState?.gifts?.length ? 759 : 120,
+      gifts: 0,
       muted: micMuted,
-      speaking: isHost() && !micMuted,
+      speaking: hosting && !micMuted,
     };
 
-    const seats = [host];
-    const others = (roomState?.seats || []).filter((s) => s.name !== hostName);
-    others.forEach((s) => seats.push({ ...s, host: false }));
+    const guests = (roomState?.seats || []).filter(
+      (s) => s && s.name && s.name !== host.name && !s.isHost
+    );
 
-    container.innerHTML = seats
+    const slots = [host];
+    guests.forEach((s) => slots.push({ ...s, host: false }));
+    for (let i = slots.length; i < 8; i += 1) slots.push({ empty: true });
+
+    container.innerHTML = slots
       .map((s, i) => {
+        if (s.empty) {
+          return '<button type="button" class="party-seat is-empty" data-join-seat><div class="seat-avatar seat-avatar--empty"><span class="seat-plus">+</span></div><span class="seat-name">Join</span></button>';
+        }
         const hostCls = s.host ? ' is-host' : '';
         const speaking = s.speaking ? ' is-speaking' : '';
         const mic = s.muted
           ? '<span class="mic-off"><i class="fas fa-microphone-slash"></i></span>'
-          : s.host && isHost()
+          : s.host && hosting
             ? '<span class="mic-live"><i class="fas fa-microphone"></i></span>'
             : '';
         const crown = s.host ? '<span class="seat-crown">👑</span>' : '';
@@ -415,6 +449,9 @@
         openGiftSheet(name);
       });
     });
+    container.querySelectorAll('[data-join-seat]').forEach((btn) => {
+      btn.addEventListener('click', () => requestSeatJoin());
+    });
   }
 
   function renderRoomState() {
@@ -424,6 +461,11 @@
     const hostImg = document.getElementById('partyHostAvatar') || document.getElementById('liveHostAvatar');
     if (hostEl) hostEl.textContent = hostName.slice(0, 14) + (hostName.length > 14 ? '…' : '');
     if (hostImg) hostImg.src = avatarUrl(hostName);
+
+    const vc = document.getElementById('liveViewerCount');
+    if (vc && roomState) vc.textContent = String(roomState.viewers || (isHost() ? 1 : 0));
+    const hearts = document.getElementById('partyHearts');
+    if (hearts) hearts.textContent = String(roomState?.gifts?.length || 0);
 
     if (document.getElementById('partySeats')) renderPartySeats(hostName);
     renderChatFromState();
@@ -436,6 +478,93 @@
     el.classList.add('is-flash');
     clearTimeout(el._flash);
     el._flash = setTimeout(() => el.classList.remove('is-flash'), 4000);
+  }
+
+  function renderJoinRequests() {
+    const list = document.getElementById('partyRequestsList');
+    const badge = document.getElementById('partyReqCount');
+    if (badge) badge.textContent = String(joinRequests.length);
+    if (!list) return;
+    if (!joinRequests.length) {
+      list.innerHTML = '<p class="party-requests-empty">No pending requests</p>';
+      return;
+    }
+    list.innerHTML = joinRequests
+      .map(
+        (r) => `
+      <div class="party-req-row" data-req="${r.id}">
+        <img src="${avatarUrl(r.name)}" alt="">
+        <div class="info"><strong>${escapeHtml(r.name)}</strong><br><small>wants a seat</small></div>
+        <button type="button" class="accept" data-accept="${r.id}">Accept</button>
+        <button type="button" class="deny" data-deny="${r.id}">Deny</button>
+      </div>`
+      )
+      .join('');
+    list.querySelectorAll('[data-accept]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        joinRequests = joinRequests.filter((x) => String(x.id) !== String(btn.dataset.accept));
+        renderJoinRequests();
+        toast('Guest accepted');
+      });
+    });
+    list.querySelectorAll('[data-deny]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        joinRequests = joinRequests.filter((x) => String(x.id) !== String(btn.dataset.deny));
+        renderJoinRequests();
+      });
+    });
+  }
+
+  function requestSeatJoin() {
+    if (isHost()) return;
+    const user = currentUser();
+    const name = displayName(user);
+    const id = user?.id || Date.now();
+    if (joinRequests.some((r) => String(r.id) === String(id))) {
+      toast('Request already sent');
+      return;
+    }
+    if (liveSocket) {
+      liveSocket.emit('live:chat', {
+        channel: channelId(),
+        type: 'system',
+        text: `${name} requested to join a seat`,
+      });
+    }
+    toast('Request sent to host');
+  }
+
+  function bindHostControls(pageType) {
+    const hostBar = document.getElementById(pageType === 'party' ? 'partyHostBar' : 'liveHostBar');
+    if (hostBar && isHost()) hostBar.style.display = 'flex';
+
+    document.getElementById('partyBtnInvite')?.addEventListener('click', () => {
+      document.getElementById('partyBtnShare')?.click();
+    });
+    document.getElementById('partyBtnRequests')?.addEventListener('click', () => {
+      renderJoinRequests();
+      document.getElementById('partyRequestsSheet')?.classList.add('open');
+    });
+    document.getElementById('partyRequestsClose')?.addEventListener('click', () => {
+      document.getElementById('partyRequestsSheet')?.classList.remove('open');
+    });
+    document.getElementById('partyRequestsSheet')?.addEventListener('click', (e) => {
+      if (e.target.id === 'partyRequestsSheet') e.target.classList.remove('open');
+    });
+
+    document.getElementById('liveBtnInvite')?.addEventListener('click', () => {
+      document.getElementById('partyBtnShare')?.click();
+    });
+
+    const setMode = (mode) => {
+      broadcastMode = mode;
+      document.getElementById('liveBtnModeVideo')?.classList.toggle('is-active', mode === 'video');
+      document.getElementById('liveBtnModeAudio')?.classList.toggle('is-active', mode === 'audio');
+      toast(mode === 'video' ? 'Video mode' : 'Audio-only mode');
+    };
+    document.getElementById('liveBtnModeVideo')?.addEventListener('click', () => setMode('video'));
+    document.getElementById('liveBtnModeAudio')?.addEventListener('click', () => setMode('audio'));
+    if (isHost() && pageType === 'live') setMode(broadcastMode);
   }
 
   function openGiftSheet(targetName) {
@@ -454,26 +583,42 @@
       if (e.target === sheet) sheet.classList.remove('open');
     });
     sheet.querySelectorAll('[data-gift]').forEach((btn) => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         const cost = parseInt(btn.dataset.cost, 10) || 10;
-        if (!spendCoins(cost)) {
+        const balance = await getCoins();
+        if (balance < cost) {
           toast('Not enough coins — recharge first');
           window.location.href = '/coins-recharge.html?app=1';
           return;
         }
         const emoji = btn.dataset.gift;
         const to = sheet.dataset.to || 'Host';
-        if (liveSocket) {
-          liveSocket.emit('live:gift', {
-            channel: channelId(),
-            to,
-            emoji,
-            amount: cost,
-          });
+        const hostId = roomState?.hostId;
+        if (liveSocket && hostId) {
+          liveSocket.emit(
+            'live:gift',
+            {
+              channel: channelId(),
+              to,
+              toUserId: hostId,
+              emoji,
+              amount: cost,
+            },
+            (res) => {
+              if (!res?.ok) {
+                toast(res?.message || 'Gift failed');
+                return;
+              }
+              showWinBanner({ from: displayName(currentUser()), to, emoji, amount: cost });
+              refreshCoinDisplay();
+              toast('Gift sent!');
+            }
+          );
+        } else {
+          toast('Room not ready — try again');
+          return;
         }
-        showWinBanner({ from: displayName(currentUser()), to, emoji, amount: cost * 100 });
         sheet.classList.remove('open');
-        toast('Gift sent!');
       });
     });
   }
@@ -638,7 +783,7 @@
       </div>`
     );
     const bal = document.getElementById('giftCoinsBal');
-    if (bal) bal.textContent = String(getCoins());
+    if (bal) refreshCoinDisplay();
   }
 
   async function initPartyRoom() {
@@ -651,8 +796,18 @@
     }
 
     bindCommonControls('party');
+    bindHostControls('party');
     connectSocket('party');
-    renderPartySeats(displayName(user));
+    if (isHost()) {
+      const followBtn = document.getElementById('partyBtnFollow');
+      if (followBtn) followBtn.textContent = 'Your room';
+      const hostFollow = document.getElementById('partyHostFollow');
+      if (hostFollow) hostFollow.style.display = 'none';
+      const hostLabel = document.getElementById('partyHostLabel');
+      if (hostLabel) hostLabel.textContent = 'Hosting';
+      const ticker = document.getElementById('partyTicker');
+      if (ticker) ticker.textContent = 'You are hosting — share the link so friends can join';
+    }
     await startAgora('party');
 
     window.addEventListener('beforeunload', () => {
@@ -670,7 +825,9 @@
       return;
     }
 
+    initBroadcastMode();
     bindCommonControls('live');
+    bindHostControls('live');
     connectSocket('live');
 
     const bg = document.getElementById('liveBg');
@@ -806,20 +963,28 @@
         syncAmount();
       });
     });
-    document.getElementById('rechargeSubmit')?.addEventListener('click', () => {
+    document.getElementById('rechargeSubmit')?.addEventListener('click', async () => {
       const utr = (utrEl?.value || '').trim();
       if (!utr || utr.length < 6) {
         alert('Enter your UPI transaction reference (UTR) after scanning the QR.');
         return;
       }
-      addCoins(Math.round(selected * 10));
-      alert('Recharge submitted! Coins will be credited after verification.');
-      location.href = '/store.html?app=1';
+      if (!window.SocialWallet) {
+        alert('Wallet service unavailable. Please log in again.');
+        return;
+      }
+      try {
+        await SocialWallet.submitRecharge({
+          amount_inr: selected,
+          transaction_id: utr,
+          payment_method: 'qr_manual',
+        });
+        alert('Recharge submitted! Coins will be credited after admin verification.');
+        location.href = '/store.html?app=1';
+      } catch (e) {
+        alert(e.message || 'Recharge submission failed');
+      }
     });
-  }
-
-  function addCoins(n) {
-    localStorage.setItem('social_coins', String(getCoins() + n));
   }
 
   window.SocialLive = {
@@ -829,7 +994,7 @@
     initLuckyGifts,
     initCoinsRecharge,
     getCoins,
-    addCoins,
+    refreshCoinDisplay,
   };
 
   document.addEventListener('DOMContentLoaded', () => {

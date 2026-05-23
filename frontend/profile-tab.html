@@ -38,11 +38,12 @@
   <div id="social-bottom-nav-mount"></div>
 
   <script src="app.js"></script>
+  <script src="social-wallet.js"></script>
   <script src="social-ui.js"></script>
   <script src="social-interactions.js"></script>
   <script src="social-shell.js"></script>
   <script>
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded', async () => {
       SocialShell.initPage({ activeNav: 'profile' });
       const user = Auth.getUser();
       const btn = document.getElementById('profileMainBtn');
@@ -58,7 +59,7 @@
         document.getElementById('profileAvatar').src =
           window.SocialUI ? SocialUI.avatarUrl(name, pic) : pic || SocialShell.avatarFallback(name);
         if (window.SocialInteractions?.getFollowStats) {
-          const s = SocialInteractions.getFollowStats(user.id);
+          const s = await SocialInteractions.getFollowStats(user.id);
           document.getElementById('statFollowing').textContent = s.following;
           document.getElementById('statFollowers').textContent = s.followers;
           document.getElementById('statCoins').textContent = s.coins;

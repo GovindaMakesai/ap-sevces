@@ -12,14 +12,12 @@
   <span class="live-status-badge" id="liveStatusBadge">Connecting…</span>
 
   <div class="party-room">
-    <div class="party-room-grid-floor" aria-hidden="true"></div>
-
     <header class="party-header">
       <div class="party-host">
         <img id="partyHostAvatar" src="" alt="">
         <div class="party-host-meta">
           <div class="name" id="partyHostName">Host</div>
-          <div class="sub"><span class="heart-stat">❤️ <span id="partyHearts">115</span></span> <span>Pop 100+</span></div>
+          <div class="sub"><span class="heart-stat">❤️ <span id="partyHearts">0</span></span> <span id="partyHostLabel">Voice party</span></div>
         </div>
         <button type="button" class="party-follow-btn" id="partyHostFollow" aria-label="Follow">+</button>
       </div>
@@ -27,39 +25,36 @@
       <div class="party-header-right">
         <div class="party-viewers" id="partyViewerAvatars">
           <span></span><span></span><span></span>
-          <span class="party-viewer-count" id="liveViewerCount">31</span>
+          <span class="party-viewer-count" id="liveViewerCount">1</span>
         </div>
         <button type="button" class="party-close" id="partyClose" aria-label="Leave"><i class="fas fa-times"></i></button>
       </div>
     </header>
 
     <div class="party-ticker">
-      <span class="party-ticker-inner" id="partyTicker">💎 Diamond VIP perks · Lucky Gifts Party · Send gifts to climb ranks</span>
+      <span class="party-ticker-inner" id="partyTicker">Voice party — tap a seat to join · Host can accept requests</span>
     </div>
 
-    <div class="party-widgets">
-      <div class="party-widget">
-        <strong>Team</strong> <span id="partyTeamProgress">1/16</span>
-        <div class="bar"><i id="partyTeamBar" style="width:6%"></i></div>
+    <div class="party-host-bar" id="partyHostBar" style="display:none">
+      <button type="button" class="party-host-action" id="partyBtnInvite"><i class="fas fa-user-plus"></i> Invite</button>
+      <button type="button" class="party-host-action" id="partyBtnRequests"><i class="fas fa-inbox"></i> Requests <span id="partyReqCount" class="party-req-badge">0</span></button>
+    </div>
+
+    <div class="party-room-body">
+      <div class="party-seats-wrap">
+        <div class="party-seats" id="partySeats"></div>
       </div>
-      <div class="party-widget"><strong>🎁 Chest</strong> <span id="partyChestTimer">04:54</span></div>
-    </div>
-    <a href="/lucky-gifts.html?app=1" class="party-event-pill">Lucky Gifts<br><span class="coins">🪙 268M</span></a>
-
-    <div class="party-win-banner" id="partyWinBanner">WIN · Send gifts to win coins 🪙</div>
-
-    <div class="party-seats-wrap">
-      <div class="party-seats" id="partySeats"></div>
     </div>
 
-    <div class="party-chat-tabs">
-      <button type="button" class="active" data-tab="all">All</button>
-      <button type="button" data-tab="room">Room</button>
-      <button type="button" data-tab="chat">Chat</button>
-    </div>
-
-    <div class="party-chat-zone">
-      <div class="party-chat-feed" id="partyChatFeed"></div>
+    <div class="party-chat-row">
+      <div class="party-chat-tabs">
+        <button type="button" class="active" data-tab="all">All</button>
+        <button type="button" data-tab="room">Room</button>
+        <button type="button" data-tab="chat">Chat</button>
+      </div>
+      <div class="party-chat-zone">
+        <div class="party-chat-feed" id="partyChatFeed"></div>
+      </div>
     </div>
 
     <div class="live-chat-compose is-open" id="liveChatCompose">
@@ -77,29 +72,33 @@
     </footer>
   </div>
 
+  <div class="party-requests-sheet" id="partyRequestsSheet">
+    <div class="party-requests-panel">
+      <div class="party-requests-head">
+        <h3>Join requests</h3>
+        <button type="button" id="partyRequestsClose"><i class="fas fa-times"></i></button>
+      </div>
+      <p class="party-requests-hint">Accept guests to add them to a seat</p>
+      <div id="partyRequestsList" class="party-requests-list"></div>
+    </div>
+  </div>
+
   <div class="party-tools-sheet" id="partyToolsSheet">
     <div class="party-tools-panel">
-      <h3>Basic Tools</h3>
+      <h3>Room tools</h3>
       <div class="party-tools-grid">
-        <a href="/chat.html?app=1"><span class="ico msg"><i class="fas fa-envelope"></i></span>Message</a>
-        <button type="button" id="partyBtnSound"><span class="ico sound"><i class="fas fa-volume-up"></i></span>Sound</button>
-        <button type="button" id="partyBtnShare"><span class="ico share"><i class="fas fa-share"></i></span>Share</button>
-        <button type="button" id="partyBtnReport"><span class="ico report"><i class="fas fa-exclamation-circle"></i></span>Report</button>
-        <button type="button" id="partyToolsClose"><span class="ico" style="background:#6b7280"><i class="fas fa-compress"></i></span>Close</button>
-      </div>
-      <h3>Playstyle</h3>
-      <div class="party-tools-grid">
+        <button type="button" id="partyBtnShare"><span class="ico share"><i class="fas fa-share"></i></span>Share link</button>
+        <a href="/chat.html?app=1"><span class="ico msg"><i class="fas fa-envelope"></i></span>Messages</a>
         <a href="/coins-recharge.html?app=1"><span class="ico coins"><i class="fas fa-coins"></i></span>Recharge</a>
         <a href="/store.html?app=1"><span class="ico store"><i class="fas fa-shopping-bag"></i></span>Store</a>
-        <a href="/vip.html?app=1"><span class="ico vip"><i class="fas fa-gem"></i></span>VIP</a>
-        <a href="/rankings.html?app=1"><span class="ico" style="background:#3b82f6"><i class="fas fa-shield-alt"></i></span>Guardian</a>
-        <a href="/store.html?app=1"><span class="ico" style="background:#0ea5e9"><i class="fas fa-backpack"></i></span>Backpack</a>
+        <button type="button" id="partyToolsClose"><span class="ico" style="background:#6b7280"><i class="fas fa-times"></i></span>Close</button>
       </div>
     </div>
   </div>
 
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script src="app.js"></script>
+  <script src="social-wallet.js"></script>
   <script src="auth-guard.js"></script>
   <script src="social-shell.js"></script>
   <script src="social-live.js"></script>

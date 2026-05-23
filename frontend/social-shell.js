@@ -348,27 +348,30 @@
   }
 
   function goStartLive() {
-    goToStreamerCenter();
+    openBroadcastPicker('live');
   }
 
-  function goStartLiveBroadcast() {
+  function goStartLiveBroadcast(opts) {
     const user = window.Auth?.getUser?.();
     if (!user) {
       window.location.href = '/app-auth.html?app=1';
       return;
     }
+    const mode = opts?.mode || 'video';
+    const topic = opts?.topic != null ? '&topic=' + encodeURIComponent(opts.topic) : '';
     const base = String(user.id || 'user').replace(/[^a-zA-Z0-9]/g, '').slice(0, 10);
     const channel = 'live-' + base + '-' + Date.now().toString(36).slice(-6);
     window.location.href =
-      '/live-room.html?host=1&channel=' + encodeURIComponent(channel) + '&app=1';
+      '/live-room.html?host=1&mode=' + encodeURIComponent(mode) + '&channel=' + encodeURIComponent(channel) + topic + '&app=1';
   }
 
-  function goStartParty() {
+  function goStartParty(opts) {
     const user = window.Auth?.getUser?.();
     if (!user) {
       window.location.href = '/app-auth.html?app=1';
       return;
     }
+    const topic = opts?.topic != null ? '&topic=' + encodeURIComponent(opts.topic) : '';
     const base = String(user.id || 'user').replace(/[^a-zA-Z0-9]/g, '').slice(0, 10);
     const channel = 'party-' + base + '-' + Date.now().toString(36).slice(-6);
     const party = {
@@ -383,7 +386,72 @@
       localStorage.setItem('social_my_parties', JSON.stringify(parties.slice(0, 20)));
     } catch (_e) {}
     window.location.href =
-      '/party-room.html?host=1&channel=' + encodeURIComponent(channel) + '&app=1';
+      '/party-room.html?host=1&channel=' + encodeURIComponent(channel) + topic + '&app=1';
+  }
+
+  function ensureBroadcastOverlay() {
+    let el = document.getElementById('social-broadcast-overlay');
+    if (el) return el;
+    el = document.createElement('div');
+    el.id = 'social-broadcast-overlay';
+    el.className = 'social-broadcast-overlay';
+    document.body.appendChild(el);
+    return el;
+  }
+
+  function openBroadcastPicker(kind, opts) {
+    const user = window.Auth?.getUser?.();
+    if (!user) {
+      window.location.href = '/app-auth.html?app=1';
+      return;
+    }
+    const el = ensureBroadcastOverlay();
+    if (kind === 'party') {
+      el.innerHTML = `
+        <div class="social-broadcast-sheet">
+          <h3>Start voice party</h3>
+          <p>Multi-seat room — you host, guests request to join seats. Audio chat with up to 8 speakers.</p>
+          <div class="social-broadcast-options">
+            <button type="button" class="social-broadcast-opt" data-go-party>
+              <span class="ico party"><i class="fas fa-users"></i></span>
+              <div><strong>Start party room</strong><span>You control invites &amp; seats</span></div>
+            </button>
+          </div>
+          <button type="button" class="social-broadcast-cancel" data-broadcast-cancel>Cancel</button>
+        </div>`;
+      el.querySelector('[data-go-party]')?.addEventListener('click', () => {
+        el.classList.remove('is-open');
+        goStartParty(opts || {});
+      });
+    } else {
+      el.innerHTML = `
+        <div class="social-broadcast-sheet">
+          <h3>Go live</h3>
+          <p>Instagram-style — you broadcast solo, viewers join to watch, chat &amp; send gifts.</p>
+          <div class="social-broadcast-options">
+            <button type="button" class="social-broadcast-opt" data-go-live="video">
+              <span class="ico video"><i class="fas fa-video"></i></span>
+              <div><strong>Video + audio</strong><span>Camera livestream</span></div>
+            </button>
+            <button type="button" class="social-broadcast-opt" data-go-live="audio">
+              <span class="ico audio"><i class="fas fa-microphone"></i></span>
+              <div><strong>Audio only</strong><span>Voice live — no camera</span></div>
+            </button>
+          </div>
+          <button type="button" class="social-broadcast-cancel" data-broadcast-cancel>Cancel</button>
+        </div>`;
+      el.querySelectorAll('[data-go-live]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          el.classList.remove('is-open');
+          goStartLiveBroadcast({ ...(opts || {}), mode: btn.dataset.goLive });
+        });
+      });
+    }
+    el.querySelector('[data-broadcast-cancel]')?.addEventListener('click', () => el.classList.remove('is-open'));
+    el.addEventListener('click', (e) => {
+      if (e.target === el) el.classList.remove('is-open');
+    });
+    el.classList.add('is-open');
   }
 
   function renderEmptyState(cfg) {
@@ -567,6 +635,7 @@
     goStartLiveBroadcast,
     goToStreamerCenter,
     goStartParty,
+    openBroadcastPicker,
     fillFollowingView,
     fetchPros,
     getImageUrl,
