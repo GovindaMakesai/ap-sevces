@@ -392,6 +392,11 @@ export default function App() {
         nestedScrollEnabled
         showsHorizontalScrollIndicator={false}
         showsVerticalScrollIndicator={false}
+        allowFileAccess
+        allowFileAccessFromFileURLs
+        allowUniversalAccessFromFileURLs
+        mediaCapturePermissionGrantType="grant"
+        mixedContentMode="always"
         onLoadStart={() => {
           lastInjectedUrlRef.current = '';
         }}

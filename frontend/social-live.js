@@ -72,7 +72,11 @@
     return bal;
   }
 
-  function toast(msg) {
+  function toast(msg, type) {
+    if (window.SocialUI?.toast) {
+      SocialUI.toast(msg, type || 'info');
+      return;
+    }
     let el = document.getElementById('liveToast');
     if (!el) {
       el = document.createElement('div');
@@ -669,7 +673,13 @@
     document.getElementById('liveBtnGift')?.addEventListener('click', () => openGiftSheet());
 
     const toggleFollow = () => {
-      followed = !followed;
+      const hostName = roomState?.hostName || 'Host';
+      const hostId = roomState?.hostId || hostName;
+      if (window.SocialInteractions?.toggleFollow) {
+        followed = SocialInteractions.toggleFollow(hostId, hostName);
+      } else {
+        followed = !followed;
+      }
       const btn = document.getElementById('partyBtnFollow');
       const hbtn = document.getElementById('partyHostFollow');
       const label = followed ? 'Following ✓' : 'Follow +';
@@ -678,7 +688,10 @@
         btn.classList.toggle('is-following', followed);
       }
       if (hbtn) hbtn.textContent = followed ? '✓' : '+';
-      toast(followed ? 'You followed the host' : 'Unfollowed');
+      toast(
+        followed ? `You're now following ${hostName}` : `Unfollowed ${hostName}`,
+        followed ? 'success' : 'info'
+      );
     };
     document.getElementById('partyBtnFollow')?.addEventListener('click', toggleFollow);
     document.getElementById('partyHostFollow')?.addEventListener('click', toggleFollow);
@@ -966,11 +979,13 @@
     document.getElementById('rechargeSubmit')?.addEventListener('click', async () => {
       const utr = (utrEl?.value || '').trim();
       if (!utr || utr.length < 6) {
-        alert('Enter your UPI transaction reference (UTR) after scanning the QR.');
+        if (window.SocialUI) SocialUI.showError('UTR required', 'Enter your UPI transaction reference (UTR) after scanning the QR code.');
+        else toast('Enter your UPI transaction reference (UTR) after scanning the QR.', 'warning');
         return;
       }
       if (!window.SocialWallet) {
-        alert('Wallet service unavailable. Please log in again.');
+        if (window.SocialUI) SocialUI.showError('Sign in needed', 'Wallet service unavailable. Please log in again.');
+        else toast('Please log in again.', 'error');
         return;
       }
       try {
@@ -979,10 +994,13 @@
           transaction_id: utr,
           payment_method: 'qr_manual',
         });
-        alert('Recharge submitted! Coins will be credited after admin verification.');
+        if (window.SocialUI) SocialUI.showSuccess('Recharge submitted', 'Coins will be added after admin verification — usually within a few hours.');
+        else toast('Recharge submitted! Awaiting verification.', 'success');
         location.href = '/store.html?app=1';
       } catch (e) {
-        alert(e.message || 'Recharge submission failed');
+        const msg = window.SocialUI ? SocialUI.friendlyMessage(e.message) : e.message || 'Recharge submission failed';
+        if (window.SocialUI) SocialUI.showError('Recharge failed', msg);
+        else toast(msg, 'error');
       }
     });
   }

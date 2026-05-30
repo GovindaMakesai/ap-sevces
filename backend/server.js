@@ -14,6 +14,7 @@ const { ensureChatSchema } = require('./config/ensureChatSchema');
 const { ensurePaymentSchema } = require('./config/ensurePaymentSchema');
 const { ensureFoundationSchema } = require('./config/ensureFoundationSchema');
 const { ensurePhase2Schema } = require('./config/ensurePhase2Schema');
+const { ensureWithdrawalQrSchema } = require('./config/ensureWithdrawalQrSchema');
 const { registerChatSocket } = require('./socket/chatSocket');
 const { registerLiveSocket } = require('./socket/liveSocket');
 const { registerPkSocket } = require('./socket/pkSocket');
@@ -143,6 +144,7 @@ async function startServer() {
   await ensurePaymentSchema();
   await ensureFoundationSchema();
   await ensurePhase2Schema();
+  await ensureWithdrawalQrSchema();
   await platformService.getOrCreateTreasuryUserId();
   await liveRoomService.recoverActiveRooms();
   startScheduler();

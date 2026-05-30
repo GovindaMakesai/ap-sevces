@@ -1435,6 +1435,81 @@ html.social-video-page.social-native body {
   border-radius: 50%;
   border: 3px solid var(--gold-400);
   margin-bottom: 12px;
+  object-fit: cover;
+}
+
+.social-profile-hero h2 {
+  color: var(--gold-800);
+  font-size: 20px;
+  margin: 0;
+}
+
+.social-profile-hero #profileRole {
+  color: var(--gold-600);
+  font-size: 14px;
+  margin: 4px 0 0;
+}
+
+.social-profile-stats {
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+  gap: 10px;
+  margin-top: 18px;
+  padding: 0 8px;
+  max-width: 360px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.social-stat-pill {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 12px 8px;
+  border: none;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: var(--shadow-card);
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.social-stat-pill strong {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--gold-800);
+  line-height: 1.1;
+}
+
+.social-stat-pill span {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--gold-600);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.social-stat-coins {
+  background: linear-gradient(145deg, #fff9e6, #fffdf8);
+  border: 1px solid var(--gold-200);
+}
+
+.social-stat-coins strong {
+  color: var(--orange-cta);
+}
+
+.social-profile-cta {
+  display: block;
+  max-width: 200px;
+  margin: 16px auto 0;
 }
 
 .social-menu-list {

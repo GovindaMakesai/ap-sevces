@@ -208,58 +208,115 @@
     return list.length;
   }
 
-  function getFollows() {
+  function getFollowEntries() {
     try {
-      return JSON.parse(localStorage.getItem(FOLLOWS_KEY) || '[]');
+      const raw = JSON.parse(localStorage.getItem(FOLLOWS_KEY) || '[]');
+      return raw.map((item) =>
+        typeof item === 'string' ? { key: item, name: item.replace(/^@/, '') } : { key: item.key, name: item.name || item.key }
+      );
     } catch (_e) {
       return [];
     }
   }
 
-  function toggleFollow(creatorId) {
-    const f = getFollows();
-    const i = f.indexOf(creatorId);
-    if (i >= 0) f.splice(i, 1);
-    else f.push(creatorId);
-    localStorage.setItem(FOLLOWS_KEY, JSON.stringify(f));
+  function saveFollowEntries(entries) {
+    localStorage.setItem(FOLLOWS_KEY, JSON.stringify(entries));
+  }
+
+  function getFollows() {
+    return getFollowEntries().map((e) => e.key);
+  }
+
+  function followKey(creatorId, creatorName) {
+    return String(creatorId || creatorName || '').trim();
+  }
+
+  function getFollowersMap() {
+    try {
+      return JSON.parse(localStorage.getItem('social_followers_map') || '{}');
+    } catch (_e) {
+      return {};
+    }
+  }
+
+  function saveFollowersMap(map) {
+    localStorage.setItem('social_followers_map', JSON.stringify(map));
+  }
+
+  function myFollowerId() {
+    const user = window.Auth?.getUser?.();
+    return user ? String(user.id || user.email || user.first_name || 'me') : null;
+  }
+
+  function toggleFollow(creatorId, creatorName) {
+    const key = followKey(creatorId, creatorName);
+    if (!key) return false;
+    const entries = getFollowEntries();
+    const label = creatorName || key;
+    const i = entries.findIndex((e) => e.key === key);
     const nowFollowing = i < 0;
     if (nowFollowing) {
-      const user = window.Auth?.getUser?.();
-      if (user) {
-        const map = JSON.parse(localStorage.getItem('social_followers_map') || '{}');
-        const key = String(creatorId);
-        if (!map[key]) map[key] = [];
-        const me = user.id || user.email || user.first_name;
-        if (me && !map[key].includes(me)) map[key].push(me);
-        localStorage.setItem('social_followers_map', JSON.stringify(map));
+      entries.push({ key, name: label });
+    } else {
+      entries.splice(i, 1);
+    }
+    saveFollowEntries(entries);
+
+    const me = myFollowerId();
+    if (me) {
+      const map = getFollowersMap();
+      if (!map[key]) map[key] = [];
+      if (nowFollowing) {
+        if (!map[key].includes(me)) map[key].push(me);
+      } else {
+        map[key] = map[key].filter((x) => String(x) !== me);
       }
+      saveFollowersMap(map);
     }
     return nowFollowing;
   }
 
   async function getFollowStats(userId) {
-    const following = getFollows().length;
+    const following = getFollowEntries().length;
+    const user = window.Auth?.getUser?.();
+    const uid = String(userId || user?.id || user?.email || 'me');
+    const map = getFollowersMap();
+    const keys = new Set([uid, user?.email, user?.first_name, `${user?.first_name || ''} ${user?.last_name || ''}`.trim()].filter(Boolean).map(String));
     let followers = 0;
-    try {
-      const map = JSON.parse(localStorage.getItem('social_followers_map') || '{}');
-      const user = window.Auth?.getUser?.();
-      const key = String(userId || user?.id || user?.email || 'me');
-      followers = (map[key] || []).length;
-      if (!followers && user) {
-        const me = String(user.id || user.email || '');
-        followers = Object.values(map).filter((arr) => arr.some((x) => String(x) === me)).length;
-      }
-    } catch (_e) {}
+    keys.forEach((k) => {
+      followers = Math.max(followers, (map[k] || []).length);
+    });
+    if (!followers && user) {
+      const me = String(user.id || user.email || '');
+      followers = Object.values(map).filter((arr) => arr.some((x) => String(x) === me)).length;
+    }
     let coins = 0;
     if (window.SocialWallet) {
-      const b = await SocialWallet.fetchBalance();
-      coins = b.coin_balance || 0;
+      try {
+        const b = await SocialWallet.fetchBalance();
+        coins = b.coin_balance || 0;
+      } catch (_e) {}
     }
     return { following, followers, coins };
   }
 
-  function isFollowing(creatorId) {
-    return getFollows().includes(creatorId);
+  function getFollowingList() {
+    return getFollowEntries();
+  }
+
+  function getFollowersList(userId) {
+    const user = window.Auth?.getUser?.();
+    const uid = String(userId || user?.id || user?.email || 'me');
+    const map = getFollowersMap();
+    const keys = [uid, user?.email, `${user?.first_name || ''} ${user?.last_name || ''}`.trim()].filter(Boolean).map(String);
+    const ids = new Set();
+    keys.forEach((k) => (map[k] || []).forEach((id) => ids.add(String(id))));
+    return [...ids].map((id) => ({ key: id, name: id.includes('@') ? id.split('@')[0] : 'User' }));
+  }
+
+  function isFollowing(creatorId, creatorName) {
+    const key = followKey(creatorId, creatorName);
+    return getFollowEntries().some((e) => e.key === key || (creatorName && e.name === creatorName));
   }
 
   async function compressImage(file, maxW) {
@@ -506,7 +563,7 @@
 
   async function sendGift(postId) {
     if (!window.SocialWallet) {
-      toast('Please log in to send gifts');
+      toast('Please log in to send gifts', 'warning');
       return;
     }
     const posts = getPosts();
@@ -530,10 +587,10 @@
       document.dispatchEvent(new CustomEvent('social:gift', { detail: { postId } }));
     } catch (e) {
       if (e.status === 400 || /insufficient/i.test(e.message)) {
-        toast('Need coins — tap Recharge in Store');
+        toast('Not enough coins — open Store to recharge', 'warning');
         setTimeout(() => (location.href = '/coins-recharge.html?app=1'), 600);
       } else {
-        toast(e.message || 'Gift failed');
+        toast(window.SocialUI?.friendlyMessage(e.message) || e.message || 'Gift failed', 'error');
       }
     }
   }
@@ -612,17 +669,20 @@
     if (cap) cap.textContent = item.caption || '';
     if (follow) {
       const fid = item.workerId || item.userId || item.name;
-      const on = isFollowing(fid);
+      const on = isFollowing(fid, item.name);
       follow.textContent = on ? '✓' : '+';
       follow.classList.toggle('is-following', on);
       follow.setAttribute('aria-label', on ? 'Following' : 'Follow');
       follow.onclick = (e) => {
         e.stopPropagation();
-        const now = toggleFollow(fid);
+        const now = toggleFollow(fid, item.name);
         follow.textContent = now ? '✓' : '+';
         follow.classList.toggle('is-following', now);
         follow.setAttribute('aria-label', now ? 'Following' : 'Follow');
-        toast(now ? 'Following ' + item.name : 'Unfollowed');
+        toast(
+          now ? `You're now following ${item.name}` : `Unfollowed ${item.name}`,
+          now ? 'success' : 'info'
+        );
       };
     }
 
@@ -814,7 +874,7 @@
             toast('Need coins — opening recharge');
             setTimeout(() => (location.href = '/coins-recharge.html?app=1'), 500);
           } else {
-            toast(e.message || 'Gift failed');
+            toast(window.SocialUI?.friendlyMessage(e.message) || e.message || 'Gift failed', 'error');
           }
         }
       }
@@ -1101,6 +1161,10 @@
     toast,
     openComments,
     getFollowStats,
+    getFollowingList,
+    getFollowersList,
+    toggleFollow,
+    isFollowing,
     profileUrl,
   };
 })();

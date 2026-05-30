@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#fda4af">
+  <title>Points - AP Services</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="social-theme.css">
+  <link rel="stylesheet" href="social-withdraw.css">
+</head>
+<body class="withdraw-app">
+  <header class="wd-header">
+    <a href="/profile-tab.html?app=1" aria-label="Back"><i class="fas fa-arrow-left"></i></a>
+    <h1>Points</h1>
+    <a href="/withdraw-notices.html?app=1" class="wd-header-link">Details</a>
+  </header>
+
+  <div class="wd-balance-card">
+    <div class="main" id="pointsBalance">0</div>
+    <div class="lbl">Available points</div>
+    <div class="wd-balance-row">
+      <div><strong id="pointsTotal">0</strong><span>Total</span></div>
+      <div><strong id="pointsUnconfirmed">0</strong><span>Unconfirmed</span></div>
+    </div>
+  </div>
+
+  <p style="font-size:14px;font-weight:700;color:#111827;margin:16px 0 8px">Income</p>
+  <div class="wd-card" style="padding:0;overflow:hidden">
+    <div class="wd-detail-row" style="padding:14px 16px;margin:0">
+      <span class="label">Livestream</span>
+      <span class="value">—</span>
+    </div>
+    <div class="wd-detail-row" style="padding:14px 16px;margin:0">
+      <span class="label">Commission</span>
+      <span class="value">—</span>
+    </div>
+    <div class="wd-detail-row" style="padding:14px 16px;margin:0">
+      <span class="label">Platform Rewards</span>
+      <span class="value">—</span>
+    </div>
+  </div>
+
+  <button type="button" class="wd-btn-primary wd-btn-pink" id="withdrawNowBtn">Withdraw now</button>
+
+  <script src="app.js"></script>
+  <script src="social-wallet.js"></script>
+  <script src="auth-guard.js"></script>
+  <script src="social-ui.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      if (!localStorage.getItem('token')) {
+        location.href = '/login.html?redirect=' + encodeURIComponent('/points.html');
+        return;
+      }
+      const bal = await SocialWallet.fetchBalance(true);
+      const coins = bal.coin_balance || 0;
+      let unconfirmed = 0;
+      try {
+        const list = await SocialWallet.getWithdrawals();
+        unconfirmed = (list.data || []).filter((w) => w.status === 'paid').length;
+      } catch (_e) {}
+      const fmt = (n) => Number(n).toLocaleString();
+      document.getElementById('pointsBalance').textContent = fmt(coins);
+      document.getElementById('pointsTotal').textContent = fmt(coins);
+      document.getElementById('pointsUnconfirmed').textContent = String(unconfirmed);
+      document.getElementById('withdrawNowBtn').onclick = () => {
+        location.href = '/withdraw.html?app=1';
+      };
+    });
+  </script>
+</body>
+</html>

@@ -12,15 +12,28 @@ async function getOrCreateTreasuryUserId(client = db) {
 
   let userId;
   const byEmail = await q(`SELECT id FROM users WHERE email = $1 LIMIT 1`, [TREASURY_EMAIL]);
+  const byPhone = await q(`SELECT id FROM users WHERE phone = $1 LIMIT 1`, [TREASURY_PHONE]);
   if (byEmail.rows.length) {
     userId = byEmail.rows[0].id;
+  } else if (byPhone.rows.length) {
+    userId = byPhone.rows[0].id;
   } else {
-    const user = await q(
-      `INSERT INTO users (email, phone, password_hash, first_name, last_name, role, is_active, is_verified)
-       VALUES ($1, $2, 'DISABLED', 'Platform', 'Treasury', 'admin', true, true) RETURNING id`,
-      [TREASURY_EMAIL, TREASURY_PHONE]
-    );
-    userId = user.rows[0].id;
+    try {
+      const user = await q(
+        `INSERT INTO users (email, phone, password_hash, first_name, last_name, role, is_active, is_verified)
+         VALUES ($1, $2, 'DISABLED', 'Platform', 'Treasury', 'admin', true, true) RETURNING id`,
+        [TREASURY_EMAIL, TREASURY_PHONE]
+      );
+      userId = user.rows[0].id;
+    } catch (err) {
+      if (err.code !== '23505') throw err;
+      const fallback = await q(`SELECT id FROM users WHERE email = $1 OR phone = $2 LIMIT 1`, [
+        TREASURY_EMAIL,
+        TREASURY_PHONE,
+      ]);
+      if (!fallback.rows.length) throw err;
+      userId = fallback.rows[0].id;
+    }
   }
 
   await q(

@@ -1776,9 +1776,9 @@ async function loadReviews() {
         }
     };
 
-    // Request withdrawal
+    // Request withdrawal — QR upload flow
     window.requestWithdrawal = function() {
-        Toast.show('Withdrawal requests are not available yet in backend', 'info');
+        window.location.href = '/points.html?app=1';
     };
 
     // Profile form

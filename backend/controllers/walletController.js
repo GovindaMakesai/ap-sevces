@@ -5,7 +5,17 @@ const giftService = require('../services/giftService');
 exports.getBalance = async (req, res) => {
   try {
     const balance = await walletService.getBalance(req.userId);
-    res.json({ success: true, data: balance });
+    const settings = await walletService.getWalletSettings();
+    res.json({ success: true, data: { ...balance, settings } });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+exports.getWalletSettings = async (_req, res) => {
+  try {
+    const settings = await walletService.getWalletSettings();
+    res.json({ success: true, data: settings });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -37,11 +47,43 @@ exports.requestWithdraw = async (req, res) => {
     if (!amount || amount <= 0) {
       return res.status(400).json({ success: false, message: 'Valid withdrawal amount required' });
     }
-    const withdrawal = await walletService.reserveWithdrawal(req.userId, amount);
-    res.status(201).json({ success: true, data: withdrawal });
+    let qr_image_url = req.body.qr_image_url;
+    if (req.file) {
+      qr_image_url = `/uploads/${req.file.filename}`;
+    }
+    const withdrawal = await walletService.reserveWithdrawal(req.userId, amount, {
+      qr_image_url,
+      method: 'qr_upi',
+    });
+    res.status(201).json({
+      success: true,
+      message: 'Withdrawal request submitted for admin review',
+      data: withdrawal,
+    });
   } catch (err) {
     const code = err.code === 'INSUFFICIENT_BALANCE' ? 400 : 500;
     res.status(code).json({ success: false, message: err.message });
+  }
+};
+
+exports.getWithdrawal = async (req, res) => {
+  try {
+    const row = await transactionService.getWithdrawalById(req.params.id, req.userId);
+    if (!row) {
+      return res.status(404).json({ success: false, message: 'Withdrawal not found' });
+    }
+    res.json({ success: true, data: row });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+exports.confirmWithdrawal = async (req, res) => {
+  try {
+    const row = await transactionService.confirmWithdrawalReceipt(req.params.id, req.userId);
+    res.json({ success: true, message: 'Payment receipt confirmed', data: row });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
   }
 };
 
@@ -133,10 +175,22 @@ exports.rejectRecharge = async (req, res) => {
 
 exports.approveWithdrawal = async (req, res) => {
   try {
-    const row = await transactionService.approveWithdrawal(req.params.id, req.userId, req.body.notes);
-    res.json({ success: true, data: row });
+    const row = await transactionService.markWithdrawalPaid(req.params.id, req.userId, req.body.notes);
+    res.json({ success: true, message: 'Marked as paid — awaiting user confirmation', data: row });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
+  }
+};
+
+exports.getAdminWithdrawal = async (req, res) => {
+  try {
+    const row = await transactionService.getWithdrawalById(req.params.id);
+    if (!row) {
+      return res.status(404).json({ success: false, message: 'Withdrawal not found' });
+    }
+    res.json({ success: true, data: row });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
   }
 };
 

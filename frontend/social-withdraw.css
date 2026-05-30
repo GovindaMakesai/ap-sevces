@@ -1,0 +1,327 @@
+/* Points & withdrawal flow — matches reference app (pink points, blue withdraw) */
+.withdraw-app {
+  min-height: 100dvh;
+  background: #f3f4f6;
+  padding: calc(12px + env(safe-area-inset-top, 0)) 16px calc(88px + env(safe-area-inset-bottom, 0));
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+.wd-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.wd-header a {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #374151;
+  text-decoration: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+.wd-header h1 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+  margin: 0;
+  flex: 1;
+  text-align: center;
+}
+.wd-header .wd-header-link {
+  font-size: 14px;
+  color: #5b67f6;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.wd-balance-card {
+  background: linear-gradient(135deg, #fecdd3 0%, #fda4af 45%, #f9a8d4 100%);
+  border-radius: 20px;
+  padding: 24px 20px;
+  color: #831843;
+  margin-bottom: 20px;
+  box-shadow: 0 8px 24px rgba(244, 114, 182, 0.25);
+}
+.wd-balance-card .main {
+  font-size: 36px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+.wd-balance-card .lbl {
+  font-size: 13px;
+  opacity: 0.85;
+  margin-top: 4px;
+}
+.wd-balance-row {
+  display: flex;
+  gap: 24px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(131, 24, 67, 0.15);
+}
+.wd-balance-row div strong {
+  display: block;
+  font-size: 18px;
+}
+.wd-balance-row div span {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.wd-gradient-card {
+  background: linear-gradient(135deg, #a78bfa 0%, #6366f1 50%, #3b82f6 100%);
+  border-radius: 20px;
+  padding: 20px;
+  color: #fff;
+  margin-bottom: 16px;
+  position: relative;
+}
+.wd-gradient-card .top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.wd-gradient-card .amount-lg {
+  font-size: 32px;
+  font-weight: 800;
+}
+.wd-gradient-card .record-btn {
+  background: rgba(255, 255, 255, 0.25);
+  border: none;
+  color: #fff;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+}
+.wd-gradient-card .cols {
+  display: flex;
+  gap: 32px;
+  margin-top: 16px;
+  font-size: 13px;
+  opacity: 0.95;
+}
+.wd-gradient-card .cols strong {
+  display: block;
+  font-size: 16px;
+}
+
+.wd-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+}
+.wd-card h3 {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 12px;
+}
+
+.wd-amount-input {
+  background: #f3f4f6;
+  border-radius: 14px;
+  padding: 20px 16px;
+  font-size: 32px;
+  font-weight: 800;
+  color: #111827;
+  border: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+.wd-amount-input:focus {
+  outline: 2px solid #5b67f6;
+}
+.wd-hint {
+  font-size: 13px;
+  color: #6b7280;
+  margin-top: 10px;
+}
+
+.wd-qr-upload {
+  border: 2px dashed #d1d5db;
+  border-radius: 14px;
+  padding: 24px;
+  text-align: center;
+  cursor: pointer;
+  background: #fafafa;
+  transition: border-color 0.2s;
+}
+.wd-qr-upload:hover,
+.wd-qr-upload.has-file {
+  border-color: #5b67f6;
+  background: #eef2ff;
+}
+.wd-qr-upload img {
+  max-width: 200px;
+  max-height: 200px;
+  border-radius: 12px;
+  margin: 0 auto 8px;
+  display: block;
+}
+.wd-qr-upload input {
+  display: none;
+}
+.wd-qr-upload .icon {
+  font-size: 40px;
+  color: #9ca3af;
+  margin-bottom: 8px;
+}
+.wd-qr-upload p {
+  margin: 0;
+  font-size: 14px;
+  color: #6b7280;
+}
+
+.wd-btn-primary {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0));
+  border: none;
+  padding: 16px;
+  border-radius: 999px;
+  background: #5b67f6;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(91, 103, 246, 0.4);
+  z-index: 10;
+}
+.wd-btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.wd-btn-pink {
+  background: linear-gradient(90deg, #f472b6, #ec4899);
+  box-shadow: 0 8px 24px rgba(236, 72, 153, 0.35);
+}
+
+.wd-status {
+  text-align: center;
+  margin: 8px 0 20px;
+}
+.wd-status .amt {
+  font-size: 40px;
+  font-weight: 800;
+  color: #111827;
+}
+.wd-status .st {
+  font-size: 14px;
+  color: #9ca3af;
+  margin-top: 4px;
+}
+.wd-status .st.pending { color: #f59e0b; }
+.wd-status .st.paid { color: #3b82f6; }
+.wd-status .st.completed { color: #10b981; }
+.wd-status .st.rejected { color: #ef4444; }
+
+.wd-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #f3f4f6;
+  font-size: 14px;
+}
+.wd-detail-row:last-child {
+  border-bottom: none;
+}
+.wd-detail-row .label {
+  color: #6b7280;
+}
+.wd-detail-row .value {
+  font-weight: 600;
+  color: #111827;
+  text-align: right;
+  max-width: 60%;
+  word-break: break-all;
+}
+
+.wd-qr-preview {
+  text-align: center;
+  padding: 12px;
+}
+.wd-qr-preview img {
+  max-width: 220px;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+}
+
+.wd-notice-card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 14px;
+  margin-bottom: 12px;
+  display: flex;
+  gap: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+.wd-notice-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #a78bfa, #6366f1);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 18px;
+}
+.wd-notice-body h4 {
+  margin: 0 0 6px;
+  font-size: 14px;
+  color: #111827;
+}
+.wd-notice-body p {
+  margin: 0;
+  font-size: 12px;
+  color: #9ca3af;
+  line-height: 1.4;
+}
+.wd-notice-link {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 13px;
+  color: #5b67f6;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.wd-alert-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #ede9fe;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  color: #5b21b6;
+  margin-bottom: 12px;
+}
+
+.wd-rules-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.wd-rules-table td {
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+}
+.wd-rules-table td:first-child {
+  background: #f5f3ff;
+  color: #4b5563;
+  width: 45%;
+}

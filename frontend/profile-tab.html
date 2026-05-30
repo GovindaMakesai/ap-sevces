@@ -12,14 +12,31 @@
 <body class="social-profile-page">
   <div class="social-profile-hero">
     <img id="profileAvatar" src="" alt="Profile">
-    <h2 id="profileName" style="color:var(--gold-800);font-size:20px">Guest</h2>
-    <p id="profileRole" style="color:var(--gold-600);font-size:14px;margin-top:4px">Sign in to continue</p>
+    <h2 id="profileName">Guest</h2>
+    <p id="profileRole">Sign in to continue</p>
     <div class="social-profile-stats" id="profileStats" style="display:none">
-      <div><strong id="statFollowing">0</strong><span>Following</span></div>
-      <div><strong id="statFollowers">0</strong><span>Followers</span></div>
-      <div><strong id="statCoins">0</strong><span>Coins</span></div>
+      <button type="button" class="social-stat-pill" id="statFollowingBtn" aria-label="View following">
+        <strong id="statFollowing">0</strong>
+        <span>Following</span>
+      </button>
+      <button type="button" class="social-stat-pill" id="statFollowersBtn" aria-label="View followers">
+        <strong id="statFollowers">0</strong>
+        <span>Followers</span>
+      </button>
+      <a href="/store.html?app=1" class="social-stat-pill social-stat-coins">
+        <strong id="statCoins">0</strong>
+        <span>Coins</span>
+      </a>
+      <a href="/points.html?app=1" class="social-stat-pill" style="background:linear-gradient(135deg,#fecdd3,#fda4af);color:#831843">
+        <strong id="statPoints">0</strong>
+        <span>Points</span>
+      </a>
     </div>
-    <button type="button" class="social-btn-orange" style="max-width:200px;margin:16px auto 0" id="profileMainBtn">Sign In</button>
+    <div id="profileWalletActions" style="display:none;gap:10px;margin-top:12px;justify-content:center;flex-wrap:wrap">
+      <a href="/coins-recharge.html?app=1" class="social-btn-orange" style="padding:8px 16px;font-size:13px;text-decoration:none">Top Up</a>
+      <a href="/points.html?app=1" class="social-btn-orange" style="padding:8px 16px;font-size:13px;text-decoration:none;background:linear-gradient(135deg,#f472b6,#ec4899)">Withdraw</a>
+    </div>
+    <button type="button" class="social-btn-orange social-profile-cta" id="profileMainBtn">Sign In</button>
   </div>
 
   <nav class="social-menu-list">
@@ -62,9 +79,25 @@
           const s = await SocialInteractions.getFollowStats(user.id);
           document.getElementById('statFollowing').textContent = s.following;
           document.getElementById('statFollowers').textContent = s.followers;
-          document.getElementById('statCoins').textContent = s.coins;
+          document.getElementById('statCoins').textContent = s.coins.toLocaleString();
+          if (window.SocialWallet) {
+            SocialWallet.fetchBalance().then((b) => {
+              const pts = document.getElementById('statPoints');
+              if (pts) pts.textContent = (b.coin_balance || 0).toLocaleString();
+            });
+          }
           statsEl.style.display = 'flex';
+          const walletActs = document.getElementById('profileWalletActions');
+          if (walletActs) walletActs.style.display = 'flex';
         }
+        document.getElementById('statFollowingBtn')?.addEventListener('click', () => {
+          const list = SocialInteractions.getFollowingList().map((e) => ({ name: e.name }));
+          SocialUI.openFollowSheet('following', list);
+        });
+        document.getElementById('statFollowersBtn')?.addEventListener('click', () => {
+          const list = SocialInteractions.getFollowersList(user.id);
+          SocialUI.openFollowSheet('followers', list);
+        });
         btn.textContent = 'Open Dashboard';
         btn.onclick = () => SocialShell.redirectToDashboard();
         dash.onclick = (e) => { e.preventDefault(); SocialShell.redirectToDashboard(); };

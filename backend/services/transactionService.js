@@ -14,11 +14,24 @@ async function listTransactions(userId, { limit = 30, offset = 0 } = {}) {
 
 async function listWithdrawals(userId, { limit = 20, offset = 0 } = {}) {
   const res = await db.query(
-    `SELECT id, user_id, amount, status, method, admin_notes, reviewed_at, created_at
+    `SELECT id, user_id, amount, status, method, qr_image_url, order_number, amount_inr,
+            admin_notes, reviewed_at, paid_at, confirmed_at, created_at
      FROM withdrawals WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
     [userId, limit, offset]
   );
   return res.rows;
+}
+
+async function getWithdrawalById(withdrawalId, userId = null) {
+  const params = [withdrawalId];
+  let sql = `SELECT w.*, u.email, u.first_name, u.last_name
+     FROM withdrawals w JOIN users u ON u.id = w.user_id WHERE w.id = $1`;
+  if (userId) {
+    sql += ` AND w.user_id = $2`;
+    params.push(userId);
+  }
+  const res = await db.query(sql, params);
+  return res.rows[0] || null;
 }
 
 async function createRechargeRequest(userId, { amount_inr, payment_method, transaction_id }) {
@@ -88,13 +101,25 @@ async function rejectRecharge(rechargeId, adminUserId, notes) {
   return res.rows[0];
 }
 
-async function approveWithdrawal(withdrawalId, adminUserId, notes) {
+/** Admin marks payment sent — user must confirm receipt to complete. */
+async function markWithdrawalPaid(withdrawalId, adminUserId, notes) {
   const res = await db.query(
-    `UPDATE withdrawals SET status = 'completed', reviewed_by = $1, admin_notes = $2, reviewed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+    `UPDATE withdrawals SET status = 'paid', reviewed_by = $1, admin_notes = $2,
+       reviewed_at = CURRENT_TIMESTAMP, paid_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
      WHERE id = $3 AND status = 'pending' RETURNING *`,
     [adminUserId, notes || null, withdrawalId]
   );
   if (!res.rows.length) throw new Error('Withdrawal not found or already processed');
+  return res.rows[0];
+}
+
+async function confirmWithdrawalReceipt(withdrawalId, userId) {
+  const res = await db.query(
+    `UPDATE withdrawals SET status = 'completed', confirmed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+     WHERE id = $1 AND user_id = $2 AND status = 'paid' RETURNING *`,
+    [withdrawalId, userId]
+  );
+  if (!res.rows.length) throw new Error('Withdrawal not found or not awaiting confirmation');
   return res.rows[0];
 }
 
@@ -149,14 +174,27 @@ async function listPendingWithdrawals(limit = 50) {
   return res.rows;
 }
 
+async function listAwaitingConfirmWithdrawals(limit = 50) {
+  const res = await db.query(
+    `SELECT w.*, u.email, u.first_name, u.last_name
+     FROM withdrawals w JOIN users u ON u.id = w.user_id
+     WHERE w.status = 'paid' ORDER BY w.paid_at ASC LIMIT $1`,
+    [limit]
+  );
+  return res.rows;
+}
+
 module.exports = {
   listTransactions,
   listWithdrawals,
+  getWithdrawalById,
   createRechargeRequest,
   approveRecharge,
   rejectRecharge,
-  approveWithdrawal,
+  markWithdrawalPaid,
+  confirmWithdrawalReceipt,
   rejectWithdrawal,
   listPendingRecharges,
   listPendingWithdrawals,
+  listAwaitingConfirmWithdrawals,
 };

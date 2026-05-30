@@ -21,7 +21,13 @@ const required = [
     'worker-dashboard.html',
     'services.html',
     'booking.html',
-    'become-a-pro.html'
+    'become-a-pro.html',
+    'points.html',
+    'withdraw.html',
+    'withdraw-details.html',
+    'withdraw-notices.html',
+    'social-withdraw.css',
+    'social-wallet.js'
 ];
 
 let failed = false;

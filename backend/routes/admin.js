@@ -52,6 +52,7 @@ router.get('/recharges/pending', requirePermission('admin.recharges'), walletCon
 router.post('/recharges/:id/approve', requirePermission('admin.recharges'), walletController.approveRecharge);
 router.post('/recharges/:id/reject', requirePermission('admin.recharges'), walletController.rejectRecharge);
 router.get('/withdrawals/pending', requirePermission('admin.withdrawals'), walletController.listPendingWithdrawals);
+router.get('/withdrawals/:id', requirePermission('admin.withdrawals'), walletController.getAdminWithdrawal);
 router.post('/withdrawals/:id/approve', requirePermission('admin.withdrawals'), walletController.approveWithdrawal);
 router.post('/withdrawals/:id/reject', requirePermission('admin.withdrawals'), walletController.rejectWithdrawal);
 

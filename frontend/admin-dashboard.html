@@ -1432,6 +1432,10 @@
                         <button class="nav-item" data-section="payments">
                             <i class="fas fa-credit-card"></i> Payments
                         </button>
+                        <button class="nav-item" data-section="withdrawals">
+                            <i class="fas fa-money-bill-wave"></i> Withdrawals
+                            <span class="badge warning" id="withdrawalsBadge">0</span>
+                        </button>
                         <button class="nav-item" data-section="reviews">
                             <i class="fas fa-star"></i> Reviews
                         </button>
@@ -1837,6 +1841,42 @@
                         </div>
                     </div>
 
+                    <!-- Coin Withdrawals (QR payout) -->
+                    <div class="dashboard-section" id="withdrawals-section">
+                        <div class="section-header">
+                            <h2><i class="fas fa-money-bill-wave"></i> Coin Withdrawal Requests</h2>
+                            <button class="btn-outline" onclick="loadWithdrawals()">
+                                <i class="fas fa-sync-alt"></i> Refresh
+                            </button>
+                        </div>
+                        <p style="color:var(--gray-500);margin-bottom:16px;font-size:14px">
+                            Users upload their UPI/bank QR. After you pay externally, click <strong>Approve &amp; Pay</strong>. The user must confirm receipt to complete.
+                        </p>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>User</th>
+                                        <th>Coins</th>
+                                        <th>INR (est.)</th>
+                                        <th>QR Code</th>
+                                        <th>Order #</th>
+                                        <th>Submitted</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="withdrawalsTable">
+                                    <tr>
+                                        <td colspan="8" class="loading-spinner">
+                                            <i class="fas fa-spinner fa-spin"></i> Loading withdrawals...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
                     <!-- Reviews Section -->
                     <div class="dashboard-section" id="reviews-section">
                         <div class="section-header">
@@ -2189,6 +2229,7 @@
                 loadServicesPreview(),
                 loadBookings(),
                 loadPayments(),
+                loadWithdrawals(),
                 loadReviews(),
                 initializeCharts()
             ]);
@@ -2480,6 +2521,75 @@
                 </tr>
             `).join('');
         }
+
+        function withdrawalQrUrl(path) {
+            if (!path) return '';
+            if (/^https?:\/\//i.test(path)) return path;
+            const base = (typeof CONFIG !== 'undefined' && CONFIG.BACKEND_URL) ? CONFIG.BACKEND_URL : '';
+            return base + (path.startsWith('/') ? path : '/' + path);
+        }
+
+        async function loadWithdrawals() {
+            const tbody = document.getElementById('withdrawalsTable');
+            if (!tbody) return;
+            tbody.innerHTML = '<tr><td colspan="8" class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>';
+            try {
+                const response = await API.get('/admin/withdrawals/pending');
+                const rows = response.data || [];
+                const badge = document.getElementById('withdrawalsBadge');
+                if (badge) badge.textContent = rows.length;
+                if (!rows.length) {
+                    tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No pending withdrawal requests</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = rows.map((w) => {
+                    const name = `${w.first_name || ''} ${w.last_name || ''}`.trim() || w.email || 'User';
+                    const coins = Number(w.amount).toLocaleString();
+                    const inr = w.amount_inr != null ? '₹' + Number(w.amount_inr).toFixed(2) : '—';
+                    const qr = w.qr_image_url
+                        ? `<a href="${withdrawalQrUrl(w.qr_image_url)}" target="_blank" rel="noopener"><img src="${withdrawalQrUrl(w.qr_image_url)}" alt="QR" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid #e5e7eb"></a>`
+                        : '—';
+                    const date = w.created_at ? new Date(w.created_at).toLocaleString() : '—';
+                    return `<tr>
+                        <td>${name}<br><small style="color:var(--gray-500)">${w.email || ''}</small></td>
+                        <td>${coins}</td>
+                        <td>${inr}</td>
+                        <td>${qr}</td>
+                        <td><small>${w.order_number || w.id?.slice(0, 8)}</small></td>
+                        <td>${date}</td>
+                        <td><span class="status-badge pending">Under review</span></td>
+                        <td>
+                            <button class="icon-btn approve" title="Approve & Pay" onclick="approveWithdrawal('${w.id}')"><i class="fas fa-check"></i></button>
+                            <button class="icon-btn reject" title="Reject & refund" onclick="rejectWithdrawal('${w.id}')"><i class="fas fa-times"></i></button>
+                        </td>
+                    </tr>`;
+                }).join('');
+            } catch (error) {
+                tbody.innerHTML = `<tr><td colspan="8" class="empty-state">${error.message || 'Failed to load'}</td></tr>`;
+            }
+        }
+
+        window.approveWithdrawal = async function(id) {
+            if (!confirm('Have you sent payment to the user\'s QR? This marks the request as paid and asks the user to confirm receipt.')) return;
+            try {
+                const response = await API.post(`/admin/withdrawals/${id}/approve`, {});
+                Toast.show(response.message || 'Marked as paid', 'success');
+                loadWithdrawals();
+            } catch (error) {
+                Toast.show(error.message || 'Failed', 'error');
+            }
+        };
+
+        window.rejectWithdrawal = async function(id) {
+            const reason = prompt('Rejection reason (optional):') || '';
+            try {
+                await API.post(`/admin/withdrawals/${id}/reject`, { notes: reason });
+                Toast.show('Withdrawal rejected — coins refunded', 'success');
+                loadWithdrawals();
+            } catch (error) {
+                Toast.show(error.message || 'Failed', 'error');
+            }
+        };
 
         window.approvePayment = async function(bookingId) {
             try {
@@ -2781,6 +2891,7 @@
 
             // Load section-specific data if needed
             if (section === 'payments') loadPayments();
+            if (section === 'withdrawals') loadWithdrawals();
             if (section === 'reviews') loadReviews();
         }
 

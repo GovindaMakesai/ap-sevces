@@ -5,6 +5,7 @@
   const SOCIAL_PAGES = [
     '/explore.html', '/party.html', '/video.html', '/square.html', '/topics.html',
     '/store.html', '/vip.html', '/rankings.html', '/profile-tab.html', '/privileges.html',
+    '/points.html', '/withdraw.html', '/withdraw-details.html', '/withdraw-notices.html',
   ];
 
   const AUTH_PAGES = ['/app-auth.html', '/login.html', '/register.html', '/login-success.html'];

@@ -39,6 +39,35 @@ npx expo run:android
 
 In-app recharge uses **your UPI QR** at `frontend/assets/payment-qr.png` via **Coins → Recharge** (`coins-recharge.html`) — the same manual QR + UTR flow as service booking, not the Expo dev QR.
 
+### Points withdrawal (QR payout)
+
+The Expo shell loads the same WebView pages as the website:
+
+- **Profile → Withdraw** or menu **Points & Withdraw** → `points.html` → `withdraw.html`
+- User uploads **their** UPI/bank QR, submits amount; admin approves in **Admin → Withdrawals**; user **Confirm receipt** on the details screen.
+
+Deploy **`frontend/`** to Vercel and **`backend/`** to Render so the APK (production URLs) sees the new API and pages.
+
+### Build APK for testing
+
+```powershell
+cd ap-services-app
+npm install
+npm run build:apk
+```
+
+Uses EAS **preview** profile (installable `.apk`). Log in with `npx eas login` if prompted.
+
+Or local debug APK (needs Android SDK):
+
+```powershell
+npm run prebuild:android
+cd android
+.\gradlew.bat assembleDebug
+```
+
+APK: `android/app/build/outputs/apk/debug/app-debug.apk`
+
 ### Live streaming (Agora)
 
 Set on your Render backend (project **ap_services** in Agora Console):

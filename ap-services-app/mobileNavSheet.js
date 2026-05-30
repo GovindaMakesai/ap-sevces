@@ -36,12 +36,16 @@ function apBuildTopLinks() {
     return links;
   }
   links.push({ href: '/services.html', label: 'Services' });
+  links.push({ href: '/points.html?app=1', label: 'Points & Withdraw' });
+  links.push({ href: '/withdraw-notices.html?app=1', label: 'Withdrawal history' });
+  links.push({ href: '/store.html?app=1', label: 'Store' });
+  links.push({ href: '/coins-recharge.html?app=1', label: 'Recharge coins' });
   if (user.role === 'admin') {
-    links.push({ href: '/admin-dashboard.html', label: 'Admin Dashboard' });
+    links.push({ href: '/admin-dashboard.html?app=1', label: 'Admin Dashboard' });
     links.push({ href: '/customer-dashboard.html', label: 'My Bookings' });
   } else if (user.role === 'worker') {
     links.push({ href: '/customer-dashboard.html', label: 'My Bookings' });
-    links.push({ href: '/worker-dashboard.html', label: 'Pro Dashboard' });
+    links.push({ href: '/worker-dashboard.html?app=1', label: 'Pro Dashboard' });
   } else {
     links.push({ href: '/customer-dashboard.html', label: 'My Bookings' });
     links.push({ href: '/become-a-pro.html', label: 'Become a Pro' });

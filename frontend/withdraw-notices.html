@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#f3f4f6">
+  <title>Arrival notice - AP Services</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="social-theme.css">
+  <link rel="stylesheet" href="social-withdraw.css">
+</head>
+<body class="withdraw-app">
+  <header class="wd-header">
+    <a href="/points.html?app=1" aria-label="Back"><i class="fas fa-arrow-left"></i></a>
+    <h1>Arrival notice</h1>
+    <span style="width:36px"></span>
+  </header>
+
+  <div id="noticeList">
+    <p style="text-align:center;color:#9ca3af;padding:24px">Loading…</p>
+  </div>
+
+  <script src="app.js"></script>
+  <script src="social-wallet.js"></script>
+  <script src="auth-guard.js"></script>
+  <script src="social-ui.js"></script>
+  <script>
+    const STATUS_TITLES = {
+      pending: 'You have initiated the withdrawal request and system is reviewing it…',
+      paid: 'Admin has sent payment — please confirm receipt',
+      completed: 'Successful withdrawal',
+      rejected: 'Withdrawal request was rejected',
+    };
+
+    function formatTime(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      const hh = String(d.getHours()).padStart(2, '0');
+      const mi = String(d.getMinutes()).padStart(2, '0');
+      return `${mm}/${dd} ${hh}:${mi}`;
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      if (!localStorage.getItem('token')) {
+        location.href = '/login.html?redirect=' + encodeURIComponent('/withdraw-notices.html');
+        return;
+      }
+
+      const el = document.getElementById('noticeList');
+      try {
+        const res = await SocialWallet.getWithdrawals();
+        const rows = res.data || [];
+        if (!rows.length) {
+          el.innerHTML = '<p style="text-align:center;color:#9ca3af;padding:32px">No withdrawal history yet.<br><a href="/withdraw.html?app=1" style="color:#5b67f6">Withdraw now</a></p>';
+          return;
+        }
+        el.innerHTML = rows
+          .map((w) => {
+            const coins = Number(w.amount);
+            const inr = w.amount_inr != null ? '₹' + Number(w.amount_inr).toFixed(2) : '';
+            return `
+          <div class="wd-notice-card">
+            <div class="wd-notice-icon"><i class="fas fa-bolt"></i></div>
+            <div class="wd-notice-body">
+              <h4>${STATUS_TITLES[w.status] || w.status}</h4>
+              <p>Withdrawal amount: ${coins.toLocaleString()} coins ${inr ? `(${inr})` : ''}<br>
+              ${formatTime(w.created_at)}</p>
+              <a class="wd-notice-link" href="/withdraw-details.html?id=${w.id}&app=1">Check for details ›</a>
+            </div>
+          </div>`;
+          })
+          .join('');
+      } catch (e) {
+        el.innerHTML = `<p style="text-align:center;color:#ef4444">${e.message || 'Failed to load'}</p>`;
+      }
+    });
+  </script>
+</body>
+</html>

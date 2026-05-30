@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#5b67f6">
+  <title>Withdraw - AP Services</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="social-theme.css">
+  <link rel="stylesheet" href="social-withdraw.css">
+</head>
+<body class="withdraw-app">
+  <header class="wd-header">
+    <a href="/points.html?app=1" aria-label="Back"><i class="fas fa-arrow-left"></i></a>
+    <h1>Withdraw</h1>
+    <span style="width:36px"></span>
+  </header>
+
+  <div class="wd-alert-banner">
+    <i class="fas fa-shield-alt"></i>
+    <span>Upload your UPI/bank QR — admin will pay to this code after review</span>
+  </div>
+
+  <div class="wd-gradient-card" id="balanceCard">
+    <div class="top">
+      <div>
+        <div class="amount-lg" id="withdrawableDisplay">0</div>
+        <div style="font-size:13px;opacity:0.9">Withdrawable (coins)</div>
+      </div>
+      <a href="/withdraw-notices.html?app=1" class="record-btn">Record</a>
+    </div>
+    <div class="cols">
+      <div><strong id="totalCoins">0</strong>Total</div>
+      <div><strong id="minCoins">500</strong>Minimum</div>
+    </div>
+  </div>
+
+  <div class="wd-card">
+    <h3>Amount</h3>
+    <input type="number" class="wd-amount-input" id="withdrawAmount" placeholder="500" min="1" inputmode="numeric">
+    <p class="wd-hint">Withdrawable amount: <strong id="withdrawableHint">0</strong> coins</p>
+  </div>
+
+  <div class="wd-card">
+    <h3>Payment QR code</h3>
+    <label class="wd-qr-upload" id="qrUploadZone">
+      <input type="file" id="qrFile" accept="image/jpeg,image/png,image/webp">
+      <div id="qrPlaceholder">
+        <div class="icon"><i class="fas fa-qrcode"></i></div>
+        <p>Tap to upload your payment QR code</p>
+      </div>
+      <img id="qrPreview" alt="QR preview" style="display:none">
+    </label>
+  </div>
+
+  <div class="wd-card">
+    <h3>Withdrawal rules</h3>
+    <table class="wd-rules-table">
+      <tr><td>Minimum withdrawal</td><td id="ruleMin">500 coins</td></tr>
+      <tr><td>Exchange ratio</td><td id="ruleRate">10 coins = ₹1</td></tr>
+      <tr><td>Processing</td><td>Admin review → pay → you confirm receipt</td></tr>
+    </table>
+  </div>
+
+  <button type="button" class="wd-btn-primary" id="submitWithdraw" disabled>Submit</button>
+
+  <script src="app.js"></script>
+  <script src="social-wallet.js"></script>
+  <script src="auth-guard.js"></script>
+  <script src="social-ui.js"></script>
+  <script>
+    let selectedFile = null;
+    let minCoins = 500;
+    let withdrawable = 0;
+
+    function updateSubmitState() {
+      const amt = parseInt(document.getElementById('withdrawAmount').value, 10);
+      const ok = selectedFile && amt >= minCoins && amt <= withdrawable;
+      document.getElementById('submitWithdraw').disabled = !ok;
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      if (!localStorage.getItem('token')) {
+        location.href = '/login.html?redirect=' + encodeURIComponent('/withdraw.html');
+        return;
+      }
+
+      const settings = await SocialWallet.getWalletSettings().catch(() => ({}));
+      minCoins = settings.min_withdrawal_coins || 500;
+      const rate = settings.coins_per_inr || 10;
+      document.getElementById('minCoins').textContent = minCoins.toLocaleString();
+      document.getElementById('ruleMin').textContent = `${minCoins.toLocaleString()} coins`;
+      document.getElementById('ruleRate').textContent = `${rate} coins = ₹1`;
+
+      const bal = await SocialWallet.fetchBalance(true);
+      withdrawable = bal.coin_balance || 0;
+      const fmt = (n) => Number(n).toLocaleString();
+      document.getElementById('withdrawableDisplay').textContent = fmt(withdrawable);
+      document.getElementById('totalCoins').textContent = fmt(withdrawable);
+      document.getElementById('withdrawableHint').textContent = fmt(withdrawable);
+      document.getElementById('withdrawAmount').value = withdrawable >= minCoins ? minCoins : '';
+
+      const zone = document.getElementById('qrUploadZone');
+      const input = document.getElementById('qrFile');
+      const preview = document.getElementById('qrPreview');
+      const placeholder = document.getElementById('qrPlaceholder');
+
+      input.addEventListener('change', () => {
+        const file = input.files?.[0];
+        if (!file) return;
+        selectedFile = file;
+        zone.classList.add('has-file');
+        preview.src = URL.createObjectURL(file);
+        preview.style.display = 'block';
+        placeholder.style.display = 'none';
+        updateSubmitState();
+      });
+
+      document.getElementById('withdrawAmount').addEventListener('input', updateSubmitState);
+
+      document.getElementById('submitWithdraw').addEventListener('click', async () => {
+        const amount = parseInt(document.getElementById('withdrawAmount').value, 10);
+        if (!amount || amount < minCoins) {
+          SocialUI?.toast?.('Enter a valid amount') || alert('Enter a valid amount');
+          return;
+        }
+        if (amount > withdrawable) {
+          SocialUI?.toast?.('Insufficient balance') || alert('Insufficient balance');
+          return;
+        }
+        if (!selectedFile) {
+          SocialUI?.toast?.('Upload your payment QR code') || alert('Upload your payment QR code');
+          return;
+        }
+        const btn = document.getElementById('submitWithdraw');
+        btn.disabled = true;
+        btn.textContent = 'Submitting…';
+        try {
+          const res = await SocialWallet.requestWithdrawWithQr(amount, selectedFile);
+          const id = res.data?.id;
+          SocialUI?.toast?.('Request submitted — under review') || alert('Request submitted');
+          location.href = id
+            ? `/withdraw-details.html?id=${id}&app=1`
+            : '/withdraw-notices.html?app=1';
+        } catch (e) {
+          SocialUI?.toast?.(e.message) || alert(e.message || 'Failed to submit');
+          btn.disabled = false;
+          btn.textContent = 'Submit';
+          updateSubmitState();
+        }
+      });
+    });
+  </script>
+</body>
+</html>

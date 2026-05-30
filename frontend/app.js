@@ -1256,6 +1256,7 @@ function loadSocialShellIfNeeded() {
     const socialPages = [
         '/explore.html', '/party.html', '/video.html', '/square.html', '/topics.html',
         '/store.html', '/vip.html', '/rankings.html', '/profile-tab.html', '/privileges.html',
+        '/points.html', '/withdraw.html', '/withdraw-details.html', '/withdraw-notices.html',
     ];
     const isSocial = socialPages.some((p) => path.endsWith(p));
     if (isSocial || isNativeAppContext()) {

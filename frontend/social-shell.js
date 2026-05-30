@@ -304,7 +304,9 @@
     const mount = document.getElementById('exploreEmpty');
     const content = document.getElementById('exploreContent');
     if (!mount) return;
-    const follows = JSON.parse(localStorage.getItem('social_follows') || '[]');
+    const follows = window.SocialInteractions?.getFollowingList
+      ? SocialInteractions.getFollowingList().map((e) => e.name)
+      : JSON.parse(localStorage.getItem('social_follows') || '[]').map((x) => (typeof x === 'string' ? x : x.name));
     let pros = await fetchPros(24);
     if (follows.length) {
       pros = pros.filter((p) =>

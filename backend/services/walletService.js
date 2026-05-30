@@ -142,21 +142,35 @@ async function debitCoins(userId, amount, meta = {}, client) {
   }
 }
 
-async function reserveWithdrawal(userId, amount) {
+function generateOrderNumber() {
+  const ts = Date.now();
+  const rand = Math.floor(Math.random() * 1e6)
+    .toString()
+    .padStart(6, '0');
+  return `${ts}${rand}`;
+}
+
+async function reserveWithdrawal(userId, amount, { qr_image_url, method } = {}) {
   const settings = await getWalletSettings();
   const amt = BigInt(amount);
   if (amt < BigInt(settings.min_withdrawal_coins)) {
     throw new Error(`Minimum withdrawal is ${settings.min_withdrawal_coins} coins`);
   }
+  if (!qr_image_url || !String(qr_image_url).trim()) {
+    throw new Error('Payment QR code image is required');
+  }
+
+  const amountInr = Number(amt) / Number(settings.coins_per_inr || 10);
+  const orderNumber = generateOrderNumber();
 
   const client = await db.pool.connect();
   try {
     await client.query('BEGIN');
     await debitCoins(userId, Number(amt), { type: 'withdrawal_hold', reference_type: 'withdrawal' }, client);
     const w = await client.query(
-      `INSERT INTO withdrawals (user_id, amount, status, method)
-       VALUES ($1, $2, 'pending', 'bank') RETURNING *`,
-      [userId, amt.toString()]
+      `INSERT INTO withdrawals (user_id, amount, status, method, qr_image_url, order_number, amount_inr)
+       VALUES ($1, $2, 'pending', $3, $4, $5, $6) RETURNING *`,
+      [userId, amt.toString(), method || 'qr_upi', String(qr_image_url).trim(), orderNumber, amountInr]
     );
     await client.query('COMMIT');
     return w.rows[0];

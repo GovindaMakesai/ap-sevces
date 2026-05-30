@@ -22,6 +22,7 @@
   <div id="social-bottom-nav-mount"></div>
 
   <script src="app.js"></script>
+  <script src="social-ui.js"></script>
   <script src="social-interactions.js"></script>
   <script src="social-shell.js"></script>
   <script>
@@ -29,18 +30,24 @@
       SocialShell.initPage({ activeNav: 'video' });
       const name = decodeURIComponent(new URLSearchParams(location.search).get('name') || 'Creator');
       document.getElementById('creatorTitle').textContent = name;
-      const follows = JSON.parse(localStorage.getItem('social_follows') || '[]');
-      const following = follows.includes(name);
-      document.getElementById('creatorHero').innerHTML = `
-        <img class="creator-avatar" src="https://ui-avatars.com/api/?name=${encodeURIComponent(name.slice(0,2))}&background=c9a227&color=fff&size=128" alt="">
-        <h2>${name} 🇮🇳</h2>
-        <button type="button" class="creator-follow-btn ${following ? 'is-on' : ''}" id="creatorFollow">${following ? 'Following' : 'Follow'}</button>`;
+      const following = SocialInteractions.isFollowing(name, name);
+      document.getElementById('creatorHero').innerHTML =
+        '<img class="creator-avatar" src="' +
+        SocialUI.avatarUrl(name) +
+        '" alt="">' +
+        '<h2>' + name + '</h2>' +
+        '<button type="button" class="creator-follow-btn ' + (following ? 'is-on' : '') + '" id="creatorFollow">' +
+        (following ? 'Following' : 'Follow') +
+        '</button>';
       document.getElementById('creatorFollow').onclick = () => {
-        const f = JSON.parse(localStorage.getItem('social_follows') || '[]');
-        const i = f.indexOf(name);
-        if (i >= 0) f.splice(i, 1); else f.push(name);
-        localStorage.setItem('social_follows', JSON.stringify(f));
-        location.reload();
+        const btn = document.getElementById('creatorFollow');
+        const now = SocialInteractions.toggleFollow(name, name);
+        btn.textContent = now ? 'Following' : 'Follow';
+        btn.classList.toggle('is-on', now);
+        SocialUI.toast(
+          now ? 'You are now following ' + name : 'Unfollowed ' + name,
+          now ? 'success' : 'info'
+        );
       };
       const posts = (SocialInteractions.getPosts() || []).filter((p) => p.userName === name);
       const feed = document.getElementById('creatorPosts');

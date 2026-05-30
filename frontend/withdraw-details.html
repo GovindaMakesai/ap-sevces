@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#f3f4f6">
+  <title>Details - AP Services</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="social-theme.css">
+  <link rel="stylesheet" href="social-withdraw.css">
+</head>
+<body class="withdraw-app">
+  <header class="wd-header">
+    <a href="/withdraw-notices.html?app=1" aria-label="Back"><i class="fas fa-arrow-left"></i></a>
+    <h1>Details</h1>
+    <span style="width:36px"></span>
+  </header>
+
+  <div class="wd-status" id="statusBlock">
+    <div class="amt" id="detailAmount">—</div>
+    <div class="st" id="detailStatus">Loading…</div>
+  </div>
+
+  <div class="wd-card">
+    <div class="wd-detail-row"><span class="label">Amount (coins)</span><span class="value" id="rowCoins">—</span></div>
+    <div class="wd-detail-row"><span class="label">Local currency (INR)</span><span class="value" id="rowInr">—</span></div>
+    <div class="wd-detail-row"><span class="label">Actual amount</span><span class="value" id="rowActual">—</span></div>
+  </div>
+
+  <div class="wd-card">
+    <h3>Payment QR</h3>
+    <div class="wd-qr-preview">
+      <img id="detailQr" alt="Your payment QR" style="display:none">
+      <p id="detailQrMissing" style="color:#9ca3af;font-size:13px">No QR on file</p>
+    </div>
+  </div>
+
+  <div class="wd-card">
+    <div class="wd-detail-row"><span class="label">Order number</span><span class="value" id="rowOrder">—</span></div>
+    <div class="wd-detail-row"><span class="label">Order time</span><span class="value" id="rowTime">—</span></div>
+    <div class="wd-detail-row" id="paidRow" style="display:none"><span class="label">Paid at</span><span class="value" id="rowPaid">—</span></div>
+  </div>
+
+  <button type="button" class="wd-btn-primary" id="confirmBtn" style="display:none">Confirm receipt</button>
+
+  <script src="app.js"></script>
+  <script src="social-wallet.js"></script>
+  <script src="auth-guard.js"></script>
+  <script src="social-ui.js"></script>
+  <script>
+    const STATUS_LABELS = {
+      pending: 'Under review',
+      paid: 'Paid — please confirm receipt',
+      completed: 'Successful withdrawal',
+      rejected: 'Rejected',
+    };
+
+    function formatInr(w) {
+      if (w.amount_inr != null) return '₹' + Number(w.amount_inr).toFixed(2);
+      return '—';
+    }
+
+    function formatTime(iso) {
+      if (!iso) return '—';
+      const d = new Date(iso);
+      return d.toLocaleString('en-IN', { hour12: false }).replace(',', '');
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      const params = new URLSearchParams(location.search);
+      const id = params.get('id');
+      if (!id || !localStorage.getItem('token')) {
+        location.href = '/login.html?redirect=' + encodeURIComponent(location.pathname + location.search);
+        return;
+      }
+
+      let w;
+      try {
+        const res = await SocialWallet.getWithdrawal(id);
+        w = res.data;
+      } catch (e) {
+        document.getElementById('detailStatus').textContent = e.message || 'Not found';
+        return;
+      }
+
+      const coins = Number(w.amount);
+      const inr = formatInr(w);
+      document.getElementById('detailAmount').textContent = coins.toLocaleString() + ' 🪙';
+      const stEl = document.getElementById('detailStatus');
+      stEl.textContent = STATUS_LABELS[w.status] || w.status;
+      stEl.className = 'st ' + (w.status || '');
+      document.getElementById('rowCoins').textContent = coins.toLocaleString();
+      document.getElementById('rowInr').textContent = inr;
+      document.getElementById('rowActual').textContent = inr;
+      document.getElementById('rowOrder').textContent = w.order_number || w.id?.slice(0, 12) || '—';
+      document.getElementById('rowTime').textContent = formatTime(w.created_at);
+      if (w.paid_at) {
+        document.getElementById('paidRow').style.display = 'flex';
+        document.getElementById('rowPaid').textContent = formatTime(w.paid_at);
+      }
+
+      if (w.qr_image_url) {
+        const url = SocialWallet.resolveUploadUrl(w.qr_image_url);
+        const img = document.getElementById('detailQr');
+        img.src = url;
+        img.style.display = 'block';
+        document.getElementById('detailQrMissing').style.display = 'none';
+      }
+
+      const confirmBtn = document.getElementById('confirmBtn');
+      if (w.status === 'paid') {
+        confirmBtn.style.display = 'block';
+        confirmBtn.onclick = async () => {
+          confirmBtn.disabled = true;
+          confirmBtn.textContent = 'Confirming…';
+          try {
+            await SocialWallet.confirmWithdrawal(id);
+            SocialUI?.toast?.('Thank you — withdrawal complete') || alert('Confirmed');
+            location.reload();
+          } catch (e) {
+            SocialUI?.toast?.(e.message) || alert(e.message);
+            confirmBtn.disabled = false;
+            confirmBtn.textContent = 'Confirm receipt';
+          }
+        };
+      }
+    });
+  </script>
+</body>
+</html>
