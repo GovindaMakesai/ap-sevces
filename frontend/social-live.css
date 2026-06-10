@@ -224,7 +224,7 @@
   display: flex;
   gap: 0;
   min-height: 0;
-  max-height: 28vh;
+  max-height: 24vh;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(0, 0, 0, 0.25);
 }
@@ -267,7 +267,7 @@
   gap: 6px;
   padding: 8px 12px 8px 0;
   overflow-y: auto;
-  max-height: 28vh;
+  max-height: 24vh;
   pointer-events: auto;
   -webkit-overflow-scrolling: touch;
 }
@@ -526,10 +526,17 @@
 .live-room .party-header { position: relative; flex-shrink: 0; }
 .live-room .party-ticker { flex-shrink: 0; margin-bottom: 0; }
 .live-room .live-spacer { flex: 1; min-height: 40px; }
-.live-room .party-chat-row { flex-shrink: 0; max-height: 26vh; }
-.live-room .party-chat-zone { max-height: 26vh; }
-.live-room .party-chat-feed { max-height: 26vh; }
-.live-room .live-chat-compose { flex-shrink: 0; }
+.live-room .party-chat-row { flex-shrink: 0; max-height: 22vh; }
+.live-room .party-chat-zone { max-height: 22vh; }
+.live-room .party-chat-feed { max-height: 22vh; }
+.live-room .live-chat-compose {
+  flex-shrink: 0;
+  position: relative;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  z-index: auto;
+}
 .live-room .party-bottom-bar { flex-shrink: 0; position: relative; }
 
 /* Lucky Gifts event */
@@ -747,7 +754,11 @@
 
 /* --- Enhanced party / live (dynamic) --- */
 .party-room-grid-floor {
-  position: absolute; bottom: 0; left: -10%; right: -10%; height: 35%;
+  position: absolute;
+  bottom: 0;
+  left: -10%;
+  right: -10%;
+  height: 35%;
   background:
     linear-gradient(180deg, transparent 0%, rgba(88, 28, 180, 0.2) 40%),
     repeating-linear-gradient(90deg, rgba(255,255,255,0.03) 0 1px, transparent 1px 24px),
@@ -756,21 +767,6 @@
   transform-origin: bottom center;
   opacity: 0.55;
   pointer-events: none;
-}
-
-.party-seats-wrap {
-  position: relative; z-index: 10;
-  padding: 72px 8px 210px;
-  max-width: 440px;
-  margin: 0 auto;
-}
-
-.party-seats {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px 10px;
-  padding: 0;
-  max-width: none;
 }
 
 .party-seat {
@@ -844,37 +840,6 @@
 .live-local-video.is-host-only { z-index: 2; }
 .live-fallback-video { z-index: 0; object-fit: cover; }
 
-.live-chat-tall { bottom: 108px; max-height: 32vh; }
-
-.live-chat-compose {
-  position: fixed;
-  left: 40px;
-  right: 12px;
-  bottom: calc(64px + env(safe-area-inset-bottom, 0));
-  z-index: 22;
-  display: none;
-  align-items: center;
-  gap: 8px;
-  pointer-events: auto;
-}
-.live-chat-compose.is-open { display: flex; }
-.live-chat-compose input {
-  flex: 1;
-  border: none;
-  border-radius: 999px;
-  padding: 10px 14px;
-  background: rgba(0,0,0,0.5);
-  color: #fff;
-  font-size: 13px;
-  backdrop-filter: blur(8px);
-}
-.live-chat-compose button {
-  width: 40px; height: 40px; border: none; border-radius: 50%;
-  background: linear-gradient(135deg, #f59e0b, #ea580c);
-  color: #fff;
-  cursor: pointer;
-}
-
 .live-toast {
   position: fixed;
   top: 50%;
@@ -894,6 +859,61 @@
   max-width: 85%;
 }
 .live-toast.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+
+/* Audio-only broadcast — themed visual instead of blank camera */
+.live-room.is-audio-mode .live-bg {
+  display: block !important;
+  background: linear-gradient(180deg, #1a0f3a 0%, #312e81 45%, #0d0820 100%) !important;
+  background-image: none !important;
+}
+.live-audio-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  pointer-events: none;
+}
+.live-room.is-audio-mode .live-audio-stage { display: flex; }
+.live-audio-avatar {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  border: 4px solid #fbbf24;
+  object-fit: cover;
+  box-shadow: 0 0 40px rgba(251, 191, 36, 0.35);
+}
+.live-audio-waves {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 48px;
+}
+.live-audio-waves span {
+  width: 6px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #fbbf24, #f59e0b);
+  animation: audio-wave 1s ease-in-out infinite;
+}
+.live-audio-waves span:nth-child(1) { animation-delay: 0s; height: 18px; }
+.live-audio-waves span:nth-child(2) { animation-delay: 0.15s; height: 32px; }
+.live-audio-waves span:nth-child(3) { animation-delay: 0.3s; height: 44px; }
+.live-audio-waves span:nth-child(4) { animation-delay: 0.15s; height: 32px; }
+.live-audio-waves span:nth-child(5) { animation-delay: 0s; height: 18px; }
+@keyframes audio-wave {
+  0%, 100% { transform: scaleY(0.45); opacity: 0.55; }
+  50% { transform: scaleY(1); opacity: 1; }
+}
+.live-audio-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.85);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
 
 .gift-sheet {
   position: fixed; inset: 0; z-index: 45;

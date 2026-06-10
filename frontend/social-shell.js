@@ -33,6 +33,7 @@
   }
 
   function avatarFallback(name) {
+    if (window.SocialUI?.avatarUrl) return SocialUI.avatarUrl(name);
     const initials = String(name || 'U')
       .trim()
       .split(/\s+/)
@@ -41,6 +42,13 @@
       .join('') || 'U';
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="500"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#e8c56a"/><stop offset="100%" stop-color="#9a7218"/></linearGradient></defs><rect width="100%" height="100%" fill="url(#g)"/><text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" font-family="Arial" font-size="72" fill="#fff" opacity="0.92">${initials}</text></svg>`;
     return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+  }
+
+  function coverFallback(name, party) {
+    if (window.SocialUI?.themeCover) {
+      return SocialUI.themeCover(party ? 'party' : 'live', name);
+    }
+    return avatarFallback(name);
   }
 
   function renderNavIcon(item, activeId) {
@@ -94,7 +102,7 @@
     const party = opts && opts.party;
     const id = pro.id || '';
     const name = pro.name || 'Professional';
-    const img = pro.image || avatarFallback(name);
+    const img = pro.image || coverFallback(name, party);
     const tag = pro.tag || pickTag(index);
     const viewers = pro.viewers != null ? pro.viewers : 200 + Math.floor(Math.random() * 3800);
     const ch = encodeURIComponent(id || (party ? 'party-' : 'live-') + index);
@@ -109,7 +117,7 @@
 
     return `
       <article class="social-live-card${party ? ' is-party' : ''}" data-href="${href}" role="button" tabindex="0">
-        <img src="${img}" alt="" loading="lazy" onerror="this.src='${avatarFallback(name).replace(/'/g, '&#39;')}'">
+        <img src="${img}" alt="" loading="lazy" onerror="this.src='${coverFallback(name, party).replace(/'/g, '&#39;')}'">
         ${top10}
         <span class="tag${hot}">${tag}</span>
         ${pk}
@@ -181,7 +189,7 @@
           category: w.category || 'Home services',
           image:
             getImageUrl(w.profile_pic) ||
-            `https://images.unsplash.com/photo-1560250097-0b93528c311a?w=400&q=80`,
+            coverFallback(`${w.first_name || ''} ${w.last_name || ''}`.trim() || 'Pro', false),
           viewers: 100 + Math.floor(Math.random() * 4000),
           tag: pickTag(i),
         }));
@@ -197,17 +205,10 @@
       'Har Har Mahadev', 'AngelRiya6927', 'SENSEI', 'Priya Beauty', 'Rahul Electric',
       'Anita Home', 'Zin Min', 'AapRohie', 'Lolita Daimary', 'SAM YARA',
     ];
-    const imgs = [
-      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400',
-      'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400',
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400',
-      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400',
-      'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400',
-    ];
     return Array.from({ length: limit }, (_, i) => ({
       id: '',
       name: names[i % names.length],
-      image: imgs[i % imgs.length],
+      image: coverFallback(names[i % names.length], i % 2 === 1),
       viewers: 96 + Math.floor(Math.random() * 4100),
       tag: pickTag(i),
     }));
@@ -573,16 +574,16 @@
     const list = document.getElementById(containerId);
     if (!list) return;
     const items = topics || [
-      { title: '#Holi Video Collection Event', heat: 529819, ended: false, img: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=200' },
-      { title: '#Jayfol Dance Challenge', heat: 412200, ended: false, img: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=200' },
-      { title: '#Home Pro Tips', heat: 210440, ended: true, img: 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=200' },
+      { title: '#Holi Video Collection Event', heat: 529819, ended: false, kind: 'topic' },
+      { title: '#Jayfol Dance Challenge', heat: 412200, ended: false, kind: 'video' },
+      { title: '#Home Pro Tips', heat: 210440, ended: true, kind: 'services' },
     ];
     list.innerHTML = items
       .map(
-        (t) => `
+        (t, ti) => `
       <section class="social-topic-block">
         <div class="social-topic-head">
-          <img src="${t.img}" alt="">
+          <img src="${coverFallback(t.title, false)}" alt="">
           <div style="flex:1">
             <h3 style="font-size:15px;color:var(--gold-800);margin-bottom:6px">${t.title}</h3>
             <span class="social-flame"><i class="fas fa-fire"></i> ${t.heat}</span>
@@ -590,10 +591,10 @@
           ${t.ended ? '<span style="color:#9ca3af;font-size:13px">ended</span>' : '<button type="button" class="social-join-btn" data-join-topic>join &gt;</button>'}
         </div>
         <div class="social-topic-videos">
-          ${[1, 2, 3, 4]
+          ${[0, 1, 2, 3]
             .map(
               (n) =>
-                `<div class="thumb" data-go-video><img src="https://images.unsplash.com/photo-161${n}1685778255-406106cdc4ce?w=200" alt=""><i class="fas fa-play" style="position:absolute;top:6px;right:6px;color:#fff;font-size:12px"></i></div>`
+                `<div class="thumb" data-go-video><img src="${coverFallback('Clip ' + (n + 1), false)}" alt=""><i class="fas fa-play" style="position:absolute;top:6px;right:6px;color:#fff;font-size:12px"></i></div>`
             )
             .join('')}
         </div>
@@ -642,6 +643,7 @@
     fetchPros,
     getImageUrl,
     avatarFallback,
+    coverFallback,
     redirectToDashboard,
     bindLiveCards,
     markNativeApp,

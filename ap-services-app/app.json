@@ -3,11 +3,11 @@
     "name": "AP Services",
     "slug": "ap-services-app",
     "scheme": "apservices",
-    "version": "1.0.3",
+    "version": "1.0.10",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -17,8 +17,8 @@
       "supportsTablet": true
     },
     "android": {
-      "package": "com.apservices.app2",
-      "versionCode": 10,
+      "package": "com.apservices.app",
+      "versionCode": 19,
       "usesCleartextTraffic": true,
       "permissions": [
         "android.permission.CAMERA",

@@ -140,11 +140,111 @@
     sheet.classList.add('open');
   }
 
+  function initials(name) {
+    return (
+      String(name || 'U')
+        .trim()
+        .split(/\s+/)
+        .slice(0, 2)
+        .map((p) => p[0]?.toUpperCase() || '')
+        .join('') || 'U'
+    );
+  }
+
+  function svgDataUrl(svg) {
+    return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
+  }
+
   function avatarUrl(name, photoUrl) {
     if (photoUrl && String(photoUrl).startsWith('http')) return photoUrl;
     if (photoUrl && String(photoUrl).startsWith('data:')) return photoUrl;
-    const n = encodeURIComponent(String(name || 'U').trim().slice(0, 2) || 'U');
-    return 'https://ui-avatars.com/api/?name=' + n + '&background=c9a227&color=fff&size=256&bold=true';
+    const label = initials(name);
+    return svgDataUrl(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256">' +
+        '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">' +
+        '<stop offset="0%" stop-color="#e8c56a"/><stop offset="100%" stop-color="#9a7218"/></linearGradient></defs>' +
+        '<rect width="256" height="256" rx="128" fill="url(#g)"/>' +
+        '<text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" ' +
+        'font-family="Arial,sans-serif" font-size="96" font-weight="700" fill="#fff">' +
+        label +
+        '</text></svg>'
+    );
+  }
+
+  /** Theme covers for live / party / video cards when no real photo exists */
+  function themeCover(kind, label) {
+    const kinds = {
+      live: {
+        c1: '#1a0f3a',
+        c2: '#7c3aed',
+        c3: '#c9a227',
+        icon: '&#9679;',
+        sub: 'LIVE',
+      },
+      party: {
+        c1: '#12082a',
+        c2: '#6d28d9',
+        c3: '#f59e0b',
+        icon: '&#9835;',
+        sub: 'PARTY',
+      },
+      audio: {
+        c1: '#0d0820',
+        c2: '#4338ca',
+        c3: '#e8c56a',
+        icon: '&#127908;',
+        sub: 'VOICE',
+      },
+      video: {
+        c1: '#0a0618',
+        c2: '#312e81',
+        c3: '#f59e0b',
+        icon: '&#9654;',
+        sub: 'VIDEO',
+      },
+      services: {
+        c1: '#fdf8eb',
+        c2: '#c9a227',
+        c3: '#8b6914',
+        icon: '&#128736;',
+        sub: 'AP Services',
+      },
+      topic: {
+        c1: '#2e1064',
+        c2: '#a855f7',
+        c3: '#fbbf24',
+        icon: '#',
+        sub: 'TOPIC',
+      },
+    };
+    const k = kinds[kind] || kinds.live;
+    const title = String(label || k.sub).slice(0, 18).replace(/[<>&"]/g, '');
+    return svgDataUrl(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="500">' +
+        '<defs><linearGradient id="bg" x1="0" y1="0" x2="0.4" y2="1">' +
+        '<stop offset="0%" stop-color="' +
+        k.c1 +
+        '"/><stop offset="55%" stop-color="' +
+        k.c2 +
+        '"/><stop offset="100%" stop-color="' +
+        k.c3 +
+        '"/></linearGradient>' +
+        '<pattern id="d" width="40" height="40" patternUnits="userSpaceOnUse">' +
+        '<circle cx="20" cy="20" r="1.2" fill="#fff" opacity="0.08"/></pattern></defs>' +
+        '<rect width="400" height="500" fill="url(#bg)"/><rect width="400" height="500" fill="url(#d)"/>' +
+        '<circle cx="200" cy="190" r="72" fill="rgba(255,255,255,0.12)"/>' +
+        '<text x="200" y="205" text-anchor="middle" font-size="52" fill="#fff" opacity="0.9">' +
+        k.icon +
+        '</text>' +
+        '<text x="200" y="310" text-anchor="middle" font-family="Arial,sans-serif" font-size="22" ' +
+        'font-weight="700" fill="#fff">' +
+        title +
+        '</text>' +
+        '<text x="200" y="340" text-anchor="middle" font-family="Arial,sans-serif" font-size="13" ' +
+        'fill="rgba(255,255,255,0.65)">' +
+        k.sub +
+        '</text></svg>'
+    );
   }
 
   function bindAvatarFallbacks(root) {
@@ -238,6 +338,8 @@
     friendlyMessage,
     openFollowSheet,
     avatarUrl,
+    themeCover,
+    initials,
     bindAvatarFallbacks,
     mentionSuggestions,
     attachMentionAutocomplete,

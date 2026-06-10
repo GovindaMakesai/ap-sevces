@@ -27,14 +27,18 @@
         <strong id="statCoins">0</strong>
         <span>Coins</span>
       </a>
-      <a href="/points.html?app=1" class="social-stat-pill" style="background:linear-gradient(135deg,#fecdd3,#fda4af);color:#831843">
+      <a href="/points.html?app=1" class="social-stat-pill social-stat-points">
         <strong id="statPoints">0</strong>
         <span>Points</span>
       </a>
     </div>
-    <div id="profileWalletActions" style="display:none;gap:10px;margin-top:12px;justify-content:center;flex-wrap:wrap">
-      <a href="/coins-recharge.html?app=1" class="social-btn-orange" style="padding:8px 16px;font-size:13px;text-decoration:none">Top Up</a>
-      <a href="/points.html?app=1" class="social-btn-orange" style="padding:8px 16px;font-size:13px;text-decoration:none;background:linear-gradient(135deg,#f472b6,#ec4899)">Withdraw</a>
+    <div class="social-profile-wallet" id="profileWalletActions">
+      <a href="/coins-recharge.html?app=1" class="social-wallet-btn social-wallet-btn-topup">
+        <i class="fas fa-plus-circle"></i> Top Up
+      </a>
+      <a href="/withdraw.html?app=1" class="social-wallet-btn social-wallet-btn-withdraw">
+        <i class="fas fa-wallet"></i> Withdraw
+      </a>
     </div>
     <button type="button" class="social-btn-orange social-profile-cta" id="profileMainBtn">Sign In</button>
   </div>
@@ -86,9 +90,9 @@
               if (pts) pts.textContent = (b.coin_balance || 0).toLocaleString();
             });
           }
-          statsEl.style.display = 'flex';
+          statsEl.style.display = 'grid';
           const walletActs = document.getElementById('profileWalletActions');
-          if (walletActs) walletActs.style.display = 'flex';
+          if (walletActs) walletActs.classList.add('is-visible');
         }
         document.getElementById('statFollowingBtn')?.addEventListener('click', () => {
           const list = SocialInteractions.getFollowingList().map((e) => ({ name: e.name }));

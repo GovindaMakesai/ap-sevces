@@ -1,4 +1,8 @@
-# Keep EAS upload small — do not ship old bundles or dev artifacts
+# Keep EAS upload small — native project is generated on EAS servers
+node_modules/
+.expo/
+android/
+.gradle/
 *.aab
 *.apk
 old-upload.aab

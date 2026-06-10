@@ -218,6 +218,28 @@ function registerLiveSocket(io) {
       io.to(`live:${channel}`).emit('live:state', state);
     });
 
+    socket.on('live:seat_request', (payload) => {
+      const channel = sanitizeChannel(payload?.channel || currentChannel);
+      if (!channel || socket.data.isHost) return;
+      io.to(`live:${channel}`).emit('live:seat_request', {
+        userId: socket.userId,
+        name: String(payload?.name || socket.data.liveDisplayName || 'Guest').slice(0, 32),
+        at: Date.now(),
+      });
+    });
+
+    socket.on('live:seat_response', (payload) => {
+      const channel = sanitizeChannel(payload?.channel || currentChannel);
+      if (!channel || !socket.data.isHost) return;
+      const userId = String(payload?.userId || '');
+      if (!userId) return;
+      io.to(`live:${channel}`).emit('live:seat_response', {
+        userId,
+        accepted: payload?.accepted !== false,
+        at: Date.now(),
+      });
+    });
+
     socket.on('live:end', async (payload, ack) => {
       try {
         const channel = sanitizeChannel(payload?.channel || currentChannel);

@@ -148,6 +148,10 @@
     return AUTH_PAGES.some((p) => path.endsWith(p));
   }
 
+  if (isAppMode() && !isSocialOnlyPage() && !isAuthPage()) {
+    document.documentElement.classList.add('ap-expo-app', 'social-app', 'social-bridge-mode', 'social-native');
+  }
+
   async function init() {
     if (!isAppMode() || isSocialOnlyPage() || isAuthPage()) return;
     if (!localStorage.getItem('token')) return;

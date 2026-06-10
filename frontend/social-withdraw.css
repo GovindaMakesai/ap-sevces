@@ -1,4 +1,19 @@
-/* Points & withdrawal flow — matches reference app (pink points, blue withdraw) */
+/* Points & withdrawal flow — isolated from social-app gold theme */
+html.social-app body.withdraw-app,
+html.ap-expo-app body.withdraw-app,
+body.withdraw-app {
+  min-height: 100dvh;
+  background: #f3f4f6 !important;
+  background-image: none !important;
+  color: #111827 !important;
+  padding: calc(12px + env(safe-area-inset-top, 0)) 16px calc(88px + env(safe-area-inset-bottom, 0)) !important;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  max-width: 480px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
 .withdraw-app {
   min-height: 100dvh;
   background: #f3f4f6;
@@ -27,7 +42,7 @@
 .wd-header h1 {
   font-size: 18px;
   font-weight: 600;
-  color: #111827;
+  color: #111827 !important;
   margin: 0;
   flex: 1;
   text-align: center;
@@ -324,4 +339,31 @@
   background: #f5f3ff;
   color: #4b5563;
   width: 45%;
+}
+
+/* Prevent social-theme link/button overrides inside withdrawal flow */
+body.withdraw-app a,
+body.withdraw-app button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+body.withdraw-app .social-bottom-nav {
+  display: none !important;
+}
+
+.wd-section-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #111827;
+  margin: 16px 0 8px;
+}
+
+.wd-card-flush {
+  padding: 0;
+  overflow: hidden;
+}
+
+.wd-card-flush .wd-detail-row {
+  padding: 14px 16px;
+  margin: 0;
 }

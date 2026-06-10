@@ -11,11 +11,17 @@
 <body class="live-dark" data-live-page="live-room">
   <span class="live-status-badge" id="liveStatusBadge">Connecting…</span>
 
-  <div class="live-room">
+  <div class="live-room" id="liveRoomRoot">
     <div class="live-bg" id="liveBg"></div>
     <div id="liveRemoteHost" class="live-remote-video"></div>
     <div id="liveLocalHost" class="live-local-video is-host-only"></div>
     <video id="liveLocalVideo" class="live-bg live-fallback-video" playsinline muted></video>
+
+    <div class="live-audio-stage" id="liveAudioStage" aria-hidden="true">
+      <img class="live-audio-avatar" id="liveAudioAvatar" src="" alt="">
+      <div class="live-audio-waves"><span></span><span></span><span></span><span></span><span></span></div>
+      <div class="live-audio-label" id="liveAudioLabel">Voice live</div>
+    </div>
 
     <div class="live-overlay">
       <header class="party-header">
@@ -65,7 +71,7 @@
       </div>
 
       <footer class="party-bottom-bar">
-        <button type="button" class="party-btn-follow" id="liveBtnFollow">Say hi!</button>
+        <button type="button" class="party-btn-follow" id="liveBtnFollow">Follow +</button>
         <div class="party-bottom-actions">
           <button type="button" id="partyBtnTools"><i class="fas fa-grip"></i></button>
           <button type="button" id="liveBtnMic"><i class="fas fa-microphone"></i></button>

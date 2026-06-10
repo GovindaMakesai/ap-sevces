@@ -1216,7 +1216,7 @@ function isAuthPath() {
 
 function bootstrapNativeAppShell() {
     if (!isNativeAppContext()) return;
-    document.documentElement.classList.add('ap-expo-app', 'social-app');
+    document.documentElement.classList.add('ap-expo-app', 'social-app', 'social-bridge-mode', 'social-native');
     window.__AP_NATIVE_APP__ = true;
     if (!document.querySelector('link[href*="social-theme.css"]')) {
         const link = document.createElement('link');

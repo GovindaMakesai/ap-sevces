@@ -53,8 +53,32 @@
   }
 
   function avatarUrl(name) {
-    const n = encodeURIComponent(String(name || 'U').trim().slice(0, 2) || 'U');
-    return `https://ui-avatars.com/api/?name=${n}&background=7c3aed&color=fff&size=128`;
+    if (window.SocialUI?.avatarUrl) return SocialUI.avatarUrl(name);
+    return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128"><rect width="128" height="128" fill="#7c3aed"/></svg>')}`;
+  }
+
+  function themeCover(kind, label) {
+    if (window.SocialUI?.themeCover) return SocialUI.themeCover(kind, label);
+    return '';
+  }
+
+  function applyLiveBackground(mode, hostName) {
+    const bg = document.getElementById('liveBg');
+    const root = document.getElementById('liveRoomRoot');
+    const audioStage = document.getElementById('liveAudioStage');
+    const audioAvatar = document.getElementById('liveAudioAvatar');
+    const audioLabel = document.getElementById('liveAudioLabel');
+    const name = hostName || roomState?.hostName || 'Streamer';
+    if (root) root.classList.toggle('is-audio-mode', mode === 'audio');
+    if (bg) {
+      bg.style.display = 'block';
+      bg.style.backgroundImage = `url('${themeCover(mode === 'audio' ? 'audio' : 'live', name)}')`;
+      bg.style.backgroundSize = 'cover';
+      bg.style.backgroundPosition = 'center';
+    }
+    if (audioAvatar) audioAvatar.src = avatarUrl(name);
+    if (audioLabel) audioLabel.textContent = mode === 'audio' ? 'Voice live' : 'Live';
+    if (audioStage) audioStage.setAttribute('aria-hidden', mode === 'audio' ? 'false' : 'true');
   }
 
   async function getCoins() {
@@ -128,6 +152,32 @@
       if (el) el.textContent = String(viewers);
     });
 
+    liveSocket.on('live:seat_request', (req) => {
+      if (!isHost() || !req) return;
+      const id = String(req.userId || req.id || '');
+      if (!id || joinRequests.some((r) => String(r.id) === id)) return;
+      joinRequests.push({
+        id,
+        name: req.name || 'Guest',
+        userId: id,
+      });
+      renderJoinRequests();
+      toast(`${req.name || 'Someone'} wants a seat`);
+    });
+
+    liveSocket.on('live:seat_response', (res) => {
+      if (!res || isHost()) return;
+      const me = currentUser();
+      if (String(res.userId) !== String(me?.id)) return;
+      if (res.accepted) toast('You got a seat — tap mic to speak', 'success');
+      else toast('Seat request declined');
+    });
+
+    liveSocket.on('live:ended', () => {
+      toast('This live has ended');
+      setTimeout(exitRoom, 1200);
+    });
+
     const user = currentUser();
     const ch = channelId();
     liveSocket.emit(
@@ -160,6 +210,7 @@
   /* ---------- Agora ---------- */
   let agoraClient = null;
   let localTracks = [];
+  let agoraMode = 'live';
   const remoteUsers = new Map();
 
   function loadAgoraScript() {
@@ -199,6 +250,7 @@
   }
 
   async function startAgora(mode) {
+    agoraMode = mode || 'live';
     const ch = channelId();
     const host = isHost();
     setLiveStatus('Connecting…', null);
@@ -214,7 +266,10 @@
     const appId = cred?.appId;
     if (!appId) {
       setLiveStatus('Add Agora keys on server', false);
-      if (host && mode === 'live') await startLocalPreviewOnly();
+      if (host && mode === 'live') {
+        if (broadcastMode === 'audio') applyLiveBackground('audio', displayName(currentUser()));
+        else await startLocalPreviewOnly();
+      }
       return;
     }
 
@@ -236,13 +291,18 @@
         await agoraClient.subscribe(user, mediaType);
         if (mediaType === 'video') {
           const container = document.getElementById('liveRemoteHost');
+          const root = document.getElementById('liveRoomRoot');
+          if (root) root.classList.remove('is-audio-mode');
           if (container) {
             container.innerHTML = '';
             user.videoTrack.play(container);
           }
+          const bg = document.getElementById('liveBg');
+          if (bg) bg.style.display = 'none';
         }
         if (mediaType === 'audio') {
-          user.audioTrack?.play();
+          if (soundOn) user.audioTrack?.play();
+          else user.audioTrack?.stop();
         }
         remoteUsers.set(user.uid, user);
       });
@@ -250,7 +310,10 @@
       agoraClient.on('user-unpublished', (user) => {
         remoteUsers.delete(user.uid);
         const container = document.getElementById('liveRemoteHost');
-        if (container && remoteUsers.size === 0) container.innerHTML = '';
+        if (container && remoteUsers.size === 0) {
+          container.innerHTML = '';
+          if (!isHost()) applyLiveBackground(broadcastMode === 'audio' ? 'audio' : 'live', roomState?.hostName);
+        }
       });
 
       if (host) {
@@ -267,32 +330,45 @@
           if (localBox) localBox.style.display = 'none';
           const fallback = document.getElementById('liveLocalVideo');
           if (fallback) fallback.style.display = 'none';
-          const bg = document.getElementById('liveBg');
-          if (bg) {
-            bg.style.display = 'block';
-            bg.style.background =
-              'linear-gradient(180deg, #1a0f3a 0%, #312e81 50%, #0d0820 100%)';
-          }
+          applyLiveBackground('audio', displayName(currentUser()));
           setLiveStatus('Audio live', true);
         } else {
+          const root = document.getElementById('liveRoomRoot');
+          if (root) root.classList.remove('is-audio-mode');
           const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
           localTracks = [audioTrack, videoTrack];
           await agoraClient.publish([audioTrack, videoTrack]);
           const localBox = document.getElementById('liveLocalHost');
-          if (localBox) videoTrack.play(localBox);
+          if (localBox) {
+            localBox.style.display = '';
+            videoTrack.play(localBox);
+          }
           const fallback = document.getElementById('liveLocalVideo');
           if (fallback) fallback.style.display = 'none';
+          const bg = document.getElementById('liveBg');
+          if (bg) bg.style.display = 'none';
           setLiveStatus('Video live', true);
         }
       } else {
         setLiveStatus('Watching live', true);
-        if (mode === 'live') await startLocalPreviewOnly(false);
+        applyLiveBackground(broadcastMode === 'audio' ? 'audio' : 'live', roomState?.hostName);
       }
     } catch (err) {
       console.warn('[live] Agora', err);
       setLiveStatus('Camera/mic blocked or Agora error', false);
-      if (host && mode === 'live') await startLocalPreviewOnly();
+      if (host && mode === 'live') {
+        if (broadcastMode === 'audio') applyLiveBackground('audio', displayName(currentUser()));
+        else await startLocalPreviewOnly();
+      } else {
+        applyLiveBackground(broadcastMode === 'audio' ? 'audio' : 'live', roomState?.hostName);
+      }
     }
+  }
+
+  async function restartAgoraForMode() {
+    await stopAgora();
+    const page = document.body.dataset.livePage;
+    await startAgora(page === 'party-room' ? 'party' : 'live');
   }
 
   async function startLocalPreviewOnly(hostPreview) {
@@ -318,8 +394,7 @@
       }
     } catch (_e) {
       if (bg && !isHost()) {
-        bg.style.backgroundImage =
-          "url('https://images.unsplash.com/photo-1510915361894-db8b60106cb1?w=900&q=80')";
+        applyLiveBackground(broadcastMode === 'audio' ? 'audio' : 'live', roomState?.hostName);
       }
     }
   }
@@ -458,6 +533,25 @@
     });
   }
 
+  function syncFollowUI() {
+    const hostName = roomState?.hostName || 'Host';
+    const hostId = roomState?.hostId || hostName;
+    if (window.SocialInteractions?.isFollowing) {
+      followed = SocialInteractions.isFollowing(hostId, hostName);
+    }
+    const label = followed ? 'Following ✓' : 'Follow +';
+    const btn = document.getElementById('partyBtnFollow') || document.getElementById('liveBtnFollow');
+    const hbtn = document.getElementById('partyHostFollow');
+    if (btn) {
+      btn.textContent = isHost() ? 'Your room' : label;
+      btn.classList.toggle('is-following', followed && !isHost());
+    }
+    if (hbtn) {
+      hbtn.textContent = followed ? '✓' : '+';
+      hbtn.style.display = isHost() ? 'none' : '';
+    }
+  }
+
   function renderRoomState() {
     const user = currentUser();
     const hostName = roomState?.hostName || displayName(user);
@@ -473,6 +567,10 @@
 
     if (document.getElementById('partySeats')) renderPartySeats(hostName);
     renderChatFromState();
+    syncFollowUI();
+
+    const audioAvatar = document.getElementById('liveAudioAvatar');
+    if (audioAvatar) audioAvatar.src = avatarUrl(hostName);
   }
 
   function showWinBanner(gift) {
@@ -506,15 +604,31 @@
       .join('');
     list.querySelectorAll('[data-accept]').forEach((btn) => {
       btn.addEventListener('click', () => {
+        const req = joinRequests.find((x) => String(x.id) === String(btn.dataset.accept));
         joinRequests = joinRequests.filter((x) => String(x.id) !== String(btn.dataset.accept));
         renderJoinRequests();
+        if (req && liveSocket) {
+          liveSocket.emit('live:seat_response', {
+            channel: channelId(),
+            userId: req.userId || req.id,
+            accepted: true,
+          });
+        }
         toast('Guest accepted');
       });
     });
     list.querySelectorAll('[data-deny]').forEach((btn) => {
       btn.addEventListener('click', () => {
+        const req = joinRequests.find((x) => String(x.id) === String(btn.dataset.deny));
         joinRequests = joinRequests.filter((x) => String(x.id) !== String(btn.dataset.deny));
         renderJoinRequests();
+        if (req && liveSocket) {
+          liveSocket.emit('live:seat_response', {
+            channel: channelId(),
+            userId: req.userId || req.id,
+            accepted: false,
+          });
+        }
       });
     });
   }
@@ -529,6 +643,11 @@
       return;
     }
     if (liveSocket) {
+      liveSocket.emit('live:seat_request', {
+        channel: channelId(),
+        userId: id,
+        name,
+      });
       liveSocket.emit('live:chat', {
         channel: channelId(),
         type: 'system',
@@ -560,11 +679,13 @@
       document.getElementById('partyBtnShare')?.click();
     });
 
-    const setMode = (mode) => {
+    const setMode = async (mode) => {
+      const changed = broadcastMode !== mode;
       broadcastMode = mode;
       document.getElementById('liveBtnModeVideo')?.classList.toggle('is-active', mode === 'video');
       document.getElementById('liveBtnModeAudio')?.classList.toggle('is-active', mode === 'audio');
-      toast(mode === 'video' ? 'Video mode' : 'Audio-only mode');
+      if (changed) toast(mode === 'video' ? 'Video mode' : 'Audio-only mode');
+      if (changed && isHost() && pageType === 'live') await restartAgoraForMode();
     };
     document.getElementById('liveBtnModeVideo')?.addEventListener('click', () => setMode('video'));
     document.getElementById('liveBtnModeAudio')?.addEventListener('click', () => setMode('audio'));
@@ -696,16 +817,18 @@
     document.getElementById('partyBtnFollow')?.addEventListener('click', toggleFollow);
     document.getElementById('partyHostFollow')?.addEventListener('click', toggleFollow);
 
-    document.getElementById('liveBtnFollow')?.addEventListener('click', () => {
-      const input = document.getElementById('liveChatInput');
-      if (input) input.focus();
-      else sendChat('Hi there! 👋');
-    });
+    document.getElementById('liveBtnFollow')?.addEventListener('click', toggleFollow);
 
     document.getElementById('liveBtnMic')?.addEventListener('click', () => toggleMic());
 
     document.getElementById('partyBtnSound')?.addEventListener('click', () => {
       soundOn = !soundOn;
+      remoteUsers.forEach((user) => {
+        if (user.audioTrack) {
+          if (soundOn) user.audioTrack.play();
+          else user.audioTrack.stop();
+        }
+      });
       toast(soundOn ? 'Sound on' : 'Sound muted');
       const btn = document.getElementById('partyBtnSound');
       if (btn) btn.querySelector('i').className = soundOn ? 'fas fa-volume-up' : 'fas fa-volume-mute';
@@ -845,8 +968,10 @@
 
     const bg = document.getElementById('liveBg');
     if (bg && !isHost()) {
-      bg.style.backgroundImage =
-        "url('https://images.unsplash.com/photo-1510915361894-db8b60106cb1?w=900&q=80')";
+      applyLiveBackground(broadcastMode === 'audio' ? 'audio' : 'live', roomState?.hostName);
+    }
+    if (broadcastMode === 'audio') {
+      document.getElementById('liveRoomRoot')?.classList.add('is-audio-mode');
     }
 
     await startAgora('live');

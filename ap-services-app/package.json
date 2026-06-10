@@ -9,10 +9,14 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "build:android": "eas build --platform android --profile production",
-    "build:android:preview": "eas build --platform android --profile preview",
-    "build:apk": "eas build --platform android --profile preview --non-interactive",
-    "prebuild:android": "expo prebuild --platform android --clean"
+    "build:android": "node ./scripts/build-aab.js",
+    "build:android:preview": "node ./scripts/build-apk.js",
+    "build:apk": "node ./scripts/build-apk.js",
+    "build:aab": "node ./scripts/build-aab.js",
+    "setup:play-key": "powershell -ExecutionPolicy Bypass -File ./scripts/setup-play-upload-key.ps1",
+    "build:local": "node ./scripts/build-local-apk.js",
+    "prebuild:android": "expo prebuild --platform android --clean",
+    "postprebuild:android": "powershell -ExecutionPolicy Bypass -File ./scripts/patch-android-signing.ps1"
   },
   "dependencies": {
     "expo": "~54.0.34",

@@ -9,17 +9,13 @@
   const IDB_NAME = 'ap_social_media';
   const IDB_STORE = 'blobs';
 
-  const TOPIC_IMAGES = [
-    'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=400&q=80',
-    'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&q=80',
-    'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=400&q=80',
-    'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&q=80',
-    'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=400&q=80',
-    'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=400&q=80',
-  ];
+  const TOPIC_KINDS = ['topic', 'video', 'services', 'party', 'live', 'audio'];
 
-  function topicThumb(i) {
-    return TOPIC_IMAGES[i % TOPIC_IMAGES.length];
+  function topicThumb(i, label) {
+    const kind = TOPIC_KINDS[i % TOPIC_KINDS.length];
+    if (window.SocialUI?.themeCover) return SocialUI.themeCover(kind, label || 'Topic');
+    if (window.SocialShell?.coverFallback) return SocialShell.coverFallback(label || 'Topic', kind === 'party');
+    return '';
   }
 
   function toast(msg, type) {
@@ -640,8 +636,8 @@
       gifts: i % 3,
       shares: 40 + i * 10,
       isVideo: false,
-      mediaUrl: p.image,
-      thumb: p.image,
+      mediaUrl: p.image || (window.SocialUI?.themeCover('video', p.name) || p.image),
+      thumb: p.image || (window.SocialUI?.themeCover('video', p.name) || p.image),
     }));
 
     return [...fromPosts, ...fromPros].filter((x) => x.mediaUrl || x.thumb);
@@ -1034,17 +1030,18 @@
     const list = document.getElementById(containerId);
     if (!list) return;
     const items = [
-      { title: '#Holi Video Collection Event', heat: 529819, ended: false, img: TOPIC_IMAGES[0] },
-      { title: '#Jayfol Dance Challenge', heat: 412200, ended: false, img: TOPIC_IMAGES[1] },
-      { title: '#Home Pro Tips', heat: 210440, ended: true, img: TOPIC_IMAGES[2] },
-      { title: '#Live Party Moments', heat: 188900, ended: false, img: TOPIC_IMAGES[3] },
+      { title: '#Holi Video Collection Event', heat: 529819, ended: false },
+      { title: '#Jayfol Dance Challenge', heat: 412200, ended: false },
+      { title: '#Home Pro Tips', heat: 210440, ended: true },
+      { title: '#Live Party Moments', heat: 188900, ended: false },
     ];
+    const fallbackThumb = topicThumb(0, 'Topic');
     list.innerHTML = items
       .map(
         (t, ti) => `
       <section class="social-topic-block" data-topic-id="${ti}">
         <div class="social-topic-head">
-          <img src="${t.img}" alt="" loading="lazy" onerror="this.src='${TOPIC_IMAGES[0]}'">
+          <img src="${topicThumb(ti, t.title)}" alt="" loading="lazy" onerror="this.src='${fallbackThumb}'">
           <div style="flex:1">
             <h3 style="font-size:15px;color:var(--gold-800);margin-bottom:6px">${t.title}</h3>
             <span class="social-flame"><i class="fas fa-fire"></i> ${t.heat.toLocaleString()}</span>
@@ -1056,7 +1053,7 @@
             .map(
               (n) =>
                 `<button type="button" class="thumb" data-go-video data-topic="${ti}">
-                  <img src="${topicThumb(ti * 4 + n)}" alt="" loading="lazy" onerror="this.src='${TOPIC_IMAGES[0]}'">
+                  <img src="${topicThumb(ti * 4 + n, 'Clip')}" alt="" loading="lazy" onerror="this.src='${fallbackThumb}'">
                   <i class="fas fa-play"></i>
                 </button>`
             )
@@ -1157,7 +1154,6 @@
     initRankingsPage,
     initVipPage,
     topicThumb,
-    TOPIC_IMAGES,
     toast,
     openComments,
     getFollowStats,

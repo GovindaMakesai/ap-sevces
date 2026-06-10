@@ -216,10 +216,10 @@ body.ap-dashboard-active {
     min-height: 44px !important;
     z-index: 1102 !important;
   }
-  .login-btn,
-  .nav-btn.next,
-  .nav-btn.submit {
-    background: #2563eb !important;
+  html.auth-guest .login-btn,
+  html.auth-guest .nav-btn.next,
+  html.auth-guest .nav-btn.submit {
+    background: linear-gradient(135deg, #ff8c42, #f59e0b) !important;
     color: #ffffff !important;
     width: 100% !important;
     min-height: 48px !important;
@@ -227,14 +227,27 @@ body.ap-dashboard-active {
     align-items: center !important;
     justify-content: center !important;
   }
-  .login-btn i,
-  .nav-btn.next i,
-  .nav-btn.submit i {
+  html.auth-guest .login-btn i,
+  html.auth-guest .nav-btn.next i,
+  html.auth-guest .nav-btn.submit i {
     color: #ffffff !important;
   }
-  .user-type-btn.active {
-    color: #2563eb !important;
+  html.auth-guest .user-type-btn.active {
+    color: #a67c1a !important;
     background: #fff !important;
+  }
+  html.ap-expo-app .chat-page,
+  html.ap-expo-app .chat-layout,
+  html.ap-expo-app .messages-container {
+    background: #faf6ee !important;
+  }
+  html.ap-expo-app .chat-tab.active {
+    background: linear-gradient(135deg, #d4a84b, #9a7218) !important;
+    color: #fff !important;
+  }
+  html.ap-expo-app .message-wrapper.sent .message-content {
+    background: linear-gradient(135deg, #d4a84b, #9a7218) !important;
+    color: #fff !important;
   }
   .services-grid { grid-template-columns: 1fr !important; }
   .service-card { max-width: 100% !important; }
