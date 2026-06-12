@@ -179,21 +179,21 @@
         c2: '#7c3aed',
         c3: '#c9a227',
         icon: '&#9679;',
-        sub: 'LIVE',
+        sub: 'AP LIVE',
       },
       party: {
         c1: '#12082a',
         c2: '#6d28d9',
         c3: '#f59e0b',
         icon: '&#9835;',
-        sub: 'PARTY',
+        sub: 'AP PARTY',
       },
       audio: {
         c1: '#0d0820',
         c2: '#4338ca',
         c3: '#e8c56a',
         icon: '&#127908;',
-        sub: 'VOICE',
+        sub: 'AP VOICE',
       },
       video: {
         c1: '#0a0618',
@@ -243,7 +243,9 @@
         '<text x="200" y="340" text-anchor="middle" font-family="Arial,sans-serif" font-size="13" ' +
         'fill="rgba(255,255,255,0.65)">' +
         k.sub +
-        '</text></svg>'
+        '</text>' +
+        '<text x="200" y="470" text-anchor="middle" font-family="Arial,sans-serif" font-size="11" ' +
+        'font-weight="700" fill="rgba(255,255,255,0.45)" letter-spacing="2">AP SERVICES</text></svg>'
     );
   }
 
@@ -285,6 +287,69 @@
       .filter(Boolean)
       .filter((n) => !q || n.toLowerCase().includes(q))
       .slice(0, 8);
+  }
+
+  function isShareUserCancel(err) {
+    return err?.name === 'AbortError' || err?.code === 20;
+  }
+
+  function isNativeWebView() {
+    return Boolean(window.__AP_NATIVE_APP__ || window.ReactNativeWebView || window.Capacitor);
+  }
+
+  /** Share link — clipboard fallback in WebView; only shows "cancelled" on real dismiss */
+  async function shareLink(opts) {
+    const url = String(opts?.url || location.href);
+    const title = opts?.title || 'AP Services';
+    const text = opts?.text || 'Join me on AP Services';
+
+    async function copyLink() {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+        toast('Link copied — paste to share', 'success');
+        return true;
+      }
+      const ta = document.createElement('textarea');
+      ta.value = url;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand('copy');
+      ta.remove();
+      if (ok) {
+        toast('Link copied — paste to share', 'success');
+        return true;
+      }
+      window.prompt('Copy this link:', url);
+      return true;
+    }
+
+    if (isNativeWebView()) {
+      return copyLink();
+    }
+
+    if (navigator.share) {
+      try {
+        const payload = { title, url };
+        if (text) payload.text = text;
+        if (navigator.canShare && !navigator.canShare(payload)) {
+          return copyLink();
+        }
+        await navigator.share(payload);
+        toast('Shared!', 'success');
+        return true;
+      } catch (e) {
+        if (isShareUserCancel(e)) {
+          toast('Share cancelled', 'info');
+          return false;
+        }
+        return copyLink();
+      }
+    }
+
+    return copyLink();
   }
 
   function attachMentionAutocomplete(textarea) {
@@ -343,5 +408,6 @@
     bindAvatarFallbacks,
     mentionSuggestions,
     attachMentionAutocomplete,
+    shareLink,
   };
 })();

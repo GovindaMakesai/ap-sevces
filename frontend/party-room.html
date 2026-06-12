@@ -9,7 +9,16 @@
   <link rel="stylesheet" href="social-live.css">
 </head>
 <body class="live-dark" data-live-page="party-room">
-  <span class="live-status-badge" id="liveStatusBadge">Connecting…</span>
+  <div id="apLiveLoader" class="ap-live-loader" aria-live="polite">
+    <div class="ap-live-loader-inner">
+      <div class="ap-live-loader-logo">AP</div>
+      <div class="ap-live-loader-brand">AP Services</div>
+      <div class="ap-live-loader-spin"></div>
+      <p id="apLiveLoaderText">Connecting to room…</p>
+    </div>
+  </div>
+
+  <span class="live-status-badge" id="liveStatusBadge" style="display:none">Connecting…</span>
 
   <div class="party-room">
     <div class="party-room-grid-floor" aria-hidden="true"></div>
@@ -32,6 +41,29 @@
       </div>
     </header>
 
+    <div class="party-stats-bar">
+      <span class="party-stat"><i class="fas fa-fire"></i> Pop <strong id="partyPopScore">100+</strong></span>
+      <span class="party-stat"><i class="fas fa-music"></i> <strong id="partyMusicScore">10</strong></span>
+      <span class="party-stat party-stat-pct" id="partyPopPct">19%</span>
+      <button type="button" class="party-rule-btn" id="partyRuleBtn"><i class="fas fa-clipboard-list"></i> Rule</button>
+      <span class="party-room-id" id="partyRoomId">ID: —</span>
+    </div>
+
+    <div class="party-widgets">
+      <div class="party-widget party-widget-team">
+        <strong>Team <span id="partyTeamLabel">AP</span> <span id="partyTeamProgress">0/12</span></strong>
+        <div class="bar"><i id="partyTeamBar" style="width:0%"></i></div>
+      </div>
+      <div class="party-widget party-widget-chest">
+        <span class="chest-ico">🎁</span>
+        <span id="partyChestTimer">05:00</span>
+      </div>
+    </div>
+
+    <a href="/coins-recharge.html?app=1" class="party-event-pill" id="partyInvitePill">
+      Invite Friends<br><span class="coins">Up to 10,500 /invite</span>
+    </a>
+
     <div class="party-ticker">
       <span class="party-ticker-inner" id="partyTicker">Voice party — tap a seat to join · Host can accept requests</span>
     </div>
@@ -45,7 +77,7 @@
 
     <div class="party-room-body">
       <div class="party-seats-wrap">
-        <div class="party-seats" id="partySeats"></div>
+        <div class="party-seats party-seats-9" id="partySeats"></div>
       </div>
     </div>
 
@@ -61,7 +93,7 @@
     </div>
 
     <div class="live-chat-compose is-open" id="liveChatCompose">
-      <input type="text" id="liveChatInput" placeholder="Say something…" maxlength="280" autocomplete="off">
+      <input type="text" id="liveChatInput" placeholder="Hi there!" maxlength="280" autocomplete="off">
       <button type="button" id="liveChatSend" aria-label="Send"><i class="fas fa-paper-plane"></i></button>
     </div>
 
@@ -87,14 +119,24 @@
   </div>
 
   <div class="party-tools-sheet" id="partyToolsSheet">
-    <div class="party-tools-panel">
-      <h3>Room tools</h3>
-      <div class="party-tools-grid">
-        <button type="button" id="partyBtnShare"><span class="ico share"><i class="fas fa-share"></i></span>Share link</button>
-        <a href="/chat.html?app=1"><span class="ico msg"><i class="fas fa-envelope"></i></span>Messages</a>
-        <a href="/coins-recharge.html?app=1"><span class="ico coins"><i class="fas fa-coins"></i></span>Recharge</a>
-        <a href="/store.html?app=1"><span class="ico store"><i class="fas fa-shopping-bag"></i></span>Store</a>
+    <div class="party-tools-panel party-tools-panel-full">
+      <h3 class="party-tools-section">Basic Tools</h3>
+      <div class="party-tools-grid party-tools-grid-6">
+        <a href="/chat.html?app=1"><span class="ico msg"><i class="fas fa-envelope"></i></span>Message</a>
+        <button type="button" id="partyBtnSound"><span class="ico sound"><i class="fas fa-volume-up"></i></span>Sound</button>
+        <button type="button" id="partyBtnShare"><span class="ico share"><i class="fas fa-share"></i></span>Share</button>
+        <button type="button" id="partyBtnReport"><span class="ico report"><i class="fas fa-exclamation-circle"></i></span>Report</button>
+        <button type="button" id="partyBtnMinimize"><span class="ico" style="background:#6366f1"><i class="fas fa-compress"></i></span>Minimize</button>
         <button type="button" id="partyToolsClose"><span class="ico" style="background:#6b7280"><i class="fas fa-times"></i></span>Close</button>
+      </div>
+      <h3 class="party-tools-section">Playstyle</h3>
+      <div class="party-tools-grid party-tools-grid-6">
+        <a href="/coins-recharge.html?app=1"><span class="ico coins"><i class="fas fa-coins"></i></span>Rewards</a>
+        <a href="/store.html?app=1"><span class="ico store"><i class="fas fa-shopping-bag"></i></span>Store</a>
+        <a href="/vip.html?app=1"><span class="ico vip"><i class="fas fa-gem"></i></span>VIP</a>
+        <a href="/rankings.html?app=1"><span class="ico" style="background:#3b82f6"><i class="fas fa-shield-alt"></i></span>Guardian</a>
+        <a href="/store.html?app=1"><span class="ico" style="background:#0ea5e9"><i class="fas fa-backpack"></i></span>Backpack</a>
+        <button type="button" id="partyBtnGiftTools"><span class="ico" style="background:#ec4899"><i class="fas fa-gift"></i></span>Gift Gallery</button>
       </div>
     </div>
   </div>

@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const liveRoomService = require('../services/liveRoomService');
 
 let RtcTokenBuilder;
 let RtcRole;
@@ -16,6 +17,30 @@ function uidFromUserId(userId) {
   const n = parseInt(hex, 16) % 2147483646;
   return n + 1;
 }
+
+exports.listActiveRooms = async (req, res) => {
+  try {
+    const roomType = req.query.type === 'party' ? 'party' : req.query.type === 'live' ? 'live' : null;
+    const rows = await liveRoomService.listActiveRooms({
+      roomType,
+      limit: req.query.limit,
+    });
+    res.json({
+      success: true,
+      data: rows.map((r) => ({
+        channel: r.channel,
+        type: r.room_type,
+        hostId: r.host_user_id,
+        hostName: r.host_display_name,
+        viewers: r.viewer_count || 0,
+        updatedAt: r.updated_at,
+      })),
+    });
+  } catch (error) {
+    console.error('[live] list rooms', error);
+    res.status(500).json({ success: false, message: error.message || 'Could not list rooms' });
+  }
+};
 
 exports.agoraConfig = (_req, res) => {
   res.json({

@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#ffffff">
+  <title>Live application - AP Services</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #fff;
+      color: #111;
+      min-height: 100dvh;
+      padding-bottom: env(safe-area-inset-bottom, 0);
+    }
+    .live-app-header {
+      display: flex;
+      align-items: center;
+      padding: calc(12px + env(safe-area-inset-top, 0)) 16px 12px;
+      border-bottom: 1px solid #f3f4f6;
+    }
+    .live-app-header button {
+      border: none;
+      background: none;
+      font-size: 18px;
+      color: #111;
+      cursor: pointer;
+      padding: 4px 8px 4px 0;
+    }
+    .live-app-header h1 {
+      flex: 1;
+      text-align: center;
+      font-size: 17px;
+      font-weight: 600;
+      margin: 0;
+      padding-right: 32px;
+    }
+    .live-app-body { padding: 20px 16px 32px; }
+    .live-app-body h2 {
+      font-size: 16px;
+      font-weight: 700;
+      margin: 0 0 20px;
+    }
+    .live-app-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 0;
+      border-bottom: 1px solid #f3f4f6;
+      cursor: pointer;
+    }
+    .live-app-item .info { flex: 1; min-width: 0; }
+    .live-app-item .info strong {
+      display: block;
+      font-size: 15px;
+      margin-bottom: 4px;
+    }
+    .live-app-item .info span {
+      font-size: 13px;
+      color: #9ca3af;
+    }
+    .live-app-item .status {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+    }
+    .live-app-item .status.done { background: #dcfce7; color: #16a34a; }
+    .live-app-item .status.pending { background: #eff6ff; color: #3b82f6; }
+    .live-app-item .chevron { color: #3b82f6; font-size: 14px; }
+    .live-app-go {
+      display: block;
+      width: calc(100% - 32px);
+      margin: 32px auto 0;
+      border: none;
+      padding: 16px;
+      border-radius: 999px;
+      font-size: 16px;
+      font-weight: 700;
+      color: #fff;
+      cursor: pointer;
+      background: linear-gradient(90deg, #c4b5fd, #a78bfa);
+    }
+    .live-app-go:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+    .live-app-go.is-ready {
+      background: linear-gradient(90deg, #e8c56a, #c9a227);
+      color: #1a1000;
+    }
+    .live-app-brand {
+      text-align: center;
+      padding: 24px 0 8px;
+      font-size: 11px;
+      color: #c9a227;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+    }
+  </style>
+</head>
+<body>
+  <header class="live-app-header">
+    <button type="button" onclick="history.back()" aria-label="Back"><i class="fas fa-arrow-left"></i></button>
+    <h1>Live application</h1>
+  </header>
+
+  <div class="live-app-brand">AP SERVICES</div>
+
+  <div class="live-app-body">
+    <h2>Live application conditions</h2>
+
+    <div class="live-app-item" id="condAuth">
+      <div class="info">
+        <strong>Account verified</strong>
+        <span id="condAuthSub">Please complete authentication process first.</span>
+      </div>
+      <span class="status pending" id="condAuthIcon"><i class="fas fa-chevron-right"></i></span>
+    </div>
+
+    <div class="live-app-item" id="condCover">
+      <div class="info">
+        <strong>Live cover</strong>
+        <span id="condCoverSub">Upload a cover photo for your stream</span>
+      </div>
+      <span class="status pending" id="condCoverIcon"><i class="fas fa-chevron-right"></i></span>
+    </div>
+
+    <div class="live-app-item" id="condLevel">
+      <div class="info">
+        <strong>Wealth level ≥ level 1</strong>
+        <span id="condLevelSub">Earn coins to unlock higher levels</span>
+      </div>
+      <span class="status pending" id="condLevelIcon"><i class="fas fa-chevron-right"></i></span>
+    </div>
+
+    <button type="button" class="live-app-go" id="liveNowBtn" disabled>Live now</button>
+  </div>
+
+  <script src="app.js"></script>
+  <script src="social-wallet.js"></script>
+  <script src="auth-guard.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const user = window.Auth?.getUser?.();
+      if (!user) {
+        location.href = '/app-auth.html?app=1';
+        return;
+      }
+
+      const authOk = true;
+      let coverOk = false;
+      const levelOk = true;
+
+      try {
+        coverOk = localStorage.getItem('ap_live_cover_ok') === '1' || !!user.profile_pic;
+      } catch (_e) {
+        coverOk = !!user.profile_pic;
+      }
+
+      if (window.SocialWallet) {
+        try {
+          const bal = await SocialWallet.fetchBalance();
+          document.getElementById('condLevelSub').textContent =
+            'Level 1 unlocked · ' + (bal.coin_balance || 0) + ' coins';
+        } catch (_e) {}
+      }
+
+      function markDone(id, iconId, subId, subText) {
+        const icon = document.getElementById(iconId);
+        if (icon) {
+          icon.className = 'status done';
+          icon.innerHTML = '<i class="fas fa-check"></i>';
+        }
+        if (subId && subText) document.getElementById(subId).textContent = subText;
+        document.querySelector('#' + id + ' .chevron')?.remove();
+      }
+
+      if (authOk) markDone('condAuth', 'condAuthIcon', 'condAuthSub', 'Account verified ✓');
+      if (coverOk) markDone('condCover', 'condCoverIcon', 'condCoverSub', 'Cover uploaded ✓');
+      if (levelOk) markDone('condLevel', 'condLevelIcon', null, null);
+
+      const btn = document.getElementById('liveNowBtn');
+      const ready = authOk && levelOk;
+      btn.disabled = false;
+      btn.classList.add('is-ready');
+
+      document.getElementById('condAuth')?.addEventListener('click', () => {
+        if (!authOk) location.href = '/app-auth.html?app=1';
+      });
+
+      document.getElementById('condCover')?.addEventListener('click', () => {
+        const inp = document.createElement('input');
+        inp.type = 'file';
+        inp.accept = 'image/*';
+        inp.onchange = () => {
+          try { localStorage.setItem('ap_live_cover_ok', '1'); } catch (_e) {}
+          coverOk = true;
+          markDone('condCover', 'condCoverIcon', 'condCoverSub', 'Cover uploaded ✓');
+          if (authOk && coverOk && levelOk) {
+            btn.disabled = false;
+            btn.classList.add('is-ready');
+          }
+        };
+        inp.click();
+      });
+
+      document.getElementById('condLevel')?.addEventListener('click', () => {
+        location.href = '/coins-recharge.html?app=1';
+      });
+
+      btn?.addEventListener('click', () => {
+        if (!coverOk) {
+          try { localStorage.setItem('ap_live_cover_ok', '1'); } catch (_e) {}
+        }
+        const mode = new URLSearchParams(location.search).get('mode') || 'video';
+        const kind = new URLSearchParams(location.search).get('kind') || 'live';
+        if (kind === 'party') {
+          if (window.SocialShell?.goStartParty) SocialShell.goStartParty();
+          else location.href = '/streamer-center.html?app=1';
+        } else if (window.SocialShell?.goStartLiveBroadcast) {
+          SocialShell.goStartLiveBroadcast({ mode });
+        } else {
+          location.href = '/streamer-center.html?app=1';
+        }
+      });
+    });
+  </script>
+</body>
+</html>

@@ -8,12 +8,33 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-theme.css">
   <link rel="stylesheet" href="social-features.css">
+  <style>
+    html:not(.profile-ready) .social-profile-hero,
+    html:not(.profile-ready) .social-menu-list { opacity: 0; pointer-events: none; }
+    html.profile-ready .social-profile-hero,
+    html.profile-ready .social-menu-list { opacity: 1; transition: opacity 0.2s ease; }
+    .profile-loading-bar {
+      height: 3px; background: linear-gradient(90deg, #e8c56a, #c9a227, #e8c56a);
+      background-size: 200% 100%; animation: profile-load 1s linear infinite;
+    }
+    @keyframes profile-load { to { background-position: 200% 0; } }
+  </style>
+  <script>
+    (function () {
+      try {
+        if (localStorage.getItem('token') && localStorage.getItem('user')) {
+          document.documentElement.classList.add('profile-authed');
+        }
+      } catch (_e) {}
+    })();
+  </script>
 </head>
 <body class="social-profile-page">
+  <div class="profile-loading-bar" id="profileLoadingBar"></div>
   <div class="social-profile-hero">
     <img id="profileAvatar" src="" alt="Profile">
-    <h2 id="profileName">Guest</h2>
-    <p id="profileRole">Sign in to continue</p>
+    <h2 id="profileName">&nbsp;</h2>
+    <p id="profileRole">&nbsp;</p>
     <div class="social-profile-stats" id="profileStats" style="display:none">
       <button type="button" class="social-stat-pill" id="statFollowingBtn" aria-label="View following">
         <strong id="statFollowing">0</strong>
@@ -44,6 +65,7 @@
   </div>
 
   <nav class="social-menu-list">
+    <a href="#" class="social-menu-item" id="adminDashLink" style="display:none"><i class="fas fa-shield-alt"></i><span>Admin Dashboard</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="#" class="social-menu-item" id="dashLink"><i class="fas fa-th-large"></i><span>My Dashboard</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/customer-dashboard.html#bookings" class="social-menu-item"><i class="fas fa-calendar-check"></i><span>My Bookings</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/store.html" class="social-menu-item"><i class="fas fa-store"></i><span>Store</span><i class="fas fa-chevron-right chevron"></i></a>
@@ -65,20 +87,41 @@
   <script src="social-shell.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
+      Auth.checkAuth();
+      let user = Auth.getUser();
+      if (localStorage.getItem('token') && typeof Auth.refreshSession === 'function') {
+        try {
+          await Auth.refreshSession();
+          user = Auth.getUser();
+        } catch (_e) {}
+      }
+
       SocialShell.initPage({ activeNav: 'profile' });
-      const user = Auth.getUser();
       const btn = document.getElementById('profileMainBtn');
       const dash = document.getElementById('dashLink');
+      const adminDash = document.getElementById('adminDashLink');
       const logout = document.getElementById('logoutBtn');
       const statsEl = document.getElementById('profileStats');
+      const loadingBar = document.getElementById('profileLoadingBar');
+
+      function finishProfile() {
+        if (loadingBar) loadingBar.remove();
+        document.documentElement.classList.add('profile-ready');
+      }
+
       if (user) {
         const name = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email || 'User';
         document.getElementById('profileName').textContent = name;
-        document.getElementById('profileRole').textContent =
-          user.role === 'worker' ? 'Professional' : user.role === 'admin' ? 'Admin' : 'Customer';
+        const roleLabel =
+          user.role === 'worker' ? 'Professional' : user.role === 'admin' ? 'Administrator' : 'Customer';
+        document.getElementById('profileRole').textContent = roleLabel + (user.email ? ' · ' + user.email.split('@')[0] : '');
         const pic = user.profile_pic ? SocialShell.getImageUrl(user.profile_pic) : null;
         document.getElementById('profileAvatar').src =
           window.SocialUI ? SocialUI.avatarUrl(name, pic) : pic || SocialShell.avatarFallback(name);
+        if (user.role === 'admin' && adminDash) {
+          adminDash.style.display = 'flex';
+          adminDash.href = '/admin-dashboard.html?app=1';
+        }
         if (window.SocialInteractions?.getFollowStats) {
           const s = await SocialInteractions.getFollowStats(user.id);
           document.getElementById('statFollowing').textContent = s.following;
@@ -102,19 +145,23 @@
           const list = SocialInteractions.getFollowersList(user.id);
           SocialUI.openFollowSheet('followers', list);
         });
-        btn.textContent = 'Open Dashboard';
+        btn.textContent = user.role === 'admin' ? 'Open Admin Dashboard' : 'Open Dashboard';
         btn.onclick = () => SocialShell.redirectToDashboard();
         dash.onclick = (e) => { e.preventDefault(); SocialShell.redirectToDashboard(); };
         logout.style.display = 'flex';
         logout.onclick = (e) => { e.preventDefault(); Auth.logout(); };
       } else {
+        document.getElementById('profileName').textContent = 'Guest';
+        document.getElementById('profileRole').textContent = 'Sign in to continue';
         document.getElementById('profileAvatar').src = SocialShell.avatarFallback('Guest');
+        btn.textContent = 'Sign In';
         btn.onclick = () => {
-          location.href = '/login.html?redirect=' + encodeURIComponent('/profile-tab.html');
+          location.href = '/login.html?redirect=' + encodeURIComponent('/profile-tab.html?app=1');
         };
-        dash.href = '/login.html';
+        dash.href = '/app-auth.html?app=1';
       }
       if (window.SocialUI) SocialUI.bindAvatarFallbacks(document);
+      finishProfile();
     });
   </script>
 </body>

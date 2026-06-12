@@ -537,24 +537,18 @@
   async function sharePost(post) {
     const url = location.origin + '/square.html?post=' + post.id + '&app=1';
     const text = (post.caption || 'Check this out on AP Services').slice(0, 100);
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: 'AP Services', text, url });
-      } else {
-        await navigator.clipboard.writeText(url);
-        toast('Link copied');
-      }
+    const shared = window.SocialUI?.shareLink
+      ? await SocialUI.shareLink({ title: 'AP Services', text, url })
+      : false;
+    if (shared) {
       const posts = getPosts();
       const p = posts.find((x) => String(x.id) === String(post.id));
       if (p) {
         p.shares = (p.shares || 0) + 1;
         savePosts(posts);
       }
-      return true;
-    } catch (_e) {
-      toast('Share cancelled');
-      return false;
     }
+    return shared;
   }
 
   async function sendGift(postId) {
@@ -625,11 +619,11 @@
     );
 
     const fromPros = pros.map((p, i) => ({
-      id: 'pro-' + (p.id || i),
+      id: 'pro-' + (p.userId || p.id || i),
       postId: null,
       name: p.name,
-      userId: p.id,
-      workerId: p.id,
+      userId: p.userId || p.id || null,
+      workerId: p.workerId || p.id || null,
       caption: p.category || 'Follow for more 🔥',
       likes: 200 + i * 47,
       comments: 4 + i,
@@ -856,23 +850,33 @@
         await sendGift(item.postId);
       } else if (item.userId && window.SocialWallet) {
         try {
+          const bal = await SocialWallet.fetchBalance(true);
+          const coinCost = 10;
+          if ((bal.coin_balance || 0) < coinCost) {
+            toast('Not enough coins — opening recharge', 'warning');
+            setTimeout(() => (location.href = '/coins-recharge.html?app=1'), 500);
+            updateReelUI(item);
+            return;
+          }
           await SocialWallet.sendGift({
             receiver_id: item.userId,
-            coin_amount: 10,
+            coin_amount: coinCost,
             gift_type: 'reel_gift',
           });
           item.gifts = (item.gifts || 0) + 1;
           stats[key].gifts = item.gifts;
           saveReelStats(stats);
-          toast('Gift sent 🎁');
+          toast('Gift sent 🎁', 'success');
         } catch (e) {
           if (/insufficient/i.test(e.message)) {
-            toast('Need coins — opening recharge');
+            toast('Need coins — opening recharge', 'warning');
             setTimeout(() => (location.href = '/coins-recharge.html?app=1'), 500);
           } else {
             toast(window.SocialUI?.friendlyMessage(e.message) || e.message || 'Gift failed', 'error');
           }
         }
+      } else {
+        toast('Join their live room to send gifts', 'info');
       }
       updateReelUI(item);
       return;
@@ -880,22 +884,24 @@
 
     if (action === 'share') {
       (async () => {
+        let shared = false;
         if (item.postId) {
-          await sharePost(getPosts().find((x) => String(x.id) === String(item.postId)) || { id: item.postId, caption: item.caption });
-          item.shares = (item.shares || 0) + 1;
-        } else {
-          try {
-            if (navigator.share) await navigator.share({ title: item.name, url: location.origin + profileUrl(item) });
-            else {
-              await navigator.clipboard.writeText(location.origin + profileUrl(item));
-              toast('Link copied');
+          shared = await sharePost(
+            getPosts().find((x) => String(x.id) === String(item.postId)) || {
+              id: item.postId,
+              caption: item.caption,
             }
-            item.shares = (item.shares || 0) + 1;
-            stats[key].shares = item.shares;
-            saveReelStats(stats);
-          } catch (_e) {
-            toast('Share cancelled');
-          }
+          );
+        } else {
+          const url = location.origin + profileUrl(item);
+          shared = window.SocialUI?.shareLink
+            ? await SocialUI.shareLink({ title: item.name || 'AP Services', url })
+            : false;
+        }
+        if (shared) {
+          item.shares = (item.shares || 0) + 1;
+          stats[key].shares = item.shares;
+          saveReelStats(stats);
         }
         updateReelUI(item);
       })();

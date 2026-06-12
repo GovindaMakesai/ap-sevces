@@ -254,6 +254,20 @@ async function recoverActiveRooms() {
   console.log(`[live] Recovered ${res.rows.length} active room(s) from database`);
 }
 
+async function listActiveRooms({ roomType, limit = 30 } = {}) {
+  const params = [];
+  let sql = `SELECT channel, room_type, host_user_id, host_display_name, viewer_count, status, updated_at
+             FROM live_rooms WHERE status = 'active'`;
+  if (roomType) {
+    params.push(roomType);
+    sql += ` AND room_type = $${params.length}`;
+  }
+  params.push(Math.min(Math.max(parseInt(limit, 10) || 30, 1), 50));
+  sql += ` ORDER BY viewer_count DESC, updated_at DESC LIMIT $${params.length}`;
+  const res = await db.query(sql, params);
+  return res.rows;
+}
+
 module.exports = {
   findByChannel,
   findById,
@@ -267,5 +281,6 @@ module.exports = {
   endRoom,
   endIdleRooms,
   recoverActiveRooms,
+  listActiveRooms,
   roomCache,
 };

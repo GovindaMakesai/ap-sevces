@@ -1,24 +1,55 @@
 /* Points & withdrawal flow — isolated from social-app gold theme */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 html.social-app body.withdraw-app,
 html.ap-expo-app body.withdraw-app,
+html.social-bridge-mode body.withdraw-app,
 body.withdraw-app {
   min-height: 100dvh;
+  margin: 0;
   background: #f3f4f6 !important;
   background-image: none !important;
   color: #111827 !important;
-  padding: calc(12px + env(safe-area-inset-top, 0)) 16px calc(88px + env(safe-area-inset-bottom, 0)) !important;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  position: relative;
+  isolation: isolate;
+}
+
+body.withdraw-app:not(:has(.wd-page)) {
+  padding: calc(12px + env(safe-area-inset-top, 0)) 16px calc(24px + env(safe-area-inset-bottom, 0));
   max-width: 480px;
   margin-left: auto;
   margin-right: auto;
 }
 
-.withdraw-app {
+body.withdraw-app input[type='file'] {
+  position: fixed !important;
+  left: -10000px !important;
+  top: 0 !important;
+  width: 1px !important;
+  height: 1px !important;
+  opacity: 0 !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  pointer-events: none !important;
+  border: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.wd-page {
+  max-width: 480px;
+  margin: 0 auto;
   min-height: 100dvh;
-  background: #f3f4f6;
-  padding: calc(12px + env(safe-area-inset-top, 0)) 16px calc(88px + env(safe-area-inset-bottom, 0));
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  display: flex;
+  flex-direction: column;
+  padding: calc(12px + env(safe-area-inset-top, 0)) 16px 0;
 }
 
 .wd-header {
@@ -26,7 +57,9 @@ body.withdraw-app {
   align-items: center;
   gap: 12px;
   margin-bottom: 16px;
+  flex-shrink: 0;
 }
+
 .wd-header a {
   width: 36px;
   height: 36px;
@@ -38,7 +71,9 @@ body.withdraw-app {
   color: #374151;
   text-decoration: none;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  flex-shrink: 0;
 }
+
 .wd-header h1 {
   font-size: 18px;
   font-weight: 600;
@@ -47,45 +82,29 @@ body.withdraw-app {
   flex: 1;
   text-align: center;
 }
-.wd-header .wd-header-link {
-  font-size: 14px;
-  color: #5b67f6;
-  text-decoration: none;
-  font-weight: 600;
+
+.wd-header-spacer {
+  width: 36px;
+  flex-shrink: 0;
 }
 
-.wd-balance-card {
-  background: linear-gradient(135deg, #fecdd3 0%, #fda4af 45%, #f9a8d4 100%);
-  border-radius: 20px;
-  padding: 24px 20px;
-  color: #831843;
-  margin-bottom: 20px;
-  box-shadow: 0 8px 24px rgba(244, 114, 182, 0.25);
-}
-.wd-balance-card .main {
-  font-size: 36px;
-  font-weight: 800;
-  line-height: 1.1;
-}
-.wd-balance-card .lbl {
-  font-size: 13px;
-  opacity: 0.85;
-  margin-top: 4px;
-}
-.wd-balance-row {
+.wd-alert-banner {
   display: flex;
-  gap: 24px;
-  margin-top: 20px;
-  padding-top: 16px;
-  border-top: 1px solid rgba(131, 24, 67, 0.15);
+  align-items: flex-start;
+  gap: 8px;
+  background: #ede9fe;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  color: #5b21b6;
+  margin-bottom: 12px;
+  line-height: 1.4;
+  flex-shrink: 0;
 }
-.wd-balance-row div strong {
-  display: block;
-  font-size: 18px;
-}
-.wd-balance-row div span {
-  font-size: 12px;
-  opacity: 0.8;
+
+.wd-alert-banner i {
+  margin-top: 2px;
+  flex-shrink: 0;
 }
 
 .wd-gradient-card {
@@ -94,19 +113,30 @@ body.withdraw-app {
   padding: 20px;
   color: #fff;
   margin-bottom: 16px;
-  position: relative;
+  flex-shrink: 0;
 }
+
 .wd-gradient-card .top {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
+  gap: 12px;
 }
+
 .wd-gradient-card .amount-lg {
   font-size: 32px;
   font-weight: 800;
+  line-height: 1.1;
 }
+
+.wd-gradient-card .amount-label {
+  font-size: 13px;
+  opacity: 0.9;
+  margin-top: 4px;
+}
+
 .wd-gradient-card .record-btn {
-  background: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.28);
   border: none;
   color: #fff;
   padding: 6px 14px;
@@ -115,7 +145,10 @@ body.withdraw-app {
   font-weight: 600;
   cursor: pointer;
   text-decoration: none;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
+
 .wd-gradient-card .cols {
   display: flex;
   gap: 32px;
@@ -123,9 +156,21 @@ body.withdraw-app {
   font-size: 13px;
   opacity: 0.95;
 }
+
+.wd-gradient-card .cols > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .wd-gradient-card .cols strong {
-  display: block;
   font-size: 16px;
+  line-height: 1.2;
+}
+
+.wd-gradient-card .cols span {
+  font-size: 12px;
+  opacity: 0.85;
 }
 
 .wd-card {
@@ -134,12 +179,27 @@ body.withdraw-app {
   padding: 16px;
   margin-bottom: 12px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+  flex-shrink: 0;
+  width: 100%;
+  overflow: hidden;
 }
+
 .wd-card h3 {
   font-size: 15px;
   font-weight: 700;
   color: #111827;
   margin: 0 0 12px;
+}
+
+.wd-card-qr h3 {
+  margin-bottom: 4px;
+}
+
+.wd-qr-sub {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.4;
 }
 
 .wd-amount-input {
@@ -151,57 +211,134 @@ body.withdraw-app {
   color: #111827;
   border: none;
   width: 100%;
-  box-sizing: border-box;
+  display: block;
+  -webkit-appearance: none;
+  appearance: none;
 }
+
 .wd-amount-input:focus {
   outline: 2px solid #5b67f6;
+  outline-offset: 0;
 }
+
 .wd-hint {
   font-size: 13px;
   color: #6b7280;
-  margin-top: 10px;
+  margin: 10px 0 0;
 }
 
 .wd-qr-upload {
+  display: block;
+  width: 100%;
   border: 2px dashed #d1d5db;
   border-radius: 14px;
-  padding: 24px;
+  padding: 0;
   text-align: center;
   cursor: pointer;
   background: #fafafa;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, background 0.2s;
+  overflow: hidden;
+  position: relative;
+  -webkit-tap-highlight-color: transparent;
 }
+
 .wd-qr-upload:hover,
-.wd-qr-upload.has-file {
+.wd-qr-upload:focus-visible {
   border-color: #5b67f6;
   background: #eef2ff;
+  outline: none;
 }
-.wd-qr-upload img {
-  max-width: 200px;
-  max-height: 200px;
-  border-radius: 12px;
-  margin: 0 auto 8px;
-  display: block;
+
+.wd-qr-upload.has-file {
+  border-color: #5b67f6;
+  background: #fff;
+  border-style: solid;
 }
-.wd-qr-upload input {
-  display: none;
+
+.wd-qr-placeholder {
+  padding: 28px 20px;
 }
-.wd-qr-upload .icon {
+
+.wd-qr-placeholder .icon {
   font-size: 40px;
   color: #9ca3af;
   margin-bottom: 8px;
 }
-.wd-qr-upload p {
-  margin: 0;
+
+.wd-qr-placeholder p {
+  margin: 0 0 6px;
   font-size: 14px;
-  color: #6b7280;
+  color: #374151;
+  font-weight: 600;
+}
+
+.wd-qr-hint {
+  display: block;
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.wd-qr-preview-wrap {
+  padding: 16px;
+  background: #f9fafb;
+}
+
+.wd-qr-preview-wrap img {
+  display: block;
+  max-width: 100%;
+  max-height: 220px;
+  width: auto;
+  height: auto;
+  margin: 0 auto;
+  object-fit: contain;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+}
+
+.wd-qr-change {
+  display: inline-block;
+  margin-top: 12px;
+  border: none;
+  background: #eef2ff;
+  color: #4f46e5;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.wd-rules-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.wd-rules-table td {
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  vertical-align: top;
+}
+
+.wd-rules-table td:first-child {
+  background: #f5f3ff;
+  color: #4b5563;
+  width: 42%;
+}
+
+.wd-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  margin-top: auto;
+  padding: 16px 0 calc(16px + env(safe-area-inset-bottom, 0));
+  background: linear-gradient(0deg, #f3f4f6 75%, rgba(243, 244, 246, 0));
 }
 
 .wd-btn-primary {
-  position: fixed;
-  left: 16px;
-  right: 16px;
-  bottom: calc(16px + env(safe-area-inset-bottom, 0));
+  display: block;
+  width: 100%;
   border: none;
   padding: 16px;
   border-radius: 999px;
@@ -210,32 +347,47 @@ body.withdraw-app {
   font-size: 16px;
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 8px 24px rgba(91, 103, 246, 0.4);
-  z-index: 10;
+  box-shadow: 0 8px 24px rgba(91, 103, 246, 0.35);
+  -webkit-tap-highlight-color: transparent;
 }
+
 .wd-btn-primary:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-.wd-btn-pink {
-  background: linear-gradient(90deg, #f472b6, #ec4899);
-  box-shadow: 0 8px 24px rgba(236, 72, 153, 0.35);
+  box-shadow: none;
 }
 
+/* Prevent social-theme overrides inside withdrawal flow */
+body.withdraw-app a,
+body.withdraw-app button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+body.withdraw-app .social-bottom-nav,
+body.withdraw-app .social-bridge-header,
+body.withdraw-app .navbar,
+body.withdraw-app .footer {
+  display: none !important;
+}
+
+/* Detail / notice pages */
 .wd-status {
   text-align: center;
   margin: 8px 0 20px;
 }
+
 .wd-status .amt {
   font-size: 40px;
   font-weight: 800;
   color: #111827;
 }
+
 .wd-status .st {
   font-size: 14px;
   color: #9ca3af;
   margin-top: 4px;
 }
+
 .wd-status .st.pending { color: #f59e0b; }
 .wd-status .st.paid { color: #3b82f6; }
 .wd-status .st.completed { color: #10b981; }
@@ -249,12 +401,15 @@ body.withdraw-app {
   border-bottom: 1px solid #f3f4f6;
   font-size: 14px;
 }
+
 .wd-detail-row:last-child {
   border-bottom: none;
 }
+
 .wd-detail-row .label {
   color: #6b7280;
 }
+
 .wd-detail-row .value {
   font-weight: 600;
   color: #111827;
@@ -267,6 +422,7 @@ body.withdraw-app {
   text-align: center;
   padding: 12px;
 }
+
 .wd-qr-preview img {
   max-width: 220px;
   border-radius: 12px;
@@ -282,6 +438,7 @@ body.withdraw-app {
   gap: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
+
 .wd-notice-icon {
   width: 44px;
   height: 44px;
@@ -294,17 +451,20 @@ body.withdraw-app {
   flex-shrink: 0;
   font-size: 18px;
 }
+
 .wd-notice-body h4 {
   margin: 0 0 6px;
   font-size: 14px;
   color: #111827;
 }
+
 .wd-notice-body p {
   margin: 0;
   font-size: 12px;
   color: #9ca3af;
   line-height: 1.4;
 }
+
 .wd-notice-link {
   display: inline-block;
   margin-top: 8px;
@@ -312,43 +472,6 @@ body.withdraw-app {
   color: #5b67f6;
   text-decoration: none;
   font-weight: 600;
-}
-
-.wd-alert-banner {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: #ede9fe;
-  padding: 10px 14px;
-  border-radius: 12px;
-  font-size: 13px;
-  color: #5b21b6;
-  margin-bottom: 12px;
-}
-
-.wd-rules-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-.wd-rules-table td {
-  padding: 10px 12px;
-  border: 1px solid #e5e7eb;
-}
-.wd-rules-table td:first-child {
-  background: #f5f3ff;
-  color: #4b5563;
-  width: 45%;
-}
-
-/* Prevent social-theme link/button overrides inside withdrawal flow */
-body.withdraw-app a,
-body.withdraw-app button {
-  -webkit-tap-highlight-color: transparent;
-}
-
-body.withdraw-app .social-bottom-nav {
-  display: none !important;
 }
 
 .wd-section-title {

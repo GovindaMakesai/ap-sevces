@@ -108,10 +108,10 @@
     const ch = encodeURIComponent(id || (party ? 'party-' : 'live-') + index);
     const href = party
       ? `/party-room.html?channel=${ch}&app=1`
-      : `/live-room.html?channel=${ch}&app=1`;
+      : `/live-room.html?channel=${ch}&feed=1&app=1`;
     const hot = index === 0 ? ' hot' : '';
     const top10 = index === 1 ? '<span class="tag tag-top10">TOP10 Hourly</span>' : '';
-    const pk = index % 3 === 0 ? '<span class="pk-badge" aria-hidden="true">PK</span>' : '';
+    const pk = index % 3 === 0 ? '<span class="pk-badge" aria-hidden="true">AP LIVE</span>' : '';
     const stack = party ? renderAvatarStack(6 + (index % 20)) : '';
     const inRoom = party ? `<span class="in-room"><i class="fas fa-signal"></i> ${formatViewers(viewers)}</span>` : '';
 
@@ -184,7 +184,9 @@
       const rows = Array.isArray(res?.data) ? res.data : [];
       if (rows.length) {
         return rows.map((w, i) => ({
-          id: w.id,
+          id: w.user_id || w.id,
+          userId: w.user_id || w.id,
+          workerId: w.id,
           name: `${w.first_name || ''} ${w.last_name || ''}`.trim() || 'Professional',
           category: w.category || 'Home services',
           image:
@@ -351,7 +353,12 @@
   }
 
   function goStartLive() {
-    openBroadcastPicker('live');
+    const user = window.Auth?.getUser?.();
+    if (!user) {
+      window.location.href = '/app-auth.html?app=1';
+      return;
+    }
+    window.location.href = '/live-application.html?kind=live&mode=video&app=1';
   }
 
   function goStartLiveBroadcast(opts) {

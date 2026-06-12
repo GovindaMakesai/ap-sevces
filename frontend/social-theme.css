@@ -443,14 +443,14 @@ body.social-tabs-page #social-banner-slider + .social-post-feed {
   position: absolute;
   right: 6px;
   bottom: 52px;
-  background: linear-gradient(135deg, #fbbf24, #d97706);
+  background: linear-gradient(135deg, #e8c56a, #9a7218);
   color: #fff;
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 800;
   padding: 3px 6px;
   border-radius: 6px;
   border: 1px solid rgba(255, 255, 255, 0.5);
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
 }
 
 .social-live-card.is-party .bottom {

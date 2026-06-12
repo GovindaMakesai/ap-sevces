@@ -6,63 +6,72 @@
   <meta name="theme-color" content="#5b67f6">
   <title>Withdraw - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-theme.css">
   <link rel="stylesheet" href="social-withdraw.css">
 </head>
 <body class="withdraw-app">
-  <header class="wd-header">
-    <a href="/points.html?app=1" aria-label="Back"><i class="fas fa-arrow-left"></i></a>
-    <h1>Withdraw</h1>
-    <span style="width:36px"></span>
-  </header>
+  <div class="wd-page">
+    <header class="wd-header">
+      <a href="/points.html?app=1" aria-label="Back"><i class="fas fa-arrow-left"></i></a>
+      <h1>Withdraw</h1>
+      <span class="wd-header-spacer" aria-hidden="true"></span>
+    </header>
 
-  <div class="wd-alert-banner">
-    <i class="fas fa-shield-alt"></i>
-    <span>Upload your UPI/bank QR — admin will pay to this code after review</span>
-  </div>
-
-  <div class="wd-gradient-card" id="balanceCard">
-    <div class="top">
-      <div>
-        <div class="amount-lg" id="withdrawableDisplay">0</div>
-        <div style="font-size:13px;opacity:0.9">Withdrawable (coins)</div>
-      </div>
-      <a href="/withdraw-notices.html?app=1" class="record-btn">Record</a>
+    <div class="wd-alert-banner">
+      <i class="fas fa-shield-alt"></i>
+      <span>Upload your UPI/bank QR — admin will pay to this code after review</span>
     </div>
-    <div class="cols">
-      <div><strong id="totalCoins">0</strong>Total</div>
-      <div><strong id="minCoins">500</strong>Minimum</div>
-    </div>
-  </div>
 
-  <div class="wd-card">
-    <h3>Amount</h3>
-    <input type="number" class="wd-amount-input" id="withdrawAmount" placeholder="500" min="1" inputmode="numeric">
-    <p class="wd-hint">Withdrawable amount: <strong id="withdrawableHint">0</strong> coins</p>
-  </div>
-
-  <div class="wd-card">
-    <h3>Payment QR code</h3>
-    <label class="wd-qr-upload" id="qrUploadZone">
-      <input type="file" id="qrFile" accept="image/jpeg,image/png,image/webp">
-      <div id="qrPlaceholder">
-        <div class="icon"><i class="fas fa-qrcode"></i></div>
-        <p>Tap to upload your payment QR code</p>
+    <div class="wd-gradient-card" id="balanceCard">
+      <div class="top">
+        <div>
+          <div class="amount-lg" id="withdrawableDisplay">0</div>
+          <div class="amount-label">Withdrawable (coins)</div>
+        </div>
+        <a href="/withdraw-notices.html?app=1" class="record-btn">Record</a>
       </div>
-      <img id="qrPreview" alt="QR preview" style="display:none">
-    </label>
+      <div class="cols">
+        <div><strong id="totalCoins">0</strong><span>Total</span></div>
+        <div><strong id="minCoins">500</strong><span>Minimum</span></div>
+      </div>
+    </div>
+
+    <div class="wd-card">
+      <h3>Amount</h3>
+      <input type="number" class="wd-amount-input" id="withdrawAmount" placeholder="500" min="1" inputmode="numeric">
+      <p class="wd-hint">Withdrawable amount: <strong id="withdrawableHint">0</strong> coins</p>
+    </div>
+
+    <div class="wd-card wd-card-qr">
+      <h3>Payment QR code</h3>
+      <p class="wd-qr-sub">Upload a clear photo of your UPI or bank receive QR code</p>
+      <div class="wd-qr-upload" id="qrUploadZone" role="button" tabindex="0" aria-label="Upload payment QR code">
+        <div id="qrPlaceholder" class="wd-qr-placeholder">
+          <div class="icon"><i class="fas fa-qrcode"></i></div>
+          <p>Tap to upload your payment QR code</p>
+          <span class="wd-qr-hint">JPG, PNG or WebP</span>
+        </div>
+        <div id="qrPreviewWrap" class="wd-qr-preview-wrap" hidden>
+          <img id="qrPreview" alt="Your payment QR code">
+          <button type="button" class="wd-qr-change" id="qrChangeBtn">Change image</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="wd-card">
+      <h3>Withdrawal rules</h3>
+      <table class="wd-rules-table">
+        <tr><td>Minimum withdrawal</td><td id="ruleMin">500 coins</td></tr>
+        <tr><td>Exchange ratio</td><td id="ruleRate">10 coins = ₹1</td></tr>
+        <tr><td>Processing</td><td>Admin review → pay → you confirm receipt</td></tr>
+      </table>
+    </div>
+
+    <footer class="wd-footer">
+      <button type="button" class="wd-btn-primary" id="submitWithdraw" disabled>Submit</button>
+    </footer>
   </div>
 
-  <div class="wd-card">
-    <h3>Withdrawal rules</h3>
-    <table class="wd-rules-table">
-      <tr><td>Minimum withdrawal</td><td id="ruleMin">500 coins</td></tr>
-      <tr><td>Exchange ratio</td><td id="ruleRate">10 coins = ₹1</td></tr>
-      <tr><td>Processing</td><td>Admin review → pay → you confirm receipt</td></tr>
-    </table>
-  </div>
-
-  <button type="button" class="wd-btn-primary" id="submitWithdraw" disabled>Submit</button>
+  <input type="file" id="qrFile" accept="image/jpeg,image/png,image/webp" tabindex="-1" aria-hidden="true">
 
   <script src="app.js"></script>
   <script src="social-wallet.js"></script>
@@ -79,9 +88,42 @@
       document.getElementById('submitWithdraw').disabled = !ok;
     }
 
+    function clearQrPreview() {
+      selectedFile = null;
+      const zone = document.getElementById('qrUploadZone');
+      const preview = document.getElementById('qrPreview');
+      const wrap = document.getElementById('qrPreviewWrap');
+      const placeholder = document.getElementById('qrPlaceholder');
+      const input = document.getElementById('qrFile');
+      if (preview?.src?.startsWith('blob:')) URL.revokeObjectURL(preview.src);
+      if (preview) preview.removeAttribute('src');
+      if (wrap) wrap.hidden = true;
+      if (placeholder) placeholder.hidden = false;
+      if (zone) zone.classList.remove('has-file');
+      if (input) input.value = '';
+      updateSubmitState();
+    }
+
+    function applyQrFile(file) {
+      if (!file || !file.type.startsWith('image/')) {
+        SocialUI?.toast?.('Please choose an image file') || alert('Please choose an image file');
+        return;
+      }
+      selectedFile = file;
+      const zone = document.getElementById('qrUploadZone');
+      const preview = document.getElementById('qrPreview');
+      const wrap = document.getElementById('qrPreviewWrap');
+      const placeholder = document.getElementById('qrPlaceholder');
+      zone.classList.add('has-file');
+      preview.src = URL.createObjectURL(file);
+      wrap.hidden = false;
+      placeholder.hidden = true;
+      updateSubmitState();
+    }
+
     document.addEventListener('DOMContentLoaded', async () => {
       if (!localStorage.getItem('token')) {
-        location.href = '/login.html?redirect=' + encodeURIComponent('/withdraw.html');
+        location.href = '/login.html?redirect=' + encodeURIComponent('/withdraw.html?app=1');
         return;
       }
 
@@ -102,18 +144,26 @@
 
       const zone = document.getElementById('qrUploadZone');
       const input = document.getElementById('qrFile');
-      const preview = document.getElementById('qrPreview');
-      const placeholder = document.getElementById('qrPlaceholder');
+
+      const openPicker = () => input.click();
+      zone.addEventListener('click', (e) => {
+        if (e.target.closest('#qrChangeBtn')) return;
+        if (!selectedFile) openPicker();
+      });
+      zone.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          if (!selectedFile) openPicker();
+        }
+      });
+      document.getElementById('qrChangeBtn')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openPicker();
+      });
 
       input.addEventListener('change', () => {
         const file = input.files?.[0];
-        if (!file) return;
-        selectedFile = file;
-        zone.classList.add('has-file');
-        preview.src = URL.createObjectURL(file);
-        preview.style.display = 'block';
-        placeholder.style.display = 'none';
-        updateSubmitState();
+        if (file) applyQrFile(file);
       });
 
       document.getElementById('withdrawAmount').addEventListener('input', updateSubmitState);
