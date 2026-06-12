@@ -100,35 +100,44 @@
 
   function renderLiveCard(pro, index, opts) {
     const party = opts && opts.party;
-    const id = pro.id || '';
-    const name = pro.name || 'Professional';
+    const channel = pro.channel || pro.id || '';
+    if (!channel) return '';
+    const name = pro.name || 'Host';
     const img = pro.image || coverFallback(name, party);
-    const tag = pro.tag || pickTag(index);
-    const viewers = pro.viewers != null ? pro.viewers : 200 + Math.floor(Math.random() * 3800);
-    const ch = encodeURIComponent(id || (party ? 'party-' : 'live-') + index);
+    const tag = party ? 'Party' : 'Live';
+    const viewers = Math.max(0, Number(pro.viewers) || 0);
+    const ch = encodeURIComponent(String(channel).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64));
     const href = party
       ? `/party-room.html?channel=${ch}&app=1`
       : `/live-room.html?channel=${ch}&feed=1&app=1`;
-    const hot = index === 0 ? ' hot' : '';
-    const top10 = index === 1 ? '<span class="tag tag-top10">TOP10 Hourly</span>' : '';
-    const pk = index % 3 === 0 ? '<span class="pk-badge" aria-hidden="true">AP LIVE</span>' : '';
-    const stack = party ? renderAvatarStack(6 + (index % 20)) : '';
-    const inRoom = party ? `<span class="in-room"><i class="fas fa-signal"></i> ${formatViewers(viewers)}</span>` : '';
+    const liveBadge = '<span class="tag hot"><span class="live-pulse-dot"></span> LIVE</span>';
+    const inRoom = `<span class="in-room"><i class="fas fa-signal"></i> ${formatViewers(viewers)}</span>`;
 
     return `
       <article class="social-live-card${party ? ' is-party' : ''}" data-href="${href}" role="button" tabindex="0">
         <img src="${img}" alt="" loading="lazy" onerror="this.src='${coverFallback(name, party).replace(/'/g, '&#39;')}'">
-        ${top10}
-        <span class="tag${hot}">${tag}</span>
-        ${pk}
+        ${liveBadge}
+        <span class="tag">${tag}</span>
         <div class="bottom">
-          ${stack}
           <div class="bottom-row">
             <span class="name">🇮🇳 ${name}</span>
-            ${party ? inRoom : `<span class="viewers"><i class="fas fa-signal"></i> ${formatViewers(viewers)}</span>`}
+            ${inRoom}
           </div>
         </div>
       </article>`;
+  }
+
+  function renderEmptyLiveGrid(party) {
+    const startFn = party ? 'SocialShell.goStartParty()' : 'SocialShell.goStartLive()';
+    const label = party ? 'Start Party' : 'Go Live';
+    const icon = party ? 'fa-users' : 'fa-video';
+    return `
+      <div class="social-empty-live-grid">
+        <div class="social-empty-live-icon"><i class="fas ${icon}"></i></div>
+        <h3>No one is ${party ? 'partying' : 'live'} right now</h3>
+        <p>Only real active rooms appear here. Be the first to broadcast!</p>
+        <button type="button" class="social-empty-live-btn" onclick="${startFn}">${label}</button>
+      </div>`;
   }
 
   function renderFilterChips(activeLabel) {
@@ -178,6 +187,31 @@
     });
   }
 
+  /** Active live/party rooms only — never fake workers or mock cards */
+  async function fetchActiveRooms(limit = 12, opts = {}) {
+    const party = opts && opts.party;
+    const roomType = party ? 'party' : 'live';
+    try {
+      const res = await API.get(`/live/rooms?type=${roomType}&limit=${limit}`);
+      const rows = Array.isArray(res?.data) ? res.data : [];
+      return rows
+        .filter((r) => r && r.channel && r.status !== 'ended')
+        .map((r) => ({
+          id: r.channel,
+          channel: r.channel,
+          userId: r.hostId,
+          name: r.hostName || 'Host',
+          image: coverFallback(r.hostName || 'Host', party),
+          viewers: r.viewers || 0,
+          tag: party ? 'Party' : 'Live',
+          live: true,
+        }));
+    } catch (e) {
+      console.warn('SocialShell: active rooms API', e);
+      return [];
+    }
+  }
+
   async function fetchPros(limit = 12) {
     try {
       const res = await API.get(`/workers?limit=${limit}`);
@@ -192,28 +226,14 @@
           image:
             getImageUrl(w.profile_pic) ||
             coverFallback(`${w.first_name || ''} ${w.last_name || ''}`.trim() || 'Pro', false),
-          viewers: 100 + Math.floor(Math.random() * 4000),
+          viewers: 0,
           tag: pickTag(i),
         }));
       }
     } catch (e) {
       console.warn('SocialShell: workers API', e);
     }
-    return mockPros(limit);
-  }
-
-  function mockPros(limit) {
-    const names = [
-      'Har Har Mahadev', 'AngelRiya6927', 'SENSEI', 'Priya Beauty', 'Rahul Electric',
-      'Anita Home', 'Zin Min', 'AapRohie', 'Lolita Daimary', 'SAM YARA',
-    ];
-    return Array.from({ length: limit }, (_, i) => ({
-      id: '',
-      name: names[i % names.length],
-      image: coverFallback(names[i % names.length], i % 2 === 1),
-      viewers: 96 + Math.floor(Math.random() * 4100),
-      tag: pickTag(i),
-    }));
+    return [];
   }
 
   async function fillGrid(gridId, limit, opts) {
@@ -221,8 +241,12 @@
     if (!grid) return;
     grid.innerHTML =
       '<div class="social-grid-loading"><span class="social-spinner"></span></div>';
-    const pros = await fetchPros(limit);
-    grid.innerHTML = pros.map((p, i) => renderLiveCard(p, i, opts)).join('');
+    const rooms = await fetchActiveRooms(limit, opts);
+    if (!rooms.length) {
+      grid.innerHTML = renderEmptyLiveGrid(opts && opts.party);
+      return;
+    }
+    grid.innerHTML = rooms.map((p, i) => renderLiveCard(p, i, opts)).filter(Boolean).join('');
     bindLiveCards(grid);
   }
 
@@ -310,7 +334,7 @@
     const follows = window.SocialInteractions?.getFollowingList
       ? SocialInteractions.getFollowingList().map((e) => e.name)
       : JSON.parse(localStorage.getItem('social_follows') || '[]').map((x) => (typeof x === 'string' ? x : x.name));
-    let pros = await fetchPros(24);
+    let pros = await fetchActiveRooms(24, { party: false });
     if (follows.length) {
       pros = pros.filter((p) =>
         follows.some((f) => p.name.toLowerCase().includes(String(f).toLowerCase()) || String(f).toLowerCase().includes(p.name.toLowerCase()))
@@ -318,13 +342,13 @@
     }
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      pros = pros.filter((p) => p.name.toLowerCase().includes(q));
+      pros = pros.filter((p) => p.name.toLowerCase().includes(q) || String(p.channel || '').toLowerCase().includes(q));
     }
     if (!pros.length) {
       if (content) content.style.display = 'none';
       mount.style.display = 'block';
       mount.innerHTML = follows.length
-        ? `<div class="social-empty-state"><p>No matches for "${searchQuery || ''}"</p></div>`
+        ? `<div class="social-empty-state"><p>${searchQuery ? `No live hosts match "${searchQuery}"` : 'None of the people you follow are live right now.'}</p><button type="button" class="btn-open" onclick="SocialShell.goStartLive()">Go Live</button></div>`
         : `<div class="social-empty-state"><p>You haven't followed anyone yet.</p><a href="/explore.html?app=1" class="btn-open">Discover live</a></div>`;
       return;
     }
@@ -648,6 +672,7 @@
     openBroadcastPicker,
     fillFollowingView,
     fetchPros,
+    fetchActiveRooms,
     getImageUrl,
     avatarFallback,
     coverFallback,

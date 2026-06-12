@@ -228,16 +228,32 @@ function registerLiveSocket(io) {
       });
     });
 
-    socket.on('live:seat_response', (payload) => {
-      const channel = sanitizeChannel(payload?.channel || currentChannel);
-      if (!channel || !socket.data.isHost) return;
-      const userId = String(payload?.userId || '');
-      if (!userId) return;
-      io.to(`live:${channel}`).emit('live:seat_response', {
-        userId,
-        accepted: payload?.accepted !== false,
-        at: Date.now(),
-      });
+    socket.on('live:seat_response', async (payload) => {
+      try {
+        const channel = sanitizeChannel(payload?.channel || currentChannel);
+        if (!channel || !socket.data.isHost) return;
+        const userId = String(payload?.userId || '');
+        if (!userId) return;
+        const accepted = payload?.accepted !== false;
+
+        if (accepted) {
+          await liveRoomService.promoteToSpeaker({
+            channel,
+            userId,
+            displayName: payload?.name,
+          });
+          const state = await liveRoomService.buildSnapshot(channel);
+          io.to(`live:${channel}`).emit('live:state', state);
+        }
+
+        io.to(`live:${channel}`).emit('live:seat_response', {
+          userId,
+          accepted,
+          at: Date.now(),
+        });
+      } catch (err) {
+        console.error('live:seat_response', err.message);
+      }
     });
 
     socket.on('live:end', async (payload, ack) => {

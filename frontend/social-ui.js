@@ -297,7 +297,7 @@
     return Boolean(window.__AP_NATIVE_APP__ || window.ReactNativeWebView || window.Capacitor);
   }
 
-  /** Share link — clipboard fallback in WebView; only shows "cancelled" on real dismiss */
+  /** Native share sheet when available; clipboard only as last resort */
   async function shareLink(opts) {
     const url = String(opts?.url || location.href);
     const title = opts?.title || 'AP Services';
@@ -306,7 +306,7 @@
     async function copyLink() {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(url);
-        toast('Link copied — paste to share', 'success');
+        toast('Link copied', 'success');
         return true;
       }
       const ta = document.createElement('textarea');
@@ -319,34 +319,37 @@
       const ok = document.execCommand('copy');
       ta.remove();
       if (ok) {
-        toast('Link copied — paste to share', 'success');
+        toast('Link copied', 'success');
         return true;
       }
       window.prompt('Copy this link:', url);
       return true;
     }
 
-    if (isNativeWebView()) {
-      return copyLink();
+    if (navigator.share) {
+      const payloads = [
+        { title, text, url },
+        { title, url },
+        { url },
+      ];
+      for (const payload of payloads) {
+        try {
+          if (navigator.canShare && !navigator.canShare(payload)) continue;
+          await navigator.share(payload);
+          return true;
+        } catch (e) {
+          if (isShareUserCancel(e)) return false;
+        }
+      }
     }
 
-    if (navigator.share) {
+    if (isNativeWebView() && window.ReactNativeWebView?.postMessage) {
       try {
-        const payload = { title, url };
-        if (text) payload.text = text;
-        if (navigator.canShare && !navigator.canShare(payload)) {
-          return copyLink();
-        }
-        await navigator.share(payload);
-        toast('Shared!', 'success');
+        window.ReactNativeWebView.postMessage(
+          JSON.stringify({ type: 'share', title, text, url })
+        );
         return true;
-      } catch (e) {
-        if (isShareUserCancel(e)) {
-          toast('Share cancelled', 'info');
-          return false;
-        }
-        return copyLink();
-      }
+      } catch (_e) {}
     }
 
     return copyLink();

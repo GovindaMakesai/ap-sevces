@@ -4,6 +4,10 @@
 (function () {
   const GIFT_CATALOG = {
     gift: [
+      { emoji: '❤️', name: 'Heart', cost: 10 },
+      { emoji: '👍', name: 'Like', cost: 20 },
+      { emoji: '💐', name: 'Flowers', cost: 50 },
+      { emoji: '🌹', name: 'Rose', cost: 100 },
       { emoji: '🎺', name: 'Whistle', cost: 100 },
       { emoji: '📯', name: 'Soccer horn', cost: 2000, tag: 'Lucky' },
       { emoji: '🏆', name: 'Football trophy', cost: 50000, tag: 'Activity' },
@@ -25,7 +29,62 @@
       { emoji: '🚀', name: 'Rocket', cost: 1000 },
       { emoji: '🎆', name: 'Fireworks', cost: 5000, tag: 'New' },
     ],
+    island: [
+      { emoji: '🐚', name: 'Glow Conch', cost: 500, tag: 'Island' },
+      { emoji: '⭐', name: 'Star Shell', cost: 5000, tag: 'Island' },
+      { emoji: '🧺', name: 'Fruit Basket', cost: 10000, tag: 'Island' },
+      { emoji: '🔥', name: 'Beach Fire', cost: 50000, tag: 'Island' },
+      { emoji: '🧚', name: 'Jungle Elf', cost: 300000, tag: 'Island' },
+      { emoji: '🏝️', name: 'Private Isle', cost: 1200000, tag: 'Island' },
+    ],
+    fan: [
+      { emoji: '🎫', name: 'Pop pass', cost: 100, tag: 'Fans' },
+      { emoji: '💡', name: 'Fan Light Board', cost: 100, tag: 'Hot' },
+      { emoji: '🎂', name: 'Chocolate Cake', cost: 10000, tag: 'Fans' },
+      { emoji: '😂', name: 'Ha Ha Ha', cost: 1000, tag: 'Fans' },
+      { emoji: '💐', name: 'Flowers', cost: 1000, tag: 'Fans' },
+      { emoji: '👋', name: "I'm here", cost: 1000, tag: 'Fans' },
+      { emoji: '🤦', name: 'Face palm', cost: 1000, tag: 'Fans' },
+      { emoji: '🎁', name: 'Surprise box', cost: 50000, tag: 'Fans' },
+    ],
+    privilege: [
+      { emoji: '👑', name: 'Crown', cost: 5000, tag: 'VIP' },
+      { emoji: '🌹', name: 'Rose Bouquet', cost: 8000, tag: 'VIP' },
+      { emoji: '🧸', name: 'Teddy Bear', cost: 15000, tag: 'VIP' },
+      { emoji: '🚗', name: 'Luxury Car', cost: 80000, tag: 'VIP' },
+      { emoji: '🎂', name: 'Birthday Cake', cost: 10000, tag: 'VIP' },
+      { emoji: '🦁', name: 'Lion King', cost: 700000, tag: 'VIP' },
+      { emoji: '🐉', name: 'Golden Dragon', cost: 900000, tag: 'VIP' },
+      { emoji: '🛥️', name: 'Yacht Voyage', cost: 1500000, tag: 'VIP' },
+      { emoji: '🏎️', name: 'Super Car', cost: 1200000, tag: 'VIP' },
+      { emoji: '🏰', name: 'Crystal Palace', cost: 2000000, tag: 'VIP' },
+      { emoji: '🌌', name: 'Romantic Nebula', cost: 300000, tag: 'VIP' },
+    ],
+    fun: [
+      { emoji: '🍋', name: 'Lemon', cost: 2400, tag: 'Lucky' },
+      { emoji: '🥝', name: 'Kiwi', cost: 2400, tag: 'Lucky Lit' },
+      { emoji: '🍳', name: 'Eggs', cost: 120, tag: 'Hot' },
+      { emoji: '⭐', name: 'Cheer stick', cost: 120, tag: 'Hot' },
+      { emoji: '📦', name: 'Fortune Blind Box', cost: 2000, tag: 'Lucky' },
+      { emoji: '💝', name: 'Love Blind Box', cost: 10000, tag: 'Lucky' },
+    ],
   };
+
+  const QUICK_CHIP_DEFS = [
+    { id: 'hi', label: '🌹 Hi there!', send: '🌹 Hi there!' },
+    { id: 'follow', label: 'Plz Follow+', action: 'follow' },
+    { id: 'lol', label: 'LOL~', send: 'LOL~' },
+    { id: 'like', label: 'I like it❤️', send: 'I like it❤️' },
+    { id: 'dance', label: 'Dance~', send: 'Dance~' },
+    { id: 'talent', label: '100% Talented👍', send: '100% Talented👍' },
+    { id: 'hot', label: 'Hot girl🔥', send: 'Hot girl🔥' },
+    { id: 'bravo', label: 'Bravo', send: 'Bravo' },
+  ];
+  const EMOJI_PICKS = ['😀', '😂', '❤️', '🔥', '👍', '🎉', '💯', '🌹', '💐', '🎁', '👏', '😍', '🙏', '💪', '✨'];
+  let quickChipsExpanded = false;
+  let chatRegionFilter = 'all';
+  let sessionGiftCoins = 0;
+  let userXpProgress = 0;
   const GIFT_OPTIONS = GIFT_CATALOG.gift;
 
   let giftCategory = 'gift';
@@ -42,11 +101,20 @@
   let chestSec = 294;
   let teamProgress = 1;
   let joinRequests = [];
+  let chatMessages = [];
+  let hasSpeakerSeat = false;
+  let pkScoreLeft = 0;
+  let pkScoreRight = 0;
+  let pkTimerSec = 188;
+  let micLinkPending = false;
   let feedItems = [];
   let activeFeedIndex = 0;
   let activeChannelOverride = '';
   let feedSwitching = false;
   let feedObserver = null;
+  let lastViewerCount = 0;
+  let lastCoinBalance = null;
+  let pkBattleActive = false;
 
   function qs(name) {
     return new URLSearchParams(location.search).get(name);
@@ -106,9 +174,15 @@
     if (root) root.classList.toggle('is-audio-mode', mode === 'audio');
     if (bg) {
       bg.style.display = 'block';
-      bg.style.backgroundImage = `url('${themeCover(mode === 'audio' ? 'audio' : 'live', name)}')`;
-      bg.style.backgroundSize = 'cover';
-      bg.style.backgroundPosition = 'center';
+      if (mode === 'audio') {
+        bg.style.background = '';
+        bg.style.backgroundImage = `url('${themeCover('audio', name)}')`;
+        bg.style.backgroundSize = 'cover';
+        bg.style.backgroundPosition = 'center';
+      } else {
+        bg.style.backgroundImage = 'none';
+        bg.style.background = '#000';
+      }
     }
     if (audioAvatar) audioAvatar.src = avatarUrl(name);
     if (audioLabel) audioLabel.textContent = mode === 'audio' ? 'Voice live' : 'Live';
@@ -147,8 +221,25 @@
 
   async function refreshCoinDisplay() {
     const bal = await getCoins();
-    const el = document.getElementById('giftCoinsBal');
-    if (el) el.textContent = String(bal);
+    const els = [
+      document.getElementById('giftCoinsBal'),
+      document.getElementById('apTopupBal'),
+      document.getElementById('apSurpriseCoins'),
+    ].filter(Boolean);
+    els.forEach((el) => {
+      if (lastCoinBalance !== null && window.SocialFX?.animateBalance) {
+        SocialFX.animateBalance(el, lastCoinBalance, bal);
+      } else {
+        el.textContent = String(bal);
+      }
+    });
+    lastCoinBalance = bal;
+    const lvlEl = document.getElementById('giftUserLvl');
+    if (lvlEl && window.SocialFX) {
+      const me = currentUser();
+      const { level } = SocialFX.getUserLevel(me?.id, bal);
+      lvlEl.textContent = String(level);
+    }
     return bal;
   }
 
@@ -187,25 +278,79 @@
     liveSocket = io(socketBase(), {
       auth: { token },
       transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: 8,
+      reconnectionDelay: 1000,
     });
 
+    window.SocialFX?.init?.();
+
     liveSocket.on('live:state', (state) => {
+      const prevViewers = roomState?.viewers || lastViewerCount;
       roomState = state;
+      if (state?.viewers != null && state.viewers !== prevViewers) {
+        window.SocialFX?.onViewerCountChange?.(state.viewers, prevViewers);
+      }
       renderRoomState();
     });
 
     liveSocket.on('live:chat', (msg) => {
-      appendChatMessage(msg);
+      rememberChatMessage(msg);
+      if (msg && /joined/i.test(msg.text || '') && msg.user) {
+        window.SocialFX?.showJoinBanner?.({ name: msg.user, avatar: avatarUrl(msg.user) });
+      }
+      renderChatFeed();
     });
 
     liveSocket.on('live:gift', (gift) => {
       showWinBanner(gift);
+      showGiftFlyBanner(gift);
+      const combo = window.SocialFX?.trackCombo?.(gift.emoji || 'gift', gift.qty || 1) || 1;
+      window.SocialFX?.playGift?.(gift, { combo });
+      onGiftTeamProgress(gift.amount || 100);
+      if (pkBattleActive || document.body.classList.contains('is-pk-mode')) {
+        pkScoreLeft += Math.min(500, gift.amount || 100);
+        window.SocialFX?.pkScoreUpdate?.(pkScoreLeft, pkScoreRight);
+      }
       if (roomState) renderRoomState();
     });
 
     liveSocket.on('live:viewer_count', ({ viewers }) => {
+      const prev = lastViewerCount || roomState?.viewers || 0;
+      if (viewers !== prev) window.SocialFX?.onViewerCountChange?.(viewers, prev);
+      lastViewerCount = viewers;
       const el = document.getElementById('liveViewerCount');
       if (el) el.textContent = String(viewers);
+    });
+
+    liveSocket.on('pk:start', (snapshot) => {
+      pkBattleActive = true;
+      document.body.classList.add('is-pk-mode');
+      document.getElementById('apPkOverlay')?.removeAttribute('aria-hidden');
+      const teams = snapshot?.teams || snapshot?.teamScores || [];
+      pkScoreLeft = Number(teams[0]?.team_score || teams[0]?.score || 0);
+      pkScoreRight = Number(teams[1]?.team_score || teams[1]?.score || 0);
+      window.SocialFX?.pkCountdown?.(5, () => {
+        window.SocialFX?.pkScoreUpdate?.(pkScoreLeft, pkScoreRight);
+        window.SocialFX?.pushActivity?.({ type: 'gift', html: '<strong>PK Battle</strong> started! 🔥' });
+      });
+    });
+
+    liveSocket.on('pk:score', (snapshot) => {
+      const teams = snapshot?.teams || snapshot?.teamScores || [];
+      pkScoreLeft = Number(teams[0]?.team_score || teams[0]?.score || pkScoreLeft);
+      pkScoreRight = Number(teams[1]?.team_score || teams[1]?.score || pkScoreRight);
+      window.SocialFX?.pkScoreUpdate?.(pkScoreLeft, pkScoreRight);
+    });
+
+    liveSocket.on('pk:end', (snapshot) => {
+      pkBattleActive = false;
+      const teams = snapshot?.teams || snapshot?.teamScores || [];
+      const left = Number(teams[0]?.team_score || pkScoreLeft);
+      const right = Number(teams[1]?.team_score || pkScoreRight);
+      const won = left >= right;
+      window.SocialFX?.pkWinner?.(won ? 'winner' : 'loser', snapshot?.winnerName || roomState?.hostName);
+      window.SocialFX?.pkScoreUpdate?.(left, right);
     });
 
     liveSocket.on('live:seat_request', (req) => {
@@ -221,12 +366,20 @@
       toast(`${req.name || 'Someone'} wants a seat`);
     });
 
-    liveSocket.on('live:seat_response', (res) => {
+    liveSocket.on('live:seat_response', async (res) => {
       if (!res || isHost()) return;
       const me = currentUser();
       if (String(res.userId) !== String(me?.id)) return;
-      if (res.accepted) toast('You got a seat — tap mic to speak', 'success');
-      else toast('Seat request declined');
+      if (res.accepted) {
+        hasSpeakerSeat = true;
+        hideMicLinkModal();
+        toast('You got a seat — mic is on', 'success');
+        await publishGuestAudio();
+        renderPartySeats(roomState?.hostName);
+      } else {
+        showMicLinkModal('rejected');
+        toast('Seat request declined');
+      }
     });
 
     liveSocket.on('live:ended', () => {
@@ -312,9 +465,11 @@
   function setLiveStatus(text, ok) {
     const el = document.getElementById('liveStatusBadge');
     if (el) {
+      el.style.display = text ? 'block' : 'none';
       el.textContent = text;
-      el.classList.toggle('is-ok', !!ok);
+      el.classList.toggle('is-ok', ok === true);
       el.classList.toggle('is-err', ok === false);
+      el.classList.toggle('is-warn', ok !== true && ok !== false);
     }
     const loaderTxt = document.getElementById('apLiveLoaderText');
     if (loaderTxt && text) loaderTxt.textContent = text;
@@ -322,6 +477,8 @@
     else if (ok === false) {
       hideApLoader();
       toast(text, 'error');
+    } else {
+      hideApLoader();
     }
   }
 
@@ -342,10 +499,18 @@
 
     const appId = cred?.appId;
     if (!appId) {
-      setLiveStatus('Add Agora keys on server', false);
-      if (host && mode === 'live') {
-        if (broadcastMode === 'audio') applyLiveBackground('audio', displayName(currentUser()));
-        else await startLocalPreviewOnly();
+      setLiveStatus('Preview mode — only you see this stream', null);
+      if (host) {
+        if (mode === 'party') await startLocalMicOnly();
+        else if (mode === 'live') {
+          if (broadcastMode === 'audio') applyLiveBackground('audio', displayName(currentUser()));
+          else {
+            await startLocalPreviewOnly(true);
+            ensureHostVideoVisible();
+          }
+        }
+      } else {
+        applyLiveBackground(broadcastMode === 'audio' ? 'audio' : 'live', roomState?.hostName);
       }
       return;
     }
@@ -363,6 +528,7 @@
       const token = cred.token || null;
 
       await agoraClient.join(appId, cred.channel || ch, token, uid);
+      window.SocialFX?.initAgoraVolumeIndicator?.(agoraClient, uid || currentUser()?.id);
 
       agoraClient.on('user-published', async (user, mediaType) => {
         await agoraClient.subscribe(user, mediaType);
@@ -417,13 +583,11 @@
           await agoraClient.publish([audioTrack, videoTrack]);
           const localBox = document.getElementById('liveLocalHost');
           if (localBox) {
+            localBox.innerHTML = '';
             localBox.style.display = '';
             videoTrack.play(localBox);
           }
-          const fallback = document.getElementById('liveLocalVideo');
-          if (fallback) fallback.style.display = 'none';
-          const bg = document.getElementById('liveBg');
-          if (bg) bg.style.display = 'none';
+          ensureHostVideoVisible();
           setLiveStatus('Video live', true);
         }
       } else {
@@ -435,7 +599,10 @@
       setLiveStatus('Camera/mic blocked or Agora error', false);
       if (host && mode === 'live') {
         if (broadcastMode === 'audio') applyLiveBackground('audio', displayName(currentUser()));
-        else await startLocalPreviewOnly();
+        else {
+          await startLocalPreviewOnly(true);
+          ensureHostVideoVisible();
+        }
       } else {
         applyLiveBackground(broadcastMode === 'audio' ? 'audio' : 'live', roomState?.hostName);
       }
@@ -448,28 +615,77 @@
     await startAgora(page === 'party-room' ? 'party' : 'live');
   }
 
+  async function startLocalMicOnly() {
+    if (!navigator.mediaDevices?.getUserMedia) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      window.__apLocalStream = stream;
+      micMuted = false;
+    } catch (_e) {
+      toast('Microphone permission denied', 'warning');
+    }
+  }
+
+  async function publishGuestAudio() {
+    if (!hasSpeakerSeat || isHost()) return;
+    if (localTracks.length) return;
+    const ch = channelId();
+    try {
+      const cred = await fetchAgoraToken(ch, true);
+      if (cred?.appId && agoraClient) {
+        const AgoraRTC = await loadAgoraScript();
+        const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+        localTracks = [audioTrack];
+        await agoraClient.publish(audioTrack);
+        micMuted = false;
+        return;
+      }
+    } catch (_e) {}
+    await startLocalMicOnly();
+  }
+
   async function startLocalPreviewOnly(hostPreview) {
     const video = document.getElementById('liveLocalVideo');
     const box = document.getElementById('liveLocalHost');
     const bg = document.getElementById('liveBg');
-    if (!navigator.mediaDevices?.getUserMedia) return;
+    if (!navigator.mediaDevices?.getUserMedia) {
+      toast('Camera not available on this device', 'warning');
+      return;
+    }
+    const wantVideo = hostPreview !== false && broadcastMode !== 'audio';
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: hostPreview !== false,
+        video: wantVideo ? { facingMode: 'user' } : false,
         audio: true,
       });
-      if (video) {
+      window.__apLocalStream = stream;
+
+      if (isHost() && wantVideo && box) {
+        box.innerHTML = '';
+        box.style.display = '';
+        box.classList.add('live-local-host-mirror');
+        const el = document.createElement('video');
+        el.srcObject = stream;
+        el.autoplay = true;
+        el.muted = true;
+        el.playsInline = true;
+        el.setAttribute('playsinline', '');
+        box.appendChild(el);
+        await el.play();
+        if (video) video.style.display = 'none';
+        if (bg) bg.style.display = 'none';
+        return;
+      }
+
+      if (video && wantVideo) {
         video.srcObject = stream;
         video.style.display = 'block';
         video.muted = true;
         await video.play?.();
-      }
-      if (bg) bg.style.display = 'none';
-      window.__apLocalStream = stream;
-      if (!hostPreview && box) {
-        /* audience: keep background stream image */
+        if (bg) bg.style.display = 'none';
       }
     } catch (_e) {
+      toast('Allow camera access to go live with video', 'warning');
       if (bg && !isHost()) {
         applyLiveBackground(broadcastMode === 'audio' ? 'audio' : 'live', roomState?.hostName);
       }
@@ -481,6 +697,9 @@
     const audio = localTracks.find((t) => t.getTrackType?.() === 'audio' || t.setEnabled);
     if (audio?.setEnabled) await audio.setEnabled(!micMuted);
     if (liveSocket) liveSocket.emit('live:mute', { channel: channelId(), muted: micMuted });
+    const me = currentUser();
+    window.SocialFX?.setSpeaking?.(me?.id || displayName(me), !micMuted);
+    if (document.getElementById('partySeats')) renderPartySeats(roomState?.hostName);
     const btn = document.getElementById('liveBtnMic');
     if (btn) {
       btn.innerHTML = micMuted
@@ -488,6 +707,7 @@
         : '<i class="fas fa-microphone"></i>';
       btn.classList.toggle('is-muted', micMuted);
     }
+    syncMicButtonUi();
     toast(micMuted ? 'Microphone off' : 'Microphone on');
   }
 
@@ -519,21 +739,214 @@
     return true;
   }
 
-  function appendChatMessage(msg) {
-    const feed = document.getElementById('partyChatFeed');
-    if (!feed || !shouldShowMsg(msg, chatTab)) return;
+  function applyChatFilters(msg) {
+    if (!shouldShowMsg(msg, chatTab)) return false;
+    if (chatRegionFilter === 'room') return msg.type === 'system' || msg.scope === 'room';
+    if (chatRegionFilter === 'broadcast') return msg.type === 'system' || msg.broadcast;
+    return true;
+  }
 
-    const div = document.createElement('div');
-    if (msg.type === 'system') {
-      div.className = 'party-chat-msg system';
-      div.textContent = msg.text || msg.user + ' joined';
-    } else {
-      div.className = 'party-chat-msg';
-      div.innerHTML = `<span class="lvl">${msg.lvl || 1}</span><span class="user">${escapeHtml(msg.user)}</span> ${escapeHtml(msg.text)}`;
+  function renderQuickChips() {
+    const chips = document.getElementById('apQuickChips');
+    if (!chips) return;
+    const visible = quickChipsExpanded ? QUICK_CHIP_DEFS : QUICK_CHIP_DEFS.slice(0, 3);
+    let html = visible
+      .map((c) => {
+        if (c.action === 'follow') {
+          const lbl = followed ? 'Following ✓' : c.label;
+          const cls = followed ? ' ap-chip is-follow-done' : ' ap-chip';
+          return `<button type="button" class="${cls.trim()}" data-chip-action="follow">${escapeHtml(lbl)}</button>`;
+        }
+        return `<button type="button" class="ap-chip" data-chip-send="${escapeHtml(c.send)}">${escapeHtml(c.label)}</button>`;
+      })
+      .join('');
+    if (!quickChipsExpanded) {
+      html += `<button type="button" class="ap-chip ap-chip-more" data-chip-more="1">More</button>`;
     }
-    feed.appendChild(div);
+    chips.innerHTML = html;
+    chips.querySelectorAll('[data-chip-send]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        sendChat(btn.dataset.chipSend);
+        window.SocialFX?.haptic?.(6);
+      });
+    });
+    chips.querySelector('[data-chip-action="follow"]')?.addEventListener('click', () => {
+      if (!followed) document.getElementById('partyHostFollow')?.click() || document.getElementById('liveBtnFollow')?.click();
+      else toast('Already following', 'info');
+    });
+    chips.querySelector('[data-chip-more]')?.addEventListener('click', () => {
+      quickChipsExpanded = true;
+      renderQuickChips();
+    });
+  }
+
+  function syncToolBadges() {
+    let unread = 0;
+    try {
+      unread = parseInt(localStorage.getItem('chat_unread') || '0', 10) || 0;
+    } catch (_e) {}
+    document.querySelectorAll('.ap-tool-msg .ap-notify-dot, #apToolsNotifyDot').forEach((dot) => {
+      if (unread > 0) {
+        dot.hidden = false;
+        dot.style.display = '';
+      } else {
+        dot.hidden = true;
+        dot.style.display = 'none';
+      }
+    });
+  }
+
+  function updateGiftMeta() {
+    const items = GIFT_CATALOG[giftCategory] || GIFT_CATALOG.gift;
+    const g = items[selectedGiftIdx] || items[0];
+    const banner = document.getElementById('giftRtpBanner');
+    if (banner && g) {
+      const hostPct = 96;
+      const earnPct = 4;
+      banner.innerHTML = `<span>【${escapeHtml(g.name)}】RTP: ${hostPct}%. By gifting, host receives ${earnPct}% · ${Number(g.cost).toLocaleString()} coins each</span>`;
+    }
+    const me = currentUser();
+    const bal = lastCoinBalance != null ? lastCoinBalance : 0;
+    const lvlInfo = window.SocialFX ? SocialFX.getUserLevel(me?.id, bal + sessionGiftCoins) : { level: 1 };
+    const lvl = lvlInfo.level || 1;
+    const xpNeed = lvl * 3000;
+    userXpProgress = Math.min(100, Math.round(((bal + sessionGiftCoins) % xpNeed) / xpNeed * 100));
+    const lvlEl = document.getElementById('giftUserLvl');
+    if (lvlEl) lvlEl.textContent = String(lvl);
+    const xpText = document.getElementById('giftXpText');
+    if (xpText) {
+      xpText.textContent = `+4XP · XP requires: ${xpNeed.toLocaleString()} · Lv.${lvl + 1}`;
+    }
+    const xpBar = document.getElementById('giftXpBar');
+    if (xpBar) xpBar.style.width = userXpProgress + '%';
+    const sendBtn = document.getElementById('giftSendBtn');
+    const total = (parseInt(g?.cost, 10) || 0) * giftQty;
+    if (sendBtn) {
+      sendBtn.disabled = bal < total;
+      sendBtn.classList.toggle('is-disabled', bal < total);
+    }
+  }
+
+  function updateDynamicStats() {
+    const viewers = roomState?.viewers || 0;
+    const gifts = roomState?.gifts || [];
+    const giftTotal = gifts.reduce((s, g) => s + (Number(g.amount) || 0), 0);
+    sessionGiftCoins = Math.max(sessionGiftCoins, giftTotal);
+
+    const hourEl = document.getElementById('partyHourNo');
+    if (hourEl) {
+      const rank = Math.max(1, 60 - Math.min(59, Math.floor(giftTotal / 5000) + Math.floor(viewers / 5)));
+      hourEl.textContent = 'No.' + rank;
+    }
+    const popEl = document.getElementById('partyPopScore');
+    if (popEl) popEl.textContent = viewers >= 100 ? '100+' : String(Math.max(viewers, 1));
+    const musicEl = document.getElementById('partyMusicScore');
+    if (musicEl) musicEl.textContent = String(Math.min(99, Math.floor(giftTotal / 1000) + Math.floor(viewers / 3)));
+    const pctEl = document.getElementById('partyPopPct');
+    if (pctEl) {
+      const pct = Math.min(99.99, (teamProgress / 16) * 100 + (viewers % 10) * 0.1);
+      pctEl.textContent = pct.toFixed(2) + '%';
+    }
+    const chestEl = document.getElementById('partyChestTimer');
+    if (chestEl && chestSec > 0) {
+      const m = Math.floor(chestSec / 60);
+      const s = chestSec % 60;
+      chestEl.textContent = String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+    }
+  }
+
+  function setupKeyboardOffset() {
+    if (window.__apKbBound) return;
+    window.__apKbBound = true;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const onResize = () => {
+      const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      document.documentElement.style.setProperty('--ap-kb-offset', kb > 50 ? kb - 64 + 'px' : '0px');
+      document.body.classList.toggle('ap-keyboard-open', kb > 50);
+    };
+    vv.addEventListener('resize', onResize);
+    vv.addEventListener('scroll', onResize);
+  }
+
+  function bindEmojiPicker() {
+    const btn = document.getElementById('apChatEmojiBtn');
+    if (!btn || btn.dataset.bound) return;
+    btn.dataset.bound = '1';
+    let pop = document.getElementById('apEmojiPopover');
+    if (!pop) {
+      pop = document.createElement('div');
+      pop.id = 'apEmojiPopover';
+      pop.className = 'ap-emoji-popover';
+      pop.innerHTML = EMOJI_PICKS.map((e) => `<button type="button" data-emo="${e}">${e}</button>`).join('');
+      document.body.appendChild(pop);
+      pop.querySelectorAll('[data-emo]').forEach((b) => {
+        b.addEventListener('click', () => {
+          const input = document.getElementById('liveChatInput');
+          if (input) {
+            input.value += b.dataset.emo;
+            input.focus();
+          }
+          pop.classList.remove('is-open');
+        });
+      });
+    }
+    btn.addEventListener('click', () => {
+      pop.classList.toggle('is-open');
+    });
+    document.addEventListener('click', (e) => {
+      if (!pop.contains(e.target) && e.target !== btn && !btn.contains(e.target)) {
+        pop.classList.remove('is-open');
+      }
+    });
+  }
+
+  function handleMicButton() {
+    const isParty = document.body.dataset.livePage === 'party-room';
+    if (isParty && !isHost() && !hasSpeakerSeat) {
+      requestSeatJoin();
+      return;
+    }
+    toggleMic();
+  }
+
+  function chatMsgKey(msg) {
+    if (msg?.id) return String(msg.id);
+    return `${msg?.type || 'chat'}|${msg?.user || ''}|${msg?.text || ''}|${msg?.at || ''}`;
+  }
+
+  function rememberChatMessage(msg) {
+    if (!msg) return;
+    const key = chatMsgKey(msg);
+    if (chatMessages.some((m) => chatMsgKey(m) === key)) return;
+    chatMessages.push({ ...msg });
+    if (chatMessages.length > 80) chatMessages = chatMessages.slice(-80);
+  }
+
+  function renderChatFeed() {
+    const feed = document.getElementById('partyChatFeed');
+    if (!feed) return;
+    feed.innerHTML = '';
+    chatMessages
+      .filter((m) => applyChatFilters(m))
+      .forEach((msg) => {
+        const div = document.createElement('div');
+        if (msg.type === 'system') {
+          div.className = 'party-chat-msg system';
+          div.textContent = msg.text || (msg.user ? msg.user + ' joined' : '');
+        } else {
+          div.className = 'party-chat-msg';
+          const lvlInfo = window.SocialFX
+            ? SocialFX.getUserLevel(msg.userId || msg.user, msg.giftSpend)
+            : { level: msg.lvl || 2, isVip: false, isFan: false };
+          const badge = window.SocialFX
+            ? SocialFX.levelBadgeHtml(lvlInfo.level, { isVip: lvlInfo.isVip, isFan: lvlInfo.isFan })
+            : `<span class="lvl">${msg.lvl || 1}</span>`;
+          div.innerHTML = `${badge}<span class="user">${escapeHtml(msg.user)}</span> ${escapeHtml(msg.text)}`;
+        }
+        feed.appendChild(div);
+      });
     feed.scrollTop = feed.scrollHeight;
-    while (feed.children.length > 30) feed.removeChild(feed.firstChild);
   }
 
   function escapeHtml(s) {
@@ -544,10 +957,8 @@
   }
 
   function renderChatFromState() {
-    const feed = document.getElementById('partyChatFeed');
-    if (!feed || !roomState?.messages) return;
-    feed.innerHTML = '';
-    roomState.messages.forEach((m) => appendChatMessage(m));
+    (roomState?.messages || []).forEach((m) => rememberChatMessage(m));
+    renderChatFeed();
   }
 
   function renderPartySeats(hostName) {
@@ -599,13 +1010,17 @@
             ? '<span class="mic-live"><i class="fas fa-microphone"></i></span>'
             : '';
         const crown = s.host ? '<span class="seat-crown">👑</span>' : '';
+        const waveBars = s.speaking
+          ? '<div class="seat-wave-bars"><span></span><span></span><span></span><span></span></div>'
+          : '';
         return `
-        <button type="button" class="party-seat${hostCls}${speaking}" data-seat="${seatNum}" data-user="${escapeHtml(s.name)}">
+        <button type="button" class="party-seat${hostCls}${speaking}" data-seat="${seatNum}" data-user="${escapeHtml(s.name)}" data-user-id="${escapeHtml(String(s.userId || ''))}">
           <div class="seat-avatar">
             <span class="seat-num">${seatNum}</span>
             ${crown}
             <img src="${avatarUrl(s.name)}" alt="">
             ${mic}
+            ${waveBars}
           </div>
           <span class="seat-name">${escapeHtml(s.name)}</span>
           <span class="seat-gifts">🎁 ${formatGiftCount(s.gifts || 0)}</span>
@@ -633,6 +1048,15 @@
     return String(v);
   }
 
+  function onGiftTeamProgress(amount) {
+    const inc = Math.max(1, Math.floor((Number(amount) || 100) / 2000));
+    teamProgress = Math.min(16, teamProgress + inc);
+    const teamEl = document.getElementById('partyTeamProgress');
+    const bar = document.getElementById('partyTeamBar');
+    if (teamEl) teamEl.textContent = teamProgress + '/16';
+    if (bar) bar.style.width = Math.min(100, (teamProgress / 16) * 100) + '%';
+  }
+
   function syncFollowUI() {
     const hostName = roomState?.hostName || 'Host';
     const hostId = roomState?.hostId || hostName;
@@ -650,23 +1074,37 @@
       hbtn.textContent = followed ? '✓' : '+';
       hbtn.style.display = isHost() ? 'none' : '';
     }
+    renderQuickChips();
   }
 
   function renderRoomState() {
     const user = currentUser();
+    const meId = user?.id ? String(user.id) : '';
+    if (meId && roomState?.seats?.some((s) => String(s.userId) === meId && !s.isHost)) {
+      hasSpeakerSeat = true;
+    }
+    const joinBtn = document.getElementById('partyBtnJoinSeat');
+    if (joinBtn && !isHost()) {
+      joinBtn.style.display = hasSpeakerSeat ? 'none' : '';
+    }
     const hostName = roomState?.hostName || displayName(user);
     const hostEl = document.getElementById('partyHostName') || document.getElementById('liveHostName');
     const hostImg = document.getElementById('partyHostAvatar') || document.getElementById('liveHostAvatar');
     if (hostEl) hostEl.textContent = hostName.slice(0, 14) + (hostName.length > 14 ? '…' : '');
-    if (hostImg) hostImg.src = avatarUrl(hostName);
+    if (hostImg) {
+      hostImg.src = avatarUrl(hostName);
+      hostImg.dataset.name = hostName;
+    }
 
     const vc = document.getElementById('liveViewerCount');
     if (vc && roomState) vc.textContent = String(roomState.viewers || (isHost() ? 1 : 0));
+    renderTopGifters();
     const hearts = document.getElementById('partyHearts');
     if (hearts) hearts.textContent = String(roomState?.gifts?.length || 0);
 
     if (document.getElementById('partySeats')) renderPartySeats(hostName);
     renderChatFromState();
+    renderGuestRail();
     syncFollowUI();
 
     const audioAvatar = document.getElementById('liveAudioAvatar');
@@ -681,26 +1119,366 @@
     if (sub) sub.textContent = isHost() ? 'You are hosting' : 'Live now';
     const rid = document.getElementById('liveRoomId');
     const ch = channelId();
-    if (rid) rid.textContent = '· ID:' + ch.slice(0, 10);
-    const partyRid = document.getElementById('partyRoomId');
-    if (partyRid) partyRid.textContent = 'ID:' + ch.slice(0, 10);
-
     const viewers = roomState?.viewers || 0;
-    const popEl = document.getElementById('partyPopScore');
-    if (popEl) popEl.textContent = viewers >= 100 ? '100+' : String(Math.max(viewers, 1));
-    const pctEl = document.getElementById('partyPopPct');
-    if (pctEl) pctEl.textContent = (10 + (viewers % 20)).toFixed(2) + '%';
-
-    const railAvatar = document.getElementById('liveRailAvatar');
-    if (railAvatar) railAvatar.src = avatarUrl(hostName);
-    const railLikes = document.getElementById('liveRailLikes');
-    if (railLikes) railLikes.textContent = formatGiftCount((roomState?.gifts?.length || 0) * 120 + viewers * 3);
-    const railComments = document.getElementById('liveRailComments');
-    if (railComments) railComments.textContent = formatGiftCount((roomState?.messages?.length || 0) * 8 + 12);
-    const railGifts = document.getElementById('liveRailGifts');
-    if (railGifts) railGifts.textContent = formatGiftCount((roomState?.gifts?.length || 0) * 500 + 100);
-
+    if (rid) rid.textContent = '· ID:' + ch.slice(0, 10);
+    const partyRid = document.getElementById('partyRoomId') || document.getElementById('partyRoomIdLive');
+    if (partyRid) partyRid.textContent = 'ID:' + ch.slice(0, 10);
     updateModeBadge(broadcastMode, isHost());
+    updateDynamicStats();
+    syncToolBadges();
+    renderQuickChips();
+    syncMicButtonUi();
+    bindRoomAvatars();
+  }
+
+  function syncMicButtonUi() {
+    const micBtn = document.getElementById('liveBtnMic');
+    if (!micBtn) return;
+    micBtn.classList.toggle('is-muted', micMuted);
+    micBtn.classList.toggle('is-live', isHost() && !micMuted);
+    micBtn.classList.toggle('is-pending', micLinkPending);
+    const icon = micBtn.querySelector('i');
+    if (icon) {
+      icon.className = micMuted ? 'fas fa-microphone-slash' : 'fas fa-microphone';
+    }
+  }
+
+  function showGiftFlyBanner(gift) {
+    const el = document.getElementById('apGiftFly');
+    if (!el || !gift) return;
+    el.innerHTML = `<img src="${avatarUrl(gift.from)}" alt=""><span><strong>${escapeHtml(gift.from)}</strong> sent ${gift.emoji || '🎁'}</span>`;
+    el.classList.add('is-visible');
+    clearTimeout(el._hide);
+    el._hide = setTimeout(() => el.classList.remove('is-visible'), 4500);
+  }
+
+  function updatePkBar() {
+    if (window.SocialFX?.pkScoreUpdate) {
+      SocialFX.pkScoreUpdate(pkScoreLeft, pkScoreRight);
+      return;
+    }
+    const total = pkScoreLeft + pkScoreRight || 1;
+    const leftPct = Math.round((pkScoreLeft / total) * 100);
+    const bar = document.getElementById('apPkBarLeft');
+    const scoreL = document.getElementById('apPkScoreLeft');
+    const scoreR = document.getElementById('apPkScoreRight');
+    if (bar) bar.style.width = leftPct + '%';
+    if (scoreL) scoreL.textContent = String(pkScoreLeft);
+    if (scoreR) scoreR.textContent = String(pkScoreRight);
+  }
+
+  function tickPkTimer() {
+    const el = document.getElementById('apPkTimer');
+    if (!el || !document.body.classList.contains('is-pk-mode')) return;
+    pkTimerSec = Math.max(0, pkTimerSec - 1);
+    const m = Math.floor(pkTimerSec / 60);
+    const s = pkTimerSec % 60;
+    el.textContent = 'PK ' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+  }
+
+  function renderTopGifters() {
+    const row = document.getElementById('partyViewerAvatars');
+    if (!row) return;
+    const viewers = roomState?.viewers || 1;
+    const seats = (roomState?.seats || []).filter((s) => s && s.name && !s.isHost);
+    const gifts = roomState?.gifts || [];
+    const names = seats.length
+      ? seats.map((s) => ({ name: s.name, gifts: s.gifts || 0 }))
+      : gifts.slice(0, 2).map((g, i) => ({ name: g.from || 'Fan' + (i + 1), gifts: g.amount || 0 }));
+    let html = '';
+    if (names.length) {
+      html = names
+        .slice(0, 2)
+        .map(
+          (n, i) =>
+            `<span class="ap-top-gifter${i === 0 ? ' has-crown' : ''}"><img src="${avatarUrl(n.name)}" alt="${escapeHtml(n.name)}" data-name="${escapeHtml(n.name)}">${
+              n.gifts > 0 ? `<em>${formatGiftCount(n.gifts)}</em>` : ''
+            }</span>`
+        )
+        .join('');
+    }
+    html += `<span class="party-viewer-count" id="liveViewerCount">${viewers}</span>`;
+    row.innerHTML = html;
+    window.SocialUI?.bindAvatarFallbacks?.(row);
+  }
+
+  function renderGuestRail() {
+    const rail = document.getElementById('apGuestRail');
+    if (!rail) return;
+    const seats = (roomState?.seats || []).filter((s) => s && !s.isHost);
+    if (!seats.length) {
+      rail.innerHTML = '';
+      rail.style.display = 'none';
+      return;
+    }
+    rail.style.display = 'flex';
+    rail.innerHTML = seats
+      .slice(0, 5)
+      .map(
+        (s) => `
+      <button type="button" class="ap-guest-seat" data-guest="${escapeHtml(s.name)}">
+        <span class="ap-guest-gift">${formatGiftCount(s.gifts || 0)}</span>
+        <img src="${avatarUrl(s.name)}" alt="">
+        <span class="ap-guest-name">${escapeHtml(String(s.name).slice(0, 8))}</span>
+      </button>`
+      )
+      .join('');
+    rail.querySelectorAll('.ap-guest-seat').forEach((btn) => {
+      btn.addEventListener('click', () => openProfileSheet(btn.dataset.guest));
+    });
+  }
+
+  function showMicLinkModal(mode) {
+    const modal = document.getElementById('apMicLinkModal');
+    if (!modal) return;
+    const waiting = document.getElementById('apMicLinkWaiting');
+    const rejected = document.getElementById('apMicLinkRejected');
+    if (waiting) waiting.style.display = mode === 'waiting' ? '' : 'none';
+    if (rejected) rejected.style.display = mode === 'rejected' ? '' : 'none';
+    modal.classList.add('open');
+    syncMicButtonUi();
+  }
+
+  function hideMicLinkModal() {
+    document.getElementById('apMicLinkModal')?.classList.remove('open');
+    micLinkPending = false;
+    syncMicButtonUi();
+  }
+
+  function toggleChatPanel(forceOpen) {
+    const panel = document.getElementById('apChatPanel');
+    const compose = document.getElementById('liveChatCompose');
+    if (!panel) {
+      compose?.classList.toggle('is-open', forceOpen !== false);
+      if (forceOpen !== false) document.getElementById('liveChatInput')?.focus();
+      return;
+    }
+    const open = forceOpen === true ? true : forceOpen === false ? false : !panel.classList.contains('is-open');
+    panel.classList.toggle('is-open', open);
+    compose?.classList.toggle('is-open', open);
+    document.body.classList.toggle('ap-chat-open', open);
+    if (open) {
+      document.getElementById('liveChatInput')?.focus();
+    }
+  }
+
+  function bindRoomAvatars() {
+    window.SocialUI?.bindAvatarFallbacks?.(document.body);
+    const user = currentUser();
+    const hostName = roomState?.hostName || displayName(user);
+    document.querySelectorAll('#partyHostAvatar, #liveHostAvatar, .ap-top-gifter img').forEach((img) => {
+      if (!img.getAttribute('src')) img.src = avatarUrl(hostName);
+      img.dataset.name = hostName;
+    });
+  }
+
+  function openTopupSheet() {
+    document.getElementById('apTopupSheet')?.classList.add('open');
+  }
+
+  function openSurpriseShop() {
+    document.getElementById('apSurpriseShop')?.classList.add('open');
+  }
+
+  function pinBottomBarToBody() {
+    const bar = document.getElementById('partyBottomBar');
+    if (!bar || bar.parentElement === document.body) return;
+    document.body.appendChild(bar);
+  }
+
+  function injectLiveOverlays() {
+    pinBottomBarToBody();
+    if (!document.getElementById('apGiftFly')) {
+      document.body.insertAdjacentHTML(
+        'afterbegin',
+        `<div class="ap-gift-fly" id="apGiftFly" aria-live="polite"></div>`
+      );
+    }
+    if (!document.getElementById('apPkOverlay')) {
+      const root = document.getElementById('liveRoomRoot') || document.querySelector('.party-room');
+      if (root) {
+        root.insertAdjacentHTML(
+          'afterbegin',
+          `<div class="ap-pk-overlay" id="apPkOverlay" aria-hidden="true">
+            <div class="ap-pk-bar">
+              <div class="ap-pk-bar-left" id="apPkBarLeft" style="width:45%"></div>
+              <span class="ap-pk-score ap-pk-score-l" id="apPkScoreLeft">0</span>
+              <span class="ap-pk-timer" id="apPkTimer">PK 03:08</span>
+              <span class="ap-pk-score ap-pk-score-r" id="apPkScoreRight">0</span>
+            </div>
+            <div class="ap-pk-win ap-pk-win-l">Win x0</div>
+            <div class="ap-pk-win ap-pk-win-r">Win x0</div>
+          </div>`
+        );
+      }
+    }
+    if (!document.getElementById('apChatPanel')) {
+      const compose = document.getElementById('liveChatCompose');
+      if (compose) {
+        const panel = document.createElement('div');
+        panel.id = 'apChatPanel';
+        panel.className = 'ap-chat-panel';
+        panel.innerHTML =
+          `<div class="ap-region-tabs" id="apRegionTabs">
+             <button type="button" data-region="room"><i class="fas fa-home"></i> Room</button>
+             <button type="button" data-region="region"><i class="fas fa-tv"></i> Region</button>
+             <button type="button" class="active" data-region="broadcast"><i class="fas fa-bullhorn"></i> Region</button>
+           </div>
+           <div class="ap-quick-chips" id="apQuickChips"></div>`;
+        document.body.appendChild(panel);
+        panel.appendChild(compose);
+        compose.classList.remove('is-open');
+        renderQuickChips();
+      }
+    }
+    if (!document.getElementById('apGuestRail')) {
+      const overlay = document.querySelector('.live-overlay') || document.querySelector('.party-room');
+      overlay?.insertAdjacentHTML(
+        'beforeend',
+        `<aside class="ap-guest-rail" id="apGuestRail" aria-label="Guests"></aside>`
+      );
+    }
+    if (!document.getElementById('apMicLinkModal')) {
+      document.body.insertAdjacentHTML(
+        'beforeend',
+        `<div class="ap-modal-overlay" id="apMicLinkModal">
+          <div class="ap-miclink-modal">
+            <div id="apMicLinkWaiting">
+              <div class="ap-miclink-head">On the mic link list</div>
+              <div class="ap-miclink-body">
+                <p>You're on the link list. Wait for host's approval.</p>
+                <button type="button" class="ap-miclink-primary" id="apMicLinkContinue">Confirm</button>
+              </div>
+              <button type="button" class="ap-miclink-cancel" id="apMicLinkCancel">Cancel the mic link</button>
+            </div>
+            <div id="apMicLinkRejected" style="display:none">
+              <div class="ap-miclink-head">On the mic link list</div>
+              <div class="ap-miclink-body ap-miclink-rejected">
+                <p><strong>Request declined</strong><br>You're still on the link list. Wait for host's approval.</p>
+                <button type="button" class="ap-miclink-primary" id="apMicLinkConfirm">Confirm</button>
+              </div>
+              <button type="button" class="ap-miclink-cancel" id="apMicLinkCancel2">Cancel the mic link</button>
+            </div>
+          </div>
+        </div>`
+      );
+      document.getElementById('apMicLinkContinue')?.addEventListener('click', () => toast('Waiting for host approval…'));
+      document.getElementById('apMicLinkCancel')?.addEventListener('click', hideMicLinkModal);
+      document.getElementById('apMicLinkCancel2')?.addEventListener('click', hideMicLinkModal);
+      document.getElementById('apMicLinkConfirm')?.addEventListener('click', hideMicLinkModal);
+      document.getElementById('apMicLinkModal')?.addEventListener('click', (e) => {
+        if (e.target.id === 'apMicLinkModal') hideMicLinkModal();
+      });
+    }
+    if (!document.getElementById('apTopupSheet')) {
+      document.body.insertAdjacentHTML(
+        'beforeend',
+        `<div class="ap-topup-sheet" id="apTopupSheet">
+          <div class="ap-topup-panel">
+            <div class="ap-topup-head">
+              <h2>Top-up coins</h2>
+              <button type="button" id="apTopupClose"><i class="fas fa-times"></i></button>
+            </div>
+            <p class="ap-topup-balance">🪙 <span id="apTopupBal">0</span></p>
+            <div class="ap-topup-banner">Official notice — beware of scams. Recharge only via AP Services.</div>
+            <button type="button" class="ap-topup-pay"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='24'%3E%3Ctext x='0' y='18' font-size='14' fill='%234285F4'%3EG%3C/text%3E%3Ctext x='14' y='18' font-size='14'%3E Pay%3C/text%3E%3C/svg%3E" alt=""> Google Pay</button>
+            <div class="ap-topup-grid" id="apTopupGrid"></div>
+            <button type="button" class="ap-topup-recharge" id="apTopupRecharge">Recharge now</button>
+            <label class="ap-topup-agree"><input type="checkbox" checked> I have read and agreed on <a href="/terms.html?app=1">User Recharge Agreement</a></label>
+          </div>
+        </div>`
+      );
+      const packs = [
+        [7000, '0.99'],
+        [21000, '3.00'],
+        [70000, '10.00'],
+        [210000, '30.00'],
+        [350000, '50.00'],
+        [700000, '100.00'],
+        [1400000, '200.00'],
+      ];
+      const grid = document.getElementById('apTopupGrid');
+      if (grid) {
+        grid.innerHTML = packs
+          .map(
+            ([coins, price], i) =>
+              `<button type="button" class="ap-topup-pack${i === 0 ? ' is-selected' : ''}" data-coins="${coins}" data-price="${price}">
+                <strong>${coins.toLocaleString()}</strong><span>$${price}</span>
+              </button>`
+          )
+          .join('');
+        grid.querySelectorAll('.ap-topup-pack').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            grid.querySelectorAll('.ap-topup-pack').forEach((b) => b.classList.remove('is-selected'));
+            btn.classList.add('is-selected');
+          });
+        });
+      }
+      document.getElementById('apTopupClose')?.addEventListener('click', () => {
+        document.getElementById('apTopupSheet')?.classList.remove('open');
+      });
+      document.getElementById('apTopupSheet')?.addEventListener('click', (e) => {
+        if (e.target.id === 'apTopupSheet') e.target.classList.remove('open');
+      });
+      document.getElementById('apTopupRecharge')?.addEventListener('click', () => {
+        location.href = '/coins-recharge.html?app=1';
+      });
+    }
+    if (!document.getElementById('apSurpriseShop')) {
+      document.body.insertAdjacentHTML(
+        'beforeend',
+        `<div class="ap-surprise-sheet" id="apSurpriseShop">
+          <div class="ap-surprise-panel">
+            <div class="ap-surprise-head">
+              <button type="button" id="apSurpriseBack"><i class="fas fa-chevron-left"></i></button>
+              <h2>Surprise Shop</h2>
+              <button type="button" id="apSurpriseMore"><i class="fas fa-ellipsis-h"></i></button>
+            </div>
+            <div class="ap-surprise-hero">
+              <div class="ap-surprise-card">
+                <span class="ap-surprise-title">Heart Voyage</span>
+                <span class="ap-surprise-art">🛥️💕</span>
+              </div>
+            </div>
+            <div class="ap-surprise-foot">
+              <div><strong>Cycle Unlock</strong><p>You have topped up <span id="apSurpriseCoins">0</span> coins. Need <em>1,500,000</em> more to unlock.</p></div>
+              <button type="button" class="ap-surprise-recharge" id="apSurpriseRecharge">Recharge</button>
+            </div>
+          </div>
+        </div>`
+      );
+      document.getElementById('apSurpriseBack')?.addEventListener('click', () => {
+        document.getElementById('apSurpriseShop')?.classList.remove('open');
+      });
+      document.getElementById('apSurpriseRecharge')?.addEventListener('click', openTopupSheet);
+      document.getElementById('apSurpriseShop')?.addEventListener('click', (e) => {
+        if (e.target.id === 'apSurpriseShop') e.target.classList.remove('open');
+      });
+    }
+    document.body.classList.add('ap-ref-ui');
+    if (qs('pk') === '1') {
+      document.body.classList.add('is-pk-mode');
+      document.getElementById('apPkOverlay')?.removeAttribute('aria-hidden');
+      pkScoreLeft = 0;
+      pkScoreRight = 0;
+      updatePkBar();
+      window.SocialFX?.pkCountdown?.(3, () => updatePkBar());
+    }
+  }
+
+  function ensureHostVideoVisible() {
+    if (!isHost() || broadcastMode === 'audio') return;
+    const root = document.getElementById('liveRoomRoot');
+    const localBox = document.getElementById('liveLocalHost');
+    const fallback = document.getElementById('liveLocalVideo');
+    const bg = document.getElementById('liveBg');
+    if (root) root.classList.remove('is-audio-mode');
+    if (localBox) {
+      localBox.style.display = '';
+      localBox.classList.add('live-local-host-mirror');
+    }
+    if (fallback && localBox?.querySelector('video')) fallback.style.display = 'none';
+    if (bg) bg.style.display = 'none';
   }
 
   function showWinBanner(gift) {
@@ -741,6 +1519,7 @@
           liveSocket.emit('live:seat_response', {
             channel: channelId(),
             userId: req.userId || req.id,
+            name: req.name,
             accepted: true,
           });
         }
@@ -784,6 +1563,8 @@
         text: `${name} requested to join a seat`,
       });
     }
+    micLinkPending = true;
+    showMicLinkModal('waiting');
     toast('Request sent to host');
   }
 
@@ -847,20 +1628,28 @@
   async function shareRoomLink() {
     const hostName = roomState?.hostName || 'Host';
     const page = document.body.dataset.livePage === 'party-room' ? 'party' : 'live';
-    const shared = window.SocialUI?.shareLink
-      ? await SocialUI.shareLink({
-          title: `Join ${hostName} on AP Services`,
-          text: `Join my ${page} room on AP Services`,
-          url: location.href,
-        })
-      : false;
-    if (!shared && !window.SocialUI) {
+    const url = location.href.split('#')[0];
+    if (window.SocialUI?.shareLink) {
+      await SocialUI.shareLink({
+        title: `${hostName} is live on AP Services`,
+        text: `Join my ${page} on AP Services`,
+        url,
+      });
+      return;
+    }
+    if (navigator.share) {
       try {
-        await navigator.clipboard.writeText(location.href);
-        toast('Link copied');
-      } catch (_e) {
-        toast('Could not share link');
+        await navigator.share({ title: `${hostName} — AP Services`, url });
+        return;
+      } catch (e) {
+        if (e?.name === 'AbortError') return;
       }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      toast('Link copied', 'success');
+    } catch (_e) {
+      toast('Could not share link', 'error');
     }
   }
 
@@ -898,23 +1687,26 @@
     if (!grid) return;
     const items = GIFT_CATALOG[giftCategory] || GIFT_CATALOG.gift;
     grid.innerHTML = items
-      .map(
-        (g, i) => `
-      <button type="button" data-gift-idx="${i}" data-gift="${g.emoji}" data-cost="${g.cost}" class="${i === selectedGiftIdx ? 'is-selected' : ''}">
+      .map((g, i) => {
+        const tier = window.SocialFX?.getGiftTier?.(g) || 'small';
+        return `
+      <button type="button" data-gift-idx="${i}" data-gift="${g.emoji}" data-cost="${g.cost}" data-tier="${tier}" class="${i === selectedGiftIdx ? 'is-selected' : ''}">
         <span class="g">${g.emoji}</span>
         <span>${g.name}</span>
         ${g.tag ? `<span class="gift-tag">${g.tag}</span>` : ''}
         <small>${g.cost} 🪙</small>
-      </button>`
-      )
+      </button>`;
+      })
       .join('');
     grid.querySelectorAll('[data-gift-idx]').forEach((btn) => {
       btn.addEventListener('click', () => {
         selectedGiftIdx = parseInt(btn.dataset.giftIdx, 10) || 0;
         grid.querySelectorAll('button').forEach((b) => b.classList.remove('is-selected'));
         btn.classList.add('is-selected');
+        updateGiftMeta();
       });
     });
+    updateGiftMeta();
   }
 
   function openGiftSheet(targetName) {
@@ -926,6 +1718,7 @@
     renderGiftRecipients(to);
     renderGiftGrid();
     refreshCoinDisplay();
+    updateGiftMeta();
     sheet.classList.add('open');
   }
 
@@ -937,7 +1730,15 @@
       gift_type: emoji || 'gift',
       live_room_id: roomState?.roomId || undefined,
     });
-    showWinBanner({ from: displayName(currentUser()), to: toName, emoji, amount: cost });
+    const giftEvt = { from: displayName(currentUser()), to: toName, emoji, amount: cost, qty: giftQty };
+    const combo = window.SocialFX?.trackCombo?.(emoji, giftQty) || 1;
+    window.SocialFX?.playGift?.(giftEvt, { combo });
+    showWinBanner(giftEvt);
+    showGiftFlyBanner(giftEvt);
+    onGiftTeamProgress(cost);
+    const sendBtn = document.getElementById('giftSendBtn');
+    const balEl = document.getElementById('giftCoinsBal');
+    if (sendBtn && balEl) window.SocialFX?.coinFly?.(sendBtn, balEl, cost);
     await refreshCoinDisplay();
     toast('Gift sent!', 'success');
     document.getElementById('giftSheet')?.classList.remove('open');
@@ -965,7 +1766,15 @@
     }
 
     const finishOk = () => {
-      showWinBanner({ from: displayName(currentUser()), to, emoji: g.emoji, amount: cost });
+      const giftEvt = { from: displayName(currentUser()), to, emoji: g.emoji, amount: cost, qty: giftQty };
+      const combo = window.SocialFX?.trackCombo?.(g.emoji, giftQty) || 1;
+      window.SocialFX?.playGift?.(giftEvt, { combo });
+      showWinBanner(giftEvt);
+      showGiftFlyBanner(giftEvt);
+      onGiftTeamProgress(cost);
+      const sendBtn = document.getElementById('giftSendBtn');
+      const balEl = document.getElementById('giftCoinsBal');
+      if (sendBtn && balEl) window.SocialFX?.coinFly?.(sendBtn, balEl, cost);
       refreshCoinDisplay();
       toast('Gift sent!', 'success');
       sheet.classList.remove('open');
@@ -1029,9 +1838,18 @@
       if (e.target === sheet) sheet.classList.remove('open');
     });
     document.getElementById('giftSendBtn')?.addEventListener('click', () => sendSelectedGift());
-    document.querySelectorAll('.gift-sheet-tabs button').forEach((btn) => {
+    document.getElementById('giftSurpriseBtn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      sheet.classList.remove('open');
+      openSurpriseShop();
+    });
+    document.getElementById('giftBalanceBtn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openTopupSheet();
+    });
+    document.querySelectorAll('.gift-sheet-tabs button[data-cat]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        document.querySelectorAll('.gift-sheet-tabs button').forEach((b) => b.classList.remove('active'));
+        document.querySelectorAll('.gift-sheet-tabs button[data-cat]').forEach((b) => b.classList.remove('active'));
         btn.classList.add('active');
         giftCategory = btn.dataset.cat || 'gift';
         selectedGiftIdx = 0;
@@ -1043,6 +1861,7 @@
         document.querySelectorAll('.gift-qty-btns button').forEach((b) => b.classList.remove('active'));
         btn.classList.add('active');
         giftQty = parseInt(btn.dataset.qty, 10) || 1;
+        updateGiftMeta();
       });
     });
   }
@@ -1050,16 +1869,22 @@
   function sendChat(text) {
     const t = String(text || '').trim();
     if (!t) return;
+    const me = currentUser();
+    const lvlInfo = window.SocialFX ? SocialFX.getUserLevel(me?.id) : { level: 2 };
+    const optimistic = {
+      id: 'local-' + Date.now(),
+      type: 'chat',
+      user: displayName(me),
+      userId: me?.id,
+      lvl: lvlInfo.level,
+      text: t,
+      at: Date.now(),
+    };
     if (liveSocket) {
-      liveSocket.emit('live:chat', { channel: channelId(), text: t, lvl: 2 });
-    } else {
-      appendChatMessage({
-        type: 'chat',
-        user: displayName(currentUser()),
-        lvl: 2,
-        text: t,
-      });
+      liveSocket.emit('live:chat', { channel: channelId(), text: t, lvl: lvlInfo.level });
     }
+    rememberChatMessage(optimistic);
+    renderChatFeed();
   }
 
   function bindChatTabs() {
@@ -1069,13 +1894,14 @@
         btn.classList.add('active');
         chatTab = btn.dataset.tab || 'all';
         renderChatFromState();
-        const compose = document.getElementById('liveChatCompose');
-        if (compose) compose.classList.toggle('is-open', chatTab === 'chat' || chatTab === 'all');
+        if (btn.dataset.tab === 'chat') toggleChatPanel(true);
       });
     });
   }
 
   function bindCommonControls(pageType) {
+    injectLiveOverlays();
+    bindRoomAvatars();
     document.getElementById('partyClose')?.addEventListener('click', exitRoom);
     document.getElementById('liveClose')?.addEventListener('click', exitRoom);
 
@@ -1092,9 +1918,20 @@
     document.getElementById('partyBtnGift')?.addEventListener('click', () => openGiftSheet());
     document.getElementById('liveBtnGift')?.addEventListener('click', () => openGiftSheet());
 
+    document.getElementById('apSayHiPill')?.addEventListener('click', () => {
+      toggleChatPanel(true);
+      const input = document.getElementById('liveChatInput');
+      if (input && !input.value.trim()) {
+        sendChat('🌹 Hi there!');
+      } else if (input) {
+        input.focus();
+      }
+    });
+
     const toggleFollow = () => {
       const hostName = roomState?.hostName || 'Host';
       const hostId = roomState?.hostId || hostName;
+      const wasFollowing = followed;
       if (window.SocialInteractions?.toggleFollow) {
         followed = SocialInteractions.toggleFollow(hostId, hostName);
       } else {
@@ -1108,6 +1945,9 @@
         btn.classList.toggle('is-following', followed);
       }
       if (hbtn) hbtn.textContent = followed ? '✓' : '+';
+      if (followed && !wasFollowing) {
+        window.SocialFX?.showFollowBurst?.(hbtn || btn);
+      }
       toast(
         followed ? `You're now following ${hostName}` : `Unfollowed ${hostName}`,
         followed ? 'success' : 'info'
@@ -1116,9 +1956,10 @@
     document.getElementById('partyBtnFollow')?.addEventListener('click', toggleFollow);
     document.getElementById('partyHostFollow')?.addEventListener('click', toggleFollow);
 
+    document.getElementById('partyBtnFollow')?.addEventListener('click', toggleFollow);
     document.getElementById('liveBtnFollow')?.addEventListener('click', toggleFollow);
 
-    document.getElementById('liveBtnMic')?.addEventListener('click', () => toggleMic());
+    document.getElementById('liveBtnMic')?.addEventListener('click', () => handleMicButton());
 
     document.getElementById('partyBtnSound')?.addEventListener('click', () => {
       soundOn = !soundOn;
@@ -1130,34 +1971,63 @@
       });
       toast(soundOn ? 'Sound on' : 'Sound muted');
       const btn = document.getElementById('partyBtnSound');
-      if (btn) btn.querySelector('i').className = soundOn ? 'fas fa-volume-up' : 'fas fa-volume-mute';
+      if (btn) {
+        const ico = btn.querySelector('i');
+        if (ico) ico.className = soundOn ? 'fas fa-volume-up' : 'fas fa-volume-mute';
+        btn.classList.toggle('is-muted', !soundOn);
+      }
     });
 
     document.getElementById('partyBtnShare')?.addEventListener('click', () => shareRoomLink());
-
-    document.getElementById('partyBtnReport')?.addEventListener('click', () => {
-      toast('Report submitted. Our team will review.');
+    document.getElementById('partyBtnJoinSeat')?.addEventListener('click', () => requestSeatJoin());
+    document.getElementById('partyInvitePill')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      shareRoomLink();
+    });
+    document.getElementById('apBtnChatBubble')?.addEventListener('click', () => toggleChatPanel());
+    document.querySelectorAll('.ap-region-tabs button').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.ap-region-tabs button').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        chatRegionFilter = btn.dataset.region || 'all';
+        renderChatFeed();
+      });
     });
 
     document.getElementById('partyRuleBtn')?.addEventListener('click', openRulesModal);
-    document.getElementById('partyBtnMinimize')?.addEventListener('click', () => {
+    document.getElementById('partyBtnGiftCollection')?.addEventListener('click', () => {
       document.getElementById('partyToolsSheet')?.classList.remove('open');
-      toast('Room minimized — tap back to return');
+      openGiftSheet();
     });
     document.getElementById('partyBtnGiftTools')?.addEventListener('click', () => {
       document.getElementById('partyToolsSheet')?.classList.remove('open');
       openGiftSheet();
     });
-
-    document.getElementById('liveRailFollow')?.addEventListener('click', () => {
-      document.getElementById('partyHostFollow')?.click() || document.getElementById('liveBtnFollow')?.click();
+    document.getElementById('partyBtnGiftWish')?.addEventListener('click', () => {
+      document.getElementById('partyToolsSheet')?.classList.remove('open');
+      const host = roomState?.hostName || 'Host';
+      sendChat(`🌟 Gift wish: I hope @${host} gets amazing gifts today!`);
+      toast('Gift wish sent to chat', 'success');
     });
-    document.getElementById('liveRailGift')?.addEventListener('click', () => openGiftSheet());
-    document.getElementById('liveRailLike')?.addEventListener('click', () => toast('❤️ Thanks for the like!'));
-    document.getElementById('liveRailComment')?.addEventListener('click', () => {
-      document.getElementById('liveChatInput')?.focus();
+    document.getElementById('partyBtnEffects')?.addEventListener('click', () => {
+      document.getElementById('partyToolsSheet')?.classList.remove('open');
+      toggleChatPanel(true);
     });
-    document.getElementById('liveRailShare')?.addEventListener('click', () => shareRoomLink());
+    document.getElementById('partyBtnMinimize')?.addEventListener('click', () => {
+      document.getElementById('partyToolsSheet')?.classList.remove('open');
+      toast('Swipe up from home to return', 'info');
+    });
+    document.getElementById('partyBtnReport')?.addEventListener('click', async () => {
+      document.getElementById('partyToolsSheet')?.classList.remove('open');
+      if (liveSocket?.connected) {
+        liveSocket.emit('live:chat', {
+          channel: channelId(),
+          type: 'system',
+          text: `Report filed for room ${channelId().slice(0, 8)} — moderators notified`,
+        });
+      }
+      toast('Report submitted. Our team will review.', 'success');
+    });
 
     const chatSend = document.getElementById('liveChatSend');
     const chatInput = document.getElementById('liveChatInput');
@@ -1174,6 +2044,14 @@
 
     bindChatTabs();
     bindGiftSheet();
+    bindEmojiPicker();
+    setupKeyboardOffset();
+    syncToolBadges();
+
+    window.SocialFX?.init?.();
+    window.SocialFX?.bindDoubleTapLike?.(document.getElementById('liveRemoteHost'));
+    window.SocialFX?.bindDoubleTapLike?.(document.getElementById('liveRoomRoot'));
+    window.SocialFX?.bindDoubleTapLike?.(document.querySelector('.party-room'));
 
     setInterval(() => {
       chestSec = Math.max(0, chestSec - 1);
@@ -1181,17 +2059,12 @@
       const s = chestSec % 60;
       const chestEl = document.getElementById('partyChestTimer');
       if (chestEl) chestEl.textContent = String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
-    }, 1000);
-
-    setInterval(() => {
-      if (Math.random() > 0.7 && teamProgress < 16) {
-        teamProgress += 1;
-        const teamEl = document.getElementById('partyTeamProgress');
-        const bar = document.getElementById('partyTeamBar');
-        if (teamEl) teamEl.textContent = teamProgress + '/16';
-        if (bar) bar.style.width = Math.min(100, (teamProgress / 16) * 100) + '%';
+      if (chestSec === 0) {
+        window.SocialFX?.chestReward?.();
+        chestSec = 294;
       }
-    }, 15000);
+      tickPkTimer();
+    }, 1000);
   }
 
   async function exitRoom() {
@@ -1319,39 +2192,52 @@
       `
       <div class="gift-sheet" id="giftSheet">
         <div class="gift-sheet-panel">
-          <button type="button" class="gift-sheet-close" id="giftSheetClose"><i class="fas fa-times"></i></button>
+          <div class="gift-rtp-banner" id="giftRtpBanner"><span>Select a gift to see details</span></div>
           <div class="gift-recipients" id="giftRecipients"></div>
-          <div class="gift-sheet-tabs">
+          <div class="gift-sheet-tabs" id="giftSheetTabs">
             <button type="button" data-cat="new">New</button>
             <button type="button" data-cat="gift" class="active">Gift</button>
             <button type="button" data-cat="lucky">Lucky</button>
+            <button type="button" data-cat="island">Island</button>
+            <button type="button" data-cat="fan">Fan Club</button>
+            <button type="button" data-cat="privilege">Privilege</button>
+            <button type="button" data-cat="fun">Fun</button>
+            <button type="button" class="gift-tab-bell" aria-label="Notifications"><i class="fas fa-bell"></i></button>
           </div>
-          <p class="gift-balance">🪙 <span id="giftCoinsBal">0</span> &gt;</p>
+          <div class="gift-xp-row">
+            <span class="gift-xp-lvl">💎 <span id="giftUserLvl">1</span></span>
+            <div class="gift-xp-bar"><i id="giftXpBar" style="width:0%"></i></div>
+            <span class="gift-xp-text" id="giftXpText">+4XP · Lv.2</span>
+            <button type="button" class="gift-surprise-btn" id="giftSurpriseBtn">Surprise Shop</button>
+          </div>
+          <button type="button" class="gift-balance-btn" id="giftBalanceBtn">🪙 <span id="giftCoinsBal">0</span> &gt;</button>
           <div class="gift-grid" id="giftGrid"></div>
           <div class="gift-qty-row">
             <div class="gift-qty-btns">
-              <button type="button" data-qty="1" class="active">1</button>
-              <button type="button" data-qty="10">10</button>
-              <button type="button" data-qty="50">50</button>
-              <button type="button" data-qty="100">100</button>
+              <button type="button" data-qty="1" class="active">x1</button>
+              <button type="button" data-qty="5">x5</button>
+              <button type="button" data-qty="10">x10</button>
+              <button type="button" data-qty="20">x20</button>
+              <button type="button" data-qty="50">x50</button>
+              <button type="button" data-qty="100">x100</button>
             </div>
             <button type="button" class="gift-send-btn" id="giftSendBtn">Send</button>
           </div>
-          <a href="/coins-recharge.html?app=1" class="gift-recharge-link">Recharge coins</a>
         </div>
       </div>`
     );
     giftQty = 1;
     renderGiftGrid();
     refreshCoinDisplay();
+    updateGiftMeta();
   }
 
   function postWelcomeMessage() {
-    const welcome = {
+    rememberChatMessage({
       type: 'system',
       text: 'Welcome to AP Services LIVE! Be respectful — admins monitor 24/7. Give a double-tap like to support the host!',
-    };
-    appendChatMessage(welcome);
+    });
+    renderChatFeed();
   }
 
   async function initPartyRoom() {
@@ -1377,6 +2263,9 @@
       if (hostLabel) hostLabel.textContent = 'Hosting';
       const ticker = document.getElementById('partyTicker');
       if (ticker) ticker.textContent = 'You are hosting — share the link so friends can join';
+    } else {
+      const joinBtn = document.getElementById('partyBtnJoinSeat');
+      if (joinBtn) joinBtn.style.display = '';
     }
     await startAgora('party');
     postWelcomeMessage();
@@ -1406,22 +2295,6 @@
     } catch (_e) {
       console.warn('[live] feed API', _e);
     }
-    if (items.length < 8 && window.SocialShell?.fetchPros) {
-      const pros = await SocialShell.fetchPros(12);
-      pros.forEach((p, i) => {
-        const ch = String('live-' + (p.id || 'm' + i)).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64);
-        if (!items.some((x) => x.channel === ch)) {
-          items.push({
-            channel: ch,
-            hostName: p.name,
-            hostId: p.userId || p.id,
-            viewers: p.viewers || 80 + i * 41,
-            mode: i % 4 === 0 ? 'audio' : 'video',
-            mock: true,
-          });
-        }
-      });
-    }
     if (startChannel) {
       const idx = items.findIndex((x) => x.channel === startChannel);
       if (idx > 0) {
@@ -1441,7 +2314,7 @@
 
   async function switchToFeedRoom(index) {
     if (feedSwitching || !feedItems[index]) return;
-    if (index === activeFeedIndex && roomState && !feedItems[index].mock) return;
+    if (index === activeFeedIndex && roomState) return;
     feedSwitching = true;
     activeFeedIndex = index;
     const item = feedItems[index];
@@ -1464,8 +2337,7 @@
     updateModeBadge(broadcastMode, false);
 
     roomState = null;
-    const feed = document.getElementById('partyChatFeed');
-    if (feed) feed.innerHTML = '';
+    chatMessages = [];
 
     await stopAgora();
     leaveSocket();
@@ -1570,7 +2442,12 @@
     bindHostControls('live');
     connectSocket('live');
 
-    applyLiveBackground(broadcastMode === 'audio' ? 'audio' : 'live', roomState?.hostName);
+    if (isHost() && broadcastMode === 'video') {
+      const bg = document.getElementById('liveBg');
+      if (bg) bg.style.display = 'none';
+    } else {
+      applyLiveBackground(broadcastMode === 'audio' ? 'audio' : 'live', roomState?.hostName);
+    }
     if (broadcastMode === 'audio') {
       document.getElementById('liveRoomRoot')?.classList.add('is-audio-mode');
     }
@@ -1714,9 +2591,10 @@
           transaction_id: utr,
           payment_method: 'qr_manual',
         });
+        window.SocialFX?.coinRain?.(40);
         if (window.SocialUI) SocialUI.showSuccess('Recharge submitted', 'Coins will be added after admin verification — usually within a few hours.');
         else toast('Recharge submitted! Awaiting verification.', 'success');
-        location.href = '/store.html?app=1';
+        setTimeout(() => { location.href = '/store.html?app=1'; }, 1200);
       } catch (e) {
         const msg = window.SocialUI ? SocialUI.friendlyMessage(e.message) : e.message || 'Recharge submission failed';
         if (window.SocialUI) SocialUI.showError('Recharge failed', msg);

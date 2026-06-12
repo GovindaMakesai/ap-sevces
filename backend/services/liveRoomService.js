@@ -155,11 +155,18 @@ async function buildSnapshot(channel) {
   const events = await getRecentEvents(room.id, 30);
 
   const messages = events
-    .filter((e) => e.event_type === 'chat' || e.event_type === 'join')
+    .filter((e) => e.event_type === 'chat' || e.event_type === 'join' || e.event_type === 'seat_join')
     .map((e) => {
       const p = typeof e.payload === 'string' ? JSON.parse(e.payload) : e.payload || {};
       if (e.event_type === 'join') {
         return { type: 'system', text: `${p.display_name || 'Someone'} joined`, at: e.created_at };
+      }
+      if (e.event_type === 'seat_join') {
+        return {
+          type: 'system',
+          text: `${p.display_name || 'Someone'} joined a seat`,
+          at: e.created_at,
+        };
       }
       return {
         type: 'chat',
@@ -178,13 +185,15 @@ async function buildSnapshot(channel) {
       return p;
     });
 
-  const seats = members.map((m) => ({
-    userId: m.user_id,
-    name: m.display_name,
-    muted: m.is_muted,
-    gifts: Number(m.gift_count),
-    isHost: m.role === 'host',
-  }));
+  const seats = members
+    .filter((m) => m.role === 'host' || m.role === 'speaker')
+    .map((m) => ({
+      userId: m.user_id,
+      name: m.display_name,
+      muted: m.is_muted,
+      gifts: Number(m.gift_count),
+      isHost: m.role === 'host',
+    }));
 
   return {
     channel: room.channel,
@@ -213,6 +222,32 @@ async function setMemberMuted(liveRoomId, userId, muted) {
     `UPDATE live_room_members SET is_muted = $3 WHERE live_room_id = $1 AND user_id = $2 AND left_at IS NULL`,
     [liveRoomId, userId, Boolean(muted)]
   );
+}
+
+async function promoteToSpeaker({ channel, userId, displayName }) {
+  const room = await findByChannel(channel);
+  if (!room) throw new Error('Room not found');
+
+  const memberRes = await db.query(
+    `SELECT display_name FROM live_room_members
+     WHERE live_room_id = $1 AND user_id = $2 AND left_at IS NULL`,
+    [room.id, userId]
+  );
+  const name = String(displayName || memberRes.rows[0]?.display_name || 'Guest').slice(0, 32);
+
+  await db.query(
+    `UPDATE live_room_members SET role = 'speaker', display_name = COALESCE(NULLIF(display_name, ''), $3)
+     WHERE live_room_id = $1 AND user_id = $2 AND left_at IS NULL AND role = 'viewer'`,
+    [room.id, userId, name]
+  );
+
+  await db.query(
+    `INSERT INTO live_room_events (live_room_id, user_id, event_type, payload) VALUES ($1, $2, 'seat_join', $3)`,
+    [room.id, userId, JSON.stringify({ display_name: name })]
+  );
+
+  roomCache.set(channel, room);
+  return room;
 }
 
 async function endRoom(channel, reason = 'host_ended') {
@@ -278,6 +313,7 @@ module.exports = {
   buildSnapshot,
   logChatEvent,
   setMemberMuted,
+  promoteToSpeaker,
   endRoom,
   endIdleRooms,
   recoverActiveRooms,
