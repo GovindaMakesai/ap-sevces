@@ -59,6 +59,8 @@ const allowedOrigins = [
   'http://62.72.56.74:5000',
   'http://62.72.56.74',
 ];
+
+function isAllowedCorsOrigin(origin) {
   if (!origin) return true;
   if (allowedOrigins.indexOf(origin) !== -1) return true;
   if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) return true;
