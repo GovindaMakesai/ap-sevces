@@ -6,17 +6,9 @@ const path = require('path');
 
 const appDir = path.join(__dirname, '..');
 const DEV_PORT = 5500;
+const EXPO_PORT = Number(process.env.EXPO_DEV_PORT || 8081);
 
-function run(cmd, args, opts = {}) {
-  return spawn(cmd, args, {
-    cwd: opts.cwd || appDir,
-    shell: true,
-    stdio: 'inherit',
-    ...opts,
-  });
-}
-
-/** Free port 5500 if a leftover node/http-server is still listening (common after Ctrl+C). */
+/** Free a TCP port on Windows (kill listening PID). */
 function freePort(port) {
   if (process.platform !== 'win32') return;
   try {
@@ -41,8 +33,18 @@ function freePort(port) {
   }
 }
 
+function run(cmd, args, opts = {}) {
+  return spawn(cmd, args, {
+    cwd: opts.cwd || appDir,
+    shell: true,
+    stdio: 'inherit',
+    ...opts,
+  });
+}
+
 console.log('\n📱 AP Services — dev mode');
 freePort(DEV_PORT);
+freePort(EXPO_PORT);
 console.log(`   1) Serving NEW UI from frontend/ → http://0.0.0.0:${DEV_PORT}`);
 console.log('   2) Starting Expo (WebView will use your PC LAN IP + port 5500)\n');
 
@@ -60,7 +62,7 @@ serve.on('error', (err) => {
 
 let expo;
 const startExpo = () => {
-  expo = run('npx', ['expo', 'start'], { cwd: appDir });
+  expo = run('npx', ['expo', 'start', '--port', String(EXPO_PORT)], { cwd: appDir });
   expo.on('exit', (code) => {
     try {
       serve.kill();

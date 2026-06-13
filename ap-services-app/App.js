@@ -7,7 +7,7 @@ import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import { getMobileDashboardInjectScript } from './injectedMobileFix';
 
-const apiConfig = require('../config/production-api');
+const apiConfig = require('./config/production-api');
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -34,7 +34,9 @@ function resolveFrontendBase() {
   if (process.env.EXPO_PUBLIC_WEB_URL) {
     return process.env.EXPO_PUBLIC_WEB_URL.replace(/\/$/, '');
   }
-  if (__DEV__) {
+  // LAN HTTP blocks camera/mic in Android WebView (getUserMedia needs HTTPS).
+  // Opt into LAN UI dev with EXPO_PUBLIC_USE_LAN_WEB=1 (live host will not work).
+  if (__DEV__ && process.env.EXPO_PUBLIC_USE_LAN_WEB === '1') {
     const lan = getExpoLanHost();
     if (lan) return `http://${lan}:${DEV_WEB_PORT}`;
   }

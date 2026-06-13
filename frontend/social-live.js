@@ -262,6 +262,13 @@
   }
 
   function socketBase() {
+    if (window.__AP_NATIVE_APP__) {
+      const direct =
+        (typeof window.__AP_SOCKET_URL__ === 'string' && window.__AP_SOCKET_URL__) ||
+        (typeof window.__AP_API_URL__ === 'string' && window.__AP_API_URL__.replace(/\/api\/?$/, '')) ||
+        (window.AP_CONFIG && window.AP_CONFIG.PRODUCTION_BACKEND_URL);
+      if (direct) return String(direct).replace(/\/$/, '');
+    }
     if (typeof window.__AP_SOCKET_URL__ === 'string' && window.__AP_SOCKET_URL__) {
       return window.__AP_SOCKET_URL__.replace(/\/$/, '');
     }
@@ -591,6 +598,19 @@
     if (loader) loader.classList.add('is-hidden');
   }
 
+  function webMediaBlockedReason() {
+    const host = window.location.hostname || '';
+    const isLocal = host === 'localhost' || host === '127.0.0.1';
+    const insecureHttp = window.location.protocol === 'http:' && !isLocal;
+    if (insecureHttp) {
+      return 'Camera/mic need HTTPS. Close and reopen the app (Expo uses Vercel HTTPS). LAN http:// IP blocks getUserMedia in WebView.';
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      return 'Camera/mic unavailable in this WebView. Allow Camera + Microphone in Android app settings, then reload.';
+    }
+    return null;
+  }
+
   function setLiveStatus(text, ok) {
     const el = document.getElementById('liveStatusBadge');
     if (el) {
@@ -714,6 +734,12 @@
       });
 
       if (host) {
+        const mediaBlock = webMediaBlockedReason();
+        if (mediaBlock) {
+          liveDebugLog(`Host media blocked: ${mediaBlock}`);
+          setLiveStatus(mediaBlock, false);
+          return;
+        }
         if (mode === 'party') {
           const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
           localTracks = [audioTrack];
