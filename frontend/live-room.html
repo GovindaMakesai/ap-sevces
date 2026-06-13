@@ -105,11 +105,6 @@
         </div>
       </div>
 
-      <div class="live-chat-compose" id="liveChatCompose">
-        <button type="button" class="ap-chat-emoji-btn" id="apChatEmojiBtn" aria-label="Emoji"><i class="far fa-smile"></i></button>
-        <input type="text" id="liveChatInput" placeholder="Say something…" maxlength="280" autocomplete="off" enterkeyhint="send">
-        <button type="button" id="liveChatSend" aria-label="Send"><i class="fas fa-paper-plane"></i></button>
-      </div>
     </div>
   </div>
 
@@ -122,6 +117,42 @@
       <button type="button" id="liveBtnGift" class="party-btn-gift ap-btn-gift-hero" aria-label="Gifts"><span class="ap-gift-glow"></span><i class="fas fa-gift"></i></button>
     </div>
   </footer>
+
+  <div class="ap-chat-panel" id="apChatPanel">
+    <div class="ap-quick-chips" id="apQuickChips"></div>
+    <div class="ap-region-tabs" id="apRegionTabs">
+      <button type="button" data-region="room"><i class="fas fa-id-card"></i> Room</button>
+      <button type="button" data-region="region"><i class="fas fa-tv"></i> Region</button>
+      <button type="button" class="active" data-region="broadcast"><i class="fas fa-bullhorn"></i> Region</button>
+    </div>
+    <div class="live-chat-compose" id="liveChatCompose">
+      <span class="ap-char-count" id="apCharCount">0</span>
+      <button type="button" class="ap-chat-emoji-btn" id="apChatEmojiBtn" aria-label="Emoji"><i class="far fa-smile"></i></button>
+      <input type="text" id="liveChatInput" placeholder="Say something…" maxlength="280" autocomplete="off" enterkeyhint="send">
+      <button type="button" id="liveChatSend" aria-label="Send"><i class="fas fa-paper-plane"></i></button>
+    </div>
+  </div>
+
+  <div class="ap-modal-overlay" id="apMicLinkModal">
+    <div class="ap-miclink-modal">
+      <div id="apMicLinkWaiting">
+        <div class="ap-miclink-head">On the mic link list</div>
+        <div class="ap-miclink-body">
+          <p>You're on the link list. Wait for host's approval.</p>
+          <button type="button" class="ap-miclink-primary" id="apMicLinkContinue">Confirm</button>
+        </div>
+        <button type="button" class="ap-miclink-cancel" id="apMicLinkCancel">Cancel the mic link</button>
+      </div>
+      <div id="apMicLinkRejected" style="display:none">
+        <div class="ap-miclink-head">On the mic link list</div>
+        <div class="ap-miclink-body ap-miclink-rejected">
+          <p><strong>Request declined</strong><br>You're still on the link list. Wait for host's approval.</p>
+          <button type="button" class="ap-miclink-primary" id="apMicLinkConfirm">Confirm</button>
+        </div>
+        <button type="button" class="ap-miclink-cancel" id="apMicLinkCancel2">Cancel the mic link</button>
+      </div>
+    </div>
+  </div>
 
   <div class="party-tools-sheet" id="partyToolsSheet">
     <div class="party-tools-panel party-tools-panel-ref">

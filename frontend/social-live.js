@@ -82,7 +82,7 @@
   ];
   const EMOJI_PICKS = ['😀', '😂', '❤️', '🔥', '👍', '🎉', '💯', '🌹', '💐', '🎁', '👏', '😍', '🙏', '💪', '✨'];
   let quickChipsExpanded = false;
-  let chatRegionFilter = 'all';
+  let chatRegionFilter = 'broadcast';
   let sessionGiftCoins = 0;
   let userXpProgress = 0;
   const GIFT_OPTIONS = GIFT_CATALOG.gift;
@@ -269,11 +269,88 @@
     return api.replace(/\/api\/?$/, '');
   }
 
-  function connectSocket(type) {
-    const token = localStorage.getItem('token');
-    if (!token || typeof io === 'undefined') return null;
+  /* ---------- Live debug panel ---------- */
+  const remoteUsers = new Map();
 
-    if (liveSocket?.connected) return liveSocket;
+  const liveDebugState = {
+    channel: '—',
+    role: '—',
+    socketConnected: false,
+    roomJoined: false,
+    agoraJoined: false,
+    tokenReceived: false,
+    hostPublishing: false,
+    remoteUsersCount: 0,
+  };
+
+  function dbgYesNo(val) {
+    return val ? '✓ yes' : '✗ no';
+  }
+
+  function ensureLiveDebugPanel() {
+    if (document.getElementById('apLiveDebugPanel')) return;
+    const el = document.createElement('div');
+    el.id = 'apLiveDebugPanel';
+    el.className = 'ap-live-debug-panel';
+    el.innerHTML =
+      `<div class="ap-live-debug-title">LIVE DEBUG</div>
+       <dl class="ap-live-debug-grid">
+         <dt>Channel</dt><dd id="apDbgChannel">—</dd>
+         <dt>User role</dt><dd id="apDbgRole">—</dd>
+         <dt>Socket connected</dt><dd id="apDbgSocket">—</dd>
+         <dt>Room joined</dt><dd id="apDbgRoom">—</dd>
+         <dt>Agora joined</dt><dd id="apDbgAgora">—</dd>
+         <dt>Token received</dt><dd id="apDbgToken">—</dd>
+         <dt>Host publishing</dt><dd id="apDbgPublish">—</dd>
+         <dt>Remote users</dt><dd id="apDbgRemote">0</dd>
+       </dl>
+       <pre class="ap-live-debug-log" id="apLiveDebugLog" aria-live="polite"></pre>`;
+    document.body.appendChild(el);
+    updateLiveDebug({});
+  }
+
+  function liveDebugLog(msg) {
+    const line = `[live-debug] ${msg}`;
+    console.log(line);
+    const logEl = document.getElementById('apLiveDebugLog');
+    if (logEl) {
+      const ts = new Date().toISOString().slice(11, 23);
+      logEl.textContent = `[${ts}] ${msg}\n${logEl.textContent}`.slice(0, 4000);
+    }
+  }
+
+  function updateLiveDebug(partial) {
+    Object.assign(liveDebugState, partial);
+    liveDebugState.channel = channelId() || liveDebugState.channel;
+    liveDebugState.role = isHost() ? 'host' : 'viewer';
+    liveDebugState.remoteUsersCount = remoteUsers.size;
+    const set = (id, text) => {
+      const node = document.getElementById(id);
+      if (node) node.textContent = text;
+    };
+    set('apDbgChannel', liveDebugState.channel);
+    set('apDbgRole', liveDebugState.role);
+    set('apDbgSocket', dbgYesNo(liveDebugState.socketConnected));
+    set('apDbgRoom', dbgYesNo(liveDebugState.roomJoined));
+    set('apDbgAgora', dbgYesNo(liveDebugState.agoraJoined));
+    set('apDbgToken', dbgYesNo(liveDebugState.tokenReceived));
+    set('apDbgPublish', dbgYesNo(liveDebugState.hostPublishing));
+    set('apDbgRemote', String(liveDebugState.remoteUsersCount));
+  }
+
+  function connectSocket(type) {
+    ensureLiveDebugPanel();
+    const token = localStorage.getItem('token');
+    if (!token || typeof io === 'undefined') {
+      liveDebugLog('Socket skipped — missing auth token or socket.io');
+      updateLiveDebug({ socketConnected: false, roomJoined: false });
+      return null;
+    }
+
+    if (liveSocket?.connected) {
+      updateLiveDebug({ socketConnected: true });
+      return liveSocket;
+    }
 
     liveSocket = io(socketBase(), {
       auth: { token },
@@ -281,6 +358,21 @@
       reconnection: true,
       reconnectionAttempts: 8,
       reconnectionDelay: 1000,
+    });
+
+    liveSocket.on('connect', () => {
+      liveDebugLog('Socket connected');
+      updateLiveDebug({ socketConnected: true });
+    });
+    liveSocket.on('disconnect', (reason) => {
+      liveDebugLog(`Socket disconnected: ${reason}`);
+      updateLiveDebug({ socketConnected: false, roomJoined: false });
+    });
+    liveSocket.on('connect_error', (err) => {
+      const msg = err?.message || String(err);
+      liveDebugLog(`Socket connect_error: ${msg}`);
+      toast(`Socket error: ${msg}`, 'error');
+      updateLiveDebug({ socketConnected: false, roomJoined: false });
     });
 
     window.SocialFX?.init?.();
@@ -389,18 +481,31 @@
 
     const user = currentUser();
     const ch = channelId();
+    const hostFlag = isHost();
+    liveDebugLog(`${hostFlag ? 'HOST' : 'VIEWER'} live:join emit channel=${ch} type=${type}`);
+    updateLiveDebug({ channel: ch, role: hostFlag ? 'host' : 'viewer' });
     liveSocket.emit(
       'live:join',
       {
         channel: ch,
         type: type === 'live' ? 'live' : 'party',
         displayName: displayName(user),
-        isHost: isHost(),
+        isHost: hostFlag,
       },
       (res) => {
+        console.log('[live] live:join ack', { channel: ch, isHost: hostFlag, res });
+        liveDebugLog(
+          `live:join ack channel=${ch} ok=${Boolean(res?.ok)} msg=${res?.message || 'none'}`
+        );
         if (res?.ok && res.state) {
           roomState = res.state;
+          updateLiveDebug({ roomJoined: true });
           renderRoomState();
+        } else {
+          updateLiveDebug({ roomJoined: false });
+          const msg = res?.message || 'live:join failed (no message from server)';
+          toast(`Room join failed: ${msg}`, 'error');
+          setLiveStatus(`Room join failed: ${msg}`, false);
         }
       }
     );
@@ -414,13 +519,13 @@
       liveSocket.disconnect();
       liveSocket = null;
     }
+    updateLiveDebug({ socketConnected: false, roomJoined: false });
   }
 
   /* ---------- Agora ---------- */
   let agoraClient = null;
   let localTracks = [];
   let agoraMode = 'live';
-  const remoteUsers = new Map();
 
   function loadAgoraScript() {
     return new Promise((resolve, reject) => {
@@ -434,20 +539,21 @@
   }
 
   async function fetchAgoraToken(channel, asHost) {
-    try {
-      return await API.post('/live/agora/token', {
-        channel,
-        role: asHost ? 'host' : 'audience',
-      });
-    } catch (e) {
-      console.warn('[live] token', e);
-      try {
-        const cfg = await API.get('/live/agora/config');
-        return { mode: 'mock', appId: cfg?.appId, channel };
-      } catch (_e2) {
-        return { mode: 'mock', channel };
-      }
+    const role = asHost ? 'host' : 'audience';
+    liveDebugLog(`Token request channel=${channel} role=${role}`);
+    const data = await API.post('/live/agora/token', { channel, role });
+    if (!data?.success) {
+      throw new Error(data?.message || 'Agora token request failed (success=false)');
     }
+    if (data.mode === 'mock' || !data.token) {
+      throw new Error(
+        data.message ||
+          'Agora token unavailable — server returned mock mode or empty token (check AGORA_APP_ID and AGORA_APP_CERTIFICATE)'
+      );
+    }
+    liveDebugLog(`Token OK mode=${data.mode} uid=${data.uid} channel=${data.channel || channel}`);
+    updateLiveDebug({ tokenReceived: true });
+    return data;
   }
 
   function showApLoader(text) {
@@ -483,9 +589,12 @@
   }
 
   async function startAgora(mode) {
+    ensureLiveDebugPanel();
     agoraMode = mode || 'live';
     const ch = channelId();
     const host = isHost();
+    liveDebugLog(`${host ? 'HOST' : 'VIEWER'} startAgora mode=${mode} channel=${ch}`);
+    updateLiveDebug({ channel: ch, role: host ? 'host' : 'viewer', hostPublishing: false, agoraJoined: false });
     showApLoader(host ? 'Starting your broadcast…' : 'Connecting to live…');
     setLiveStatus('Connecting…', null);
 
@@ -493,25 +602,21 @@
     try {
       cred = await fetchAgoraToken(ch, host);
     } catch (e) {
-      setLiveStatus('Login required for live', false);
+      const msg = e?.message || String(e);
+      console.error('[live] token failed', e);
+      liveDebugLog(`Token FAILED: ${msg}`);
+      updateLiveDebug({ tokenReceived: false, agoraJoined: false });
+      setLiveStatus(`Token error: ${msg}`, false);
       return;
     }
 
     const appId = cred?.appId;
-    if (!appId) {
-      setLiveStatus('Preview mode — only you see this stream', null);
-      if (host) {
-        if (mode === 'party') await startLocalMicOnly();
-        else if (mode === 'live') {
-          if (broadcastMode === 'audio') applyLiveBackground('audio', displayName(currentUser()));
-          else {
-            await startLocalPreviewOnly(true);
-            ensureHostVideoVisible();
-          }
-        }
-      } else {
-        applyLiveBackground(broadcastMode === 'audio' ? 'audio' : 'live', roomState?.hostName);
-      }
+    const token = cred?.token;
+    if (!appId || !token) {
+      const msg = cred?.message || 'Server response missing Agora appId or token';
+      liveDebugLog(`Token invalid response: ${msg}`);
+      updateLiveDebug({ tokenReceived: false });
+      setLiveStatus(msg, false);
       return;
     }
 
@@ -520,18 +625,41 @@
       if (agoraClient) {
         try {
           await agoraClient.leave();
-        } catch (_e) {}
+        } catch (leaveErr) {
+          liveDebugLog(`Agora leave (pre-join): ${leaveErr?.message || leaveErr}`);
+        }
       }
 
       agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
       const uid = cred.uid != null ? cred.uid : null;
-      const token = cred.token || null;
 
-      await agoraClient.join(appId, cred.channel || ch, token, uid);
+      try {
+        await agoraClient.join(appId, cred.channel || ch, token, uid);
+        liveDebugLog(`Agora join OK channel=${cred.channel || ch} uid=${uid}`);
+        updateLiveDebug({ agoraJoined: true });
+      } catch (joinErr) {
+        const msg = joinErr?.message || String(joinErr);
+        console.error('[live] Agora join failed', joinErr);
+        liveDebugLog(`Agora join FAILED: ${msg}`);
+        updateLiveDebug({ agoraJoined: false });
+        setLiveStatus(`Agora join failed: ${msg}`, false);
+        return;
+      }
+
       window.SocialFX?.initAgoraVolumeIndicator?.(agoraClient, uid || currentUser()?.id);
 
       agoraClient.on('user-published', async (user, mediaType) => {
-        await agoraClient.subscribe(user, mediaType);
+        liveDebugLog(`user-published uid=${user.uid} media=${mediaType}`);
+        try {
+          await agoraClient.subscribe(user, mediaType);
+          liveDebugLog(`subscribe OK uid=${user.uid} media=${mediaType}`);
+        } catch (subErr) {
+          const msg = subErr?.message || String(subErr);
+          console.error('[live] subscribe failed', subErr);
+          liveDebugLog(`subscribe FAILED uid=${user.uid} media=${mediaType}: ${msg}`);
+          toast(`Subscribe failed (${mediaType}): ${msg}`, 'error');
+          return;
+        }
         if (mediaType === 'video') {
           const container = document.getElementById('liveRemoteHost');
           const root = document.getElementById('liveRoomRoot');
@@ -548,10 +676,13 @@
           else user.audioTrack?.stop();
         }
         remoteUsers.set(user.uid, user);
+        updateLiveDebug({ remoteUsersCount: remoteUsers.size });
       });
 
       agoraClient.on('user-unpublished', (user) => {
+        liveDebugLog(`user-unpublished uid=${user.uid}`);
         remoteUsers.delete(user.uid);
+        updateLiveDebug({ remoteUsersCount: remoteUsers.size });
         const container = document.getElementById('liveRemoteHost');
         if (container && remoteUsers.size === 0) {
           container.innerHTML = '';
@@ -563,12 +694,34 @@
         if (mode === 'party') {
           const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
           localTracks = [audioTrack];
-          await agoraClient.publish(audioTrack);
+          try {
+            await agoraClient.publish(audioTrack);
+            liveDebugLog('Publish OK party audio');
+            updateLiveDebug({ hostPublishing: true });
+          } catch (pubErr) {
+            const msg = pubErr?.message || String(pubErr);
+            console.error('[live] publish failed', pubErr);
+            liveDebugLog(`Publish FAILED party audio: ${msg}`);
+            updateLiveDebug({ hostPublishing: false });
+            setLiveStatus(`Publish failed: ${msg}`, false);
+            return;
+          }
           setLiveStatus('Party voice live', true);
         } else if (broadcastMode === 'audio') {
           const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
           localTracks = [audioTrack];
-          await agoraClient.publish(audioTrack);
+          try {
+            await agoraClient.publish(audioTrack);
+            liveDebugLog('Publish OK live audio');
+            updateLiveDebug({ hostPublishing: true });
+          } catch (pubErr) {
+            const msg = pubErr?.message || String(pubErr);
+            console.error('[live] publish failed', pubErr);
+            liveDebugLog(`Publish FAILED live audio: ${msg}`);
+            updateLiveDebug({ hostPublishing: false });
+            setLiveStatus(`Publish failed: ${msg}`, false);
+            return;
+          }
           const localBox = document.getElementById('liveLocalHost');
           if (localBox) localBox.style.display = 'none';
           const fallback = document.getElementById('liveLocalVideo');
@@ -580,7 +733,18 @@
           if (root) root.classList.remove('is-audio-mode');
           const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
           localTracks = [audioTrack, videoTrack];
-          await agoraClient.publish([audioTrack, videoTrack]);
+          try {
+            await agoraClient.publish([audioTrack, videoTrack]);
+            liveDebugLog('Publish OK live video+audio');
+            updateLiveDebug({ hostPublishing: true });
+          } catch (pubErr) {
+            const msg = pubErr?.message || String(pubErr);
+            console.error('[live] publish failed', pubErr);
+            liveDebugLog(`Publish FAILED live video: ${msg}`);
+            updateLiveDebug({ hostPublishing: false });
+            setLiveStatus(`Publish failed: ${msg}`, false);
+            return;
+          }
           const localBox = document.getElementById('liveLocalHost');
           if (localBox) {
             localBox.innerHTML = '';
@@ -595,17 +759,11 @@
         applyLiveBackground(broadcastMode === 'audio' ? 'audio' : 'live', roomState?.hostName);
       }
     } catch (err) {
-      console.warn('[live] Agora', err);
-      setLiveStatus('Camera/mic blocked or Agora error', false);
-      if (host && mode === 'live') {
-        if (broadcastMode === 'audio') applyLiveBackground('audio', displayName(currentUser()));
-        else {
-          await startLocalPreviewOnly(true);
-          ensureHostVideoVisible();
-        }
-      } else {
-        applyLiveBackground(broadcastMode === 'audio' ? 'audio' : 'live', roomState?.hostName);
-      }
+      const msg = err?.message || String(err);
+      console.error('[live] Agora setup failed', err);
+      liveDebugLog(`Agora setup FAILED: ${msg}`);
+      updateLiveDebug({ agoraJoined: false, hostPublishing: false });
+      setLiveStatus(`Agora error: ${msg}`, false);
     }
   }
 
@@ -637,10 +795,16 @@
         const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
         localTracks = [audioTrack];
         await agoraClient.publish(audioTrack);
+        liveDebugLog('Publish OK guest audio');
+        updateLiveDebug({ hostPublishing: true });
         micMuted = false;
         return;
       }
-    } catch (_e) {}
+    } catch (e) {
+      const msg = e?.message || String(e);
+      liveDebugLog(`Guest publish FAILED: ${msg}`);
+      toast(`Mic publish failed: ${msg}`, 'error');
+    }
     await startLocalMicOnly();
   }
 
@@ -719,16 +883,21 @@
       } catch (_e) {}
     }
     localTracks = [];
+    remoteUsers.clear();
     if (agoraClient) {
       try {
         await agoraClient.leave();
-      } catch (_e) {}
+        liveDebugLog('Agora leave OK');
+      } catch (e) {
+        liveDebugLog(`Agora leave error: ${e?.message || e}`);
+      }
       agoraClient = null;
     }
     if (window.__apLocalStream) {
       window.__apLocalStream.getTracks().forEach((t) => t.stop());
       window.__apLocalStream = null;
     }
+    updateLiveDebug({ agoraJoined: false, hostPublishing: false, remoteUsersCount: 0 });
   }
 
   /* ---------- UI: chat / seats / gifts ---------- */
@@ -741,8 +910,15 @@
 
   function applyChatFilters(msg) {
     if (!shouldShowMsg(msg, chatTab)) return false;
-    if (chatRegionFilter === 'room') return msg.type === 'system' || msg.scope === 'room';
-    if (chatRegionFilter === 'broadcast') return msg.type === 'system' || msg.broadcast;
+    if (chatRegionFilter === 'room') {
+      return msg.type === 'system' || msg.scope === 'room' || (!msg.scope && !msg.broadcast);
+    }
+    if (chatRegionFilter === 'region') {
+      return msg.type === 'system' || msg.scope === 'region';
+    }
+    if (chatRegionFilter === 'broadcast') {
+      return msg.type === 'system' || msg.broadcast || msg.scope === 'broadcast';
+    }
     return true;
   }
 
@@ -1280,14 +1456,63 @@
     document.getElementById('apSurpriseShop')?.classList.add('open');
   }
 
+  function pinFixedOverlaysToBody() {
+    [
+      'partyBottomBar',
+      'apChatPanel',
+      'partyToolsSheet',
+      'partyRequestsSheet',
+      'apMicLinkModal',
+      'giftSheet',
+    ].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el && el.parentElement !== document.body) document.body.appendChild(el);
+    });
+  }
+
+  function bindMicLinkModal() {
+    if (window.__apMicModalBound) return;
+    window.__apMicModalBound = true;
+    document.getElementById('apMicLinkContinue')?.addEventListener('click', () => toast('Waiting for host approval…'));
+    document.getElementById('apMicLinkCancel')?.addEventListener('click', hideMicLinkModal);
+    document.getElementById('apMicLinkCancel2')?.addEventListener('click', hideMicLinkModal);
+    document.getElementById('apMicLinkConfirm')?.addEventListener('click', hideMicLinkModal);
+    document.getElementById('apMicLinkModal')?.addEventListener('click', (e) => {
+      if (e.target.id === 'apMicLinkModal') hideMicLinkModal();
+    });
+  }
+
+  function updateCharCount() {
+    const input = document.getElementById('liveChatInput');
+    const el = document.getElementById('apCharCount');
+    if (el && input) el.textContent = String(input.value.length);
+  }
+
+  function clearMessageBadge() {
+    try {
+      localStorage.setItem('chat_unread', '0');
+    } catch (_e) {}
+    syncToolBadges();
+  }
+
+  function prepareLiveUiShell() {
+    injectLiveOverlays();
+    injectGiftSheet();
+    bindMicLinkModal();
+    ensureLiveDebugPanel();
+    const activeRegion = document.querySelector('.ap-region-tabs button.active');
+    chatRegionFilter = activeRegion?.dataset.region || 'broadcast';
+    renderQuickChips();
+    syncToolBadges();
+    updateCharCount();
+  }
+
   function pinBottomBarToBody() {
-    const bar = document.getElementById('partyBottomBar');
-    if (!bar || bar.parentElement === document.body) return;
-    document.body.appendChild(bar);
+    pinFixedOverlaysToBody();
   }
 
   function injectLiveOverlays() {
-    pinBottomBarToBody();
+    pinFixedOverlaysToBody();
     if (!document.getElementById('apGiftFly')) {
       document.body.insertAdjacentHTML(
         'afterbegin',
@@ -1319,17 +1544,18 @@
         panel.id = 'apChatPanel';
         panel.className = 'ap-chat-panel';
         panel.innerHTML =
-          `<div class="ap-region-tabs" id="apRegionTabs">
-             <button type="button" data-region="room"><i class="fas fa-home"></i> Room</button>
+          `<div class="ap-quick-chips" id="apQuickChips"></div>
+           <div class="ap-region-tabs" id="apRegionTabs">
+             <button type="button" data-region="room"><i class="fas fa-id-card"></i> Room</button>
              <button type="button" data-region="region"><i class="fas fa-tv"></i> Region</button>
              <button type="button" class="active" data-region="broadcast"><i class="fas fa-bullhorn"></i> Region</button>
-           </div>
-           <div class="ap-quick-chips" id="apQuickChips"></div>`;
+           </div>`;
         document.body.appendChild(panel);
         panel.appendChild(compose);
-        compose.classList.remove('is-open');
         renderQuickChips();
       }
+    } else {
+      renderQuickChips();
     }
     if (!document.getElementById('apGuestRail')) {
       const overlay = document.querySelector('.live-overlay') || document.querySelector('.party-room');
@@ -1362,13 +1588,7 @@
           </div>
         </div>`
       );
-      document.getElementById('apMicLinkContinue')?.addEventListener('click', () => toast('Waiting for host approval…'));
-      document.getElementById('apMicLinkCancel')?.addEventListener('click', hideMicLinkModal);
-      document.getElementById('apMicLinkCancel2')?.addEventListener('click', hideMicLinkModal);
-      document.getElementById('apMicLinkConfirm')?.addEventListener('click', hideMicLinkModal);
-      document.getElementById('apMicLinkModal')?.addEventListener('click', (e) => {
-        if (e.target.id === 'apMicLinkModal') hideMicLinkModal();
-      });
+      bindMicLinkModal();
     }
     if (!document.getElementById('apTopupSheet')) {
       document.body.insertAdjacentHTML(
@@ -1871,6 +2091,7 @@
     if (!t) return;
     const me = currentUser();
     const lvlInfo = window.SocialFX ? SocialFX.getUserLevel(me?.id) : { level: 2 };
+    const scope = chatRegionFilter === 'broadcast' ? 'broadcast' : chatRegionFilter;
     const optimistic = {
       id: 'local-' + Date.now(),
       type: 'chat',
@@ -1879,12 +2100,21 @@
       lvl: lvlInfo.level,
       text: t,
       at: Date.now(),
+      scope,
+      broadcast: chatRegionFilter === 'broadcast',
     };
     if (liveSocket) {
-      liveSocket.emit('live:chat', { channel: channelId(), text: t, lvl: lvlInfo.level });
+      liveSocket.emit('live:chat', {
+        channel: channelId(),
+        text: t,
+        lvl: lvlInfo.level,
+        scope,
+        broadcast: chatRegionFilter === 'broadcast',
+      });
     }
     rememberChatMessage(optimistic);
     renderChatFeed();
+    updateCharCount();
   }
 
   function bindChatTabs() {
@@ -1900,13 +2130,16 @@
   }
 
   function bindCommonControls(pageType) {
-    injectLiveOverlays();
+    if (window.__apCommonBound) return;
+    window.__apCommonBound = true;
+    prepareLiveUiShell();
     bindRoomAvatars();
     document.getElementById('partyClose')?.addEventListener('click', exitRoom);
     document.getElementById('liveClose')?.addEventListener('click', exitRoom);
 
     document.getElementById('partyBtnTools')?.addEventListener('click', () => {
       document.getElementById('partyToolsSheet')?.classList.add('open');
+      clearMessageBadge();
     });
     document.getElementById('partyToolsClose')?.addEventListener('click', () => {
       document.getElementById('partyToolsSheet')?.classList.remove('open');
@@ -1955,11 +2188,13 @@
     };
     document.getElementById('partyBtnFollow')?.addEventListener('click', toggleFollow);
     document.getElementById('partyHostFollow')?.addEventListener('click', toggleFollow);
-
-    document.getElementById('partyBtnFollow')?.addEventListener('click', toggleFollow);
     document.getElementById('liveBtnFollow')?.addEventListener('click', toggleFollow);
 
     document.getElementById('liveBtnMic')?.addEventListener('click', () => handleMicButton());
+
+    document.querySelectorAll('.ap-tool-msg').forEach((link) => {
+      link.addEventListener('click', clearMessageBadge);
+    });
 
     document.getElementById('partyBtnSound')?.addEventListener('click', () => {
       soundOn = !soundOn;
@@ -2034,13 +2269,19 @@
     chatSend?.addEventListener('click', () => {
       sendChat(chatInput?.value);
       if (chatInput) chatInput.value = '';
+      updateCharCount();
     });
     chatInput?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         sendChat(chatInput.value);
         chatInput.value = '';
+        updateCharCount();
       }
     });
+    chatInput?.addEventListener('input', updateCharCount);
+    chatInput?.addEventListener('focus', () => toggleChatPanel(true));
+    document.querySelector('.party-chat-zone')?.addEventListener('click', () => toggleChatPanel(true));
+    document.querySelector('.party-chat-feed')?.addEventListener('click', () => toggleChatPanel(true));
 
     bindChatTabs();
     bindGiftSheet();
@@ -2214,12 +2455,10 @@
           <div class="gift-grid" id="giftGrid"></div>
           <div class="gift-qty-row">
             <div class="gift-qty-btns">
-              <button type="button" data-qty="1" class="active">x1</button>
-              <button type="button" data-qty="5">x5</button>
-              <button type="button" data-qty="10">x10</button>
-              <button type="button" data-qty="20">x20</button>
-              <button type="button" data-qty="50">x50</button>
-              <button type="button" data-qty="100">x100</button>
+              <button type="button" data-qty="1" class="active">1</button>
+              <button type="button" data-qty="10">10</button>
+              <button type="button" data-qty="50">50</button>
+              <button type="button" data-qty="100">100</button>
             </div>
             <button type="button" class="gift-send-btn" id="giftSendBtn">Send</button>
           </div>
@@ -2615,6 +2854,7 @@
 
   document.addEventListener('DOMContentLoaded', () => {
     const page = document.body?.dataset?.livePage;
+    if (page === 'party-room' || page === 'live-room') prepareLiveUiShell();
     if (page === 'party-room') initPartyRoom();
     if (page === 'live-room') initLiveRoom();
     if (page === 'lucky-gifts') initLuckyGifts();
