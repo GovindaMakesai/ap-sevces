@@ -3,7 +3,8 @@
  * API/auth always use production HTTPS (same as app.js in native app).
  */
 (function () {
-  const PRODUCTION_ORIGIN = 'https://ap-sevces.onrender.com';
+  const PRODUCTION_ORIGIN =
+    (window.AP_CONFIG && window.AP_CONFIG.PRODUCTION_BACKEND_URL) || 'http://62.72.56.74:5000';
 
   function getAuthOrigin() {
     if (window.__AP_API_URL__) {

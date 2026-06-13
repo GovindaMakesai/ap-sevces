@@ -1,5 +1,5 @@
 /**
- * Serves frontend/ and proxies /api + /auth to Render (optional LAN dev helper).
+ * Serves frontend/ and proxies /api, /auth, and /socket.io to production VPS.
  */
 const http = require('http');
 const https = require('https');
@@ -7,9 +7,13 @@ const fs = require('fs');
 const path = require('path');
 const { URL } = require('url');
 
+const apiConfig = require('../../config/production-api');
+
 const PORT = 5500;
 const HOST = '0.0.0.0';
-const API_HOST = 'ap-sevces.onrender.com';
+const API_HOST = process.env.AP_API_HOST || new URL(apiConfig.BACKEND_URL).hostname;
+const API_PORT = Number(process.env.AP_API_PORT || new URL(apiConfig.BACKEND_URL).port || 5000);
+const API_USE_HTTPS = process.env.AP_API_USE_HTTPS === 'true' || apiConfig.BACKEND_URL.startsWith('https:');
 const FRONTEND_DIR = path.join(__dirname, '..', '..', 'frontend');
 
 const MIME = {
@@ -28,7 +32,7 @@ const MIME = {
 };
 
 function cleanProxyHeaders(reqHeaders) {
-  const h = { ...reqHeaders, host: API_HOST };
+  const h = { ...reqHeaders, host: API_USE_HTTPS ? API_HOST : `${API_HOST}:${API_PORT}` };
   delete h.connection;
   delete h['content-length'];
   delete h['transfer-encoding'];
@@ -36,15 +40,16 @@ function cleanProxyHeaders(reqHeaders) {
 }
 
 function proxyToApi(req, res) {
+  const lib = API_USE_HTTPS ? https : http;
   const opts = {
     hostname: API_HOST,
-    port: 443,
+    port: API_USE_HTTPS ? 443 : API_PORT,
     path: req.url,
     method: req.method,
     headers: cleanProxyHeaders(req.headers),
   };
 
-  const proxyReq = https.request(opts, (proxyRes) => {
+  const proxyReq = lib.request(opts, (proxyRes) => {
     const headers = { ...proxyRes.headers };
     const origin = req.headers.origin;
     if (origin) {
@@ -64,6 +69,36 @@ function proxyToApi(req, res) {
   });
 
   req.pipe(proxyReq);
+}
+
+function proxyWebSocket(req, socket, head) {
+  const lib = API_USE_HTTPS ? https : http;
+  const opts = {
+    hostname: API_HOST,
+    port: API_USE_HTTPS ? 443 : API_PORT,
+    path: req.url,
+    method: req.method,
+    headers: cleanProxyHeaders(req.headers),
+  };
+
+  const proxyReq = lib.request(opts);
+  proxyReq.on('upgrade', (proxyRes, proxySocket, proxyHead) => {
+    const headerLines = [`HTTP/1.1 ${proxyRes.statusCode} ${proxyRes.statusMessage}`];
+    for (const [key, value] of Object.entries(proxyRes.headers)) {
+      if (Array.isArray(value)) value.forEach((v) => headerLines.push(`${key}: ${v}`));
+      else headerLines.push(`${key}: ${value}`);
+    }
+    socket.write(`${headerLines.join('\r\n')}\r\n\r\n`);
+    if (proxyHead?.length) proxySocket.write(proxyHead);
+    if (head?.length) proxySocket.write(head);
+    proxySocket.pipe(socket);
+    socket.pipe(proxySocket);
+  });
+  proxyReq.on('error', (err) => {
+    console.error('[dev-server] websocket proxy error:', err.message);
+    socket.destroy();
+  });
+  proxyReq.end();
 }
 
 function serveStatic(req, res) {
@@ -110,6 +145,15 @@ const server = http.createServer((req, res) => {
   serveStatic(req, res);
 });
 
+server.on('upgrade', (req, socket, head) => {
+  const url = req.url || '';
+  if (url.startsWith('/socket.io')) {
+    proxyWebSocket(req, socket, head);
+    return;
+  }
+  socket.destroy();
+});
+
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
     console.error(`\n[dev-server] Port ${PORT} is already in use.`);
@@ -122,8 +166,10 @@ server.on('error', (err) => {
   process.exit(1);
 });
 
+const proxyTarget = API_USE_HTTPS ? `https://${API_HOST}` : `http://${API_HOST}:${API_PORT}`;
+
 server.listen(PORT, HOST, () => {
-  console.log(`[dev-server] http://${HOST}:${PORT} → frontend + API proxy → ${API_HOST}`);
+  console.log(`[dev-server] http://${HOST}:${PORT} → frontend + API/socket proxy → ${proxyTarget}`);
 });
 
 module.exports = server;

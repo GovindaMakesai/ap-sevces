@@ -2,8 +2,19 @@
 // AP Services Frontend - Complete Working Version with FormData Support
 
 // ==================== CONFIGURATION ====================
-const LIVE_FRONTEND_URL = 'https://ap-sevces.vercel.app';
-const LIVE_API_URL = 'https://ap-sevces.onrender.com/api';
+const AP = window.AP_CONFIG || {
+    PRODUCTION_BACKEND_URL: 'http://62.72.56.74:5000',
+    PRODUCTION_API_URL: 'http://62.72.56.74:5000/api',
+    PRODUCTION_FRONTEND_URL: 'https://ap-sevces.vercel.app',
+    LEGACY_RENDER_BACKEND_URL: 'https://ap-sevces.onrender.com',
+    LEGACY_RENDER_API_URL: 'https://ap-sevces.onrender.com/api',
+};
+window.AP_CONFIG = AP;
+
+const LIVE_FRONTEND_URL = AP.PRODUCTION_FRONTEND_URL;
+const LIVE_API_URL = AP.PRODUCTION_API_URL;
+const LIVE_BACKEND_URL = AP.PRODUCTION_BACKEND_URL;
+const LEGACY_API_URL = AP.LEGACY_RENDER_API_URL;
 const LOCAL_API_URL = 'http://localhost:5000/api';
 const LOCAL_FRONTEND_URL = 'http://localhost:5500';
 
@@ -21,20 +32,29 @@ function isLanDevHost() {
     );
 }
 
+function isVercelHost() {
+    return /\.vercel\.app$/i.test(window.location.hostname || '');
+}
+
 function resolveApiUrl() {
     if (typeof window.__AP_API_URL__ === 'string' && window.__AP_API_URL__) {
         return window.__AP_API_URL__.replace(/\/$/, '');
     }
-    // Native app: always use HTTPS production API (avoids Android HTTP block + LAN CORS).
     if (IS_EXPO_WEBVIEW || IS_CAPACITOR || window.__AP_NATIVE_APP__) {
         return LIVE_API_URL;
     }
-    // Desktop browser on LAN with dev proxy
     if (isLanDevHost() && (window.location.port === '5500' || window.location.port === '')) {
+        return `${window.location.origin.replace(/\/$/, '')}/api`;
+    }
+    if (isVercelHost()) {
         return `${window.location.origin.replace(/\/$/, '')}/api`;
     }
     if (IS_LOCAL) return LOCAL_API_URL;
     return LIVE_API_URL;
+}
+
+function resolveBackendUrl() {
+    return resolveApiUrl().replace(/\/api\/?$/, '');
 }
 
 function isNativeAppContext() {
@@ -46,12 +66,14 @@ function isNativeAppContext() {
 
 const CONFIG = {
     API_URL: resolveApiUrl(),
-    FRONTEND_URL: IS_LOCAL ? LOCAL_FRONTEND_URL : LIVE_FRONTEND_URL
+    BACKEND_URL: resolveBackendUrl(),
+    FRONTEND_URL: IS_LOCAL ? LOCAL_FRONTEND_URL : LIVE_FRONTEND_URL,
 };
-CONFIG.BACKEND_URL = CONFIG.API_URL.replace(/\/api\/?$/, '');
+window.CONFIG = CONFIG;
 
 console.log('🚀 App.js loaded');
 console.log('📡 API URL:', CONFIG.API_URL);
+console.log('🔌 Backend URL:', CONFIG.BACKEND_URL);
 
 // ==================== STATE MANAGEMENT ====================
 const AppState = {
@@ -65,8 +87,8 @@ const AppState = {
 const API = {
     async request(endpoint, options = {}) {
         const bases = [CONFIG.API_URL];
-        if (!CONFIG.API_URL.includes('ap-sevces.onrender.com')) {
-            bases.push(LIVE_API_URL);
+        if (CONFIG.API_URL !== LEGACY_API_URL) {
+            bases.push(LEGACY_API_URL);
         }
 
         let lastError = null;
@@ -82,7 +104,7 @@ const API = {
                 if (!isNetwork || base === bases[bases.length - 1]) {
                     throw this._friendlyNetworkError(error, `${base}${endpoint}`);
                 }
-                console.warn('API retry via production:', LIVE_API_URL);
+                console.warn('API retry via legacy Render:', LEGACY_API_URL);
             }
         }
         throw this._friendlyNetworkError(lastError, `${CONFIG.API_URL}${endpoint}`);

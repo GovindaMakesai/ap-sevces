@@ -2446,7 +2446,7 @@ body.ap-keyboard-open .party-bottom-bar {
   top: 72px;
   right: 8px;
   z-index: 99999;
-  width: min(240px, calc(100vw - 16px));
+  width: min(260px, calc(100vw - 16px));
   max-height: min(420px, calc(100vh - 88px));
   overflow: hidden;
   display: flex;

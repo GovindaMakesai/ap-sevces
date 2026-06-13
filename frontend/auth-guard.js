@@ -74,7 +74,8 @@
       const api =
         (typeof window.__AP_API_URL__ === 'string' && window.__AP_API_URL__) ||
         (window.CONFIG && CONFIG.API_URL) ||
-        'https://ap-sevces.onrender.com/api';
+        (window.AP_CONFIG && AP_CONFIG.PRODUCTION_API_URL) ||
+        'http://62.72.56.74:5000/api';
       const res = await fetch(api + '/auth/me', {
         headers: { Authorization: 'Bearer ' + token },
       });

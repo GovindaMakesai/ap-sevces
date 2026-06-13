@@ -262,11 +262,22 @@
   }
 
   function socketBase() {
-    const api =
-      (typeof window.__AP_API_URL__ === 'string' && window.__AP_API_URL__) ||
-      (window.CONFIG && CONFIG.API_URL) ||
-      'https://ap-sevces.onrender.com/api';
-    return api.replace(/\/api\/?$/, '');
+    if (typeof window.__AP_SOCKET_URL__ === 'string' && window.__AP_SOCKET_URL__) {
+      return window.__AP_SOCKET_URL__.replace(/\/$/, '');
+    }
+    if (typeof window.__AP_API_URL__ === 'string' && window.__AP_API_URL__) {
+      return window.__AP_API_URL__.replace(/\/api\/?$/, '');
+    }
+    const h = window.location.hostname || '';
+    const port = window.location.port || '';
+    const isLanDev =
+      (h === 'localhost' || h === '127.0.0.1' || /^192\.168\.\d{1,3}\.\d{1,3}$/.test(h) || /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(h)) &&
+      port === '5500';
+    if (isLanDev) {
+      return window.location.origin.replace(/\/$/, '');
+    }
+    if (window.CONFIG?.BACKEND_URL) return window.CONFIG.BACKEND_URL;
+    return (window.AP_CONFIG && window.AP_CONFIG.PRODUCTION_BACKEND_URL) || 'http://62.72.56.74:5000';
   }
 
   /* ---------- Live debug panel ---------- */
@@ -275,6 +286,8 @@
   const liveDebugState = {
     channel: '—',
     role: '—',
+    apiUrl: '—',
+    socketUrl: '—',
     socketConnected: false,
     roomJoined: false,
     agoraJoined: false,
@@ -295,6 +308,8 @@
     el.innerHTML =
       `<div class="ap-live-debug-title">LIVE DEBUG</div>
        <dl class="ap-live-debug-grid">
+         <dt>API</dt><dd id="apDbgApi">—</dd>
+         <dt>Socket</dt><dd id="apDbgSocketUrl">—</dd>
          <dt>Channel</dt><dd id="apDbgChannel">—</dd>
          <dt>User role</dt><dd id="apDbgRole">—</dd>
          <dt>Socket connected</dt><dd id="apDbgSocket">—</dd>
@@ -323,11 +338,19 @@
     Object.assign(liveDebugState, partial);
     liveDebugState.channel = channelId() || liveDebugState.channel;
     liveDebugState.role = isHost() ? 'host' : 'viewer';
+    liveDebugState.apiUrl =
+      (window.CONFIG && CONFIG.API_URL) ||
+      (window.__AP_API_URL__ && String(window.__AP_API_URL__)) ||
+      (window.AP_CONFIG && AP_CONFIG.PRODUCTION_API_URL) ||
+      liveDebugState.apiUrl;
+    liveDebugState.socketUrl = socketBase();
     liveDebugState.remoteUsersCount = remoteUsers.size;
     const set = (id, text) => {
       const node = document.getElementById(id);
       if (node) node.textContent = text;
     };
+    set('apDbgApi', liveDebugState.apiUrl);
+    set('apDbgSocketUrl', liveDebugState.socketUrl);
     set('apDbgChannel', liveDebugState.channel);
     set('apDbgRole', liveDebugState.role);
     set('apDbgSocket', dbgYesNo(liveDebugState.socketConnected));
