@@ -54,6 +54,18 @@ function resolveApiUrl() {
 }
 
 function resolveBackendUrl() {
+    if (typeof window.__AP_API_URL__ === 'string' && window.__AP_API_URL__) {
+        return window.__AP_API_URL__.replace(/\/api\/?$/, '');
+    }
+    if (IS_EXPO_WEBVIEW || IS_CAPACITOR || window.__AP_NATIVE_APP__) {
+        return LIVE_BACKEND_URL;
+    }
+    if (isVercelHost()) {
+        return LIVE_BACKEND_URL;
+    }
+    if (isLanDevHost() && (window.location.port === '5500' || window.location.port === '')) {
+        return window.location.origin.replace(/\/$/, '');
+    }
     return resolveApiUrl().replace(/\/api\/?$/, '');
 }
 

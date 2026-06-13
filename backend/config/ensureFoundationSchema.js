@@ -1,14 +1,14 @@
-const fs = require('fs');
+﻿const fs = require('fs');
 const path = require('path');
 const db = require('./database');
 
 /**
  * Applies foundation migration SQL idempotently on startup.
- * Safe for existing deployments — uses IF NOT EXISTS throughout.
+ * Safe for existing deployments ΓÇö uses IF NOT EXISTS throughout.
  */
 async function ensureFoundationSchema() {
   if (process.env.SKIP_DB_SCHEMA_ENSURE === 'true') {
-    console.log('⏭️  SKIP_DB_SCHEMA_ENSURE — skipping foundation schema');
+    console.log('ΓÅ¡∩╕Å  SKIP_DB_SCHEMA_ENSURE ΓÇö skipping foundation schema');
     return;
   }
 
@@ -17,7 +17,7 @@ async function ensureFoundationSchema() {
     WHERE table_schema = 'public' AND table_name = 'users' LIMIT 1
   `);
   if (!usersOk.rows.length) {
-    console.warn('⚠️  users table missing — run database/schema.sql first');
+    console.warn('ΓÜá∩╕Å  users table missing ΓÇö run database/schema.sql first');
     return;
   }
 
@@ -30,10 +30,10 @@ async function ensureFoundationSchema() {
     await client.query(sql);
     await seedRolesAndPermissions(client);
     await client.query('COMMIT');
-    console.log('✅ Foundation schema ready (wallets, live rooms, RBAC)');
+    console.log('Γ£à Foundation schema ready (wallets, live rooms, RBAC)');
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('❌ ensureFoundationSchema failed:', err.message);
+    console.error('Γ¥î ensureFoundationSchema failed:', err.message);
     throw err;
   } finally {
     client.release();
@@ -44,7 +44,7 @@ async function seedRolesAndPermissions(client) {
   const roles = [
     ['customer', 'Customer', 'Marketplace customer'],
     ['worker', 'Worker', 'Service professional'],
-    ['admin', 'Admin', 'Legacy admin — maps to super_admin permissions'],
+    ['admin', 'Admin', 'Legacy admin ΓÇö maps to super_admin permissions'],
     ['founder', 'Founder', 'Platform founder'],
     ['ceo', 'CEO', 'Chief executive'],
     ['super_admin', 'Super Admin', 'Full platform control'],
@@ -85,7 +85,7 @@ async function seedRolesAndPermissions(client) {
   }
 
   const rolePermMap = {
-    customer: ['wallet.read', 'wallet.recharge', 'wallet.withdraw', 'wallet.gift', 'live.join'],
+    customer: ['wallet.read', 'wallet.recharge', 'wallet.withdraw', 'wallet.gift', 'live.join', 'live.host'],
     worker: ['wallet.read', 'wallet.recharge', 'wallet.withdraw', 'wallet.gift', 'live.join', 'live.host'],
     creator: ['wallet.read', 'wallet.recharge', 'wallet.withdraw', 'wallet.gift', 'live.join', 'live.host'],
     admin: ['wallet.read', 'wallet.recharge', 'wallet.withdraw', 'wallet.gift', 'live.join', 'live.host', 'admin.wallet', 'admin.withdrawals', 'admin.recharges', 'admin.users'],
@@ -94,7 +94,7 @@ async function seedRolesAndPermissions(client) {
     ceo: ['wallet.read', 'wallet.recharge', 'wallet.withdraw', 'wallet.gift', 'live.join', 'live.host', 'admin.wallet', 'admin.withdrawals', 'admin.recharges', 'admin.users'],
     bdm: ['wallet.read', 'live.join'],
     agency: ['wallet.read', 'wallet.recharge', 'wallet.withdraw', 'live.join', 'live.host'],
-    vip_user: ['wallet.read', 'wallet.recharge', 'wallet.gift', 'live.join'],
+    vip_user: ['wallet.read', 'wallet.recharge', 'wallet.gift', 'live.join', 'live.host'],
     coin_seller: ['wallet.read', 'wallet.recharge', 'admin.wallet'],
   };
 

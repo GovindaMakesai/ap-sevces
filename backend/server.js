@@ -1,4 +1,4 @@
-// backend/server.js — AP Services production entry
+﻿// backend/server.js ΓÇö AP Services production entry
 
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
@@ -132,7 +132,13 @@ app.use(notFoundHandler);
 app.use(errorHandler);
 
 const io = new Server(server, {
-  cors: { origin: allowedOrigins, credentials: true },
+  cors: {
+    origin(origin, callback) {
+      if (isAllowedCorsOrigin(origin)) return callback(null, true);
+      return callback(null, false);
+    },
+    credentials: true,
+  },
 });
 app.set('io', io);
 registerChatSocket(io);

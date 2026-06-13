@@ -1,5 +1,5 @@
-/**
- * Live socket — JWT auth, DB-backed rooms, server-side gift debits.
+﻿/**
+ * Live socket ΓÇö JWT auth, DB-backed rooms, server-side gift debits.
  * TODO: Redis adapter for multi-instance socket scaling.
  */
 const jwt = require('jsonwebtoken');
@@ -145,7 +145,7 @@ function registerLiveSocket(io) {
     socket.on('live:gift', async (payload, ack) => {
       try {
         if (!rateLimit(socket, 'gift', MAX_GIFT_PER_WINDOW)) {
-          if (ack) ack({ ok: false, message: 'Too many gifts — slow down' });
+          if (ack) ack({ ok: false, message: 'Too many gifts ΓÇö slow down' });
           return;
         }
 
@@ -186,7 +186,7 @@ function registerLiveSocket(io) {
           id: result.gift.id,
           from: socket.data.liveDisplayName || 'User',
           to: String(payload?.to || room.host_display_name || 'Host').slice(0, 32),
-          emoji: payload?.emoji || '🎁',
+          emoji: payload?.emoji || '≡ƒÄü',
           amount: coinAmount,
           at: Date.now(),
         };

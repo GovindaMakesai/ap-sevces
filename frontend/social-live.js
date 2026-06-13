@@ -1,86 +1,86 @@
-/**
- * Party room (voice grid) + Live room (video) — Agora + Socket.io
+﻿/**
+ * Party room (voice grid) + Live room (video) ΓÇö Agora + Socket.io
  */
 (function () {
   const GIFT_CATALOG = {
     gift: [
-      { emoji: '❤️', name: 'Heart', cost: 10 },
-      { emoji: '👍', name: 'Like', cost: 20 },
-      { emoji: '💐', name: 'Flowers', cost: 50 },
-      { emoji: '🌹', name: 'Rose', cost: 100 },
-      { emoji: '🎺', name: 'Whistle', cost: 100 },
-      { emoji: '📯', name: 'Soccer horn', cost: 2000, tag: 'Lucky' },
-      { emoji: '🏆', name: 'Football trophy', cost: 50000, tag: 'Activity' },
-      { emoji: '⚽', name: 'Last goal', cost: 500000, tag: 'Activity' },
-      { emoji: '👋', name: 'Hi', cost: 500, tag: 'Hi~' },
-      { emoji: '☕', name: 'Coffee', cost: 500 },
-      { emoji: '🍦', name: 'Ice Cream', cost: 1000 },
-      { emoji: '🎁', name: 'Lucky Box', cost: 2500, tag: 'Lucky' },
+      { emoji: 'Γ¥ñ∩╕Å', name: 'Heart', cost: 10 },
+      { emoji: '≡ƒæì', name: 'Like', cost: 20 },
+      { emoji: '≡ƒÆÉ', name: 'Flowers', cost: 50 },
+      { emoji: '≡ƒî╣', name: 'Rose', cost: 100 },
+      { emoji: '≡ƒÄ║', name: 'Whistle', cost: 100 },
+      { emoji: '≡ƒô»', name: 'Soccer horn', cost: 2000, tag: 'Lucky' },
+      { emoji: '≡ƒÅå', name: 'Football trophy', cost: 50000, tag: 'Activity' },
+      { emoji: 'ΓÜ╜', name: 'Last goal', cost: 500000, tag: 'Activity' },
+      { emoji: '≡ƒæï', name: 'Hi', cost: 500, tag: 'Hi~' },
+      { emoji: 'Γÿò', name: 'Coffee', cost: 500 },
+      { emoji: '≡ƒìª', name: 'Ice Cream', cost: 1000 },
+      { emoji: '≡ƒÄü', name: 'Lucky Box', cost: 2500, tag: 'Lucky' },
     ],
     lucky: [
-      { emoji: '🍒', name: 'Cherry', cost: 50, tag: 'Lucky' },
-      { emoji: '🌹', name: 'Rose', cost: 10 },
-      { emoji: '💫', name: 'Pop pass', cost: 250, tag: 'Lucky' },
-      { emoji: '🎲', name: 'Lucky dice', cost: 500, tag: 'Lucky' },
+      { emoji: '≡ƒìÆ', name: 'Cherry', cost: 50, tag: 'Lucky' },
+      { emoji: '≡ƒî╣', name: 'Rose', cost: 10 },
+      { emoji: '≡ƒÆ½', name: 'Pop pass', cost: 250, tag: 'Lucky' },
+      { emoji: '≡ƒÄ▓', name: 'Lucky dice', cost: 500, tag: 'Lucky' },
     ],
     new: [
-      { emoji: '🌹', name: 'Rose', cost: 10 },
-      { emoji: '💎', name: 'Diamond', cost: 500 },
-      { emoji: '🚀', name: 'Rocket', cost: 1000 },
-      { emoji: '🎆', name: 'Fireworks', cost: 5000, tag: 'New' },
+      { emoji: '≡ƒî╣', name: 'Rose', cost: 10 },
+      { emoji: '≡ƒÆÄ', name: 'Diamond', cost: 500 },
+      { emoji: '≡ƒÜÇ', name: 'Rocket', cost: 1000 },
+      { emoji: '≡ƒÄå', name: 'Fireworks', cost: 5000, tag: 'New' },
     ],
     island: [
-      { emoji: '🐚', name: 'Glow Conch', cost: 500, tag: 'Island' },
-      { emoji: '⭐', name: 'Star Shell', cost: 5000, tag: 'Island' },
-      { emoji: '🧺', name: 'Fruit Basket', cost: 10000, tag: 'Island' },
-      { emoji: '🔥', name: 'Beach Fire', cost: 50000, tag: 'Island' },
-      { emoji: '🧚', name: 'Jungle Elf', cost: 300000, tag: 'Island' },
-      { emoji: '🏝️', name: 'Private Isle', cost: 1200000, tag: 'Island' },
+      { emoji: '≡ƒÉÜ', name: 'Glow Conch', cost: 500, tag: 'Island' },
+      { emoji: 'Γ¡É', name: 'Star Shell', cost: 5000, tag: 'Island' },
+      { emoji: '≡ƒº║', name: 'Fruit Basket', cost: 10000, tag: 'Island' },
+      { emoji: '≡ƒöÑ', name: 'Beach Fire', cost: 50000, tag: 'Island' },
+      { emoji: '≡ƒºÜ', name: 'Jungle Elf', cost: 300000, tag: 'Island' },
+      { emoji: '≡ƒÅ¥∩╕Å', name: 'Private Isle', cost: 1200000, tag: 'Island' },
     ],
     fan: [
-      { emoji: '🎫', name: 'Pop pass', cost: 100, tag: 'Fans' },
-      { emoji: '💡', name: 'Fan Light Board', cost: 100, tag: 'Hot' },
-      { emoji: '🎂', name: 'Chocolate Cake', cost: 10000, tag: 'Fans' },
-      { emoji: '😂', name: 'Ha Ha Ha', cost: 1000, tag: 'Fans' },
-      { emoji: '💐', name: 'Flowers', cost: 1000, tag: 'Fans' },
-      { emoji: '👋', name: "I'm here", cost: 1000, tag: 'Fans' },
-      { emoji: '🤦', name: 'Face palm', cost: 1000, tag: 'Fans' },
-      { emoji: '🎁', name: 'Surprise box', cost: 50000, tag: 'Fans' },
+      { emoji: '≡ƒÄ½', name: 'Pop pass', cost: 100, tag: 'Fans' },
+      { emoji: '≡ƒÆí', name: 'Fan Light Board', cost: 100, tag: 'Hot' },
+      { emoji: '≡ƒÄé', name: 'Chocolate Cake', cost: 10000, tag: 'Fans' },
+      { emoji: '≡ƒÿé', name: 'Ha Ha Ha', cost: 1000, tag: 'Fans' },
+      { emoji: '≡ƒÆÉ', name: 'Flowers', cost: 1000, tag: 'Fans' },
+      { emoji: '≡ƒæï', name: "I'm here", cost: 1000, tag: 'Fans' },
+      { emoji: '≡ƒñª', name: 'Face palm', cost: 1000, tag: 'Fans' },
+      { emoji: '≡ƒÄü', name: 'Surprise box', cost: 50000, tag: 'Fans' },
     ],
     privilege: [
-      { emoji: '👑', name: 'Crown', cost: 5000, tag: 'VIP' },
-      { emoji: '🌹', name: 'Rose Bouquet', cost: 8000, tag: 'VIP' },
-      { emoji: '🧸', name: 'Teddy Bear', cost: 15000, tag: 'VIP' },
-      { emoji: '🚗', name: 'Luxury Car', cost: 80000, tag: 'VIP' },
-      { emoji: '🎂', name: 'Birthday Cake', cost: 10000, tag: 'VIP' },
-      { emoji: '🦁', name: 'Lion King', cost: 700000, tag: 'VIP' },
-      { emoji: '🐉', name: 'Golden Dragon', cost: 900000, tag: 'VIP' },
-      { emoji: '🛥️', name: 'Yacht Voyage', cost: 1500000, tag: 'VIP' },
-      { emoji: '🏎️', name: 'Super Car', cost: 1200000, tag: 'VIP' },
-      { emoji: '🏰', name: 'Crystal Palace', cost: 2000000, tag: 'VIP' },
-      { emoji: '🌌', name: 'Romantic Nebula', cost: 300000, tag: 'VIP' },
+      { emoji: '≡ƒææ', name: 'Crown', cost: 5000, tag: 'VIP' },
+      { emoji: '≡ƒî╣', name: 'Rose Bouquet', cost: 8000, tag: 'VIP' },
+      { emoji: '≡ƒº╕', name: 'Teddy Bear', cost: 15000, tag: 'VIP' },
+      { emoji: '≡ƒÜù', name: 'Luxury Car', cost: 80000, tag: 'VIP' },
+      { emoji: '≡ƒÄé', name: 'Birthday Cake', cost: 10000, tag: 'VIP' },
+      { emoji: '≡ƒªü', name: 'Lion King', cost: 700000, tag: 'VIP' },
+      { emoji: '≡ƒÉë', name: 'Golden Dragon', cost: 900000, tag: 'VIP' },
+      { emoji: '≡ƒ¢Ñ∩╕Å', name: 'Yacht Voyage', cost: 1500000, tag: 'VIP' },
+      { emoji: '≡ƒÅÄ∩╕Å', name: 'Super Car', cost: 1200000, tag: 'VIP' },
+      { emoji: '≡ƒÅ░', name: 'Crystal Palace', cost: 2000000, tag: 'VIP' },
+      { emoji: '≡ƒîî', name: 'Romantic Nebula', cost: 300000, tag: 'VIP' },
     ],
     fun: [
-      { emoji: '🍋', name: 'Lemon', cost: 2400, tag: 'Lucky' },
-      { emoji: '🥝', name: 'Kiwi', cost: 2400, tag: 'Lucky Lit' },
-      { emoji: '🍳', name: 'Eggs', cost: 120, tag: 'Hot' },
-      { emoji: '⭐', name: 'Cheer stick', cost: 120, tag: 'Hot' },
-      { emoji: '📦', name: 'Fortune Blind Box', cost: 2000, tag: 'Lucky' },
-      { emoji: '💝', name: 'Love Blind Box', cost: 10000, tag: 'Lucky' },
+      { emoji: '≡ƒìï', name: 'Lemon', cost: 2400, tag: 'Lucky' },
+      { emoji: '≡ƒÑ¥', name: 'Kiwi', cost: 2400, tag: 'Lucky Lit' },
+      { emoji: '≡ƒì│', name: 'Eggs', cost: 120, tag: 'Hot' },
+      { emoji: 'Γ¡É', name: 'Cheer stick', cost: 120, tag: 'Hot' },
+      { emoji: '≡ƒôª', name: 'Fortune Blind Box', cost: 2000, tag: 'Lucky' },
+      { emoji: '≡ƒÆ¥', name: 'Love Blind Box', cost: 10000, tag: 'Lucky' },
     ],
   };
 
   const QUICK_CHIP_DEFS = [
-    { id: 'hi', label: '🌹 Hi there!', send: '🌹 Hi there!' },
+    { id: 'hi', label: '≡ƒî╣ Hi there!', send: '≡ƒî╣ Hi there!' },
     { id: 'follow', label: 'Plz Follow+', action: 'follow' },
     { id: 'lol', label: 'LOL~', send: 'LOL~' },
-    { id: 'like', label: 'I like it❤️', send: 'I like it❤️' },
+    { id: 'like', label: 'I like itΓ¥ñ∩╕Å', send: 'I like itΓ¥ñ∩╕Å' },
     { id: 'dance', label: 'Dance~', send: 'Dance~' },
-    { id: 'talent', label: '100% Talented👍', send: '100% Talented👍' },
-    { id: 'hot', label: 'Hot girl🔥', send: 'Hot girl🔥' },
+    { id: 'talent', label: '100% Talented≡ƒæì', send: '100% Talented≡ƒæì' },
+    { id: 'hot', label: 'Hot girl≡ƒöÑ', send: 'Hot girl≡ƒöÑ' },
     { id: 'bravo', label: 'Bravo', send: 'Bravo' },
   ];
-  const EMOJI_PICKS = ['😀', '😂', '❤️', '🔥', '👍', '🎉', '💯', '🌹', '💐', '🎁', '👏', '😍', '🙏', '💪', '✨'];
+  const EMOJI_PICKS = ['≡ƒÿÇ', '≡ƒÿé', 'Γ¥ñ∩╕Å', '≡ƒöÑ', '≡ƒæì', '≡ƒÄë', '≡ƒÆ»', '≡ƒî╣', '≡ƒÆÉ', '≡ƒÄü', '≡ƒæÅ', '≡ƒÿì', '≡ƒÖÅ', '≡ƒÆ¬', 'Γ£¿'];
   let quickChipsExpanded = false;
   let chatRegionFilter = 'broadcast';
   let sessionGiftCoins = 0;
@@ -202,8 +202,8 @@
     if (hosting) {
       el.innerHTML =
         mode === 'audio'
-          ? '<i class="fas fa-microphone"></i> HOSTING · VOICE'
-          : '<i class="fas fa-video"></i> HOSTING · VIDEO';
+          ? '<i class="fas fa-microphone"></i> HOSTING ┬╖ VOICE'
+          : '<i class="fas fa-video"></i> HOSTING ┬╖ VIDEO';
     } else if (mode === 'audio') {
       el.innerHTML = '<i class="fas fa-microphone"></i> VOICE LIVE';
     } else {
@@ -283,7 +283,12 @@
     if (isLanDev) {
       return window.location.origin.replace(/\/$/, '');
     }
-    if (window.CONFIG?.BACKEND_URL) return window.CONFIG.BACKEND_URL;
+    if (/\.vercel\.app$/i.test(h)) {
+      return (window.AP_CONFIG && window.AP_CONFIG.PRODUCTION_BACKEND_URL) || 'http://62.72.56.74:5000';
+    }
+    if (window.CONFIG?.BACKEND_URL && !/vercel\.app/i.test(window.CONFIG.BACKEND_URL)) {
+      return window.CONFIG.BACKEND_URL;
+    }
     return (window.AP_CONFIG && window.AP_CONFIG.PRODUCTION_BACKEND_URL) || 'http://62.72.56.74:5000';
   }
 
@@ -291,10 +296,10 @@
   const remoteUsers = new Map();
 
   const liveDebugState = {
-    channel: '—',
-    role: '—',
-    apiUrl: '—',
-    socketUrl: '—',
+    channel: 'ΓÇö',
+    role: 'ΓÇö',
+    apiUrl: 'ΓÇö',
+    socketUrl: 'ΓÇö',
     socketConnected: false,
     roomJoined: false,
     agoraJoined: false,
@@ -304,10 +309,10 @@
   };
 
   function dbgYesNo(val) {
-    return val ? '✓ yes' : '✗ no';
+    return val ? 'Γ£ô yes' : 'Γ£ù no';
   }
 
-  /** Dev-only overlay — hidden on Vercel/production unless ?debug=1 or localStorage ap_live_debug=1 */
+  /** Dev-only overlay ΓÇö hidden on Vercel/production unless ?debug=1 or localStorage ap_live_debug=1 */
   function isLiveDebugEnabled() {
     if (window.__AP_LIVE_DEBUG__ === true) return true;
     try {
@@ -333,15 +338,15 @@
     el.innerHTML =
       `<div class="ap-live-debug-title">LIVE DEBUG</div>
        <dl class="ap-live-debug-grid">
-         <dt>API</dt><dd id="apDbgApi">—</dd>
-         <dt>Socket</dt><dd id="apDbgSocketUrl">—</dd>
-         <dt>Channel</dt><dd id="apDbgChannel">—</dd>
-         <dt>User role</dt><dd id="apDbgRole">—</dd>
-         <dt>Socket connected</dt><dd id="apDbgSocket">—</dd>
-         <dt>Room joined</dt><dd id="apDbgRoom">—</dd>
-         <dt>Agora joined</dt><dd id="apDbgAgora">—</dd>
-         <dt>Token received</dt><dd id="apDbgToken">—</dd>
-         <dt>Host publishing</dt><dd id="apDbgPublish">—</dd>
+         <dt>API</dt><dd id="apDbgApi">ΓÇö</dd>
+         <dt>Socket</dt><dd id="apDbgSocketUrl">ΓÇö</dd>
+         <dt>Channel</dt><dd id="apDbgChannel">ΓÇö</dd>
+         <dt>User role</dt><dd id="apDbgRole">ΓÇö</dd>
+         <dt>Socket connected</dt><dd id="apDbgSocket">ΓÇö</dd>
+         <dt>Room joined</dt><dd id="apDbgRoom">ΓÇö</dd>
+         <dt>Agora joined</dt><dd id="apDbgAgora">ΓÇö</dd>
+         <dt>Token received</dt><dd id="apDbgToken">ΓÇö</dd>
+         <dt>Host publishing</dt><dd id="apDbgPublish">ΓÇö</dd>
          <dt>Remote users</dt><dd id="apDbgRemote">0</dd>
        </dl>
        <pre class="ap-live-debug-log" id="apLiveDebugLog" aria-live="polite"></pre>`;
@@ -391,7 +396,7 @@
     ensureLiveDebugPanel();
     const token = localStorage.getItem('token');
     if (!token || typeof io === 'undefined') {
-      liveDebugLog('Socket skipped — missing auth token or socket.io');
+      liveDebugLog('Socket skipped ΓÇö missing auth token or socket.io');
       updateLiveDebug({ socketConnected: false, roomJoined: false });
       return null;
     }
@@ -473,7 +478,7 @@
       pkScoreRight = Number(teams[1]?.team_score || teams[1]?.score || 0);
       window.SocialFX?.pkCountdown?.(5, () => {
         window.SocialFX?.pkScoreUpdate?.(pkScoreLeft, pkScoreRight);
-        window.SocialFX?.pushActivity?.({ type: 'gift', html: '<strong>PK Battle</strong> started! 🔥' });
+        window.SocialFX?.pushActivity?.({ type: 'gift', html: '<strong>PK Battle</strong> started! ≡ƒöÑ' });
       });
     });
 
@@ -514,7 +519,7 @@
       if (res.accepted) {
         hasSpeakerSeat = true;
         hideMicLinkModal();
-        toast('You got a seat — mic is on', 'success');
+        toast('You got a seat ΓÇö mic is on', 'success');
         await publishGuestAudio();
         renderPartySeats(roomState?.hostName);
       } else {
@@ -597,7 +602,7 @@
     if (data.mode === 'mock' || !data.token) {
       throw new Error(
         data.message ||
-          'Agora token unavailable — server returned mock mode or empty token (check AGORA_APP_ID and AGORA_APP_CERTIFICATE)'
+          'Agora token unavailable ΓÇö server returned mock mode or empty token (check AGORA_APP_ID and AGORA_APP_CERTIFICATE)'
       );
     }
     liveDebugLog(`Token OK mode=${data.mode} uid=${data.uid} channel=${data.channel || channel}`);
@@ -657,8 +662,8 @@
     const host = isHost();
     liveDebugLog(`${host ? 'HOST' : 'VIEWER'} startAgora mode=${mode} channel=${ch}`);
     updateLiveDebug({ channel: ch, role: host ? 'host' : 'viewer', hostPublishing: false, agoraJoined: false });
-    showApLoader(host ? 'Starting your broadcast…' : 'Connecting to live…');
-    setLiveStatus('Connecting…', null);
+    showApLoader(host ? 'Starting your broadcastΓÇª' : 'Connecting to liveΓÇª');
+    setLiveStatus('ConnectingΓÇª', null);
 
     let cred;
     try {
@@ -997,7 +1002,7 @@
     let html = visible
       .map((c) => {
         if (c.action === 'follow') {
-          const lbl = followed ? 'Following ✓' : c.label;
+          const lbl = followed ? 'Following Γ£ô' : c.label;
           const cls = followed ? ' ap-chip is-follow-done' : ' ap-chip';
           return `<button type="button" class="${cls.trim()}" data-chip-action="follow">${escapeHtml(lbl)}</button>`;
         }
@@ -1047,7 +1052,7 @@
     if (banner && g) {
       const hostPct = 96;
       const earnPct = 4;
-      banner.innerHTML = `<span>【${escapeHtml(g.name)}】RTP: ${hostPct}%. By gifting, host receives ${earnPct}% · ${Number(g.cost).toLocaleString()} coins each</span>`;
+      banner.innerHTML = `<span>πÇÉ${escapeHtml(g.name)}πÇæRTP: ${hostPct}%. By gifting, host receives ${earnPct}% ┬╖ ${Number(g.cost).toLocaleString()} coins each</span>`;
     }
     const me = currentUser();
     const bal = lastCoinBalance != null ? lastCoinBalance : 0;
@@ -1059,7 +1064,7 @@
     if (lvlEl) lvlEl.textContent = String(lvl);
     const xpText = document.getElementById('giftXpText');
     if (xpText) {
-      xpText.textContent = `+4XP · XP requires: ${xpNeed.toLocaleString()} · Lv.${lvl + 1}`;
+      xpText.textContent = `+4XP ┬╖ XP requires: ${xpNeed.toLocaleString()} ┬╖ Lv.${lvl + 1}`;
     }
     const xpBar = document.getElementById('giftXpBar');
     if (xpBar) xpBar.style.width = userXpProgress + '%';
@@ -1253,7 +1258,7 @@
           : s.host && hosting
             ? '<span class="mic-live"><i class="fas fa-microphone"></i></span>'
             : '';
-        const crown = s.host ? '<span class="seat-crown">👑</span>' : '';
+        const crown = s.host ? '<span class="seat-crown">≡ƒææ</span>' : '';
         const waveBars = s.speaking
           ? '<div class="seat-wave-bars"><span></span><span></span><span></span><span></span></div>'
           : '';
@@ -1267,7 +1272,7 @@
             ${waveBars}
           </div>
           <span class="seat-name">${escapeHtml(s.name)}</span>
-          <span class="seat-gifts">🎁 ${formatGiftCount(s.gifts || 0)}</span>
+          <span class="seat-gifts">≡ƒÄü ${formatGiftCount(s.gifts || 0)}</span>
         </button>`;
       })
       .join('');
@@ -1307,7 +1312,7 @@
     if (window.SocialInteractions?.isFollowing) {
       followed = SocialInteractions.isFollowing(hostId, hostName);
     }
-    const label = followed ? 'Following ✓' : 'Follow +';
+    const label = followed ? 'Following Γ£ô' : 'Follow +';
     const btn = document.getElementById('partyBtnFollow') || document.getElementById('liveBtnFollow');
     const hbtn = document.getElementById('partyHostFollow');
     if (btn) {
@@ -1315,7 +1320,7 @@
       btn.classList.toggle('is-following', followed && !isHost());
     }
     if (hbtn) {
-      hbtn.textContent = followed ? '✓' : '+';
+      hbtn.textContent = followed ? 'Γ£ô' : '+';
       hbtn.style.display = isHost() ? 'none' : '';
     }
     renderQuickChips();
@@ -1334,7 +1339,7 @@
     const hostName = roomState?.hostName || displayName(user);
     const hostEl = document.getElementById('partyHostName') || document.getElementById('liveHostName');
     const hostImg = document.getElementById('partyHostAvatar') || document.getElementById('liveHostAvatar');
-    if (hostEl) hostEl.textContent = hostName.slice(0, 14) + (hostName.length > 14 ? '…' : '');
+    if (hostEl) hostEl.textContent = hostName.slice(0, 14) + (hostName.length > 14 ? 'ΓÇª' : '');
     if (hostImg) {
       hostImg.src = avatarUrl(hostName);
       hostImg.dataset.name = hostName;
@@ -1357,14 +1362,14 @@
     const ticker = document.getElementById('liveTicker');
     if (ticker) {
       const viewers = roomState?.viewers || 0;
-      ticker.textContent = `${hostName} is live · ${viewers} watching — chat & send gifts below`;
+      ticker.textContent = `${hostName} is live ┬╖ ${viewers} watching ΓÇö chat & send gifts below`;
     }
     const sub = document.getElementById('liveSubLabel');
     if (sub) sub.textContent = isHost() ? 'You are hosting' : 'Live now';
     const rid = document.getElementById('liveRoomId');
     const ch = channelId();
     const viewers = roomState?.viewers || 0;
-    if (rid) rid.textContent = '· ID:' + ch.slice(0, 10);
+    if (rid) rid.textContent = '┬╖ ID:' + ch.slice(0, 10);
     const partyRid = document.getElementById('partyRoomId') || document.getElementById('partyRoomIdLive');
     if (partyRid) partyRid.textContent = 'ID:' + ch.slice(0, 10);
     updateModeBadge(broadcastMode, isHost());
@@ -1390,7 +1395,7 @@
   function showGiftFlyBanner(gift) {
     const el = document.getElementById('apGiftFly');
     if (!el || !gift) return;
-    el.innerHTML = `<img src="${avatarUrl(gift.from)}" alt=""><span><strong>${escapeHtml(gift.from)}</strong> sent ${gift.emoji || '🎁'}</span>`;
+    el.innerHTML = `<img src="${avatarUrl(gift.from)}" alt=""><span><strong>${escapeHtml(gift.from)}</strong> sent ${gift.emoji || '≡ƒÄü'}</span>`;
     el.classList.add('is-visible');
     clearTimeout(el._hide);
     el._hide = setTimeout(() => el.classList.remove('is-visible'), 4500);
@@ -1541,7 +1546,7 @@
   function bindMicLinkModal() {
     if (window.__apMicModalBound) return;
     window.__apMicModalBound = true;
-    document.getElementById('apMicLinkContinue')?.addEventListener('click', () => toast('Waiting for host approval…'));
+    document.getElementById('apMicLinkContinue')?.addEventListener('click', () => toast('Waiting for host approvalΓÇª'));
     document.getElementById('apMicLinkCancel')?.addEventListener('click', hideMicLinkModal);
     document.getElementById('apMicLinkCancel2')?.addEventListener('click', hideMicLinkModal);
     document.getElementById('apMicLinkConfirm')?.addEventListener('click', hideMicLinkModal);
@@ -1667,8 +1672,8 @@
               <h2>Top-up coins</h2>
               <button type="button" id="apTopupClose"><i class="fas fa-times"></i></button>
             </div>
-            <p class="ap-topup-balance">🪙 <span id="apTopupBal">0</span></p>
-            <div class="ap-topup-banner">Official notice — beware of scams. Recharge only via AP Services.</div>
+            <p class="ap-topup-balance">≡ƒ¬Ö <span id="apTopupBal">0</span></p>
+            <div class="ap-topup-banner">Official notice ΓÇö beware of scams. Recharge only via AP Services.</div>
             <button type="button" class="ap-topup-pay"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='24'%3E%3Ctext x='0' y='18' font-size='14' fill='%234285F4'%3EG%3C/text%3E%3Ctext x='14' y='18' font-size='14'%3E Pay%3C/text%3E%3C/svg%3E" alt=""> Google Pay</button>
             <div class="ap-topup-grid" id="apTopupGrid"></div>
             <button type="button" class="ap-topup-recharge" id="apTopupRecharge">Recharge now</button>
@@ -1725,7 +1730,7 @@
             <div class="ap-surprise-hero">
               <div class="ap-surprise-card">
                 <span class="ap-surprise-title">Heart Voyage</span>
-                <span class="ap-surprise-art">🛥️💕</span>
+                <span class="ap-surprise-art">≡ƒ¢Ñ∩╕Å≡ƒÆò</span>
               </div>
             </div>
             <div class="ap-surprise-foot">
@@ -1772,7 +1777,7 @@
   function showWinBanner(gift) {
     const el = document.getElementById('partyWinBanner');
     if (!el) return;
-    el.innerHTML = `WIN · <strong>${escapeHtml(gift.from)}</strong> sent ${gift.emoji} to ${escapeHtml(gift.to)} — <strong>${(gift.amount || 0).toLocaleString()}</strong> 🪙`;
+    el.innerHTML = `WIN ┬╖ <strong>${escapeHtml(gift.from)}</strong> sent ${gift.emoji} to ${escapeHtml(gift.to)} ΓÇö <strong>${(gift.amount || 0).toLocaleString()}</strong> ≡ƒ¬Ö`;
     el.classList.add('is-flash');
     clearTimeout(el._flash);
     el._flash = setTimeout(() => el.classList.remove('is-flash'), 4000);
@@ -1927,7 +1932,7 @@
     }
     if (navigator.share) {
       try {
-        await navigator.share({ title: `${hostName} — AP Services`, url });
+        await navigator.share({ title: `${hostName} ΓÇö AP Services`, url });
         return;
       } catch (e) {
         if (e?.name === 'AbortError') return;
@@ -1982,7 +1987,7 @@
         <span class="g">${g.emoji}</span>
         <span>${g.name}</span>
         ${g.tag ? `<span class="gift-tag">${g.tag}</span>` : ''}
-        <small>${g.cost} 🪙</small>
+        <small>${g.cost} ≡ƒ¬Ö</small>
       </button>`;
       })
       .join('');
@@ -2042,7 +2047,7 @@
     const cost = unitCost * giftQty;
     const balance = await getCoins();
     if (balance < cost) {
-      toast('Not enough coins — recharge first', 'warning');
+      toast('Not enough coins ΓÇö recharge first', 'warning');
       window.location.href = '/coins-recharge.html?app=1';
       return;
     }
@@ -2074,7 +2079,7 @@
       } catch (e) {
         const msg = window.SocialUI?.friendlyMessage(e.message) || e.message || reason || 'Gift failed';
         if (/insufficient/i.test(msg)) {
-          toast('Not enough coins — recharge first', 'warning');
+          toast('Not enough coins ΓÇö recharge first', 'warning');
           window.location.href = '/coins-recharge.html?app=1';
         } else {
           toast(msg, 'error');
@@ -2104,7 +2109,7 @@
             return;
           }
           if (/insufficient/i.test(msg)) {
-            toast('Not enough coins — recharge first', 'warning');
+            toast('Not enough coins ΓÇö recharge first', 'warning');
             window.location.href = '/coins-recharge.html?app=1';
             return;
           }
@@ -2223,7 +2228,7 @@
       toggleChatPanel(true);
       const input = document.getElementById('liveChatInput');
       if (input && !input.value.trim()) {
-        sendChat('🌹 Hi there!');
+        sendChat('≡ƒî╣ Hi there!');
       } else if (input) {
         input.focus();
       }
@@ -2240,12 +2245,12 @@
       }
       const btn = document.getElementById('partyBtnFollow');
       const hbtn = document.getElementById('partyHostFollow');
-      const label = followed ? 'Following ✓' : 'Follow +';
+      const label = followed ? 'Following Γ£ô' : 'Follow +';
       if (btn) {
         btn.textContent = label;
         btn.classList.toggle('is-following', followed);
       }
-      if (hbtn) hbtn.textContent = followed ? '✓' : '+';
+      if (hbtn) hbtn.textContent = followed ? 'Γ£ô' : '+';
       if (followed && !wasFollowing) {
         window.SocialFX?.showFollowBurst?.(hbtn || btn);
       }
@@ -2309,7 +2314,7 @@
     document.getElementById('partyBtnGiftWish')?.addEventListener('click', () => {
       document.getElementById('partyToolsSheet')?.classList.remove('open');
       const host = roomState?.hostName || 'Host';
-      sendChat(`🌟 Gift wish: I hope @${host} gets amazing gifts today!`);
+      sendChat(`≡ƒîƒ Gift wish: I hope @${host} gets amazing gifts today!`);
       toast('Gift wish sent to chat', 'success');
     });
     document.getElementById('partyBtnEffects')?.addEventListener('click', () => {
@@ -2326,7 +2331,7 @@
         liveSocket.emit('live:chat', {
           channel: channelId(),
           type: 'system',
-          text: `Report filed for room ${channelId().slice(0, 8)} — moderators notified`,
+          text: `Report filed for room ${channelId().slice(0, 8)} ΓÇö moderators notified`,
         });
       }
       toast('Report submitted. Our team will review.', 'success');
@@ -2396,7 +2401,7 @@
             <p><strong>Party Hosts</strong> must keep the room active, welcome guests, and follow community guidelines.</p>
             <ul>
               <li>No vulgar, violent, or illegal content</li>
-              <li>Respect all guests — harassment is not tolerated</li>
+              <li>Respect all guests ΓÇö harassment is not tolerated</li>
               <li>Gifts &amp; coins are final once sent</li>
               <li>AP Services moderators monitor rooms 24/7</li>
             </ul>
@@ -2418,11 +2423,11 @@
         'beforeend',
         `<div class="ap-modal-overlay align-bottom" id="apSeatSheet">
           <div class="ap-seat-sheet-panel">
-            <div class="ap-seat-badge">🪑</div>
+            <div class="ap-seat-badge">≡ƒ¬æ</div>
             <h3 id="apSeatTitle">Empty seat</h3>
             <p style="font-size:12px;color:rgba(255,255,255,0.5);margin:0">Tap accept on join requests to fill this seat</p>
             <div class="ap-seat-divider">Alternate member</div>
-            <p id="apSeatAlt" style="font-size:12px;color:rgba(255,255,255,0.35)">No alternate member…</p>
+            <p id="apSeatAlt" style="font-size:12px;color:rgba(255,255,255,0.35)">No alternate memberΓÇª</p>
             <button type="button" class="ap-seat-action" id="apSeatGuardianBtn">Open Guardian</button>
           </div>
         </div>`
@@ -2445,13 +2450,13 @@
               <div class="info">
                 <h3 id="apProfileName">User</h3>
                 <div class="ap-profile-badges">
-                  <span>🇮🇳</span><span id="apProfileLvl">Lv.1</span><span>🎵 2</span><span>💎 4</span>
+                  <span>≡ƒç«≡ƒç│</span><span id="apProfileLvl">Lv.1</span><span>≡ƒÄ╡ 2</span><span>≡ƒÆÄ 4</span>
                 </div>
-                <p id="apProfileId" style="font-size:11px;color:#9ca3af;margin:4px 0 0">ID: —</p>
+                <p id="apProfileId" style="font-size:11px;color:#9ca3af;margin:4px 0 0">ID: ΓÇö</p>
               </div>
             </div>
-            <p style="font-size:12px;color:#6b7280;margin:0 0 8px"><strong>Gift Gallery</strong> · Lit: 0/12</p>
-            <button type="button" class="ap-profile-gift-btn" id="apProfileGiftBtn">🎁 Give gifts</button>
+            <p style="font-size:12px;color:#6b7280;margin:0 0 8px"><strong>Gift Gallery</strong> ┬╖ Lit: 0/12</p>
+            <button type="button" class="ap-profile-gift-btn" id="apProfileGiftBtn">≡ƒÄü Give gifts</button>
           </div>
         </div>`
       );
@@ -2479,7 +2484,7 @@
 
   function openSeatSheet(seatNum) {
     const title = document.getElementById('apSeatTitle');
-    if (title) title.textContent = seatNum ? `Seat ${seatNum} · Empty` : 'Empty seat';
+    if (title) title.textContent = seatNum ? `Seat ${seatNum} ┬╖ Empty` : 'Empty seat';
     document.getElementById('apSeatSheet')?.classList.add('open');
   }
 
@@ -2514,12 +2519,12 @@
             <button type="button" class="gift-tab-bell" aria-label="Notifications"><i class="fas fa-bell"></i></button>
           </div>
           <div class="gift-xp-row">
-            <span class="gift-xp-lvl">💎 <span id="giftUserLvl">1</span></span>
+            <span class="gift-xp-lvl">≡ƒÆÄ <span id="giftUserLvl">1</span></span>
             <div class="gift-xp-bar"><i id="giftXpBar" style="width:0%"></i></div>
-            <span class="gift-xp-text" id="giftXpText">+4XP · Lv.2</span>
+            <span class="gift-xp-text" id="giftXpText">+4XP ┬╖ Lv.2</span>
             <button type="button" class="gift-surprise-btn" id="giftSurpriseBtn">Surprise Shop</button>
           </div>
-          <button type="button" class="gift-balance-btn" id="giftBalanceBtn">🪙 <span id="giftCoinsBal">0</span> &gt;</button>
+          <button type="button" class="gift-balance-btn" id="giftBalanceBtn">≡ƒ¬Ö <span id="giftCoinsBal">0</span> &gt;</button>
           <div class="gift-grid" id="giftGrid"></div>
           <div class="gift-qty-row">
             <div class="gift-qty-btns">
@@ -2542,7 +2547,7 @@
   function postWelcomeMessage() {
     rememberChatMessage({
       type: 'system',
-      text: 'Welcome to AP Services LIVE! Be respectful — admins monitor 24/7. Give a double-tap like to support the host!',
+      text: 'Welcome to AP Services LIVE! Be respectful ΓÇö admins monitor 24/7. Give a double-tap like to support the host!',
     });
     renderChatFeed();
   }
@@ -2569,7 +2574,7 @@
       const hostLabel = document.getElementById('partyHostLabel');
       if (hostLabel) hostLabel.textContent = 'Hosting';
       const ticker = document.getElementById('partyTicker');
-      if (ticker) ticker.textContent = 'You are hosting — share the link so friends can join';
+      if (ticker) ticker.textContent = 'You are hosting ΓÇö share the link so friends can join';
     } else {
       const joinBtn = document.getElementById('partyBtnJoinSeat');
       if (joinBtn) joinBtn.style.display = '';
@@ -2803,9 +2808,9 @@
   function initLuckyGifts() {
     const track = document.getElementById('luckyGiftTrack');
     const slides = [
-      { title: 'Dream Ship 300%', icons: '🚢 💎 🌟' },
-      { title: 'Lucky gifts 100%', icons: '💜 👠 🔫 🔔 🍭' },
-      { title: 'Activity gifts', icons: '🎁 ✨ 🎀' },
+      { title: 'Dream Ship 300%', icons: '≡ƒÜó ≡ƒÆÄ ≡ƒîƒ' },
+      { title: 'Lucky gifts 100%', icons: '≡ƒÆ£ ≡ƒæá ≡ƒö½ ≡ƒöö ≡ƒì¡' },
+      { title: 'Activity gifts', icons: '≡ƒÄü Γ£¿ ≡ƒÄÇ' },
     ];
     let idx = 1;
     if (track) {
@@ -2822,20 +2827,20 @@
     }
 
     const LUCKY_RANKS = [
-      { rank: 1, name: 'Varsace 🐻', score: '25,682,396', coins: '1,800,000' },
-      { rank: 2, name: 'Kuldeep 🎵', score: '18,420,100', coins: '900,000' },
-      { rank: 3, name: 'Affy 🍒', score: '12,100,550', coins: '500,000' },
+      { rank: 1, name: 'Varsace ≡ƒÉ╗', score: '25,682,396', coins: '1,800,000' },
+      { rank: 2, name: 'Kuldeep ≡ƒÄ╡', score: '18,420,100', coins: '900,000' },
+      { rank: 3, name: 'Affy ≡ƒìÆ', score: '12,100,550', coins: '500,000' },
       { rank: 4, name: 'MAAAA', score: '8,200,000', coins: '200,000' },
     ];
     const list = document.getElementById('luckyRankList');
     if (list) {
       list.innerHTML = LUCKY_RANKS.map((r) => {
-        const medal = r.rank <= 3 ? ['🥇', '🥈', '🥉'][r.rank - 1] : r.rank;
+        const medal = r.rank <= 3 ? ['≡ƒÑç', '≡ƒÑê', '≡ƒÑë'][r.rank - 1] : r.rank;
         return `<div class="lucky-rank-row">
           <span class="rank-badge">${medal}</span>
           <img src="${avatarUrl(r.name)}" alt="">
-          <div class="info"><div class="name">${r.name} 🇮🇳</div>
-          <div class="scores"><span>🎉 ${r.score}</span><span>🪙 ${r.coins}</span></div></div>
+          <div class="info"><div class="name">${r.name} ≡ƒç«≡ƒç│</div>
+          <div class="scores"><span>≡ƒÄë ${r.score}</span><span>≡ƒ¬Ö ${r.coins}</span></div></div>
           <button type="button" class="btn-receive" data-rank="${r.rank}">Receive</button>
         </div>`;
       }).join('');
@@ -2869,7 +2874,7 @@
     const utrEl = document.getElementById('rechargeUtr');
     const wrap = document.getElementById('rechargeAmountBtns');
     const syncAmount = () => {
-      if (amountEl) amountEl.textContent = '₹' + selected;
+      if (amountEl) amountEl.textContent = 'Γé╣' + selected;
     };
     syncAmount();
     wrap?.querySelectorAll('button').forEach((btn, i) => {
@@ -2899,7 +2904,7 @@
           payment_method: 'qr_manual',
         });
         window.SocialFX?.coinRain?.(40);
-        if (window.SocialUI) SocialUI.showSuccess('Recharge submitted', 'Coins will be added after admin verification — usually within a few hours.');
+        if (window.SocialUI) SocialUI.showSuccess('Recharge submitted', 'Coins will be added after admin verification ΓÇö usually within a few hours.');
         else toast('Recharge submitted! Awaiting verification.', 'success');
         setTimeout(() => { location.href = '/store.html?app=1'; }, 1200);
       } catch (e) {

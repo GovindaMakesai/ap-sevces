@@ -14,7 +14,11 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "AP Services needs camera access for live video streaming.",
+        "NSMicrophoneUsageDescription": "AP Services needs microphone access for live audio and party rooms."
+      }
     },
     "android": {
       "package": "com.apservices.app",
