@@ -1,0 +1,41 @@
+name: Deploy backend to VPS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'config/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'deploy/hostinger/**'
+      - '.github/workflows/deploy-vps.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-vps-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: SSH deploy to Hostinger
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          command_timeout: 10m
+          script: |
+            set -e
+            APP_DIR=/var/www/ap-services
+            cd "$APP_DIR"
+            git fetch origin main
+            git reset --hard origin/main
+            chmod +x deploy/hostinger/deploy.sh
+            SKIP_GIT=1 bash deploy/hostinger/deploy.sh

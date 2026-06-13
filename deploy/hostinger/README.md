@@ -7,7 +7,92 @@ Central config (update when you add domain + HTTPS):
 - `config/production-api.js` — Node (dev-server, Expo app)
 - `frontend/ap-config.js` — browser (keep in sync)
 
-## On the VPS (after each deploy)
+## Auto-deploy (GitHub Actions)
+
+Pushes to `main` that touch `backend/`, `config/`, or `package.json` run `.github/workflows/deploy-vps.yml` and SSH to the VPS (no manual SSH needed).
+
+### One-time setup
+
+#### 1. GitHub repository secrets
+
+Repo → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**
+
+| Secret | Value |
+|--------|--------|
+| `VPS_HOST` | `62.72.56.74` |
+| `VPS_USER` | `root` |
+| `VPS_SSH_KEY` | Private key (full contents, including `BEGIN`/`END` lines) |
+| `VPS_PORT` | `22` (optional) |
+
+#### 2. Create a deploy SSH key (on your PC)
+
+```powershell
+ssh-keygen -t ed25519 -f $env:USERPROFILE\.ssh\ap-vps-deploy -N '""'
+```
+
+- Add **`ap-vps-deploy.pub`** to the VPS:
+
+```bash
+ssh root@62.72.56.74
+mkdir -p ~/.ssh && chmod 700 ~/.ssh
+nano ~/.ssh/authorized_keys   # paste the .pub line, save
+chmod 600 ~/.ssh/authorized_keys
+```
+
+- Add **`ap-vps-deploy`** (private key file contents) to GitHub secret **`VPS_SSH_KEY`**.
+
+Test from PC:
+
+```powershell
+ssh -i $env:USERPROFILE\.ssh\ap-vps-deploy root@62.72.56.74 "echo OK"
+```
+
+#### 3. VPS must pull from GitHub
+
+If the repo is **private**, on the VPS generate a read-only deploy key and add the **public** key in GitHub → Repo → **Settings** → **Deploy keys**:
+
+```bash
+ssh-keygen -t ed25519 -f ~/.ssh/github_deploy -N ""
+cat ~/.ssh/github_deploy.pub   # add this in GitHub Deploy keys
+```
+
+Configure git on VPS:
+
+```bash
+cd /var/www/ap-services
+git remote -v   # should point to github.com/GovindaMakesai/ap-sevces.git
+```
+
+If `git pull` fails with auth, set the SSH remote:
+
+```bash
+git remote set-url origin git@github.com:GovindaMakesai/ap-sevces.git
+```
+
+Add to `~/.ssh/config` on VPS:
+
+```
+Host github.com
+  IdentityFile ~/.ssh/github_deploy
+  IdentitiesOnly yes
+```
+
+#### 4. Make deploy script executable (once)
+
+```bash
+chmod +x /var/www/ap-services/deploy/hostinger/deploy.sh
+```
+
+After secrets are set, push to `main` or run **Actions** → **Deploy backend to VPS** → **Run workflow**.
+
+### Manual deploy (fallback)
+
+```bash
+cd /var/www/ap-services
+bash deploy/hostinger/deploy.sh
+```
+
+## On the VPS (legacy manual steps)
 
 ```bash
 cd /var/www/ap-services
