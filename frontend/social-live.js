@@ -307,7 +307,25 @@
     return val ? '✓ yes' : '✗ no';
   }
 
+  /** Dev-only overlay — hidden on Vercel/production unless ?debug=1 or localStorage ap_live_debug=1 */
+  function isLiveDebugEnabled() {
+    if (window.__AP_LIVE_DEBUG__ === true) return true;
+    try {
+      if (localStorage.getItem('ap_live_debug') === '1') return true;
+    } catch (_e) {}
+    const q = new URLSearchParams(window.location.search);
+    if (q.get('debug') === '1' || q.get('live_debug') === '1') return true;
+    const h = window.location.hostname || '';
+    const port = window.location.port || '';
+    if (h === 'localhost' || h === '127.0.0.1') return true;
+    if (/^192\.168\.\d{1,3}\.\d{1,3}$/.test(h) || /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(h)) {
+      return port === '5500' || port === '5000';
+    }
+    return false;
+  }
+
   function ensureLiveDebugPanel() {
+    if (!isLiveDebugEnabled()) return;
     if (document.getElementById('apLiveDebugPanel')) return;
     const el = document.createElement('div');
     el.id = 'apLiveDebugPanel';
@@ -343,6 +361,7 @@
 
   function updateLiveDebug(partial) {
     Object.assign(liveDebugState, partial);
+    if (!isLiveDebugEnabled() && !document.getElementById('apLiveDebugPanel')) return;
     liveDebugState.channel = channelId() || liveDebugState.channel;
     liveDebugState.role = isHost() ? 'host' : 'viewer';
     liveDebugState.apiUrl =
