@@ -67,6 +67,7 @@ function isAllowedCorsOrigin(origin) {
   if (/^http:\/\/192\.168\.\d{1,3}\.\d{1,3}(:\d+)?$/i.test(origin)) return true;
   if (/^http:\/\/10\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$/i.test(origin)) return true;
   if (/^https:\/\/[\w-]+\.vercel\.app$/i.test(origin)) return true;
+  if (/^https:\/\/[\w.-]+(:\d+)?$/i.test(origin)) return true;
   if (/^capacitor:\/\//i.test(origin)) return true;
   if (/^file:\/\//i.test(origin)) return true;
   return false;

@@ -11,7 +11,9 @@ const apiConfig = require('./config/production-api');
 
 WebBrowser.maybeCompleteAuthSession();
 
-const PRODUCTION_WEB = 'https://ap-sevces.vercel.app';
+const PRODUCTION_WEB = apiConfig.USE_HTTPS_DOMAIN
+  ? apiConfig.BACKEND_URL.replace(/\/$/, '')
+  : 'https://ap-sevces.vercel.app';
 const DEV_WEB_PORT = 5500;
 
 /** Same LAN IP as the Expo QR code (e.g. 192.168.1.9). */

@@ -1,19 +1,27 @@
 /**
- * Browser config — keep in sync with config/production-api.js
+ * Browser config — keep in sync with config/domain.js + production-api.js
  */
 (function (g) {
-  const PRODUCTION_BACKEND_URL = 'http://62.72.56.74:5000';
-  const PRODUCTION_FRONTEND_URL = 'https://ap-sevces.vercel.app';
-  const OAUTH_CALLBACK_BASE = PRODUCTION_FRONTEND_URL;
+  // After HTTPS: set USE_HTTPS = true and PUBLIC_HTTPS_URL to your domain
+  var USE_HTTPS = false;
+  var PUBLIC_HTTPS_URL = 'https://api.apservices.in';
+  var VPS_HTTP = 'http://62.72.56.74:5000';
+  var VERCEL_UI = 'https://ap-sevces.vercel.app';
+
+  var BACKEND = USE_HTTPS ? PUBLIC_HTTPS_URL : VPS_HTTP;
+  var FRONTEND = USE_HTTPS ? PUBLIC_HTTPS_URL : VERCEL_UI;
+  var OAUTH_BASE = USE_HTTPS ? PUBLIC_HTTPS_URL : VERCEL_UI;
+
   g.AP_CONFIG = Object.freeze({
-    PRODUCTION_BACKEND_URL,
-    PRODUCTION_API_URL: PRODUCTION_BACKEND_URL + '/api',
-    PRODUCTION_FRONTEND_URL,
-    OAUTH_CALLBACK_BASE,
+    USE_HTTPS_DOMAIN: USE_HTTPS,
+    PRODUCTION_BACKEND_URL: BACKEND,
+    PRODUCTION_API_URL: BACKEND.replace(/\/$/, '') + '/api',
+    PRODUCTION_FRONTEND_URL: FRONTEND,
+    OAUTH_CALLBACK_BASE: OAUTH_BASE,
     OAUTH_CALLBACKS: {
-      google: OAUTH_CALLBACK_BASE + '/auth/google/callback',
-      github: OAUTH_CALLBACK_BASE + '/auth/github/callback',
-      facebook: OAUTH_CALLBACK_BASE + '/auth/facebook/callback',
+      google: OAUTH_BASE + '/auth/google/callback',
+      github: OAUTH_BASE + '/auth/github/callback',
+      facebook: OAUTH_BASE + '/auth/facebook/callback',
     },
   });
 })(typeof window !== 'undefined' ? window : globalThis);

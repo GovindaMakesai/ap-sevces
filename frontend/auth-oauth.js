@@ -18,6 +18,10 @@
   }
 
   function getAuthOrigin() {
+    if (window.AP_CONFIG && window.AP_CONFIG.USE_HTTPS_DOMAIN) {
+      return window.AP_CONFIG.PRODUCTION_BACKEND_URL.replace(/\/$/, '');
+    }
+
     const host = window.location.hostname || '';
     const port = window.location.port || '';
 
