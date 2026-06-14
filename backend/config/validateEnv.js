@@ -1,5 +1,17 @@
 const required = ['DATABASE_URL', 'JWT_SECRET'];
 const recommended = ['REDIS_URL', 'RAZORPAY_KEY_ID', 'STRIPE_SECRET_KEY'];
+const oauthKeys = [
+  'FRONTEND_URL',
+  'GOOGLE_CLIENT_ID',
+  'GOOGLE_CLIENT_SECRET',
+  'GOOGLE_CALLBACK_URL',
+  'GITHUB_CLIENT_ID',
+  'GITHUB_CLIENT_SECRET',
+  'GITHUB_CALLBACK_URL',
+  'FACEBOOK_APP_ID',
+  'FACEBOOK_APP_SECRET',
+  'FACEBOOK_CALLBACK_URL',
+];
 
 function validateEnv() {
   const missing = required.filter((k) => !process.env[k]);
@@ -10,6 +22,16 @@ function validateEnv() {
     if (!process.env[k]) {
       console.warn(`⚠️  Recommended env not set: ${k}`);
     }
+  }
+  for (const k of oauthKeys) {
+    if (!process.env[k]) {
+      console.warn(`⚠️  OAuth env not set: ${k} (social login may fail)`);
+    }
+  }
+  const renderLeak = oauthKeys
+    .filter((k) => String(process.env[k] || '').includes('onrender.com'));
+  if (renderLeak.length) {
+    console.warn(`⚠️  OAuth still points at Render (${renderLeak.join(', ')}) — update to ap-sevces.vercel.app`);
   }
   if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 16) {
     console.warn('⚠️  JWT_SECRET should be at least 16 characters for production');
