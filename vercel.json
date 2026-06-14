@@ -3,6 +3,10 @@
   "version": 2,
   "builds": [
     {
+      "src": "api/**/*.js",
+      "use": "@vercel/node"
+    },
+    {
       "src": "frontend/**",
       "use": "@vercel/static"
     }
@@ -10,11 +14,11 @@
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "http://62.72.56.74:5000/api/$1"
+      "dest": "/api/$1"
     },
     {
       "src": "/auth/(.*)",
-      "dest": "http://62.72.56.74:5000/auth/$1"
+      "dest": "/api/auth/$1"
     },
     {
       "src": "/",
