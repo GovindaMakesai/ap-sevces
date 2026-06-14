@@ -15,12 +15,25 @@ const {
 
 const frontendBaseUrl = process.env.FRONTEND_URL || 'https://ap-sevces.vercel.app';
 const oauthFailureRedirect = `${frontendBaseUrl}/login.html?error=oauth_auth_failed`;
+const oauthCallbackBase = (
+    process.env.OAUTH_CALLBACK_BASE ||
+    process.env.OAUTH_PUBLIC_URL ||
+    frontendBaseUrl
+).replace(/\/$/, '');
 const googleCallbackURL =
     process.env.GOOGLE_REDIRECT_URI ||
     process.env.GOOGLE_CALLBACK_URL ||
-    'https://ap-sevces.onrender.com/auth/google/callback';
-const githubCallbackURL = process.env.GITHUB_CALLBACK_URL || 'https://ap-sevces.onrender.com/auth/github/callback';
-const facebookCallbackURL = process.env.FACEBOOK_CALLBACK_URL || 'https://ap-sevces.onrender.com/auth/facebook/callback';
+    `${oauthCallbackBase}/auth/google/callback`;
+const githubCallbackURL =
+    process.env.GITHUB_CALLBACK_URL || `${oauthCallbackBase}/auth/github/callback`;
+const facebookCallbackURL =
+    process.env.FACEBOOK_CALLBACK_URL || `${oauthCallbackBase}/auth/facebook/callback`;
+
+console.log('[auth] OAuth callbacks:', {
+    google: googleCallbackURL,
+    github: githubCallbackURL,
+    facebook: facebookCallbackURL,
+});
 const facebookAuthorizationBase = 'https://www.facebook.com/v3.2/dialog/oauth';
 
 const missingProviderHandler = (provider, envKeys) => (req, res) => {

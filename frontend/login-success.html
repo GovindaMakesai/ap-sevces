@@ -19,6 +19,7 @@
     <a href="/app-auth.html?app=1" class="auth-success-back" id="backBtn" style="display:none">Back to Welcome</a>
   </div>
 
+  <script src="ap-config.js"></script>
   <script src="app.js"></script>
   <script>
     (async function completeOAuthLogin() {
@@ -30,8 +31,9 @@
 
       const params = new URLSearchParams(window.location.search);
       const hashParams = new URLSearchParams((window.location.hash || '').replace(/^#/, ''));
-      const inExpoApp =
+      const inNativeApp =
         Boolean(window.ReactNativeWebView) ||
+        Boolean(window.__AP_NATIVE_APP__) ||
         params.get('source') === 'expo-app' ||
         params.get('app') === '1';
 
@@ -42,6 +44,26 @@
           localStorage.getItem('token') ||
           ''
         );
+      }
+
+      function getAppRedirect() {
+        return (
+          params.get('app_redirect') ||
+          (typeof window.__AP_OAUTH_RETURN__ === 'string' && window.__AP_OAUTH_RETURN__) ||
+          localStorage.getItem('app_redirect') ||
+          ''
+        ).trim();
+      }
+
+      function isAppDeepLink(url) {
+        return /^(exp|apservices):\/\//i.test(url);
+      }
+
+      function returnToNativeApp(token, appRedirect) {
+        const base = appRedirect.replace(/\/$/, '');
+        const sep = base.includes('?') ? '&' : '?';
+        statusText.textContent = 'Returning to AP Services app…';
+        window.location.replace(base + sep + 'token=' + encodeURIComponent(token));
       }
 
       function waitForToken(ms) {
@@ -70,7 +92,7 @@
           AppAuth.completeLoginAndEnterApp(user);
           return;
         }
-        const q = inExpoApp ? '?app=1' : '';
+        const q = inNativeApp ? '?app=1' : '';
         const u = user || null;
         if (u && u.role === 'admin') window.location.replace('/admin-dashboard.html' + q);
         else if (u && u.role === 'worker') window.location.replace('/worker-dashboard.html' + q);
@@ -78,9 +100,25 @@
       }
 
       let token = getToken();
-      if (!token && inExpoApp) {
+      const appRedirect = getAppRedirect();
+
+      // Native app OAuth: close browser tab and hand token to Expo / APK
+      if (token && appRedirect && isAppDeepLink(appRedirect)) {
+        try {
+          localStorage.setItem('token', token);
+          localStorage.removeItem('app_redirect');
+        } catch (_e) {}
+        returnToNativeApp(token, appRedirect);
+        return;
+      }
+
+      if (!token && inNativeApp) {
         statusText.textContent = 'Completing sign in with the app…';
         token = await waitForToken(8000);
+        if (token && appRedirect && isAppDeepLink(appRedirect)) {
+          returnToNativeApp(token, appRedirect);
+          return;
+        }
       }
 
       if (!token) {
@@ -102,9 +140,10 @@
         }
         const apiBase =
           (typeof window.__AP_API_URL__ === 'string' && window.__AP_API_URL__) ||
+          (window.AP_CONFIG && window.AP_CONFIG.PRODUCTION_API_URL) ||
           (window.CONFIG && CONFIG.API_URL) ||
-          'https://ap-sevces.onrender.com/api';
-        const res = await fetch(apiBase + '/auth/me', {
+          'http://62.72.56.74:5000/api';
+        const res = await fetch(apiBase.replace(/\/$/, '') + '/auth/me', {
           headers: { Authorization: 'Bearer ' + token },
         });
         const data = await res.json().catch(() => ({}));
@@ -116,7 +155,7 @@
         throw new Error(data.message || 'Could not load profile');
       }
 
-      statusText.textContent = 'Welcome! Opening your feed…';
+      statusText.textContent = inNativeApp ? 'Welcome! Opening the app…' : 'Welcome! Opening your feed…';
       let user = null;
       try {
         user = await loadUser();

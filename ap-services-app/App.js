@@ -55,7 +55,8 @@ const FRONTEND_URL =
 
 /** Native app uses Hostinger VPS API (cleartext allowed in app.json). */
 const API_BASE_URL = apiConfig.API_URL;
-const AUTH_ORIGIN = apiConfig.BACKEND_URL;
+/** Native: API + OAuth start on VPS. Callback URLs stay HTTPS (Vercel) in provider consoles. */
+const AUTH_ORIGIN = apiConfig.BACKEND_URL.replace(/\/$/, '');
 /** Deep link the system OAuth browser closes on (apservices:// or exp:// in Expo Go). */
 const APP_RETURN_URL = Linking.createURL('oauth-complete');
 /** Fallback when the API still redirects to the web login-success page first. */
@@ -63,7 +64,7 @@ const LOGIN_SUCCESS_PREFIX = `${FRONTEND_BASE}/login-success.html`;
 const MOBILE_INJECT_SCRIPT = getMobileDashboardInjectScript();
 /** Runs before page paint — marks every WebView page as native app shell */
 const PRODUCTION_API = apiConfig.API_URL;
-const APP_SHELL_BOOTSTRAP = `(function(){try{document.documentElement.classList.add('ap-expo-app','social-app','social-bridge-mode','social-native','auth-native');window.__AP_NATIVE_APP__=true;window.__AP_API_URL__='${PRODUCTION_API}';window.__AP_SOCKET_URL__='${apiConfig.BACKEND_URL}';document.documentElement.style.background='#faf6ee';if(document.body)document.body.style.background='#faf6ee';var s=document.getElementById('ap-native-critical');if(!s){s=document.createElement('style');s.id='ap-native-critical';s.textContent='html.ap-expo-app .navbar,html.ap-expo-app .footer{display:none!important}html.ap-expo-app .chat-tab.active{background:linear-gradient(135deg,#d4a84b,#9a7218)!important;color:#fff!important}html.ap-expo-app .message-wrapper.sent .message-content{background:linear-gradient(135deg,#d4a84b,#9a7218)!important}';(document.head||document.documentElement).appendChild(s);}}catch(e){}})();true;`;
+const APP_SHELL_BOOTSTRAP = `(function(){try{document.documentElement.classList.add('ap-expo-app','social-app','social-bridge-mode','social-native','auth-native');window.__AP_NATIVE_APP__=true;window.__AP_API_URL__='${PRODUCTION_API}';window.__AP_SOCKET_URL__='${apiConfig.BACKEND_URL}';window.__AP_OAUTH_RETURN__='${APP_RETURN_URL.replace(/'/g, "\\'")}';try{localStorage.setItem('app_redirect','${APP_RETURN_URL.replace(/'/g, "\\'")}');}catch(e){}document.documentElement.style.background='#faf6ee';if(document.body)document.body.style.background='#faf6ee';var s=document.getElementById('ap-native-critical');if(!s){s=document.createElement('style');s.id='ap-native-critical';s.textContent='html.ap-expo-app .navbar,html.ap-expo-app .footer{display:none!important}html.ap-expo-app .chat-tab.active{background:linear-gradient(135deg,#d4a84b,#9a7218)!important;color:#fff!important}html.ap-expo-app .message-wrapper.sent .message-content{background:linear-gradient(135deg,#d4a84b,#9a7218)!important}';(document.head||document.documentElement).appendChild(s);}}catch(e){}})();true;`;
 
 function isNativeOAuthReturnUrl(url) {
   if (!url) return false;

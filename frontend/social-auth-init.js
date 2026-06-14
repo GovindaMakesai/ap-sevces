@@ -8,6 +8,14 @@
 
   if (!isNative()) return;
 
+  const q = new URLSearchParams(window.location.search);
+  const appRedirect = q.get('app_redirect') || (typeof window.__AP_OAUTH_RETURN__ === 'string' && window.__AP_OAUTH_RETURN__);
+  if (appRedirect) {
+    try {
+      localStorage.setItem('app_redirect', appRedirect);
+    } catch (_e) {}
+  }
+
   document.documentElement.classList.add('auth-native', 'ap-expo-app', 'social-app');
   document.body.style.background = '#faf6ee';
 

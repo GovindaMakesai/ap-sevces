@@ -7,10 +7,13 @@
     <style>
         body { font-family: system-ui, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #f5f5f5; color: #333; }
     </style>
+    <script src="/ap-config.js"></script>
     <script>
         (function () {
-            // OAuth must finish on the API host (Passport exchanges the ?code= once).
-            var OAUTH_API_BASE = 'http://62.72.56.74:5000';
+            // Google redirects to HTTPS Vercel; bridge forwards ?code= to VPS where Passport exchanges it.
+            var OAUTH_API_BASE =
+                (window.AP_CONFIG && window.AP_CONFIG.PRODUCTION_BACKEND_URL) ||
+                'http://62.72.56.74:5000';
             var path = window.location.pathname || '';
             var search = window.location.search || '';
             var hash = window.location.hash || '';
@@ -19,7 +22,7 @@
                 window.location.replace('/');
                 return;
             }
-            window.location.replace(OAUTH_API_BASE + path + search + hash);
+            window.location.replace(OAUTH_API_BASE.replace(/\/$/, '') + path + search + hash);
         })();
     </script>
 </head>

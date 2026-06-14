@@ -393,26 +393,26 @@
   }
 
   function connectSocket(type) {
+    return connectSocketAsync(type);
+  }
+
+  async function connectSocketAsync(type) {
     ensureLiveDebugPanel();
     const token = localStorage.getItem('token');
     if (!token || typeof io === 'undefined') {
-      liveDebugLog('Socket skipped ΓÇö missing auth token or socket.io');
+      liveDebugLog('Socket skipped — missing auth token or socket.io');
       updateLiveDebug({ socketConnected: false, roomJoined: false });
-      return null;
+      throw new Error('Not logged in or socket.io unavailable');
     }
 
-    if (liveSocket?.connected) {
-      updateLiveDebug({ socketConnected: true });
-      return liveSocket;
-    }
-
-    liveSocket = io(socketBase(), {
-      auth: { token },
-      transports: ['websocket', 'polling'],
-      reconnection: true,
-      reconnectionAttempts: 8,
-      reconnectionDelay: 1000,
-    });
+    if (!liveSocket) {
+      liveSocket = io(socketBase(), {
+        auth: { token },
+        transports: ['websocket', 'polling'],
+        reconnection: true,
+        reconnectionAttempts: 8,
+        reconnectionDelay: 1000,
+      });
 
     liveSocket.on('connect', () => {
       liveDebugLog('Socket connected');
@@ -532,39 +532,53 @@
       toast('This live has ended');
       setTimeout(exitRoom, 1200);
     });
+    }
 
     const user = currentUser();
     const ch = channelId();
     const hostFlag = isHost();
     liveDebugLog(`${hostFlag ? 'HOST' : 'VIEWER'} live:join emit channel=${ch} type=${type}`);
-    updateLiveDebug({ channel: ch, role: hostFlag ? 'host' : 'viewer' });
-    liveSocket.emit(
-      'live:join',
-      {
-        channel: ch,
-        type: type === 'live' ? 'live' : 'party',
-        displayName: displayName(user),
-        isHost: hostFlag,
-      },
-      (res) => {
-        console.log('[live] live:join ack', { channel: ch, isHost: hostFlag, res });
-        liveDebugLog(
-          `live:join ack channel=${ch} ok=${Boolean(res?.ok)} msg=${res?.message || 'none'}`
-        );
-        if (res?.ok && res.state) {
-          roomState = res.state;
-          updateLiveDebug({ roomJoined: true });
-          renderRoomState();
-        } else {
-          updateLiveDebug({ roomJoined: false });
-          const msg = res?.message || 'live:join failed (no message from server)';
-          toast(`Room join failed: ${msg}`, 'error');
-          setLiveStatus(`Room join failed: ${msg}`, false);
-        }
-      }
-    );
+    updateLiveDebug({ channel: ch, role: hostFlag ? 'host' : 'viewer', socketConnected: liveSocket.connected });
 
-    return liveSocket;
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new Error('Room join timeout — check server connection'));
+      }, 20000);
+
+      const emitJoin = () => {
+        liveSocket.emit(
+          'live:join',
+          {
+            channel: ch,
+            type: type === 'live' ? 'live' : 'party',
+            displayName: displayName(user),
+            isHost: hostFlag,
+          },
+          (res) => {
+            clearTimeout(timer);
+            console.log('[live] live:join ack', { channel: ch, isHost: hostFlag, res });
+            liveDebugLog(
+              `live:join ack channel=${ch} ok=${Boolean(res?.ok)} msg=${res?.message || 'none'}`
+            );
+            if (res?.ok && res.state) {
+              roomState = res.state;
+              updateLiveDebug({ roomJoined: true, socketConnected: true });
+              renderRoomState();
+              resolve(liveSocket);
+            } else {
+              updateLiveDebug({ roomJoined: false });
+              const msg = res?.message || 'live:join failed (no message from server)';
+              toast(`Room join failed: ${msg}`, 'error');
+              setLiveStatus(`Room join failed: ${msg}`, false);
+              reject(new Error(msg));
+            }
+          }
+        );
+      };
+
+      if (liveSocket.connected) emitJoin();
+      else liveSocket.once('connect', emitJoin);
+    });
   }
 
   function leaveSocket() {
@@ -2565,7 +2579,13 @@
 
     bindCommonControls('party');
     bindHostControls('party');
-    connectSocket('party');
+    try {
+      await connectSocket('party');
+    } catch (e) {
+      console.error('[live] party room join failed', e);
+      hideApLoader();
+      return;
+    }
     if (isHost()) {
       const followBtn = document.getElementById('partyBtnFollow');
       if (followBtn) followBtn.textContent = 'Your room';
@@ -2653,7 +2673,13 @@
 
     await stopAgora();
     leaveSocket();
-    connectSocket('live');
+    try {
+      await connectSocket('live');
+    } catch (e) {
+      console.error('[live] feed room join failed', e);
+      feedSwitching = false;
+      return;
+    }
     applyLiveBackground(broadcastMode === 'audio' ? 'audio' : 'live', item.hostName);
     await startAgora('live');
 
@@ -2752,7 +2778,13 @@
     initBroadcastMode();
     bindCommonControls('live');
     bindHostControls('live');
-    connectSocket('live');
+    try {
+      await connectSocket('live');
+    } catch (e) {
+      console.error('[live] live room join failed', e);
+      hideApLoader();
+      return;
+    }
 
     if (isHost() && broadcastMode === 'video') {
       const bg = document.getElementById('liveBg');
@@ -2789,11 +2821,13 @@
     });
 
     document.getElementById('streamerStartLive')?.addEventListener('click', () => {
-      location.href = '/live-application.html?kind=live&mode=video&app=1';
+      if (window.SocialShell?.goStartLiveBroadcast) SocialShell.goStartLiveBroadcast({ mode: 'video' });
+      else location.href = '/live-room.html?host=1&mode=video&app=1';
     });
 
     document.getElementById('streamerStartParty')?.addEventListener('click', () => {
-      location.href = '/live-application.html?kind=party&app=1';
+      if (window.SocialShell?.goStartParty) SocialShell.goStartParty();
+      else location.href = '/party-room.html?host=1&app=1';
     });
 
     document.querySelector('.btn-upload')?.addEventListener('click', () => {

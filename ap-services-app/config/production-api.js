@@ -1,14 +1,21 @@
 /**
- * Production API — keep in sync with config/production-api.js (repo root).
+ * Production endpoints — keep in sync with config/production-api.js (repo root).
+ * Metro cannot import outside ap-services-app/, so this file is duplicated here.
  */
+const BACKEND_URL = 'http://62.72.56.74:5000';
+const FRONTEND_URL = 'https://ap-sevces.vercel.app';
+const OAUTH_CALLBACK_BASE = FRONTEND_URL;
+
 module.exports = {
-  BACKEND_URL: 'http://62.72.56.74:5000',
-  FRONTEND_URL: 'https://ap-sevces.vercel.app',
-  LEGACY_RENDER_BACKEND: 'https://ap-sevces.onrender.com',
-  get API_URL() {
-    return `${this.BACKEND_URL.replace(/\/$/, '')}/api`;
+  BACKEND_URL,
+  FRONTEND_URL,
+  OAUTH_CALLBACK_BASE,
+  OAUTH_CALLBACKS: {
+    google: `${OAUTH_CALLBACK_BASE}/auth/google/callback`,
+    github: `${OAUTH_CALLBACK_BASE}/auth/github/callback`,
+    facebook: `${OAUTH_CALLBACK_BASE}/auth/facebook/callback`,
   },
-  get LEGACY_RENDER_API() {
-    return `${this.LEGACY_RENDER_BACKEND.replace(/\/$/, '')}/api`;
+  get API_URL() {
+    return `${BACKEND_URL.replace(/\/$/, '')}/api`;
   },
 };

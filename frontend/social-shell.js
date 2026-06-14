@@ -382,7 +382,7 @@
       window.location.href = '/app-auth.html?app=1';
       return;
     }
-    window.location.href = '/live-application.html?kind=live&mode=video&app=1';
+    goStartLiveBroadcast({ mode: 'video' });
   }
 
   function goStartLiveBroadcast(opts) {

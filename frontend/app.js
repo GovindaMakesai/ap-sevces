@@ -6,15 +6,13 @@ const AP = window.AP_CONFIG || {
     PRODUCTION_BACKEND_URL: 'http://62.72.56.74:5000',
     PRODUCTION_API_URL: 'http://62.72.56.74:5000/api',
     PRODUCTION_FRONTEND_URL: 'https://ap-sevces.vercel.app',
-    LEGACY_RENDER_BACKEND_URL: 'https://ap-sevces.onrender.com',
-    LEGACY_RENDER_API_URL: 'https://ap-sevces.onrender.com/api',
+    OAUTH_CALLBACK_BASE: 'https://ap-sevces.vercel.app',
 };
 window.AP_CONFIG = AP;
 
 const LIVE_FRONTEND_URL = AP.PRODUCTION_FRONTEND_URL;
 const LIVE_API_URL = AP.PRODUCTION_API_URL;
 const LIVE_BACKEND_URL = AP.PRODUCTION_BACKEND_URL;
-const LEGACY_API_URL = AP.LEGACY_RENDER_API_URL;
 const LOCAL_API_URL = 'http://localhost:5000/api';
 const LOCAL_FRONTEND_URL = 'http://localhost:5500';
 
@@ -98,28 +96,11 @@ const AppState = {
 // ==================== API SERVICE WITH FORMDATA SUPPORT ====================
 const API = {
     async request(endpoint, options = {}) {
-        const bases = [CONFIG.API_URL];
-        if (CONFIG.API_URL !== LEGACY_API_URL) {
-            bases.push(LEGACY_API_URL);
+        try {
+            return await this._fetchOnce(`${CONFIG.API_URL}${endpoint}`, options);
+        } catch (error) {
+            throw this._friendlyNetworkError(error, `${CONFIG.API_URL}${endpoint}`);
         }
-
-        let lastError = null;
-        for (const base of bases) {
-            try {
-                return await this._fetchOnce(`${base}${endpoint}`, options);
-            } catch (error) {
-                lastError = error;
-                const isNetwork =
-                    error?.message === 'Failed to fetch' ||
-                    error?.name === 'TypeError' ||
-                    error?.message?.includes('NetworkError');
-                if (!isNetwork || base === bases[bases.length - 1]) {
-                    throw this._friendlyNetworkError(error, `${base}${endpoint}`);
-                }
-                console.warn('API retry via legacy Render:', LEGACY_API_URL);
-            }
-        }
-        throw this._friendlyNetworkError(lastError, `${CONFIG.API_URL}${endpoint}`);
     },
 
     _friendlyNetworkError(error, url) {

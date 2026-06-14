@@ -92,10 +92,10 @@ async function seedRolesAndPermissions(client) {
     super_admin: ['wallet.read', 'wallet.recharge', 'wallet.withdraw', 'wallet.gift', 'live.join', 'live.host', 'admin.wallet', 'admin.withdrawals', 'admin.recharges', 'admin.users'],
     founder: ['wallet.read', 'wallet.recharge', 'wallet.withdraw', 'wallet.gift', 'live.join', 'live.host', 'admin.wallet', 'admin.withdrawals', 'admin.recharges', 'admin.users'],
     ceo: ['wallet.read', 'wallet.recharge', 'wallet.withdraw', 'wallet.gift', 'live.join', 'live.host', 'admin.wallet', 'admin.withdrawals', 'admin.recharges', 'admin.users'],
-    bdm: ['wallet.read', 'live.join'],
+    bdm: ['wallet.read', 'live.join', 'live.host'],
     agency: ['wallet.read', 'wallet.recharge', 'wallet.withdraw', 'live.join', 'live.host'],
     vip_user: ['wallet.read', 'wallet.recharge', 'wallet.gift', 'live.join', 'live.host'],
-    coin_seller: ['wallet.read', 'wallet.recharge', 'admin.wallet'],
+    coin_seller: ['wallet.read', 'wallet.recharge', 'admin.wallet', 'live.join', 'live.host'],
   };
 
   for (const [roleSlug, permSlugs] of Object.entries(rolePermMap)) {
@@ -108,6 +108,27 @@ async function seedRolesAndPermissions(client) {
       await client.query(
         `INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
         [roleId, permRes.rows[0].id]
+      );
+    }
+  }
+
+  await grantLivePermissionsToAllRoles(client);
+}
+
+/** Ensure every role can join and host live streams (open broadcast). */
+async function grantLivePermissionsToAllRoles(client) {
+  const permRes = await client.query(
+    `SELECT id, slug FROM permissions WHERE slug IN ('live.join', 'live.host')`
+  );
+  const permBySlug = Object.fromEntries(permRes.rows.map((r) => [r.slug, r.id]));
+  if (!permBySlug['live.join'] || !permBySlug['live.host']) return;
+
+  const rolesRes = await client.query(`SELECT id FROM roles`);
+  for (const role of rolesRes.rows) {
+    for (const slug of ['live.join', 'live.host']) {
+      await client.query(
+        `INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+        [role.id, permBySlug[slug]]
       );
     }
   }
