@@ -34,6 +34,36 @@ console.log('[auth] OAuth callbacks:', {
     github: githubCallbackURL,
     facebook: facebookCallbackURL,
 });
+
+router.use((req, res, next) => {
+    if (req.path.includes('google') || req.path.includes('callback') || req.path === '/oauth-debug') {
+        console.log('[auth] request', req.method, req.originalUrl || req.url, {
+            host: req.get('host'),
+            hasCode: Boolean(req.query?.code),
+        });
+    }
+    next();
+});
+
+router.get('/oauth-debug', (_req, res) => {
+    res.json({
+        success: true,
+        frontendUrl: frontendBaseUrl,
+        oauthCallbackBase: oauthCallbackBase,
+        callbacks: {
+            google: googleCallbackURL,
+            github: githubCallbackURL,
+            facebook: facebookCallbackURL,
+        },
+        configured: {
+            google: isGoogleConfigured,
+            github: isGithubConfigured,
+            facebook: isFacebookConfigured,
+        },
+        failureRedirect: oauthFailureRedirect,
+        successPath: process.env.OAUTH_SUCCESS_PATH || '/login-success.html',
+    });
+});
 const facebookAuthorizationBase = 'https://www.facebook.com/v3.2/dialog/oauth';
 
 const missingProviderHandler = (provider, envKeys) => (req, res) => {

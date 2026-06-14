@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OAuth debug</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 16px; background: #111; color: #eee; }
+    pre { background: #222; padding: 12px; border-radius: 8px; overflow: auto; font-size: 12px; }
+    .ok { color: #4ade80; } .err { color: #f87171; }
+    button { margin: 8px 8px 8px 0; padding: 10px 14px; border-radius: 8px; border: none; cursor: pointer; }
+    .primary { background: #7c3aed; color: #fff; }
+  </style>
+  <script src="ap-config.js"></script>
+</head>
+<body>
+  <h1>OAuth debug</h1>
+  <p>API: <code id="apiBase">…</code></p>
+  <button type="button" class="primary" id="btnGoogle">Test Google login</button>
+  <button type="button" id="btnFetch">Fetch /auth/oauth-debug</button>
+  <h2>Server config</h2>
+  <pre id="out">Loading…</pre>
+  <h2>Log</h2>
+  <pre id="log"></pre>
+  <script src="auth-oauth.js"></script>
+  <script>
+    const logEl = document.getElementById('log');
+    function log(msg) {
+      logEl.textContent += new Date().toISOString().slice(11, 19) + ' ' + msg + '\n';
+    }
+    function apiBase() {
+      const h = location.hostname;
+      if (/\.vercel\.app$/i.test(h) || (location.port === '5500' && h !== 'localhost'))
+        return location.origin.replace(/\/$/, '') + '/api';
+      return (window.AP_CONFIG?.PRODUCTION_API_URL || 'http://62.72.56.74:5000/api').replace(/\/$/, '');
+    }
+    document.getElementById('apiBase').textContent = apiBase();
+    async function fetchDebug() {
+      const url = apiBase().replace(/\/api$/, '') + '/auth/oauth-debug';
+      log('GET ' + url);
+      try {
+        const r = await fetch(url);
+        const j = await r.json();
+        document.getElementById('out').textContent = JSON.stringify(j, null, 2);
+        log('oauth-debug ' + r.status + (j.success ? ' OK' : ' FAIL'));
+      } catch (e) {
+        document.getElementById('out').textContent = String(e);
+        log('ERROR ' + e.message);
+      }
+    }
+    document.getElementById('btnFetch').onclick = fetchDebug;
+    document.getElementById('btnGoogle').onclick = () => {
+      log('Starting Google OAuth via ' + (window.AuthOAuth?.getAuthOrigin?.() || '?'));
+      window.AuthOAuth?.redirectToOAuth?.('google');
+    };
+    fetchDebug();
+  </script>
+</body>
+</html>

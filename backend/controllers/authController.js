@@ -465,13 +465,17 @@ const googleCallback = async (req, res) => {
         }
 
         const token = generateToken(user.id, user.role, { first_name: user.first_name });
-        return res.redirect(buildOAuthSuccessUrl(token, oauthState.appRedirect));
+        const successUrl = buildOAuthSuccessUrl(token, oauthState.appRedirect);
+        console.log('[oauth] Google login OK → redirect:', successUrl, {
+            appRedirect: oauthState.appRedirect || '(none)',
+            userId: user.id,
+        });
+        return res.redirect(successUrl);
     } catch (error) {
         console.error('❌ Google callback error:', error);
-        return res.status(500).json({
-            success: false,
-            message: 'Google authentication failed'
-        });
+        const failUrl = `${getFrontendBaseUrl()}/login.html?error=oauth_auth_failed&detail=${encodeURIComponent(error.message || 'unknown')}`;
+        console.log('[oauth] Google login FAIL → redirect:', failUrl);
+        return res.redirect(failUrl);
     }
 };
 

@@ -123,6 +123,7 @@
 
       if (!token) {
         showError('We could not verify your session. Please try signing in again.');
+        console.error('[login-success] no token', location.href);
         setTimeout(() => window.location.replace('/app-auth.html?app=1'), 2800);
         return;
       }

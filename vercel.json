@@ -9,6 +9,14 @@
   ],
   "routes": [
     {
+      "src": "/api/(.*)",
+      "dest": "http://62.72.56.74:5000/api/$1"
+    },
+    {
+      "src": "/auth/(.*)",
+      "dest": "http://62.72.56.74:5000/auth/$1"
+    },
+    {
       "src": "/",
       "dest": "/frontend/index.html"
     },
@@ -25,36 +33,16 @@
       "dest": "/frontend/login-success.html"
     },
     {
+      "src": "/oauth-debug.html",
+      "dest": "/frontend/oauth-debug.html"
+    },
+    {
       "src": "/dashboard",
       "dest": "/frontend/dashboard.html"
     },
     {
       "src": "/dashboard.html",
       "dest": "/frontend/dashboard.html"
-    },
-    {
-      "src": "/auth/google/callback",
-      "dest": "/frontend/oauth-callback-bridge.html"
-    },
-    {
-      "src": "/auth/github/callback",
-      "dest": "/frontend/oauth-callback-bridge.html"
-    },
-    {
-      "src": "/auth/facebook/callback",
-      "dest": "/frontend/oauth-callback-bridge.html"
-    },
-    {
-      "src": "/api/google/callback",
-      "dest": "/frontend/oauth-callback-bridge.html"
-    },
-    {
-      "src": "/api/(.*)",
-      "dest": "http://62.72.56.74:5000/api/$1"
-    },
-    {
-      "src": "/auth/(.*)",
-      "dest": "http://62.72.56.74:5000/auth/$1"
     },
     {
       "src": "/register.html",
