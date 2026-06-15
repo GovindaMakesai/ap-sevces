@@ -1,5 +1,9 @@
-/** Shared proxy — forwards Vercel /api/* and /auth/* to Hostinger VPS. */
-const BACKEND = (process.env.BACKEND_URL || 'http://62.72.56.74:5000').replace(/\/$/, '');
+/** Shared proxy — forwards Vercel /api/* and /auth/* to production API (HTTPS). */
+const BACKEND = (
+  process.env.BACKEND_URL ||
+  process.env.API_URL?.replace(/\/api\/?$/, '') ||
+  'https://api.apservices.in'
+).replace(/\/$/, '');
 
 async function readBody(req) {
   if (req.method === 'GET' || req.method === 'HEAD') return undefined;

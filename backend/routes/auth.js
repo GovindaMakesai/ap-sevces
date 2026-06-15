@@ -13,7 +13,7 @@ const {
     checkValidation
 } = require('../middleware/validation');
 
-const frontendBaseUrl = process.env.FRONTEND_URL || 'https://ap-sevces.vercel.app';
+const frontendBaseUrl = process.env.FRONTEND_URL || 'https://api.apservices.in';
 const oauthFailureRedirect = `${frontendBaseUrl}/login.html?error=oauth_auth_failed`;
 const oauthCallbackBase = (
     process.env.OAUTH_CALLBACK_BASE ||

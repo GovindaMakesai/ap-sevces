@@ -23,6 +23,8 @@ async function seedCoinPackages() {
 }
 
 async function ensureProductionReadinessSchema() {
+  await require('./ensureSocialProductionSchema').ensureSocialProductionSchema();
+  await require('./ensureSecurityHardeningSchema').ensureSecurityHardeningSchema();
   const sqlPath = path.join(__dirname, '../../database/migrations/006_production_readiness.sql');
   await db.query(fs.readFileSync(sqlPath, 'utf8'));
   await seedCoinPackages();

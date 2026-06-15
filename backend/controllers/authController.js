@@ -155,7 +155,10 @@ const isAdminRequest = (req) => {
     }
 };
 
-const getFrontendBaseUrl = () => process.env.FRONTEND_URL || 'https://ap-sevces.vercel.app';
+const getFrontendBaseUrl = () =>
+    process.env.FRONTEND_URL ||
+    process.env.OAUTH_CALLBACK_BASE ||
+    'https://api.apservices.in';
 
 const isNativeAppRedirect = (value) => /^(exp|apservices):\/\//i.test(String(value || '').trim());
 

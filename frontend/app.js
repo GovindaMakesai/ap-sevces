@@ -5,8 +5,8 @@
 const AP = window.AP_CONFIG || {
     PRODUCTION_BACKEND_URL: 'http://62.72.56.74:5000',
     PRODUCTION_API_URL: 'http://62.72.56.74:5000/api',
-    PRODUCTION_FRONTEND_URL: 'https://ap-sevces.vercel.app',
-    OAUTH_CALLBACK_BASE: 'https://ap-sevces.vercel.app',
+    PRODUCTION_FRONTEND_URL: 'https://api.apservices.in',
+    OAUTH_CALLBACK_BASE: 'https://api.apservices.in',
 };
 window.AP_CONFIG = AP;
 

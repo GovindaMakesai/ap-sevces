@@ -1,36 +1,34 @@
 /**
- * OAuth — API runs on VPS (62.72.56.74:5000).
- * Callback URLs are HTTPS on Vercel; bridge forwards ?code= to VPS.
+ * OAuth — production uses api.apservices.in for start + callback + post-login redirect.
+ * Vercel is static UI only; do not route OAuth through vercel.app (502 / wrong redirect).
  */
 (function () {
-  function backendUrl() {
+  function apiOrigin() {
     return (
       (window.AP_CONFIG && window.AP_CONFIG.PRODUCTION_BACKEND_URL) ||
-      'http://62.72.56.74:5000'
+      'https://api.apservices.in'
     ).replace(/\/$/, '');
   }
 
-  function vercelUrl() {
+  function backendUrl() {
+    return apiOrigin();
+  }
+
+  function frontendUrl() {
     return (
       (window.AP_CONFIG && window.AP_CONFIG.PRODUCTION_FRONTEND_URL) ||
-      'https://ap-sevces.vercel.app'
+      apiOrigin()
     ).replace(/\/$/, '');
   }
 
   function getAuthOrigin() {
     if (window.AP_CONFIG && window.AP_CONFIG.USE_HTTPS_DOMAIN) {
-      return window.AP_CONFIG.PRODUCTION_BACKEND_URL.replace(/\/$/, '');
+      return apiOrigin();
     }
 
     const host = window.location.hostname || '';
     const port = window.location.port || '';
 
-    // Web on Vercel — /auth rewrites to VPS
-    if (/\.vercel\.app$/i.test(host)) {
-      return window.location.origin.replace(/\/$/, '');
-    }
-
-    // Local dev — dev-server proxies /auth → VPS
     const isLan =
       host === 'localhost' ||
       host === '127.0.0.1' ||
@@ -40,12 +38,11 @@
       return window.location.origin.replace(/\/$/, '');
     }
 
-    // Native app / direct — hit VPS backend directly
     if (window.ReactNativeWebView || window.__AP_NATIVE_APP__) {
-      return backendUrl();
+      return apiOrigin();
     }
 
-    return vercelUrl();
+    return apiOrigin();
   }
 
   function redirectToOAuth(provider) {
@@ -63,7 +60,6 @@
       } catch (_e) {}
     }
 
-    // In the mobile app, always use native browser — never navigate WebView to OAuth
     if (window.ReactNativeWebView || window.__AP_NATIVE_APP__) {
       window.ReactNativeWebView?.postMessage(
         JSON.stringify({ type: 'oauth', provider, role, appRedirect })
@@ -100,6 +96,7 @@
     },
     getAuthOrigin,
     backendUrl,
-    vercelUrl,
+    frontendUrl,
+    vercelUrl: frontendUrl,
   };
 })();
