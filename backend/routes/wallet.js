@@ -3,7 +3,7 @@ const router = express.Router();
 const walletController = require('../controllers/walletController');
 const { verifyToken } = require('../middleware/auth');
 const { requirePermission } = require('../middleware/permissions');
-const upload = require('../middleware/upload');
+const privateUpload = require('../middleware/privateUpload');
 
 router.use(verifyToken);
 
@@ -15,7 +15,7 @@ router.get('/withdrawals/:id', requirePermission('wallet.read'), walletControlle
 router.post(
   '/withdraw',
   requirePermission('wallet.withdraw'),
-  upload.single('qr_image'),
+  privateUpload.single('qr_image'),
   walletController.requestWithdraw
 );
 router.post('/withdrawals/:id/confirm', requirePermission('wallet.withdraw'), walletController.confirmWithdrawal);

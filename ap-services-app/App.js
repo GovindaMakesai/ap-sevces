@@ -75,22 +75,19 @@ function isNativeOAuthReturnUrl(url) {
   return u.startsWith('apservices://') || u.startsWith('exp://');
 }
 
-function extractToken(url) {
+function extractOAuthCode(url) {
   if (!url) return '';
   try {
     const parsed = Linking.parse(url);
-    const t = parsed?.queryParams?.token;
-    if (Array.isArray(t) && t[0]) return String(t[0]);
-    if (typeof t === 'string' && t) return t;
+    const c = parsed?.queryParams?.code;
+    if (Array.isArray(c) && c[0]) return String(c[0]);
+    if (typeof c === 'string' && c) return c;
   } catch (_e) {
     /* fall through */
   }
   const raw = String(url);
-  const qm = raw.match(/[?&]token=([^&#]+)/);
-  if (qm?.[1]) return decodeURIComponent(qm[1]);
-  const hash = raw.includes('#') ? raw.split('#')[1] : '';
-  const hm = hash.match(/(?:^|&)token=([^&]+)/);
-  return hm?.[1] ? decodeURIComponent(hm[1]) : '';
+  const qm = raw.match(/[?&]code=([^&#]+)/);
+  return qm?.[1] ? decodeURIComponent(qm[1]) : '';
 }
 
 function parseAuthProvider(url) {
@@ -142,30 +139,31 @@ export default function App() {
     }, 250);
   }, []);
 
-  const finishLoginInWebView = useCallback((token) => {
-    if (!token) return;
+  const finishLoginInWebView = useCallback((code) => {
+    if (!code) return;
 
-    const tokenJson = JSON.stringify(token);
+    const codeJson = JSON.stringify(code);
     const apiBase = JSON.stringify(API_BASE_URL);
     const successPage = JSON.stringify(
-      `${FRONTEND_BASE}/login-success.html?token=${encodeURIComponent(token)}&source=expo-app&app=1`
+      `${FRONTEND_BASE}/login-success.html?code=${encodeURIComponent(code)}&source=expo-app&app=1`
     );
 
     const script = `
       (function() {
-        var token = ${tokenJson};
+        var code = ${codeJson};
         var api = ${apiBase};
-        try {
-          localStorage.setItem('token', token);
-          localStorage.removeItem('app_redirect');
-          if (window.AppState) window.AppState.token = token;
-        } catch (e) {}
+        try { localStorage.removeItem('token'); localStorage.removeItem('app_redirect'); } catch (e) {}
         function go(path) { window.location.replace(path); }
-        fetch(api + '/auth/me', { headers: { Authorization: 'Bearer ' + token } })
+        fetch(api + '/auth/exchange-code', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: code })
+        })
           .then(function(r) { return r.json(); })
           .then(function(data) {
             var user = data && data.success && data.data && data.data.user;
-            if (!user) throw new Error('profile');
+            if (!user) throw new Error('exchange');
             try {
               localStorage.setItem('user', JSON.stringify(user));
               if (window.AppState) window.AppState.user = user;
@@ -183,24 +181,24 @@ export default function App() {
     `;
 
     if (!webViewRef.current) {
-      pendingTokenRef.current = token;
+      pendingTokenRef.current = code;
       return;
     }
 
-    handledTokenRef.current = token;
+    handledTokenRef.current = code;
     pendingTokenRef.current = '';
     webViewRef.current.injectJavaScript(script);
   }, []);
 
-  const applyOAuthToken = useCallback(
-    async (token) => {
-      if (!token) return;
+  const applyOAuthCode = useCallback(
+    async (code) => {
+      if (!code) return;
       try {
         await WebBrowser.dismissBrowser();
       } catch (_e) {
         /* already closed */
       }
-      finishLoginInWebView(token);
+      finishLoginInWebView(code);
     },
     [finishLoginInWebView]
   );
@@ -242,20 +240,20 @@ export default function App() {
         console.log('[ap-services-app] OAuth result:', result.type, result.url || '');
 
         if (result.type === 'success' && result.url) {
-          const token = extractToken(result.url);
-          if (token) {
-            await applyOAuthToken(token);
+          const code = extractOAuthCode(result.url);
+          if (code) {
+            await applyOAuthCode(code);
             return;
           }
         }
 
         if (pendingTokenRef.current) {
-          await applyOAuthToken(pendingTokenRef.current);
+          await applyOAuthCode(pendingTokenRef.current);
         }
       } catch (err) {
         console.warn('OAuth session failed', err);
         if (pendingTokenRef.current) {
-          await applyOAuthToken(pendingTokenRef.current);
+          await applyOAuthCode(pendingTokenRef.current);
         }
       } finally {
         oauthBusyRef.current = false;
@@ -273,16 +271,16 @@ export default function App() {
         }
       }
     },
-    [applyOAuthToken]
+    [applyOAuthCode]
   );
 
   useEffect(() => {
     const handleDeepLink = ({ url }) => {
       if (!isNativeOAuthReturnUrl(url)) return;
-      const token = extractToken(url);
-      if (!token) return;
-      pendingTokenRef.current = token;
-      applyOAuthToken(token);
+      const code = extractOAuthCode(url);
+      if (!code) return;
+      pendingTokenRef.current = code;
+      applyOAuthCode(code);
     };
 
     const subscription = Linking.addEventListener('url', handleDeepLink);
@@ -293,16 +291,16 @@ export default function App() {
       .catch(() => {});
 
     return () => subscription.remove();
-  }, [applyOAuthToken]);
+  }, [applyOAuthCode]);
 
   const handleOAuthUrl = useCallback(
     (url) => {
-      const token = extractToken(url);
+      const code = extractOAuthCode(url);
 
-      if (token && (isNativeOAuthReturnUrl(url) || url.includes('login-success'))) {
-        if (handledTokenRef.current === token) return true;
-        pendingTokenRef.current = token;
-        applyOAuthToken(token);
+      if (code && (isNativeOAuthReturnUrl(url) || url.includes('login-success'))) {
+        if (handledTokenRef.current === code) return true;
+        pendingTokenRef.current = code;
+        applyOAuthCode(code);
         return true;
       }
 
@@ -327,7 +325,7 @@ export default function App() {
 
       return false;
     },
-    [applyOAuthToken, startOAuthInBrowser]
+    [applyOAuthCode, startOAuthInBrowser]
   );
 
   const onWebViewMessage = useCallback(

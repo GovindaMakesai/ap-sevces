@@ -5,7 +5,9 @@ require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const express = require('express');
 const http = require('http');
+const path = require('path');
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
 const passport = require('passport');
 const { Server } = require('socket.io');
 
@@ -15,6 +17,11 @@ const { ensurePaymentSchema } = require('./config/ensurePaymentSchema');
 const { ensureFoundationSchema } = require('./config/ensureFoundationSchema');
 const { ensurePhase2Schema } = require('./config/ensurePhase2Schema');
 const { ensureSocialProductionSchema } = require('./config/ensureSocialProductionSchema');
+const { ensureSecurityHardeningSchema } = require('./config/ensureSecurityHardeningSchema');
+const { ensureProductionReadinessSchema } = require('./config/ensureProductionReadinessSchema');
+const { ensureWithdrawalQrSchema } = require('./config/ensureWithdrawalQrSchema');
+const { applySecurityMiddleware, authLimiter, walletLimiter } = require('./middleware/security');
+const webhookRoutes = require('./routes/webhooks');
 const { registerChatSocket } = require('./socket/chatSocket');
 const { registerLiveSocket } = require('./socket/liveSocket');
 const { registerPkSocket } = require('./socket/pkSocket');
@@ -41,6 +48,9 @@ const messageRoutes = require('./routes/messages');
 const liveRoutes = require('./routes/live');
 const platformRoutes = require('./routes/platform');
 const socialRoutes = require('./routes/social');
+const storeRoutes = require('./routes/store');
+const trustRoutes = require('./routes/trust');
+const filesRoutes = require('./routes/files');
 
 const app = express();
 const server = http.createServer(app);
@@ -57,21 +67,30 @@ const allowedOrigins = [
   'https://ap-services-marketplace.onrender.com',
   'https://ap-sevces.onrender.com',
   'http://62.72.56.74:5000',
-  'http://62.72.56.74',
+  'https://apservices.in',
+  'https://www.apservices.in',
+  'https://api.apservices.in',
 ];
 
 function isAllowedCorsOrigin(origin) {
   if (!origin) return true;
   if (allowedOrigins.indexOf(origin) !== -1) return true;
+  const isProduction = process.env.NODE_ENV === 'production';
+  if (isProduction) {
+    if (/^https:\/\/(www\.)?apservices\.in$/i.test(origin)) return true;
+    if (/^https:\/\/api\.apservices\.in$/i.test(origin)) return true;
+    if (/^https:\/\/[\w-]+\.vercel\.app$/i.test(origin)) return true;
+    return false;
+  }
   if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) return true;
   if (/^http:\/\/192\.168\.\d{1,3}\.\d{1,3}(:\d+)?$/i.test(origin)) return true;
   if (/^http:\/\/10\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$/i.test(origin)) return true;
   if (/^https:\/\/[\w-]+\.vercel\.app$/i.test(origin)) return true;
-  if (/^https:\/\/[\w.-]+(:\d+)?$/i.test(origin)) return true;
   if (/^capacitor:\/\//i.test(origin)) return true;
-  if (/^file:\/\//i.test(origin)) return true;
   return false;
 }
+
+applySecurityMiddleware(app);
 
 app.use(cors({
   origin(origin, callback) {
@@ -88,8 +107,18 @@ app.options('*', cors());
 app.use('/api/v1/webhooks', webhookRoutes);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 app.use(passport.initialize());
 app.use(express.static(path.join(__dirname, '..', 'public')));
+
+app.use('/uploads', (req, res, next) => {
+  const p = req.path.toLowerCase();
+  if (p.includes('/private') || p.includes('/kyc') || p.includes('/withdrawal') || p.startsWith('/chat/')) {
+    return res.status(403).json({ success: false, message: 'Use signed file URL for private assets' });
+  }
+  return next();
+});
+app.use('/uploads/public', express.static(path.join(__dirname, 'uploads/public')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 app.use((req, res, next) => {
@@ -99,8 +128,8 @@ app.use((req, res, next) => {
 
 db.testConnection();
 
-app.use('/api/auth', authRoutes);
-app.use('/auth', authRoutes);
+app.use('/api/auth', authLimiter, authRoutes);
+app.use('/auth', authLimiter, authRoutes);
 app.use('/api/workers', workerRoutes);
 app.use('/api/services', serviceRoutes);
 app.use('/api/bookings', bookingRoutes);
@@ -109,8 +138,11 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/live', liveRoutes);
-app.use('/api/wallet', walletRoutes);
+app.use('/api/wallet', walletLimiter, walletRoutes);
 app.use('/api/social', socialRoutes);
+app.use('/api/store', storeRoutes);
+app.use('/api/trust', trustRoutes);
+app.use('/api/files', filesRoutes);
 app.use('/api/v1', platformRoutes);
 
 app.get('/api/health', async (_req, res) => {
@@ -118,8 +150,8 @@ app.get('/api/health', async (_req, res) => {
   try {
     const dbResult = await db.query('SELECT NOW() as time');
     health.checks.database = { ok: true, time: dbResult.rows[0].time };
-  } catch (err) {
-    health.checks.database = { ok: false, error: err.message };
+  } catch (_err) {
+    health.checks.database = { ok: false };
     health.success = false;
   }
   health.checks.redis = { ok: redis.isEnabled(), mode: redis.isEnabled() ? 'redis' : 'memory' };
@@ -143,6 +175,20 @@ const io = new Server(server, {
   },
 });
 app.set('io', io);
+
+async function attachSocketRedisAdapter() {
+  if (!redis.isEnabled()) return;
+  try {
+    const { createAdapter } = require('@socket.io/redis-adapter');
+    const pub = await redis.getClient();
+    const sub = pub.duplicate();
+    await sub.connect();
+    io.adapter(createAdapter(pub, sub));
+    logger.info('Socket.IO Redis adapter enabled');
+  } catch (err) {
+    logger.warn('Socket.IO Redis adapter unavailable', { error: err.message });
+  }
+}
 registerChatSocket(io);
 registerLiveSocket(io);
 registerPkSocket(io);
@@ -156,6 +202,9 @@ async function startServer() {
   await ensurePhase2Schema();
   await ensureWithdrawalQrSchema();
   await ensureSocialProductionSchema();
+  await ensureSecurityHardeningSchema();
+  await ensureProductionReadinessSchema();
+  await attachSocketRedisAdapter();
   await platformService.getOrCreateTreasuryUserId();
   await liveRoomService.recoverActiveRooms();
   startScheduler();

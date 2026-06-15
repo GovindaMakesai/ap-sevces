@@ -40,6 +40,15 @@ async function addAgencyMember(req, res) {
 
 async function getAgencyAnalytics(req, res) {
   try {
+    const agency = await agencyService.getAgencyById(req.params.id);
+    if (!agency) {
+      return res.status(404).json({ success: false, message: 'Agency not found' });
+    }
+    const isOwner = String(agency.owner_user_id) === String(req.userId);
+    const isMember = await agencyService.isMember(req.params.id, req.userId);
+    if (!isOwner && !isMember) {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
     const data = await agencyService.getAgencyAnalytics(req.params.id);
     res.json({ success: true, data });
   } catch (err) {
@@ -82,8 +91,8 @@ async function getVipStatus(req, res) {
 
 async function claimReward(req, res) {
   try {
-    const { rule_slug, event_key } = req.body;
-    const claim = await rewardEngineService.claimReward(req.userId, rule_slug, event_key);
+    const { rule_slug } = req.body;
+    const claim = await rewardEngineService.claimReward(req.userId, rule_slug);
     res.json({ success: true, data: claim });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
@@ -119,7 +128,7 @@ async function createPaymentIntent(req, res) {
 
 async function createRazorpayOrder(req, res) {
   try {
-    const data = await paymentService.createRazorpayOrder(req.params.intentId);
+    const data = await paymentService.createRazorpayOrder(req.params.intentId, req.userId);
     res.json({ success: true, data });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
@@ -131,7 +140,8 @@ async function createStripeSession(req, res) {
     const data = await paymentService.createStripeSession(
       req.params.intentId,
       req.body.success_url,
-      req.body.cancel_url
+      req.body.cancel_url,
+      req.userId
     );
     res.json({ success: true, data });
   } catch (err) {

@@ -20,9 +20,10 @@ async function createIntent(userId, { amount_inr, provider = 'razorpay' }) {
   return res.rows[0];
 }
 
-async function createRazorpayOrder(intentId) {
+async function createRazorpayOrder(intentId, userId) {
   const intent = await getIntent(intentId);
   if (!intent || intent.provider !== 'razorpay') throw new Error('Invalid intent');
+  if (userId && String(intent.user_id) !== String(userId)) throw new Error('Payment intent not found');
   const keyId = process.env.RAZORPAY_KEY_ID;
   const keySecret = process.env.RAZORPAY_KEY_SECRET;
   if (!keyId || !keySecret) throw new Error('Razorpay not configured');
@@ -43,9 +44,20 @@ async function createRazorpayOrder(intentId) {
   return { order_id: data.id, amount: amountPaise, currency: 'INR', key_id: keyId };
 }
 
-async function createStripeSession(intentId, successUrl, cancelUrl) {
+async function createStripeSession(intentId, successUrl, cancelUrl, userId) {
   const intent = await getIntent(intentId);
   if (!intent || intent.provider !== 'stripe') throw new Error('Invalid intent');
+  if (userId && String(intent.user_id) !== String(userId)) throw new Error('Payment intent not found');
+
+  const frontend = (process.env.FRONTEND_URL || 'https://apservices.in').replace(/\/$/, '');
+  const safeSuccess = String(successUrl || `${frontend}/wallet.html?paid=1`);
+  const safeCancel = String(cancelUrl || `${frontend}/wallet.html?cancelled=1`);
+  if (!safeSuccess.startsWith(frontend) && !safeSuccess.startsWith('https://apservices.in')) {
+    throw new Error('Invalid success URL');
+  }
+  if (!safeCancel.startsWith(frontend) && !safeCancel.startsWith('https://apservices.in')) {
+    throw new Error('Invalid cancel URL');
+  }
   const stripeKey = process.env.STRIPE_SECRET_KEY;
   if (!stripeKey) throw new Error('Stripe not configured');
 
@@ -53,8 +65,8 @@ async function createStripeSession(intentId, successUrl, cancelUrl) {
   const stripe = new Stripe(stripeKey);
   const session = await stripe.checkout.sessions.create({
     mode: 'payment',
-    success_url: successUrl,
-    cancel_url: cancelUrl,
+    success_url: safeSuccess,
+    cancel_url: safeCancel,
     line_items: [{
       price_data: {
         currency: 'inr',

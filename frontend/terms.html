@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Terms of Service - AP Services</title>
+  <link rel="stylesheet" href="social-theme.css">
+</head>
+<body style="padding:24px;max-width:720px;margin:0 auto;font-family:system-ui,sans-serif">
+  <h1>Terms of Service</h1>
+  <p>Version: 2026-06-01</p>
+  <p>By using AP Services you agree to our community guidelines, wallet policies, and creator monetization rules. Coin purchases are final after verified payment. Fraud or abuse may result in account restriction.</p>
+  <p><a href="/explore.html">Back to app</a></p>
+  <script src="app.js"></script>
+  <script>
+    if (window.API && localStorage.getItem('user')) {
+      API.post('/trust/consent/terms', { version: '2026-06-01' }).catch(() => {});
+    }
+  </script>
+</body>
+</html>

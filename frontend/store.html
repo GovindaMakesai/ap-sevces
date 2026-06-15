@@ -79,7 +79,8 @@
       { name: 'Bike', emoji: '🚲', price: '18,000' },
     ];
     function renderItem(it) {
-      return `<a class="social-store-item" href="#" data-name="${it.name}" data-emoji="${it.emoji}" data-price="${it.price}">
+      const pkg = it.packageId ? ` data-package-id="${it.packageId}"` : '';
+      return `<a class="social-store-item" href="#" data-name="${it.name}" data-emoji="${it.emoji}" data-price="${it.price}"${pkg}>
         <div class="img">${it.emoji}</div>
         <h4>${it.name}</h4>
         <div class="price">${it.ticket ? '🎫' : '🪙'} ${it.price}</div>
@@ -92,15 +93,44 @@
         coinsEl.textContent = String(b.coin_balance || 0);
       }
       SocialShell.initPage({ activeNav: 'explore' });
-      document.getElementById('storeGridNew').innerHTML = ITEMS.slice(0, 3).map(renderItem).join('');
-      document.getElementById('storeGrid').innerHTML = ITEMS.map(renderItem).join('');
+      let packages = [];
+      try {
+        const res = await fetch((CONFIG.API_URL || '/api') + '/store/packages', { credentials: 'include' });
+        const data = await res.json();
+        if (data.success) packages = data.data;
+      } catch (_e) {}
+      const items = packages.length
+        ? packages.map((p) => ({
+            name: p.name,
+            emoji: '🪙',
+            price: String(p.coins + (p.bonus_coins || 0)),
+            packageId: p.id,
+            inr: p.price_inr,
+          }))
+        : ITEMS;
+      document.getElementById('storeGridNew').innerHTML = items.slice(0, 3).map(renderItem).join('');
+      document.getElementById('storeGrid').innerHTML = items.map(renderItem).join('');
       document.querySelectorAll('.social-store-item').forEach((el) => {
-        el.addEventListener('click', (e) => {
+        el.addEventListener('click', async (e) => {
           e.preventDefault();
           document.getElementById('sheetTitle').textContent = el.dataset.name;
           document.getElementById('sheetEmoji').textContent = el.dataset.emoji;
           document.getElementById('sheetPrice').textContent = el.dataset.price + ' 🪙';
           document.getElementById('itemSheet').classList.add('open');
+          const buyBtn = document.querySelector('#itemSheet .social-btn-orange');
+          if (buyBtn && el.dataset.packageId && window.API) {
+            buyBtn.textContent = 'Buy with Razorpay';
+            buyBtn.onclick = async (ev) => {
+              ev.preventDefault();
+              try {
+                const purchase = await API.post('/store/purchase', { package_id: el.dataset.packageId });
+                const order = await API.post('/store/razorpay-order', { intent_id: purchase.data.intent.id });
+                alert('Razorpay order: ' + order.data.order_id + ' — complete payment in Razorpay checkout.');
+              } catch (err) {
+                alert(err.message || 'Purchase failed');
+              }
+            };
+          }
         });
       });
       document.getElementById('itemSheet').addEventListener('click', (e) => {

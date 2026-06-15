@@ -35,7 +35,7 @@ async function resolveGiftAmount(giftType, coinAmount) {
     return expected;
   }
 
-  return amount;
+  throw new Error(`Unknown gift type "${giftType}"`);
 }
 
 async function sendGift({ senderId, receiverId, liveRoomId, giftType, coinAmount }) {

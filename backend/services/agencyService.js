@@ -56,6 +56,14 @@ async function getAgencyById(id) {
   return res.rows[0] || null;
 }
 
+async function isMember(agencyId, userId) {
+  const res = await db.query(
+    `SELECT 1 FROM agency_members WHERE agency_id = $1 AND user_id = $2 LIMIT 1`,
+    [agencyId, userId]
+  );
+  return res.rows.length > 0;
+}
+
 async function getUserAgencyChain(userId) {
   const res = await db.query(
     `SELECT a.* FROM agencies a
@@ -134,6 +142,7 @@ module.exports = {
   createAgency,
   addMember,
   getAgencyById,
+  isMember,
   getUserAgencyChain,
   getAgencyAnalytics,
   listAgencies,

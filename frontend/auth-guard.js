@@ -20,7 +20,7 @@
   }
 
   function isLoggedIn() {
-    return Boolean(localStorage.getItem('token'));
+    return Boolean(localStorage.getItem('user'));
   }
 
   function getUser() {
@@ -55,12 +55,8 @@
   }
 
   async function validateSession() {
-    const token = localStorage.getItem('token');
-    if (!token) return false;
-
     const cachedUser = getUser();
     if (cachedUser && window.AppState) {
-      AppState.token = token;
       AppState.user = cachedUser;
     }
 
@@ -68,7 +64,7 @@
       if (window.Auth && typeof Auth.refreshSession === 'function') {
         const ok = await Auth.refreshSession();
         if (ok) return true;
-        if (!localStorage.getItem('token')) return false;
+        if (!localStorage.getItem('user')) return false;
         return Boolean(cachedUser || getUser());
       }
       const api =
@@ -76,26 +72,20 @@
         (window.CONFIG && CONFIG.API_URL) ||
         (window.AP_CONFIG && AP_CONFIG.PRODUCTION_API_URL) ||
         'http://62.72.56.74:5000/api';
-      const res = await fetch(api + '/auth/me', {
-        headers: { Authorization: 'Bearer ' + token },
-      });
+      const res = await fetch(api + '/auth/me', { credentials: 'include' });
       const data = await res.json().catch(() => ({}));
       if (res.status === 401) {
-        localStorage.removeItem('token');
         localStorage.removeItem('user');
         return false;
       }
       if (res.ok && data.success && data.data?.user) {
         localStorage.setItem('user', JSON.stringify(data.data.user));
-        if (window.AppState) {
-          AppState.token = token;
-          AppState.user = data.data.user;
-        }
+        if (window.AppState) AppState.user = data.data.user;
         return true;
       }
       return Boolean(cachedUser || getUser());
     } catch (_e) {
-      return Boolean(localStorage.getItem('token') && (cachedUser || getUser()));
+      return Boolean(localStorage.getItem('user') && (cachedUser || getUser()));
     }
   }
 
@@ -127,7 +117,6 @@
         localStorage.setItem('user', JSON.stringify(user));
         if (window.AppState) {
           AppState.user = user;
-          AppState.token = localStorage.getItem('token');
         }
       } catch (_e) {}
     }
@@ -157,7 +146,6 @@
     validateSession().then((ok) => {
       if (!ok) {
         markGuestUi();
-        localStorage.removeItem('token');
         localStorage.removeItem('user');
         window.location.replace('/app-auth.html?app=1');
       }

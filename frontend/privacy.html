@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy - AP Services</title>
+  <link rel="stylesheet" href="social-theme.css">
+</head>
+<body style="padding:24px;max-width:720px;margin:0 auto;font-family:system-ui,sans-serif">
+  <h1>Privacy Policy</h1>
+  <p>Version: 2026-06-01</p>
+  <p>AP Services collects account, wallet, and livestream activity data to operate the marketplace and social features. KYC and payment proof files are stored privately with expiring signed URLs.</p>
+  <p>Account deletion requests trigger a 30-day soft-delete grace period. Financial records may be retained for legal compliance.</p>
+  <p><a href="/explore.html">Back to app</a></p>
+  <script src="app.js"></script>
+  <script>
+    if (window.API && localStorage.getItem('user')) {
+      API.post('/trust/consent/privacy', { version: '2026-06-01' }).catch(() => {});
+    }
+  </script>
+</body>
+</html>

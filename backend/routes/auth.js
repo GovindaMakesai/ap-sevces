@@ -45,7 +45,10 @@ router.use((req, res, next) => {
     next();
 });
 
-router.get('/oauth-debug', (_req, res) => {
+router.get('/oauth-debug', (req, res) => {
+    if (process.env.NODE_ENV === 'production') {
+        return res.status(404).json({ success: false, message: 'Not found' });
+    }
     res.json({
         success: true,
         frontendUrl: frontendBaseUrl,
@@ -77,7 +80,10 @@ const missingProviderHandler = (provider, envKeys) => (req, res) => {
 const isGoogleConfigured = Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 const isGithubConfigured = Boolean(process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET);
 const isFacebookConfigured = Boolean(process.env.FACEBOOK_APP_ID && process.env.FACEBOOK_APP_SECRET);
-const normalizeOAuthRole = (value) => (['customer', 'worker', 'admin'].includes(value) ? value : 'customer');
+const normalizeOAuthRole = (value) => {
+  const role = String(value || '').toLowerCase();
+  return role === 'worker' ? 'worker' : 'customer';
+};
 const buildOAuthState = (req) => {
     const role = normalizeOAuthRole(String(req.query.role || 'customer').toLowerCase());
     const appRedirect = typeof req.query.app_redirect === 'string' ? req.query.app_redirect : '';
@@ -167,6 +173,10 @@ const ensureGoogleCode = (req, res, next) => {
 // Public routes
 router.post('/register', validateRegistration, checkValidation, authController.register);
 router.post('/login', validateLogin, checkValidation, authController.login);
+router.post('/refresh', authController.refresh);
+router.post('/logout', authController.logout);
+router.post('/exchange-code', authController.exchangeCode);
+router.get('/session', require('../middleware/auth').optionalAuth, authController.session);
 router.get('/me', verifyToken, authController.getMe);
 if (isGoogleConfigured) {
     router.get('/google', (req, res, next) => {

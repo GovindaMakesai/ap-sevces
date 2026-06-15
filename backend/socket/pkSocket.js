@@ -66,7 +66,10 @@ function registerPkSocket(io) {
         const channel = sanitizeChannel(payload?.channel || socket.data.liveChannel);
         const battle = await pkBattleService.getActiveBattleByChannel(channel);
         if (!battle) return ack?.({ ok: false, message: 'No active PK' });
-        if (!socket.data.isHost) return ack?.({ ok: false, message: 'Host only' });
+        const room = await liveRoomService.findByChannel(channel);
+        const isHost =
+          room && String(room.host_user_id) === String(socket.userId);
+        if (!isHost) return ack?.({ ok: false, message: 'Host only' });
 
         const snapshot = await pkBattleService.endBattle(battle.id);
         io.to(`live:${channel}`).emit('pk:end', snapshot);

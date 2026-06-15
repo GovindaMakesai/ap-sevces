@@ -36,14 +36,29 @@ async function getWithdrawalById(withdrawalId, userId = null) {
 
 async function createRechargeRequest(userId, { amount_inr, payment_method, transaction_id }) {
   if (!amount_inr || amount_inr <= 0) throw new Error('Invalid recharge amount');
-  if (!transaction_id || !String(transaction_id).trim()) {
+  const utr = String(transaction_id || '').trim();
+  if (!utr) {
     throw new Error('Payment reference (UTR) is required');
+  }
+
+  const fraudService = require('./fraudService');
+  await fraudService.checkRechargeAbuse(userId);
+
+  const dup = await db.query(
+    `SELECT id FROM recharges
+     WHERE LOWER(TRIM(transaction_id)) = LOWER($1)
+       AND payment_status NOT IN ('rejected', 'failed')
+     LIMIT 1`,
+    [utr]
+  );
+  if (dup.rows.length) {
+    throw new Error('This payment reference was already submitted');
   }
 
   const res = await db.query(
     `INSERT INTO recharges (user_id, amount_inr, payment_method, transaction_id, payment_status)
      VALUES ($1, $2, $3, $4, 'pending') RETURNING *`,
-    [userId, amount_inr, payment_method || 'qr_manual', String(transaction_id).trim()]
+    [userId, amount_inr, payment_method || 'qr_manual', utr]
   );
   return res.rows[0];
 }

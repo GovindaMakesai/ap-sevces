@@ -1568,6 +1568,15 @@
             scrollToBottom();
         }
 
+        function escapeHtml(str) {
+            return String(str || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
         function renderMessages(messages) {
             let html = '';
             let lastDate = '';
@@ -1588,8 +1597,8 @@
                     <div class="message-wrapper ${msg.type}">
                         <div class="message-bubble">
                             <div class="message-content">
-                                ${msg.text || ''}
-                                ${msg.image ? `<img src="${msg.image.replace(/"/g, '&quot;')}" class="message-image" alt="" onclick='openImageModal(${JSON.stringify(msg.image)})'>` : ''}
+                                ${escapeHtml(msg.text || '')}
+                                ${msg.image ? `<img src="${escapeHtml(msg.image)}" class="message-image" alt="" onclick='openImageModal(${JSON.stringify(msg.image)})'>` : ''}
                             </div>
                             <div class="message-time">
                                 <span>${msg.time}</span>

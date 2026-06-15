@@ -71,13 +71,25 @@ async function listMessages(conversationId) {
 }
 
 async function appendMessage(conversationId, senderId, receiverId, text) {
+    const raw = String(text || '').trim();
+    if (!raw) throw new Error('Empty message');
+    let body = raw;
+    if (body.length > 2000) body = body.slice(0, 2000);
+    if (body.startsWith('__IMG__:')) {
+        const imgPath = body.slice(8);
+        if (!/^\/uploads\/chat\/[\w.-]+$/i.test(imgPath)) {
+            throw new Error('Invalid image attachment');
+        }
+    } else {
+        body = body.replace(/<[^>]*>/g, '');
+    }
     const msg = await db.query(
         `INSERT INTO chat_messages (conversation_id, sender_id, receiver_id, body)
          VALUES ($1, $2, $3, $4)
          RETURNING id, conversation_id, sender_id, receiver_id, body, created_at`,
-        [conversationId, senderId, receiverId, text.trim()]
+        [conversationId, senderId, receiverId, body]
     );
-    const preview = text.trim().startsWith('__IMG__:') ? '📷 Photo' : text.trim();
+    const preview = body.startsWith('__IMG__:') ? '📷 Photo' : body;
     await db.query(
         `UPDATE conversations
          SET last_message_text = $1, last_message_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP

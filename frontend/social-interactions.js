@@ -154,6 +154,31 @@
     }
   }
 
+  async function loadPosts() {
+    if (window.API && localStorage.getItem('user')) {
+      try {
+        const res = await API.get('/social/posts');
+        if (res.success && Array.isArray(res.data)) {
+          return res.data.map((p) => ({
+            id: p.id,
+            userId: p.user_id,
+            userName: `${p.author?.first_name || ''} ${p.author?.last_name || ''}`.trim() || 'User',
+            text: p.body,
+            image: p.media_url,
+            likes: p.like_count || 0,
+            comments: p.comment_count || 0,
+            liked: !!p.liked,
+            createdAt: p.created_at,
+            fromApi: true,
+          }));
+        }
+      } catch (_e) {
+        /* fallback */
+      }
+    }
+    return getPosts();
+  }
+
   function savePosts(posts) {
     localStorage.setItem(POSTS_KEY, JSON.stringify(posts.slice(0, 50)));
   }
@@ -990,7 +1015,7 @@
     const feed = typeof container === 'string' ? document.getElementById(container) : container;
     if (!feed) return;
 
-    let posts = getPosts().filter((p) => canViewPost(p));
+    let posts = (await loadPosts()).filter((p) => canViewPost(p));
     const pros = window.SocialShell ? await SocialShell.fetchPros(4) : [];
     if (!posts.length) {
       posts = pros.map((p, i) => ({

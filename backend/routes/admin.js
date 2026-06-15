@@ -66,4 +66,33 @@ router.get('/verifications/pending', requirePermission('admin.verification'), as
 router.post('/verifications/:id/review', requirePermission('admin.verification'), platformController.adminReviewVerification);
 router.put('/agencies/:id/commission', requirePermission('admin.agencies'), platformController.adminSetCommission);
 
+const adminLiveService = require('../services/adminLiveService');
+const coinSellerService = require('../services/coinSellerService');
+
+router.get('/live-dashboard', async (req, res) => {
+  const data = await adminLiveService.getLiveDashboard();
+  res.json({ success: true, data });
+});
+
+router.post('/coin-seller-orders/:orderId/approve', async (req, res) => {
+  try {
+    const order = await coinSellerService.completeOrder(req.params.orderId, req.userId, { role: 'admin' });
+    res.json({ success: true, data: order });
+  } catch (e) {
+    res.status(400).json({ success: false, message: e.message });
+  }
+});
+
+router.post('/coin-seller-orders/:orderId/reject', async (req, res) => {
+  try {
+    const order = await coinSellerService.completeOrder(req.params.orderId, req.userId, {
+      role: 'admin',
+      rejectionReason: req.body.reason || 'Rejected by admin',
+    });
+    res.json({ success: true, data: order });
+  } catch (e) {
+    res.status(400).json({ success: false, message: e.message });
+  }
+});
+
 module.exports = router;

@@ -17,7 +17,9 @@ async function checkRechargeAbuse(userId) {
   );
   if (res.rows[0].c >= 5) {
     await flagUser(userId, 'recharge_velocity', 'high', { count: res.rows[0].c });
-    return true;
+    const err = new Error('Too many recharge requests. Please wait before submitting again.');
+    err.code = 'RECHARGE_RATE_LIMIT';
+    throw err;
   }
   return false;
 }
@@ -27,7 +29,9 @@ async function checkGiftAbuse(senderId, amount) {
   const count = await redis.incr(key, 60);
   if (count > 30 || amount > 100000) {
     await flagUser(senderId, 'gift_abuse', amount > 100000 ? 'critical' : 'medium', { count, amount });
-    return true;
+    const err = new Error('Gift rate limit exceeded. Please try again later.');
+    err.code = 'GIFT_RATE_LIMIT';
+    throw err;
   }
   return false;
 }
@@ -50,10 +54,24 @@ async function listOpenFlags(limit = 50) {
   return res.rows;
 }
 
+async function assertNotBlocked(userId, _context = '') {
+  const res = await db.query(
+    `SELECT 1 FROM fraud_flags
+     WHERE user_id = $1 AND status = 'open' AND severity IN ('high', 'critical') LIMIT 1`,
+    [userId]
+  );
+  if (res.rows.length) {
+    const err = new Error('Account restricted due to fraud review');
+    err.code = 'FRAUD_BLOCKED';
+    throw err;
+  }
+}
+
 module.exports = {
   flagUser,
   checkRechargeAbuse,
   checkGiftAbuse,
   checkDuplicateAccount,
   listOpenFlags,
+  assertNotBlocked,
 };

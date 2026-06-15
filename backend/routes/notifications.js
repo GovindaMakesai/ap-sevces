@@ -19,5 +19,6 @@ router.delete('/:id', notificationController.deleteNotification);
 // Settings
 router.get('/settings', notificationController.getSettings);
 router.put('/settings', notificationController.updateSettings);
+router.post('/device-token', notificationController.registerDeviceToken);
 
 module.exports = router;

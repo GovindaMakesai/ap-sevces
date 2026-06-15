@@ -1,8 +1,4 @@
-﻿/**
- * Live socket ΓÇö JWT auth, DB-backed rooms, server-side gift debits.
- * TODO: Redis adapter for multi-instance socket scaling.
- */
-const jwt = require('jsonwebtoken');
+﻿const { getAccessTokenFromRequest } = require('../services/authTokenService');
 const giftService = require('../services/giftService');
 const liveRoomService = require('../services/liveRoomService');
 const permissionService = require('../services/permissionService');
@@ -30,12 +26,22 @@ function sanitizeChannel(raw) {
     .slice(0, 64);
 }
 
+async function isRoomHost(socket, channel) {
+  const room = await liveRoomService.findByChannel(channel);
+  if (!room) return false;
+  return String(room.host_user_id) === String(socket.userId);
+}
+
 function registerLiveSocket(io) {
   io.use(async (socket, next) => {
     try {
-      const token = socket.handshake.auth?.token || socket.handshake.query?.token;
+      let token = socket.handshake.auth?.token;
+      if (!token) {
+        token = getAccessTokenFromRequest({ headers: socket.handshake.headers });
+      }
       if (!token) return next(new Error('Authentication required'));
 
+      const jwt = require('jsonwebtoken');
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       socket.userId = String(decoded.userId);
       socket.data.displayName =
@@ -59,29 +65,52 @@ function registerLiveSocket(io) {
 
         const canJoin = await permissionService.userHasPermission(socket.userId, 'live.join');
         if (!canJoin) {
-          console.warn('[live] live.join RBAC missing for user', socket.userId, '— allowing authenticated user');
+          if (ack) ack({ ok: false, message: 'No permission to join live rooms' });
+          return;
         }
 
         const displayName =
-          String(payload?.displayName || socket.data.displayName || 'User').trim().slice(0, 32) ||
-          'User';
-        const isHost = Boolean(payload?.isHost);
+          String(socket.data.displayName || 'User').trim().slice(0, 32) || 'User';
         const roomType = payload?.type === 'live' ? 'live' : 'party';
+        const clientWantsHost = Boolean(payload?.isHost);
 
         const existingRoom = await liveRoomService.findByChannel(channel);
-        if (existingRoom && !isHost && (await liveRoomService.isUserBanned(existingRoom.id, socket.userId))) {
+        if (existingRoom && (await liveRoomService.isUserBanned(existingRoom.id, socket.userId))) {
           if (ack) ack({ ok: false, message: 'You are banned from this room' });
           return;
         }
 
-        if (isHost) {
+        let isHost = false;
+        if (!existingRoom) {
+          if (!clientWantsHost) {
+            if (ack) ack({ ok: false, message: 'Room does not exist' });
+            return;
+          }
+          const canHost = await permissionService.userHasPermission(socket.userId, 'live.host');
+          if (!canHost) {
+            if (ack) ack({ ok: false, message: 'No permission to host' });
+            return;
+          }
+          isHost = true;
           await liveRoomService.hostRoom({
             channel,
             roomType,
             hostUserId: socket.userId,
             hostDisplayName: displayName,
           });
+        } else if (String(existingRoom.host_user_id) === String(socket.userId)) {
+          isHost = true;
+          await liveRoomService.joinRoom({
+            channel,
+            userId: socket.userId,
+            displayName,
+            asHost: true,
+          });
         } else {
+          if (clientWantsHost) {
+            if (ack) ack({ ok: false, message: 'You are not the host of this room' });
+            return;
+          }
           await liveRoomService.joinRoom({
             channel,
             userId: socket.userId,
@@ -117,11 +146,11 @@ function registerLiveSocket(io) {
 
     socket.on('live:kick', async (payload, ack) => {
       try {
-        if (!socket.data.isHost) {
+        const channel = sanitizeChannel(payload?.channel || currentChannel);
+        if (!(await isRoomHost(socket, channel))) {
           if (ack) ack({ ok: false, message: 'Only host can kick' });
           return;
         }
-        const channel = sanitizeChannel(payload?.channel || currentChannel);
         const targetUserId = String(payload?.userId || '');
         if (!targetUserId) {
           if (ack) ack({ ok: false, message: 'userId required' });
@@ -150,12 +179,15 @@ function registerLiveSocket(io) {
         const room = await liveRoomService.findByChannel(channel);
         if (!room) return;
 
-        const text = String(payload?.text || '').trim().slice(0, 280);
+        const text = String(payload?.text || '')
+          .replace(/<[^>]*>/g, '')
+          .trim()
+          .slice(0, 280);
         if (!text) return;
 
         const msg = {
           id: Date.now() + '-' + socket.userId,
-          type: payload?.type === 'system' ? 'system' : 'chat',
+          type: 'chat',
           userId: socket.userId,
           user: socket.data.liveDisplayName || 'User',
           lvl: payload?.lvl || 1,
@@ -245,15 +277,15 @@ function registerLiveSocket(io) {
       const room = await liveRoomService.findByChannel(channel);
       if (!room) return;
       const targetUserId = String(payload?.userId || socket.userId);
-      if (targetUserId !== socket.userId && !socket.data.isHost) return;
+      if (targetUserId !== socket.userId && !(await isRoomHost(socket, channel))) return;
       await liveRoomService.setMemberMuted(room.id, targetUserId, payload?.muted !== false);
       const state = await liveRoomService.buildSnapshot(channel);
       io.to(`live:${channel}`).emit('live:state', state);
     });
 
-    socket.on('live:seat_request', (payload) => {
+    socket.on('live:seat_request', async (payload) => {
       const channel = sanitizeChannel(payload?.channel || currentChannel);
-      if (!channel || socket.data.isHost) return;
+      if (!channel || (await isRoomHost(socket, channel))) return;
       io.to(`live:${channel}`).emit('live:seat_request', {
         userId: socket.userId,
         name: String(payload?.name || socket.data.liveDisplayName || 'Guest').slice(0, 32),
@@ -264,7 +296,7 @@ function registerLiveSocket(io) {
     socket.on('live:seat_response', async (payload) => {
       try {
         const channel = sanitizeChannel(payload?.channel || currentChannel);
-        if (!channel || !socket.data.isHost) return;
+        if (!channel || !(await isRoomHost(socket, channel))) return;
         const userId = String(payload?.userId || '');
         if (!userId) return;
         const accepted = payload?.accepted !== false;
@@ -292,7 +324,7 @@ function registerLiveSocket(io) {
     socket.on('live:end', async (payload, ack) => {
       try {
         const channel = sanitizeChannel(payload?.channel || currentChannel);
-        if (!socket.data.isHost) {
+        if (!(await isRoomHost(socket, channel))) {
           if (ack) ack({ ok: false, message: 'Only host can end room' });
           return;
         }

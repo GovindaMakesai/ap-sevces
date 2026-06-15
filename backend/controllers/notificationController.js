@@ -250,3 +250,17 @@ exports.createReviewNotification = async (review, workerId) => {
         data: { review_id: review.id, rating: review.rating }
     });
 };
+
+exports.registerDeviceToken = async (req, res) => {
+    try {
+        const pushNotificationService = require('../services/pushNotificationService');
+        const { token, platform } = req.body;
+        if (!token) {
+            return res.status(400).json({ success: false, message: 'Device token required' });
+        }
+        const row = await pushNotificationService.registerDevice(req.userId, token, platform || 'web');
+        res.json({ success: true, data: row });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};

@@ -4,6 +4,9 @@ const platformController = require('../controllers/platformController');
 const { verifyToken } = require('../middleware/auth');
 const { requirePermission } = require('../middleware/permissions');
 
+router.get('/leaderboards', platformController.getLeaderboard);
+router.get('/contests', platformController.listContests);
+
 router.use(verifyToken);
 
 router.get('/agencies', requirePermission('agency.read'), platformController.listAgencies);
@@ -11,8 +14,6 @@ router.post('/agencies', requirePermission('agency.manage'), platformController.
 router.post('/agencies/:id/members', requirePermission('agency.manage'), platformController.addAgencyMember);
 router.get('/agencies/:id/analytics', requirePermission('agency.read'), platformController.getAgencyAnalytics);
 
-router.get('/leaderboards', platformController.getLeaderboard);
-router.get('/contests', platformController.listContests);
 router.post('/contests/:id/enroll', requirePermission('contest.join'), platformController.enrollContest);
 
 router.get('/vip', platformController.getVipStatus);

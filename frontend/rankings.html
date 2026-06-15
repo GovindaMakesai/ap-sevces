@@ -57,6 +57,35 @@
   <script src="social-shell.js"></script>
   <script src="social-fx.js"></script>
   <script>
+    const TAB_CATEGORY = { host: 'creators', rich: 'gifters', gift: 'gifters', video: 'creators' };
+    let currentPeriod = 'daily';
+    let currentTab = 'host';
+
+    async function fetchRankings(period, tab) {
+      const category = TAB_CATEGORY[tab] || 'creators';
+      const api = (window.CONFIG && CONFIG.API_URL) || 'https://api.apservices.in/api';
+      const res = await fetch(`${api}/v1/leaderboards?period=${period}&category=${category}`, { credentials: 'include' });
+      const data = await res.json();
+      if (!data.success || !Array.isArray(data.data)) return RANK_DATA[tab] || [];
+      return data.data.map((row) => ({
+        n: row.entity_label || String(row.entity_id).slice(0, 8),
+        s: formatScore(row.score),
+      }));
+    }
+
+    function formatScore(score) {
+      const n = Number(score || 0);
+      if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+      if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+      return String(n);
+    }
+
+    async function refreshRanks() {
+      const rows = await fetchRankings(currentPeriod, currentTab);
+      const id = 'rankList' + currentTab.charAt(0).toUpperCase() + currentTab.slice(1);
+      renderRankList(id, rows.length ? rows : RANK_DATA[currentTab] || []);
+    }
+
     const RANK_DATA = {
       host: [
         { n: 'Varsace', s: '25.6M' }, { n: 'Kuldeep', s: '18.4M' }, { n: 'Affy', s: '12.1M' },
@@ -115,14 +144,26 @@
 
     document.addEventListener('DOMContentLoaded', async () => {
       SocialShell.initPage({ activeNav: 'rankings' });
-      Object.keys(RANK_DATA).forEach((k) =>
-        renderRankList('rankList' + k.charAt(0).toUpperCase() + k.slice(1), RANK_DATA[k])
-      );
+      document.querySelectorAll('.social-rank-main-tab').forEach((tab) => {
+        tab.addEventListener('click', (e) => {
+          e.preventDefault();
+          document.querySelectorAll('.social-rank-main-tab').forEach((t) => t.classList.remove('active'));
+          tab.classList.add('active');
+          currentTab = tab.dataset.tab || 'host';
+          document.querySelectorAll('[data-rank-panel]').forEach((p) => {
+            p.style.display = p.dataset.rankPanel === currentTab ? '' : 'none';
+          });
+          refreshRanks();
+        });
+      });
+      await refreshRanks();
       SocialInteractions.initRankingsPage();
       document.querySelectorAll('.social-rank-sub-tab[data-period]').forEach((tab) => {
         tab.addEventListener('click', () => {
           document.querySelectorAll('.social-rank-sub-tab').forEach((t) => t.classList.remove('active'));
           tab.classList.add('active');
+          currentPeriod = tab.dataset.period || 'daily';
+          refreshRanks();
           window.SocialFX?.confetti?.({ count: 20, originY: 0.2 });
         });
       });

@@ -5,6 +5,16 @@ const db = require('../config/database');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
+const {
+    createSession,
+    rotateRefresh,
+    revokeRefresh,
+    revokeAllForUser,
+    createOAuthExchangeCode,
+    exchangeOAuthCode,
+    clearSessionCookies,
+    getRefreshTokenFromRequest,
+} = require('../services/authTokenService');
 
 const mapExperienceRangeToYears = (range) => {
     const table = { '0-1': 0, '1-3': 2, '3-5': 4, '5-10': 7, '10+': 12 };
@@ -119,11 +129,14 @@ const parseOAuthState = (stateValue) => {
     }
 };
 
-const normalizeRequestedRole = (roleValue) => {
+const normalizeRequestedRole = (roleValue, { allowAdmin = false } = {}) => {
     const role = String(roleValue || '').toLowerCase();
-    if (role === 'worker' || role === 'admin' || role === 'customer') return role;
+    if (allowAdmin && role === 'admin') return 'admin';
+    if (role === 'worker') return 'worker';
     return 'customer';
 };
+
+const safeOAuthRole = (_roleValue) => 'customer';
 
 const generateOAuthPassword = () => {
     return `google_${crypto.randomBytes(24).toString('hex')}`;
@@ -146,23 +159,49 @@ const getFrontendBaseUrl = () => process.env.FRONTEND_URL || 'https://ap-sevces.
 
 const isNativeAppRedirect = (value) => /^(exp|apservices):\/\//i.test(String(value || '').trim());
 
-const buildOAuthSuccessUrl = (token, appRedirect = '') => {
+const buildOAuthSuccessUrl = (_token, appRedirect = '') => {
     const safeRedirect = String(appRedirect || '').trim();
-    // Native app (Expo): redirect straight to custom scheme so Chrome Custom Tab closes and returns to the app.
     if (safeRedirect && isNativeAppRedirect(safeRedirect)) {
-        const separator = safeRedirect.includes('?') ? '&' : '?';
-        return `${safeRedirect}${separator}token=${encodeURIComponent(token)}`;
+        return safeRedirect;
     }
     const absoluteSuccessUrl = process.env.OAUTH_SUCCESS_URL;
     const successPath = process.env.OAUTH_SUCCESS_PATH || '/login-success.html';
     const rawBase = absoluteSuccessUrl || `${getFrontendBaseUrl()}${successPath}`;
-    const params = new URLSearchParams({ token });
     if (safeRedirect) {
-        params.set('app_redirect', safeRedirect);
+        const sep = rawBase.includes('?') ? '&' : '?';
+        return `${rawBase}${sep}app_redirect=${encodeURIComponent(safeRedirect)}`;
     }
-    const separator = rawBase.includes('?') ? '&' : '?';
-    return `${rawBase}${separator}${params.toString()}`;
+    return rawBase;
 };
+
+const authMeta = (req) => ({
+    userAgent: req.get('user-agent'),
+    ip: req.ip || req.connection?.remoteAddress,
+});
+
+async function finishOAuthLogin(req, res, user, appRedirect) {
+    const meta = authMeta(req);
+    const { publicUser } = require('../lib/userDto');
+    if (isNativeAppRedirect(appRedirect)) {
+        const code = await createOAuthExchangeCode(user.id);
+        const base = String(appRedirect).trim();
+        const sep = base.includes('?') ? '&' : '?';
+        return res.redirect(`${base}${sep}code=${encodeURIComponent(code)}`);
+    }
+    await createSession(user, res, meta);
+    const url = buildOAuthSuccessUrl(null, appRedirect);
+    const sep = url.includes('?') ? '&' : '?';
+    return res.redirect(`${url}${sep}oauth=1`);
+}
+
+async function respondAuthedJson(res, user, message) {
+    const { publicUser } = require('../lib/userDto');
+    return res.json({
+        success: true,
+        message,
+        data: { user: publicUser(user, { self: true }) },
+    });
+}
 
 const generateGooglePhoneCandidate = (providerId, offset = 0) => {
     const digits = String(providerId || '').replace(/\D/g, '');
@@ -214,8 +253,16 @@ const register = async (req, res) => {
 
         const normalizedPhone = normalizeIndianPhone(phone);
         const hasFirebaseToken = typeof firebase_id_token === 'string' && firebase_id_token.trim().length > 0;
-        const isTestPhone = isAllowedTestPhone(normalizedPhone);
-        const isFallbackMode = otp_mode === 'fallback';
+        const isProduction = process.env.NODE_ENV === 'production';
+        const isTestPhone = !isProduction && isAllowedTestPhone(normalizedPhone);
+        const isFallbackMode = !isProduction && otp_mode === 'fallback';
+
+        if (isProduction && (otp_mode === 'fallback' || isAllowedTestPhone(normalizedPhone))) {
+            return res.status(400).json({
+                success: false,
+                message: 'Phone verification via Firebase is required'
+            });
+        }
 
         if (!adminRequest) {
             if (isTestPhone) {
@@ -246,7 +293,7 @@ const register = async (req, res) => {
         const requestedRole = adminRequest
             ? String(req.body.role || user_type || 'customer').toLowerCase()
             : String(user_type || 'customer').toLowerCase();
-        const role = ['customer', 'worker', 'admin'].includes(requestedRole) ? requestedRole : 'customer';
+        const role = normalizeRequestedRole(requestedRole, { allowAdmin: adminRequest });
         const wantsWorker = role === 'worker';
         if (wantsWorker) {
             const hourly = parseFloat(rawHourly);
@@ -311,15 +358,12 @@ const register = async (req, res) => {
             }
         }
 
-        const token = generateToken(userOut.id, userOut.role, { first_name: userOut.first_name });
+        await createSession(userOut, res, authMeta(req));
 
         console.log('✅ Registration successful:', userOut.email);
 
-        res.status(201).json({
-            success: true,
-            message: 'Registration successful',
-            data: { user: userOut, token }
-        });
+        res.status(201);
+        return respondAuthedJson(res, userOut, 'Registration successful');
     } catch (error) {
         console.error('❌ Registration error:', error);
         if (error.code === 'AUTH_CONFIG') {
@@ -330,8 +374,7 @@ const register = async (req, res) => {
         }
         res.status(500).json({
             success: false,
-            message: 'Registration failed',
-            error: error.message
+            message: 'Registration failed. Please try again or contact support.'
         });
     }
 };
@@ -375,16 +418,12 @@ const login = async (req, res) => {
             });
         }
 
-        const token = generateToken(user.id, user.role, { first_name: user.first_name });
+        await createSession(user, res, authMeta(req));
         delete user.password_hash;
 
         console.log('✅ Login successful:', user.email);
 
-        res.json({
-            success: true,
-            message: 'Login successful',
-            data: { user, token }
-        });
+        return respondAuthedJson(res, user, 'Login successful');
     } catch (error) {
         console.error('❌ Login error:', error);
         if (error.code === 'AUTH_CONFIG') {
@@ -409,7 +448,8 @@ const getMe = async (req, res) => {
                 message: 'User not found'
             });
         }
-        res.json({ success: true, data: { user } });
+        const { publicUser } = require('../lib/userDto');
+        res.json({ success: true, data: { user: publicUser(user, { self: true }) } });
     } catch (error) {
         console.error('❌ Get profile error:', error);
         res.status(500).json({
@@ -435,7 +475,7 @@ const googleCallback = async (req, res) => {
         const providerId = profile.id;
         const { email, displayName, first_name, last_name } = buildGoogleProfileData(profile);
         const oauthState = parseOAuthState(req.query.state);
-        const requestedRole = normalizeRequestedRole(oauthState.role);
+        const requestedRole = safeOAuthRole(oauthState.role);
 
         if (!email) {
             return res.status(400).json({
@@ -464,16 +504,11 @@ const googleCallback = async (req, res) => {
             user = await User.findById(user.id);
         }
 
-        const token = generateToken(user.id, user.role, { first_name: user.first_name });
-        const successUrl = buildOAuthSuccessUrl(token, oauthState.appRedirect);
-        console.log('[oauth] Google login OK → redirect:', successUrl, {
-            appRedirect: oauthState.appRedirect || '(none)',
-            userId: user.id,
-        });
-        return res.redirect(successUrl);
+        console.log('[oauth] Google login OK', { userId: user.id });
+        return finishOAuthLogin(req, res, user, oauthState.appRedirect);
     } catch (error) {
         console.error('❌ Google callback error:', error);
-        const failUrl = `${getFrontendBaseUrl()}/login.html?error=oauth_auth_failed&detail=${encodeURIComponent(error.message || 'unknown')}`;
+        const failUrl = `${getFrontendBaseUrl()}/login.html?error=oauth_auth_failed`;
         console.log('[oauth] Google login FAIL → redirect:', failUrl);
         return res.redirect(failUrl);
     }
@@ -495,7 +530,7 @@ const githubCallback = async (req, res) => {
         const providerId = profile.id;
         const { email, name, first_name, last_name } = buildGithubProfileData(profile);
         const oauthState = parseOAuthState(req.query.state);
-        const requestedRole = normalizeRequestedRole(oauthState.role);
+        const requestedRole = safeOAuthRole(oauthState.role);
 
         if (!email) {
             return res.status(400).json({
@@ -524,8 +559,7 @@ const githubCallback = async (req, res) => {
             user = await User.findById(user.id);
         }
 
-        const token = generateToken(user.id, user.role, { first_name: user.first_name });
-        return res.redirect(buildOAuthSuccessUrl(token, oauthState.appRedirect));
+        return finishOAuthLogin(req, res, user, oauthState.appRedirect);
     } catch (error) {
         console.error('❌ GitHub callback error:', error);
         return res.status(500).json({
@@ -551,7 +585,7 @@ const facebookCallback = async (req, res) => {
         const providerId = profile.id;
         const { email, name, first_name, last_name } = buildFacebookProfileData(profile);
         const oauthState = parseOAuthState(req.query.state);
-        const requestedRole = normalizeRequestedRole(oauthState.role);
+        const requestedRole = safeOAuthRole(oauthState.role);
 
         if (!email) {
             return res.status(400).json({
@@ -580,14 +614,65 @@ const facebookCallback = async (req, res) => {
             user = await User.findById(user.id);
         }
 
-        const token = generateToken(user.id, user.role, { first_name: user.first_name });
-        return res.redirect(buildOAuthSuccessUrl(token, oauthState.appRedirect));
+        return finishOAuthLogin(req, res, user, oauthState.appRedirect);
     } catch (error) {
         console.error('❌ Facebook callback error:', error);
         return res.status(500).json({
             success: false,
             message: 'Facebook authentication failed'
         });
+    }
+};
+
+const refresh = async (req, res) => {
+    try {
+        const refreshRaw = getRefreshTokenFromRequest(req);
+        const { user } = await rotateRefresh(refreshRaw, res, authMeta(req));
+        return respondAuthedJson(res, user, 'Session refreshed');
+    } catch (error) {
+        clearSessionCookies(res);
+        return res.status(401).json({ success: false, message: error.message || 'Refresh failed' });
+    }
+};
+
+const logout = async (req, res) => {
+    try {
+        const refreshRaw = getRefreshTokenFromRequest(req);
+        await revokeRefresh(refreshRaw);
+        if (req.userId) await revokeAllForUser(req.userId);
+        clearSessionCookies(res);
+        return res.json({ success: true, message: 'Logged out' });
+    } catch (error) {
+        clearSessionCookies(res);
+        return res.json({ success: true, message: 'Logged out' });
+    }
+};
+
+const exchangeCode = async (req, res) => {
+    try {
+        const { code } = req.body;
+        if (!code) return res.status(400).json({ success: false, message: 'Exchange code required' });
+        const { user } = await exchangeOAuthCode(code, res, authMeta(req));
+        return respondAuthedJson(res, user, 'OAuth exchange complete');
+    } catch (error) {
+        return res.status(400).json({ success: false, message: error.message });
+    }
+};
+
+const session = async (req, res) => {
+    try {
+        if (!req.userId) {
+            return res.json({ success: true, data: { authenticated: false } });
+        }
+        const user = await User.findById(req.userId);
+        if (!user) return res.json({ success: true, data: { authenticated: false } });
+        const { publicUser } = require('../lib/userDto');
+        return res.json({
+            success: true,
+            data: { authenticated: true, user: publicUser(user, { self: true }) },
+        });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: 'Session check failed' });
     }
 };
 
@@ -598,5 +683,9 @@ module.exports = {
     getMe,
     googleCallback,
     githubCallback,
-    facebookCallback
+    facebookCallback,
+    refresh,
+    logout,
+    exchangeCode,
+    session,
 };

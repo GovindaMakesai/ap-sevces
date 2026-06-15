@@ -1,5 +1,7 @@
 const followService = require('../services/followService');
 const coinSellerService = require('../services/coinSellerService');
+const socialFeedService = require('../services/socialFeedService');
+const fileAssetService = require('../services/fileAssetService');
 const db = require('../config/database');
 
 function uid(req) {
@@ -66,15 +68,117 @@ async function listCoinSellers(_req, res) {
 
 async function buyFromSeller(req, res) {
   try {
-    const { coins, amount_inr, reference_code } = req.body;
-    const order = await coinSellerService.sellCoins({
+    const order = await coinSellerService.createPendingOrder({
       sellerId: req.params.sellerId,
       buyerId: uid(req),
-      coins,
-      amountInr: amount_inr,
-      referenceCode: reference_code,
+      coins: req.body.coins,
+      amountInr: req.body.amount_inr,
+      referenceCode: req.body.reference_code,
     });
-    res.status(201).json({ success: true, data: order });
+    res.status(201).json({ success: true, data: order, message: 'Order created. Upload payment proof to continue.' });
+  } catch (e) {
+    res.status(400).json({ success: false, message: e.message });
+  }
+}
+
+async function uploadSellerProof(req, res) {
+  try {
+    if (!req.file) return res.status(400).json({ success: false, message: 'Payment proof file required' });
+    const asset = await fileAssetService.registerPrivateFile({
+      ownerId: uid(req),
+      category: 'coin_seller',
+      tempPath: req.file.path,
+      mimeType: req.file.mimetype,
+      originalName: req.file.originalname,
+      sizeBytes: req.file.size,
+    });
+    const order = await coinSellerService.attachPaymentProof(req.params.orderId, uid(req), asset.id);
+    res.json({
+      success: true,
+      data: order,
+      proof_url: fileAssetService.buildSignedUrl(asset.id, 600),
+    });
+  } catch (e) {
+    res.status(400).json({ success: false, message: e.message });
+  }
+}
+
+async function approveSellerOrder(req, res) {
+  try {
+    const order = await coinSellerService.completeOrder(req.params.orderId, uid(req), { role: 'seller' });
+    res.json({ success: true, data: order });
+  } catch (e) {
+    res.status(400).json({ success: false, message: e.message });
+  }
+}
+
+async function rejectSellerOrder(req, res) {
+  try {
+    const order = await coinSellerService.completeOrder(req.params.orderId, uid(req), {
+      role: 'seller',
+      rejectionReason: req.body.reason || 'Rejected by seller',
+    });
+    res.json({ success: true, data: order });
+  } catch (e) {
+    res.status(400).json({ success: false, message: e.message });
+  }
+}
+
+async function mySellerOrders(req, res) {
+  const role = req.query.role === 'seller' ? 'seller' : 'buyer';
+  const data = await coinSellerService.listOrdersForUser(uid(req), { role });
+  res.json({ success: true, data });
+}
+
+async function listPosts(req, res) {
+  const data = await socialFeedService.listFeed(uid(req), {
+    limit: parseInt(req.query.limit, 10) || 30,
+    offset: parseInt(req.query.offset, 10) || 0,
+  });
+  res.json({ success: true, data });
+}
+
+async function createPost(req, res) {
+  try {
+    const post = await socialFeedService.createPost(uid(req), req.body);
+    res.status(201).json({ success: true, data: post });
+  } catch (e) {
+    res.status(400).json({ success: false, message: e.message });
+  }
+}
+
+async function likePost(req, res) {
+  try {
+    const data = await socialFeedService.toggleLike(req.params.postId, uid(req));
+    res.json({ success: true, data });
+  } catch (e) {
+    res.status(400).json({ success: false, message: e.message });
+  }
+}
+
+async function commentPost(req, res) {
+  try {
+    const data = await socialFeedService.addComment(req.params.postId, uid(req), req.body.body);
+    res.status(201).json({ success: true, data });
+  } catch (e) {
+    res.status(400).json({ success: false, message: e.message });
+  }
+}
+
+async function getComments(req, res) {
+  const data = await socialFeedService.listComments(req.params.postId);
+  res.json({ success: true, data });
+}
+
+async function sharePost(req, res) {
+  const data = await socialFeedService.sharePost(req.params.postId);
+  res.json({ success: true, data });
+}
+
+async function deletePost(req, res) {
+  try {
+    const data = await socialFeedService.deletePost(req.params.postId, uid(req));
+    res.json({ success: true, data });
   } catch (e) {
     res.status(400).json({ success: false, message: e.message });
   }
@@ -105,5 +209,16 @@ module.exports = {
   listGiftCatalog,
   listCoinSellers,
   buyFromSeller,
+  uploadSellerProof,
+  approveSellerOrder,
+  rejectSellerOrder,
+  mySellerOrders,
+  listPosts,
+  createPost,
+  likePost,
+  commentPost,
+  getComments,
+  sharePost,
+  deletePost,
   reportUser,
 };

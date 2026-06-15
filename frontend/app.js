@@ -88,7 +88,7 @@ console.log('🔌 Backend URL:', CONFIG.BACKEND_URL);
 // ==================== STATE MANAGEMENT ====================
 const AppState = {
     user: null,
-    token: localStorage.getItem('token'),
+    token: null,
     currentLocation: null,
     selectedCity: localStorage.getItem('selectedCity') || 'Mumbai'
 };
@@ -115,12 +115,13 @@ const API = {
         return error;
     },
 
-    async _fetchOnce(url, options = {}) {
+    async _fetchOnce(url, options = {}, retried = false) {
         console.log(`📡 API Request: ${options.method || 'GET'} ${url}`);
 
         const headers = { ...options.headers };
-        if (AppState.token) {
-            headers['Authorization'] = `Bearer ${AppState.token}`;
+        const legacyToken = localStorage.getItem('token');
+        if (legacyToken) {
+            headers['Authorization'] = `Bearer ${legacyToken}`;
         }
 
         const isFormData = options.body instanceof FormData;
@@ -138,7 +139,7 @@ const API = {
             headers,
             body,
             mode: 'cors',
-            credentials: 'omit',
+            credentials: 'include',
         });
 
         let data;
@@ -147,6 +148,13 @@ const API = {
             data = await response.json();
         } else {
             data = await response.text();
+        }
+
+        if (response.status === 401 && !retried && !String(url).includes('/auth/refresh') && !String(url).includes('/auth/login')) {
+            const refreshed = await Auth.tryRefresh();
+            if (refreshed) {
+                return this._fetchOnce(url, options, true);
+            }
         }
 
         if (!response.ok) {
@@ -377,10 +385,8 @@ const Auth = {
             const response = await API.post('/auth/login', { email, password });
             
             if (response.success) {
-                AppState.token = response.data.token;
                 AppState.user = response.data.user;
-                
-                localStorage.setItem('token', response.data.token);
+                localStorage.removeItem('token');
                 localStorage.setItem('user', JSON.stringify(response.data.user));
                 
                 Toast.show(`Welcome back, ${response.data.user.first_name}!`, 'success');
@@ -443,7 +449,12 @@ const Auth = {
         }
     },
     
-    logout() {
+    async logout() {
+        try {
+            await API.post('/auth/logout', {});
+        } catch (_e) {
+            /* ignore */
+        }
         AppState.token = null;
         AppState.user = null;
         localStorage.removeItem('token');
@@ -454,12 +465,9 @@ const Auth = {
     },
     
     checkAuth() {
-        const token = localStorage.getItem('token');
         const user = localStorage.getItem('user');
-        
-        if (token && user) {
+        if (user) {
             try {
-                AppState.token = token;
                 AppState.user = JSON.parse(user);
                 return true;
             } catch (e) {
@@ -471,12 +479,34 @@ const Auth = {
     },
     
     getUser() { return AppState.user; },
-    getToken() { return AppState.token; },
+    getToken() { return AppState.token || localStorage.getItem('token'); },
+
+    async tryRefresh() {
+        if (this._refreshing) return this._refreshing;
+        this._refreshing = (async () => {
+            try {
+                const res = await fetch(`${CONFIG.API_URL}/auth/refresh`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                });
+                const data = await res.json().catch(() => ({}));
+                if (res.ok && data.success && data.data?.user) {
+                    AppState.user = data.data.user;
+                    localStorage.setItem('user', JSON.stringify(data.data.user));
+                    return true;
+                }
+                return false;
+            } catch (_e) {
+                return false;
+            } finally {
+                this._refreshing = null;
+            }
+        })();
+        return this._refreshing;
+    },
 
     async refreshSession() {
-        const token = localStorage.getItem('token');
-        if (!token) return false;
-        AppState.token = token;
         const cached = localStorage.getItem('user');
         if (cached) {
             try {
@@ -490,11 +520,14 @@ const Auth = {
             if (res.success && res.data && res.data.user) {
                 AppState.user = res.data.user;
                 localStorage.setItem('user', JSON.stringify(res.data.user));
+                localStorage.removeItem('token');
                 return true;
             }
         } catch (e) {
             console.warn('Session refresh failed:', e);
             if (e.status === 401) {
+                const ok = await this.tryRefresh();
+                if (ok) return this.refreshSession();
                 this.tokenInvalidCleanup();
                 return false;
             }
@@ -1300,8 +1333,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         localStorage.setItem('app_redirect', appRedirectFromQuery);
     }
     Auth.checkAuth();
-    if (AppState.token && !(isNativeAppContext() && onAuthScreen)) {
-        await Auth.refreshSession();
+    if (AppState.user || localStorage.getItem('user') || document.cookie.includes('ap_access')) {
+        if (!(isNativeAppContext() && onAuthScreen)) {
+            await Auth.refreshSession();
+        }
     }
     if (!isNativeAppContext()) {
         UI.updateNavbar();

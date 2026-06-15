@@ -105,11 +105,12 @@ exports.getAllWorkers = async (req, res) => {
         params.push(limit, offset);
         
         const result = await db.query(query, params);
+        const { publicWorker } = require('../lib/userDto');
         
         res.json({
             success: true,
             count: result.rows.length,
-            data: result.rows
+            data: result.rows.map(publicWorker)
         });
     } catch (error) {
         console.error('Get all workers error:', error);
@@ -259,10 +260,11 @@ exports.getWorkerProfile = async (req, res) => {
         }
 
         const services = await Worker.getServices(workerId);
+        const { publicWorker } = require('../lib/userDto');
 
         res.json({
             success: true,
-            data: { ...worker, services }
+            data: { ...publicWorker(worker), services }
         });
 
     } catch (error) {

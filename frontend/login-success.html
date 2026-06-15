@@ -2,13 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#fdf9f0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Signing You In - AP Services</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-theme.css">
   <link rel="stylesheet" href="social-auth.css">
-  <link rel="stylesheet" href="auth-native-overrides.css">
   <script src="social-auth-init.js"></script>
 </head>
 <body class="auth-success-page">
@@ -28,56 +25,12 @@
       const card = document.getElementById('card');
       const spinner = document.getElementById('spinner');
       const backBtn = document.getElementById('backBtn');
-
       const params = new URLSearchParams(window.location.search);
-      const hashParams = new URLSearchParams((window.location.hash || '').replace(/^#/, ''));
       const inNativeApp =
         Boolean(window.ReactNativeWebView) ||
         Boolean(window.__AP_NATIVE_APP__) ||
         params.get('source') === 'expo-app' ||
         params.get('app') === '1';
-
-      function getToken() {
-        return (
-          params.get('token') ||
-          hashParams.get('token') ||
-          localStorage.getItem('token') ||
-          ''
-        );
-      }
-
-      function getAppRedirect() {
-        return (
-          params.get('app_redirect') ||
-          (typeof window.__AP_OAUTH_RETURN__ === 'string' && window.__AP_OAUTH_RETURN__) ||
-          localStorage.getItem('app_redirect') ||
-          ''
-        ).trim();
-      }
-
-      function isAppDeepLink(url) {
-        return /^(exp|apservices):\/\//i.test(url);
-      }
-
-      function returnToNativeApp(token, appRedirect) {
-        const base = appRedirect.replace(/\/$/, '');
-        const sep = base.includes('?') ? '&' : '?';
-        statusText.textContent = 'Returning to AP Services app…';
-        window.location.replace(base + sep + 'token=' + encodeURIComponent(token));
-      }
-
-      function waitForToken(ms) {
-        return new Promise((resolve) => {
-          const start = Date.now();
-          const tick = () => {
-            const t = getToken();
-            if (t) return resolve(t);
-            if (Date.now() - start >= ms) return resolve('');
-            setTimeout(tick, 120);
-          };
-          tick();
-        });
-      }
 
       function showError(msg) {
         spinner.style.display = 'none';
@@ -93,82 +46,54 @@
           return;
         }
         const q = inNativeApp ? '?app=1' : '';
-        const u = user || null;
-        if (u && u.role === 'admin') window.location.replace('/admin-dashboard.html' + q);
-        else if (u && u.role === 'worker') window.location.replace('/worker-dashboard.html' + q);
+        if (user && user.role === 'admin') window.location.replace('/admin-dashboard.html' + q);
+        else if (user && user.role === 'worker') window.location.replace('/worker-dashboard.html' + q);
         else window.location.replace('/explore.html' + q);
       }
 
-      let token = getToken();
-      const appRedirect = getAppRedirect();
+      const exchangeCode = params.get('code');
+      const oauthCookieFlow = params.get('oauth') === '1';
 
-      // Native app OAuth: close browser tab and hand token to Expo / APK
-      if (token && appRedirect && isAppDeepLink(appRedirect)) {
-        try {
-          localStorage.setItem('token', token);
-          localStorage.removeItem('app_redirect');
-        } catch (_e) {}
-        returnToNativeApp(token, appRedirect);
-        return;
-      }
-
-      if (!token && inNativeApp) {
-        statusText.textContent = 'Completing sign in with the app…';
-        token = await waitForToken(8000);
-        if (token && appRedirect && isAppDeepLink(appRedirect)) {
-          returnToNativeApp(token, appRedirect);
+      try {
+        if (exchangeCode) {
+          statusText.textContent = 'Completing secure sign in…';
+          const apiBase = (window.CONFIG && CONFIG.API_URL) || 'https://api.apservices.in/api';
+          const res = await fetch(apiBase.replace(/\/$/, '') + '/auth/exchange-code', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: exchangeCode }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || !data.success) throw new Error(data.message || 'Exchange failed');
+          localStorage.setItem('user', JSON.stringify(data.data.user));
+          localStorage.removeItem('token');
+          if (window.AppState) AppState.user = data.data.user;
+          enterApp(data.data.user);
           return;
         }
-      }
 
-      if (!token) {
+        if (oauthCookieFlow || params.get('token')) {
+          statusText.textContent = 'Loading your profile…';
+          const user = await Auth.refreshSession() ? Auth.getUser() : null;
+          if (user) {
+            localStorage.removeItem('token');
+            enterApp(user);
+            return;
+          }
+        }
+
+        const ok = await Auth.refreshSession();
+        if (ok) {
+          enterApp(Auth.getUser());
+          return;
+        }
         showError('We could not verify your session. Please try signing in again.');
-        console.error('[login-success] no token', location.href);
         setTimeout(() => window.location.replace('/app-auth.html?app=1'), 2800);
-        return;
-      }
-
-      try {
-        localStorage.setItem('token', token);
-        if (window.AppState) AppState.token = token;
-        localStorage.removeItem('app_redirect');
-      } catch (_e) {}
-
-      async function loadUser() {
-        if (window.Auth && typeof Auth.refreshSession === 'function') {
-          const ok = await Auth.refreshSession();
-          if (ok && Auth.getUser()) return Auth.getUser();
-        }
-        const apiBase =
-          (typeof window.__AP_API_URL__ === 'string' && window.__AP_API_URL__) ||
-          (window.AP_CONFIG && window.AP_CONFIG.PRODUCTION_API_URL) ||
-          (window.CONFIG && CONFIG.API_URL) ||
-          'http://62.72.56.74:5000/api';
-        const res = await fetch(apiBase.replace(/\/$/, '') + '/auth/me', {
-          headers: { Authorization: 'Bearer ' + token },
-        });
-        const data = await res.json().catch(() => ({}));
-        if (res.ok && data.success && data.data?.user) {
-          localStorage.setItem('user', JSON.stringify(data.data.user));
-          if (window.AppState) AppState.user = data.data.user;
-          return data.data.user;
-        }
-        throw new Error(data.message || 'Could not load profile');
-      }
-
-      statusText.textContent = inNativeApp ? 'Welcome! Opening the app…' : 'Welcome! Opening your feed…';
-      let user = null;
-      try {
-        user = await loadUser();
       } catch (err) {
-        console.warn('login-success profile load:', err);
-        try {
-          user = JSON.parse(localStorage.getItem('user') || 'null');
-        } catch (_e) {
-          user = null;
-        }
+        console.error('[login-success]', err);
+        showError(err.message || 'Sign in failed');
       }
-      enterApp(user);
     })();
   </script>
 </body>

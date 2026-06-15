@@ -26,16 +26,10 @@ exports.listActiveRooms = async (req, res) => {
       limit: req.query.limit,
       sort: req.query.sort || 'trending',
     });
+    const { publicLiveRoom } = require('../lib/userDto');
     res.json({
       success: true,
-      data: rows.map((r) => ({
-        channel: r.channel,
-        type: r.room_type,
-        hostId: r.host_user_id,
-        hostName: r.host_display_name,
-        viewers: r.viewer_count || 0,
-        updatedAt: r.updated_at,
-      })),
+      data: rows.map((r) => publicLiveRoom(r)),
     });
   } catch (error) {
     console.error('[live] list rooms', error);
@@ -57,7 +51,7 @@ exports.agoraConfig = (_req, res) => {
   });
 };
 
-exports.agoraToken = (req, res) => {
+exports.agoraToken = async (req, res) => {
   try {
     const appId = process.env.AGORA_APP_ID || '';
     const appCertificate = process.env.AGORA_APP_CERTIFICATE || '';
@@ -66,8 +60,18 @@ exports.agoraToken = (req, res) => {
       String(req.body?.channel || req.query?.channel || 'ap-party')
         .replace(/[^a-zA-Z0-9_-]/g, '')
         .slice(0, 64) || 'ap-party';
-    const isHost = req.body?.role === 'host' || req.body?.role === 'publisher';
+    const wantsPublisher = req.body?.role === 'host' || req.body?.role === 'publisher';
     const uid = uidFromUserId(req.userId || req.user?.id);
+
+    if (wantsPublisher) {
+      const room = await liveRoomService.findByChannel(channel);
+      if (!room || String(room.host_user_id) !== String(req.userId)) {
+        return res.status(403).json({
+          success: false,
+          message: 'Publisher token requires room host',
+        });
+      }
+    }
 
     if (!appId || !appCertificate || !RtcTokenBuilder) {
       if (production) {
@@ -88,7 +92,7 @@ exports.agoraToken = (req, res) => {
       });
     }
 
-    const role = isHost ? RtcRole.PUBLISHER : RtcRole.SUBSCRIBER;
+    const role = wantsPublisher ? RtcRole.PUBLISHER : RtcRole.SUBSCRIBER;
     const expire = Math.floor(Date.now() / 1000) + 3600;
     const token = RtcTokenBuilder.buildTokenWithUid(
       appId,

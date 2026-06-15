@@ -41,15 +41,30 @@ exports.getWithdrawals = async (req, res) => {
   }
 };
 
+const fileAssetService = require('../services/fileAssetService');
+
 exports.requestWithdraw = async (req, res) => {
   try {
     const amount = parseInt(req.body.amount, 10);
     if (!amount || amount <= 0) {
       return res.status(400).json({ success: false, message: 'Valid withdrawal amount required' });
     }
-    let qr_image_url = req.body.qr_image_url;
+    let qr_image_url = null;
     if (req.file) {
-      qr_image_url = `/uploads/${req.file.filename}`;
+      const asset = await fileAssetService.registerPrivateFile({
+        ownerId: req.userId,
+        category: 'withdrawal',
+        tempPath: req.file.path,
+        mimeType: req.file.mimetype,
+        originalName: req.file.originalname,
+        sizeBytes: req.file.size,
+      });
+      qr_image_url = fileAssetService.buildSignedUrl(asset.id, 3600);
+    } else if (req.body.qr_image_url) {
+      return res.status(400).json({
+        success: false,
+        message: 'QR image must be uploaded as a file',
+      });
     }
     const withdrawal = await walletService.reserveWithdrawal(req.userId, amount, {
       qr_image_url,
