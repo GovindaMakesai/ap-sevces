@@ -14,11 +14,11 @@
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "/api/$1"
+      "dest": "https://api.apservices.in/api/$1"
     },
     {
       "src": "/auth/(.*)",
-      "dest": "/api/auth/$1"
+      "dest": "https://api.apservices.in/auth/$1"
     },
     {
       "src": "/",
@@ -34,6 +34,10 @@
     },
     {
       "src": "/login-success.html",
+      "dest": "/frontend/login-success.html"
+    },
+    {
+      "src": "/login-success",
       "dest": "/frontend/login-success.html"
     },
     {
