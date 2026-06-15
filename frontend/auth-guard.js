@@ -130,6 +130,10 @@
     if (pathEnds('/login-success.html')) return;
 
     if (isAuthPage()) {
+      if (isLoggedIn()) {
+        completeLoginAndEnterApp(getUser());
+        return;
+      }
       markGuestUi();
       bindAuthNavLinks();
       return;
@@ -144,7 +148,7 @@
     markAuthedUi();
 
     validateSession().then((ok) => {
-      if (!ok) {
+      if (!ok && !isLoggedIn()) {
         markGuestUi();
         localStorage.removeItem('user');
         window.location.replace('/app-auth.html?app=1');

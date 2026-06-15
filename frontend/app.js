@@ -528,6 +528,10 @@ const Auth = {
             if (e.status === 401) {
                 const ok = await this.tryRefresh();
                 if (ok) return this.refreshSession();
+                // Cookie session may lag in WebView; keep cached user from OAuth exchange.
+                if (localStorage.getItem('user') && !localStorage.getItem('token')) {
+                    return Boolean(AppState.user || localStorage.getItem('user'));
+                }
                 this.tokenInvalidCleanup();
                 return false;
             }
@@ -1284,7 +1288,7 @@ function bootstrapNativeAppShell() {
         '/social-create-post.js',
         '/social-shell.js',
     ];
-    if (!isAuthPath() && localStorage.getItem('token')) {
+    if (!isAuthPath() && (localStorage.getItem('user') || localStorage.getItem('token'))) {
         socialScripts.forEach((src) => {
             if (!document.querySelector(`script[src*="${src.split('/').pop()}"]`)) {
                 const script = document.createElement('script');
@@ -1323,7 +1327,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         pathEnds('/login.html') ||
         pathEnds('/register.html') ||
         pathEnds('/login-success.html');
-    if (isNativeAppContext() && !onAuthScreen && !localStorage.getItem('token')) {
+    const hasNativeSession =
+        Boolean(localStorage.getItem('user')) ||
+        Boolean(localStorage.getItem('token')) ||
+        document.cookie.includes('ap_access');
+    if (isNativeAppContext() && !onAuthScreen && !hasNativeSession) {
         window.location.replace('/app-auth.html?app=1');
         return;
     }

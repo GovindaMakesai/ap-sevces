@@ -1,4 +1,12 @@
-import { Platform, SafeAreaView, StyleSheet, Text, View, Share } from 'react-native';
+import {
+  ActivityIndicator,
+  Platform,
+  StatusBar as RNStatusBar,
+  StyleSheet,
+  Text,
+  View,
+  Share,
+} from 'react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import Constants from 'expo-constants';
@@ -49,11 +57,11 @@ const FRONTEND_BASE = resolveFrontendBase();
 const IS_DEV_LOCAL =
   __DEV__ && (FRONTEND_BASE.includes(`:${DEV_WEB_PORT}`) || Boolean(process.env.EXPO_PUBLIC_WEB_URL));
 
-/** App always opens Sign Up / Sign In first. Legacy skip: EXPO_PUBLIC_WEB_ENTRY=legacy */
-const FRONTEND_URL =
-  process.env.EXPO_PUBLIC_WEB_ENTRY === 'legacy'
-    ? FRONTEND_BASE
-    : `${FRONTEND_BASE}/app-auth.html`;
+function buildFrontendUrl(base) {
+  return process.env.EXPO_PUBLIC_WEB_ENTRY === 'legacy'
+    ? base
+    : `${base}/app-auth.html`;
+}
 
 /** Native app uses Hostinger VPS API (cleartext allowed in app.json). */
 const API_BASE_URL = apiConfig.API_URL;
@@ -64,7 +72,10 @@ const APP_RETURN_URL = Linking.createURL('oauth-complete');
 /** Fallback when the API still redirects to the web login-success page first. */
 const LOGIN_SUCCESS_PREFIX = `${FRONTEND_BASE}/login-success.html`;
 const MOBILE_INJECT_SCRIPT = getMobileDashboardInjectScript();
-const STATUS_BAR_INSET = Constants.statusBarHeight || 28;
+const STATUS_BAR_INSET =
+  Platform.OS === 'android'
+    ? RNStatusBar.currentHeight || Constants.statusBarHeight || 28
+    : Constants.statusBarHeight || 28;
 /** Runs before page paint — marks every WebView page as native app shell */
 const PRODUCTION_API = apiConfig.API_URL;
 const APP_SHELL_BOOTSTRAP = `(function(){try{document.documentElement.classList.add('ap-expo-app','social-app','social-bridge-mode','social-native','auth-native');document.documentElement.style.setProperty('--ap-expo-safe-top','${STATUS_BAR_INSET}px');window.__AP_NATIVE_APP__=true;window.__AP_API_URL__='${PRODUCTION_API}';window.__AP_SOCKET_URL__='${apiConfig.BACKEND_URL}';window.__AP_OAUTH_RETURN__='${APP_RETURN_URL.replace(/'/g, "\\'")}';try{localStorage.setItem('app_redirect','${APP_RETURN_URL.replace(/'/g, "\\'")}');}catch(e){}document.documentElement.style.background='#faf6ee';if(document.body)document.body.style.background='#faf6ee';var s=document.getElementById('ap-native-critical');if(!s){s=document.createElement('style');s.id='ap-native-critical';s.textContent='html.ap-expo-app .navbar,html.ap-expo-app .footer{display:none!important}html.ap-expo-app .chat-tab.active{background:linear-gradient(135deg,#d4a84b,#9a7218)!important;color:#fff!important}html.ap-expo-app .message-wrapper.sent .message-content{background:linear-gradient(135deg,#d4a84b,#9a7218)!important}';(document.head||document.documentElement).appendChild(s);}}catch(e){}})();true;`;
@@ -75,19 +86,50 @@ function isNativeOAuthReturnUrl(url) {
   return u.startsWith('apservices://') || u.startsWith('exp://');
 }
 
-function extractOAuthCode(url) {
-  if (!url) return '';
-  try {
-    const parsed = Linking.parse(url);
-    const c = parsed?.queryParams?.code;
-    if (Array.isArray(c) && c[0]) return String(c[0]);
-    if (typeof c === 'string' && c) return c;
-  } catch (_e) {
-    /* fall through */
-  }
+/** @returns {{ type: 'code' | 'token', value: string } | null} */
+function extractOAuthCredential(url) {
+  if (!url) return null;
   const raw = String(url);
-  const qm = raw.match(/[?&]code=([^&#]+)/);
-  return qm?.[1] ? decodeURIComponent(qm[1]) : '';
+
+  const readParam = (name) => {
+    try {
+      const parsed = Linking.parse(url);
+      const v = parsed?.queryParams?.[name];
+      if (Array.isArray(v) && v[0]) return String(v[0]);
+      if (typeof v === 'string' && v) return v;
+    } catch (_e) {
+      /* fall through */
+    }
+    const m = raw.match(new RegExp(`[?&]${name}=([^&#]+)`));
+    return m?.[1] ? decodeURIComponent(m[1]) : '';
+  };
+
+  const code = readParam('code');
+  if (code) return { type: 'code', value: code };
+
+  const token = readParam('token');
+  if (token) return { type: 'token', value: token };
+
+  return null;
+}
+
+function waitForPendingCredential(pendingRef, timeoutMs = 3000) {
+  return new Promise((resolve) => {
+    if (pendingRef.current?.value) {
+      resolve(pendingRef.current);
+      return;
+    }
+    const started = Date.now();
+    const timer = setInterval(() => {
+      if (pendingRef.current?.value) {
+        clearInterval(timer);
+        resolve(pendingRef.current);
+      } else if (Date.now() - started >= timeoutMs) {
+        clearInterval(timer);
+        resolve(null);
+      }
+    }, 120);
+  });
 }
 
 function parseAuthProvider(url) {
@@ -97,23 +139,24 @@ function parseAuthProvider(url) {
 
 export default function App() {
   const webViewRef = useRef(null);
-  const pendingTokenRef = useRef('');
+  const pendingTokenRef = useRef(null);
   const webViewReadyRef = useRef(false);
   const handledTokenRef = useRef('');
   const oauthBusyRef = useRef(false);
   const [loadError, setLoadError] = useState('');
 
+  const frontendBase = useMemo(() => resolveFrontendBase(), []);
+  const frontendUrl = useMemo(() => buildFrontendUrl(frontendBase), [frontendBase]);
+  const isDevLocal =
+    __DEV__ && (frontendBase.includes(`:${DEV_WEB_PORT}`) || Boolean(process.env.EXPO_PUBLIC_WEB_URL));
+
   useEffect(() => {
-    console.log('[ap-services-app] WebView base:', FRONTEND_BASE);
+    console.log('[ap-services-app] WebView base:', frontendBase);
     console.log('[ap-services-app] OAuth return URL:', APP_RETURN_URL);
-    console.log('[ap-services-app] Launch URL:', FRONTEND_URL);
-    if (IS_DEV_LOCAL) {
-      console.log(
-        '[ap-services-app] Dev: run npm start from ap-services-app (serves frontend/ on port',
-        DEV_WEB_PORT + ')'
-      );
+    if (isDevLocal) {
+      console.log('[ap-services-app] Dev: local UI at', frontendBase, '(API proxied to production)');
     }
-  }, []);
+  }, [frontendBase, isDevLocal]);
 
   const launchUrl = useMemo(() => {
     const params = new URLSearchParams({
@@ -122,9 +165,11 @@ export default function App() {
       app: '1',
       v: String(Date.now()),
     });
-    const sep = FRONTEND_URL.includes('?') ? '&' : '?';
-    return `${FRONTEND_URL}${sep}${params.toString()}`;
-  }, []);
+    const sep = frontendUrl.includes('?') ? '&' : '?';
+    const url = `${frontendUrl}${sep}${params.toString()}`;
+    console.log('[ap-services-app] Launch URL:', url);
+    return url;
+  }, [frontendUrl]);
 
   const lastInjectedUrlRef = useRef('');
 
@@ -139,66 +184,107 @@ export default function App() {
     }, 250);
   }, []);
 
-  const finishLoginInWebView = useCallback((code) => {
-    if (!code) return;
+  const finishLoginInWebView = useCallback((credential) => {
+    if (!credential?.value) return;
 
-    const codeJson = JSON.stringify(code);
+    const credKey = `${credential.type}:${credential.value}`;
     const apiBase = JSON.stringify(API_BASE_URL);
     const successPage = JSON.stringify(
-      `${FRONTEND_BASE}/login-success.html?code=${encodeURIComponent(code)}&source=expo-app&app=1`
+      `${frontendBase}/login-success.html?${credential.type}=${encodeURIComponent(credential.value)}&source=expo-app&app=1`
     );
 
-    const script = `
-      (function() {
-        var code = ${codeJson};
-        var api = ${apiBase};
-        try { localStorage.removeItem('token'); localStorage.removeItem('app_redirect'); } catch (e) {}
-        function go(path) { window.location.replace(path); }
-        fetch(api + '/auth/exchange-code', {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code: code })
-        })
-          .then(function(r) { return r.json(); })
-          .then(function(data) {
-            var user = data && data.success && data.data && data.data.user;
-            if (!user) throw new Error('exchange');
-            try {
-              localStorage.setItem('user', JSON.stringify(user));
-              if (window.AppState) window.AppState.user = user;
-            } catch (e) {}
-            var path = '/explore.html?app=1';
-            if (user.role === 'admin') path = '/admin-dashboard.html?app=1';
-            else if (user.role === 'worker') path = '/worker-dashboard.html?app=1';
-            go(path);
+    let script = '';
+
+    if (credential.type === 'token') {
+      const tokenJson = JSON.stringify(credential.value);
+      script = `
+        (function() {
+          var token = ${tokenJson};
+          var api = ${apiBase};
+          try { localStorage.setItem('token', token); localStorage.removeItem('app_redirect'); } catch (e) {}
+          function go(path) { window.location.replace(path); }
+          fetch(api + '/auth/me', {
+            method: 'GET',
+            credentials: 'include',
+            headers: { 'Authorization': 'Bearer ' + token }
           })
-          .catch(function() {
-            go(${successPage});
-          });
-      })();
-      true;
-    `;
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+              var user = data && data.success && data.data && data.data.user;
+              if (!user) throw new Error('me');
+              try {
+                localStorage.setItem('user', JSON.stringify(user));
+                localStorage.removeItem('token');
+                if (window.AppState) window.AppState.user = user;
+              } catch (e) {}
+              var path = '/explore.html?app=1';
+              if (user.role === 'admin') path = '/admin-dashboard.html?app=1';
+              else if (user.role === 'worker') path = '/worker-dashboard.html?app=1';
+              go(path);
+            })
+            .catch(function() {
+              go(${successPage});
+            });
+        })();
+        true;
+      `;
+    } else {
+      const codeJson = JSON.stringify(credential.value);
+      script = `
+        (function() {
+          var code = ${codeJson};
+          var api = ${apiBase};
+          try { localStorage.removeItem('token'); localStorage.removeItem('app_redirect'); } catch (e) {}
+          function go(path) { window.location.replace(path); }
+          fetch(api + '/auth/exchange-code', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: code })
+          })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+              var user = data && data.success && data.data && data.data.user;
+              if (!user) throw new Error('exchange');
+              try {
+                localStorage.setItem('user', JSON.stringify(user));
+                if (window.AppState) window.AppState.user = user;
+              } catch (e) {}
+              var path = '/explore.html?app=1';
+              if (user.role === 'admin') path = '/admin-dashboard.html?app=1';
+              else if (user.role === 'worker') path = '/worker-dashboard.html?app=1';
+              go(path);
+            })
+            .catch(function() {
+              go(${successPage});
+            });
+        })();
+        true;
+      `;
+    }
 
     if (!webViewRef.current) {
-      pendingTokenRef.current = code;
+      pendingTokenRef.current = credential;
       return;
     }
 
-    handledTokenRef.current = code;
-    pendingTokenRef.current = '';
+    handledTokenRef.current = credKey;
+    pendingTokenRef.current = null;
     webViewRef.current.injectJavaScript(script);
-  }, []);
+  }, [frontendBase]);
 
-  const applyOAuthCode = useCallback(
-    async (code) => {
-      if (!code) return;
+  const applyOAuthCredential = useCallback(
+    async (credential) => {
+      if (!credential?.value) return;
+      const credKey = `${credential.type}:${credential.value}`;
+      if (handledTokenRef.current === credKey) return;
+      console.log('[ap-services-app] Completing login via', credential.type);
       try {
         await WebBrowser.dismissBrowser();
       } catch (_e) {
         /* already closed */
       }
-      finishLoginInWebView(code);
+      finishLoginInWebView(credential);
     },
     [finishLoginInWebView]
   );
@@ -239,21 +325,22 @@ export default function App() {
 
         console.log('[ap-services-app] OAuth result:', result.type, result.url || '');
 
-        if (result.type === 'success' && result.url) {
-          const code = extractOAuthCode(result.url);
-          if (code) {
-            await applyOAuthCode(code);
-            return;
-          }
+        let credential =
+          result.type === 'success' && result.url ? extractOAuthCredential(result.url) : null;
+
+        if (!credential) {
+          credential = await waitForPendingCredential(pendingTokenRef);
         }
 
-        if (pendingTokenRef.current) {
-          await applyOAuthCode(pendingTokenRef.current);
+        if (credential) {
+          await applyOAuthCredential(credential);
+          return;
         }
       } catch (err) {
         console.warn('OAuth session failed', err);
-        if (pendingTokenRef.current) {
-          await applyOAuthCode(pendingTokenRef.current);
+        const credential = await waitForPendingCredential(pendingTokenRef, 1500);
+        if (credential) {
+          await applyOAuthCredential(credential);
         }
       } finally {
         oauthBusyRef.current = false;
@@ -271,16 +358,16 @@ export default function App() {
         }
       }
     },
-    [applyOAuthCode]
+    [applyOAuthCredential]
   );
 
   useEffect(() => {
     const handleDeepLink = ({ url }) => {
       if (!isNativeOAuthReturnUrl(url)) return;
-      const code = extractOAuthCode(url);
-      if (!code) return;
-      pendingTokenRef.current = code;
-      applyOAuthCode(code);
+      const credential = extractOAuthCredential(url);
+      if (!credential) return;
+      pendingTokenRef.current = credential;
+      applyOAuthCredential(credential);
     };
 
     const subscription = Linking.addEventListener('url', handleDeepLink);
@@ -291,16 +378,17 @@ export default function App() {
       .catch(() => {});
 
     return () => subscription.remove();
-  }, [applyOAuthCode]);
+  }, [applyOAuthCredential]);
 
   const handleOAuthUrl = useCallback(
     (url) => {
-      const code = extractOAuthCode(url);
+      const credential = extractOAuthCredential(url);
 
-      if (code && (isNativeOAuthReturnUrl(url) || url.includes('login-success'))) {
-        if (handledTokenRef.current === code) return true;
-        pendingTokenRef.current = code;
-        applyOAuthCode(code);
+      if (credential && (isNativeOAuthReturnUrl(url) || url.includes('login-success'))) {
+        const credKey = `${credential.type}:${credential.value}`;
+        if (handledTokenRef.current === credKey) return true;
+        pendingTokenRef.current = credential;
+        applyOAuthCredential(credential);
         return true;
       }
 
@@ -325,7 +413,7 @@ export default function App() {
 
       return false;
     },
-    [applyOAuthCode, startOAuthInBrowser]
+    [applyOAuthCredential, startOAuthInBrowser]
   );
 
   const onWebViewMessage = useCallback(
@@ -387,7 +475,7 @@ export default function App() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { paddingTop: STATUS_BAR_INSET }]}>
       <StatusBar style="dark" />
       {loadError ? (
         <View style={styles.errorBar}>
@@ -402,7 +490,13 @@ export default function App() {
         style={styles.webview}
         source={{ uri: launchUrl }}
         injectedJavaScriptBeforeContentLoaded={APP_SHELL_BOOTSTRAP}
-        startInLoadingState={false}
+        startInLoadingState
+        renderLoading={() => (
+          <View style={styles.loading}>
+            <ActivityIndicator size="large" color="#c9a227" />
+            <Text style={styles.loadingText}>Loading AP Services…</Text>
+          </View>
+        )}
         pullToRefreshEnabled={false}
         overScrollMode="never"
         bounces={true}
@@ -419,6 +513,7 @@ export default function App() {
         }}
         onLoadEnd={(e) => {
           webViewReadyRef.current = true;
+          setLoadError('');
           const url = e?.nativeEvent?.url || '';
           injectMobileLayout(url);
           if (pendingTokenRef.current) {
@@ -434,7 +529,7 @@ export default function App() {
         onError={(e) => {
           console.warn('WebView error', e?.nativeEvent);
           setLoadError(
-            `Cannot load ${FRONTEND_BASE}. Run "npm start" inside ap-services-app (starts frontend on :${DEV_WEB_PORT}).`
+            `Cannot load ${frontendBase}. Run "npm start" inside ap-services-app (starts frontend on :${DEV_WEB_PORT}).`
           );
         }}
         onHttpError={(e) => {
@@ -454,16 +549,24 @@ export default function App() {
         cacheEnabled={false}
         cacheMode={Platform.OS === 'android' ? 'LOAD_NO_CACHE' : undefined}
         sharedCookiesEnabled
+        thirdPartyCookiesEnabled
         originWhitelist={['*']}
         setSupportMultipleWindows={false}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fdf9f0' },
   webview: { flex: 1, backgroundColor: '#fdf9f0' },
+  loading: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fdf9f0',
+  },
+  loadingText: { marginTop: 12, color: '#8b6914', fontSize: 14 },
   errorBar: {
     backgroundColor: '#fef2f2',
     borderBottomWidth: 1,

@@ -38,6 +38,7 @@ function run(cmd, args, opts = {}) {
     cwd: opts.cwd || appDir,
     shell: true,
     stdio: 'inherit',
+    env: { ...process.env, ...(opts.env || {}) },
     ...opts,
   });
 }
@@ -47,6 +48,9 @@ freePort(DEV_PORT);
 freePort(EXPO_PORT);
 console.log(`   1) Serving NEW UI from frontend/ → http://0.0.0.0:${DEV_PORT}`);
 console.log('   2) Starting Expo (WebView will use your PC LAN IP + port 5500)\n');
+
+// WebView loads local frontend (proxies API to production). Without this, Expo still hits api.apservices.in.
+process.env.EXPO_PUBLIC_USE_LAN_WEB = '1';
 
 const serve = run('node', [path.join(__dirname, 'dev-server.js')]);
 
@@ -62,7 +66,10 @@ serve.on('error', (err) => {
 
 let expo;
 const startExpo = () => {
-  expo = run('npx', ['expo', 'start', '--port', String(EXPO_PORT)], { cwd: appDir });
+  expo = run('npx', ['expo', 'start', '--port', String(EXPO_PORT)], {
+    cwd: appDir,
+    env: { EXPO_PUBLIC_USE_LAN_WEB: '1' },
+  });
   expo.on('exit', (code) => {
     try {
       serve.kill();

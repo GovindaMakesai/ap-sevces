@@ -75,7 +75,15 @@
 
         if (oauthCookieFlow || params.get('token')) {
           statusText.textContent = 'Loading your profile…';
-          const user = await Auth.refreshSession() ? Auth.getUser() : null;
+          const urlToken = params.get('token');
+          if (urlToken) {
+            try {
+              localStorage.setItem('token', urlToken);
+            } catch (_e) {
+              /* ignore */
+            }
+          }
+          const user = (await Auth.refreshSession()) ? Auth.getUser() : null;
           if (user) {
             localStorage.removeItem('token');
             enterApp(user);
