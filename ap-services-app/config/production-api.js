@@ -1,5 +1,5 @@
 /** Keep in sync with config/domain.js (Metro cannot import repo root). */
-const USE_HTTPS_DOMAIN = false;
+const USE_HTTPS_DOMAIN = true;
 const PUBLIC_HTTPS_URL = 'https://api.apservices.in';
 const VPS_HTTP = 'http://62.72.56.74:5000';
 const VERCEL_UI = 'https://ap-sevces.vercel.app';

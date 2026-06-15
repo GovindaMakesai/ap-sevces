@@ -10,7 +10,7 @@ module.exports = {
   PUBLIC_HTTPS_URL: 'https://api.apservices.in',
 
   /** Flip to true after certbot succeeds on VPS */
-  USE_HTTPS_DOMAIN: false,
+  USE_HTTPS_DOMAIN: true,
 
   VPS_HTTP: 'http://62.72.56.74:5000',
   VERCEL_UI: 'https://ap-sevces.vercel.app',

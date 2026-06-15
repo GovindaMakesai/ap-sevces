@@ -3,7 +3,7 @@
  */
 (function (g) {
   // After HTTPS: set USE_HTTPS = true and PUBLIC_HTTPS_URL to your domain
-  var USE_HTTPS = false;
+  var USE_HTTPS = true;
   var PUBLIC_HTTPS_URL = 'https://api.apservices.in';
   var VPS_HTTP = 'http://62.72.56.74:5000';
   var VERCEL_UI = 'https://ap-sevces.vercel.app';
