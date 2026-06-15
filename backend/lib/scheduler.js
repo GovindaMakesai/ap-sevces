@@ -39,6 +39,7 @@ function startScheduler() {
   register('contest-expire', '*/10 * * * *', () => contestService.expireEndedContests());
   register('reward-hourly', '0 * * * *', () => rewardEngineService.processHourlyRewards());
   register('live-idle-cleanup', '*/15 * * * *', () => liveRoomService.endIdleRooms());
+  register('live-presence-prune', '*/1 * * * *', () => liveRoomService.pruneStaleMembers(90));
   register('pk-expire', '* * * * *', async () => {
     const res = await db.query(
       `SELECT id FROM pk_battles WHERE status = 'active' AND ends_at <= CURRENT_TIMESTAMP`

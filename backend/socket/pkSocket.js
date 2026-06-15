@@ -10,12 +10,14 @@ function registerPkSocket(io) {
   io.on('connection', (socket) => {
     socket.on('pk:start', async (payload, ack) => {
       try {
-        const can = await permissionService.userHasPermission(socket.userId, 'pk.host');
-        if (!can) return ack?.({ ok: false, message: 'No PK permission' });
-
         const channel = sanitizeChannel(payload?.channel || socket.data.liveChannel);
         const room = await liveRoomService.findByChannel(channel);
         if (!room) return ack?.({ ok: false, message: 'Room not found' });
+
+        const isRoomHost =
+          String(room.host_user_id) === String(socket.userId) || Boolean(socket.data.isHost);
+        const can = await permissionService.userHasPermission(socket.userId, 'pk.host');
+        if (!can && !isRoomHost) return ack?.({ ok: false, message: 'No PK permission' });
 
         const battle = await pkBattleService.createBattle({
           channel,

@@ -244,7 +244,7 @@
     return user ? String(user.id || user.email || user.first_name || 'me') : null;
   }
 
-  function toggleFollow(creatorId, creatorName) {
+  function toggleFollowLocal(creatorId, creatorName) {
     const key = followKey(creatorId, creatorName);
     if (!key) return false;
     const entries = getFollowEntries();
@@ -252,7 +252,7 @@
     const i = entries.findIndex((e) => e.key === key);
     const nowFollowing = i < 0;
     if (nowFollowing) {
-      entries.push({ key, name: label });
+      entries.push({ key, name: label, id: creatorId });
     } else {
       entries.splice(i, 1);
     }
@@ -272,12 +272,84 @@
     return nowFollowing;
   }
 
+  let followIdCache = null;
+
+  function isUuid(id) {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      String(id || '')
+    );
+  }
+
+  async function refreshFollowCache() {
+    if (!window.API || !localStorage.getItem('token')) return;
+    try {
+      const res = await API.get('/social/following?limit=200');
+      const rows = Array.isArray(res?.data) ? res.data : [];
+      followIdCache = new Set(rows.map((u) => String(u.id)));
+      const entries = rows.map((u) => ({
+        key: String(u.id),
+        id: String(u.id),
+        name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'User',
+      }));
+      saveFollowEntries(entries);
+    } catch (e) {
+      console.warn('SocialInteractions: follow cache', e);
+    }
+  }
+
+  async function toggleFollow(creatorId, creatorName) {
+    const uid = String(creatorId || '').trim();
+    if (window.API && localStorage.getItem('token') && isUuid(uid)) {
+      try {
+        const following =
+          followIdCache != null
+            ? followIdCache.has(uid)
+            : Boolean((await API.get(`/social/follow/${uid}/status`))?.data?.following);
+        if (following) {
+          await API.delete(`/social/follow/${uid}`);
+          followIdCache?.delete(uid);
+          toggleFollowLocal(uid, creatorName);
+          return false;
+        }
+        await API.post(`/social/follow/${uid}`);
+        if (!followIdCache) followIdCache = new Set();
+        followIdCache.add(uid);
+        toggleFollowLocal(uid, creatorName);
+        return true;
+      } catch (e) {
+        console.warn('SocialInteractions: follow API fallback', e);
+      }
+    }
+    return toggleFollowLocal(creatorId, creatorName);
+  }
+
   async function getFollowStats(userId) {
+    const uid = String(userId || window.Auth?.getUser?.()?.id || '').trim();
+    if (window.API && localStorage.getItem('token') && isUuid(uid)) {
+      try {
+        const res = await API.get(`/social/stats/${uid}`);
+        const data = res?.data || {};
+        let coins = 0;
+        if (window.SocialWallet) {
+          try {
+            const b = await SocialWallet.fetchBalance();
+            coins = b.coin_balance || 0;
+          } catch (_e) {}
+        }
+        return {
+          following: data.following || 0,
+          followers: data.followers || 0,
+          coins,
+        };
+      } catch (e) {
+        console.warn('SocialInteractions: stats API', e);
+      }
+    }
     const following = getFollowEntries().length;
     const user = window.Auth?.getUser?.();
-    const uid = String(userId || user?.id || user?.email || 'me');
+    const lookupId = String(userId || user?.id || user?.email || 'me');
     const map = getFollowersMap();
-    const keys = new Set([uid, user?.email, user?.first_name, `${user?.first_name || ''} ${user?.last_name || ''}`.trim()].filter(Boolean).map(String));
+    const keys = new Set([lookupId, user?.email, user?.first_name, `${user?.first_name || ''} ${user?.last_name || ''}`.trim()].filter(Boolean).map(String));
     let followers = 0;
     keys.forEach((k) => {
       followers = Math.max(followers, (map[k] || []).length);
@@ -311,8 +383,14 @@
   }
 
   function isFollowing(creatorId, creatorName) {
+    const uid = String(creatorId || '').trim();
+    if (followIdCache && isUuid(uid)) return followIdCache.has(uid);
     const key = followKey(creatorId, creatorName);
-    return getFollowEntries().some((e) => e.key === key || (creatorName && e.name === creatorName));
+    return getFollowEntries().some((e) => e.key === key || e.id === uid || (creatorName && e.name === creatorName));
+  }
+
+  if (localStorage.getItem('token')) {
+    document.addEventListener('DOMContentLoaded', () => refreshFollowCache());
   }
 
   async function compressImage(file, maxW) {
@@ -663,9 +741,9 @@
       follow.textContent = on ? '✓' : '+';
       follow.classList.toggle('is-following', on);
       follow.setAttribute('aria-label', on ? 'Following' : 'Follow');
-      follow.onclick = (e) => {
+      follow.onclick = async (e) => {
         e.stopPropagation();
-        const now = toggleFollow(fid, item.name);
+        const now = await toggleFollow(fid, item.name);
         follow.textContent = now ? '✓' : '+';
         follow.classList.toggle('is-following', now);
         follow.setAttribute('aria-label', now ? 'Following' : 'Follow');
@@ -1167,6 +1245,7 @@
     getFollowersList,
     toggleFollow,
     isFollowing,
+    refreshFollowCache,
     profileUrl,
   };
 })();

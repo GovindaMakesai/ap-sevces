@@ -110,7 +110,7 @@
       <button type="button" class="active" data-region="broadcast"><i class="fas fa-bullhorn"></i> Region</button>
     </div>
     <div class="live-chat-compose" id="liveChatCompose">
-      <span class="ap-char-count" id="apCharCount">0</span>
+      <span class="ap-char-count is-empty" id="apCharCount" aria-hidden="true"></span>
       <button type="button" class="ap-chat-emoji-btn" id="apChatEmojiBtn" aria-label="Emoji"><i class="far fa-smile"></i></button>
       <input type="text" id="liveChatInput" placeholder="Hi there!" maxlength="280" autocomplete="off" enterkeyhint="send">
       <button type="button" id="liveChatSend" aria-label="Send"><i class="fas fa-paper-plane"></i></button>
@@ -188,6 +188,7 @@
   <script src="auth-guard.js"></script>
   <script src="social-shell.js"></script>
   <script src="social-fx.js"></script>
+  <script src="live-emoji-data.js"></script>
   <script src="social-live.js"></script>
 </body>
 </html>

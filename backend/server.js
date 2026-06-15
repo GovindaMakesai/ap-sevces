@@ -14,7 +14,7 @@ const { ensureChatSchema } = require('./config/ensureChatSchema');
 const { ensurePaymentSchema } = require('./config/ensurePaymentSchema');
 const { ensureFoundationSchema } = require('./config/ensureFoundationSchema');
 const { ensurePhase2Schema } = require('./config/ensurePhase2Schema');
-const { ensureWithdrawalQrSchema } = require('./config/ensureWithdrawalQrSchema');
+const { ensureSocialProductionSchema } = require('./config/ensureSocialProductionSchema');
 const { registerChatSocket } = require('./socket/chatSocket');
 const { registerLiveSocket } = require('./socket/liveSocket');
 const { registerPkSocket } = require('./socket/pkSocket');
@@ -40,7 +40,7 @@ const notificationRoutes = require('./routes/notifications');
 const messageRoutes = require('./routes/messages');
 const liveRoutes = require('./routes/live');
 const platformRoutes = require('./routes/platform');
-const webhookRoutes = require('./routes/webhooks');
+const socialRoutes = require('./routes/social');
 
 const app = express();
 const server = http.createServer(app);
@@ -110,6 +110,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/live', liveRoutes);
 app.use('/api/wallet', walletRoutes);
+app.use('/api/social', socialRoutes);
 app.use('/api/v1', platformRoutes);
 
 app.get('/api/health', async (_req, res) => {
@@ -154,6 +155,7 @@ async function startServer() {
   await ensureFoundationSchema();
   await ensurePhase2Schema();
   await ensureWithdrawalQrSchema();
+  await ensureSocialProductionSchema();
   await platformService.getOrCreateTreasuryUserId();
   await liveRoomService.recoverActiveRooms();
   startScheduler();

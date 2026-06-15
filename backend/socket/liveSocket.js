@@ -68,6 +68,12 @@ function registerLiveSocket(io) {
         const isHost = Boolean(payload?.isHost);
         const roomType = payload?.type === 'live' ? 'live' : 'party';
 
+        const existingRoom = await liveRoomService.findByChannel(channel);
+        if (existingRoom && !isHost && (await liveRoomService.isUserBanned(existingRoom.id, socket.userId))) {
+          if (ack) ack({ ok: false, message: 'You are banned from this room' });
+          return;
+        }
+
         if (isHost) {
           await liveRoomService.hostRoom({
             channel,
@@ -99,6 +105,39 @@ function registerLiveSocket(io) {
         if (ack) ack({ ok: true, state });
       } catch (err) {
         console.error('live:join', err.message);
+        if (ack) ack({ ok: false, message: err.message });
+      }
+    });
+
+    socket.on('live:heartbeat', async (payload) => {
+      const channel = sanitizeChannel(payload?.channel || currentChannel);
+      if (!channel) return;
+      await liveRoomService.touchHeartbeat(channel, socket.userId);
+    });
+
+    socket.on('live:kick', async (payload, ack) => {
+      try {
+        if (!socket.data.isHost) {
+          if (ack) ack({ ok: false, message: 'Only host can kick' });
+          return;
+        }
+        const channel = sanitizeChannel(payload?.channel || currentChannel);
+        const targetUserId = String(payload?.userId || '');
+        if (!targetUserId) {
+          if (ack) ack({ ok: false, message: 'userId required' });
+          return;
+        }
+        await liveRoomService.kickMember({
+          channel,
+          userId: targetUserId,
+          bannedBy: socket.userId,
+          reason: payload?.reason || 'kicked_by_host',
+        });
+        io.to(`live:${channel}`).emit('live:kicked', { userId: targetUserId, channel });
+        const state = await liveRoomService.buildSnapshot(channel);
+        io.to(`live:${channel}`).emit('live:state', state);
+        if (ack) ack({ ok: true });
+      } catch (err) {
         if (ack) ack({ ok: false, message: err.message });
       }
     });

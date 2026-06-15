@@ -2,85 +2,30 @@
  * Party room (voice grid) + Live room (video) ΓÇö Agora + Socket.io
  */
 (function () {
-  const GIFT_CATALOG = {
-    gift: [
-      { emoji: 'Γ¥ñ∩╕Å', name: 'Heart', cost: 10 },
-      { emoji: '≡ƒæì', name: 'Like', cost: 20 },
-      { emoji: '≡ƒÆÉ', name: 'Flowers', cost: 50 },
-      { emoji: '≡ƒî╣', name: 'Rose', cost: 100 },
-      { emoji: '≡ƒÄ║', name: 'Whistle', cost: 100 },
-      { emoji: '≡ƒô»', name: 'Soccer horn', cost: 2000, tag: 'Lucky' },
-      { emoji: '≡ƒÅå', name: 'Football trophy', cost: 50000, tag: 'Activity' },
-      { emoji: 'ΓÜ╜', name: 'Last goal', cost: 500000, tag: 'Activity' },
-      { emoji: '≡ƒæï', name: 'Hi', cost: 500, tag: 'Hi~' },
-      { emoji: 'Γÿò', name: 'Coffee', cost: 500 },
-      { emoji: '≡ƒìª', name: 'Ice Cream', cost: 1000 },
-      { emoji: '≡ƒÄü', name: 'Lucky Box', cost: 2500, tag: 'Lucky' },
-    ],
-    lucky: [
-      { emoji: '≡ƒìÆ', name: 'Cherry', cost: 50, tag: 'Lucky' },
-      { emoji: '≡ƒî╣', name: 'Rose', cost: 10 },
-      { emoji: '≡ƒÆ½', name: 'Pop pass', cost: 250, tag: 'Lucky' },
-      { emoji: '≡ƒÄ▓', name: 'Lucky dice', cost: 500, tag: 'Lucky' },
-    ],
-    new: [
-      { emoji: '≡ƒî╣', name: 'Rose', cost: 10 },
-      { emoji: '≡ƒÆÄ', name: 'Diamond', cost: 500 },
-      { emoji: '≡ƒÜÇ', name: 'Rocket', cost: 1000 },
-      { emoji: '≡ƒÄå', name: 'Fireworks', cost: 5000, tag: 'New' },
-    ],
-    island: [
-      { emoji: '≡ƒÉÜ', name: 'Glow Conch', cost: 500, tag: 'Island' },
-      { emoji: 'Γ¡É', name: 'Star Shell', cost: 5000, tag: 'Island' },
-      { emoji: '≡ƒº║', name: 'Fruit Basket', cost: 10000, tag: 'Island' },
-      { emoji: '≡ƒöÑ', name: 'Beach Fire', cost: 50000, tag: 'Island' },
-      { emoji: '≡ƒºÜ', name: 'Jungle Elf', cost: 300000, tag: 'Island' },
-      { emoji: '≡ƒÅ¥∩╕Å', name: 'Private Isle', cost: 1200000, tag: 'Island' },
-    ],
-    fan: [
-      { emoji: '≡ƒÄ½', name: 'Pop pass', cost: 100, tag: 'Fans' },
-      { emoji: '≡ƒÆí', name: 'Fan Light Board', cost: 100, tag: 'Hot' },
-      { emoji: '≡ƒÄé', name: 'Chocolate Cake', cost: 10000, tag: 'Fans' },
-      { emoji: '≡ƒÿé', name: 'Ha Ha Ha', cost: 1000, tag: 'Fans' },
-      { emoji: '≡ƒÆÉ', name: 'Flowers', cost: 1000, tag: 'Fans' },
-      { emoji: '≡ƒæï', name: "I'm here", cost: 1000, tag: 'Fans' },
-      { emoji: '≡ƒñª', name: 'Face palm', cost: 1000, tag: 'Fans' },
-      { emoji: '≡ƒÄü', name: 'Surprise box', cost: 50000, tag: 'Fans' },
-    ],
-    privilege: [
-      { emoji: '≡ƒææ', name: 'Crown', cost: 5000, tag: 'VIP' },
-      { emoji: '≡ƒî╣', name: 'Rose Bouquet', cost: 8000, tag: 'VIP' },
-      { emoji: '≡ƒº╕', name: 'Teddy Bear', cost: 15000, tag: 'VIP' },
-      { emoji: '≡ƒÜù', name: 'Luxury Car', cost: 80000, tag: 'VIP' },
-      { emoji: '≡ƒÄé', name: 'Birthday Cake', cost: 10000, tag: 'VIP' },
-      { emoji: '≡ƒªü', name: 'Lion King', cost: 700000, tag: 'VIP' },
-      { emoji: '≡ƒÉë', name: 'Golden Dragon', cost: 900000, tag: 'VIP' },
-      { emoji: '≡ƒ¢Ñ∩╕Å', name: 'Yacht Voyage', cost: 1500000, tag: 'VIP' },
-      { emoji: '≡ƒÅÄ∩╕Å', name: 'Super Car', cost: 1200000, tag: 'VIP' },
-      { emoji: '≡ƒÅ░', name: 'Crystal Palace', cost: 2000000, tag: 'VIP' },
-      { emoji: '≡ƒîî', name: 'Romantic Nebula', cost: 300000, tag: 'VIP' },
-    ],
-    fun: [
-      { emoji: '≡ƒìï', name: 'Lemon', cost: 2400, tag: 'Lucky' },
-      { emoji: '≡ƒÑ¥', name: 'Kiwi', cost: 2400, tag: 'Lucky Lit' },
-      { emoji: '≡ƒì│', name: 'Eggs', cost: 120, tag: 'Hot' },
-      { emoji: 'Γ¡É', name: 'Cheer stick', cost: 120, tag: 'Hot' },
-      { emoji: '≡ƒôª', name: 'Fortune Blind Box', cost: 2000, tag: 'Lucky' },
-      { emoji: '≡ƒÆ¥', name: 'Love Blind Box', cost: 10000, tag: 'Lucky' },
-    ],
+  const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
+  const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
+
+  if (!_liveEmoji.GIFT_CATALOG) {
+    console.warn('[live] Load live-emoji-data.js before social-live.js for gift icons');
+  }
+  const GIFT_CATALOG = _liveEmoji.GIFT_CATALOG || {
+    gift: [], lucky: [], new: [], island: [], fan: [], privilege: [], fun: [],
   };
 
-  const QUICK_CHIP_DEFS = [
-    { id: 'hi', label: '≡ƒî╣ Hi there!', send: '≡ƒî╣ Hi there!' },
+  const QUICK_CHIP_DEFS = _liveEmoji.QUICK_CHIP_DEFS || [
+    { id: 'hi', label: '\u{1F339} Hi there!', send: '\u{1F339} Hi there!' },
     { id: 'follow', label: 'Plz Follow+', action: 'follow' },
     { id: 'lol', label: 'LOL~', send: 'LOL~' },
-    { id: 'like', label: 'I like itΓ¥ñ∩╕Å', send: 'I like itΓ¥ñ∩╕Å' },
+    { id: 'like', label: 'I like it\u2764\uFE0F', send: 'I like it\u2764\uFE0F' },
     { id: 'dance', label: 'Dance~', send: 'Dance~' },
-    { id: 'talent', label: '100% Talented≡ƒæì', send: '100% Talented≡ƒæì' },
-    { id: 'hot', label: 'Hot girl≡ƒöÑ', send: 'Hot girl≡ƒöÑ' },
+    { id: 'talent', label: '100% Talented\u{1F44D}', send: '100% Talented\u{1F44D}' },
+    { id: 'hot', label: 'Hot girl\u{1F525}', send: 'Hot girl\u{1F525}' },
     { id: 'bravo', label: 'Bravo', send: 'Bravo' },
   ];
-  const EMOJI_PICKS = ['≡ƒÿÇ', '≡ƒÿé', 'Γ¥ñ∩╕Å', '≡ƒöÑ', '≡ƒæì', '≡ƒÄë', '≡ƒÆ»', '≡ƒî╣', '≡ƒÆÉ', '≡ƒÄü', '≡ƒæÅ', '≡ƒÿì', '≡ƒÖÅ', '≡ƒÆ¬', 'Γ£¿'];
+  const EMOJI_PICKS = _liveEmoji.EMOJI_PICKS || [
+    '\u{1F600}', '\u{1F602}', '\u2764\uFE0F', '\u{1F525}', '\u{1F44D}', '\u{1F389}', '\u{1F4AF}',
+    '\u{1F339}', '\u{1F490}', '\u{1F381}', '\u{1F44F}', '\u{1F60D}', '\u{1F64F}', '\u{1F4AA}', '\u2728',
+  ];
   let quickChipsExpanded = false;
   let chatRegionFilter = 'broadcast';
   let sessionGiftCoins = 0;
@@ -115,8 +60,36 @@
   let lastViewerCount = 0;
   let lastCoinBalance = null;
   let pkBattleActive = false;
+  let heartbeatTimer = null;
+  let roomJoinCompleted = false;
+  let lastJoinMeta = null;
 
-  function qs(name) {
+  function startHeartbeat() {
+    stopHeartbeat();
+    heartbeatTimer = setInterval(() => {
+      if (liveSocket?.connected && channelId()) {
+        liveSocket.emit('live:heartbeat', { channel: channelId() });
+      }
+    }, 25000);
+  }
+
+  function stopHeartbeat() {
+    if (heartbeatTimer) {
+      clearInterval(heartbeatTimer);
+      heartbeatTimer = null;
+    }
+  }
+
+  function rejoinLiveRoom() {
+    if (!roomJoinCompleted || !lastJoinMeta || !liveSocket?.connected) return;
+    liveSocket.emit('live:join', lastJoinMeta, (res) => {
+      if (res?.ok && res.state) {
+        roomState = res.state;
+        renderRoomState();
+        liveDebugLog('Rejoined room after reconnect');
+      }
+    });
+  }
     return new URLSearchParams(location.search).get(name);
   }
 
@@ -417,6 +390,7 @@
     liveSocket.on('connect', () => {
       liveDebugLog('Socket connected');
       updateLiveDebug({ socketConnected: true });
+      rejoinLiveRoom();
     });
     liveSocket.on('disconnect', (reason) => {
       liveDebugLog(`Socket disconnected: ${reason}`);
@@ -532,6 +506,14 @@
       toast('This live has ended');
       setTimeout(exitRoom, 1200);
     });
+
+    liveSocket.on('live:kicked', (payload) => {
+      const me = currentUser();
+      if (me && String(payload?.userId) === String(me.id)) {
+        toast('You were removed from this room', 'error');
+        setTimeout(exitRoom, 900);
+      }
+    });
     }
 
     const user = currentUser();
@@ -562,6 +544,14 @@
             );
             if (res?.ok && res.state) {
               roomState = res.state;
+              roomJoinCompleted = true;
+              lastJoinMeta = {
+                channel: ch,
+                type: type === 'live' ? 'live' : 'party',
+                displayName: displayName(user),
+                isHost: hostFlag,
+              };
+              startHeartbeat();
               updateLiveDebug({ roomJoined: true, socketConnected: true });
               renderRoomState();
               resolve(liveSocket);
@@ -582,6 +572,9 @@
   }
 
   function leaveSocket() {
+    stopHeartbeat();
+    roomJoinCompleted = false;
+    lastJoinMeta = null;
     if (liveSocket) {
       liveSocket.emit('live:leave');
       liveSocket.disconnect();
@@ -687,7 +680,13 @@
       console.error('[live] token failed', e);
       liveDebugLog(`Token FAILED: ${msg}`);
       updateLiveDebug({ tokenReceived: false, agoraJoined: false });
-      setLiveStatus(`Token error: ${msg}`, false);
+      if (host) {
+        toast('Agora not configured — showing local camera preview. Add AGORA keys on server for real broadcast.', 'warning');
+        await startLocalPreviewOnly(broadcastMode !== 'audio');
+        setLiveStatus('Local preview (configure Agora on server)', false);
+      } else {
+        setLiveStatus('Waiting for host stream…', null);
+      }
       return;
     }
 
@@ -1154,8 +1153,16 @@
         });
       });
     }
-    btn.addEventListener('click', () => {
-      pop.classList.toggle('is-open');
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = pop.classList.toggle('is-open');
+      if (open) {
+        const rect = btn.getBoundingClientRect();
+        pop.style.left = Math.max(8, rect.left - 8) + 'px';
+        pop.style.right = 'auto';
+        pop.style.width = Math.min(320, window.innerWidth - 16) + 'px';
+        pop.style.bottom = Math.max(80, window.innerHeight - rect.top + 8) + 'px';
+      }
     });
     document.addEventListener('click', (e) => {
       if (!pop.contains(e.target) && e.target !== btn && !btn.contains(e.target)) {
@@ -1572,7 +1579,11 @@
   function updateCharCount() {
     const input = document.getElementById('liveChatInput');
     const el = document.getElementById('apCharCount');
-    if (el && input) el.textContent = String(input.value.length);
+    if (!el || !input) return;
+    const len = input.value.length;
+    el.textContent = len > 0 ? String(len) : '';
+    el.classList.toggle('is-empty', len === 0);
+    el.setAttribute('aria-hidden', len === 0 ? 'true' : 'false');
   }
 
   function clearMessageBadge() {
@@ -1897,6 +1908,21 @@
       document.getElementById('partyBtnShare')?.click();
     });
 
+    document.getElementById('liveBtnPk')?.addEventListener('click', () => {
+      if (!liveSocket?.connected) {
+        toast('Not connected to live server', 'error');
+        return;
+      }
+      liveSocket.emit(
+        'pk:start',
+        { channel: channelId(), durationSeconds: 300, format: '1v1' },
+        (res) => {
+          if (res?.ok) toast('PK battle started!', 'success');
+          else toast(res?.message || 'Could not start PK', 'error');
+        }
+      );
+    });
+
     const setMode = async (mode) => {
       const changed = broadcastMode !== mode;
       broadcastMode = mode;
@@ -2001,7 +2027,7 @@
         <span class="g">${g.emoji}</span>
         <span>${g.name}</span>
         ${g.tag ? `<span class="gift-tag">${g.tag}</span>` : ''}
-        <small>${g.cost} ≡ƒ¬Ö</small>
+        <small>${g.cost} ${COIN_EMOJI}</small>
       </button>`;
       })
       .join('');
@@ -2248,12 +2274,12 @@
       }
     });
 
-    const toggleFollow = () => {
+    const toggleFollow = async () => {
       const hostName = roomState?.hostName || 'Host';
       const hostId = roomState?.hostId || hostName;
       const wasFollowing = followed;
       if (window.SocialInteractions?.toggleFollow) {
-        followed = SocialInteractions.toggleFollow(hostId, hostName);
+        followed = await SocialInteractions.toggleFollow(hostId, hostName);
       } else {
         followed = !followed;
       }
@@ -2552,6 +2578,10 @@
         </div>
       </div>`
     );
+    const lvlSpan = document.querySelector('.gift-xp-lvl');
+    if (lvlSpan) lvlSpan.innerHTML = `\u{1F48E} <span id="giftUserLvl">1</span>`;
+    const balBtn = document.getElementById('giftBalanceBtn');
+    if (balBtn) balBtn.innerHTML = `${COIN_EMOJI} <span id="giftCoinsBal">0</span> &gt;`;
     giftQty = 1;
     renderGiftGrid();
     refreshCoinDisplay();

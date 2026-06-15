@@ -39,9 +39,9 @@
         '<button type="button" class="creator-follow-btn ' + (following ? 'is-on' : '') + '" id="creatorFollow">' +
         (following ? 'Following' : 'Follow') +
         '</button>';
-      document.getElementById('creatorFollow').onclick = () => {
+      document.getElementById('creatorFollow').onclick = async () => {
         const btn = document.getElementById('creatorFollow');
-        const now = SocialInteractions.toggleFollow(name, name);
+        const now = await SocialInteractions.toggleFollow(name, name);
         btn.textContent = now ? 'Following' : 'Follow';
         btn.classList.toggle('is-on', now);
         SocialUI.toast(

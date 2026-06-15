@@ -15,7 +15,7 @@ async function createAgency(req, res) {
     const { name, parent_agency_id, commission_percent } = req.body;
     const agency = await agencyService.createAgency({
       name,
-      ownerUserId: req.user.userId,
+      ownerUserId: req.userId,
       parentAgencyId: parent_agency_id || null,
       commissionPercent: commission_percent || 12,
     });
@@ -28,7 +28,7 @@ async function createAgency(req, res) {
 async function addAgencyMember(req, res) {
   try {
     const agency = await agencyService.getAgencyById(req.params.id);
-    if (!agency || agency.owner_user_id !== req.user.userId) {
+    if (!agency || agency.owner_user_id !== req.userId) {
       return res.status(403).json({ success: false, message: 'Forbidden' });
     }
     const member = await agencyService.addMember(req.params.id, req.body.user_id, req.body.role);
@@ -68,7 +68,7 @@ async function listContests(req, res) {
 
 async function enrollContest(req, res) {
   try {
-    const entry = await contestService.enrollUser(req.params.id, req.user.userId);
+    const entry = await contestService.enrollUser(req.params.id, req.userId);
     res.json({ success: true, data: entry });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
@@ -76,14 +76,14 @@ async function enrollContest(req, res) {
 }
 
 async function getVipStatus(req, res) {
-  const data = await vipService.getMembership(req.user.userId);
+  const data = await vipService.getMembership(req.userId);
   res.json({ success: true, data });
 }
 
 async function claimReward(req, res) {
   try {
     const { rule_slug, event_key } = req.body;
-    const claim = await rewardEngineService.claimReward(req.user.userId, rule_slug, event_key);
+    const claim = await rewardEngineService.claimReward(req.userId, rule_slug, event_key);
     res.json({ success: true, data: claim });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
@@ -93,7 +93,7 @@ async function claimReward(req, res) {
 async function submitVerification(req, res) {
   try {
     const row = await verificationService.submitVerification(
-      req.user.userId,
+      req.userId,
       req.body.crown_type,
       req.body.proof_video_url
     );
@@ -110,7 +110,7 @@ async function getCharityCampaigns(_req, res) {
 
 async function createPaymentIntent(req, res) {
   try {
-    const intent = await paymentService.createIntent(req.user.userId, req.body);
+    const intent = await paymentService.createIntent(req.userId, req.body);
     res.status(201).json({ success: true, data: intent });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
@@ -175,7 +175,7 @@ async function adminReviewVerification(req, res) {
   try {
     const data = await verificationService.reviewVerification(
       req.params.id,
-      req.user.userId,
+      req.userId,
       req.body.decision,
       req.body.notes
     );

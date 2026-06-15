@@ -24,6 +24,7 @@ exports.listActiveRooms = async (req, res) => {
     const rows = await liveRoomService.listActiveRooms({
       roomType,
       limit: req.query.limit,
+      sort: req.query.sort || 'trending',
     });
     res.json({
       success: true,
@@ -43,10 +44,16 @@ exports.listActiveRooms = async (req, res) => {
 };
 
 exports.agoraConfig = (_req, res) => {
+  const appId = process.env.AGORA_APP_ID || null;
+  const hasCertificate = Boolean(process.env.AGORA_APP_CERTIFICATE);
+  const production = process.env.NODE_ENV === 'production';
   res.json({
     success: true,
-    appId: process.env.AGORA_APP_ID || null,
-    hasCertificate: Boolean(process.env.AGORA_APP_CERTIFICATE),
+    appId,
+    hasCertificate,
+    production,
+    ready: Boolean(appId && hasCertificate),
+    mockAllowed: !production,
   });
 };
 
@@ -54,6 +61,7 @@ exports.agoraToken = (req, res) => {
   try {
     const appId = process.env.AGORA_APP_ID || '';
     const appCertificate = process.env.AGORA_APP_CERTIFICATE || '';
+    const production = process.env.NODE_ENV === 'production';
     const channel =
       String(req.body?.channel || req.query?.channel || 'ap-party')
         .replace(/[^a-zA-Z0-9_-]/g, '')
@@ -62,6 +70,13 @@ exports.agoraToken = (req, res) => {
     const uid = uidFromUserId(req.userId || req.user?.id);
 
     if (!appId || !appCertificate || !RtcTokenBuilder) {
+      if (production) {
+        return res.status(503).json({
+          success: false,
+          mode: 'unavailable',
+          message: 'Live streaming requires AGORA_APP_ID and AGORA_APP_CERTIFICATE on the server.',
+        });
+      }
       return res.json({
         success: true,
         mode: 'mock',
@@ -69,7 +84,7 @@ exports.agoraToken = (req, res) => {
         channel,
         uid,
         token: null,
-        message: 'Set AGORA_APP_ID and AGORA_APP_CERTIFICATE on the server for real live audio/video.',
+        message: 'Set AGORA_APP_ID and AGORA_APP_CERTIFICATE for real live audio/video.',
       });
     }
 

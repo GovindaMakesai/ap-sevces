@@ -69,9 +69,13 @@ async function joinRoom({ channel, userId, displayName, asHost = false }) {
   try {
     await client.query('BEGIN');
     await client.query(
-      `INSERT INTO live_room_members (live_room_id, user_id, display_name, role, left_at)
-       VALUES ($1, $2, $3, $4, NULL)
-       ON CONFLICT (live_room_id, user_id) DO UPDATE SET display_name = EXCLUDED.display_name, left_at = NULL, joined_at = CURRENT_TIMESTAMP`,
+      `INSERT INTO live_room_members (live_room_id, user_id, display_name, role, left_at, last_seen_at)
+       VALUES ($1, $2, $3, $4, NULL, CURRENT_TIMESTAMP)
+       ON CONFLICT (live_room_id, user_id) DO UPDATE SET
+         display_name = EXCLUDED.display_name,
+         left_at = NULL,
+         joined_at = CURRENT_TIMESTAMP,
+         last_seen_at = CURRENT_TIMESTAMP`,
       [room.id, userId, displayName, asHost ? 'host' : 'viewer']
     );
 
@@ -289,18 +293,70 @@ async function recoverActiveRooms() {
   console.log(`[live] Recovered ${res.rows.length} active room(s) from database`);
 }
 
-async function listActiveRooms({ roomType, limit = 30 } = {}) {
+async function listActiveRooms({ roomType, limit = 30, sort = 'trending' } = {}) {
   const params = [];
-  let sql = `SELECT channel, room_type, host_user_id, host_display_name, viewer_count, status, updated_at
+  let sql = `SELECT channel, room_type, host_user_id, host_display_name, viewer_count, status, updated_at, started_at
              FROM live_rooms WHERE status = 'active'`;
   if (roomType) {
     params.push(roomType);
     sql += ` AND room_type = $${params.length}`;
   }
+  const orderBy =
+    sort === 'new'
+      ? 'started_at DESC'
+      : sort === 'nearby'
+        ? 'viewer_count DESC, started_at DESC'
+        : 'viewer_count DESC, updated_at DESC';
   params.push(Math.min(Math.max(parseInt(limit, 10) || 30, 1), 50));
-  sql += ` ORDER BY viewer_count DESC, updated_at DESC LIMIT $${params.length}`;
+  sql += ` ORDER BY ${orderBy} LIMIT $${params.length}`;
   const res = await db.query(sql, params);
   return res.rows;
+}
+
+async function touchHeartbeat(channel, userId) {
+  const room = await findByChannel(channel);
+  if (!room) return;
+  await db.query(
+    `UPDATE live_room_members SET last_seen_at = CURRENT_TIMESTAMP
+     WHERE live_room_id = $1 AND user_id = $2 AND left_at IS NULL`,
+    [room.id, userId]
+  );
+}
+
+async function pruneStaleMembers(staleSeconds = 90) {
+  const res = await db.query(
+    `UPDATE live_room_members m SET left_at = CURRENT_TIMESTAMP
+     FROM live_rooms r
+     WHERE m.live_room_id = r.id AND m.left_at IS NULL AND r.status = 'active'
+       AND m.last_seen_at < CURRENT_TIMESTAMP - ($1 || ' seconds')::interval
+     RETURNING r.channel, m.user_id`,
+    [staleSeconds]
+  );
+  for (const row of res.rows) {
+    const updated = await leaveRoom({ channel: row.channel, userId: row.user_id });
+    if (updated) roomCache.set(row.channel, updated);
+  }
+  return res.rows.length;
+}
+
+async function isUserBanned(liveRoomId, userId) {
+  const res = await db.query(
+    `SELECT 1 FROM live_room_bans WHERE live_room_id = $1 AND user_id = $2`,
+    [liveRoomId, userId]
+  );
+  return res.rows.length > 0;
+}
+
+async function kickMember({ channel, userId, bannedBy, reason }) {
+  const room = await findByChannel(channel);
+  if (!room) throw new Error('Room not found');
+  await db.query(
+    `INSERT INTO live_room_bans (live_room_id, user_id, banned_by, reason)
+     VALUES ($1, $2, $3, $4) ON CONFLICT (live_room_id, user_id) DO NOTHING`,
+    [room.id, userId, bannedBy || null, reason || null]
+  );
+  await leaveRoom({ channel, userId });
+  return room;
 }
 
 module.exports = {
@@ -318,5 +374,9 @@ module.exports = {
   endIdleRooms,
   recoverActiveRooms,
   listActiveRooms,
+  touchHeartbeat,
+  pruneStaleMembers,
+  isUserBanned,
+  kickMember,
   roomCache,
 };

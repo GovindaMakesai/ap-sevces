@@ -191,8 +191,9 @@
   async function fetchActiveRooms(limit = 12, opts = {}) {
     const party = opts && opts.party;
     const roomType = party ? 'party' : 'live';
+    const sort = opts.sort || 'trending';
     try {
-      const res = await API.get(`/live/rooms?type=${roomType}&limit=${limit}`);
+      const res = await API.get(`/live/rooms?type=${roomType}&limit=${limit}&sort=${sort}`);
       const rows = Array.isArray(res?.data) ? res.data : [];
       return rows
         .filter((r) => r && r.channel && r.status !== 'ended')
@@ -236,18 +237,53 @@
     return [];
   }
 
-  async function fillGrid(gridId, limit, opts) {
+  const gridScrollState = {};
+
+  function bindGridInfiniteScroll(gridId, limit, opts) {
+    const grid = document.getElementById(gridId);
+    if (!grid || grid.dataset.infiniteBound === '1') return;
+    grid.dataset.infiniteBound = '1';
+    const sentinel = document.createElement('div');
+    sentinel.className = 'social-grid-sentinel';
+    sentinel.setAttribute('aria-hidden', 'true');
+    grid.after(sentinel);
+    const key = `${gridId}:${opts.sort || 'trending'}`;
+    if (!gridScrollState[key]) gridScrollState[key] = { limit: limit || 12, loading: false };
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0]?.isIntersecting) return;
+        const st = gridScrollState[key];
+        if (st.loading) return;
+        st.limit += limit || 12;
+        fillGrid(gridId, st.limit, { ...opts, append: true });
+      },
+      { rootMargin: '240px' }
+    );
+    observer.observe(sentinel);
+  }
+
+  async function fillGrid(gridId, limit, opts = {}) {
     const grid = document.getElementById(gridId);
     if (!grid) return;
-    grid.innerHTML =
-      '<div class="social-grid-loading"><span class="social-spinner"></span></div>';
-    const rooms = await fetchActiveRooms(limit, opts);
+    const key = `${gridId}:${opts.sort || 'trending'}`;
+    if (!gridScrollState[key]) gridScrollState[key] = { limit: limit || 12, loading: false };
+    const st = gridScrollState[key];
+    if (st.loading) return;
+    st.loading = true;
+    if (!opts.append) {
+      grid.innerHTML =
+        '<div class="social-grid-loading"><span class="social-spinner"></span></div>';
+    }
+    const rooms = await fetchActiveRooms(limit || st.limit, opts);
+    st.loading = false;
     if (!rooms.length) {
-      grid.innerHTML = renderEmptyLiveGrid(opts && opts.party);
+      if (!opts.append) grid.innerHTML = renderEmptyLiveGrid(opts && opts.party);
       return;
     }
     grid.innerHTML = rooms.map((p, i) => renderLiveCard(p, i, opts)).filter(Boolean).join('');
     bindLiveCards(grid);
+    bindGridInfiniteScroll(gridId, limit || 12, opts);
   }
 
   function markNativeApp() {
@@ -273,7 +309,10 @@
     }
 
     if (config.gridId) {
-      fillGrid(config.gridId, config.gridLimit || 12, { party: config.partyGrid });
+      fillGrid(config.gridId, config.gridLimit || 12, {
+        party: config.partyGrid,
+        sort: config.sort || 'trending',
+      });
     }
 
     document.querySelectorAll('[data-social-search]').forEach((input) => {
@@ -331,25 +370,62 @@
     const mount = document.getElementById('exploreEmpty');
     const content = document.getElementById('exploreContent');
     if (!mount) return;
-    const follows = window.SocialInteractions?.getFollowingList
-      ? SocialInteractions.getFollowingList().map((e) => e.name)
-      : JSON.parse(localStorage.getItem('social_follows') || '[]').map((x) => (typeof x === 'string' ? x : x.name));
-    let pros = await fetchActiveRooms(24, { party: false });
-    if (follows.length) {
-      pros = pros.filter((p) =>
-        follows.some((f) => p.name.toLowerCase().includes(String(f).toLowerCase()) || String(f).toLowerCase().includes(p.name.toLowerCase()))
-      );
+
+    let pros = [];
+    if (window.API && localStorage.getItem('token')) {
+      try {
+        const res = await API.get('/social/following/live');
+        const rows = Array.isArray(res?.data) ? res.data : [];
+        pros = rows.map((r) => ({
+          id: r.channel,
+          channel: r.channel,
+          userId: r.id,
+          name: r.name || 'Host',
+          image: coverFallback(r.name || 'Host', false),
+          viewers: r.viewer_count || 0,
+          tag: 'Live',
+          live: true,
+        }));
+      } catch (e) {
+        console.warn('SocialShell: following live API', e);
+      }
     }
+
+    if (!pros.length) {
+      const follows = window.SocialInteractions?.getFollowingList
+        ? SocialInteractions.getFollowingList().map((e) => e.name)
+        : JSON.parse(localStorage.getItem('social_follows') || '[]').map((x) =>
+            typeof x === 'string' ? x : x.name
+          );
+      pros = await fetchActiveRooms(24, { party: false });
+      if (follows.length) {
+        pros = pros.filter((p) =>
+          follows.some(
+            (f) =>
+              p.name.toLowerCase().includes(String(f).toLowerCase()) ||
+              String(f).toLowerCase().includes(p.name.toLowerCase())
+          )
+        );
+      }
+      if (!follows.length && !pros.length) {
+        if (content) content.style.display = 'none';
+        mount.style.display = 'block';
+        mount.innerHTML = `<div class="social-empty-state"><p>You haven't followed anyone yet.</p><a href="/explore.html?app=1" class="btn-open">Discover live</a></div>`;
+        return;
+      }
+    }
+
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      pros = pros.filter((p) => p.name.toLowerCase().includes(q) || String(p.channel || '').toLowerCase().includes(q));
+      pros = pros.filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) || String(p.channel || '').toLowerCase().includes(q)
+      );
     }
     if (!pros.length) {
       if (content) content.style.display = 'none';
       mount.style.display = 'block';
-      mount.innerHTML = follows.length
-        ? `<div class="social-empty-state"><p>${searchQuery ? `No live hosts match "${searchQuery}"` : 'None of the people you follow are live right now.'}</p><button type="button" class="btn-open" onclick="SocialShell.goStartLive()">Go Live</button></div>`
-        : `<div class="social-empty-state"><p>You haven't followed anyone yet.</p><a href="/explore.html?app=1" class="btn-open">Discover live</a></div>`;
+      mount.innerHTML = `<div class="social-empty-state"><p>${searchQuery ? `No live hosts match "${searchQuery}"` : 'None of the people you follow are live right now.'}</p><button type="button" class="btn-open" onclick="SocialShell.goStartLive()">Go Live</button></div>`;
       return;
     }
     mount.style.display = 'none';
@@ -364,6 +440,30 @@
       }
       grid.innerHTML = pros.map((p, i) => renderLiveCard(p, i, { party: false })).join('');
       bindLiveCards(grid);
+    }
+  }
+
+  async function fillDiscoveryTab(tab, searchQuery) {
+    const mount = document.getElementById('exploreEmpty');
+    const content = document.getElementById('exploreContent');
+    const sort = tab === 'new' ? 'new' : tab === 'nearby' ? 'nearby' : 'trending';
+    if (content) content.style.display = 'block';
+    if (mount) mount.style.display = 'none';
+    let grid = document.getElementById('exploreGrid');
+    if (!grid && content) {
+      grid = document.createElement('div');
+      grid.id = 'exploreGrid';
+      grid.className = 'social-grid';
+      content.appendChild(grid);
+    }
+    if (!grid) return;
+    await fillGrid('exploreGrid', 12, { sort, party: false });
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      [...grid.querySelectorAll('.social-live-card')].forEach((card) => {
+        const name = (card.querySelector('.social-card-name')?.textContent || '').toLowerCase();
+        card.style.display = name.includes(q) ? '' : 'none';
+      });
     }
   }
 
@@ -671,6 +771,7 @@
     goStartParty,
     openBroadcastPicker,
     fillFollowingView,
+    fillDiscoveryTab,
     fetchPros,
     fetchActiveRooms,
     getImageUrl,

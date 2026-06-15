@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agora Diagnostics - AP Services</title>
+  <link rel="stylesheet" href="social-live.css">
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0d0d12; color: #eee; padding: 1rem; max-width: 640px; margin: 0 auto; }
+    h1 { font-size: 1.25rem; margin: 0 0 1rem; }
+    .diag-card { background: #1a1a24; border-radius: 12px; padding: 1rem; margin-bottom: 0.75rem; }
+    .diag-row { display: flex; justify-content: space-between; padding: 0.35rem 0; border-bottom: 1px solid #2a2a36; }
+    .diag-row:last-child { border-bottom: none; }
+    .ok { color: #4ade80; }
+    .warn { color: #fbbf24; }
+    .err { color: #f87171; }
+    #diagVideo { width: 100%; max-height: 200px; background: #000; border-radius: 8px; margin-top: 0.5rem; }
+    button { background: #6366f1; color: #fff; border: none; padding: 0.6rem 1rem; border-radius: 8px; margin: 0.25rem 0.25rem 0 0; cursor: pointer; }
+    button:disabled { opacity: 0.5; }
+    pre { font-size: 0.75rem; overflow: auto; background: #111; padding: 0.5rem; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <h1>Live streaming diagnostics</h1>
+  <p style="opacity:0.8;font-size:0.9rem">Checks Agora config, token issuance, publish/subscribe, and connection quality. Log in first.</p>
+
+  <div class="diag-card" id="diagServer">
+    <strong>Server</strong>
+    <div class="diag-row"><span>API</span><span id="dApi">—</span></div>
+    <div class="diag-row"><span>Agora ready</span><span id="dAgoraReady">—</span></div>
+    <div class="diag-row"><span>App ID</span><span id="dAppId">—</span></div>
+    <div class="diag-row"><span>Certificate</span><span id="dCert">—</span></div>
+    <div class="diag-row"><span>Production mode</span><span id="dProd">—</span></div>
+  </div>
+
+  <div class="diag-card">
+    <strong>Token test</strong>
+    <div class="diag-row"><span>Channel</span><span id="dChannel">diag-test</span></div>
+    <div class="diag-row"><span>Token status</span><span id="dToken">—</span></div>
+    <div class="diag-row"><span>UID</span><span id="dUid">—</span></div>
+    <button type="button" id="btnToken">Request token</button>
+  </div>
+
+  <div class="diag-card">
+    <strong>Client publish / subscribe</strong>
+    <div class="diag-row"><span>Publishing</span><span id="dPublish">—</span></div>
+    <div class="diag-row"><span>Remote users</span><span id="dRemote">0</span></div>
+    <div class="diag-row"><span>Network quality</span><span id="dQuality">—</span></div>
+    <div id="diagVideo"></div>
+    <button type="button" id="btnJoin">Join test channel</button>
+    <button type="button" id="btnLeave" disabled>Leave</button>
+  </div>
+
+  <pre id="diagLog"></pre>
+
+  <script src="app.js"></script>
+  <script src="https://download.agora.io/sdk/release/AgoraRTC_N-4.22.0.js"></script>
+  <script>
+    const logEl = document.getElementById('diagLog');
+    function log(msg) {
+      logEl.textContent = (new Date().toISOString().slice(11, 19) + ' ' + msg + '\n') + logEl.textContent;
+    }
+    function set(id, text, cls) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.textContent = text;
+      el.className = cls || '';
+    }
+
+    let client = null;
+    let localTracks = [];
+
+    async function checkServer() {
+      const base = window.CONFIG?.API_URL || '/api';
+      set('dApi', base);
+      try {
+        const cfg = await API.get('/live/agora/config');
+        set('dAgoraReady', cfg.ready ? 'Yes' : 'No', cfg.ready ? 'ok' : 'err');
+        set('dAppId', cfg.appId ? cfg.appId.slice(0, 8) + '…' : 'missing', cfg.appId ? 'ok' : 'err');
+        set('dCert', cfg.hasCertificate ? 'Set' : 'Missing', cfg.hasCertificate ? 'ok' : 'warn');
+        set('dProd', cfg.production ? 'Yes' : 'No');
+      } catch (e) {
+        set('dAgoraReady', 'Error', 'err');
+        log('Config error: ' + e.message);
+      }
+    }
+
+    document.getElementById('btnToken').onclick = async () => {
+      if (!localStorage.getItem('token')) {
+        set('dToken', 'Login required', 'err');
+        return;
+      }
+      try {
+        const data = await API.post('/live/agora/token', { channel: 'diag-test', role: 'host' });
+        if (data.mode === 'mock' || !data.token) {
+          set('dToken', data.mode || 'no token', 'warn');
+        } else {
+          set('dToken', 'OK (' + data.mode + ')', 'ok');
+        }
+        set('dUid', String(data.uid || '—'));
+        log('Token: ' + JSON.stringify({ mode: data.mode, uid: data.uid }));
+      } catch (e) {
+        set('dToken', e.message, 'err');
+        log('Token error: ' + e.message);
+      }
+    };
+
+    document.getElementById('btnJoin').onclick = async () => {
+      if (!localStorage.getItem('token')) {
+        alert('Please log in first');
+        return;
+      }
+      try {
+        const data = await API.post('/live/agora/token', { channel: 'diag-test', role: 'host' });
+        if (!data.token) throw new Error(data.message || 'No token — set AGORA_APP_ID and AGORA_APP_CERTIFICATE');
+        client = AgoraRTC.createClient({ mode: 'live', codec: 'vp8' });
+        client.on('user-published', async (user, mediaType) => {
+          await client.subscribe(user, mediaType);
+          set('dRemote', String(client.remoteUsers.length));
+          if (mediaType === 'video') {
+            user.videoTrack.play('diagVideo');
+          }
+        });
+        client.on('user-unpublished', () => set('dRemote', String(client.remoteUsers.length)));
+        client.on('network-quality', (q) => {
+          set('dQuality', '↑' + q.uplinkNetworkQuality + ' ↓' + q.downlinkNetworkQuality);
+        });
+        await client.join(data.appId, 'diag-test', data.token, data.uid);
+        localTracks = await AgoraRTC.createMicrophoneAndCameraTracks();
+        await client.publish(localTracks);
+        localTracks[1]?.play('diagVideo');
+        set('dPublish', 'Yes', 'ok');
+        document.getElementById('btnLeave').disabled = false;
+        log('Joined diag-test as publisher');
+      } catch (e) {
+        set('dPublish', e.message, 'err');
+        log('Join error: ' + e.message);
+      }
+    };
+
+    document.getElementById('btnLeave').onclick = async () => {
+      localTracks.forEach((t) => t.close());
+      localTracks = [];
+      if (client) await client.leave();
+      client = null;
+      set('dPublish', 'No');
+      set('dRemote', '0');
+      document.getElementById('btnLeave').disabled = true;
+      log('Left channel');
+    };
+
+    checkServer();
+  </script>
+</body>
+</html>

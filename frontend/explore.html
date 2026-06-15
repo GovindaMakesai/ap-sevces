@@ -50,17 +50,22 @@
       document.querySelectorAll('#exploreTabs a[data-tab]').forEach((a) => {
         a.classList.toggle('active', a.dataset.tab === activeTab);
       });
-      if (tab === 'following' || tab === 'nearby') {
+      if (tab === 'following') {
         document.getElementById('exploreContent').style.display = 'none';
         document.getElementById('exploreEmpty').style.display = 'block';
         SocialShell.initPage({
           activeNav: 'explore',
           emptyState: { mountId: 'exploreEmpty', type: tab },
         });
-        if (tab === 'following') SocialShell.fillFollowingView('');
+        SocialShell.fillFollowingView('');
+      } else if (tab === 'nearby' || tab === 'new') {
+        document.getElementById('exploreEmpty').style.display = 'none';
+        document.getElementById('exploreContent').style.display = 'block';
+        SocialShell.initPage({ activeNav: 'explore' });
+        SocialShell.fillDiscoveryTab(tab);
       } else {
         document.getElementById('exploreEmpty').style.display = 'none';
-        SocialShell.initPage({ activeNav: 'explore', gridId: 'exploreGrid', gridLimit: 12 });
+        SocialShell.initPage({ activeNav: 'explore', gridId: 'exploreGrid', gridLimit: 12, sort: 'trending' });
       }
       document.getElementById('globalChip')?.addEventListener('click', () => {
         document.querySelector('.chip[data-chip="Global"]')?.click();

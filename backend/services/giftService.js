@@ -10,9 +10,36 @@ const pkBattleService = require('./pkBattleService');
 /**
  * Atomic gift: debit sender, credit receiver (minus platform fee), log gift_transactions.
  */
+async function resolveGiftAmount(giftType, coinAmount) {
+  const amount = Number(coinAmount);
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error('Gift amount must be positive');
+
+  const slug = String(giftType || 'gift')
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, '_')
+    .replace(/_+/g, '_')
+    .slice(0, 64);
+
+  const res = await db.query(
+    `SELECT slug, coin_cost FROM gift_catalog
+     WHERE is_active = TRUE AND (slug = $1 OR LOWER(name) = LOWER($2))
+     LIMIT 1`,
+    [slug, String(giftType || '').trim()]
+  );
+
+  if (res.rows[0]) {
+    const expected = Number(res.rows[0].coin_cost);
+    if (amount !== expected) {
+      throw new Error(`Gift "${giftType}" costs ${expected} coins`);
+    }
+    return expected;
+  }
+
+  return amount;
+}
+
 async function sendGift({ senderId, receiverId, liveRoomId, giftType, coinAmount }) {
-  const amount = BigInt(coinAmount);
-  if (amount <= 0n) throw new Error('Gift amount must be positive');
+  const amount = BigInt(await resolveGiftAmount(giftType, coinAmount));
   if (senderId === receiverId) throw new Error('Cannot gift yourself');
 
   await fraudService.checkGiftAbuse(senderId, Number(amount));
