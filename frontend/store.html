@@ -118,17 +118,13 @@
           document.getElementById('sheetPrice').textContent = el.dataset.price + ' 🪙';
           document.getElementById('itemSheet').classList.add('open');
           const buyBtn = document.querySelector('#itemSheet .social-btn-orange');
-          if (buyBtn && el.dataset.packageId && window.API) {
-            buyBtn.textContent = 'Buy with Razorpay';
-            buyBtn.onclick = async (ev) => {
+          if (buyBtn) {
+            const amount = parseInt(el.dataset.inr || '', 10);
+            buyBtn.textContent = 'Scan QR to Recharge';
+            buyBtn.onclick = (ev) => {
               ev.preventDefault();
-              try {
-                const purchase = await API.post('/store/purchase', { package_id: el.dataset.packageId });
-                const order = await API.post('/store/razorpay-order', { intent_id: purchase.data.intent.id });
-                alert('Razorpay order: ' + order.data.order_id + ' — complete payment in Razorpay checkout.');
-              } catch (err) {
-                alert(err.message || 'Purchase failed');
-              }
+              const qs = Number.isFinite(amount) && amount > 0 ? `&amount=${encodeURIComponent(String(amount))}` : '';
+              location.href = `/coins-recharge.html?app=1${qs}`;
             };
           }
         });

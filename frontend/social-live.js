@@ -3113,7 +3113,8 @@
 
   function initCoinsRecharge() {
     const amounts = [99, 199, 499, 999, 1999, 4999];
-    let selected = amounts[1];
+    const requested = parseInt(qs('amount') || '', 10);
+    let selected = amounts.includes(requested) ? requested : amounts[1];
     const amountEl = document.getElementById('rechargeAmount');
     const utrEl = document.getElementById('rechargeUtr');
     const wrap = document.getElementById('rechargeAmountBtns');
@@ -3129,6 +3130,11 @@
         syncAmount();
       });
     });
+    // Apply initial selection UI if amount was prefilled.
+    const initialIdx = amounts.indexOf(selected);
+    if (initialIdx >= 0 && wrap) {
+      wrap.querySelectorAll('button').forEach((b, i) => b.classList.toggle('active', i === initialIdx));
+    }
     document.getElementById('rechargeSubmit')?.addEventListener('click', async () => {
       const utr = (utrEl?.value || '').trim();
       if (!utr || utr.length < 6) {
