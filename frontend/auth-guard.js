@@ -33,7 +33,7 @@
   }
 
   function homeUrl(user) {
-    const q = '?app=1';
+    const q = '?app=1&source=expo-app';
     if (!user) return '/explore.html' + q;
     if (user.role === 'admin') return '/admin-dashboard.html' + q;
     if (user.role === 'worker') return '/worker-dashboard.html' + q;

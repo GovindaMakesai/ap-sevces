@@ -166,8 +166,16 @@ function buildSessionInjectScript(user, accessToken) {
   } else {
     script += `localStorage.removeItem('token');`;
   }
-  script += `}catch(e){}})();`;
+  if (window.AppState) { try { AppState.user = JSON.parse(${JSON.stringify(userJson)}); } catch(e){} }
+  script += `window.__AP_LOGGED_IN__=true;}catch(e){}})();`;
   return script;
+}
+
+function buildNavigateScript(user, accessToken, dest) {
+  return (
+    buildSessionInjectScript(user, accessToken) +
+    `window.location.replace(${JSON.stringify(dest)}); true;`
+  );
 }
 
 export default function App() {
@@ -177,13 +185,13 @@ export default function App() {
   const handledTokenRef = useRef('');
   const oauthBusyRef = useRef(false);
   const [loadError, setLoadError] = useState('');
-  const [postOAuthUrl, setPostOAuthUrl] = useState('');
   const [sessionInject, setSessionInject] = useState('');
   const [frontendBase, setFrontendBase] = useState(() => resolveFrontendBase());
   const [lanFallbackDone, setLanFallbackDone] = useState(false);
   const nativeSessionRef = useRef(null);
-  /** After login, WebView must stay on dashboard — never snap back to app-auth */
-  const [homeUri, setHomeUri] = useState('');
+  const oauthCompleteRef = useRef(false);
+  /** WebView source is set once — post-login navigation uses injectJavaScript only */
+  const webSourceUriRef = useRef('');
 
   const isDevLocal = useMemo(() => isDevLocalBase(frontendBase), [frontendBase]);
   const frontendUrl = useMemo(() => buildFrontendUrl(frontendBase), [frontendBase]);
@@ -220,13 +228,18 @@ export default function App() {
       app_redirect: APP_RETURN_URL,
       source: 'expo-app',
       app: '1',
-      v: String(Date.now()),
     });
     const sep = frontendUrl.includes('?') ? '&' : '?';
-    const url = `${frontendUrl}${sep}${params.toString()}`;
-    console.log('[ap-services-app] Launch URL:', url);
-    return url;
+    return `${frontendUrl}${sep}${params.toString()}`;
   }, [frontendUrl]);
+
+  if (!webSourceUriRef.current) {
+    webSourceUriRef.current = launchUrl;
+  }
+
+  useEffect(() => {
+    console.log('[ap-services-app] Launch URL:', webSourceUriRef.current);
+  }, []);
 
   const lastInjectedUrlRef = useRef('');
 
@@ -285,7 +298,7 @@ export default function App() {
 
         const dest = dashboardUrlForUser(user, frontendBase);
         nativeSessionRef.current = { user, accessToken };
-        setHomeUri(dest);
+        oauthCompleteRef.current = true;
         setLoadError('');
         const sessionScript = buildSessionInjectScript(user, accessToken);
         setSessionInject(sessionScript);
@@ -295,13 +308,11 @@ export default function App() {
           console.warn('[ap-services-app] No accessToken from API — modules may show session expired until VPS is updated');
         }
 
-        const goScript =
-          sessionScript +
-          `window.location.replace(${JSON.stringify(dest)}); true;`;
-        if (webViewRef.current) {
-          webViewRef.current.injectJavaScript(goScript);
-        }
-        setPostOAuthUrl(dest);
+        const goScript = buildNavigateScript(user, accessToken, dest);
+        const tryGo = () => webViewRef.current?.injectJavaScript(goScript);
+        tryGo();
+        setTimeout(tryGo, 150);
+        setTimeout(tryGo, 500);
       } catch (err) {
         console.warn('[ap-services-app] Login exchange failed', err);
         handledTokenRef.current = '';
@@ -402,18 +413,17 @@ export default function App() {
   useEffect(() => {
     const handleDeepLink = ({ url }) => {
       if (!isNativeOAuthReturnUrl(url)) return;
+      if (oauthCompleteRef.current) return;
       const credential = extractOAuthCredential(url);
       if (!credential) return;
+      const credKey = `${credential.type}:${credential.value}`;
+      if (handledTokenRef.current === credKey) return;
       pendingTokenRef.current = credential;
       applyOAuthCredential(credential);
     };
 
     const subscription = Linking.addEventListener('url', handleDeepLink);
-    Linking.getInitialURL()
-      .then((initialUrl) => {
-        if (initialUrl) handleDeepLink({ url: initialUrl });
-      })
-      .catch(() => {});
+    // Do not call getInitialURL — it replays stale OAuth codes on every Metro reload and breaks login.
 
     return () => subscription.remove();
   }, [applyOAuthCredential]);
@@ -472,8 +482,11 @@ export default function App() {
             user: data.user,
             accessToken: data.accessToken || null,
           };
-          setHomeUri(dest);
+          oauthCompleteRef.current = true;
           setSessionInject(buildSessionInjectScript(data.user, data.accessToken || null));
+          webViewRef.current?.injectJavaScript(
+            buildNavigateScript(data.user, data.accessToken || null, dest)
+          );
           return;
         }
         if (data.type === 'share') {
@@ -522,11 +535,22 @@ export default function App() {
     return true;
   };
 
-  const webUri = homeUri || postOAuthUrl || launchUrl;
+  const webUri = webSourceUriRef.current;
   const persistedInject = nativeSessionRef.current
     ? buildSessionInjectScript(nativeSessionRef.current.user, nativeSessionRef.current.accessToken)
     : '';
   const injectedBootstrap = appShellBootstrap + persistedInject + sessionInject;
+
+  const recoverSessionIfStuckOnAuth = useCallback(
+    (pageUrl) => {
+      if (!nativeSessionRef.current || !oauthCompleteRef.current) return;
+      if (!pageUrl || !pageUrl.includes('app-auth')) return;
+      const { user, accessToken } = nativeSessionRef.current;
+      const dest = dashboardUrlForUser(user, frontendBase);
+      webViewRef.current?.injectJavaScript(buildNavigateScript(user, accessToken, dest));
+    },
+    [frontendBase]
+  );
 
   const tryLanFallback = useCallback(() => {
     if (!lanFallbackDone && isDevLocal) {
@@ -577,13 +601,17 @@ export default function App() {
         onLoadEnd={(e) => {
           webViewReadyRef.current = true;
           const url = e?.nativeEvent?.url || '';
+          recoverSessionIfStuckOnAuth(url);
           injectMobileLayout(url);
         }}
         onNavigationStateChange={(nav) => {
           const url = nav?.url || '';
           if (url.includes('explore.html') || url.includes('dashboard')) {
-            setHomeUri(url);
+            oauthCompleteRef.current = true;
             setLoadError('');
+          }
+          if (url.includes('app-auth')) {
+            recoverSessionIfStuckOnAuth(url);
           }
           if (handleOAuthUrl(url)) {
             webViewRef.current?.stopLoading();
