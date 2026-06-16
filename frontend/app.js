@@ -35,6 +35,10 @@ function isVercelHost() {
 }
 
 function resolveApiUrl() {
+    // Expo LAN dev: same-origin /api via dev-server proxy (avoids cross-origin CORS in WebView)
+    if (IS_EXPO_WEBVIEW && isLanDevHost() && (window.location.port === '5500' || window.location.port === '')) {
+        return `${window.location.origin.replace(/\/$/, '')}/api`;
+    }
     if (typeof window.__AP_API_URL__ === 'string' && window.__AP_API_URL__) {
         return window.__AP_API_URL__.replace(/\/$/, '');
     }
@@ -52,6 +56,9 @@ function resolveApiUrl() {
 }
 
 function resolveBackendUrl() {
+    if (IS_EXPO_WEBVIEW && isLanDevHost() && (window.location.port === '5500' || window.location.port === '')) {
+        return window.location.origin.replace(/\/$/, '');
+    }
     if (typeof window.__AP_API_URL__ === 'string' && window.__AP_API_URL__) {
         return window.__AP_API_URL__.replace(/\/api\/?$/, '');
     }
