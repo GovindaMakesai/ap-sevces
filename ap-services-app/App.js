@@ -166,7 +166,7 @@ function buildSessionInjectScript(user, accessToken) {
   } else {
     script += `localStorage.removeItem('token');`;
   }
-  if (window.AppState) { try { AppState.user = JSON.parse(${JSON.stringify(userJson)}); } catch(e){} }
+  script += `if(window.AppState){try{AppState.user=JSON.parse(${JSON.stringify(userJson)});}catch(e){}}`;
   script += `window.__AP_LOGGED_IN__=true;}catch(e){}})();`;
   return script;
 }
