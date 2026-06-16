@@ -118,6 +118,10 @@ const API = {
     async _fetchOnce(url, options = {}, retried = false) {
         console.log(`📡 API Request: ${options.method || 'GET'} ${url}`);
 
+        if (typeof Auth !== 'undefined' && Auth.ensureAccessToken) {
+            await Auth.ensureAccessToken();
+        }
+
         const headers = { ...options.headers };
         const legacyToken = localStorage.getItem('token');
         if (legacyToken) {
@@ -386,7 +390,11 @@ const Auth = {
             
             if (response.success) {
                 AppState.user = response.data.user;
-                localStorage.removeItem('token');
+                if (response.data.accessToken) {
+                    localStorage.setItem('token', response.data.accessToken);
+                } else {
+                    localStorage.removeItem('token');
+                }
                 localStorage.setItem('user', JSON.stringify(response.data.user));
                 
                 Toast.show(`Welcome back, ${response.data.user.first_name}!`, 'success');
@@ -477,6 +485,43 @@ const Auth = {
         }
         return false;
     },
+
+    hasSession() {
+        return Boolean(localStorage.getItem('user') || localStorage.getItem('token'));
+    },
+
+    async ensureAccessToken() {
+        const existing = localStorage.getItem('token');
+        if (existing) return existing;
+        if (!localStorage.getItem('user')) return null;
+        if (this._ensuringToken) return this._ensuringToken;
+
+        this._ensuringToken = (async () => {
+            try {
+                const ok = await this.tryRefresh();
+                if (ok) return localStorage.getItem('token');
+
+                const res = await fetch(`${CONFIG.API_URL}/auth/ws-token`, {
+                    method: 'GET',
+                    credentials: 'include',
+                });
+                const data = await res.json().catch(() => ({}));
+                if (res.ok && data.success && data.data?.accessToken) {
+                    localStorage.setItem('token', data.data.accessToken);
+                    return data.data.accessToken;
+                }
+            } catch (_e) {
+                /* ignore */
+            }
+            return localStorage.getItem('token');
+        })();
+
+        try {
+            return await this._ensuringToken;
+        } finally {
+            this._ensuringToken = null;
+        }
+    },
     
     getUser() { return AppState.user; },
     getToken() { return AppState.token || localStorage.getItem('token'); },
@@ -494,6 +539,9 @@ const Auth = {
                 if (res.ok && data.success && data.data?.user) {
                     AppState.user = data.data.user;
                     localStorage.setItem('user', JSON.stringify(data.data.user));
+                    if (data.data.accessToken) {
+                        localStorage.setItem('token', data.data.accessToken);
+                    }
                     return true;
                 }
                 return false;
@@ -515,12 +563,17 @@ const Auth = {
                 /* ignore */
             }
         }
+
+        await this.ensureAccessToken();
+
         try {
             const res = await API.get('/auth/me');
             if (res.success && res.data && res.data.user) {
                 AppState.user = res.data.user;
                 localStorage.setItem('user', JSON.stringify(res.data.user));
-                localStorage.removeItem('token');
+                if (res.data.accessToken) {
+                    localStorage.setItem('token', res.data.accessToken);
+                }
                 return true;
             }
         } catch (e) {
@@ -528,8 +581,7 @@ const Auth = {
             if (e.status === 401) {
                 const ok = await this.tryRefresh();
                 if (ok) return this.refreshSession();
-                // Cookie session may lag in WebView; keep cached user from OAuth exchange.
-                if (localStorage.getItem('user') && !localStorage.getItem('token')) {
+                if (localStorage.getItem('user')) {
                     return Boolean(AppState.user || localStorage.getItem('user'));
                 }
                 this.tokenInvalidCleanup();
@@ -1341,8 +1393,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         localStorage.setItem('app_redirect', appRedirectFromQuery);
     }
     Auth.checkAuth();
-    if (AppState.user || localStorage.getItem('user') || document.cookie.includes('ap_access')) {
+    if (Auth.hasSession()) {
         if (!(isNativeAppContext() && onAuthScreen)) {
+            await Auth.ensureAccessToken();
             await Auth.refreshSession();
         }
     }

@@ -197,12 +197,14 @@ async function finishOAuthLogin(req, res, user, appRedirect) {
     return res.redirect(`${url}${sep}oauth=1`);
 }
 
-async function respondAuthedJson(res, user, message) {
+async function respondAuthedJson(res, user, message, accessToken = null) {
     const { publicUser } = require('../lib/userDto');
+    const payload = { user: publicUser(user, { self: true }) };
+    if (accessToken) payload.accessToken = accessToken;
     return res.json({
         success: true,
         message,
-        data: { user: publicUser(user, { self: true }) },
+        data: payload,
     });
 }
 
@@ -361,12 +363,12 @@ const register = async (req, res) => {
             }
         }
 
-        await createSession(userOut, res, authMeta(req));
+        const { accessToken } = await createSession(userOut, res, authMeta(req));
 
         console.log('✅ Registration successful:', userOut.email);
 
         res.status(201);
-        return respondAuthedJson(res, userOut, 'Registration successful');
+        return respondAuthedJson(res, userOut, 'Registration successful', accessToken);
     } catch (error) {
         console.error('❌ Registration error:', error);
         if (error.code === 'AUTH_CONFIG') {
@@ -421,12 +423,12 @@ const login = async (req, res) => {
             });
         }
 
-        await createSession(user, res, authMeta(req));
+        const { accessToken } = await createSession(user, res, authMeta(req));
         delete user.password_hash;
 
         console.log('✅ Login successful:', user.email);
 
-        return respondAuthedJson(res, user, 'Login successful');
+        return respondAuthedJson(res, user, 'Login successful', accessToken);
     } catch (error) {
         console.error('❌ Login error:', error);
         if (error.code === 'AUTH_CONFIG') {
@@ -630,8 +632,8 @@ const facebookCallback = async (req, res) => {
 const refresh = async (req, res) => {
     try {
         const refreshRaw = getRefreshTokenFromRequest(req);
-        const { user } = await rotateRefresh(refreshRaw, res, authMeta(req));
-        return respondAuthedJson(res, user, 'Session refreshed');
+        const { user, accessToken } = await rotateRefresh(refreshRaw, res, authMeta(req));
+        return respondAuthedJson(res, user, 'Session refreshed', accessToken);
     } catch (error) {
         clearSessionCookies(res);
         return res.status(401).json({ success: false, message: error.message || 'Refresh failed' });
@@ -655,10 +657,25 @@ const exchangeCode = async (req, res) => {
     try {
         const { code } = req.body;
         if (!code) return res.status(400).json({ success: false, message: 'Exchange code required' });
-        const { user } = await exchangeOAuthCode(code, res, authMeta(req));
-        return respondAuthedJson(res, user, 'OAuth exchange complete');
+        const { user, accessToken } = await exchangeOAuthCode(code, res, authMeta(req));
+        return respondAuthedJson(res, user, 'OAuth exchange complete', accessToken);
     } catch (error) {
         return res.status(400).json({ success: false, message: error.message });
+    }
+};
+
+const wsToken = async (req, res) => {
+    try {
+        const user = await User.findById(req.userId);
+        if (!user) return res.status(401).json({ success: false, message: 'User not found' });
+        const { signAccessToken } = require('../services/authTokenService');
+        const accessToken = signAccessToken(user);
+        return res.json({
+            success: true,
+            data: { accessToken },
+        });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: 'Could not issue socket token' });
     }
 };
 
@@ -690,5 +707,6 @@ module.exports = {
     refresh,
     logout,
     exchangeCode,
+    wsToken,
     session,
 };

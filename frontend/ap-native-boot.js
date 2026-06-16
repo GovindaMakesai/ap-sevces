@@ -30,7 +30,6 @@
     style.id = 'ap-native-critical';
     style.textContent = [
       'html.ap-expo-app,html.ap-expo-app body{background:#faf6ee!important;color:#6b4f10!important}',
-      'html.ap-expo-app .navbar,html.ap-expo-app .footer,html.ap-expo-app footer.site-footer{display:none!important}',
       'html.ap-expo-app .chat-page{background:#faf6ee!important;padding:0!important}',
       'html.ap-expo-app .chat-layout{border-color:rgba(201,162,39,.2)!important;box-shadow:0 4px 16px rgba(107,79,16,.08)!important}',
       'html.ap-expo-app .chat-tab.active{background:linear-gradient(135deg,#d4a84b,#9a7218)!important;color:#fff!important}',
@@ -53,7 +52,7 @@
     else document.addEventListener('DOMContentLoaded', markChatBoot, { once: true });
   }
 
-  if (!onAuth && !localStorage.getItem('token')) {
+  if (!onAuth && !localStorage.getItem('user') && !localStorage.getItem('token')) {
     if (!path.includes('chat')) return;
     const dest = '/app-auth.html?app=1&redirect=' + encodeURIComponent(location.pathname + location.search);
     location.replace(dest);

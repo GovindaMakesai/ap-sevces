@@ -22,7 +22,7 @@
   <script>
     (function () {
       try {
-        if (localStorage.getItem('token') && localStorage.getItem('user')) {
+        if (localStorage.getItem('user')) {
           document.documentElement.classList.add('profile-authed');
         }
       } catch (_e) {}
@@ -88,13 +88,13 @@
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
       Auth.checkAuth();
-      let user = Auth.getUser();
-      if (localStorage.getItem('token') && typeof Auth.refreshSession === 'function') {
+      if (Auth.hasSession?.()) {
+        await Auth.ensureAccessToken?.();
         try {
-          await Auth.refreshSession();
-          user = Auth.getUser();
+          await Auth.refreshSession?.();
         } catch (_e) {}
       }
+      let user = Auth.getUser();
 
       SocialShell.initPage({ activeNav: 'profile' });
       const btn = document.getElementById('profileMainBtn');

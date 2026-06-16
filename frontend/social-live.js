@@ -90,6 +90,8 @@
       }
     });
   }
+
+  function qs(name) {
     return new URLSearchParams(location.search).get(name);
   }
 
@@ -369,18 +371,66 @@
     return connectSocketAsync(type);
   }
 
+  async function resolveSocketAuthToken() {
+    if (window.Auth?.ensureAccessToken) {
+      const token = await Auth.ensureAccessToken();
+      if (token) return token;
+    }
+    let token = localStorage.getItem('token');
+    if (token) return token;
+    if (!currentUser()) return null;
+
+    const apiBase =
+      (typeof window.__AP_API_URL__ === 'string' && window.__AP_API_URL__) ||
+      (window.CONFIG && CONFIG.API_URL) ||
+      '/api';
+    const base = apiBase.replace(/\/$/, '');
+
+    async function tryFetch(path, options) {
+      const res = await fetch(`${base}${path}`, { credentials: 'include', ...options });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success && data.data?.accessToken) {
+        localStorage.setItem('token', data.data.accessToken);
+        return data.data.accessToken;
+      }
+      return null;
+    }
+
+    try {
+      const wsToken = await tryFetch('/auth/ws-token', { method: 'GET' });
+      if (wsToken) return wsToken;
+      const refreshed = await tryFetch('/auth/refresh', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+      if (refreshed) return refreshed;
+    } catch (_e) {
+      /* fall through */
+    }
+    return null;
+  }
+
   async function connectSocketAsync(type) {
     ensureLiveDebugPanel();
-    const token = localStorage.getItem('token');
-    if (!token || typeof io === 'undefined') {
-      liveDebugLog('Socket skipped — missing auth token or socket.io');
+    if (typeof io === 'undefined') {
+      liveDebugLog('Socket skipped — socket.io unavailable');
       updateLiveDebug({ socketConnected: false, roomJoined: false });
-      throw new Error('Not logged in or socket.io unavailable');
+      throw new Error('socket.io unavailable');
+    }
+    if (!currentUser()) {
+      liveDebugLog('Socket skipped — not logged in');
+      updateLiveDebug({ socketConnected: false, roomJoined: false });
+      throw new Error('Not logged in');
+    }
+
+    const token = await resolveSocketAuthToken();
+    if (!token) {
+      liveDebugLog('Socket skipped — missing auth token (sign in again)');
+      updateLiveDebug({ socketConnected: false, roomJoined: false });
+      throw new Error('Session expired — sign in again to join live');
     }
 
     if (!liveSocket) {
       liveSocket = io(socketBase(), {
         auth: { token },
+        withCredentials: true,
         transports: ['websocket', 'polling'],
         reconnection: true,
         reconnectionAttempts: 8,
@@ -567,7 +617,18 @@
       };
 
       if (liveSocket.connected) emitJoin();
-      else liveSocket.once('connect', emitJoin);
+      else {
+        const onConnectError = (err) => {
+          clearTimeout(timer);
+          liveSocket.off('connect', emitJoin);
+          reject(new Error(err?.message || 'Socket connection failed'));
+        };
+        liveSocket.once('connect_error', onConnectError);
+        liveSocket.once('connect', () => {
+          liveSocket.off('connect_error', onConnectError);
+          emitJoin();
+        });
+      }
     });
   }
 
@@ -653,13 +714,22 @@
     }
     const loaderTxt = document.getElementById('apLiveLoaderText');
     if (loaderTxt && text) loaderTxt.textContent = text;
-    if (ok === true) hideApLoader();
-    else if (ok === false) {
+    if (ok === true) {
       hideApLoader();
-      toast(text, 'error');
-    } else {
+    } else if (ok === false) {
       hideApLoader();
+      if (text) toast(text, 'error');
+    } else if (roomJoinCompleted) {
+      // Room UI is ready — don't block with full-screen loader for status updates.
+      hideApLoader();
+    } else if (text) {
+      showApLoader(text);
     }
+  }
+
+  function onRoomReady() {
+    hideApLoader();
+    document.getElementById('liveStatusBadge')?.style && (document.getElementById('liveStatusBadge').style.display = 'none');
   }
 
   async function startAgora(mode) {
@@ -683,8 +753,11 @@
       if (host) {
         toast('Agora not configured — showing local camera preview. Add AGORA keys on server for real broadcast.', 'warning');
         await startLocalPreviewOnly(broadcastMode !== 'audio');
+        onRoomReady();
         setLiveStatus('Local preview (configure Agora on server)', false);
       } else {
+        onRoomReady();
+        applyLiveBackground(broadcastMode === 'audio' ? 'audio' : 'live', roomState?.hostName);
         setLiveStatus('Waiting for host stream…', null);
       }
       return;
@@ -1202,8 +1275,9 @@
       .forEach((msg) => {
         const div = document.createElement('div');
         if (msg.type === 'system') {
-          div.className = 'party-chat-msg system';
-          div.textContent = msg.text || (msg.user ? msg.user + ' joined' : '');
+          const isJoin = /joined/i.test(msg.text || '') || (msg.user && !msg.text);
+          div.className = 'party-chat-msg system' + (isJoin ? ' join-msg' : '');
+          div.textContent = msg.text || (msg.user ? msg.user + ': joined' : '');
         } else {
           div.className = 'party-chat-msg';
           const lvlInfo = window.SocialFX
@@ -1231,6 +1305,37 @@
     renderChatFeed();
   }
 
+  function renderSeatButton(s, seatNum, tierCls) {
+    if (!s || s.empty) {
+      return `<button type="button" class="party-seat is-empty ${tierCls}" data-join-seat data-seat-num="${seatNum}">
+        <div class="seat-avatar seat-avatar--empty"><span class="seat-num">${seatNum}</span><span class="seat-plus">+</span></div>
+        <span class="seat-name">Join</span></button>`;
+    }
+    const hostCls = s.host ? ' is-host' : '';
+    const speaking = s.speaking ? ' is-speaking' : '';
+    const mic = s.muted
+      ? '<span class="mic-off"><i class="fas fa-microphone-slash"></i></span>'
+      : s.host && isHost()
+        ? '<span class="mic-live"><i class="fas fa-microphone"></i></span>'
+        : '';
+    const crown = s.host ? '<span class="seat-crown">👑</span>' : '';
+    const waveBars = s.speaking
+      ? '<div class="seat-wave-bars"><span></span><span></span><span></span><span></span></div>'
+      : '';
+    return `
+      <button type="button" class="party-seat${hostCls}${speaking} ${tierCls}" data-seat="${seatNum}" data-user="${escapeHtml(s.name)}" data-user-id="${escapeHtml(String(s.userId || ''))}">
+        <div class="seat-avatar">
+          <span class="seat-num">${seatNum}</span>
+          ${crown}
+          <img src="${avatarUrl(s.name)}" alt="">
+          ${mic}
+          ${waveBars}
+        </div>
+        <span class="seat-name">${escapeHtml(s.name)}</span>
+        <span class="seat-gifts">🎁 ${formatGiftCount(s.gifts || 0)}</span>
+      </button>`;
+  }
+
   function renderPartySeats(hostName) {
     const container = document.getElementById('partySeats');
     if (!container) return;
@@ -1249,13 +1354,12 @@
       (s) => s && s.name && s.name !== host.name && !s.isHost
     );
 
-    const totalSeats = 9;
-    const centerIdx = 4;
+    const totalSeats = 16;
     const slots = new Array(totalSeats).fill(null);
-    slots[centerIdx] = host;
+    slots[1] = host;
     let guestIdx = 0;
     for (let i = 0; i < totalSeats; i += 1) {
-      if (i === centerIdx) continue;
+      if (i === 1) continue;
       if (guestIdx < guests.length) {
         slots[i] = { ...guests[guestIdx], host: false };
         guestIdx += 1;
@@ -1264,38 +1368,22 @@
       }
     }
 
-    container.innerHTML = slots
-      .map((s, i) => {
-        const seatNum = i + 1;
-        if (!s || s.empty) {
-          return `<button type="button" class="party-seat is-empty" data-join-seat data-seat-num="${seatNum}">
-            <div class="seat-avatar seat-avatar--empty"><span class="seat-num">${seatNum}</span><span class="seat-plus">+</span></div>
-            <span class="seat-name">Join</span></button>`;
-        }
-        const hostCls = s.host ? ' is-host' : '';
-        const speaking = s.speaking ? ' is-speaking' : '';
-        const mic = s.muted
-          ? '<span class="mic-off"><i class="fas fa-microphone-slash"></i></span>'
-          : s.host && hosting
-            ? '<span class="mic-live"><i class="fas fa-microphone"></i></span>'
-            : '';
-        const crown = s.host ? '<span class="seat-crown">≡ƒææ</span>' : '';
-        const waveBars = s.speaking
-          ? '<div class="seat-wave-bars"><span></span><span></span><span></span><span></span></div>'
-          : '';
-        return `
-        <button type="button" class="party-seat${hostCls}${speaking}" data-seat="${seatNum}" data-user="${escapeHtml(s.name)}" data-user-id="${escapeHtml(String(s.userId || ''))}">
-          <div class="seat-avatar">
-            <span class="seat-num">${seatNum}</span>
-            ${crown}
-            <img src="${avatarUrl(s.name)}" alt="">
-            ${mic}
-            ${waveBars}
-          </div>
-          <span class="seat-name">${escapeHtml(s.name)}</span>
-          <span class="seat-gifts">≡ƒÄü ${formatGiftCount(s.gifts || 0)}</span>
-        </button>`;
-      })
+    const tiers = [
+      { cls: 'seat-tier-lg', indices: [0, 1, 2] },
+      { cls: 'seat-tier-md', indices: [3, 4, 5] },
+      { cls: 'seat-tier-sm', indices: [6, 7, 8, 9, 10] },
+      { cls: 'seat-tier-sm', indices: [11, 12, 13, 14, 15] },
+    ];
+
+    const rowClass = ['party-seat-row--lg', 'party-seat-row--md', 'party-seat-row--sm', 'party-seat-row--sm'];
+
+    container.innerHTML = tiers
+      .map(
+        (tier, rowI) => `
+      <div class="party-seat-row ${rowClass[rowI]}">
+        ${tier.indices.map((idx) => renderSeatButton(slots[idx], idx + 1, tier.cls)).join('')}
+      </div>`
+      )
       .join('');
 
     container.querySelectorAll('.party-seat[data-seat]').forEach((btn) => {
@@ -1320,11 +1408,11 @@
 
   function onGiftTeamProgress(amount) {
     const inc = Math.max(1, Math.floor((Number(amount) || 100) / 2000));
-    teamProgress = Math.min(16, teamProgress + inc);
+    teamProgress = Math.min(11, teamProgress + inc);
     const teamEl = document.getElementById('partyTeamProgress');
     const bar = document.getElementById('partyTeamBar');
-    if (teamEl) teamEl.textContent = teamProgress + '/16';
-    if (bar) bar.style.width = Math.min(100, (teamProgress / 16) * 100) + '%';
+    if (teamEl) teamEl.textContent = teamProgress + '/11';
+    if (bar) bar.style.width = Math.min(100, (teamProgress / 11) * 100) + '%';
   }
 
   function syncFollowUI() {
@@ -1458,7 +1546,7 @@
     let html = '';
     if (names.length) {
       html = names
-        .slice(0, 2)
+        .slice(0, 3)
         .map(
           (n, i) =>
             `<span class="ap-top-gifter${i === 0 ? ' has-crown' : ''}"><img src="${avatarUrl(n.name)}" alt="${escapeHtml(n.name)}" data-name="${escapeHtml(n.name)}">${
@@ -2485,18 +2573,48 @@
         'beforeend',
         `<div class="ap-modal-overlay align-bottom" id="apProfileSheet">
           <div class="ap-profile-sheet-panel">
-            <div class="ap-profile-head">
+            <div class="ap-profile-avatar-wrap">
               <img id="apProfileAvatar" src="" alt="">
+              <span class="ap-profile-po-badge">PO</span>
+            </div>
+            <div class="ap-profile-head">
               <div class="info">
                 <h3 id="apProfileName">User</h3>
                 <div class="ap-profile-badges">
-                  <span>≡ƒç«≡ƒç│</span><span id="apProfileLvl">Lv.1</span><span>≡ƒÄ╡ 2</span><span>≡ƒÆÄ 4</span>
+                  <span>🇮🇳</span><span id="apProfileLvl">Lv.18</span><span>🎵 1</span><span>💎 3</span>
                 </div>
-                <p id="apProfileId" style="font-size:11px;color:#9ca3af;margin:4px 0 0">ID: ΓÇö</p>
+                <p class="ap-profile-id-row" id="apProfileId">ID: — <button type="button" id="apProfileCopyId" aria-label="Copy ID"><i class="far fa-copy"></i></button></p>
               </div>
             </div>
-            <p style="font-size:12px;color:#6b7280;margin:0 0 8px"><strong>Gift Gallery</strong> ┬╖ Lit: 0/12</p>
-            <button type="button" class="ap-profile-gift-btn" id="apProfileGiftBtn">≡ƒÄü Give gifts</button>
+            <div class="ap-profile-cards">
+              <div class="ap-profile-card ap-profile-card--contrib">
+                <h4>Contribution List <i class="fas fa-chevron-right"></i></h4>
+                <div class="ap-profile-placeholder-row" id="apProfileContrib"></div>
+              </div>
+              <div class="ap-profile-card ap-profile-card--fan">
+                <h4>Fan Club <i class="fas fa-chevron-right"></i></h4>
+                <div class="ap-profile-placeholder-row" id="apProfileFan"></div>
+              </div>
+            </div>
+            <div class="ap-profile-section">
+              <h4>Gift Gallery <span>Lit: 0/12</span></h4>
+              <div class="ap-profile-placeholder-row" id="apProfileGifts">
+                <span>+</span><span>+</span><span>+</span>
+              </div>
+            </div>
+            <div class="ap-profile-section">
+              <h4>Medal <span>Number of medals: 0</span></h4>
+              <div class="ap-profile-placeholder-row hex" id="apProfileMedals">
+                <span>+</span><span>+</span><span>+</span>
+              </div>
+            </div>
+            <button type="button" class="ap-profile-gift-btn" id="apProfileGiftBtn">🎁 Give gifts</button>
+            <div class="ap-profile-actions">
+              <button type="button" id="apProfileAddFriend"><i class="fas fa-user-plus"></i> Add Friend</button>
+              <button type="button" id="apProfileMention"><i class="fas fa-at"></i> Mention</button>
+              <button type="button" id="apProfileMessage"><i class="far fa-envelope"></i> Message</button>
+              <button type="button" id="apProfileMore"><i class="fas fa-ellipsis-h"></i> More</button>
+            </div>
           </div>
         </div>`
       );
@@ -2507,6 +2625,10 @@
         const name = document.getElementById('apProfileName')?.textContent;
         document.getElementById('apProfileSheet')?.classList.remove('open');
         openGiftSheet(name);
+      });
+      document.getElementById('apProfileCopyId')?.addEventListener('click', () => {
+        const id = document.getElementById('apProfileId')?.textContent?.replace('ID:', '').trim();
+        if (id && navigator.clipboard) navigator.clipboard.writeText(id).catch(() => {});
       });
     }
   }
@@ -2533,9 +2655,25 @@
     const img = document.getElementById('apProfileAvatar');
     const nm = document.getElementById('apProfileName');
     const idEl = document.getElementById('apProfileId');
+    const lvl = document.getElementById('apProfileLvl');
     if (img) img.src = avatarUrl(n);
     if (nm) nm.textContent = n;
-    if (idEl) idEl.textContent = 'ID:' + String(n).split('').reduce((a, c) => a + c.charCodeAt(0), 0).toString().slice(0, 8);
+    const idNum = String(n).split('').reduce((a, c) => a + c.charCodeAt(0), 0).toString().slice(0, 8);
+    if (idEl) {
+      idEl.innerHTML = `ID: ${idNum} <button type="button" id="apProfileCopyId" aria-label="Copy ID"><i class="far fa-copy"></i></button>`;
+      document.getElementById('apProfileCopyId')?.addEventListener('click', () => {
+        if (navigator.clipboard) navigator.clipboard.writeText(idNum).catch(() => {});
+      });
+    }
+    if (lvl) lvl.textContent = 'Lv.' + (5 + (idNum.length % 20));
+    const contrib = document.getElementById('apProfileContrib');
+    if (contrib) {
+      contrib.innerHTML = [n, roomState?.hostName || 'Host']
+        .filter(Boolean)
+        .slice(0, 3)
+        .map((x) => `<img src="${avatarUrl(x)}" alt="" style="width:32px;height:32px;border-radius:50%;object-fit:cover">`)
+        .join('');
+    }
     document.getElementById('apProfileSheet')?.classList.add('open');
   }
 
@@ -2546,25 +2684,26 @@
       `
       <div class="gift-sheet" id="giftSheet">
         <div class="gift-sheet-panel">
-          <div class="gift-rtp-banner" id="giftRtpBanner"><span>Select a gift to see details</span></div>
+          <div class="gift-send-header">
+            <span class="gift-send-label">Send</span>
+            <label class="gift-all-toggle"><span>ALL</span><input type="checkbox" id="giftSendAll"></label>
+          </div>
           <div class="gift-recipients" id="giftRecipients"></div>
+          <div class="gift-rtp-banner" id="giftRtpBanner"><span>Select a gift to see details</span></div>
           <div class="gift-sheet-tabs" id="giftSheetTabs">
             <button type="button" data-cat="new">New</button>
             <button type="button" data-cat="gift" class="active">Gift</button>
             <button type="button" data-cat="lucky">Lucky</button>
-            <button type="button" data-cat="island">Island</button>
+            <button type="button" data-cat="island">Interaction</button>
             <button type="button" data-cat="fan">Fan Club</button>
-            <button type="button" data-cat="privilege">Privilege</button>
-            <button type="button" data-cat="fun">Fun</button>
+            <button type="button" data-cat="privilege">Privi</button>
             <button type="button" class="gift-tab-bell" aria-label="Notifications"><i class="fas fa-bell"></i></button>
           </div>
-          <div class="gift-xp-row">
-            <span class="gift-xp-lvl">≡ƒÆÄ <span id="giftUserLvl">1</span></span>
-            <div class="gift-xp-bar"><i id="giftXpBar" style="width:0%"></i></div>
-            <span class="gift-xp-text" id="giftXpText">+4XP ┬╖ Lv.2</span>
-            <button type="button" class="gift-surprise-btn" id="giftSurpriseBtn">Surprise Shop</button>
+          <div class="gift-gallery-hint">
+            <span>Still need <strong id="giftLitNeed">26</strong> to light up 🎺</span>
+            <button type="button" id="giftGalleryBtn">Gallery</button>
           </div>
-          <button type="button" class="gift-balance-btn" id="giftBalanceBtn">≡ƒ¬Ö <span id="giftCoinsBal">0</span> &gt;</button>
+          <button type="button" class="gift-balance-btn" id="giftBalanceBtn">🪙 <span id="giftCoinsBal">0</span> &gt;</button>
           <div class="gift-grid" id="giftGrid"></div>
           <div class="gift-qty-row">
             <div class="gift-qty-btns">
@@ -2578,10 +2717,18 @@
         </div>
       </div>`
     );
-    const lvlSpan = document.querySelector('.gift-xp-lvl');
-    if (lvlSpan) lvlSpan.innerHTML = `\u{1F48E} <span id="giftUserLvl">1</span>`;
     const balBtn = document.getElementById('giftBalanceBtn');
     if (balBtn) balBtn.innerHTML = `${COIN_EMOJI} <span id="giftCoinsBal">0</span> &gt;`;
+    document.getElementById('giftSendAll')?.addEventListener('change', (e) => {
+      const row = document.getElementById('giftRecipients');
+      if (!row) return;
+      if (e.target.checked) {
+        row.querySelectorAll('.gift-recipient').forEach((b) => b.classList.add('is-active'));
+      } else {
+        row.querySelectorAll('.gift-recipient').forEach((b, i) => b.classList.toggle('is-active', i === 0));
+      }
+    });
+    document.getElementById('giftGalleryBtn')?.addEventListener('click', () => openSurpriseShop());
     giftQty = 1;
     renderGiftGrid();
     refreshCoinDisplay();
@@ -2613,9 +2760,10 @@
       await connectSocket('party');
     } catch (e) {
       console.error('[live] party room join failed', e);
-      hideApLoader();
+      setLiveStatus(e?.message || 'Could not connect to party room', false);
       return;
     }
+    onRoomReady();
     if (isHost()) {
       const followBtn = document.getElementById('partyBtnFollow');
       if (followBtn) followBtn.textContent = 'Your room';
@@ -2812,9 +2960,10 @@
       await connectSocket('live');
     } catch (e) {
       console.error('[live] live room join failed', e);
-      hideApLoader();
+      setLiveStatus(e?.message || 'Could not connect to live room', false);
       return;
     }
+    onRoomReady();
 
     if (isHost() && broadcastMode === 'video') {
       const bg = document.getElementById('liveBg');

@@ -67,7 +67,11 @@
           const data = await res.json().catch(() => ({}));
           if (!res.ok || !data.success) throw new Error(data.message || 'Exchange failed');
           localStorage.setItem('user', JSON.stringify(data.data.user));
-          localStorage.removeItem('token');
+          if (data.data.accessToken) {
+            localStorage.setItem('token', data.data.accessToken);
+          } else {
+            localStorage.removeItem('token');
+          }
           if (window.AppState) AppState.user = data.data.user;
           enterApp(data.data.user);
           return;

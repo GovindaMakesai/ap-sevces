@@ -112,6 +112,14 @@
     });
   }
 
+  function hasAppSession() {
+    try {
+      return Boolean(localStorage.getItem('user') || localStorage.getItem('token'));
+    } catch (_e) {
+      return false;
+    }
+  }
+
   function mountBridgeChrome() {
     if (document.getElementById('ap-bridge-header')) return;
 
@@ -119,9 +127,9 @@
     header.id = 'ap-bridge-header';
     header.className = 'social-bridge-header';
     header.innerHTML = `
-      <a href="/explore.html" class="social-bridge-back" aria-label="Back"><i class="fas fa-arrow-left"></i></a>
+      <a href="/explore.html?app=1" class="social-bridge-back" aria-label="Back"><i class="fas fa-arrow-left"></i></a>
       <h1 class="social-bridge-title">${pageTitle()}</h1>
-      <a href="/profile-tab.html" class="social-bridge-action" aria-label="Account"><i class="fas fa-user-circle"></i></a>
+      <a href="/profile-tab.html?app=1" class="social-bridge-action" aria-label="Account"><i class="fas fa-user-circle"></i></a>
     `;
     document.body.prepend(header);
 
@@ -154,9 +162,10 @@
 
   async function init() {
     if (!isAppMode() || isSocialOnlyPage() || isAuthPage()) return;
-    if (!localStorage.getItem('token')) return;
+    if (!hasAppSession()) return;
 
     document.documentElement.classList.add('ap-expo-app', 'social-app', 'social-bridge-mode');
+    document.documentElement.classList.remove('auth-guest', 'auth-locked');
     ensureStyles();
     hideLegacyChrome();
     mountBridgeChrome();
@@ -165,14 +174,20 @@
     await ensureShellScript();
     if (window.SocialShell) {
       window.SocialShell.markNativeApp?.();
-      const mount = document.getElementById('social-bottom-nav-mount');
-      if (mount) {
-        mount.innerHTML = window.SocialShell.renderBottomNav(navIdForPath());
+      const navId = navIdForPath();
+      if (typeof window.SocialShell.ensureBottomNav === 'function') {
+        window.SocialShell.ensureBottomNav(navId);
+      } else {
+        const mount = document.getElementById('social-bottom-nav-mount');
+        if (mount) {
+          mount.innerHTML = window.SocialShell.renderBottomNav(navId);
+          mount.style.display = '';
+        }
       }
     }
   }
 
-  window.AppShell = { init, isAppMode, navIdForPath };
+  window.AppShell = { init, isAppMode, navIdForPath, hasAppSession };
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);

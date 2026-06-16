@@ -7,6 +7,7 @@
   <title>Live - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-live.css">
+  <link rel="stylesheet" href="social-live-ref-ui.css">
   <link rel="stylesheet" href="social-fx.css">
 </head>
 <body class="live-dark" data-live-page="live-room">
@@ -52,6 +53,10 @@
           </div>
           <button type="button" class="party-follow-btn" id="partyHostFollow">+</button>
         </div>
+        <div class="party-header-center" id="liveHeaderCenter">
+          <span class="party-rank-badge party-rank-heart" aria-hidden="true"><i class="fas fa-heart"></i></span>
+          <span class="party-rank-badge party-rank-crown" aria-hidden="true"><i class="fas fa-crown"></i></span>
+        </div>
         <div class="party-header-right">
           <div class="party-viewers" id="partyViewerAvatars">
             <span class="party-viewer-count" id="liveViewerCount">0</span>
@@ -69,9 +74,14 @@
       </div>
 
       <div class="party-widgets party-widgets-live">
-        <div class="party-widget party-widget-team">
-          <strong>Team <span id="partyTeamLabel">AP</span> <span id="partyTeamProgress">0/12</span></strong>
-          <div class="bar"><i id="partyTeamBar" style="width:0%"></i></div>
+        <div class="party-widget party-widget-wish">
+          <div class="wish-row">
+            <span class="wish-ico">🥂</span>
+            <div>
+              <strong>Wish <span id="partyTeamProgress">0/11</span></strong>
+              <div class="bar"><i id="partyTeamBar" style="width:0%"></i></div>
+            </div>
+          </div>
         </div>
         <div class="party-widget party-widget-chest">
           <span class="chest-ico">🎁</span>
@@ -80,8 +90,8 @@
       </div>
 
       <button type="button" class="party-event-pill party-event-pill-live" id="partyInvitePill">
-        <span class="pill-title">Invite</span>
-        <span class="coins"><i class="fas fa-share-alt"></i> Share</span>
+        <span class="pill-title">Invite Friends</span>
+        <span class="pill-sub">Up to <strong>10,500</strong></span>
       </button>
 
       <div class="party-win-banner" id="partyWinBanner"></div>
@@ -168,20 +178,20 @@
         <button type="button" id="partyBtnEffects"><span class="ico effects"><i class="fas fa-sliders-h"></i></span>Effect&amp;Msg</button>
         <button type="button" id="partyBtnMinimize"><span class="ico minimize"><i class="fas fa-compress"></i></span>Minimize</button>
       </div>
-      <h3 class="party-tools-title">Playstyle</h3>
+      <h3 class="party-tools-title party-tools-title--features">Features Centre</h3>
       <div class="party-tools-grid party-tools-grid-4">
+        <a href="/rankings.html?app=1"><span class="ico rank"><i class="fas fa-trophy"></i></span>Rank</a>
         <a href="/coins-recharge.html?app=1"><span class="ico coins"><i class="fas fa-coins"></i></span>Rewards</a>
         <a href="/store.html?app=1"><span class="ico store"><i class="fas fa-shopping-bag"></i></span>Store</a>
         <a href="/vip.html?app=1"><span class="ico vip"><i class="fas fa-gem"></i></span>VIP</a>
-        <a href="/rankings.html?app=1"><span class="ico guardian"><i class="fas fa-shield-alt"></i></span>Guardian</a>
       </div>
       <div class="party-tools-grid party-tools-grid-4 party-tools-row2">
         <a href="/store.html?app=1"><span class="ico backpack"><i class="fas fa-backpack"></i></span>Backpack</a>
         <button type="button" id="partyBtnGiftTools"><span class="ico gallery"><i class="fas fa-gift"></i></span>Gift Gallery</button>
         <button type="button" id="partyBtnGiftCollection"><span class="ico collection"><i class="fas fa-star"></i></span>Gift Collection</button>
         <button type="button" id="partyBtnGiftWish"><span class="ico wish"><i class="fas fa-star"></i></span>Gift wish</button>
-        <button type="button" id="partyToolsClose" class="ap-tool-end"><span class="ico close"><i class="fas fa-times"></i></span>Close</button>
       </div>
+      <button type="button" id="partyToolsClose" class="ap-tool-close-fab" aria-label="Close tools"><i class="fas fa-times"></i></button>
     </div>
   </div>
 

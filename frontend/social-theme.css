@@ -233,6 +233,30 @@ body.social-tabs-page #social-banner-slider + .social-post-feed {
   border-bottom-color: var(--gold-600);
 }
 
+.social-sub-tabs--with-actions {
+  align-items: center;
+  gap: 8px;
+}
+
+.social-sub-tabs--with-actions .social-top-actions {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* Expo WebView — RN shell already insets below status bar; avoid double top gap */
+html.ap-expo-app {
+  --ap-expo-safe-top: 0px;
+  --social-safe-top: 0px;
+}
+
+html.ap-expo-app .social-top {
+  padding-top: 8px;
+}
+
+html.ap-expo-app body.social-tabs-page .social-top {
+  padding-top: 8px;
+}
+
 /* Search */
 .social-filter-chips {
   display: flex;

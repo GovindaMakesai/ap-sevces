@@ -1167,6 +1167,9 @@
                 document.body.classList.remove('ap-chat-boot');
                 document.body.classList.add('ap-chat-ready');
             }
+            if (Auth.hasSession?.()) {
+                await Auth.ensureAccessToken?.();
+            }
             if (!Auth.checkAuth()) {
                 if (typeof isNativeAppContext === 'function' && isNativeAppContext()) {
                     window.location.replace('/app-auth.html?app=1&redirect=' + encodeURIComponent(location.pathname + location.search));
@@ -1293,10 +1296,17 @@
             '🔥', '✨', '⭐', '🎉', '✅', '❌', '⚠️', '💬'
         ];
 
-        const token = localStorage.getItem('token');
+        function getChatToken() {
+            return (typeof Auth !== 'undefined' && Auth.getToken?.()) || localStorage.getItem('token') || '';
+        }
+
         const axiosClient = axios.create({
             baseURL: `${CONFIG.API_URL}/messages`,
-            headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+        axiosClient.interceptors.request.use((config) => {
+            const t = getChatToken();
+            if (t) config.headers.Authorization = `Bearer ${t}`;
+            return config;
         });
 
         function getMyUserId() {
@@ -1315,6 +1325,7 @@
             let socket = null;
             return {
                 connect() {
+                    const token = getChatToken();
                     if (!token) return null;
                     if (socket && socket.connected) return socket;
                     if (!socket) {

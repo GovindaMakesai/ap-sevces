@@ -65,14 +65,22 @@
     return `<i class="${icon}"></i>`;
   }
 
+  function hasAppSession() {
+    try {
+      return Boolean(localStorage.getItem('user') || localStorage.getItem('token'));
+    } catch (_e) {
+      return false;
+    }
+  }
+
   function renderBottomNav(activeId) {
     const unread = parseInt(localStorage.getItem('chat_unread') || '2', 10) || 0;
     return `
       <nav class="social-bottom-nav" aria-label="Main">
         ${BOTTOM_NAV.map((item) => {
           const active = item.id === activeId || item.altId === activeId;
-          let href = item.href;
-          if (item.id === 'party' && activeId === 'rankings') href = item.altHref;
+          let href = withAppQuery(item.href);
+          if (item.id === 'party' && activeId === 'rankings') href = withAppQuery(item.altHref);
           const center = item.center ? ' nav-center' : '';
           const badge =
             item.badge && unread > 0
@@ -152,11 +160,36 @@
 
   function withAppQuery(href) {
     if (!href || href.startsWith('http')) return href;
-    if (window.__AP_NATIVE_APP__ || window.ReactNativeWebView) {
+    const native =
+      window.__AP_NATIVE_APP__ ||
+      window.ReactNativeWebView ||
+      window.Capacitor ||
+      new URLSearchParams(window.location.search).get('app') === '1' ||
+      new URLSearchParams(window.location.search).get('source') === 'expo-app';
+    if (native) {
       const sep = href.includes('?') ? '&' : '?';
       if (!href.includes('app=1')) return href + sep + 'app=1';
     }
     return href;
+  }
+
+  function ensureBottomNav(activeId) {
+    if (!hasAppSession()) return;
+    const mount = document.getElementById('social-bottom-nav-mount');
+    if (!mount) return;
+    mount.innerHTML = renderBottomNav(activeId || 'explore');
+    mount.style.display = '';
+    document.documentElement.classList.remove('auth-guest', 'auth-locked');
+    patchAppLinks();
+  }
+
+  function patchAppLinks() {
+    document.querySelectorAll('a[href^="/"]:not([data-auth-nav])').forEach((a) => {
+      const href = a.getAttribute('href');
+      if (!href || href.startsWith('#') || href.includes('app=1')) return;
+      const next = withAppQuery(href);
+      if (next !== href) a.setAttribute('href', next);
+    });
   }
 
   function bindLiveCards(root) {
@@ -182,7 +215,7 @@
       btn.addEventListener('click', () => {
         document.querySelectorAll('.social-filter-chips .chip').forEach((b) => b.classList.remove('is-active'));
         btn.classList.add('is-active');
-        if (btn.dataset.chip === 'Global') window.location.href = '/services.html';
+        if (btn.dataset.chip === 'Global') window.location.href = withAppQuery('/services.html');
       });
     });
   }
@@ -296,11 +329,7 @@
   function initPage(config) {
     markNativeApp();
     const active = config.activeNav || 'explore';
-    const mount = document.getElementById('social-bottom-nav-mount');
-    if (mount && localStorage.getItem('token')) {
-      mount.innerHTML = renderBottomNav(active);
-      mount.style.display = '';
-    }
+    ensureBottomNav(active);
 
     const chipsMount = document.getElementById('social-filter-chips-mount');
     if (chipsMount) {
@@ -372,8 +401,9 @@
     if (!mount) return;
 
     let pros = [];
-    if (window.API && localStorage.getItem('token')) {
+    if (window.Auth?.hasSession?.() || localStorage.getItem('user')) {
       try {
+        if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken();
         const res = await API.get('/social/following/live');
         const rows = Array.isArray(res?.data) ? res.data : [];
         pros = rows.map((r) => ({
@@ -745,19 +775,29 @@
   }
 
   function redirectToDashboard() {
-    const user = window.Auth?.getUser?.();
+    const user = window.Auth?.getUser?.() || (() => {
+      try {
+        const raw = localStorage.getItem('user');
+        return raw ? JSON.parse(raw) : null;
+      } catch (_e) {
+        return null;
+      }
+    })();
     if (!user) {
-      window.location.href = '/login.html?redirect=' + encodeURIComponent('/profile-tab.html');
+      window.location.href = withAppQuery('/app-auth.html');
       return;
     }
-    if (user.role === 'admin') window.location.href = '/admin-dashboard.html';
-    else if (user.role === 'worker') window.location.href = '/worker-dashboard.html';
-    else window.location.href = '/customer-dashboard.html';
+    if (user.role === 'admin') window.location.href = withAppQuery('/admin-dashboard.html');
+    else if (user.role === 'worker') window.location.href = withAppQuery('/worker-dashboard.html');
+    else window.location.href = withAppQuery('/customer-dashboard.html');
   }
 
   window.SocialShell = {
     initPage,
     renderBottomNav,
+    ensureBottomNav,
+    hasAppSession,
+    patchAppLinks,
     renderLiveCard,
     renderFilterChips,
     fillGrid,

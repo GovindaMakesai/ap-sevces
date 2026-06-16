@@ -37,6 +37,9 @@ function getExpoLanHost() {
   const m = s.match(/(?:\/\/|@)([\d.]+)/) || s.match(/^([\d.]+):/);
   const host = m?.[1];
   if (host && host !== '127.0.0.1' && host !== 'localhost') return host;
+  const expReturn = String(Linking.createURL('oauth-complete') || '');
+  const expMatch = expReturn.match(/^exp:\/\/([\d.]+):/);
+  if (expMatch?.[1] && expMatch[1] !== '127.0.0.1') return expMatch[1];
   return null;
 }
 
@@ -76,9 +79,9 @@ const STATUS_BAR_INSET =
   Platform.OS === 'android'
     ? RNStatusBar.currentHeight || Constants.statusBarHeight || 28
     : Constants.statusBarHeight || 28;
-/** Runs before page paint — marks every WebView page as native app shell */
+/** Runs before page paint — native shell + blocks legacy login redirect loop */
 const PRODUCTION_API = apiConfig.API_URL;
-const APP_SHELL_BOOTSTRAP = `(function(){try{document.documentElement.classList.add('ap-expo-app','social-app','social-bridge-mode','social-native','auth-native');document.documentElement.style.setProperty('--ap-expo-safe-top','${STATUS_BAR_INSET}px');window.__AP_NATIVE_APP__=true;window.__AP_API_URL__='${PRODUCTION_API}';window.__AP_SOCKET_URL__='${apiConfig.BACKEND_URL}';window.__AP_OAUTH_RETURN__='${APP_RETURN_URL.replace(/'/g, "\\'")}';try{localStorage.setItem('app_redirect','${APP_RETURN_URL.replace(/'/g, "\\'")}');}catch(e){}document.documentElement.style.background='#faf6ee';if(document.body)document.body.style.background='#faf6ee';var s=document.getElementById('ap-native-critical');if(!s){s=document.createElement('style');s.id='ap-native-critical';s.textContent='html.ap-expo-app .navbar,html.ap-expo-app .footer{display:none!important}html.ap-expo-app .chat-tab.active{background:linear-gradient(135deg,#d4a84b,#9a7218)!important;color:#fff!important}html.ap-expo-app .message-wrapper.sent .message-content{background:linear-gradient(135deg,#d4a84b,#9a7218)!important}';(document.head||document.documentElement).appendChild(s);}}catch(e){}})();true;`;
+const APP_SHELL_BOOTSTRAP = `(function(){try{document.documentElement.classList.add('ap-expo-app','social-app','social-bridge-mode','social-native','auth-native');document.documentElement.style.setProperty('--ap-expo-safe-top','0px');window.__AP_NATIVE_APP__=true;window.__AP_API_URL__='${PRODUCTION_API}';window.__AP_SOCKET_URL__='${apiConfig.BACKEND_URL}';window.__AP_OAUTH_RETURN__='${APP_RETURN_URL.replace(/'/g, "\\'")}';try{localStorage.setItem('app_redirect','${APP_RETURN_URL.replace(/'/g, "\\'")}');}catch(e){}document.documentElement.style.background='#faf6ee';if(document.body)document.body.style.background='#faf6ee';var s=document.getElementById('ap-native-critical');if(!s){s=document.createElement('style');s.id='ap-native-critical';s.textContent='html.ap-expo-app .chat-tab.active{background:linear-gradient(135deg,#d4a84b,#9a7218)!important;color:#fff!important}html.ap-expo-app .message-wrapper.sent .message-content{background:linear-gradient(135deg,#d4a84b,#9a7218)!important}';(document.head||document.documentElement).appendChild(s);}function apHasSession(){try{return!!(localStorage.getItem('user')||localStorage.getItem('token')||(document.cookie&&document.cookie.indexOf('ap_access')!==-1));}catch(e){return false;}}window.__AP_HAS_NATIVE_SESSION__=apHasSession;var _r=window.location.replace.bind(window.location);window.location.replace=function(u){if(u&&String(u).indexOf('app-auth')!==-1&&apHasSession())return;return _r(u);};var _rm=localStorage.removeItem.bind(localStorage);localStorage.removeItem=function(k){if(k==='user'&&document.cookie&&document.cookie.indexOf('ap_access')!==-1)return;return _rm(k);};}catch(e){}})();true;`;
 
 function isNativeOAuthReturnUrl(url) {
   if (!url) return false;
@@ -137,6 +140,25 @@ function parseAuthProvider(url) {
   return m?.[1]?.toLowerCase() || '';
 }
 
+function dashboardUrlForUser(user, frontendBase) {
+  const q = '?app=1&source=expo-app';
+  if (user?.role === 'admin') return `${frontendBase}/admin-dashboard.html${q}`;
+  if (user?.role === 'worker') return `${frontendBase}/worker-dashboard.html${q}`;
+  return `${frontendBase}/explore.html${q}`;
+}
+
+function buildSessionInjectScript(user, accessToken) {
+  const userJson = JSON.stringify(user);
+  let script = `(function(){try{localStorage.setItem('user',${JSON.stringify(userJson)});`;
+  if (accessToken) {
+    script += `localStorage.setItem('token',${JSON.stringify(String(accessToken))});`;
+  } else {
+    script += `localStorage.removeItem('token');`;
+  }
+  script += `}catch(e){}})();`;
+  return script;
+}
+
 export default function App() {
   const webViewRef = useRef(null);
   const pendingTokenRef = useRef(null);
@@ -144,6 +166,9 @@ export default function App() {
   const handledTokenRef = useRef('');
   const oauthBusyRef = useRef(false);
   const [loadError, setLoadError] = useState('');
+  const [postOAuthUrl, setPostOAuthUrl] = useState('');
+  const [sessionInject, setSessionInject] = useState('');
+  const nativeSessionRef = useRef(null);
 
   const frontendBase = useMemo(() => resolveFrontendBase(), []);
   const frontendUrl = useMemo(() => buildFrontendUrl(frontendBase), [frontendBase]);
@@ -184,94 +209,65 @@ export default function App() {
     }, 250);
   }, []);
 
-  const finishLoginInWebView = useCallback((credential) => {
-    if (!credential?.value) return;
+  const finishLoginInWebView = useCallback(
+    async (credential) => {
+      if (!credential?.value) return;
 
-    const credKey = `${credential.type}:${credential.value}`;
-    const apiBase = JSON.stringify(API_BASE_URL);
-    const successPage = JSON.stringify(
-      `${frontendBase}/login-success.html?${credential.type}=${encodeURIComponent(credential.value)}&source=expo-app&app=1`
-    );
+      const credKey = `${credential.type}:${credential.value}`;
+      if (handledTokenRef.current === credKey) return;
 
-    let script = '';
+      handledTokenRef.current = credKey;
+      pendingTokenRef.current = null;
 
-    if (credential.type === 'token') {
-      const tokenJson = JSON.stringify(credential.value);
-      script = `
-        (function() {
-          var token = ${tokenJson};
-          var api = ${apiBase};
-          try { localStorage.setItem('token', token); localStorage.removeItem('app_redirect'); } catch (e) {}
-          function go(path) { window.location.replace(path); }
-          fetch(api + '/auth/me', {
-            method: 'GET',
-            credentials: 'include',
-            headers: { 'Authorization': 'Bearer ' + token }
-          })
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-              var user = data && data.success && data.data && data.data.user;
-              if (!user) throw new Error('me');
-              try {
-                localStorage.setItem('user', JSON.stringify(user));
-                localStorage.removeItem('token');
-                if (window.AppState) window.AppState.user = user;
-              } catch (e) {}
-              var path = '/explore.html?app=1';
-              if (user.role === 'admin') path = '/admin-dashboard.html?app=1';
-              else if (user.role === 'worker') path = '/worker-dashboard.html?app=1';
-              go(path);
-            })
-            .catch(function() {
-              go(${successPage});
-            });
-        })();
-        true;
-      `;
-    } else {
-      const codeJson = JSON.stringify(credential.value);
-      script = `
-        (function() {
-          var code = ${codeJson};
-          var api = ${apiBase};
-          try { localStorage.removeItem('token'); localStorage.removeItem('app_redirect'); } catch (e) {}
-          function go(path) { window.location.replace(path); }
-          fetch(api + '/auth/exchange-code', {
+      console.log('[ap-services-app] Exchanging OAuth', credential.type, 'via API');
+
+      try {
+        let user = null;
+        let accessToken = null;
+
+        if (credential.type === 'code') {
+          const res = await fetch(`${API_BASE_URL}/auth/exchange-code`, {
             method: 'POST',
-            credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code: code })
-          })
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-              var user = data && data.success && data.data && data.data.user;
-              if (!user) throw new Error('exchange');
-              try {
-                localStorage.setItem('user', JSON.stringify(user));
-                if (window.AppState) window.AppState.user = user;
-              } catch (e) {}
-              var path = '/explore.html?app=1';
-              if (user.role === 'admin') path = '/admin-dashboard.html?app=1';
-              else if (user.role === 'worker') path = '/worker-dashboard.html?app=1';
-              go(path);
-            })
-            .catch(function() {
-              go(${successPage});
-            });
-        })();
-        true;
-      `;
-    }
+            body: JSON.stringify({ code: credential.value }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || !data.success || !data.data?.user) {
+            throw new Error(data.message || 'OAuth exchange failed');
+          }
+          user = data.data.user;
+          accessToken = data.data.accessToken || null;
+        } else if (credential.type === 'token') {
+          accessToken = credential.value;
+          const res = await fetch(`${API_BASE_URL}/auth/me`, {
+            headers: { Authorization: `Bearer ${credential.value}` },
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || !data.success || !data.data?.user) {
+            throw new Error(data.message || 'Token validation failed');
+          }
+          user = data.data.user;
+        } else {
+          throw new Error('Unsupported OAuth credential');
+        }
 
-    if (!webViewRef.current) {
-      pendingTokenRef.current = credential;
-      return;
-    }
-
-    handledTokenRef.current = credKey;
-    pendingTokenRef.current = null;
-    webViewRef.current.injectJavaScript(script);
-  }, [frontendBase]);
+        const dest = dashboardUrlForUser(user, frontendBase);
+        console.log('[ap-services-app] Login OK — opening', dest);
+        if (!accessToken) {
+          console.warn('[ap-services-app] No accessToken from API — modules may show session expired until VPS is updated');
+        }
+        nativeSessionRef.current = { user, accessToken };
+        setLoadError('');
+        setSessionInject(buildSessionInjectScript(user, accessToken));
+        setPostOAuthUrl(dest);
+      } catch (err) {
+        console.warn('[ap-services-app] Login exchange failed', err);
+        handledTokenRef.current = '';
+        setLoadError(err.message || 'Sign in failed. Try Google again.');
+      }
+    },
+    [frontendBase]
+  );
 
   const applyOAuthCredential = useCallback(
     async (credential) => {
@@ -284,7 +280,7 @@ export default function App() {
       } catch (_e) {
         /* already closed */
       }
-      finishLoginInWebView(credential);
+      await finishLoginInWebView(credential);
     },
     [finishLoginInWebView]
   );
@@ -293,7 +289,6 @@ export default function App() {
     async (provider, role = 'customer', appRedirect = APP_RETURN_URL) => {
       if (oauthBusyRef.current) return;
       oauthBusyRef.current = true;
-      handledTokenRef.current = '';
 
       const redirectTarget = appRedirect || APP_RETURN_URL;
       const authUrl =
@@ -474,6 +469,12 @@ export default function App() {
     return true;
   };
 
+  const webUri = postOAuthUrl || launchUrl;
+  const persistedInject = nativeSessionRef.current
+    ? buildSessionInjectScript(nativeSessionRef.current.user, nativeSessionRef.current.accessToken)
+    : '';
+  const injectedBootstrap = APP_SHELL_BOOTSTRAP + persistedInject + sessionInject;
+
   return (
     <View style={[styles.container, { paddingTop: STATUS_BAR_INSET }]}>
       <StatusBar style="dark" />
@@ -488,8 +489,8 @@ export default function App() {
       <WebView
         ref={webViewRef}
         style={styles.webview}
-        source={{ uri: launchUrl }}
-        injectedJavaScriptBeforeContentLoaded={APP_SHELL_BOOTSTRAP}
+        source={{ uri: webUri }}
+        injectedJavaScriptBeforeContentLoaded={injectedBootstrap}
         startInLoadingState
         renderLoading={() => (
           <View style={styles.loading}>
@@ -513,15 +514,16 @@ export default function App() {
         }}
         onLoadEnd={(e) => {
           webViewReadyRef.current = true;
-          setLoadError('');
           const url = e?.nativeEvent?.url || '';
           injectMobileLayout(url);
-          if (pendingTokenRef.current) {
-            finishLoginInWebView(pendingTokenRef.current);
-          }
         }}
         onNavigationStateChange={(nav) => {
           const url = nav?.url || '';
+          if (url.includes('explore.html') || url.includes('dashboard')) {
+            setPostOAuthUrl('');
+            setSessionInject('');
+            setLoadError('');
+          }
           if (handleOAuthUrl(url)) {
             webViewRef.current?.stopLoading();
           }

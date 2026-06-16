@@ -52,6 +52,24 @@
   function markAuthedUi() {
     document.documentElement.classList.remove('auth-guest', 'auth-locked');
     document.documentElement.classList.add('auth-ok');
+    refreshAppNavigation();
+  }
+
+  function refreshAppNavigation() {
+    if (!isLoggedIn()) return;
+    const navId = window.AppShell?.navIdForPath?.() || 'explore';
+    if (window.SocialShell?.ensureBottomNav) {
+      window.SocialShell.ensureBottomNav(navId);
+    } else if (window.SocialShell?.renderBottomNav) {
+      const mount = document.getElementById('social-bottom-nav-mount');
+      if (mount) {
+        mount.innerHTML = window.SocialShell.renderBottomNav(navId);
+        mount.style.display = '';
+      }
+    }
+    if (window.AppShell?.init) {
+      window.AppShell.init().catch(() => {});
+    }
   }
 
   async function validateSession() {
@@ -75,6 +93,7 @@
       const res = await fetch(api + '/auth/me', { credentials: 'include' });
       const data = await res.json().catch(() => ({}));
       if (res.status === 401) {
+        if (cachedUser || getUser()) return true;
         localStorage.removeItem('user');
         return false;
       }
@@ -152,7 +171,13 @@
         markGuestUi();
         localStorage.removeItem('user');
         window.location.replace('/app-auth.html?app=1');
+        return;
       }
+      refreshAppNavigation();
+    });
+
+    [150, 500, 1200].forEach((ms) => {
+      setTimeout(refreshAppNavigation, ms);
     });
   }
 

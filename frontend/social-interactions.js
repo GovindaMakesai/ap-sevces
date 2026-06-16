@@ -305,8 +305,16 @@
     );
   }
 
+  function hasAuth() {
+    return (
+      (window.Auth?.hasSession && Auth.hasSession()) ||
+      Boolean(localStorage.getItem('user') || localStorage.getItem('token'))
+    );
+  }
+
   async function refreshFollowCache() {
-    if (!window.API || !localStorage.getItem('token')) return;
+    if (!window.API || !hasAuth()) return;
+    if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken();
     try {
       const res = await API.get('/social/following?limit=200');
       const rows = Array.isArray(res?.data) ? res.data : [];
@@ -324,7 +332,7 @@
 
   async function toggleFollow(creatorId, creatorName) {
     const uid = String(creatorId || '').trim();
-    if (window.API && localStorage.getItem('token') && isUuid(uid)) {
+    if (window.API && hasAuth() && isUuid(uid)) {
       try {
         const following =
           followIdCache != null
@@ -350,7 +358,7 @@
 
   async function getFollowStats(userId) {
     const uid = String(userId || window.Auth?.getUser?.()?.id || '').trim();
-    if (window.API && localStorage.getItem('token') && isUuid(uid)) {
+    if (window.API && hasAuth() && isUuid(uid)) {
       try {
         const res = await API.get(`/social/stats/${uid}`);
         const data = res?.data || {};
@@ -414,7 +422,7 @@
     return getFollowEntries().some((e) => e.key === key || e.id === uid || (creatorName && e.name === creatorName));
   }
 
-  if (localStorage.getItem('token')) {
+  if (hasAuth()) {
     document.addEventListener('DOMContentLoaded', () => refreshFollowCache());
   }
 

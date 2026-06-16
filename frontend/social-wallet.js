@@ -13,7 +13,10 @@
   }
 
   async function fetchBalance(force) {
-    if (!window.API || !localStorage.getItem('token')) return cached;
+    if (!window.API) return cached;
+    if (window.Auth?.hasSession && !Auth.hasSession()) return cached;
+    if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken();
+    if (!Auth.getToken?.() && !localStorage.getItem('token')) return cached;
     if (!force && Date.now() - lastFetch < 4000) return cached;
     try {
       const res = await API.get('/wallet/balance');
