@@ -1,5 +1,5 @@
 ﻿/**
- * Party room (voice grid) + Live room (video) ΓÇö Agora + Socket.io
+ * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
@@ -184,8 +184,8 @@
     if (hosting) {
       el.innerHTML =
         mode === 'audio'
-          ? '<i class="fas fa-microphone"></i> HOSTING ┬╖ VOICE'
-          : '<i class="fas fa-video"></i> HOSTING ┬╖ VIDEO';
+          ? '<i class="fas fa-microphone"></i> HOSTING · VOICE'
+          : '<i class="fas fa-video"></i> HOSTING · VIDEO';
     } else if (mode === 'audio') {
       el.innerHTML = '<i class="fas fa-microphone"></i> VOICE LIVE';
     } else {
@@ -510,7 +510,7 @@
       pkScoreRight = Number(teams[1]?.team_score || teams[1]?.score || 0);
       window.SocialFX?.pkCountdown?.(5, () => {
         window.SocialFX?.pkScoreUpdate?.(pkScoreLeft, pkScoreRight);
-        window.SocialFX?.pushActivity?.({ type: 'gift', html: '<strong>PK Battle</strong> started! ≡ƒöÑ' });
+        window.SocialFX?.pushActivity?.({ type: 'gift', html: '<strong>PK Battle</strong> started! 🔥' });
       });
     });
 
@@ -551,7 +551,7 @@
       if (res.accepted) {
         hasSpeakerSeat = true;
         hideMicLinkModal();
-        toast('You got a seat ΓÇö mic is on', 'success');
+        toast('You got a seat — mic is on', 'success');
         await publishGuestAudio();
         renderPartySeats(roomState?.hostName);
       } else {
@@ -678,7 +678,7 @@
     if (data.mode === 'mock' || !data.token) {
       throw new Error(
         data.message ||
-          'Agora token unavailable ΓÇö server returned mock mode or empty token (check AGORA_APP_ID and AGORA_APP_CERTIFICATE)'
+          'Agora token unavailable — server returned mock mode or empty token (check AGORA_APP_ID and AGORA_APP_CERTIFICATE)'
       );
     }
     liveDebugLog(`Token OK mode=${data.mode} uid=${data.uid} channel=${data.channel || channel}`);
@@ -747,8 +747,8 @@
     const host = isHost();
     liveDebugLog(`${host ? 'HOST' : 'VIEWER'} startAgora mode=${mode} channel=${ch}`);
     updateLiveDebug({ channel: ch, role: host ? 'host' : 'viewer', hostPublishing: false, agoraJoined: false });
-    showApLoader(host ? 'Starting your broadcastΓÇª' : 'Connecting to liveΓÇª');
-    setLiveStatus('ConnectingΓÇª', null);
+    showApLoader(host ? 'Starting your broadcast…' : 'Connecting to live…');
+    setLiveStatus('Connecting…', null);
 
     let cred;
     try {
@@ -1096,7 +1096,7 @@
     let html = visible
       .map((c) => {
         if (c.action === 'follow') {
-          const lbl = followed ? 'Following Γ£ô' : c.label;
+          const lbl = followed ? 'Following ✓' : c.label;
           const cls = followed ? ' ap-chip is-follow-done' : ' ap-chip';
           return `<button type="button" class="${cls.trim()}" data-chip-action="follow">${escapeHtml(lbl)}</button>`;
         }
@@ -1146,7 +1146,7 @@
     if (banner && g) {
       const hostPct = 96;
       const earnPct = 4;
-      banner.innerHTML = `<span>πÇÉ${escapeHtml(g.name)}πÇæRTP: ${hostPct}%. By gifting, host receives ${earnPct}% ┬╖ ${Number(g.cost).toLocaleString()} coins each</span>`;
+      banner.innerHTML = `<span>【${escapeHtml(g.name)}】RTP: ${hostPct}%. By gifting, host receives ${earnPct}% · ${Number(g.cost).toLocaleString()} coins each</span>`;
     }
     const me = currentUser();
     const bal = lastCoinBalance != null ? lastCoinBalance : 0;
@@ -1158,7 +1158,7 @@
     if (lvlEl) lvlEl.textContent = String(lvl);
     const xpText = document.getElementById('giftXpText');
     if (xpText) {
-      xpText.textContent = `+4XP ┬╖ XP requires: ${xpNeed.toLocaleString()} ┬╖ Lv.${lvl + 1}`;
+      xpText.textContent = `+4XP · XP requires: ${xpNeed.toLocaleString()} · Lv.${lvl + 1}`;
     }
     const xpBar = document.getElementById('giftXpBar');
     if (xpBar) xpBar.style.width = userXpProgress + '%';
@@ -1429,7 +1429,7 @@
     if (window.SocialInteractions?.isFollowing) {
       followed = SocialInteractions.isFollowing(hostId, hostName);
     }
-    const label = followed ? 'Following Γ£ô' : 'Follow +';
+    const label = followed ? 'Following ✓' : 'Follow +';
     const btn = document.getElementById('partyBtnFollow') || document.getElementById('liveBtnFollow');
     const hbtn = document.getElementById('partyHostFollow');
     if (btn) {
@@ -1437,7 +1437,7 @@
       btn.classList.toggle('is-following', followed && !isHost());
     }
     if (hbtn) {
-      hbtn.textContent = followed ? 'Γ£ô' : '+';
+      hbtn.textContent = followed ? '✓' : '+';
       hbtn.style.display = isHost() ? 'none' : '';
     }
     renderQuickChips();
@@ -1456,7 +1456,7 @@
     const hostName = roomState?.hostName || displayName(user);
     const hostEl = document.getElementById('partyHostName') || document.getElementById('liveHostName');
     const hostImg = document.getElementById('partyHostAvatar') || document.getElementById('liveHostAvatar');
-    if (hostEl) hostEl.textContent = hostName.slice(0, 14) + (hostName.length > 14 ? 'ΓÇª' : '');
+    if (hostEl) hostEl.textContent = hostName.slice(0, 14) + (hostName.length > 14 ? '…' : '');
     if (hostImg) {
       hostImg.src = avatarUrl(hostName);
       hostImg.dataset.name = hostName;
@@ -1479,14 +1479,14 @@
     const ticker = document.getElementById('liveTicker');
     if (ticker) {
       const viewers = roomState?.viewers || 0;
-      ticker.textContent = `${hostName} is live ┬╖ ${viewers} watching ΓÇö chat & send gifts below`;
+      ticker.textContent = `${hostName} is live · ${viewers} watching — chat & send gifts below`;
     }
     const sub = document.getElementById('liveSubLabel');
     if (sub) sub.textContent = isHost() ? 'You are hosting' : 'Live now';
     const rid = document.getElementById('liveRoomId');
     const ch = channelId();
     const viewers = roomState?.viewers || 0;
-    if (rid) rid.textContent = '┬╖ ID:' + ch.slice(0, 10);
+    if (rid) rid.textContent = '· ID:' + ch.slice(0, 10);
     const partyRid = document.getElementById('partyRoomId') || document.getElementById('partyRoomIdLive');
     if (partyRid) partyRid.textContent = 'ID:' + ch.slice(0, 10);
     updateModeBadge(broadcastMode, isHost());
@@ -1512,7 +1512,7 @@
   function showGiftFlyBanner(gift) {
     const el = document.getElementById('apGiftFly');
     if (!el || !gift) return;
-    el.innerHTML = `<img src="${avatarUrl(gift.from)}" alt=""><span><strong>${escapeHtml(gift.from)}</strong> sent ${gift.emoji || '≡ƒÄü'}</span>`;
+    el.innerHTML = `<img src="${avatarUrl(gift.from)}" alt=""><span><strong>${escapeHtml(gift.from)}</strong> sent ${gift.emoji || '🎁'}</span>`;
     el.classList.add('is-visible');
     clearTimeout(el._hide);
     el._hide = setTimeout(() => el.classList.remove('is-visible'), 4500);
@@ -1663,7 +1663,7 @@
   function bindMicLinkModal() {
     if (window.__apMicModalBound) return;
     window.__apMicModalBound = true;
-    document.getElementById('apMicLinkContinue')?.addEventListener('click', () => toast('Waiting for host approvalΓÇª'));
+    document.getElementById('apMicLinkContinue')?.addEventListener('click', () => toast('Waiting for host approval…'));
     document.getElementById('apMicLinkCancel')?.addEventListener('click', hideMicLinkModal);
     document.getElementById('apMicLinkCancel2')?.addEventListener('click', hideMicLinkModal);
     document.getElementById('apMicLinkConfirm')?.addEventListener('click', hideMicLinkModal);
@@ -1793,8 +1793,8 @@
               <h2>Top-up coins</h2>
               <button type="button" id="apTopupClose"><i class="fas fa-times"></i></button>
             </div>
-            <p class="ap-topup-balance">≡ƒ¬Ö <span id="apTopupBal">0</span></p>
-            <div class="ap-topup-banner">Official notice ΓÇö beware of scams. Recharge only via AP Services.</div>
+            <p class="ap-topup-balance">🪙 <span id="apTopupBal">0</span></p>
+            <div class="ap-topup-banner">Official notice — beware of scams. Recharge only via AP Services.</div>
             <button type="button" class="ap-topup-pay"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='24'%3E%3Ctext x='0' y='18' font-size='14' fill='%234285F4'%3EG%3C/text%3E%3Ctext x='14' y='18' font-size='14'%3E Pay%3C/text%3E%3C/svg%3E" alt=""> Google Pay</button>
             <div class="ap-topup-grid" id="apTopupGrid"></div>
             <button type="button" class="ap-topup-recharge" id="apTopupRecharge">Recharge now</button>
@@ -1851,7 +1851,7 @@
             <div class="ap-surprise-hero">
               <div class="ap-surprise-card">
                 <span class="ap-surprise-title">Heart Voyage</span>
-                <span class="ap-surprise-art">≡ƒ¢Ñ∩╕Å≡ƒÆò</span>
+                <span class="ap-surprise-art">🛥️❤️</span>
               </div>
             </div>
             <div class="ap-surprise-foot">
@@ -1898,7 +1898,7 @@
   function showWinBanner(gift) {
     const el = document.getElementById('partyWinBanner');
     if (!el) return;
-    el.innerHTML = `WIN ┬╖ <strong>${escapeHtml(gift.from)}</strong> sent ${gift.emoji} to ${escapeHtml(gift.to)} ΓÇö <strong>${(gift.amount || 0).toLocaleString()}</strong> ≡ƒ¬Ö`;
+    el.innerHTML = `WIN · <strong>${escapeHtml(gift.from)}</strong> sent ${gift.emoji} to ${escapeHtml(gift.to)} — <strong>${(gift.amount || 0).toLocaleString()}</strong> 🪙`;
     el.classList.add('is-flash');
     clearTimeout(el._flash);
     el._flash = setTimeout(() => el.classList.remove('is-flash'), 4000);
@@ -2068,7 +2068,7 @@
     }
     if (navigator.share) {
       try {
-        await navigator.share({ title: `${hostName} ΓÇö AP Services`, url });
+        await navigator.share({ title: `${hostName} — AP Services`, url });
         return;
       } catch (e) {
         if (e?.name === 'AbortError') return;
@@ -2183,7 +2183,7 @@
     const cost = unitCost * giftQty;
     const balance = await getCoins();
     if (balance < cost) {
-      toast('Not enough coins ΓÇö recharge first', 'warning');
+      toast('Not enough coins — recharge first', 'warning');
       window.location.href = '/coins-recharge.html?app=1';
       return;
     }
@@ -2215,7 +2215,7 @@
       } catch (e) {
         const msg = window.SocialUI?.friendlyMessage(e.message) || e.message || reason || 'Gift failed';
         if (/insufficient/i.test(msg)) {
-          toast('Not enough coins ΓÇö recharge first', 'warning');
+          toast('Not enough coins — recharge first', 'warning');
           window.location.href = '/coins-recharge.html?app=1';
         } else {
           toast(msg, 'error');
@@ -2245,7 +2245,7 @@
             return;
           }
           if (/insufficient/i.test(msg)) {
-            toast('Not enough coins ΓÇö recharge first', 'warning');
+            toast('Not enough coins — recharge first', 'warning');
             window.location.href = '/coins-recharge.html?app=1';
             return;
           }
@@ -2364,7 +2364,7 @@
       toggleChatPanel(true);
       const input = document.getElementById('liveChatInput');
       if (input && !input.value.trim()) {
-        sendChat('≡ƒî╣ Hi there!');
+        sendChat('🌹 Hi there!');
       } else if (input) {
         input.focus();
       }
@@ -2381,12 +2381,12 @@
       }
       const btn = document.getElementById('partyBtnFollow');
       const hbtn = document.getElementById('partyHostFollow');
-      const label = followed ? 'Following Γ£ô' : 'Follow +';
+      const label = followed ? 'Following ✓' : 'Follow +';
       if (btn) {
         btn.textContent = label;
         btn.classList.toggle('is-following', followed);
       }
-      if (hbtn) hbtn.textContent = followed ? 'Γ£ô' : '+';
+      if (hbtn) hbtn.textContent = followed ? '✓' : '+';
       if (followed && !wasFollowing) {
         window.SocialFX?.showFollowBurst?.(hbtn || btn);
       }
@@ -2450,7 +2450,7 @@
     document.getElementById('partyBtnGiftWish')?.addEventListener('click', () => {
       document.getElementById('partyToolsSheet')?.classList.remove('open');
       const host = roomState?.hostName || 'Host';
-      sendChat(`≡ƒîƒ Gift wish: I hope @${host} gets amazing gifts today!`);
+      sendChat(`🌟 Gift wish: I hope @${host} gets amazing gifts today!`);
       toast('Gift wish sent to chat', 'success');
     });
     document.getElementById('partyBtnEffects')?.addEventListener('click', () => {
@@ -2467,7 +2467,7 @@
         liveSocket.emit('live:chat', {
           channel: channelId(),
           type: 'system',
-          text: `Report filed for room ${channelId().slice(0, 8)} ΓÇö moderators notified`,
+          text: `Report filed for room ${channelId().slice(0, 8)} — moderators notified`,
         });
       }
       toast('Report submitted. Our team will review.', 'success');
@@ -2537,7 +2537,7 @@
             <p><strong>Party Hosts</strong> must keep the room active, welcome guests, and follow community guidelines.</p>
             <ul>
               <li>No vulgar, violent, or illegal content</li>
-              <li>Respect all guests ΓÇö harassment is not tolerated</li>
+              <li>Respect all guests — harassment is not tolerated</li>
               <li>Gifts &amp; coins are final once sent</li>
               <li>AP Services moderators monitor rooms 24/7</li>
             </ul>
@@ -2559,11 +2559,11 @@
         'beforeend',
         `<div class="ap-modal-overlay align-bottom" id="apSeatSheet">
           <div class="ap-seat-sheet-panel">
-            <div class="ap-seat-badge">≡ƒ¬æ</div>
+            <div class="ap-seat-badge">👑</div>
             <h3 id="apSeatTitle">Empty seat</h3>
             <p style="font-size:12px;color:rgba(255,255,255,0.5);margin:0">Tap accept on join requests to fill this seat</p>
             <div class="ap-seat-divider">Alternate member</div>
-            <p id="apSeatAlt" style="font-size:12px;color:rgba(255,255,255,0.35)">No alternate memberΓÇª</p>
+            <p id="apSeatAlt" style="font-size:12px;color:rgba(255,255,255,0.35)">No alternate member…</p>
             <button type="button" class="ap-seat-action" id="apSeatGuardianBtn">Open Guardian</button>
           </div>
         </div>`
@@ -2654,7 +2654,7 @@
 
   function openSeatSheet(seatNum) {
     const title = document.getElementById('apSeatTitle');
-    if (title) title.textContent = seatNum ? `Seat ${seatNum} ┬╖ Empty` : 'Empty seat';
+    if (title) title.textContent = seatNum ? `Seat ${seatNum} · Empty` : 'Empty seat';
     document.getElementById('apSeatSheet')?.classList.add('open');
   }
 
@@ -2746,7 +2746,7 @@
   function postWelcomeMessage() {
     rememberChatMessage({
       type: 'system',
-      text: 'Welcome to AP Services LIVE! Be respectful ΓÇö admins monitor 24/7. Give a double-tap like to support the host!',
+      text: 'Welcome to AP Services LIVE! Be respectful — admins monitor 24/7. Give a double-tap like to support the host!',
     });
     renderChatFeed();
   }
@@ -2780,7 +2780,7 @@
       const hostLabel = document.getElementById('partyHostLabel');
       if (hostLabel) hostLabel.textContent = 'Hosting';
       const ticker = document.getElementById('partyTicker');
-      if (ticker) ticker.textContent = 'You are hosting ΓÇö share the link so friends can join';
+      if (ticker) ticker.textContent = 'You are hosting — share the link so friends can join';
     } else {
       const joinBtn = document.getElementById('partyBtnJoinSeat');
       if (joinBtn) joinBtn.style.display = '';
@@ -3029,9 +3029,9 @@
   function initLuckyGifts() {
     const track = document.getElementById('luckyGiftTrack');
     const slides = [
-      { title: 'Dream Ship 300%', icons: '≡ƒÜó ≡ƒÆÄ ≡ƒîƒ' },
-      { title: 'Lucky gifts 100%', icons: '≡ƒÆ£ ≡ƒæá ≡ƒö½ ≡ƒöö ≡ƒì¡' },
-      { title: 'Activity gifts', icons: '≡ƒÄü Γ£¿ ≡ƒÄÇ' },
+      { title: 'Dream Ship 300%', icons: '🚢 💎 🌟' },
+      { title: 'Lucky gifts 100%', icons: '💜 👠 🔫 🔔 🍭' },
+      { title: 'Activity gifts', icons: '🎁 ✨ 🎀' },
     ];
     let idx = 1;
     if (track) {
@@ -3048,20 +3048,20 @@
     }
 
     const LUCKY_RANKS = [
-      { rank: 1, name: 'Varsace ≡ƒÉ╗', score: '25,682,396', coins: '1,800,000' },
-      { rank: 2, name: 'Kuldeep ≡ƒÄ╡', score: '18,420,100', coins: '900,000' },
-      { rank: 3, name: 'Affy ≡ƒìÆ', score: '12,100,550', coins: '500,000' },
+      { rank: 1, name: 'Varsace 🐻', score: '25,682,396', coins: '1,800,000' },
+      { rank: 2, name: 'Kuldeep 🎵', score: '18,420,100', coins: '900,000' },
+      { rank: 3, name: 'Affy 🍒', score: '12,100,550', coins: '500,000' },
       { rank: 4, name: 'MAAAA', score: '8,200,000', coins: '200,000' },
     ];
     const list = document.getElementById('luckyRankList');
     if (list) {
       list.innerHTML = LUCKY_RANKS.map((r) => {
-        const medal = r.rank <= 3 ? ['≡ƒÑç', '≡ƒÑê', '≡ƒÑë'][r.rank - 1] : r.rank;
+        const medal = r.rank <= 3 ? ['🥇', '🥈', '🥉'][r.rank - 1] : r.rank;
         return `<div class="lucky-rank-row">
           <span class="rank-badge">${medal}</span>
           <img src="${avatarUrl(r.name)}" alt="">
-          <div class="info"><div class="name">${r.name} ≡ƒç«≡ƒç│</div>
-          <div class="scores"><span>≡ƒÄë ${r.score}</span><span>≡ƒ¬Ö ${r.coins}</span></div></div>
+          <div class="info"><div class="name">${r.name} 🇮🇳</div>
+          <div class="scores"><span>🎉 ${r.score}</span><span>🪙 ${r.coins}</span></div></div>
           <button type="button" class="btn-receive" data-rank="${r.rank}">Receive</button>
         </div>`;
       }).join('');
@@ -3095,7 +3095,7 @@
     const utrEl = document.getElementById('rechargeUtr');
     const wrap = document.getElementById('rechargeAmountBtns');
     const syncAmount = () => {
-      if (amountEl) amountEl.textContent = 'Γé╣' + selected;
+      if (amountEl) amountEl.textContent = '₹' + selected;
     };
     syncAmount();
     wrap?.querySelectorAll('button').forEach((btn, i) => {
@@ -3125,7 +3125,7 @@
           payment_method: 'qr_manual',
         });
         window.SocialFX?.coinRain?.(40);
-        if (window.SocialUI) SocialUI.showSuccess('Recharge submitted', 'Coins will be added after admin verification ΓÇö usually within a few hours.');
+        if (window.SocialUI) SocialUI.showSuccess('Recharge submitted', 'Coins will be added after admin verification — usually within a few hours.');
         else toast('Recharge submitted! Awaiting verification.', 'success');
         setTimeout(() => { location.href = '/store.html?app=1'; }, 1200);
       } catch (e) {
