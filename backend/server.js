@@ -55,6 +55,11 @@ const app = express();
 const server = http.createServer(app);
 const PORT = process.env.PORT || 5000;
 
+// Nginx terminates HTTPS and forwards X-Forwarded-* — required for rate-limit + client IP.
+if (process.env.TRUST_PROXY === 'true' || process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
 const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:5000',
