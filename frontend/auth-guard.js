@@ -170,6 +170,7 @@
       if (!ok && !isLoggedIn()) {
         markGuestUi();
         localStorage.removeItem('user');
+        localStorage.removeItem('token');
         window.location.replace('/app-auth.html?app=1');
         return;
       }

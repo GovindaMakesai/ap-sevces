@@ -120,7 +120,14 @@
   }
 
   function currentUser() {
-    return window.Auth?.getUser?.() || window.AppState?.user || null;
+    if (window.Auth?.getUser?.()) return Auth.getUser();
+    if (window.AppState?.user) return AppState.user;
+    try {
+      const raw = localStorage.getItem('user');
+      return raw ? JSON.parse(raw) : null;
+    } catch (_e) {
+      return null;
+    }
   }
 
   function displayName(user) {

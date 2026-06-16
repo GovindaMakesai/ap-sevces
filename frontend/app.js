@@ -3,8 +3,8 @@
 
 // ==================== CONFIGURATION ====================
 const AP = window.AP_CONFIG || {
-    PRODUCTION_BACKEND_URL: 'http://62.72.56.74:5000',
-    PRODUCTION_API_URL: 'http://62.72.56.74:5000/api',
+    PRODUCTION_BACKEND_URL: 'https://api.apservices.in',
+    PRODUCTION_API_URL: 'https://api.apservices.in/api',
     PRODUCTION_FRONTEND_URL: 'https://api.apservices.in',
     OAUTH_CALLBACK_BASE: 'https://api.apservices.in',
 };
@@ -99,6 +99,19 @@ const AppState = {
     currentLocation: null,
     selectedCity: localStorage.getItem('selectedCity') || 'Mumbai'
 };
+
+/** Hydrate session synchronously so auth-guard (next script) sees logged-in state */
+(function hydrateNativeSessionEarly() {
+    if (!isNativeAppContext()) return;
+    try {
+        const raw = localStorage.getItem('user');
+        if (raw) AppState.user = JSON.parse(raw);
+        const tok = localStorage.getItem('token');
+        if (tok) AppState.token = tok;
+    } catch (_e) {
+        /* ignore */
+    }
+})();
 
 // ==================== API SERVICE WITH FORMDATA SUPPORT ====================
 const API = {
@@ -588,11 +601,15 @@ const Auth = {
             if (e.status === 401) {
                 const ok = await this.tryRefresh();
                 if (ok) return this.refreshSession();
-                if (localStorage.getItem('user')) {
-                    return Boolean(AppState.user || localStorage.getItem('user'));
+                if (localStorage.getItem('user') || localStorage.getItem('token')) {
+                    return true;
                 }
                 this.tokenInvalidCleanup();
                 return false;
+            }
+            // Network/CORS blip — keep cached session in native app
+            if (isNativeAppContext() && (localStorage.getItem('user') || localStorage.getItem('token'))) {
+                return true;
             }
             return Boolean(AppState.user || localStorage.getItem('user'));
         }
