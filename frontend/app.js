@@ -419,6 +419,16 @@ const Auth = {
                 
                 Toast.show(`Welcome back, ${response.data.user.first_name}!`, 'success');
 
+                if (window.ReactNativeWebView) {
+                    try {
+                        window.ReactNativeWebView.postMessage(JSON.stringify({
+                            type: 'login',
+                            user: response.data.user,
+                            accessToken: response.data.accessToken || null,
+                        }));
+                    } catch (_e) { /* ignore */ }
+                }
+
                 const safeRedirect = typeof options.redirectUrl === 'string'
                     && options.redirectUrl.startsWith('/')
                     && !options.redirectUrl.startsWith('//')

@@ -182,6 +182,8 @@ export default function App() {
   const [frontendBase, setFrontendBase] = useState(() => resolveFrontendBase());
   const [lanFallbackDone, setLanFallbackDone] = useState(false);
   const nativeSessionRef = useRef(null);
+  /** After login, WebView must stay on dashboard — never snap back to app-auth */
+  const [homeUri, setHomeUri] = useState('');
 
   const isDevLocal = useMemo(() => isDevLocalBase(frontendBase), [frontendBase]);
   const frontendUrl = useMemo(() => buildFrontendUrl(frontendBase), [frontendBase]);
@@ -281,19 +283,18 @@ export default function App() {
           throw new Error('Unsupported OAuth credential');
         }
 
+        const dest = dashboardUrlForUser(user, frontendBase);
         nativeSessionRef.current = { user, accessToken };
+        setHomeUri(dest);
         setLoadError('');
         const sessionScript = buildSessionInjectScript(user, accessToken);
         setSessionInject(sessionScript);
 
-        const dest = dashboardUrlForUser(user, frontendBase);
         console.log('[ap-services-app] Login OK — opening', dest);
         if (!accessToken) {
           console.warn('[ap-services-app] No accessToken from API — modules may show session expired until VPS is updated');
         }
 
-        // injectedJavaScriptBeforeContentLoaded does not re-run on URI change in Android WebView —
-        // inject session in the current page, then navigate (fixes post-login loop back to Welcome).
         const goScript =
           sessionScript +
           `window.location.replace(${JSON.stringify(dest)}); true;`;
@@ -315,6 +316,7 @@ export default function App() {
       if (!credential?.value) return;
       const credKey = `${credential.type}:${credential.value}`;
       if (handledTokenRef.current === credKey) return;
+      handledTokenRef.current = credKey;
       console.log('[ap-services-app] Completing login via', credential.type);
       try {
         await WebBrowser.dismissBrowser();
@@ -464,6 +466,16 @@ export default function App() {
           startOAuthInBrowser(data.provider, data.role || 'customer', redirect);
           return;
         }
+        if (data.type === 'login' && data.user) {
+          const dest = dashboardUrlForUser(data.user, frontendBase);
+          nativeSessionRef.current = {
+            user: data.user,
+            accessToken: data.accessToken || null,
+          };
+          setHomeUri(dest);
+          setSessionInject(buildSessionInjectScript(data.user, data.accessToken || null));
+          return;
+        }
         if (data.type === 'share') {
           const url = String(data.url || '');
           const title = String(data.title || 'AP Services');
@@ -478,7 +490,7 @@ export default function App() {
         /* not our message */
       }
     },
-    [startOAuthInBrowser]
+    [startOAuthInBrowser, frontendBase]
   );
 
   const onShouldStartLoadWithRequest = (request) => {
@@ -510,7 +522,7 @@ export default function App() {
     return true;
   };
 
-  const webUri = postOAuthUrl || launchUrl;
+  const webUri = homeUri || postOAuthUrl || launchUrl;
   const persistedInject = nativeSessionRef.current
     ? buildSessionInjectScript(nativeSessionRef.current.user, nativeSessionRef.current.accessToken)
     : '';
@@ -570,7 +582,7 @@ export default function App() {
         onNavigationStateChange={(nav) => {
           const url = nav?.url || '';
           if (url.includes('explore.html') || url.includes('dashboard')) {
-            setPostOAuthUrl('');
+            setHomeUri(url);
             setLoadError('');
           }
           if (handleOAuthUrl(url)) {
