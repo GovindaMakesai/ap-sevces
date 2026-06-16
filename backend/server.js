@@ -76,9 +76,19 @@ const allowedOrigins = [
   'https://api.apservices.in',
 ];
 
+function isLanDevOrigin(origin) {
+  if (!origin) return false;
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) return true;
+  if (/^http:\/\/192\.168\.\d{1,3}\.\d{1,3}(:\d+)?$/i.test(origin)) return true;
+  if (/^http:\/\/10\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$/i.test(origin)) return true;
+  return false;
+}
+
 function isAllowedCorsOrigin(origin) {
   if (!origin) return true;
   if (allowedOrigins.indexOf(origin) !== -1) return true;
+  if (isLanDevOrigin(origin)) return true;
+  if (/^capacitor:\/\//i.test(origin)) return true;
   const isProduction = process.env.NODE_ENV === 'production';
   if (isProduction) {
     if (/^https:\/\/(www\.)?apservices\.in$/i.test(origin)) return true;
@@ -86,11 +96,7 @@ function isAllowedCorsOrigin(origin) {
     if (/^https:\/\/[\w-]+\.vercel\.app$/i.test(origin)) return true;
     return false;
   }
-  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) return true;
-  if (/^http:\/\/192\.168\.\d{1,3}\.\d{1,3}(:\d+)?$/i.test(origin)) return true;
-  if (/^http:\/\/10\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$/i.test(origin)) return true;
   if (/^https:\/\/[\w-]+\.vercel\.app$/i.test(origin)) return true;
-  if (/^capacitor:\/\//i.test(origin)) return true;
   return false;
 }
 
