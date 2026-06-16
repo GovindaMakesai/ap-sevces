@@ -271,10 +271,10 @@
   const remoteUsers = new Map();
 
   const liveDebugState = {
-    channel: 'ΓÇö',
-    role: 'ΓÇö',
-    apiUrl: 'ΓÇö',
-    socketUrl: 'ΓÇö',
+    channel: '-',
+    role: '-',
+    apiUrl: '-',
+    socketUrl: '-',
     socketConnected: false,
     roomJoined: false,
     agoraJoined: false,
@@ -284,17 +284,18 @@
   };
 
   function dbgYesNo(val) {
-    return val ? 'Γ£ô yes' : 'Γ£ù no';
+    return val ? 'yes' : 'no';
   }
 
-  /** Dev-only overlay ΓÇö hidden on Vercel/production unless ?debug=1 or localStorage ap_live_debug=1 */
+  /** Dev-only overlay — off in native app and production unless explicitly enabled */
   function isLiveDebugEnabled() {
-    if (window.__AP_LIVE_DEBUG__ === true) return true;
     try {
       if (localStorage.getItem('ap_live_debug') === '1') return true;
     } catch (_e) {}
     const q = new URLSearchParams(window.location.search);
     if (q.get('debug') === '1' || q.get('live_debug') === '1') return true;
+    if (window.__AP_LIVE_DEBUG__ === true) return true;
+    if (window.__AP_NATIVE_APP__ || window.ReactNativeWebView) return false;
     const h = window.location.hostname || '';
     const port = window.location.port || '';
     if (h === 'localhost' || h === '127.0.0.1') return true;
@@ -313,15 +314,15 @@
     el.innerHTML =
       `<div class="ap-live-debug-title">LIVE DEBUG</div>
        <dl class="ap-live-debug-grid">
-         <dt>API</dt><dd id="apDbgApi">ΓÇö</dd>
-         <dt>Socket</dt><dd id="apDbgSocketUrl">ΓÇö</dd>
-         <dt>Channel</dt><dd id="apDbgChannel">ΓÇö</dd>
-         <dt>User role</dt><dd id="apDbgRole">ΓÇö</dd>
-         <dt>Socket connected</dt><dd id="apDbgSocket">ΓÇö</dd>
-         <dt>Room joined</dt><dd id="apDbgRoom">ΓÇö</dd>
-         <dt>Agora joined</dt><dd id="apDbgAgora">ΓÇö</dd>
-         <dt>Token received</dt><dd id="apDbgToken">ΓÇö</dd>
-         <dt>Host publishing</dt><dd id="apDbgPublish">ΓÇö</dd>
+         <dt>API</dt><dd id="apDbgApi">-</dd>
+         <dt>Socket</dt><dd id="apDbgSocketUrl">-</dd>
+         <dt>Channel</dt><dd id="apDbgChannel">-</dd>
+         <dt>User role</dt><dd id="apDbgRole">-</dd>
+         <dt>Socket connected</dt><dd id="apDbgSocket">-</dd>
+         <dt>Room joined</dt><dd id="apDbgRoom">-</dd>
+         <dt>Agora joined</dt><dd id="apDbgAgora">-</dd>
+         <dt>Token received</dt><dd id="apDbgToken">-</dd>
+         <dt>Host publishing</dt><dd id="apDbgPublish">-</dd>
          <dt>Remote users</dt><dd id="apDbgRemote">0</dd>
        </dl>
        <pre class="ap-live-debug-log" id="apLiveDebugLog" aria-live="polite"></pre>`;
@@ -695,7 +696,7 @@
     const isLocal = host === 'localhost' || host === '127.0.0.1';
     const insecureHttp = window.location.protocol === 'http:' && !isLocal;
     if (insecureHttp) {
-      return 'Camera/mic need HTTPS. Close and reopen the app (Expo uses Vercel HTTPS). LAN http:// IP blocks getUserMedia in WebView.';
+      return 'Camera/mic need HTTPS. Stop Expo, run npm start (live mode), then reopen the app.';
     }
     if (!navigator.mediaDevices?.getUserMedia) {
       return 'Camera/mic unavailable in this WebView. Allow Camera + Microphone in Android app settings, then reload.';

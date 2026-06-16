@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "start": "node ./scripts/start-dev.js",
+    "start": "node ./scripts/start-live.js",
+    "start:lan": "node ./scripts/start-dev.js",
     "start:expo-only": "expo start",
     "serve:web": "npx http-server ../frontend -p 5500 -a 0.0.0.0 -c-1",
     "android": "expo run:android",

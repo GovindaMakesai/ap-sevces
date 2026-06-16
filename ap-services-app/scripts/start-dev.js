@@ -43,11 +43,11 @@ function run(cmd, args, opts = {}) {
   });
 }
 
-console.log('\n📱 AP Services — dev mode');
+console.log('\n📱 AP Services — LAN UI dev (no Live/Party camera)');
 freePort(DEV_PORT);
 freePort(EXPO_PORT);
-console.log(`   1) Serving NEW UI from frontend/ → http://0.0.0.0:${DEV_PORT}`);
-console.log('   2) Starting Expo (WebView will use your PC LAN IP + port 5500)\n');
+console.log(`   1) Serving frontend/ → http://0.0.0.0:${DEV_PORT}`);
+console.log('   2) Expo WebView uses LAN IP — camera/mic blocked (use npm start for live)\n');
 
 // WebView loads local frontend (proxies API to production). Without this, Expo still hits api.apservices.in.
 process.env.EXPO_PUBLIC_USE_LAN_WEB = '1';
