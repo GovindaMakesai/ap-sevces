@@ -48,17 +48,17 @@ function resolveFrontendBase() {
     return process.env.EXPO_PUBLIC_WEB_URL.replace(/\/$/, '');
   }
   // LAN HTTP blocks camera/mic in Android WebView (getUserMedia needs HTTPS).
-  // Opt into LAN UI dev with EXPO_PUBLIC_USE_LAN_WEB=1 (live host will not work).
-  if (__DEV__ && process.env.EXPO_PUBLIC_USE_LAN_WEB === '1') {
+  // Opt in with EXPO_PUBLIC_USE_LAN_WEB=1 via npm run start:lan
+  if (__DEV__ && String(process.env.EXPO_PUBLIC_USE_LAN_WEB) === '1') {
     const lan = getExpoLanHost();
     if (lan) return `http://${lan}:${DEV_WEB_PORT}`;
   }
   return PRODUCTION_WEB;
 }
 
-const FRONTEND_BASE = resolveFrontendBase();
-const IS_DEV_LOCAL =
-  __DEV__ && (FRONTEND_BASE.includes(`:${DEV_WEB_PORT}`) || Boolean(process.env.EXPO_PUBLIC_WEB_URL));
+function isDevLocalBase(base) {
+  return __DEV__ && (base.includes(`:${DEV_WEB_PORT}`) || Boolean(process.env.EXPO_PUBLIC_WEB_URL));
+}
 
 function buildFrontendUrl(base) {
   return process.env.EXPO_PUBLIC_WEB_ENTRY === 'legacy'
@@ -72,8 +72,6 @@ const API_BASE_URL = apiConfig.API_URL;
 const AUTH_ORIGIN = apiConfig.BACKEND_URL.replace(/\/$/, '');
 /** Deep link the system OAuth browser closes on (apservices:// or exp:// in Expo Go). */
 const APP_RETURN_URL = Linking.createURL('oauth-complete');
-/** Fallback when the API still redirects to the web login-success page first. */
-const LOGIN_SUCCESS_PREFIX = `${FRONTEND_BASE}/login-success.html`;
 const MOBILE_INJECT_SCRIPT = getMobileDashboardInjectScript();
 const STATUS_BAR_INSET =
   Platform.OS === 'android'
@@ -81,9 +79,20 @@ const STATUS_BAR_INSET =
     : Constants.statusBarHeight || 28;
 /** Runs before page paint — native shell + blocks legacy login redirect loop */
 const PRODUCTION_API = apiConfig.API_URL;
-const INJECTED_API_URL = IS_DEV_LOCAL ? `${FRONTEND_BASE}/api` : PRODUCTION_API;
-const INJECTED_SOCKET_URL = IS_DEV_LOCAL ? FRONTEND_BASE : apiConfig.BACKEND_URL;
-const APP_SHELL_BOOTSTRAP = `(function(){try{document.documentElement.classList.add('ap-expo-app','social-app','social-bridge-mode','social-native','auth-native');document.documentElement.style.setProperty('--ap-expo-safe-top','0px');window.__AP_NATIVE_APP__=true;window.__AP_API_URL__='${INJECTED_API_URL}';window.__AP_SOCKET_URL__='${INJECTED_SOCKET_URL}';window.__AP_OAUTH_RETURN__='${APP_RETURN_URL.replace(/'/g, "\\'")}';try{localStorage.setItem('app_redirect','${APP_RETURN_URL.replace(/'/g, "\\'")}');}catch(e){}document.documentElement.style.background='#faf6ee';if(document.body)document.body.style.background='#faf6ee';var s=document.getElementById('ap-native-critical');if(!s){s=document.createElement('style');s.id='ap-native-critical';s.textContent='html.ap-expo-app .chat-tab.active{background:linear-gradient(135deg,#d4a84b,#9a7218)!important;color:#fff!important}html.ap-expo-app .message-wrapper.sent .message-content{background:linear-gradient(135deg,#d4a84b,#9a7218)!important}';(document.head||document.documentElement).appendChild(s);}function apHasSession(){try{return!!(localStorage.getItem('user')||localStorage.getItem('token')||(document.cookie&&document.cookie.indexOf('ap_access')!==-1));}catch(e){return false;}}window.__AP_HAS_NATIVE_SESSION__=apHasSession;var _r=window.location.replace.bind(window.location);window.location.replace=function(u){if(u&&String(u).indexOf('app-auth')!==-1&&apHasSession())return;return _r(u);};var _rm=localStorage.removeItem.bind(localStorage);localStorage.removeItem=function(k){if(k==='user'&&document.cookie&&document.cookie.indexOf('ap_access')!==-1)return;return _rm(k);};}catch(e){}})();true;`;
+
+function buildAppShellBootstrap(frontendBase) {
+  const isDevLocal = isDevLocalBase(frontendBase);
+  const injectedApi = isDevLocal ? `${frontendBase}/api` : PRODUCTION_API;
+  const injectedSocket = isDevLocal ? frontendBase : apiConfig.BACKEND_URL;
+  return `(function(){try{document.documentElement.classList.add('ap-expo-app','social-app','social-bridge-mode','social-native','auth-native');document.documentElement.style.setProperty('--ap-expo-safe-top','0px');window.__AP_NATIVE_APP__=true;window.__AP_API_URL__='${injectedApi}';window.__AP_SOCKET_URL__='${injectedSocket}';window.__AP_OAUTH_RETURN__='${APP_RETURN_URL.replace(/'/g, "\\'")}';try{localStorage.setItem('app_redirect','${APP_RETURN_URL.replace(/'/g, "\\'")}');}catch(e){}document.documentElement.style.background='#faf6ee';if(document.body)document.body.style.background='#faf6ee';var s=document.getElementById('ap-native-critical');if(!s){s=document.createElement('style');s.id='ap-native-critical';s.textContent='html.ap-expo-app .chat-tab.active{background:linear-gradient(135deg,#d4a84b,#9a7218)!important;color:#fff!important}html.ap-expo-app .message-wrapper.sent .message-content{background:linear-gradient(135deg,#d4a84b,#9a7218)!important}';(document.head||document.documentElement).appendChild(s);}function apHasSession(){try{return!!(localStorage.getItem('user')||localStorage.getItem('token')||(document.cookie&&document.cookie.indexOf('ap_access')!==-1));}catch(e){return false;}}window.__AP_HAS_NATIVE_SESSION__=apHasSession;var _r=window.location.replace.bind(window.location);window.location.replace=function(u){if(u&&String(u).indexOf('app-auth')!==-1&&apHasSession())return;return _r(u);};var _rm=localStorage.removeItem.bind(localStorage);localStorage.removeItem=function(k){if(k==='user'&&document.cookie&&document.cookie.indexOf('ap_access')!==-1)return;return _rm(k);};}catch(e){}})();true;`;
+}
+
+function switchToProductionFrontend(setFrontendBase, setLanFallbackDone, setLoadError) {
+  console.warn('[ap-services-app] LAN unreachable — switching to production HTTPS');
+  setLanFallbackDone(true);
+  setFrontendBase(PRODUCTION_WEB);
+  setLoadError('');
+}
 
 function isNativeOAuthReturnUrl(url) {
   if (!url) return false;
@@ -170,20 +179,39 @@ export default function App() {
   const [loadError, setLoadError] = useState('');
   const [postOAuthUrl, setPostOAuthUrl] = useState('');
   const [sessionInject, setSessionInject] = useState('');
+  const [frontendBase, setFrontendBase] = useState(() => resolveFrontendBase());
+  const [lanFallbackDone, setLanFallbackDone] = useState(false);
   const nativeSessionRef = useRef(null);
 
-  const frontendBase = useMemo(() => resolveFrontendBase(), []);
+  const isDevLocal = useMemo(() => isDevLocalBase(frontendBase), [frontendBase]);
   const frontendUrl = useMemo(() => buildFrontendUrl(frontendBase), [frontendBase]);
-  const isDevLocal =
-    __DEV__ && (frontendBase.includes(`:${DEV_WEB_PORT}`) || Boolean(process.env.EXPO_PUBLIC_WEB_URL));
+  const appShellBootstrap = useMemo(() => buildAppShellBootstrap(frontendBase), [frontendBase]);
 
   useEffect(() => {
     console.log('[ap-services-app] WebView base:', frontendBase);
     console.log('[ap-services-app] OAuth return URL:', APP_RETURN_URL);
+    console.log('[ap-services-app] Mode:', isDevLocal ? 'LAN dev' : 'LIVE (HTTPS)');
     if (isDevLocal) {
-      console.log('[ap-services-app] Dev: local UI at', frontendBase, '(API proxied to production)');
+      console.log('[ap-services-app] LAN dev — phone must be on same Wi-Fi; use npm start for live HTTPS');
     }
   }, [frontendBase, isDevLocal]);
+
+  useEffect(() => {
+    webViewReadyRef.current = false;
+    const timer = setTimeout(() => {
+      if (webViewReadyRef.current) return;
+      if (isDevLocal && !lanFallbackDone) {
+        switchToProductionFrontend(setFrontendBase, setLanFallbackDone, setLoadError);
+        return;
+      }
+      setLoadError(
+        isDevLocal
+          ? `Cannot reach ${frontendBase}. Use npm start (live mode) or npm run start:lan with phone on same Wi-Fi.`
+          : `Cannot load ${frontendBase}. Check your internet — if the server was just restarted, wait 60s and reload.`
+      );
+    }, 20000);
+    return () => clearTimeout(timer);
+  }, [frontendBase, isDevLocal, lanFallbackDone]);
 
   const launchUrl = useMemo(() => {
     const params = new URLSearchParams({
@@ -475,7 +503,15 @@ export default function App() {
   const persistedInject = nativeSessionRef.current
     ? buildSessionInjectScript(nativeSessionRef.current.user, nativeSessionRef.current.accessToken)
     : '';
-  const injectedBootstrap = APP_SHELL_BOOTSTRAP + persistedInject + sessionInject;
+  const injectedBootstrap = appShellBootstrap + persistedInject + sessionInject;
+
+  const tryLanFallback = useCallback(() => {
+    if (!lanFallbackDone && isDevLocal) {
+      switchToProductionFrontend(setFrontendBase, setLanFallbackDone, setLoadError);
+      return true;
+    }
+    return false;
+  }, [isDevLocal, lanFallbackDone]);
 
   return (
     <View style={[styles.container, { paddingTop: STATUS_BAR_INSET }]}>
@@ -489,6 +525,7 @@ export default function App() {
         </View>
       ) : null}
       <WebView
+        key={frontendBase}
         ref={webViewRef}
         style={styles.webview}
         source={{ uri: webUri }}
@@ -532,8 +569,11 @@ export default function App() {
         }}
         onError={(e) => {
           console.warn('WebView error', e?.nativeEvent);
+          if (tryLanFallback()) return;
           setLoadError(
-            `Cannot load ${frontendBase}. Run "npm start" inside ap-services-app (starts frontend on :${DEV_WEB_PORT}).`
+            isDevLocal
+              ? `Cannot load ${frontendBase}. Run npm run start:lan and keep phone on same Wi-Fi as your PC.`
+              : `Cannot load ${frontendBase}. Check internet connection, then reload the app.`
           );
         }}
         onHttpError={(e) => {
