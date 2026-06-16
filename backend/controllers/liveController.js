@@ -64,11 +64,11 @@ exports.agoraToken = async (req, res) => {
     const uid = uidFromUserId(req.userId || req.user?.id);
 
     if (wantsPublisher) {
-      const room = await liveRoomService.findByChannel(channel);
-      if (!room || String(room.host_user_id) !== String(req.userId)) {
+      const canPublish = await liveRoomService.canPublishInRoom(channel, req.userId);
+      if (!canPublish) {
         return res.status(403).json({
           success: false,
-          message: 'Publisher token requires room host',
+          message: 'Publisher token requires host (or approved party speaker)',
         });
       }
     }

@@ -359,6 +359,20 @@ async function kickMember({ channel, userId, bannedBy, reason }) {
   return room;
 }
 
+async function canPublishInRoom(channel, userId) {
+  const room = await findByChannel(channel);
+  if (!room || room.status === 'ended') return false;
+  if (String(room.host_user_id) === String(userId)) return true;
+  const member = await db.query(
+    `SELECT role FROM live_room_members
+     WHERE live_room_id = $1 AND user_id = $2 AND left_at IS NULL
+     LIMIT 1`,
+    [room.id, userId]
+  );
+  const role = String(member.rows[0]?.role || '');
+  return room.room_type === 'party' && role === 'speaker';
+}
+
 module.exports = {
   findByChannel,
   findById,
@@ -378,5 +392,6 @@ module.exports = {
   pruneStaleMembers,
   isUserBanned,
   kickMember,
+  canPublishInRoom,
   roomCache,
 };

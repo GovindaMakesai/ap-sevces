@@ -2343,8 +2343,8 @@
     window.__apCommonBound = true;
     prepareLiveUiShell();
     bindRoomAvatars();
-    document.getElementById('partyClose')?.addEventListener('click', exitRoom);
-    document.getElementById('liveClose')?.addEventListener('click', exitRoom);
+    document.getElementById('partyClose')?.addEventListener('click', () => endRoomOrExit());
+    document.getElementById('liveClose')?.addEventListener('click', () => endRoomOrExit());
 
     document.getElementById('partyBtnTools')?.addEventListener('click', () => {
       document.getElementById('partyToolsSheet')?.classList.add('open');
@@ -2525,6 +2525,29 @@
       const back = document.body.dataset.livePage === 'party-room' ? '/party.html' : '/explore.html';
       location.href = back + '?app=1';
     }
+  }
+
+  async function endRoomOrExit() {
+    if (!isHost()) {
+      await exitRoom();
+      return;
+    }
+    const page = document.body.dataset.livePage === 'party-room' ? 'party' : 'live';
+    const ok = window.confirm(`End this ${page} for everyone now?`);
+    if (!ok) return;
+    if (liveSocket?.connected) {
+      await new Promise((resolve) => {
+        liveSocket.emit('live:end', { channel: channelId() }, (res) => {
+          if (!res?.ok) {
+            toast(res?.message || `Could not end ${page}`, 'error');
+            resolve(false);
+            return;
+          }
+          resolve(true);
+        });
+      });
+    }
+    await exitRoom();
   }
 
   function injectModals() {
