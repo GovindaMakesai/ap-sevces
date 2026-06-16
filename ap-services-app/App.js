@@ -281,14 +281,25 @@ export default function App() {
           throw new Error('Unsupported OAuth credential');
         }
 
+        nativeSessionRef.current = { user, accessToken };
+        setLoadError('');
+        const sessionScript = buildSessionInjectScript(user, accessToken);
+        setSessionInject(sessionScript);
+
         const dest = dashboardUrlForUser(user, frontendBase);
         console.log('[ap-services-app] Login OK — opening', dest);
         if (!accessToken) {
           console.warn('[ap-services-app] No accessToken from API — modules may show session expired until VPS is updated');
         }
-        nativeSessionRef.current = { user, accessToken };
-        setLoadError('');
-        setSessionInject(buildSessionInjectScript(user, accessToken));
+
+        // injectedJavaScriptBeforeContentLoaded does not re-run on URI change in Android WebView —
+        // inject session in the current page, then navigate (fixes post-login loop back to Welcome).
+        const goScript =
+          sessionScript +
+          `window.location.replace(${JSON.stringify(dest)}); true;`;
+        if (webViewRef.current) {
+          webViewRef.current.injectJavaScript(goScript);
+        }
         setPostOAuthUrl(dest);
       } catch (err) {
         console.warn('[ap-services-app] Login exchange failed', err);
@@ -560,7 +571,6 @@ export default function App() {
           const url = nav?.url || '';
           if (url.includes('explore.html') || url.includes('dashboard')) {
             setPostOAuthUrl('');
-            setSessionInject('');
             setLoadError('');
           }
           if (handleOAuthUrl(url)) {

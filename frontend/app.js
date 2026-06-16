@@ -1391,7 +1391,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         Boolean(localStorage.getItem('token')) ||
         document.cookie.includes('ap_access');
     if (isNativeAppContext() && !onAuthScreen && !hasNativeSession) {
-        window.location.replace('/app-auth.html?app=1');
+        setTimeout(() => {
+            const has =
+                localStorage.getItem('user') ||
+                localStorage.getItem('token') ||
+                (typeof window.__AP_HAS_NATIVE_SESSION__ === 'function' && window.__AP_HAS_NATIVE_SESSION__());
+            if (!has) {
+                window.location.replace('/app-auth.html?app=1');
+            }
+        }, 500);
         return;
     }
     const launchParams = new URLSearchParams(window.location.search);

@@ -20,7 +20,7 @@
   }
 
   function isLoggedIn() {
-    return Boolean(localStorage.getItem('user'));
+    return Boolean(localStorage.getItem('user') || localStorage.getItem('token'));
   }
 
   function getUser() {
