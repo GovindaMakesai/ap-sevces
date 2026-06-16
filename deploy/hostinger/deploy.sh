@@ -23,14 +23,22 @@ fi
 
 echo "==> Restart API"
 if pm2 describe ap-api >/dev/null 2>&1; then
-  pm2 restart ap-api
+  pm2 delete ap-api || true
+fi
+if [ -f ecosystem.config.js ]; then
+  pm2 start ecosystem.config.js
 else
-  pm2 start backend/server.js --name ap-api
+  pm2 start backend/server.js --name ap-api --cwd "$APP_DIR"
 fi
 pm2 save
 
 echo "==> Health check"
-sleep 2
+sleep 4
+if ! curl -sf "http://127.0.0.1:${PORT:-5000}/api/health" >/dev/null; then
+  echo "ERROR: API not responding on port ${PORT:-5000}. Last logs:"
+  pm2 logs ap-api --err --lines 25 --nostream || true
+  exit 1
+fi
 curl -sf "http://127.0.0.1:${PORT:-5000}/api/health"
 echo ""
 echo "Deploy complete."
