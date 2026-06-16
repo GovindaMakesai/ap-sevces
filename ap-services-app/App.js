@@ -183,6 +183,7 @@ export default function App() {
   const pendingTokenRef = useRef(null);
   const webViewReadyRef = useRef(false);
   const handledTokenRef = useRef('');
+  const processingCredRef = useRef('');
   const oauthBusyRef = useRef(false);
   const [loadError, setLoadError] = useState('');
   const [sessionInject, setSessionInject] = useState('');
@@ -260,8 +261,9 @@ export default function App() {
 
       const credKey = `${credential.type}:${credential.value}`;
       if (handledTokenRef.current === credKey) return;
+      if (processingCredRef.current === credKey) return;
 
-      handledTokenRef.current = credKey;
+      processingCredRef.current = credKey;
       pendingTokenRef.current = null;
 
       console.log('[ap-services-app] Exchanging OAuth', credential.type, 'via API');
@@ -299,6 +301,7 @@ export default function App() {
         const dest = dashboardUrlForUser(user, frontendBase);
         nativeSessionRef.current = { user, accessToken };
         oauthCompleteRef.current = true;
+        handledTokenRef.current = credKey;
         setLoadError('');
         const sessionScript = buildSessionInjectScript(user, accessToken);
         setSessionInject(sessionScript);
@@ -315,8 +318,9 @@ export default function App() {
         setTimeout(tryGo, 500);
       } catch (err) {
         console.warn('[ap-services-app] Login exchange failed', err);
-        handledTokenRef.current = '';
         setLoadError(err.message || 'Sign in failed. Try Google again.');
+      } finally {
+        if (processingCredRef.current === credKey) processingCredRef.current = '';
       }
     },
     [frontendBase]
@@ -327,7 +331,7 @@ export default function App() {
       if (!credential?.value) return;
       const credKey = `${credential.type}:${credential.value}`;
       if (handledTokenRef.current === credKey) return;
-      handledTokenRef.current = credKey;
+      if (processingCredRef.current === credKey) return;
       console.log('[ap-services-app] Completing login via', credential.type);
       try {
         await WebBrowser.dismissBrowser();
