@@ -1362,6 +1362,10 @@ const PWA = {
         if (!('serviceWorker' in navigator)) {
             return;
         }
+        if (isNativeAppContext()) {
+            this.unregisterServiceWorkers();
+            return;
+        }
 
         this.updateInstallButtons(false);
 
@@ -1384,7 +1388,21 @@ const PWA = {
         this.bindInstallButtons();
     },
 
+    async unregisterServiceWorkers() {
+        try {
+            const regs = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(regs.map((r) => r.unregister()));
+            if (window.caches) {
+              const keys = await caches.keys();
+              await Promise.all(keys.map((k) => caches.delete(k)));
+            }
+        } catch (_e) {
+            /* ignore */
+        }
+    },
+
     async registerServiceWorker() {
+        if (isNativeAppContext()) return;
         try {
             await navigator.serviceWorker.register('/sw.js');
             console.log('Γ£à Service Worker registered');
@@ -1589,7 +1607,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         new MutationObserver(() => UI.initMobileNav()).observe(navLinksEl, { childList: true, subtree: true });
     }
     LinkFixer.apply();
-    PWA.init();
+    if (!isNativeAppContext()) {
+        PWA.init();
+    }
 });
 
 // Run dashboard mobile nav as soon as sidebar exists (avoids wide horizontal pill flash)
