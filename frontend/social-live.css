@@ -214,10 +214,13 @@
   flex-shrink: 0;
   display: flex;
   gap: 0;
-  min-height: 0;
+  min-height: 72px;
   max-height: min(20vh, 150px);
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(0, 0, 0, 0.25);
+  position: relative;
+  z-index: 28;
+  pointer-events: auto;
 }
 
 .party-chat-tabs {
@@ -238,6 +241,12 @@
   background: rgba(0, 0, 0, 0.5);
   color: #e2e8f0;
   cursor: pointer;
+  pointer-events: auto;
+  touch-action: manipulation;
+  position: relative;
+  z-index: 2;
+  min-width: 28px;
+  min-height: 44px;
 }
 .party-chat-tabs button.active {
   background: linear-gradient(180deg, #f59e0b, #ea580c);
@@ -249,7 +258,7 @@
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .party-chat-feed {
@@ -364,10 +373,14 @@
 .party-host-bar,
 .live-host-bar {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   padding: 0 10px 8px;
   flex-shrink: 0;
-  z-index: 12;
+  position: relative;
+  z-index: 26;
+  pointer-events: auto;
+  touch-action: manipulation;
 }
 
 body.ap-is-host .party-header {
@@ -379,12 +392,18 @@ body.ap-is-host .party-host-meta .sub #partyHostLabel {
   font-weight: 800;
 }
 
-body:not(.ap-is-host) .party-host-bar {
+body:not(.ap-is-host) .party-host-bar,
+body:not(.ap-is-host) .live-host-bar {
   display: none !important;
+}
+body.ap-is-host .party-host-bar,
+body.ap-is-host .live-host-bar {
+  display: flex !important;
 }
 
 .party-host-action {
-  flex: 1;
+  flex: 1 1 calc(25% - 6px);
+  min-width: 80px;
   border: none;
   border-radius: 12px;
   padding: 8px 10px;
@@ -397,6 +416,16 @@ body:not(.ap-is-host) .party-host-bar {
   align-items: center;
   justify-content: center;
   gap: 6px;
+  pointer-events: auto;
+  touch-action: manipulation;
+  position: relative;
+  z-index: 1;
+}
+
+@media (max-width: 420px) {
+  .live-host-bar .party-host-action {
+    flex: 1 1 calc(50% - 6px);
+  }
 }
 
 .party-host-action.is-active {
@@ -495,6 +524,7 @@ html.ap-live-immersive #social-bottom-nav-mount,
 html.ap-live-immersive .social-bottom-nav,
 html.ap-live-immersive .navbar,
 html.ap-live-immersive footer.site-footer,
+html.ap-live-immersive header.site-header,
 body[data-live-page='live-room'] .social-bridge-header,
 body[data-live-page='party-room'] .social-bridge-header,
 body[data-live-page='live-room'] #ap-bridge-header,
@@ -504,7 +534,9 @@ body[data-live-page='party-room'] #social-bottom-nav-mount,
 body[data-live-page='live-room'] .social-bottom-nav,
 body[data-live-page='party-room'] .social-bottom-nav,
 body[data-live-page='live-room'] .navbar,
-body[data-live-page='party-room'] .navbar {
+body[data-live-page='party-room'] .navbar,
+body[data-live-page='live-room'] header.site-header,
+body[data-live-page='party-room'] header.site-header {
   display: none !important;
   visibility: hidden !important;
   height: 0 !important;
@@ -534,14 +566,9 @@ body[data-live-page='live-room'] .live-room {
 }
 
 .ap-chat-backdrop {
-  display: none;
-  position: fixed;
-  inset: 0;
-  z-index: 43;
-  background: rgba(0, 0, 0, 0.35);
-}
-.ap-chat-backdrop.is-visible {
-  display: block;
+  display: none !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
 }
 
 .ap-chat-panel-head {
@@ -645,10 +672,12 @@ body[data-live-page='live-room'] .live-room {
 .live-room {
   position: fixed;
   inset: 0;
+  z-index: 12;
   background: #000;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  pointer-events: auto;
 }
 .live-room video, .live-room .live-bg {
   position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
@@ -659,17 +688,23 @@ body[data-live-page='live-room'] .live-room {
   position: absolute;
   inset: 0;
   z-index: 1;
+  pointer-events: none;
 }
 .live-room .live-local-video.is-host-only { z-index: 2; }
-.live-room .live-fallback-video { z-index: 1; object-fit: cover; }
+.live-room .live-fallback-video { z-index: 1; object-fit: cover; pointer-events: none; }
+.live-room .live-bg { pointer-events: none; }
+.live-room .live-remote-video video,
+.live-room .live-local-video video {
+  pointer-events: none;
+}
 .live-room .live-overlay {
   position: relative;
-  z-index: 10;
+  z-index: 12;
   flex: 1;
   display: flex;
   flex-direction: column;
   min-height: 0;
-  pointer-events: none;
+  pointer-events: auto;
   background: linear-gradient(180deg, rgba(0,0,0,0.5) 0%, transparent 18%, transparent 70%, rgba(0,0,0,0.55) 100%);
   padding-bottom: calc(var(--ap-bottom-bar-h) + env(safe-area-inset-bottom, 0));
 }
@@ -678,10 +713,14 @@ body[data-live-page='live-room'] .live-room {
 .live-room .party-stats-bar,
 .live-room .party-widgets { flex-shrink: 0; }
 .live-room .party-ticker { flex-shrink: 0; margin-bottom: 0; }
-.live-room .live-spacer { flex: 1; min-height: 12px; }
-.live-room .party-chat-row { flex-shrink: 0; max-height: min(18vh, 140px); }
-.live-room .party-chat-zone { max-height: min(18vh, 140px); }
-.live-room .party-chat-feed { max-height: min(18vh, 140px); }
+.live-room .live-spacer {
+  flex: 1;
+  min-height: 12px;
+  pointer-events: none;
+}
+.live-room .party-chat-row { flex-shrink: 0; max-height: min(22vh, 160px); min-height: 80px; }
+.live-room .party-chat-zone { max-height: min(22vh, 160px); }
+.live-room .party-chat-feed { max-height: min(22vh, 160px); }
 .live-room .live-chat-compose {
   flex-shrink: 0;
   position: relative;
@@ -960,23 +999,58 @@ body[data-live-page='live-room'] .live-room {
   50% { filter: brightness(1.35); }
 }
 
-.live-status-badge {
+.live-room .party-header-center { display: none !important; }
+
+/* Connection / live status — fixed below header so it is never hidden by rank badges */
+.ap-room-status-strip {
+  display: none;
   position: fixed;
-  top: calc(6px + env(safe-area-inset-top, 0));
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 50;
-  font-size: 10px;
-  font-weight: 700;
-  padding: 4px 12px;
-  border-radius: 999px;
-  background: rgba(0,0,0,0.55);
-  color: #fde68a;
+  top: calc(env(safe-area-inset-top, 0px) + 56px);
+  left: 10px;
+  right: 10px;
+  z-index: 48;
+  flex-shrink: 0;
+  justify-content: center;
+  align-items: center;
+  padding: 0;
   pointer-events: none;
 }
-.live-status-badge.is-ok { background: rgba(34, 197, 94, 0.35); color: #bbf7d0; }
-.live-status-badge.is-err { background: rgba(239, 68, 68, 0.4); color: #fecaca; }
-.live-status-badge.is-warn { background: rgba(245, 158, 11, 0.4); color: #fef3c7; }
+.ap-room-status-strip.is-visible {
+  display: flex;
+}
+.live-status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 9px 16px;
+  border-radius: 12px;
+  background: rgba(8, 8, 16, 0.92);
+  color: #fde68a;
+  pointer-events: auto;
+  width: 100%;
+  max-width: min(100%, 340px);
+  white-space: normal;
+  text-align: center;
+  line-height: 1.35;
+  overflow: visible;
+  text-overflow: unset;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  backdrop-filter: blur(8px);
+}
+.live-status-badge.is-warn::before {
+  content: '';
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  border-top-color: #fbbf24;
+  border-radius: 50%;
+  animation: ap-loader-spin 0.8s linear infinite;
+}
 
 .live-remote-video,
 .live-local-video {
@@ -1170,7 +1244,29 @@ body[data-live-page='live-room'] .live-room {
   scroll-snap-type: y mandatory;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
+  pointer-events: none;
 }
+.live-feed-scroll:not([aria-hidden="true"]) {
+  pointer-events: auto;
+}
+.live-feed-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background: #0a0618 center/cover no-repeat;
+  transition: background-image 0.35s ease;
+  pointer-events: none;
+}
+.live-feed-backdrop:not([aria-hidden="true"]) {
+  pointer-events: auto;
+}
+body.live-feed-mode .live-room {
+  z-index: 20;
+}
+body.live-feed-mode .live-feed-scroll {
+  z-index: 8;
+}
+
 .live-feed-scroll::-webkit-scrollbar { display: none; }
 
 .live-feed-slide {
@@ -1180,14 +1276,6 @@ body[data-live-page='live-room'] .live-room {
   scroll-snap-stop: always;
   position: relative;
   background: #0a0618 center/cover no-repeat;
-}
-
-.live-feed-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  background: #0a0618 center/cover no-repeat;
-  transition: background-image 0.35s ease;
 }
 
 body.live-feed-mode .live-room .live-bg,
@@ -1204,10 +1292,6 @@ body.live-feed-mode .live-room .live-overlay {
 }
 
 .live-mode-badge {
-  position: fixed;
-  top: calc(36px + env(safe-area-inset-top, 0));
-  left: 12px;
-  z-index: 48;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1219,6 +1303,7 @@ body.live-feed-mode .live-room .live-overlay {
   background: rgba(239, 68, 68, 0.85);
   color: #fff;
   pointer-events: none;
+  flex-shrink: 0;
 }
 .live-mode-badge.is-audio {
   background: rgba(99, 102, 241, 0.9);
@@ -1276,7 +1361,16 @@ body.live-feed-mode .live-room .live-overlay {
   color: #cbd5e1;
 }
 
-.live-room .party-header-center { display: none; }
+.live-status-badge.is-ok { background: rgba(22, 101, 52, 0.92); color: #bbf7d0; border-color: rgba(34, 197, 94, 0.55); }
+.live-status-badge.is-ok::before { display: none; }
+.live-status-badge.is-err { background: rgba(127, 29, 29, 0.92); color: #fecaca; border-color: rgba(239, 68, 68, 0.55); }
+.live-status-badge.is-err::before { display: none; }
+.live-status-badge.is-warn { background: rgba(120, 53, 15, 0.92); color: #fef3c7; border-color: rgba(245, 158, 11, 0.55); }
+
+body.ap-live-status-visible .live-room .live-overlay,
+body.ap-live-status-visible .party-room {
+  padding-top: 44px;
+}
 
 .live-room .party-viewers {
   flex-direction: column;
@@ -1381,12 +1475,13 @@ body.live-feed-mode .live-room .live-overlay {
 .party-widget-chest span:last-child { font-size: 11px; font-weight: 800; color: #fde68a; }
 
 .party-event-pill {
-  position: absolute;
-  right: 8px;
-  top: calc(88px + env(safe-area-inset-top, 0));
-  z-index: 16;
-  min-width: 72px;
-  width: 72px;
+  position: relative;
+  top: auto;
+  right: auto;
+  z-index: 1;
+  min-width: 78px;
+  width: auto;
+  max-width: 42%;
   min-height: 48px;
   text-align: center;
   text-decoration: none;
@@ -1394,7 +1489,7 @@ body.live-feed-mode .live-room .live-overlay {
   background: linear-gradient(180deg, #ec4899, #be185d);
   border: none;
   border-radius: 12px;
-  padding: 6px 4px;
+  padding: 6px 8px;
   font-size: 10px;
   font-weight: 800;
   box-shadow: 0 4px 12px rgba(236,72,153,0.45);
@@ -1406,11 +1501,69 @@ body.live-feed-mode .live-room .live-overlay {
   align-items: center;
   justify-content: center;
   gap: 2px;
+  flex-shrink: 0;
 }
-.party-event-pill-live { top: calc(118px + env(safe-area-inset-top, 0)); }
+.party-invite-row {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 0 10px 8px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 22;
+}
+.party-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  gap: 8px;
+  padding: 0 10px 8px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 22;
+  pointer-events: auto;
+}
+.party-meta-row .live-mode-badge {
+  position: relative;
+  top: auto;
+  left: auto;
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.party-meta-row .party-event-pill {
+  margin-left: auto;
+  max-width: 42%;
+}
+.party-meta-row--live {
+  padding-bottom: 4px;
+}
+.party-invite-row--live {
+  justify-content: flex-end;
+  padding-top: 0;
+  z-index: 24;
+}
+body.ap-is-host[data-live-page="live-room"] .party-widgets-live {
+  display: none;
+}
+.party-event-pill-live { top: auto; }
 .party-event-pill .pill-title {
   display: block;
   font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.party-event-pill .pill-sub {
+  display: block;
+  font-size: 9px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.92);
   white-space: nowrap;
 }
 .party-event-pill .coins {
@@ -1484,8 +1637,11 @@ body.live-feed-mode .live-feed-rail { display: flex; }
   background: rgba(0,0,0,0.55);
   display: none; align-items: center; justify-content: center;
   padding: 20px;
+  touch-action: manipulation;
 }
 .ap-modal-overlay.open { display: flex; }
+#apRulesModal.open { pointer-events: auto; }
+#apRulesModal .ap-rules-modal { pointer-events: auto; touch-action: manipulation; }
 .ap-modal-overlay.align-bottom { align-items: flex-end; padding: 0; }
 
 .ap-rules-modal {
@@ -1773,6 +1929,18 @@ body.is-pk-mode .live-room .live-fallback-video { left: 50%; right: 0; }
 .ap-pk-win-l { left: 10px; }
 .ap-pk-win-r { right: 10px; }
 
+.ap-chat-panel,
+.ap-region-tabs,
+.ap-quick-chips,
+.ap-chat-panel-head,
+.ap-chat-dismiss-btn {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  height: 0 !important;
+  overflow: hidden !important;
+}
+
 .ap-chat-panel {
   display: none;
   flex-direction: column;
@@ -1781,13 +1949,14 @@ body.is-pk-mode .live-room .live-fallback-video { left: 50%; right: 0; }
   right: 0;
   bottom: calc(var(--ap-bottom-bar-h) + env(safe-area-inset-bottom, 0));
   z-index: 44;
-  max-height: min(36vh, 220px);
+  max-height: min(32vh, 200px);
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   background: rgba(0, 0, 0, 0.94);
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.45);
+  pointer-events: auto;
 }
 .ap-chat-panel.is-open { display: flex; }
 .ap-chat-panel .ap-region-tabs,
@@ -2194,8 +2363,7 @@ body.ap-live-overlay-open .party-bottom-bar {
 }
 
 body.ap-live-overlay-open .party-chat-row {
-  opacity: 0.35;
-  pointer-events: none;
+  opacity: 0.85;
 }
 
 .ap-miclink-modal {
@@ -2539,7 +2707,15 @@ body.ap-chat-open .party-chat-feed {
   .party-stats-bar { padding: 4px 8px; font-size: 9px; }
   .party-widgets { gap: 6px; }
   .party-widget { padding: 4px 8px; font-size: 9px; }
-  .party-event-pill { display: none; }
+  .party-event-pill {
+    display: flex;
+    min-width: 68px;
+    min-height: 42px;
+    font-size: 9px;
+    padding: 5px 6px;
+  }
+  .party-invite-row,
+  .party-meta-row { padding-bottom: 6px; }
   .party-chat-row { max-height: min(16vh, 120px); }
   .party-chat-feed { max-height: min(16vh, 120px); }
 }
@@ -2564,12 +2740,6 @@ html.ap-expo-app {
 html.ap-expo-app .live-room .party-header,
 html.ap-expo-app .party-room .party-header {
   padding-top: calc(8px + env(safe-area-inset-top, 0px));
-}
-html.ap-expo-app .live-mode-badge {
-  top: calc(12px + env(safe-area-inset-top, 0px));
-}
-html.ap-expo-app .live-status-badge {
-  top: calc(8px + env(safe-area-inset-top, 0px));
 }
 html.ap-expo-app .party-stats-bar {
   margin-top: 2px;
@@ -2771,4 +2941,15 @@ html.ap-expo-app .ap-chip {
 
 .ap-live-viewer-diag span {
   white-space: nowrap;
+}
+.ap-live-viewer-diag #apVDiagSocketErr {
+  color: #fecaca;
+  max-width: min(92vw, 460px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ap-live-viewer-diag #apVDiagSocketUrl {
+  max-width: min(92vw, 460px);
+  overflow: hidden;
+  text-overflow: ellipsis;
 }

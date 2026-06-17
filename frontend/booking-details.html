@@ -902,10 +902,11 @@
 
                 currentBooking = null;
                 if (error?.status === 401) {
-                    Notifier.show('Session expired. Please login again.', 'error');
-                    setTimeout(() => {
-                        window.location.href = `/login.html?redirect=${encodeURIComponent(window.location.href)}`;
-                    }, 1000);
+                    const repaired = await Auth.repairSession();
+                    if (repaired) {
+                        return loadBookingDetails(bookingId);
+                    }
+                    Auth.redirectToLogin('Session expired. Please login again.', window.location.href);
                     return;
                 }
                 const errorMessage = error?.message?.includes('Failed to fetch')
@@ -1071,10 +1072,10 @@
 
         document.addEventListener('DOMContentLoaded', async () => {
             if (!Auth.checkAuth()) {
-                Notifier.show('Please login first', 'warning');
-                setTimeout(() => { window.location.href = '/login.html'; }, 800);
+                Auth.redirectToLogin('Please login first');
                 return;
             }
+            await Auth.repairSession();
             const urlParams = new URLSearchParams(window.location.search);
             const bookingId = urlParams.get('id');
             if (!bookingId) {

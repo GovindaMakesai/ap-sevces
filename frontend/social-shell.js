@@ -326,6 +326,7 @@
   }
 
   function markNativeApp() {
+    if (isImmersiveLivePage()) return;
     document.documentElement.classList.add('social-app', 'social-native');
     if (window.ReactNativeWebView || window.Capacitor) {
       document.documentElement.classList.add('ap-expo-app');

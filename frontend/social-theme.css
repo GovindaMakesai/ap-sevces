@@ -1895,3 +1895,37 @@ html.social-bridge-mode .dashboard-page {
     transform: translateX(-50%);
   }
 }
+
+/* Live / party rooms — full-screen, no app chrome */
+html.ap-live-immersive,
+html.ap-live-immersive.social-app,
+html.ap-live-immersive.social-bridge-mode {
+  --social-bottom-nav-h: 0px;
+  --social-header-h: 0px;
+}
+
+html.ap-live-immersive .social-bridge-header,
+html.ap-live-immersive #ap-bridge-header,
+html.ap-live-immersive .social-bottom-nav,
+html.ap-live-immersive #social-bottom-nav-mount,
+html.ap-live-immersive .navbar,
+html.ap-live-immersive footer.site-footer,
+html.ap-live-immersive header.site-header {
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  pointer-events: none !important;
+}
+
+html.ap-live-immersive body,
+html.ap-live-immersive.social-bridge-mode body,
+html.ap-live-immersive.social-app body {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  margin: 0 !important;
+  background: #000 !important;
+  min-height: 100dvh !important;
+  overflow: hidden !important;
+}

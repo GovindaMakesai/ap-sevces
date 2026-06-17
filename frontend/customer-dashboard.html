@@ -1729,26 +1729,24 @@
 <script>
     // ==================== CUSTOMER DASHBOARD JAVASCRIPT ====================
     // Configuration
-    const API_BASE_URL = window.CONFIG?.API_URL || 'https://ap-sevces.onrender.com/api';
-    const BACKEND_URL = window.CONFIG?.BACKEND_URL || 'https://ap-sevces.onrender.com';
+    const API_BASE_URL = window.CONFIG?.API_URL || '';
+    const BACKEND_URL = window.CONFIG?.BACKEND_URL || '';
 
     // Helper for image URLs
     function getImageUrl(path) {
         if (!path) return null;
         if (path.startsWith('http')) return path;
         const cleanPath = path.startsWith('/') ? path : `/${path}`;
-        return `${BACKEND_URL}${cleanPath}`;
+        return BACKEND_URL ? `${BACKEND_URL}${cleanPath}` : cleanPath;
     }
 
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', async function() {
         // Check authentication
         if (!Auth.checkAuth()) {
-            Toast.show('Please login to access dashboard', 'warning');
-            setTimeout(() => {
-                window.location.href = '/login.html';
-            }, 1500);
+            Auth.redirectToLogin('Please login to access dashboard');
             return;
         }
+        await Auth.repairSession();
         const user = Auth.getUser();
         if (user?.role === 'worker') {
             const n = document.getElementById('workerCustomerNotice');
@@ -1828,10 +1826,11 @@
             renderRecentBookings([]);
             renderBookings([]);
             if (error?.status === 401) {
-                Toast.show('Session expired. Please login again.', 'error');
-                setTimeout(() => {
-                    window.location.href = `/login.html?redirect=${encodeURIComponent(window.location.href)}`;
-                }, 1000);
+                const repaired = await Auth.repairSession();
+                if (repaired) {
+                    return loadBookingsFromAPI(filter);
+                }
+                Auth.redirectToLogin('Session expired. Please login again.', window.location.href);
                 return;
             }
             if (error?.message?.includes('Failed to fetch')) {

@@ -147,6 +147,16 @@ function clearSessionTokens() {
     localStorage.removeItem('ap_refresh_token');
 }
 
+function loginDestination(redirectAfter) {
+    if (isNativeAppContext()) {
+        return '/app-auth.html?app=1';
+    }
+    if (redirectAfter) {
+        return `/login.html?redirect=${encodeURIComponent(redirectAfter)}`;
+    }
+    return '/login.html';
+}
+
 // ==================== API SERVICE WITH FORMDATA SUPPORT ====================
 const API = {
     async request(endpoint, options = {}) {
@@ -209,7 +219,11 @@ const API = {
         }
 
         if (response.status === 401 && !retried && !String(url).includes('/auth/refresh') && !String(url).includes('/auth/login')) {
-            const refreshed = await Auth.tryRefresh();
+            let refreshed = await Auth.tryRefresh();
+            if (!refreshed && isNativeAppContext() && Auth.requestNativeSession) {
+                await Auth.requestNativeSession();
+                refreshed = await Auth.tryRefresh();
+            }
             if (refreshed) {
                 return this._fetchOnce(url, options, true);
             }
@@ -556,6 +570,52 @@ const Auth = {
         return Boolean(localStorage.getItem('user') || localStorage.getItem('token'));
     },
 
+    requestNativeSession() {
+        if (!window.ReactNativeWebView) return Promise.resolve(false);
+        if (this._nativeSessionPromise) return this._nativeSessionPromise;
+        this._nativeSessionPromise = new Promise((resolve) => {
+            let settled = false;
+            const finish = (ok) => {
+                if (settled) return;
+                settled = true;
+                window.removeEventListener('ap-session-injected', onInjected);
+                this._nativeSessionPromise = null;
+                resolve(ok);
+            };
+            const onInjected = () => finish(true);
+            window.addEventListener('ap-session-injected', onInjected);
+            try {
+                window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'request_session' }));
+            } catch (_e) {
+                finish(false);
+                return;
+            }
+            setTimeout(() => finish(false), 4000);
+        });
+        return this._nativeSessionPromise;
+    },
+
+    async repairSession() {
+        const existing = localStorage.getItem('token');
+        if (existing && isAccessTokenUsable(existing)) return true;
+        await this.ensureAccessToken();
+        const tok = localStorage.getItem('token');
+        if (tok && isAccessTokenUsable(tok)) return true;
+        if (isNativeAppContext()) {
+            await this.requestNativeSession();
+            if (await this.tryRefresh()) return true;
+            const tok2 = localStorage.getItem('token');
+            if (tok2 && isAccessTokenUsable(tok2)) return true;
+        }
+        return false;
+    },
+
+    redirectToLogin(message, redirectAfter) {
+        if (message) Toast.show(message, 'error');
+        const dest = loginDestination(redirectAfter || window.location.href);
+        setTimeout(() => window.location.replace(dest), message ? 900 : 0);
+    },
+
     async ensureAccessToken() {
         const existing = localStorage.getItem('token');
         if (existing && isAccessTokenUsable(existing)) return existing;
@@ -568,17 +628,25 @@ const Auth = {
 
         this._ensuringToken = (async () => {
             try {
-                const ok = await this.tryRefresh();
+                let ok = await this.tryRefresh();
                 if (ok) return localStorage.getItem('token');
 
-                const res = await fetch(`${CONFIG.API_URL}/auth/ws-token`, {
-                    method: 'GET',
-                    credentials: 'include',
-                });
-                const data = await res.json().catch(() => ({}));
-                if (res.ok && data.success && data.data?.accessToken) {
-                    storeSessionTokens(data.data);
-                    return data.data.accessToken;
+                if (isNativeAppContext()) {
+                    await this.requestNativeSession();
+                    ok = await this.tryRefresh();
+                    if (ok) return localStorage.getItem('token');
+                }
+
+                if (!isNativeAppContext()) {
+                    const res = await fetch(`${CONFIG.API_URL}/auth/ws-token`, {
+                        method: 'GET',
+                        credentials: 'include',
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (res.ok && data.success && data.data?.accessToken) {
+                        storeSessionTokens(data.data);
+                        return data.data.accessToken;
+                    }
                 }
             } catch (_e) {
                 /* ignore */
@@ -652,8 +720,15 @@ const Auth = {
         } catch (e) {
             console.warn('Session refresh failed:', e);
             if (e.status === 401) {
-                const ok = await this.tryRefresh();
+                let ok = await this.tryRefresh();
+                if (!ok && isNativeAppContext()) {
+                    await this.requestNativeSession();
+                    ok = await this.tryRefresh();
+                }
                 if (ok) return this.refreshSession();
+                if (isNativeAppContext() && localStorage.getItem('user')) {
+                    return false;
+                }
                 this.tokenInvalidCleanup();
                 return false;
             }
@@ -1447,7 +1522,7 @@ function loadSocialShellIfNeeded() {
         '/points.html', '/withdraw.html', '/withdraw-details.html', '/withdraw-notices.html',
     ];
     const isSocial = socialPages.some((p) => path.endsWith(p));
-    if (isSocial || isNativeAppContext()) {
+    if ((isSocial || isNativeAppContext()) && !isImmersiveLivePath()) {
         document.documentElement.classList.add('social-app');
     }
 }
@@ -1455,7 +1530,18 @@ function loadSocialShellIfNeeded() {
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('Γ£à DOM loaded');
     loadSocialShellIfNeeded();
-    if (isNativeAppContext()) {
+    if (isImmersiveLivePath()) {
+        document.documentElement.classList.add('ap-expo-app', 'ap-live-immersive');
+        document.documentElement.classList.remove('social-bridge-mode');
+        document.documentElement.style.setProperty('--social-bottom-nav-h', '0px');
+        if (document.body) {
+            document.body.classList.add('ap-live-immersive');
+            document.body.style.setProperty('background', '#000', 'important');
+        }
+        if (window.AppAuth?.watchImmersiveLiveChrome) {
+            window.AppAuth.watchImmersiveLiveChrome();
+        }
+    } else if (isNativeAppContext()) {
         document.documentElement.classList.add('ap-expo-app');
     }
     const onAuthScreen =

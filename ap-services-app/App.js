@@ -1,5 +1,6 @@
 import {
   ActivityIndicator,
+  PermissionsAndroid,
   Platform,
   StatusBar as RNStatusBar,
   StyleSheet,
@@ -83,9 +84,35 @@ const LAN_DEV_LOCKED = __DEV__ && String(process.env.EXPO_PUBLIC_USE_LAN_WEB) ==
 const IS_STANDALONE_APP = Constants.appOwnership === 'standalone';
 const LOAD_TIMEOUT_MS = isDevLocalBase(resolveFrontendBase()) ? 20000 : 45000;
 
+async function requestAndroidMediaPermissions() {
+  if (Platform.OS !== 'android') return { ok: true, platform: Platform.OS };
+  try {
+    const results = await PermissionsAndroid.requestMultiple([
+      PermissionsAndroid.PERMISSIONS.CAMERA,
+      PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+    ]);
+    const camera = results[PermissionsAndroid.PERMISSIONS.CAMERA];
+    const microphone = results[PermissionsAndroid.PERMISSIONS.RECORD_AUDIO];
+    return {
+      ok:
+        camera === PermissionsAndroid.RESULTS.GRANTED &&
+        microphone === PermissionsAndroid.RESULTS.GRANTED,
+      camera,
+      microphone,
+    };
+  } catch (err) {
+    return { ok: false, error: err?.message || String(err) };
+  }
+}
+
+function buildMediaPermissionResultScript(result) {
+  const payload = JSON.stringify(result ?? { ok: false });
+  return `(function(){try{document.dispatchEvent(new CustomEvent('ap-media-permissions',{detail:${payload}}));}catch(e){}})();true;`;
+}
+
 function loadErrorHint(isDevLocal, frontendBase) {
   if (isDevLocal) {
-    return 'Same Wi-Fi as PC? Run: cd ap-services-app → npm run start:lan';
+    return 'Same Wi-Fi as PC? Run: cd ap-services-app → npm run start:lan. Live camera/mic needs npm start (HTTPS).';
   }
   if (IS_STANDALONE_APP) {
     return `Open ${frontendBase} in Chrome on this phone. If Chrome fails too, switch Wi-Fi or mobile data.`;
@@ -97,7 +124,41 @@ function buildAppShellBootstrap(frontendBase) {
   const isDevLocal = isDevLocalBase(frontendBase);
   const injectedApi = isDevLocal ? `${frontendBase}/api` : PRODUCTION_API;
   const injectedSocket = isDevLocal ? frontendBase : apiConfig.BACKEND_URL;
-  return `(function(){try{document.documentElement.classList.add('ap-expo-app','social-app','social-bridge-mode','social-native','auth-native');document.documentElement.style.setProperty('--ap-expo-safe-top','0px');window.__AP_NATIVE_APP__=true;window.__AP_API_URL__='${injectedApi}';window.__AP_SOCKET_URL__='${injectedSocket}';window.__AP_OAUTH_RETURN__='${APP_RETURN_URL.replace(/'/g, "\\'")}';try{localStorage.setItem('app_redirect','${APP_RETURN_URL.replace(/'/g, "\\'")}');}catch(e){}document.documentElement.style.background='#faf6ee';if(document.body)document.body.style.background='#faf6ee';var s=document.getElementById('ap-native-critical');if(!s){s=document.createElement('style');s.id='ap-native-critical';s.textContent='html.ap-expo-app .chat-tab.active{background:linear-gradient(135deg,#d4a84b,#9a7218)!important;color:#fff!important}html.ap-expo-app .message-wrapper.sent .message-content{background:linear-gradient(135deg,#d4a84b,#9a7218)!important}';(document.head||document.documentElement).appendChild(s);}function apHasSession(){try{return!!(localStorage.getItem('user')||localStorage.getItem('token'));}catch(e){return false;}}window.__AP_HAS_NATIVE_SESSION__=apHasSession;}catch(e){}})();true;`;
+  const oauthReturn = APP_RETURN_URL.replace(/'/g, "\\'");
+  return `(function(){try{
+    var p=(location.pathname||'').toLowerCase();
+    var immersive=p.endsWith('/live-room.html')||p.endsWith('/party-room.html');
+    window.__AP_NATIVE_APP__=true;
+    window.__AP_API_URL__='${injectedApi}';
+    window.__AP_SOCKET_URL__='${injectedSocket}';
+    window.__AP_OAUTH_RETURN__='${oauthReturn}';
+    try{localStorage.setItem('app_redirect','${oauthReturn}');}catch(e){}
+    document.documentElement.style.setProperty('--ap-expo-safe-top','0px');
+    document.documentElement.classList.add('ap-expo-app','auth-native');
+    if(immersive){
+      document.documentElement.classList.add('ap-live-immersive');
+      document.documentElement.classList.remove('social-app','social-bridge-mode','social-native');
+      document.documentElement.style.setProperty('--social-bottom-nav-h','0px');
+      document.documentElement.style.background='#000';
+      if(document.body){
+        document.body.classList.add('ap-live-immersive');
+        document.body.style.background='#000';
+      }
+    }else{
+      document.documentElement.classList.add('social-app','social-bridge-mode','social-native');
+      document.documentElement.style.background='#faf6ee';
+      if(document.body)document.body.style.background='#faf6ee';
+    }
+    var s=document.getElementById('ap-native-critical');
+    if(!s){
+      s=document.createElement('style');
+      s.id='ap-native-critical';
+      s.textContent='html.ap-expo-app .chat-tab.active{background:linear-gradient(135deg,#d4a84b,#9a7218)!important;color:#fff!important}html.ap-expo-app .message-wrapper.sent .message-content{background:linear-gradient(135deg,#d4a84b,#9a7218)!important;color:#fff!important}html.ap-live-immersive .social-bridge-header,html.ap-live-immersive #ap-bridge-header,html.ap-live-immersive .social-bottom-nav,html.ap-live-immersive #social-bottom-nav-mount,html.ap-live-immersive .navbar,html.ap-live-immersive footer.site-footer{display:none!important;height:0!important;visibility:hidden!important;pointer-events:none!important}html.ap-live-immersive body,html.ap-live-immersive.social-bridge-mode body{padding:0!important;margin:0!important;background:#000!important;overflow:hidden!important}';
+      (document.head||document.documentElement).appendChild(s);
+    }
+    function apHasSession(){try{return!!(localStorage.getItem('user')||localStorage.getItem('token'));}catch(e){return false;}}
+    window.__AP_HAS_NATIVE_SESSION__=apHasSession;
+  }catch(e){}})();true;`;
 }
 
 function switchToProductionFrontend(setFrontendBase, setLanFallbackDone, setLoadError, frontendBase) {
@@ -203,6 +264,45 @@ function buildNavigateScript(user, accessToken, dest, refreshToken) {
     buildSessionInjectScript(user, accessToken, refreshToken) +
     `window.location.replace(${JSON.stringify(dest)}); true;`
   );
+}
+
+function isAccessTokenUsable(token, skewSec = 30) {
+  if (!token) return false;
+  try {
+    const parts = String(token).split('.');
+    if (parts.length !== 3) return false;
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+    if (!payload?.exp) return true;
+    return payload.exp > Math.floor(Date.now() / 1000) + skewSec;
+  } catch (_e) {
+    return false;
+  }
+}
+
+async function refreshNativeSession(sess) {
+  let { user, accessToken, refreshToken } = sess;
+  if (accessToken && isAccessTokenUsable(accessToken)) {
+    return { user, accessToken, refreshToken };
+  }
+  if (!refreshToken) return sess;
+  try {
+    const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.success && data.data?.accessToken) {
+      return {
+        user: data.data.user || user,
+        accessToken: data.data.accessToken,
+        refreshToken: data.data.refreshToken || refreshToken,
+      };
+    }
+  } catch (_e) {
+    /* ignore */
+  }
+  return sess;
 }
 
 export default function App() {
@@ -517,6 +617,10 @@ export default function App() {
     [applyOAuthCredential, startOAuthInBrowser]
   );
 
+  useEffect(() => {
+    requestAndroidMediaPermissions().catch(() => {});
+  }, []);
+
   const clearNativeSession = useCallback(() => {
     nativeSessionRef.current = null;
     oauthCompleteRef.current = false;
@@ -532,6 +636,19 @@ export default function App() {
         if (data.type === 'logout') {
           clearNativeSession();
           webViewRef.current?.injectJavaScript(buildClearSessionScript());
+          return;
+        }
+        if (data.type === 'request_session') {
+          const sess = nativeSessionRef.current;
+          if (!sess?.user) return;
+          (async () => {
+            const fresh = await refreshNativeSession(sess);
+            nativeSessionRef.current = fresh;
+            const inject =
+              buildSessionInjectScript(fresh.user, fresh.accessToken, fresh.refreshToken) +
+              `try{window.dispatchEvent(new CustomEvent('ap-session-injected'));}catch(e){};true;`;
+            webViewRef.current?.injectJavaScript(inject);
+          })();
           return;
         }
         if (data.type === 'oauth' && data.provider) {
@@ -556,6 +673,13 @@ export default function App() {
           webViewRef.current?.injectJavaScript(
             buildNavigateScript(data.user, data.accessToken || null, dest, data.refreshToken || null)
           );
+          return;
+        }
+        if (data.type === 'request_media_permissions') {
+          (async () => {
+            const result = await requestAndroidMediaPermissions();
+            webViewRef.current?.injectJavaScript(buildMediaPermissionResultScript(result));
+          })();
           return;
         }
         if (data.type === 'share') {

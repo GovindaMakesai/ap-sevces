@@ -50,7 +50,7 @@
 .party-room > *:not(.party-room-grid-floor),
 .live-room .live-overlay {
   position: relative;
-  z-index: 2;
+  z-index: 12;
 }
 
 /* —— Header rank badges (heart + crown) —— */

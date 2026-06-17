@@ -9,17 +9,35 @@
   <link rel="stylesheet" href="social-live.css">
   <link rel="stylesheet" href="social-live-ref-ui.css">
   <link rel="stylesheet" href="social-fx.css">
+  <style id="ap-immersive-critical">
+    html.ap-live-immersive .social-bridge-header,
+    html.ap-live-immersive #ap-bridge-header,
+    html.ap-live-immersive .social-bottom-nav,
+    html.ap-live-immersive #social-bottom-nav-mount,
+    html.ap-live-immersive .navbar,
+    html.ap-live-immersive footer.site-footer,
+    body[data-live-page] .social-bridge-header,
+    body[data-live-page] #ap-bridge-header,
+    body[data-live-page] .social-bottom-nav,
+    body[data-live-page] #social-bottom-nav-mount,
+    body[data-live-page] .navbar { display: none !important; height: 0 !important; visibility: hidden !important; pointer-events: none !important; }
+    html.ap-live-immersive body,
+    html.ap-live-immersive.social-bridge-mode body,
+    body[data-live-page] { padding: 0 !important; margin: 0 !important; background: #000 !important; overflow: hidden !important; }
+  </style>
   <script>
     document.documentElement.classList.add('ap-live-immersive');
     (function () {
       function stripAppChrome() {
+        document.documentElement.classList.remove('social-bridge-mode');
         document.getElementById('ap-bridge-header')?.remove();
-        document.querySelectorAll('.social-bottom-nav, #social-bottom-nav-mount, .social-bridge-header').forEach(function (el) {
-          el.style.setProperty('display', 'none', 'important');
+        document.querySelectorAll('.social-bottom-nav, #social-bottom-nav-mount, .social-bridge-header, .navbar, footer.site-footer, header.site-header').forEach(function (el) {
+          el.remove();
         });
       }
       document.addEventListener('DOMContentLoaded', stripAppChrome);
       setTimeout(stripAppChrome, 0);
+      [100, 500, 1500].forEach(function (ms) { setTimeout(stripAppChrome, ms); });
     })();
   </script>
 </head>
@@ -32,8 +50,6 @@
       <p id="apLiveLoaderText">Connecting to room…</p>
     </div>
   </div>
-
-  <span class="live-status-badge" id="liveStatusBadge" style="display:none">Connecting…</span>
 
   <div class="party-room">
     <div class="party-room-grid-floor" aria-hidden="true"></div>
@@ -82,16 +98,18 @@
       </div>
     </div>
 
-    <button type="button" class="party-event-pill" id="partyInvitePill">
-      <span class="pill-title">Invite Friends</span>
-      <span class="pill-sub">Up to <strong>10,500</strong></span>
-    </button>
-
     <div class="party-win-banner" id="partyWinBanner"></div>
 
-    <div class="party-host-bar" id="partyHostBar" style="display:none">
+    <div class="party-host-bar" id="partyHostBar">
       <button type="button" class="party-host-action" id="partyBtnInvite"><i class="fas fa-user-plus"></i> Invite</button>
       <button type="button" class="party-host-action" id="partyBtnRequests"><i class="fas fa-inbox"></i> Requests <span id="partyReqCount" class="party-req-badge">0</span></button>
+    </div>
+
+    <div class="party-invite-row">
+      <button type="button" class="party-event-pill" id="partyInvitePill">
+        <span class="pill-title">Invite Friends</span>
+        <span class="pill-sub">Up to <strong>10,500</strong></span>
+      </button>
     </div>
 
     <div class="party-room-body">
@@ -113,6 +131,10 @@
 
   </div>
 
+  <div class="ap-room-status-strip" id="apRoomStatusStrip" aria-live="polite">
+    <span class="live-status-badge" id="liveStatusBadge" style="display:none">Connecting…</span>
+  </div>
+
   <footer class="party-bottom-bar ap-bottom-ref" id="partyBottomBar">
     <div class="live-chat-compose ap-compose-inline" id="liveChatCompose">
       <span class="ap-char-count is-empty" id="apCharCount" aria-hidden="true"></span>
@@ -128,15 +150,6 @@
       <button type="button" id="partyBtnGift" class="party-btn-gift ap-btn-gift-hero" aria-label="Gifts"><span class="ap-gift-glow"></span><i class="fas fa-gift"></i></button>
     </div>
   </footer>
-
-  <div class="ap-chat-panel" id="apChatPanel" aria-hidden="true">
-    <div class="ap-quick-chips" id="apQuickChips"></div>
-    <div class="ap-region-tabs" id="apRegionTabs">
-      <button type="button" data-region="room"><i class="fas fa-id-card"></i> Room</button>
-      <button type="button" data-region="region"><i class="fas fa-tv"></i> Region</button>
-      <button type="button" class="active" data-region="broadcast"><i class="fas fa-bullhorn"></i> Region</button>
-    </div>
-  </div>
 
   <div class="ap-modal-overlay" id="apMicLinkModal">
     <div class="ap-miclink-modal">
@@ -207,7 +220,6 @@
   <script src="social-ui.js"></script>
   <script src="social-interactions.js"></script>
   <script src="auth-guard.js"></script>
-  <script src="social-shell.js"></script>
   <script src="social-fx.js"></script>
   <script src="live-emoji-data.js"></script>
   <script src="social-live.js"></script>

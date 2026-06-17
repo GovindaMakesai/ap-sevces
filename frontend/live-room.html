@@ -9,17 +9,35 @@
   <link rel="stylesheet" href="social-live.css">
   <link rel="stylesheet" href="social-live-ref-ui.css">
   <link rel="stylesheet" href="social-fx.css">
+  <style id="ap-immersive-critical">
+    html.ap-live-immersive .social-bridge-header,
+    html.ap-live-immersive #ap-bridge-header,
+    html.ap-live-immersive .social-bottom-nav,
+    html.ap-live-immersive #social-bottom-nav-mount,
+    html.ap-live-immersive .navbar,
+    html.ap-live-immersive footer.site-footer,
+    body[data-live-page] .social-bridge-header,
+    body[data-live-page] #ap-bridge-header,
+    body[data-live-page] .social-bottom-nav,
+    body[data-live-page] #social-bottom-nav-mount,
+    body[data-live-page] .navbar { display: none !important; height: 0 !important; visibility: hidden !important; pointer-events: none !important; }
+    html.ap-live-immersive body,
+    html.ap-live-immersive.social-bridge-mode body,
+    body[data-live-page] { padding: 0 !important; margin: 0 !important; background: #000 !important; overflow: hidden !important; }
+  </style>
   <script>
     document.documentElement.classList.add('ap-live-immersive');
     (function () {
       function stripAppChrome() {
+        document.documentElement.classList.remove('social-bridge-mode');
         document.getElementById('ap-bridge-header')?.remove();
-        document.querySelectorAll('.social-bottom-nav, #social-bottom-nav-mount, .social-bridge-header').forEach(function (el) {
-          el.style.setProperty('display', 'none', 'important');
+        document.querySelectorAll('.social-bottom-nav, #social-bottom-nav-mount, .social-bridge-header, .navbar, footer.site-footer, header.site-header').forEach(function (el) {
+          el.remove();
         });
       }
       document.addEventListener('DOMContentLoaded', stripAppChrome);
       setTimeout(stripAppChrome, 0);
+      [100, 500, 1500].forEach(function (ms) { setTimeout(stripAppChrome, ms); });
     })();
   </script>
 </head>
@@ -36,8 +54,6 @@
   <div id="liveFeedBackdrop" class="live-feed-backdrop" aria-hidden="true"></div>
   <div id="liveFeedScroll" class="live-feed-scroll" aria-hidden="true"></div>
 
-  <span class="live-status-badge" id="liveStatusBadge" style="display:none">Connecting…</span>
-  <span class="live-mode-badge" id="liveModeBadge"><i class="fas fa-video"></i> VIDEO LIVE</span>
   <div class="live-swipe-hint" id="liveSwipeHint"><i class="fas fa-chevron-up"></i> Swipe for next live</div>
 
   <div class="live-room" id="liveRoomRoot">
@@ -102,18 +118,24 @@
         </div>
       </div>
 
-      <button type="button" class="party-event-pill party-event-pill-live" id="partyInvitePill">
-        <span class="pill-title">Invite Friends</span>
-        <span class="pill-sub">Up to <strong>10,500</strong></span>
-      </button>
+      <div class="party-meta-row party-meta-row--live">
+        <span class="live-mode-badge" id="liveModeBadge"><i class="fas fa-video"></i> VIDEO LIVE</span>
+      </div>
 
       <div class="party-win-banner" id="partyWinBanner"></div>
 
-      <div class="live-host-bar" id="liveHostBar" style="display:none">
+      <div class="live-host-bar" id="liveHostBar">
         <button type="button" class="party-host-action" id="liveBtnModeVideo" data-mode="video"><i class="fas fa-video"></i> Video</button>
         <button type="button" class="party-host-action" id="liveBtnModeAudio" data-mode="audio"><i class="fas fa-microphone"></i> Audio only</button>
         <button type="button" class="party-host-action" id="liveBtnPk"><i class="fas fa-bolt"></i> PK</button>
         <button type="button" class="party-host-action" id="liveBtnInvite"><i class="fas fa-share"></i> Share</button>
+      </div>
+
+      <div class="party-invite-row party-invite-row--live">
+        <button type="button" class="party-event-pill party-event-pill-live" id="partyInvitePill">
+          <span class="pill-title">Invite Friends</span>
+          <span class="pill-sub">Up to <strong>10,500</strong></span>
+        </button>
       </div>
 
       <div class="live-spacer"></div>
@@ -132,6 +154,10 @@
     </div>
   </div>
 
+  <div class="ap-room-status-strip" id="apRoomStatusStrip" aria-live="polite">
+    <span class="live-status-badge" id="liveStatusBadge" style="display:none">Connecting…</span>
+  </div>
+
   <footer class="party-bottom-bar ap-bottom-ref" id="partyBottomBar">
     <div class="live-chat-compose ap-compose-inline" id="liveChatCompose">
       <span class="ap-char-count is-empty" id="apCharCount" aria-hidden="true"></span>
@@ -146,15 +172,6 @@
       <button type="button" id="liveBtnGift" class="party-btn-gift ap-btn-gift-hero" aria-label="Gifts"><span class="ap-gift-glow"></span><i class="fas fa-gift"></i></button>
     </div>
   </footer>
-
-  <div class="ap-chat-panel" id="apChatPanel" aria-hidden="true">
-    <div class="ap-quick-chips" id="apQuickChips"></div>
-    <div class="ap-region-tabs" id="apRegionTabs">
-      <button type="button" data-region="room"><i class="fas fa-id-card"></i> Room</button>
-      <button type="button" data-region="region"><i class="fas fa-tv"></i> Region</button>
-      <button type="button" class="active" data-region="broadcast"><i class="fas fa-bullhorn"></i> Region</button>
-    </div>
-  </div>
 
   <div class="ap-modal-overlay" id="apMicLinkModal">
     <div class="ap-miclink-modal">
@@ -214,7 +231,6 @@
   <script src="social-ui.js"></script>
   <script src="social-interactions.js"></script>
   <script src="auth-guard.js"></script>
-  <script src="social-shell.js"></script>
   <script src="social-fx.js"></script>
   <script src="live-emoji-data.js"></script>
   <script src="social-live.js"></script>

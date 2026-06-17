@@ -69,7 +69,7 @@ if (lanIp) {
   console.log('   2) Could not detect LAN IP — use the IP from the Expo QR code');
 }
 console.log('   API + live socket → proxied to production');
-console.log('   Live camera/mic on LAN HTTP is blocked — UI/chat/gifts work; for camera use npm start after deploy\n');
+console.log('   LAN = local UI + chat. Live camera/mic → npm start (HTTPS api.apservices.in)\n');
 
 // WebView loads local frontend (proxies API to production). Without this, Expo still hits api.apservices.in.
 process.env.EXPO_PUBLIC_USE_LAN_WEB = '1';

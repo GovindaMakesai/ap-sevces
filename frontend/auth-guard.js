@@ -9,16 +9,54 @@
     return IMMERSIVE_LIVE_PAGES.some((p) => pathEnds(p));
   }
 
+  function isAppChromeNode(node) {
+    if (!node || node.nodeType !== 1) return false;
+    const el = node;
+    if (el.id === 'partyBottomBar' || el.classList?.contains('party-bottom-bar')) return false;
+    if (el.matches?.(
+      '.social-bottom-nav, #social-bottom-nav-mount, .social-bridge-header, #ap-bridge-header, .navbar, footer.site-footer, header.site-header'
+    )) {
+      return true;
+    }
+    return Boolean(
+      el.querySelector?.('.social-bottom-nav, #ap-bridge-header, .social-bridge-header, #social-bottom-nav-mount')
+    );
+  }
+
   function hideImmersiveLiveChrome() {
     document.documentElement.classList.add('ap-live-immersive');
-    if (document.body) document.body.classList.add('ap-live-immersive');
+    document.documentElement.classList.remove('social-bridge-mode');
+    document.documentElement.style.setProperty('--social-bottom-nav-h', '0px');
+    if (document.body) {
+      document.body.classList.add('ap-live-immersive');
+      document.body.style.setProperty('padding-top', '0', 'important');
+      document.body.style.setProperty('padding-bottom', '0', 'important');
+      document.body.style.setProperty('background', '#000', 'important');
+    }
     document.getElementById('ap-bridge-header')?.remove();
     document.querySelectorAll(
-      '.social-bottom-nav, #social-bottom-nav-mount, .social-bridge-header, .navbar, footer.site-footer, .footer:not(.party-bottom-bar)'
+      '.social-bottom-nav, #social-bottom-nav-mount, .social-bridge-header, .navbar, footer.site-footer, header.site-header'
     ).forEach((el) => {
-      el.innerHTML = '';
-      el.style.setProperty('display', 'none', 'important');
+      if (el.id === 'partyBottomBar' || el.classList.contains('party-bottom-bar')) return;
+      el.remove();
     });
+  }
+
+  function watchImmersiveLiveChrome() {
+    if (!isImmersiveLivePage()) return;
+    hideImmersiveLiveChrome();
+    [50, 200, 600, 1500, 3000].forEach((ms) => setTimeout(hideImmersiveLiveChrome, ms));
+    if (window.__AP_IMMERSIVE_CHROME_OBS__) return;
+    let debounceTimer = null;
+    window.__AP_IMMERSIVE_CHROME_OBS__ = new MutationObserver((mutations) => {
+      const chromeAdded = mutations.some(
+        (m) => m.type === 'childList' && Array.from(m.addedNodes).some(isAppChromeNode)
+      );
+      if (!chromeAdded) return;
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(hideImmersiveLiveChrome, 80);
+    });
+    window.__AP_IMMERSIVE_CHROME_OBS__.observe(document.body, { childList: true, subtree: false });
   }
 
   function isNative() {
@@ -70,7 +108,7 @@
     document.documentElement.classList.remove('auth-guest', 'auth-locked');
     document.documentElement.classList.add('auth-ok');
     if (isImmersiveLivePage()) {
-      hideImmersiveLiveChrome();
+      watchImmersiveLiveChrome();
       return;
     }
     refreshAppNavigation();
@@ -78,7 +116,7 @@
 
   function refreshAppNavigation() {
     if (isImmersiveLivePage()) {
-      hideImmersiveLiveChrome();
+      watchImmersiveLiveChrome();
       return;
     }
     if (!isLoggedIn()) return;
@@ -202,7 +240,7 @@
     }
 
     if (isImmersiveLivePage()) {
-      hideImmersiveLiveChrome();
+      watchImmersiveLiveChrome();
       validateSession().catch(() => {});
       return;
     }
@@ -229,6 +267,8 @@
     isNative,
     isAuthPage,
     isImmersiveLivePage,
+    hideImmersiveLiveChrome,
+    watchImmersiveLiveChrome,
     isLoggedIn,
     getUser,
     homeUrl,

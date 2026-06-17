@@ -50,6 +50,37 @@ function rewriteSetCookiesForLocalDev(setCookieHeader) {
   );
 }
 
+function isBenignSocketError(err) {
+  const code = err?.code || '';
+  return code === 'ECONNRESET' || code === 'EPIPE' || code === 'ERR_STREAM_DESTROYED';
+}
+
+function bindSocketErrors(socket, label) {
+  if (!socket || socket.__apDevErrBound) return;
+  socket.__apDevErrBound = true;
+  socket.on('error', (err) => {
+    if (isBenignSocketError(err)) return;
+    console.warn(`[dev-server] ${label}:`, err.message);
+  });
+}
+
+function pipeBidirectional(clientSocket, upstreamSocket) {
+  bindSocketErrors(clientSocket, 'client socket');
+  bindSocketErrors(upstreamSocket, 'upstream socket');
+  clientSocket.on('close', () => {
+    try {
+      upstreamSocket.destroy();
+    } catch (_e) {}
+  });
+  upstreamSocket.on('close', () => {
+    try {
+      clientSocket.destroy();
+    } catch (_e) {}
+  });
+  upstreamSocket.pipe(clientSocket);
+  clientSocket.pipe(upstreamSocket);
+}
+
 function proxyToApi(req, res) {
   const lib = API_USE_HTTPS ? https : http;
   const opts = {
@@ -73,7 +104,33 @@ function proxyToApi(req, res) {
       headers['set-cookie'] = rewriteSetCookiesForLocalDev(headers['set-cookie']);
     }
     res.writeHead(proxyRes.statusCode, headers);
+    bindSocketErrors(proxyRes, 'proxy response');
+    bindSocketErrors(res, 'client response');
     proxyRes.pipe(res);
+    proxyRes.on('error', (err) => {
+      if (!isBenignSocketError(err)) console.error('[dev-server] proxy response error:', err.message);
+      if (!res.headersSent) {
+        res.writeHead(502, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, message: 'API proxy error: ' + err.message }));
+      } else {
+        try {
+          res.destroy();
+        } catch (_e) {}
+      }
+    });
+    res.on('error', (err) => {
+      if (!isBenignSocketError(err)) console.warn('[dev-server] client response error:', err.message);
+      try {
+        proxyRes.destroy();
+      } catch (_e) {}
+    });
+  });
+
+  req.on('error', (err) => {
+    if (!isBenignSocketError(err)) console.warn('[dev-server] client request error:', err.message);
+    try {
+      proxyReq.destroy();
+    } catch (_e) {}
   });
 
   proxyReq.on('error', (err) => {
@@ -86,6 +143,7 @@ function proxyToApi(req, res) {
 }
 
 function proxyWebSocket(req, socket, head) {
+  bindSocketErrors(socket, 'websocket client');
   const lib = API_USE_HTTPS ? https : http;
   const opts = {
     hostname: API_HOST,
@@ -105,12 +163,13 @@ function proxyWebSocket(req, socket, head) {
     socket.write(`${headerLines.join('\r\n')}\r\n\r\n`);
     if (proxyHead?.length) proxySocket.write(proxyHead);
     if (head?.length) proxySocket.write(head);
-    proxySocket.pipe(socket);
-    socket.pipe(proxySocket);
+    pipeBidirectional(socket, proxySocket);
   });
   proxyReq.on('error', (err) => {
-    console.error('[dev-server] websocket proxy error:', err.message);
-    socket.destroy();
+    if (!isBenignSocketError(err)) console.error('[dev-server] websocket proxy error:', err.message);
+    try {
+      socket.destroy();
+    } catch (_e) {}
   });
   proxyReq.end();
 }
@@ -152,7 +211,7 @@ const server = http.createServer((req, res) => {
   }
 
   const url = req.url || '/';
-  if (url.startsWith('/api/') || url.startsWith('/auth/')) {
+  if (url.startsWith('/api/') || url.startsWith('/auth/') || url.startsWith('/socket.io')) {
     proxyToApi(req, res);
     return;
   }
@@ -165,7 +224,10 @@ server.on('upgrade', (req, socket, head) => {
     proxyWebSocket(req, socket, head);
     return;
   }
-  socket.destroy();
+  bindSocketErrors(socket, 'upgrade reject');
+  try {
+    socket.destroy();
+  } catch (_e) {}
 });
 
 server.on('error', (err) => {

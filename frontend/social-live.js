@@ -27,7 +27,7 @@
     '\u{1F339}', '\u{1F490}', '\u{1F381}', '\u{1F44F}', '\u{1F60D}', '\u{1F64F}', '\u{1F4AA}', '\u2728',
   ];
   let quickChipsExpanded = false;
-  let chatRegionFilter = 'broadcast';
+  let chatRegionFilter = 'room';
   let sessionGiftCoins = 0;
   let userXpProgress = 0;
   const GIFT_OPTIONS = GIFT_CATALOG.gift;
@@ -63,6 +63,13 @@
   let heartbeatTimer = null;
   let roomJoinCompleted = false;
   let lastJoinMeta = null;
+  let socketLeaveIntentional = false;
+  let partyRulesTimer = null;
+  let partyRoomInitStarted = false;
+  let hostEndedRecoverTimer = null;
+  let agoraStartInProgress = false;
+  let reconnectRejoinTimer = null;
+  let partyVoiceSkipped = false;
 
   function startHeartbeat() {
     stopHeartbeat();
@@ -80,13 +87,41 @@
     }
   }
 
+  async function resumeHostBroadcastIfNeeded() {
+    if (!isHost() || !roomJoinCompleted || publishSucceeded || agoraStartInProgress) return;
+    const page = document.body.dataset.livePage;
+    const mode = page === 'party-room' ? 'party' : 'live';
+    agoraStartInProgress = true;
+    try {
+      await startAgora(mode);
+    } catch (e) {
+      console.error('[live] resumeHostBroadcast failed', e);
+      syncLiveUiState();
+    } finally {
+      agoraStartInProgress = false;
+    }
+  }
+
+  function onSocketRejoinSuccess() {
+    renderRoomState();
+    applyRoleUiAfterJoin();
+    updateLiveDebug({ roomJoined: true, socketConnected: true });
+    syncLiveUiState();
+    if (lastJoinMeta?.isHost) resumeHostBroadcastIfNeeded();
+  }
+
   function rejoinLiveRoom() {
-    if (!roomJoinCompleted || !lastJoinMeta || !liveSocket?.connected) return;
+    if (!lastJoinMeta || !liveSocket?.connected) return;
+    if (!roomJoinCompleted && !lastJoinMeta.isHost) return;
     liveSocket.emit('live:join', lastJoinMeta, (res) => {
       if (res?.ok && res.state) {
         roomState = res.state;
-        renderRoomState();
+        roomJoinCompleted = true;
+        onSocketRejoinSuccess();
         liveDebugLog('Rejoined room after reconnect');
+      } else if (lastJoinMeta.isHost) {
+        liveDebugLog(`Host rejoin failed: ${res?.message || 'unknown'}`);
+        setLiveStatus(`Reconnect failed: ${res?.message || 'unknown'}`, false);
       }
     });
   }
@@ -130,10 +165,14 @@
     });
   }
 
+  function syncHostBarUi() {
+    const hosting = isHost();
+    document.body.classList.toggle('ap-is-host', hosting);
+  }
+
   function applyRoleUiAfterJoin() {
     const hosting = isHost();
-    const hostBar = document.getElementById('partyHostBar');
-    if (hostBar) hostBar.style.display = hosting ? 'flex' : 'none';
+    syncHostBarUi();
 
     if (hosting) {
       const followBtn = document.getElementById('partyBtnFollow');
@@ -142,9 +181,10 @@
       if (hostFollow) hostFollow.style.display = 'none';
       const hostLabel = document.getElementById('partyHostLabel');
       if (hostLabel) hostLabel.textContent = 'Hosting';
+      const liveSub = document.getElementById('liveSubLabel');
+      if (liveSub) liveSub.textContent = 'Hosting';
       const ticker = document.getElementById('partyTicker');
       if (ticker) ticker.textContent = 'You are hosting — tap Share so friends join this room';
-      document.body.classList.add('ap-is-host');
     } else {
       document.body.classList.remove('ap-is-host');
       followed = true;
@@ -337,6 +377,7 @@
     publishSucceeded: false,
     remoteUsersCount: 0,
   };
+  let lastSocketIssue = '-';
 
   let publishSucceeded = false;
   const tracedChannel = { url: null, socket: null, token: null, agora: null, db: null };
@@ -365,6 +406,9 @@
 
   function isActuallyLive() {
     if (isHost()) {
+      if (agoraMode === 'party' && partyVoiceSkipped) {
+        return Boolean(liveDebugState.socketConnected && liveDebugState.roomJoined);
+      }
       return Boolean(
         liveDebugState.socketConnected &&
           liveDebugState.roomJoined &&
@@ -419,9 +463,23 @@
       agoraClient = null;
     }
     liveDebugState.agoraJoined = false;
-    endHostRoom(reason);
     updateModeBadge(broadcastMode, false);
-    setLiveStatus(msg || 'Broadcast failed', false);
+    const isParty = document.body.dataset.livePage === 'party-room';
+    if (isParty && reason === 'media_blocked' && isLanHttpInNativeWebView()) {
+      partyVoiceSkipped = true;
+      setLiveStatus('Party live (chat) — voice needs npm start (HTTPS)', false);
+      onRoomReady();
+      refreshViewerDiagnostics();
+      return;
+    }
+    if (reason === 'media_blocked' && isLanHttpInNativeWebView()) {
+      setLiveStatus('Live broadcast needs HTTPS — run npm start (not start:lan)', false);
+      onRoomReady();
+      refreshViewerDiagnostics();
+      return;
+    }
+    const retryHint = isParty ? ' Tap mic to retry voice.' : ' Tap mic to retry.';
+    setLiveStatus((msg || 'Broadcast failed') + retryHint, false);
     hideApLoader();
     refreshViewerDiagnostics();
   }
@@ -434,7 +492,10 @@
     el.innerHTML =
       '<span id="apVDiagRoom">Room joined: —</span>' +
       '<span id="apVDiagAgora">Agora connected: —</span>' +
-      '<span id="apVDiagRemote">Remote users: 0</span>';
+      '<span id="apVDiagRemote">Remote users: 0</span>' +
+      '<span id="apVDiagSocket">Socket: —</span>' +
+      '<span id="apVDiagSocketUrl">Socket URL: —</span>' +
+      '<span id="apVDiagSocketErr">Socket issue: —</span>';
     document.body.appendChild(el);
   }
 
@@ -450,6 +511,33 @@
     set('apVDiagRoom', `Room joined: ${liveDebugState.roomJoined ? 'YES' : 'NO'}`);
     set('apVDiagAgora', `Agora connected: ${liveDebugState.agoraJoined ? 'YES' : 'NO'}`);
     set('apVDiagRemote', `Remote users: ${remoteUsers.size}`);
+    set('apVDiagSocket', `Socket: ${liveDebugState.socketConnected ? 'YES' : 'NO'}`);
+    set('apVDiagSocketUrl', `Socket URL: ${socketBase()}`);
+    set('apVDiagSocketErr', `Socket issue: ${lastSocketIssue || '-'}`);
+  }
+
+  function withTimeout(promise, ms, label) {
+    return Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        setTimeout(() => reject(new Error(`${label} timed out — check connection and camera/mic permission`)), ms);
+      }),
+    ]);
+  }
+
+  function hostStatusLabel() {
+    if (isActuallyLive()) {
+      if (agoraMode === 'party') {
+        return partyVoiceSkipped ? 'Party live — voice off' : 'Party voice live';
+      }
+      if (broadcastMode === 'audio') return 'Audio live';
+      return 'Video live';
+    }
+    if (agoraStartInProgress) return 'Starting broadcast…';
+    if (publishSucceeded && liveDebugState.agoraJoined) return 'Going live…';
+    if (liveDebugState.agoraJoined) return 'Starting camera & mic…';
+    if (liveDebugState.roomJoined) return 'Connecting to stream server…';
+    return 'Joining room…';
   }
 
   function syncLiveUiState() {
@@ -457,22 +545,16 @@
     refreshViewerDiagnostics();
     if (isHost()) {
       updateModeBadge(broadcastMode, isActuallyLive());
-      if (isActuallyLive()) {
-        const label =
-          agoraMode === 'party'
-            ? 'Party voice live'
-            : broadcastMode === 'audio'
-              ? 'Audio live'
-              : 'Video live';
-        setLiveStatus(label, true);
-      }
-    } else {
-      updateModeBadge(broadcastMode, false);
-      if (liveDebugState.agoraJoined && remoteUsers.size === 0) {
-        setLiveStatus('Waiting for host stream…', null);
-      } else if (remoteUsers.size > 0) {
-        setLiveStatus('Watching live', true);
-      }
+      setLiveStatus(hostStatusLabel(), isActuallyLive() ? true : null);
+      return;
+    }
+    updateModeBadge(broadcastMode, false);
+    if (liveDebugState.agoraJoined && remoteUsers.size === 0) {
+      setLiveStatus('Waiting for host stream…', null);
+    } else if (remoteUsers.size > 0) {
+      setLiveStatus('Watching live', true);
+    } else if (liveDebugState.roomJoined) {
+      setLiveStatus('Connected — waiting for host', null);
     }
   }
 
@@ -660,17 +742,30 @@
     let socketAuthRetrying = false;
     liveSocket.on('connect', () => {
       liveDebugLog('Socket connected');
+      lastSocketIssue = '-';
       updateLiveDebug({ socketConnected: true });
       forensicEvent('SOCKET_CONNECTED', { channel: channelId() });
-      rejoinLiveRoom();
+      if (roomJoinCompleted && lastJoinMeta) {
+        if (reconnectRejoinTimer) clearTimeout(reconnectRejoinTimer);
+        reconnectRejoinTimer = setTimeout(() => {
+          reconnectRejoinTimer = null;
+          rejoinLiveRoom();
+        }, 400);
+      }
     });
     liveSocket.on('disconnect', (reason) => {
       liveDebugLog(`Socket disconnected: ${reason}`);
-      updateLiveDebug({ socketConnected: false, roomJoined: false });
+      lastSocketIssue = `disconnect: ${reason || 'unknown'}`;
+      updateLiveDebug({ socketConnected: false, roomJoined: roomJoinCompleted });
+      refreshViewerDiagnostics();
+      if (!socketLeaveIntentional && lastJoinMeta?.isHost && reason !== 'io client disconnect') {
+        setLiveStatus('Reconnecting…', null);
+      }
     });
     liveSocket.on('connect_error', async (err) => {
       const msg = err?.message || String(err);
       liveDebugLog(`Socket connect_error: ${msg}`);
+      lastSocketIssue = `connect_error: ${msg}`;
       if (/invalid token/i.test(msg) && !socketAuthRetrying) {
         socketAuthRetrying = true;
         try {
@@ -691,6 +786,7 @@
         toast(`Socket error: ${msg}`, 'error');
       }
       updateLiveDebug({ socketConnected: false, roomJoined: false });
+      refreshViewerDiagnostics();
     });
 
     window.SocialFX?.init?.();
@@ -792,7 +888,21 @@
       }
     });
 
-    liveSocket.on('live:ended', () => {
+    liveSocket.on('live:ended', (payload) => {
+      const endedCh = String(payload?.channel || '').trim();
+      const myCh = channelId();
+      if (endedCh && endedCh !== myCh) return;
+      if (isHost() || lastJoinMeta?.isHost) {
+        if (hostEndedRecoverTimer) clearTimeout(hostEndedRecoverTimer);
+        liveDebugLog('live:ended while hosting — attempting to rejoin');
+        setLiveStatus('Reconnecting room…', null);
+        hostEndedRecoverTimer = setTimeout(() => {
+          hostEndedRecoverTimer = null;
+          if (!liveSocket?.connected || !lastJoinMeta) return;
+          rejoinLiveRoom();
+        }, 400);
+        return;
+      }
       toast('This live has ended');
       setTimeout(exitRoom, 1200);
     });
@@ -808,8 +918,8 @@
 
     if (liveSocket && liveSocket.auth?.token !== token) {
       liveSocket.auth = { token };
-      if (!liveSocket.connected) liveSocket.connect();
     }
+    if (liveSocket && !liveSocket.connected) liveSocket.connect();
 
     const user = currentUser();
     const ch = channelId();
@@ -859,7 +969,9 @@
               }
               renderRoomState();
               applyRoleUiAfterJoin();
+              hideApLoader();
               if (hostFlag) {
+                syncLiveUiState();
                 toast('Party live — share the link so others join this room', 'success');
               } else {
                 setLiveStatus(`Connected · ${res.state.viewers || 1} in room`, true);
@@ -894,15 +1006,25 @@
 
   function leaveSocket() {
     stopHeartbeat();
+    if (hostEndedRecoverTimer) {
+      clearTimeout(hostEndedRecoverTimer);
+      hostEndedRecoverTimer = null;
+    }
+    if (partyRulesTimer) {
+      clearTimeout(partyRulesTimer);
+      partyRulesTimer = null;
+    }
     roomJoinCompleted = false;
     lastJoinMeta = null;
     if (liveSocket) {
+      socketLeaveIntentional = true;
       if (isHost()) {
         liveSocket.emit('live:end', { channel: channelId() });
       }
       liveSocket.emit('live:leave');
       liveSocket.disconnect();
       liveSocket = null;
+      socketLeaveIntentional = false;
     }
     publishSucceeded = false;
     updateLiveDebug({ socketConnected: false, roomJoined: false, publishSucceeded: false });
@@ -925,15 +1047,51 @@
   }
 
   async function fetchAgoraToken(channel, asHost) {
-    const role = asHost ? 'host' : 'audience';
     const user = currentUser();
     const userId = user?.id != null ? String(user.id) : null;
-    liveDebugLog(`Token request channel=${channel} role=${role} userId=${userId}`);
-    forensicEvent('TOKEN_REQUEST_START', { channel, role, userId });
-    const data = await API.post('/live/agora/token', { channel, role });
+    const inferredHost = Boolean(
+      asHost ||
+        qs('host') === '1' ||
+        (roomState?.hostId && user?.id && String(roomState.hostId) === String(user.id))
+    );
+    const role = inferredHost ? 'host' : 'audience';
+    const roomType = document.body.dataset.livePage === 'party-room' ? 'party' : 'live';
+
+    liveDebugLog(`Token request channel=${channel} role=${role} inferredHost=${inferredHost} userId=${userId}`);
+    forensicEvent('TOKEN_REQUEST_START', { channel, role, inferredHost, userId, roomType });
+
+    const payloads = [
+      { channel, role },
+      // Compatibility payload for stricter server checks.
+      { channel, role, isHost: inferredHost, asHost: inferredHost, roomType, type: roomType, hostId: roomState?.hostId },
+    ];
+
+    let data = null;
+    let lastErr = null;
+    for (let i = 0; i < payloads.length; i++) {
+      try {
+        data = await API.post('/live/agora/token', payloads[i]);
+        if (data?.success) break;
+        lastErr = new Error(data?.message || 'Agora token request failed (success=false)');
+      } catch (e) {
+        lastErr = e;
+      }
+      liveDebugLog(`Token request retry ${i + 1}/${payloads.length} failed: ${lastErr?.message || lastErr}`);
+    }
+
     if (!data?.success) {
-      forensicEvent('TOKEN_REQUEST_FAILED', { channel, role, userId, message: data?.message });
-      throw new Error(data?.message || 'Agora token request failed (success=false)');
+      forensicEvent('TOKEN_REQUEST_FAILED', { channel, role, inferredHost, userId, message: lastErr?.message || data?.message });
+      const raw = lastErr?.message || data?.message || 'Agora token request failed';
+      if (/publisher token requires host/i.test(raw)) {
+        if (!liveDebugState.socketConnected) {
+          throw new Error('Real-time socket not connected — room must join before going live. Reload and check Socket: YES in the debug bar.');
+        }
+        if (!roomJoinCompleted) {
+          throw new Error('Room not joined yet — wait for socket connection, then try again.');
+        }
+        throw new Error('Server does not recognize you as host for this room. Start a new live/party from Streamer Center.');
+      }
+      throw new Error(raw);
     }
     if (data.mode === 'mock' || !data.token) {
       forensicEvent('TOKEN_REQUEST_FAILED', { channel, role, userId, mode: data.mode });
@@ -944,15 +1102,10 @@
     }
     const tokenChannel = data.channel || channel;
     auditChannel('token', tokenChannel);
-    if (asHost && role !== 'host') {
-      forensicEvent('TOKEN_ROLE_INVALID', { expected: 'host', got: role, channel: tokenChannel });
-    }
-    if (!asHost && role !== 'audience') {
-      forensicEvent('TOKEN_ROLE_INVALID', { expected: 'audience', got: role, channel: tokenChannel });
-    }
     forensicEvent('TOKEN_SUCCESS', {
       channel: tokenChannel,
       role,
+      inferredHost,
       userId,
       uid: data.uid,
       mode: data.mode,
@@ -963,6 +1116,11 @@
   }
 
   function showApLoader(text) {
+    if (roomJoinCompleted) {
+      if (text) setLiveStatus(text, null);
+      hideApLoader();
+      return;
+    }
     const loader = document.getElementById('apLiveLoader');
     const txt = document.getElementById('apLiveLoaderText');
     if (txt && text) txt.textContent = text;
@@ -974,12 +1132,43 @@
     if (loader) loader.classList.add('is-hidden');
   }
 
+  function isLanDevHost() {
+    const h = window.location.hostname || '';
+    return (
+      h === 'localhost' ||
+      h === '127.0.0.1' ||
+      /^192\.168\.\d{1,3}\.\d{1,3}$/.test(h) ||
+      /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(h)
+    );
+  }
+
+  function isLanHttpInNativeWebView() {
+    const nativeApp = Boolean(window.ReactNativeWebView || window.__AP_NATIVE_APP__);
+    return nativeApp && window.location.protocol === 'http:' && isLanDevHost();
+  }
+
+  function requestNativeMediaPermissions() {
+    return new Promise((resolve) => {
+      if (!window.ReactNativeWebView) {
+        resolve({ ok: true, skipped: true });
+        return;
+      }
+      const finish = (detail) => {
+        clearTimeout(timer);
+        document.removeEventListener('ap-media-permissions', onEvt);
+        resolve(detail || { ok: false });
+      };
+      const onEvt = (e) => finish(e.detail);
+      const timer = setTimeout(() => finish({ ok: false, reason: 'timeout' }), 10000);
+      document.addEventListener('ap-media-permissions', onEvt);
+      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'request_media_permissions' }));
+    });
+  }
+
   function webMediaBlockedReason() {
-    const host = window.location.hostname || '';
-    const isLocal = host === 'localhost' || host === '127.0.0.1';
-    const insecureHttp = window.location.protocol === 'http:' && !isLocal;
-    if (insecureHttp) {
-      return 'Camera/mic need HTTPS. Stop Expo, run npm start (live mode), then reopen the app.';
+    const lanHttp = isLanHttpInNativeWebView();
+    if (lanHttp && (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia)) {
+      return 'LAN HTTP blocks camera/mic in Android WebView. For live broadcast use: cd ap-services-app → npm start (HTTPS). On LAN you can still host party chat.';
     }
     if (!navigator.mediaDevices?.getUserMedia) {
       return 'Camera/mic unavailable in this WebView. Allow Camera + Microphone in Android app settings, then reload.';
@@ -987,15 +1176,38 @@
     return null;
   }
 
+  async function handleHostMediaBlocked(mediaBlock, mode) {
+    liveDebugLog(`Host media blocked: ${mediaBlock}`);
+    if (mode === 'party' && isLanHttpInNativeWebView()) {
+      partyVoiceSkipped = true;
+      setLiveStatus('Party live (chat) — voice needs npm start (HTTPS)', false);
+      onRoomReady();
+      syncLiveUiState();
+      refreshViewerDiagnostics();
+      return;
+    }
+    if (isLanHttpInNativeWebView()) {
+      setLiveStatus('Live broadcast needs HTTPS — run npm start (not start:lan)', false);
+      onRoomReady();
+      refreshViewerDiagnostics();
+      return;
+    }
+    await onHostBroadcastFailed('media_blocked', mediaBlock);
+  }
+
   function setLiveStatus(text, ok) {
     const el = document.getElementById('liveStatusBadge');
+    const strip = document.getElementById('apRoomStatusStrip');
+    const show = Boolean(text);
     if (el) {
-      el.style.display = text ? 'block' : 'none';
+      el.style.display = show ? 'inline-flex' : 'none';
       el.textContent = text;
       el.classList.toggle('is-ok', ok === true);
       el.classList.toggle('is-err', ok === false);
-      el.classList.toggle('is-warn', ok !== true && ok !== false);
+      el.classList.toggle('is-warn', show && ok !== true && ok !== false);
     }
+    if (strip) strip.classList.toggle('is-visible', show);
+    document.body.classList.toggle('ap-live-status-visible', show);
     const loaderTxt = document.getElementById('apLiveLoaderText');
     if (loaderTxt && text) loaderTxt.textContent = text;
     if (ok === true) {
@@ -1013,7 +1225,7 @@
 
   function onRoomReady() {
     hideApLoader();
-    document.getElementById('liveStatusBadge')?.style && (document.getElementById('liveStatusBadge').style.display = 'none');
+    syncLiveUiState();
   }
 
   async function startAgora(mode) {
@@ -1033,9 +1245,18 @@
       agoraJoined: false,
     });
     showApLoader(host ? 'Starting your broadcast…' : 'Connecting to live…');
-    setLiveStatus('Connecting…', null);
+    setLiveStatus(host ? 'Starting camera & mic…' : 'Connecting to live…', null);
     updateModeBadge(broadcastMode, false);
 
+    const agoraDeadline = setTimeout(() => {
+      if (!publishSucceeded && isHost() && !partyVoiceSkipped) {
+        const msg = 'Broadcast setup is taking too long. Tap mic to retry, or allow camera/mic in app settings.';
+        setLiveStatus(msg, false);
+        hideApLoader();
+      }
+    }, 45000);
+
+    try {
     let cred;
     try {
       cred = await fetchAgoraToken(ch, host);
@@ -1089,6 +1310,7 @@
         liveDebugLog(`Agora join OK channel=${agoraChannel} uid=${uid}`);
         updateLiveDebug({ agoraJoined: true });
         forensicEvent('AGORA_JOIN_SUCCESS', { channel: agoraChannel, uid, role: host ? 'host' : 'audience' });
+        syncLiveUiState();
       } catch (joinErr) {
         const msg = joinErr?.message || String(joinErr);
         console.error('[live] Agora join failed', joinErr);
@@ -1152,18 +1374,23 @@
       });
 
       if (host) {
+        await requestNativeMediaPermissions();
         const mediaBlock = webMediaBlockedReason();
         if (mediaBlock) {
-          liveDebugLog(`Host media blocked: ${mediaBlock}`);
-          await onHostBroadcastFailed('media_blocked', mediaBlock);
+          await handleHostMediaBlocked(mediaBlock, mode);
           return;
         }
         if (mode === 'party') {
-          const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+          const audioTrack = await withTimeout(
+            AgoraRTC.createMicrophoneAudioTrack(),
+            25000,
+            'Microphone access'
+          );
           localTracks = [audioTrack];
           try {
             await agoraClient.publish(audioTrack);
             publishSucceeded = true;
+            partyVoiceSkipped = false;
             liveDebugLog('Publish OK party audio');
             forensicEvent('PUBLISH_SUCCESS', { channel: agoraChannel, mode: 'party' });
             updateLiveDebug({ hostPublishing: true, publishSucceeded: true });
@@ -1174,7 +1401,11 @@
             return;
           }
         } else if (broadcastMode === 'audio') {
-          const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+          const audioTrack = await withTimeout(
+            AgoraRTC.createMicrophoneAudioTrack(),
+            25000,
+            'Microphone access'
+          );
           localTracks = [audioTrack];
           try {
             await agoraClient.publish(audioTrack);
@@ -1196,7 +1427,11 @@
         } else {
           const root = document.getElementById('liveRoomRoot');
           if (root) root.classList.remove('is-audio-mode');
-          const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
+          const [audioTrack, videoTrack] = await withTimeout(
+            AgoraRTC.createMicrophoneAndCameraTracks(),
+            30000,
+            'Camera and microphone access'
+          );
           localTracks = [audioTrack, videoTrack];
           try {
             await agoraClient.publish([audioTrack, videoTrack]);
@@ -1223,7 +1458,6 @@
       } else {
         onRoomReady();
         applyLiveBackground(broadcastMode === 'audio' ? 'audio' : 'live', roomState?.hostName);
-        syncLiveUiState();
       }
     } catch (err) {
       const msg = err?.message || String(err);
@@ -1235,6 +1469,9 @@
       } else {
         setLiveStatus(`Agora error: ${msg}`, false);
       }
+    }
+    } finally {
+      clearTimeout(agoraDeadline);
     }
   }
 
@@ -1386,6 +1623,7 @@
 
   function applyChatFilters(msg) {
     if (!shouldShowMsg(msg, chatTab)) return false;
+    if (chatTab === 'all') return true;
     if (chatRegionFilter === 'room') {
       return msg.type === 'system' || msg.scope === 'room' || (!msg.scope && !msg.broadcast);
     }
@@ -1548,7 +1786,7 @@
       e.stopPropagation();
       const open = pop.classList.toggle('is-open');
       if (open) {
-        toggleChatPanel(false);
+        closeChatUi();
         const bar = document.getElementById('partyBottomBar');
         const barH = bar ? bar.getBoundingClientRect().height : 58;
         const kb = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--ap-kb-offset'), 10) || 0;
@@ -1567,6 +1805,15 @@
 
   function handleMicButton() {
     if (isHost()) {
+      if (!publishSucceeded) {
+        if (isLanHttpInNativeWebView()) {
+          toast('Voice/video needs HTTPS — run npm start in ap-services-app', 'warning');
+          return;
+        }
+        partyVoiceSkipped = false;
+        resumeHostBroadcastIfNeeded();
+        return;
+      }
       toggleMic();
       return;
     }
@@ -1743,8 +1990,13 @@
   function syncFollowUI() {
     const hostName = roomState?.hostName || 'Host';
     const hostId = roomState?.hostId || hostName;
-    if (window.SocialInteractions?.isFollowing) {
-      followed = SocialInteractions.isFollowing(hostId, hostName);
+    if (isHost()) {
+      if (window.SocialInteractions?.isFollowing) {
+        followed = SocialInteractions.isFollowing(hostId, hostName);
+      }
+    } else {
+      // Viewers can chat in party/live without tapping Follow first
+      followed = true;
     }
     const label = followed ? 'Following ✓' : 'Follow +';
     const btn = document.getElementById('partyBtnFollow') || document.getElementById('liveBtnFollow');
@@ -1921,7 +2173,7 @@
     if (waiting) waiting.style.display = mode === 'waiting' ? '' : 'none';
     if (rejected) rejected.style.display = mode === 'rejected' ? '' : 'none';
     modal.classList.add('open');
-    document.body.classList.add('ap-live-overlay-open');
+    syncLiveOverlayClass();
     syncMicButtonUi();
   }
 
@@ -1929,49 +2181,72 @@
     document.getElementById('apMicLinkModal')?.classList.remove('open');
     micLinkPending = false;
     syncMicButtonUi();
-    document.body.classList.toggle(
-      'ap-live-overlay-open',
-      Boolean(
-        document.getElementById('partyToolsSheet')?.classList.contains('open') ||
-          document.getElementById('giftSheet')?.classList.contains('open') ||
-          document.getElementById('apChatPanel')?.classList.contains('is-open')
-      )
+    syncLiveOverlayClass();
+  }
+
+  function syncLiveOverlayClass() {
+    const open = Boolean(
+      document.getElementById('partyToolsSheet')?.classList.contains('open') ||
+        document.getElementById('giftSheet')?.classList.contains('open') ||
+        document.getElementById('apMicLinkModal')?.classList.contains('open')
+    );
+    document.body.classList.toggle('ap-live-overlay-open', open);
+  }
+
+  function isAppChromeNode(node) {
+    if (!node || node.nodeType !== 1) return false;
+    const el = node;
+    if (el.id === 'partyBottomBar' || el.classList?.contains('party-bottom-bar')) return false;
+    if (el.matches?.(
+      '.social-bottom-nav, #social-bottom-nav-mount, .social-bridge-header, #ap-bridge-header, .navbar, footer.site-footer, header.site-header'
+    )) {
+      return true;
+    }
+    return Boolean(
+      el.querySelector?.('.social-bottom-nav, #ap-bridge-header, .social-bridge-header, #social-bottom-nav-mount')
     );
   }
 
   function hideAppChrome() {
     document.documentElement.classList.add('ap-live-immersive');
+    document.documentElement.classList.remove('social-bridge-mode');
+    document.documentElement.style.setProperty('--social-bottom-nav-h', '0px');
     document.body.classList.add('ap-live-immersive');
+    document.body.style.setProperty('padding-top', '0', 'important');
+    document.body.style.setProperty('padding-bottom', '0', 'important');
+    document.body.style.setProperty('background', '#000', 'important');
     document.getElementById('ap-bridge-header')?.remove();
     document.querySelectorAll(
-      '.social-bottom-nav, #social-bottom-nav-mount, .social-bridge-header, .navbar, footer.site-footer, .footer:not(.party-bottom-bar), header.site-header'
+      '.social-bottom-nav, #social-bottom-nav-mount, .social-bridge-header, .navbar, footer.site-footer, header.site-header'
     ).forEach((el) => {
       if (el.id === 'partyBottomBar' || el.classList.contains('party-bottom-bar')) return;
-      el.innerHTML = '';
-      el.style.setProperty('display', 'none', 'important');
+      el.remove();
     });
   }
 
   function scheduleHideAppChrome() {
     hideAppChrome();
     [50, 200, 600, 1500, 3000].forEach((ms) => setTimeout(hideAppChrome, ms));
+    if (window.__AP_LIVE_CHROME_OBS__) return;
+    let debounceTimer = null;
+    window.__AP_LIVE_CHROME_OBS__ = new MutationObserver((mutations) => {
+      const chromeAdded = mutations.some(
+        (m) => m.type === 'childList' && Array.from(m.addedNodes).some(isAppChromeNode)
+      );
+      if (!chromeAdded) return;
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(hideAppChrome, 80);
+    });
+    window.__AP_LIVE_CHROME_OBS__.observe(document.body, { childList: true, subtree: false });
   }
 
   function closeLiveOverlays(except) {
     if (except !== 'tools') document.getElementById('partyToolsSheet')?.classList.remove('open');
     if (except !== 'gift') document.getElementById('giftSheet')?.classList.remove('open');
     if (except !== 'mic') document.getElementById('apMicLinkModal')?.classList.remove('open');
-    if (except !== 'chat') toggleChatPanel(false);
+    if (except !== 'chat') closeChatPanelOnly();
     document.getElementById('apEmojiPopover')?.classList.remove('is-open');
-    document.body.classList.toggle(
-      'ap-live-overlay-open',
-      Boolean(
-        document.getElementById('partyToolsSheet')?.classList.contains('open') ||
-          document.getElementById('giftSheet')?.classList.contains('open') ||
-          document.getElementById('apMicLinkModal')?.classList.contains('open') ||
-          document.getElementById('apChatPanel')?.classList.contains('is-open')
-      )
-    );
+    syncLiveOverlayClass();
   }
 
   function syncBottomBarForRole() {
@@ -1984,12 +2259,25 @@
       followBtn.setAttribute('aria-hidden', hideFollow ? 'true' : 'false');
     }
     if (compose) {
-      compose.classList.toggle('ap-compose-hidden', hosting ? false : !followed);
+      compose.classList.remove('ap-compose-hidden');
     }
   }
 
+  function isChatPanelOpen() {
+    return false;
+  }
+
+  function closeChatPanelOnly() {
+    document.body.classList.remove('ap-chat-open');
+    document.getElementById('apChatBackdrop')?.classList.remove('is-visible');
+    document.getElementById('apEmojiPopover')?.classList.remove('is-open');
+    syncLiveOverlayClass();
+  }
+
   function closeChatUi() {
-    toggleChatPanel(false);
+    closeChatPanelOnly();
+    document.body.classList.remove('ap-keyboard-open', 'ap-live-overlay-open');
+    document.documentElement.style.setProperty('--ap-kb-offset', '0px');
     chatTab = 'all';
     document.querySelectorAll('.party-chat-tabs button').forEach((b) => {
       b.classList.toggle('active', b.dataset.tab === 'all');
@@ -1997,79 +2285,47 @@
     renderChatFromState();
     const input = document.getElementById('liveChatInput');
     if (input) input.blur();
-    document.getElementById('apEmojiPopover')?.classList.remove('is-open');
-    document.body.classList.remove('ap-keyboard-open');
-    document.documentElement.style.setProperty('--ap-kb-offset', '0px');
-    const backdrop = document.getElementById('apChatBackdrop');
-    if (backdrop) backdrop.classList.remove('is-visible');
+    syncLiveOverlayClass();
+  }
+
+  function focusChatCompose() {
+    const input = document.getElementById('liveChatInput');
+    if (input) {
+      input.focus();
+      chatTab = 'chat';
+      document.querySelectorAll('.party-chat-tabs button').forEach((b) => {
+        b.classList.toggle('active', b.dataset.tab === 'chat');
+      });
+      renderChatFromState();
+    }
+  }
+
+  function openChatPanel() {
+    focusChatCompose();
   }
 
   function ensureChatPanelChrome() {
-    if (!document.getElementById('apChatBackdrop')) {
-      const backdrop = document.createElement('div');
-      backdrop.id = 'apChatBackdrop';
-      backdrop.className = 'ap-chat-backdrop';
-      backdrop.setAttribute('aria-hidden', 'true');
-      backdrop.addEventListener('click', closeChatUi);
-      document.body.appendChild(backdrop);
-    }
-    const panel = document.getElementById('apChatPanel');
-    if (panel && !panel.querySelector('.ap-chat-panel-head')) {
-      const head = document.createElement('div');
-      head.className = 'ap-chat-panel-head';
-      head.innerHTML =
-        '<span class="ap-chat-panel-title">Quick chat</span>' +
-        '<button type="button" class="ap-chat-panel-close" id="apChatPanelClose" aria-label="Close chat">' +
-        '<i class="fas fa-chevron-down"></i> Done</button>';
-      panel.insertBefore(head, panel.firstChild);
-    }
-    if (!document.getElementById('apChatDismissBtn')) {
-      const compose = document.getElementById('liveChatCompose');
-      const sendBtn = document.getElementById('liveChatSend');
-      if (compose && sendBtn) {
-        const dismiss = document.createElement('button');
-        dismiss.type = 'button';
-        dismiss.id = 'apChatDismissBtn';
-        dismiss.className = 'ap-chat-dismiss-btn';
-        dismiss.setAttribute('aria-label', 'Close keyboard');
-        dismiss.innerHTML = '<i class="fas fa-chevron-down"></i>';
-        compose.insertBefore(dismiss, sendBtn);
+    bindChatPanelUi();
+  }
+
+  function bindChatPanelUi() {
+    if (window.__apChatPanelUiBound) return;
+    window.__apChatPanelUiBound = true;
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        const input = document.getElementById('liveChatInput');
+        if (document.activeElement === input) closeChatUi();
       }
-    }
-    if (!window.__apChatChromeBound) {
-      window.__apChatChromeBound = true;
-      document.getElementById('apChatPanelClose')?.addEventListener('click', closeChatUi);
-      document.getElementById('apChatDismissBtn')?.addEventListener('click', closeChatUi);
-    }
+    });
   }
 
   function toggleChatPanel(forceOpen) {
-    const panel = document.getElementById('apChatPanel');
-    if (!panel) return;
-    const open = forceOpen === true ? true : forceOpen === false ? false : !panel.classList.contains('is-open');
-    panel.classList.toggle('is-open', open);
-    panel.setAttribute('aria-hidden', open ? 'false' : 'true');
-    document.body.classList.toggle('ap-chat-open', open);
-    const backdrop = document.getElementById('apChatBackdrop');
-    if (backdrop) {
-      backdrop.classList.toggle('is-visible', open);
-      backdrop.setAttribute('aria-hidden', open ? 'false' : 'true');
+    if (forceOpen === false) {
+      closeChatUi();
+      return;
     }
-    if (!open) {
-      document.getElementById('apEmojiPopover')?.classList.remove('is-open');
-    }
-    if (open) {
-      closeLiveOverlays('chat');
-    }
-    document.body.classList.toggle(
-      'ap-live-overlay-open',
-      Boolean(
-        document.getElementById('partyToolsSheet')?.classList.contains('open') ||
-          document.getElementById('giftSheet')?.classList.contains('open') ||
-          document.getElementById('apMicLinkModal')?.classList.contains('open') ||
-          document.getElementById('apChatPanel')?.classList.contains('is-open')
-      )
-    );
+    focusChatCompose();
   }
 
   function ensureBottomComposeLayout() {
@@ -2106,7 +2362,7 @@
   function pinFixedOverlaysToBody() {
     [
       'partyBottomBar',
-      'apChatPanel',
+      'apRoomStatusStrip',
       'partyToolsSheet',
       'partyRequestsSheet',
       'apMicLinkModal',
@@ -2148,6 +2404,8 @@
 
   function prepareLiveUiShell() {
     scheduleHideAppChrome();
+    document.getElementById('apChatPanel')?.remove();
+    document.body.classList.remove('ap-chat-open');
     injectLiveOverlays();
     ensureChatPanelChrome();
     ensureBottomComposeLayout();
@@ -2156,8 +2414,7 @@
     bindMicLinkModal();
     ensureLiveDebugPanel();
     const activeRegion = document.querySelector('.ap-region-tabs button.active');
-    chatRegionFilter = activeRegion?.dataset.region || 'broadcast';
-    renderQuickChips();
+    chatRegionFilter = activeRegion?.dataset.region || 'room';
     syncToolBadges();
     updateCharCount();
   }
@@ -2192,24 +2449,6 @@
         );
       }
     }
-    if (!document.getElementById('apChatPanel')) {
-      const panel = document.createElement('div');
-      panel.id = 'apChatPanel';
-      panel.className = 'ap-chat-panel';
-      panel.setAttribute('aria-hidden', 'true');
-      panel.innerHTML =
-        `<div class="ap-quick-chips" id="apQuickChips"></div>
-         <div class="ap-region-tabs" id="apRegionTabs">
-           <button type="button" data-region="room"><i class="fas fa-id-card"></i> Room</button>
-           <button type="button" data-region="region"><i class="fas fa-tv"></i> Region</button>
-           <button type="button" class="active" data-region="broadcast"><i class="fas fa-bullhorn"></i> Region</button>
-         </div>`;
-      document.body.appendChild(panel);
-      renderQuickChips();
-    } else {
-      renderQuickChips();
-    }
-    ensureBottomComposeLayout();
     if (!document.getElementById('apGuestRail')) {
       const overlay = document.querySelector('.live-overlay') || document.querySelector('.party-room');
       overlay?.insertAdjacentHTML(
@@ -2444,8 +2683,10 @@
   }
 
   function bindHostControls(pageType) {
-    const hostBar = document.getElementById(pageType === 'party' ? 'partyHostBar' : 'liveHostBar');
-    if (hostBar && isHost()) hostBar.style.display = 'flex';
+    syncHostBarUi();
+
+    if (window.__apHostControlsBound) return;
+    window.__apHostControlsBound = true;
 
     document.getElementById('partyBtnInvite')?.addEventListener('click', () => {
       document.getElementById('partyBtnShare')?.click();
@@ -2611,7 +2852,7 @@
     refreshCoinDisplay();
     updateGiftMeta();
     sheet.classList.add('open');
-    document.body.classList.add('ap-live-overlay-open');
+    syncLiveOverlayClass();
   }
 
   async function sendGiftViaApi(receiverId, cost, emoji, toName) {
@@ -2764,13 +3005,18 @@
     });
   }
 
+  function ensureChatTabShowsMessages() {
+    if (chatTab === 'room') {
+      chatTab = 'all';
+      document.querySelectorAll('.party-chat-tabs button').forEach((b) => {
+        b.classList.toggle('active', b.dataset.tab === 'all');
+      });
+    }
+  }
+
   function sendChat(text) {
     const t = String(text || '').trim();
     if (!t) return;
-    if (!liveSocket?.connected) {
-      toast('Not connected to room — wait a moment or reload', 'error');
-      return;
-    }
     const me = currentUser();
     const lvlInfo = window.SocialFX ? SocialFX.getUserLevel(me?.id) : { level: 2 };
     const scope = chatRegionFilter === 'broadcast' ? 'broadcast' : chatRegionFilter;
@@ -2784,37 +3030,37 @@
       at: Date.now(),
       scope,
       broadcast: chatRegionFilter === 'broadcast',
+      pending: !liveSocket?.connected,
     };
-    if (liveSocket) {
-      liveSocket.emit('live:chat', {
-        channel: channelId(),
-        text: t,
-        lvl: lvlInfo.level,
-        scope,
-        broadcast: chatRegionFilter === 'broadcast',
-      });
-    }
     rememberChatMessage(optimistic);
+    ensureChatTabShowsMessages();
     renderChatFeed();
     updateCharCount();
+    if (!liveSocket?.connected) {
+      toast('Not connected yet — message queued locally', 'warning');
+      return;
+    }
+    liveSocket.emit('live:chat', {
+      channel: channelId(),
+      text: t,
+      lvl: lvlInfo.level,
+      scope,
+      broadcast: chatRegionFilter === 'broadcast',
+    });
   }
 
   function bindChatTabs() {
     document.querySelectorAll('.party-chat-tabs button').forEach((btn) => {
       btn.addEventListener('click', () => {
-        if (btn.dataset.tab === 'chat' && chatTab === 'chat' && document.getElementById('apChatPanel')?.classList.contains('is-open')) {
-          closeChatUi();
-          return;
-        }
+        const tab = btn.dataset.tab || 'all';
         document.querySelectorAll('.party-chat-tabs button').forEach((b) => b.classList.remove('active'));
         btn.classList.add('active');
-        chatTab = btn.dataset.tab || 'all';
+        chatTab = tab;
+        closeChatPanelOnly();
         renderChatFromState();
-        if (btn.dataset.tab === 'chat') {
-          toggleChatPanel(true);
+        if (tab === 'chat') {
           document.getElementById('liveChatInput')?.focus();
         } else {
-          toggleChatPanel(false);
           document.getElementById('liveChatInput')?.blur();
         }
       });
@@ -2834,7 +3080,7 @@
       if (!sheet) return;
       closeLiveOverlays('tools');
       sheet.classList.add('open');
-      document.body.classList.add('ap-live-overlay-open');
+      syncLiveOverlayClass();
       clearMessageBadge();
     });
     document.getElementById('partyToolsClose')?.addEventListener('click', () => {
@@ -2909,15 +3155,7 @@
       e.preventDefault();
       shareRoomLink();
     });
-    document.getElementById('apBtnChatBubble')?.addEventListener('click', () => toggleChatPanel());
-    document.querySelectorAll('.ap-region-tabs button').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.ap-region-tabs button').forEach((b) => b.classList.remove('active'));
-        btn.classList.add('active');
-        chatRegionFilter = btn.dataset.region || 'all';
-        renderChatFeed();
-      });
-    });
+    document.getElementById('apBtnChatBubble')?.addEventListener('click', () => focusChatCompose());
 
     document.getElementById('partyRuleBtn')?.addEventListener('click', openRulesModal);
     document.getElementById('partyBtnGiftCollection')?.addEventListener('click', () => {
@@ -2936,7 +3174,7 @@
     });
     document.getElementById('partyBtnEffects')?.addEventListener('click', () => {
       document.getElementById('partyToolsSheet')?.classList.remove('open');
-      toggleChatPanel(true);
+      focusChatCompose();
     });
     document.getElementById('partyBtnMinimize')?.addEventListener('click', () => {
       document.getElementById('partyToolsSheet')?.classList.remove('open');
@@ -2970,8 +3208,10 @@
     });
     chatInput?.addEventListener('input', updateCharCount);
     chatInput?.addEventListener('focus', () => {
-      if (document.querySelector('.party-chat-tabs button[data-tab="chat"]')?.classList.contains('active')) return;
-      toggleChatPanel(false);
+      if (chatTab === 'room') {
+        ensureChatTabShowsMessages();
+        renderChatFeed();
+      }
     });
     document.querySelector('.party-chat-zone')?.addEventListener('click', () => {
       document.getElementById('liveChatInput')?.focus();
@@ -2988,7 +3228,7 @@
 
     window.SocialFX?.init?.();
     window.SocialFX?.bindDoubleTapLike?.(document.getElementById('liveRemoteHost'));
-    window.SocialFX?.bindDoubleTapLike?.(document.getElementById('liveRoomRoot'));
+    window.SocialFX?.bindDoubleTapLike?.(document.getElementById('liveLocalHost'));
     window.SocialFX?.bindDoubleTapLike?.(document.querySelector('.party-room'));
 
     setInterval(() => {
@@ -3060,11 +3300,11 @@
         </div>`
       );
       document.getElementById('apRulesOk')?.addEventListener('click', () => {
-        document.getElementById('apRulesModal')?.classList.remove('open');
+        closeRulesModal();
         try { localStorage.setItem('ap_party_rules_seen', '1'); } catch (_e) {}
       });
-      document.getElementById('apRulesModal')?.addEventListener('click', (e) => {
-        if (e.target.id === 'apRulesModal') e.target.classList.remove('open');
+      document.querySelector('#apRulesModal .ap-rules-modal')?.addEventListener('click', (e) => {
+        e.stopPropagation();
       });
     }
     if (!document.getElementById('apSeatSheet')) {
@@ -3155,14 +3395,25 @@
   }
 
   function openRulesModal() {
-    document.getElementById('apRulesModal')?.classList.add('open');
+    const modal = document.getElementById('apRulesModal');
+    if (!modal) return;
+    modal.classList.add('open');
+  }
+
+  function closeRulesModal() {
+    document.getElementById('apRulesModal')?.classList.remove('open');
   }
 
   function maybeShowPartyRules() {
+    if (!roomJoinCompleted || !liveSocket?.connected) return;
     try {
       if (localStorage.getItem('ap_party_rules_seen') === '1') return;
     } catch (_e) {}
-    setTimeout(openRulesModal, 1200);
+    if (partyRulesTimer) clearTimeout(partyRulesTimer);
+    partyRulesTimer = setTimeout(() => {
+      partyRulesTimer = null;
+      if (roomJoinCompleted && liveSocket?.connected) openRulesModal();
+    }, 1200);
   }
 
   function openSeatSheet(seatNum) {
@@ -3281,11 +3532,14 @@
   }
 
   async function initPartyRoom() {
+    if (partyRoomInitStarted) return;
+    partyRoomInitStarted = true;
     injectModals();
     injectGiftSheet();
     bindGiftSheet();
     const user = currentUser();
     if (!user) {
+      partyRoomInitStarted = false;
       toast('Please log in');
       setTimeout(() => (location.href = '/app-auth.html?app=1'), 800);
       return;
@@ -3295,22 +3549,33 @@
 
     bindCommonControls('party');
     bindHostControls('party');
+    setLiveStatus('Joining room…', null);
     try {
       await connectSocket('party');
     } catch (e) {
       console.error('[live] party room join failed', e);
+      partyRoomInitStarted = false;
       setLiveStatus(e?.message || 'Could not connect to party room', false);
       return;
     }
     applyRoleUiAfterJoin();
-    await startAgora('party');
+    if (!roomJoinCompleted) {
+      partyRoomInitStarted = false;
+      setLiveStatus('Room join incomplete — check socket connection', false);
+      return;
+    }
+    partyVoiceSkipped = false;
+    await resumeHostBroadcastIfNeeded();
     postWelcomeMessage();
     maybeShowPartyRules();
 
-    window.addEventListener('beforeunload', () => {
-      stopAgora();
-      leaveSocket();
-    });
+    if (!window.__apPartyRoomUnloadBound) {
+      window.__apPartyRoomUnloadBound = true;
+      window.addEventListener('pagehide', () => {
+        stopAgora();
+        leaveSocket();
+      });
+    }
   }
 
   async function fetchLiveFeedItems() {
@@ -3493,6 +3758,11 @@
       setLiveStatus(e?.message || 'Could not connect to live room', false);
       return;
     }
+    applyRoleUiAfterJoin();
+    if (!roomJoinCompleted) {
+      setLiveStatus('Room join incomplete — check socket connection', false);
+      return;
+    }
 
     if (isHost() && broadcastMode === 'video') {
       const bg = document.getElementById('liveBg');
@@ -3505,7 +3775,9 @@
     }
     updateModeBadge(broadcastMode, false);
 
-    await startAgora('live');
+    partyVoiceSkipped = false;
+    await resumeHostBroadcastIfNeeded();
+    applyRoleUiAfterJoin();
     postWelcomeMessage();
 
     window.addEventListener('beforeunload', () => {
