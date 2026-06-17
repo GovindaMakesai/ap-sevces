@@ -1739,7 +1739,7 @@ html.social-native.ap-expo-app .social-bottom-nav {
 }
 
 /* Legacy pages inside native app */
-html.social-bridge-mode body {
+html.social-bridge-mode body:not([data-live-page]) {
   padding-top: calc(48px + env(safe-area-inset-top, 0px)) !important;
   padding-bottom: calc(var(--social-bottom-nav-h) + var(--social-safe-bottom) + 12px) !important;
   background: var(--cream-bg) !important;

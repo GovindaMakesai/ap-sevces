@@ -1,8 +1,25 @@
-/**
- * Native app auth — Welcome first; app pages need a saved token.
+﻿/**
+ * Native app auth ΓÇö Welcome first; app pages need a saved token.
  */
 (function () {
   const AUTH_PAGES = ['/app-auth.html', '/login.html', '/register.html', '/login-success.html'];
+  const IMMERSIVE_LIVE_PAGES = ['/live-room.html', '/party-room.html'];
+
+  function isImmersiveLivePage() {
+    return IMMERSIVE_LIVE_PAGES.some((p) => pathEnds(p));
+  }
+
+  function hideImmersiveLiveChrome() {
+    document.documentElement.classList.add('ap-live-immersive');
+    if (document.body) document.body.classList.add('ap-live-immersive');
+    document.getElementById('ap-bridge-header')?.remove();
+    document.querySelectorAll(
+      '.social-bottom-nav, #social-bottom-nav-mount, .social-bridge-header, .navbar, footer.site-footer, .footer:not(.party-bottom-bar)'
+    ).forEach((el) => {
+      el.innerHTML = '';
+      el.style.setProperty('display', 'none', 'important');
+    });
+  }
 
   function isNative() {
     if (window.__AP_NATIVE_APP__) return true;
@@ -52,10 +69,18 @@
   function markAuthedUi() {
     document.documentElement.classList.remove('auth-guest', 'auth-locked');
     document.documentElement.classList.add('auth-ok');
+    if (isImmersiveLivePage()) {
+      hideImmersiveLiveChrome();
+      return;
+    }
     refreshAppNavigation();
   }
 
   function refreshAppNavigation() {
+    if (isImmersiveLivePage()) {
+      hideImmersiveLiveChrome();
+      return;
+    }
     if (!isLoggedIn()) return;
     const navId = window.AppShell?.navIdForPath?.() || 'explore';
     if (window.SocialShell?.ensureBottomNav) {
@@ -150,7 +175,19 @@
 
     if (isAuthPage()) {
       if (isLoggedIn()) {
-        completeLoginAndEnterApp(getUser());
+        validateSession().then((ok) => {
+          if (ok) {
+            completeLoginAndEnterApp(getUser());
+            return;
+          }
+          try {
+            localStorage.removeItem('user');
+            localStorage.removeItem('token');
+            localStorage.removeItem('ap_refresh_token');
+          } catch (_e) {}
+          markGuestUi();
+          bindAuthNavLinks();
+        });
         return;
       }
       markGuestUi();
@@ -161,6 +198,12 @@
     if (!isLoggedIn()) {
       markGuestUi();
       window.location.replace('/app-auth.html?app=1');
+      return;
+    }
+
+    if (isImmersiveLivePage()) {
+      hideImmersiveLiveChrome();
+      validateSession().catch(() => {});
       return;
     }
 
@@ -185,6 +228,7 @@
   window.AppAuth = {
     isNative,
     isAuthPage,
+    isImmersiveLivePage,
     isLoggedIn,
     getUser,
     homeUrl,

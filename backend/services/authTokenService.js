@@ -64,7 +64,7 @@ async function createSession(user, res, meta = {}) {
   );
 
   setSessionCookies(res, accessToken, refreshRaw);
-  return { user, accessToken };
+  return { user, accessToken, refreshToken: refreshRaw };
 }
 
 async function rotateRefresh(refreshRaw, res, meta = {}) {
@@ -106,7 +106,7 @@ async function rotateRefresh(refreshRaw, res, meta = {}) {
 
   const accessToken = signAccessToken(user);
   setSessionCookies(res, accessToken, newRefreshRaw);
-  return { user, accessToken };
+  return { user, accessToken, refreshToken: newRefreshRaw };
 }
 
 async function revokeRefresh(refreshRaw) {
@@ -177,6 +177,7 @@ function getAccessTokenFromRequest(req) {
 }
 
 function getRefreshTokenFromRequest(req) {
+  if (req.body?.refreshToken) return String(req.body.refreshToken);
   return parseCookies(req)[REFRESH_COOKIE] || null;
 }
 

@@ -10,6 +10,8 @@
 
   const AUTH_PAGES = ['/app-auth.html', '/login.html', '/register.html', '/login-success.html'];
 
+  const IMMERSIVE_LIVE_PAGES = ['/live-room.html', '/party-room.html'];
+
   const TITLES = {
     'services.html': 'Services',
     'service-details.html': 'Service',
@@ -39,6 +41,11 @@
   function isSocialOnlyPage() {
     const path = (window.location.pathname || '').toLowerCase();
     return SOCIAL_PAGES.some((p) => path.endsWith(p));
+  }
+
+  function isImmersiveLivePage() {
+    const path = (window.location.pathname || '').toLowerCase();
+    return IMMERSIVE_LIVE_PAGES.some((p) => path.endsWith(p));
   }
 
   function navIdForPath() {
@@ -161,7 +168,7 @@
   }
 
   async function init() {
-    if (!isAppMode() || isSocialOnlyPage() || isAuthPage()) return;
+    if (!isAppMode() || isSocialOnlyPage() || isAuthPage() || isImmersiveLivePage()) return;
     if (!hasAppSession()) return;
 
     document.documentElement.classList.add('ap-expo-app', 'social-app', 'social-bridge-mode');
@@ -187,7 +194,7 @@
     }
   }
 
-  window.AppShell = { init, isAppMode, navIdForPath, hasAppSession };
+  window.AppShell = { init, isAppMode, isImmersiveLivePage, navIdForPath, hasAppSession };
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);

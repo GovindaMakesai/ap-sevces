@@ -1,4 +1,7 @@
 /* Live party room, solo broadcast, Lucky Gifts event, Streamer Center */
+:root {
+  --ap-bottom-bar-h: 58px;
+}
 .live-dark { background: #0a0618; color: #fff; min-height: 100dvh; overflow: hidden; }
 .live-dark * { box-sizing: border-box; }
 
@@ -10,7 +13,7 @@
   max-height: 100dvh;
   overflow: hidden;
   background: #000;
-  padding-bottom: calc(64px + env(safe-area-inset-bottom, 0));
+  padding-bottom: calc(var(--ap-bottom-bar-h) + env(safe-area-inset-bottom, 0));
 }
 
 .party-room::before { display: none; }
@@ -36,6 +39,7 @@
   padding: calc(8px + env(safe-area-inset-top, 0)) 10px 6px;
   gap: 6px;
   flex-shrink: 0;
+  min-height: 0;
 }
 
 .party-host {
@@ -211,7 +215,7 @@
   display: flex;
   gap: 0;
   min-height: 0;
-  max-height: 24vh;
+  max-height: min(20vh, 150px);
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(0, 0, 0, 0.25);
 }
@@ -254,7 +258,7 @@
   gap: 6px;
   padding: 8px 12px 8px 0;
   overflow-y: auto;
-  max-height: 24vh;
+  max-height: min(20vh, 150px);
   pointer-events: auto;
   -webkit-overflow-scrolling: touch;
 }
@@ -277,12 +281,17 @@
   flex-shrink: 0;
   display: none;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background: rgba(0, 0, 0, 0.45);
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  gap: 6px;
+  padding: 0;
+  background: transparent;
+  border-top: none;
 }
 .live-chat-compose.is-open { display: flex; }
+.live-chat-compose.ap-compose-inline {
+  display: flex !important;
+  flex: 1;
+  min-width: 0;
+}
 .live-chat-compose input {
   flex: 1;
   border: none;
@@ -313,14 +322,16 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
-  padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0));
-  background: linear-gradient(0deg, rgba(0, 0, 0, 0.95), rgba(0, 0, 0, 0.82));
+  gap: 8px;
+  min-height: var(--ap-bottom-bar-h);
+  padding: 6px 10px calc(6px + env(safe-area-inset-bottom, 0));
+  background: linear-gradient(0deg, rgba(0, 0, 0, 0.97), rgba(0, 0, 0, 0.88));
   pointer-events: auto;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+  overflow: visible;
+  transition: bottom 0.2s ease;
 }
 .party-bottom-bar > * { flex-shrink: 0; }
+.party-bottom-bar .ap-compose-inline { flex-shrink: 1; }
 
 .party-btn-follow {
   border: none; padding: 10px 22px; border-radius: 24px;
@@ -357,6 +368,19 @@
   padding: 0 10px 8px;
   flex-shrink: 0;
   z-index: 12;
+}
+
+body.ap-is-host .party-header {
+  box-shadow: inset 0 3px 0 #fbbf24;
+}
+
+body.ap-is-host .party-host-meta .sub #partyHostLabel {
+  color: #fbbf24;
+  font-weight: 800;
+}
+
+body:not(.ap-is-host) .party-host-bar {
+  display: none !important;
 }
 
 .party-host-action {
@@ -458,8 +482,129 @@
   padding: 24px 0;
 }
 
+/* —— Immersive live/party (no app header or bottom nav) —— */
+html.ap-live-immersive,
+body[data-live-page='live-room'],
+body[data-live-page='party-room'] {
+  --social-bottom-nav-h: 0px;
+}
+
+html.ap-live-immersive .social-bridge-header,
+html.ap-live-immersive #ap-bridge-header,
+html.ap-live-immersive #social-bottom-nav-mount,
+html.ap-live-immersive .social-bottom-nav,
+html.ap-live-immersive .navbar,
+html.ap-live-immersive footer.site-footer,
+body[data-live-page='live-room'] .social-bridge-header,
+body[data-live-page='party-room'] .social-bridge-header,
+body[data-live-page='live-room'] #ap-bridge-header,
+body[data-live-page='party-room'] #ap-bridge-header,
+body[data-live-page='live-room'] #social-bottom-nav-mount,
+body[data-live-page='party-room'] #social-bottom-nav-mount,
+body[data-live-page='live-room'] .social-bottom-nav,
+body[data-live-page='party-room'] .social-bottom-nav,
+body[data-live-page='live-room'] .navbar,
+body[data-live-page='party-room'] .navbar {
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  pointer-events: none !important;
+}
+
+html.ap-live-immersive body,
+html.ap-live-immersive.social-bridge-mode body,
+html.ap-live-immersive.social-native body,
+html.ap-live-immersive.social-app body,
+body[data-live-page='live-room'],
+body[data-live-page='party-room'] {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  margin: 0 !important;
+  background: #000 !important;
+  overflow: hidden;
+}
+
+body[data-live-page='live-room'] .party-room,
+body[data-live-page='party-room'] .party-room,
+body[data-live-page='live-room'] .live-room {
+  min-height: 100dvh;
+  height: 100dvh;
+}
+
+.ap-chat-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 43;
+  background: rgba(0, 0, 0, 0.35);
+}
+.ap-chat-backdrop.is-visible {
+  display: block;
+}
+
+.ap-chat-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+.ap-chat-panel-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.7);
+}
+.ap-chat-panel-close {
+  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.ap-chat-dismiss-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.85);
+  flex-shrink: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ap-compose-hidden {
+  display: none !important;
+}
+
+.party-bottom-bar .party-btn-follow:not(.ap-btn-follow-hidden) {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-width: 0;
+  max-width: 52%;
+  border: none;
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #f59e0b, #ea580c);
+  color: #fff;
+  font-weight: 800;
+  font-size: 14px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(234, 88, 12, 0.45);
+}
+
 .party-tools-sheet {
-  position: fixed; inset: 0; z-index: 40;
+  position: fixed; inset: 0; z-index: 52;
   background: rgba(0,0,0,0.5);
   display: none; align-items: flex-end;
 }
@@ -526,17 +671,17 @@
   min-height: 0;
   pointer-events: none;
   background: linear-gradient(180deg, rgba(0,0,0,0.5) 0%, transparent 18%, transparent 70%, rgba(0,0,0,0.55) 100%);
-  padding-bottom: calc(64px + env(safe-area-inset-bottom, 0));
+  padding-bottom: calc(var(--ap-bottom-bar-h) + env(safe-area-inset-bottom, 0));
 }
 .live-room .live-overlay > * { pointer-events: auto; }
 .live-room .party-header { position: relative; flex-shrink: 0; z-index: 30; }
 .live-room .party-stats-bar,
 .live-room .party-widgets { flex-shrink: 0; }
 .live-room .party-ticker { flex-shrink: 0; margin-bottom: 0; }
-.live-room .live-spacer { flex: 1; min-height: 24px; }
-.live-room .party-chat-row { flex-shrink: 0; max-height: min(22vh, 180px); }
-.live-room .party-chat-zone { max-height: 22vh; }
-.live-room .party-chat-feed { max-height: 22vh; }
+.live-room .live-spacer { flex: 1; min-height: 12px; }
+.live-room .party-chat-row { flex-shrink: 0; max-height: min(18vh, 140px); }
+.live-room .party-chat-zone { max-height: min(18vh, 140px); }
+.live-room .party-chat-feed { max-height: min(18vh, 140px); }
 .live-room .live-chat-compose {
   flex-shrink: 0;
   position: relative;
@@ -1634,17 +1779,17 @@ body.is-pk-mode .live-room .live-fallback-video { left: 50%; right: 0; }
   position: fixed;
   left: 0;
   right: 0;
-  bottom: calc(64px + env(safe-area-inset-bottom, 0));
-  z-index: 39;
-  max-height: min(48vh, 360px);
+  bottom: calc(var(--ap-bottom-bar-h) + env(safe-area-inset-bottom, 0));
+  z-index: 44;
+  max-height: min(36vh, 220px);
   overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
   background: rgba(0, 0, 0, 0.94);
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.45);
 }
 .ap-chat-panel.is-open { display: flex; }
-.ap-chat-panel .live-chat-compose { display: none; border-top: none; background: transparent; }
-.ap-chat-panel.is-open .live-chat-compose { display: flex; }
 .ap-chat-panel .ap-region-tabs,
 .ap-chat-panel .ap-quick-chips { display: none; }
 .ap-chat-panel.is-open .ap-region-tabs,
@@ -1656,6 +1801,9 @@ body.is-pk-mode .live-room .live-fallback-video { left: 50%; right: 0; }
   padding: 8px 10px 4px;
   flex-shrink: 0;
   z-index: 14;
+  max-height: 120px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .ap-chip.is-follow-done {
   background: rgba(34, 197, 94, 0.25);
@@ -1684,19 +1832,47 @@ body.is-pk-mode .live-room .live-fallback-video { left: 50%; right: 0; }
   position: relative;
 }
 
-.ap-chat-panel .live-chat-compose {
-  background: #fff;
-  border-radius: 12px 12px 0 0;
-  padding: 8px 10px;
-  gap: 6px;
+.ap-compose-inline {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  padding: 4px 6px 4px 4px;
+  gap: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
 }
-
-.ap-chat-panel.is-open .live-chat-compose input {
+.ap-compose-inline input {
   flex: 1;
+  min-width: 0;
+  border: none;
+  border-radius: 999px;
+  padding: 8px 10px;
+  background: transparent;
+  color: #fff;
+  font-size: 14px;
 }
+.ap-compose-inline input::placeholder { color: rgba(255, 255, 255, 0.5); }
+.ap-compose-inline .ap-chat-emoji-btn {
+  width: 32px;
+  height: 32px;
+  color: rgba(255, 255, 255, 0.75);
+}
+.ap-compose-inline .ap-chat-send-btn {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  color: #1a1000;
+  font-size: 14px;
+  cursor: pointer;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ap-compose-inline .ap-char-count { display: none !important; }
 
-.ap-chat-panel .live-chat-compose .ap-char-count {
-  color: #9ca3af;
+.ap-chat-panel .live-chat-compose {
+  display: none !important;
 }
 
 body[data-live-page="party-room"] .ap-guest-rail:not(:empty) {
@@ -1809,9 +1985,9 @@ body[data-live-page="party-room"] .ap-guest-rail:not(:empty) {
   gap: 8px;
 }
 .ap-bottom-ref .party-bottom-actions {
-  margin-left: auto;
+  margin-left: 0;
   flex-shrink: 0;
-  gap: 8px;
+  gap: 6px;
 }
 .ap-bottom-ref .party-bottom-actions button {
   width: 38px;
@@ -1851,7 +2027,7 @@ body[data-live-page="party-room"] .ap-guest-rail:not(:empty) {
   border: 1px solid #fff;
 }
 
-.live-chat-compose #liveChatSend {
+.live-chat-compose:not(.ap-compose-inline) #liveChatSend {
   width: 44px; height: 44px;
   border-radius: 50%;
   background: linear-gradient(135deg, #fbbf24, #f59e0b) !important;
@@ -1860,11 +2036,11 @@ body[data-live-page="party-room"] .ap-guest-rail:not(:empty) {
   font-size: 16px;
   flex-shrink: 0;
 }
-.live-chat-compose input {
+.live-chat-compose:not(.ap-compose-inline) input {
   background: rgba(255,255,255,0.95) !important;
   color: #1a1a1a !important;
 }
-.live-chat-compose input::placeholder { color: #9ca3af !important; }
+.live-chat-compose:not(.ap-compose-inline) input::placeholder { color: #9ca3af !important; }
 
 /* Tools sheet — reference layout */
 .party-tools-panel-ref {
@@ -2013,7 +2189,21 @@ body[data-live-page="party-room"] .ap-guest-rail:not(:empty) {
 }
 
 /* Mic link modal */
-.ap-miclink-modal { max-width: 320px; width: 90%; text-align: center; }
+body.ap-live-overlay-open .party-bottom-bar {
+  z-index: 46;
+}
+
+body.ap-live-overlay-open .party-chat-row {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.ap-miclink-modal {
+  max-width: 320px;
+  width: 90%;
+  text-align: center;
+  margin: auto;
+}
 .ap-miclink-head {
   background: rgba(30,30,35,0.95);
   color: #fff;
@@ -2239,24 +2429,7 @@ body[data-live-page="live-room"] .live-local-host-mirror video {
 }
 
 /* —— Reference bottom bar (Bigo-style) —— */
-.ap-say-hi-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border: none;
-  border-radius: 999px;
-  padding: 10px 16px;
-  background: linear-gradient(90deg, #f59e0b, #ea580c);
-  color: #fff;
-  font-weight: 800;
-  font-size: 13px;
-  cursor: pointer;
-  flex-shrink: 1;
-  min-width: 0;
-  max-width: 46%;
-  box-shadow: 0 4px 14px rgba(234, 88, 12, 0.45);
-}
-.ap-say-hi-pill .ap-say-hi-ico { font-size: 15px; }
+.ap-say-hi-pill { display: none !important; }
 .ap-btn-follow-hidden { display: none !important; }
 
 .ap-btn-mic-ring {
@@ -2317,7 +2490,7 @@ body[data-live-page="live-room"] .live-local-host-mirror video {
   position: fixed;
   left: 8px;
   right: 8px;
-  bottom: calc(120px + env(safe-area-inset-bottom, 0));
+  bottom: calc(var(--ap-bottom-bar-h) + 8px + env(safe-area-inset-bottom, 0));
   z-index: 50;
   display: none;
   flex-wrap: wrap;
@@ -2326,8 +2499,9 @@ body[data-live-page="live-room"] .live-local-host-mirror video {
   background: rgba(18, 12, 32, 0.96);
   border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  max-height: 140px;
+  max-height: min(140px, 28vh);
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .ap-emoji-popover.is-open { display: flex; }
 .ap-emoji-popover button {
@@ -2340,13 +2514,47 @@ body[data-live-page="live-room"] .live-local-host-mirror video {
   cursor: pointer;
 }
 
-body.ap-keyboard-open .ap-chat-panel {
-  bottom: calc(env(safe-area-inset-bottom, 0) + var(--ap-kb-offset, 0px));
+body.ap-keyboard-open .ap-chat-panel.is-open {
+  bottom: calc(var(--ap-bottom-bar-h) + var(--ap-kb-offset, 0px) + env(safe-area-inset-bottom, 0));
 }
 body.ap-keyboard-open .party-bottom-bar {
-  transform: translateY(100%);
-  opacity: 0;
-  pointer-events: none;
+  bottom: var(--ap-kb-offset, 0);
+  transform: none;
+  opacity: 1;
+  pointer-events: auto;
+}
+body.ap-keyboard-open .ap-emoji-popover.is-open {
+  bottom: calc(var(--ap-bottom-bar-h) + var(--ap-kb-offset, 0px) + 8px + env(safe-area-inset-bottom, 0));
+}
+
+body.ap-chat-open .party-chat-row,
+body.ap-chat-open .live-room .party-chat-row {
+  max-height: min(14vh, 110px);
+}
+body.ap-chat-open .party-chat-feed {
+  max-height: min(14vh, 110px);
+}
+
+@media (max-height: 680px) {
+  .party-stats-bar { padding: 4px 8px; font-size: 9px; }
+  .party-widgets { gap: 6px; }
+  .party-widget { padding: 4px 8px; font-size: 9px; }
+  .party-event-pill { display: none; }
+  .party-chat-row { max-height: min(16vh, 120px); }
+  .party-chat-feed { max-height: min(16vh, 120px); }
+}
+
+@media (max-width: 380px) {
+  .ap-bottom-ref .party-bottom-actions button {
+    width: 34px;
+    height: 34px;
+    font-size: 14px;
+  }
+  .ap-bottom-ref .party-btn-gift {
+    width: 38px !important;
+    height: 38px !important;
+  }
+  .ap-compose-inline input { font-size: 13px; padding: 7px 8px; }
 }
 
 /* Expo / native WebView — RN container already insets below status bar */
@@ -2541,4 +2749,26 @@ html.ap-expo-app .ap-chip {
   line-height: 1.4;
   white-space: pre-wrap;
   color: #d1d5db;
+}
+
+.ap-live-viewer-diag {
+  position: fixed;
+  left: 8px;
+  right: 8px;
+  bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  z-index: 120;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 11px;
+  color: #e5e7eb;
+  pointer-events: none;
+}
+
+.ap-live-viewer-diag span {
+  white-space: nowrap;
 }

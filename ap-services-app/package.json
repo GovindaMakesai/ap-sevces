@@ -4,6 +4,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node ./scripts/start-live.js",
+    "start:tunnel": "node -e \"process.env.EXPO_USE_TUNNEL='1';require('./scripts/start-live.js')\"",
     "start:lan": "node ./scripts/start-dev.js",
     "start:expo-only": "expo start",
     "serve:web": "npx http-server ../frontend -p 5500 -a 0.0.0.0 -c-1",

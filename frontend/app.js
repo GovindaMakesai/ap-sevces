@@ -1,4 +1,4 @@
-// frontend/app.js
+﻿// frontend/app.js
 // AP Services Frontend - Complete Working Version with FormData Support
 
 // ==================== CONFIGURATION ====================
@@ -88,9 +88,9 @@ const CONFIG = {
 };
 window.CONFIG = CONFIG;
 
-console.log('🚀 App.js loaded');
-console.log('📡 API URL:', CONFIG.API_URL);
-console.log('🔌 Backend URL:', CONFIG.BACKEND_URL);
+console.log('≡ƒÜÇ App.js loaded');
+console.log('≡ƒôí API URL:', CONFIG.API_URL);
+console.log('≡ƒöî Backend URL:', CONFIG.BACKEND_URL);
 
 // ==================== STATE MANAGEMENT ====================
 const AppState = {
@@ -112,6 +112,40 @@ const AppState = {
         /* ignore */
     }
 })();
+
+function parseJwtPayload(token) {
+    try {
+        const parts = String(token).split('.');
+        if (parts.length !== 3) return null;
+        const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+        return JSON.parse(atob(b64));
+    } catch (_e) {
+        return null;
+    }
+}
+
+function isAccessTokenUsable(token, skewSec = 30) {
+    if (!token) return false;
+    const payload = parseJwtPayload(token);
+    if (!payload?.exp) return true;
+    return payload.exp > Math.floor(Date.now() / 1000) + skewSec;
+}
+
+function storeSessionTokens(data = {}) {
+    if (data.accessToken) {
+        localStorage.setItem('token', data.accessToken);
+        AppState.token = data.accessToken;
+    }
+    if (data.refreshToken) {
+        localStorage.setItem('ap_refresh_token', data.refreshToken);
+    }
+}
+
+function clearSessionTokens() {
+    AppState.token = null;
+    localStorage.removeItem('token');
+    localStorage.removeItem('ap_refresh_token');
+}
 
 // ==================== API SERVICE WITH FORMDATA SUPPORT ====================
 const API = {
@@ -136,7 +170,7 @@ const API = {
     },
 
     async _fetchOnce(url, options = {}, retried = false) {
-        console.log(`📡 API Request: ${options.method || 'GET'} ${url}`);
+        console.log(`≡ƒôí API Request: ${options.method || 'GET'} ${url}`);
 
         if (typeof Auth !== 'undefined' && Auth.ensureAccessToken) {
             await Auth.ensureAccessToken();
@@ -182,7 +216,7 @@ const API = {
         }
 
         if (!response.ok) {
-            console.error('❌ API Error Response:', data);
+            console.error('Γ¥î API Error Response:', data);
             if (typeof data === 'object' && data !== null) {
                 if (Array.isArray(data.errors) && data.errors.length) {
                     const first = data.errors[0];
@@ -202,7 +236,7 @@ const API = {
             throw err;
         }
 
-        console.log('✅ API Success:', data);
+        console.log('Γ£à API Success:', data);
         return data;
     },
     
@@ -252,11 +286,11 @@ const ServicesAPI = {
                 url += '?' + params.toString();
             }
             
-            console.log('🔍 Fetching services:', url);
+            console.log('≡ƒöì Fetching services:', url);
             const response = await API.get(url);
             return response;
         } catch (error) {
-            console.error('❌ ServicesAPI.getAll error:', error);
+            console.error('Γ¥î ServicesAPI.getAll error:', error);
             throw error;
         }
     },
@@ -266,7 +300,7 @@ const ServicesAPI = {
             const response = await API.get(`/services/${id}`);
             return response;
         } catch (error) {
-            console.error('❌ ServicesAPI.getById error:', error);
+            console.error('Γ¥î ServicesAPI.getById error:', error);
             throw error;
         }
     },
@@ -276,7 +310,7 @@ const ServicesAPI = {
             const response = await API.get(`/services/popular?limit=${limit}`);
             return response;
         } catch (error) {
-            console.error('❌ ServicesAPI.getPopular error:', error);
+            console.error('Γ¥î ServicesAPI.getPopular error:', error);
             throw error;
         }
     }
@@ -290,7 +324,7 @@ const AdminAPI = {
             const response = await API.get('/admin/services');
             return response;
         } catch (error) {
-            console.error('❌ AdminAPI.getServices error:', error);
+            console.error('Γ¥î AdminAPI.getServices error:', error);
             throw error;
         }
     },
@@ -301,7 +335,7 @@ const AdminAPI = {
             const response = await API.upload('/admin/services', formData, 'POST');
             return response;
         } catch (error) {
-            console.error('❌ AdminAPI.createService error:', error);
+            console.error('Γ¥î AdminAPI.createService error:', error);
             throw error;
         }
     },
@@ -312,7 +346,7 @@ const AdminAPI = {
             const response = await API.upload(`/admin/services/${serviceId}`, formData, 'PUT');
             return response;
         } catch (error) {
-            console.error('❌ AdminAPI.updateService error:', error);
+            console.error('Γ¥î AdminAPI.updateService error:', error);
             throw error;
         }
     },
@@ -323,7 +357,7 @@ const AdminAPI = {
             const response = await API.delete(`/admin/services/${serviceId}`);
             return response;
         } catch (error) {
-            console.error('❌ AdminAPI.deleteService error:', error);
+            console.error('Γ¥î AdminAPI.deleteService error:', error);
             throw error;
         }
     },
@@ -334,7 +368,7 @@ const AdminAPI = {
             const response = await API.get('/admin/dashboard/stats');
             return response;
         } catch (error) {
-            console.error('❌ AdminAPI.getDashboardStats error:', error);
+            console.error('Γ¥î AdminAPI.getDashboardStats error:', error);
             throw error;
         }
     },
@@ -347,7 +381,7 @@ const AdminAPI = {
             const response = await API.get(url);
             return response;
         } catch (error) {
-            console.error('❌ AdminAPI.getUsers error:', error);
+            console.error('Γ¥î AdminAPI.getUsers error:', error);
             throw error;
         }
     },
@@ -360,7 +394,7 @@ const AdminAPI = {
             const response = await API.get(url);
             return response;
         } catch (error) {
-            console.error('❌ AdminAPI.getWorkers error:', error);
+            console.error('Γ¥î AdminAPI.getWorkers error:', error);
             throw error;
         }
     },
@@ -371,7 +405,7 @@ const AdminAPI = {
             const response = await API.put(`/admin/workers/${workerId}/approve`, { status });
             return response;
         } catch (error) {
-            console.error('❌ AdminAPI.approveWorker error:', error);
+            console.error('Γ¥î AdminAPI.approveWorker error:', error);
             throw error;
         }
     },
@@ -384,7 +418,7 @@ const AdminAPI = {
             const response = await API.get(url);
             return response;
         } catch (error) {
-            console.error('❌ AdminAPI.getBookings error:', error);
+            console.error('Γ¥î AdminAPI.getBookings error:', error);
             throw error;
         }
     },
@@ -395,7 +429,7 @@ const AdminAPI = {
             const response = await API.get(`/admin/analytics?period=${period}`);
             return response;
         } catch (error) {
-            console.error('❌ AdminAPI.getAnalytics error:', error);
+            console.error('Γ¥î AdminAPI.getAnalytics error:', error);
             throw error;
         }
     }
@@ -405,16 +439,12 @@ const AdminAPI = {
 const Auth = {
     async login(email, password, options = {}) {
         try {
-            console.log('🔐 Login attempt:', email);
+            console.log('≡ƒöÉ Login attempt:', email);
             const response = await API.post('/auth/login', { email, password });
             
             if (response.success) {
                 AppState.user = response.data.user;
-                if (response.data.accessToken) {
-                    localStorage.setItem('token', response.data.accessToken);
-                } else {
-                    localStorage.removeItem('token');
-                }
+                storeSessionTokens(response.data);
                 localStorage.setItem('user', JSON.stringify(response.data.user));
                 
                 Toast.show(`Welcome back, ${response.data.user.first_name}!`, 'success');
@@ -425,6 +455,7 @@ const Auth = {
                             type: 'login',
                             user: response.data.user,
                             accessToken: response.data.accessToken || null,
+                            refreshToken: response.data.refreshToken || null,
                         }));
                     } catch (_e) { /* ignore */ }
                 }
@@ -471,18 +502,18 @@ const Auth = {
             }
             return response;
         } catch (error) {
-            console.error('❌ Login error:', error);
+            console.error('Γ¥î Login error:', error);
             throw error;
         }
     },
     
     async register(userData) {
         try {
-            console.log('📝 Registration attempt:', userData.email);
+            console.log('≡ƒô¥ Registration attempt:', userData.email);
             const response = await API.post('/auth/register', userData);
             return response;
         } catch (error) {
-            console.error('❌ Registration error:', error);
+            console.error('Γ¥î Registration error:', error);
             throw error;
         }
     },
@@ -495,8 +526,13 @@ const Auth = {
         }
         AppState.token = null;
         AppState.user = null;
-        localStorage.removeItem('token');
+        clearSessionTokens();
         localStorage.removeItem('user');
+        if (window.ReactNativeWebView) {
+            try {
+                window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'logout' }));
+            } catch (_e) { /* ignore */ }
+        }
         Toast.show('Logged out successfully', 'success');
         const dest = isNativeAppContext() ? '/app-auth.html?app=1' : '/';
         setTimeout(() => window.location.replace(dest), 600);
@@ -522,7 +558,11 @@ const Auth = {
 
     async ensureAccessToken() {
         const existing = localStorage.getItem('token');
-        if (existing) return existing;
+        if (existing && isAccessTokenUsable(existing)) return existing;
+        if (existing && !isAccessTokenUsable(existing)) {
+            localStorage.removeItem('token');
+            AppState.token = null;
+        }
         if (!localStorage.getItem('user')) return null;
         if (this._ensuringToken) return this._ensuringToken;
 
@@ -537,7 +577,7 @@ const Auth = {
                 });
                 const data = await res.json().catch(() => ({}));
                 if (res.ok && data.success && data.data?.accessToken) {
-                    localStorage.setItem('token', data.data.accessToken);
+                    storeSessionTokens(data.data);
                     return data.data.accessToken;
                 }
             } catch (_e) {
@@ -555,23 +595,26 @@ const Auth = {
     
     getUser() { return AppState.user; },
     getToken() { return AppState.token || localStorage.getItem('token'); },
+    isAccessTokenUsable,
 
     async tryRefresh() {
         if (this._refreshing) return this._refreshing;
         this._refreshing = (async () => {
             try {
+                const body = {};
+                const refreshToken = localStorage.getItem('ap_refresh_token');
+                if (refreshToken) body.refreshToken = refreshToken;
                 const res = await fetch(`${CONFIG.API_URL}/auth/refresh`, {
                     method: 'POST',
                     credentials: 'include',
                     headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
                 });
                 const data = await res.json().catch(() => ({}));
                 if (res.ok && data.success && data.data?.user) {
                     AppState.user = data.data.user;
                     localStorage.setItem('user', JSON.stringify(data.data.user));
-                    if (data.data.accessToken) {
-                        localStorage.setItem('token', data.data.accessToken);
-                    }
+                    storeSessionTokens(data.data);
                     return true;
                 }
                 return false;
@@ -611,13 +654,10 @@ const Auth = {
             if (e.status === 401) {
                 const ok = await this.tryRefresh();
                 if (ok) return this.refreshSession();
-                if (localStorage.getItem('user') || localStorage.getItem('token')) {
-                    return true;
-                }
                 this.tokenInvalidCleanup();
                 return false;
             }
-            // Network/CORS blip — keep cached session in native app
+            // Network/CORS blip ΓÇö keep cached session in native app
             if (isNativeAppContext() && (localStorage.getItem('user') || localStorage.getItem('token'))) {
                 return true;
             }
@@ -629,7 +669,7 @@ const Auth = {
     tokenInvalidCleanup() {
         AppState.token = null;
         AppState.user = null;
-        localStorage.removeItem('token');
+        clearSessionTokens();
         localStorage.removeItem('user');
     },
     
@@ -656,7 +696,7 @@ const WorkerAPI = {
             const response = await API.get('/workers/dashboard/stats');
             return response;
         } catch (error) {
-            console.error('❌ WorkerAPI.getDashboard error:', error);
+            console.error('Γ¥î WorkerAPI.getDashboard error:', error);
             throw error;
         }
     },
@@ -668,7 +708,7 @@ const WorkerAPI = {
             const response = await API.get(url);
             return response;
         } catch (error) {
-            console.error('❌ WorkerAPI.getBookings error:', error);
+            console.error('Γ¥î WorkerAPI.getBookings error:', error);
             throw error;
         }
     },
@@ -678,7 +718,7 @@ const WorkerAPI = {
             const response = await API.put('/workers/availability', { is_available: isAvailable });
             return response;
         } catch (error) {
-            console.error('❌ WorkerAPI.updateAvailability error:', error);
+            console.error('Γ¥î WorkerAPI.updateAvailability error:', error);
             throw error;
         }
     }
@@ -691,7 +731,7 @@ const BookingsAPI = {
             const response = await API.post('/bookings', bookingData);
             return response;
         } catch (error) {
-            console.error('❌ BookingsAPI.create error:', error);
+            console.error('Γ¥î BookingsAPI.create error:', error);
             throw error;
         }
     },
@@ -703,7 +743,7 @@ const BookingsAPI = {
             const response = await API.get(url);
             return response;
         } catch (error) {
-            console.error('❌ BookingsAPI.getCustomerBookings error:', error);
+            console.error('Γ¥î BookingsAPI.getCustomerBookings error:', error);
             throw error;
         }
     },
@@ -713,7 +753,7 @@ const BookingsAPI = {
             const response = await API.get(`/bookings/${bookingId}`);
             return response;
         } catch (error) {
-            console.error('❌ BookingsAPI.getById error:', error);
+            console.error('Γ¥î BookingsAPI.getById error:', error);
             throw error;
         }
     },
@@ -723,7 +763,7 @@ const BookingsAPI = {
             const response = await API.put(`/bookings/${bookingId}/status`, { status, reason });
             return response;
         } catch (error) {
-            console.error('❌ BookingsAPI.updateStatus error:', error);
+            console.error('Γ¥î BookingsAPI.updateStatus error:', error);
             throw error;
         }
     },
@@ -738,7 +778,7 @@ const BookingsAPI = {
             });
             return response;
         } catch (error) {
-            console.error('❌ BookingsAPI.checkAvailability error:', error);
+            console.error('Γ¥î BookingsAPI.checkAvailability error:', error);
             throw error;
         }
     }
@@ -751,7 +791,7 @@ const ReviewsAPI = {
             const response = await API.post('/reviews', reviewData);
             return response;
         } catch (error) {
-            console.error('❌ ReviewsAPI.create error:', error);
+            console.error('Γ¥î ReviewsAPI.create error:', error);
             throw error;
         }
     },
@@ -761,7 +801,7 @@ const ReviewsAPI = {
             const response = await API.get(`/reviews/worker/${workerId}?page=${page}&limit=${limit}`);
             return response;
         } catch (error) {
-            console.error('❌ ReviewsAPI.getWorkerReviews error:', error);
+            console.error('Γ¥î ReviewsAPI.getWorkerReviews error:', error);
             throw error;
         }
     },
@@ -771,7 +811,7 @@ const ReviewsAPI = {
             const response = await API.get(`/reviews/recent?limit=${limit}`);
             return response;
         } catch (error) {
-            console.error('❌ ReviewsAPI.getRecent error:', error);
+            console.error('Γ¥î ReviewsAPI.getRecent error:', error);
             throw error;
         }
     }
@@ -855,7 +895,7 @@ const UI = {
         document.head.appendChild(style);
     },
     /**
-     * Logged-out nav (web). "Become a Pro" → full signup where user can pick Professional.
+     * Logged-out nav (web). "Become a Pro" ΓåÆ full signup where user can pick Professional.
      */
     standardNavLoggedOutHtml() {
         return `
@@ -1108,7 +1148,7 @@ const UI = {
             if (isMobileLayout()) {
                 ensureToggle();
                 sidebar.classList.add('dashboard-sidebar--mobile');
-                /* Keep menu usable on first paint — user can collapse via toggle */
+                /* Keep menu usable on first paint ΓÇö user can collapse via toggle */
                 if (toggleBtn && !sidebar.dataset.navTouched) {
                     setNavOpen(true);
                 }
@@ -1272,9 +1312,9 @@ const PWA = {
     async registerServiceWorker() {
         try {
             await navigator.serviceWorker.register('/sw.js');
-            console.log('✅ Service Worker registered');
+            console.log('Γ£à Service Worker registered');
         } catch (error) {
-            console.error('❌ Service Worker registration failed:', error);
+            console.error('Γ¥î Service Worker registration failed:', error);
         }
     },
 
@@ -1352,10 +1392,20 @@ function isAuthPath() {
     );
 }
 
+function isImmersiveLivePath() {
+    return pathEnds('/live-room.html') || pathEnds('/party-room.html');
+}
+
 function bootstrapNativeAppShell() {
     if (!isNativeAppContext()) return;
-    document.documentElement.classList.add('ap-expo-app', 'social-app', 'social-bridge-mode', 'social-native');
     window.__AP_NATIVE_APP__ = true;
+    document.documentElement.classList.add('ap-expo-app');
+    if (isImmersiveLivePath()) {
+        document.documentElement.classList.add('ap-live-immersive');
+        if (document.body) document.body.classList.add('ap-live-immersive');
+        return;
+    }
+    document.documentElement.classList.add('social-app', 'social-bridge-mode', 'social-native');
     if (!document.querySelector('link[href*="social-theme.css"]')) {
         const link = document.createElement('link');
         link.rel = 'stylesheet';
@@ -1403,7 +1453,7 @@ function loadSocialShellIfNeeded() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('✅ DOM loaded');
+    console.log('Γ£à DOM loaded');
     loadSocialShellIfNeeded();
     if (isNativeAppContext()) {
         document.documentElement.classList.add('ap-expo-app');
@@ -1486,8 +1536,8 @@ window.LocationService = LocationService;
 window.PWA = PWA;
 window.CONFIG = CONFIG;
 
-console.log('✅ App.js initialized');
-console.log('📦 Available APIs:', { 
+console.log('Γ£à App.js initialized');
+console.log('≡ƒôª Available APIs:', { 
     ServicesAPI, 
     Auth, 
     API,

@@ -131,7 +131,7 @@ function registerLiveSocket(io) {
         socket.to(`live:${channel}`).emit('live:state', state);
         io.to(`live:${channel}`).emit('live:viewer_count', { viewers: state?.viewers || 0 });
 
-        if (ack) ack({ ok: true, state });
+        if (ack) ack({ ok: true, state, isHost });
       } catch (err) {
         console.error('live:join', err.message);
         if (ack) ack({ ok: false, message: err.message });
@@ -338,20 +338,31 @@ function registerLiveSocket(io) {
 
     const handleLeave = async () => {
       if (!currentChannel) return;
+      const channel = currentChannel;
+      const wasHost = Boolean(socket.data.isHost);
       try {
-        const updated = await liveRoomService.leaveRoom({
-          channel: currentChannel,
-          userId: socket.userId,
-        });
-        if (updated) {
-          io.to(`live:${currentChannel}`).emit('live:viewer_count', { viewers: updated.viewer_count });
-          const state = await liveRoomService.buildSnapshot(currentChannel);
-          io.to(`live:${currentChannel}`).emit('live:state', state);
+        if (wasHost) {
+          await liveRoomService.endRoom(channel, 'host_disconnected');
+          io.to(`live:${channel}`).emit('live:ended', { channel });
+        } else {
+          const updated = await liveRoomService.leaveRoom({
+            channel,
+            userId: socket.userId,
+          });
+          if (updated) {
+            io.to(`live:${channel}`).emit('live:viewer_count', { viewers: updated.viewer_count });
+            const state = await liveRoomService.buildSnapshot(channel);
+            io.to(`live:${channel}`).emit('live:state', state);
+            if (updated.viewer_count === 0) {
+              await liveRoomService.endRoom(channel, 'empty_room');
+              io.to(`live:${channel}`).emit('live:ended', { channel });
+            }
+          }
         }
       } catch (err) {
         console.error('live:leave', err.message);
       }
-      socket.leave(`live:${currentChannel}`);
+      socket.leave(`live:${channel}`);
       currentChannel = null;
     };
 

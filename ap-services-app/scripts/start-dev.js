@@ -43,11 +43,33 @@ function run(cmd, args, opts = {}) {
   });
 }
 
-console.log('\n📱 AP Services — LAN UI dev (no Live/Party camera)');
+console.log('\n📱 AP Services — LOCAL UI + functionality (LAN)');
 freePort(DEV_PORT);
 freePort(EXPO_PORT);
+
+function getLanIp() {
+  const os = require('os');
+  const ifaces = os.networkInterfaces();
+  for (const name of Object.keys(ifaces)) {
+    for (const iface of ifaces[name] || []) {
+      if (iface.family === 'IPv4' && !iface.internal) return iface.address;
+    }
+  }
+  return null;
+}
+
+const lanIp = getLanIp();
 console.log(`   1) Serving frontend/ → http://0.0.0.0:${DEV_PORT}`);
-console.log('   2) Expo WebView uses LAN IP — camera/mic blocked (use npm start for live)\n');
+if (lanIp) {
+  console.log(`   2) On your phone browser (same Wi-Fi), open:`);
+  console.log(`      http://${lanIp}:${DEV_PORT}/explore.html?app=1`);
+  console.log(`   3) Expo Go loads the same files — Metro log must show:`);
+  console.log(`      WebView base: http://${lanIp}:${DEV_PORT}`);
+} else {
+  console.log('   2) Could not detect LAN IP — use the IP from the Expo QR code');
+}
+console.log('   API + live socket → proxied to production');
+console.log('   Live camera/mic on LAN HTTP is blocked — UI/chat/gifts work; for camera use npm start after deploy\n');
 
 // WebView loads local frontend (proxies API to production). Without this, Expo still hits api.apservices.in.
 process.env.EXPO_PUBLIC_USE_LAN_WEB = '1';

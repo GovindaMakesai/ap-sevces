@@ -197,10 +197,11 @@ async function finishOAuthLogin(req, res, user, appRedirect) {
     return res.redirect(`${url}${sep}oauth=1`);
 }
 
-async function respondAuthedJson(res, user, message, accessToken = null) {
+async function respondAuthedJson(res, user, message, accessToken = null, refreshToken = null) {
     const { publicUser } = require('../lib/userDto');
     const payload = { user: publicUser(user, { self: true }) };
     if (accessToken) payload.accessToken = accessToken;
+    if (refreshToken) payload.refreshToken = refreshToken;
     return res.json({
         success: true,
         message,
@@ -363,12 +364,12 @@ const register = async (req, res) => {
             }
         }
 
-        const { accessToken } = await createSession(userOut, res, authMeta(req));
+        const { accessToken, refreshToken } = await createSession(userOut, res, authMeta(req));
 
         console.log('✅ Registration successful:', userOut.email);
 
         res.status(201);
-        return respondAuthedJson(res, userOut, 'Registration successful', accessToken);
+        return respondAuthedJson(res, userOut, 'Registration successful', accessToken, refreshToken);
     } catch (error) {
         console.error('❌ Registration error:', error);
         if (error.code === 'AUTH_CONFIG') {
@@ -423,12 +424,12 @@ const login = async (req, res) => {
             });
         }
 
-        const { accessToken } = await createSession(user, res, authMeta(req));
+        const { accessToken, refreshToken } = await createSession(user, res, authMeta(req));
         delete user.password_hash;
 
         console.log('✅ Login successful:', user.email);
 
-        return respondAuthedJson(res, user, 'Login successful', accessToken);
+        return respondAuthedJson(res, user, 'Login successful', accessToken, refreshToken);
     } catch (error) {
         console.error('❌ Login error:', error);
         if (error.code === 'AUTH_CONFIG') {
@@ -632,8 +633,8 @@ const facebookCallback = async (req, res) => {
 const refresh = async (req, res) => {
     try {
         const refreshRaw = getRefreshTokenFromRequest(req);
-        const { user, accessToken } = await rotateRefresh(refreshRaw, res, authMeta(req));
-        return respondAuthedJson(res, user, 'Session refreshed', accessToken);
+        const { user, accessToken, refreshToken } = await rotateRefresh(refreshRaw, res, authMeta(req));
+        return respondAuthedJson(res, user, 'Session refreshed', accessToken, refreshToken);
     } catch (error) {
         clearSessionCookies(res);
         return res.status(401).json({ success: false, message: error.message || 'Refresh failed' });
@@ -657,8 +658,8 @@ const exchangeCode = async (req, res) => {
     try {
         const { code } = req.body;
         if (!code) return res.status(400).json({ success: false, message: 'Exchange code required' });
-        const { user, accessToken } = await exchangeOAuthCode(code, res, authMeta(req));
-        return respondAuthedJson(res, user, 'OAuth exchange complete', accessToken);
+        const { user, accessToken, refreshToken } = await exchangeOAuthCode(code, res, authMeta(req));
+        return respondAuthedJson(res, user, 'OAuth exchange complete', accessToken, refreshToken);
     } catch (error) {
         return res.status(400).json({ success: false, message: error.message });
     }

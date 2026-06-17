@@ -259,7 +259,7 @@ async function endRoom(channel, reason = 'host_ended') {
   if (!room || room.status === 'ended') return null;
 
   await db.query(
-    `UPDATE live_rooms SET status = 'ended', ended_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+    `UPDATE live_rooms SET status = 'ended', viewer_count = 0, ended_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
     [room.id]
   );
   await db.query(
@@ -274,7 +274,7 @@ async function endRoom(channel, reason = 'host_ended') {
   return { ...room, status: 'ended' };
 }
 
-async function endIdleRooms(maxIdleMinutes = 120) {
+async function endIdleRooms(maxIdleMinutes = 5) {
   const res = await db.query(
     `UPDATE live_rooms SET status = 'ended', ended_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
      WHERE status = 'active' AND updated_at < CURRENT_TIMESTAMP - ($1 || ' minutes')::interval
@@ -293,10 +293,20 @@ async function recoverActiveRooms() {
   console.log(`[live] Recovered ${res.rows.length} active room(s) from database`);
 }
 
+async function endOrphanRooms() {
+  const res = await db.query(
+    `UPDATE live_rooms SET status = 'ended', ended_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+     WHERE status = 'active' AND viewer_count = 0
+     RETURNING channel`
+  );
+  for (const row of res.rows) roomCache.delete(row.channel);
+  return res.rows.length;
+}
+
 async function listActiveRooms({ roomType, limit = 30, sort = 'trending' } = {}) {
   const params = [];
   let sql = `SELECT channel, room_type, host_user_id, host_display_name, viewer_count, status, updated_at, started_at
-             FROM live_rooms WHERE status = 'active'`;
+             FROM live_rooms WHERE status = 'active' AND viewer_count > 0`;
   if (roomType) {
     params.push(roomType);
     sql += ` AND room_type = $${params.length}`;
@@ -386,6 +396,7 @@ module.exports = {
   promoteToSpeaker,
   endRoom,
   endIdleRooms,
+  endOrphanRooms,
   recoverActiveRooms,
   listActiveRooms,
   touchHeartbeat,

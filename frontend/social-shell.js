@@ -173,7 +173,13 @@
     return href;
   }
 
+  function isImmersiveLivePage() {
+    const path = (window.location.pathname || '').toLowerCase();
+    return path.endsWith('/live-room.html') || path.endsWith('/party-room.html');
+  }
+
   function ensureBottomNav(activeId) {
+    if (isImmersiveLivePage()) return;
     if (!hasAppSession()) return;
     const mount = document.getElementById('social-bottom-nav-mount');
     if (!mount) return;

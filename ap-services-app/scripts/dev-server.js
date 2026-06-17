@@ -39,6 +39,17 @@ function cleanProxyHeaders(reqHeaders) {
   return h;
 }
 
+/** Production auth cookies use Domain + Secure — strip for LAN http://IP:5500 */
+function rewriteSetCookiesForLocalDev(setCookieHeader) {
+  const cookies = Array.isArray(setCookieHeader) ? setCookieHeader : [setCookieHeader];
+  return cookies.filter(Boolean).map((cookie) =>
+    String(cookie)
+      .replace(/;\s*Domain=[^;]*/gi, '')
+      .replace(/;\s*Secure/gi, '')
+      .replace(/;\s*SameSite=None/gi, '; SameSite=Lax')
+  );
+}
+
 function proxyToApi(req, res) {
   const lib = API_USE_HTTPS ? https : http;
   const opts = {
@@ -58,6 +69,9 @@ function proxyToApi(req, res) {
     }
     headers['access-control-allow-methods'] = 'GET,POST,PUT,DELETE,PATCH,OPTIONS';
     headers['access-control-allow-headers'] = 'Content-Type, Authorization';
+    if (headers['set-cookie']) {
+      headers['set-cookie'] = rewriteSetCookiesForLocalDev(headers['set-cookie']);
+    }
     res.writeHead(proxyRes.statusCode, headers);
     proxyRes.pipe(res);
   });

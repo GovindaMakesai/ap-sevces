@@ -103,7 +103,14 @@ exports.agoraToken = async (req, res) => {
       expire
     );
 
-    res.json({ success: true, mode: 'live', appId, channel, uid, token, expire });
+    console.log('[live] agora token issued', {
+      channel,
+      userId: req.userId,
+      uid,
+      role: wantsPublisher ? 'publisher' : 'subscriber',
+    });
+
+    res.json({ success: true, mode: 'live', appId, channel, uid, token, expire, role: wantsPublisher ? 'publisher' : 'subscriber' });
   } catch (error) {
     console.error('[live] agora token', error);
     res.status(500).json({ success: false, message: error.message || 'Token error' });

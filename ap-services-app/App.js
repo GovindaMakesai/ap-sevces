@@ -77,18 +77,38 @@ const STATUS_BAR_INSET =
   Platform.OS === 'android'
     ? RNStatusBar.currentHeight || Constants.statusBarHeight || 28
     : Constants.statusBarHeight || 28;
-/** Runs before page paint — native shell + blocks legacy login redirect loop */
+/** Runs before page paint ΓÇö native shell + blocks legacy login redirect loop */
 const PRODUCTION_API = apiConfig.API_URL;
+const LAN_DEV_LOCKED = __DEV__ && String(process.env.EXPO_PUBLIC_USE_LAN_WEB) === '1';
+const IS_STANDALONE_APP = Constants.appOwnership === 'standalone';
+const LOAD_TIMEOUT_MS = isDevLocalBase(resolveFrontendBase()) ? 20000 : 45000;
+
+function loadErrorHint(isDevLocal, frontendBase) {
+  if (isDevLocal) {
+    return 'Same Wi-Fi as PC? Run: cd ap-services-app → npm run start:lan';
+  }
+  if (IS_STANDALONE_APP) {
+    return `Open ${frontendBase} in Chrome on this phone. If Chrome fails too, switch Wi-Fi or mobile data.`;
+  }
+  return 'Stop Expo (Ctrl+C), then run: cd ap-services-app → npm start';
+}
 
 function buildAppShellBootstrap(frontendBase) {
   const isDevLocal = isDevLocalBase(frontendBase);
   const injectedApi = isDevLocal ? `${frontendBase}/api` : PRODUCTION_API;
   const injectedSocket = isDevLocal ? frontendBase : apiConfig.BACKEND_URL;
-  return `(function(){try{document.documentElement.classList.add('ap-expo-app','social-app','social-bridge-mode','social-native','auth-native');document.documentElement.style.setProperty('--ap-expo-safe-top','0px');window.__AP_NATIVE_APP__=true;window.__AP_API_URL__='${injectedApi}';window.__AP_SOCKET_URL__='${injectedSocket}';window.__AP_OAUTH_RETURN__='${APP_RETURN_URL.replace(/'/g, "\\'")}';try{localStorage.setItem('app_redirect','${APP_RETURN_URL.replace(/'/g, "\\'")}');}catch(e){}document.documentElement.style.background='#faf6ee';if(document.body)document.body.style.background='#faf6ee';var s=document.getElementById('ap-native-critical');if(!s){s=document.createElement('style');s.id='ap-native-critical';s.textContent='html.ap-expo-app .chat-tab.active{background:linear-gradient(135deg,#d4a84b,#9a7218)!important;color:#fff!important}html.ap-expo-app .message-wrapper.sent .message-content{background:linear-gradient(135deg,#d4a84b,#9a7218)!important}';(document.head||document.documentElement).appendChild(s);}function apHasSession(){try{return!!(localStorage.getItem('user')||localStorage.getItem('token')||(document.cookie&&document.cookie.indexOf('ap_access')!==-1));}catch(e){return false;}}window.__AP_HAS_NATIVE_SESSION__=apHasSession;var _r=window.location.replace.bind(window.location);window.location.replace=function(u){if(u&&String(u).indexOf('app-auth')!==-1&&apHasSession())return;return _r(u);};var _rm=localStorage.removeItem.bind(localStorage);localStorage.removeItem=function(k){if(k==='user'&&document.cookie&&document.cookie.indexOf('ap_access')!==-1)return;return _rm(k);};}catch(e){}})();true;`;
+  return `(function(){try{document.documentElement.classList.add('ap-expo-app','social-app','social-bridge-mode','social-native','auth-native');document.documentElement.style.setProperty('--ap-expo-safe-top','0px');window.__AP_NATIVE_APP__=true;window.__AP_API_URL__='${injectedApi}';window.__AP_SOCKET_URL__='${injectedSocket}';window.__AP_OAUTH_RETURN__='${APP_RETURN_URL.replace(/'/g, "\\'")}';try{localStorage.setItem('app_redirect','${APP_RETURN_URL.replace(/'/g, "\\'")}');}catch(e){}document.documentElement.style.background='#faf6ee';if(document.body)document.body.style.background='#faf6ee';var s=document.getElementById('ap-native-critical');if(!s){s=document.createElement('style');s.id='ap-native-critical';s.textContent='html.ap-expo-app .chat-tab.active{background:linear-gradient(135deg,#d4a84b,#9a7218)!important;color:#fff!important}html.ap-expo-app .message-wrapper.sent .message-content{background:linear-gradient(135deg,#d4a84b,#9a7218)!important}';(document.head||document.documentElement).appendChild(s);}function apHasSession(){try{return!!(localStorage.getItem('user')||localStorage.getItem('token'));}catch(e){return false;}}window.__AP_HAS_NATIVE_SESSION__=apHasSession;}catch(e){}})();true;`;
 }
 
-function switchToProductionFrontend(setFrontendBase, setLanFallbackDone, setLoadError) {
-  console.warn('[ap-services-app] LAN unreachable — switching to production HTTPS');
+function switchToProductionFrontend(setFrontendBase, setLanFallbackDone, setLoadError, frontendBase) {
+  if (LAN_DEV_LOCKED) {
+    console.warn('[ap-services-app] LAN unreachable - staying on local UI');
+    setLoadError(
+      `Cannot reach ${frontendBase}. Same Wi-Fi? Allow port 5500 in firewall, then press r to reload.`
+    );
+    return;
+  }
+  console.warn('[ap-services-app] LAN unreachable - switching to production HTTPS');
   setLanFallbackDone(true);
   setFrontendBase(PRODUCTION_WEB);
   setLoadError('');
@@ -158,7 +178,7 @@ function dashboardUrlForUser(user, frontendBase) {
   return `${frontendBase}/explore.html${q}`;
 }
 
-function buildSessionInjectScript(user, accessToken) {
+function buildSessionInjectScript(user, accessToken, refreshToken) {
   const userJson = JSON.stringify(user);
   let script = `(function(){try{localStorage.setItem('user',${JSON.stringify(userJson)});`;
   if (accessToken) {
@@ -166,14 +186,21 @@ function buildSessionInjectScript(user, accessToken) {
   } else {
     script += `localStorage.removeItem('token');`;
   }
+  if (refreshToken) {
+    script += `localStorage.setItem('ap_refresh_token',${JSON.stringify(String(refreshToken))});`;
+  }
   script += `if(window.AppState){try{AppState.user=JSON.parse(${JSON.stringify(userJson)});}catch(e){}}`;
   script += `window.__AP_LOGGED_IN__=true;}catch(e){}})();`;
   return script;
 }
 
-function buildNavigateScript(user, accessToken, dest) {
+function buildClearSessionScript() {
+  return `(function(){try{localStorage.removeItem('user');localStorage.removeItem('token');localStorage.removeItem('ap_refresh_token');if(window.AppState){AppState.user=null;AppState.token=null;}window.__AP_LOGGED_IN__=false;}catch(e){}})();true;`;
+}
+
+function buildNavigateScript(user, accessToken, dest, refreshToken) {
   return (
-    buildSessionInjectScript(user, accessToken) +
+    buildSessionInjectScript(user, accessToken, refreshToken) +
     `window.location.replace(${JSON.stringify(dest)}); true;`
   );
 }
@@ -191,7 +218,7 @@ export default function App() {
   const [lanFallbackDone, setLanFallbackDone] = useState(false);
   const nativeSessionRef = useRef(null);
   const oauthCompleteRef = useRef(false);
-  /** WebView source is set once — post-login navigation uses injectJavaScript only */
+  /** WebView source is set once ΓÇö post-login navigation uses injectJavaScript only */
   const webSourceUriRef = useRef('');
 
   const isDevLocal = useMemo(() => isDevLocalBase(frontendBase), [frontendBase]);
@@ -203,24 +230,44 @@ export default function App() {
     console.log('[ap-services-app] OAuth return URL:', APP_RETURN_URL);
     console.log('[ap-services-app] Mode:', isDevLocal ? 'LAN dev' : 'LIVE (HTTPS)');
     if (isDevLocal) {
-      console.log('[ap-services-app] LAN dev — phone must be on same Wi-Fi; use npm start for live HTTPS');
+      console.log('[ap-services-app] LAN dev ΓÇö phone must be on same Wi-Fi; use npm start for live HTTPS');
     }
   }, [frontendBase, isDevLocal]);
+
+  useEffect(() => {
+    if (isDevLocal) return;
+    let cancelled = false;
+    fetch(`${PRODUCTION_WEB}/api/health`, { method: 'GET' })
+      .then((res) => {
+        if (cancelled || res.ok) return;
+        setLoadError(`Server returned ${res.status}. Wait a minute and reload the app.`);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setLoadError(
+            `No connection to ${PRODUCTION_WEB}. Check Wi-Fi/mobile data, then force-close and reopen the app.`
+          );
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isDevLocal]);
 
   useEffect(() => {
     webViewReadyRef.current = false;
     const timer = setTimeout(() => {
       if (webViewReadyRef.current) return;
       if (isDevLocal && !lanFallbackDone) {
-        switchToProductionFrontend(setFrontendBase, setLanFallbackDone, setLoadError);
+        switchToProductionFrontend(setFrontendBase, setLanFallbackDone, setLoadError, frontendBase);
         return;
       }
       setLoadError(
         isDevLocal
           ? `Cannot reach ${frontendBase}. Use npm start (live mode) or npm run start:lan with phone on same Wi-Fi.`
-          : `Cannot load ${frontendBase}. Check your internet — if the server was just restarted, wait 60s and reload.`
+          : `Still loading ${frontendBase} — slow network? Pull down to refresh or wait, then reload the app.`
       );
-    }, 20000);
+    }, LOAD_TIMEOUT_MS);
     return () => clearTimeout(timer);
   }, [frontendBase, isDevLocal, lanFallbackDone]);
 
@@ -271,6 +318,7 @@ export default function App() {
       try {
         let user = null;
         let accessToken = null;
+        let refreshToken = null;
 
         if (credential.type === 'code') {
           const res = await fetch(`${API_BASE_URL}/auth/exchange-code`, {
@@ -284,6 +332,7 @@ export default function App() {
           }
           user = data.data.user;
           accessToken = data.data.accessToken || null;
+          refreshToken = data.data.refreshToken || null;
         } else if (credential.type === 'token') {
           accessToken = credential.value;
           const res = await fetch(`${API_BASE_URL}/auth/me`, {
@@ -299,19 +348,19 @@ export default function App() {
         }
 
         const dest = dashboardUrlForUser(user, frontendBase);
-        nativeSessionRef.current = { user, accessToken };
+        nativeSessionRef.current = { user, accessToken, refreshToken };
         oauthCompleteRef.current = true;
         handledTokenRef.current = credKey;
         setLoadError('');
-        const sessionScript = buildSessionInjectScript(user, accessToken);
+        const sessionScript = buildSessionInjectScript(user, accessToken, refreshToken);
         setSessionInject(sessionScript);
 
-        console.log('[ap-services-app] Login OK — opening', dest);
+        console.log('[ap-services-app] Login OK - opening', dest);
         if (!accessToken) {
-          console.warn('[ap-services-app] No accessToken from API — modules may show session expired until VPS is updated');
+          console.warn('[ap-services-app] No accessToken from API - modules may show session expired until VPS is updated');
         }
 
-        const goScript = buildNavigateScript(user, accessToken, dest);
+        const goScript = buildNavigateScript(user, accessToken, dest, refreshToken);
         const tryGo = () => webViewRef.current?.injectJavaScript(goScript);
         tryGo();
         setTimeout(tryGo, 150);
@@ -427,7 +476,7 @@ export default function App() {
     };
 
     const subscription = Linking.addEventListener('url', handleDeepLink);
-    // Do not call getInitialURL — it replays stale OAuth codes on every Metro reload and breaks login.
+    // Do not call getInitialURL ΓÇö it replays stale OAuth codes on every Metro reload and breaks login.
 
     return () => subscription.remove();
   }, [applyOAuthCredential]);
@@ -468,10 +517,23 @@ export default function App() {
     [applyOAuthCredential, startOAuthInBrowser]
   );
 
+  const clearNativeSession = useCallback(() => {
+    nativeSessionRef.current = null;
+    oauthCompleteRef.current = false;
+    handledTokenRef.current = '';
+    processingCredRef.current = '';
+    setSessionInject('');
+  }, []);
+
   const onWebViewMessage = useCallback(
     (event) => {
       try {
         const data = JSON.parse(event.nativeEvent.data);
+        if (data.type === 'logout') {
+          clearNativeSession();
+          webViewRef.current?.injectJavaScript(buildClearSessionScript());
+          return;
+        }
         if (data.type === 'oauth' && data.provider) {
           const redirect =
             typeof data.appRedirect === 'string' && data.appRedirect
@@ -485,11 +547,14 @@ export default function App() {
           nativeSessionRef.current = {
             user: data.user,
             accessToken: data.accessToken || null,
+            refreshToken: data.refreshToken || null,
           };
           oauthCompleteRef.current = true;
-          setSessionInject(buildSessionInjectScript(data.user, data.accessToken || null));
+          setSessionInject(
+            buildSessionInjectScript(data.user, data.accessToken || null, data.refreshToken || null)
+          );
           webViewRef.current?.injectJavaScript(
-            buildNavigateScript(data.user, data.accessToken || null, dest)
+            buildNavigateScript(data.user, data.accessToken || null, dest, data.refreshToken || null)
           );
           return;
         }
@@ -507,7 +572,7 @@ export default function App() {
         /* not our message */
       }
     },
-    [startOAuthInBrowser, frontendBase]
+    [startOAuthInBrowser, frontendBase, clearNativeSession]
   );
 
   const onShouldStartLoadWithRequest = (request) => {
@@ -540,29 +605,17 @@ export default function App() {
   };
 
   const webUri = webSourceUriRef.current;
-  const persistedInject = nativeSessionRef.current
-    ? buildSessionInjectScript(nativeSessionRef.current.user, nativeSessionRef.current.accessToken)
-    : '';
-  const injectedBootstrap = appShellBootstrap + persistedInject + sessionInject;
-
-  const recoverSessionIfStuckOnAuth = useCallback(
-    (pageUrl) => {
-      if (!nativeSessionRef.current || !oauthCompleteRef.current) return;
-      if (!pageUrl || !pageUrl.includes('app-auth')) return;
-      const { user, accessToken } = nativeSessionRef.current;
-      const dest = dashboardUrlForUser(user, frontendBase);
-      webViewRef.current?.injectJavaScript(buildNavigateScript(user, accessToken, dest));
-    },
-    [frontendBase]
-  );
+  // Session tokens live in WebView localStorage — do not re-inject on every page (breaks logout).
+  const injectedBootstrap = appShellBootstrap;
 
   const tryLanFallback = useCallback(() => {
+    if (LAN_DEV_LOCKED) return false;
     if (!lanFallbackDone && isDevLocal) {
-      switchToProductionFrontend(setFrontendBase, setLanFallbackDone, setLoadError);
+      switchToProductionFrontend(setFrontendBase, setLanFallbackDone, setLoadError, frontendBase);
       return true;
     }
     return false;
-  }, [isDevLocal, lanFallbackDone]);
+  }, [isDevLocal, lanFallbackDone, frontendBase]);
 
   return (
     <View style={[styles.container, { paddingTop: STATUS_BAR_INSET }]}>
@@ -570,9 +623,7 @@ export default function App() {
       {loadError ? (
         <View style={styles.errorBar}>
           <Text style={styles.errorText}>{loadError}</Text>
-          <Text style={styles.errorHint}>
-            Stop Expo (Ctrl+C), then run: cd ap-services-app → npm start
-          </Text>
+          <Text style={styles.errorHint}>{loadErrorHint(isDevLocal, frontendBase)}</Text>
         </View>
       ) : null}
       <WebView
@@ -585,7 +636,7 @@ export default function App() {
         renderLoading={() => (
           <View style={styles.loading}>
             <ActivityIndicator size="large" color="#c9a227" />
-            <Text style={styles.loadingText}>Loading AP Services…</Text>
+            <Text style={styles.loadingText}>Loading AP ServicesΓÇª</Text>
           </View>
         )}
         pullToRefreshEnabled={false}
@@ -602,10 +653,14 @@ export default function App() {
         onLoadStart={() => {
           lastInjectedUrlRef.current = '';
         }}
+        onLoadProgress={({ nativeEvent }) => {
+          if (nativeEvent?.progress >= 0.25) setLoadError('');
+          if (nativeEvent?.progress >= 1) webViewReadyRef.current = true;
+        }}
         onLoadEnd={(e) => {
           webViewReadyRef.current = true;
+          setLoadError('');
           const url = e?.nativeEvent?.url || '';
-          recoverSessionIfStuckOnAuth(url);
           injectMobileLayout(url);
         }}
         onNavigationStateChange={(nav) => {
@@ -613,9 +668,6 @@ export default function App() {
           if (url.includes('explore.html') || url.includes('dashboard')) {
             oauthCompleteRef.current = true;
             setLoadError('');
-          }
-          if (url.includes('app-auth')) {
-            recoverSessionIfStuckOnAuth(url);
           }
           if (handleOAuthUrl(url)) {
             webViewRef.current?.stopLoading();

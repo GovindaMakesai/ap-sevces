@@ -9,8 +9,21 @@
   <link rel="stylesheet" href="social-live.css">
   <link rel="stylesheet" href="social-live-ref-ui.css">
   <link rel="stylesheet" href="social-fx.css">
+  <script>
+    document.documentElement.classList.add('ap-live-immersive');
+    (function () {
+      function stripAppChrome() {
+        document.getElementById('ap-bridge-header')?.remove();
+        document.querySelectorAll('.social-bottom-nav, #social-bottom-nav-mount, .social-bridge-header').forEach(function (el) {
+          el.style.setProperty('display', 'none', 'important');
+        });
+      }
+      document.addEventListener('DOMContentLoaded', stripAppChrome);
+      setTimeout(stripAppChrome, 0);
+    })();
+  </script>
 </head>
-<body class="live-dark" data-live-page="live-room">
+<body class="live-dark ap-live-immersive" data-live-page="live-room">
   <div id="apLiveLoader" class="ap-live-loader" aria-live="polite">
     <div class="ap-live-loader-inner">
       <div class="ap-live-loader-logo">AP</div>
@@ -120,27 +133,26 @@
   </div>
 
   <footer class="party-bottom-bar ap-bottom-ref" id="partyBottomBar">
-    <button type="button" class="ap-say-hi-pill" id="apSayHiPill"><span class="ap-say-hi-ico">🌹</span> Hi there!</button>
+    <div class="live-chat-compose ap-compose-inline" id="liveChatCompose">
+      <span class="ap-char-count is-empty" id="apCharCount" aria-hidden="true"></span>
+      <button type="button" class="ap-chat-emoji-btn" id="apChatEmojiBtn" aria-label="Emoji"><i class="far fa-smile"></i></button>
+      <input type="text" id="liveChatInput" placeholder="Say something…" maxlength="280" autocomplete="off" enterkeyhint="send">
+      <button type="button" id="liveChatSend" class="ap-chat-send-btn" aria-label="Send"><i class="fas fa-paper-plane"></i></button>
+    </div>
     <button type="button" class="party-btn-follow ap-btn-follow-hidden" id="liveBtnFollow" aria-hidden="true">Follow +</button>
     <div class="party-bottom-actions">
       <button type="button" id="partyBtnTools" class="ap-btn-grid" aria-label="Tools"><i class="fas fa-th"></i><span class="ap-notify-dot" id="apToolsNotifyDot" hidden></span></button>
-      <button type="button" id="liveBtnMic" class="ap-btn-mic-ring" aria-label="Mic"><i class="fas fa-microphone"></i></button>
+      <button type="button" id="liveBtnMic" class="ap-btn-mic-ring" aria-label="Request mic"><i class="fas fa-microphone"></i></button>
       <button type="button" id="liveBtnGift" class="party-btn-gift ap-btn-gift-hero" aria-label="Gifts"><span class="ap-gift-glow"></span><i class="fas fa-gift"></i></button>
     </div>
   </footer>
 
-  <div class="ap-chat-panel" id="apChatPanel">
+  <div class="ap-chat-panel" id="apChatPanel" aria-hidden="true">
     <div class="ap-quick-chips" id="apQuickChips"></div>
     <div class="ap-region-tabs" id="apRegionTabs">
       <button type="button" data-region="room"><i class="fas fa-id-card"></i> Room</button>
       <button type="button" data-region="region"><i class="fas fa-tv"></i> Region</button>
       <button type="button" class="active" data-region="broadcast"><i class="fas fa-bullhorn"></i> Region</button>
-    </div>
-    <div class="live-chat-compose" id="liveChatCompose">
-      <span class="ap-char-count is-empty" id="apCharCount" aria-hidden="true"></span>
-      <button type="button" class="ap-chat-emoji-btn" id="apChatEmojiBtn" aria-label="Emoji"><i class="far fa-smile"></i></button>
-      <input type="text" id="liveChatInput" placeholder="Say something…" maxlength="280" autocomplete="off" enterkeyhint="send">
-      <button type="button" id="liveChatSend" aria-label="Send"><i class="fas fa-paper-plane"></i></button>
     </div>
   </div>
 
@@ -195,7 +207,7 @@
     </div>
   </div>
 
-  <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
   <script src="ap-config.js"></script>
   <script src="app.js"></script>
   <script src="social-wallet.js"></script>
