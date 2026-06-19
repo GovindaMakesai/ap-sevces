@@ -3,6 +3,16 @@ const db = require('../config/database');
 /** In-memory hot cache — DB is source of truth. TODO: Redis cache layer. */
 const roomCache = new Map();
 
+function parsePayload(raw) {
+  if (!raw) return {};
+  if (typeof raw === 'object') return raw;
+  try {
+    return JSON.parse(raw);
+  } catch (_e) {
+    return {};
+  }
+}
+
 async function findByChannel(channel) {
   const res = await db.query(`SELECT * FROM live_rooms WHERE channel = $1 LIMIT 1`, [channel]);
   return res.rows[0] || null;
@@ -63,6 +73,9 @@ async function joinRoom({ channel, userId, displayName, asHost = false }) {
   if (!room) {
     if (!asHost) throw new Error('Room does not exist');
     return hostRoom({ channel, roomType: 'party', hostUserId: userId, hostDisplayName: displayName });
+  }
+  if (room.status === 'ended' && !asHost) {
+    throw new Error('This live has ended');
   }
 
   const client = await db.pool.connect();
@@ -161,7 +174,7 @@ async function buildSnapshot(channel) {
   const messages = events
     .filter((e) => e.event_type === 'chat' || e.event_type === 'join' || e.event_type === 'seat_join')
     .map((e) => {
-      const p = typeof e.payload === 'string' ? JSON.parse(e.payload) : e.payload || {};
+      const p = parsePayload(e.payload);
       if (e.event_type === 'join') {
         return { type: 'system', text: `${p.display_name || 'Someone'} joined`, at: e.created_at };
       }
@@ -184,10 +197,7 @@ async function buildSnapshot(channel) {
   const gifts = events
     .filter((e) => e.event_type === 'gift')
     .slice(-5)
-    .map((e) => {
-      const p = typeof e.payload === 'string' ? JSON.parse(e.payload) : e.payload || {};
-      return p;
-    });
+    .map((e) => parsePayload(e.payload));
 
   const seats = members
     .filter((m) => m.role === 'host' || m.role === 'speaker')
@@ -309,13 +319,13 @@ async function listActiveRooms({ roomType, limit = 30, sort = 'trending' } = {})
              FROM live_rooms lr
              WHERE lr.status = 'active'
                AND lr.viewer_count > 0
-               AND lr.updated_at > CURRENT_TIMESTAMP - INTERVAL '12 minutes'
+               AND lr.updated_at > CURRENT_TIMESTAMP - INTERVAL '30 minutes'
                AND EXISTS (
                  SELECT 1 FROM live_room_members m
                  WHERE m.live_room_id = lr.id
                    AND m.role = 'host'
                    AND m.left_at IS NULL
-                   AND m.last_seen_at > CURRENT_TIMESTAMP - INTERVAL '3 minutes'
+                   AND m.last_seen_at > CURRENT_TIMESTAMP - INTERVAL '10 minutes'
                )`;
   if (roomType) {
     params.push(roomType);

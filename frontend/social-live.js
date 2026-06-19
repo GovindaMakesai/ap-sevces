@@ -3,7 +3,7 @@
  * Build: 20260619-livefix
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260619-connectfix';
+  window.__AP_LIVE_BUILD = '20260619-backend-livefix';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 

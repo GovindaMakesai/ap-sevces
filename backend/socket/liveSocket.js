@@ -32,6 +32,12 @@ async function isRoomHost(socket, channel) {
   return String(room.host_user_id) === String(socket.userId);
 }
 
+function safeAck(ack, answeredRef, payload) {
+  if (answeredRef.answered) return;
+  answeredRef.answered = true;
+  if (typeof ack === 'function') ack(payload);
+}
+
 function registerLiveSocket(io) {
   io.use(async (socket, next) => {
     try {
@@ -56,16 +62,21 @@ function registerLiveSocket(io) {
     let currentChannel = null;
 
     socket.on('live:join', async (payload, ack) => {
+      const answeredRef = { answered: false };
+      const joinTimer = setTimeout(() => {
+        safeAck(ack, answeredRef, { ok: false, message: 'Room join timed out — try again' });
+      }, 12000);
+
       try {
         const channel = sanitizeChannel(payload?.channel);
         if (!channel) {
-          if (ack) ack({ ok: false, message: 'channel required' });
+          safeAck(ack, answeredRef, { ok: false, message: 'channel required' });
           return;
         }
 
         const canJoin = await permissionService.userHasPermission(socket.userId, 'live.join');
         if (!canJoin) {
-          if (ack) ack({ ok: false, message: 'No permission to join live rooms' });
+          safeAck(ack, answeredRef, { ok: false, message: 'No permission to join live rooms' });
           return;
         }
 
@@ -76,19 +87,19 @@ function registerLiveSocket(io) {
 
         const existingRoom = await liveRoomService.findByChannel(channel);
         if (existingRoom && (await liveRoomService.isUserBanned(existingRoom.id, socket.userId))) {
-          if (ack) ack({ ok: false, message: 'You are banned from this room' });
+          safeAck(ack, answeredRef, { ok: false, message: 'You are banned from this room' });
           return;
         }
 
         let isHost = false;
         if (!existingRoom) {
           if (!clientWantsHost) {
-            if (ack) ack({ ok: false, message: 'Room does not exist' });
+            safeAck(ack, answeredRef, { ok: false, message: 'Room does not exist' });
             return;
           }
           const canHost = await permissionService.userHasPermission(socket.userId, 'live.host');
           if (!canHost) {
-            if (ack) ack({ ok: false, message: 'No permission to host' });
+            safeAck(ack, answeredRef, { ok: false, message: 'No permission to host' });
             return;
           }
           isHost = true;
@@ -117,7 +128,11 @@ function registerLiveSocket(io) {
           }
         } else {
           if (clientWantsHost) {
-            if (ack) ack({ ok: false, message: 'You are not the host of this room' });
+            safeAck(ack, answeredRef, { ok: false, message: 'You are not the host of this room' });
+            return;
+          }
+          if (existingRoom.status === 'ended') {
+            safeAck(ack, answeredRef, { ok: false, message: 'This live has ended' });
             return;
           }
           await liveRoomService.joinRoom({
@@ -134,6 +149,12 @@ function registerLiveSocket(io) {
         socket.data.liveChannel = channel;
         socket.data.liveDisplayName = displayName;
         socket.data.isHost = isHost;
+
+        try {
+          await liveRoomService.touchHeartbeat(channel, socket.userId);
+        } catch (hbErr) {
+          console.warn('live:join heartbeat', hbErr.message);
+        }
 
         let state = null;
         try {
@@ -157,10 +178,12 @@ function registerLiveSocket(io) {
         socket.to(`live:${channel}`).emit('live:state', state);
         io.to(`live:${channel}`).emit('live:viewer_count', { viewers: state?.viewers || 0 });
 
-        if (ack) ack({ ok: true, state, isHost });
+        safeAck(ack, answeredRef, { ok: true, state, isHost });
       } catch (err) {
         console.error('live:join', err.message);
-        if (ack) ack({ ok: false, message: err.message });
+        safeAck(ack, answeredRef, { ok: false, message: err.message || 'Room join failed' });
+      } finally {
+        clearTimeout(joinTimer);
       }
     });
 
@@ -362,38 +385,44 @@ function registerLiveSocket(io) {
       }
     });
 
-    const handleLeave = async () => {
+    const handleLeave = async ({ intentional = false } = {}) => {
       if (!currentChannel) return;
       const channel = currentChannel;
       const wasHost = Boolean(socket.data.isHost);
+      currentChannel = null;
+      socket.leave(`live:${channel}`);
+
       try {
         if (wasHost) {
-          await liveRoomService.endRoom(channel, 'host_disconnected');
-          io.to(`live:${channel}`).emit('live:ended', { channel });
-        } else {
-          const updated = await liveRoomService.leaveRoom({
-            channel,
-            userId: socket.userId,
-          });
-          if (updated) {
-            io.to(`live:${channel}`).emit('live:viewer_count', { viewers: updated.viewer_count });
-            const state = await liveRoomService.buildSnapshot(channel);
-            io.to(`live:${channel}`).emit('live:state', state);
-            if (updated.viewer_count === 0) {
-              await liveRoomService.endRoom(channel, 'empty_room');
-              io.to(`live:${channel}`).emit('live:ended', { channel });
-            }
+          // Only end the room when the host explicitly leaves — not on brief socket drops
+          // (mobile network / polling→websocket upgrade used to kill live for everyone).
+          if (intentional) {
+            await liveRoomService.endRoom(channel, 'host_left');
+            io.to(`live:${channel}`).emit('live:ended', { channel });
+          }
+          return;
+        }
+
+        const updated = await liveRoomService.leaveRoom({
+          channel,
+          userId: socket.userId,
+        });
+        if (updated) {
+          io.to(`live:${channel}`).emit('live:viewer_count', { viewers: updated.viewer_count });
+          const state = await liveRoomService.buildSnapshot(channel);
+          if (state) io.to(`live:${channel}`).emit('live:state', state);
+          if (updated.viewer_count === 0) {
+            await liveRoomService.endRoom(channel, 'empty_room');
+            io.to(`live:${channel}`).emit('live:ended', { channel });
           }
         }
       } catch (err) {
         console.error('live:leave', err.message);
       }
-      socket.leave(`live:${channel}`);
-      currentChannel = null;
     };
 
-    socket.on('live:leave', handleLeave);
-    socket.on('disconnect', handleLeave);
+    socket.on('live:leave', () => handleLeave({ intentional: true }));
+    socket.on('disconnect', () => handleLeave({ intentional: false }));
   });
 }
 
