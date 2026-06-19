@@ -3,7 +3,7 @@
  * Build: 20260619-livefix
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260619-livefix';
+  window.__AP_LIVE_BUILD = '20260619-connectfix';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -123,8 +123,8 @@
     if (!lastJoinMeta || !liveSocket?.connected) return;
     if (!roomJoinCompleted && !lastJoinMeta.isHost) return;
     liveSocket.emit('live:join', lastJoinMeta, (res) => {
-      if (res?.ok && res.state) {
-        roomState = res.state;
+      if (res?.ok) {
+        roomState = res.state || roomState || { channel: lastJoinMeta.channel, viewers: 1 };
         roomJoinCompleted = true;
         onSocketRejoinSuccess();
         liveDebugLog('Rejoined room after reconnect');
@@ -945,8 +945,8 @@
             liveDebugLog(
               `live:join ack channel=${ch} ok=${Boolean(res?.ok)} msg=${res?.message || 'none'}`
             );
-            if (res?.ok && res.state) {
-              roomState = res.state;
+            if (res?.ok) {
+              roomState = res.state || { channel: ch, viewers: 1, hostName: displayName(user) };
               roomJoinCompleted = true;
               lastJoinMeta = {
                 channel: ch,
@@ -970,7 +970,13 @@
               hideApLoader();
               if (hostFlag) {
                 syncLiveUiState();
-                toast('Party live — share the link so others join this room', 'success');
+                const isPartyPage = document.body.dataset.livePage === 'party-room';
+                toast(
+                  isPartyPage
+                    ? 'Party live — share the link so others join this room'
+                    : 'You are live — share so viewers can find you',
+                  'success'
+                );
               } else {
                 setLiveStatus(`Connected · ${res.state.viewers || 1} in room`, true);
               }
@@ -1340,7 +1346,7 @@
       const uid = cred.uid != null ? cred.uid : null;
 
       try {
-        await agoraClient.join(appId, agoraChannel, token, uid);
+        await withTimeout(agoraClient.join(appId, agoraChannel, token, uid), 25000, 'Agora channel join');
         auditChannel('agora', agoraChannel);
         liveDebugLog(`Agora join OK channel=${agoraChannel} uid=${uid}`);
         updateLiveDebug({ agoraJoined: true });
@@ -4015,6 +4021,19 @@
     bindCommonControls('live');
     bindHostControls('live');
     auditChannel('url', channelId());
+    setLiveStatus('Joining room…', null);
+    const joinGuard = setTimeout(() => {
+      if (!roomJoinCompleted) {
+        hideApLoader();
+        const lan = isLanHttpInNativeWebView();
+        setLiveStatus(
+          lan
+            ? 'LAN dev cannot host video live — use npm start (HTTPS), not start:lan'
+            : 'Connection timed out — check Wi‑Fi, sign in again, then retry',
+          false
+        );
+      }
+    }, 28000);
     try {
       await connectSocket('live');
     } catch (e) {
@@ -4022,9 +4041,12 @@
       hideApLoader();
       setLiveStatus(e?.message || 'Could not connect to live room', false);
       return;
+    } finally {
+      clearTimeout(joinGuard);
     }
     applyRoleUiAfterJoin();
     if (!roomJoinCompleted) {
+      hideApLoader();
       setLiveStatus('Room join failed — check internet and sign in again. Update app if needed.', false);
       toast('Could not join live room. Pull latest app after update.', 'error');
       return;
@@ -4042,7 +4064,17 @@
     updateModeBadge(broadcastMode, false);
 
     partyVoiceSkipped = false;
-    await resumeHostBroadcastIfNeeded();
+    if (isHost()) {
+      await resumeHostBroadcastIfNeeded();
+    } else {
+      try {
+        await startAgora('live');
+      } catch (e) {
+        console.error('[live] viewer stream connect failed', e);
+        onRoomReady();
+        setLiveStatus(e?.message || 'Could not connect to stream', false);
+      }
+    }
     applyRoleUiAfterJoin();
     postWelcomeMessage();
 

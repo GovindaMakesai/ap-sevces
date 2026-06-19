@@ -15,7 +15,7 @@ const API_HOST = process.env.AP_API_HOST || new URL(apiConfig.BACKEND_URL).hostn
 const API_PORT = Number(process.env.AP_API_PORT || new URL(apiConfig.BACKEND_URL).port || 5000);
 const API_USE_HTTPS = process.env.AP_API_USE_HTTPS === 'true' || apiConfig.BACKEND_URL.startsWith('https:');
 const FRONTEND_DIR = path.join(__dirname, '..', '..', 'frontend');
-const DEV_BUILD_ID = process.env.AP_DEV_BUILD || '20260619-livefix';
+const DEV_BUILD_ID = process.env.AP_DEV_BUILD || '20260619-connectfix';
 
 function fileMtimeMs(filePath) {
   try {

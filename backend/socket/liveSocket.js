@@ -135,7 +135,24 @@ function registerLiveSocket(io) {
         socket.data.liveDisplayName = displayName;
         socket.data.isHost = isHost;
 
-        const state = await liveRoomService.buildSnapshot(channel);
+        let state = null;
+        try {
+          state = await liveRoomService.buildSnapshot(channel);
+        } catch (snapErr) {
+          console.error('live:join snapshot', snapErr.message);
+        }
+        if (!state) {
+          state = {
+            channel,
+            type: roomType,
+            hostId: isHost ? socket.userId : existingRoom?.host_user_id,
+            hostName: displayName,
+            viewers: 1,
+            messages: [],
+            gifts: [],
+            seats: [],
+          };
+        }
         socket.emit('live:state', state);
         socket.to(`live:${channel}`).emit('live:state', state);
         io.to(`live:${channel}`).emit('live:viewer_count', { viewers: state?.viewers || 0 });
