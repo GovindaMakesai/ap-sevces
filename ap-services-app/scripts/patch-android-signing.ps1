@@ -38,3 +38,34 @@ signingConfigs {
 }
 
 Set-Content $gradle $content -NoNewline
+
+$manifest = Join-Path $PSScriptRoot "..\android\app\src\main\AndroidManifest.xml"
+if (Test-Path $manifest) {
+  $m = Get-Content $manifest -Raw
+  if ($m -notmatch 'xmlns:tools=') {
+    $m = $m -replace '(<manifest[^>]*)(>)', '$1 xmlns:tools="http://schemas.android.com/tools"$2'
+  }
+  foreach ($perm in @(
+    'android.permission.RECORD_AUDIO',
+    'android.permission.MODIFY_AUDIO_SETTINGS'
+  )) {
+    if ($m -notmatch [regex]::Escape($perm)) {
+      $m = $m -replace '(<uses-permission android:name="android.permission.CAMERA"/>)', "`$1`n  <uses-permission android:name=`"$perm`"/>"
+    }
+  }
+  $blocked = @(
+    'android.permission.READ_MEDIA_IMAGES',
+    'android.permission.READ_MEDIA_VIDEO',
+    'android.permission.READ_MEDIA_VISUAL_USER_SELECTED',
+    'android.permission.READ_EXTERNAL_STORAGE',
+    'android.permission.WRITE_EXTERNAL_STORAGE'
+  )
+  foreach ($blockedPerm in $blocked) {
+    $m = $m -replace "\s*<uses-permission[^>]*android:name=`"$blockedPerm`"[^>]*/>\s*", "`n"
+    $removeTag = "<uses-permission android:name=`"$blockedPerm`" tools:node=`"remove`" />"
+    if ($m -notmatch [regex]::Escape($removeTag)) {
+      $m = $m -replace '(<application\b)', "$removeTag`n  `$1"
+    }
+  }
+  Set-Content $manifest $m -NoNewline
+}

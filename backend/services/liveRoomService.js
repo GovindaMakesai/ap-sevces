@@ -35,9 +35,9 @@ async function hostRoom({ channel, roomType, hostUserId, hostDisplayName }) {
     const liveRoom = room.rows[0];
 
     await client.query(
-      `INSERT INTO live_room_members (live_room_id, user_id, display_name, role, left_at)
-       VALUES ($1, $2, $3, 'host', NULL)
-       ON CONFLICT (live_room_id, user_id) DO UPDATE SET display_name = EXCLUDED.display_name, role = 'host', left_at = NULL, joined_at = CURRENT_TIMESTAMP`,
+      `INSERT INTO live_room_members (live_room_id, user_id, display_name, role, left_at, last_seen_at)
+       VALUES ($1, $2, $3, 'host', NULL, CURRENT_TIMESTAMP)
+       ON CONFLICT (live_room_id, user_id) DO UPDATE SET display_name = EXCLUDED.display_name, role = 'host', left_at = NULL, joined_at = CURRENT_TIMESTAMP, last_seen_at = CURRENT_TIMESTAMP`,
       [liveRoom.id, hostUserId, hostDisplayName]
     );
 
@@ -305,11 +305,21 @@ async function endOrphanRooms() {
 
 async function listActiveRooms({ roomType, limit = 30, sort = 'trending' } = {}) {
   const params = [];
-  let sql = `SELECT channel, room_type, host_user_id, host_display_name, viewer_count, status, updated_at, started_at
-             FROM live_rooms WHERE status = 'active' AND viewer_count > 0`;
+  let sql = `SELECT lr.channel, lr.room_type, lr.host_user_id, lr.host_display_name, lr.viewer_count, lr.status, lr.updated_at, lr.started_at
+             FROM live_rooms lr
+             WHERE lr.status = 'active'
+               AND lr.viewer_count > 0
+               AND lr.updated_at > CURRENT_TIMESTAMP - INTERVAL '12 minutes'
+               AND EXISTS (
+                 SELECT 1 FROM live_room_members m
+                 WHERE m.live_room_id = lr.id
+                   AND m.role = 'host'
+                   AND m.left_at IS NULL
+                   AND m.last_seen_at > CURRENT_TIMESTAMP - INTERVAL '3 minutes'
+               )`;
   if (roomType) {
     params.push(roomType);
-    sql += ` AND room_type = $${params.length}`;
+    sql += ` AND lr.room_type = $${params.length}`;
   }
   const orderBy =
     sort === 'new'
@@ -330,6 +340,10 @@ async function touchHeartbeat(channel, userId) {
     `UPDATE live_room_members SET last_seen_at = CURRENT_TIMESTAMP
      WHERE live_room_id = $1 AND user_id = $2 AND left_at IS NULL`,
     [room.id, userId]
+  );
+  await db.query(
+    `UPDATE live_rooms SET updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+    [room.id]
   );
 }
 

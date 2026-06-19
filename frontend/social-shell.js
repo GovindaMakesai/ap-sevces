@@ -106,6 +106,17 @@
     return html;
   }
 
+  function formatLiveAge(iso) {
+    if (!iso) return '';
+    const ms = Date.now() - new Date(iso).getTime();
+    if (!Number.isFinite(ms) || ms < 0) return '';
+    const min = Math.floor(ms / 60000);
+    if (min < 1) return 'Just started';
+    if (min < 60) return `${min}m ago`;
+    const hr = Math.floor(min / 60);
+    return `${hr}h ago`;
+  }
+
   function renderLiveCard(pro, index, opts) {
     const party = opts && opts.party;
     const channel = pro.channel || pro.id || '';
@@ -114,18 +125,21 @@
     const img = pro.image || coverFallback(name, party);
     const tag = party ? 'Party' : 'Live';
     const viewers = Math.max(0, Number(pro.viewers) || 0);
+    const age = formatLiveAge(pro.startedAt || pro.updatedAt);
     const ch = encodeURIComponent(String(channel).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64));
     const href = party
       ? `/party-room.html?channel=${ch}&app=1`
       : `/live-room.html?channel=${ch}&feed=1&app=1`;
     const liveBadge = '<span class="tag hot"><span class="live-pulse-dot"></span> LIVE</span>';
     const inRoom = `<span class="in-room"><i class="fas fa-signal"></i> ${formatViewers(viewers)}</span>`;
+    const ageLabel = age ? `<span class="live-age">${age}</span>` : '';
 
     return `
       <article class="social-live-card${party ? ' is-party' : ''}" data-href="${href}" role="button" tabindex="0">
         <img src="${img}" alt="" loading="lazy" onerror="this.src='${coverFallback(name, party).replace(/'/g, '&#39;')}'">
         ${liveBadge}
         <span class="tag">${tag}</span>
+        ${ageLabel}
         <div class="bottom">
           <div class="bottom-row">
             <span class="name">🇮🇳 ${name}</span>
@@ -243,6 +257,8 @@
           name: r.hostName || 'Host',
           image: coverFallback(r.hostName || 'Host', party),
           viewers: r.viewers || 0,
+          startedAt: r.startedAt,
+          updatedAt: r.updatedAt,
           tag: party ? 'Party' : 'Live',
           live: true,
         }));

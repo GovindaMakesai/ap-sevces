@@ -405,6 +405,7 @@ body.ap-ref-ui .gift-gallery-hint button {
 /* —— Profile sheet (reference) —— */
 .ap-profile-sheet-panel {
   padding-top: 28px !important;
+  max-height: min(88vh, 720px) !important;
 }
 
 .ap-profile-avatar-wrap {

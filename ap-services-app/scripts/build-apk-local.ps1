@@ -1,4 +1,7 @@
-# Signed Play Store AAB for com.apservices.app (builds off OneDrive at C:\aps-build)
+# Standalone installable APK for phone testing (builds off OneDrive at C:\aps-build).
+# Default: release APK (production WebView). Pass -Debug for a faster debug APK.
+param([switch]$Debug)
+
 $ErrorActionPreference = "Stop"
 $src = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $dest = "C:\aps-build"
@@ -27,6 +30,8 @@ if (-not $keyPass) { $keyPass = $storePass }
 
 $appJson = Get-Content (Join-Path $src "app.json") -Raw | ConvertFrom-Json
 $version = $appJson.expo.version
+$variant = if ($Debug) { "Debug" } else { "Release" }
+$variantLower = $variant.ToLower()
 $keystoreApp = Join-Path $src "android\app\upload.jks"
 
 if (-not (Test-Path (Join-Path $src "android\gradlew.bat"))) {
@@ -38,15 +43,12 @@ if (-not (Test-Path (Join-Path $src "android\gradlew.bat"))) {
 }
 & powershell -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "patch-android-signing.ps1") | Out-Null
 
-if (-not (Test-Path $keystoreSrc)) { throw "Upload keystore not found: $keystoreSrc" }
-if (-not $storePass) { throw "Set store password in scripts\play-upload.local.properties" }
-
-$shaOut = cmd /c "keytool -list -v -keystore `"$keystoreSrc`" -storepass $storePass 2>&1"
-$m = [regex]::Match($shaOut, "SHA1:\s*([0-9A-F:]+)")
-if ($m.Success) { Write-Host "Signing with upload key SHA1: $($m.Groups[1].Value)" }
-
-New-Item -ItemType Directory -Path (Split-Path $keystoreApp) -Force | Out-Null
-Copy-Item -LiteralPath $keystoreSrc -Destination $keystoreApp -Force
+if (-not $Debug) {
+  if (-not (Test-Path $keystoreSrc)) { throw "Upload keystore not found: $keystoreSrc" }
+  if (-not $storePass) { throw "Set store password in scripts\play-upload.local.properties" }
+  New-Item -ItemType Directory -Path (Split-Path $keystoreApp) -Force | Out-Null
+  Copy-Item -LiteralPath $keystoreSrc -Destination $keystoreApp -Force
+}
 
 if (Test-Path $dest) { Remove-Item -Recurse -Force $dest -ErrorAction SilentlyContinue }
 New-Item -ItemType Directory -Path $dest -Force | Out-Null
@@ -55,25 +57,32 @@ robocopy $src $dest /E /XD node_modules .gradle build .cxx dist "android\app\bui
 if ($LASTEXITCODE -ge 8) { throw "robocopy failed with exit $LASTEXITCODE" }
 
 cmd /c "mklink /J `"$dest\node_modules`" `"$src\node_modules`"" | Out-Null
-Copy-Item -LiteralPath $keystoreApp -Destination "$dest\android\app\upload.jks" -Force
 
-$gradleProps = Join-Path $dest "android\gradle.properties"
-$lines = Get-Content $gradleProps
-$lines = $lines | Where-Object {
-  $_ -notmatch '^MYAPP_UPLOAD_STORE_FILE=' -and
-  $_ -notmatch '^MYAPP_UPLOAD_KEY_ALIAS=' -and
-  $_ -notmatch '^MYAPP_UPLOAD_STORE_PASSWORD=' -and
-  $_ -notmatch '^MYAPP_UPLOAD_KEY_PASSWORD=' -and
-  $_ -notmatch '^reactNativeArchitectures='
+if (-not $Debug) {
+  Copy-Item -LiteralPath $keystoreApp -Destination "$dest\android\app\upload.jks" -Force
+  $gradleProps = Join-Path $dest "android\gradle.properties"
+  $lines = Get-Content $gradleProps
+  $lines = $lines | Where-Object {
+    $_ -notmatch '^MYAPP_UPLOAD_STORE_FILE=' -and
+    $_ -notmatch '^MYAPP_UPLOAD_KEY_ALIAS=' -and
+    $_ -notmatch '^MYAPP_UPLOAD_STORE_PASSWORD=' -and
+    $_ -notmatch '^MYAPP_UPLOAD_KEY_PASSWORD=' -and
+    $_ -notmatch '^reactNativeArchitectures='
+  }
+  $lines += @(
+    "reactNativeArchitectures=arm64-v8a",
+    "MYAPP_UPLOAD_STORE_FILE=upload.jks",
+    "MYAPP_UPLOAD_KEY_ALIAS=$alias",
+    "MYAPP_UPLOAD_STORE_PASSWORD=$storePass",
+    "MYAPP_UPLOAD_KEY_PASSWORD=$keyPass"
+  )
+  $lines | Set-Content $gradleProps -Encoding UTF8
+} else {
+  $gradleProps = Join-Path $dest "android\gradle.properties"
+  $lines = Get-Content $gradleProps | Where-Object { $_ -notmatch '^reactNativeArchitectures=' }
+  $lines += "reactNativeArchitectures=arm64-v8a"
+  $lines | Set-Content $gradleProps -Encoding UTF8
 }
-$lines += @(
-  "reactNativeArchitectures=arm64-v8a",
-  "MYAPP_UPLOAD_STORE_FILE=upload.jks",
-  "MYAPP_UPLOAD_KEY_ALIAS=$alias",
-  "MYAPP_UPLOAD_STORE_PASSWORD=$storePass",
-  "MYAPP_UPLOAD_KEY_PASSWORD=$keyPass"
-)
-$lines | Set-Content $gradleProps -Encoding UTF8
 
 $buildGradle = Join-Path $dest "android\app\build.gradle"
 if (Test-Path $buildGradle) {
@@ -90,24 +99,24 @@ Set-Location (Join-Path $dest "android")
 $env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
 $env:ANDROID_SDK_ROOT = $env:ANDROID_HOME
 
-Write-Host "Building release AAB v$version ($($appJson.expo.android.package)) ..."
-.\gradlew.bat bundleRelease --no-daemon
+Write-Host "Building $variant APK v$version ($($appJson.expo.android.package)) ..."
+.\gradlew.bat "assemble$variant" --no-daemon
 
-$merged = "$dest\android\app\build\intermediates\merged_manifests\release\processReleaseManifest\AndroidManifest.xml"
-& powershell -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "verify-play-permissions.ps1") $merged
-if ($LASTEXITCODE -ne 0) { throw "Play permission verification failed" }
-
-$aab = "$dest\android\app\build\outputs\bundle\release\app-release.aab"
-if (-not (Test-Path $aab)) { throw "AAB not found at $aab" }
+$apkName = if ($Debug) { "app-debug.apk" } else { "app-release.apk" }
+$apk = "$dest\android\app\build\outputs\apk\$variantLower\$apkName"
+if (-not (Test-Path $apk)) { throw "APK not found at $apk" }
 
 $outDir = Join-Path $src "dist"
 New-Item -ItemType Directory -Path $outDir -Force | Out-Null
-$outFile = Join-Path $outDir "ap-services-$version-release.aab"
-$desktopCopy = Join-Path $env:USERPROFILE "OneDrive\Desktop\ap-services-$version-release.aab"
-Copy-Item $aab $outFile -Force
+$suffix = if ($Debug) { "debug" } else { "release" }
+$outFile = Join-Path $outDir "ap-services-$version-$suffix.apk"
+$desktopCopy = Join-Path $env:USERPROFILE "OneDrive\Desktop\ap-services-$version-$suffix.apk"
+Copy-Item $apk $outFile -Force
 Copy-Item $outFile $desktopCopy -Force
 
 Write-Host ""
-Write-Host "SUCCESS - AAB ready:"
+Write-Host "SUCCESS - APK ready:"
 Write-Host "  $outFile"
 Write-Host "  $desktopCopy"
+Write-Host ""
+Write-Host "Install: copy to phone, or: adb install -r `"$outFile`""

@@ -365,19 +365,8 @@
     setTimeout(() => el.remove(), 4500);
   }
 
-  function showJoinBanner(user) {
-    ensureRoot();
-    const name = user?.name || user?.displayName || 'Viewer';
-    const isVip = user?.vip || user?.level >= 20;
-    const banner = document.createElement('div');
-    banner.className = 'ap-entry-banner' + (isVip ? ' vip' : '');
-    const imgSrc =
-      user?.avatar ||
-      `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect fill="#7c3aed" width="64" height="64"/><text x="50%" y="54%" text-anchor="middle" fill="#fff" font-size="24">${name[0] || 'U'}</text></svg>`)}`;
-    banner.innerHTML = `<img src="${imgSrc}" alt=""><span class="ap-entry-text">${isVip ? '⭐ VIP ' : ''}${escapeHtml(name)} joined</span>`;
-    fxRoot.appendChild(banner);
-    pushActivity({ type: 'join', html: `<strong>${escapeHtml(name)}</strong> joined the room` });
-    setTimeout(() => banner.remove(), 2400);
+  function showJoinBanner(_user) {
+    /* Join toasts disabled — they blocked the live view */
   }
 
   function showFollowBurst(anchorEl) {

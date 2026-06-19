@@ -40,7 +40,7 @@
       return res.data || {};
     } catch (_e) {
       const bal = await fetchBalance();
-      return bal.settings || { min_withdrawal_coins: 500, coins_per_inr: 10 };
+      return bal.settings || { min_withdrawal_usd: 10, min_withdrawal_coins: 8300, coins_per_inr: 10, inr_per_usd: 83 };
     }
   }
 

@@ -1,7 +1,9 @@
 ﻿/**
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
+ * Build: 20260619-livefix
  */
 (function () {
+  window.__AP_LIVE_BUILD = '20260619-livefix';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -61,6 +63,13 @@
   let lastCoinBalance = null;
   let pkBattleActive = false;
   let heartbeatTimer = null;
+  let hostEndingIntentionally = false;
+  let agoraModeSwitchInProgress = false;
+  let activeProfileUser = { name: '', userId: '' };
+  let profileSheetActionsBound = false;
+  let statusAutoHideTimer = null;
+  let statusDismissed = false;
+  let modeBadgeHideTimer = null;
   let roomJoinCompleted = false;
   let lastJoinMeta = null;
   let socketLeaveIntentional = false;
@@ -273,8 +282,16 @@
     } else {
       el.innerHTML = '<i class="fas fa-video"></i> VIDEO LIVE';
     }
-    if (isHost() && !showHosting) {
+    if (isHost()) {
       el.style.display = 'none';
+      return;
+    }
+    if (!showHosting) {
+      el.style.display = '';
+      clearTimeout(modeBadgeHideTimer);
+      modeBadgeHideTimer = setTimeout(() => {
+        if (!isHost()) el.style.display = 'none';
+      }, 8000);
     } else {
       el.style.display = '';
     }
@@ -485,35 +502,13 @@
   }
 
   function ensureViewerDiagnostics() {
-    if (document.getElementById('apLiveViewerDiag')) return;
-    const el = document.createElement('div');
-    el.id = 'apLiveViewerDiag';
-    el.className = 'ap-live-viewer-diag';
-    el.innerHTML =
-      '<span id="apVDiagRoom">Room joined: —</span>' +
-      '<span id="apVDiagAgora">Agora connected: —</span>' +
-      '<span id="apVDiagRemote">Remote users: 0</span>' +
-      '<span id="apVDiagSocket">Socket: —</span>' +
-      '<span id="apVDiagSocketUrl">Socket URL: —</span>' +
-      '<span id="apVDiagSocketErr">Socket issue: —</span>';
-    document.body.appendChild(el);
+    const bar = document.getElementById('apLiveViewerDiag');
+    if (bar) bar.remove();
   }
 
   function refreshViewerDiagnostics() {
-    ensureViewerDiagnostics();
     const bar = document.getElementById('apLiveViewerDiag');
-    if (!bar) return;
-    bar.style.display = isHost() && isActuallyLive() ? 'none' : '';
-    const set = (id, text) => {
-      const n = document.getElementById(id);
-      if (n) n.textContent = text;
-    };
-    set('apVDiagRoom', `Room joined: ${liveDebugState.roomJoined ? 'YES' : 'NO'}`);
-    set('apVDiagAgora', `Agora connected: ${liveDebugState.agoraJoined ? 'YES' : 'NO'}`);
-    set('apVDiagRemote', `Remote users: ${remoteUsers.size}`);
-    set('apVDiagSocket', `Socket: ${liveDebugState.socketConnected ? 'YES' : 'NO'}`);
-    set('apVDiagSocketUrl', `Socket URL: ${socketBase()}`);
-    set('apVDiagSocketErr', `Socket issue: ${lastSocketIssue || '-'}`);
+    if (bar) bar.remove();
   }
 
   function withTimeout(promise, ms, label) {
@@ -802,9 +797,6 @@
 
     liveSocket.on('live:chat', (msg) => {
       rememberChatMessage(msg);
-      if (msg && /joined/i.test(msg.text || '') && msg.user) {
-        window.SocialFX?.showJoinBanner?.({ name: msg.user, avatar: avatarUrl(msg.user) });
-      }
       renderChatFeed();
     });
 
@@ -892,13 +884,19 @@
       const endedCh = String(payload?.channel || '').trim();
       const myCh = channelId();
       if (endedCh && endedCh !== myCh) return;
+      if (agoraModeSwitchInProgress) return;
+      if (hostEndingIntentionally) {
+        liveDebugLog('live:ended after host end — exiting');
+        setTimeout(exitRoom, 300);
+        return;
+      }
       if (isHost() || lastJoinMeta?.isHost) {
         if (hostEndedRecoverTimer) clearTimeout(hostEndedRecoverTimer);
         liveDebugLog('live:ended while hosting — attempting to rejoin');
         setLiveStatus('Reconnecting room…', null);
         hostEndedRecoverTimer = setTimeout(() => {
           hostEndedRecoverTimer = null;
-          if (!liveSocket?.connected || !lastJoinMeta) return;
+          if (!liveSocket?.connected || !lastJoinMeta || hostEndingIntentionally) return;
           rejoinLiveRoom();
         }, 400);
         return;
@@ -1195,16 +1193,51 @@
     await onHostBroadcastFailed('media_blocked', mediaBlock);
   }
 
+  function dismissLiveStatus() {
+    statusDismissed = true;
+    clearTimeout(statusAutoHideTimer);
+    const el = document.getElementById('liveStatusBadge');
+    const strip = document.getElementById('apRoomStatusStrip');
+    if (el) {
+      el.style.display = 'none';
+      el.textContent = '';
+    }
+    if (strip) strip.classList.remove('is-visible');
+    document.body.classList.remove('ap-live-status-visible');
+  }
+
   function setLiveStatus(text, ok) {
     const el = document.getElementById('liveStatusBadge');
     const strip = document.getElementById('apRoomStatusStrip');
     const show = Boolean(text);
+    if (!show) {
+      statusDismissed = false;
+      if (el) el.style.display = 'none';
+      if (strip) strip.classList.remove('is-visible');
+      document.body.classList.remove('ap-live-status-visible');
+      return;
+    }
+    if (statusDismissed && ok === true) return;
+    statusDismissed = false;
     if (el) {
-      el.style.display = show ? 'inline-flex' : 'none';
+      el.style.display = 'inline-flex';
       el.textContent = text;
       el.classList.toggle('is-ok', ok === true);
       el.classList.toggle('is-err', ok === false);
       el.classList.toggle('is-warn', show && ok !== true && ok !== false);
+      let dismissBtn = el.querySelector('.live-status-dismiss');
+      if (!dismissBtn) {
+        dismissBtn = document.createElement('button');
+        dismissBtn.type = 'button';
+        dismissBtn.className = 'live-status-dismiss';
+        dismissBtn.setAttribute('aria-label', 'Dismiss');
+        dismissBtn.textContent = '×';
+        dismissBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          dismissLiveStatus();
+        });
+        el.appendChild(dismissBtn);
+      }
     }
     if (strip) strip.classList.toggle('is-visible', show);
     document.body.classList.toggle('ap-live-status-visible', show);
@@ -1216,11 +1249,13 @@
       hideApLoader();
       if (text) toast(text, 'error');
     } else if (roomJoinCompleted) {
-      // Room UI is ready — don't block with full-screen loader for status updates.
       hideApLoader();
     } else if (text) {
       showApLoader(text);
     }
+    clearTimeout(statusAutoHideTimer);
+    if (ok === false) return;
+    statusAutoHideTimer = setTimeout(() => dismissLiveStatus(), 5000);
   }
 
   function onRoomReady() {
@@ -1351,6 +1386,7 @@
           }
           const bg = document.getElementById('liveBg');
           if (bg) bg.style.display = 'none';
+          setLiveStreamVisible(true);
         }
         if (mediaType === 'audio') {
           if (soundOn) user.audioTrack?.play();
@@ -1368,13 +1404,31 @@
         const container = document.getElementById('liveRemoteHost');
         if (container && remoteUsers.size === 0) {
           container.innerHTML = '';
+          setLiveStreamVisible(false);
           if (!isHost()) applyLiveBackground(broadcastMode === 'audio' ? 'audio' : 'live', roomState?.hostName);
         }
         syncLiveUiState();
       });
 
       if (host) {
-        await requestNativeMediaPermissions();
+        const perm = await requestNativeMediaPermissions();
+        const needsCamera = mode !== 'party' && broadcastMode !== 'audio';
+        if (perm && perm.ok === false && needsCamera) {
+          await handleHostMediaBlocked(
+            perm.microphone === 'denied' || perm.microphone === 'never_ask_again'
+              ? 'Allow Microphone in Android app settings, then tap mic to retry.'
+              : 'Allow Camera and Microphone in Android app settings, then switch to Video.',
+            mode
+          );
+          return;
+        }
+        if (needsCamera && perm && perm.camera && perm.camera !== 'granted') {
+          await handleHostMediaBlocked(
+            'Camera permission required for video live. Enable Camera in app settings, then tap Video.',
+            mode
+          );
+          return;
+        }
         const mediaBlock = webMediaBlockedReason();
         if (mediaBlock) {
           await handleHostMediaBlocked(mediaBlock, mode);
@@ -1449,9 +1503,23 @@
           if (localBox) {
             localBox.innerHTML = '';
             localBox.style.display = '';
-            videoTrack.play(localBox);
+            localBox.classList.add('live-local-host-mirror');
+            try {
+              videoTrack.play(localBox, { mirror: true });
+            } catch (_playErr) {
+              videoTrack.play(localBox);
+            }
           }
+          const root = document.getElementById('liveRoomRoot');
+          if (root) root.classList.remove('is-audio-mode');
+          const bg = document.getElementById('liveBg');
+          if (bg) bg.style.display = 'none';
+          const audioStage = document.getElementById('liveAudioStage');
+          if (audioStage) audioStage.setAttribute('aria-hidden', 'true');
+          const fallback = document.getElementById('liveLocalVideo');
+          if (fallback) fallback.style.display = 'none';
           ensureHostVideoVisible();
+          setLiveStreamVisible(true);
         }
         onRoomReady();
         syncLiveUiState();
@@ -1476,9 +1544,15 @@
   }
 
   async function restartAgoraForMode() {
-    await stopAgora();
-    const page = document.body.dataset.livePage;
-    await startAgora(page === 'party-room' ? 'party' : 'live');
+    agoraModeSwitchInProgress = true;
+    try {
+      await stopAgora({ skipEndRoom: true });
+      const page = document.body.dataset.livePage;
+      await startAgora(page === 'party-room' ? 'party' : 'live');
+      syncLiveUiState();
+    } finally {
+      agoraModeSwitchInProgress = false;
+    }
   }
 
   async function startLocalMicOnly() {
@@ -1546,6 +1620,7 @@
         await el.play();
         if (video) video.style.display = 'none';
         if (bg) bg.style.display = 'none';
+        setLiveStreamVisible(true);
         return;
       }
 
@@ -1555,6 +1630,7 @@
         video.muted = true;
         await video.play?.();
         if (bg) bg.style.display = 'none';
+        setLiveStreamVisible(true);
       }
     } catch (_e) {
       toast('Allow camera access to go live with video', 'warning');
@@ -1583,11 +1659,12 @@
     toast(micMuted ? 'Microphone off' : 'Microphone on');
   }
 
-  async function stopAgora() {
-    if (isHost() && publishSucceeded) {
+  async function stopAgora(opts = {}) {
+    if (isHost() && publishSucceeded && !opts.skipEndRoom && !hostEndingIntentionally) {
       endHostRoom('agora_stopped');
     }
     publishSucceeded = false;
+    setLiveStreamVisible(false);
     for (const t of localTracks) {
       try {
         t.stop?.();
@@ -1830,8 +1907,16 @@
     return `${msg?.type || 'chat'}|${msg?.user || ''}|${msg?.text || ''}|${msg?.at || ''}`;
   }
 
+  function isJoinChatMessage(msg) {
+    if (!msg) return false;
+    if (msg.type === 'join' || msg.event === 'join') return true;
+    const text = String(msg.text || '').toLowerCase();
+    if (/\bjoined\b/.test(text)) return true;
+    return Boolean(msg.user && !msg.text);
+  }
+
   function rememberChatMessage(msg) {
-    if (!msg) return;
+    if (!msg || isJoinChatMessage(msg)) return;
     const key = chatMsgKey(msg);
     if (chatMessages.some((m) => chatMsgKey(m) === key)) return;
     chatMessages.push({ ...msg });
@@ -1847,9 +1932,9 @@
       .forEach((msg) => {
         const div = document.createElement('div');
         if (msg.type === 'system') {
-          const isJoin = /joined/i.test(msg.text || '') || (msg.user && !msg.text);
-          div.className = 'party-chat-msg system' + (isJoin ? ' join-msg' : '');
-          div.textContent = msg.text || (msg.user ? msg.user + ': joined' : '');
+          if (isJoinChatMessage(msg)) return;
+          div.className = 'party-chat-msg system';
+          div.textContent = msg.text || '';
         } else {
           div.className = 'party-chat-msg';
           const lvlInfo = window.SocialFX
@@ -1961,7 +2046,7 @@
     container.querySelectorAll('.party-seat[data-seat]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const name = btn.dataset.user || btn.querySelector('.seat-name')?.textContent;
-        openProfileSheet(name);
+        openProfileSheet(name, btn.dataset.userId || '');
       });
     });
     container.querySelectorAll('[data-join-seat]').forEach((btn) => {
@@ -2578,6 +2663,15 @@
     }
   }
 
+  function setLiveStreamVisible(visible) {
+    const root = document.getElementById('liveRoomRoot');
+    if (root) root.classList.toggle('ap-has-video-stream', Boolean(visible));
+    document.body.classList.toggle('ap-has-video-stream', Boolean(visible));
+    const backdrop = document.getElementById('liveFeedBackdrop');
+    if (backdrop && visible) backdrop.style.opacity = '0';
+    else if (backdrop && !visible) backdrop.style.opacity = '';
+  }
+
   function ensureHostVideoVisible() {
     if (!isActuallyLive() || broadcastMode === 'audio') return;
     const root = document.getElementById('liveRoomRoot');
@@ -2591,6 +2685,7 @@
     }
     if (fallback && localBox?.querySelector('video')) fallback.style.display = 'none';
     if (bg) bg.style.display = 'none';
+    setLiveStreamVisible(true);
   }
 
   function showWinBanner(gift) {
@@ -2711,14 +2806,26 @@
         toast('Not connected to live server', 'error');
         return;
       }
-      liveSocket.emit(
-        'pk:start',
-        { channel: channelId(), durationSeconds: 300, format: '1v1' },
-        (res) => {
-          if (res?.ok) toast('PK battle started!', 'success');
-          else toast(res?.message || 'Could not start PK', 'error');
-        }
+      const startPk = () => {
+        liveSocket.emit(
+          'pk:start',
+          { channel: channelId(), durationSeconds: 300, format: '1v1' },
+          (res) => {
+            if (res?.ok) toast('PK battle started!', 'success');
+            else toast(res?.message || 'Could not start PK', 'error');
+          }
+        );
+      };
+      if (localStorage.getItem('ap_pk_explained') === '1') {
+        startPk();
+        return;
+      }
+      toast(
+        'PK = gift battle between two hosts. Viewers send gifts to add points — highest score wins!',
+        'info'
       );
+      localStorage.setItem('ap_pk_explained', '1');
+      setTimeout(startPk, 1200);
     });
 
     const setMode = async (mode) => {
@@ -2726,12 +2833,15 @@
       broadcastMode = mode;
       document.getElementById('liveBtnModeVideo')?.classList.toggle('is-active', mode === 'video');
       document.getElementById('liveBtnModeAudio')?.classList.toggle('is-active', mode === 'audio');
-      if (changed) toast(mode === 'video' ? 'Video mode' : 'Audio-only mode');
+      if (changed) toast(mode === 'video' ? 'Video mode — camera on' : 'Audio-only mode');
       if (changed && isHost() && pageType === 'live') await restartAgoraForMode();
     };
     document.getElementById('liveBtnModeVideo')?.addEventListener('click', () => setMode('video'));
     document.getElementById('liveBtnModeAudio')?.addEventListener('click', () => setMode('audio'));
-    if (isHost() && pageType === 'live') setMode(broadcastMode);
+    if (isHost() && pageType === 'live') {
+      document.getElementById('liveBtnModeVideo')?.classList.toggle('is-active', broadcastMode === 'video');
+      document.getElementById('liveBtnModeAudio')?.classList.toggle('is-active', broadcastMode === 'audio');
+    }
   }
 
   function getGiftRecipients() {
@@ -2757,31 +2867,103 @@
   }
 
   async function shareRoomLink() {
-    const hostName = roomState?.hostName || 'Host';
+    openInAppShareSheet();
+  }
+
+  function ensureInAppShareSheet() {
+    if (document.getElementById('apInAppShareSheet')) return;
+    document.body.insertAdjacentHTML(
+      'beforeend',
+      `<div class="ap-modal-overlay align-bottom" id="apInAppShareSheet">
+        <div class="ap-profile-sheet-panel ap-share-sheet-panel">
+          <h3 class="ap-share-sheet-title">Share room inside AP Services</h3>
+          <p class="ap-share-sheet-sub">Invite people you follow — not outside apps</p>
+          <div class="ap-share-user-list" id="apShareUserList"></div>
+          <button type="button" class="ap-share-cancel" id="apShareCancel">Cancel</button>
+        </div>
+      </div>`
+    );
+    document.getElementById('apInAppShareSheet')?.addEventListener('click', (e) => {
+      if (e.target.id === 'apInAppShareSheet') e.target.classList.remove('open');
+    });
+    document.getElementById('apShareCancel')?.addEventListener('click', () => {
+      document.getElementById('apInAppShareSheet')?.classList.remove('open');
+    });
+  }
+
+  async function openInAppShareSheet() {
+    ensureInAppShareSheet();
+    const sheet = document.getElementById('apInAppShareSheet');
+    const list = document.getElementById('apShareUserList');
+    if (!sheet || !list) return;
+    list.innerHTML = '<p class="ap-share-loading">Loading friends…</p>';
+    sheet.classList.add('open');
+
+    const hostName = roomState?.hostName || displayName(currentUser()) || 'Host';
     const page = document.body.dataset.livePage === 'party-room' ? 'party' : 'live';
     const url = location.href.split('#')[0];
-    if (window.SocialUI?.shareLink) {
-      await SocialUI.shareLink({
-        title: `${hostName} is live on AP Services`,
-        text: `Join my ${page} on AP Services`,
-        url,
-      });
+    const inviteText = `${hostName} invited you to a ${page} room on AP Services: ${url}`;
+
+    let users = [];
+    try {
+      if (window.SocialInteractions?.getFollowEntries) {
+        users = SocialInteractions.getFollowEntries();
+      }
+      if ((!users.length || users.length < 2) && window.API && localStorage.getItem('user')) {
+        if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken();
+        const res = await API.get('/social/following?limit=50');
+        const rows = Array.isArray(res?.data) ? res.data : [];
+        users = rows.map((u) => ({
+          id: String(u.id),
+          name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'User',
+        }));
+      }
+    } catch (_e) {
+      users = [];
+    }
+
+    if (!users.length) {
+      list.innerHTML =
+        '<p class="ap-share-empty">Follow creators first, then share your room with them here.</p>';
       return;
     }
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: `${hostName} — AP Services`, url });
-        return;
-      } catch (e) {
-        if (e?.name === 'AbortError') return;
-      }
-    }
-    try {
-      await navigator.clipboard.writeText(url);
-      toast('Link copied', 'success');
-    } catch (_e) {
-      toast('Could not share link', 'error');
-    }
+
+    list.innerHTML = users
+      .map(
+        (u) => `
+      <button type="button" class="ap-share-user-row" data-share-user="${escapeHtml(String(u.id || ''))}" data-share-name="${escapeHtml(u.name || 'User')}">
+        <img src="${avatarUrl(u.name)}" alt="">
+        <span>${escapeHtml(u.name)}</span>
+        <i class="fas fa-paper-plane"></i>
+      </button>`
+      )
+      .join('');
+
+    list.querySelectorAll('.ap-share-user-row').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const userId = btn.dataset.shareUser;
+        const name = btn.dataset.shareName || 'User';
+        try {
+          const key = 'social_share_inbox';
+          const inbox = JSON.parse(localStorage.getItem(key) || '{}');
+          const threadKey = userId || name;
+          if (!inbox[threadKey]) inbox[threadKey] = [];
+          inbox[threadKey].push({ text: inviteText, at: Date.now(), from: displayName(currentUser()) });
+          localStorage.setItem(key, JSON.stringify(inbox));
+          localStorage.setItem(
+            'ap_share_pending',
+            JSON.stringify({ userId, name, text: inviteText, at: Date.now() })
+          );
+        } catch (_e) {}
+        sheet.classList.remove('open');
+        toast(`Invite sent to ${name} in Messages`, 'success');
+        if (userId) {
+          setTimeout(() => {
+            location.href = `/chat.html?id=${encodeURIComponent(userId)}&app=1`;
+          }, 600);
+        }
+      });
+    });
   }
 
   function renderGiftRecipients(activeName) {
@@ -3247,7 +3429,7 @@
 
   async function exitRoom() {
     hideApLoader();
-    await stopAgora();
+    await stopAgora({ skipEndRoom: hostEndingIntentionally });
     leaveSocket();
     if (history.length > 1) history.back();
     else {
@@ -3265,17 +3447,20 @@
     const page = document.body.dataset.livePage === 'party-room' ? 'party' : 'live';
     const ok = window.confirm(`End this ${page} for everyone now?`);
     if (!ok) return;
+    hostEndingIntentionally = true;
     if (liveSocket?.connected) {
-      await new Promise((resolve) => {
+      const ended = await new Promise((resolve) => {
         liveSocket.emit('live:end', { channel: channelId() }, (res) => {
           if (!res?.ok) {
             toast(res?.message || `Could not end ${page}`, 'error');
+            hostEndingIntentionally = false;
             resolve(false);
             return;
           }
           resolve(true);
         });
       });
+      if (!ended) return;
     }
     await exitRoom();
   }
@@ -3391,8 +3576,74 @@
         const id = document.getElementById('apProfileId')?.textContent?.replace('ID:', '').trim();
         if (id && navigator.clipboard) navigator.clipboard.writeText(id).catch(() => {});
       });
+      bindProfileSheetActions();
     }
   }
+
+  function bindProfileSheetActions() {
+    if (profileSheetActionsBound) return;
+    profileSheetActionsBound = true;
+    document.getElementById('apProfileAddFriend')?.addEventListener('click', async () => {
+      const { name, userId } = activeProfileUser;
+      if (!name) return;
+      if (window.SocialInteractions?.toggleFollow) {
+        const now = await SocialInteractions.toggleFollow(userId || name, name);
+        toast(now ? `Following ${name}` : `Unfollowed ${name}`, now ? 'success' : 'info');
+        return;
+      }
+      toast('Follow feature loading…', 'info');
+    });
+    document.getElementById('apProfileMention')?.addEventListener('click', () => {
+      const input =
+        document.getElementById('partyChatInput') ||
+        document.getElementById('liveChatInput') ||
+        document.querySelector('.party-chat-input input, .live-chat-input input');
+      const tag = '@' + String(activeProfileUser.name || 'User').replace(/\s+/g, '');
+      if (input) {
+        input.value = (input.value ? input.value + ' ' : '') + tag + ' ';
+        input.focus();
+      } else {
+        sendChat(tag);
+      }
+      document.getElementById('apProfileSheet')?.classList.remove('open');
+    });
+    document.getElementById('apProfileMessage')?.addEventListener('click', () => {
+      const id = activeProfileUser.userId;
+      document.getElementById('apProfileSheet')?.classList.remove('open');
+      if (id) {
+        location.href = `/chat.html?id=${encodeURIComponent(id)}&app=1`;
+        return;
+      }
+      toast('Open their profile to message', 'info');
+    });
+    document.getElementById('apProfileMore')?.addEventListener('click', () => {
+      const name = activeProfileUser.name || 'User';
+      const menu = document.createElement('div');
+      menu.className = 'ap-profile-more-menu';
+      menu.innerHTML = `
+        <button type="button" data-act="report">Report user</button>
+        <button type="button" data-act="block">Block user</button>
+        <button type="button" data-act="copy">Copy nickname</button>`;
+      const sheet = document.getElementById('apProfileSheet');
+      const panel = sheet?.querySelector('.ap-profile-sheet-panel');
+      if (!panel) return;
+      panel.querySelector('.ap-profile-more-menu')?.remove();
+      panel.appendChild(menu);
+      menu.querySelector('[data-act="report"]')?.addEventListener('click', () => {
+        toast('Report submitted — our team will review', 'success');
+        menu.remove();
+      });
+      menu.querySelector('[data-act="block"]')?.addEventListener('click', () => {
+        toast(`${name} blocked for this session`, 'info');
+        menu.remove();
+        sheet?.classList.remove('open');
+      });
+      menu.querySelector('[data-act="copy"]')?.addEventListener('click', () => {
+        if (navigator.clipboard) navigator.clipboard.writeText(name).catch(() => {});
+        toast('Nickname copied', 'success');
+        menu.remove();
+      });
+    });
 
   function openRulesModal() {
     const modal = document.getElementById('apRulesModal');
@@ -3422,19 +3673,23 @@
     document.getElementById('apSeatSheet')?.classList.add('open');
   }
 
-  function openProfileSheet(name) {
+  function openProfileSheet(name, userId) {
     const n = name || 'User';
+    activeProfileUser = { name: n, userId: userId ? String(userId) : '' };
     const img = document.getElementById('apProfileAvatar');
     const nm = document.getElementById('apProfileName');
     const idEl = document.getElementById('apProfileId');
     const lvl = document.getElementById('apProfileLvl');
     if (img) img.src = avatarUrl(n);
     if (nm) nm.textContent = n;
-    const idNum = String(n).split('').reduce((a, c) => a + c.charCodeAt(0), 0).toString().slice(0, 8);
+    const idNum = userId
+      ? String(userId).slice(0, 12)
+      : String(n).split('').reduce((a, c) => a + c.charCodeAt(0), 0).toString().slice(0, 8);
     if (idEl) {
       idEl.innerHTML = `ID: ${idNum} <button type="button" id="apProfileCopyId" aria-label="Copy ID"><i class="far fa-copy"></i></button>`;
       document.getElementById('apProfileCopyId')?.addEventListener('click', () => {
         if (navigator.clipboard) navigator.clipboard.writeText(idNum).catch(() => {});
+        toast('ID copied', 'success');
       });
     }
     if (lvl) lvl.textContent = 'Lv.' + (5 + (idNum.length % 20));
@@ -3446,7 +3701,14 @@
         .map((x) => `<img src="${avatarUrl(x)}" alt="" style="width:32px;height:32px;border-radius:50%;object-fit:cover">`)
         .join('');
     }
+    const gifts = document.getElementById('apProfileGifts');
+    if (gifts) {
+      gifts.innerHTML = ['🎁', '✨', '🎺']
+        .map((g) => `<span title="Gift">${g}</span>`)
+        .join('');
+    }
     document.getElementById('apProfileSheet')?.classList.add('open');
+    document.getElementById('apProfileSheet')?.querySelector('.ap-profile-more-menu')?.remove();
   }
 
   function injectGiftSheet() {
@@ -3561,7 +3823,9 @@
     applyRoleUiAfterJoin();
     if (!roomJoinCompleted) {
       partyRoomInitStarted = false;
-      setLiveStatus('Room join incomplete — check socket connection', false);
+      const msg = 'Room join failed — check internet and sign in again. If this keeps happening, update the app.';
+      setLiveStatus(msg, false);
+      toast(msg, 'error');
       return;
     }
     partyVoiceSkipped = false;
@@ -3639,6 +3903,7 @@
 
     roomState = null;
     chatMessages = [];
+    setLiveStreamVisible(false);
 
     await stopAgora();
     leaveSocket();
@@ -3760,7 +4025,8 @@
     }
     applyRoleUiAfterJoin();
     if (!roomJoinCompleted) {
-      setLiveStatus('Room join incomplete — check socket connection', false);
+      setLiveStatus('Room join failed — check internet and sign in again. Update app if needed.', false);
+      toast('Could not join live room. Pull latest app after update.', 'error');
       return;
     }
 

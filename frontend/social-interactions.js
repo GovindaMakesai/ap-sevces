@@ -117,12 +117,24 @@
       const w = el.videoWidth || el.naturalWidth;
       const h = el.videoHeight || el.naturalHeight;
       el.classList.toggle('is-portrait', h > w * 1.05);
+      el.classList.toggle('is-landscape', w > h * 1.05);
+      el.dataset.aspect = w > h * 1.05 ? 'landscape' : h > w * 1.05 ? 'portrait' : 'square';
     };
     if (el.tagName === 'VIDEO') {
       el.addEventListener('loadedmetadata', apply);
     } else {
       el.addEventListener('load', apply);
     }
+  }
+
+  function isVideoMediaUrl(url) {
+    return /\.(mp4|webm|mov|m4v|mkv)(\?|$)/i.test(String(url || ''));
+  }
+
+  function postIsVideo(post) {
+    if (!post) return false;
+    if (post.isVideo) return true;
+    return isVideoMediaUrl(post.image || post.media_url || post.imageData);
   }
 
   async function getMediaUrl(post) {
@@ -159,18 +171,24 @@
       try {
         const res = await API.get('/social/posts');
         if (res.success && Array.isArray(res.data)) {
-          return res.data.map((p) => ({
-            id: p.id,
-            userId: p.user_id,
-            userName: `${p.author?.first_name || ''} ${p.author?.last_name || ''}`.trim() || 'User',
-            text: p.body,
-            image: p.media_url,
-            likes: p.like_count || 0,
-            comments: p.comment_count || 0,
-            liked: !!p.liked,
-            createdAt: p.created_at,
-            fromApi: true,
-          }));
+          return res.data.map((p) => {
+            const mapped = {
+              id: p.id,
+              userId: p.user_id,
+              userName: `${p.author?.first_name || ''} ${p.author?.last_name || ''}`.trim() || 'User',
+              text: p.body,
+              caption: p.body,
+              image: p.media_url,
+              likes: p.like_count || 0,
+              comments: p.comment_count || 0,
+              liked: !!p.liked,
+              createdAt: p.created_at,
+              fromApi: true,
+              isVideo: isVideoMediaUrl(p.media_url),
+            };
+            if (mapped.liked) setLike(mapped.id, true);
+            return mapped;
+          });
         }
       } catch (_e) {
         /* fallback */
@@ -197,8 +215,30 @@
     localStorage.setItem(LIKES_KEY, JSON.stringify(likes));
   }
 
-  function isLiked(postId) {
-    return !!getLikes()[postId];
+  function isLiked(postId, post) {
+    const likes = getLikes();
+    if (Object.prototype.hasOwnProperty.call(likes, postId)) return !!likes[postId];
+    return !!(post && post.liked);
+  }
+
+  async function toggleLikePost(postId, post) {
+    const wasLiked = isLiked(postId, post);
+    const nextLiked = !wasLiked;
+    setLike(postId, nextLiked);
+    if (post?.fromApi && window.API && hasAuth()) {
+      try {
+        if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken();
+        const res = await API.post(`/social/posts/${postId}/like`);
+        if (res?.success && res.data) {
+          setLike(postId, !!res.data.liked);
+          return { liked: !!res.data.liked, delta: res.data.liked ? (wasLiked ? 0 : 1) : wasLiked ? -1 : 0 };
+        }
+      } catch (_e) {
+        setLike(postId, wasLiked);
+        throw _e;
+      }
+    }
+    return { liked: nextLiked, delta: nextLiked ? 1 : -1 };
   }
 
   function getComments(postId) {
@@ -710,19 +750,29 @@
   let reelIndex = 0;
 
   async function buildReelItems(pros) {
-    const userPosts = getPosts().filter((p) => canViewPost(p));
+    const userPosts = getPosts().filter((p) => canViewPost(p) && postIsVideo(p));
+    const apiPosts = (await loadPosts()).filter((p) => canViewPost(p) && postIsVideo(p));
+    const merged = [];
+    const seen = new Set();
+    [...apiPosts, ...userPosts].forEach((p) => {
+      const key = String(p.id);
+      if (seen.has(key)) return;
+      seen.add(key);
+      merged.push(p);
+    });
     const fromPosts = await Promise.all(
-      userPosts.map(async (p, i) => ({
+      merged.map(async (p) => ({
         id: 'post-' + p.id,
         postId: p.id,
         name: p.userName,
         userId: p.userId,
-        caption: p.caption || '',
+        caption: p.caption || p.text || '',
         likes: p.likes || 0,
         comments: p.comments || 0,
         gifts: p.gifts || 0,
         shares: p.shares || 0,
-        isVideo: p.isVideo,
+        isVideo: true,
+        liked: isLiked(p.id, p),
         mediaUrl: await getMediaUrl(p),
         thumb: p.thumb || (await getMediaUrl(p)),
         workerId: null,
@@ -745,7 +795,13 @@
       thumb: p.image || (window.SocialUI?.themeCover('video', p.name) || p.image),
     }));
 
-    return [...fromPosts, ...fromPros].filter((x) => x.mediaUrl || x.thumb);
+    return fromPosts.filter((x) => x.isVideo && (x.mediaUrl || x.thumb));
+  }
+
+  function openReelViewer(postId) {
+    if (!postId) return;
+    sessionStorage.setItem('social_reel_start', String(postId));
+    location.href = '/video.html?post=' + encodeURIComponent(postId) + '&app=1';
   }
 
   function updateReelUI(item) {
@@ -788,7 +844,7 @@
     }
 
     const liked = item.postId
-      ? isLiked(item.postId)
+      ? isLiked(item.postId, item)
       : !!getReelStats()[reelKey(item)]?.liked;
     if (likeBtn) likeBtn.classList.toggle('is-liked', liked);
     if (likeCount) likeCount.textContent = formatCount(item.likes || 0);
@@ -888,6 +944,21 @@
     updateReelUI(reelItems[0]);
     bindReelActionsPanel();
 
+    const startPost =
+      new URLSearchParams(location.search).get('post') ||
+      sessionStorage.getItem('social_reel_start');
+    if (startPost) {
+      const idx = reelItems.findIndex((x) => String(x.postId) === String(startPost));
+      if (idx > 0) {
+        const slide = scroll.querySelector(`[data-index="${idx}"]`);
+        slide?.scrollIntoView({ behavior: 'instant', block: 'start' });
+        updateReelUI(reelItems[idx]);
+      }
+      sessionStorage.removeItem('social_reel_start');
+    }
+
+    ensureReelRotateControl(scroll);
+
     document.getElementById('videoAvatarBtn')?.addEventListener('click', (e) => {
       e.stopPropagation();
       const item = reelItems[reelIndex];
@@ -901,6 +972,40 @@
     });
 
     if (window.SocialUI) SocialUI.bindAvatarFallbacks(document);
+  }
+
+  function ensureReelRotateControl(scroll) {
+    let btn = document.getElementById('reelRotateBtn');
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.type = 'button';
+      btn.id = 'reelRotateBtn';
+      btn.className = 'social-reel-rotate-btn';
+      btn.setAttribute('aria-label', 'Rotate landscape video');
+      btn.innerHTML = '<i class="fas fa-mobile-screen-button"></i>';
+      btn.style.display = 'none';
+      document.getElementById('reelUi')?.appendChild(btn);
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const slide = scroll?.querySelector(`.social-reel-slide[data-index="${reelIndex}"]`);
+        const vid = slide?.querySelector('video[data-reel-video]');
+        if (vid) vid.classList.toggle('is-rotated');
+      });
+    }
+    const updateRotateBtn = () => {
+      const slide = scroll?.querySelector(`.social-reel-slide[data-index="${reelIndex}"]`);
+      const vid = slide?.querySelector('video[data-reel-video]');
+      const show = vid && vid.dataset.aspect === 'landscape';
+      btn.style.display = show ? 'flex' : 'none';
+      if (!show && vid) vid.classList.remove('is-rotated');
+    };
+    scroll?.addEventListener('scroll', () => setTimeout(updateRotateBtn, 80), { passive: true });
+    updateRotateBtn();
+    const orig = updateReelUI;
+    updateReelUI = function (item) {
+      orig(item);
+      updateRotateBtn();
+    };
   }
 
   function bindReelActionsPanel() {
@@ -930,22 +1035,21 @@
 
     if (action === 'like') {
       if (item.postId) {
-        const liked = !isLiked(item.postId);
-        setLike(item.postId, liked);
-        const posts = getPosts();
-        const p = posts.find((x) => String(x.id) === String(item.postId));
-        if (p) {
-          p.likes = Math.max(0, (p.likes || 0) + (liked ? 1 : -1));
-          savePosts(posts);
-          item.likes = p.likes;
+        const p = getPosts().find((x) => String(x.id) === String(item.postId)) || { id: item.postId, fromApi: true };
+        try {
+          const { liked, delta } = await toggleLikePost(item.postId, p);
+          if (delta) item.likes = Math.max(0, (item.likes || 0) + delta);
+          toast(liked ? 'Liked!' : 'Unliked');
+        } catch (_e) {
+          toast('Could not update like', 'error');
         }
       } else {
         stats[key].liked = !stats[key].liked;
         item.likes = Math.max(0, (item.likes || 0) + (stats[key].liked ? 1 : -1));
         stats[key].likes = item.likes;
         saveReelStats(stats);
+        toast(stats[key].liked ? 'Liked!' : 'Unliked');
       }
-      toast(stats[key]?.liked || isLiked(item.postId) ? 'Liked!' : 'Unliked');
       updateReelUI(item);
       return;
     }
@@ -1024,6 +1128,7 @@
     if (!feed) return;
 
     let posts = (await loadPosts()).filter((p) => canViewPost(p));
+    const feedPosts = posts;
     const pros = window.SocialShell ? await SocialShell.fetchPros(4) : [];
     if (!posts.length) {
       posts = pros.map((p, i) => ({
@@ -1050,14 +1155,15 @@
           !p.demo &&
           user &&
           (String(p.userId) === String(user.id) || p.userId === 'me' || String(p.userId) === String(user.email));
-        const media = p.isVideo
-          ? `<video src="${url}" controls playsinline poster="${thumbUrl || ''}"></video>`
+        const media = postIsVideo(p)
+          ? `<video src="${url}" playsinline muted poster="${thumbUrl || ''}"></video>`
           : `<img src="${url || SocialShell?.avatarFallback(p.userName)}" alt="">`;
-        const liked = !p.demo && isLiked(p.id);
+        const liked = !p.demo && isLiked(p.id, p);
+        const openReel = postIsVideo(p) ? ' data-open-reel="1"' : '';
         return `
-      <article class="social-post-card" data-post-id="${p.id}">
+      <article class="social-post-card" data-post-id="${p.id}"${openReel}>
         <div class="social-post-media">${media}
-          ${p.isVideo ? '<span class="play-badge"><i class="fas fa-play"></i></span>' : ''}
+          ${postIsVideo(p) ? '<span class="play-badge"><i class="fas fa-play"></i></span>' : ''}
           ${p.visibility === 'private' ? '<span class="social-post-private-badge"><i class="fas fa-lock"></i> Private</span>' : ''}
           ${isOwner ? `<button type="button" class="social-post-delete" data-delete-post="${p.id}" aria-label="Delete post"><i class="fas fa-times"></i></button>` : ''}
         </div>
@@ -1094,25 +1200,46 @@
     });
     feed.querySelectorAll('.social-post-media video, .social-post-media img').forEach((el) => markMediaOrientation(el));
 
+    feed.querySelectorAll('[data-open-reel]').forEach((card) => {
+      card.addEventListener('click', (e) => {
+        if (e.target.closest('[data-act], [data-delete-post], .social-post-user, button, a')) return;
+        openReelViewer(card.dataset.postId);
+      });
+    });
+
     feed.querySelectorAll('[data-act="like"]').forEach((btn) => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
         const id = btn.dataset.id;
         if (String(id).startsWith('demo-')) {
           const s = btn.querySelector('span');
-          s.textContent = String(parseInt(s.textContent, 10) + 1);
-          btn.querySelector('i').className = 'fas fa-heart';
+          const icon = btn.querySelector('i');
+          const nowLiked = !icon.classList.contains('fas');
+          icon.className = nowLiked ? 'fas fa-heart' : 'far fa-heart';
+          const n = parseInt(s.textContent, 10) || 0;
+          s.textContent = String(Math.max(0, n + (nowLiked ? 1 : -1)));
           return;
         }
-        const liked = !isLiked(id);
-        setLike(id, liked);
-        const posts = getPosts();
-        const p = posts.find((x) => String(x.id) === String(id));
-        if (p) {
-          p.likes = Math.max(0, (p.likes || 0) + (liked ? 1 : -1));
-          savePosts(posts);
+        const p = feedPosts.find((x) => String(x.id) === String(id));
+        try {
+          const { liked, delta } = await toggleLikePost(id, p);
+          if (p && delta) {
+            p.likes = Math.max(0, (p.likes || 0) + delta);
+            if (!p.fromApi) {
+              const local = getPosts();
+              const lp = local.find((x) => String(x.id) === String(id));
+              if (lp) {
+                lp.likes = p.likes;
+                savePosts(local);
+              }
+            }
+          }
+          btn.querySelector('i').className = liked ? 'fas fa-heart' : 'far fa-heart';
+          btn.classList.toggle('is-liked', liked);
+          btn.querySelector('span').textContent = p?.likes ?? btn.querySelector('span').textContent;
+        } catch (_e) {
+          toast('Could not update like', 'error');
         }
-        btn.querySelector('i').className = liked ? 'fas fa-heart' : 'far fa-heart';
-        btn.querySelector('span').textContent = p?.likes || 0;
       });
     });
     feed.querySelectorAll('[data-act="comment"]').forEach((btn) => {
@@ -1279,6 +1406,9 @@
     toggleFollow,
     isFollowing,
     refreshFollowCache,
-    profileUrl,
+    getFollowEntries,
+    openReelViewer,
+    toggleLikePost,
+    postIsVideo,
   };
 })();

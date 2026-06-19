@@ -100,12 +100,21 @@ function registerLiveSocket(io) {
           });
         } else if (String(existingRoom.host_user_id) === String(socket.userId)) {
           isHost = true;
-          await liveRoomService.joinRoom({
-            channel,
-            userId: socket.userId,
-            displayName,
-            asHost: true,
-          });
+          if (existingRoom.status === 'ended' && clientWantsHost) {
+            await liveRoomService.hostRoom({
+              channel,
+              roomType: existingRoom.room_type || roomType,
+              hostUserId: socket.userId,
+              hostDisplayName: displayName,
+            });
+          } else {
+            await liveRoomService.joinRoom({
+              channel,
+              userId: socket.userId,
+              displayName,
+              asHost: true,
+            });
+          }
         } else {
           if (clientWantsHost) {
             if (ack) ack({ ok: false, message: 'You are not the host of this room' });

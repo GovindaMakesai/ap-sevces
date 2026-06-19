@@ -15,6 +15,46 @@ const API_HOST = process.env.AP_API_HOST || new URL(apiConfig.BACKEND_URL).hostn
 const API_PORT = Number(process.env.AP_API_PORT || new URL(apiConfig.BACKEND_URL).port || 5000);
 const API_USE_HTTPS = process.env.AP_API_USE_HTTPS === 'true' || apiConfig.BACKEND_URL.startsWith('https:');
 const FRONTEND_DIR = path.join(__dirname, '..', '..', 'frontend');
+const DEV_BUILD_ID = process.env.AP_DEV_BUILD || '20260619-livefix';
+
+function fileMtimeMs(filePath) {
+  try {
+    return fs.statSync(filePath).mtimeMs | 0;
+  } catch (_e) {
+    return Date.now();
+  }
+}
+
+function bustAssetUrls(html) {
+  return html.replace(
+    /((?:src|href)=["'])([^"']+\.(?:js|css))(["'])/gi,
+    (match, pre, asset, post) => {
+      if (/^https?:\/\//i.test(asset) || asset.startsWith('//')) return match;
+      const clean = asset.split('?')[0];
+      const abs = path.normalize(path.join(FRONTEND_DIR, clean.replace(/^\//, '')));
+      if (!abs.startsWith(FRONTEND_DIR)) return match;
+      const v = fileMtimeMs(abs);
+      return `${pre}${clean}?v=${v}${post}`;
+    }
+  );
+}
+
+function injectDevBanner(html) {
+  const banner = `
+<div id="ap-dev-banner" role="status">LOCAL DEV · ${DEV_BUILD_ID}</div>
+<style>
+#ap-dev-banner{
+  position:fixed;top:0;left:0;right:0;z-index:99999;
+  background:linear-gradient(90deg,#16a34a,#15803d);
+  color:#fff;text-align:center;font:700 11px/22px system-ui,sans-serif;
+  letter-spacing:.04em;pointer-events:none;
+  padding-top:env(safe-area-inset-top,0);
+}
+html.ap-live-immersive #ap-dev-banner{ font-size:10px; }
+</style>`;
+  if (html.includes('</body>')) return html.replace('</body>', banner + '\n</body>');
+  return html + banner;
+}
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -190,11 +230,20 @@ function serveStatic(req, res) {
       return;
     }
     const ext = path.extname(filePath).toLowerCase();
+    let body = data;
+    if (ext === '.html') {
+      let html = data.toString('utf8');
+      html = bustAssetUrls(html);
+      html = injectDevBanner(html);
+      body = Buffer.from(html, 'utf8');
+    }
     res.writeHead(200, {
       'Content-Type': MIME[ext] || 'application/octet-stream',
-      'Cache-Control': 'no-store',
+      'Cache-Control': 'no-store, no-cache, must-revalidate',
+      'Pragma': 'no-cache',
+      'X-AP-Dev-Build': DEV_BUILD_ID,
     });
-    res.end(data);
+    res.end(body);
   });
 }
 
@@ -246,6 +295,7 @@ const proxyTarget = API_USE_HTTPS ? `https://${API_HOST}` : `http://${API_HOST}:
 
 server.listen(PORT, HOST, () => {
   console.log(`[dev-server] http://${HOST}:${PORT} → frontend + API/socket proxy → ${proxyTarget}`);
+  console.log(`[dev-server] LOCAL BUILD ID: ${DEV_BUILD_ID} (green banner on every page)`);
 });
 
 module.exports = server;
