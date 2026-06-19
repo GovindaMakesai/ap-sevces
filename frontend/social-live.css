@@ -1336,6 +1336,13 @@ body.live-feed-mode.ap-has-video-stream .live-feed-backdrop {
   transition: opacity 0.25s ease;
 }
 
+body.live-feed-mode .live-room .live-remote-video:has(video),
+body.live-feed-mode .live-room .live-local-video:has(video) {
+  opacity: 1 !important;
+  visibility: visible !important;
+  z-index: 3;
+}
+
 body.live-feed-mode .live-room .live-audio-stage {
   opacity: 1;
 }
