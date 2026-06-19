@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260619-hotfix';
+  window.__AP_LIVE_BUILD = '20260619-videofix';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -1311,6 +1311,25 @@
       agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
       const uid = cred.uid != null ? cred.uid : null;
 
+      agoraClient.on('user-published', async (user, mediaType) => {
+        liveDebugLog(`user-published uid=${user.uid} media=${mediaType}`);
+        forensicEvent('REMOTE_USER_PUBLISHED', { uid: user.uid, mediaType, channel: agoraChannel });
+        await playRemoteMedia(user, mediaType);
+      });
+
+      agoraClient.on('user-unpublished', (user) => {
+        liveDebugLog(`user-unpublished uid=${user.uid}`);
+        remoteUsers.delete(user.uid);
+        updateLiveDebug({ remoteUsersCount: remoteUsers.size });
+        const container = document.getElementById('liveRemoteHost');
+        if (container && remoteUsers.size === 0) {
+          container.innerHTML = '';
+          setLiveStreamVisible(false);
+          if (!isHost()) applyLiveBackground(broadcastMode === 'audio' ? 'audio' : 'live', roomState?.hostName);
+        }
+        syncLiveUiState();
+      });
+
       try {
         await agoraClient.join(appId, agoraChannel, token, uid);
         auditChannel('agora', agoraChannel);
@@ -1318,6 +1337,12 @@
         updateLiveDebug({ agoraJoined: true });
         forensicEvent('AGORA_JOIN_SUCCESS', { channel: agoraChannel, uid, role: host ? 'host' : 'audience' });
         syncLiveUiState();
+        if (!host) {
+          for (const remoteUser of agoraClient.remoteUsers) {
+            if (remoteUser.hasVideo) await playRemoteMedia(remoteUser, 'video');
+            if (remoteUser.hasAudio) await playRemoteMedia(remoteUser, 'audio');
+          }
+        }
       } catch (joinErr) {
         const msg = joinErr?.message || String(joinErr);
         console.error('[live] Agora join failed', joinErr);
@@ -1333,52 +1358,6 @@
       }
 
       window.SocialFX?.initAgoraVolumeIndicator?.(agoraClient, uid || currentUser()?.id);
-
-      agoraClient.on('user-published', async (user, mediaType) => {
-        liveDebugLog(`user-published uid=${user.uid} media=${mediaType}`);
-        forensicEvent('REMOTE_USER_PUBLISHED', { uid: user.uid, mediaType, channel: agoraChannel });
-        try {
-          await agoraClient.subscribe(user, mediaType);
-          liveDebugLog(`subscribe OK uid=${user.uid} media=${mediaType}`);
-          forensicEvent('REMOTE_USER_SUBSCRIBED', { uid: user.uid, mediaType, channel: agoraChannel });
-        } catch (subErr) {
-          const msg = subErr?.message || String(subErr);
-          console.error('[live] subscribe failed', subErr);
-          liveDebugLog(`subscribe FAILED uid=${user.uid} media=${mediaType}: ${msg}`);
-          toast(`Subscribe failed (${mediaType}): ${msg}`, 'error');
-          return;
-        }
-        if (mediaType === 'video') {
-          const container = document.getElementById('liveRemoteHost');
-          const root = document.getElementById('liveRoomRoot');
-          if (root) root.classList.remove('is-audio-mode');
-          if (container) {
-            container.innerHTML = '';
-            user.videoTrack.play(container);
-          }
-          const bg = document.getElementById('liveBg');
-          if (bg) bg.style.display = 'none';
-        }
-        if (mediaType === 'audio') {
-          if (soundOn) user.audioTrack?.play();
-          else user.audioTrack?.stop();
-        }
-        remoteUsers.set(user.uid, user);
-        updateLiveDebug({ remoteUsersCount: remoteUsers.size });
-        syncLiveUiState();
-      });
-
-      agoraClient.on('user-unpublished', (user) => {
-        liveDebugLog(`user-unpublished uid=${user.uid}`);
-        remoteUsers.delete(user.uid);
-        updateLiveDebug({ remoteUsersCount: remoteUsers.size });
-        const container = document.getElementById('liveRemoteHost');
-        if (container && remoteUsers.size === 0) {
-          container.innerHTML = '';
-          if (!isHost()) applyLiveBackground(broadcastMode === 'audio' ? 'audio' : 'live', roomState?.hostName);
-        }
-        syncLiveUiState();
-      });
 
       if (host) {
         await requestNativeMediaPermissions();
@@ -1459,6 +1438,7 @@
             videoTrack.play(localBox);
           }
           ensureHostVideoVisible();
+          setLiveStreamVisible(true);
         }
         onRoomReady();
         syncLiveUiState();
@@ -2585,6 +2565,44 @@
     }
   }
 
+  function setLiveStreamVisible(visible) {
+    const root = document.getElementById('liveRoomRoot');
+    if (root) root.classList.toggle('ap-has-video-stream', Boolean(visible));
+    document.body.classList.toggle('ap-has-video-stream', Boolean(visible));
+    const backdrop = document.getElementById('liveFeedBackdrop');
+    if (backdrop) backdrop.style.opacity = visible ? '0' : '';
+  }
+
+  async function playRemoteMedia(user, mediaType) {
+    if (!user || !agoraClient) return;
+    try {
+      await agoraClient.subscribe(user, mediaType);
+    } catch (subErr) {
+      const msg = subErr?.message || String(subErr);
+      liveDebugLog(`subscribe FAILED uid=${user.uid} media=${mediaType}: ${msg}`);
+      return;
+    }
+    if (mediaType === 'video') {
+      const container = document.getElementById('liveRemoteHost');
+      const root = document.getElementById('liveRoomRoot');
+      if (root) root.classList.remove('is-audio-mode');
+      if (container) {
+        container.innerHTML = '';
+        user.videoTrack.play(container);
+      }
+      const bg = document.getElementById('liveBg');
+      if (bg) bg.style.display = 'none';
+      setLiveStreamVisible(true);
+    }
+    if (mediaType === 'audio') {
+      if (soundOn) user.audioTrack?.play();
+      else user.audioTrack?.stop();
+    }
+    remoteUsers.set(user.uid, user);
+    updateLiveDebug({ remoteUsersCount: remoteUsers.size });
+    syncLiveUiState();
+  }
+
   function ensureHostVideoVisible() {
     if (!isActuallyLive() || broadcastMode === 'audio') return;
     const root = document.getElementById('liveRoomRoot');
@@ -2598,6 +2616,7 @@
     }
     if (fallback && localBox?.querySelector('video')) fallback.style.display = 'none';
     if (bg) bg.style.display = 'none';
+    setLiveStreamVisible(true);
   }
 
   function showWinBanner(gift) {
@@ -3647,6 +3666,7 @@
 
     roomState = null;
     chatMessages = [];
+    setLiveStreamVisible(false);
 
     await stopAgora();
     leaveSocket();
