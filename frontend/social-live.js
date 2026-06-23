@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260622-cam-filter-mic';
+  window.__AP_LIVE_BUILD = '20260623-party-flip';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -1685,33 +1685,70 @@
     sheet.classList.add('open');
   }
 
+  function getLocalVideoTrack() {
+    return localTracks.find((t) => {
+      const type = t.getTrackType?.() || t.trackMediaType;
+      return type === 'video';
+    });
+  }
+
   async function switchCameraFacing() {
     if (!isHost() || broadcastMode === 'audio') {
       toast('Camera flip is for video live only', 'info');
       return;
     }
     const nextFacing = cameraFacing === 'user' ? 'environment' : 'user';
-    const videoTrack = localTracks.find((t) => t.getTrackType?.() === 'video' || t.setDevice);
+    const videoTrack = getLocalVideoTrack();
     try {
       const AgoraRTC = window.AgoraRTC || (await loadAgoraScript());
-      if (videoTrack?.setDevice && AgoraRTC?.getCameras) {
-        const cameras = await AgoraRTC.getCameras();
-        if (cameras.length < 2) {
-          toast('Only one camera available', 'warning');
-          return;
-        }
-        const pick =
-          cameras.find((c) =>
-            nextFacing === 'user'
-              ? /front|user|face/i.test(c.label || '')
-              : /back|rear|environment/i.test(c.label || '')
-          ) || cameras[nextFacing === 'user' ? 0 : cameras.length - 1];
-        await videoTrack.setDevice(pick.deviceId);
+
+      if (typeof videoTrack?.switchCamera === 'function') {
+        await videoTrack.switchCamera();
         cameraFacing = nextFacing;
         applyVideoFilter();
         toast(nextFacing === 'user' ? 'Front camera' : 'Back camera', 'success');
         return;
       }
+
+      if (videoTrack?.setDevice && AgoraRTC?.getCameras) {
+        const cameras = await AgoraRTC.getCameras();
+        if (cameras.length >= 2) {
+          const currentId = videoTrack.getMediaStreamTrack?.()?.getSettings?.()?.deviceId;
+          const pick =
+            cameras.find((c) => c.deviceId && c.deviceId !== currentId) ||
+            cameras[nextFacing === 'user' ? 0 : cameras.length - 1];
+          await videoTrack.setDevice(pick.deviceId);
+          cameraFacing = nextFacing;
+          applyVideoFilter();
+          toast(nextFacing === 'user' ? 'Front camera' : 'Back camera', 'success');
+          return;
+        }
+      }
+
+      if (agoraClient && publishSucceeded && videoTrack) {
+        const audioTrack = localTracks.find((t) => (t.getTrackType?.() || t.trackMediaType) === 'audio');
+        try {
+          await agoraClient.unpublish([videoTrack]);
+        } catch (_e) {}
+        try {
+          videoTrack.stop();
+          videoTrack.close();
+        } catch (_e) {}
+        const newVideo = await AgoraRTC.createCameraVideoTrack({ facingMode: nextFacing });
+        localTracks = audioTrack ? [audioTrack, newVideo] : [newVideo];
+        await agoraClient.publish(newVideo);
+        const localBox = document.getElementById('liveLocalHost');
+        if (localBox) {
+          localBox.innerHTML = '';
+          localBox.style.display = '';
+          newVideo.play(localBox);
+        }
+        cameraFacing = nextFacing;
+        applyVideoFilter();
+        toast(nextFacing === 'user' ? 'Front camera' : 'Back camera', 'success');
+        return;
+      }
+
       if (!navigator.mediaDevices?.getUserMedia) {
         toast('Camera not available', 'warning');
         return;
@@ -1721,9 +1758,11 @@
         window.__apLocalStream.getTracks().forEach((t) => t.stop());
       }
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: cameraFacing },
-        audio: true,
-      });
+        video: { facingMode: { exact: nextFacing } },
+        audio: false,
+      }).catch(() =>
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: nextFacing }, audio: false })
+      );
       window.__apLocalStream = stream;
       const box = document.getElementById('liveLocalHost');
       const vid = box?.querySelector('video') || document.getElementById('liveLocalVideo');
@@ -4130,8 +4169,14 @@
     });
 
     document.getElementById('streamerStartLive')?.addEventListener('click', () => {
-      if (window.SocialShell?.goStartLiveBroadcast) SocialShell.goStartLiveBroadcast({ mode: 'video' });
+      if (window.SocialShell?.openBroadcastPicker) SocialShell.openBroadcastPicker('live');
+      else if (window.SocialShell?.goStartLiveBroadcast) SocialShell.goStartLiveBroadcast({ mode: 'video' });
       else location.href = '/live-room.html?host=1&mode=video&app=1';
+    });
+
+    document.getElementById('streamerStartParty')?.addEventListener('click', () => {
+      if (window.SocialShell?.goStartParty) SocialShell.goStartParty();
+      else location.href = '/party-room.html?host=1&app=1';
     });
 
     document.querySelector('.btn-upload')?.addEventListener('click', () => {

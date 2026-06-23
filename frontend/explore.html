@@ -15,7 +15,8 @@
   <header class="social-top">
     <div class="social-main-tabs" id="exploreTabs">
       <a href="/explore.html?tab=following&app=1" data-tab="following">Following</a>
-      <a href="/explore.html?app=1" data-tab="explore" class="active">Explore</a>
+      <a href="/explore.html?app=1" data-tab="explore" class="active">Live</a>
+      <a href="/explore.html?tab=party&app=1" data-tab="party">Party</a>
       <a href="/explore.html?tab=new&app=1" data-tab="new">New</a>
       <a href="/explore.html?tab=nearby&app=1" data-tab="nearby">Nearby</a>
       <div class="social-top-actions">
@@ -37,6 +38,7 @@
   </div>
   <div id="exploreEmpty" style="display:none"></div>
 
+  <button type="button" class="social-start-party" id="social-start-party"><i class="fas fa-users"></i> Party</button>
   <button type="button" class="social-start-live" id="social-start-live"><i class="fas fa-video"></i> Go Live</button>
   <div id="social-bottom-nav-mount"></div>
 
@@ -49,7 +51,7 @@
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       const tab = new URLSearchParams(location.search).get('tab') || 'explore';
-      const activeTab = tab === 'following' || tab === 'nearby' || tab === 'new' ? tab : 'explore';
+      const activeTab = tab === 'following' || tab === 'nearby' || tab === 'new' || tab === 'party' ? tab : 'explore';
       document.querySelectorAll('#exploreTabs a[data-tab]').forEach((a) => {
         a.classList.toggle('active', a.dataset.tab === activeTab);
       });
@@ -61,6 +63,10 @@
           emptyState: { mountId: 'exploreEmpty', type: tab },
         });
         SocialShell.fillFollowingView('');
+      } else if (tab === 'party') {
+        document.getElementById('exploreEmpty').style.display = 'none';
+        document.getElementById('exploreContent').style.display = 'block';
+        SocialShell.initPage({ activeNav: 'explore', gridId: 'exploreGrid', gridLimit: 12, partyGrid: true, sort: 'trending' });
       } else if (tab === 'nearby' || tab === 'new') {
         document.getElementById('exploreEmpty').style.display = 'none';
         document.getElementById('exploreContent').style.display = 'block';

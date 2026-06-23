@@ -569,6 +569,25 @@ html.ap-expo-app body.social-tabs-page .social-top {
   text-decoration: none;
 }
 
+.social-start-party {
+  position: fixed;
+  left: 16px;
+  bottom: calc(var(--social-bottom-nav-h) + var(--social-safe-bottom) + 16px);
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px;
+  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-pill);
+  font-weight: 700;
+  font-size: 14px;
+  box-shadow: 0 6px 20px rgba(124, 58, 237, 0.4);
+  cursor: pointer;
+}
+
 /* Bottom nav — reference app */
 .social-bottom-nav {
   position: fixed;

@@ -6,9 +6,10 @@
   <title>Redirecting…</title>
   <script>
     (function () {
-      var q = location.search || '';
-      if (!/[?&]app=1\b/.test(q)) q += (q ? '&' : '?') + 'app=1';
-      location.replace('/explore.html' + q);
+      var params = new URLSearchParams(location.search || '');
+      params.set('tab', 'party');
+      if (!params.has('app')) params.set('app', '1');
+      location.replace('/explore.html?' + params.toString());
     })();
   </script>
 </head>

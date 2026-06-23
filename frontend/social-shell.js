@@ -440,7 +440,14 @@
     if (startLive) {
       startLive.addEventListener('click', (e) => {
         e.preventDefault();
-        goStartLive();
+        openBroadcastPicker();
+      });
+    }
+    const startParty = document.getElementById('social-start-party');
+    if (startParty) {
+      startParty.addEventListener('click', (e) => {
+        e.preventDefault();
+        goStartParty();
       });
     }
 
@@ -592,9 +599,20 @@
       '/live-room.html?host=1&mode=' + encodeURIComponent(mode) + '&channel=' + encodeURIComponent(channel) + topic + '&app=1';
   }
 
-  /** @deprecated Party rooms disabled — route to live broadcast */
+  /** Voice party room — multi-seat audio grid */
   function goStartParty(opts) {
-    goStartLiveBroadcast({ ...(opts || {}), mode: opts?.mode || 'video' });
+    const user = window.Auth?.getUser?.();
+    if (!user) {
+      window.location.href = '/app-auth.html?app=1';
+      return;
+    }
+    const base = String(user.id || 'user').replace(/[^a-zA-Z0-9]/g, '').slice(0, 10);
+    const channel =
+      opts?.channel ||
+      'party-' + base + '-' + Date.now().toString(36).slice(-6);
+    const topic = opts?.topic != null ? '&topic=' + encodeURIComponent(opts.topic) : '';
+    window.location.href =
+      '/party-room.html?host=1&channel=' + encodeURIComponent(channel) + topic + '&app=1';
   }
 
   function ensureBroadcastOverlay() {
@@ -615,10 +633,11 @@
     }
     const el = ensureBroadcastOverlay();
     if (kind === 'party') {
-      goStartLiveBroadcast({ ...(opts || {}), mode: 'video' });
+      goStartParty(opts);
       return;
     }
-    el.innerHTML = `
+    if (kind === 'live') {
+      el.innerHTML = `
         <div class="social-broadcast-sheet">
           <h3>Go live</h3>
           <p>Instagram-style — you broadcast solo, viewers join to watch, chat &amp; send gifts.</p>
@@ -640,6 +659,43 @@
           goStartLiveBroadcast({ ...(opts || {}), mode: btn.dataset.goLive });
         });
       });
+      el.querySelector('[data-broadcast-cancel]')?.addEventListener('click', () => el.classList.remove('is-open'));
+      el.addEventListener('click', (e) => {
+        if (e.target === el) el.classList.remove('is-open');
+      });
+      el.classList.add('is-open');
+      return;
+    }
+    el.innerHTML = `
+        <div class="social-broadcast-sheet">
+          <h3>Start broadcasting</h3>
+          <p>Choose solo live video or a voice party room with seats.</p>
+          <div class="social-broadcast-options">
+            <button type="button" class="social-broadcast-opt" data-go-party>
+              <span class="ico party"><i class="fas fa-users"></i></span>
+              <div><strong>Party room</strong><span>Voice seats — invite guests on mic</span></div>
+            </button>
+            <button type="button" class="social-broadcast-opt" data-go-live="video">
+              <span class="ico video"><i class="fas fa-video"></i></span>
+              <div><strong>Video live</strong><span>Camera + audio broadcast</span></div>
+            </button>
+            <button type="button" class="social-broadcast-opt" data-go-live="audio">
+              <span class="ico audio"><i class="fas fa-microphone"></i></span>
+              <div><strong>Audio live</strong><span>Voice only — no camera</span></div>
+            </button>
+          </div>
+          <button type="button" class="social-broadcast-cancel" data-broadcast-cancel>Cancel</button>
+        </div>`;
+    el.querySelector('[data-go-party]')?.addEventListener('click', () => {
+      el.classList.remove('is-open');
+      goStartParty(opts);
+    });
+    el.querySelectorAll('[data-go-live]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        el.classList.remove('is-open');
+        goStartLiveBroadcast({ ...(opts || {}), mode: btn.dataset.goLive });
+      });
+    });
     el.querySelector('[data-broadcast-cancel]')?.addEventListener('click', () => el.classList.remove('is-open'));
     el.addEventListener('click', (e) => {
       if (e.target === el) el.classList.remove('is-open');
