@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260623-party-flip';
+  window.__AP_LIVE_BUILD = '20260622-live-fixes';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -280,7 +280,10 @@
       document.body.classList.remove('ap-is-host');
       followed = true;
       const joinBtn = document.getElementById('partyBtnJoinSeat');
-      if (joinBtn) joinBtn.style.display = hasSpeakerSeat ? 'none' : '';
+      if (joinBtn) {
+        joinBtn.textContent = 'Request mic';
+        joinBtn.style.display = 'none';
+      }
     }
     syncBottomBarForRole();
     renderRoomState();
@@ -318,6 +321,17 @@
     return '';
   }
 
+  function getStreamCoverUrl(hostName) {
+    const uid = roomState?.hostId || currentUser()?.id;
+    if (uid) {
+      try {
+        const custom = localStorage.getItem('ap_streamer_cover_' + uid);
+        if (custom) return custom;
+      } catch (_e) {}
+    }
+    return themeCover('live', hostName || 'Streamer');
+  }
+
   function applyLiveBackground(mode, hostName) {
     const bg = document.getElementById('liveBg');
     const root = document.getElementById('liveRoomRoot');
@@ -334,8 +348,16 @@
         bg.style.backgroundSize = 'cover';
         bg.style.backgroundPosition = 'center';
       } else {
-        bg.style.backgroundImage = 'none';
-        bg.style.background = '#000';
+        const cover = getStreamCoverUrl(name);
+        if (cover) {
+          bg.style.backgroundImage = `url('${cover}')`;
+          bg.style.backgroundSize = 'cover';
+          bg.style.backgroundPosition = 'center';
+          bg.style.backgroundColor = '#0a0618';
+        } else {
+          bg.style.backgroundImage = 'none';
+          bg.style.background = '#000';
+        }
       }
     }
     if (audioAvatar) audioAvatar.src = avatarUrl(name);
@@ -2292,13 +2314,19 @@
       }
     }
     const joinBtn = document.getElementById('partyBtnJoinSeat');
-    if (joinBtn && !isHost()) {
-      joinBtn.style.display = hasSpeakerSeat ? 'none' : '';
+    if (joinBtn) {
+      joinBtn.textContent = 'Request mic';
+      const showRequest = isPartyRoomPage() && !isHost() && !hasSpeakerSeat;
+      joinBtn.style.display = showRequest ? '' : 'none';
     }
     const hostName = roomState?.hostName || displayName(user);
     const hostEl = document.getElementById('partyHostName') || document.getElementById('liveHostName');
     const hostImg = document.getElementById('partyHostAvatar') || document.getElementById('liveHostAvatar');
-    if (hostEl) hostEl.textContent = hostName.slice(0, 14) + (hostName.length > 14 ? '…' : '');
+    if (hostEl) {
+      const full = hostName || 'Host';
+      hostEl.textContent = full;
+      hostEl.title = full;
+    }
     if (hostImg) {
       hostImg.src = avatarUrl(hostName);
       hostImg.dataset.name = hostName;
@@ -2328,9 +2356,9 @@
     const rid = document.getElementById('liveRoomId');
     const ch = channelId();
     const viewers = roomState?.viewers || 0;
-    if (rid) rid.textContent = '· ID:' + ch.slice(0, 10);
+    if (rid) rid.textContent = 'ID ' + ch.slice(-10);
     const partyRid = document.getElementById('partyRoomId') || document.getElementById('partyRoomIdLive');
-    if (partyRid) partyRid.textContent = 'ID:' + ch.slice(0, 10);
+    if (partyRid) partyRid.textContent = 'ID:' + ch.slice(-10);
     updateModeBadge(broadcastMode, isHost() && isActuallyLive());
     updateDynamicStats();
     syncToolBadges();
@@ -2535,7 +2563,12 @@
   function syncBottomBarForRole() {
     const compose = document.getElementById('liveChatCompose');
     const followBtn = document.getElementById('partyBtnFollow') || document.getElementById('liveBtnFollow');
+    const joinBtn = document.getElementById('partyBtnJoinSeat');
     const hosting = isHost();
+    if (joinBtn) {
+      joinBtn.textContent = 'Request mic';
+      joinBtn.style.display = isPartyRoomPage() && !hosting && !hasSpeakerSeat ? '' : 'none';
+    }
     if (followBtn) {
       const hideFollow = hosting || followed;
       followBtn.classList.toggle('ap-btn-follow-hidden', hideFollow);
@@ -2544,6 +2577,37 @@
     if (compose) {
       compose.classList.remove('ap-compose-hidden');
     }
+  }
+
+  function bindImmersiveToolLinks() {
+    const sheet = document.getElementById('partyToolsSheet');
+    if (!sheet || sheet.dataset.toolsBound === '1') return;
+    sheet.dataset.toolsBound = '1';
+    sheet.querySelectorAll('.party-tools-grid a[href]').forEach((a) => {
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        sheet.classList.remove('open');
+        closeLiveOverlays();
+        const href = a.getAttribute('href') || '';
+        if (href.includes('chat.html')) {
+          focusChatCompose();
+          return;
+        }
+        if (href.includes('coins-recharge') || href.includes('recharge')) {
+          openTopupSheet();
+          return;
+        }
+        if (href.includes('rankings')) {
+          toast('Leave the room to view full rankings', 'info');
+          return;
+        }
+        if (href.includes('store') || href.includes('vip')) {
+          toast('Leave the room first to open the store', 'info');
+          return;
+        }
+        toast('Stay in the room — end live to open this page', 'info');
+      });
+    });
   }
 
   function isChatPanelOpen() {
@@ -3219,7 +3283,7 @@
     const balance = await getCoins();
     if (balance < cost) {
       toast('Not enough coins — recharge first', 'warning');
-      window.location.href = '/coins-recharge.html?app=1';
+      openTopupSheet();
       return;
     }
     const to = sheet.dataset.to || roomState?.hostName || 'Host';
@@ -3251,7 +3315,7 @@
         const msg = window.SocialUI?.friendlyMessage(e.message) || e.message || reason || 'Gift failed';
         if (/insufficient/i.test(msg)) {
           toast('Not enough coins — recharge first', 'warning');
-          window.location.href = '/coins-recharge.html?app=1';
+          openTopupSheet();
         } else {
           toast(msg, 'error');
         }
@@ -3282,7 +3346,7 @@
           }
           if (/insufficient/i.test(msg)) {
             toast('Not enough coins — recharge first', 'warning');
-            window.location.href = '/coins-recharge.html?app=1';
+            openTopupSheet();
             return;
           }
           if (msg) toast(msg, 'error');
@@ -3558,6 +3622,7 @@
 
     bindChatTabs();
     bindGiftSheet();
+    bindImmersiveToolLinks();
     bindEmojiPicker();
     setupKeyboardOffset();
     syncToolBadges();
@@ -3585,11 +3650,9 @@
     hideApLoader();
     await stopAgora();
     leaveSocket();
+    if (window.SocialNav?.goBack?.({ allowHistory: true })) return;
     if (history.length > 1) history.back();
-    else {
-      const back = '/explore.html';
-      location.href = back + '?app=1';
-    }
+    else location.href = '/explore.html?app=1';
   }
 
   async function endRoomOrExit() {

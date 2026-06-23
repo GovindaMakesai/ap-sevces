@@ -12,7 +12,7 @@
 </head>
 <body class="social-rank-page social-rank-page--gold">
   <header class="social-rank-header">
-    <a href="/explore.html?app=1" class="social-rank-back"><i class="fas fa-arrow-left"></i></a>
+    <a href="/explore.html?app=1" class="social-rank-back" data-ap-back aria-label="Back"><i class="fas fa-arrow-left"></i></a>
     <nav class="social-rank-main-tabs">
       <a href="#" class="social-rank-main-tab active" data-tab="host">Host</a>
       <a href="#" class="social-rank-main-tab" data-tab="rich">Rich</a>
@@ -55,6 +55,7 @@
   <script src="app.js"></script>
   <script src="social-interactions.js"></script>
   <script src="social-shell.js"></script>
+  <script src="social-nav.js"></script>
   <script src="social-fx.js"></script>
   <script>
     const TAB_CATEGORY = { host: 'creators', rich: 'gifters', gift: 'gifters', video: 'creators' };
@@ -81,9 +82,15 @@
     }
 
     async function refreshRanks() {
-      const rows = await fetchRankings(currentPeriod, currentTab);
       const id = 'rankList' + currentTab.charAt(0).toUpperCase() + currentTab.slice(1);
-      renderRankList(id, rows.length ? rows : RANK_DATA[currentTab] || []);
+      let rows = RANK_DATA[currentTab] || [];
+      try {
+        const fetched = await fetchRankings(currentPeriod, currentTab);
+        rows = fetched.length ? fetched : rows;
+      } catch (e) {
+        console.warn('rankings fetch', e);
+      }
+      renderRankList(id, rows);
     }
 
     const RANK_DATA = {
@@ -109,11 +116,21 @@
       return `https://ui-avatars.com/api/?name=${encodeURIComponent(name.slice(0, 2))}&background=c9a227&color=fff`;
     }
 
+    function padRankRows(rows, min = 5) {
+      const list = Array.isArray(rows) ? rows.slice() : [];
+      const seeds = ['Varsace', 'Kuldeep', 'Affy', 'Riya Live', 'Rockstar', 'Neetu', 'Ayan'];
+      let i = 0;
+      while (list.length < min) {
+        list.push({ n: seeds[i % seeds.length], s: '—' });
+        i += 1;
+      }
+      return list;
+    }
+
     function renderPodium(rows) {
-      const top = rows.slice(0, 3);
-      if (top.length < 3) return '';
-      const order = [top[1], top[0], top[2]];
-      const ranks = [2, 1, 3];
+      const top = padRankRows(rows, 3).slice(0, 3);
+      const order = top.length >= 3 ? [top[1], top[0], top[2]] : top;
+      const ranks = top.length >= 3 ? [2, 1, 3] : top.map((_, i) => i + 1);
       return `<div class="social-rank-podium">${order.map((r, i) => `
         <div class="social-rank-podium-item rank-${ranks[i]}">
           ${ranks[i] === 1 ? '<span class="podium-crown">👑</span>' : ''}
@@ -125,8 +142,9 @@
     function renderRankList(id, rows) {
       const el = document.getElementById(id);
       if (!el) return;
-      const rest = rows.slice(3);
-      el.innerHTML = renderPodium(rows) + rest.map((r, i) => `
+      const padded = padRankRows(rows.length ? rows : RANK_DATA[currentTab] || [], 5);
+      const rest = padded.slice(3);
+      el.innerHTML = renderPodium(padded) + rest.map((r, i) => `
         <div class="social-rank-row" style="animation-delay:${(i + 3) * 0.06}s">
           <span class="rank-num">${i + 4}</span>
           <img src="${avatarUrl(r.n)}" alt="">
@@ -157,6 +175,10 @@
         });
       });
       await refreshRanks();
+      window.refreshRanks = refreshRanks;
+      if (window.SocialNav) {
+        SocialNav.registerRefresh(refreshRanks);
+      }
       SocialInteractions.initRankingsPage();
       document.querySelectorAll('.social-rank-sub-tab[data-period]').forEach((tab) => {
         tab.addEventListener('click', () => {

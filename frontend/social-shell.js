@@ -212,6 +212,8 @@
         if (!href || href.startsWith('http') || href.startsWith('#')) return;
         if (link.classList.contains('is-active')) {
           e.preventDefault();
+          if (window.SocialNav?.refreshPage) SocialNav.refreshPage();
+          else window.location.reload();
           return;
         }
         e.preventDefault();
@@ -457,6 +459,23 @@
     }
 
     if (config.squareFeed) fillSquareFeed();
+
+    if (window.SocialNav) {
+      SocialNav.registerRefresh(async () => {
+        if (config.gridId) {
+          await fillGrid(config.gridId, config.gridLimit || 12, {
+            party: config.partyGrid,
+            sort: config.sort || 'trending',
+          });
+        }
+        if (config.squareFeed) await fillSquareFeed();
+        const tab = new URLSearchParams(location.search).get('tab');
+        if (tab === 'following') await fillFollowingView();
+        if (tab === 'party') {
+          await fillGrid(config.gridId || 'exploreGrid', config.gridLimit || 12, { party: true });
+        }
+      });
+    }
     if (config.reelsId) initReels(config.reelsId);
     if (config.emptyState) renderEmptyState(config.emptyState);
     if (window.SocialCreatePost) SocialCreatePost.bindCameraButtons();

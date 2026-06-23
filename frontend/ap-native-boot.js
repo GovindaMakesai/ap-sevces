@@ -64,7 +64,15 @@
     return;
   }
 
-  ['/social-theme.css'].forEach(function (href) {
+  ['/social-theme.css', '/social-nav.js'].forEach(function (href) {
+    if (href.endsWith('.js')) {
+      if (document.querySelector('script[src="' + href + '"]')) return;
+      const script = document.createElement('script');
+      script.src = href;
+      script.defer = true;
+      (document.head || html).appendChild(script);
+      return;
+    }
     if (document.querySelector('link[href="' + href + '"]')) return;
     const link = document.createElement('link');
     link.rel = 'stylesheet';

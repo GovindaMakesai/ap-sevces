@@ -10,7 +10,7 @@
 </head>
 <body data-live-page="streamer-center" class="streamer-page">
   <header class="streamer-top">
-    <button type="button" class="back" onclick="history.back()"><i class="fas fa-arrow-left"></i></button>
+    <button type="button" class="back" data-ap-back aria-label="Back"><i class="fas fa-arrow-left"></i></button>
     <h1>Streamer Center</h1>
     <p class="uid" id="streamerUid">ID:76471242</p>
   </header>
@@ -33,10 +33,12 @@
   <section class="streamer-card">
     <h2>Last Stream Report</h2>
     <p style="font-size:11px;color:#9ca3af;margin:-8px 0 12px">No data available (Only data from the past 90 days is shown)</p>
-    <div class="streamer-cover-box">
-      <div style="font-size:48px;opacity:0.4">📷+</div>
-      <p>Upload your own cover and start high-quality live streaming</p>
-      <button type="button" class="btn-upload">Upload a new cover</button>
+    <div class="streamer-cover-box" id="streamerCoverBox">
+      <img id="streamerCoverPreview" alt="" style="display:none;width:100%;max-height:160px;object-fit:cover;border-radius:12px;margin-bottom:12px">
+      <div id="streamerCoverPlaceholder" style="font-size:48px;opacity:0.4">📷+</div>
+      <p>Upload your own cover — it shows behind your live stream before video starts</p>
+      <input type="file" id="streamerCoverInput" accept="image/*" hidden>
+      <button type="button" class="btn-upload" id="streamerCoverBtn">Upload a new cover</button>
     </div>
     <div class="streamer-metrics">
       <div class="metric"><div class="val">00:00:00</div><div class="lbl">Hours of Live Streaming</div></div>
@@ -79,6 +81,58 @@
   <script src="app.js"></script>
   <script src="auth-guard.js"></script>
   <script src="social-shell.js"></script>
+  <script src="social-nav.js"></script>
   <script src="social-live.js"></script>
+  <script>
+    (function () {
+      const user = window.Auth?.getUser?.() || null;
+      const uidEl = document.getElementById('streamerUid');
+      if (uidEl && user?.id) uidEl.textContent = 'ID:' + String(user.id).slice(-8);
+
+      const key = user?.id ? 'ap_streamer_cover_' + user.id : null;
+      const preview = document.getElementById('streamerCoverPreview');
+      const placeholder = document.getElementById('streamerCoverPlaceholder');
+      const input = document.getElementById('streamerCoverInput');
+      const btn = document.getElementById('streamerCoverBtn');
+
+      function showCover(dataUrl) {
+        if (!preview) return;
+        if (dataUrl) {
+          preview.src = dataUrl;
+          preview.style.display = 'block';
+          if (placeholder) placeholder.style.display = 'none';
+        }
+      }
+
+      if (key) {
+        try {
+          const saved = localStorage.getItem(key);
+          if (saved) showCover(saved);
+        } catch (_e) {}
+      }
+
+      btn?.addEventListener('click', () => input?.click());
+      input?.addEventListener('change', () => {
+        const file = input.files?.[0];
+        if (!file || !key) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          const dataUrl = String(reader.result || '');
+          if (!dataUrl.startsWith('data:image')) return;
+          try {
+            localStorage.setItem(key, dataUrl);
+          } catch (e) {
+            alert('Cover image is too large — try a smaller photo');
+            return;
+          }
+          showCover(dataUrl);
+        };
+        reader.readAsDataURL(file);
+      });
+
+      document.getElementById('streamerStartParty')?.addEventListener('click', () => SocialShell?.goStartParty?.());
+      document.getElementById('streamerStartLive')?.addEventListener('click', () => SocialShell?.goStartLive?.('video'));
+    })();
+  </script>
 </body>
 </html>

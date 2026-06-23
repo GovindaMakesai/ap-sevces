@@ -49,6 +49,7 @@ function publicLiveRoom(row) {
   return {
     channel: row.channel,
     type: row.room_type,
+    hostId: row.host_user_id,
     hostName: row.host_display_name,
     viewers: row.viewer_count || 0,
     updatedAt: row.updated_at,

@@ -1,0 +1,400 @@
+/* AP Services — mobile Message module (reference UI) */
+:root {
+  --ap-msg-bg: #fff9f0;
+  --ap-msg-accent: #e6a23c;
+  --ap-msg-accent-dark: #c9852a;
+  --ap-msg-pill: #f5ebe0;
+  --ap-msg-pill-text: #8b6914;
+  --ap-msg-badge: #f56c6c;
+  --ap-msg-text: #1f2937;
+  --ap-msg-muted: #9ca3af;
+  --ap-msg-line: #ece5dc;
+  --ap-msg-bubble-out: #fff3cd;
+  --ap-msg-bubble-in: #ffffff;
+}
+
+html.ap-expo-app .navbar,
+html.ap-expo-app .footer,
+html.ap-expo-app body:has(.chat-page) > .navbar,
+html.ap-expo-app body:has(.chat-page) > .footer {
+  display: none !important;
+}
+
+html.ap-expo-app .chat-page {
+  padding: 0;
+  min-height: 100dvh;
+  background: var(--ap-msg-bg);
+}
+
+html.ap-expo-app .chat-layout {
+  height: calc(100dvh - 56px);
+  min-height: 0;
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+  background: var(--ap-msg-bg);
+}
+
+html.ap-expo-app .chat-sidebar {
+  background: var(--ap-msg-bg);
+}
+
+/* List header */
+.ap-msg-top {
+  padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 8px;
+  background: linear-gradient(180deg, #fdf5e6 0%, var(--ap-msg-bg) 100%);
+}
+
+.ap-msg-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.ap-msg-top h1 {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--ap-msg-text);
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.ap-msg-top-actions {
+  display: flex;
+  gap: 14px;
+  color: #a67c2e;
+  font-size: 18px;
+}
+
+.ap-msg-top-actions button {
+  background: none;
+  border: none;
+  color: inherit;
+  padding: 4px;
+}
+
+.ap-msg-notify {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f8e8c8;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: #6b4f1d;
+}
+
+.ap-msg-notify i {
+  color: #a67c2e;
+}
+
+.ap-msg-notify span {
+  flex: 1;
+  min-width: 0;
+}
+
+.ap-msg-notify .open-btn {
+  background: var(--ap-msg-accent);
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ap-msg-notify .close-btn {
+  background: none;
+  border: none;
+  color: #9ca3af;
+  font-size: 16px;
+  padding: 0 4px;
+}
+
+.ap-msg-filters {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: none;
+}
+
+.ap-msg-filters::-webkit-scrollbar {
+  display: none;
+}
+
+.ap-msg-filter {
+  flex: 0 0 auto;
+  border: 1px solid #ead9c3;
+  background: var(--ap-msg-pill);
+  color: var(--ap-msg-pill-text);
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ap-msg-filter.active {
+  background: var(--ap-msg-accent);
+  border-color: var(--ap-msg-accent);
+  color: #fff;
+}
+
+.ap-msg-filter .pill-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  margin-left: 4px;
+  border-radius: 999px;
+  background: var(--ap-msg-badge);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.ap-msg-filter.active .pill-badge {
+  background: #fff;
+  color: var(--ap-msg-badge);
+}
+
+/* Conversation rows */
+html.ap-expo-app .chat-list {
+  padding: 0;
+  background: var(--ap-msg-bg);
+}
+
+html.ap-expo-app .chat-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--ap-msg-line);
+  background: transparent;
+  cursor: pointer;
+}
+
+html.ap-expo-app .chat-item.active {
+  background: rgba(230, 162, 60, 0.08);
+}
+
+html.ap-expo-app .chat-item .chat-avatar {
+  position: relative;
+  flex-shrink: 0;
+}
+
+html.ap-expo-app .chat-item .avatar-placeholder {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #e8c56a, #c9a227);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 16px;
+}
+
+html.ap-expo-app .chat-item .status-dot {
+  display: none;
+}
+
+html.ap-expo-app .chat-item .chat-info {
+  flex: 1;
+  min-width: 0;
+}
+
+html.ap-expo-app .chat-item .chat-info h4 {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ap-msg-text);
+  margin: 0 0 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+html.ap-expo-app .chat-item .chat-info p {
+  font-size: 13px;
+  color: var(--ap-msg-muted);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+html.ap-expo-app .chat-item .chat-meta {
+  flex-shrink: 0;
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+html.ap-expo-app .chat-item .chat-time {
+  font-size: 11px;
+  color: var(--ap-msg-muted);
+}
+
+html.ap-expo-app .chat-item .unread-badge {
+  background: var(--ap-msg-badge);
+  color: #fff;
+  border-radius: 999px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ap-msg-official {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  color: #3b82f6;
+  background: #dbeafe;
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+/* Thread view */
+html.ap-expo-app body.chat-active .chat-main {
+  background: #f3f4f6;
+}
+
+html.ap-expo-app .chat-header {
+  background: #fff;
+  border-bottom: 1px solid var(--ap-msg-line);
+  padding: calc(8px + env(safe-area-inset-top, 0px)) 12px 10px;
+}
+
+html.ap-expo-app .chat-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: var(--ap-msg-text);
+}
+
+html.ap-expo-app .chat-user-details h3 {
+  font-size: 15px;
+  font-weight: 700;
+  max-width: 58vw;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+html.ap-expo-app .chat-user-status {
+  display: none;
+}
+
+html.ap-expo-app .chat-actions {
+  display: none;
+}
+
+html.ap-expo-app .messages-container {
+  background: #f3f4f6;
+  padding: 12px;
+}
+
+html.ap-expo-app .message-bubble.sent {
+  background: var(--ap-msg-bubble-out);
+  color: var(--ap-msg-text);
+  border: none;
+}
+
+html.ap-expo-app .message-bubble.received {
+  background: var(--ap-msg-bubble-in);
+  border: 1px solid #e5e7eb;
+}
+
+.ap-msg-quick-row {
+  display: flex;
+  gap: 8px;
+  padding: 8px 12px 4px;
+  overflow-x: auto;
+  background: #fff;
+  border-top: 1px solid var(--ap-msg-line);
+}
+
+.ap-msg-quick {
+  flex: 0 0 auto;
+  border: 1px solid #dbeafe;
+  background: #f8fafc;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #2563eb;
+}
+
+.ap-msg-quick.gift {
+  background: linear-gradient(135deg, #ec4899, #f43f5e);
+  border: none;
+  color: #fff;
+}
+
+html.ap-expo-app .chat-input-container {
+  background: #fff;
+  border-top: 1px solid var(--ap-msg-line);
+  padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px));
+}
+
+html.ap-expo-app .chat-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f3f4f6;
+  border-radius: 999px;
+  padding: 6px 10px;
+}
+
+html.ap-expo-app .chat-input-wrapper textarea {
+  border: none;
+  background: transparent;
+  flex: 1;
+  resize: none;
+  font-size: 14px;
+  min-height: 24px;
+  max-height: 80px;
+}
+
+html.ap-expo-app .chat-input-actions .attach-btn {
+  display: none;
+}
+
+html.ap-expo-app .sidebar-header .chat-search {
+  display: none;
+}
+
+html.ap-expo-app .sidebar-header h2 {
+  display: none;
+}
+
+html.ap-expo-app .chat-tabs {
+  display: none;
+}
+
+@media (min-width: 769px) {
+  .ap-msg-top,
+  .ap-msg-notify,
+  .ap-msg-filters,
+  .ap-msg-quick-row {
+    display: none;
+  }
+}

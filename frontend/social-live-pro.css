@@ -126,12 +126,25 @@ body[data-live-page='live-room'] .party-host-meta .name {
   font-size: 13px;
   font-weight: 600;
   letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: min(52vw, 200px);
 }
 
 body[data-live-page='live-room'] .party-host-meta .sub {
   font-size: 11px;
   color: var(--live-pro-muted);
   font-weight: 500;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+body[data-live-page='live-room'] #liveRoomId {
+  display: block;
+  width: 100%;
+  font-size: 10px;
+  opacity: 0.9;
 }
 
 body[data-live-page='live-room'] .party-follow-btn {

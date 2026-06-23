@@ -1324,7 +1324,7 @@
     const tab = new URLSearchParams(location.search).get('tab') || 'host';
     document.querySelectorAll('.social-rank-main-tab').forEach((a) => {
       a.classList.toggle('active', a.dataset.tab === tab);
-      a.addEventListener('click', (e) => {
+        a.addEventListener('click', (e) => {
         e.preventDefault();
         history.replaceState(null, '', '/rankings.html?tab=' + a.dataset.tab + '&app=1');
         document.querySelectorAll('.social-rank-main-tab').forEach((x) => x.classList.remove('active'));
@@ -1333,6 +1333,7 @@
         document.querySelectorAll('[data-rank-panel]').forEach((p) => {
           p.style.display = p.dataset.rankPanel === picked ? 'block' : 'none';
         });
+        if (typeof window.refreshRanks === 'function') window.refreshRanks();
       });
     });
 

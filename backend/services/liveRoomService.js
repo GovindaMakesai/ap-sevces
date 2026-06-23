@@ -31,7 +31,7 @@ async function hostRoom({ channel, roomType, hostUserId, hostDisplayName }) {
     if (room.rows.length) {
       await client.query(
         `UPDATE live_rooms SET host_user_id = $1, host_display_name = $2, room_type = $3, status = 'active',
-         ended_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE channel = $4`,
+         ended_at = NULL, viewer_count = GREATEST(viewer_count, 1), updated_at = CURRENT_TIMESTAMP WHERE channel = $4`,
         [hostUserId, hostDisplayName, roomType, channel]
       );
       room = await client.query(`SELECT * FROM live_rooms WHERE channel = $1`, [channel]);
@@ -318,7 +318,6 @@ async function listActiveRooms({ roomType, limit = 30, sort = 'trending' } = {})
   let sql = `SELECT lr.channel, lr.room_type, lr.host_user_id, lr.host_display_name, lr.viewer_count, lr.status, lr.updated_at, lr.started_at
              FROM live_rooms lr
              WHERE lr.status = 'active'
-               AND lr.viewer_count > 0
                AND lr.updated_at > CURRENT_TIMESTAMP - INTERVAL '30 minutes'
                AND EXISTS (
                  SELECT 1 FROM live_room_members m

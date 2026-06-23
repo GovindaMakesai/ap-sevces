@@ -1,5 +1,6 @@
 import {
   ActivityIndicator,
+  BackHandler,
   PermissionsAndroid,
   Platform,
   StatusBar as RNStatusBar,
@@ -7,6 +8,7 @@ import {
   Text,
   View,
   Share,
+  ToastAndroid,
 } from 'react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
@@ -337,6 +339,8 @@ export default function App() {
   const webViewRef = useRef(null);
   const pendingTokenRef = useRef(null);
   const webViewReadyRef = useRef(false);
+  const webViewCanGoBackRef = useRef(false);
+  const homeBackAtRef = useRef(0);
   const handledTokenRef = useRef('');
   const processingCredRef = useRef('');
   const oauthBusyRef = useRef(false);
@@ -646,6 +650,33 @@ export default function App() {
   );
 
   useEffect(() => {
+    if (Platform.OS !== 'android') return undefined;
+    const onHardwareBack = () => {
+      webViewRef.current?.injectJavaScript(`(function(){
+        var handled = false;
+        try {
+          if (window.SocialNav) handled = !!window.SocialNav.handleHardwareBack();
+          else if (window.history.length > 1) { window.history.back(); handled = true; }
+          else if (!/explore\\.html/i.test(location.pathname)) {
+            location.href='/explore.html?app=1&source=expo-app';
+            handled = true;
+          }
+        } catch(e) {}
+        if (!handled) {
+          window.ReactNativeWebView.postMessage(JSON.stringify({
+            type:'back_result',
+            handled:false,
+            route:location.pathname||''
+          }));
+        }
+      })();true;`);
+      return true;
+    };
+    const sub = BackHandler.addEventListener('hardwareBackPress', onHardwareBack);
+    return () => sub.remove();
+  }, []);
+
+  useEffect(() => {
     requestAndroidMediaPermissions().catch(() => {});
   }, []);
 
@@ -719,6 +750,28 @@ export default function App() {
               ? { title, message: text, url }
               : { title, message: url ? `${text}\n${url}` : text }
           ).catch(() => {});
+          return;
+        }
+        if (data.type === 'back_result' && !data.handled) {
+          const route = String(data.route || '');
+          if (webViewCanGoBackRef.current) {
+            webViewRef.current?.goBack();
+            return;
+          }
+          if (/explore\.html/i.test(route)) {
+            const now = Date.now();
+            if (now - homeBackAtRef.current < 2200) {
+              homeBackAtRef.current = 0;
+              BackHandler.exitApp();
+              return;
+            }
+            homeBackAtRef.current = now;
+            ToastAndroid.show('Press back again to exit', ToastAndroid.SHORT);
+            return;
+          }
+          webViewRef.current?.injectJavaScript(
+            `window.location.href='/explore.html?app=1&source=expo-app';true;`
+          );
         }
       } catch (_e) {
         /* not our message */
@@ -817,6 +870,7 @@ export default function App() {
         }}
         onNavigationStateChange={(nav) => {
           const url = nav?.url || '';
+          webViewCanGoBackRef.current = Boolean(nav?.canGoBack);
           if (url.includes('explore.html') || url.includes('dashboard')) {
             oauthCompleteRef.current = true;
             setLoadError('');

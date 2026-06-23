@@ -2,11 +2,12 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chat - AP Services</title>
-    <meta name="theme-color" content="#faf6ee">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+    <title>Message - AP Services</title>
+    <meta name="theme-color" content="#fff9f0">
     <script src="/ap-native-boot.js"></script>
     <link rel="stylesheet" href="/social-theme.css">
+    <link rel="stylesheet" href="/social-chat.css">
     
     <!-- Font Awesome 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -949,7 +950,7 @@
         }
     </style>
 </head>
-<body>
+<body class="ap-chat-boot">
     <!-- Navbar -->
     <nav class="navbar">
         <div class="container">
@@ -973,6 +974,28 @@
             <div class="chat-layout">
                 <!-- Chat Sidebar -->
                 <aside class="chat-sidebar" id="chatSidebar">
+                    <div class="ap-msg-top">
+                        <div class="ap-msg-top-row">
+                            <h1>Message</h1>
+                            <div class="ap-msg-top-actions">
+                                <button type="button" aria-label="More"><i class="fas fa-ellipsis-h"></i></button>
+                                <button type="button" aria-label="Search" onclick="document.getElementById('chatSearch')?.focus()"><i class="fas fa-search"></i></button>
+                            </div>
+                        </div>
+                        <div class="ap-msg-notify" id="apMsgNotify">
+                            <i class="fas fa-volume-up"></i>
+                            <span>Enable system notification permissions</span>
+                            <button type="button" class="open-btn" id="apMsgNotifyOpen">Open</button>
+                            <button type="button" class="close-btn" id="apMsgNotifyClose" aria-label="Dismiss">&times;</button>
+                        </div>
+                        <div class="ap-msg-filters" id="apMsgFilters">
+                            <button type="button" class="ap-msg-filter active" data-filter="all">All</button>
+                            <button type="button" class="ap-msg-filter" data-filter="official">Official <span class="pill-badge">30</span></button>
+                            <button type="button" class="ap-msg-filter" data-filter="unread">Unread <span class="pill-badge">60</span></button>
+                            <button type="button" class="ap-msg-filter" data-filter="group">Group chat</button>
+                            <button type="button" class="ap-msg-filter" data-filter="online">Online</button>
+                        </div>
+                    </div>
                     <div class="sidebar-header">
                         <h2><i class="fas fa-comments"></i> Messages</h2>
                         <div class="chat-search">
@@ -1013,6 +1036,7 @@
                         <div class="chat-header">
                             <button type="button" class="chat-back-btn" onclick="closeMobileChat()" aria-label="Back to conversations">
                                 <i class="fas fa-arrow-left"></i>
+                                <span class="ap-chat-back-badge" id="apChatBackBadge" hidden></span>
                             </button>
                             <div class="chat-user-info" id="chatUserInfo">
                                 <div class="chat-avatar">
@@ -1048,6 +1072,12 @@
                         </div>
 
                         <!-- Chat Input -->
+                        <div class="ap-msg-quick-row" id="apMsgQuickRow">
+                            <button type="button" class="ap-msg-quick" data-quick="Hi">Hi</button>
+                            <button type="button" class="ap-msg-quick" data-quick="❤️ Love">Love</button>
+                            <button type="button" class="ap-msg-quick" data-quick="For you 💙">For you</button>
+                            <button type="button" class="ap-msg-quick gift" data-quick-gift="1"><i class="fas fa-gift"></i> Gift</button>
+                        </div>
                         <div class="chat-input-container">
                             <div class="chat-input-wrapper">
                                 <div class="chat-input-actions">
@@ -1064,7 +1094,7 @@
                                 </div>
                                 <textarea 
                                     id="messageInput" 
-                                    placeholder="Type a message..." 
+                                    placeholder="Say something" 
                                     rows="1"
                                     onkeydown="handleKeyPress(event)"
                                 ></textarea>
@@ -1161,6 +1191,7 @@
     <script src="app.js"></script>
     <script src="auth-guard.js"></script>
     <script src="social-shell.js"></script>
+    <script src="social-nav.js"></script>
     
     <script>
         // ==================== CHAT JAVASCRIPT ====================
@@ -1195,6 +1226,22 @@
             await loadConversations();
             setupChatSearch();
             setupChatTabs();
+            setupMsgFilters();
+            setupMsgQuickChips();
+            if (window.SocialNav) {
+                SocialNav.registerRefresh(async () => {
+                    await loadConversations();
+                    if (currentChatId) await loadChat(currentChatId);
+                });
+            }
+            document.getElementById('apMsgNotifyClose')?.addEventListener('click', () => {
+                document.getElementById('apMsgNotify')?.remove();
+            });
+            document.getElementById('apMsgNotifyOpen')?.addEventListener('click', () => {
+                if ('Notification' in window && Notification.permission === 'default') {
+                    Notification.requestPermission();
+                }
+            });
             
             const urlParams = new URLSearchParams(window.location.search);
             const chatParam = urlParams.get('conversation') || urlParams.get('id') || urlParams.get('worker');
@@ -1427,8 +1474,11 @@
         function loadChatList() {
             const chatList = document.getElementById('chatList');
             const { conversations, activeConversationId } = useChatStore.getState();
-            chatList.innerHTML = conversations.map((chat) => `
-                <div class="chat-item ${String(chat.id) === String(activeConversationId || '') ? 'active' : ''}" data-chat-id="${chat.id}" onclick="loadChat('${chat.id}', this)">
+            const officialNames = ['system', 'security', 'income', 'follower', 'official'];
+            chatList.innerHTML = conversations.map((chat) => {
+                const isOfficial = officialNames.some((k) => String(chat.name || '').toLowerCase().includes(k));
+                return `
+                <div class="chat-item ${String(chat.id) === String(activeConversationId || '') ? 'active' : ''}" data-chat-id="${chat.id}" data-official="${isOfficial ? '1' : '0'}" data-unread="${chat.unread || 0}" onclick="loadChat('${chat.id}', this)">
                     <div class="chat-avatar">
                         <div class="avatar-placeholder">${chat.avatar || initialsFromName(chat.first_name, chat.last_name)}</div>
                         <span class="status-dot ${chat.status}"></span>
@@ -1436,6 +1486,7 @@
                     <div class="chat-info">
                         <h4>
                             ${chat.name}
+                            ${isOfficial ? '<span class="ap-msg-official">Official</span>' : ''}
                             ${chat.bookingId ? '<i class="fas fa-calendar-check" title="Has booking"></i>' : ''}
                         </h4>
                         <p>${chat.lastMessage}</p>
@@ -1445,7 +1496,46 @@
                         ${chat.unread > 0 ? `<span class="unread-badge">${chat.unread}</span>` : ''}
                     </div>
                 </div>
-            `).join('');
+            `;
+            }).join('');
+            updateFilterBadges();
+        }
+
+        function updateFilterBadges() {
+            const items = document.querySelectorAll('.chat-item');
+            let unread = 0;
+            items.forEach((item) => {
+                unread += parseInt(item.dataset.unread || '0', 10) || 0;
+            });
+            document.querySelectorAll('.ap-msg-filter[data-filter="unread"] .pill-badge').forEach((b) => {
+                b.textContent = unread > 0 ? String(unread) : '0';
+            });
+        }
+
+        function setupMsgFilters() {
+            const filters = document.querySelectorAll('.ap-msg-filter');
+            filters.forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    filters.forEach((f) => f.classList.remove('active'));
+                    btn.classList.add('active');
+                    filterChats(btn.dataset.filter || 'all');
+                });
+            });
+        }
+
+        function setupMsgQuickChips() {
+            document.querySelectorAll('.ap-msg-quick[data-quick]').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const input = document.getElementById('messageInput');
+                    if (input) {
+                        input.value = btn.dataset.quick || '';
+                        sendMessage();
+                    }
+                });
+            });
+            document.querySelector('.ap-msg-quick[data-quick-gift]')?.addEventListener('click', () => {
+                window.location.href = '/lucky-gifts.html?app=1';
+            });
         }
 
         function setupChatSearch() {
@@ -1487,8 +1577,16 @@
                         item.style.display = 'flex';
                         break;
                     case 'unread':
-                        const badge = item.querySelector('.unread-badge');
-                        item.style.display = badge ? 'flex' : 'none';
+                        item.style.display = (parseInt(item.dataset.unread || '0', 10) > 0 || item.querySelector('.unread-badge')) ? 'flex' : 'none';
+                        break;
+                    case 'official':
+                        item.style.display = item.dataset.official === '1' ? 'flex' : 'none';
+                        break;
+                    case 'group':
+                        item.style.display = String(item.querySelector('h4')?.textContent || '').toLowerCase().includes('group') ? 'flex' : 'none';
+                        break;
+                    case 'online':
+                        item.style.display = item.querySelector('.status-dot.online') ? 'flex' : 'none';
                         break;
                     case 'bookings':
                         const hasBooking = item.querySelector('h4 i');

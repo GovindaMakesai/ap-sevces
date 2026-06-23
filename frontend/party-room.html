@@ -47,7 +47,7 @@
       <div class="ap-live-loader-logo">AP</div>
       <div class="ap-live-loader-brand">AP Services</div>
       <div class="ap-live-loader-spin"></div>
-      <p id="apLiveLoaderText">Connecting to roomΓÇª</p>
+      <p id="apLiveLoaderText">Connecting…</p>
     </div>
   </div>
 
@@ -58,7 +58,7 @@
         <img id="partyHostAvatar" alt="Host">
         <div class="party-host-meta">
           <div class="name" id="partyHostName">Host</div>
-          <div class="sub"><span class="heart-stat">Γ¥ñ∩╕Å <span id="partyHearts">0</span></span> <span id="partyHostLabel">Voice party</span></div>
+          <div class="sub"><span class="heart-stat">❤️ <span id="partyHearts">0</span></span> <span id="partyHostLabel">Voice party</span></div>
         </div>
         <button type="button" class="party-follow-btn" id="partyHostFollow" aria-label="Follow">+</button>
       </div>
@@ -79,13 +79,13 @@
       <span class="party-stat"><i class="fas fa-fire"></i> Pop <strong id="partyPopScore">100+</strong></span>
       <span class="party-stat party-music-bar"><i class="fas fa-music"></i> <strong id="partyMusicScore">14</strong> <span class="party-stat-pct" id="partyPopPct">64.17%</span></span>
       <button type="button" class="party-rule-btn" id="partyRuleBtn"><i class="fas fa-clipboard-list"></i> Rule</button>
-      <span class="party-room-id" id="partyRoomId">ID: ΓÇö</span>
+      <span class="party-room-id" id="partyRoomId">ID: —</span>
     </div>
 
     <div class="party-widgets">
       <div class="party-widget party-widget-wish">
         <div class="wish-row">
-          <span class="wish-ico">≡ƒÑé</span>
+          <span class="wish-ico">🥂</span>
           <div>
             <strong>Wish <span id="partyTeamProgress">0/11</span></strong>
             <div class="bar"><i id="partyTeamBar" style="width:0%"></i></div>
@@ -93,7 +93,7 @@
         </div>
       </div>
       <div class="party-widget party-widget-chest">
-        <span class="chest-ico">≡ƒÄü</span>
+        <span class="chest-ico">🎁</span>
         <span id="partyChestTimer">05:00</span>
       </div>
     </div>
@@ -132,18 +132,18 @@
   </div>
 
   <div class="ap-room-status-strip" id="apRoomStatusStrip" aria-live="polite">
-    <span class="live-status-badge" id="liveStatusBadge" style="display:none">ConnectingΓÇª</span>
+    <span class="live-status-badge" id="liveStatusBadge" style="display:none">Connecting…</span>
   </div>
 
   <footer class="party-bottom-bar ap-bottom-ref" id="partyBottomBar">
     <div class="live-chat-compose ap-compose-inline" id="liveChatCompose">
       <span class="ap-char-count is-empty" id="apCharCount" aria-hidden="true"></span>
       <button type="button" class="ap-chat-emoji-btn" id="apChatEmojiBtn" aria-label="Emoji"><i class="far fa-smile"></i></button>
-      <input type="text" id="liveChatInput" placeholder="Say somethingΓÇª" maxlength="280" autocomplete="off" enterkeyhint="send">
+      <input type="text" id="liveChatInput" placeholder="Say something…" maxlength="280" autocomplete="off" enterkeyhint="send">
       <button type="button" id="liveChatSend" class="ap-chat-send-btn" aria-label="Send"><i class="fas fa-paper-plane"></i></button>
     </div>
     <button type="button" class="party-btn-follow ap-btn-follow-hidden" id="partyBtnFollow" aria-hidden="true">Follow +</button>
-    <button type="button" class="party-btn-join-seat ap-btn-follow-hidden" id="partyBtnJoinSeat" style="display:none">Join seat</button>
+    <button type="button" class="party-btn-join-seat ap-btn-follow-hidden" id="partyBtnJoinSeat" style="display:none">Request mic</button>
     <div class="party-bottom-actions">
       <button type="button" id="partyBtnTools" class="ap-btn-grid" aria-label="Tools"><i class="fas fa-th"></i><span class="ap-notify-dot" id="apToolsNotifyDot" hidden></span></button>
       <button type="button" id="liveBtnMic" class="ap-btn-mic-ring" aria-label="Request mic"><i class="fas fa-microphone"></i></button>
