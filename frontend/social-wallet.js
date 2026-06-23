@@ -48,6 +48,17 @@
     return { ...cached };
   }
 
+  /** Points earned (separate from purchasable coins). */
+  function getPointsBalance(bal) {
+    const b = bal || cached;
+    return Number(b.star_balance) || 0;
+  }
+
+  function getCoinsBalance(bal) {
+    const b = bal || cached;
+    return Number(b.coin_balance) || 0;
+  }
+
   async function sendGift(payload) {
     const res = await API.post('/wallet/gifts', payload);
     if (res.data?.balance) {
@@ -93,6 +104,8 @@
   window.SocialWallet = {
     fetchBalance,
     getCachedBalance,
+    getPointsBalance,
+    getCoinsBalance,
     getWalletSettings,
     sendGift,
     submitRecharge,

@@ -1538,6 +1538,7 @@ function loadSocialShellIfNeeded() {
         '/explore.html', '/party.html', '/video.html', '/square.html', '/topics.html',
         '/store.html', '/vip.html', '/rankings.html', '/profile-tab.html', '/privileges.html',
         '/points.html', '/withdraw.html', '/withdraw-details.html', '/withdraw-notices.html',
+        '/chat.html',
     ];
     const isSocial = socialPages.some((p) => path.endsWith(p));
     if ((isSocial || isNativeAppContext()) && !isImmersiveLivePath()) {
@@ -1591,8 +1592,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     Auth.checkAuth();
     if (Auth.hasSession()) {
         if (!(isNativeAppContext() && onAuthScreen)) {
-            await Auth.ensureAccessToken();
-            await Auth.refreshSession();
+            if (isNativeAppContext()) {
+                Auth.ensureAccessToken().catch(() => {});
+                Auth.refreshSession().catch(() => {});
+            } else {
+                await Auth.ensureAccessToken();
+                await Auth.refreshSession();
+            }
         }
     }
     if (!isNativeAppContext()) {

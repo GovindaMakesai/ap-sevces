@@ -2,69 +2,15 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <meta name="theme-color" content="#fdf9f0">
-  <title>Party - AP Services</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-theme.css">
-  <script src="ap-config.js"></script>
-  <script src="ap-native-boot.js"></script>
-</head>
-<body>
-  <header class="social-top">
-    <div class="social-sub-tabs social-sub-tabs--with-actions">
-      <a href="/explore.html?tab=following&app=1">Following</a>
-      <a href="/party.html?app=1" class="active">Party</a>
-      <div class="social-top-actions">
-        <a href="/rankings.html?app=1" class="social-icon-btn"><i class="fas fa-trophy"></i></a>
-        <a href="/store.html?app=1" class="social-icon-btn" title="Gifts"><i class="fas fa-gift"></i></a>
-      </div>
-    </div>
-    <div class="social-search">
-      <i class="fas fa-search"></i>
-      <input type="search" placeholder="Party room or host" autocomplete="off">
-    </div>
-  </header>
-
-  <div id="social-banner-slider"></div>
-
-  <div class="party-start-banner">
-    <div>
-      <strong>Voice party room</strong>
-      <p>Up to 25 seats · gifts · chat</p>
-    </div>
-    <button type="button" class="party-start-banner-btn" id="partyStartTop">Start Party</button>
-  </div>
-
-  <p class="social-page-label" style="padding:0 14px 8px;font-size:13px;color:#8b6914;margin:0">Join a room or start your own</p>
-  <div class="social-grid" id="partyGrid"></div>
-
-  <button type="button" class="social-start-live social-fab-party" id="partyFab"><i class="fas fa-users"></i> Start Party</button>
-  <div id="social-bottom-nav-mount"></div>
-
-  <script src="app.js"></script>
-  <script src="social-ui.js"></script>
-  <script src="auth-guard.js"></script>
-  <script src="social-banner-slider.js"></script>
-  <script src="social-create-post.js"></script>
-  <script src="social-shell.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Redirecting…</title>
   <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      const p = new URLSearchParams(location.search);
-      if (p.get('live') === '1') {
-        SocialShell.goStartParty();
-        return;
-      }
-      SocialShell.initPage({ activeNav: 'party', gridId: 'partyGrid', gridLimit: 12, partyGrid: true });
-      document.getElementById('partyFab')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        SocialShell.openBroadcastPicker('party');
-      });
-      document.getElementById('partyStartTop')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        SocialShell.openBroadcastPicker('party');
-      });
-    });
+    (function () {
+      var q = location.search || '';
+      if (!/[?&]app=1\b/.test(q)) q += (q ? '&' : '?') + 'app=1';
+      location.replace('/explore.html' + q);
+    })();
   </script>
-</body>
+</head>
+<body></body>
 </html>

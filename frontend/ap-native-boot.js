@@ -53,6 +53,11 @@
   }
 
   if (!onAuth && !localStorage.getItem('user') && !localStorage.getItem('token')) {
+    if (path.endsWith('/explore.html')) {
+      document.documentElement.classList.add('auth-restoring');
+      location.replace('/app-auth.html?app=1&source=expo-app');
+      return;
+    }
     if (!path.includes('chat')) return;
     const dest = '/app-auth.html?app=1&redirect=' + encodeURIComponent(location.pathname + location.search);
     location.replace(dest);

@@ -68,8 +68,8 @@
         });
       });
       document.getElementById('topicJoinBtn').addEventListener('click', () => {
-        if (window.SocialShell?.openBroadcastPicker) SocialShell.openBroadcastPicker('party', { topic: idx });
-        else SocialShell.goStartParty();
+        if (window.SocialShell?.openBroadcastPicker) SocialShell.openBroadcastPicker('live', { topic: idx });
+        else if (window.SocialShell?.goStartLiveBroadcast) SocialShell.goStartLiveBroadcast({ mode: 'video', topic: idx });
       });
       document.getElementById('topicLiveBtn').addEventListener('click', () => {
         if (window.SocialShell?.openBroadcastPicker) SocialShell.openBroadcastPicker('live', { topic: idx });

@@ -1942,3 +1942,8 @@ html.ap-live-immersive.social-app body {
   min-height: 100dvh !important;
   overflow: hidden !important;
 }
+
+html.ap-nav-switching body {
+  opacity: 0.92;
+  transition: opacity 0.08s ease;
+}

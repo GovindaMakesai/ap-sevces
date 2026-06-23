@@ -292,7 +292,7 @@ function registerLiveSocket(io) {
           senderId: socket.userId,
           receiverId,
           liveRoomId: room.id,
-          giftType: payload?.emoji || payload?.giftType || 'gift',
+          giftType: payload?.giftSlug || payload?.giftType || payload?.emoji || 'gift',
           coinAmount,
         });
 
@@ -302,12 +302,20 @@ function registerLiveSocket(io) {
           to: String(payload?.to || room.host_display_name || 'Host').slice(0, 32),
           emoji: payload?.emoji || '\u{1F381}',
           amount: coinAmount,
+          qty: payload?.qty || 1,
           at: Date.now(),
         };
 
         io.to(`live:${channel}`).emit('live:gift', gift);
         const state = await liveRoomService.buildSnapshot(channel);
         io.to(`live:${channel}`).emit('live:state', state);
+
+        const pkBattleService = require('../services/pkBattleService');
+        const battle = await pkBattleService.getActiveBattleByChannel(channel);
+        if (battle?.status === 'active') {
+          const pkSnapshot = await pkBattleService.getBattleSnapshot(battle.id);
+          io.to(`live:${channel}`).emit('pk:score', pkSnapshot);
+        }
 
         if (ack) ack({ ok: true, data: { gift, balance: result } });
       } catch (err) {

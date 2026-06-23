@@ -126,12 +126,15 @@
           const s = await SocialInteractions.getFollowStats(user.id);
           document.getElementById('statFollowing').textContent = s.following;
           document.getElementById('statFollowers').textContent = s.followers;
-          document.getElementById('statCoins').textContent = s.coins.toLocaleString();
           if (window.SocialWallet) {
             SocialWallet.fetchBalance().then((b) => {
+              const coins = document.getElementById('statCoins');
               const pts = document.getElementById('statPoints');
-              if (pts) pts.textContent = (b.coin_balance || 0).toLocaleString();
+              if (coins) coins.textContent = (b.coin_balance || 0).toLocaleString();
+              if (pts) pts.textContent = (b.star_balance || 0).toLocaleString();
             });
+          } else {
+            document.getElementById('statCoins').textContent = s.coins.toLocaleString();
           }
           statsEl.style.display = 'grid';
           const walletActs = document.getElementById('profileWalletActions');

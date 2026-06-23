@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS platform_settings (
 );
 
 INSERT INTO platform_settings (key, value) VALUES
-  ('wallet', '{"min_withdrawal_coins": 500, "gift_platform_fee_pct": 20, "starter_coins": 0, "coins_per_inr": 10}'::jsonb)
+  ('wallet', '{"min_withdrawal_usd": 10, "min_withdrawal_coins": 8300, "gift_platform_fee_pct": 20, "starter_coins": 0, "coins_per_inr": 10, "inr_per_usd": 83}'::jsonb)
 ON CONFLICT (key) DO NOTHING;
 
 -- RBAC

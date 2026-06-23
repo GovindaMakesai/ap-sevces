@@ -54,15 +54,15 @@
         return;
       }
       const bal = await SocialWallet.fetchBalance(true);
-      const coins = bal.coin_balance || 0;
+      const points = bal.star_balance || 0;
       let unconfirmed = 0;
       try {
         const list = await SocialWallet.getWithdrawals();
         unconfirmed = (list.data || []).filter((w) => w.status === 'paid').length;
       } catch (_e) {}
       const fmt = (n) => Number(n).toLocaleString();
-      document.getElementById('pointsBalance').textContent = fmt(coins);
-      document.getElementById('pointsTotal').textContent = fmt(coins);
+      document.getElementById('pointsBalance').textContent = fmt(points);
+      document.getElementById('pointsTotal').textContent = fmt(points);
       document.getElementById('pointsUnconfirmed').textContent = String(unconfirmed);
       document.getElementById('withdrawNowBtn').onclick = () => {
         location.href = '/withdraw.html?app=1';

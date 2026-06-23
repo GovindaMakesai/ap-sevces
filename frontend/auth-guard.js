@@ -213,7 +213,9 @@
 
     if (isAuthPage()) {
       if (isLoggedIn()) {
+        document.documentElement.classList.add('auth-restoring');
         validateSession().then((ok) => {
+          document.documentElement.classList.remove('auth-restoring');
           if (ok) {
             completeLoginAndEnterApp(getUser());
             return;

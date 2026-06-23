@@ -62,9 +62,10 @@ function isDevLocalBase(base) {
 }
 
 function buildFrontendUrl(base) {
-  return process.env.EXPO_PUBLIC_WEB_ENTRY === 'legacy'
-    ? base
-    : `${base}/app-auth.html`;
+  if (process.env.EXPO_PUBLIC_WEB_ENTRY === 'legacy') return base;
+  if (process.env.EXPO_PUBLIC_WEB_ENTRY === 'auth') return `${base}/app-auth.html`;
+  // Logged-in users land on explore; logged-out users redirect to app-auth before paint.
+  return `${base}/explore.html`;
 }
 
 /** Native app uses Hostinger VPS API (cleartext allowed in app.json). */
@@ -158,13 +159,32 @@ function buildAppShellBootstrap(frontendBase) {
     }
     function apHasSession(){try{return!!(localStorage.getItem('user')||localStorage.getItem('token'));}catch(e){return false;}}
     window.__AP_HAS_NATIVE_SESSION__=apHasSession;
-    if('serviceWorker' in navigator){
+    function apNativeHome(){
+      var q='?app=1&source=expo-app';
+      try{
+        var u=JSON.parse(localStorage.getItem('user')||'null');
+        if(u&&u.role==='admin')return '/admin-dashboard.html'+q;
+        if(u&&u.role==='worker')return '/worker-dashboard.html'+q;
+      }catch(e){}
+      return '/explore.html'+q;
+    }
+    var apPath=(location.pathname||'').toLowerCase();
+    if(!apPath.endsWith('/login-success.html')){
+      var apOnAuth=apPath.endsWith('/app-auth.html')||apPath.endsWith('/login.html')||apPath.endsWith('/register.html');
+      var apOnExplore=apPath.endsWith('/explore.html');
+      if(apOnAuth&&apHasSession()){
+        document.documentElement.classList.add('auth-restoring');
+        location.replace(apNativeHome());
+      }else if(apOnExplore&&!apHasSession()){
+        document.documentElement.classList.add('auth-restoring');
+        location.replace('/app-auth.html?app=1&source=expo-app');
+      }
+    }
+    if('serviceWorker' in navigator&&localStorage.getItem('ap_clear_sw')==='1'){
       navigator.serviceWorker.getRegistrations().then(function(regs){
         regs.forEach(function(r){r.unregister();});
       }).catch(function(){});
-    }
-    if(window.caches&&caches.keys){
-      caches.keys().then(function(keys){keys.forEach(function(k){caches.delete(k);});}).catch(function(){});
+      try{localStorage.removeItem('ap_clear_sw');}catch(e){}
     }
   }catch(e){}})();true;`;
 }
@@ -407,7 +427,7 @@ export default function App() {
     // Defer so DOM is ready; avoids white screen from early inject crashes.
     setTimeout(() => {
       webViewRef.current?.injectJavaScript(MOBILE_INJECT_SCRIPT);
-    }, 250);
+    }, 50);
   }, []);
 
   const finishLoginInWebView = useCallback(
@@ -828,8 +848,8 @@ export default function App() {
         onMessage={onWebViewMessage}
         javaScriptEnabled
         domStorageEnabled
-        cacheEnabled={false}
-        cacheMode={Platform.OS === 'android' ? 'LOAD_NO_CACHE' : undefined}
+        cacheEnabled
+        cacheMode={Platform.OS === 'android' ? 'LOAD_DEFAULT' : undefined}
         sharedCookiesEnabled
         thirdPartyCookiesEnabled
         originWhitelist={['*']}

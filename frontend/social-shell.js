@@ -2,9 +2,11 @@
  * Social app shell — native-style nav, live grids, booking flows preserved.
  */
 (function () {
+  if (window.__AP_SOCIAL_SHELL__) return;
+  window.__AP_SOCIAL_SHELL__ = true;
   const BOTTOM_NAV = [
     { id: 'video', href: '/video.html', icon: 'fa-video' },
-    { id: 'party', href: '/party.html', icon: 'hex', altId: 'rankings', altHref: '/rankings.html', altIcon: 'fa-chart-bar' },
+    { id: 'rankings', href: '/rankings.html', icon: 'fa-trophy' },
     { id: 'explore', href: '/explore.html', icon: 'planet', center: true },
     { id: 'chat', href: '/chat.html', icon: 'fa-comment-dots', badge: true },
     { id: 'profile', href: '/profile-tab.html', icon: 'fa-user' },
@@ -51,18 +53,11 @@
     return avatarFallback(name);
   }
 
-  function renderNavIcon(item, activeId) {
-    const active = item.id === activeId || item.altId === activeId;
+  function renderNavIcon(item) {
     if (item.icon === 'planet') {
       return `<span class="nav-planet" aria-hidden="true"><span class="nav-planet-glow"></span><span class="nav-planet-body"></span><span class="nav-planet-ring"></span></span>`;
     }
-    if (item.icon === 'hex') {
-      const useAlt = activeId === 'rankings';
-      if (useAlt) return `<i class="fas ${item.altIcon}"></i>`;
-      return `<span class="nav-hex" aria-hidden="true"><span class="nav-hex-inner"></span></span>`;
-    }
-    const icon = activeId === 'rankings' && item.altId === 'rankings' ? item.altIcon : `fas ${item.icon}`;
-    return `<i class="${icon}"></i>`;
+    return `<i class="fas ${item.icon}"></i>`;
   }
 
   function hasAppSession() {
@@ -78,16 +73,15 @@
     return `
       <nav class="social-bottom-nav" aria-label="Main">
         ${BOTTOM_NAV.map((item) => {
-          const active = item.id === activeId || item.altId === activeId;
-          let href = withAppQuery(item.href);
-          if (item.id === 'party' && activeId === 'rankings') href = withAppQuery(item.altHref);
+          const active = item.id === activeId;
+          const href = withAppQuery(item.href);
           const center = item.center ? ' nav-center' : '';
           const badge =
             item.badge && unread > 0
               ? `<span class="nav-badge">${unread > 9 ? '9+' : unread}</span>`
               : '';
           return `<a href="${href}" class="nav-item${active ? ' is-active' : ''}${center}" data-nav="${item.id}">
-            ${renderNavIcon(item, activeId)}
+            ${renderNavIcon(item)}
             ${badge}
           </a>`;
         }).join('')}
@@ -201,6 +195,50 @@
     mount.style.display = '';
     document.documentElement.classList.remove('auth-guest', 'auth-locked');
     patchAppLinks();
+    bindFastBottomNav();
+    prefetchNavTargets();
+  }
+
+  let fastNavBound = false;
+  function bindFastBottomNav() {
+    if (fastNavBound) return;
+    fastNavBound = true;
+    document.addEventListener(
+      'click',
+      (e) => {
+        const link = e.target.closest?.('.social-bottom-nav a[data-nav]');
+        if (!link) return;
+        const href = link.getAttribute('href');
+        if (!href || href.startsWith('http') || href.startsWith('#')) return;
+        if (link.classList.contains('is-active')) {
+          e.preventDefault();
+          return;
+        }
+        e.preventDefault();
+        document.querySelectorAll('.social-bottom-nav .nav-item').forEach((el) => {
+          el.classList.toggle('is-active', el === link);
+        });
+        document.documentElement.classList.add('ap-nav-switching');
+        requestAnimationFrame(() => {
+          window.location.href = href;
+        });
+      },
+      true
+    );
+  }
+
+  function prefetchNavTargets() {
+    if (document.getElementById('ap-nav-prefetch')) return;
+    const marker = document.createElement('meta');
+    marker.id = 'ap-nav-prefetch';
+    marker.name = 'ap-nav-prefetch';
+    document.head.appendChild(marker);
+    BOTTOM_NAV.forEach((item) => {
+      const link = document.createElement('link');
+      link.rel = 'prefetch';
+      link.href = withAppQuery(item.href);
+      document.head.appendChild(link);
+    });
   }
 
   function patchAppLinks() {
@@ -250,6 +288,8 @@
       const rows = Array.isArray(res?.data) ? res.data : [];
       return rows
         .filter((r) => r && r.channel && r.status !== 'ended')
+        .filter((r) => !party || String(r.channel || '').startsWith('party-'))
+        .filter((r) => party || !String(r.channel || '').startsWith('party-'))
         .map((r) => ({
           id: r.channel,
           channel: r.channel,
@@ -552,28 +592,9 @@
       '/live-room.html?host=1&mode=' + encodeURIComponent(mode) + '&channel=' + encodeURIComponent(channel) + topic + '&app=1';
   }
 
+  /** @deprecated Party rooms disabled — route to live broadcast */
   function goStartParty(opts) {
-    const user = window.Auth?.getUser?.();
-    if (!user) {
-      window.location.href = '/app-auth.html?app=1';
-      return;
-    }
-    const topic = opts?.topic != null ? '&topic=' + encodeURIComponent(opts.topic) : '';
-    const base = String(user.id || 'user').replace(/[^a-zA-Z0-9]/g, '').slice(0, 10);
-    const channel = 'party-' + base + '-' + Date.now().toString(36).slice(-6);
-    const party = {
-      channel,
-      hostId: user.id,
-      hostName: `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email?.split('@')[0] || 'Host',
-      createdAt: Date.now(),
-    };
-    try {
-      const parties = JSON.parse(localStorage.getItem('social_my_parties') || '[]');
-      parties.unshift(party);
-      localStorage.setItem('social_my_parties', JSON.stringify(parties.slice(0, 20)));
-    } catch (_e) {}
-    window.location.href =
-      '/party-room.html?host=1&channel=' + encodeURIComponent(channel) + topic + '&app=1';
+    goStartLiveBroadcast({ ...(opts || {}), mode: opts?.mode || 'video' });
   }
 
   function ensureBroadcastOverlay() {
@@ -594,24 +615,10 @@
     }
     const el = ensureBroadcastOverlay();
     if (kind === 'party') {
-      el.innerHTML = `
-        <div class="social-broadcast-sheet">
-          <h3>Start voice party</h3>
-          <p>Multi-seat room — you host, guests request to join seats. Audio chat with up to 8 speakers.</p>
-          <div class="social-broadcast-options">
-            <button type="button" class="social-broadcast-opt" data-go-party>
-              <span class="ico party"><i class="fas fa-users"></i></span>
-              <div><strong>Start party room</strong><span>You control invites &amp; seats</span></div>
-            </button>
-          </div>
-          <button type="button" class="social-broadcast-cancel" data-broadcast-cancel>Cancel</button>
-        </div>`;
-      el.querySelector('[data-go-party]')?.addEventListener('click', () => {
-        el.classList.remove('is-open');
-        goStartParty(opts || {});
-      });
-    } else {
-      el.innerHTML = `
+      goStartLiveBroadcast({ ...(opts || {}), mode: 'video' });
+      return;
+    }
+    el.innerHTML = `
         <div class="social-broadcast-sheet">
           <h3>Go live</h3>
           <p>Instagram-style — you broadcast solo, viewers join to watch, chat &amp; send gifts.</p>
@@ -633,7 +640,6 @@
           goStartLiveBroadcast({ ...(opts || {}), mode: btn.dataset.goLive });
         });
       });
-    }
     el.querySelector('[data-broadcast-cancel]')?.addEventListener('click', () => el.classList.remove('is-open'));
     el.addEventListener('click', (e) => {
       if (e.target === el) el.classList.remove('is-open');

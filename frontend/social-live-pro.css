@@ -1,0 +1,606 @@
+/**
+ * AP Live — Professional broadcast UI (live-room only)
+ * Mature palette, glass surfaces, restrained typography
+ */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+body[data-live-page='live-room'] {
+  --live-pro-bg: #07080c;
+  --live-pro-surface: rgba(18, 20, 28, 0.72);
+  --live-pro-surface-elevated: rgba(28, 32, 44, 0.88);
+  --live-pro-border: rgba(255, 255, 255, 0.08);
+  --live-pro-border-strong: rgba(255, 255, 255, 0.14);
+  --live-pro-text: #f4f5f7;
+  --live-pro-muted: rgba(244, 245, 247, 0.58);
+  --live-pro-accent: #3b82f6;
+  --live-pro-accent-soft: rgba(59, 130, 246, 0.22);
+  --live-pro-live: #ef4444;
+  --live-pro-live-glow: rgba(239, 68, 68, 0.45);
+  --live-pro-radius: 14px;
+  --live-pro-radius-pill: 999px;
+  --live-pro-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+  --live-pro-shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --live-pro-font: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family: var(--live-pro-font);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* —— Backdrop: cinematic, no cartoon stars —— */
+body[data-live-page='live-room'] .live-room {
+  background: var(--live-pro-bg) !important;
+}
+
+body[data-live-page='live-room'] .live-room::before {
+  display: none !important;
+}
+
+body[data-live-page='live-room'] .live-room::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 120% 80% at 50% 100%, rgba(59, 130, 246, 0.08), transparent 55%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.15) 0%, transparent 28%, rgba(0, 0, 0, 0.55) 100%);
+}
+
+body[data-live-page='live-room'] .live-overlay {
+  background: linear-gradient(
+    180deg,
+    rgba(7, 8, 12, 0.55) 0%,
+    transparent 22%,
+    transparent 62%,
+    rgba(7, 8, 12, 0.82) 100%
+  );
+}
+
+/* —— Loader —— */
+body[data-live-page='live-room'] .ap-live-loader {
+  background: radial-gradient(ellipse at center, #0f1118 0%, #07080c 100%);
+}
+
+body[data-live-page='live-room'] .ap-live-loader-logo {
+  width: 52px;
+  height: 52px;
+  margin: 0 auto 12px;
+  border-radius: 16px;
+  background: linear-gradient(145deg, #1e2433, #12151c);
+  border: 1px solid var(--live-pro-border-strong);
+  box-shadow: var(--live-pro-shadow), var(--live-pro-shadow-inset);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--live-pro-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+body[data-live-page='live-room'] .ap-live-loader-brand {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--live-pro-muted);
+}
+
+body[data-live-page='live-room'] .ap-live-loader-spin {
+  width: 28px;
+  height: 28px;
+  margin: 20px auto 14px;
+  border: 2px solid rgba(255, 255, 255, 0.08);
+  border-top-color: var(--live-pro-accent);
+  border-radius: 50%;
+  animation: live-pro-spin 0.85s linear infinite;
+}
+
+@keyframes live-pro-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* —— Header —— */
+body[data-live-page='live-room'] .party-header {
+  padding: calc(10px + env(safe-area-inset-top, 0)) 14px 8px;
+}
+
+body[data-live-page='live-room'] .party-host {
+  max-width: 52%;
+  padding: 6px 10px 6px 6px;
+  border-radius: var(--live-pro-radius-pill);
+  background: var(--live-pro-surface);
+  backdrop-filter: blur(20px) saturate(1.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  border: 1px solid var(--live-pro-border);
+  box-shadow: var(--live-pro-shadow-inset), 0 4px 20px rgba(0, 0, 0, 0.25);
+}
+
+body[data-live-page='live-room'] .party-host img {
+  width: 34px;
+  height: 34px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+body[data-live-page='live-room'] .party-host-meta .name {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+body[data-live-page='live-room'] .party-host-meta .sub {
+  font-size: 11px;
+  color: var(--live-pro-muted);
+  font-weight: 500;
+}
+
+body[data-live-page='live-room'] .party-follow-btn {
+  width: 30px;
+  height: 30px;
+  background: var(--live-pro-accent-soft);
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  color: #93c5fd;
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: var(--live-pro-shadow-inset);
+}
+
+body[data-live-page='live-room'] .party-viewer-count {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 10px;
+  background: var(--live-pro-surface);
+  border: 1px solid var(--live-pro-border);
+  border-radius: var(--live-pro-radius-pill);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+body[data-live-page='live-room'] .party-close {
+  width: 34px;
+  height: 34px;
+  background: var(--live-pro-surface);
+  border: 1px solid var(--live-pro-border);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  font-size: 13px;
+  transition: background 0.2s ease;
+}
+
+body.ap-is-host[data-live-page='live-room'] .party-header {
+  box-shadow: none;
+  border-bottom: none;
+}
+
+/* —— Live badge —— */
+body[data-live-page='live-room'] .live-mode-badge {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 6px 12px;
+  border-radius: var(--live-pro-radius-pill);
+  background: var(--live-pro-surface);
+  border: 1px solid var(--live-pro-border);
+  color: var(--live-pro-muted);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+body[data-live-page='live-room'] .live-mode-badge.is-host {
+  border-color: rgba(59, 130, 246, 0.35);
+  color: #93c5fd;
+}
+
+body[data-live-page='live-room'] .live-pulse-dot {
+  width: 6px;
+  height: 6px;
+  background: var(--live-pro-live);
+  box-shadow: 0 0 0 0 var(--live-pro-live-glow);
+  animation: live-pro-pulse 2s ease-out infinite;
+}
+
+@keyframes live-pro-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 transparent; opacity: 1; }
+  50% { box-shadow: 0 0 0 6px transparent; opacity: 0.85; }
+}
+
+/* —— Host controls —— */
+body[data-live-page='live-room'] .live-host-bar {
+  margin: 0 12px 6px;
+  padding: 8px;
+  gap: 6px;
+  border-radius: var(--live-pro-radius);
+  background: var(--live-pro-surface-elevated);
+  border: 1px solid var(--live-pro-border);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  box-shadow: var(--live-pro-shadow), var(--live-pro-shadow-inset);
+}
+
+body[data-live-page='live-room'] .party-host-action {
+  flex: 1 1 calc(50% - 4px);
+  min-width: 0;
+  padding: 10px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--live-pro-border);
+  color: var(--live-pro-text);
+  box-shadow: var(--live-pro-shadow-inset);
+  transform-style: preserve-3d;
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+body[data-live-page='live-room'] .party-host-action.is-active {
+  background: var(--live-pro-accent-soft);
+  border-color: rgba(59, 130, 246, 0.4);
+  color: #bfdbfe;
+}
+
+body[data-live-page='live-room'] #liveBtnHostMute.is-muted {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
+}
+
+/* —— Chat —— */
+body[data-live-page='live-room'] .party-chat-row {
+  margin: 0 12px 4px;
+  padding: 0;
+  background: transparent;
+}
+
+body[data-live-page='live-room'] .party-chat-tabs {
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+body[data-live-page='live-room'] .party-chat-tabs button {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 5px 12px;
+  border-radius: var(--live-pro-radius-pill);
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--live-pro-muted);
+}
+
+body[data-live-page='live-room'] .party-chat-tabs button.active {
+  background: var(--live-pro-surface);
+  border-color: var(--live-pro-border);
+  color: var(--live-pro-text);
+}
+
+body[data-live-page='live-room'] .party-chat-zone {
+  border-radius: var(--live-pro-radius);
+  background: var(--live-pro-surface);
+  border: 1px solid var(--live-pro-border);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+body[data-live-page='live-room'] .party-chat-msg {
+  font-size: 12px;
+  line-height: 1.45;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid transparent;
+}
+
+body[data-live-page='live-room'] .party-chat-msg .user {
+  color: #93c5fd;
+  font-weight: 600;
+}
+
+body[data-live-page='live-room'] .party-chat-msg.system {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--live-pro-border);
+  color: var(--live-pro-muted);
+  font-size: 11px;
+}
+
+body[data-live-page='live-room'] .party-chat-msg .lvl {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--live-pro-muted);
+}
+
+/* —— Bottom bar —— */
+body[data-live-page='live-room'] .party-bottom-bar {
+  padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0));
+  background: linear-gradient(180deg, transparent, rgba(7, 8, 12, 0.92) 24%);
+  border-top: 1px solid var(--live-pro-border);
+  backdrop-filter: blur(20px) saturate(1.15);
+  -webkit-backdrop-filter: blur(20px) saturate(1.15);
+  gap: 10px;
+}
+
+body[data-live-page='live-room'] .ap-compose-inline {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 4px 4px 12px;
+  border-radius: var(--live-pro-radius-pill);
+  background: var(--live-pro-surface-elevated);
+  border: 1px solid var(--live-pro-border-strong);
+  box-shadow: var(--live-pro-shadow-inset), 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+body[data-live-page='live-room'] .ap-compose-inline input {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--live-pro-text);
+  background: transparent;
+}
+
+body[data-live-page='live-room'] .ap-compose-inline input::placeholder {
+  color: var(--live-pro-muted);
+}
+
+body[data-live-page='live-room'] .ap-chat-emoji-btn,
+body[data-live-page='live-room'] .ap-chat-send-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--live-pro-muted);
+}
+
+body[data-live-page='live-room'] .ap-chat-send-btn {
+  background: var(--live-pro-accent);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.35), var(--live-pro-shadow-inset);
+}
+
+body[data-live-page='live-room'] .ap-btn-grid {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--live-pro-surface);
+  border: 1px solid var(--live-pro-border);
+  color: var(--live-pro-text);
+  box-shadow: var(--live-pro-shadow-inset);
+}
+
+body[data-live-page='live-room'] .party-btn-gift.ap-btn-gift-hero {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(145deg, #2a3040 0%, #1a1e28 100%);
+  box-shadow:
+    0 6px 20px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.2);
+  color: #e2e8f0;
+  font-size: 18px;
+}
+
+body[data-live-page='live-room'] .party-btn-gift .ap-gift-glow {
+  display: none;
+}
+
+body[data-live-page='live-room'] .party-btn-follow {
+  background: linear-gradient(145deg, #2563eb, #1d4ed8) !important;
+  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
+  font-weight: 600 !important;
+  font-size: 13px !important;
+}
+
+/* —— Status strip —— */
+body[data-live-page='live-room'] .live-status-badge {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  padding: 8px 16px;
+  border-radius: var(--live-pro-radius-pill);
+  background: var(--live-pro-surface-elevated);
+  border: 1px solid var(--live-pro-border);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: var(--live-pro-shadow);
+}
+
+/* —— Tools sheet (live) —— */
+body[data-live-page='live-room'] .party-tools-panel {
+  background: rgba(14, 16, 22, 0.97);
+  border: 1px solid var(--live-pro-border);
+  border-bottom: none;
+}
+
+body[data-live-page='live-room'] .party-tools-grid .ico {
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid var(--live-pro-border);
+  box-shadow: var(--live-pro-shadow-inset);
+}
+
+body[data-live-page='live-room'] .party-tools-grid .ico.msg { color: #60a5fa; }
+body[data-live-page='live-room'] .party-tools-grid .ico.sound { color: #a78bfa; }
+body[data-live-page='live-room'] .party-tools-grid .ico.share { color: #34d399; }
+body[data-live-page='live-room'] .party-tools-grid .ico.report { color: #f87171; }
+
+/* —— Gift sheet (live) —— */
+body[data-live-page='live-room'] .gift-sheet-panel {
+  background: rgba(14, 16, 22, 0.98);
+  border: 1px solid var(--live-pro-border);
+  border-bottom: none;
+  font-family: var(--live-pro-font);
+}
+
+body[data-live-page='live-room'] .gift-grid button {
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--live-pro-border);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+body[data-live-page='live-room'] .gift-grid small {
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+body[data-live-page='live-room'] .gift-balance {
+  color: var(--live-pro-muted);
+}
+
+/* —— Win banner: subtle —— */
+body[data-live-page='live-room'] .party-win-banner.is-flash {
+  background: var(--live-pro-surface-elevated);
+  border: 1px solid var(--live-pro-border-strong);
+  color: var(--live-pro-text);
+  font-weight: 500;
+  animation: live-pro-banner-in 0.35s ease;
+}
+
+@keyframes live-pro-banner-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* —— Swipe hint —— */
+body[data-live-page='live-room'] .live-swipe-hint {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--live-pro-muted);
+  background: var(--live-pro-surface);
+  border: 1px solid var(--live-pro-border);
+  border-radius: var(--live-pro-radius-pill);
+  padding: 8px 14px;
+}
+
+/* —— 3D interaction hooks (social-live-interactions.js) —— */
+body[data-live-page='live-room'] .ap-3d-scene {
+  perspective: 900px;
+  perspective-origin: 50% 50%;
+}
+
+body[data-live-page='live-room'] .ap-3d-press {
+  transform-style: preserve-3d;
+  will-change: transform;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body[data-live-page='live-room'] .ap-3d-press.is-pressed {
+  transition: transform 0.08s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+body[data-live-page='live-room'] .ap-3d-press.is-released {
+  transition: transform 0.38s cubic-bezier(0.34, 1.45, 0.64, 1);
+}
+
+body[data-live-page='live-room'] .ap-3d-ripple {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.35) 0%, transparent 70%);
+  transform: scale(0) translateZ(4px);
+  animation: live-pro-ripple 0.55s ease-out forwards;
+}
+
+@keyframes live-pro-ripple {
+  to {
+    transform: scale(2.8) translateZ(4px);
+    opacity: 0;
+  }
+}
+
+body[data-live-page='live-room'] .ap-gift-fly {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: var(--live-pro-radius-pill);
+  background: var(--live-pro-surface-elevated);
+  border: 1px solid var(--live-pro-border-strong);
+  backdrop-filter: blur(12px);
+  box-shadow: var(--live-pro-shadow);
+}
+
+/* —— FX layer: mature notifications —— */
+body[data-live-page='live-room'] .ap-activity-item {
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--live-pro-surface-elevated);
+  border-color: var(--live-pro-border-strong);
+  animation: live-pro-slide-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes live-pro-slide-in {
+  from { opacity: 0; transform: translate3d(-12px, 0, -8px) rotateY(-6deg); }
+  to { opacity: 1; transform: translate3d(0, 0, 0) rotateY(0); }
+}
+
+body[data-live-page='live-room'] .ap-entry-banner {
+  background: var(--live-pro-surface-elevated);
+  border: 1px solid var(--live-pro-border-strong);
+  border-left: 3px solid var(--live-pro-accent);
+  border-radius: 0 var(--live-pro-radius) var(--live-pro-radius) 0;
+  box-shadow: var(--live-pro-shadow);
+  animation: live-pro-entry 2.2s ease-out forwards;
+}
+
+body[data-live-page='live-room'] .ap-entry-banner .ap-entry-text {
+  color: var(--live-pro-text);
+  font-weight: 600;
+}
+
+body[data-live-page='live-room'] .ap-entry-banner.vip {
+  border-left-color: #64748b;
+  background: var(--live-pro-surface-elevated);
+}
+
+body[data-live-page='live-room'] .ap-entry-banner.vip .ap-entry-text {
+  color: var(--live-pro-text);
+}
+
+@keyframes live-pro-entry {
+  0% { opacity: 0; transform: translate3d(-100%, 0, -20px) rotateY(-12deg); }
+  14% { opacity: 1; transform: translate3d(0, 0, 0) rotateY(0); }
+  80% { opacity: 1; transform: translate3d(0, 0, 0); }
+  100% { opacity: 0; transform: translate3d(-8px, 0, 0); }
+}
+
+body[data-live-page='live-room'] .ap-float-gift {
+  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.5));
+  animation: live-pro-float-gift 1.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes live-pro-float-gift {
+  0% { opacity: 0; transform: translate3d(0, 0, 0) scale(0.5) rotateX(20deg); }
+  20% { opacity: 1; transform: translate3d(0, -40px, 20px) scale(1) rotateX(0deg); }
+  100% { opacity: 0; transform: translate3d(var(--dx2, 20px), -180px, 40px) scale(0.85) rotateX(-10deg); }
+}
+
+body[data-live-page='live-room'] .ap-premium-gift {
+  background: radial-gradient(ellipse at center, rgba(7, 8, 12, 0.7) 0%, rgba(7, 8, 12, 0.95) 100%);
+}
+
+body[data-live-page='live-room'] .ap-premium-gift .ap-premium-emoji {
+  animation: live-pro-premium-pop 0.55s cubic-bezier(0.34, 1.45, 0.64, 1) forwards;
+  filter: drop-shadow(0 12px 32px rgba(0, 0, 0, 0.6));
+}
+
+@keyframes live-pro-premium-pop {
+  0% { opacity: 0; transform: perspective(800px) scale(0.4) rotateX(25deg) translateZ(-80px); }
+  100% { opacity: 1; transform: perspective(800px) scale(1) rotateX(0deg) translateZ(0); }
+}
+
+body[data-live-page='live-room'] .ap-combo-badge {
+  background: var(--live-pro-surface-elevated);
+  border: 1px solid var(--live-pro-border-strong);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  box-shadow: var(--live-pro-shadow);
+}

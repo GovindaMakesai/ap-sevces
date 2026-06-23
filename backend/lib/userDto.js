@@ -52,6 +52,7 @@ function publicLiveRoom(row) {
     hostName: row.host_display_name,
     viewers: row.viewer_count || 0,
     updatedAt: row.updated_at,
+    startedAt: row.started_at,
   };
 }
 

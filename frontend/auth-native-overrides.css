@@ -219,3 +219,22 @@ html.auth-native {
   --primary-600: #a67c1a !important;
   --primary-700: #8b6914 !important;
 }
+
+/* Hide login UI while restoring saved session (native app reopen) */
+html.auth-restoring {
+  background: #fdf9f0 !important;
+}
+
+html.auth-restoring body {
+  background: #fdf9f0 !important;
+}
+
+html.auth-restoring .auth-gate-scroll,
+html.auth-restoring .auth-page,
+html.auth-restoring .auth-gate-card,
+html.auth-restoring .register-page,
+html.auth-restoring .social-top,
+html.auth-restoring #exploreContent {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}

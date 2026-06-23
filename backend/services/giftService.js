@@ -14,28 +14,43 @@ async function resolveGiftAmount(giftType, coinAmount) {
   const amount = Number(coinAmount);
   if (!Number.isFinite(amount) || amount <= 0) throw new Error('Gift amount must be positive');
 
-  const slug = String(giftType || 'gift')
+  const raw = String(giftType || '').trim();
+  const slug = raw
     .toLowerCase()
     .replace(/[^a-z0-9_]/g, '_')
     .replace(/_+/g, '_')
     .slice(0, 64);
 
-  const res = await db.query(
-    `SELECT slug, coin_cost FROM gift_catalog
-     WHERE is_active = TRUE AND (slug = $1 OR LOWER(name) = LOWER($2))
+  let res = await db.query(
+    `SELECT slug, coin_cost, emoji, name FROM gift_catalog
+     WHERE is_active = TRUE AND (
+       slug = $1 OR LOWER(name) = LOWER($2) OR emoji = $2
+     )
      LIMIT 1`,
-    [slug, String(giftType || '').trim()]
+    [slug, raw]
   );
+
+  if (!res.rows[0]) {
+    const byCost = await db.query(
+      `SELECT slug, coin_cost FROM gift_catalog
+       WHERE is_active = TRUE AND coin_cost = $1
+       ORDER BY sort_order ASC`,
+      [amount]
+    );
+    if (byCost.rows.length === 1) {
+      res = byCost;
+    }
+  }
 
   if (res.rows[0]) {
     const expected = Number(res.rows[0].coin_cost);
     if (amount !== expected) {
-      throw new Error(`Gift "${giftType}" costs ${expected} coins`);
+      throw new Error(`Gift "${raw || giftType}" costs ${expected} coins`);
     }
     return expected;
   }
 
-  throw new Error(`Unknown gift type "${giftType}"`);
+  throw new Error(`Unknown gift type "${raw || giftType}". Try reloading the app.`);
 }
 
 async function sendGift({ senderId, receiverId, liveRoomId, giftType, coinAmount }) {
@@ -64,7 +79,7 @@ async function sendGift({ senderId, receiverId, liveRoomId, giftType, coinAmount
       client
     );
 
-    const creditResult = await walletService.creditCoins(
+    const creditResult = await walletService.creditStars(
       receiverId,
       Number(creatorAmount),
       {

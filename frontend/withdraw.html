@@ -25,12 +25,12 @@
       <div class="top">
         <div>
           <div class="amount-lg" id="withdrawableDisplay">0</div>
-          <div class="amount-label">Withdrawable (coins)</div>
+          <div class="amount-label">Withdrawable (points)</div>
         </div>
         <a href="/withdraw-notices.html?app=1" class="record-btn">Record</a>
       </div>
       <div class="cols">
-        <div><strong id="totalCoins">0</strong><span>Total</span></div>
+        <div><strong id="totalCoins">0</strong><span>Total points</span></div>
         <div><strong id="minCoins">8,300</strong><span>Minimum</span></div>
       </div>
     </div>
@@ -38,7 +38,7 @@
     <div class="wd-card">
       <h3>Amount</h3>
       <input type="number" class="wd-amount-input" id="withdrawAmount" placeholder="8300" min="1" inputmode="numeric">
-      <p class="wd-hint">Withdrawable amount: <strong id="withdrawableHint">0</strong> coins</p>
+      <p class="wd-hint">Withdrawable amount: <strong id="withdrawableHint">0</strong> points</p>
     </div>
 
     <div class="wd-card wd-card-qr">
@@ -60,8 +60,8 @@
     <div class="wd-card">
       <h3>Withdrawal rules</h3>
       <table class="wd-rules-table">
-        <tr><td>Minimum withdrawal</td><td id="ruleMin">8,300 coins ($10)</td></tr>
-        <tr><td>Exchange ratio</td><td id="ruleRate">10 coins = ₹1</td></tr>
+        <tr><td>Minimum withdrawal</td><td id="ruleMin">8,300 points ($10)</td></tr>
+        <tr><td>Exchange ratio</td><td id="ruleRate">10 points = ₹1</td></tr>
         <tr><td>Processing</td><td>Admin review → pay → you confirm receipt</td></tr>
       </table>
     </div>
@@ -144,10 +144,10 @@
       document.getElementById('minCoins').textContent = Number(minCoins).toLocaleString();
       document.getElementById('ruleMin').textContent = formatMinLabel(settings, minCoins);
       document.getElementById('withdrawAmount').placeholder = String(minCoins);
-      document.getElementById('ruleRate').textContent = `${rate} coins = ₹1`;
+      document.getElementById('ruleRate').textContent = `${rate} points = ₹1`;
 
       const bal = await SocialWallet.fetchBalance(true);
-      withdrawable = bal.coin_balance || 0;
+      withdrawable = bal.star_balance || 0;
       const fmt = (n) => Number(n).toLocaleString();
       document.getElementById('withdrawableDisplay').textContent = fmt(withdrawable);
       document.getElementById('totalCoins').textContent = fmt(withdrawable);
@@ -184,7 +184,7 @@
         const amount = parseInt(document.getElementById('withdrawAmount').value, 10);
         if (!amount || amount < minCoins) {
           const usd = (await SocialWallet.getWalletSettings().catch(() => ({}))).min_withdrawal_usd;
-          const hint = usd ? `Minimum withdrawal is ${Number(minCoins).toLocaleString()} coins ($${usd})` : 'Enter a valid amount';
+          const hint = usd ? `Minimum withdrawal is ${Number(minCoins).toLocaleString()} points ($${usd})` : 'Enter a valid amount';
           SocialUI?.toast?.(hint) || alert(hint);
           return;
         }

@@ -1,14 +1,39 @@
 const db = require('../config/database');
 
 const DEFAULT_SETTINGS = {
-  min_withdrawal_coins: 500,
+  min_withdrawal_usd: 10,
+  min_withdrawal_coins: 8300,
   gift_platform_fee_pct: 20,
   coins_per_inr: 10,
+  inr_per_usd: 83,
 };
+
+function resolveMinWithdrawalCoins(settings) {
+  const usd = Number(settings.min_withdrawal_usd);
+  if (Number.isFinite(usd) && usd > 0) {
+    const inrPerUsd = Number(settings.inr_per_usd || 83);
+    const coinsPerInr = Number(settings.coins_per_inr || 10);
+    return Math.ceil(usd * inrPerUsd * coinsPerInr);
+  }
+  return Number(settings.min_withdrawal_coins || 500);
+}
+
+function formatMinWithdrawalMessage(settings) {
+  const minPoints = resolveMinWithdrawalCoins(settings);
+  const usd = Number(settings.min_withdrawal_usd);
+  if (Number.isFinite(usd) && usd > 0) {
+    return `Minimum withdrawal is ${minPoints.toLocaleString('en-US')} points ($${usd})`;
+  }
+  return `Minimum withdrawal is ${minPoints.toLocaleString('en-US')} points`;
+}
 
 async function getWalletSettings() {
   const res = await db.query(`SELECT value FROM platform_settings WHERE key = 'wallet' LIMIT 1`);
-  return { ...DEFAULT_SETTINGS, ...(res.rows[0]?.value || {}) };
+  const merged = { ...DEFAULT_SETTINGS, ...(res.rows[0]?.value || {}) };
+  return {
+    ...merged,
+    min_withdrawal_coins: resolveMinWithdrawalCoins(merged),
+  };
 }
 
 /**
@@ -142,6 +167,94 @@ async function debitCoins(userId, amount, meta = {}, client) {
   }
 }
 
+async function creditStars(userId, amount, meta = {}, client) {
+  const amt = BigInt(amount);
+  if (amt <= 0n) throw new Error('Credit amount must be positive');
+
+  const run = async (c) => {
+    const wallet = await getOrCreateWallet(userId, c);
+    const newBal = BigInt(wallet.star_balance) + amt;
+    await c.query(
+      `UPDATE wallets SET star_balance = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+      [newBal.toString(), wallet.id]
+    );
+    const tx = await c.query(
+      `INSERT INTO wallet_transactions (user_id, type, amount, currency_type, reference_type, reference_id, status, metadata)
+       VALUES ($1, $2, $3, 'star', $4, $5, 'completed', $6) RETURNING *`,
+      [
+        userId,
+        meta.type || 'credit',
+        amt.toString(),
+        meta.reference_type || null,
+        meta.reference_id || null,
+        JSON.stringify(meta.metadata || {}),
+      ]
+    );
+    return { star_balance: Number(newBal), transaction: tx.rows[0] };
+  };
+
+  if (client) return run(client);
+  const c = await db.pool.connect();
+  try {
+    await c.query('BEGIN');
+    const result = await run(c);
+    await c.query('COMMIT');
+    return result;
+  } catch (e) {
+    await c.query('ROLLBACK');
+    throw e;
+  } finally {
+    c.release();
+  }
+}
+
+async function debitStars(userId, amount, meta = {}, client) {
+  const amt = BigInt(amount);
+  if (amt <= 0n) throw new Error('Debit amount must be positive');
+
+  const run = async (c) => {
+    const wallet = await getOrCreateWallet(userId, c);
+    const current = BigInt(wallet.star_balance);
+    if (current < amt) {
+      const err = new Error('Insufficient points balance');
+      err.code = 'INSUFFICIENT_BALANCE';
+      throw err;
+    }
+    const newBal = current - amt;
+    await c.query(
+      `UPDATE wallets SET star_balance = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+      [newBal.toString(), wallet.id]
+    );
+    const tx = await c.query(
+      `INSERT INTO wallet_transactions (user_id, type, amount, currency_type, reference_type, reference_id, status, metadata)
+       VALUES ($1, $2, $3, 'star', $4, $5, 'completed', $6) RETURNING *`,
+      [
+        userId,
+        meta.type || 'debit',
+        (-Number(amt)).toString(),
+        meta.reference_type || null,
+        meta.reference_id || null,
+        JSON.stringify(meta.metadata || {}),
+      ]
+    );
+    return { star_balance: Number(newBal), transaction: tx.rows[0] };
+  };
+
+  if (client) return run(client);
+  const c = await db.pool.connect();
+  try {
+    await c.query('BEGIN');
+    const result = await run(c);
+    await c.query('COMMIT');
+    return result;
+  } catch (e) {
+    await c.query('ROLLBACK');
+    throw e;
+  } finally {
+    c.release();
+  }
+}
+
 function generateOrderNumber() {
   const ts = Date.now();
   const rand = Math.floor(Math.random() * 1e6)
@@ -154,7 +267,7 @@ async function reserveWithdrawal(userId, amount, { qr_image_url, method } = {}) 
   const settings = await getWalletSettings();
   const amt = BigInt(amount);
   if (amt < BigInt(settings.min_withdrawal_coins)) {
-    throw new Error(`Minimum withdrawal is ${settings.min_withdrawal_coins} coins`);
+    throw new Error(formatMinWithdrawalMessage(settings));
   }
   if (!qr_image_url || !String(qr_image_url).trim()) {
     throw new Error('Payment QR code image is required');
@@ -166,7 +279,7 @@ async function reserveWithdrawal(userId, amount, { qr_image_url, method } = {}) 
   const client = await db.pool.connect();
   try {
     await client.query('BEGIN');
-    await debitCoins(userId, Number(amt), { type: 'withdrawal_hold', reference_type: 'withdrawal' }, client);
+    await debitStars(userId, Number(amt), { type: 'withdrawal_hold', reference_type: 'withdrawal' }, client);
     const w = await client.query(
       `INSERT INTO withdrawals (user_id, amount, status, method, qr_image_url, order_number, amount_inr)
        VALUES ($1, $2, 'pending', $3, $4, $5, $6) RETURNING *`,
@@ -188,5 +301,7 @@ module.exports = {
   getBalance,
   creditCoins,
   debitCoins,
+  creditStars,
+  debitStars,
   reserveWithdrawal,
 };

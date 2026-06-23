@@ -428,6 +428,10 @@ body.ap-is-host .live-host-bar {
   }
 }
 
+#liveBtnHostMute.is-muted {
+  background: rgba(239, 68, 68, 0.45);
+}
+
 .party-host-action.is-active {
   background: linear-gradient(135deg, #f59e0b, #ea580c);
   color: #fff;
@@ -1253,6 +1257,12 @@ body[data-live-page='live-room'] .live-room {
 .streamer-mode-party {
   background: linear-gradient(145deg, #8b5cf6, #6d28d9);
 }
+.streamer-dual-btns--solo {
+  grid-template-columns: 1fr;
+}
+.streamer-mode-btn-full {
+  width: 100%;
+}
 .streamer-link-pill {
   padding: 8px 14px;
   border-radius: 999px;
@@ -1992,6 +2002,21 @@ body.is-pk-mode .live-room .live-fallback-video { left: 50%; right: 0; }
   font-size: 10px;
   font-weight: 800;
   color: #fff;
+}
+.ap-pk-status {
+  margin: 6px auto 0;
+  max-width: 92%;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+  line-height: 1.35;
+  pointer-events: none;
+}
+body.is-pk-mode .ap-pk-overlay {
+  opacity: 1;
+  visibility: visible;
 }
 .ap-pk-win {
   position: absolute;
@@ -3036,4 +3061,56 @@ html.ap-expo-app .ap-chip {
   max-width: min(92vw, 460px);
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Video filter picker (live host) */
+.ap-filter-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 56;
+  background: rgba(0, 0, 0, 0.55);
+  display: none;
+  align-items: flex-end;
+}
+.ap-filter-sheet.open { display: flex; }
+.ap-filter-panel {
+  width: 100%;
+  background: #14141c;
+  border-radius: 20px 20px 0 0;
+  padding: 16px 16px calc(20px + env(safe-area-inset-bottom, 0));
+  color: #fff;
+}
+.ap-filter-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.ap-filter-head h3 { margin: 0; font-size: 17px; font-weight: 700; }
+.ap-filter-head button {
+  border: none;
+  background: none;
+  color: #9ca3af;
+  font-size: 20px;
+  cursor: pointer;
+}
+.ap-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.ap-filter-opt {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  border-radius: 12px;
+  padding: 14px 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ap-filter-opt.is-active {
+  border-color: #a78bfa;
+  background: rgba(167, 139, 250, 0.2);
+  color: #e9d5ff;
 }

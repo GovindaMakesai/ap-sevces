@@ -222,7 +222,7 @@
         const mode = new URLSearchParams(location.search).get('mode') || 'video';
         const kind = new URLSearchParams(location.search).get('kind') || 'live';
         if (kind === 'party') {
-          if (window.SocialShell?.goStartParty) SocialShell.goStartParty();
+          if (window.SocialShell?.goStartLiveBroadcast) SocialShell.goStartLiveBroadcast({ mode });
           else location.href = '/streamer-center.html?app=1';
         } else if (window.SocialShell?.goStartLiveBroadcast) {
           SocialShell.goStartLiveBroadcast({ mode });

@@ -3,12 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <meta name="theme-color" content="#000000">
+  <meta name="theme-color" content="#07080c">
   <title>Live - AP Services</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-live.css">
   <link rel="stylesheet" href="social-live-ref-ui.css">
   <link rel="stylesheet" href="social-fx.css">
+  <link rel="stylesheet" href="social-live-pro.css">
   <style id="ap-immersive-critical">
     html.ap-live-immersive .social-bridge-header,
     html.ap-live-immersive #ap-bridge-header,
@@ -45,9 +48,9 @@
   <div id="apLiveLoader" class="ap-live-loader" aria-live="polite">
     <div class="ap-live-loader-inner">
       <div class="ap-live-loader-logo">AP</div>
-      <div class="ap-live-loader-brand">AP Services</div>
+      <div class="ap-live-loader-brand">Live Broadcast</div>
       <div class="ap-live-loader-spin"></div>
-      <p id="apLiveLoaderText">Connecting to live…</p>
+      <p id="apLiveLoaderText">Connecting…</p>
     </div>
   </div>
 
@@ -80,11 +83,7 @@
               <span id="liveRoomId">· ID —</span>
             </div>
           </div>
-          <button type="button" class="party-follow-btn" id="partyHostFollow">+</button>
-        </div>
-        <div class="party-header-center" id="liveHeaderCenter">
-          <span class="party-rank-badge party-rank-heart" aria-hidden="true"><i class="fas fa-heart"></i></span>
-          <span class="party-rank-badge party-rank-crown" aria-hidden="true"><i class="fas fa-crown"></i></span>
+          <button type="button" class="party-follow-btn" id="partyHostFollow" aria-label="Follow host">+</button>
         </div>
         <div class="party-header-right">
           <div class="party-viewers" id="partyViewerAvatars">
@@ -93,30 +92,6 @@
           <button type="button" class="party-close" id="liveClose" aria-label="Leave"><i class="fas fa-times"></i></button>
         </div>
       </header>
-
-      <div class="party-stats-bar">
-        <span class="party-stat party-hour-badge"><i class="fas fa-trophy"></i> Hour <strong id="partyHourNo">No.50</strong></span>
-        <span class="party-stat"><i class="fas fa-fire"></i> Pop <strong id="partyPopScore">100+</strong></span>
-        <span class="party-stat party-music-bar"><i class="fas fa-music"></i> <strong id="partyMusicScore">14</strong> <span class="party-stat-pct" id="partyPopPct">64.17%</span></span>
-        <button type="button" class="party-rule-btn" id="partyRuleBtn"><i class="fas fa-clipboard-list"></i> Rule</button>
-        <span class="party-room-id" id="partyRoomIdLive">ID: —</span>
-      </div>
-
-      <div class="party-widgets party-widgets-live">
-        <div class="party-widget party-widget-wish">
-          <div class="wish-row">
-            <span class="wish-ico">🥂</span>
-            <div>
-              <strong>Wish <span id="partyTeamProgress">0/11</span></strong>
-              <div class="bar"><i id="partyTeamBar" style="width:0%"></i></div>
-            </div>
-          </div>
-        </div>
-        <div class="party-widget party-widget-chest">
-          <span class="chest-ico">🎁</span>
-          <span id="partyChestTimer">05:00</span>
-        </div>
-      </div>
 
       <div class="party-meta-row party-meta-row--live">
         <span class="live-mode-badge" id="liveModeBadge"><i class="fas fa-video"></i> VIDEO LIVE</span>
@@ -127,15 +102,10 @@
       <div class="live-host-bar" id="liveHostBar">
         <button type="button" class="party-host-action" id="liveBtnModeVideo" data-mode="video"><i class="fas fa-video"></i> Video</button>
         <button type="button" class="party-host-action" id="liveBtnModeAudio" data-mode="audio"><i class="fas fa-microphone"></i> Audio only</button>
-        <button type="button" class="party-host-action" id="liveBtnPk"><i class="fas fa-bolt"></i> PK</button>
+        <button type="button" class="party-host-action" id="liveBtnHostMute"><i class="fas fa-microphone"></i> Mic</button>
+        <button type="button" class="party-host-action" id="liveBtnFlipCam" title="Flip camera"><i class="fas fa-sync-alt"></i> Flip</button>
+        <button type="button" class="party-host-action" id="liveBtnFilters" title="Video filters"><i class="fas fa-magic"></i> Filter</button>
         <button type="button" class="party-host-action" id="liveBtnInvite"><i class="fas fa-share"></i> Share</button>
-      </div>
-
-      <div class="party-invite-row party-invite-row--live">
-        <button type="button" class="party-event-pill party-event-pill-live" id="partyInvitePill">
-          <span class="pill-title">Invite Friends</span>
-          <span class="pill-sub">Up to <strong>10,500</strong></span>
-        </button>
       </div>
 
       <div class="live-spacer"></div>
@@ -168,31 +138,9 @@
     <button type="button" class="party-btn-follow ap-btn-follow-hidden" id="liveBtnFollow" aria-hidden="true">Follow +</button>
     <div class="party-bottom-actions">
       <button type="button" id="partyBtnTools" class="ap-btn-grid" aria-label="Tools"><i class="fas fa-th"></i><span class="ap-notify-dot" id="apToolsNotifyDot" hidden></span></button>
-      <button type="button" id="liveBtnMic" class="ap-btn-mic-ring" aria-label="Request mic"><i class="fas fa-microphone"></i></button>
       <button type="button" id="liveBtnGift" class="party-btn-gift ap-btn-gift-hero" aria-label="Gifts"><span class="ap-gift-glow"></span><i class="fas fa-gift"></i></button>
     </div>
   </footer>
-
-  <div class="ap-modal-overlay" id="apMicLinkModal">
-    <div class="ap-miclink-modal">
-      <div id="apMicLinkWaiting">
-        <div class="ap-miclink-head">On the mic link list</div>
-        <div class="ap-miclink-body">
-          <p>You're on the link list. Wait for host's approval.</p>
-          <button type="button" class="ap-miclink-primary" id="apMicLinkContinue">Confirm</button>
-        </div>
-        <button type="button" class="ap-miclink-cancel" id="apMicLinkCancel">Cancel the mic link</button>
-      </div>
-      <div id="apMicLinkRejected" style="display:none">
-        <div class="ap-miclink-head">On the mic link list</div>
-        <div class="ap-miclink-body ap-miclink-rejected">
-          <p><strong>Request declined</strong><br>You're still on the link list. Wait for host's approval.</p>
-          <button type="button" class="ap-miclink-primary" id="apMicLinkConfirm">Confirm</button>
-        </div>
-        <button type="button" class="ap-miclink-cancel" id="apMicLinkCancel2">Cancel the mic link</button>
-      </div>
-    </div>
-  </div>
 
   <div class="party-tools-sheet" id="partyToolsSheet">
     <div class="party-tools-panel party-tools-panel-ref">
@@ -234,5 +182,6 @@
   <script src="social-fx.js"></script>
   <script src="live-emoji-data.js"></script>
   <script src="social-live.js"></script>
+  <script src="social-live-interactions.js"></script>
 </body>
 </html>

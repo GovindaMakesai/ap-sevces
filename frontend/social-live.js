@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260619-videofix';
+  window.__AP_LIVE_BUILD = '20260622-cam-filter-mic';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -12,6 +12,18 @@
   const GIFT_CATALOG = _liveEmoji.GIFT_CATALOG || {
     gift: [], lucky: [], new: [], island: [], fan: [], privilege: [], fun: [],
   };
+
+  function giftSlugFor(item) {
+    if (item?.slug) return item.slug;
+    const base = String(item?.name || 'gift')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_|_$/g, '');
+    return `${base}_${item?.cost || 0}`;
+  }
+  Object.keys(GIFT_CATALOG).forEach((cat) => {
+    GIFT_CATALOG[cat] = (GIFT_CATALOG[cat] || []).map((g) => ({ ...g, slug: giftSlugFor(g) }));
+  });
 
   const QUICK_CHIP_DEFS = _liveEmoji.QUICK_CHIP_DEFS || [
     { id: 'hi', label: '\u{1F339} Hi there!', send: '\u{1F339} Hi there!' },
@@ -61,6 +73,64 @@
   let lastViewerCount = 0;
   let lastCoinBalance = null;
   let pkBattleActive = false;
+  let pkEndRequested = false;
+
+  function pkSecsRemaining(snapshot) {
+    const endsAt = snapshot?.battle?.ends_at;
+    if (endsAt) return Math.max(0, Math.floor((new Date(endsAt).getTime() - Date.now()) / 1000));
+    return Number(snapshot?.battle?.duration_seconds) || pkTimerSec || 300;
+  }
+
+  function applyPkTeamsFromSnapshot(snapshot) {
+    const teams = snapshot?.teams || snapshot?.teamScores || [];
+    pkScoreLeft = Number(teams[0]?.team_score ?? teams[0]?.score ?? 0);
+    pkScoreRight = Number(teams[1]?.team_score ?? teams[1]?.score ?? 0);
+  }
+
+  function setPkStatus(text) {
+    const el = document.getElementById('apPkStatus');
+    if (el) el.textContent = text || '';
+  }
+
+  function showPkOverlay(show) {
+    const overlay = document.getElementById('apPkOverlay');
+    if (!overlay) return;
+    if (show) {
+      overlay.removeAttribute('aria-hidden');
+      document.body.classList.add('is-pk-mode');
+    } else {
+      overlay.setAttribute('aria-hidden', 'true');
+      document.body.classList.remove('is-pk-mode');
+      setPkStatus('');
+    }
+  }
+
+  function beginPkBattle(snapshot) {
+    pkBattleActive = true;
+    pkEndRequested = false;
+    applyPkTeamsFromSnapshot(snapshot);
+    pkTimerSec = pkSecsRemaining(snapshot);
+    showPkOverlay(true);
+    setPkStatus('Get ready…');
+    window.SocialFX?.pkCountdown?.(5, () => {
+      setPkStatus('PK LIVE — send gifts to score!');
+      updatePkBar();
+      toast('PK battle started — send gifts to add score', 'success');
+    });
+  }
+
+  function endPkBattle(snapshot) {
+    pkBattleActive = false;
+    applyPkTeamsFromSnapshot(snapshot);
+    const teams = snapshot?.teams || [];
+    const left = Number(teams[0]?.team_score ?? pkScoreLeft);
+    const right = Number(teams[1]?.team_score ?? pkScoreRight);
+    const won = left >= right;
+    setPkStatus('Battle ended');
+    window.SocialFX?.pkWinner?.(won ? 'winner' : 'loser', snapshot?.winnerName || roomState?.hostName);
+    window.SocialFX?.pkScoreUpdate?.(left, right);
+    setTimeout(() => showPkOverlay(false), 4500);
+  }
   let heartbeatTimer = null;
   let roomJoinCompleted = false;
   let lastJoinMeta = null;
@@ -71,6 +141,18 @@
   let agoraStartInProgress = false;
   let reconnectRejoinTimer = null;
   let partyVoiceSkipped = false;
+  let cameraFacing = 'user';
+  let videoFilterId = 'none';
+  let guestPublishInProgress = false;
+
+  const VIDEO_FILTERS = {
+    none: { label: 'Original', css: '' },
+    smooth: { label: 'Smooth', css: 'blur(0.4px) brightness(1.06) contrast(0.94) saturate(1.08)' },
+    warm: { label: 'Warm', css: 'sepia(0.18) saturate(1.15) brightness(1.04)' },
+    cool: { label: 'Cool', css: 'hue-rotate(12deg) saturate(1.1) brightness(1.03)' },
+    vivid: { label: 'Vivid', css: 'saturate(1.5) contrast(1.06) brightness(1.02)' },
+    glow: { label: 'Glow', css: 'brightness(1.14) contrast(0.9) saturate(1.25)' },
+  };
 
   function startHeartbeat() {
     stopHeartbeat();
@@ -151,6 +233,14 @@
     const me = currentUser();
     if (me?.id && roomState?.hostId && String(roomState.hostId) === String(me.id)) return true;
     return false;
+  }
+
+  function isLiveRoomPage() {
+    return document.body.dataset.livePage === 'live-room';
+  }
+
+  function isPartyRoomPage() {
+    return document.body.dataset.livePage === 'party-room';
   }
 
   async function ensureSocketIo() {
@@ -815,11 +905,22 @@
       const combo = window.SocialFX?.trackCombo?.(gift.emoji || 'gift', gift.qty || 1) || 1;
       window.SocialFX?.playGift?.(gift, { combo });
       onGiftTeamProgress(gift.amount || 100);
-      if (pkBattleActive || document.body.classList.contains('is-pk-mode')) {
-        pkScoreLeft += Math.min(500, gift.amount || 100);
-        window.SocialFX?.pkScoreUpdate?.(pkScoreLeft, pkScoreRight);
-      }
       if (roomState) renderRoomState();
+    });
+
+    liveSocket.on('pk:start', (snapshot) => {
+      beginPkBattle(snapshot);
+    });
+
+    liveSocket.on('pk:score', (snapshot) => {
+      if (!pkBattleActive && !document.body.classList.contains('is-pk-mode')) return;
+      applyPkTeamsFromSnapshot(snapshot);
+      pkTimerSec = pkSecsRemaining(snapshot);
+      updatePkBar();
+    });
+
+    liveSocket.on('pk:end', (snapshot) => {
+      endPkBattle(snapshot);
     });
 
     liveSocket.on('live:viewer_count', ({ viewers }) => {
@@ -830,37 +931,8 @@
       if (el) el.textContent = String(viewers);
     });
 
-    liveSocket.on('pk:start', (snapshot) => {
-      pkBattleActive = true;
-      document.body.classList.add('is-pk-mode');
-      document.getElementById('apPkOverlay')?.removeAttribute('aria-hidden');
-      const teams = snapshot?.teams || snapshot?.teamScores || [];
-      pkScoreLeft = Number(teams[0]?.team_score || teams[0]?.score || 0);
-      pkScoreRight = Number(teams[1]?.team_score || teams[1]?.score || 0);
-      window.SocialFX?.pkCountdown?.(5, () => {
-        window.SocialFX?.pkScoreUpdate?.(pkScoreLeft, pkScoreRight);
-        window.SocialFX?.pushActivity?.({ type: 'gift', html: '<strong>PK Battle</strong> started! 🔥' });
-      });
-    });
-
-    liveSocket.on('pk:score', (snapshot) => {
-      const teams = snapshot?.teams || snapshot?.teamScores || [];
-      pkScoreLeft = Number(teams[0]?.team_score || teams[0]?.score || pkScoreLeft);
-      pkScoreRight = Number(teams[1]?.team_score || teams[1]?.score || pkScoreRight);
-      window.SocialFX?.pkScoreUpdate?.(pkScoreLeft, pkScoreRight);
-    });
-
-    liveSocket.on('pk:end', (snapshot) => {
-      pkBattleActive = false;
-      const teams = snapshot?.teams || snapshot?.teamScores || [];
-      const left = Number(teams[0]?.team_score || pkScoreLeft);
-      const right = Number(teams[1]?.team_score || pkScoreRight);
-      const won = left >= right;
-      window.SocialFX?.pkWinner?.(won ? 'winner' : 'loser', snapshot?.winnerName || roomState?.hostName);
-      window.SocialFX?.pkScoreUpdate?.(left, right);
-    });
-
     liveSocket.on('live:seat_request', (req) => {
+      if (isLiveRoomPage()) return;
       if (!isHost() || !req) return;
       const id = String(req.userId || req.id || '');
       if (!id || joinRequests.some((r) => String(r.id) === id)) return;
@@ -874,6 +946,7 @@
     });
 
     liveSocket.on('live:seat_response', async (res) => {
+      if (isLiveRoomPage()) return;
       if (!res || isHost()) return;
       const me = currentUser();
       if (String(res.userId) !== String(me?.id)) return;
@@ -1061,7 +1134,11 @@
         qs('host') === '1' ||
         (roomState?.hostId && user?.id && String(roomState.hostId) === String(user.id))
     );
-    const role = inferredHost ? 'host' : 'audience';
+    const role = inferredHost
+      ? roomState?.hostId && user?.id && String(roomState.hostId) !== String(user.id)
+        ? 'publisher'
+        : 'host'
+      : 'audience';
     const roomType = document.body.dataset.livePage === 'party-room' ? 'party' : 'live';
 
     liveDebugLog(`Token request channel=${channel} role=${role} inferredHost=${inferredHost} userId=${userId}`);
@@ -1414,7 +1491,10 @@
           const root = document.getElementById('liveRoomRoot');
           if (root) root.classList.remove('is-audio-mode');
           const [audioTrack, videoTrack] = await withTimeout(
-            AgoraRTC.createMicrophoneAndCameraTracks(),
+            AgoraRTC.createMicrophoneAndCameraTracks(
+              {},
+              { facingMode: cameraFacing }
+            ),
             30000,
             'Camera and microphone access'
           );
@@ -1437,6 +1517,7 @@
             localBox.style.display = '';
             videoTrack.play(localBox);
           }
+          applyVideoFilter();
           ensureHostVideoVisible();
           setLiveStreamVisible(true);
         }
@@ -1481,26 +1562,181 @@
 
   async function publishGuestAudio() {
     if (!hasSpeakerSeat || isHost()) return;
-    if (localTracks.length) return;
+    const user = currentUser();
+    if (!user?.id) {
+      toast('Sign in again to use the mic', 'error');
+      return;
+    }
+    if (guestPublishInProgress) return;
+    guestPublishInProgress = true;
     const ch = channelId();
     try {
       const cred = await fetchAgoraToken(ch, true);
-      if (cred?.appId && agoraClient) {
-        const AgoraRTC = await loadAgoraScript();
-        const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
-        localTracks = [audioTrack];
-        await agoraClient.publish(audioTrack);
-        liveDebugLog('Publish OK guest audio');
-        updateLiveDebug({ hostPublishing: true });
-        micMuted = false;
+      if (!cred?.appId || !cred?.token) {
+        toast(cred?.message || 'Could not authorize mic', 'error');
         return;
       }
+
+      const AgoraRTC = await loadAgoraScript();
+
+      if (window.__apLocalStream) {
+        window.__apLocalStream.getTracks().forEach((t) => t.stop());
+        window.__apLocalStream = null;
+      }
+      for (const t of localTracks) {
+        try {
+          await agoraClient?.unpublish(t);
+          t.stop?.();
+          t.close?.();
+        } catch (_e) {}
+      }
+      localTracks = [];
+
+      if (!agoraClient) {
+        agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
+      }
+      try {
+        await agoraClient.leave();
+      } catch (_e) {}
+
+      const agoraChannel = cred.channel || ch;
+      const uid = cred.uid != null ? cred.uid : null;
+      await agoraClient.join(cred.appId, agoraChannel, cred.token, uid);
+      liveDebugLog(`Guest rejoined Agora as publisher channel=${agoraChannel}`);
+
+      const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+      localTracks = [audioTrack];
+      await agoraClient.publish(audioTrack);
+      publishSucceeded = true;
+      micMuted = false;
+      liveDebugLog('Publish OK guest audio');
+      updateLiveDebug({ hostPublishing: true, publishSucceeded: true });
+      syncMicButtonUi();
+      renderPartySeats(roomState?.hostName);
+      toast('Mic is live — tap mic to mute', 'success');
     } catch (e) {
       const msg = e?.message || String(e);
       liveDebugLog(`Guest publish FAILED: ${msg}`);
       toast(`Mic publish failed: ${msg}`, 'error');
+    } finally {
+      guestPublishInProgress = false;
     }
-    await startLocalMicOnly();
+  }
+
+  function applyVideoFilter() {
+    const preset = VIDEO_FILTERS[videoFilterId] || VIDEO_FILTERS.none;
+    const css = preset.css || '';
+    [
+      document.getElementById('liveLocalHost'),
+      document.querySelector('#liveLocalHost video'),
+      document.getElementById('liveLocalVideo'),
+    ]
+      .filter(Boolean)
+      .forEach((el) => {
+        el.style.filter = css;
+      });
+  }
+
+  function openVideoFilterSheet() {
+    if (!isHost() || broadcastMode === 'audio') {
+      toast('Filters are for video live only', 'info');
+      return;
+    }
+    let sheet = document.getElementById('apFilterSheet');
+    if (!sheet) {
+      document.body.insertAdjacentHTML(
+        'beforeend',
+        `<div class="ap-filter-sheet" id="apFilterSheet">
+          <div class="ap-filter-panel">
+            <div class="ap-filter-head">
+              <h3>Video filters</h3>
+              <button type="button" id="apFilterClose" aria-label="Close"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="ap-filter-grid" id="apFilterGrid"></div>
+          </div>
+        </div>`
+      );
+      sheet = document.getElementById('apFilterSheet');
+      document.getElementById('apFilterClose')?.addEventListener('click', () => sheet?.classList.remove('open'));
+      sheet?.addEventListener('click', (e) => {
+        if (e.target === sheet) sheet.classList.remove('open');
+      });
+      const grid = document.getElementById('apFilterGrid');
+      if (grid) {
+        grid.innerHTML = Object.entries(VIDEO_FILTERS)
+          .map(
+            ([id, f]) =>
+              `<button type="button" class="ap-filter-opt" data-filter="${id}">${escapeHtml(f.label)}</button>`
+          )
+          .join('');
+        grid.querySelectorAll('.ap-filter-opt').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            videoFilterId = btn.dataset.filter || 'none';
+            grid.querySelectorAll('.ap-filter-opt').forEach((b) => b.classList.toggle('is-active', b === btn));
+            applyVideoFilter();
+            toast(`Filter: ${VIDEO_FILTERS[videoFilterId]?.label || 'Original'}`, 'success');
+          });
+        });
+      }
+    }
+    document
+      .querySelectorAll('#apFilterGrid .ap-filter-opt')
+      .forEach((btn) => btn.classList.toggle('is-active', btn.dataset.filter === videoFilterId));
+    sheet.classList.add('open');
+  }
+
+  async function switchCameraFacing() {
+    if (!isHost() || broadcastMode === 'audio') {
+      toast('Camera flip is for video live only', 'info');
+      return;
+    }
+    const nextFacing = cameraFacing === 'user' ? 'environment' : 'user';
+    const videoTrack = localTracks.find((t) => t.getTrackType?.() === 'video' || t.setDevice);
+    try {
+      const AgoraRTC = window.AgoraRTC || (await loadAgoraScript());
+      if (videoTrack?.setDevice && AgoraRTC?.getCameras) {
+        const cameras = await AgoraRTC.getCameras();
+        if (cameras.length < 2) {
+          toast('Only one camera available', 'warning');
+          return;
+        }
+        const pick =
+          cameras.find((c) =>
+            nextFacing === 'user'
+              ? /front|user|face/i.test(c.label || '')
+              : /back|rear|environment/i.test(c.label || '')
+          ) || cameras[nextFacing === 'user' ? 0 : cameras.length - 1];
+        await videoTrack.setDevice(pick.deviceId);
+        cameraFacing = nextFacing;
+        applyVideoFilter();
+        toast(nextFacing === 'user' ? 'Front camera' : 'Back camera', 'success');
+        return;
+      }
+      if (!navigator.mediaDevices?.getUserMedia) {
+        toast('Camera not available', 'warning');
+        return;
+      }
+      cameraFacing = nextFacing;
+      if (window.__apLocalStream) {
+        window.__apLocalStream.getTracks().forEach((t) => t.stop());
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: cameraFacing },
+        audio: true,
+      });
+      window.__apLocalStream = stream;
+      const box = document.getElementById('liveLocalHost');
+      const vid = box?.querySelector('video') || document.getElementById('liveLocalVideo');
+      if (vid) {
+        vid.srcObject = stream;
+        vid.muted = true;
+        await vid.play?.();
+      }
+      applyVideoFilter();
+      toast(nextFacing === 'user' ? 'Front camera' : 'Back camera', 'success');
+    } catch (e) {
+      toast(e?.message || 'Could not switch camera', 'error');
+    }
   }
 
   async function startLocalPreviewOnly(hostPreview) {
@@ -1531,6 +1767,7 @@
         el.setAttribute('playsinline', '');
         box.appendChild(el);
         await el.play();
+        applyVideoFilter();
         if (video) video.style.display = 'none';
         if (bg) bg.style.display = 'none';
         return;
@@ -1560,11 +1797,15 @@
     window.SocialFX?.setSpeaking?.(me?.id || displayName(me), !micMuted);
     if (document.getElementById('partySeats')) renderPartySeats(roomState?.hostName);
     const btn = document.getElementById('liveBtnMic');
+    const hostMuteBtn = document.getElementById('liveBtnHostMute');
+    const micIcon = micMuted ? 'fas fa-microphone-slash' : 'fas fa-microphone';
     if (btn) {
-      btn.innerHTML = micMuted
-        ? '<i class="fas fa-microphone-slash"></i>'
-        : '<i class="fas fa-microphone"></i>';
+      btn.innerHTML = `<i class="${micIcon}"></i>`;
       btn.classList.toggle('is-muted', micMuted);
+    }
+    if (hostMuteBtn) {
+      hostMuteBtn.innerHTML = `<i class="${micIcon}"></i> ${micMuted ? 'Muted' : 'Mic'}`;
+      hostMuteBtn.classList.toggle('is-muted', micMuted);
     }
     syncMicButtonUi();
     toast(micMuted ? 'Microphone off' : 'Microphone on');
@@ -1791,6 +2032,7 @@
   }
 
   function handleMicButton() {
+    if (isLiveRoomPage() && !isHost()) return;
     if (isHost()) {
       if (!publishSucceeded) {
         if (isLanHttpInNativeWebView()) {
@@ -2004,7 +2246,11 @@
     const user = currentUser();
     const meId = user?.id ? String(user.id) : '';
     if (meId && roomState?.seats?.some((s) => String(s.userId) === meId && !s.isHost)) {
+      const wasSpeaker = hasSpeakerSeat;
       hasSpeakerSeat = true;
+      if (!wasSpeaker && !isHost() && !localTracks.length && !guestPublishInProgress) {
+        publishGuestAudio();
+      }
     }
     const joinBtn = document.getElementById('partyBtnJoinSeat');
     if (joinBtn && !isHost()) {
@@ -2056,14 +2302,15 @@
 
   function syncMicButtonUi() {
     const micBtn = document.getElementById('liveBtnMic');
-    if (!micBtn) return;
-    micBtn.classList.toggle('is-muted', micMuted);
-    micBtn.classList.toggle('is-live', isHost() && !micMuted);
-    micBtn.classList.toggle('is-pending', micLinkPending);
-    const icon = micBtn.querySelector('i');
-    if (icon) {
-      icon.className = micMuted ? 'fas fa-microphone-slash' : 'fas fa-microphone';
-    }
+    const hostMuteBtn = document.getElementById('liveBtnHostMute');
+    [micBtn, hostMuteBtn].forEach((btn) => {
+      if (!btn) return;
+      btn.classList.toggle('is-muted', micMuted);
+      btn.classList.toggle('is-live', isHost() && !micMuted);
+      btn.classList.toggle('is-pending', micLinkPending);
+      const icon = btn.querySelector('i');
+      if (icon) icon.className = micMuted ? 'fas fa-microphone-slash' : 'fas fa-microphone';
+    });
   }
 
   function showGiftFlyBanner(gift) {
@@ -2093,10 +2340,20 @@
   function tickPkTimer() {
     const el = document.getElementById('apPkTimer');
     if (!el || !document.body.classList.contains('is-pk-mode')) return;
+    if (pkTimerSec <= 0) {
+      el.textContent = 'PK 00:00';
+      setPkStatus('Time is up — ending battle…');
+      if (!pkEndRequested && isHost() && liveSocket?.connected) {
+        pkEndRequested = true;
+        liveSocket.emit('pk:end', { channel: channelId() });
+      }
+      return;
+    }
     pkTimerSec = Math.max(0, pkTimerSec - 1);
     const m = Math.floor(pkTimerSec / 60);
     const s = pkTimerSec % 60;
     el.textContent = 'PK ' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+    updatePkBar();
   }
 
   function renderTopGifters() {
@@ -2398,7 +2655,7 @@
     ensureBottomComposeLayout();
     syncBottomBarForRole();
     injectGiftSheet();
-    bindMicLinkModal();
+    if (isPartyRoomPage()) bindMicLinkModal();
     ensureLiveDebugPanel();
     const activeRegion = document.querySelector('.ap-region-tabs button.active');
     chatRegionFilter = activeRegion?.dataset.region || 'room';
@@ -2418,20 +2675,19 @@
         `<div class="ap-gift-fly" id="apGiftFly" aria-live="polite"></div>`
       );
     }
-    if (!document.getElementById('apPkOverlay')) {
+    if (!document.getElementById('apPkOverlay') && (isPartyRoomPage() || isLiveRoomPage())) {
       const root = document.getElementById('liveRoomRoot') || document.querySelector('.party-room');
       if (root) {
         root.insertAdjacentHTML(
           'afterbegin',
           `<div class="ap-pk-overlay" id="apPkOverlay" aria-hidden="true">
             <div class="ap-pk-bar">
-              <div class="ap-pk-bar-left" id="apPkBarLeft" style="width:45%"></div>
+              <div class="ap-pk-bar-left" id="apPkBarLeft" style="width:50%"></div>
               <span class="ap-pk-score ap-pk-score-l" id="apPkScoreLeft">0</span>
-              <span class="ap-pk-timer" id="apPkTimer">PK 03:08</span>
+              <span class="ap-pk-timer" id="apPkTimer">PK 05:00</span>
               <span class="ap-pk-score ap-pk-score-r" id="apPkScoreRight">0</span>
             </div>
-            <div class="ap-pk-win ap-pk-win-l">Win x0</div>
-            <div class="ap-pk-win ap-pk-win-r">Win x0</div>
+            <p class="ap-pk-status" id="apPkStatus">Send gifts to score in PK</p>
           </div>`
         );
       }
@@ -2443,7 +2699,7 @@
         `<aside class="ap-guest-rail" id="apGuestRail" aria-label="Guests"></aside>`
       );
     }
-    if (!document.getElementById('apMicLinkModal')) {
+    if (!document.getElementById('apMicLinkModal') && isPartyRoomPage()) {
       document.body.insertAdjacentHTML(
         'beforeend',
         `<div class="ap-modal-overlay" id="apMicLinkModal">
@@ -2555,7 +2811,7 @@
       });
     }
     document.body.classList.add('ap-ref-ui');
-    if (qs('pk') === '1') {
+    if (isPartyRoomPage() && qs('pk') === '1') {
       document.body.classList.add('is-pk-mode');
       document.getElementById('apPkOverlay')?.removeAttribute('aria-hidden');
       pkScoreLeft = 0;
@@ -2681,10 +2937,15 @@
   }
 
   function requestSeatJoin() {
+    if (isLiveRoomPage()) return;
     if (isHost()) return;
     const user = currentUser();
+    if (!user?.id) {
+      toast('Please log in to request a seat', 'error');
+      return;
+    }
     const name = displayName(user);
-    const id = user?.id || Date.now();
+    const id = String(user.id);
     if (joinRequests.some((r) => String(r.id) === String(id))) {
       toast('Request already sent');
       return;
@@ -2746,6 +3007,11 @@
         }
       );
     });
+
+    document.getElementById('liveBtnHostMute')?.addEventListener('click', () => handleMicButton());
+
+    document.getElementById('liveBtnFlipCam')?.addEventListener('click', () => switchCameraFacing());
+    document.getElementById('liveBtnFilters')?.addEventListener('click', () => openVideoFilterSheet());
 
     const setMode = async (mode) => {
       const changed = broadcastMode !== mode;
@@ -2881,12 +3147,12 @@
     syncLiveOverlayClass();
   }
 
-  async function sendGiftViaApi(receiverId, cost, emoji, toName) {
+  async function sendGiftViaApi(receiverId, cost, emoji, toName, giftSlug) {
     if (!window.SocialWallet) throw new Error('Wallet unavailable');
     await SocialWallet.sendGift({
       receiver_id: receiverId,
       coin_amount: cost,
-      gift_type: emoji || 'gift',
+      gift_type: giftSlug || emoji || 'gift',
       live_room_id: roomState?.roomId || undefined,
     });
     const giftEvt = { from: displayName(currentUser()), to: toName, emoji, amount: cost, qty: giftQty };
@@ -2941,7 +3207,7 @@
 
     const tryApi = async (reason) => {
       try {
-        await sendGiftViaApi(receiverId, cost, g.emoji, to);
+        await sendGiftViaApi(receiverId, cost, g.emoji, to, g.slug);
       } catch (e) {
         const msg = window.SocialUI?.friendlyMessage(e.message) || e.message || reason || 'Gift failed';
         if (/insufficient/i.test(msg)) {
@@ -2961,6 +3227,7 @@
           to,
           toUserId: receiverId,
           emoji: g.emoji,
+          giftSlug: g.slug,
           amount: cost,
           qty: giftQty,
         },
@@ -3200,6 +3467,10 @@
     });
     document.getElementById('partyBtnEffects')?.addEventListener('click', () => {
       document.getElementById('partyToolsSheet')?.classList.remove('open');
+      if (isLiveRoomPage() && isHost() && broadcastMode !== 'audio') {
+        openVideoFilterSheet();
+        return;
+      }
       focusChatCompose();
     });
     document.getElementById('partyBtnMinimize')?.addEventListener('click', () => {
@@ -3277,7 +3548,7 @@
     leaveSocket();
     if (history.length > 1) history.back();
     else {
-      const back = document.body.dataset.livePage === 'party-room' ? '/party.html' : '/explore.html';
+      const back = '/explore.html';
       location.href = back + '?app=1';
     }
   }
@@ -3592,7 +3863,17 @@
       return;
     }
     partyVoiceSkipped = false;
-    await resumeHostBroadcastIfNeeded();
+    if (isHost()) {
+      await resumeHostBroadcastIfNeeded();
+    } else {
+      try {
+        await startAgora('party');
+      } catch (e) {
+        console.error('[live] party viewer Agora failed', e);
+        onRoomReady();
+        setLiveStatus(e?.message || 'Could not connect to party audio', false);
+      }
+    }
     postWelcomeMessage();
     maybeShowPartyRules();
 
@@ -3851,11 +4132,6 @@
     document.getElementById('streamerStartLive')?.addEventListener('click', () => {
       if (window.SocialShell?.goStartLiveBroadcast) SocialShell.goStartLiveBroadcast({ mode: 'video' });
       else location.href = '/live-room.html?host=1&mode=video&app=1';
-    });
-
-    document.getElementById('streamerStartParty')?.addEventListener('click', () => {
-      if (window.SocialShell?.goStartParty) SocialShell.goStartParty();
-      else location.href = '/party-room.html?host=1&app=1';
     });
 
     document.querySelector('.btn-upload')?.addEventListener('click', () => {

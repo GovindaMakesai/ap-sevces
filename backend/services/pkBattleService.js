@@ -115,7 +115,7 @@ async function endBattle(battleId) {
     if (totalPool <= 0) continue;
     const reward = Math.floor((Number(w.score) / totalPool) * totalPool * (rewardPct / 100));
     if (reward <= 0) continue;
-    const credit = await walletService.creditCoins(w.user_id, reward, {
+    const credit = await walletService.creditStars(w.user_id, reward, {
       type: 'pk_reward',
       reference_type: 'pk_battle',
       reference_id: battleId,
