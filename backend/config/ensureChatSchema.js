@@ -28,6 +28,14 @@ async function ensureChatSchema() {
             LIMIT 1
         `);
         if (exists.rows.length > 0) {
+            await db.query(`
+                ALTER TABLE conversations
+                ADD COLUMN IF NOT EXISTS user_low_last_read_at TIMESTAMP
+            `);
+            await db.query(`
+                ALTER TABLE conversations
+                ADD COLUMN IF NOT EXISTS user_high_last_read_at TIMESTAMP
+            `);
             return;
         }
 
@@ -42,6 +50,8 @@ async function ensureChatSchema() {
                 user_high UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                 last_message_text TEXT DEFAULT '',
                 last_message_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                user_low_last_read_at TIMESTAMP,
+                user_high_last_read_at TIMESTAMP,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE (user_low, user_high)

@@ -68,8 +68,55 @@
     }
   }
 
+  function getChatUnreadCount() {
+    try {
+      return Math.max(0, parseInt(localStorage.getItem('chat_unread') || '0', 10) || 0);
+    } catch (_e) {
+      return 0;
+    }
+  }
+
+  function paintChatNavBadge(unread) {
+    const count = Math.max(0, parseInt(unread, 10) || 0);
+    try {
+      localStorage.setItem('chat_unread', String(count));
+    } catch (_e) {}
+    document.querySelectorAll('.social-bottom-nav .nav-item[data-nav="chat"]').forEach((el) => {
+      let badge = el.querySelector('.nav-badge');
+      if (count > 0) {
+        if (!badge) {
+          badge = document.createElement('span');
+          badge.className = 'nav-badge';
+          el.appendChild(badge);
+        }
+        badge.textContent = count > 99 ? '99+' : String(count);
+        badge.hidden = false;
+      } else if (badge) {
+        badge.remove();
+      }
+    });
+  }
+
+  async function syncChatUnreadFromApi() {
+    if (!hasAppSession() || !window.API?.get) return getChatUnreadCount();
+    try {
+      const res = await API.get('/conversations');
+      const total = Number(res?.data?.totalUnread);
+      const count = Number.isFinite(total)
+        ? total
+        : (Array.isArray(res?.data?.conversations)
+            ? res.data.conversations.reduce((s, c) => s + (Number(c.unreadCount) || 0), 0)
+            : 0);
+      paintChatNavBadge(count);
+      return count;
+    } catch (e) {
+      console.warn('SocialShell: chat unread sync', e);
+      return getChatUnreadCount();
+    }
+  }
+
   function renderBottomNav(activeId) {
-    const unread = parseInt(localStorage.getItem('chat_unread') || '2', 10) || 0;
+    const unread = getChatUnreadCount();
     return `
       <nav class="social-bottom-nav" aria-label="Main">
         ${BOTTOM_NAV.map((item) => {
@@ -197,6 +244,7 @@
     patchAppLinks();
     bindFastBottomNav();
     prefetchNavTargets();
+    syncChatUnreadFromApi();
   }
 
   let fastNavBound = false;
@@ -925,5 +973,8 @@
     bindLiveCards,
     markNativeApp,
     BOTTOM_NAV,
+    syncChatUnreadFromApi,
+    paintChatNavBadge,
+    getChatUnreadCount,
   };
 })();

@@ -13,9 +13,17 @@
 
   window.__AP_NATIVE_APP__ = true;
   const html = document.documentElement;
-  html.classList.add('ap-expo-app', 'social-app', 'social-bridge-mode', 'social-native');
-
   const path = (window.location.pathname || '').toLowerCase();
+  const SOCIAL_SHELL_PAGES = [
+    '/explore.html', '/party.html', '/video.html', '/square.html', '/topics.html',
+    '/store.html', '/vip.html', '/rankings.html', '/profile-tab.html', '/privileges.html',
+    '/points.html', '/withdraw.html', '/chat.html', '/streamer-center.html',
+  ];
+  const isSocialShellPage = SOCIAL_SHELL_PAGES.some(function (p) { return path.endsWith(p); });
+
+  html.classList.add('ap-expo-app', 'social-app', 'social-native');
+  if (!isSocialShellPage) html.classList.add('social-bridge-mode');
+  html.style.setProperty('--social-safe-top', '0px');
   const onAuth =
     path.endsWith('/app-auth.html') ||
     path.endsWith('/login.html') ||

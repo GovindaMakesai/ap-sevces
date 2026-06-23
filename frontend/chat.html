@@ -990,8 +990,8 @@
                         </div>
                         <div class="ap-msg-filters" id="apMsgFilters">
                             <button type="button" class="ap-msg-filter active" data-filter="all">All</button>
-                            <button type="button" class="ap-msg-filter" data-filter="official">Official <span class="pill-badge">30</span></button>
-                            <button type="button" class="ap-msg-filter" data-filter="unread">Unread <span class="pill-badge">60</span></button>
+                            <button type="button" class="ap-msg-filter" data-filter="official">Official <span class="pill-badge" id="apOfficialBadge"></span></button>
+                            <button type="button" class="ap-msg-filter" data-filter="unread">Unread <span class="pill-badge" id="apUnreadBadge"></span></button>
                             <button type="button" class="ap-msg-filter" data-filter="group">Group chat</button>
                             <button type="button" class="ap-msg-filter" data-filter="online">Online</button>
                         </div>
@@ -1474,9 +1474,19 @@
         function loadChatList() {
             const chatList = document.getElementById('chatList');
             const { conversations, activeConversationId } = useChatStore.getState();
+            if (!conversations.length) {
+                chatList.innerHTML = `
+                    <div class="ap-msg-empty">
+                        <i class="fas fa-comments"></i>
+                        <p>No messages yet</p>
+                        <small>Start a chat from a profile or booking</small>
+                    </div>`;
+                updateFilterBadges();
+                return;
+            }
             const officialNames = ['system', 'security', 'income', 'follower', 'official'];
             chatList.innerHTML = conversations.map((chat) => {
-                const isOfficial = officialNames.some((k) => String(chat.name || '').toLowerCase().includes(k));
+                const isOfficial = chat.isOfficial || officialNames.some((k) => String(chat.name || '').toLowerCase().includes(k));
                 return `
                 <div class="chat-item ${String(chat.id) === String(activeConversationId || '') ? 'active' : ''}" data-chat-id="${chat.id}" data-official="${isOfficial ? '1' : '0'}" data-unread="${chat.unread || 0}" onclick="loadChat('${chat.id}', this)">
                     <div class="chat-avatar">
@@ -1504,12 +1514,28 @@
         function updateFilterBadges() {
             const items = document.querySelectorAll('.chat-item');
             let unread = 0;
+            let officialUnread = 0;
             items.forEach((item) => {
-                unread += parseInt(item.dataset.unread || '0', 10) || 0;
+                const n = parseInt(item.dataset.unread || '0', 10) || 0;
+                unread += n;
+                if (item.dataset.official === '1') officialUnread += n;
             });
-            document.querySelectorAll('.ap-msg-filter[data-filter="unread"] .pill-badge').forEach((b) => {
-                b.textContent = unread > 0 ? String(unread) : '0';
-            });
+            setPillBadge('apUnreadBadge', unread);
+            setPillBadge('apOfficialBadge', officialUnread);
+            if (window.SocialShell?.paintChatNavBadge) SocialShell.paintChatNavBadge(unread);
+            else try { localStorage.setItem('chat_unread', String(unread)); } catch (_e) {}
+        }
+
+        function setPillBadge(id, count) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            if (count > 0) {
+                el.textContent = count > 99 ? '99+' : String(count);
+                el.classList.add('is-visible');
+            } else {
+                el.textContent = '';
+                el.classList.remove('is-visible');
+            }
         }
 
         function setupMsgFilters() {
@@ -1606,13 +1632,20 @@
                     last_name: conv.otherUser?.last_name || '',
                     avatar: initialsFromName(conv.otherUser?.first_name, conv.otherUser?.last_name),
                     status: 'online',
-                    unread: 0,
+                    unread: Number(conv.unreadCount) || 0,
+                    isOfficial: Boolean(conv.isOfficial),
                     bookingId: null,
                     category: conv.otherUser?.role || 'customer',
                     lastMessage: conv.lastMessageText || 'No messages yet',
                     time: formatTime(conv.lastMessageAt),
                     otherUserId: String(conv.otherUser?.id || '')
                 }));
+                const totalUnread = Number(response.data?.data?.totalUnread);
+                const badgeTotal = Number.isFinite(totalUnread)
+                    ? totalUnread
+                    : conversations.reduce((s, c) => s + (c.unread || 0), 0);
+                try { localStorage.setItem('chat_unread', String(badgeTotal)); } catch (_e) {}
+                if (window.SocialShell?.paintChatNavBadge) SocialShell.paintChatNavBadge(badgeTotal);
                 useChatStore.setState({ conversations });
                 loadChatList();
             } catch (error) {
@@ -1645,6 +1678,12 @@
             if (!chat) return;
 
             await loadMessages(currentChatId);
+            useChatStore.setState((state) => ({
+                conversations: state.conversations.map((c) =>
+                    String(c.id) === String(currentChatId) ? { ...c, unread: 0 } : c
+                ),
+            }));
+            loadChatList();
             document.getElementById('chatUserName').textContent = chat.name;
             document.getElementById('chatAvatar').textContent = chat.avatar;
             document.getElementById('userStatusText').textContent = chat.status === 'online' ? 'Online' : 'Offline';

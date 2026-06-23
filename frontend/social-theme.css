@@ -97,6 +97,10 @@ html.social-app body {
   border-bottom: 1px solid rgba(201, 162, 39, 0.12);
 }
 
+html.ap-expo-app .social-top {
+  padding-top: 8px;
+}
+
 /* Tab pages: square, topics — content never slides under notch */
 body.social-tabs-page {
   padding-top: 0;
@@ -1548,9 +1552,13 @@ html.social-video-page.social-native body {
 }
 
 .social-profile-hero {
-  padding: 24px 16px;
+  padding: 16px 16px 24px;
   text-align: center;
   background: linear-gradient(180deg, var(--gold-100), var(--cream-bg));
+}
+
+html.ap-expo-app .social-profile-hero {
+  padding-top: 12px;
 }
 
 .social-profile-hero img {
@@ -1770,12 +1778,21 @@ html.social-native.ap-expo-app .social-bottom-nav {
   padding-bottom: max(8px, var(--social-safe-bottom));
 }
 
-/* Legacy pages inside native app */
-html.social-bridge-mode body:not([data-live-page]) {
+/* Legacy marketplace pages inside native app (bridge header visible) */
+html.social-bridge-mode:has(#ap-bridge-header) body:not([data-live-page]) {
   padding-top: calc(48px + env(safe-area-inset-top, 0px)) !important;
   padding-bottom: calc(var(--social-bottom-nav-h) + var(--social-safe-bottom) + 12px) !important;
   background: var(--cream-bg) !important;
   min-height: 100dvh;
+}
+
+/* Social shell pages — no phantom top gap (Expo WebView already insets status bar) */
+html.ap-expo-app:not(.social-bridge-mode) body:not([data-live-page]) {
+  padding-top: 0 !important;
+}
+
+html.ap-expo-app {
+  --social-safe-top: 0px;
 }
 
 .social-bridge-header {
@@ -1864,7 +1881,7 @@ html.social-bridge-mode .chat-layout {
 html.ap-expo-app .chat-page,
 html.social-bridge-mode .chat-page {
   background: var(--cream-bg) !important;
-  padding-top: calc(var(--social-header-h, 52px) + 8px) !important;
+  padding-top: 0 !important;
   padding-bottom: calc(var(--social-bottom-nav-h, 62px) + 12px) !important;
 }
 

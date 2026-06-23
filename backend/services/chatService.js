@@ -59,6 +59,48 @@ async function userParticipates(conversation, userId) {
     return String(conversation.user_low) === uid || String(conversation.user_high) === uid;
 }
 
+async function unreadCountForConversation(conversation, userId) {
+    const uid = String(userId);
+    const lastRead =
+        String(conversation.user_low) === uid
+            ? conversation.user_low_last_read_at
+            : conversation.user_high_last_read_at;
+    if (!lastRead) return 0;
+    const r = await db.query(
+        `SELECT COUNT(*)::int AS c FROM chat_messages
+         WHERE conversation_id = $1 AND receiver_id = $2
+           AND created_at > COALESCE($3::timestamp, TIMESTAMP '1970-01-01')`,
+        [conversation.id, uid, lastRead]
+    );
+    return r.rows[0]?.c || 0;
+}
+
+async function markConversationRead(conversationId, userId) {
+    const conv = await getConversationById(conversationId);
+    if (!conv) return;
+    const uid = String(userId);
+    if (String(conv.user_low) === uid) {
+        await db.query(
+            `UPDATE conversations SET user_low_last_read_at = CURRENT_TIMESTAMP WHERE id = $1`,
+            [conversationId]
+        );
+    } else if (String(conv.user_high) === uid) {
+        await db.query(
+            `UPDATE conversations SET user_high_last_read_at = CURRENT_TIMESTAMP WHERE id = $1`,
+            [conversationId]
+        );
+    }
+}
+
+async function totalUnreadForUser(userId) {
+    const rows = await listConversationsForUser(userId);
+    let total = 0;
+    for (const row of rows) {
+        total += await unreadCountForConversation(row, userId);
+    }
+    return total;
+}
+
 async function listMessages(conversationId) {
     const r = await db.query(
         `SELECT id, conversation_id, sender_id, receiver_id, body, created_at
@@ -134,5 +176,8 @@ module.exports = {
     userParticipates,
     listMessages,
     appendMessage,
-    sendBetweenUsers
+    sendBetweenUsers,
+    unreadCountForConversation,
+    markConversationRead,
+    totalUnreadForUser
 };

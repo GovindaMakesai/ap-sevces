@@ -41,8 +41,30 @@ html.ap-expo-app .chat-sidebar {
 
 /* List header */
 .ap-msg-top {
-  padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 8px;
+  padding: 10px 16px 8px;
   background: linear-gradient(180deg, #fdf5e6 0%, var(--ap-msg-bg) 100%);
+}
+
+html.ap-expo-app .ap-msg-top {
+  padding-top: 8px;
+}
+
+.ap-msg-empty {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--ap-msg-muted);
+}
+
+.ap-msg-empty i {
+  font-size: 42px;
+  opacity: 0.35;
+  margin-bottom: 12px;
+}
+
+.ap-msg-empty p {
+  margin: 0 0 6px;
+  font-weight: 600;
+  color: var(--ap-msg-text);
 }
 
 .ap-msg-top-row {
@@ -144,7 +166,7 @@ html.ap-expo-app .chat-sidebar {
 }
 
 .ap-msg-filter .pill-badge {
-  display: inline-flex;
+  display: none;
   align-items: center;
   justify-content: center;
   min-width: 18px;
@@ -156,6 +178,10 @@ html.ap-expo-app .chat-sidebar {
   color: #fff;
   font-size: 10px;
   font-weight: 700;
+}
+
+.ap-msg-filter .pill-badge.is-visible {
+  display: inline-flex;
 }
 
 .ap-msg-filter.active .pill-badge {

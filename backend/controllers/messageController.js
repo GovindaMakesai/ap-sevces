@@ -12,6 +12,9 @@ async function enrichConversation(conversation, currentUserId) {
             otherUser = null;
         }
     }
+    const unreadCount = await chatService.unreadCountForConversation(conversation, currentUserId);
+    const role = otherUser?.role || 'customer';
+    const isOfficial = role === 'admin' || role === 'worker';
 
     return {
         id: String(conversation.id),
@@ -31,7 +34,9 @@ async function enrichConversation(conversation, currentUserId) {
             },
         lastMessageText: conversation.last_message_text || '',
         lastMessageAt: conversation.last_message_at,
-        updatedAt: conversation.updated_at
+        updatedAt: conversation.updated_at,
+        unreadCount,
+        isOfficial
     };
 }
 
@@ -40,10 +45,11 @@ exports.listConversations = async (req, res) => {
         const currentUserId = String(req.userId);
         const rows = await chatService.listConversationsForUser(currentUserId);
         const enriched = await Promise.all(rows.map((conv) => enrichConversation(conv, currentUserId)));
+        const totalUnread = enriched.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
 
         res.json({
             success: true,
-            data: { conversations: enriched }
+            data: { conversations: enriched, totalUnread }
         });
     } catch (error) {
         console.error('listConversations error:', error);
@@ -173,6 +179,7 @@ exports.getMessages = async (req, res) => {
         }
 
         const messages = await chatService.listMessages(conversationId);
+        await chatService.markConversationRead(conversationId, currentUserId);
         const meta = await enrichConversation(conversation, currentUserId);
 
         res.json({
