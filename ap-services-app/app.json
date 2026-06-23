@@ -57,13 +57,15 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "owner": "govinda15",
+    "owner": "aparif786-web",
     "plugins": [
       "expo-web-browser"
     ],
     "extra": {
-      "eas": {
-        "projectId": "01ba3f3c-2ede-4b07-b3b2-52b939d40c8a"
+      "client": {
+        "org": "Muqaddas Technology",
+        "contactEmail": "aparif786@gmail.com",
+        "playDeveloperName": "muqaddas technology"
       }
     }
   }

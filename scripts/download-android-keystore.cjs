@@ -1,11 +1,12 @@
 /**
- * Downloads production Android keystore from EAS (@govinda15/ap-services-app).
- * Uses eas-cli internals; requires `eas login` as govinda15.
+ * Downloads production Android keystore from EAS for the client Expo account.
+ * Requires: npm i -g eas-cli && eas login (as aparif786-web / client Expo user)
  */
 const path = require('path');
 const fs = require('fs');
 
-const projectDir = path.resolve(__dirname, '..');
+const EXPO_OWNER = process.env.EXPO_OWNER || 'aparif786-web';
+const projectDir = path.resolve(__dirname, '..', 'ap-services-app');
 const easRoot =
   process.env.EAS_CLI_ROOT ||
   path.join(process.env.APPDATA || '', 'npm', 'node_modules', 'eas-cli');
@@ -34,8 +35,8 @@ async function main() {
   const { actor, authenticationInfo } = await sessionManager.ensureLoggedInAsync({
     nonInteractive: true,
   });
-  if (actor.username !== 'govinda15') {
-    throw new Error(`Expected Expo user govinda15, got ${actor.username}`);
+  if (actor.username !== EXPO_OWNER) {
+    throw new Error(`Expected Expo user ${EXPO_OWNER}, got ${actor.username}. Run: eas login`);
   }
 
   const graphqlClient = createGraphqlClient(authenticationInfo);
@@ -48,7 +49,7 @@ async function main() {
   const appLookupParams = {
     account,
     projectName: 'ap-services-app',
-    androidApplicationIdentifier: 'com.apservices.app2',
+    androidApplicationIdentifier: 'com.apservices.app',
   };
 
   let buildCredentials =
@@ -71,12 +72,12 @@ async function main() {
   }
 
   if (!buildCredentials?.androidKeystore) {
-    throw new Error('No Android keystore found on EAS for @govinda15/ap-services-app');
+    throw new Error(`No Android keystore found on EAS for @${EXPO_OWNER}/ap-services-app`);
   }
 
   const keystore = buildCredentials.androidKeystore;
   const outDir = path.join(projectDir, 'android', 'app');
-  const keystoreFileName = '@govinda15__ap-services-app.jks';
+  const keystoreFileName = 'ap-services-upload.jks';
   const keystorePath = path.join(outDir, keystoreFileName);
 
   fs.mkdirSync(outDir, { recursive: true });
@@ -89,7 +90,7 @@ async function main() {
     storePassword: keystore.keystorePassword,
     keyPassword: keystore.keyPassword ?? keystore.keystorePassword,
     buildCredentialsName: buildCredentials.name,
-    project: '@govinda15/ap-services-app',
+    project: `@${EXPO_OWNER}/ap-services-app`,
   };
 
   const metaPath = path.join(projectDir, 'scripts', '.keystore-meta.json');

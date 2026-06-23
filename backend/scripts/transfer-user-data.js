@@ -3,7 +3,7 @@
  *
  * Usage (dry-run — safe, no changes):
  *   node backend/scripts/transfer-user-data.js \
- *     --from developer.govinda00@gmail.com \
+ *     --from old.user@example.com \
  *     --to-email client@example.com \
  *     --to-phone 9876543210 \
  *     --to-first Client \

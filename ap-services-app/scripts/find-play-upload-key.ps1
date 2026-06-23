@@ -6,7 +6,7 @@ $wrong = "29:E2:29:CC:D5:E0:2D:94:9C:68:1C:5E:7C:AC:EE:51:F3:3D:7F:7E"
 Write-Host "Play Console expects upload cert SHA1:"
 Write-Host "  $expected"
 Write-Host ""
-Write-Host "Repo @govinda15__ap-services-app.jks (EAS key) is:"
+Write-Host "Local ap-services-upload.jks / EAS download (wrong for Play if SHA1 differs):"
 Write-Host "  $wrong"
 Write-Host ""
 
