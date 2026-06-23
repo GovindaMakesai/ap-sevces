@@ -60,13 +60,13 @@ Configure git on VPS:
 
 ```bash
 cd /var/www/ap-services
-git remote -v   # should point to your GitHub repo (e.g. github.com/aparif786-web/ap-sevces.git)
+git remote -v   # should point to github.com/GovindaMakesai/ap-sevces.git
 ```
 
 If `git pull` fails with auth, set the SSH remote:
 
 ```bash
-git remote set-url origin git@github.com:aparif786-web/ap-sevces.git
+git remote set-url origin git@github.com:GovindaMakesai/ap-sevces.git
 ```
 
 Add to `~/.ssh/config` on VPS:
