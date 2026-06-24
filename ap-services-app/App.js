@@ -16,6 +16,7 @@ import Constants from 'expo-constants';
 import { WebView } from 'react-native-webview';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
+import * as ScreenCapture from 'expo-screen-capture';
 import { getMobileDashboardInjectScript } from './injectedMobileFix';
 
 const apiConfig = require('./config/production-api');
@@ -77,6 +78,7 @@ const AUTH_ORIGIN = apiConfig.BACKEND_URL.replace(/\/$/, '');
 /** Deep link the system OAuth browser closes on (apservices:// or exp:// in Expo Go). */
 const APP_RETURN_URL = Linking.createURL('oauth-complete');
 const MOBILE_INJECT_SCRIPT = getMobileDashboardInjectScript();
+const APP_WEB_BUILD = '20260624-prod-audit';
 const STATUS_BAR_INSET =
   Platform.OS === 'android'
     ? RNStatusBar.currentHeight || Constants.statusBarHeight || 28
@@ -408,6 +410,7 @@ export default function App() {
       app_redirect: APP_RETURN_URL,
       source: 'expo-app',
       app: '1',
+      v: APP_WEB_BUILD,
     });
     const sep = frontendUrl.includes('?') ? '&' : '?';
     return `${frontendUrl}${sep}${params.toString()}`;
@@ -755,14 +758,13 @@ export default function App() {
         if (data.type === 'screen_capture') {
           (async () => {
             try {
-              const mod = require('expo-screen-capture');
               if (data.enable) {
-                await mod.preventScreenCaptureAsync();
+                await ScreenCapture.preventScreenCaptureAsync();
               } else {
-                await mod.allowScreenCaptureAsync();
+                await ScreenCapture.allowScreenCaptureAsync();
               }
-            } catch (_e) {
-              /* expo-screen-capture optional until native rebuild */
+            } catch (err) {
+              console.warn('[screen-capture]', err?.message || err);
             }
           })();
           return;
@@ -917,8 +919,8 @@ export default function App() {
         onMessage={onWebViewMessage}
         javaScriptEnabled
         domStorageEnabled
-        cacheEnabled
-        cacheMode={Platform.OS === 'android' ? 'LOAD_DEFAULT' : undefined}
+        cacheEnabled={__DEV__}
+        cacheMode={Platform.OS === 'android' ? (__DEV__ ? 'LOAD_DEFAULT' : 'LOAD_NO_CACHE') : undefined}
         sharedCookiesEnabled
         thirdPartyCookiesEnabled
         originWhitelist={['*']}

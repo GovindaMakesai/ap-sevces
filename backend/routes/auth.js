@@ -179,6 +179,7 @@ router.post('/exchange-code', authController.exchangeCode);
 router.get('/ws-token', verifyToken, authController.wsToken);
 router.get('/session', require('../middleware/auth').optionalAuth, authController.session);
 router.get('/me', verifyToken, authController.getMe);
+router.patch('/profile', verifyToken, authController.updateProfile);
 if (isGoogleConfigured) {
     router.get('/google', (req, res, next) => {
         passport.authenticate('google', {

@@ -5,19 +5,20 @@ const bcrypt = require('bcryptjs');
 class User {
     // Create a new user
     static async create(userData) {
-        const { email, phone, password, first_name, last_name, role = 'customer' } = userData;
+        const { email, phone, password, first_name, last_name, role = 'customer', gender = null } = userData;
+        const normalizedGender = User.normalizeGender(gender);
         
         // Hash password
         const salt = await bcrypt.genSalt(10);
         const password_hash = await bcrypt.hash(password, salt);
         
         const query = `
-            INSERT INTO users (email, phone, password_hash, first_name, last_name, role)
-            VALUES ($1, $2, $3, $4, $5, $6)
-            RETURNING id, email, phone, first_name, last_name, role, created_at
+            INSERT INTO users (email, phone, password_hash, first_name, last_name, role, gender)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING id, email, phone, first_name, last_name, role, gender, created_at
         `;
         
-        const values = [email, phone, password_hash, first_name, last_name, role];
+        const values = [email, phone, password_hash, first_name, last_name, role, normalizedGender];
         
         try {
             const result = await db.query(query, values);
@@ -44,12 +45,33 @@ class User {
     // Find user by ID
     static async findById(id) {
         const query = `
-            SELECT id, email, phone, first_name, last_name, profile_pic, 
-                   role, is_verified, created_at
+            SELECT id, email, phone, first_name, last_name, profile_pic,
+                   role, is_verified, gender, created_at
             FROM users WHERE id = $1
         `;
         const result = await db.query(query, [id]);
         return result.rows[0];
+    }
+
+    static normalizeGender(value) {
+        const g = String(value || '').trim().toLowerCase();
+        if (g === 'female' || g === 'male' || g === 'other') return g;
+        return null;
+    }
+
+    static async updateProfile(id, fields) {
+        const allowed = {};
+        if (fields.gender !== undefined) {
+            allowed.gender = User.normalizeGender(fields.gender);
+        }
+        if (!Object.keys(allowed).length) return User.findById(id);
+        const sets = Object.keys(allowed).map((k, i) => `${k} = $${i + 2}`);
+        const values = [id, ...Object.values(allowed)];
+        await db.query(
+            `UPDATE users SET ${sets.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+            values
+        );
+        return User.findById(id);
     }
     
     // Verify password

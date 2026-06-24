@@ -18,6 +18,24 @@
       background-size: 200% 100%; animation: profile-load 1s linear infinite;
     }
     @keyframes profile-load { to { background-position: 200% 0; } }
+    .profile-gender-card {
+      margin: 0 16px 12px;
+      padding: 14px 16px;
+      border-radius: 14px;
+      background: #fff;
+      border: 1px solid rgba(201, 162, 39, 0.2);
+      box-shadow: 0 4px 12px rgba(107, 79, 16, 0.06);
+    }
+    .profile-gender-card label { display: block; font-size: 12px; font-weight: 700; color: #78350f; margin-bottom: 8px; }
+    .profile-gender-card select {
+      width: 100%; padding: 10px 12px; border-radius: 10px;
+      border: 1px solid rgba(201, 162, 39, 0.35); font-size: 14px; margin-bottom: 8px;
+    }
+    .profile-gender-card p { margin: 0 0 10px; font-size: 11px; color: #92400e; line-height: 1.4; }
+    .profile-gender-card button {
+      width: 100%; border: none; border-radius: 999px; padding: 10px;
+      background: linear-gradient(135deg, #ff8c42, #c9a227); color: #fff; font-weight: 800; cursor: pointer;
+    }
   </style>
   <script>
     (function () {
@@ -62,6 +80,18 @@
       </a>
     </div>
     <button type="button" class="social-btn-orange social-profile-cta" id="profileMainBtn">Sign In</button>
+  </div>
+
+  <div class="profile-gender-card" id="profileGenderCard" style="display:none">
+    <label for="profileGender">Gender</label>
+    <p id="profileGenderHint">Female accounts can send up to 5 starter messages. Your remaining count appears in chat.</p>
+    <select id="profileGender">
+      <option value="">Not set</option>
+      <option value="female">Female</option>
+      <option value="male">Male</option>
+      <option value="other">Other</option>
+    </select>
+    <button type="button" id="saveGenderBtn">Save gender</button>
   </div>
 
   <nav class="social-menu-list">
@@ -125,6 +155,28 @@
         statsEl.style.display = 'grid';
         const walletActs = document.getElementById('profileWalletActions');
         if (walletActs) walletActs.classList.add('is-visible');
+        const genderCard = document.getElementById('profileGenderCard');
+        const genderSel = document.getElementById('profileGender');
+        if (genderCard) genderCard.style.display = 'block';
+        if (genderSel && user.gender) genderSel.value = user.gender;
+        document.getElementById('saveGenderBtn')?.addEventListener('click', async () => {
+          const g = genderSel?.value || '';
+          if (!g) {
+            SocialUI?.toast?.('Select a gender first', 'warning');
+            return;
+          }
+          try {
+            const res = await API.patch('/auth/profile', { gender: g });
+            const updated = res?.data?.user;
+            if (updated) {
+              const stored = Auth.getUser() || {};
+              localStorage.setItem('user', JSON.stringify({ ...stored, gender: updated.gender }));
+            }
+            SocialUI?.toast?.('Gender saved', 'success');
+          } catch (e) {
+            SocialUI?.toast?.(e?.message || 'Could not save gender', 'error');
+          }
+        });
         if (window.SocialWallet) {
           SocialWallet.fetchBalance().then((b) => {
             const coins = document.getElementById('statCoins');

@@ -240,7 +240,8 @@ const register = async (req, res) => {
             skills,
             firebase_id_token,
             otp: rawOtp,
-            otp_mode
+            otp_mode,
+            gender: rawGender
         } = req.body;
 
         const email = typeof rawEmail === 'string' ? rawEmail.trim().toLowerCase() : '';
@@ -335,7 +336,8 @@ const register = async (req, res) => {
             password,
             first_name,
             last_name,
-            role
+            role,
+            gender: rawGender
         });
 
         let userOut = { ...newUser };
@@ -444,6 +446,21 @@ const login = async (req, res) => {
         });
     }
 };
+const updateProfile = async (req, res) => {
+    try {
+        const { gender } = req.body || {};
+        const user = await User.updateProfile(req.userId, { gender });
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+        const { publicUser } = require('../lib/userDto');
+        res.json({ success: true, data: { user: publicUser(user, { self: true }) } });
+    } catch (error) {
+        console.error('❌ Update profile error:', error);
+        res.status(500).json({ success: false, message: 'Failed to update profile' });
+    }
+};
+
 // Get Me
 const getMe = async (req, res) => {
     try {
@@ -702,6 +719,7 @@ module.exports = {
     register,
     login,
     getMe,
+    updateProfile,
     googleCallback,
     githubCallback,
     facebookCallback,

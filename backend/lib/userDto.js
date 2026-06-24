@@ -17,6 +17,7 @@ function publicUser(user, { self = false } = {}) {
       email: user.email,
       phone: user.phone,
       role: user.role,
+      gender: user.gender || null,
       created_at: user.created_at,
     };
   }

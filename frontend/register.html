@@ -1085,6 +1085,25 @@
 
                         <div class="form-group">
                             <label class="form-label">
+                                <i class="fas fa-venus-mars"></i> Gender
+                            </label>
+                            <div class="input-group">
+                                <i class="fas fa-venus-mars input-icon"></i>
+                                <select class="form-control" id="gender" required>
+                                    <option value="">Select gender</option>
+                                    <option value="female">Female</option>
+                                    <option value="male">Male</option>
+                                    <option value="other">Other / prefer not to say</option>
+                                </select>
+                            </div>
+                            <p style="font-size:12px;color:#78350f;margin:6px 0 0;line-height:1.4">
+                                Female accounts have a 5-message chat starter limit. You will see your remaining messages in chat.
+                            </p>
+                            <div class="error-message" id="genderError"></div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">
                                 <i class="fas fa-envelope"></i> Email Address
                             </label>
                             <div class="input-group">
@@ -1731,6 +1750,16 @@
                     clearError('lastNameError');
                     lastName.classList.remove('error');
                 }
+
+                const gender = document.getElementById('gender');
+                if (!gender.value) {
+                    showError('genderError', 'Please select your gender');
+                    gender.classList.add('error');
+                    isValid = false;
+                } else {
+                    clearError('genderError');
+                    gender.classList.remove('error');
+                }
                 
                 // Email
                 const email = document.getElementById('email');
@@ -2019,6 +2048,7 @@
                     const registrationData = {
                         first_name: document.getElementById('firstName').value.trim(),
                         last_name: document.getElementById('lastName').value.trim(),
+                        gender: document.getElementById('gender').value.trim(),
                         email: document.getElementById('email').value.trim(),
                         phone: document.getElementById('phone').value.trim(),
                         password: document.getElementById('password').value,

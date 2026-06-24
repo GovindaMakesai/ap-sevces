@@ -271,6 +271,13 @@ const API = {
             body: body 
         }); 
     },
+
+    patch(endpoint, body) {
+        return this.request(endpoint, {
+            method: 'PATCH',
+            body: body
+        });
+    },
     
     delete(endpoint) { 
         return this.request(endpoint, { method: 'DELETE' }); 
