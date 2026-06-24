@@ -933,11 +933,32 @@
 .social-follow-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   padding: 12px 4px;
   border-bottom: 1px solid #f3f4f6;
-  text-decoration: none;
   color: var(--gold-800);
+}
+
+.social-follow-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  text-decoration: none;
+  color: inherit;
+}
+
+.social-follow-msg {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: linear-gradient(135deg, #ff8c42, #f59e0b);
+  color: #fff;
+  cursor: pointer;
+  font-size: 15px;
 }
 
 .social-follow-row img {

@@ -659,11 +659,54 @@
       return;
     }
     const mode = opts?.mode || 'video';
-    const topic = opts?.topic != null ? '&topic=' + encodeURIComponent(opts.topic) : '';
-    const base = String(user.id || 'user').replace(/[^a-zA-Z0-9]/g, '').slice(0, 10);
-    const channel = 'live-' + base + '-' + Date.now().toString(36).slice(-6);
-    window.location.href =
-      '/live-room.html?host=1&mode=' + encodeURIComponent(mode) + '&channel=' + encodeURIComponent(channel) + topic + '&app=1';
+    const isParty = Boolean(opts?.party);
+    if (!opts?.confirmed) {
+      const label = isParty ? 'Start a voice party as host?' : 'Start a live broadcast as host?';
+      const detail = isParty
+        ? 'You will be the party host. Guests join as listeners unless you approve their mic requests.'
+        : 'You will be the host. Viewers can watch, chat, and send gifts.';
+      if (!window.confirm(label + '\n\n' + detail)) return;
+      opts = { ...(opts || {}), confirmed: true };
+    }
+    const proceed = () => {
+      const topic = opts?.topic != null ? '&topic=' + encodeURIComponent(opts.topic) : '';
+      const base = String(user.id || 'user').replace(/[^a-zA-Z0-9]/g, '').slice(0, 10);
+      if (isParty) {
+        const channel = opts?.channel || 'party-' + base + '-' + Date.now().toString(36).slice(-6);
+        window.location.href =
+          '/party-room.html?host=1&channel=' + encodeURIComponent(channel) + topic + '&app=1';
+        return;
+      }
+      const channel = 'live-' + base + '-' + Date.now().toString(36).slice(-6);
+      window.location.href =
+        '/live-room.html?host=1&mode=' +
+        encodeURIComponent(mode) +
+        '&channel=' +
+        encodeURIComponent(channel) +
+        topic +
+        '&app=1';
+    };
+    if (mode === 'video' && !isParty && !opts?.skipVerify) {
+      const api = window.API || window.Auth?.api;
+      if (api?.get) {
+        api
+          .get('/live/access-status')
+          .then((res) => {
+            const data = res?.data?.data || res?.data || {};
+            if (!data.canStreamVideo) {
+              const ret = encodeURIComponent(
+                '/streamer-center.html?app=1&goLive=video'
+              );
+              window.location.href = '/live-verify.html?redirect=' + ret + '&app=1';
+              return;
+            }
+            proceed();
+          })
+          .catch(() => proceed());
+        return;
+      }
+    }
+    proceed();
   }
 
   /** Voice party room — multi-seat audio grid */
@@ -673,13 +716,7 @@
       window.location.href = '/app-auth.html?app=1';
       return;
     }
-    const base = String(user.id || 'user').replace(/[^a-zA-Z0-9]/g, '').slice(0, 10);
-    const channel =
-      opts?.channel ||
-      'party-' + base + '-' + Date.now().toString(36).slice(-6);
-    const topic = opts?.topic != null ? '&topic=' + encodeURIComponent(opts.topic) : '';
-    window.location.href =
-      '/party-room.html?host=1&channel=' + encodeURIComponent(channel) + topic + '&app=1';
+    goStartLiveBroadcast({ ...(opts || {}), party: true, mode: 'audio' });
   }
 
   function ensureBroadcastOverlay() {

@@ -111,6 +111,36 @@ async function listMessages(conversationId) {
     return r.rows;
 }
 
+const FEMALE_MESSAGE_LIMIT = 5;
+
+async function getSenderGender(senderUserId) {
+    const r = await db.query(`SELECT gender FROM users WHERE id = $1`, [String(senderUserId)]);
+    return String(r.rows[0]?.gender || '').toLowerCase();
+}
+
+async function countMessagesSentByUser(senderUserId) {
+    const r = await db.query(
+        `SELECT COUNT(*)::int AS c FROM chat_messages WHERE sender_id = $1`,
+        [String(senderUserId)]
+    );
+    return r.rows[0]?.c || 0;
+}
+
+async function getFemaleMessageQuota(senderUserId) {
+    const gender = await getSenderGender(senderUserId);
+    if (gender !== 'female') {
+        return { limited: false, limit: null, used: 0, remaining: null };
+    }
+    const used = await countMessagesSentByUser(senderUserId);
+    const remaining = Math.max(0, FEMALE_MESSAGE_LIMIT - used);
+    return {
+        limited: true,
+        limit: FEMALE_MESSAGE_LIMIT,
+        used,
+        remaining,
+    };
+}
+
 async function appendMessage(conversationId, senderId, receiverId, text) {
     const raw = String(text || '').trim();
     if (!raw) throw new Error('Empty message');
@@ -152,6 +182,16 @@ async function sendBetweenUsers(senderUserId, receiverRawId, text) {
         err.status = 400;
         throw err;
     }
+    const quota = await getFemaleMessageQuota(senderUserId);
+    if (quota.limited && quota.remaining <= 0) {
+        const err = new Error(
+            `Message limit reached (${quota.limit} messages). Upgrade your account or contact support to continue chatting.`
+        );
+        err.status = 403;
+        err.code = 'FEMALE_MESSAGE_LIMIT';
+        err.quota = quota;
+        throw err;
+    }
     const conv = await findOrCreateConversationByUserIds(senderUserId, receiverUserId);
     const row = await appendMessage(conv.id, String(senderUserId), receiverUserId, text);
     const message = {
@@ -162,7 +202,8 @@ async function sendBetweenUsers(senderUserId, receiverRawId, text) {
         text: row.body,
         created_at: row.created_at
     };
-    return { conversation: conv, message, receiverUserId };
+    const updatedQuota = await getFemaleMessageQuota(senderUserId);
+    return { conversation: conv, message, receiverUserId, quota: updatedQuota };
 }
 
 module.exports = {
@@ -178,5 +219,7 @@ module.exports = {
     sendBetweenUsers,
     unreadCountForConversation,
     markConversationRead,
-    totalUnreadForUser
+    totalUnreadForUser,
+    getFemaleMessageQuota,
+    FEMALE_MESSAGE_LIMIT
 };

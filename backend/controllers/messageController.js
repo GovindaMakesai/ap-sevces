@@ -125,7 +125,7 @@ exports.sendMessage = async (req, res) => {
             });
         }
 
-        const { conversation, message, receiverUserId } = await chatService.sendBetweenUsers(
+        const { conversation, message, receiverUserId, quota } = await chatService.sendBetweenUsers(
             senderId,
             receiverId,
             text
@@ -144,7 +144,8 @@ exports.sendMessage = async (req, res) => {
             data: {
                 conversationId: String(conversation.id),
                 message: normalized,
-                receiverUserId
+                receiverUserId,
+                quota: quota || null,
             }
         });
     } catch (error) {
@@ -152,7 +153,9 @@ exports.sendMessage = async (req, res) => {
         const status = error.status || 500;
         res.status(status).json({
             success: false,
-            message: error.message || 'Failed to send message'
+            message: error.message || 'Failed to send message',
+            code: error.code || undefined,
+            quota: error.quota || undefined,
         });
     }
 };
@@ -181,6 +184,7 @@ exports.getMessages = async (req, res) => {
         const messages = await chatService.listMessages(conversationId);
         await chatService.markConversationRead(conversationId, currentUserId);
         const meta = await enrichConversation(conversation, currentUserId);
+        const quota = await chatService.getFemaleMessageQuota(currentUserId);
 
         res.json({
             success: true,
@@ -189,6 +193,7 @@ exports.getMessages = async (req, res) => {
                 otherUser: meta.otherUser,
                 lastMessageText: meta.lastMessageText,
                 lastMessageAt: meta.lastMessageAt,
+                quota,
                 messages: messages.map((msg) => {
                     const { text, imageUrl } = splitMessageBody(msg.body);
                     return {

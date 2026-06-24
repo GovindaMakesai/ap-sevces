@@ -605,6 +605,30 @@
             color: var(--gray-400);
         }
 
+        .ap-msg-quota-banner {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            margin: 0 12px 8px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            background: rgba(251, 191, 36, 0.18);
+            border: 1px solid rgba(217, 119, 6, 0.35);
+            color: #92400e;
+            font-size: 12px;
+            line-height: 1.45;
+        }
+
+        .ap-msg-quota-banner.is-limit {
+            background: rgba(254, 202, 202, 0.35);
+            border-color: rgba(220, 38, 38, 0.35);
+            color: #991b1b;
+        }
+
+        .ap-msg-quota-banner i {
+            margin-top: 2px;
+        }
+
         /* ==================== EMOJI PICKER ==================== */
         .emoji-picker-container {
             position: relative;
@@ -1004,7 +1028,7 @@
                         </div>
                     </div>
 
-                    <div class="chat-tabs">
+                    <div class="chat-tabs" style="display:none">
                         <button class="chat-tab active" data-filter="all">
                             <i class="fas fa-inbox"></i> All
                         </button>
@@ -1044,26 +1068,23 @@
                                     <span class="status-dot online" id="userStatus"></span>
                                 </div>
                                 <div class="chat-user-details">
-                                    <h3 id="chatUserName">Rajesh Kumar</h3>
+                                    <h3 id="chatUserName">User</h3>
                                     <div class="chat-user-status">
                                         <i class="fas fa-circle online"></i>
                                         <span id="userStatusText">Online</span>
-                                        <span>•</span>
-                                        <span>Plumbing Expert</span>
                                     </div>
                                 </div>
                             </div>
                             <div class="chat-actions">
-                                <button type="button" class="chat-action-btn" onclick="showCallModal('video')" title="Video call (demo)">
-                                    <i class="fas fa-video"></i>
-                                </button>
-                                <button type="button" class="chat-action-btn" onclick="showCallModal('audio')" title="Voice call (demo)">
-                                    <i class="fas fa-phone"></i>
-                                </button>
                                 <button type="button" class="chat-action-btn" onclick="showUserInfo()" title="View profile">
                                     <i class="fas fa-user"></i>
                                 </button>
                             </div>
+                        </div>
+
+                        <div class="ap-msg-quota-banner" id="apMsgQuotaBanner" hidden>
+                            <i class="fas fa-info-circle"></i>
+                            <span id="apMsgQuotaText"></span>
                         </div>
 
                         <!-- Messages Container -->
@@ -1240,6 +1261,18 @@
             document.getElementById('apMsgNotifyOpen')?.addEventListener('click', () => {
                 if ('Notification' in window && Notification.permission === 'default') {
                     Notification.requestPermission();
+                }
+            });
+            document.querySelector('.ap-msg-top-actions button[aria-label="More"]')?.addEventListener('click', () => {
+                const action = window.prompt('Messages menu:\n1 = Mark all read\n2 = Help\n\nEnter 1 or 2');
+                if (action === '1') {
+                    useChatStore.setState((state) => ({
+                        conversations: state.conversations.map((c) => ({ ...c, unread: 0 })),
+                    }));
+                    loadChatList();
+                    Toast.show('All conversations marked read', 'success');
+                } else if (action === '2') {
+                    window.location.href = '/help.html?app=1';
                 }
             });
             
@@ -1666,6 +1699,31 @@
             }
         }
 
+        // ==================== MESSAGE QUOTA ====================
+        function updateMessageQuotaBanner(quota) {
+            const banner = document.getElementById('apMsgQuotaBanner');
+            const text = document.getElementById('apMsgQuotaText');
+            if (!banner || !text) return;
+            if (!quota?.limited) {
+                banner.hidden = true;
+                banner.classList.remove('is-limit');
+                return;
+            }
+            banner.hidden = false;
+            const remaining = Math.max(0, Number(quota.remaining) || 0);
+            const limit = Number(quota.limit) || 5;
+            text.textContent =
+                remaining > 0
+                    ? `You can send ${remaining} more message${remaining === 1 ? '' : 's'} (${quota.used || 0}/${limit} used on this account).`
+                    : `You have reached the ${limit}-message limit. Contact support or upgrade to continue messaging.`;
+            banner.classList.toggle('is-limit', remaining <= 0);
+            const input = document.getElementById('messageInput');
+            const sendBtn = document.getElementById('sendBtn');
+            const blocked = remaining <= 0;
+            if (input) input.disabled = blocked;
+            if (sendBtn) sendBtn.disabled = blocked;
+        }
+
         // ==================== LOAD CHAT ====================
         async function loadChat(chatId, sourceElement) {
             currentChatId = String(chatId);
@@ -1737,6 +1795,7 @@
             try {
                 const response = await axiosClient.get(`/${chatId}`);
                 const serverMessages = response.data?.data?.messages || [];
+                updateMessageQuotaBanner(response.data?.data?.quota);
                 const seen = new Set();
                 const mapped = [];
                 for (const msg of serverMessages) {
@@ -1825,13 +1884,15 @@
             input.style.height = 'auto';
 
             try {
-                await axiosClient.post('/send', {
+                const res = await axiosClient.post('/send', {
                     receiverId: activeConversation.otherUserId,
                     text: message
                 });
+                updateMessageQuotaBanner(res.data?.data?.quota);
                 await loadMessages(currentChatId);
                 await loadConversations();
             } catch (e) {
+                if (e?.response?.data?.quota) updateMessageQuotaBanner(e.response.data.quota);
                 Toast.show(e?.response?.data?.message || e.message || 'Failed to send message', 'error');
                 await loadMessages(currentChatId);
             }

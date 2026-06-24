@@ -738,11 +738,18 @@
 
   function profileUrl(item) {
     if (item.workerId) return '/worker-profile.html?id=' + encodeURIComponent(item.workerId) + '&app=1';
-    return (
-      '/creator-profile.html?name=' +
-      encodeURIComponent(item.userName || item.name || 'Creator') +
-      '&app=1'
-    );
+    const uid = item.userId || item.id;
+    const name = item.userName || item.name || 'Creator';
+    if (uid) {
+      return (
+        '/creator-profile.html?userId=' +
+        encodeURIComponent(uid) +
+        '&name=' +
+        encodeURIComponent(name) +
+        '&app=1'
+      );
+    }
+    return '/creator-profile.html?name=' + encodeURIComponent(name) + '&app=1';
   }
 
   /** Video reels page */

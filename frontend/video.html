@@ -3,20 +3,41 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#000000">
+  <meta name="theme-color" content="#fdf9f0">
   <title>Video - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-theme.css">
   <link rel="stylesheet" href="social-features.css">
+  <style>
+    .social-video-page .social-video-top {
+      background: var(--social-cream, #fdf9f0);
+      box-shadow: 0 1px 0 rgba(107, 79, 16, 0.08);
+    }
+    .social-video-page .social-video-top .social-main-tabs a,
+    .social-video-page .social-video-top .social-main-tabs button {
+      color: var(--gold-600, #a16207);
+    }
+    .social-video-page .social-video-top .social-main-tabs a.active,
+    .social-video-page .social-video-top .social-main-tabs button.active {
+      color: var(--gold-800, #6b4f10);
+    }
+    .social-video-page .social-video-top .social-main-tabs a.active::after {
+      background: var(--gold-500, #c9a227);
+    }
+    .social-video-page .social-video-top .social-icon-btn {
+      background: rgba(201, 162, 39, 0.15) !important;
+      color: var(--gold-800, #6b4f10) !important;
+    }
+  </style>
 </head>
 <body class="social-video-page">
-  <header class="social-video-top">
+  <header class="social-video-top social-top">
     <div class="social-main-tabs">
       <a href="/explore.html?tab=following&app=1">Following</a>
       <a href="/video.html?app=1" class="active">Video</a>
       <a href="/square.html?app=1">Square</a>
       <a href="/topics.html?app=1">Topics</a>
-      <button type="button" class="social-icon-btn" data-social-camera style="margin-left:auto;background:rgba(255,255,255,0.2);color:#fff;border:none"><i class="fas fa-camera"></i></button>
+      <button type="button" class="social-icon-btn" data-social-camera style="margin-left:auto"><i class="fas fa-camera"></i></button>
     </div>
   </header>
 

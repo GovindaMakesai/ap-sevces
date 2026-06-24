@@ -125,17 +125,38 @@
     } else {
       list.innerHTML = items
         .map(function (item) {
+          const uid = item.userId || item.id;
+          const profileHref =
+            item.href ||
+            (uid
+              ? '/creator-profile.html?userId=' + encodeURIComponent(uid) + '&name=' + encodeURIComponent(item.name) + '&app=1'
+              : '/creator-profile.html?name=' + encodeURIComponent(item.name) + '&app=1');
+          const msgBtn = uid
+            ? '<button type="button" class="social-follow-msg" data-msg-id="' +
+              encodeURIComponent(uid) +
+              '" aria-label="Message"><i class="fas fa-comment"></i></button>'
+            : '';
           return (
-            '<a class="social-follow-row" href="' +
-            (item.href || '/creator-profile.html?name=' + encodeURIComponent(item.name)) +
+            '<div class="social-follow-row">' +
+            '<a class="social-follow-link" href="' +
+            profileHref +
             '"><img src="' +
-            avatarUrl(item.name) +
+            avatarUrl(item.name, item.photo) +
             '" alt=""><span>' +
             item.name +
-            '</span><i class="fas fa-chevron-right"></i></a>'
+            '</span></a>' +
+            msgBtn +
+            '</div>'
           );
         })
         .join('');
+      list.querySelectorAll('.social-follow-msg').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const id = btn.getAttribute('data-msg-id');
+          if (id) location.href = '/chat.html?id=' + id + '&app=1';
+        });
+      });
     }
     sheet.classList.add('open');
   }

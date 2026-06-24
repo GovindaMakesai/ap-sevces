@@ -752,6 +752,21 @@ export default function App() {
           ).catch(() => {});
           return;
         }
+        if (data.type === 'screen_capture') {
+          (async () => {
+            try {
+              const mod = require('expo-screen-capture');
+              if (data.enable) {
+                await mod.preventScreenCaptureAsync();
+              } else {
+                await mod.allowScreenCaptureAsync();
+              }
+            } catch (_e) {
+              /* expo-screen-capture optional until native rebuild */
+            }
+          })();
+          return;
+        }
         if (data.type === 'back_result' && !data.handled) {
           const route = String(data.route || '');
           if (webViewCanGoBackRef.current) {

@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#c9a227">
+  <title>Live verification - AP Services</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="social-theme.css">
+  <style>
+    body { background: #fdf9f0; margin: 0; font-family: system-ui, sans-serif; color: #6b4f10; }
+    .lv-wrap { max-width: 480px; margin: 0 auto; padding: calc(16px + env(safe-area-inset-top, 0)) 16px 32px; }
+    .lv-back { display: inline-flex; align-items: center; gap: 8px; color: #6b4f10; text-decoration: none; font-weight: 700; margin-bottom: 16px; }
+    h1 { font-size: 22px; margin: 0 0 8px; }
+    .lv-sub { font-size: 14px; color: #78350f; line-height: 1.5; margin-bottom: 20px; }
+    .lv-steps { display: grid; gap: 12px; }
+    .lv-step {
+      background: #fff; border-radius: 16px; padding: 16px;
+      border: 1px solid rgba(201, 162, 39, 0.25);
+      box-shadow: 0 4px 12px rgba(107, 79, 16, 0.06);
+    }
+    .lv-step h2 { font-size: 15px; margin: 0 0 6px; display: flex; align-items: center; gap: 8px; }
+    .lv-step p { margin: 0 0 12px; font-size: 13px; color: #78350f; line-height: 1.45; }
+    .lv-step.done h2::after { content: '✓'; color: #16a34a; font-size: 14px; }
+    .lv-btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      border: none; border-radius: 999px; padding: 12px 18px;
+      background: linear-gradient(135deg, #ff8c42, #c9a227); color: #fff;
+      font-weight: 800; font-size: 14px; cursor: pointer; width: 100%;
+    }
+    .lv-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .lv-preview { width: 100%; max-height: 200px; object-fit: cover; border-radius: 12px; margin-top: 10px; display: none; }
+    .lv-status { margin-top: 16px; padding: 12px; border-radius: 12px; font-size: 13px; display: none; }
+    .lv-status.ok { display: block; background: rgba(34, 197, 94, 0.12); color: #166534; }
+    .lv-status.err { display: block; background: rgba(239, 68, 68, 0.12); color: #991b1b; }
+  </style>
+</head>
+<body>
+  <div class="lv-wrap">
+    <a href="/streamer-center.html?app=1" class="lv-back"><i class="fas fa-arrow-left"></i> Back</a>
+    <h1>Verify before going live</h1>
+    <p class="lv-sub">Video live streaming requires identity confirmation and a face photo. This protects creators and viewers.</p>
+
+    <div class="lv-steps">
+      <section class="lv-step" id="lvStepIdentity">
+        <h2><span>1</span> Identity</h2>
+        <p>Confirm that your account details are accurate. Professionals with completed KYC are auto-verified.</p>
+        <button type="button" class="lv-btn" id="lvIdentityBtn">Confirm identity</button>
+      </section>
+      <section class="lv-step" id="lvStepFace">
+        <h2><span>2</span> Face verification</h2>
+        <p>Take a clear selfie in good lighting. This photo is stored securely and used for live access only.</p>
+        <input type="file" id="lvFaceInput" accept="image/*" capture="user" hidden>
+        <button type="button" class="lv-btn" id="lvFaceBtn" disabled>Take selfie</button>
+        <img id="lvFacePreview" class="lv-preview" alt="Selfie preview">
+      </section>
+      <section class="lv-step" id="lvStepAccess">
+        <h2><span>3</span> Live access</h2>
+        <p>Once both steps are complete, you can start video live streams from Streamer Center.</p>
+        <button type="button" class="lv-btn" id="lvContinueBtn" disabled>Continue to Streamer Center</button>
+      </section>
+    </div>
+    <div class="lv-status" id="lvStatus"></div>
+  </div>
+
+  <script src="app.js"></script>
+  <script src="social-shell.js"></script>
+  <script>
+    (async function () {
+      Auth.checkAuth();
+      if (!Auth.hasSession?.()) {
+        location.href = '/app-auth.html?redirect=' + encodeURIComponent(location.pathname + location.search);
+        return;
+      }
+      await Auth.ensureAccessToken?.().catch(() => {});
+      const redirect = new URLSearchParams(location.search).get('redirect') || '/streamer-center.html?app=1';
+      const statusEl = document.getElementById('lvStatus');
+      const api = window.API || window.Auth?.api;
+
+      function setStatus(msg, ok) {
+        statusEl.textContent = msg;
+        statusEl.className = 'lv-status ' + (ok ? 'ok' : 'err');
+      }
+
+      async function refreshStatus() {
+        if (!api?.get) return;
+        try {
+          const res = await api.get('/live/access-status');
+          const d = res?.data?.data || res?.data || {};
+          if (d.identityVerified) {
+            document.getElementById('lvStepIdentity').classList.add('done');
+            document.getElementById('lvFaceBtn').disabled = false;
+          }
+          if (d.faceVerified) {
+            document.getElementById('lvStepFace').classList.add('done');
+            document.getElementById('lvContinueBtn').disabled = false;
+          }
+          if (d.canStreamVideo) {
+            setStatus('You are verified for video live streaming.', true);
+          }
+        } catch (e) {
+          setStatus(e?.message || 'Could not load verification status', false);
+        }
+      }
+
+      document.getElementById('lvIdentityBtn').addEventListener('click', async () => {
+        try {
+          await api.post('/live/verify/identity');
+          document.getElementById('lvStepIdentity').classList.add('done');
+          document.getElementById('lvFaceBtn').disabled = false;
+          setStatus('Identity step complete. Now take your selfie.', true);
+        } catch (e) {
+          setStatus(e?.response?.data?.message || e.message || 'Identity step failed', false);
+        }
+      });
+
+      document.getElementById('lvFaceBtn').addEventListener('click', () => {
+        document.getElementById('lvFaceInput').click();
+      });
+
+      document.getElementById('lvFaceInput').addEventListener('change', async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const preview = document.getElementById('lvFacePreview');
+        preview.src = URL.createObjectURL(file);
+        preview.style.display = 'block';
+        const fd = new FormData();
+        fd.append('photo', file);
+        try {
+          await api.post('/live/verify/face', fd, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+          });
+          document.getElementById('lvStepFace').classList.add('done');
+          document.getElementById('lvContinueBtn').disabled = false;
+          setStatus('Face verification complete. You can go live with video.', true);
+        } catch (err) {
+          setStatus(err?.response?.data?.message || err.message || 'Face upload failed', false);
+        }
+      });
+
+      document.getElementById('lvContinueBtn').addEventListener('click', () => {
+        location.href = redirect.includes('?') ? redirect + '&app=1' : redirect + '?app=1';
+      });
+
+      await refreshStatus();
+    })();
+  </script>
+</body>
+</html>

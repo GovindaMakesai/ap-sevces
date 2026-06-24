@@ -116,3 +116,36 @@ exports.agoraToken = async (req, res) => {
     res.status(500).json({ success: false, message: error.message || 'Token error' });
   }
 };
+
+const liveAccessService = require('../services/liveAccessService');
+
+exports.liveAccessStatus = async (req, res) => {
+  try {
+    const data = await liveAccessService.getLiveAccessStatus(req.userId);
+    res.json({ success: true, data });
+  } catch (error) {
+    console.error('[live] access status', error);
+    res.status(500).json({ success: false, message: error.message || 'Could not check live access' });
+  }
+};
+
+exports.submitFaceVerification = async (req, res) => {
+  try {
+    const data = await liveAccessService.submitFaceVerification(req.userId, req.file);
+    res.json({ success: true, data });
+  } catch (error) {
+    console.error('[live] face verification', error);
+    res.status(400).json({ success: false, message: error.message || 'Face verification failed' });
+  }
+};
+
+exports.confirmIdentityStep = async (req, res) => {
+  try {
+    await liveAccessService.markIdentityVerified(req.userId);
+    const data = await liveAccessService.getLiveAccessStatus(req.userId);
+    res.json({ success: true, data });
+  } catch (error) {
+    console.error('[live] identity step', error);
+    res.status(500).json({ success: false, message: error.message || 'Could not confirm identity' });
+  }
+};

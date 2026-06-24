@@ -122,26 +122,30 @@
           adminDash.style.display = 'flex';
           adminDash.href = '/admin-dashboard.html?app=1';
         }
+        statsEl.style.display = 'grid';
+        const walletActs = document.getElementById('profileWalletActions');
+        if (walletActs) walletActs.classList.add('is-visible');
+        if (window.SocialWallet) {
+          SocialWallet.fetchBalance().then((b) => {
+            const coins = document.getElementById('statCoins');
+            const pts = document.getElementById('statPoints');
+            if (coins) coins.textContent = (b.coin_balance || 0).toLocaleString();
+            if (pts) pts.textContent = (b.star_balance || 0).toLocaleString();
+          });
+        }
         if (window.SocialInteractions?.getFollowStats) {
           const s = await SocialInteractions.getFollowStats(user.id);
           document.getElementById('statFollowing').textContent = s.following;
           document.getElementById('statFollowers').textContent = s.followers;
-          if (window.SocialWallet) {
-            SocialWallet.fetchBalance().then((b) => {
-              const coins = document.getElementById('statCoins');
-              const pts = document.getElementById('statPoints');
-              if (coins) coins.textContent = (b.coin_balance || 0).toLocaleString();
-              if (pts) pts.textContent = (b.star_balance || 0).toLocaleString();
-            });
-          } else {
+          if (!window.SocialWallet) {
             document.getElementById('statCoins').textContent = s.coins.toLocaleString();
           }
-          statsEl.style.display = 'grid';
-          const walletActs = document.getElementById('profileWalletActions');
-          if (walletActs) walletActs.classList.add('is-visible');
         }
         document.getElementById('statFollowingBtn')?.addEventListener('click', () => {
-          const list = SocialInteractions.getFollowingList().map((e) => ({ name: e.name }));
+          const list = SocialInteractions.getFollowingList().map((e) => ({
+            name: e.name,
+            userId: e.id || e.key,
+          }));
           SocialUI.openFollowSheet('following', list);
         });
         document.getElementById('statFollowersBtn')?.addEventListener('click', () => {

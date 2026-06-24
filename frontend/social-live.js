@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260624-live-fixes';
+  window.__AP_LIVE_BUILD = '20260624-prod-audit';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -189,7 +189,10 @@
       const raw = sessionStorage.getItem('ap_live_join_meta');
       if (!raw) return null;
       const meta = JSON.parse(raw);
-      if (meta?.channel && (qs('channel') || qs('room'))) return meta;
+      const urlCh = qs('channel') || qs('room');
+      if (!meta?.channel || !urlCh || meta.channel !== urlCh) return null;
+      if (qs('host') !== '1' && meta.isHost) meta.isHost = false;
+      return meta;
     } catch (_e) {}
     return null;
   }
@@ -303,11 +306,17 @@
       .slice(0, 64);
   }
 
+  function clientClaimsHost() {
+    return qs('host') === '1';
+  }
+
   function isHost() {
-    if (qs('host') === '1') return true;
     const me = currentUser();
-    if (me?.id && roomState?.hostId && String(roomState.hostId) === String(me.id)) return true;
-    return false;
+    if (roomJoinCompleted && me?.id && roomState?.hostId) {
+      return String(roomState.hostId) === String(me.id);
+    }
+    if (roomJoinCompleted) return false;
+    return clientClaimsHost();
   }
 
   function isLiveRoomPage() {
@@ -1120,7 +1129,7 @@
 
     const user = currentUser();
     const ch = channelId();
-    const hostFlag = isHost();
+    const hostFlag = clientClaimsHost();
     liveDebugLog(`${hostFlag ? 'HOST' : 'VIEWER'} live:join emit channel=${ch} type=${type}`);
     updateLiveDebug({ channel: ch, role: hostFlag ? 'host' : 'viewer', socketConnected: liveSocket.connected });
 
@@ -1147,18 +1156,21 @@
             if (res?.ok) {
               roomState = res.state || { channel: ch, viewers: 1, hostName: displayName(user) };
               roomJoinCompleted = true;
+              const me = currentUser();
+              const serverIsHost =
+                Boolean(me?.id && roomState?.hostId && String(roomState.hostId) === String(me.id));
               lastJoinMeta = {
                 channel: ch,
                 type: type === 'live' ? 'live' : 'party',
                 displayName: displayName(user),
-                isHost: hostFlag,
+                isHost: serverIsHost,
               };
               persistJoinMeta(lastJoinMeta);
               startHeartbeat();
               updateLiveDebug({ roomJoined: true, socketConnected: true });
               auditChannel('socket', ch);
               auditChannel('db', res.state.channel || ch);
-              if (hostFlag) {
+              if (serverIsHost) {
                 forensicEvent('ROOM_CREATE_SUCCESS', {
                   channel: ch,
                   roomId: res.state.roomId,
@@ -1168,8 +1180,8 @@
               renderRoomState();
               applyRoleUiAfterJoin();
               setApLoaderStep(2);
-              setLiveStatus(hostFlag ? 'Setting up broadcast…' : 'Connecting to stream…', null);
-              if (hostFlag) {
+              setLiveStatus(serverIsHost ? 'Setting up broadcast…' : 'Connecting to stream…', null);
+              if (serverIsHost) {
                 syncLiveUiState();
                 const isPartyPage = document.body.dataset.livePage === 'party-room';
                 toast(
@@ -3973,20 +3985,70 @@
         `<div class="ap-modal-overlay align-bottom" id="apSeatSheet">
           <div class="ap-seat-sheet-panel">
             <div class="ap-seat-badge">👑</div>
-            <h3 id="apSeatTitle">Empty seat</h3>
-            <p style="font-size:12px;color:rgba(255,255,255,0.5);margin:0">Tap accept on join requests to fill this seat</p>
-            <div class="ap-seat-divider">Alternate member</div>
-            <p id="apSeatAlt" style="font-size:12px;color:rgba(255,255,255,0.35)">No alternate member…</p>
-            <button type="button" class="ap-seat-action" id="apSeatGuardianBtn">Open Guardian</button>
+            <h3 id="apSeatTitle">Crown seat</h3>
+            <p class="ap-seat-desc" id="apSeatDesc">Hosts assign speakers to crown seats. Tap a join request to approve a guest.</p>
+            <div class="ap-seat-steps">
+              <div class="ap-seat-step"><span>1</span> Guest requests mic</div>
+              <div class="ap-seat-step"><span>2</span> Host accepts request</div>
+              <div class="ap-seat-step"><span>3</span> Guest appears on seat</div>
+            </div>
+            <button type="button" class="ap-seat-action" id="apSeatCloseBtn">Got it</button>
           </div>
         </div>`
       );
       document.getElementById('apSeatSheet')?.addEventListener('click', (e) => {
         if (e.target.id === 'apSeatSheet') e.target.classList.remove('open');
       });
-      document.getElementById('apSeatGuardianBtn')?.addEventListener('click', () => {
+      document.getElementById('apSeatCloseBtn')?.addEventListener('click', () => {
         document.getElementById('apSeatSheet')?.classList.remove('open');
-        location.href = '/rankings.html?app=1';
+      });
+    }
+    if (!document.getElementById('apViewerOnboard')) {
+      document.body.insertAdjacentHTML(
+        'beforeend',
+        `<div class="ap-modal-overlay align-bottom" id="apViewerOnboard">
+          <div class="ap-seat-sheet-panel ap-viewer-onboard">
+            <div class="ap-onboard-steps" id="apOnboardSteps">
+              <div class="ap-onboard-step is-active" data-step="1">
+                <h3>Welcome to the party</h3>
+                <p>Listen in as a guest. You can chat, send gifts, and request a mic seat when ready.</p>
+              </div>
+              <div class="ap-onboard-step" data-step="2">
+                <h3>Request a mic</h3>
+                <p>Tap the mic button to ask the host to speak. The host approves join requests — you are never auto-assigned as host.</p>
+              </div>
+              <div class="ap-onboard-step" data-step="3">
+                <h3>Guardian rankings</h3>
+                <p>Rankings show verified supporters. Verified badges mean the user completed identity checks on AP Services.</p>
+                <a href="/vip.html?tab=guardian&app=1" class="ap-seat-action" style="display:inline-flex;margin-top:10px;text-decoration:none">View Guardian rankings</a>
+              </div>
+            </div>
+            <div class="ap-onboard-dots" id="apOnboardDots"><span class="active"></span><span></span><span></span></div>
+            <button type="button" class="ap-seat-action" id="apOnboardNext">Next</button>
+          </div>
+        </div>`
+      );
+      let onboardStep = 1;
+      document.getElementById('apOnboardNext')?.addEventListener('click', () => {
+        if (onboardStep < 3) {
+          onboardStep += 1;
+          document.querySelectorAll('#apOnboardSteps .ap-onboard-step').forEach((el) => {
+            el.classList.toggle('is-active', Number(el.dataset.step) === onboardStep);
+          });
+          document.querySelectorAll('#apOnboardDots span').forEach((dot, i) => {
+            dot.classList.toggle('active', i + 1 === onboardStep);
+          });
+          const btn = document.getElementById('apOnboardNext');
+          if (btn && onboardStep === 3) btn.textContent = 'Start listening';
+          return;
+        }
+        document.getElementById('apViewerOnboard')?.classList.remove('open');
+        try {
+          sessionStorage.setItem('ap_party_welcome_' + channelId(), '1');
+        } catch (_e) {}
+      });
+      document.getElementById('apViewerOnboard')?.addEventListener('click', (e) => {
+        if (e.target.id === 'apViewerOnboard') e.target.classList.remove('open');
       });
     }
     if (!document.getElementById('apProfileSheet')) {
@@ -4062,7 +4124,58 @@
           toast('Message unavailable for this user', 'warning');
         }
       });
+      document.getElementById('apProfileAddFriend')?.addEventListener('click', () => {
+        const sheet = document.getElementById('apProfileSheet');
+        const name = document.getElementById('apProfileName')?.textContent || '';
+        const uid = sheet?.dataset?.userId || '';
+        if (uid && window.SocialInteractions?.toggleFollow) {
+          SocialInteractions.toggleFollow(uid, name);
+          toast('Following ' + name, 'success');
+        } else {
+          toast('Follow unavailable for this user', 'warning');
+        }
+      });
+      document.getElementById('apProfileMention')?.addEventListener('click', () => {
+        const name = document.getElementById('apProfileName')?.textContent || 'user';
+        document.getElementById('apProfileSheet')?.classList.remove('open');
+        const inp = document.getElementById('chatInput') || document.querySelector('.party-chat-input input');
+        if (inp) {
+          inp.value = (inp.value ? inp.value + ' ' : '') + '@' + name.replace(/\s+/g, '') + ' ';
+          inp.focus();
+        } else {
+          toast('Mention copied — paste in chat', 'info');
+          if (navigator.clipboard) navigator.clipboard.writeText('@' + name.replace(/\s+/g, '')).catch(() => {});
+        }
+      });
+      document.getElementById('apProfileMore')?.addEventListener('click', () => {
+        const sheet = document.getElementById('apProfileSheet');
+        const uid = sheet?.dataset?.userId || '';
+        const name = document.getElementById('apProfileName')?.textContent || 'User';
+        if (!uid) {
+          toast('More actions unavailable', 'warning');
+          return;
+        }
+        const action = window.confirm('Report this user for inappropriate behavior?');
+        if (action) toast('Report submitted — our team will review', 'success');
+      });
     }
+  }
+
+  function maybeShowViewerOnboarding() {
+    if (isHost() || !isPartyRoomPage() || !roomJoinCompleted) return;
+    const key = 'ap_party_welcome_' + channelId();
+    try {
+      if (sessionStorage.getItem(key) === '1') return;
+    } catch (_e) {}
+    document.getElementById('apViewerOnboard')?.classList.add('open');
+  }
+
+  function bindScreenCaptureProtection() {
+    if (!window.ReactNativeWebView) return;
+    const enable = isLiveRoomPage() || isPartyRoomPage();
+    try {
+      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'screen_capture', enable }));
+    } catch (_e) {}
   }
 
   function openRulesModal() {
@@ -4089,7 +4202,13 @@
 
   function openSeatSheet(seatNum) {
     const title = document.getElementById('apSeatTitle');
-    if (title) title.textContent = seatNum ? `Seat ${seatNum} · Empty` : 'Empty seat';
+    const desc = document.getElementById('apSeatDesc');
+    if (title) title.textContent = seatNum ? `Crown seat ${seatNum}` : 'Crown seat';
+    if (desc) {
+      desc.textContent = isHost()
+        ? 'Approve a join request to assign this crown seat to a guest speaker.'
+        : 'This seat is for approved speakers. Request the mic and wait for the host to accept.';
+    }
     document.getElementById('apSeatSheet')?.classList.add('open');
   }
 
@@ -4268,6 +4387,8 @@
     }
     postWelcomeMessage();
     maybeShowPartyRules();
+    maybeShowViewerOnboarding();
+    bindScreenCaptureProtection();
 
     if (!window.__apPartyRoomUnloadBound) {
       window.__apPartyRoomUnloadBound = true;
@@ -4282,7 +4403,7 @@
     if (!liveSocket?.connected) return connectSocket(type);
     const user = currentUser();
     const ch = channelId();
-    const hostFlag = isHost();
+    const hostFlag = lastJoinMeta?.isHost || clientClaimsHost();
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error('Room join timeout')), 15000);
       liveSocket.emit(
@@ -4298,11 +4419,14 @@
           if (res?.ok) {
             roomState = res.state || { channel: ch, viewers: 1 };
             roomJoinCompleted = true;
+            const me = currentUser();
+            const serverIsHost =
+              Boolean(me?.id && roomState?.hostId && String(roomState.hostId) === String(me.id));
             lastJoinMeta = {
               channel: ch,
               type: type === 'live' ? 'live' : 'party',
               displayName: displayName(user),
-              isHost: hostFlag,
+              isHost: serverIsHost,
             };
             persistJoinMeta(lastJoinMeta);
             startHeartbeat();
@@ -4572,6 +4696,7 @@
     }
     applyRoleUiAfterJoin();
     postWelcomeMessage();
+    bindScreenCaptureProtection();
 
     window.addEventListener('beforeunload', () => {
       stopAgora({ skipEndRoom: true });
@@ -4614,6 +4739,26 @@
   }
 
   function initLuckyGifts() {
+    const params = new URLSearchParams(location.search);
+    const isMissions = params.get('tab') === 'missions';
+    const rankSection = document.querySelector('.lucky-board');
+    const rankFooter = document.querySelector('.lucky-footer');
+    const subTabs = document.querySelector('.lucky-sub-tabs');
+    const slider = document.querySelector('.lucky-gift-slider');
+    document.querySelectorAll('.lucky-main-tabs a').forEach((a) => {
+      a.classList.toggle('active', isMissions ? a.href.includes('missions') : !a.href.includes('missions'));
+    });
+    if (isMissions) {
+      if (rankSection) rankSection.style.display = 'none';
+      if (rankFooter) rankFooter.style.display = 'none';
+      if (subTabs) subTabs.style.display = 'none';
+      if (slider) {
+        slider.innerHTML =
+          '<div style="padding:20px 16px;color:#6b4f10"><h3 style="margin:0 0 10px">Daily missions</h3><ul style="margin:0;padding-left:18px;line-height:1.6;font-size:14px"><li>Send 3 lucky gifts in any live room</li><li>Watch a party for 10 minutes</li><li>Share a live stream with a friend</li></ul><p style="margin:14px 0 0;font-size:12px;color:#78350f">Complete missions during the event window to earn bonus coins.</p></div>';
+      }
+      return;
+    }
+
     const track = document.getElementById('luckyGiftTrack');
     const slides = [
       { title: 'Dream Ship 300%', icons: '🚢 💎 🌟' },
@@ -4673,6 +4818,12 @@
       const s = sec % 60;
       if (timerEl) timerEl.textContent = [h, m, s].map((n) => String(n).padStart(2, '0')).join(' : ');
     }, 1000);
+
+    document.getElementById('luckyRulesBtn')?.addEventListener('click', () => {
+      window.alert(
+        'Lucky Gifts Party rules:\n\n• Gifts sent during the event count toward rankings.\n• Rewards are distributed after each ranking period ends.\n• Verified accounts only — misuse may result in disqualification.\n• AP Services moderators review all claims.'
+      );
+    });
   }
 
   function initCoinsRecharge() {

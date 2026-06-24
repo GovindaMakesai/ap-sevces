@@ -36,6 +36,9 @@ async function ensureChatSchema() {
                 ALTER TABLE conversations
                 ADD COLUMN IF NOT EXISTS user_high_last_read_at TIMESTAMP
             `);
+            await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS gender VARCHAR(16)`);
+            await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS identity_verified_at TIMESTAMP`);
+            await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS face_verified_at TIMESTAMP`);
             return;
         }
 
