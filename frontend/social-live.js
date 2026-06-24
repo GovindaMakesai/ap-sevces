@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260622-live-fixes';
+  window.__AP_LIVE_BUILD = '20260624-live-fixes';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -144,6 +144,13 @@
   let cameraFacing = 'user';
   let videoFilterId = 'none';
   let guestPublishInProgress = false;
+  let guestPublishAttempted = false;
+  let hostEndingIntentionally = false;
+  let agoraModeSwitchInProgress = false;
+  let renderRoomStateTimer = null;
+  let mediaResumeBound = false;
+  let cachedWsToken = null;
+  let cachedWsTokenAt = 0;
 
   const VIDEO_FILTERS = {
     none: { label: 'Original', css: '' },
@@ -168,6 +175,74 @@
       clearInterval(heartbeatTimer);
       heartbeatTimer = null;
     }
+  }
+
+  function persistJoinMeta(meta) {
+    if (!meta?.channel) return;
+    try {
+      sessionStorage.setItem('ap_live_join_meta', JSON.stringify(meta));
+    } catch (_e) {}
+  }
+
+  function restoreJoinMeta() {
+    try {
+      const raw = sessionStorage.getItem('ap_live_join_meta');
+      if (!raw) return null;
+      const meta = JSON.parse(raw);
+      if (meta?.channel && (qs('channel') || qs('room'))) return meta;
+    } catch (_e) {}
+    return null;
+  }
+
+  function viewerShareUrl() {
+    const params = new URLSearchParams(location.search);
+    params.delete('host');
+    if (!params.get('channel') && !params.get('room')) {
+      params.set('channel', channelId());
+    }
+    return `${location.origin}${location.pathname}?${params.toString()}`;
+  }
+
+  async function resumeMediaAfterForeground() {
+    if (document.visibilityState !== 'visible') return;
+    if (lastJoinMeta?.isHost) {
+      await resumeHostBroadcastIfNeeded();
+      return;
+    }
+    if (!agoraClient || !liveDebugState.agoraJoined) {
+      try {
+        const page = document.body.dataset.livePage;
+        await startAgora(page === 'party-room' ? 'party' : 'live');
+      } catch (_e) {}
+      return;
+    }
+    remoteUsers.forEach((user) => {
+      if (user.audioTrack && soundOn) {
+        try {
+          user.audioTrack.play();
+        } catch (_e) {}
+      }
+    });
+    syncLiveUiState();
+  }
+
+  function bindMediaResumeOnVisibility() {
+    if (mediaResumeBound) return;
+    mediaResumeBound = true;
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') resumeMediaAfterForeground();
+    });
+    window.addEventListener('pageshow', (e) => {
+      if (e.persisted) resumeMediaAfterForeground();
+    });
+    document.addEventListener('ap-session-restored', () => {
+      resolveSocketAuthToken().then((token) => {
+        if (token && liveSocket) {
+          liveSocket.auth = { token };
+          if (!liveSocket.connected) liveSocket.connect();
+        }
+      });
+    });
   }
 
   async function resumeHostBroadcastIfNeeded() {
@@ -762,15 +837,29 @@
   }
 
   async function resolveSocketAuthToken() {
+    const now = Date.now();
+    if (cachedWsToken && now - cachedWsTokenAt < 4 * 60 * 1000) {
+      const usable = !window.Auth?.isAccessTokenUsable || Auth.isAccessTokenUsable(cachedWsToken);
+      if (usable) return cachedWsToken;
+      cachedWsToken = null;
+    }
     if (window.Auth?.ensureAccessToken) {
       const token = await Auth.ensureAccessToken();
-      if (token && (!Auth.isAccessTokenUsable || Auth.isAccessTokenUsable(token))) return token;
+      if (token && (!Auth.isAccessTokenUsable || Auth.isAccessTokenUsable(token))) {
+        cachedWsToken = token;
+        cachedWsTokenAt = now;
+        return token;
+      }
       if (token) localStorage.removeItem('token');
     }
     let token = localStorage.getItem('token');
     if (token) {
       const usable = !window.Auth?.isAccessTokenUsable || Auth.isAccessTokenUsable(token);
-      if (usable) return token;
+      if (usable) {
+        cachedWsToken = token;
+        cachedWsTokenAt = now;
+        return token;
+      }
       localStorage.removeItem('token');
       token = null;
     }
@@ -805,10 +894,18 @@
       const rt = localStorage.getItem('ap_refresh_token');
       if (rt) refreshBody.refreshToken = rt;
       const refreshed = await tryFetch('/auth/refresh', { method: 'POST' }, refreshBody);
-      if (refreshed) return refreshed;
+      if (refreshed) {
+        cachedWsToken = refreshed;
+        cachedWsTokenAt = Date.now();
+        return refreshed;
+      }
 
       const wsToken = await tryFetch('/auth/ws-token', { method: 'GET' });
-      if (wsToken) return wsToken;
+      if (wsToken) {
+        cachedWsToken = wsToken;
+        cachedWsTokenAt = Date.now();
+        return wsToken;
+      }
     } catch (_e) {
       /* fall through */
     }
@@ -898,7 +995,7 @@
       } else if (!/invalid token/i.test(msg)) {
         toast(`Socket error: ${msg}`, 'error');
       }
-      updateLiveDebug({ socketConnected: false, roomJoined: false });
+      updateLiveDebug({ socketConnected: false, roomJoined: roomJoinCompleted });
       refreshViewerDiagnostics();
     });
 
@@ -910,7 +1007,11 @@
       if (state?.viewers != null && state.viewers !== prevViewers) {
         window.SocialFX?.onViewerCountChange?.(state.viewers, prevViewers);
       }
-      renderRoomState();
+      if (renderRoomStateTimer) clearTimeout(renderRoomStateTimer);
+      renderRoomStateTimer = setTimeout(() => {
+        renderRoomStateTimer = null;
+        renderRoomState();
+      }, 80);
     });
 
     liveSocket.on('live:chat', (msg) => {
@@ -1052,6 +1153,7 @@
                 displayName: displayName(user),
                 isHost: hostFlag,
               };
+              persistJoinMeta(lastJoinMeta);
               startHeartbeat();
               updateLiveDebug({ roomJoined: true, socketConnected: true });
               auditChannel('socket', ch);
@@ -1065,7 +1167,8 @@
               }
               renderRoomState();
               applyRoleUiAfterJoin();
-              hideApLoader();
+              setApLoaderStep(2);
+              setLiveStatus(hostFlag ? 'Setting up broadcast…' : 'Connecting to stream…', null);
               if (hostFlag) {
                 syncLiveUiState();
                 const isPartyPage = document.body.dataset.livePage === 'party-room';
@@ -1106,6 +1209,20 @@
     });
   }
 
+  function leaveRoomOnly() {
+    stopHeartbeat();
+    if (hostEndedRecoverTimer) {
+      clearTimeout(hostEndedRecoverTimer);
+      hostEndedRecoverTimer = null;
+    }
+    roomJoinCompleted = false;
+    if (liveSocket?.connected) {
+      liveSocket.emit('live:leave');
+    }
+    publishSucceeded = false;
+    updateLiveDebug({ roomJoined: false, publishSucceeded: false });
+  }
+
   function leaveSocket() {
     stopHeartbeat();
     if (hostEndedRecoverTimer) {
@@ -1118,9 +1235,12 @@
     }
     roomJoinCompleted = false;
     lastJoinMeta = null;
+    try {
+      sessionStorage.removeItem('ap_live_join_meta');
+    } catch (_e) {}
     if (liveSocket) {
       socketLeaveIntentional = true;
-      if (isHost()) {
+      if (isHost() && hostEndingIntentionally) {
         liveSocket.emit('live:end', { channel: channelId() });
       }
       liveSocket.emit('live:leave');
@@ -1129,6 +1249,7 @@
       socketLeaveIntentional = false;
     }
     publishSucceeded = false;
+    hostEndingIntentionally = false;
     updateLiveDebug({ socketConnected: false, roomJoined: false, publishSucceeded: false });
   }
 
@@ -1221,15 +1342,19 @@
     return data;
   }
 
-  function showApLoader(text) {
-    if (roomJoinCompleted) {
-      if (text) setLiveStatus(text, null);
-      hideApLoader();
-      return;
-    }
+  function setApLoaderStep(step) {
+    const steps = document.querySelectorAll('.ap-live-loader-step');
+    steps.forEach((el, i) => {
+      el.classList.toggle('is-done', i < step);
+      el.classList.toggle('is-active', i === step);
+    });
+  }
+
+  function showApLoader(text, step) {
     const loader = document.getElementById('apLiveLoader');
     const txt = document.getElementById('apLiveLoaderText');
     if (txt && text) txt.textContent = text;
+    if (typeof step === 'number') setApLoaderStep(step);
     if (loader) loader.classList.remove('is-hidden');
   }
 
@@ -1317,19 +1442,18 @@
     const loaderTxt = document.getElementById('apLiveLoaderText');
     if (loaderTxt && text) loaderTxt.textContent = text;
     if (ok === true) {
+      setApLoaderStep(3);
       hideApLoader();
     } else if (ok === false) {
       hideApLoader();
       if (text) toast(text, 'error');
-    } else if (roomJoinCompleted) {
-      // Room UI is ready — don't block with full-screen loader for status updates.
-      hideApLoader();
-    } else if (text) {
+    } else if (text && !isActuallyLive()) {
       showApLoader(text);
     }
   }
 
   function onRoomReady() {
+    setApLoaderStep(3);
     hideApLoader();
     syncLiveUiState();
   }
@@ -1350,7 +1474,7 @@
       publishSucceeded: false,
       agoraJoined: false,
     });
-    showApLoader(host ? 'Starting your broadcast…' : 'Connecting to live…');
+    showApLoader(host ? 'Starting your broadcast…' : 'Connecting to live…', 2);
     setLiveStatus(host ? 'Starting camera & mic…' : 'Connecting to live…', null);
     updateModeBadge(broadcastMode, false);
 
@@ -1566,9 +1690,16 @@
   }
 
   async function restartAgoraForMode() {
-    await stopAgora();
-    const page = document.body.dataset.livePage;
-    await startAgora(page === 'party-room' ? 'party' : 'live');
+    if (agoraModeSwitchInProgress) return;
+    agoraModeSwitchInProgress = true;
+    try {
+      await stopAgora({ skipEndRoom: true });
+      const page = document.body.dataset.livePage;
+      await startAgora(page === 'party-room' ? 'party' : 'live');
+      syncLiveUiState();
+    } finally {
+      agoraModeSwitchInProgress = false;
+    }
   }
 
   async function startLocalMicOnly() {
@@ -1583,7 +1714,8 @@
   }
 
   async function publishGuestAudio() {
-    if (!hasSpeakerSeat || isHost()) return;
+    if (!hasSpeakerSeat || isHost() || guestPublishAttempted) return;
+    if (localTracks.length) return;
     const user = currentUser();
     if (!user?.id) {
       toast('Sign in again to use the mic', 'error');
@@ -1591,44 +1723,43 @@
     }
     if (guestPublishInProgress) return;
     guestPublishInProgress = true;
+    guestPublishAttempted = true;
     const ch = channelId();
     try {
       const cred = await fetchAgoraToken(ch, true);
       if (!cred?.appId || !cred?.token) {
         toast(cred?.message || 'Could not authorize mic', 'error');
+        guestPublishAttempted = false;
         return;
       }
 
       const AgoraRTC = await loadAgoraScript();
 
-      if (window.__apLocalStream) {
-        window.__apLocalStream.getTracks().forEach((t) => t.stop());
-        window.__apLocalStream = null;
-      }
-      for (const t of localTracks) {
-        try {
-          await agoraClient?.unpublish(t);
-          t.stop?.();
-          t.close?.();
-        } catch (_e) {}
-      }
-      localTracks = [];
-
       if (!agoraClient) {
         agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
+        agoraClient.on('user-published', async (remoteUser, mediaType) => {
+          await playRemoteMedia(remoteUser, mediaType);
+        });
+        agoraClient.on('user-unpublished', (remoteUser) => {
+          remoteUsers.delete(remoteUser.uid);
+          updateLiveDebug({ remoteUsersCount: remoteUsers.size });
+          syncLiveUiState();
+        });
       }
-      try {
-        await agoraClient.leave();
-      } catch (_e) {}
 
       const agoraChannel = cred.channel || ch;
       const uid = cred.uid != null ? cred.uid : null;
-      await agoraClient.join(cred.appId, agoraChannel, cred.token, uid);
-      liveDebugLog(`Guest rejoined Agora as publisher channel=${agoraChannel}`);
-
-      const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
-      localTracks = [audioTrack];
-      await agoraClient.publish(audioTrack);
+      if (liveDebugState.agoraJoined) {
+        const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+        localTracks = [audioTrack];
+        await agoraClient.publish(audioTrack);
+      } else {
+        await agoraClient.join(cred.appId, agoraChannel, cred.token, uid);
+        updateLiveDebug({ agoraJoined: true });
+        const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+        localTracks = [audioTrack];
+        await agoraClient.publish(audioTrack);
+      }
       publishSucceeded = true;
       micMuted = false;
       liveDebugLog('Publish OK guest audio');
@@ -1639,6 +1770,7 @@
     } catch (e) {
       const msg = e?.message || String(e);
       liveDebugLog(`Guest publish FAILED: ${msg}`);
+      guestPublishAttempted = false;
       toast(`Mic publish failed: ${msg}`, 'error');
     } finally {
       guestPublishInProgress = false;
@@ -1872,11 +2004,12 @@
     toast(micMuted ? 'Microphone off' : 'Microphone on');
   }
 
-  async function stopAgora() {
-    if (isHost() && publishSucceeded) {
+  async function stopAgora(opts = {}) {
+    if (isHost() && publishSucceeded && !opts.skipEndRoom && !hostEndingIntentionally) {
       endHostRoom('agora_stopped');
     }
     publishSucceeded = false;
+    setLiveStreamVisible(false);
     for (const t of localTracks) {
       try {
         t.stop?.();
@@ -1980,9 +2113,7 @@
     const g = items[selectedGiftIdx] || items[0];
     const banner = document.getElementById('giftRtpBanner');
     if (banner && g) {
-      const hostPct = 96;
-      const earnPct = 4;
-      banner.innerHTML = `<span>【${escapeHtml(g.name)}】RTP: ${hostPct}%. By gifting, host receives ${earnPct}% · ${Number(g.cost).toLocaleString()} coins each</span>`;
+      banner.innerHTML = `<span>【${escapeHtml(g.name)}】Creators receive <strong>90%</strong> · Platform 10% · ${Number(g.cost).toLocaleString()} coins each</span>`;
     }
     const me = currentUser();
     const bal = lastCoinBalance != null ? lastCoinBalance : 0;
@@ -2309,7 +2440,7 @@
     if (meId && roomState?.seats?.some((s) => String(s.userId) === meId && !s.isHost)) {
       const wasSpeaker = hasSpeakerSeat;
       hasSpeakerSeat = true;
-      if (!wasSpeaker && !isHost() && !localTracks.length && !guestPublishInProgress) {
+      if (!wasSpeaker && !isHost() && !localTracks.length && !guestPublishInProgress && !guestPublishAttempted) {
         publishGuestAudio();
       }
     }
@@ -2688,13 +2819,40 @@
     }
   }
 
+  function navigateToUserProfile(userId, name) {
+    const n = encodeURIComponent(name || 'User');
+    if (userId) {
+      location.href = `/creator-profile.html?userId=${encodeURIComponent(userId)}&name=${n}&app=1`;
+      return;
+    }
+    location.href = `/creator-profile.html?name=${n}&app=1`;
+  }
+
   function bindRoomAvatars() {
     window.SocialUI?.bindAvatarFallbacks?.(document.body);
     const user = currentUser();
     const hostName = roomState?.hostName || displayName(user);
+    const hostId = roomState?.hostId ? String(roomState.hostId) : '';
     document.querySelectorAll('#partyHostAvatar, #liveHostAvatar, .ap-top-gifter img').forEach((img) => {
       if (!img.getAttribute('src')) img.src = avatarUrl(hostName);
       img.dataset.name = hostName;
+      if ((img.id === 'partyHostAvatar' || img.id === 'liveHostAvatar') && !img.dataset.profileBound) {
+        img.dataset.profileBound = '1';
+        img.style.cursor = 'pointer';
+        img.addEventListener('click', () => {
+          if (hostId && !isHost()) navigateToUserProfile(hostId, hostName);
+          else openProfileSheet(hostName);
+        });
+      }
+    });
+    document.querySelectorAll('#partyHostName, #liveHostName').forEach((el) => {
+      if (el.dataset.profileBound) return;
+      el.dataset.profileBound = '1';
+      el.style.cursor = 'pointer';
+      el.addEventListener('click', () => {
+        if (hostId && !isHost()) navigateToUserProfile(hostId, hostName);
+        else openProfileSheet(hostName);
+      });
     });
   }
 
@@ -2954,8 +3112,19 @@
       setLiveStreamVisible(true);
     }
     if (mediaType === 'audio') {
-      if (soundOn) user.audioTrack?.play();
-      else user.audioTrack?.stop();
+      if (soundOn && user.audioTrack) {
+        try {
+          user.audioTrack.play();
+        } catch (_e) {
+          setTimeout(() => {
+            try {
+              user.audioTrack?.play();
+            } catch (_e2) {}
+          }, 300);
+        }
+      } else {
+        user.audioTrack?.stop();
+      }
     }
     remoteUsers.set(user.uid, user);
     updateLiveDebug({ remoteUsersCount: remoteUsers.size });
@@ -3152,31 +3321,120 @@
   }
 
   async function shareRoomLink() {
-    const hostName = roomState?.hostName || 'Host';
+    openInAppShareSheet();
+  }
+
+  function ensureInAppShareSheet() {
+    if (document.getElementById('apInAppShareSheet')) return;
+    document.body.insertAdjacentHTML(
+      'beforeend',
+      `<div class="ap-modal-overlay align-bottom" id="apInAppShareSheet">
+        <div class="ap-profile-sheet-panel ap-share-sheet-panel">
+          <h3 class="ap-share-sheet-title">Invite to room</h3>
+          <p class="ap-share-sheet-sub">Pick someone you follow — they'll get a chat invite with your room link</p>
+          <div class="ap-share-user-list" id="apShareUserList"></div>
+          <div class="ap-share-actions">
+            <button type="button" class="ap-share-link-btn" id="apShareCopyLink"><i class="fas fa-link"></i> Copy link</button>
+            <button type="button" class="ap-share-cancel" id="apShareCancel">Close</button>
+          </div>
+        </div>
+      </div>`
+    );
+    document.getElementById('apInAppShareSheet')?.addEventListener('click', (e) => {
+      if (e.target.id === 'apInAppShareSheet') e.target.classList.remove('open');
+    });
+    document.getElementById('apShareCancel')?.addEventListener('click', () => {
+      document.getElementById('apInAppShareSheet')?.classList.remove('open');
+    });
+    document.getElementById('apShareCopyLink')?.addEventListener('click', async () => {
+      const url = viewerShareUrl();
+      try {
+        if (window.SocialUI?.shareLink) {
+          await SocialUI.shareLink({ title: 'Join my live', url });
+        } else if (navigator.share) {
+          await navigator.share({ title: 'Join my live', url });
+        } else {
+          await navigator.clipboard.writeText(url);
+          toast('Link copied', 'success');
+        }
+      } catch (e) {
+        if (e?.name !== 'AbortError') toast('Could not share link', 'error');
+      }
+    });
+  }
+
+  async function openInAppShareSheet() {
+    ensureInAppShareSheet();
+    const sheet = document.getElementById('apInAppShareSheet');
+    const list = document.getElementById('apShareUserList');
+    if (!sheet || !list) return;
+    list.innerHTML = '<p class="ap-share-loading"><span class="ap-share-skeleton"></span> Loading friends…</p>';
+    sheet.classList.add('open');
+
+    const hostName = roomState?.hostName || displayName(currentUser()) || 'Host';
     const page = document.body.dataset.livePage === 'party-room' ? 'party' : 'live';
-    const url = location.href.split('#')[0];
-    if (window.SocialUI?.shareLink) {
-      await SocialUI.shareLink({
-        title: `${hostName} is live on AP Services`,
-        text: `Join my ${page} on AP Services`,
-        url,
-      });
+    const url = viewerShareUrl();
+    const inviteText = `${hostName} invited you to a ${page} room on AP Services: ${url}`;
+
+    let users = [];
+    try {
+      if (window.SocialInteractions?.getFollowEntries) {
+        users = SocialInteractions.getFollowEntries();
+      }
+      if ((!users.length || users.length < 2) && window.API && localStorage.getItem('user')) {
+        if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken();
+        const res = await API.get('/social/following?limit=50');
+        const rows = Array.isArray(res?.data) ? res.data : [];
+        users = rows.map((u) => ({
+          id: String(u.id),
+          name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'User',
+        }));
+      }
+    } catch (_e) {
+      users = [];
+    }
+
+    if (!users.length) {
+      list.innerHTML =
+        '<p class="ap-share-empty">Follow people first to invite them here, or copy the room link below.</p>';
       return;
     }
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: `${hostName} — AP Services`, url });
-        return;
-      } catch (e) {
-        if (e?.name === 'AbortError') return;
-      }
-    }
-    try {
-      await navigator.clipboard.writeText(url);
-      toast('Link copied', 'success');
-    } catch (_e) {
-      toast('Could not share link', 'error');
-    }
+
+    list.innerHTML = users
+      .map(
+        (u) => `
+      <button type="button" class="ap-share-user-row" data-share-user="${escapeHtml(String(u.id || ''))}" data-share-name="${escapeHtml(u.name || 'User')}">
+        <img src="${avatarUrl(u.name)}" alt="">
+        <span>${escapeHtml(u.name)}</span>
+        <span class="ap-share-status"><i class="fas fa-paper-plane"></i> Invite</span>
+      </button>`
+      )
+      .join('');
+
+    list.querySelectorAll('.ap-share-user-row').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const userId = btn.dataset.shareUser;
+        const name = btn.dataset.shareName || 'User';
+        const statusEl = btn.querySelector('.ap-share-status');
+        if (statusEl) {
+          statusEl.innerHTML = '<i class="fas fa-check"></i> Sent';
+          statusEl.classList.add('is-sent');
+        }
+        btn.disabled = true;
+        try {
+          localStorage.setItem(
+            'ap_share_pending',
+            JSON.stringify({ userId, name, text: inviteText, at: Date.now() })
+          );
+        } catch (_e) {}
+        toast(`Invite sent to ${name}`, 'success');
+        if (userId) {
+          setTimeout(() => {
+            location.href = `/chat.html?id=${encodeURIComponent(userId)}&app=1`;
+          }, 800);
+        }
+      });
+    });
   }
 
   function renderGiftRecipients(activeName) {
@@ -3648,7 +3906,7 @@
 
   async function exitRoom() {
     hideApLoader();
-    await stopAgora();
+    await stopAgora({ skipEndRoom: hostEndingIntentionally });
     leaveSocket();
     if (window.SocialNav?.goBack?.({ allowHistory: true })) return;
     if (history.length > 1) history.back();
@@ -3664,17 +3922,20 @@
     const page = document.body.dataset.livePage === 'party-room' ? 'party' : 'live';
     const ok = window.confirm(`End this ${page} for everyone now?`);
     if (!ok) return;
+    hostEndingIntentionally = true;
     if (liveSocket?.connected) {
-      await new Promise((resolve) => {
+      const ended = await new Promise((resolve) => {
         liveSocket.emit('live:end', { channel: channelId() }, (res) => {
           if (!res?.ok) {
             toast(res?.message || `Could not end ${page}`, 'error');
+            hostEndingIntentionally = false;
             resolve(false);
             return;
           }
           resolve(true);
         });
       });
+      if (!ended) return;
     }
     await exitRoom();
   }
@@ -3790,6 +4051,17 @@
         const id = document.getElementById('apProfileId')?.textContent?.replace('ID:', '').trim();
         if (id && navigator.clipboard) navigator.clipboard.writeText(id).catch(() => {});
       });
+      document.getElementById('apProfileMessage')?.addEventListener('click', () => {
+        const sheet = document.getElementById('apProfileSheet');
+        const profileName = document.getElementById('apProfileName')?.textContent || '';
+        const profileUserId = sheet?.dataset?.userId || '';
+        sheet?.classList.remove('open');
+        if (profileUserId) {
+          location.href = `/chat.html?id=${encodeURIComponent(profileUserId)}&app=1`;
+        } else {
+          toast('Message unavailable for this user', 'warning');
+        }
+      });
     }
   }
 
@@ -3821,15 +4093,20 @@
     document.getElementById('apSeatSheet')?.classList.add('open');
   }
 
-  function openProfileSheet(name) {
+  function openProfileSheet(name, userId) {
     const n = name || 'User';
+    const sheet = document.getElementById('apProfileSheet');
+    const resolvedId = userId || (n === roomState?.hostName ? roomState?.hostId : null) ||
+      (roomState?.seats || []).find((s) => s.name === n)?.userId || '';
+    if (sheet && resolvedId) sheet.dataset.userId = String(resolvedId);
+    else if (sheet) delete sheet.dataset.userId;
     const img = document.getElementById('apProfileAvatar');
     const nm = document.getElementById('apProfileName');
     const idEl = document.getElementById('apProfileId');
     const lvl = document.getElementById('apProfileLvl');
     if (img) img.src = avatarUrl(n);
     if (nm) nm.textContent = n;
-    const idNum = String(n).split('').reduce((a, c) => a + c.charCodeAt(0), 0).toString().slice(0, 8);
+    const idNum = resolvedId ? String(resolvedId).slice(0, 12) : String(n).split('').reduce((a, c) => a + c.charCodeAt(0), 0).toString().slice(0, 8);
     if (idEl) {
       idEl.innerHTML = `ID: ${idNum} <button type="button" id="apProfileCopyId" aria-label="Copy ID"><i class="far fa-copy"></i></button>`;
       document.getElementById('apProfileCopyId')?.addEventListener('click', () => {
@@ -3933,6 +4210,7 @@
   async function initPartyRoom() {
     if (partyRoomInitStarted) return;
     partyRoomInitStarted = true;
+    bindMediaResumeOnVisibility();
     injectModals();
     injectGiftSheet();
     bindGiftSheet();
@@ -3945,17 +4223,29 @@
     }
     initForensicLog();
     ensureHostChannelInUrl();
+    const restored = restoreJoinMeta();
+    if (restored && !lastJoinMeta) lastJoinMeta = restored;
 
     bindCommonControls('party');
     bindHostControls('party');
+    setApLoaderStep(1);
     setLiveStatus('Joining room…', null);
+    const joinGuard = setTimeout(() => {
+      if (!roomJoinCompleted) {
+        hideApLoader();
+        setLiveStatus('Connection timed out — reload and try again', false);
+      }
+    }, 28000);
     try {
       await connectSocket('party');
     } catch (e) {
       console.error('[live] party room join failed', e);
       partyRoomInitStarted = false;
+      hideApLoader();
       setLiveStatus(e?.message || 'Could not connect to party room', false);
       return;
+    } finally {
+      clearTimeout(joinGuard);
     }
     applyRoleUiAfterJoin();
     if (!roomJoinCompleted) {
@@ -3982,16 +4272,76 @@
     if (!window.__apPartyRoomUnloadBound) {
       window.__apPartyRoomUnloadBound = true;
       window.addEventListener('pagehide', () => {
-        stopAgora();
+        stopAgora({ skipEndRoom: true });
         leaveSocket();
       });
     }
   }
 
+  async function rejoinRoomOnSocket(type) {
+    if (!liveSocket?.connected) return connectSocket(type);
+    const user = currentUser();
+    const ch = channelId();
+    const hostFlag = isHost();
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('Room join timeout')), 15000);
+      liveSocket.emit(
+        'live:join',
+        {
+          channel: ch,
+          type: type === 'live' ? 'live' : 'party',
+          displayName: displayName(user),
+          isHost: hostFlag,
+        },
+        (res) => {
+          clearTimeout(timer);
+          if (res?.ok) {
+            roomState = res.state || { channel: ch, viewers: 1 };
+            roomJoinCompleted = true;
+            lastJoinMeta = {
+              channel: ch,
+              type: type === 'live' ? 'live' : 'party',
+              displayName: displayName(user),
+              isHost: hostFlag,
+            };
+            persistJoinMeta(lastJoinMeta);
+            startHeartbeat();
+            renderRoomState();
+            resolve();
+          } else {
+            reject(new Error(res?.message || 'live:join failed'));
+          }
+        }
+      );
+    });
+  }
+
+  let feedRoomsCache = null;
+  let feedRoomsCacheAt = 0;
+
   async function fetchLiveFeedItems() {
     const startChannel = (qs('channel') || qs('room') || '')
       .replace(/[^a-zA-Z0-9_-]/g, '')
       .slice(0, 64);
+    const now = Date.now();
+    if (feedRoomsCache && now - feedRoomsCacheAt < 30000) {
+      const items = [...feedRoomsCache];
+      if (startChannel) {
+        const idx = items.findIndex((x) => x.channel === startChannel);
+        if (idx > 0) {
+          const [cur] = items.splice(idx, 1);
+          items.unshift(cur);
+        } else if (idx < 0) {
+          items.unshift({
+            channel: startChannel,
+            hostName: 'Live host',
+            viewers: 1,
+            mode: (qs('mode') || 'video').toLowerCase() === 'audio' ? 'audio' : 'video',
+          });
+        }
+      }
+      return items.slice(0, 24);
+    }
     let items = [];
     try {
       const res = await API.get('/live/rooms?type=live&limit=24');
@@ -4020,7 +4370,9 @@
         });
       }
     }
-    return items.slice(0, 24);
+    feedRoomsCache = items.slice(0, 24);
+    feedRoomsCacheAt = Date.now();
+    return feedRoomsCache;
   }
 
   async function switchToFeedRoom(index) {
@@ -4049,15 +4401,21 @@
 
     roomState = null;
     chatMessages = [];
+    guestPublishAttempted = false;
     setLiveStreamVisible(false);
+    setLiveStatus('Switching room…', null);
 
-    await stopAgora();
-    leaveSocket();
+    if (liveSocket?.connected) {
+      liveSocket.emit('live:leave');
+    }
+    roomJoinCompleted = false;
+    await stopAgora({ skipEndRoom: true });
     try {
-      await connectSocket('live');
+      await rejoinRoomOnSocket('live');
     } catch (e) {
       console.error('[live] feed room join failed', e);
       feedSwitching = false;
+      setLiveStatus(e?.message || 'Could not join room', false);
       return;
     }
     applyLiveBackground(broadcastMode === 'audio' ? 'audio' : 'live', item.hostName);
@@ -4132,12 +4490,13 @@
     await switchToFeedRoom(0);
 
     window.addEventListener('beforeunload', () => {
-      stopAgora();
+      stopAgora({ skipEndRoom: true });
       leaveSocket();
     });
   }
 
   async function initLiveRoom() {
+    bindMediaResumeOnVisibility();
     injectModals();
     injectGiftSheet();
     bindGiftSheet();
@@ -4157,10 +4516,13 @@
 
     initForensicLog();
     ensureHostChannelInUrl();
+    const restored = restoreJoinMeta();
+    if (restored && !lastJoinMeta) lastJoinMeta = restored;
     initBroadcastMode();
     bindCommonControls('live');
     bindHostControls('live');
     auditChannel('url', channelId());
+    setApLoaderStep(1);
     setLiveStatus('Joining room…', null);
     const joinGuard = setTimeout(() => {
       if (!roomJoinCompleted) {
@@ -4212,7 +4574,7 @@
     postWelcomeMessage();
 
     window.addEventListener('beforeunload', () => {
-      stopAgora();
+      stopAgora({ skipEndRoom: true });
       leaveSocket();
     });
   }

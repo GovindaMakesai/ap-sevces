@@ -1,7 +1,26 @@
 const db = require('../config/database');
 
-/** In-memory hot cache — DB is source of truth. TODO: Redis cache layer. */
+/** In-memory hot cache — DB is source of truth. */
 const roomCache = new Map();
+const ROOM_CACHE_TTL_MS = 5000;
+
+function cacheRoom(channel, row) {
+  if (channel && row) roomCache.set(channel, { row, at: Date.now() });
+}
+
+function getCachedRoom(channel) {
+  const hit = roomCache.get(channel);
+  if (!hit) return null;
+  if (Date.now() - hit.at > ROOM_CACHE_TTL_MS) {
+    roomCache.delete(channel);
+    return null;
+  }
+  return hit.row;
+}
+
+function invalidateRoomCache(channel) {
+  if (channel) roomCache.delete(channel);
+}
 
 function parsePayload(raw) {
   if (!raw) return {};
@@ -14,8 +33,12 @@ function parsePayload(raw) {
 }
 
 async function findByChannel(channel) {
+  const cached = getCachedRoom(channel);
+  if (cached) return cached;
   const res = await db.query(`SELECT * FROM live_rooms WHERE channel = $1 LIMIT 1`, [channel]);
-  return res.rows[0] || null;
+  const row = res.rows[0] || null;
+  if (row) cacheRoom(channel, row);
+  return row;
 }
 
 async function findById(id) {
@@ -58,7 +81,7 @@ async function hostRoom({ channel, roomType, hostUserId, hostDisplayName }) {
     );
 
     await client.query('COMMIT');
-    roomCache.set(channel, liveRoom);
+    cacheRoom(channel, liveRoom);
     return liveRoom;
   } catch (e) {
     await client.query('ROLLBACK');
@@ -109,7 +132,7 @@ async function joinRoom({ channel, userId, displayName, asHost = false }) {
 
     room = (await client.query(`SELECT * FROM live_rooms WHERE id = $1`, [room.id])).rows[0];
     await client.query('COMMIT');
-    roomCache.set(channel, room);
+    cacheRoom(channel, room);
     return room;
   } catch (e) {
     await client.query('ROLLBACK');
@@ -260,7 +283,7 @@ async function promoteToSpeaker({ channel, userId, displayName }) {
     [room.id, userId, JSON.stringify({ display_name: name })]
   );
 
-  roomCache.set(channel, room);
+  cacheRoom(channel, room);
   return room;
 }
 
@@ -367,7 +390,7 @@ async function pruneStaleMembers(staleSeconds = 90) {
   );
   for (const row of res.rows) {
     const updated = await leaveRoom({ channel: row.channel, userId: row.user_id });
-    if (updated) roomCache.set(row.channel, updated);
+    if (updated) cacheRoom(row.channel, updated);
   }
   return res.rows.length;
 }

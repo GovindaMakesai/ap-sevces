@@ -65,7 +65,6 @@ async function unreadCountForConversation(conversation, userId) {
         String(conversation.user_low) === uid
             ? conversation.user_low_last_read_at
             : conversation.user_high_last_read_at;
-    if (!lastRead) return 0;
     const r = await db.query(
         `SELECT COUNT(*)::int AS c FROM chat_messages
          WHERE conversation_id = $1 AND receiver_id = $2

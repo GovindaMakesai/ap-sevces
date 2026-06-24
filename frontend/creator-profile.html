@@ -4,19 +4,42 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#fdf9f0">
-  <title>Creator - AP Services</title>
+  <title>Profile - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-theme.css">
   <link rel="stylesheet" href="social-features.css">
+  <style>
+    .creator-hero { text-align: center; padding: 24px 16px 12px; }
+    .creator-avatar { width: 88px; height: 88px; border-radius: 50%; object-fit: cover; margin-bottom: 12px; border: 3px solid #fbbf24; }
+    .creator-actions { display: flex; gap: 10px; justify-content: center; margin-top: 14px; flex-wrap: wrap; }
+    .creator-follow-btn, .creator-chat-btn {
+      border: none; border-radius: 999px; padding: 10px 20px; font-weight: 700; cursor: pointer;
+    }
+    .creator-follow-btn { background: #fbbf24; color: #1a1000; }
+    .creator-follow-btn.is-on { background: #e5e7eb; color: #374151; }
+    .creator-chat-btn { background: #111827; color: #fff; }
+    .creator-earnings-note {
+      margin: 16px; padding: 12px 14px; border-radius: 12px; background: rgba(251, 191, 36, 0.12);
+      font-size: 13px; color: #78350f; text-align: center;
+    }
+    .profile-loading .creator-avatar { background: #e5e7eb; animation: pulse 1.2s ease infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+  </style>
 </head>
 <body class="social-profile-page">
   <header class="social-store-header">
     <a href="javascript:history.back()" class="social-icon-btn"><i class="fas fa-arrow-left"></i></a>
-    <h1 id="creatorTitle">Creator</h1>
+    <h1 id="creatorTitle">Profile</h1>
     <span style="width:36px"></span>
   </header>
 
-  <section class="creator-hero" id="creatorHero"></section>
+  <section class="creator-hero profile-loading" id="creatorHero">
+    <div class="creator-avatar" id="creatorAvatarPlaceholder"></div>
+    <h2 id="creatorName">Loading…</h2>
+  </section>
+  <div class="creator-earnings-note">
+    <strong>Creator earnings:</strong> You keep <strong>90%</strong> of gifts &amp; bookings · Platform share <strong>10%</strong>
+  </div>
   <h3 class="creator-section-title">Recent posts</h3>
   <div class="social-post-feed" id="creatorPosts"></div>
   <div id="social-bottom-nav-mount"></div>
@@ -28,27 +51,39 @@
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
       SocialShell.initPage({ activeNav: 'video' });
-      const name = decodeURIComponent(new URLSearchParams(location.search).get('name') || 'Creator');
+      const params = new URLSearchParams(location.search);
+      const userId = params.get('userId') || '';
+      const name = decodeURIComponent(params.get('name') || 'User');
       document.getElementById('creatorTitle').textContent = name;
-      const following = SocialInteractions.isFollowing(name, name);
-      document.getElementById('creatorHero').innerHTML =
-        '<img class="creator-avatar" src="' +
-        SocialUI.avatarUrl(name) +
-        '" alt="">' +
+      document.getElementById('creatorName').textContent = name;
+
+      const hero = document.getElementById('creatorHero');
+      hero.classList.remove('profile-loading');
+      hero.innerHTML =
+        '<img class="creator-avatar" src="' + SocialUI.avatarUrl(name) + '" alt="">' +
         '<h2>' + name + '</h2>' +
-        '<button type="button" class="creator-follow-btn ' + (following ? 'is-on' : '') + '" id="creatorFollow">' +
-        (following ? 'Following' : 'Follow') +
-        '</button>';
-      document.getElementById('creatorFollow').onclick = async () => {
-        const btn = document.getElementById('creatorFollow');
-        const now = await SocialInteractions.toggleFollow(name, name);
-        btn.textContent = now ? 'Following' : 'Follow';
-        btn.classList.toggle('is-on', now);
-        SocialUI.toast(
-          now ? 'You are now following ' + name : 'Unfollowed ' + name,
-          now ? 'success' : 'info'
-        );
+        '<div class="creator-actions">' +
+        '<button type="button" class="creator-follow-btn" id="creatorFollow">Follow</button>' +
+        (userId ? '<button type="button" class="creator-chat-btn" id="creatorChat"><i class="fas fa-comment"></i> Message</button>' : '') +
+        '</div>';
+
+      const followKey = userId || name;
+      let following = SocialInteractions.isFollowing(followKey, name);
+      const followBtn = document.getElementById('creatorFollow');
+      followBtn.textContent = following ? 'Following' : 'Follow';
+      followBtn.classList.toggle('is-on', following);
+      followBtn.onclick = async () => {
+        following = await SocialInteractions.toggleFollow(followKey, name);
+        followBtn.textContent = following ? 'Following' : 'Follow';
+        followBtn.classList.toggle('is-on', following);
+        SocialUI.toast(following ? 'You are now following ' + name : 'Unfollowed ' + name, following ? 'success' : 'info');
       };
+
+      document.getElementById('creatorChat')?.addEventListener('click', () => {
+        if (!userId) return;
+        location.href = '/chat.html?id=' + encodeURIComponent(userId) + '&app=1';
+      });
+
       const posts = (SocialInteractions.getPosts() || []).filter((p) => p.userName === name);
       const feed = document.getElementById('creatorPosts');
       if (!posts.length) {

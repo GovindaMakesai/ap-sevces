@@ -1211,7 +1211,7 @@
                 chatList.innerHTML = '<div class="chat-list-loading" style="padding:24px;text-align:center;color:var(--gray-500)"><i class="fas fa-spinner fa-spin"></i> Loading chats…</div>';
             }
             if (Auth.hasSession?.()) {
-                Auth.ensureAccessToken?.().catch(() => {});
+                await Auth.ensureAccessToken?.().catch(() => {});
             }
             if (!Auth.checkAuth()) {
                 if (typeof isNativeAppContext === 'function' && isNativeAppContext()) {
@@ -1324,6 +1324,15 @@
                 await loadConversations();
                 if (conversationId) {
                     await loadChat(conversationId);
+                    try {
+                        const pending = JSON.parse(localStorage.getItem('ap_share_pending') || 'null');
+                        if (pending?.userId && String(pending.userId) === String(id) && pending.text) {
+                            await axiosClient.post('/send', { receiverId: id, text: pending.text });
+                            localStorage.removeItem('ap_share_pending');
+                            await loadMessages(conversationId);
+                            await loadConversations();
+                        }
+                    } catch (_e) {}
                 } else {
                     Toast.show('Could not create conversation', 'error');
                 }
@@ -1650,6 +1659,10 @@
                 loadChatList();
             } catch (error) {
                 Toast.show(error?.response?.data?.message || 'Failed to load conversations', 'error');
+                const chatList = document.getElementById('chatList');
+                if (chatList) {
+                    chatList.innerHTML = '<div class="chat-list-empty" style="padding:24px;text-align:center;color:var(--gray-500)"><i class="fas fa-comments"></i><p>Could not load chats</p><button type="button" onclick="loadConversations()" style="margin-top:12px;padding:8px 16px;border-radius:8px;border:none;background:var(--primary);color:#fff;cursor:pointer">Retry</button></div>';
+                }
             }
         }
 
@@ -1673,8 +1686,30 @@
             document.getElementById('emptyChat').style.display = 'none';
             document.getElementById('activeChat').style.display = 'flex';
             document.body.classList.add('chat-active');
+
+            const messagesContainer = document.getElementById('messagesContainer');
+            if (messagesContainer) {
+                messagesContainer.innerHTML = '<div class="chat-messages-loading" style="padding:24px;text-align:center;color:var(--gray-500)"><i class="fas fa-spinner fa-spin"></i> Loading messages…</div>';
+            }
             
-            const chat = useChatStore.getState().conversations.find(item => String(item.id) === String(currentChatId));
+            let chat = useChatStore.getState().conversations.find(item => String(item.id) === String(currentChatId));
+            if (!chat) {
+                try {
+                    const r = await axiosClient.get(`/${encodeURIComponent(currentChatId)}`);
+                    const d = r.data?.data;
+                    if (r.data?.success && d?.conversationId && d.otherUser) {
+                        chat = mapApiConversationToListItem(d.conversationId, d.otherUser, d.lastMessageText, d.lastMessageAt);
+                        upsertConversationInStore(chat);
+                        loadChatList();
+                    }
+                } catch (_e) {
+                    Toast.show('Could not open this chat', 'error');
+                    document.getElementById('activeChat').style.display = 'none';
+                    document.getElementById('emptyChat').style.display = 'flex';
+                    document.body.classList.remove('chat-active');
+                    return;
+                }
+            }
             if (!chat) return;
 
             await loadMessages(currentChatId);
@@ -1901,7 +1936,7 @@
                 return;
             }
 
-            const auth = token ? { Authorization: `Bearer ${token}` } : {};
+            const auth = getChatToken() ? { Authorization: `Bearer ${getChatToken()}` } : {};
 
             for (const file of Array.from(files)) {
                 if (!file.type.startsWith('image/')) {
@@ -2101,15 +2136,15 @@
                     const r = await axios.get(`${CONFIG.API_URL}/workers/user/${encodeURIComponent(otherUserId)}`);
                     const wid = r.data?.data?.id;
                     if (wid) {
-                        window.location.href = `/worker-profile.html?id=${encodeURIComponent(wid)}`;
+                        window.location.href = `/worker-profile.html?id=${encodeURIComponent(wid)}&app=1`;
                         return;
                     }
                 } catch (_e) {
-                    Toast.show('Could not open professional profile', 'error');
-                    return;
+                    /* fall through to generic profile */
                 }
             }
-            Toast.show('This contact has no public professional profile (e.g. customer account).', 'info');
+            const name = encodeURIComponent(conv.name || 'User');
+            window.location.href = `/creator-profile.html?userId=${encodeURIComponent(otherUserId)}&name=${name}&app=1`;
         }
 
         // ==================== UTILITIES ====================

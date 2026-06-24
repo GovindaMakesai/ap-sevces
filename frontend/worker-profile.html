@@ -27,7 +27,13 @@
         }
 
         /* ==================== PROFILE HEADER ==================== */
-        .profile-header {
+        .profile-skeleton {
+            background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%);
+            background-size: 200% 100%;
+            animation: profile-shimmer 1.2s ease infinite;
+        }
+        @keyframes profile-shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+        .profile-loading .profile-title h1 { color: #9ca3af; }
             background: linear-gradient(135deg, var(--primary-600), var(--primary-800));
             color: white;
             padding: var(--spacing-2xl) 0;
@@ -828,22 +834,22 @@
             <div class="breadcrumb">
                 <a href="/">Home</a> <i class="fas fa-chevron-right"></i>
                 <a href="/services.html">Services</a> <i class="fas fa-chevron-right"></i>
-                <span id="workerName">Rajesh Kumar</span>
+                <span id="workerName">Loading…</span>
             </div>
-            <div class="profile-header-content">
+            <div class="profile-header-content profile-loading" id="profileHeaderContent">
                 <div class="profile-avatar-wrapper">
-                    <img src="https://images.unsplash.com/photo-1560250097-0b93528c311a?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=80" alt="Profile" class="profile-avatar" id="profileAvatar">
-                    <div class="verified-badge"><i class="fas fa-check"></i></div>
+                    <div class="profile-avatar profile-skeleton" id="profileAvatar"></div>
+                    <div class="verified-badge" id="verifiedBadge" style="display:none"><i class="fas fa-check"></i></div>
                 </div>
                 <div class="profile-title">
-                    <h1 id="workerFullName">Rajesh Kumar</h1>
+                    <h1 id="workerFullName">Loading profile…</h1>
                     <div class="category">
-                        <span id="workerCategory"><i class="fas fa-wrench"></i> Plumbing Expert</span>
-                        <span id="workerExperience"><i class="fas fa-briefcase"></i> 12 years experience</span>
+                        <span id="workerCategory"><i class="fas fa-wrench"></i> —</span>
+                        <span id="workerExperience"><i class="fas fa-briefcase"></i> —</span>
                     </div>
                     <div class="rating-large">
                         <i class="fas fa-star"></i>
-                        <span><span class="rating-number" id="workerRating">4.9</span> <span class="rating-count" id="workerRatingCount">(0 reviews)</span></span>
+                        <span><span class="rating-number" id="workerRating">—</span> <span class="rating-count" id="workerRatingCount">(loading)</span></span>
                     </div>
                 </div>
             </div>
@@ -1029,25 +1035,37 @@
             const rate = workerData.hourlyRate || ((workerData.services && workerData.services[0] && (workerData.services[0].base_price || workerData.services[0].custom_rate)) || null) || 499;
             document.getElementById('hourlyRate').textContent = `₹${rate}`;
             const avatarEl = document.getElementById('profileAvatar');
-            if (workerData.avatarUrl) {
-                avatarEl.src = workerData.avatarUrl;
+            const wrapper = avatarEl?.closest('.profile-avatar-wrapper');
+            let imgEl = avatarEl;
+            if (avatarEl && avatarEl.tagName !== 'IMG') {
+                imgEl = document.createElement('img');
+                imgEl.className = 'profile-avatar';
+                imgEl.id = 'profileAvatar';
+                avatarEl.replaceWith(imgEl);
             }
-            avatarEl.alt = workerData.fullName || 'Professional';
-            avatarEl.onerror = function() {
-                this.style.display = 'none';
-                const wrapper = this.closest('.profile-avatar-wrapper');
-                if (!wrapper.querySelector('.profile-avatar-fallback')) {
-                    const fallback = document.createElement('div');
-                    fallback.className = 'profile-avatar profile-avatar-fallback';
-                    fallback.style.display = 'flex';
-                    fallback.style.alignItems = 'center';
-                    fallback.style.justifyContent = 'center';
-                    fallback.style.fontSize = '2rem';
-                    fallback.style.fontWeight = '700';
-                    fallback.textContent = buildFallbackAvatarName(workerData.fullName);
-                    wrapper.insertBefore(fallback, wrapper.firstChild);
-                }
-            };
+            if (workerData.avatarUrl && imgEl) {
+                imgEl.src = workerData.avatarUrl;
+            }
+            if (imgEl) {
+                imgEl.alt = workerData.fullName || 'Professional';
+                imgEl.onerror = function() {
+                    this.style.display = 'none';
+                    if (!wrapper.querySelector('.profile-avatar-fallback')) {
+                        const fallback = document.createElement('div');
+                        fallback.className = 'profile-avatar profile-avatar-fallback';
+                        fallback.style.display = 'flex';
+                        fallback.style.alignItems = 'center';
+                        fallback.style.justifyContent = 'center';
+                        fallback.style.fontSize = '2rem';
+                        fallback.style.fontWeight = '700';
+                        fallback.textContent = buildFallbackAvatarName(workerData.fullName);
+                        wrapper.insertBefore(fallback, wrapper.firstChild);
+                    }
+                };
+            }
+            document.getElementById('profileHeaderContent')?.classList.remove('profile-loading');
+            const verifiedBadge = document.getElementById('verifiedBadge');
+            if (verifiedBadge) verifiedBadge.style.display = workerData.verified ? '' : 'none';
             document.getElementById('infoGrid').innerHTML = `
                 <div class="info-item"><i class="fas fa-calendar-alt"></i><div><h4>Member Since</h4><p>${workerData.memberSince}</p></div></div>
                 <div class="info-item"><i class="fas fa-check-circle"></i><div><h4>Jobs Completed</h4><p>${workerData.jobsCompleted}</p></div></div>
@@ -1070,11 +1088,14 @@
             const avg = Number(workerData.rating) || 0;
             document.getElementById('avgRating').textContent = avg.toFixed(1);
             document.getElementById('totalReviews').textContent = `${workerData.totalReviews} reviews`;
-            const starsHtml = Array(5).fill().map((_, i) => `<i class="fas fa-star"></i>`).join('');
+            const starsHtml = Array(5).fill().map((_, i) => `<i class="fas fa-star" style="color:${i < Math.round(avg) ? '#fbbf24' : '#d1d5db'}"></i>`).join('');
             document.getElementById('avgStars').innerHTML = starsHtml;
-            const breakdown = [85, 10, 3, 1, 1];
+            const total = workerData.totalReviews || 0;
+            const breakdown = total > 0 && workerData.ratingBreakdown
+                ? workerData.ratingBreakdown
+                : [0, 0, 0, 0, 0];
             document.getElementById('ratingBreakdown').innerHTML = [5,4,3,2,1].map((star, idx) => `
-                <div class="rating-bar-item"><span class="rating-bar-label">${star} Star</span><div class="rating-bar-progress"><div class="rating-bar-fill" style="width: ${breakdown[idx]}%"></div></div><span class="rating-bar-count">${Math.round(workerData.totalReviews * breakdown[idx]/100)}</span></div>
+                <div class="rating-bar-item"><span class="rating-bar-label">${star} Star</span><div class="rating-bar-progress"><div class="rating-bar-fill" style="width: ${breakdown[idx] || 0}%"></div></div><span class="rating-bar-count">${Math.round(total * (breakdown[idx] || 0) / 100)}</span></div>
             `).join('');
         }
 
