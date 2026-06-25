@@ -505,8 +505,48 @@
     }
   }
 
+  function mountLivePipBar() {
+    if (document.body?.dataset?.livePage) return;
+    let raw;
+    try {
+      raw = sessionStorage.getItem('ap_live_pip_session');
+    } catch (_e) {}
+    if (!raw) return;
+    let data;
+    try {
+      data = JSON.parse(raw);
+    } catch (_e) {
+      return;
+    }
+    if (!data?.url || document.getElementById('apLivePipBar')) return;
+    const label = data.host || (data.type === 'party-room' ? 'Party' : 'Live');
+    const bar = document.createElement('div');
+    bar.id = 'apLivePipBar';
+    bar.className = 'ap-live-pip-bar';
+    bar.innerHTML =
+      '<button type="button" class="ap-live-pip-expand" id="apLivePipExpand">' +
+      '<span class="ap-live-pip-pulse" aria-hidden="true"></span>' +
+      '<span class="ap-live-pip-text"><strong>' +
+      escapeHtml(label) +
+      '</strong><small>Tap to return to ' +
+      (data.type === 'party-room' ? 'party' : 'live') +
+      '</small></span></button>' +
+      '<button type="button" class="ap-live-pip-close" id="apLivePipClose" aria-label="Dismiss"><i class="fas fa-times"></i></button>';
+    document.body.appendChild(bar);
+    document.getElementById('apLivePipExpand')?.addEventListener('click', () => {
+      location.href = data.url;
+    });
+    document.getElementById('apLivePipClose')?.addEventListener('click', () => {
+      try {
+        sessionStorage.removeItem('ap_live_pip_session');
+      } catch (_e) {}
+      bar.remove();
+    });
+  }
+
   function initPage(config) {
     markNativeApp();
+    mountLivePipBar();
     const active = config.activeNav || 'explore';
     ensureBottomNav(active);
 

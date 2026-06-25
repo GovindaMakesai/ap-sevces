@@ -128,6 +128,14 @@
   }
 
   function handleHardwareBack() {
+    if (closeLocalUi()) return true;
+    if (isImmersiveLive()) {
+      const live = window.APLive || window.SocialLive;
+      if (live?.minimizeRoom) {
+        live.minimizeRoom();
+        return true;
+      }
+    }
     return goBack({ allowHistory: true });
   }
 

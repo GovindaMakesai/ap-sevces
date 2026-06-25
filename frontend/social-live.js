@@ -146,6 +146,7 @@
   let guestPublishInProgress = false;
   let guestPublishAttempted = false;
   let hostEndingIntentionally = false;
+  let minimizingRoom = false;
   let agoraModeSwitchInProgress = false;
   let renderRoomStateTimer = null;
   let sessionEstablished = false;
@@ -2977,10 +2978,34 @@
       history.pushState({ apLiveRoom: true }, '');
       window.addEventListener('popstate', () => {
         if (!isPartyRoomPage() && !isLiveRoomPage()) return;
+        if (window.__apLeavingRoom) return;
         history.pushState({ apLiveRoom: true }, '');
-        toast('You are still in the room — tap ✕ to leave', 'info');
+        minimizeLiveRoom();
       });
     } catch (_e) {}
+  }
+
+  function minimizeLiveRoom() {
+    if (minimizingRoom) return;
+    minimizingRoom = true;
+    hideApLoader();
+    setLiveStatus('', null);
+    closeLiveOverlays();
+    const host = roomState?.hostName || (isHost() ? displayName(currentUser()) : 'Live');
+    const payload = {
+      url: location.pathname + location.search,
+      channel: channelId(),
+      host,
+      type: document.body.dataset.livePage || 'live-room',
+      ts: Date.now(),
+    };
+    try {
+      sessionStorage.setItem('ap_live_pip_session', JSON.stringify(payload));
+    } catch (_e) {}
+    const dest = location.search.includes('app=1') || document.documentElement.classList.contains('ap-expo-app')
+      ? '/explore.html?app=1'
+      : '/explore.html?app=1';
+    location.href = dest;
   }
 
   function isChatPanelOpen() {
@@ -4081,9 +4106,6 @@
 
     document.getElementById('partyBtnGift')?.addEventListener('click', () => openGiftSheet());
     document.getElementById('liveBtnGift')?.addEventListener('click', () => openGiftSheet());
-    document.getElementById('liveBtnBackpack')?.addEventListener('click', () => {
-      window.location.href = '/store.html?app=1';
-    });
 
     const toggleFollow = async () => {
       const hostName = roomState?.hostName || 'Host';
@@ -4170,7 +4192,7 @@
     });
     document.getElementById('partyBtnMinimize')?.addEventListener('click', () => {
       document.getElementById('partyToolsSheet')?.classList.remove('open');
-      toast('Swipe up from home to return', 'info');
+      minimizeLiveRoom();
     });
     document.getElementById('partyBtnReport')?.addEventListener('click', async () => {
       document.getElementById('partyToolsSheet')?.classList.remove('open');
@@ -4239,12 +4261,17 @@
   }
 
   async function exitRoom() {
+    window.__apLeavingRoom = true;
+    minimizingRoom = false;
     hideApLoader();
+    setLiveStatus('', null);
+    try {
+      sessionStorage.removeItem('ap_live_pip_session');
+    } catch (_e) {}
     await stopAgora({ skipEndRoom: hostEndingIntentionally });
     leaveSocket();
-    if (window.SocialNav?.goBack?.({ allowHistory: true })) return;
-    if (history.length > 1) history.back();
-    else location.href = '/explore.html?app=1';
+    const dest = '/explore.html?app=1';
+    location.replace(dest);
   }
 
   async function endRoomOrExit() {
@@ -5368,10 +5395,13 @@
     getCoins,
     refreshCoinDisplay,
     isActuallyLive,
+    minimizeRoom: minimizeLiveRoom,
+    exitRoom,
     getForensicReport() {
       return window.__liveDebug || { events: [] };
     },
   };
+  window.APLive = window.SocialLive;
 
   document.addEventListener('DOMContentLoaded', () => {
     const page = document.body?.dataset?.livePage;
