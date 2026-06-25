@@ -15,8 +15,11 @@
     .recharge-steps li { margin-bottom:6px; }
     .recharge-coin-total { font-size:15px;color:#8b6914;margin:6px 0 0;font-weight:600; }
     .recharge-coin-total strong { color:#c8860a;font-size:18px; }
-    .recharge-amt-btn { display:flex;flex-direction:column;align-items:center;gap:2px; }
-    .recharge-coin-label { font-size:11px;color:#8b6914;font-weight:600; }
+    .recharge-coin-breakdown { font-size:12px;color:#8b6914;margin:4px 0 0;line-height:1.45; }
+    .recharge-amt-btn { display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 8px;min-height:72px; }
+    .recharge-amt-btn .pkg-amt { font-size:16px;font-weight:800;color:#5c4210; }
+    .recharge-coin-label { font-size:11px;color:#8b6914;font-weight:600;text-align:center;line-height:1.3; }
+    .recharge-coin-bonus { font-size:10px;color:#2e7d32;font-weight:700; }
     .recharge-history { margin-top:20px; }
     .recharge-history h3 { font-size:15px;margin:0 0 10px;color:#5c4a1a; }
     .recharge-history-item { background:#fff;border-radius:10px;padding:12px;margin-bottom:8px;border:1px solid #f0e6c8;position:relative; }
@@ -51,16 +54,17 @@
     <p style="display:none;font-size:12px;color:#8b6914">Add <code>frontend/assets/payment-qr.png</code> for your UPI QR.</p>
     <p class="amount" id="rechargeAmount">₹199</p>
     <p class="recharge-coin-total">You receive: <strong id="rechargeCoins">1,990 coins</strong></p>
+    <p class="recharge-coin-breakdown" id="rechargeCoinBreakdown">Base 1,990 · Bonus 0 · Total 1,990 coins</p>
     <p style="font-size:12px;color:#8b6914;margin:0">Pay the exact amount shown above</p>
   </div>
 
   <div class="recharge-amounts" id="rechargeAmountBtns">
-    <button type="button" class="recharge-amt-btn"><span>₹99</span><span class="recharge-coin-label">990 coins</span></button>
-    <button type="button" class="recharge-amt-btn active"><span>₹199</span><span class="recharge-coin-label">1,990 coins</span></button>
-    <button type="button" class="recharge-amt-btn"><span>₹499</span><span class="recharge-coin-label">4,990 coins</span></button>
-    <button type="button" class="recharge-amt-btn"><span>₹999</span><span class="recharge-coin-label">9,990 coins</span></button>
-    <button type="button" class="recharge-amt-btn"><span>₹1999</span><span class="recharge-coin-label">19,990 coins</span></button>
-    <button type="button" class="recharge-amt-btn"><span>₹4999</span><span class="recharge-coin-label">49,990 coins</span></button>
+    <button type="button" class="recharge-amt-btn"><span class="pkg-amt">₹99</span><span class="recharge-coin-label">990 coins</span><span class="recharge-coin-bonus"></span></button>
+    <button type="button" class="recharge-amt-btn active"><span class="pkg-amt">₹199</span><span class="recharge-coin-label">1,990 coins</span><span class="recharge-coin-bonus"></span></button>
+    <button type="button" class="recharge-amt-btn"><span class="pkg-amt">₹499</span><span class="recharge-coin-label">4,990 coins</span><span class="recharge-coin-bonus">+5% bonus</span></button>
+    <button type="button" class="recharge-amt-btn"><span class="pkg-amt">₹999</span><span class="recharge-coin-label">9,990 coins</span><span class="recharge-coin-bonus">+5% bonus</span></button>
+    <button type="button" class="recharge-amt-btn"><span class="pkg-amt">₹1999</span><span class="recharge-coin-label">19,990 coins</span><span class="recharge-coin-bonus">+10% bonus</span></button>
+    <button type="button" class="recharge-amt-btn"><span class="pkg-amt">₹4999</span><span class="recharge-coin-label">49,990 coins</span><span class="recharge-coin-bonus">+15% bonus</span></button>
   </div>
 
   <div class="recharge-field">

@@ -2161,7 +2161,7 @@
             
             try {
                 const response = await API.put('/users/profile', profileData);
-                if (response.success) {
+                if (response?.success) {
                     Toast.show('Profile updated successfully!', 'success');
                     
                     // Update sidebar
@@ -2170,13 +2170,16 @@
                     
                     // Update stored user
                     const user = Auth.getUser();
-                    user.first_name = profileData.first_name;
-                    user.last_name = profileData.last_name;
-                    user.phone = profileData.phone;
+                    const updated = response.data?.user || {};
+                    user.first_name = updated.first_name || profileData.first_name;
+                    user.last_name = updated.last_name || profileData.last_name;
+                    user.phone = updated.phone || profileData.phone;
                     localStorage.setItem('user', JSON.stringify(user));
+                } else {
+                    Toast.show(response?.message || 'Failed to update profile', 'error');
                 }
             } catch (error) {
-                Toast.show('Failed to update profile', 'error');
+                Toast.show(error?.message || 'Failed to update profile', 'error');
             }
         });
     }

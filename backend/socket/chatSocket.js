@@ -112,13 +112,28 @@ function registerChatSocket(io) {
             }
         });
 
-        socket.on('disconnect', () => {
+        socket.on('disconnect', async () => {
             if (socket.data.typingIn) {
-                io.to(`conversation:${socket.data.typingIn}`).emit('user_typing', {
-                    conversationId: socket.data.typingIn,
-                    userId: socket.userId,
-                    isTyping: false,
-                });
+                try {
+                    const conversation = await chatService.getConversationById(socket.data.typingIn);
+                    const otherId = conversation
+                        ? chatService.otherParticipantId(conversation, socket.userId)
+                        : null;
+                    const payload = {
+                        conversationId: socket.data.typingIn,
+                        userId: socket.userId,
+                        isTyping: false,
+                    };
+                    if (otherId) io.to(`user:${otherId}`).emit('user_typing', payload);
+                    else io.to(`conversation:${socket.data.typingIn}`).emit('user_typing', payload);
+                } catch (_e) {
+                    io.to(`conversation:${socket.data.typingIn}`).emit('user_typing', {
+                        conversationId: socket.data.typingIn,
+                        userId: socket.userId,
+                        isTyping: false,
+                    });
+                }
+                socket.data.typingIn = null;
             }
             io.emit('user_presence', { userId: socket.userId, status: 'offline' });
         });

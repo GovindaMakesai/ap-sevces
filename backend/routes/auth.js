@@ -180,6 +180,7 @@ router.get('/ws-token', verifyToken, authController.wsToken);
 router.get('/session', require('../middleware/auth').optionalAuth, authController.session);
 router.get('/me', verifyToken, authController.getMe);
 router.patch('/profile', verifyToken, authController.updateProfile);
+router.put('/profile', verifyToken, authController.updateProfile);
 if (isGoogleConfigured) {
     router.get('/google', (req, res, next) => {
         passport.authenticate('google', {

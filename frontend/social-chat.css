@@ -90,10 +90,72 @@ html.ap-expo-app .ap-msg-top {
 }
 
 .ap-msg-top-actions button {
-  background: none;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(201, 162, 39, 0.25);
+  color: #8b6914;
+  padding: 8px 10px;
+  border-radius: 12px;
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(107, 79, 16, 0.08);
+}
+
+.ap-chat-action-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: none;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.ap-chat-action-sheet.open {
+  display: flex;
+}
+
+.ap-chat-action-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 10, 5, 0.45);
+}
+
+.ap-chat-action-panel {
+  position: relative;
+  width: min(100%, 420px);
+  background: #fff;
+  border-radius: 20px 20px 0 0;
+  padding: 12px 12px max(16px, env(safe-area-inset-bottom));
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.15);
+  animation: apSheetUp 0.22s ease;
+}
+
+.ap-chat-action-panel button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
   border: none;
-  color: inherit;
-  padding: 4px;
+  background: #faf6ee;
+  color: #5c4a1a;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 14px 16px;
+  border-radius: 14px;
+  margin-bottom: 8px;
+}
+
+.ap-chat-action-panel button.is-cancel {
+  background: #f3f4f6;
+  color: #6b7280;
+  justify-content: center;
+}
+
+@keyframes apSheetUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
 }
 
 .ap-msg-notify {

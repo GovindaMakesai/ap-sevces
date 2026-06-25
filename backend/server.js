@@ -38,6 +38,7 @@ const { connectMongo } = require('./config/mongodb');
 validateEnv();
 
 const authRoutes = require('./routes/auth');
+const userRoutes = require('./routes/users');
 const workerRoutes = require('./routes/workers');
 const serviceRoutes = require('./routes/services');
 const bookingRoutes = require('./routes/bookings');
@@ -143,6 +144,7 @@ db.testConnection();
 
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/auth', authLimiter, authRoutes);
+app.use('/api/users', authLimiter, userRoutes);
 app.use('/api/workers', workerRoutes);
 app.use('/api/services', serviceRoutes);
 app.use('/api/bookings', bookingRoutes);

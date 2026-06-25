@@ -105,12 +105,27 @@ async function creditCoins(userId, amount, meta = {}, client) {
     return { balance: Number(newBal), transaction: tx.rows[0] };
   };
 
-  if (client) return run(client);
+  if (client) {
+    const result = await run(client);
+    if (Number(result.balance) >= 100000) {
+      try {
+        const { ensureSellerAccess } = require('./coinSellerService');
+        await ensureSellerAccess(userId);
+      } catch (_e) { /* best-effort */ }
+    }
+    return result;
+  }
   const c = await db.pool.connect();
   try {
     await c.query('BEGIN');
     const result = await run(c);
     await c.query('COMMIT');
+    if (Number(result.balance) >= 100000) {
+      try {
+        const { ensureSellerAccess } = require('./coinSellerService');
+        await ensureSellerAccess(userId);
+      } catch (_e) { /* best-effort */ }
+    }
     return result;
   } catch (e) {
     await c.query('ROLLBACK');

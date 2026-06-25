@@ -1288,20 +1288,29 @@
             document.getElementById('chatHeaderGiftBtn')?.addEventListener('click', () => openChatGiftSheet());
             const sellerRoles = ['coin_seller', 'admin', 'super_admin', 'founder', 'ceo'];
             const u = Auth.getUser?.();
-            if (u && sellerRoles.includes(u.role)) {
+            const showSellerTools = async () => {
                 const sellBtn = document.getElementById('chatHeaderSellBtn');
-                if (sellBtn) sellBtn.hidden = false;
-            }
+                if (!sellBtn) return;
+                if (u && sellerRoles.includes(u.role)) {
+                    sellBtn.hidden = false;
+                    return;
+                }
+                try {
+                    const bal = await SocialWallet?.fetchBalance?.();
+                    if (Number(bal?.coin_balance || 0) >= 100000) sellBtn.hidden = false;
+                } catch (_e) {}
+            };
+            showSellerTools();
             document.querySelector('.ap-msg-top-actions button[aria-label="More"]')?.addEventListener('click', () => {
-                const action = window.prompt('Messages menu:\n1 = Mark all read\n2 = Help\n\nEnter 1 or 2');
-                if (action === '1') {
-                    useChatStore.setState((state) => ({
-                        conversations: state.conversations.map((c) => ({ ...c, unread: 0 })),
-                    }));
-                    loadChatList();
-                    Toast.show('All conversations marked read', 'success');
-                } else if (action === '2') {
-                    window.location.href = '/help.html?app=1';
+                openChatListMenu();
+            });
+            setupMessageActions();
+            const messageInput = document.getElementById('messageInput');
+            messageInput?.addEventListener('blur', () => {
+                if (isTyping) {
+                    isTyping = false;
+                    clearTimeout(typingTimeout);
+                    emitTypingState(false);
                 }
             });
             
@@ -1412,6 +1421,7 @@
         let isTyping = false;
         let typingTimeout;
         let socketTypingTimeout;
+        let receiverTypingTimeout;
         let otherLastReadAt = null;
         const onlineUsers = new Set();
         let chatGiftCatalog = [];
@@ -1871,6 +1881,12 @@
 
         // ==================== LOAD CHAT ====================
         async function loadChat(chatId, sourceElement) {
+            hideTypingIndicator();
+            if (isTyping) {
+                isTyping = false;
+                clearTimeout(typingTimeout);
+                emitTypingState(false);
+            }
             currentChatId = String(chatId);
             useChatStore.setState({ activeConversationId: currentChatId });
             const socket = socketService.get();
@@ -1984,8 +2000,8 @@
                 }
                 
                 html += `
-                    <div class="message-wrapper ${msg.type}">
-                        <div class="message-bubble">
+                    <div class="message-wrapper ${msg.type}" data-msg-id="${escapeHtml(String(msg.id || ''))}">
+                        <div class="message-bubble" data-msg-text="${escapeHtml(msg.text || '')}">
                             <div class="message-content">
                                 ${escapeHtml(msg.text || '')}
                                 ${msg.image ? `<img src="${escapeHtml(msg.image)}" class="message-image" alt="" onclick='openImageModal(${JSON.stringify(msg.image)})'>` : ''}
@@ -2002,6 +2018,99 @@
             });
             
             return html;
+        }
+
+        function openChatListMenu() {
+            let sheet = document.getElementById('apChatListMenu');
+            if (!sheet) {
+                sheet = document.createElement('div');
+                sheet.id = 'apChatListMenu';
+                sheet.className = 'ap-chat-action-sheet';
+                sheet.innerHTML = `
+                    <div class="ap-chat-action-backdrop"></div>
+                    <div class="ap-chat-action-panel" role="dialog" aria-label="Messages menu">
+                        <button type="button" data-chat-menu="read"><i class="fas fa-check-double"></i> Mark all read</button>
+                        <button type="button" data-chat-menu="help"><i class="fas fa-circle-question"></i> Help & support</button>
+                        <button type="button" data-chat-menu="cancel" class="is-cancel">Cancel</button>
+                    </div>`;
+                document.body.appendChild(sheet);
+                sheet.querySelector('.ap-chat-action-backdrop')?.addEventListener('click', () => sheet.classList.remove('open'));
+                sheet.querySelector('[data-chat-menu="cancel"]')?.addEventListener('click', () => sheet.classList.remove('open'));
+                sheet.querySelector('[data-chat-menu="read"]')?.addEventListener('click', () => {
+                    useChatStore.setState((state) => ({
+                        conversations: state.conversations.map((c) => ({ ...c, unread: 0 })),
+                    }));
+                    loadChatList();
+                    sheet.classList.remove('open');
+                    Toast.show('All conversations marked read', 'success');
+                });
+                sheet.querySelector('[data-chat-menu="help"]')?.addEventListener('click', () => {
+                    sheet.classList.remove('open');
+                    window.location.href = '/help.html?app=1';
+                });
+            }
+            sheet.classList.add('open');
+        }
+
+        function setupMessageActions() {
+            const container = document.getElementById('messagesContainer');
+            if (!container || container.dataset.msgActionsBound) return;
+            container.dataset.msgActionsBound = '1';
+            let pressTimer;
+            const openMsgMenu = (bubble, wrapper) => {
+                const text = bubble.dataset.msgText || bubble.querySelector('.message-content')?.textContent || '';
+                let sheet = document.getElementById('apMsgActionSheet');
+                if (!sheet) {
+                    sheet = document.createElement('div');
+                    sheet.id = 'apMsgActionSheet';
+                    sheet.className = 'ap-chat-action-sheet';
+                    sheet.innerHTML = `
+                        <div class="ap-chat-action-backdrop"></div>
+                        <div class="ap-chat-action-panel" role="dialog" aria-label="Message actions">
+                            <button type="button" data-msg-action="copy"><i class="fas fa-copy"></i> Copy</button>
+                            <button type="button" data-msg-action="reply"><i class="fas fa-reply"></i> Reply</button>
+                            <button type="button" class="is-cancel" data-msg-action="cancel">Cancel</button>
+                        </div>`;
+                    document.body.appendChild(sheet);
+                    sheet.querySelector('.ap-chat-action-backdrop')?.addEventListener('click', () => sheet.classList.remove('open'));
+                    sheet.querySelector('[data-msg-action="cancel"]')?.addEventListener('click', () => sheet.classList.remove('open'));
+                }
+                sheet.dataset.msgText = text;
+                sheet.querySelector('[data-msg-action="copy"]')?.replaceWith(sheet.querySelector('[data-msg-action="copy"]').cloneNode(true));
+                sheet.querySelector('[data-msg-action="reply"]')?.replaceWith(sheet.querySelector('[data-msg-action="reply"]').cloneNode(true));
+                sheet.querySelector('[data-msg-action="copy"]')?.addEventListener('click', async () => {
+                    try {
+                        await navigator.clipboard.writeText(sheet.dataset.msgText || '');
+                        Toast.show('Copied', 'success');
+                    } catch (_e) {
+                        Toast.show('Could not copy', 'error');
+                    }
+                    sheet.classList.remove('open');
+                });
+                sheet.querySelector('[data-msg-action="reply"]')?.addEventListener('click', () => {
+                    const input = document.getElementById('messageInput');
+                    if (input) {
+                        input.value = (input.value ? input.value + ' ' : '') + (sheet.dataset.msgText || '');
+                        input.focus();
+                    }
+                    sheet.classList.remove('open');
+                });
+                sheet.classList.add('open');
+            };
+            container.addEventListener('touchstart', (e) => {
+                const bubble = e.target.closest?.('.message-bubble');
+                if (!bubble) return;
+                const wrapper = bubble.closest('.message-wrapper');
+                pressTimer = setTimeout(() => openMsgMenu(bubble, wrapper), 480);
+            }, { passive: true });
+            container.addEventListener('touchend', () => clearTimeout(pressTimer));
+            container.addEventListener('touchmove', () => clearTimeout(pressTimer));
+            container.addEventListener('contextmenu', (e) => {
+                const bubble = e.target.closest?.('.message-bubble');
+                if (!bubble) return;
+                e.preventDefault();
+                openMsgMenu(bubble, bubble.closest('.message-wrapper'));
+            });
         }
 
         // ==================== SEND MESSAGE ====================
@@ -2165,6 +2274,14 @@
                 else hideTypingIndicator();
             });
 
+            socket.on('disconnect', () => {
+                hideTypingIndicator();
+                if (isTyping) {
+                    isTyping = false;
+                    clearTimeout(typingTimeout);
+                }
+            });
+
             socket.on('user_presence', (payload) => {
                 if (!payload?.userId) return;
                 if (payload.status === 'online') onlineUsers.add(String(payload.userId));
@@ -2220,9 +2337,12 @@
             const el = document.getElementById('chatTypingIndicator');
             if (el) el.hidden = false;
             scrollToBottom(true);
+            clearTimeout(receiverTypingTimeout);
+            receiverTypingTimeout = setTimeout(hideTypingIndicator, 5000);
         }
 
         function hideTypingIndicator() {
+            clearTimeout(receiverTypingTimeout);
             const el = document.getElementById('chatTypingIndicator');
             if (el) el.hidden = true;
         }

@@ -138,7 +138,42 @@ body.social-tabs-page #social-banner-slider + .social-post-feed {
   overflow-x: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 2px;
 }
+
+.social-explore-page .social-top {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.social-explore-page .social-main-tabs {
+  margin-bottom: 6px;
+  padding-right: 4px;
+}
+
+.social-explore-page .social-top-actions {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.social-explore-page .social-search {
+  margin: 0 12px 10px;
+  min-height: 44px;
+  box-sizing: border-box;
+}
+
+.social-explore-page #social-filter-chips-mount {
+  margin: 0 12px 6px;
+}
+
+.social-explore-page #exploreContent,
+.social-explore-page #exploreEmpty {
+  padding-top: 4px;
+}
+
 .social-main-tabs::-webkit-scrollbar { display: none; }
 
 .social-main-tabs a,

@@ -448,13 +448,23 @@ const login = async (req, res) => {
 };
 const updateProfile = async (req, res) => {
     try {
-        const { gender } = req.body || {};
-        const user = await User.updateProfile(req.userId, { gender });
+        const { first_name, last_name, phone, gender } = req.body || {};
+        const fields = {};
+        if (first_name !== undefined) fields.first_name = first_name;
+        if (last_name !== undefined) fields.last_name = last_name;
+        if (phone !== undefined) fields.phone = phone;
+        if (gender !== undefined) fields.gender = gender;
+
+        if (!Object.keys(fields).length) {
+            return res.status(400).json({ success: false, message: 'No profile fields to update' });
+        }
+
+        const user = await User.updateProfile(req.userId, fields);
         if (!user) {
             return res.status(404).json({ success: false, message: 'User not found' });
         }
         const { publicUser } = require('../lib/userDto');
-        res.json({ success: true, data: { user: publicUser(user, { self: true }) } });
+        res.json({ success: true, data: { user: publicUser(user, { self: true }) }, message: 'Profile updated' });
     } catch (error) {
         console.error('❌ Update profile error:', error);
         res.status(500).json({ success: false, message: 'Failed to update profile' });

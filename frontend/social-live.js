@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260625-live-v2';
+  window.__AP_LIVE_BUILD = '20260625-live-v3';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -148,6 +148,8 @@
   let hostEndingIntentionally = false;
   let agoraModeSwitchInProgress = false;
   let renderRoomStateTimer = null;
+  let sessionEstablished = false;
+  let disconnectUiTimer = null;
   let mediaResumeBound = false;
   let cachedWsToken = null;
   let cachedWsTokenAt = 0;
@@ -210,6 +212,18 @@
 
   async function resumeMediaAfterForeground() {
     if (document.visibilityState !== 'visible') return;
+    if (lastJoinMeta?.isHost && publishSucceeded) {
+      localTracks.forEach((t) => {
+        try {
+          const kind = t.getTrackType?.() || '';
+          if (kind === 'audio') t.setEnabled?.(!micMuted);
+          else if (kind === 'video') t.setEnabled?.(true);
+        } catch (_e) {}
+      });
+      syncLiveUiState();
+      hideApLoader();
+      return;
+    }
     if (lastJoinMeta?.isHost) {
       await resumeHostBroadcastIfNeeded();
       return;
@@ -253,6 +267,15 @@
   }
 
   function pauseAgoraForBackground() {
+    if (isHost() && publishSucceeded) {
+      remoteUsers.forEach((user) => {
+        try {
+          user.audioTrack?.stop?.();
+          user.videoTrack?.stop?.();
+        } catch (_e) {}
+      });
+      return;
+    }
     localTracks.forEach((t) => {
       try {
         t.setEnabled?.(false);
@@ -794,12 +817,14 @@
   }
 
   function hostStatusLabel() {
-    if (isActuallyLive()) {
+    const sessionLive =
+      sessionEstablished && publishSucceeded && liveDebugState.roomJoined && liveDebugState.socketConnected;
+    if (isActuallyLive() || sessionLive) {
       if (agoraMode === 'party') {
-        return partyVoiceSkipped ? 'Party live — voice off' : 'Party voice live';
+        return partyVoiceSkipped ? 'Party live — voice off' : micMuted ? 'Party live — mic off' : 'Party voice live';
       }
-      if (broadcastMode === 'audio') return 'Audio live';
-      return 'Video live';
+      if (broadcastMode === 'audio') return micMuted ? 'Audio live — mic off' : 'Audio live';
+      return micMuted ? 'Video live — mic off' : 'Video live';
     }
     if (agoraStartInProgress) return 'Starting broadcast…';
     if (publishSucceeded && liveDebugState.agoraJoined) return 'Going live…';
@@ -812,8 +837,10 @@
     liveDebugState.publishSucceeded = publishSucceeded;
     refreshViewerDiagnostics();
     if (isHost()) {
-      updateModeBadge(broadcastMode, isActuallyLive());
-      setLiveStatus(hostStatusLabel(), isActuallyLive() ? true : null);
+      const sessionLive =
+        sessionEstablished && publishSucceeded && liveDebugState.roomJoined && liveDebugState.socketConnected;
+      updateModeBadge(broadcastMode, isActuallyLive() || sessionLive);
+      setLiveStatus(hostStatusLabel(), isActuallyLive() || sessionLive ? true : null);
       return;
     }
     updateModeBadge(broadcastMode, false);
@@ -1036,6 +1063,14 @@
       lastSocketIssue = '-';
       updateLiveDebug({ socketConnected: true });
       forensicEvent('SOCKET_CONNECTED', { channel: channelId() });
+      if (disconnectUiTimer) {
+        clearTimeout(disconnectUiTimer);
+        disconnectUiTimer = null;
+      }
+      if (sessionEstablished && roomJoinCompleted) {
+        hideApLoader();
+        setLiveStatus('', null);
+      }
       if (roomJoinCompleted && lastJoinMeta) {
         if (reconnectRejoinTimer) clearTimeout(reconnectRejoinTimer);
         reconnectRejoinTimer = setTimeout(() => {
@@ -1050,7 +1085,17 @@
       updateLiveDebug({ socketConnected: false, roomJoined: roomJoinCompleted });
       refreshViewerDiagnostics();
       if (!socketLeaveIntentional && lastJoinMeta && reason !== 'io client disconnect') {
-        setLiveStatus('Reconnecting…', null);
+        if (disconnectUiTimer) clearTimeout(disconnectUiTimer);
+        if (sessionEstablished && roomJoinCompleted) {
+          disconnectUiTimer = setTimeout(() => {
+            disconnectUiTimer = null;
+            if (!liveSocket?.connected && !socketLeaveIntentional) {
+              setLiveStatus('Reconnecting…', null);
+            }
+          }, 2800);
+        } else {
+          setLiveStatus('Reconnecting…', null);
+        }
       }
     });
     liveSocket.on('connect_error', async (err) => {
@@ -1091,8 +1136,23 @@
       if (renderRoomStateTimer) clearTimeout(renderRoomStateTimer);
       renderRoomStateTimer = setTimeout(() => {
         renderRoomStateTimer = null;
-        renderRoomState();
+        renderRoomState({ soft: sessionEstablished });
       }, 80);
+    });
+
+    liveSocket.on('live:member_mute', (payload) => {
+      if (!payload?.userId || !roomState) return;
+      const uid = String(payload.userId);
+      const muted = payload.muted !== false;
+      if (roomState.seats) {
+        roomState.seats = roomState.seats.map((s) =>
+          String(s.userId) === uid ? { ...s, muted } : s
+        );
+      }
+      const me = currentUser();
+      if (me && String(me.id) === uid) micMuted = muted;
+      patchSeatMuteUi(uid, muted);
+      syncMicButtonUi();
     });
 
     liveSocket.on('live:chat', (msg) => {
@@ -1538,11 +1598,15 @@
       hideApLoader();
       if (text) toast(text, 'error');
     } else if (text && !isActuallyLive()) {
+      if (sessionEstablished && roomJoinCompleted && (publishSucceeded || partyVoiceSkipped)) {
+        return;
+      }
       showApLoader(text);
     }
   }
 
   function onRoomReady() {
+    sessionEstablished = true;
     setApLoaderStep(3);
     hideApLoader();
     syncLiveUiState();
@@ -2078,7 +2142,7 @@
     if (liveSocket) liveSocket.emit('live:mute', { channel: channelId(), muted: micMuted });
     const me = currentUser();
     window.SocialFX?.setSpeaking?.(me?.id || displayName(me), !micMuted);
-    if (document.getElementById('partySeats')) renderPartySeats(roomState?.hostName);
+    if (me?.id) patchSeatMuteUi(String(me.id), micMuted);
     const btn = document.getElementById('liveBtnMic');
     const hostMuteBtn = document.getElementById('liveBtnHostMute');
     const micIcon = micMuted ? 'fas fa-microphone-slash' : 'fas fa-microphone';
@@ -2419,6 +2483,7 @@
     }
     const hostCls = s.host ? ' is-host' : '';
     const speaking = s.speaking ? ' is-speaking' : '';
+    const mutedCls = s.muted ? ' is-muted' : '';
     const mic = s.muted
       ? '<span class="mic-off"><i class="fas fa-microphone-slash"></i></span>'
       : s.host && isHost()
@@ -2429,7 +2494,7 @@
       ? '<div class="seat-wave-bars"><span></span><span></span><span></span><span></span></div>'
       : '';
     return `
-      <button type="button" class="party-seat${hostCls}${speaking} ${tierCls}" data-seat="${seatNum}" data-user="${escapeHtml(s.name)}" data-user-id="${escapeHtml(String(s.userId || ''))}">
+      <button type="button" class="party-seat${hostCls}${speaking}${mutedCls} ${tierCls}" data-seat="${seatNum}" data-user="${escapeHtml(s.name)}" data-user-id="${escapeHtml(String(s.userId || ''))}">
         <div class="seat-avatar">
           <span class="seat-num">${seatNum}</span>
           ${crown}
@@ -2440,6 +2505,23 @@
         <span class="seat-name">${escapeHtml(s.name)}</span>
         <span class="seat-gifts">🎁 ${formatGiftCount(s.gifts || 0)}</span>
       </button>`;
+  }
+
+  function patchSeatMuteUi(userId, muted) {
+    const container = document.getElementById('partySeats');
+    if (!container || !userId) return;
+    container.querySelectorAll('.party-seat[data-user-id]').forEach((btn) => {
+      if (String(btn.dataset.userId) !== String(userId)) return;
+      btn.classList.toggle('is-muted', Boolean(muted));
+      btn.classList.toggle('is-speaking', !muted);
+      const micSpan = btn.querySelector('.mic-off, .mic-live');
+      if (micSpan) {
+        micSpan.className = muted ? 'mic-off' : 'mic-live';
+        micSpan.innerHTML = muted
+          ? '<i class="fas fa-microphone-slash"></i>'
+          : '<i class="fas fa-microphone"></i>';
+      }
+    });
   }
 
   function renderPartySeats(hostName) {
@@ -2495,13 +2577,15 @@
       .join('');
 
     container.querySelectorAll('.party-seat[data-seat]').forEach((btn) => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
         const name = btn.dataset.user || btn.querySelector('.seat-name')?.textContent;
         openProfileSheet(name, btn.dataset.userId || '');
       });
     });
     container.querySelectorAll('[data-join-seat]').forEach((btn) => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
         if (isHost()) openSeatSheet(btn.dataset.seatNum);
         else requestSeatJoin();
       });
@@ -4371,7 +4455,13 @@
       }
       if (window.SocialInteractions?.toggleFollow) {
         const now = await SocialInteractions.toggleFollow(userId, name);
-        toast(now ? `Following ${name}` : `Unfollowed ${name}`, now ? 'success' : 'info');
+        const btn = document.getElementById('apProfileAddFriend');
+        if (btn) {
+          btn.innerHTML = now
+            ? '<i class="fas fa-user-check"></i> Friends'
+            : '<i class="fas fa-user-plus"></i> Add Friend';
+        }
+        toast(now ? `You're now friends with ${name}` : `Unfollowed ${name}`, now ? 'success' : 'info');
         return;
       }
       toast('Follow feature loading…', 'info');
@@ -4789,6 +4879,14 @@
     return feedRoomsCache;
   }
 
+  function feedInteractionBlocked() {
+    return Boolean(
+      document.querySelector(
+        '#apProfileSheet.open, #apGiftSheet.open, #apTopupSheet.open, #apSeatSheet.open, .ap-gift-sheet.open'
+      ) || document.body.classList.contains('ap-sheet-open')
+    );
+  }
+
   async function switchToFeedRoom(index) {
     if (feedSwitching || !feedItems[index]) return;
     if (index === activeFeedIndex && roomState) return;
@@ -4888,6 +4986,7 @@
     if (feedObserver) feedObserver.disconnect();
     feedObserver = new IntersectionObserver(
       (entries) => {
+        if (feedInteractionBlocked() || feedSwitching) return;
         entries.forEach((en) => {
           if (en.isIntersecting && en.intersectionRatio >= 0.55) {
             const i = parseInt(en.target.dataset.index, 10);
@@ -5131,18 +5230,40 @@
     const historyEl = document.getElementById('rechargeHistory');
 
     const coinsFor = (inr) => Math.floor(inr * coinsPerInr);
+    const bonusRate = (inr) => {
+      if (inr >= 4999) return 0.15;
+      if (inr >= 1999) return 0.1;
+      if (inr >= 499) return 0.05;
+      return 0;
+    };
+    const packageCoins = (inr) => {
+      const base = coinsFor(inr);
+      const bonus = Math.floor(base * bonusRate(inr));
+      return { base, bonus, total: base + bonus };
+    };
+
+    const breakdownEl = document.getElementById('rechargeCoinBreakdown');
 
     const syncAmount = () => {
-      const coins = coinsFor(selected);
+      const { base, bonus, total } = packageCoins(selected);
       if (amountEl) amountEl.textContent = '₹' + selected.toLocaleString('en-IN');
-      if (coinsEl) coinsEl.textContent = coins.toLocaleString('en-IN') + ' coins';
+      if (coinsEl) coinsEl.textContent = total.toLocaleString('en-IN') + ' coins';
+      if (breakdownEl) {
+        breakdownEl.textContent =
+          `Base ${base.toLocaleString('en-IN')} · Bonus +${bonus.toLocaleString('en-IN')} · Total ${total.toLocaleString('en-IN')} coins`;
+      }
     };
     syncAmount();
 
     wrap?.querySelectorAll('button').forEach((btn, i) => {
       const inr = amounts[i];
+      const pkg = packageCoins(inr);
       const coinLabel = btn.querySelector('.recharge-coin-label');
-      if (coinLabel) coinLabel.textContent = coinsFor(inr).toLocaleString('en-IN') + ' coins';
+      const bonusLabel = btn.querySelector('.recharge-coin-bonus');
+      if (coinLabel) coinLabel.textContent = pkg.total.toLocaleString('en-IN') + ' coins';
+      if (bonusLabel) {
+        bonusLabel.textContent = pkg.bonus > 0 ? `+${pkg.bonus.toLocaleString('en-IN')} bonus` : '';
+      }
       btn.addEventListener('click', () => {
         wrap.querySelectorAll('button').forEach((b) => b.classList.remove('active'));
         btn.classList.add('active');

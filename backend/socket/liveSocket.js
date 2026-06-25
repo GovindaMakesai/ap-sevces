@@ -336,9 +336,14 @@ function registerLiveSocket(io) {
       if (!room) return;
       const targetUserId = String(payload?.userId || socket.userId);
       if (targetUserId !== socket.userId && !(await isRoomHost(socket, channel))) return;
-      await liveRoomService.setMemberMuted(room.id, targetUserId, payload?.muted !== false);
-      const state = await liveRoomService.buildSnapshot(channel);
-      io.to(`live:${channel}`).emit('live:state', state);
+      const muted = payload?.muted !== false;
+      await liveRoomService.setMemberMuted(room.id, targetUserId, muted);
+      io.to(`live:${channel}`).emit('live:member_mute', {
+        channel,
+        userId: targetUserId,
+        muted,
+        at: Date.now(),
+      });
     });
 
     socket.on('live:seat_request', async (payload) => {

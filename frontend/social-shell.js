@@ -372,15 +372,12 @@
   function bindLiveCards(root) {
     (root || document).querySelectorAll('.social-live-card[data-href]').forEach((el) => {
       const go = (e) => {
+        if (e?.target?.closest?.('a, button')) return;
         if (e) e.preventDefault();
         const href = withAppQuery(el.dataset.href);
         if (href) window.location.href = href;
       };
       el.addEventListener('click', go);
-      el.addEventListener('touchend', (e) => {
-        e.preventDefault();
-        go(e);
-      });
       el.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') go(e);
       });

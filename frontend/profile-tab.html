@@ -179,6 +179,22 @@
             const pts = document.getElementById('statPoints');
             if (coins) coins.textContent = (b.coin_balance || 0).toLocaleString();
             if (pts) pts.textContent = (b.star_balance || 0).toLocaleString();
+            const balance = Number(b.coin_balance || 0);
+            const sellerRoles = ['coin_seller', 'admin', 'super_admin', 'founder', 'ceo'];
+            const isSeller = sellerRoles.includes(user.role) || balance >= 100000;
+            const roleApply = document.getElementById('roleApplyLink');
+            if (roleApply) {
+              if (isSeller && user.role === 'coin_seller') roleApply.style.display = 'none';
+              else if (isSeller) {
+                roleApply.querySelector('span').textContent = 'Coin Seller — open dashboard';
+                roleApply.href = '/coin-seller-center.html?app=1';
+              }
+            }
+            const coinSellerLink = document.getElementById('coinSellerLink');
+            if (coinSellerLink && isSeller) {
+              coinSellerLink.style.display = 'flex';
+              coinSellerLink.querySelector('span').textContent = 'Coin Seller Dashboard';
+            }
           };
           SocialWallet.fetchBalance().then(paintWallet);
           document.addEventListener('wallet:balance', (e) => paintWallet(e.detail || {}));

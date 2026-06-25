@@ -61,6 +61,20 @@ class User {
 
     static async updateProfile(id, fields) {
         const allowed = {};
+        if (fields.first_name !== undefined) {
+            const v = String(fields.first_name || '').trim().slice(0, 100);
+            if (v) allowed.first_name = v;
+        }
+        if (fields.last_name !== undefined) {
+            const v = String(fields.last_name || '').trim().slice(0, 100);
+            if (v) allowed.last_name = v;
+        }
+        if (fields.phone !== undefined) {
+            const digits = String(fields.phone || '').replace(/\D/g, '');
+            let phone = digits;
+            if (digits.length === 12 && digits.startsWith('91')) phone = digits.slice(2);
+            if (/^[6-9]\d{9}$/.test(phone)) allowed.phone = phone;
+        }
         if (fields.gender !== undefined) {
             allowed.gender = User.normalizeGender(fields.gender);
         }
