@@ -117,21 +117,36 @@
   color: #fde68a;
 }
 
-/* —— 16-seat reference grid —— */
+/* —— 15-seat party grid (5×3) —— */
 .party-seats-ref {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 6px 10px 10px;
-  max-width: 400px;
+  gap: 8px;
+  padding: 4px 8px 12px;
+  max-width: 360px;
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.party-seats-ref .party-seat-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 6px;
+  justify-items: center;
+  align-items: start;
+  width: 100%;
+  max-width: 340px;
   margin: 0 auto;
 }
 
 .party-seat-row {
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  gap: 14px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 6px;
+  justify-items: center;
+  align-items: start;
+  width: 100%;
 }
 
 .party-seat-row--lg {
@@ -143,24 +158,24 @@
 }
 
 .party-seats-ref .seat-tier-lg .seat-avatar {
-  width: 76px;
-  height: 76px;
-  border-width: 3px;
+  width: 64px;
+  height: 64px;
+  border-width: 2px;
 }
 
 .party-seats-ref .seat-tier-md .seat-avatar {
-  width: 58px;
-  height: 58px;
+  width: 52px;
+  height: 52px;
 }
 
 .party-seats-ref .seat-tier-sm .seat-avatar {
-  width: 44px;
-  height: 44px;
+  width: 42px;
+  height: 42px;
 }
 
 .party-seats-ref .party-seat.is-host .seat-avatar {
-  width: 84px;
-  height: 84px;
+  width: 72px;
+  height: 72px;
   border-color: #fbbf24;
   box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.35), 0 0 24px rgba(251, 191, 36, 0.45);
 }
@@ -172,13 +187,22 @@
 }
 
 .party-seats-ref .seat-tier-sm .seat-name {
-  font-size: 9px;
-  max-width: 52px;
+  font-size: 8px;
+  max-width: 48px;
 }
 
 .party-seats-ref .seat-gifts {
-  font-size: 9px;
+  font-size: 8px;
   color: #f9a8d4;
+}
+
+.party-seats-ref .seat-avatar--empty {
+  width: 42px;
+  height: 42px;
+}
+
+.party-seats-ref .party-seat.is-empty .seat-plus {
+  font-size: 18px;
 }
 
 /* —— Win / scroll banners —— */

@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260625-live-v3';
+  window.__AP_LIVE_BUILD = '20260625-party-seats';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -12,6 +12,10 @@
   const GIFT_CATALOG = _liveEmoji.GIFT_CATALOG || {
     gift: [], lucky: [], new: [], island: [], fan: [], privilege: [], fun: [],
   };
+
+  const PARTY_MAX_SEATS = 15;
+  const PARTY_HOST_SLOT = 1;
+  const PARTY_MAX_GUESTS = PARTY_MAX_SEATS - 1;
 
   function giftSlugFor(item) {
     if (item?.slug) return item.slug;
@@ -2525,6 +2529,21 @@
     });
   }
 
+  function countPartyGuests() {
+    const seen = new Set();
+    return (roomState?.seats || []).filter((s) => {
+      if (!s || s.isHost) return false;
+      const key = String(s.userId || s.name || '');
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }).length;
+  }
+
+  function isPartySeatsFull() {
+    return countPartyGuests() >= PARTY_MAX_GUESTS;
+  }
+
   function renderPartySeats(hostName) {
     const container = document.getElementById('partySeats');
     if (!container) return;
@@ -2541,16 +2560,20 @@
       speaking: hosting && !micMuted,
     };
 
-    const guests = (roomState?.seats || []).filter(
-      (s) => s && s.name && s.name !== host.name && !s.isHost
-    );
+    const seenGuests = new Set();
+    const guests = (roomState?.seats || []).filter((s) => {
+      if (!s || !s.name || s.isHost) return false;
+      const key = String(s.userId || s.name);
+      if (seenGuests.has(key)) return false;
+      seenGuests.add(key);
+      return true;
+    });
 
-    const totalSeats = 16;
-    const slots = new Array(totalSeats).fill(null);
-    slots[1] = host;
+    const slots = new Array(PARTY_MAX_SEATS).fill(null);
+    slots[PARTY_HOST_SLOT] = host;
     let guestIdx = 0;
-    for (let i = 0; i < totalSeats; i += 1) {
-      if (i === 1) continue;
+    for (let i = 0; i < PARTY_MAX_SEATS; i += 1) {
+      if (i === PARTY_HOST_SLOT) continue;
       if (guestIdx < guests.length) {
         slots[i] = { ...guests[guestIdx], host: false };
         guestIdx += 1;
@@ -2562,11 +2585,18 @@
     const tiers = [
       { cls: 'seat-tier-lg', indices: [0, 1, 2] },
       { cls: 'seat-tier-md', indices: [3, 4, 5] },
-      { cls: 'seat-tier-sm', indices: [6, 7, 8, 9, 10] },
-      { cls: 'seat-tier-sm', indices: [11, 12, 13, 14, 15] },
+      { cls: 'seat-tier-md', indices: [6, 7, 8] },
+      { cls: 'seat-tier-sm', indices: [9, 10, 11] },
+      { cls: 'seat-tier-sm', indices: [12, 13, 14] },
     ];
 
-    const rowClass = ['party-seat-row--lg', 'party-seat-row--md', 'party-seat-row--sm', 'party-seat-row--sm'];
+    const rowClass = [
+      'party-seat-row--lg',
+      'party-seat-row--md',
+      'party-seat-row--md',
+      'party-seat-row--sm',
+      'party-seat-row--sm',
+    ];
 
     container.innerHTML = tiers
       .map(
@@ -2782,6 +2812,7 @@
   }
 
   function renderGuestRail() {
+    if (isPartyRoomPage()) return;
     const rail = document.getElementById('apGuestRail');
     if (!rail) return;
     const seats = (roomState?.seats || []).filter((s) => s && !s.isHost);
@@ -3524,6 +3555,10 @@
     list.querySelectorAll('[data-accept]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const req = joinRequests.find((x) => String(x.id) === String(btn.dataset.accept));
+        if (isPartySeatsFull()) {
+          toast('Party is full — max 15 on stage (host + 14 guests)', 'warning');
+          return;
+        }
         joinRequests = joinRequests.filter((x) => String(x.id) !== String(btn.dataset.accept));
         renderJoinRequests();
         if (req && liveSocket) {
@@ -3565,6 +3600,14 @@
     const id = String(user.id);
     if (joinRequests.some((r) => String(r.id) === String(id))) {
       toast('Request already sent');
+      return;
+    }
+    if (hasSpeakerSeat) {
+      toast('You already have a seat', 'info');
+      return;
+    }
+    if (isPartySeatsFull()) {
+      toast('Party is full — all 15 seats taken', 'warning');
       return;
     }
     if (!liveSocket?.connected) {

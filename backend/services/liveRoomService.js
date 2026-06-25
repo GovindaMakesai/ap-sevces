@@ -269,6 +269,15 @@ async function promoteToSpeaker({ channel, userId, displayName }) {
   const room = await findByChannel(channel);
   if (!room) throw new Error('Room not found');
 
+  const countRes = await db.query(
+    `SELECT COUNT(*)::int AS n FROM live_room_members
+     WHERE live_room_id = $1 AND left_at IS NULL AND role = 'speaker'`,
+    [room.id]
+  );
+  if ((countRes.rows[0]?.n || 0) >= 14) {
+    throw new Error('Party room is full — maximum 15 people on stage');
+  }
+
   const memberRes = await db.query(
     `SELECT display_name FROM live_room_members
      WHERE live_room_id = $1 AND user_id = $2 AND left_at IS NULL`,
