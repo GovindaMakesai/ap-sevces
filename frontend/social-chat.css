@@ -466,28 +466,31 @@ html.ap-expo-app .chat-input-actions .attach-btn {
   display: none;
 }
 
-html.ap-expo-app .sidebar-header .chat-search {
+html.ap-expo-app .sidebar-header--legacy {
   display: none;
 }
 
-html.ap-expo-app .sidebar-header h2 {
-  display: none;
+.ap-msg-search {
+  margin: 0 0 10px;
+  padding: 0 2px;
 }
 
-html.ap-expo-app .chat-tabs {
-  display: none;
+.ap-msg-search input {
+  width: 100%;
+  padding: 10px 12px 10px 2.5rem;
+  border: 1px solid rgba(201, 162, 39, 0.28);
+  border-radius: 12px;
+  font-size: 14px;
+  background: #fff;
+  color: #5c4210;
 }
 
-html.ap-expo-app .chat-tabs {
-  display: none;
+.ap-msg-search i {
+  left: 14px;
 }
 
-#activeChat {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  padding-bottom: var(--chat-kb-offset, 0px);
-  transition: padding-bottom 0.15s ease;
+.chat-typing-indicator[hidden] {
+  display: none !important;
 }
 
 .chat-typing-indicator {

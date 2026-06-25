@@ -45,7 +45,7 @@ async function resolveGiftAmount(giftType, coinAmount) {
   if (res.rows[0]) {
     const expected = Number(res.rows[0].coin_cost);
     if (amount !== expected) {
-      throw new Error(`Gift "${raw || giftType}" costs ${expected} coins`);
+      return expected;
     }
     return expected;
   }

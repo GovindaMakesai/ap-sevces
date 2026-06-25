@@ -6,8 +6,8 @@
     <title>Message - AP Services</title>
     <meta name="theme-color" content="#fff9f0">
     <script src="/ap-native-boot.js"></script>
-    <link rel="stylesheet" href="/social-theme.css">
-    <link rel="stylesheet" href="/social-chat.css">
+    <link rel="stylesheet" href="/social-theme.css?v=20260625chat">
+    <link rel="stylesheet" href="/social-chat.css?v=20260625chat">
     
     <!-- Font Awesome 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -1029,13 +1029,13 @@
                             <button type="button" class="ap-msg-filter" data-filter="group">Group chat</button>
                             <button type="button" class="ap-msg-filter" data-filter="online">Online</button>
                         </div>
-                    </div>
-                    <div class="sidebar-header">
-                        <h2><i class="fas fa-comments"></i> Messages</h2>
-                        <div class="chat-search">
+                        <div class="chat-search ap-msg-search">
                             <i class="fas fa-search"></i>
-                            <input type="text" placeholder="Search name or user ID…" id="chatSearch">
+                            <input type="search" placeholder="Search name or user ID…" id="chatSearch" autocomplete="off" enterkeyhint="search">
                         </div>
+                    </div>
+                    <div class="sidebar-header sidebar-header--legacy">
+                        <h2><i class="fas fa-comments"></i> Messages</h2>
                     </div>
 
                     <div class="chat-tabs" style="display:none">
@@ -1702,6 +1702,7 @@
 
         function setupChatSearch() {
             const searchInput = document.getElementById('chatSearch');
+            if (!searchInput) return;
             let searchTimer;
             const remoteRows = [];
             searchInput.addEventListener('keydown', async (e) => {
@@ -2202,6 +2203,7 @@
             socket.__apChatBound = true;
 
             socket.on('receive_message', async (payload) => {
+                hideTypingIndicator();
                 const conversationId = String(payload.conversationId);
                 const mid = String(payload.id);
                 const isMine = String(payload.senderId) === getMyUserId();
@@ -2270,6 +2272,7 @@
 
             socket.on('user_typing', (payload) => {
                 if (String(payload.conversationId) !== String(currentChatId)) return;
+                if (payload.userId && String(payload.userId) === getMyUserId()) return;
                 if (payload.isTyping) showTypingIndicator();
                 else hideTypingIndicator();
             });
@@ -2591,19 +2594,20 @@
         }
 
         function defaultChatGiftCatalog() {
-            if (window.AP_LIVE_EMOJI?.GIFT_CATALOG?.gift?.length) {
-                return AP_LIVE_EMOJI.GIFT_CATALOG.gift.map((g, i) => ({
-                    slug: `gift_${i}`,
+            const fromApi = window.AP_LIVE_EMOJI?.GIFT_CATALOG?.gift;
+            if (fromApi?.length) {
+                return fromApi.map((g, i) => ({
+                    slug: String(g.name || `gift_${i}`).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || `gift_${i}`,
                     emoji: g.emoji,
                     name: g.name,
-                    coin_cost: g.cost,
+                    coin_cost: Number(g.cost) || 10,
                 }));
             }
             return [
-                { slug: 'rose', emoji: '🌹', name: 'Rose', coin_cost: 10 },
-                { slug: 'heart', emoji: '❤️', name: 'Heart', coin_cost: 50 },
-                { slug: 'star', emoji: '⭐', name: 'Star', coin_cost: 100 },
-                { slug: 'crown', emoji: '👑', name: 'Crown', coin_cost: 500 },
+                { slug: 'heart', emoji: '❤️', name: 'Heart', coin_cost: 10 },
+                { slug: 'rose', emoji: '🌹', name: 'Rose', coin_cost: 100 },
+                { slug: 'flowers', emoji: '💐', name: 'Flowers', coin_cost: 50 },
+                { slug: 'coffee', emoji: '☕', name: 'Coffee', coin_cost: 500 },
             ];
         }
 
@@ -2757,18 +2761,15 @@
             }
             try {
                 if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken();
+                const payload = {
+                    receiver_id: conv.otherUserId,
+                    coin_amount: Number(g.coin_cost),
+                    gift_type: g.slug || g.name || g.emoji,
+                };
                 if (window.SocialWallet?.sendGift) {
-                    await SocialWallet.sendGift({
-                        receiver_id: conv.otherUserId,
-                        coin_amount: g.coin_cost,
-                        gift_type: g.slug || g.emoji,
-                    });
+                    await SocialWallet.sendGift(payload);
                 } else {
-                    await API.post('/wallet/gifts', {
-                        receiver_id: conv.otherUserId,
-                        coin_amount: g.coin_cost,
-                        gift_type: g.slug || g.emoji,
-                    });
+                    await API.post('/wallet/gifts', payload);
                 }
                 const giftEvt = { from: 'You', to: conv.name, emoji: g.emoji, amount: g.coin_cost, qty: 1 };
                 window.SocialFX?.playGift?.(giftEvt, { combo: 1 });
@@ -2780,7 +2781,11 @@
                 });
                 await loadMessages(currentChatId);
             } catch (e) {
-                const msg = window.SocialUI?.friendlyMessage?.(e.message) || e.message || 'Could not send gift';
+                const msg =
+                    e?.message ||
+                    e?.response?.data?.message ||
+                    window.SocialUI?.friendlyMessage?.(e.message) ||
+                    'Could not send gift';
                 Toast.show(msg, 'error');
             } finally {
                 if (btn) {
@@ -2803,6 +2808,10 @@
 
         // Close active chat on mobile and return to conversation list
         function closeMobileChat() {
+            hideTypingIndicator();
+            emitTypingState(false);
+            isTyping = false;
+            clearTimeout(typingTimeout);
             document.body.classList.remove('chat-active');
         }
 
