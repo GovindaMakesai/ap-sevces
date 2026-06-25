@@ -30,6 +30,10 @@ async function ensureSocialProductionSchema() {
   if (fs.existsSync(xferPath)) {
     await db.query(fs.readFileSync(xferPath, 'utf8'));
   }
+  const searchIdxPath = path.join(__dirname, '../../database/migrations/008_search_indexes.sql');
+  if (fs.existsSync(searchIdxPath)) {
+    await db.query(fs.readFileSync(searchIdxPath, 'utf8'));
+  }
   await seedGiftCatalog();
   console.log('✅ Social production schema ready (follows, gift catalog, coin sellers, moderation)');
 }
