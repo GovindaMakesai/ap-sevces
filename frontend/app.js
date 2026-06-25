@@ -147,6 +147,30 @@ function clearSessionTokens() {
     localStorage.removeItem('ap_refresh_token');
 }
 
+function scheduleProactiveSessionRefresh() {
+    if (window.__apSessionRefreshScheduled) return;
+    window.__apSessionRefreshScheduled = true;
+    const tick = async () => {
+      if (!localStorage.getItem('user')) return;
+      const token = localStorage.getItem('token');
+      const refresh = localStorage.getItem('ap_refresh_token');
+      if (!refresh && !token) return;
+      const payload = parseJwtPayload(token);
+      const exp = payload?.exp ? payload.exp * 1000 : 0;
+      const soon = exp && exp - Date.now() < 5 * 60 * 1000;
+      if (!token || !isAccessTokenUsable(token) || soon) {
+        try {
+          await Auth.tryRefresh();
+        } catch (_e) {}
+      }
+    };
+    setInterval(tick, 2 * 60 * 1000);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') tick();
+    });
+    setTimeout(tick, 3000);
+}
+
 function loginDestination(redirectAfter) {
     if (isNativeAppContext()) {
         return '/app-auth.html?app=1';
@@ -158,13 +182,33 @@ function loginDestination(redirectAfter) {
 }
 
 // ==================== API SERVICE WITH FORMDATA SUPPORT ====================
+const _apiInflight = new Map();
+const _apiGetCache = new Map();
+const API_GET_CACHE_MS = 900;
+
 const API = {
     async request(endpoint, options = {}) {
-        try {
-            return await this._fetchOnce(`${CONFIG.API_URL}${endpoint}`, options);
-        } catch (error) {
-            throw this._friendlyNetworkError(error, `${CONFIG.API_URL}${endpoint}`);
+        const method = (options.method || 'GET').toUpperCase();
+        const cacheKey = `${method}:${endpoint}`;
+        if (method === 'GET') {
+            const hit = _apiGetCache.get(cacheKey);
+            if (hit && Date.now() - hit.at < API_GET_CACHE_MS) return hit.data;
+            if (_apiInflight.has(cacheKey)) return _apiInflight.get(cacheKey);
         }
+        const run = (async () => {
+            try {
+                return await this._fetchOnce(`${CONFIG.API_URL}${endpoint}`, options);
+            } catch (error) {
+                throw this._friendlyNetworkError(error, `${CONFIG.API_URL}${endpoint}`);
+            } finally {
+                if (method === 'GET') _apiInflight.delete(cacheKey);
+            }
+        })();
+        if (method === 'GET') {
+            _apiInflight.set(cacheKey, run);
+            run.then((data) => _apiGetCache.set(cacheKey, { at: Date.now(), data })).catch(() => {});
+        }
+        return run;
     },
 
     _friendlyNetworkError(error, url) {
@@ -768,7 +812,10 @@ const Auth = {
     // Check if current user is customer
     isCustomer() {
         return this.getUser()?.role === 'customer';
-    }
+    },
+
+    storeSessionTokens,
+    scheduleProactiveSessionRefresh,
 };
 
 // ==================== WORKER API ====================
@@ -1607,6 +1654,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 await Auth.refreshSession();
             }
         }
+        scheduleProactiveSessionRefresh();
     }
     if (!isNativeAppContext()) {
         UI.updateNavbar();

@@ -52,16 +52,20 @@
     document.addEventListener('DOMContentLoaded', async () => {
       SocialShell.initPage({ activeNav: 'video' });
       const params = new URLSearchParams(location.search);
-      const userId = params.get('userId') || '';
+      const userId = params.get('userId') || params.get('id') || '';
       const name = decodeURIComponent(params.get('name') || 'User');
       document.getElementById('creatorTitle').textContent = name;
       document.getElementById('creatorName').textContent = name;
 
       const hero = document.getElementById('creatorHero');
       hero.classList.remove('profile-loading');
+      const uidBlock = userId
+        ? '<p class="creator-user-id">ID: <strong>' + userId + '</strong> <button type="button" class="creator-copy-id" id="creatorCopyId" aria-label="Copy ID"><i class="fas fa-copy"></i></button></p>'
+        : '';
       hero.innerHTML =
         '<img class="creator-avatar" src="' + SocialUI.avatarUrl(name) + '" alt="">' +
         '<h2>' + name + '</h2>' +
+        uidBlock +
         '<div class="creator-actions">' +
         '<button type="button" class="creator-follow-btn" id="creatorFollow">Follow</button>' +
         (userId ? '<button type="button" class="creator-chat-btn" id="creatorChat"><i class="fas fa-comment"></i> Message</button>' : '') +
@@ -82,6 +86,14 @@
       document.getElementById('creatorChat')?.addEventListener('click', () => {
         if (!userId) return;
         location.href = '/chat.html?id=' + encodeURIComponent(userId) + '&app=1';
+      });
+      document.getElementById('creatorCopyId')?.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(String(userId));
+          SocialUI.toast('User ID copied');
+        } catch (_e) {
+          alert('ID: ' + userId);
+        }
       });
 
       const posts = (SocialInteractions.getPosts() || []).filter((p) => p.userName === name);

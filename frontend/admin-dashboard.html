@@ -1365,6 +1365,7 @@
     </style>
     <link rel="stylesheet" href="dashboard-mobile.css">
     <link rel="stylesheet" href="admin-mobile-app.css">
+    <link rel="stylesheet" href="admin-mobile-cards.css">
     <link rel="stylesheet" href="admin-shared.css">
     <script>
       if (window.ReactNativeWebView) document.documentElement.classList.add('ap-expo-app');
@@ -1431,6 +1432,14 @@
                         </button>
                         <button class="nav-item" data-section="payments">
                             <i class="fas fa-credit-card"></i> Payments
+                        </button>
+                        <button class="nav-item" data-section="recharges">
+                            <i class="fas fa-coins"></i> Payment Approvals
+                            <span class="badge warning" id="rechargesBadge">0</span>
+                        </button>
+                        <button class="nav-item" data-section="role-applications">
+                            <i class="fas fa-user-tag"></i> Role Applications
+                            <span class="badge warning" id="roleAppsBadge">0</span>
                         </button>
                         <button class="nav-item" data-section="withdrawals">
                             <i class="fas fa-money-bill-wave"></i> Withdrawals
@@ -1616,7 +1625,11 @@
                                 <option value="all">All Roles</option>
                                 <option value="customer">Customers</option>
                                 <option value="worker">Workers</option>
+                                <option value="coin_seller">Coin Sellers</option>
+                                <option value="creator">Hosts / Creators</option>
+                                <option value="agency">Agency</option>
                                 <option value="admin">Admins</option>
+                                <option value="super_admin">Super Admins</option>
                             </select>
                             <select class="filter-select" id="userStatusFilter">
                                 <option value="all">All Status</option>
@@ -1841,6 +1854,74 @@
                         </div>
                     </div>
 
+                    <!-- Payment Approvals (UPI + seller top-up) -->
+                    <div class="dashboard-section" id="recharges-section">
+                        <div class="section-header">
+                            <h2><i class="fas fa-coins"></i> Payment Approvals</h2>
+                            <button class="btn-outline" onclick="loadRecharges()">
+                                <i class="fas fa-sync-alt"></i> Refresh
+                            </button>
+                        </div>
+                        <p style="color:var(--gray-500);margin-bottom:16px;font-size:14px">
+                            Consumer coin recharges (UPI) and coin seller inventory top-ups. Each card shows user ID, package, amount, coins to credit, UTR, and payment screenshot when uploaded.
+                        </p>
+                        <div class="admin-cards-view" id="rechargesCards"></div>
+                        <div class="table-container admin-table-view">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>User / ID</th>
+                                        <th>Type</th>
+                                        <th>Package / Amount</th>
+                                        <th>Coins</th>
+                                        <th>UTR / Proof</th>
+                                        <th>Submitted</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="rechargesTable">
+                                    <tr>
+                                        <td colspan="7" class="loading-spinner">
+                                            <i class="fas fa-spinner fa-spin"></i> Loading recharges...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Role Applications -->
+                    <div class="dashboard-section" id="role-applications-section">
+                        <div class="section-header">
+                            <h2><i class="fas fa-user-tag"></i> Host &amp; Coin Seller Applications</h2>
+                            <button class="btn-outline" onclick="loadRoleApplications()">
+                                <i class="fas fa-sync-alt"></i> Refresh
+                            </button>
+                        </div>
+                        <p style="color:var(--gray-500);margin-bottom:16px;font-size:14px">
+                            Review user requests to become a Host or Coin Seller. Approving assigns the role and sends an in-app notification.
+                        </p>
+                        <div class="admin-cards-view" id="roleAppsCards"></div>
+                        <div class="table-container admin-table-view">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>User</th>
+                                        <th>Role</th>
+                                        <th>Phone</th>
+                                        <th>Message</th>
+                                        <th>Submitted</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="roleAppsTable">
+                                    <tr><td colspan="6" class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Loading…</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
                     <!-- Coin Withdrawals (QR payout) -->
                     <div class="dashboard-section" id="withdrawals-section">
                         <div class="section-header">
@@ -1852,7 +1933,8 @@
                         <p style="color:var(--gray-500);margin-bottom:16px;font-size:14px">
                             Users upload their UPI/bank QR. After you pay externally, click <strong>Approve &amp; Pay</strong>. The user must confirm receipt to complete.
                         </p>
-                        <div class="table-container">
+                        <div class="admin-cards-view" id="withdrawalsCards"></div>
+                        <div class="table-container admin-table-view">
                             <table>
                                 <thead>
                                     <tr>
@@ -2063,7 +2145,11 @@
                         <select class="form-control" id="newUserRole">
                             <option value="customer">Customer</option>
                             <option value="worker">Worker</option>
+                            <option value="coin_seller">Coin Seller</option>
+                            <option value="creator">Host / Creator</option>
+                            <option value="agency">Agency</option>
                             <option value="admin">Admin</option>
+                            <option value="super_admin">Super Admin</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -2203,7 +2289,7 @@
             }
 
             const user = Auth.getUser();
-            if (user?.role !== 'admin') {
+            if (!['admin', 'super_admin', 'founder', 'ceo'].includes(user?.role)) {
                 Toast.show('Access denied. Admin only.', 'error');
                 setTimeout(() => window.location.href = '/', 1500);
                 return;
@@ -2229,6 +2315,8 @@
                 loadServicesPreview(),
                 loadBookings(),
                 loadPayments(),
+                loadRecharges(),
+                loadRoleApplications(),
                 loadWithdrawals(),
                 loadReviews(),
                 initializeCharts()
@@ -2522,6 +2610,241 @@
             `).join('');
         }
 
+        function adminUserInitials(first, last, email) {
+            const n = `${first || ''} ${last || ''}`.trim();
+            if (n) return n.slice(0, 2).toUpperCase();
+            return (email || 'U').slice(0, 2).toUpperCase();
+        }
+
+        function renderRechargeCards(rows) {
+            const el = document.getElementById('rechargesCards');
+            if (!el) return;
+            if (!rows.length) {
+                el.innerHTML = '<p class="empty-state">No pending payment approvals</p>';
+                return;
+            }
+            el.innerHTML = rows.map((r) => {
+                const name = `${r.first_name || ''} ${r.last_name || ''}`.trim() || r.email || 'User';
+                const initials = adminUserInitials(r.first_name, r.last_name, r.email);
+                const isSeller = r.request_type === 'seller_inventory';
+                const amountPaid = isSeller
+                    ? (r.amount_display || `$${Number(r.amount_usd || 0)}`)
+                    : (r.amount_display || `₹${Number(r.amount_inr || 0).toLocaleString('en-IN')}`);
+                const coins = Number(r.estimated_coins || 0).toLocaleString('en-IN');
+                const pkg = r.package_label || amountPaid;
+                const proof = r.payment_proof_url
+                    ? `<a href="${r.payment_proof_url}" target="_blank" rel="noopener" class="admin-proof-link"><i class="fas fa-image"></i> View screenshot</a>`
+                    : '<span style="color:#999">No screenshot</span>';
+                const src = r.source || 'recharges';
+                return `<article class="admin-approval-card is-pending is-expandable" data-expanded="false">
+                    <button type="button" class="admin-card-expand" onclick="toggleAdminCard(this)" aria-label="Expand details"><i class="fas fa-chevron-down"></i></button>
+                    <span class="admin-approval-type">${r.request_type_label || 'Coin Recharge'}</span>
+                    <div class="admin-approval-card-head">
+                        <div class="admin-approval-card-avatar">${initials}</div>
+                        <div class="admin-approval-card-user">
+                            <strong>${name}</strong>
+                            <small>ID: ${r.user_id || '—'}</small>
+                            <small>${r.phone || r.email || ''}</small>
+                        </div>
+                    </div>
+                    <div class="admin-approval-kv admin-card-summary">
+                        <div><span>Package</span><strong>${pkg}</strong></div>
+                        <div><span>Amount paid</span><strong>${amountPaid}</strong></div>
+                        <div><span>Coins to credit</span><strong>${coins}</strong></div>
+                        <div><span>Status</span><strong class="status-pending">Pending</strong></div>
+                    </div>
+                    <div class="admin-approval-kv admin-card-details">
+                        <div class="full"><span>UTR / Reference</span><strong>${r.transaction_id || '—'}</strong></div>
+                        <div class="full"><span>Payment proof</span>${proof}</div>
+                        <div class="full"><span>Channel</span><strong>${r.payment_channel || '—'}</strong></div>
+                        <div class="full"><span>Submitted</span><strong>${new Date(r.created_at).toLocaleString()}</strong></div>
+                    </div>
+                    <div class="admin-approval-actions">
+                        <button type="button" class="btn-approve" onclick="approvePaymentRequest('${src}','${r.id}')"><i class="fas fa-check"></i> Approve</button>
+                        <button type="button" class="btn-reject" onclick="rejectPaymentRequest('${src}','${r.id}')"><i class="fas fa-times"></i> Reject</button>
+                    </div>
+                </article>`;
+            }).join('');
+        }
+
+        window.toggleAdminCard = function(btn) {
+            const card = btn.closest('.admin-approval-card');
+            if (!card) return;
+            const open = card.getAttribute('data-expanded') === 'true';
+            card.setAttribute('data-expanded', open ? 'false' : 'true');
+            btn.querySelector('i')?.classList.toggle('fa-chevron-down', open);
+            btn.querySelector('i')?.classList.toggle('fa-chevron-up', !open);
+        };
+
+        async function loadRecharges() {
+            const tbody = document.getElementById('rechargesTable');
+            const cards = document.getElementById('rechargesCards');
+            if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>';
+            if (cards) cards.innerHTML = '<p class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Loading...</p>';
+            try {
+                const response = await API.get('/admin/payments/pending');
+                const rows = response.data || [];
+                const badge = document.getElementById('rechargesBadge');
+                if (badge) badge.textContent = rows.length;
+                renderRechargeCards(rows);
+                if (!rows.length) {
+                    if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No pending payment approvals</td></tr>';
+                    return;
+                }
+                if (tbody) {
+                    tbody.innerHTML = rows.map((r) => {
+                        const name = `${r.first_name || ''} ${r.last_name || ''}`.trim() || r.email || 'User';
+                        const isSeller = r.request_type === 'seller_inventory';
+                        const amount = r.amount_display || (isSeller ? `$${r.amount_usd}` : `₹${Number(r.amount_inr || 0).toLocaleString('en-IN')}`);
+                        const coins = Number(r.estimated_coins || 0).toLocaleString('en-IN');
+                        const pkg = r.package_label || amount;
+                        const proof = r.payment_proof_url
+                            ? `<a href="${r.payment_proof_url}" target="_blank" rel="noopener">View</a>`
+                            : '—';
+                        const src = r.source || 'recharges';
+                        return `<tr>
+                            <td><div><strong>${name}</strong><br><small style="color:#888">ID: ${r.user_id || '—'}<br>${r.email || ''}</small></div></td>
+                            <td><span class="status-badge pending">${r.request_type_label || 'Coin Recharge'}</span></td>
+                            <td>${pkg}<br><small>${amount}</small></td>
+                            <td><strong>${coins}</strong></td>
+                            <td><code style="font-size:12px">${r.transaction_id || '—'}</code><br>${proof}</td>
+                            <td>${new Date(r.created_at).toLocaleString()}</td>
+                            <td><span class="status-badge pending">Pending</span></td>
+                            <td>
+                                <div class="action-buttons">
+                                    <button class="icon-btn approve" title="Approve" onclick="approvePaymentRequest('${src}','${r.id}')"><i class="fas fa-check"></i></button>
+                                    <button class="icon-btn delete" title="Reject" onclick="rejectPaymentRequest('${src}','${r.id}')"><i class="fas fa-times"></i></button>
+                                </div>
+                            </td>
+                        </tr>`;
+                    }).join('');
+                }
+            } catch (error) {
+                console.error('Failed to load payments:', error);
+                if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="empty-state">Failed to load payments</td></tr>';
+                if (cards) cards.innerHTML = '<p class="empty-state">Failed to load</p>';
+            }
+        }
+
+        async function approvePaymentRequest(source, id) {
+            if (!confirm('Approve this payment request?')) return;
+            try {
+                await API.post(`/admin/payments/${source}/${id}/approve`, {});
+                Toast.show('Payment approved', 'success');
+                loadRecharges();
+            } catch (e) {
+                Toast.show(e.message || 'Approve failed', 'error');
+            }
+        }
+
+        async function rejectPaymentRequest(source, id) {
+            const reason = prompt('Rejection reason (shown to user):');
+            if (reason === null) return;
+            try {
+                await API.post(`/admin/payments/${source}/${id}/reject`, { notes: reason || 'Rejected by admin' });
+                Toast.show('Payment rejected', 'success');
+                loadRecharges();
+            } catch (e) {
+                Toast.show(e.message || 'Reject failed', 'error');
+            }
+        }
+
+        async function approveRecharge(id) {
+            return approvePaymentRequest('recharges', id);
+        }
+
+        async function rejectRecharge(id) {
+            return rejectPaymentRequest('recharges', id);
+        }
+
+        async function loadRoleApplications() {
+            const tbody = document.getElementById('roleAppsTable');
+            const cards = document.getElementById('roleAppsCards');
+            if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>';
+            if (cards) cards.innerHTML = '<p class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Loading...</p>';
+            try {
+                const response = await API.get('/admin/role-applications/pending');
+                const rows = response.data || [];
+                const badge = document.getElementById('roleAppsBadge');
+                if (badge) badge.textContent = rows.length;
+                if (!rows.length) {
+                    if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No pending applications</td></tr>';
+                    if (cards) cards.innerHTML = '<p class="empty-state">No pending applications</p>';
+                    return;
+                }
+                if (cards) {
+                    cards.innerHTML = rows.map((a) => {
+                        const name = `${a.first_name || ''} ${a.last_name || ''}`.trim() || a.email || 'User';
+                        const initials = adminUserInitials(a.first_name, a.last_name, a.email);
+                        return `<article class="admin-approval-card is-pending">
+                            <span class="admin-approval-type role">${a.role_label || a.role_type}</span>
+                            <div class="admin-approval-card-head">
+                                <div class="admin-approval-card-avatar">${initials}</div>
+                                <div class="admin-approval-card-user">
+                                    <strong>${name}</strong>
+                                    <small>ID: ${a.user_id}</small>
+                                    <small>${a.email || ''}</small>
+                                </div>
+                            </div>
+                            <div class="admin-approval-kv">
+                                <div><span>Role requested</span><strong>${a.role_label}</strong></div>
+                                <div><span>Phone</span><strong>${a.contact_phone || a.phone || '—'}</strong></div>
+                                <div class="full"><span>Message</span><strong>${a.message || '—'}</strong></div>
+                                <div class="full"><span>Submitted</span><strong>${new Date(a.created_at).toLocaleString()}</strong></div>
+                            </div>
+                            <div class="admin-approval-actions">
+                                <button type="button" class="btn-approve" onclick="approveRoleApp('${a.id}')"><i class="fas fa-check"></i> Approve</button>
+                                <button type="button" class="btn-reject" onclick="rejectRoleApp('${a.id}')"><i class="fas fa-times"></i> Reject</button>
+                            </div>
+                        </article>`;
+                    }).join('');
+                }
+                if (tbody) {
+                    tbody.innerHTML = rows.map((a) => {
+                        const name = `${a.first_name || ''} ${a.last_name || ''}`.trim() || a.email || 'User';
+                        return `<tr>
+                            <td><strong>${name}</strong><br><small>ID: ${a.user_id}</small></td>
+                            <td>${a.role_label}</td>
+                            <td>${a.contact_phone || a.phone || '—'}</td>
+                            <td>${(a.message || '—').slice(0, 80)}</td>
+                            <td>${new Date(a.created_at).toLocaleString()}</td>
+                            <td>
+                                <button class="icon-btn approve" onclick="approveRoleApp('${a.id}')"><i class="fas fa-check"></i></button>
+                                <button class="icon-btn delete" onclick="rejectRoleApp('${a.id}')"><i class="fas fa-times"></i></button>
+                            </td>
+                        </tr>`;
+                    }).join('');
+                }
+            } catch (e) {
+                console.error('Failed to load role applications', e);
+                if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="empty-state">Failed to load</td></tr>';
+                if (cards) cards.innerHTML = '<p class="empty-state">Failed to load</p>';
+            }
+        }
+
+        async function approveRoleApp(id) {
+            if (!confirm('Approve this role application?')) return;
+            try {
+                await API.post(`/admin/role-applications/${id}/review`, { decision: 'approved' });
+                Toast.show('Application approved — user notified', 'success');
+                loadRoleApplications();
+            } catch (e) {
+                Toast.show(e.message || 'Failed', 'error');
+            }
+        }
+
+        async function rejectRoleApp(id) {
+            const reason = prompt('Rejection reason (shown to user):');
+            if (reason === null) return;
+            try {
+                await API.post(`/admin/role-applications/${id}/review`, { decision: 'rejected', reason: reason || 'Not approved at this time' });
+                Toast.show('Application rejected — user notified', 'success');
+                loadRoleApplications();
+            } catch (e) {
+                Toast.show(e.message || 'Failed', 'error');
+            }
+        }
+
         function withdrawalQrUrl(path) {
             if (!path) return '';
             if (/^https?:\/\//i.test(path)) return path;
@@ -2531,18 +2854,53 @@
 
         async function loadWithdrawals() {
             const tbody = document.getElementById('withdrawalsTable');
-            if (!tbody) return;
-            tbody.innerHTML = '<tr><td colspan="8" class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>';
+            const cards = document.getElementById('withdrawalsCards');
+            if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>';
+            if (cards) cards.innerHTML = '<p class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Loading...</p>';
             try {
                 const response = await API.get('/admin/withdrawals/pending');
                 const rows = response.data || [];
                 const badge = document.getElementById('withdrawalsBadge');
                 if (badge) badge.textContent = rows.length;
                 if (!rows.length) {
-                    tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No pending withdrawal requests</td></tr>';
+                    if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No pending withdrawal requests</td></tr>';
+                    if (cards) cards.innerHTML = '<p class="empty-state">No pending withdrawals</p>';
                     return;
                 }
-                tbody.innerHTML = rows.map((w) => {
+                if (cards) {
+                    cards.innerHTML = rows.map((w) => {
+                        const name = `${w.first_name || ''} ${w.last_name || ''}`.trim() || w.email || 'User';
+                        const initials = adminUserInitials(w.first_name, w.last_name, w.email);
+                        const coins = Number(w.amount).toLocaleString();
+                        const inr = w.amount_inr != null ? '₹' + Number(w.amount_inr).toFixed(2) : '—';
+                        const qr = w.qr_image_url
+                            ? `<a href="${withdrawalQrUrl(w.qr_image_url)}" target="_blank" rel="noopener"><img src="${withdrawalQrUrl(w.qr_image_url)}" alt="QR" style="max-width:100%;border-radius:8px;margin-top:6px"></a>`
+                            : 'No QR uploaded';
+                        return `<article class="admin-approval-card is-pending">
+                            <span class="admin-approval-type withdrawal">Withdrawal</span>
+                            <div class="admin-approval-card-head">
+                                <div class="admin-approval-card-avatar">${initials}</div>
+                                <div class="admin-approval-card-user">
+                                    <strong>${name}</strong>
+                                    <small>ID: ${w.user_id || '—'}</small>
+                                    <small>${w.email || ''}</small>
+                                </div>
+                            </div>
+                            <div class="admin-approval-kv">
+                                <div><span>Points</span><strong>${coins}</strong></div>
+                                <div><span>INR (est.)</span><strong>${inr}</strong></div>
+                                <div class="full"><span>Payment QR</span>${qr}</div>
+                                <div class="full"><span>Submitted</span><strong>${new Date(w.created_at).toLocaleString()}</strong></div>
+                            </div>
+                            <div class="admin-approval-actions">
+                                <button type="button" class="btn-approve" onclick="approveWithdrawal('${w.id}')"><i class="fas fa-check"></i> Approve &amp; Pay</button>
+                                <button type="button" class="btn-reject" onclick="rejectWithdrawal('${w.id}')"><i class="fas fa-times"></i> Reject</button>
+                            </div>
+                        </article>`;
+                    }).join('');
+                }
+                if (tbody) {
+                    tbody.innerHTML = rows.map((w) => {
                     const name = `${w.first_name || ''} ${w.last_name || ''}`.trim() || w.email || 'User';
                     const coins = Number(w.amount).toLocaleString();
                     const inr = w.amount_inr != null ? '₹' + Number(w.amount_inr).toFixed(2) : '—';
@@ -2564,8 +2922,10 @@
                         </td>
                     </tr>`;
                 }).join('');
+                }
             } catch (error) {
-                tbody.innerHTML = `<tr><td colspan="8" class="empty-state">${error.message || 'Failed to load'}</td></tr>`;
+                if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="empty-state">${error.message || 'Failed to load'}</td></tr>`;
+                if (cards) cards.innerHTML = '<p class="empty-state">Failed to load</p>';
             }
         }
 
@@ -2891,6 +3251,8 @@
 
             // Load section-specific data if needed
             if (section === 'payments') loadPayments();
+            if (section === 'recharges') loadRecharges();
+            if (section === 'role-applications') loadRoleApplications();
             if (section === 'withdrawals') loadWithdrawals();
             if (section === 'reviews') loadReviews();
         }

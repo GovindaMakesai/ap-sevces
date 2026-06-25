@@ -708,7 +708,7 @@ export default function App() {
             nativeSessionRef.current = fresh;
             const inject =
               buildSessionInjectScript(fresh.user, fresh.accessToken, fresh.refreshToken) +
-              `try{window.dispatchEvent(new CustomEvent('ap-session-injected'));}catch(e){};true;`;
+              `try{window.dispatchEvent(new CustomEvent('ap-session-injected'));window.dispatchEvent(new CustomEvent('ap-session-restored'));}catch(e){};true;`;
             webViewRef.current?.injectJavaScript(inject);
           })();
           return;

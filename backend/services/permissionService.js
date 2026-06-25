@@ -34,4 +34,33 @@ async function userHasPermission(userId, permissionSlug) {
   return perms.includes(permissionSlug);
 }
 
-module.exports = { legacyRoleToSlug, getUserPermissions, userHasPermission };
+const ALLOWED_ROLES = new Set([
+  'customer',
+  'worker',
+  'admin',
+  'super_admin',
+  'founder',
+  'ceo',
+  'coin_seller',
+  'creator',
+  'agency',
+  'vip_user',
+  'bdm',
+]);
+
+async function syncUserRole(userId, roleSlug) {
+  const slug = String(roleSlug || 'customer').toLowerCase();
+  if (!ALLOWED_ROLES.has(slug)) throw new Error(`Invalid role: ${slug}`);
+  await db.query(`UPDATE users SET role = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`, [slug, userId]);
+  const roleRow = await db.query(`SELECT id FROM roles WHERE slug = $1`, [slug]);
+  if (roleRow.rows[0]) {
+    await db.query(`DELETE FROM user_roles WHERE user_id = $1`, [userId]);
+    await db.query(`INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [
+      userId,
+      roleRow.rows[0].id,
+    ]);
+  }
+  return slug;
+}
+
+module.exports = { legacyRoleToSlug, getUserPermissions, userHasPermission, syncUserRole, ALLOWED_ROLES };

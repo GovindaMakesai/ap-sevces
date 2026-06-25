@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#fff8e1">
+  <title>Coin Seller Recharge - AP Services</title>
+  <script src="/ap-native-boot.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="social-theme.css">
+  <link rel="stylesheet" href="coin-seller.css">
+  <link rel="stylesheet" href="mobile-app.css">
+  <style>
+    .cs-steps { background:#fff;border-radius:12px;padding:14px 16px;margin:12px 16px;font-size:13px;color:#5c4a1a;line-height:1.55; }
+    .cs-steps ol { margin:8px 0 0;padding-left:20px; }
+    .cs-steps li { margin-bottom:6px; }
+    .cs-field { margin:12px 16px; }
+    .cs-field label { display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:#5c4a1a; }
+    .cs-field input[type="text"], .cs-field input[type="file"] { width:100%;box-sizing:border-box;padding:12px;border:1px solid #f0e6c8;border-radius:10px;font-size:15px; }
+    .cs-history { margin:20px 16px 32px; }
+    .cs-history h3 { font-size:15px;margin:0 0 10px;color:#5c4a1a; }
+    .cs-history-item { background:#fff;border-radius:10px;padding:12px;margin-bottom:8px;border:1px solid #f0e6c8;position:relative; }
+    .cs-history-item.pending { border-left:3px solid #f5b800; }
+    .cs-history-item.approved { border-left:3px solid #2e7d32; }
+    .cs-history-item.rejected { border-left:3px solid #c62828; }
+    .cs-history-meta { font-size:11px;color:#999;margin-top:4px; }
+    .cs-status-badge { position:absolute;top:12px;right:12px;font-size:10px;text-transform:uppercase;font-weight:700;padding:3px 8px;border-radius:6px;background:#f5f0e6;color:#8b6914; }
+    .cs-history-item.approved .cs-status-badge { background:#e8f5e9;color:#2e7d32; }
+    .cs-history-item.rejected .cs-status-badge { background:#ffebee;color:#c62828; }
+  </style>
+</head>
+<body class="cs-page cs-recharge-page">
+  <header class="cs-header">
+    <a href="/coin-seller-center.html?app=1" aria-label="Back"><i class="fas fa-arrow-left"></i></a>
+    <h1>Seller inventory top-up</h1>
+    <span style="width:36px"></span>
+  </header>
+
+  <div class="cs-steps">
+    <strong><i class="fas fa-info-circle"></i> How it works</strong>
+    <ol>
+      <li>Select a stock package below.</li>
+      <li>Pay via your agreed channel (USDT / Epay / PayerMax).</li>
+      <li>Submit payment reference (UTR) and optional screenshot.</li>
+      <li>Admin verifies — coins are added to your <strong>seller inventory</strong> after approval.</li>
+    </ol>
+  </div>
+
+  <div class="cs-recharge-card">
+    <p class="cs-section-label" style="margin-top:0">Select package</p>
+    <div class="cs-pkg-grid cs-pkg-grid--full" id="rechargePkgs"></div>
+
+    <p class="cs-section-label">Payment Channel</p>
+    <div class="cs-pay-list cs-pay-list--card" id="rechargeChannels">
+      <label class="cs-pay-option"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Crect fill='%23f5b800' width='32' height='32' rx='6'/%3E%3Ctext x='16' y='21' text-anchor='middle' fill='white' font-size='10' font-weight='bold'%3EE%3C/text%3E%3C/svg%3E" alt=""><span>Epay-USDT</span><input type="radio" name="payCh" value="epay-usdt" checked></label>
+      <label class="cs-pay-option"><span class="cs-pay-ico usdt">₮</span><span>USDT-2</span><input type="radio" name="payCh" value="usdt-2"></label>
+      <label class="cs-pay-option"><span class="cs-pay-ico pm">◆</span><span>PayerMax</span><input type="radio" name="payCh" value="payermax"></label>
+      <label class="cs-pay-option"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Crect fill='%23f5b800' width='32' height='32' rx='6'/%3E%3Ctext x='16' y='21' text-anchor='middle' fill='white' font-size='10' font-weight='bold'%3EE%3C/text%3E%3C/svg%3E" alt=""><span>Epay</span><input type="radio" name="payCh" value="epay"></label>
+    </div>
+
+    <div class="cs-field">
+      <label for="sellerUtr">Payment reference / UTR (optional)</label>
+      <input type="text" id="sellerUtr" placeholder="Transaction ID from payment receipt" autocomplete="off" inputmode="numeric" maxlength="22">
+    </div>
+    <div class="cs-field">
+      <label for="sellerProof">Payment screenshot (optional)</label>
+      <input type="file" id="sellerProof" accept="image/*">
+    </div>
+
+    <button type="button" class="cs-submit" id="rechargeConfirmBtn">Submit for verification</button>
+    <p style="font-size:12px;color:#8b6914;text-align:center;margin:10px 0 0">Status: <strong>Pending</strong> until admin approves</p>
+  </div>
+
+  <div class="cs-history">
+    <h3><i class="fas fa-history"></i> Your top-up requests</h3>
+    <div id="sellerRechargeHistory"><p style="font-size:13px;color:#999;text-align:center">Loading…</p></div>
+  </div>
+
+  <script src="ap-config.js"></script>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+  <script src="auth-guard.js"></script>
+  <script>
+    const PACKAGES = [
+      { coins: 480000, usd: 50 },
+      { coins: 960000, usd: 100 },
+      { coins: 1920000, usd: 200 },
+      { coins: 2880000, usd: 300 },
+      { coins: 3840000, usd: 400 },
+    ];
+    let selected = PACKAGES[0];
+    const grid = document.getElementById('rechargePkgs');
+    grid.innerHTML = PACKAGES.map((p, i) => `
+      <button type="button" class="cs-pkg${i === 0 ? ' selected' : ''}" data-coins="${p.coins}" data-usd="${p.usd}">
+        <span class="cs-pkg-coin"><i class="fas fa-coins"></i></span>
+        <strong>${p.coins.toLocaleString()}</strong>
+        <small>$${p.usd}</small>
+      </button>`).join('');
+    grid.querySelectorAll('.cs-pkg').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        grid.querySelectorAll('.cs-pkg').forEach((b) => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        selected = { coins: +btn.dataset.coins, usd: +btn.dataset.usd };
+      });
+    });
+
+    async function loadHistory() {
+      const el = document.getElementById('sellerRechargeHistory');
+      if (!el) return;
+      try {
+        Auth.checkAuth();
+        const res = await API.get('/social/coin-seller/recharges');
+        const rows = res.data || [];
+        if (!rows.length) {
+          el.innerHTML = '<p style="font-size:13px;color:#999;text-align:center">No top-up requests yet.</p>';
+          return;
+        }
+        el.innerHTML = rows.map((r) => {
+          const st = r.status || 'pending';
+          return `<div class="cs-history-item ${st}">
+            <div><strong>${Number(r.package_coins).toLocaleString()} coins</strong> · $${Number(r.amount_usd)}</div>
+            <div class="cs-history-meta">${r.transaction_id ? 'Ref: ' + r.transaction_id + ' · ' : ''}${new Date(r.created_at).toLocaleString()}</div>
+            ${r.rejection_reason ? '<div class="cs-history-meta" style="color:#c62828">' + r.rejection_reason + '</div>' : ''}
+            <span class="cs-status-badge">${st}</span>
+          </div>`;
+        }).join('');
+      } catch (_e) {
+        el.innerHTML = '';
+      }
+    }
+    loadHistory();
+
+    document.getElementById('rechargeConfirmBtn').addEventListener('click', async () => {
+      const ch = document.querySelector('input[name="payCh"]:checked')?.value || 'epay-usdt';
+      const utr = (document.getElementById('sellerUtr')?.value || '').trim().replace(/\s+/g, '');
+      if (utr && !/^\d{10,22}$/.test(utr)) {
+        alert('UTR must be 10–22 digits when provided.');
+        return;
+      }
+      const proof = document.getElementById('sellerProof')?.files?.[0];
+      const btn = document.getElementById('rechargeConfirmBtn');
+      btn.disabled = true;
+      btn.textContent = 'Submitting…';
+      try {
+        Auth.checkAuth();
+        const fd = new FormData();
+        fd.append('package_coins', String(selected.coins));
+        fd.append('payment_channel', ch);
+        if (utr) fd.append('transaction_id', utr);
+        if (proof) fd.append('payment_proof', proof);
+        await API.post('/social/coin-seller/recharge', fd);
+        if (window.Toast?.show) Toast.show('Submitted! Inventory updates after admin approval.', 'success');
+        else alert('Submitted for verification. Stock is credited after admin approval.');
+        document.getElementById('sellerUtr').value = '';
+        document.getElementById('sellerProof').value = '';
+        await loadHistory();
+      } catch (e) {
+        alert(e?.message || 'Submission failed. Coin seller role required.');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Submit for verification';
+      }
+    });
+  </script>
+</body>
+</html>

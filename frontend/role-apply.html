@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#c9a227">
+  <title>Apply for a Role - AP Services</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="social-theme.css">
+  <link rel="stylesheet" href="mobile-app.css">
+</head>
+<body class="mobile-app-page">
+  <header class="mobile-app-header">
+    <a href="/profile-tab.html?app=1" aria-label="Back"><i class="fas fa-arrow-left"></i></a>
+    <h1>Apply for a Role</h1>
+    <span style="width:36px"></span>
+  </header>
+
+  <div class="mobile-app-body">
+    <div class="ap-role-tabs" id="roleTabs">
+      <button type="button" class="ap-role-tab active" data-role="creator">
+        <i class="fas fa-video"></i> Host
+      </button>
+      <button type="button" class="ap-role-tab" data-role="coin_seller">
+        <i class="fas fa-coins"></i> Coin Seller
+      </button>
+    </div>
+
+    <div class="ap-card" id="roleInfoCard">
+      <h2 id="roleInfoTitle"><i class="fas fa-video"></i> Become a Host</h2>
+      <div id="roleInfoBody"></div>
+      <div id="roleStatusWrap" hidden style="margin-top:12px"></div>
+    </div>
+
+    <div class="ap-card" id="applyFormCard">
+      <h2>Submit application</h2>
+      <p style="margin:0 0 12px;font-size:13px;color:#888">Tell us briefly about your experience. Admin reviews within 24–48 hours.</p>
+      <div class="ap-field">
+        <label for="applyPhone">Contact phone</label>
+        <input type="tel" id="applyPhone" placeholder="Your WhatsApp / phone number">
+      </div>
+      <div class="ap-field">
+        <label for="applyMessage">Why do you want this role?</label>
+        <textarea id="applyMessage" placeholder="e.g. I stream daily, have 500 followers, experience with voice rooms…"></textarea>
+      </div>
+      <button type="button" class="ap-btn-primary" id="applySubmitBtn">Submit application</button>
+      <a href="/roles-guide.html?app=1" class="ap-btn-secondary">Read full role guide</a>
+    </div>
+
+    <div class="ap-card">
+      <h2>Your applications</h2>
+      <div id="applicationsList"><p style="color:#999;font-size:13px">Loading…</p></div>
+    </div>
+  </div>
+
+  <script src="ap-config.js"></script>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+  <script src="auth-guard.js"></script>
+  <script src="social-ui.js"></script>
+  <script>
+    const ROLE_COPY = {
+      creator: {
+        title: 'Become a Host',
+        icon: 'fa-video',
+        benefits: [
+          'Go live (video) and host party voice rooms',
+          'Earn points/beans from viewer gifts',
+          'Access Streamer Center and analytics',
+          'Build followers on the platform',
+        ],
+        requirements: [
+          'Active account in good standing',
+          'Stable internet for streaming',
+          'Follow community guidelines',
+        ],
+        approvedLink: '/streamer-center.html?app=1',
+        approvedLabel: 'Open Streamer Center',
+      },
+      coin_seller: {
+        title: 'Become a Coin Seller',
+        icon: 'fa-coins',
+        benefits: [
+          'Stock coins and transfer to buyers',
+          'Earn from coin sales to users',
+          'Level up for better exchange rates',
+          'Dedicated Coin Seller Center',
+        ],
+        requirements: [
+          'Admin approval required',
+          'Coordinate stock top-up with admin after approval',
+          'Minimum 5,000 coins per transfer to users',
+        ],
+        approvedLink: '/coin-seller-center.html?app=1',
+        approvedLabel: 'Open Coin Seller Center',
+      },
+    };
+
+    let selectedRole = 'creator';
+    let statusData = null;
+
+    function toast(msg, type) {
+      if (window.SocialUI?.toast) SocialUI.toast(msg, type);
+      else if (window.Toast?.show) Toast.show(msg, type);
+      else alert(msg);
+    }
+
+    function renderRoleInfo() {
+      const copy = ROLE_COPY[selectedRole];
+      document.getElementById('roleInfoTitle').innerHTML =
+        `<i class="fas ${copy.icon}"></i> ${copy.title}`;
+      document.getElementById('roleInfoBody').innerHTML = `
+        <p><strong>Benefits</strong></p>
+        <ul>${copy.benefits.map((b) => `<li>${b}</li>`).join('')}</ul>
+        <p><strong>Requirements</strong></p>
+        <ul>${copy.requirements.map((r) => `<li>${r}</li>`).join('')}</ul>`;
+
+      const wrap = document.getElementById('roleStatusWrap');
+      const form = document.getElementById('applyFormCard');
+      const btn = document.getElementById('applySubmitBtn');
+      wrap.hidden = true;
+      form.hidden = false;
+      btn.disabled = false;
+
+      if (statusData?.has_role) {
+        wrap.hidden = false;
+        wrap.innerHTML = `<span class="ap-status-pill approved"><i class="fas fa-check"></i> Approved — you have this role</span>
+          <a href="${copy.approvedLink}" class="ap-btn-secondary">${copy.approvedLabel}</a>`;
+        form.hidden = true;
+        return;
+      }
+      const latest = statusData?.latest;
+      if (latest?.status === 'pending') {
+        wrap.hidden = false;
+        wrap.innerHTML = `<span class="ap-status-pill pending"><i class="fas fa-clock"></i> Pending review</span>
+          <p style="font-size:13px;color:#666;margin:8px 0 0">Submitted ${new Date(latest.created_at).toLocaleString()}. We will notify you when reviewed.</p>`;
+        form.hidden = true;
+        return;
+      }
+      if (latest?.status === 'rejected') {
+        wrap.hidden = false;
+        wrap.innerHTML = `<span class="ap-status-pill rejected"><i class="fas fa-times"></i> Not approved</span>
+          <p style="font-size:13px;color:#666;margin:8px 0 0">${latest.rejection_reason || 'You may apply again with more details.'}</p>`;
+      }
+    }
+
+    async function loadStatus() {
+      const res = await API.get(`/social/role-applications/status/${selectedRole}`);
+      statusData = res.data;
+      renderRoleInfo();
+    }
+
+    async function loadApplications() {
+      const el = document.getElementById('applicationsList');
+      try {
+        const res = await API.get('/social/role-applications');
+        const rows = res.data || [];
+        if (!rows.length) {
+          el.innerHTML = '<p style="color:#999;font-size:13px">No applications yet.</p>';
+          return;
+        }
+        el.innerHTML = rows
+          .map((a) => {
+            const st = a.status || 'pending';
+            return `<div style="padding:10px 0;border-bottom:1px solid #f0e6c8">
+              <strong>${a.role_label || a.role_type}</strong>
+              <span class="ap-status-pill ${st}" style="margin-left:8px;font-size:10px">${st}</span>
+              <div style="font-size:12px;color:#999;margin-top:4px">${new Date(a.created_at).toLocaleString()}</div>
+              ${a.rejection_reason ? `<p style="font-size:12px;color:#c62828;margin:4px 0 0">${a.rejection_reason}</p>` : ''}
+            </div>`;
+          })
+          .join('');
+      } catch (e) {
+        el.innerHTML = '<p style="color:#c62828;font-size:13px">Could not load applications</p>';
+      }
+    }
+
+    document.querySelectorAll('.ap-role-tab').forEach((tab) => {
+      tab.addEventListener('click', async () => {
+        document.querySelectorAll('.ap-role-tab').forEach((t) => t.classList.remove('active'));
+        tab.classList.add('active');
+        selectedRole = tab.dataset.role;
+        await loadStatus();
+      });
+    });
+
+    document.getElementById('applySubmitBtn').addEventListener('click', async () => {
+      const btn = document.getElementById('applySubmitBtn');
+      btn.disabled = true;
+      try {
+        await API.post('/social/role-applications', {
+          role_type: selectedRole,
+          message: document.getElementById('applyMessage').value.trim(),
+          contact_phone: document.getElementById('applyPhone').value.trim(),
+        });
+        toast('Application submitted! We will notify you when reviewed.', 'success');
+        document.getElementById('applyMessage').value = '';
+        await loadStatus();
+        await loadApplications();
+      } catch (e) {
+        toast(e?.message || 'Submit failed', 'error');
+        btn.disabled = false;
+      }
+    });
+
+    (async function init() {
+      try {
+        Auth.checkAuth();
+        if (!Auth.hasSession?.()) {
+          location.href = '/login.html?redirect=' + encodeURIComponent('/role-apply.html?app=1');
+          return;
+        }
+        const params = new URLSearchParams(location.search);
+        const urlRole = params.get('role');
+        if (urlRole === 'coin_seller' || urlRole === 'creator') {
+          selectedRole = urlRole;
+          document.querySelectorAll('.ap-role-tab').forEach((t) => {
+            t.classList.toggle('active', t.dataset.role === urlRole);
+          });
+        }
+        const user = Auth.getUser();
+        if (user?.phone) document.getElementById('applyPhone').value = user.phone;
+        await loadStatus();
+        await loadApplications();
+      } catch (e) {
+        toast(e?.message || 'Please sign in', 'error');
+      }
+    })();
+  </script>
+</body>
+</html>

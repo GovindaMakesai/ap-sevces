@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { verifyToken } = require('../middleware/auth');
 const social = require('../controllers/socialController');
+const roleApplicationController = require('../controllers/roleApplicationController');
 const privateUpload = require('../middleware/privateUpload');
 
 router.get('/gifts/catalog', social.listGiftCatalog);
@@ -30,6 +31,14 @@ router.post(
 router.post('/coin-seller-orders/:orderId/approve', social.approveSellerOrder);
 router.post('/coin-seller-orders/:orderId/reject', social.rejectSellerOrder);
 
+router.get('/coin-seller/dashboard', social.coinSellerDashboard);
+router.get('/coin-seller/transfers', social.coinSellerTransfers);
+router.get('/coin-seller/lookup/:accountId', social.coinSellerLookupUser);
+router.post('/coin-seller/transfer', social.coinSellerTransfer);
+router.post('/coin-seller/exchange', social.coinSellerExchange);
+router.post('/coin-seller/recharge', privateUpload.single('payment_proof'), social.coinSellerRecharge);
+router.get('/coin-seller/recharges', social.coinSellerRechargeHistory);
+
 router.post('/posts', social.createPost);
 router.post('/posts/:postId/like', social.likePost);
 router.post('/posts/:postId/comments', social.commentPost);
@@ -38,5 +47,9 @@ router.post('/posts/:postId/share', social.sharePost);
 router.delete('/posts/:postId', social.deletePost);
 
 router.post('/report', social.reportUser);
+
+router.get('/role-applications', roleApplicationController.getMyApplications);
+router.get('/role-applications/status/:roleType', roleApplicationController.getApplicationStatus);
+router.post('/role-applications', roleApplicationController.submitApplication);
 
 module.exports = router;

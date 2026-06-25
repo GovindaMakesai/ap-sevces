@@ -34,12 +34,21 @@ async function getWithdrawalById(withdrawalId, userId = null) {
   return res.rows[0] || null;
 }
 
-async function createRechargeRequest(userId, { amount_inr, payment_method, transaction_id }) {
-  if (!amount_inr || amount_inr <= 0) throw new Error('Invalid recharge amount');
-  const utr = String(transaction_id || '').trim();
-  if (!utr) {
-    throw new Error('Payment reference (UTR) is required');
+function normalizeUtr(raw) {
+  return String(raw || '').trim().replace(/\s+/g, '');
+}
+
+function validateUtr(utr) {
+  if (!utr) throw new Error('Payment reference (UTR) is required');
+  if (!/^\d{10,22}$/.test(utr)) {
+    throw new Error('UTR must be 10–22 digits (check your UPI payment receipt)');
   }
+}
+
+async function createRechargeRequest(userId, { amount_inr, payment_method, transaction_id, payment_proof_asset_id }) {
+  if (!amount_inr || amount_inr <= 0) throw new Error('Invalid recharge amount');
+  const utr = normalizeUtr(transaction_id);
+  validateUtr(utr);
 
   const fraudService = require('./fraudService');
   await fraudService.checkRechargeAbuse(userId);
@@ -56,9 +65,9 @@ async function createRechargeRequest(userId, { amount_inr, payment_method, trans
   }
 
   const res = await db.query(
-    `INSERT INTO recharges (user_id, amount_inr, payment_method, transaction_id, payment_status)
-     VALUES ($1, $2, $3, $4, 'pending') RETURNING *`,
-    [userId, amount_inr, payment_method || 'qr_manual', utr]
+    `INSERT INTO recharges (user_id, amount_inr, payment_method, transaction_id, payment_status, payment_proof_asset_id)
+     VALUES ($1, $2, $3, $4, 'pending', $5) RETURNING *`,
+    [userId, amount_inr, payment_method || 'qr_manual', utr, payment_proof_asset_id || null]
   );
   return res.rows[0];
 }
@@ -97,6 +106,16 @@ async function approveRecharge(rechargeId, adminUserId, notes) {
       [coins, adminUserId, notes || null, rechargeId]
     );
     await client.query('COMMIT');
+
+    const Notification = require('../models/Notification');
+    await Notification.create({
+      user_id: recharge.user_id,
+      type: 'recharge',
+      title: 'Coins credited',
+      message: `${coins.toLocaleString()} coins added to your wallet.`,
+      data: { recharge_id: rechargeId, coins_credited: coins },
+    });
+
     return { coins_credited: coins };
   } catch (e) {
     await client.query('ROLLBACK');
@@ -113,6 +132,16 @@ async function rejectRecharge(rechargeId, adminUserId, notes) {
     [adminUserId, notes || null, rechargeId]
   );
   if (!res.rows.length) throw new Error('Recharge not found or already processed');
+
+  const Notification = require('../models/Notification');
+  await Notification.create({
+    user_id: res.rows[0].user_id,
+    type: 'recharge',
+    title: 'Recharge not approved',
+    message: notes || 'Your payment could not be verified. Contact support if you believe this is an error.',
+    data: { recharge_id: rechargeId, status: 'rejected' },
+  });
+
   return res.rows[0];
 }
 
@@ -171,10 +200,46 @@ async function rejectWithdrawal(withdrawalId, adminUserId, notes) {
 
 async function listPendingRecharges(limit = 50) {
   const res = await db.query(
-    `SELECT r.*, u.email, u.first_name, u.last_name
-     FROM recharges r JOIN users u ON u.id = r.user_id
-     WHERE r.payment_status = 'pending' ORDER BY r.created_at ASC LIMIT $1`,
+    `SELECT r.*,
+            u.id AS user_uuid,
+            u.email, u.first_name, u.last_name, u.phone, u.profile_pic,
+            cp.name AS package_name,
+            cp.coins AS package_coins,
+            cp.bonus_coins AS package_bonus
+     FROM recharges r
+     JOIN users u ON u.id = r.user_id
+     LEFT JOIN coin_packages cp ON cp.price_inr = r.amount_inr AND cp.is_active = TRUE
+     WHERE r.payment_status = 'pending'
+     ORDER BY r.created_at ASC
+     LIMIT $1`,
     [limit]
+  );
+  const walletService = require('./walletService');
+  const settings = await walletService.getWalletSettings();
+  const rate = settings.coins_per_inr || 10;
+  return res.rows.map((row) => {
+    const pkgCoins = row.package_coins != null ? Number(row.package_coins) + Number(row.package_bonus || 0) : null;
+    const estimatedCoins = pkgCoins ?? Math.floor(Number(row.amount_inr) * rate);
+    return {
+      ...row,
+      request_type: 'coin_recharge',
+      request_type_label: 'Coin Recharge',
+      user_id: row.user_uuid,
+      estimated_coins: estimatedCoins,
+      package_label: row.package_name || `₹${Number(row.amount_inr).toLocaleString('en-IN')} package`,
+    };
+  });
+}
+
+async function listUserRecharges(userId, { limit = 30 } = {}) {
+  const res = await db.query(
+    `SELECT id, amount_inr, payment_method, transaction_id, payment_status,
+            coins_credited, admin_notes, created_at, updated_at
+     FROM recharges
+     WHERE user_id = $1
+     ORDER BY created_at DESC
+     LIMIT $2`,
+    [userId, limit]
   );
   return res.rows;
 }
@@ -210,6 +275,9 @@ module.exports = {
   confirmWithdrawalReceipt,
   rejectWithdrawal,
   listPendingRecharges,
+  listUserRecharges,
   listPendingWithdrawals,
   listAwaitingConfirmWithdrawals,
+  normalizeUtr,
+  validateUtr,
 };

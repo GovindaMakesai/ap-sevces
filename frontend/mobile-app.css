@@ -1,0 +1,190 @@
+/**
+ * Shared mobile-first app surfaces (profile, wallet, role apply).
+ */
+.mobile-app-page {
+  min-height: 100vh;
+  background: var(--social-bg, #fdf9f0);
+  padding-bottom: calc(24px + env(safe-area-inset-bottom, 0));
+}
+
+.mobile-app-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: #fff;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.mobile-app-header a {
+  color: #5c4a1a;
+  font-size: 18px;
+  width: 36px;
+  text-decoration: none;
+}
+
+.mobile-app-header h1 {
+  flex: 1;
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: #3d2e08;
+}
+
+.mobile-app-body {
+  padding: 16px;
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.ap-card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 14px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(201, 162, 39, 0.12);
+}
+
+.ap-card h2 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  color: #c8860a;
+}
+
+.ap-card p,
+.ap-card li {
+  font-size: 14px;
+  color: #555;
+  line-height: 1.55;
+}
+
+.ap-card ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.ap-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.ap-status-pill.pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.ap-status-pill.approved {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.ap-status-pill.rejected {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.ap-btn-primary {
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #e8c56a, #c9a227);
+  color: #3d2e08;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 12px;
+}
+
+.ap-btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ap-btn-secondary {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid #e8c56a;
+  border-radius: 12px;
+  background: #fff;
+  color: #8b6914;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+  line-height: 44px;
+  margin-top: 8px;
+}
+
+.ap-field {
+  margin-bottom: 14px;
+}
+
+.ap-field label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #5c4a1a;
+  margin-bottom: 6px;
+}
+
+.ap-field input,
+.ap-field textarea,
+.ap-field select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border: 1px solid #e8dfc8;
+  border-radius: 10px;
+  font-size: 15px;
+  background: #fffdf8;
+}
+
+.ap-field textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+
+.ap-role-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.ap-role-tab {
+  padding: 14px 10px;
+  border: 2px solid #f0e6c8;
+  border-radius: 12px;
+  background: #fff;
+  text-align: center;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: #8b6914;
+}
+
+.ap-role-tab.active {
+  border-color: #c9a227;
+  background: #fff8e1;
+  color: #3d2e08;
+}
+
+.ap-role-tab i {
+  display: block;
+  font-size: 22px;
+  margin-bottom: 6px;
+  color: #c9a227;
+}

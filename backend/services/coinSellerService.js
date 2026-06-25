@@ -171,6 +171,398 @@ async function listOrdersForUser(userId, { role = 'buyer' } = {}) {
   return res.rows;
 }
 
+const SELLER_LEVELS = [
+  { slug: 'zero', label: 'Zero', minRechargeUsd: 0, beansPer10k: 7000, coinsPerUsd: 9100 },
+  { slug: 'beginner', label: 'Beginner', minRechargeUsd: 300, beansPer10k: 9500, coinsPerUsd: 9100 },
+  { slug: 'standard', label: 'Standard', minRechargeUsd: 800, beansPer10k: 9700, coinsPerUsd: 9100 },
+  { slug: 'senior', label: 'Senior', minRechargeUsd: 1500, beansPer10k: 9800, coinsPerUsd: 9100 },
+  { slug: 'super', label: 'Super', minRechargeUsd: 3000, beansPer10k: 9900, coinsPerUsd: 9100 },
+];
+
+const RECHARGE_PACKAGES = [
+  { coins: 480000, usd: 50 },
+  { coins: 960000, usd: 100 },
+  { coins: 1920000, usd: 200 },
+  { coins: 2880000, usd: 300 },
+  { coins: 3840000, usd: 400 },
+];
+
+function resolveSellerLevel(totalRechargeUsd) {
+  const usd = Number(totalRechargeUsd) || 0;
+  let level = SELLER_LEVELS[0];
+  for (const row of SELLER_LEVELS) {
+    if (usd >= row.minRechargeUsd) level = row;
+  }
+  return level;
+}
+
+async function ensureSellerAccess(userId) {
+  const wallet = await walletService.getOrCreateWallet(userId);
+  const balance = Number(wallet.coin_balance);
+  const userRes = await db.query('SELECT role, first_name, last_name FROM users WHERE id = $1', [userId]);
+  const user = userRes.rows[0];
+  const privileged = ['coin_seller', 'admin', 'super_admin', 'founder', 'ceo'].includes(user?.role);
+  if (privileged || balance >= 100000) {
+    let profile = await getProfile(userId);
+    if (!profile) {
+      const name = `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || 'Coin Seller';
+      profile = await upsertProfile(userId, { displayName: name, inventoryCoins: 0, isActive: true });
+    }
+    if (!privileged && balance >= 100000) {
+      const { syncUserRole } = require('./permissionService');
+      await syncUserRole(userId, 'coin_seller');
+      await db.query(`UPDATE users SET role = 'coin_seller' WHERE id = $1`, [userId]);
+    }
+    return profile;
+  }
+  return null;
+}
+
+async function getDashboard(userId) {
+  const profile = await ensureSellerAccess(userId);
+  if (!profile) throw new Error('Coin seller profile not found — need 100,000+ NR coins or admin approval');
+
+  const userRes = await db.query(
+    `SELECT id, first_name, last_name, profile_pic, role, is_verified, created_at FROM users WHERE id = $1`,
+    [userId]
+  );
+  const user = userRes.rows[0];
+  const wallet = await walletService.getOrCreateWallet(userId);
+  const level = resolveSellerLevel(profile.total_recharge_usd);
+
+  const since = new Date();
+  since.setDate(since.getDate() - 30);
+  const statsRes = await db.query(
+    `SELECT
+       COALESCE(SUM(CASE WHEN transfer_type = 'user' THEN coins ELSE 0 END), 0)::bigint AS coins_sold,
+       COUNT(*)::int AS transfer_count
+     FROM coin_seller_transfers
+     WHERE seller_id = $1 AND created_at >= $2`,
+    [userId, since.toISOString()]
+  );
+  const rechargeRes = await db.query(
+    `SELECT COALESCE(SUM(amount_inr), 0) AS total_inr
+     FROM coin_seller_orders
+     WHERE seller_id = $1 AND status = 'completed' AND created_at >= $2`,
+    [userId, since.toISOString()]
+  );
+
+  const transfers = await listTransfers(userId, { limit: 20 });
+  const lowBalanceUsd = Number(profile.inventory_coins) / (level.coinsPerUsd || 9100);
+
+  return {
+    profile,
+    user,
+    wallet: {
+      coin_balance: Number(wallet.coin_balance),
+      star_balance: Number(wallet.star_balance),
+    },
+    level,
+    levels: SELLER_LEVELS,
+    rechargePackages: RECHARGE_PACKAGES,
+    stats: {
+      coinsSold: Number(statsRes.rows[0]?.coins_sold || 0),
+      transferCount: Number(statsRes.rows[0]?.transfer_count || 0),
+      beansExchanged: Number(profile.beans_exchanged || 0),
+      rechargeInr: Number(rechargeRes.rows[0]?.total_inr || 0),
+      periodDays: 30,
+    },
+    lowBalanceWarning: lowBalanceUsd < 10,
+    lowBalanceUsd: Math.round(lowBalanceUsd * 100) / 100,
+    recentTransfers: transfers,
+    earnings: {
+      coin_trading: Number(statsRes.rows[0]?.coins_sold || 0),
+      referral_program: 0,
+      room_promotion: 0,
+      creator_support: 0,
+      featured_listings: 0,
+      sponsored_placements: 0,
+      agency_management: 0,
+      event_hosting: 0,
+      affiliate: 0,
+    },
+  };
+}
+
+async function listTransfers(sellerId, { limit = 30 } = {}) {
+  const res = await db.query(
+    `SELECT t.*, u.first_name, u.last_name, u.profile_pic
+     FROM coin_seller_transfers t
+     JOIN users u ON u.id = t.recipient_id
+     WHERE t.seller_id = $1
+     ORDER BY t.created_at DESC
+     LIMIT $2`,
+    [sellerId, limit]
+  );
+  return res.rows;
+}
+
+async function lookupRecipient(accountId) {
+  const id = String(accountId || '').trim();
+  if (!id) return null;
+  const res = await db.query(
+    `SELECT id, first_name, last_name, profile_pic, role FROM users
+     WHERE id::text = $1 OR phone = $1 LIMIT 1`,
+    [id]
+  );
+  return res.rows[0] || null;
+}
+
+async function transferCoins(sellerId, { recipientId, coins, transferType = 'user' }) {
+  const amount = parseInt(coins, 10);
+  if (!amount || amount < 5000) throw new Error('Minimum transfer is 5,000 coins');
+  if (!recipientId) throw new Error('Recipient is required');
+  if (String(sellerId) === String(recipientId)) throw new Error('Cannot transfer to yourself');
+
+  const recipient = await lookupRecipient(recipientId);
+  if (!recipient) throw new Error('User not found');
+
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+    const sellerRes = await client.query(
+      `SELECT * FROM coin_seller_profiles WHERE user_id = $1 AND is_active = TRUE FOR UPDATE`,
+      [sellerId]
+    );
+    const seller = sellerRes.rows[0];
+    if (!seller) throw new Error('Seller profile not active');
+    if (Number(seller.inventory_coins) < amount) throw new Error('Insufficient seller coin balance');
+
+    await client.query(
+      `UPDATE coin_seller_profiles
+       SET inventory_coins = inventory_coins - $2, total_sold = total_sold + $2, updated_at = CURRENT_TIMESTAMP
+       WHERE user_id = $1`,
+      [sellerId, amount]
+    );
+
+    await walletService.creditCoins(
+      recipient.id,
+      amount,
+      {
+        type: 'coin_seller_transfer',
+        reference_type: 'coin_seller_transfer',
+        metadata: { sellerId, transferType },
+      },
+      client
+    );
+
+    const xfer = await client.query(
+      `INSERT INTO coin_seller_transfers (seller_id, recipient_id, coins, transfer_type)
+       VALUES ($1, $2, $3, $4) RETURNING *`,
+      [sellerId, recipient.id, amount, transferType === 'seller' ? 'seller' : 'user']
+    );
+
+    await client.query('COMMIT');
+    await auditLogService.log(sellerId, 'coin_seller.transfer', {
+      entity_type: 'coin_seller_transfer',
+      entity_id: xfer.rows[0].id,
+      metadata: { recipientId: recipient.id, coins: amount },
+    });
+    return { transfer: xfer.rows[0], recipient };
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+async function exchangeBeans(sellerId, beansAmount) {
+  const beans = parseInt(beansAmount, 10);
+  if (!beans || beans < 100000 || beans % 100000 !== 0) {
+    throw new Error('Amount must be an integer multiple of 100,000 beans');
+  }
+
+  const profile = await getProfile(sellerId);
+  if (!profile?.is_active) throw new Error('Seller profile not active');
+  const level = resolveSellerLevel(profile.total_recharge_usd);
+  const coinsOut = Math.floor((beans / 10000) * level.beansPer10k);
+
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+    const walletRes = await client.query(
+      `SELECT * FROM wallets WHERE user_id = $1 FOR UPDATE`,
+      [sellerId]
+    );
+    const wallet = walletRes.rows[0];
+    if (!wallet) throw new Error('Wallet not found');
+    if (Number(wallet.star_balance) < beans) throw new Error('Insufficient beans balance');
+
+    await client.query(
+      `UPDATE wallets SET star_balance = star_balance - $2, updated_at = CURRENT_TIMESTAMP WHERE user_id = $1`,
+      [sellerId, beans]
+    );
+
+    await client.query(
+      `UPDATE coin_seller_profiles
+       SET inventory_coins = inventory_coins + $2, beans_exchanged = beans_exchanged + $3, updated_at = CURRENT_TIMESTAMP
+       WHERE user_id = $1`,
+      [sellerId, coinsOut, beans]
+    );
+
+    await client.query('COMMIT');
+    await auditLogService.log(sellerId, 'coin_seller.beans_exchange', {
+      entity_type: 'coin_seller_profile',
+      entity_id: sellerId,
+      metadata: { beans, coinsOut, level: level.slug },
+    });
+    return { beans, coinsOut, level: level.slug };
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+async function applyRecharge(sellerId, { packageCoins, paymentChannel }) {
+  const pkg = RECHARGE_PACKAGES.find((p) => p.coins === parseInt(packageCoins, 10));
+  if (!pkg) throw new Error('Invalid recharge package');
+  const profile = await getProfile(sellerId);
+  if (!profile?.is_active) throw new Error('Seller profile not active');
+
+  const res = await db.query(
+    `UPDATE coin_seller_profiles
+     SET inventory_coins = inventory_coins + $2,
+         total_recharge_usd = total_recharge_usd + $3,
+         seller_level = $4,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE user_id = $1
+     RETURNING *`,
+    [sellerId, pkg.coins, pkg.usd, resolveSellerLevel(Number(profile.total_recharge_usd) + pkg.usd).slug]
+  );
+
+  await auditLogService.log(sellerId, 'coin_seller.recharge', {
+    entity_type: 'coin_seller_profile',
+    entity_id: sellerId,
+    metadata: { packageCoins: pkg.coins, usd: pkg.usd, paymentChannel },
+  });
+  return res.rows[0];
+}
+
+async function createPendingSellerRecharge(
+  sellerId,
+  { packageCoins, paymentChannel, transactionId, paymentProofAssetId }
+) {
+  const pkg = RECHARGE_PACKAGES.find((p) => p.coins === parseInt(packageCoins, 10));
+  if (!pkg) throw new Error('Invalid recharge package');
+  const profile = await getProfile(sellerId);
+  if (!profile?.is_active) throw new Error('Seller profile not active');
+
+  const utr = transactionId ? String(transactionId).trim().replace(/\s+/g, '') : '';
+  if (utr && !/^\d{10,22}$/.test(utr)) {
+    throw new Error('UTR must be 10–22 digits when provided');
+  }
+  if (utr) {
+    const dup = await db.query(
+      `SELECT id FROM coin_seller_recharges
+       WHERE LOWER(TRIM(transaction_id)) = LOWER($1) AND status NOT IN ('rejected') LIMIT 1`,
+      [utr]
+    );
+    if (dup.rows.length) throw new Error('This payment reference was already submitted');
+  }
+
+  const res = await db.query(
+    `INSERT INTO coin_seller_recharges
+       (seller_id, package_coins, amount_usd, payment_channel, transaction_id, payment_proof_asset_id, status)
+     VALUES ($1, $2, $3, $4, $5, $6, 'pending') RETURNING *`,
+    [sellerId, pkg.coins, pkg.usd, paymentChannel || 'manual', utr || null, paymentProofAssetId || null]
+  );
+  await auditLogService.log(sellerId, 'coin_seller.recharge_pending', {
+    entity_type: 'coin_seller_recharge',
+    entity_id: res.rows[0].id,
+    metadata: { packageCoins: pkg.coins, usd: pkg.usd, paymentChannel },
+  });
+  return res.rows[0];
+}
+
+async function listSellerRecharges(sellerId, { limit = 20 } = {}) {
+  const res = await db.query(
+    `SELECT id, package_coins, amount_usd, payment_channel, transaction_id, status, rejection_reason, created_at, updated_at
+     FROM coin_seller_recharges WHERE seller_id = $1 ORDER BY created_at DESC LIMIT $2`,
+    [sellerId, limit]
+  );
+  return res.rows;
+}
+
+async function approveSellerRecharge(rechargeId, adminUserId, notes) {
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+    const r = await client.query(
+      `SELECT * FROM coin_seller_recharges WHERE id = $1 FOR UPDATE`,
+      [rechargeId]
+    );
+    if (!r.rows.length) throw new Error('Seller recharge not found');
+    const row = r.rows[0];
+    if (row.status !== 'pending') throw new Error('Recharge already processed');
+
+    const profileRes = await client.query(
+      `SELECT * FROM coin_seller_profiles WHERE user_id = $1 FOR UPDATE`,
+      [row.seller_id]
+    );
+    const profile = profileRes.rows[0];
+    if (!profile) throw new Error('Seller profile not found');
+
+    const newTotalUsd = Number(profile.total_recharge_usd) + Number(row.amount_usd);
+    await client.query(
+      `UPDATE coin_seller_profiles
+       SET inventory_coins = inventory_coins + $2,
+           total_recharge_usd = total_recharge_usd + $3,
+           seller_level = $4,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE user_id = $1`,
+      [row.seller_id, row.package_coins, row.amount_usd, resolveSellerLevel(newTotalUsd).slug]
+    );
+
+    await client.query(
+      `UPDATE coin_seller_recharges
+       SET status = 'approved', admin_reviewed_by = $2, admin_notes = $3, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1`,
+      [rechargeId, adminUserId, notes || null]
+    );
+
+    await client.query('COMMIT');
+
+    const Notification = require('../models/Notification');
+    await Notification.create({
+      user_id: row.seller_id,
+      type: 'seller_recharge',
+      title: 'Seller stock approved',
+      message: `${Number(row.package_coins).toLocaleString()} coins added to your seller inventory.`,
+      data: { recharge_id: rechargeId, package_coins: row.package_coins },
+    });
+
+    return row;
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+async function rejectSellerRecharge(rechargeId, adminUserId, reason) {
+  const res = await db.query(
+    `UPDATE coin_seller_recharges
+     SET status = 'rejected', rejection_reason = $2, admin_reviewed_by = $3, updated_at = CURRENT_TIMESTAMP
+     WHERE id = $1 AND status = 'pending' RETURNING *`,
+    [rechargeId, reason || 'Rejected by admin', adminUserId]
+  );
+  if (!res.rows.length) throw new Error('Recharge not found or already processed');
+
+  const Notification = require('../models/Notification');
+  await Notification.create({
+    user_id: res.rows[0].seller_id,
+    type: 'seller_recharge',
+    title: 'Seller top-up not approved',
+    message: reason || 'Your seller inventory request was not approved. Contact support if needed.',
+    data: { recharge_id: rechargeId, status: 'rejected' },
+  });
+  return res.rows[0];
+}
+
 module.exports = {
   getProfile,
   listActiveSellers,
@@ -179,4 +571,17 @@ module.exports = {
   attachPaymentProof,
   completeOrder,
   listOrdersForUser,
+  getDashboard,
+  ensureSellerAccess,
+  listTransfers,
+  lookupRecipient,
+  transferCoins,
+  exchangeBeans,
+  applyRecharge,
+  createPendingSellerRecharge,
+  listSellerRecharges,
+  approveSellerRecharge,
+  rejectSellerRecharge,
+  SELLER_LEVELS,
+  RECHARGE_PACKAGES,
 };

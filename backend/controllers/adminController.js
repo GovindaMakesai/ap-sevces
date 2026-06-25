@@ -213,8 +213,27 @@ const updateUserDetails = async (req, res) => {
             values.push(String(phone).trim());
         }
         if (role !== undefined) {
-            fields.push(`role = $${index++}`);
-            values.push(role);
+            const permissionService = require('../services/permissionService');
+            try {
+                await permissionService.syncUserRole(userId, role);
+            } catch (roleErr) {
+                return res.status(400).json({ success: false, message: roleErr.message });
+            }
+            if (role === 'coin_seller') {
+                const coinSellerService = require('../services/coinSellerService');
+                const existingUser = await db.query(
+                    'SELECT first_name, last_name FROM users WHERE id = $1',
+                    [userId]
+                );
+                const u = existingUser.rows[0] || {};
+                await coinSellerService.upsertProfile(userId, {
+                    displayName:
+                        `${first_name || u.first_name || ''} ${last_name || u.last_name || ''}`.trim() ||
+                        'Coin Seller',
+                    inventoryCoins: req.body.inventory_coins ?? 0,
+                    isActive: true,
+                });
+            }
         }
         if (password !== undefined && String(password).trim() !== '') {
             const passwordHash = await bcrypt.hash(String(password).trim(), 10);
@@ -222,20 +241,28 @@ const updateUserDetails = async (req, res) => {
             values.push(passwordHash);
         }
 
-        if (fields.length === 0) {
+        if (fields.length === 0 && role === undefined) {
             return res.status(400).json({ success: false, message: 'No valid fields provided for update' });
         }
 
-        fields.push('updated_at = CURRENT_TIMESTAMP');
-        values.push(userId);
-
-        const result = await db.query(
-            `UPDATE users
-             SET ${fields.join(', ')}
-             WHERE id = $${index}
-             RETURNING id, email, phone, first_name, last_name, role, is_active, is_verified, created_at`,
-            values
-        );
+        let result;
+        if (fields.length > 0) {
+            fields.push('updated_at = CURRENT_TIMESTAMP');
+            values.push(userId);
+            result = await db.query(
+                `UPDATE users
+                 SET ${fields.join(', ')}
+                 WHERE id = $${index}
+                 RETURNING id, email, phone, first_name, last_name, role, is_active, is_verified, created_at`,
+                values
+            );
+        } else {
+            result = await db.query(
+                `SELECT id, email, phone, first_name, last_name, role, is_active, is_verified, created_at
+                 FROM users WHERE id = $1`,
+                [userId]
+            );
+        }
 
         res.json({
             success: true,

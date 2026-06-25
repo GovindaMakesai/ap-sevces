@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Add Creator - AP Services</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="social-theme.css">
+  <link rel="stylesheet" href="coin-seller.css">
+</head>
+<body class="cs-page">
+  <header class="cs-header">
+    <a href="/agency-center.html?app=1"><i class="fas fa-arrow-left"></i></a>
+    <h1>Add Creator</h1>
+    <span style="width:36px"></span>
+  </header>
+  <div style="padding:16px">
+    <div style="display:flex;gap:10px;margin-bottom:16px">
+      <button type="button" class="cs-quick-btn" style="flex:1" id="shareInvite"><i class="fas fa-paper-plane"></i>Send Invite Link</button>
+      <button type="button" class="cs-quick-btn" style="flex:1" id="copyCode"><i class="fas fa-gift"></i>Copy Invite Code</button>
+    </div>
+    <div class="cs-field">
+      <label>Creator ID</label>
+      <input type="text" id="creatorId" placeholder="Please Enter">
+    </div>
+    <button type="button" class="cs-submit" id="inviteBtn">Invite</button>
+    <h3 style="margin-top:24px;font-size:14px">Invite Host Task</h3>
+    <table class="cs-level-table">
+      <thead><tr><th>On MIC Reward</th><th>Income Reward</th></tr></thead>
+      <tbody>
+        <tr><td>2 hours</td><td>$0.05</td></tr>
+        <tr><td>5 hours</td><td>$0.10</td></tr>
+        <tr><td>10 hours</td><td>$0.30</td></tr>
+        <tr><td>15 hours</td><td>$0.35</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <script src="ap-config.js"></script>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+  <script src="auth-guard.js"></script>
+  <script>
+    const code = 'AP' + Math.random().toString(36).slice(2, 8).toUpperCase();
+    document.getElementById('copyCode')?.addEventListener('click', () => {
+      navigator.clipboard?.writeText(code);
+      alert('Invite code copied: ' + code);
+    });
+    document.getElementById('shareInvite')?.addEventListener('click', () => {
+      const url = location.origin + '/register.html?ref=' + code;
+      navigator.share?.({ url, title: 'Join AP Services' }) || navigator.clipboard?.writeText(url);
+    });
+    document.getElementById('inviteBtn')?.addEventListener('click', () => {
+      const id = document.getElementById('creatorId').value.trim();
+      if (!id) return alert('Enter creator ID');
+      alert('Invitation sent to ' + id);
+    });
+  </script>
+</body>
+</html>

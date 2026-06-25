@@ -34,6 +34,75 @@
     return String(n);
   }
 
+  async function runGlobalSearch(q, opts = {}) {
+    const query = String(q || '').trim();
+    if (!query || query.length < 2 || !window.API?.get) return null;
+    const type = opts.type || 'all';
+    const limit = opts.limit || 20;
+    const offset = opts.offset || 0;
+    try {
+      if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken();
+      const res = await API.get(
+        `/search?q=${encodeURIComponent(query)}&type=${encodeURIComponent(type)}&limit=${limit}&offset=${offset}`
+      );
+      return res?.data || null;
+    } catch (e) {
+      console.warn('Global search failed', e);
+      return null;
+    }
+  }
+
+  function renderSearchResults(mount, data, q) {
+    if (!mount) return;
+    const users = data?.users || [];
+    const rooms = data?.live_rooms || [];
+    const sellers = data?.coin_sellers || [];
+    if (!users.length && !rooms.length && !sellers.length) {
+      mount.innerHTML = `<div class="social-empty-state"><p>No results for "${escapeHtml(q)}".</p></div>`;
+      return;
+    }
+    let html = '';
+    if (users.length) {
+      html += `<p class="social-search-section">Users</p><div class="social-search-users">`;
+      users.forEach((u) => {
+        const name = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email || 'User';
+        html += `<a href="/creator-profile.html?id=${u.id}&app=1" class="social-search-user">
+          <span class="social-search-user-name">${escapeHtml(name)}</span>
+          <span class="social-search-user-id">ID ${u.id}</span>
+        </a>`;
+      });
+      html += `</div>`;
+    }
+    if (rooms.length) {
+      html += `<p class="social-search-section">Live rooms</p><div class="social-grid">`;
+      rooms.forEach((r, i) => {
+        const page = r.room_type === 'party' ? 'party-room' : 'live-room';
+        html += `<a href="/${page}.html?channel=${encodeURIComponent(r.channel)}&app=1" class="social-live-card">
+          <span class="social-card-name">${escapeHtml(r.host_display_name || r.channel)}</span>
+          <span class="social-card-meta">${formatViewers(r.viewer_count || 0)} watching</span>
+        </a>`;
+      });
+      html += `</div>`;
+    }
+    if (sellers.length) {
+      html += `<p class="social-search-section">Coin sellers</p>`;
+      sellers.forEach((s) => {
+        html += `<a href="/coin-seller-center.html?app=1" class="social-search-user">
+          <span>${escapeHtml(s.display_name || s.first_name || 'Seller')}</span>
+          <span class="social-search-user-id">ID ${s.user_id}</span>
+        </a>`;
+      });
+    }
+    mount.innerHTML = html;
+  }
+
+  function escapeHtml(s) {
+    return String(s || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
   function avatarFallback(name) {
     if (window.SocialUI?.avatarUrl) return SocialUI.avatarUrl(name);
     const initials = String(name || 'U')
@@ -464,12 +533,25 @@
         searchTimer = setTimeout(async () => {
           const q = input.value.trim();
           const activeTab =
+            document.querySelector('#exploreTabs button.active')?.dataset?.tab ||
             document.querySelector('#exploreTabs a.active')?.dataset?.tab ||
             new URLSearchParams(location.search).get('tab');
           if (activeTab === 'following') {
             await fillFollowingView(q);
+            return;
           }
-        }, 280);
+          if (q.length >= 2) {
+            const mount = document.getElementById('exploreContent') || document.getElementById('exploreEmpty');
+            if (mount) {
+              mount.style.display = 'block';
+              mount.innerHTML = '<div class="social-search-loading">Searching…</div>';
+              const data = await runGlobalSearch(q, { type: activeTab === 'party' ? 'party' : 'all' });
+              renderSearchResults(mount, data, q);
+              return;
+            }
+          }
+          if (activeTab) await fillDiscoveryTab(activeTab, q);
+        }, 300);
       });
       input.addEventListener('keydown', async (e) => {
         if (e.key !== 'Enter') return;
@@ -616,6 +698,18 @@
     const sort = tab === 'new' ? 'new' : tab === 'nearby' ? 'nearby' : 'trending';
     if (content) content.style.display = 'block';
     if (mount) mount.style.display = 'none';
+    if (searchQuery && searchQuery.length >= 2) {
+      const target = content || mount;
+      if (target) {
+        target.style.display = 'block';
+        target.innerHTML = '<div class="social-search-loading">Searching…</div>';
+        const data = await runGlobalSearch(searchQuery, {
+          type: tab === 'party' ? 'party' : tab === 'live' ? 'live' : 'all',
+        });
+        renderSearchResults(target, data, searchQuery);
+        return;
+      }
+    }
     let grid = document.getElementById('exploreGrid');
     if (!grid && content) {
       grid = document.createElement('div');
@@ -976,9 +1070,18 @@
       window.location.href = withAppQuery('/app-auth.html');
       return;
     }
-    if (user.role === 'admin') window.location.href = withAppQuery('/admin-dashboard.html');
-    else if (user.role === 'worker') window.location.href = withAppQuery('/worker-dashboard.html');
-    else window.location.href = withAppQuery('/customer-dashboard.html');
+    const role = user.role || 'customer';
+    const routes = {
+      admin: '/admin-dashboard.html',
+      super_admin: '/admin-dashboard.html',
+      founder: '/admin-dashboard.html',
+      ceo: '/admin-dashboard.html',
+      worker: '/worker-dashboard.html',
+      coin_seller: '/coin-seller-center.html',
+      creator: '/streamer-center.html',
+      agency: '/agency-center.html',
+    };
+    window.location.href = withAppQuery(routes[role] || '/customer-dashboard.html');
   }
 
   window.SocialShell = {
@@ -990,6 +1093,7 @@
     renderLiveCard,
     renderFilterChips,
     fillGrid,
+    bindFilterChips,
     fillSquareFeed,
     initReels,
     renderTopicsList,
@@ -1001,6 +1105,8 @@
     openBroadcastPicker,
     fillFollowingView,
     fillDiscoveryTab,
+    runGlobalSearch,
+    renderSearchResults,
     fetchPros,
     fetchActiveRooms,
     getImageUrl,

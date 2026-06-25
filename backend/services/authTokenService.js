@@ -20,7 +20,9 @@ function cookieOptions(maxAgeMs, path = '/') {
     path,
     maxAge: maxAgeMs,
   };
-  if (process.env.COOKIE_DOMAIN) opts.domain = process.env.COOKIE_DOMAIN;
+  if (process.env.COOKIE_DOMAIN && process.env.COOKIE_DOMAIN !== 'undefined') {
+    opts.domain = process.env.COOKIE_DOMAIN;
+  }
   return opts;
 }
 
@@ -31,7 +33,9 @@ function setSessionCookies(res, accessToken, refreshRaw) {
 
 function clearSessionCookies(res) {
   const clearOpts = { path: '/', maxAge: 0 };
-  if (process.env.COOKIE_DOMAIN) clearOpts.domain = process.env.COOKIE_DOMAIN;
+  if (process.env.COOKIE_DOMAIN && process.env.COOKIE_DOMAIN !== 'undefined') {
+    clearOpts.domain = process.env.COOKIE_DOMAIN;
+  }
   res.clearCookie(ACCESS_COOKIE, clearOpts);
   res.clearCookie(REFRESH_COOKIE, { ...clearOpts, path: '/api/auth' });
 }

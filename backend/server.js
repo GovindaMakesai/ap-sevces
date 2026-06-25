@@ -18,6 +18,8 @@ const { ensurePhase2Schema } = require('./config/ensurePhase2Schema');
 const { ensureSocialProductionSchema } = require('./config/ensureSocialProductionSchema');
 const { ensureSecurityHardeningSchema } = require('./config/ensureSecurityHardeningSchema');
 const { ensureProductionReadinessSchema } = require('./config/ensureProductionReadinessSchema');
+const { ensureRoleApplicationsSchema } = require('./config/ensureRoleApplicationsSchema');
+const { ensurePaymentApprovalsSchema } = require('./config/ensurePaymentApprovalsSchema');
 const { ensureWithdrawalQrSchema } = require('./config/ensureWithdrawalQrSchema');
 const { applySecurityMiddleware, authLimiter, walletLimiter } = require('./middleware/security');
 const webhookRoutes = require('./routes/webhooks');
@@ -50,6 +52,7 @@ const socialRoutes = require('./routes/social');
 const storeRoutes = require('./routes/store');
 const trustRoutes = require('./routes/trust');
 const filesRoutes = require('./routes/files');
+const searchRoutes = require('./routes/search');
 
 const app = express();
 const server = http.createServer(app);
@@ -153,6 +156,7 @@ app.use('/api/social', socialRoutes);
 app.use('/api/store', storeRoutes);
 app.use('/api/trust', trustRoutes);
 app.use('/api/files', filesRoutes);
+app.use('/api/search', searchRoutes);
 app.use('/api/v1', platformRoutes);
 
 app.get('/api/health', async (_req, res) => {
@@ -214,6 +218,8 @@ async function startServer() {
   await ensureSocialProductionSchema();
   await ensureSecurityHardeningSchema();
   await ensureProductionReadinessSchema();
+  await ensureRoleApplicationsSchema();
+  await ensurePaymentApprovalsSchema();
   await attachSocketRedisAdapter();
   await platformService.getOrCreateTreasuryUserId();
   await liveRoomService.recoverActiveRooms();

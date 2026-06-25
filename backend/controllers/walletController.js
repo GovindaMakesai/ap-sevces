@@ -32,6 +32,25 @@ exports.getTransactions = async (req, res) => {
   }
 };
 
+exports.getRecharges = async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit, 10) || 30, 100);
+    const rows = await transactionService.listUserRecharges(req.userId, { limit });
+    const settings = await walletService.getWalletSettings();
+    const rate = settings.coins_per_inr || 10;
+    const data = rows.map((r) => ({
+      ...r,
+      estimated_coins:
+        r.payment_status === 'approved' && r.coins_credited != null
+          ? Number(r.coins_credited)
+          : Math.floor(Number(r.amount_inr) * rate),
+    }));
+    res.json({ success: true, data });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 exports.getWithdrawals = async (req, res) => {
   try {
     const rows = await transactionService.listWithdrawals(req.userId);
@@ -104,11 +123,27 @@ exports.confirmWithdrawal = async (req, res) => {
 
 exports.submitRecharge = async (req, res) => {
   try {
-    const { amount_inr, payment_method, transaction_id } = req.body || {};
+    const amount_inr = parseFloat(req.body.amount_inr);
+    const payment_method = req.body.payment_method;
+    const transaction_id = req.body.transaction_id;
+    let payment_proof_asset_id = null;
+    if (req.file) {
+      const fileAssetService = require('../services/fileAssetService');
+      const asset = await fileAssetService.registerPrivateFile({
+        ownerId: req.userId,
+        category: 'recharge',
+        tempPath: req.file.path,
+        mimeType: req.file.mimetype,
+        originalName: req.file.originalname,
+        sizeBytes: req.file.size,
+      });
+      payment_proof_asset_id = asset.id;
+    }
     const recharge = await transactionService.createRechargeRequest(req.userId, {
-      amount_inr: parseFloat(amount_inr),
+      amount_inr,
       payment_method,
       transaction_id,
+      payment_proof_asset_id,
     });
     res.status(201).json({
       success: true,
@@ -158,6 +193,45 @@ exports.listPendingRecharges = async (_req, res) => {
     res.json({ success: true, data: rows });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+const adminPaymentService = require('../services/adminPaymentService');
+
+exports.listPendingPayments = async (_req, res) => {
+  try {
+    const rows = await adminPaymentService.listPendingPayments();
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+exports.approvePaymentRequest = async (req, res) => {
+  try {
+    const result = await adminPaymentService.approvePayment(
+      req.params.source,
+      req.params.id,
+      req.userId,
+      req.body.notes
+    );
+    res.json({ success: true, data: result, message: 'Payment approved' });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+};
+
+exports.rejectPaymentRequest = async (req, res) => {
+  try {
+    const result = await adminPaymentService.rejectPayment(
+      req.params.source,
+      req.params.id,
+      req.userId,
+      req.body.notes || req.body.reason
+    );
+    res.json({ success: true, data: result, message: 'Payment rejected' });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
   }
 };
 

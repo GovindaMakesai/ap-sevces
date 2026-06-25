@@ -629,6 +629,21 @@
             margin-top: 2px;
         }
 
+        .ap-msg-quota-info {
+            border: none;
+            background: transparent;
+            color: inherit;
+            padding: 0;
+            cursor: pointer;
+            font-size: 14px;
+            line-height: 1;
+            flex-shrink: 0;
+        }
+
+        .ap-msg-quota-info:active {
+            opacity: 0.7;
+        }
+
         /* ==================== EMOJI PICKER ==================== */
         .emoji-picker-container {
             position: relative;
@@ -1006,12 +1021,7 @@
                                 <button type="button" aria-label="Search" onclick="document.getElementById('chatSearch')?.focus()"><i class="fas fa-search"></i></button>
                             </div>
                         </div>
-                        <div class="ap-msg-notify" id="apMsgNotify">
-                            <i class="fas fa-volume-up"></i>
-                            <span>Enable system notification permissions</span>
-                            <button type="button" class="open-btn" id="apMsgNotifyOpen">Open</button>
-                            <button type="button" class="close-btn" id="apMsgNotifyClose" aria-label="Dismiss">&times;</button>
-                        </div>
+
                         <div class="ap-msg-filters" id="apMsgFilters">
                             <button type="button" class="ap-msg-filter active" data-filter="all">All</button>
                             <button type="button" class="ap-msg-filter" data-filter="official">Official <span class="pill-badge" id="apOfficialBadge"></span></button>
@@ -1024,7 +1034,7 @@
                         <h2><i class="fas fa-comments"></i> Messages</h2>
                         <div class="chat-search">
                             <i class="fas fa-search"></i>
-                            <input type="text" placeholder="Search conversations..." id="chatSearch">
+                            <input type="text" placeholder="Search name or user ID…" id="chatSearch">
                         </div>
                     </div>
 
@@ -1076,20 +1086,32 @@
                                 </div>
                             </div>
                             <div class="chat-actions">
+                                <button type="button" class="chat-action-btn" id="chatHeaderGiftBtn" title="Send gift">
+                                    <i class="fas fa-gift"></i>
+                                </button>
+                                <button type="button" class="chat-action-btn" id="chatHeaderSellBtn" title="Send coins" hidden>
+                                    <i class="fas fa-coins"></i>
+                                </button>
                                 <button type="button" class="chat-action-btn" onclick="showUserInfo()" title="View profile">
                                     <i class="fas fa-user"></i>
                                 </button>
                             </div>
                         </div>
 
-                        <div class="ap-msg-quota-banner" id="apMsgQuotaBanner" hidden>
-                            <i class="fas fa-info-circle"></i>
+                        <div class="ap-msg-quota-banner" id="apMsgQuotaBanner" hidden role="status">
+                            <button type="button" class="ap-msg-quota-info" id="apMsgQuotaInfo" aria-label="Message limit info" hidden>
+                                <i class="fas fa-info-circle"></i>
+                            </button>
                             <span id="apMsgQuotaText"></span>
                         </div>
 
                         <!-- Messages Container -->
                         <div class="messages-container" id="messagesContainer">
                             <!-- Messages will be dynamically loaded here -->
+                        </div>
+                        <div class="chat-typing-indicator" id="chatTypingIndicator" hidden>
+                            <span class="typing-dots"><i></i><i></i><i></i></span>
+                            <span id="chatTypingText">typing…</span>
                         </div>
 
                         <!-- Chat Input -->
@@ -1211,6 +1233,10 @@
     
     <script src="app.js"></script>
     <script src="auth-guard.js"></script>
+    <script src="social-ui.js"></script>
+    <script src="social-wallet.js"></script>
+    <script src="live-emoji-data.js"></script>
+    <script src="social-fx.js"></script>
     <script src="social-shell.js"></script>
     <script src="social-nav.js"></script>
     
@@ -1255,14 +1281,17 @@
                     if (currentChatId) await loadChat(currentChatId);
                 });
             }
-            document.getElementById('apMsgNotifyClose')?.addEventListener('click', () => {
-                document.getElementById('apMsgNotify')?.remove();
-            });
-            document.getElementById('apMsgNotifyOpen')?.addEventListener('click', () => {
-                if ('Notification' in window && Notification.permission === 'default') {
-                    Notification.requestPermission();
-                }
-            });
+            syncNotificationBar();
+            setupChatKeyboardInsets();
+            setupChatGiftSheet();
+            setupChatCoinTransfer();
+            document.getElementById('chatHeaderGiftBtn')?.addEventListener('click', () => openChatGiftSheet());
+            const sellerRoles = ['coin_seller', 'admin', 'super_admin', 'founder', 'ceo'];
+            const u = Auth.getUser?.();
+            if (u && sellerRoles.includes(u.role)) {
+                const sellBtn = document.getElementById('chatHeaderSellBtn');
+                if (sellBtn) sellBtn.hidden = false;
+            }
             document.querySelector('.ap-msg-top-actions button[aria-label="More"]')?.addEventListener('click', () => {
                 const action = window.prompt('Messages menu:\n1 = Mark all read\n2 = Help\n\nEnter 1 or 2');
                 if (action === '1') {
@@ -1382,6 +1411,11 @@
         let currentChatId = null;
         let isTyping = false;
         let typingTimeout;
+        let socketTypingTimeout;
+        let otherLastReadAt = null;
+        const onlineUsers = new Set();
+        let chatGiftCatalog = [];
+        let selectedChatGiftIdx = 0;
         let callTimer = null;
         let callSeconds = 0;
         let callAutoEndTimer = null;
@@ -1434,11 +1468,18 @@
                             auth: { token },
                             transports: ['websocket', 'polling'],
                             reconnection: true,
-                            reconnectionAttempts: 8,
+                            reconnectionAttempts: 25,
+                            reconnectionDelay: 1000,
+                            reconnectionDelayMax: 10000,
                             timeout: 20000
                         });
                         socket.on('connect_error', (err) => {
                             console.warn('Chat socket:', err?.message || err);
+                        });
+                        document.addEventListener('visibilitychange', () => {
+                            if (document.visibilityState === 'visible' && socket && !socket.connected) {
+                                socket.connect();
+                            }
                         });
                     }
                     return socket;
@@ -1485,7 +1526,39 @@
             return `${base}${p.startsWith('/') ? p : `/${p}`}`;
         }
 
-        function mapServerMessageToUi(msg) {
+        function syncNotificationBar() {
+            /* notification bar removed — no empty warning strip */
+        }
+
+        function setupChatKeyboardInsets() {
+            const root = document.getElementById('activeChat');
+            if (!root || !window.visualViewport) return;
+            const apply = () => {
+                const vv = window.visualViewport;
+                const offset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+                root.style.setProperty('--chat-kb-offset', `${offset}px`);
+                if (offset > 0) scrollToBottom(true);
+            };
+            window.visualViewport.addEventListener('resize', apply);
+            window.visualViewport.addEventListener('scroll', apply);
+            document.getElementById('messageInput')?.addEventListener('focus', () => {
+                setTimeout(() => { apply(); scrollToBottom(true); }, 80);
+            });
+            apply();
+        }
+
+        function deriveMessageStatus(msg, readAtIso) {
+            if (msg.type !== 'sent') return msg.status || 'read';
+            const st = msg.status;
+            if (st === 'sending' || st === 'failed') return st;
+            const readAt = readAtIso ? new Date(readAtIso).getTime() : 0;
+            const created = msg.createdAt ? new Date(msg.createdAt).getTime() : 0;
+            if (readAt && created && readAt >= created) return 'read';
+            if (st === 'delivered') return 'delivered';
+            return 'sent';
+        }
+
+        function mapServerMessageToUi(msg, readAtIso) {
             const id = String(msg.id);
             const me = getMyUserId();
             let rawText = msg.text != null ? String(msg.text) : '';
@@ -1495,15 +1568,26 @@
                 rawText = '';
             }
             const image = imagePath ? absoluteUploadUrl(imagePath) : null;
+            const type = String(msg.senderId) === me ? 'sent' : 'received';
+            const status = type === 'sent' ? deriveMessageStatus({ type, status: msg.status, createdAt: msg.createdAt }, readAtIso) : 'read';
             return {
                 id,
-                type: String(msg.senderId) === me ? 'sent' : 'received',
+                type,
                 text: rawText,
                 image,
-                status: 'read',
+                status,
                 time: formatTime(msg.createdAt),
                 createdAt: msg.createdAt
             };
+        }
+
+        function renderMessageStatusIcon(msg) {
+            if (msg.type !== 'sent' || (!msg.text && !msg.image)) return '';
+            if (msg.status === 'sending') return '<i class="fas fa-clock sending"></i>';
+            if (msg.status === 'failed') return '<i class="fas fa-exclamation-circle failed"></i>';
+            if (msg.status === 'read') return '<i class="fas fa-check-double read"></i>';
+            if (msg.status === 'delivered') return '<i class="fas fa-check-double delivered"></i>';
+            return '<i class="fas fa-check"></i>';
         }
 
         function initialsFromName(first, last) {
@@ -1530,7 +1614,7 @@
             chatList.innerHTML = conversations.map((chat) => {
                 const isOfficial = chat.isOfficial || officialNames.some((k) => String(chat.name || '').toLowerCase().includes(k));
                 return `
-                <div class="chat-item ${String(chat.id) === String(activeConversationId || '') ? 'active' : ''}" data-chat-id="${chat.id}" data-official="${isOfficial ? '1' : '0'}" data-unread="${chat.unread || 0}" onclick="loadChat('${chat.id}', this)">
+                <div class="chat-item ${String(chat.id) === String(activeConversationId || '') ? 'active' : ''}" data-chat-id="${chat.id}" data-user-id="${chat.otherUserId || ''}" data-official="${isOfficial ? '1' : '0'}" data-unread="${chat.unread || 0}" onclick="loadChat('${chat.id}', this)">
                     <div class="chat-avatar">
                         <div class="avatar-placeholder">${chat.avatar || initialsFromName(chat.first_name, chat.last_name)}</div>
                         <span class="status-dot ${chat.status}"></span>
@@ -1602,24 +1686,73 @@
                 });
             });
             document.querySelector('.ap-msg-quick[data-quick-gift]')?.addEventListener('click', () => {
-                window.location.href = '/lucky-gifts.html?app=1';
+                openChatGiftSheet();
             });
         }
 
         function setupChatSearch() {
             const searchInput = document.getElementById('chatSearch');
+            let searchTimer;
+            const remoteRows = [];
+            searchInput.addEventListener('keydown', async (e) => {
+                if (e.key !== 'Enter') return;
+                const term = searchInput.value.trim();
+                if (!term) return;
+                const uuidLike = /^[0-9a-f-]{8,36}$/i.test(term);
+                if (uuidLike) {
+                    e.preventDefault();
+                    await openChatFromUrlParam(term);
+                }
+            });
             searchInput.addEventListener('input', function(e) {
-                const searchTerm = e.target.value.toLowerCase();
-                const chatItems = document.querySelectorAll('.chat-item');
-                
+                const searchTerm = e.target.value.trim();
+                const q = searchTerm.toLowerCase();
+                clearTimeout(searchTimer);
+                const chatItems = document.querySelectorAll('.chat-item:not(.chat-item--search)');
                 chatItems.forEach(item => {
-                    const name = item.querySelector('h4').textContent.toLowerCase();
-                    if (name.includes(searchTerm)) {
-                        item.style.display = 'flex';
-                    } else {
-                        item.style.display = 'none';
-                    }
+                    const name = item.querySelector('h4')?.textContent?.toLowerCase() || '';
+                    const id = item.dataset.userId || '';
+                    item.style.display = !q || name.includes(q) || String(id).toLowerCase().includes(q) ? 'flex' : 'none';
                 });
+                remoteRows.forEach((r) => r.remove());
+                remoteRows.length = 0;
+                const minLen = /^[0-9a-f-]+$/i.test(searchTerm) ? 4 : 2;
+                if (searchTerm.length < minLen || !window.API?.get) return;
+                searchTimer = setTimeout(async () => {
+                    try {
+                        if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken();
+                        const res = await API.get('/search?q=' + encodeURIComponent(searchTerm) + '&type=users&limit=8');
+                        const users = res?.data?.users || [];
+                        const list = document.querySelector('.chat-list');
+                        if (!list) return;
+                        if (!users.length && /^[0-9a-f-]{8,36}$/i.test(searchTerm)) {
+                            const row = document.createElement('button');
+                            row.type = 'button';
+                            row.className = 'chat-item chat-item--search';
+                            row.innerHTML = '<div class="chat-info"><h4>Start chat with ID</h4><p>' + searchTerm + '</p></div>';
+                            row.addEventListener('click', () => openChatFromUrlParam(searchTerm));
+                            list.prepend(row);
+                            remoteRows.push(row);
+                            return;
+                        }
+                        users.forEach((u) => {
+                            const uname = ((u.first_name || '') + ' ' + (u.last_name || '')).trim() || u.email || 'User';
+                            if ([...chatItems].some((el) => String(el.dataset.userId) === String(u.id))) return;
+                            const row = document.createElement('button');
+                            row.type = 'button';
+                            row.className = 'chat-item chat-item--search';
+                            row.dataset.userId = u.id;
+                            row.innerHTML = '<div class="chat-avatar"><div class="avatar-placeholder">' + initialsFromName(u.first_name, u.last_name) + '</div></div><div class="chat-info"><h4>' + uname + '</h4><p>ID: ' + String(u.id).slice(0, 12) + '…</p></div>';
+                            row.addEventListener('click', () => openChatFromUrlParam(u.id));
+                            list.prepend(row);
+                            remoteRows.push(row);
+                        });
+                    } catch (err) {
+                        if (/^[0-9a-f-]{8,36}$/i.test(searchTerm)) {
+                            await openChatFromUrlParam(searchTerm);
+                        }
+                    }
+                }, 320);
             });
         }
 
@@ -1703,20 +1836,32 @@
         function updateMessageQuotaBanner(quota) {
             const banner = document.getElementById('apMsgQuotaBanner');
             const text = document.getElementById('apMsgQuotaText');
+            const infoBtn = document.getElementById('apMsgQuotaInfo');
             if (!banner || !text) return;
             if (!quota?.limited) {
                 banner.hidden = true;
                 banner.classList.remove('is-limit');
+                if (infoBtn) infoBtn.hidden = true;
                 return;
             }
             banner.hidden = false;
+            if (infoBtn) infoBtn.hidden = false;
             const remaining = Math.max(0, Number(quota.remaining) || 0);
             const limit = Number(quota.limit) || 5;
             text.textContent =
                 remaining > 0
-                    ? `You can send ${remaining} more message${remaining === 1 ? '' : 's'} (${quota.used || 0}/${limit} used on this account).`
-                    : `You have reached the ${limit}-message limit. Contact support or upgrade to continue messaging.`;
+                    ? `Starter messages: ${remaining} left (${quota.used || 0}/${limit} used).`
+                    : `Message limit reached (${limit}). Contact support to continue.`;
             banner.classList.toggle('is-limit', remaining <= 0);
+            if (!infoBtn?.dataset.bound) {
+                infoBtn.dataset.bound = '1';
+                infoBtn.addEventListener('click', () => {
+                    Toast.show(
+                        'New accounts have a starter message limit. Verified users and upgraded accounts can message freely.',
+                        'info'
+                    );
+                });
+            }
             const input = document.getElementById('messageInput');
             const sendBtn = document.getElementById('sendBtn');
             const blocked = remaining <= 0;
@@ -1779,14 +1924,7 @@
             loadChatList();
             document.getElementById('chatUserName').textContent = chat.name;
             document.getElementById('chatAvatar').textContent = chat.avatar;
-            document.getElementById('userStatusText').textContent = chat.status === 'online' ? 'Online' : 'Offline';
-            document.getElementById('userStatus').className = `status-dot ${chat.status}`;
-            
-            // Update status indicator in header
-            const statusIcon = document.querySelector('.chat-user-status i');
-            if (statusIcon) {
-                statusIcon.className = `fas fa-circle ${chat.status}`;
-            }
+            updatePeerPresence(chat.otherUserId);
         }
 
         // ==================== MESSAGES ====================
@@ -1795,6 +1933,7 @@
             try {
                 const response = await axiosClient.get(`/${chatId}`);
                 const serverMessages = response.data?.data?.messages || [];
+                otherLastReadAt = response.data?.data?.otherLastReadAt || null;
                 updateMessageQuotaBanner(response.data?.data?.quota);
                 const seen = new Set();
                 const mapped = [];
@@ -1802,7 +1941,7 @@
                     const id = String(msg.id);
                     if (seen.has(id)) continue;
                     seen.add(id);
-                    mapped.push(mapServerMessageToUi(msg));
+                    mapped.push(mapServerMessageToUi(msg, otherLastReadAt));
                 }
                 useChatStore.setState((state) => ({
                     messages: {
@@ -1854,9 +1993,7 @@
                             <div class="message-time">
                                 <span>${msg.time}</span>
                                 <span class="message-status">
-                                    ${msg.type === 'sent' && (msg.text || msg.image) ? `
-                                        ${msg.status === 'read' ? '<i class="fas fa-check-double read"></i>' : '<i class="fas fa-check"></i>'}
-                                    ` : ''}
+                                    ${renderMessageStatusIcon(msg)}
                                 </span>
                             </div>
                         </div>
@@ -1882,6 +2019,25 @@
 
             input.value = '';
             input.style.height = 'auto';
+            emitTypingState(false);
+
+            const localId = `local-${Date.now()}`;
+            const optimistic = {
+                id: localId,
+                type: 'sent',
+                text: message,
+                image: null,
+                status: 'sending',
+                time: formatTime(new Date().toISOString()),
+                createdAt: new Date().toISOString(),
+            };
+            useChatStore.setState((state) => ({
+                messages: {
+                    ...state.messages,
+                    [currentChatId]: [...(state.messages[currentChatId] || []), optimistic],
+                },
+            }));
+            renderActiveMessages();
 
             try {
                 const res = await axiosClient.post('/send', {
@@ -1889,12 +2045,37 @@
                     text: message
                 });
                 updateMessageQuotaBanner(res.data?.data?.quota);
-                await loadMessages(currentChatId);
+                const serverMsg = res.data?.data?.message;
+                if (serverMsg) {
+                    useChatStore.setState((state) => {
+                        const list = (state.messages[currentChatId] || []).map((m) =>
+                            String(m.id) === localId
+                                ? mapServerMessageToUi(serverMsg, otherLastReadAt)
+                                : m
+                        );
+                        const ids = new Set(list.map((m) => String(m.id)));
+                        if (!ids.has(String(serverMsg.id))) {
+                            list.push(mapServerMessageToUi(serverMsg, otherLastReadAt));
+                        }
+                        return { messages: { ...state.messages, [currentChatId]: list } };
+                    });
+                    renderActiveMessages();
+                } else {
+                    await loadMessages(currentChatId);
+                }
                 await loadConversations();
             } catch (e) {
+                useChatStore.setState((state) => ({
+                    messages: {
+                        ...state.messages,
+                        [currentChatId]: (state.messages[currentChatId] || []).map((m) =>
+                            String(m.id) === localId ? { ...m, status: 'failed' } : m
+                        ),
+                    },
+                }));
+                renderActiveMessages();
                 if (e?.response?.data?.quota) updateMessageQuotaBanner(e.response.data.quota);
                 Toast.show(e?.response?.data?.message || e.message || 'Failed to send message', 'error');
-                await loadMessages(currentChatId);
             }
         }
 
@@ -1908,36 +2089,103 @@
         function setupSocketListeners() {
             const socket = socketService.connect();
             if (!socket) return;
+            if (socket.__apChatBound) return;
+            socket.__apChatBound = true;
 
             socket.on('receive_message', async (payload) => {
-                const message = mapServerMessageToUi({
-                    id: payload.id,
-                    senderId: payload.senderId,
-                    createdAt: payload.createdAt,
-                    text: payload.text,
-                    imageUrl: payload.imageUrl
-                });
-
                 const conversationId = String(payload.conversationId);
-                const mid = message.id;
+                const mid = String(payload.id);
+                const isMine = String(payload.senderId) === getMyUserId();
+
                 useChatStore.setState((state) => {
-                    const existing = state.messages[conversationId] || [];
-                    if (existing.some((m) => String(m.id) === mid)) {
-                        return {};
+                    let existing = [...(state.messages[conversationId] || [])];
+                    const dupIdx = existing.findIndex((m) => String(m.id) === mid);
+                    if (dupIdx >= 0) return {};
+                    const localIdx = isMine
+                        ? existing.findIndex((m) => String(m.id).startsWith('local-') && m.status === 'sending')
+                        : -1;
+                    const message = mapServerMessageToUi({
+                        id: payload.id,
+                        senderId: payload.senderId,
+                        createdAt: payload.createdAt,
+                        text: payload.text,
+                        imageUrl: payload.imageUrl,
+                        status: isMine ? 'sent' : undefined,
+                    }, otherLastReadAt);
+                    if (localIdx >= 0) {
+                        existing[localIdx] = message;
+                    } else {
+                        existing.push(message);
                     }
-                    return {
-                        messages: {
-                            ...state.messages,
-                            [conversationId]: [...existing, message]
-                        }
-                    };
+                    return { messages: { ...state.messages, [conversationId]: existing } };
                 });
 
                 if (String(currentChatId) === conversationId) {
                     renderActiveMessages();
+                    socket.emit('messages_read', { conversationId });
                 }
                 await loadConversations();
             });
+
+            socket.on('message_delivered', (payload) => {
+                const conversationId = String(payload.conversationId);
+                const messageId = String(payload.messageId);
+                useChatStore.setState((state) => ({
+                    messages: {
+                        ...state.messages,
+                        [conversationId]: (state.messages[conversationId] || []).map((m) =>
+                            String(m.id) === messageId && m.type === 'sent' && m.status !== 'read'
+                                ? { ...m, status: 'delivered' }
+                                : m
+                        ),
+                    },
+                }));
+                if (String(currentChatId) === conversationId) renderActiveMessages();
+            });
+
+            socket.on('messages_read', (payload) => {
+                const conversationId = String(payload.conversationId);
+                if (String(currentChatId) === conversationId) {
+                    otherLastReadAt = payload.readAt || new Date().toISOString();
+                }
+                useChatStore.setState((state) => ({
+                    messages: {
+                        ...state.messages,
+                        [conversationId]: (state.messages[conversationId] || []).map((m) =>
+                            m.type === 'sent' ? { ...m, status: 'read' } : m
+                        ),
+                    },
+                }));
+                if (String(currentChatId) === conversationId) renderActiveMessages();
+            });
+
+            socket.on('user_typing', (payload) => {
+                if (String(payload.conversationId) !== String(currentChatId)) return;
+                if (payload.isTyping) showTypingIndicator();
+                else hideTypingIndicator();
+            });
+
+            socket.on('user_presence', (payload) => {
+                if (!payload?.userId) return;
+                if (payload.status === 'online') onlineUsers.add(String(payload.userId));
+                else onlineUsers.delete(String(payload.userId));
+                updatePeerPresence(payload.userId);
+            });
+        }
+
+        function updatePeerPresence(userId) {
+            const conv = useChatStore.getState().conversations.find((c) => String(c.id) === String(currentChatId));
+            if (!conv || String(conv.otherUserId) !== String(userId)) return;
+            const online = onlineUsers.has(String(userId));
+            conv.status = online ? 'online' : 'offline';
+            document.getElementById('userStatusText').textContent = online ? 'Online' : 'Offline';
+            document.getElementById('userStatus').className = `status-dot ${online ? 'online' : 'offline'}`;
+        }
+
+        function emitTypingState(active) {
+            const socket = socketService.get();
+            if (!socket || !currentChatId) return;
+            socket.emit('typing', { conversationId: currentChatId, isTyping: Boolean(active) });
         }
 
         // ==================== TYPING INDICATOR ====================
@@ -1957,22 +2205,26 @@
             // Typing indicator
             if (!isTyping) {
                 isTyping = true;
-                showTypingIndicator();
+                emitTypingState(true);
             }
             
             clearTimeout(typingTimeout);
+            clearTimeout(socketTypingTimeout);
             typingTimeout = setTimeout(() => {
                 isTyping = false;
-                hideTypingIndicator();
-            }, 1000);
+                emitTypingState(false);
+            }, 1200);
         }
 
         function showTypingIndicator() {
-            // Reserved for future typing event
+            const el = document.getElementById('chatTypingIndicator');
+            if (el) el.hidden = false;
+            scrollToBottom(true);
         }
 
         function hideTypingIndicator() {
-            // Reserved for future typing event
+            const el = document.getElementById('chatTypingIndicator');
+            if (el) el.hidden = true;
         }
 
         // ==================== FILE UPLOAD ====================
@@ -2209,9 +2461,213 @@
         }
 
         // ==================== UTILITIES ====================
-        function scrollToBottom() {
+        function scrollToBottom(smooth) {
             const container = document.getElementById('messagesContainer');
-            container.scrollTop = container.scrollHeight;
+            if (!container) return;
+            container.scrollTo({
+                top: container.scrollHeight,
+                behavior: smooth ? 'smooth' : 'auto',
+            });
+        }
+
+        function defaultChatGiftCatalog() {
+            if (window.AP_LIVE_EMOJI?.GIFT_CATALOG?.gift?.length) {
+                return AP_LIVE_EMOJI.GIFT_CATALOG.gift.map((g, i) => ({
+                    slug: `gift_${i}`,
+                    emoji: g.emoji,
+                    name: g.name,
+                    coin_cost: g.cost,
+                }));
+            }
+            return [
+                { slug: 'rose', emoji: '🌹', name: 'Rose', coin_cost: 10 },
+                { slug: 'heart', emoji: '❤️', name: 'Heart', coin_cost: 50 },
+                { slug: 'star', emoji: '⭐', name: 'Star', coin_cost: 100 },
+                { slug: 'crown', emoji: '👑', name: 'Crown', coin_cost: 500 },
+            ];
+        }
+
+        async function setupChatGiftSheet() {
+            const sheet = document.getElementById('chatGiftSheet');
+            if (!sheet) return;
+            document.getElementById('chatGiftClose')?.addEventListener('click', () => {
+                sheet.hidden = true;
+            });
+            document.getElementById('chatGiftSend')?.addEventListener('click', sendChatGift);
+            chatGiftCatalog = defaultChatGiftCatalog();
+            renderChatGiftGrid();
+            try {
+                if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken();
+                const res = await API.get('/social/gifts/catalog');
+                const rows = res.data || [];
+                if (rows.length) {
+                    chatGiftCatalog = rows.map((g) => ({
+                        slug: g.slug,
+                        emoji: g.emoji || '🎁',
+                        name: g.name || 'Gift',
+                        coin_cost: Number(g.coin_cost || g.cost) || 10,
+                    }));
+                    renderChatGiftGrid();
+                }
+            } catch (_e) {
+                /* keep default catalog */
+            }
+        }
+
+        function setupChatCoinTransfer() {
+            const sheet = document.getElementById('chatCoinSheet');
+            if (!sheet) return;
+            document.getElementById('chatCoinClose')?.addEventListener('click', () => {
+                sheet.hidden = true;
+            });
+            document.getElementById('chatHeaderSellBtn')?.addEventListener('click', openChatCoinSheet);
+            document.getElementById('chatCoinSend')?.addEventListener('click', sendChatCoins);
+        }
+
+        async function openChatCoinSheet() {
+            const conv = useChatStore.getState().conversations.find((c) => String(c.id) === String(currentChatId));
+            if (!conv?.otherUserId) {
+                Toast.show('Open a conversation first', 'warning');
+                return;
+            }
+            const sheet = document.getElementById('chatCoinSheet');
+            if (!sheet) return;
+            document.getElementById('chatCoinRecipient').textContent = conv.name || 'User';
+            try {
+                const dash = await API.get('/social/coin-seller/dashboard');
+                const inv = Number(dash.data?.profile?.inventory_coins || 0);
+                document.getElementById('chatCoinInventory').textContent = inv.toLocaleString('en-IN');
+            } catch (_e) {
+                document.getElementById('chatCoinInventory').textContent = '—';
+            }
+            sheet.hidden = false;
+        }
+
+        async function sendChatCoins() {
+            const conv = useChatStore.getState().conversations.find((c) => String(c.id) === String(currentChatId));
+            if (!conv?.otherUserId) {
+                Toast.show('Open a conversation first', 'warning');
+                return;
+            }
+            const coins = parseInt(document.getElementById('chatCoinAmount')?.value || '0', 10);
+            if (!coins || coins < 5000) {
+                Toast.show('Minimum transfer is 5,000 coins', 'warning');
+                return;
+            }
+            const btn = document.getElementById('chatCoinSend');
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = 'Sending…';
+            }
+            try {
+                await API.post('/social/coin-seller/transfer', {
+                    recipient_id: conv.otherUserId,
+                    coins,
+                });
+                document.getElementById('chatCoinSheet').hidden = true;
+                document.getElementById('chatCoinAmount').value = '';
+                Toast.show(`${coins.toLocaleString('en-IN')} coins sent to ${conv.name}`, 'success');
+                await axiosClient.post('/send', {
+                    receiverId: conv.otherUserId,
+                    text: `💰 Sent ${coins.toLocaleString('en-IN')} coins`,
+                });
+                await loadMessages(currentChatId);
+            } catch (e) {
+                Toast.show(e?.message || 'Transfer failed', 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = 'Send coins';
+                }
+            }
+        }
+
+        function renderChatGiftGrid() {
+            const grid = document.getElementById('chatGiftGrid');
+            if (!grid) return;
+            grid.innerHTML = chatGiftCatalog
+                .slice(0, 24)
+                .map(
+                    (g, i) => `
+                <button type="button" class="chat-gift-item${i === selectedChatGiftIdx ? ' is-selected' : ''}" data-idx="${i}">
+                    <span class="g">${g.emoji}</span>
+                    <span>${g.name}</span>
+                    <small>${g.coin_cost}</small>
+                </button>`
+                )
+                .join('');
+            grid.querySelectorAll('.chat-gift-item').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    selectedChatGiftIdx = parseInt(btn.dataset.idx, 10) || 0;
+                    grid.querySelectorAll('.chat-gift-item').forEach((b) => b.classList.remove('is-selected'));
+                    btn.classList.add('is-selected');
+                });
+            });
+        }
+
+        async function openChatGiftSheet() {
+            if (!currentChatId) {
+                Toast.show('Open a conversation first', 'warning');
+                return;
+            }
+            const sheet = document.getElementById('chatGiftSheet');
+            if (!sheet) return;
+            if (window.SocialWallet) {
+                const b = await SocialWallet.fetchBalance(true);
+                document.getElementById('chatGiftBalance').textContent = (b.coin_balance || 0).toLocaleString();
+            }
+            sheet.hidden = false;
+        }
+
+        async function sendChatGift() {
+            const conv = useChatStore.getState().conversations.find((c) => String(c.id) === String(currentChatId));
+            if (!conv?.otherUserId) {
+                Toast.show('Open a conversation first', 'warning');
+                return;
+            }
+            const g = chatGiftCatalog[selectedChatGiftIdx];
+            if (!g) {
+                Toast.show('Select a gift', 'warning');
+                return;
+            }
+            const btn = document.getElementById('chatGiftSend');
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = 'Sending…';
+            }
+            try {
+                if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken();
+                if (window.SocialWallet?.sendGift) {
+                    await SocialWallet.sendGift({
+                        receiver_id: conv.otherUserId,
+                        coin_amount: g.coin_cost,
+                        gift_type: g.slug || g.emoji,
+                    });
+                } else {
+                    await API.post('/wallet/gifts', {
+                        receiver_id: conv.otherUserId,
+                        coin_amount: g.coin_cost,
+                        gift_type: g.slug || g.emoji,
+                    });
+                }
+                const giftEvt = { from: 'You', to: conv.name, emoji: g.emoji, amount: g.coin_cost, qty: 1 };
+                window.SocialFX?.playGift?.(giftEvt, { combo: 1 });
+                document.getElementById('chatGiftSheet').hidden = true;
+                Toast.show('Gift sent!', 'success');
+                await axiosClient.post('/send', {
+                    receiverId: conv.otherUserId,
+                    text: `🎁 Sent ${g.emoji} ${g.name} (${g.coin_cost} coins)`,
+                });
+                await loadMessages(currentChatId);
+            } catch (e) {
+                const msg = window.SocialUI?.friendlyMessage?.(e.message) || e.message || 'Could not send gift';
+                Toast.show(msg, 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = 'Send Gift';
+                }
+            }
         }
 
         // Initialize auto-resize for textarea
@@ -2245,6 +2701,30 @@
         window.handleKeyPress = handleKeyPress;
         window.closeMobileChat = closeMobileChat;
     </script>
+    <div class="chat-gift-sheet" id="chatGiftSheet" hidden>
+        <div class="chat-gift-panel">
+            <div class="chat-gift-head">
+                <h3>Send Gift</h3>
+                <button type="button" id="chatGiftClose" aria-label="Close">&times;</button>
+            </div>
+            <div class="chat-gift-grid" id="chatGiftGrid"></div>
+            <p class="chat-gift-balance">Balance: <span id="chatGiftBalance">0</span> coins</p>
+            <button type="button" class="chat-gift-send" id="chatGiftSend">Send Gift</button>
+        </div>
+    </div>
+    <div class="chat-gift-sheet" id="chatCoinSheet" hidden>
+        <div class="chat-gift-panel">
+            <div class="chat-gift-head">
+                <h3>Send coins</h3>
+                <button type="button" id="chatCoinClose" aria-label="Close">&times;</button>
+            </div>
+            <p class="chat-coin-meta">To: <strong id="chatCoinRecipient">—</strong></p>
+            <p class="chat-coin-meta">Your seller stock: <strong id="chatCoinInventory">—</strong> coins</p>
+            <label class="chat-coin-label" for="chatCoinAmount">Amount (min 5,000)</label>
+            <input type="number" id="chatCoinAmount" class="chat-coin-input" min="5000" step="1000" placeholder="5000">
+            <button type="button" class="chat-gift-send" id="chatCoinSend">Send coins</button>
+        </div>
+    </div>
     <div id="social-bottom-nav-mount"></div>
 </body>
 </html>

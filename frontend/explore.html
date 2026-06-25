@@ -14,11 +14,11 @@
 <body>
   <header class="social-top">
     <div class="social-main-tabs" id="exploreTabs">
-      <a href="/explore.html?tab=following&app=1" data-tab="following">Following</a>
-      <a href="/explore.html?app=1" data-tab="explore" class="active">Live</a>
-      <a href="/explore.html?tab=party&app=1" data-tab="party">Party</a>
-      <a href="/explore.html?tab=new&app=1" data-tab="new">New</a>
-      <a href="/explore.html?tab=nearby&app=1" data-tab="nearby">Nearby</a>
+      <button type="button" data-tab="following">Following</button>
+      <button type="button" data-tab="explore" class="active">Live</button>
+      <button type="button" data-tab="party">Party</button>
+      <button type="button" data-tab="new">New</button>
+      <button type="button" data-tab="nearby">Nearby</button>
       <div class="social-top-actions">
         <a href="/rankings.html?app=1" class="social-icon-btn" aria-label="Rankings"><i class="fas fa-trophy"></i></a>
         <button type="button" class="social-global-pill" id="globalChip"><i class="fas fa-globe-asia"></i> Global</button>
@@ -29,6 +29,7 @@
       <input type="search" data-social-search placeholder="Nickname or ID number" autocomplete="off">
     </div>
     <div id="social-filter-chips-mount"></div>
+    <p class="explore-tab-hint" id="exploreTabHint" hidden></p>
   </header>
 
   <div id="social-banner-slider"></div>
@@ -42,6 +43,23 @@
   <button type="button" class="social-start-live" id="social-start-live"><i class="fas fa-video"></i> Go Live</button>
   <div id="social-bottom-nav-mount"></div>
 
+  <style>
+    #exploreTabs button {
+      border: none;
+      background: none;
+      font: inherit;
+      color: inherit;
+      cursor: pointer;
+      padding: 0;
+    }
+    .explore-tab-hint {
+      margin: 0 16px 8px;
+      font-size: 12px;
+      color: #8b6914;
+      line-height: 1.4;
+    }
+  </style>
+
   <script src="app.js"></script>
   <script src="social-ui.js"></script>
   <script src="auth-guard.js"></script>
@@ -51,35 +69,117 @@
   <script src="social-nav.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', () => {
-      const tab = new URLSearchParams(location.search).get('tab') || 'explore';
-      const activeTab = tab === 'following' || tab === 'nearby' || tab === 'new' || tab === 'party' ? tab : 'explore';
-      document.querySelectorAll('#exploreTabs a[data-tab]').forEach((a) => {
-        a.classList.toggle('active', a.dataset.tab === activeTab);
-      });
-      if (tab === 'following') {
-        document.getElementById('exploreContent').style.display = 'none';
-        document.getElementById('exploreEmpty').style.display = 'block';
-        SocialShell.initPage({
-          activeNav: 'explore',
-          emptyState: { mountId: 'exploreEmpty', type: tab },
+      let currentTab = new URLSearchParams(location.search).get('tab') || 'explore';
+      const valid = ['following', 'explore', 'party', 'new', 'nearby'];
+      if (!valid.includes(currentTab)) currentTab = 'explore';
+
+      const hints = {
+        following: 'Rooms from people you follow.',
+        explore: 'Trending live broadcasts right now.',
+        party: 'Voice party rooms — join or start one.',
+        new: 'Recently started live rooms.',
+        nearby: 'Popular rooms near you (enable location for best results).',
+      };
+
+      function setTabUi(tab) {
+        document.querySelectorAll('#exploreTabs button[data-tab]').forEach((btn) => {
+          btn.classList.toggle('active', btn.dataset.tab === tab);
         });
-        SocialShell.fillFollowingView('');
-      } else if (tab === 'party') {
-        document.getElementById('exploreEmpty').style.display = 'none';
-        document.getElementById('exploreContent').style.display = 'block';
-        SocialShell.initPage({ activeNav: 'explore', gridId: 'exploreGrid', gridLimit: 12, partyGrid: true, sort: 'trending' });
-      } else if (tab === 'nearby' || tab === 'new') {
-        document.getElementById('exploreEmpty').style.display = 'none';
-        document.getElementById('exploreContent').style.display = 'block';
-        SocialShell.initPage({ activeNav: 'explore' });
-        SocialShell.fillDiscoveryTab(tab);
-      } else {
-        document.getElementById('exploreEmpty').style.display = 'none';
-        SocialShell.initPage({ activeNav: 'explore', gridId: 'exploreGrid', gridLimit: 12, sort: 'trending' });
+        const hint = document.getElementById('exploreTabHint');
+        if (hint) {
+          hint.textContent = hints[tab] || '';
+          hint.hidden = !hints[tab];
+        }
+        const showParty = tab === 'party';
+        const showLive = tab === 'explore' || tab === 'party' || tab === 'new' || tab === 'nearby';
+        document.getElementById('social-start-party').style.display = showParty ? '' : 'none';
+        document.getElementById('social-start-live').style.display =
+          tab === 'explore' || tab === 'new' || tab === 'nearby' ? '' : 'none';
       }
+
+      async function loadTab(tab, searchQuery) {
+        currentTab = tab;
+        setTabUi(tab);
+        const content = document.getElementById('exploreContent');
+        const empty = document.getElementById('exploreEmpty');
+        const params = new URLSearchParams(location.search);
+        if (tab === 'explore') params.delete('tab');
+        else params.set('tab', tab);
+        if (!params.has('app') && (location.search.includes('app=1') || document.documentElement.classList.contains('ap-expo-app'))) {
+          params.set('app', '1');
+        }
+        const qs = params.toString();
+        history.replaceState(null, '', '/explore.html' + (qs ? '?' + qs : ''));
+
+        if (tab === 'following') {
+          content.style.display = 'none';
+          empty.style.display = 'block';
+          SocialShell.renderEmptyState({ mountId: 'exploreEmpty', type: 'following' });
+          await SocialShell.fillFollowingView(searchQuery || '');
+          return;
+        }
+
+        content.style.display = 'block';
+        empty.style.display = 'none';
+        let grid = document.getElementById('exploreGrid');
+        if (!grid) {
+          grid = document.createElement('div');
+          grid.id = 'exploreGrid';
+          grid.className = 'social-grid';
+          content.appendChild(grid);
+        }
+
+        if (tab === 'party') {
+          await SocialShell.fillGrid('exploreGrid', 12, { party: true, sort: 'trending' });
+        } else if (tab === 'new' || tab === 'nearby') {
+          if (tab === 'nearby' && navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+              () => SocialShell.fillDiscoveryTab(tab, searchQuery),
+              () => SocialShell.fillDiscoveryTab(tab, searchQuery),
+              { timeout: 4000 }
+            );
+          } else {
+            await SocialShell.fillDiscoveryTab(tab, searchQuery);
+          }
+        } else {
+          await SocialShell.fillGrid('exploreGrid', 12, { party: false, sort: 'trending' });
+        }
+
+        if (searchQuery) {
+          const q = searchQuery.toLowerCase();
+          [...grid.querySelectorAll('.social-live-card')].forEach((card) => {
+            const name = (card.querySelector('.social-card-name')?.textContent || '').toLowerCase();
+            card.style.display = name.includes(q) ? '' : 'none';
+          });
+        }
+      }
+
+      SocialShell.initPage({ activeNav: 'explore' });
+      document.getElementById('social-filter-chips-mount').innerHTML = SocialShell.renderFilterChips('Popular');
+      SocialShell.bindFilterChips?.();
+
+      document.querySelectorAll('#exploreTabs button[data-tab]').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          const tab = btn.dataset.tab;
+          if (tab === currentTab) return;
+          loadTab(tab);
+        });
+      });
+
+      document.querySelector('[data-social-search]')?.addEventListener('input', (() => {
+        let t;
+        return (e) => {
+          clearTimeout(t);
+          t = setTimeout(() => loadTab(currentTab, e.target.value.trim()), 280);
+        };
+      })());
+
       document.getElementById('globalChip')?.addEventListener('click', () => {
         document.querySelector('.chip[data-chip="Global"]')?.click();
       });
+
+      loadTab(currentTab);
     });
   </script>
 </body>

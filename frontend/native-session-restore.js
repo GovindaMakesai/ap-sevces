@@ -29,7 +29,10 @@
 
   function hasSession() {
     try {
-      return Boolean(localStorage.getItem('user') || localStorage.getItem('token'));
+      const user = localStorage.getItem('user');
+      const token = localStorage.getItem('token');
+      const refresh = localStorage.getItem('ap_refresh_token');
+      return Boolean(user && (token || refresh));
     } catch (_e) {
       return false;
     }

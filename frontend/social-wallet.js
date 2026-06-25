@@ -68,8 +68,20 @@
     return res;
   }
 
-  async function submitRecharge(body) {
+  async function submitRecharge(body, proofFile) {
+    if (proofFile) {
+      const fd = new FormData();
+      fd.append('amount_inr', String(body.amount_inr));
+      fd.append('transaction_id', body.transaction_id);
+      fd.append('payment_method', body.payment_method || 'qr_manual');
+      fd.append('payment_proof', proofFile);
+      return API.post('/wallet/recharge', fd);
+    }
     return API.post('/wallet/recharge', body);
+  }
+
+  async function getRecharges() {
+    return API.get('/wallet/recharges');
   }
 
   async function requestWithdraw(amount) {
@@ -109,6 +121,7 @@
     getWalletSettings,
     sendGift,
     submitRecharge,
+    getRecharges,
     requestWithdraw,
     requestWithdrawWithQr,
     getWithdrawals,

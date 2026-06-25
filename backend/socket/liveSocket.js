@@ -234,21 +234,22 @@ function registerLiveSocket(io) {
           .slice(0, 280);
         if (!text) return;
 
+        const displayName = socket.data.liveDisplayName || 'User';
+        const eventId = await liveRoomService.logChatEvent(room.id, socket.userId, {
+          user: displayName,
+          text,
+          lvl: payload?.lvl || 1,
+        });
+
         const msg = {
-          id: Date.now() + '-' + socket.userId,
+          id: eventId ? `evt-${eventId}` : `${Date.now()}-${socket.userId}`,
           type: 'chat',
           userId: socket.userId,
-          user: socket.data.liveDisplayName || 'User',
+          user: displayName,
           lvl: payload?.lvl || 1,
           text,
           at: Date.now(),
         };
-
-        await liveRoomService.logChatEvent(room.id, socket.userId, {
-          user: msg.user,
-          text: msg.text,
-          lvl: msg.lvl,
-        });
 
         io.to(`live:${channel}`).emit('live:chat', msg);
       } catch (err) {
@@ -430,7 +431,22 @@ function registerLiveSocket(io) {
     };
 
     socket.on('live:leave', () => handleLeave({ intentional: true }));
-    socket.on('disconnect', () => handleLeave({ intentional: false }));
+
+    socket.on('disconnect', async () => {
+      if (!currentChannel) return;
+      const channel = currentChannel;
+      const wasHost = Boolean(socket.data.isHost);
+      currentChannel = null;
+      socket.leave(`live:${channel}`);
+
+      if (wasHost) {
+        // Host drop: room stays live; heartbeat prune + rejoin handles recovery.
+        return;
+      }
+
+      // Viewer drop: grace period before DB leave (mobile background / brief network loss).
+      // pruneStaleMembers (120s) removes stale rows; immediate leave caused unwanted ejects.
+    });
   });
 }
 

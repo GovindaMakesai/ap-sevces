@@ -137,6 +137,14 @@ exports.sendMessage = async (req, res) => {
         if (io) {
             io.to(`conversation:${conversation.id}`).emit('receive_message', normalized);
             io.to(`user:${receiverUserId}`).emit('receive_message', normalized);
+            const receiverRoom = io.sockets.adapter.rooms.get(`user:${receiverUserId}`);
+            if (receiverRoom && receiverRoom.size > 0) {
+                io.to(`user:${senderId}`).emit('message_delivered', {
+                    messageId: normalized.id,
+                    conversationId: normalized.conversationId,
+                    deliveredAt: new Date().toISOString(),
+                });
+            }
         }
 
         res.status(201).json({
@@ -186,6 +194,24 @@ exports.getMessages = async (req, res) => {
         const meta = await enrichConversation(conversation, currentUserId);
         const quota = await chatService.getFemaleMessageQuota(currentUserId);
 
+        const io = req.app.get('io');
+        if (io) {
+            const otherId = chatService.otherParticipantId(conversation, currentUserId);
+            if (otherId) {
+                io.to(`user:${otherId}`).emit('messages_read', {
+                    conversationId: String(conversation.id),
+                    readerId: currentUserId,
+                    readAt: new Date().toISOString(),
+                });
+            }
+        }
+
+        const me = currentUserId;
+        const otherReadAt =
+            String(conversation.user_low) === me
+                ? conversation.user_high_last_read_at
+                : conversation.user_low_last_read_at;
+
         res.json({
             success: true,
             data: {
@@ -194,6 +220,7 @@ exports.getMessages = async (req, res) => {
                 lastMessageText: meta.lastMessageText,
                 lastMessageAt: meta.lastMessageAt,
                 quota,
+                otherLastReadAt: otherReadAt,
                 messages: messages.map((msg) => {
                     const { text, imageUrl } = splitMessageBody(msg.body);
                     return {

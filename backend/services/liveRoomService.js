@@ -209,7 +209,9 @@ async function buildSnapshot(channel) {
         };
       }
       return {
+        id: `evt-${e.id}`,
         type: 'chat',
+        userId: e.user_id,
         user: p.user || 'User',
         text: p.text || '',
         lvl: p.lvl || 1,
@@ -248,10 +250,12 @@ async function buildSnapshot(channel) {
 }
 
 async function logChatEvent(liveRoomId, userId, payload) {
-  await db.query(
-    `INSERT INTO live_room_events (live_room_id, user_id, event_type, payload) VALUES ($1, $2, 'chat', $3)`,
+  const res = await db.query(
+    `INSERT INTO live_room_events (live_room_id, user_id, event_type, payload) VALUES ($1, $2, 'chat', $3)
+     RETURNING id`,
     [liveRoomId, userId, JSON.stringify(payload)]
   );
+  return res.rows[0]?.id;
 }
 
 async function setMemberMuted(liveRoomId, userId, muted) {

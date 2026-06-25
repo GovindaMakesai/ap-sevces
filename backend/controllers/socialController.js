@@ -198,6 +198,117 @@ async function reportUser(req, res) {
   }
 }
 
+async function requireCoinSeller(req, res) {
+  const id = uid(req);
+  const profile = await coinSellerService.ensureSellerAccess(id);
+  if (!profile) {
+    res.status(403).json({ success: false, message: 'Coin seller access required — hold 100,000+ NR coins or contact admin' });
+    return false;
+  }
+  return true;
+}
+
+async function coinSellerDashboard(req, res) {
+  try {
+    if (!(await requireCoinSeller(req, res))) return;
+    const data = await coinSellerService.getDashboard(uid(req));
+    res.json({ success: true, data });
+  } catch (e) {
+    res.status(400).json({ success: false, message: e.message });
+  }
+}
+
+async function coinSellerLookupUser(req, res) {
+  try {
+    if (!(await requireCoinSeller(req, res))) return;
+    const user = await coinSellerService.lookupRecipient(req.query.accountId || req.params.accountId);
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+    res.json({ success: true, data: user });
+  } catch (e) {
+    res.status(400).json({ success: false, message: e.message });
+  }
+}
+
+async function coinSellerTransfer(req, res) {
+  try {
+    if (!(await requireCoinSeller(req, res))) return;
+    const data = await coinSellerService.transferCoins(uid(req), {
+      recipientId: req.body.recipient_id || req.body.accountId,
+      coins: req.body.coins,
+      transferType: req.body.transfer_type,
+    });
+    res.json({ success: true, data, message: 'Transfer completed' });
+  } catch (e) {
+    res.status(400).json({ success: false, message: e.message });
+  }
+}
+
+async function coinSellerExchange(req, res) {
+  try {
+    if (!(await requireCoinSeller(req, res))) return;
+    const data = await coinSellerService.exchangeBeans(uid(req), req.body.beans);
+    res.json({ success: true, data, message: 'Exchange completed' });
+  } catch (e) {
+    res.status(400).json({ success: false, message: e.message });
+  }
+}
+
+async function coinSellerRecharge(req, res) {
+  try {
+    if (!(await requireCoinSeller(req, res))) return;
+    let paymentProofAssetId = null;
+    if (req.file) {
+      const fileAssetService = require('../services/fileAssetService');
+      const asset = await fileAssetService.registerPrivateFile({
+        ownerId: uid(req),
+        category: 'recharge',
+        tempPath: req.file.path,
+        mimeType: req.file.mimetype,
+        originalName: req.file.originalname,
+        sizeBytes: req.file.size,
+      });
+      paymentProofAssetId = asset.id;
+    }
+    const row = await coinSellerService.createPendingSellerRecharge(uid(req), {
+      packageCoins: req.body.package_coins,
+      paymentChannel: req.body.payment_channel,
+      transactionId: req.body.transaction_id,
+      paymentProofAssetId,
+    });
+    res.status(201).json({
+      success: true,
+      data: row,
+      message: 'Top-up submitted for admin verification. Inventory updates after approval.',
+    });
+  } catch (e) {
+    res.status(400).json({ success: false, message: e.message });
+  }
+}
+
+async function coinSellerRechargeHistory(req, res) {
+  try {
+    if (!(await requireCoinSeller(req, res))) return;
+    const data = await coinSellerService.listSellerRecharges(uid(req), {
+      limit: parseInt(req.query.limit, 10) || 20,
+    });
+    res.json({ success: true, data });
+  } catch (e) {
+    res.status(400).json({ success: false, message: e.message });
+  }
+}
+
+async function coinSellerTransfers(req, res) {
+  try {
+    if (!(await requireCoinSeller(req, res))) return;
+    const data = await coinSellerService.listTransfers(uid(req), {
+      limit: parseInt(req.query.limit, 10) || 30,
+    });
+    res.json({ success: true, data });
+  } catch (e) {
+    res.status(400).json({ success: false, message: e.message });
+  }
+}
+
 module.exports = {
   followUser,
   unfollowUser,
@@ -221,4 +332,11 @@ module.exports = {
   sharePost,
   deletePost,
   reportUser,
+  coinSellerDashboard,
+  coinSellerLookupUser,
+  coinSellerTransfer,
+  coinSellerExchange,
+  coinSellerRecharge,
+  coinSellerRechargeHistory,
+  coinSellerTransfers,
 };

@@ -59,15 +59,15 @@
   object-fit: cover;
 }
 
-.party-host { flex: 1 1 auto; min-width: 0; max-width: calc(100vw - 148px); }
+.party-host { flex: 1 1 auto; min-width: 0; max-width: calc(100vw - 120px); }
 .party-host-meta { min-width: 0; flex: 1; overflow: hidden; }
 .party-host-meta .name {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 100%;
+  max-width: min(42vw, 160px);
   line-height: 1.25;
 }
 .party-host-meta .sub {
@@ -163,12 +163,44 @@
 .party-seats {
   position: relative;
   z-index: 10;
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 10px 8px;
-  padding: 8px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 8px 12px 16px;
   max-width: 420px;
   margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.party-seat-row {
+  display: grid;
+  gap: 8px 6px;
+  justify-items: center;
+  align-items: start;
+  width: 100%;
+}
+
+.party-seat-row--lg {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.party-seat-row--md {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.party-seat-row--sm {
+  grid-template-columns: repeat(5, 1fr);
+}
+
+.party-seats-ref .party-seat.is-host {
+  grid-column: auto;
+  grid-row: auto;
+}
+
+.party-seats-ref .party-seat.is-host .seat-avatar {
+  width: 72px;
+  height: 72px;
 }
 
 .party-seats-9 {
@@ -201,9 +233,9 @@
   text-align: center; gap: 4px;
 }
 
-.party-seat.is-host { grid-column: 2 / span 2; grid-row: 1; }
-.party-seat.is-host .seat-avatar { width: 88px; height: 88px; border-width: 3px; border-color: #fbbf24; }
-.party-seat.is-host .seat-name { font-size: 13px; font-weight: 800; }
+.party-seats:not(.party-seats-ref) .party-seat.is-host { grid-column: 2 / span 2; grid-row: 1; }
+.party-seats:not(.party-seats-ref) .party-seat.is-host .seat-avatar { width: 88px; height: 88px; border-width: 3px; border-color: #fbbf24; }
+.party-seat.is-host .seat-name { font-size: 12px; font-weight: 800; }
 
 .seat-avatar {
   position: relative;
@@ -289,14 +321,30 @@
   min-height: 0;
   overflow: hidden;
   pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.live-chat-ticker {
+  flex-shrink: 0;
+  padding: 6px 12px 4px 0;
+  font-size: 10px;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.75);
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.45), transparent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .party-chat-feed {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 8px 12px 8px 0;
+  padding: 4px 12px 8px 0;
   overflow-y: auto;
+  flex: 1;
+  min-height: 0;
   max-height: min(20vh, 150px);
   pointer-events: auto;
   -webkit-overflow-scrolling: touch;
@@ -665,19 +713,32 @@ body[data-live-page='live-room'] .live-room {
 }
 
 .party-tools-sheet {
-  position: fixed; inset: 0; z-index: 52;
-  background: rgba(0,0,0,0.5);
-  display: none; align-items: flex-end;
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: none;
+  align-items: flex-end;
+  justify-content: center;
+  padding: env(safe-area-inset-top, 0) 0 env(safe-area-inset-bottom, 0);
+  background: rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  pointer-events: none;
 }
-.party-tools-sheet.open { display: flex; }
-
-.party-tools-panel {
-  width: 100%; max-height: 55vh;
-  background: rgba(18, 10, 40, 0.96);
-  border-radius: 20px 20px 0 0;
-  padding: 16px 14px calc(20px + env(safe-area-inset-bottom, 0));
+.party-tools-sheet.open {
+  display: flex;
+  pointer-events: auto;
+}
+.party-tools-sheet .party-tools-panel {
+  width: min(100%, 420px);
+  max-height: min(78dvh, 520px);
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 20px 20px 0 0;
+  margin: 0 auto;
+  background: rgba(18, 10, 40, 0.96);
+  padding: 16px 14px calc(20px + env(safe-area-inset-bottom, 0));
 }
+
 .party-tools-panel h3 {
   font-size: 12px; color: rgba(255,255,255,0.55);
   margin: 12px 0 8px; font-weight: 600;
@@ -1035,9 +1096,9 @@ body[data-live-page='live-room'] .live-room {
   display: flex; align-items: center; justify-content: center;
 }
 
-.party-seats:not(.party-seats-9) .party-seat:not(.is-host):nth-child(2) { grid-column: 1; grid-row: 1; }
-.party-seats:not(.party-seats-9) .party-seat:not(.is-host):nth-child(3) { grid-column: 4; grid-row: 1; }
-.party-seats:not(.party-seats-9) .party-seat.is-host { grid-column: 2 / span 2; grid-row: 1; justify-self: center; }
+.party-seats:not(.party-seats-ref):not(.party-seats-9) .party-seat:not(.is-host):nth-child(2) { grid-column: 1; grid-row: 1; }
+.party-seats:not(.party-seats-ref):not(.party-seats-9) .party-seat:not(.is-host):nth-child(3) { grid-column: 4; grid-row: 1; }
+.party-seats:not(.party-seats-ref):not(.party-seats-9) .party-seat.is-host { grid-column: 2 / span 2; grid-row: 1; justify-self: center; }
 
 .party-win-banner.is-flash {
   animation: win-flash 0.5s ease 3;
@@ -2251,6 +2312,21 @@ body[data-live-page="party-room"] .ap-guest-rail:not(:empty) {
   border-radius: 50% !important;
 }
 
+.ap-btn-backpack {
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: 50% !important;
+  border: none !important;
+  background: rgba(14, 165, 233, 0.85) !important;
+  color: #fff !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px !important;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
 .ap-bottom-ref .party-btn-gift.ap-btn-gift-hero {
   background: #fff !important;
   color: #ec4899 !important;
@@ -2853,7 +2929,7 @@ body[data-live-page="live-room"] .live-local-host-mirror video {
   left: 8px;
   right: 8px;
   bottom: calc(var(--ap-bottom-bar-h) + 8px + env(safe-area-inset-bottom, 0));
-  z-index: 50;
+  z-index: 80;
   display: none;
   flex-wrap: wrap;
   gap: 6px;
@@ -3215,4 +3291,39 @@ html.ap-expo-app .ap-chip {
   border-color: #a78bfa;
   background: rgba(167, 139, 250, 0.2);
   color: #e9d5ff;
+}
+
+.ap-inroom-web {
+  position: fixed;
+  inset: 0;
+  z-index: 65;
+  background: rgba(0, 0, 0, 0.55);
+  display: none;
+  flex-direction: column;
+  padding: env(safe-area-inset-top, 0) 0 env(safe-area-inset-bottom, 0);
+}
+.ap-inroom-web.open {
+  display: flex;
+}
+.ap-inroom-web-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: #fff;
+  flex-shrink: 0;
+}
+.ap-inroom-web-bar button {
+  border: none;
+  background: #f3f4f6;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.ap-inroom-web iframe {
+  flex: 1;
+  width: 100%;
+  border: none;
+  background: #fff;
 }

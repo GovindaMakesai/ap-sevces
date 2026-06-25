@@ -313,12 +313,18 @@ body.withdraw-app input[type='file'] {
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
+  table-layout: fixed;
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
 }
 
 .wd-rules-table td {
   padding: 10px 12px;
   border: 1px solid #e5e7eb;
   vertical-align: top;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  hyphens: auto;
 }
 
 .wd-rules-table td:first-child {

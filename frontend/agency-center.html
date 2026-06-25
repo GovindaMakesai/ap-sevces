@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#ff8c00">
+  <title>Agency Center - AP Services</title>
+  <script src="/ap-native-boot.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="social-theme.css">
+  <link rel="stylesheet" href="coin-seller.css">
+  <style>
+    .ag-rewards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 12px; }
+    .ag-reward-card {
+      background: linear-gradient(135deg, #ff9800, #ff5722);
+      color: #fff; border-radius: 14px; padding: 14px; text-align: center;
+    }
+    .ag-reward-card strong { display: block; font-size: 22px; margin: 8px 0; }
+    .ag-mgmt { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 0 12px 12px; text-align: center; }
+    .ag-mgmt button { border: none; border-radius: 999px; padding: 6px 8px; font-size: 10px; font-weight: 700; color: #fff; cursor: pointer; }
+    .ag-mgmt .pink { background: #ec4899; } .ag-mgmt .grey { background: #9ca3af; }
+    .ag-mgmt .blue { background: #3b82f6; } .ag-mgmt .purple { background: #8b5cf6; }
+  </style>
+</head>
+<body class="cs-page">
+  <header class="cs-header">
+    <a href="/profile-tab.html?app=1"><i class="fas fa-arrow-left"></i></a>
+    <h1>Agency Center</h1>
+    <span style="width:36px"></span>
+  </header>
+
+  <div class="cs-profile">
+    <div class="cs-avatar" id="agAvatar">AG</div>
+    <div class="cs-profile-info">
+      <h2 id="agName">—</h2>
+      <span class="cs-badge">Agency</span>
+      <div class="cs-id">ID: <span id="agUserId">—</span></div>
+    </div>
+  </div>
+
+  <div class="ag-rewards">
+    <div class="ag-reward-card"><span>Host Invitation Rewards</span><strong id="agHostReward">0</strong><button class="cs-submit" style="opacity:0.5" disabled>Collect</button></div>
+    <div class="ag-reward-card"><span>Active Agent Rewards</span><strong id="agAgentReward">0</strong><button class="cs-submit" style="opacity:0.5" disabled>Collect</button></div>
+  </div>
+
+  <div class="ag-mgmt">
+    <div><strong id="agAllHosts">0</strong><div>All hosts</div><button class="pink" onclick="location.href='/add-creator.html?app=1'">+ Host</button></div>
+    <div><strong id="agActiveHosts">0</strong><div>Active hosts</div><button class="grey">Details</button></div>
+    <div><strong>0</strong><div>Agency List</div><button class="blue">+ Agency</button></div>
+    <div><strong>0</strong><div>Idol Weekly</div><button class="purple">+ Idol</button></div>
+  </div>
+
+  <div class="cs-stats" style="margin-top:12px">
+    <div class="cs-date-range">Commission · Last 7 days</div>
+    <div class="cs-stat-row">
+      <div><strong id="agCommission">0</strong><span>Commission</span></div>
+      <div><strong>4%</strong><span>Rate</span></div>
+      <div><strong>D</strong><span>Level</span></div>
+    </div>
+    <p style="font-size:12px;color:#666;margin:12px 0 0">Manage hosts, track commissions, and grow your agency network.</p>
+  </div>
+
+  <script src="ap-config.js"></script>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+  <script src="auth-guard.js"></script>
+  <script>
+    (async function () {
+      Auth.checkAuth();
+      if (!Auth.hasSession?.()) { location.href = '/login.html?app=1'; return; }
+      const user = Auth.getUser();
+      if (!['agency', 'admin', 'super_admin'].includes(user?.role)) {
+        alert('Agency access required');
+        location.href = '/profile-tab.html?app=1';
+        return;
+      }
+      const name = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Agency';
+      document.getElementById('agAvatar').textContent = name.slice(0, 2).toUpperCase();
+      document.getElementById('agName').textContent = name;
+      document.getElementById('agUserId').textContent = user.id;
+    })();
+  </script>
+</body>
+</html>

@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260624-prod-audit';
+  window.__AP_LIVE_BUILD = '20260625-live-v2';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -151,6 +151,8 @@
   let mediaResumeBound = false;
   let cachedWsToken = null;
   let cachedWsTokenAt = 0;
+  let activeProfileUser = { name: '', userId: '' };
+  let profileSheetActionsBound = false;
 
   const VIDEO_FILTERS = {
     none: { label: 'Original', css: '' },
@@ -229,23 +231,76 @@
     syncLiveUiState();
   }
 
+  async function onForegroundResume() {
+    if (document.visibilityState !== 'visible') return;
+    if (lastJoinMeta?.channel && channelId()) {
+      if (liveSocket?.connected) {
+        liveSocket.emit('live:heartbeat', { channel: channelId() });
+        if (!roomJoinCompleted) rejoinLiveRoom();
+      } else if (liveSocket && !socketLeaveIntentional) {
+        setLiveStatus('Reconnecting…', null);
+        liveSocket.connect();
+      } else if (!liveSocket && !socketLeaveIntentional && (roomJoinCompleted || lastJoinMeta)) {
+        try {
+          const page = document.body.dataset.livePage;
+          await connectSocket(page === 'party-room' ? 'party' : 'live');
+        } catch (e) {
+          liveDebugLog(`Foreground reconnect failed: ${e?.message || e}`);
+        }
+      }
+    }
+    await resumeMediaAfterForeground();
+  }
+
+  function pauseAgoraForBackground() {
+    localTracks.forEach((t) => {
+      try {
+        t.setEnabled?.(false);
+      } catch (_e) {}
+    });
+    remoteUsers.forEach((user) => {
+      try {
+        user.audioTrack?.stop?.();
+        user.videoTrack?.stop?.();
+      } catch (_e) {}
+    });
+  }
+
+  function bindRoomBackgroundSurvival() {
+    if (window.__apRoomBgSurvivalBound) return;
+    window.__apRoomBgSurvivalBound = true;
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') {
+        pauseAgoraForBackground();
+      } else {
+        onForegroundResume();
+      }
+    });
+    window.addEventListener('pageshow', (e) => {
+      if (e.persisted) onForegroundResume();
+    });
+    window.addEventListener('pagehide', () => {
+      if (!hostEndingIntentional && !socketLeaveIntentional) {
+        pauseAgoraForBackground();
+      }
+    });
+  }
+
   function bindMediaResumeOnVisibility() {
     if (mediaResumeBound) return;
     mediaResumeBound = true;
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') resumeMediaAfterForeground();
-    });
-    window.addEventListener('pageshow', (e) => {
-      if (e.persisted) resumeMediaAfterForeground();
-    });
-    document.addEventListener('ap-session-restored', () => {
+    bindRoomBackgroundSurvival();
+    const onSessionRefresh = () => {
       resolveSocketAuthToken().then((token) => {
         if (token && liveSocket) {
           liveSocket.auth = { token };
           if (!liveSocket.connected) liveSocket.connect();
+          else if (lastJoinMeta && !roomJoinCompleted) rejoinLiveRoom();
         }
       });
-    });
+    };
+    document.addEventListener('ap-session-restored', onSessionRefresh);
+    document.addEventListener('ap-session-injected', onSessionRefresh);
   }
 
   async function resumeHostBroadcastIfNeeded() {
@@ -273,16 +328,26 @@
 
   function rejoinLiveRoom() {
     if (!lastJoinMeta || !liveSocket?.connected) return;
-    if (!roomJoinCompleted && !lastJoinMeta.isHost) return;
-    liveSocket.emit('live:join', lastJoinMeta, (res) => {
+    const meta = {
+      channel: lastJoinMeta.channel || channelId(),
+      type: lastJoinMeta.type || (document.body.dataset.livePage === 'party-room' ? 'party' : 'live'),
+      displayName: lastJoinMeta.displayName || displayName(currentUser()),
+      isHost: Boolean(lastJoinMeta.isHost),
+    };
+    liveSocket.emit('live:join', meta, (res) => {
       if (res?.ok) {
-        roomState = res.state || roomState || { channel: lastJoinMeta.channel, viewers: 1 };
+        roomState = res.state || roomState || { channel: meta.channel, viewers: 1 };
         roomJoinCompleted = true;
+        persistJoinMeta({ ...meta, isHost: Boolean(res.state?.hostId && String(res.state.hostId) === String(currentUser()?.id)) });
         onSocketRejoinSuccess();
         liveDebugLog('Rejoined room after reconnect');
-      } else if (lastJoinMeta.isHost) {
+        setLiveStatus('', null);
+      } else if (meta.isHost) {
         liveDebugLog(`Host rejoin failed: ${res?.message || 'unknown'}`);
         setLiveStatus(`Reconnect failed: ${res?.message || 'unknown'}`, false);
+      } else {
+        liveDebugLog(`Viewer rejoin failed: ${res?.message || 'unknown'}`);
+        setLiveStatus('Reconnecting…', null);
       }
     });
   }
@@ -395,9 +460,15 @@
     return n || user.email?.split('@')[0] || 'User';
   }
 
-  function avatarUrl(name) {
-    if (window.SocialUI?.avatarUrl) return SocialUI.avatarUrl(name);
+  function avatarUrl(name, profilePic) {
+    if (window.SocialUI?.avatarUrl) return SocialUI.avatarUrl(name, profilePic);
     return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128"><rect width="128" height="128" fill="#7c3aed"/></svg>')}`;
+  }
+
+  async function refreshLiveUserProfile() {
+    try {
+      if (window.Auth?.refreshSession) await Auth.refreshSession();
+    } catch (_e) {}
   }
 
   function themeCover(kind, label) {
@@ -954,8 +1025,9 @@
         withCredentials: true,
         transports: ['websocket', 'polling'],
         reconnection: true,
-        reconnectionAttempts: 8,
+        reconnectionAttempts: 25,
         reconnectionDelay: 1000,
+        reconnectionDelayMax: 10000,
       });
 
     let socketAuthRetrying = false;
@@ -977,7 +1049,7 @@
       lastSocketIssue = `disconnect: ${reason || 'unknown'}`;
       updateLiveDebug({ socketConnected: false, roomJoined: roomJoinCompleted });
       refreshViewerDiagnostics();
-      if (!socketLeaveIntentional && lastJoinMeta?.isHost && reason !== 'io client disconnect') {
+      if (!socketLeaveIntentional && lastJoinMeta && reason !== 'io client disconnect') {
         setLiveStatus('Reconnecting…', null);
       }
     });
@@ -1098,13 +1170,19 @@
       const endedCh = String(payload?.channel || '').trim();
       const myCh = channelId();
       if (endedCh && endedCh !== myCh) return;
+      if (agoraModeSwitchInProgress) return;
+      if (hostEndingIntentionally) {
+        liveDebugLog('live:ended after host end — exiting');
+        setTimeout(exitRoom, 300);
+        return;
+      }
       if (isHost() || lastJoinMeta?.isHost) {
         if (hostEndedRecoverTimer) clearTimeout(hostEndedRecoverTimer);
         liveDebugLog('live:ended while hosting — attempting to rejoin');
         setLiveStatus('Reconnecting room…', null);
         hostEndedRecoverTimer = setTimeout(() => {
           hostEndedRecoverTimer = null;
-          if (!liveSocket?.connected || !lastJoinMeta) return;
+          if (!liveSocket?.connected || !lastJoinMeta || hostEndingIntentionally) return;
           rejoinLiveRoom();
         }, 400);
         return;
@@ -2216,9 +2294,10 @@
     }
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      const open = pop.classList.toggle('is-open');
+      e.preventDefault();
+      const open = !pop.classList.contains('is-open');
+      pop.classList.toggle('is-open', open);
       if (open) {
-        closeChatUi();
         const bar = document.getElementById('partyBottomBar');
         const barH = bar ? bar.getBoundingClientRect().height : 58;
         const kb = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--ap-kb-offset'), 10) || 0;
@@ -2226,13 +2305,18 @@
         pop.style.right = '8px';
         pop.style.width = 'auto';
         pop.style.bottom = Math.round(barH + kb + 8) + 'px';
+        pop.style.zIndex = '80';
       }
     });
-    document.addEventListener('click', (e) => {
-      if (!pop.contains(e.target) && e.target !== btn && !btn.contains(e.target)) {
+    document.addEventListener(
+      'click',
+      (e) => {
+        if (!pop.classList.contains('is-open')) return;
+        if (pop.contains(e.target) || e.target === btn || btn.contains(e.target)) return;
         pop.classList.remove('is-open');
-      }
-    });
+      },
+      true
+    );
   }
 
   function handleMicButton() {
@@ -2259,12 +2343,29 @@
   }
 
   function chatMsgKey(msg) {
-    if (msg?.id) return String(msg.id);
-    return `${msg?.type || 'chat'}|${msg?.user || ''}|${msg?.text || ''}|${msg?.at || ''}`;
+    if (msg?.id && !String(msg.id).startsWith('local-')) return String(msg.id);
+    const atMs = msg?.at ? new Date(msg.at).getTime() : Number(msg?.at) || 0;
+    const bucket = atMs ? Math.floor(atMs / 3000) : 0;
+    return `${msg?.type || 'chat'}|${msg?.userId || msg?.user || ''}|${msg?.text || ''}|${bucket}`;
   }
 
   function rememberChatMessage(msg) {
     if (!msg) return;
+    const text = String(msg.text || '');
+    if (msg.type === 'system' && /watching|viewer count|people are watching/i.test(text)) return;
+    const me = currentUser();
+    const isMine =
+      (me?.id && msg.userId && String(msg.userId) === String(me.id)) ||
+      (msg.user && me && displayName(me) === msg.user);
+    if (isMine && msg.id && !String(msg.id).startsWith('local-')) {
+      const pendingIdx = chatMessages.findIndex(
+        (m) =>
+          String(m.id || '').startsWith('local-') &&
+          m.text === msg.text &&
+          (m.user === msg.user || String(m.userId) === String(msg.userId))
+      );
+      if (pendingIdx >= 0) chatMessages.splice(pendingIdx, 1);
+    }
     const key = chatMsgKey(msg);
     if (chatMessages.some((m) => chatMsgKey(m) === key)) return;
     chatMessages.push({ ...msg });
@@ -2346,9 +2447,11 @@
     if (!container) return;
 
     const me = displayName(currentUser());
+    const meId = currentUser()?.id ? String(currentUser().id) : '';
     const hosting = isHost();
     const host = {
       name: hosting ? me : hostName || 'Host',
+      userId: hosting ? meId : roomState?.hostId || '',
       host: true,
       gifts: 0,
       muted: micMuted,
@@ -2394,7 +2497,7 @@
     container.querySelectorAll('.party-seat[data-seat]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const name = btn.dataset.user || btn.querySelector('.seat-name')?.textContent;
-        openProfileSheet(name);
+        openProfileSheet(name, btn.dataset.userId || '');
       });
     });
     container.querySelectorAll('[data-join-seat]').forEach((btn) => {
@@ -2471,7 +2574,8 @@
       hostEl.title = full;
     }
     if (hostImg) {
-      hostImg.src = avatarUrl(hostName);
+      const pic = isHost() ? currentUser()?.profile_pic : null;
+      hostImg.src = avatarUrl(hostName, pic);
       hostImg.dataset.name = hostName;
     }
 
@@ -2606,7 +2710,7 @@
       .slice(0, 5)
       .map(
         (s) => `
-      <button type="button" class="ap-guest-seat" data-guest="${escapeHtml(s.name)}">
+      <button type="button" class="ap-guest-seat" data-guest="${escapeHtml(s.name)}" data-guest-id="${escapeHtml(String(s.userId || ''))}">
         <span class="ap-guest-gift">${formatGiftCount(s.gifts || 0)}</span>
         <img src="${avatarUrl(s.name)}" alt="">
         <span class="ap-guest-name">${escapeHtml(String(s.name).slice(0, 8))}</span>
@@ -2614,7 +2718,7 @@
       )
       .join('');
     rail.querySelectorAll('.ap-guest-seat').forEach((btn) => {
-      btn.addEventListener('click', () => openProfileSheet(btn.dataset.guest));
+      btn.addEventListener('click', () => openProfileSheet(btn.dataset.guest, btn.dataset.guestId || ''));
     });
   }
 
@@ -2734,23 +2838,65 @@
         const href = a.getAttribute('href') || '';
         if (href.includes('chat.html')) {
           focusChatCompose();
+          toast('Type your message below', 'info');
           return;
         }
-        if (href.includes('coins-recharge') || href.includes('recharge')) {
+        if (href.includes('coins-recharge') || href.includes('recharge') || href.includes('store.html')) {
           openTopupSheet();
           return;
         }
         if (href.includes('rankings')) {
-          toast('Leave the room to view full rankings', 'info');
+          openInRoomWebPanel('/rankings.html?app=1&embed=1', 'Rankings');
           return;
         }
-        if (href.includes('store') || href.includes('vip')) {
-          toast('Leave the room first to open the store', 'info');
+        if (href.includes('vip')) {
+          openTopupSheet();
           return;
         }
-        toast('Stay in the room — end live to open this page', 'info');
+        openInRoomWebPanel(href.includes('?') ? href + '&embed=1' : href + '?app=1&embed=1', 'AP Services');
       });
     });
+  }
+
+  function openInRoomWebPanel(url, title) {
+    let frame = document.getElementById('apInRoomWebPanel');
+    if (!frame) {
+      document.body.insertAdjacentHTML(
+        'beforeend',
+        `<div class="ap-inroom-web" id="apInRoomWebPanel">
+          <div class="ap-inroom-web-bar">
+            <strong id="apInRoomWebTitle">Page</strong>
+            <button type="button" id="apInRoomWebClose" aria-label="Close"><i class="fas fa-times"></i></button>
+          </div>
+          <iframe id="apInRoomWebFrame" title="In-room panel" sandbox="allow-scripts allow-same-origin allow-forms"></iframe>
+        </div>`
+      );
+      frame = document.getElementById('apInRoomWebPanel');
+      document.getElementById('apInRoomWebClose')?.addEventListener('click', () => {
+        frame?.classList.remove('open');
+        const iframe = document.getElementById('apInRoomWebFrame');
+        if (iframe) iframe.src = 'about:blank';
+      });
+    }
+    const titleEl = document.getElementById('apInRoomWebTitle');
+    if (titleEl) titleEl.textContent = title || 'AP Services';
+    const iframe = document.getElementById('apInRoomWebFrame');
+    if (iframe) iframe.src = url;
+    frame?.classList.add('open');
+  }
+
+  function bindPartyBackGuard() {
+    if (window.__apPartyBackGuard) return;
+    window.__apPartyBackGuard = true;
+    if (!isPartyRoomPage() && !isLiveRoomPage()) return;
+    try {
+      history.pushState({ apLiveRoom: true }, '');
+      window.addEventListener('popstate', () => {
+        if (!isPartyRoomPage() && !isLiveRoomPage()) return;
+        history.pushState({ apLiveRoom: true }, '');
+        toast('You are still in the room — tap ✕ to leave', 'info');
+      });
+    } catch (_e) {}
   }
 
   function isChatPanelOpen() {
@@ -2853,7 +2999,7 @@
         img.style.cursor = 'pointer';
         img.addEventListener('click', () => {
           if (hostId && !isHost()) navigateToUserProfile(hostId, hostName);
-          else openProfileSheet(hostName);
+          else openProfileSheet(hostName, roomState?.hostId || '');
         });
       }
     });
@@ -2863,13 +3009,19 @@
       el.style.cursor = 'pointer';
       el.addEventListener('click', () => {
         if (hostId && !isHost()) navigateToUserProfile(hostId, hostName);
-        else openProfileSheet(hostName);
+        else openProfileSheet(hostName, roomState?.hostId || '');
       });
     });
   }
 
   function openTopupSheet() {
     document.getElementById('apTopupSheet')?.classList.add('open');
+    if (window.SocialWallet?.fetchBalance) {
+      SocialWallet.fetchBalance(true).then((b) => {
+        const el = document.getElementById('apTopupBal');
+        if (el) el.textContent = Number(b?.coin_balance || 0).toLocaleString('en-IN');
+      });
+    }
   }
 
   function openSurpriseShop() {
@@ -3004,34 +3156,47 @@
         `<div class="ap-topup-sheet" id="apTopupSheet">
           <div class="ap-topup-panel">
             <div class="ap-topup-head">
-              <h2>Top-up coins</h2>
+              <h2>Top-up coins (UPI)</h2>
               <button type="button" id="apTopupClose"><i class="fas fa-times"></i></button>
             </div>
             <p class="ap-topup-balance">🪙 <span id="apTopupBal">0</span></p>
-            <div class="ap-topup-banner">Official notice — beware of scams. Recharge only via AP Services.</div>
-            <button type="button" class="ap-topup-pay"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='24'%3E%3Ctext x='0' y='18' font-size='14' fill='%234285F4'%3EG%3C/text%3E%3Ctext x='14' y='18' font-size='14'%3E Pay%3C/text%3E%3C/svg%3E" alt=""> Google Pay</button>
-            <div class="ap-topup-grid" id="apTopupGrid"></div>
-            <button type="button" class="ap-topup-recharge" id="apTopupRecharge">Recharge now</button>
-            <label class="ap-topup-agree"><input type="checkbox" checked> I have read and agreed on <a href="/terms.html?app=1">User Recharge Agreement</a></label>
+            <div class="ap-topup-banner">Pay via PhonePe / GPay / Paytm UPI — then submit your UTR here. You stay in the party room.</div>
+            <div id="apTopupStep1">
+              <p class="ap-topup-pay-hint" style="font-size:12px;color:#666;margin:0 0 10px;text-align:center">Select amount (INR) — coins credit after admin verifies UTR</p>
+              <div class="ap-topup-grid" id="apTopupGrid"></div>
+              <button type="button" class="ap-topup-recharge" id="apTopupRecharge">Continue to payment</button>
+            </div>
+            <div id="apTopupStep2" hidden>
+              <p class="ap-topup-pay-hint" style="text-align:center;margin:8px 0"><strong id="apTopupSelectedLabel">₹199</strong> → <span id="apTopupSelectedCoins">1,990</span> coins</p>
+              <div class="ap-topup-qr-wrap" style="text-align:center;margin:8px 0">
+                <img src="assets/payment-qr.png" alt="UPI QR" style="max-width:180px;border-radius:12px" onerror="this.style.display='none'">
+                <p style="font-size:11px;color:#888">Scan & pay the exact amount</p>
+              </div>
+              <label style="display:block;font-size:12px;font-weight:600;margin:8px 0 4px" for="apTopupUtr">UTR (from payment app)</label>
+              <input type="text" id="apTopupUtr" inputmode="numeric" maxlength="22" placeholder="10–22 digit UTR" style="width:100%;box-sizing:border-box;padding:12px;border-radius:10px;border:1px solid #ddd;font-size:16px">
+              <input type="file" id="apTopupProof" accept="image/*" style="margin-top:8px;font-size:12px;width:100%">
+              <button type="button" class="ap-topup-recharge" id="apTopupSubmit" style="margin-top:12px">Submit for verification</button>
+              <button type="button" class="ap-topup-back" id="apTopupBack" type="button" style="margin-top:8px;width:100%;border:none;background:none;color:#666;font-size:13px">← Change amount</button>
+            </div>
+            <label class="ap-topup-agree"><input type="checkbox" checked id="apTopupAgree"> I agree to the <a href="/terms.html?app=1">User Recharge Agreement</a></label>
           </div>
         </div>`
       );
       const packs = [
-        [7000, '0.99'],
-        [21000, '3.00'],
-        [70000, '10.00'],
-        [210000, '30.00'],
-        [350000, '50.00'],
-        [700000, '100.00'],
-        [1400000, '200.00'],
+        [99, 990],
+        [199, 1990],
+        [499, 4990],
+        [999, 9990],
+        [1999, 19990],
+        [4999, 49990],
       ];
       const grid = document.getElementById('apTopupGrid');
       if (grid) {
         grid.innerHTML = packs
           .map(
-            ([coins, price], i) =>
-              `<button type="button" class="ap-topup-pack${i === 0 ? ' is-selected' : ''}" data-coins="${coins}" data-price="${price}">
-                <strong>${coins.toLocaleString()}</strong><span>$${price}</span>
+            ([inr, coins], i) =>
+              `<button type="button" class="ap-topup-pack${i === 1 ? ' is-selected' : ''}" data-inr="${inr}" data-coins="${coins}">
+                <strong>${coins.toLocaleString('en-IN')}</strong><span>₹${inr.toLocaleString('en-IN')}</span>
               </button>`
           )
           .join('');
@@ -3044,12 +3209,71 @@
       }
       document.getElementById('apTopupClose')?.addEventListener('click', () => {
         document.getElementById('apTopupSheet')?.classList.remove('open');
+        document.getElementById('apTopupStep1')?.removeAttribute('hidden');
+        document.getElementById('apTopupStep2')?.setAttribute('hidden', '');
       });
       document.getElementById('apTopupSheet')?.addEventListener('click', (e) => {
-        if (e.target.id === 'apTopupSheet') e.target.classList.remove('open');
+        if (e.target.id === 'apTopupSheet') {
+          e.target.classList.remove('open');
+          document.getElementById('apTopupStep1')?.removeAttribute('hidden');
+          document.getElementById('apTopupStep2')?.setAttribute('hidden', '');
+        }
       });
       document.getElementById('apTopupRecharge')?.addEventListener('click', () => {
-        location.href = '/coins-recharge.html?app=1';
+        if (!document.getElementById('apTopupAgree')?.checked) {
+          toast('Please agree to the User Recharge Agreement', 'warning');
+          return;
+        }
+        const sel = document.querySelector('#apTopupGrid .ap-topup-pack.is-selected');
+        const inr = sel?.dataset?.inr || '199';
+        const coins = sel?.dataset?.coins || '1990';
+        const lbl = document.getElementById('apTopupSelectedLabel');
+        const coinsEl = document.getElementById('apTopupSelectedCoins');
+        if (lbl) lbl.textContent = '₹' + Number(inr).toLocaleString('en-IN');
+        if (coinsEl) coinsEl.textContent = Number(coins).toLocaleString('en-IN') + ' coins';
+        document.getElementById('apTopupStep1')?.setAttribute('hidden', '');
+        document.getElementById('apTopupStep2')?.removeAttribute('hidden');
+      });
+      document.getElementById('apTopupBack')?.addEventListener('click', () => {
+        document.getElementById('apTopupStep2')?.setAttribute('hidden', '');
+        document.getElementById('apTopupStep1')?.removeAttribute('hidden');
+      });
+      document.getElementById('apTopupSubmit')?.addEventListener('click', async () => {
+        const sel = document.querySelector('#apTopupGrid .ap-topup-pack.is-selected');
+        const inr = parseFloat(sel?.dataset?.inr || '199');
+        const utr = (document.getElementById('apTopupUtr')?.value || '').trim().replace(/\s+/g, '');
+        if (!/^\d{10,22}$/.test(utr)) {
+          toast('Enter the 10–22 digit UTR from your UPI receipt', 'warning');
+          return;
+        }
+        const proof = document.getElementById('apTopupProof')?.files?.[0];
+        const btn = document.getElementById('apTopupSubmit');
+        if (btn) {
+          btn.disabled = true;
+          btn.textContent = 'Submitting…';
+        }
+        try {
+          if (!window.SocialWallet?.submitRecharge) throw new Error('Wallet unavailable');
+          await SocialWallet.submitRecharge(
+            { amount_inr: inr, transaction_id: utr, payment_method: 'qr_manual' },
+            proof || null
+          );
+          toast('Submitted! Coins credit after admin verifies UTR.', 'success');
+          document.getElementById('apTopupUtr').value = '';
+          document.getElementById('apTopupProof').value = '';
+          document.getElementById('apTopupSheet')?.classList.remove('open');
+          document.getElementById('apTopupStep2')?.setAttribute('hidden', '');
+          document.getElementById('apTopupStep1')?.removeAttribute('hidden');
+          await refreshCoinDisplay();
+          document.getElementById('apTopupSheet')?.classList.remove('open');
+        } catch (e) {
+          toast(e?.message || 'Recharge submit failed', 'error');
+        } finally {
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Submit for verification';
+          }
+        }
       });
     }
     if (!document.getElementById('apSurpriseShop')) {
@@ -3505,13 +3729,14 @@
     updateGiftMeta();
   }
 
-  function openGiftSheet(targetName) {
+  function openGiftSheet(targetName, targetUserId) {
     const sheet = document.getElementById('giftSheet');
     if (!sheet) return;
     closeLiveOverlays('gift');
     const to = targetName || roomState?.hostName || 'Host';
     sheet.dataset.to = to;
-    delete sheet.dataset.toUserId;
+    if (targetUserId) sheet.dataset.toUserId = String(targetUserId);
+    else delete sheet.dataset.toUserId;
     renderGiftRecipients(to);
     renderGiftGrid();
     refreshCoinDisplay();
@@ -3706,13 +3931,23 @@
       toast('Not connected yet — message queued locally', 'warning');
       return;
     }
-    liveSocket.emit('live:chat', {
-      channel: channelId(),
-      text: t,
-      lvl: lvlInfo.level,
-      scope,
-      broadcast: chatRegionFilter === 'broadcast',
-    });
+    liveSocket.emit(
+      'live:chat',
+      {
+        channel: channelId(),
+        text: t,
+        lvl: lvlInfo.level,
+        scope,
+        broadcast: chatRegionFilter === 'broadcast',
+      },
+      (res) => {
+        if (res?.ok === false) {
+          chatMessages = chatMessages.filter((m) => m.id !== optimistic.id);
+          renderChatFeed();
+          toast(res?.message || 'Could not send comment', 'error');
+        }
+      }
+    );
   }
 
   function bindChatTabs() {
@@ -3762,6 +3997,9 @@
 
     document.getElementById('partyBtnGift')?.addEventListener('click', () => openGiftSheet());
     document.getElementById('liveBtnGift')?.addEventListener('click', () => openGiftSheet());
+    document.getElementById('liveBtnBackpack')?.addEventListener('click', () => {
+      window.location.href = '/store.html?app=1';
+    });
 
     const toggleFollow = async () => {
       const hostName = roomState?.hostName || 'Host';
@@ -4104,61 +4342,104 @@
       document.getElementById('apProfileSheet')?.addEventListener('click', (e) => {
         if (e.target.id === 'apProfileSheet') e.target.classList.remove('open');
       });
+      const profilePanel = document.querySelector('#apProfileSheet .ap-profile-sheet-panel');
+      profilePanel?.addEventListener('click', (e) => e.stopPropagation());
       document.getElementById('apProfileGiftBtn')?.addEventListener('click', () => {
-        const name = document.getElementById('apProfileName')?.textContent;
+        const { name, userId } = activeProfileUser;
         document.getElementById('apProfileSheet')?.classList.remove('open');
-        openGiftSheet(name);
+        openGiftSheet(name, userId);
       });
-      document.getElementById('apProfileCopyId')?.addEventListener('click', () => {
-        const id = document.getElementById('apProfileId')?.textContent?.replace('ID:', '').trim();
-        if (id && navigator.clipboard) navigator.clipboard.writeText(id).catch(() => {});
-      });
-      document.getElementById('apProfileMessage')?.addEventListener('click', () => {
-        const sheet = document.getElementById('apProfileSheet');
-        const profileName = document.getElementById('apProfileName')?.textContent || '';
-        const profileUserId = sheet?.dataset?.userId || '';
-        sheet?.classList.remove('open');
-        if (profileUserId) {
-          location.href = `/chat.html?id=${encodeURIComponent(profileUserId)}&app=1`;
-        } else {
-          toast('Message unavailable for this user', 'warning');
-        }
-      });
-      document.getElementById('apProfileAddFriend')?.addEventListener('click', () => {
-        const sheet = document.getElementById('apProfileSheet');
-        const name = document.getElementById('apProfileName')?.textContent || '';
-        const uid = sheet?.dataset?.userId || '';
-        if (uid && window.SocialInteractions?.toggleFollow) {
-          SocialInteractions.toggleFollow(uid, name);
-          toast('Following ' + name, 'success');
-        } else {
-          toast('Follow unavailable for this user', 'warning');
-        }
-      });
-      document.getElementById('apProfileMention')?.addEventListener('click', () => {
-        const name = document.getElementById('apProfileName')?.textContent || 'user';
-        document.getElementById('apProfileSheet')?.classList.remove('open');
-        const inp = document.getElementById('chatInput') || document.querySelector('.party-chat-input input');
-        if (inp) {
-          inp.value = (inp.value ? inp.value + ' ' : '') + '@' + name.replace(/\s+/g, '') + ' ';
-          inp.focus();
-        } else {
-          toast('Mention copied — paste in chat', 'info');
-          if (navigator.clipboard) navigator.clipboard.writeText('@' + name.replace(/\s+/g, '')).catch(() => {});
-        }
-      });
-      document.getElementById('apProfileMore')?.addEventListener('click', () => {
-        const sheet = document.getElementById('apProfileSheet');
-        const uid = sheet?.dataset?.userId || '';
-        const name = document.getElementById('apProfileName')?.textContent || 'User';
-        if (!uid) {
-          toast('More actions unavailable', 'warning');
-          return;
-        }
-        const action = window.confirm('Report this user for inappropriate behavior?');
-        if (action) toast('Report submitted — our team will review', 'success');
-      });
+      bindProfileSheetActions();
     }
+  }
+
+  function bindProfileSheetActions() {
+    if (profileSheetActionsBound) return;
+    profileSheetActionsBound = true;
+
+    document.getElementById('apProfileCopyId')?.addEventListener('click', () => {
+      const id = activeProfileUser.userId;
+      if (id && navigator.clipboard) navigator.clipboard.writeText(id).catch(() => {});
+      else toast('User ID unavailable', 'warning');
+    });
+
+    document.getElementById('apProfileAddFriend')?.addEventListener('click', async () => {
+      const { name, userId } = activeProfileUser;
+      if (!userId) {
+        toast('Follow unavailable for this user', 'warning');
+        return;
+      }
+      if (window.SocialInteractions?.toggleFollow) {
+        const now = await SocialInteractions.toggleFollow(userId, name);
+        toast(now ? `Following ${name}` : `Unfollowed ${name}`, now ? 'success' : 'info');
+        return;
+      }
+      toast('Follow feature loading…', 'info');
+    });
+
+    document.getElementById('apProfileMention')?.addEventListener('click', () => {
+      const input =
+        document.getElementById('liveChatInput') ||
+        document.getElementById('partyChatInput') ||
+        document.querySelector('.party-chat-input input, .live-chat-input input');
+      const tag = '@' + String(activeProfileUser.name || 'User').replace(/\s+/g, '');
+      if (input) {
+        input.value = (input.value ? input.value + ' ' : '') + tag + ' ';
+        input.focus();
+      } else {
+        sendChat(tag);
+      }
+      document.getElementById('apProfileSheet')?.classList.remove('open');
+    });
+
+    document.getElementById('apProfileMessage')?.addEventListener('click', () => {
+      const id = activeProfileUser.userId;
+      document.getElementById('apProfileSheet')?.classList.remove('open');
+      if (id) {
+        location.href = `/chat.html?id=${encodeURIComponent(id)}&app=1`;
+        return;
+      }
+      toast('Message unavailable — user ID missing', 'warning');
+    });
+
+    document.getElementById('apProfileMore')?.addEventListener('click', () => {
+      const name = activeProfileUser.name || 'User';
+      const uid = activeProfileUser.userId;
+      const panel = document.querySelector('#apProfileSheet .ap-profile-sheet-panel');
+      if (!panel) return;
+      let menu = panel.querySelector('.ap-profile-more-menu');
+      if (menu) {
+        menu.remove();
+        return;
+      }
+      menu = document.createElement('div');
+      menu.className = 'ap-profile-more-menu';
+      menu.innerHTML = `
+        <button type="button" data-act="report">Report user</button>
+        <button type="button" data-act="block">Block user</button>
+        <button type="button" data-act="copy">Copy nickname</button>
+        ${uid ? '<button type="button" data-act="chat">Open chat</button>' : ''}`;
+      panel.appendChild(menu);
+      menu.querySelector('[data-act="report"]')?.addEventListener('click', () => {
+        toast('Report submitted — our team will review', 'success');
+        menu.remove();
+      });
+      menu.querySelector('[data-act="block"]')?.addEventListener('click', () => {
+        toast(`${name} blocked for this session`, 'info');
+        menu.remove();
+        document.getElementById('apProfileSheet')?.classList.remove('open');
+      });
+      menu.querySelector('[data-act="copy"]')?.addEventListener('click', () => {
+        if (navigator.clipboard) navigator.clipboard.writeText(name).catch(() => {});
+        toast('Nickname copied', 'success');
+        menu.remove();
+      });
+      menu.querySelector('[data-act="chat"]')?.addEventListener('click', () => {
+        menu.remove();
+        document.getElementById('apProfileSheet')?.classList.remove('open');
+        location.href = `/chat.html?id=${encodeURIComponent(uid)}&app=1`;
+      });
+    });
   }
 
   function maybeShowViewerOnboarding() {
@@ -4214,25 +4495,38 @@
 
   function openProfileSheet(name, userId) {
     const n = name || 'User';
+    const resolvedId =
+      userId ||
+      (n === roomState?.hostName ? roomState?.hostId : null) ||
+      (roomState?.seats || []).find((s) => s.name === n)?.userId ||
+      '';
+    activeProfileUser = { name: n, userId: resolvedId ? String(resolvedId) : '' };
+
     const sheet = document.getElementById('apProfileSheet');
-    const resolvedId = userId || (n === roomState?.hostName ? roomState?.hostId : null) ||
-      (roomState?.seats || []).find((s) => s.name === n)?.userId || '';
-    if (sheet && resolvedId) sheet.dataset.userId = String(resolvedId);
-    else if (sheet) delete sheet.dataset.userId;
+    if (sheet) {
+      if (activeProfileUser.userId) sheet.dataset.userId = activeProfileUser.userId;
+      else delete sheet.dataset.userId;
+    }
+
+    const seatGuest = (roomState?.seats || []).find((s) => s.name === n);
     const img = document.getElementById('apProfileAvatar');
     const nm = document.getElementById('apProfileName');
     const idEl = document.getElementById('apProfileId');
     const lvl = document.getElementById('apProfileLvl');
-    if (img) img.src = avatarUrl(n);
+    if (img) img.src = avatarUrl(n, seatGuest?.profile_pic || null);
     if (nm) nm.textContent = n;
-    const idNum = resolvedId ? String(resolvedId).slice(0, 12) : String(n).split('').reduce((a, c) => a + c.charCodeAt(0), 0).toString().slice(0, 8);
+    const idDisplay = activeProfileUser.userId
+      ? activeProfileUser.userId.slice(0, 12)
+      : String(n).split('').reduce((a, c) => a + c.charCodeAt(0), 0).toString().slice(0, 8);
     if (idEl) {
-      idEl.innerHTML = `ID: ${idNum} <button type="button" id="apProfileCopyId" aria-label="Copy ID"><i class="far fa-copy"></i></button>`;
+      idEl.innerHTML = `ID: ${idDisplay} <button type="button" id="apProfileCopyId" aria-label="Copy ID"><i class="far fa-copy"></i></button>`;
       document.getElementById('apProfileCopyId')?.addEventListener('click', () => {
-        if (navigator.clipboard) navigator.clipboard.writeText(idNum).catch(() => {});
+        const full = activeProfileUser.userId || idDisplay;
+        if (navigator.clipboard) navigator.clipboard.writeText(full).catch(() => {});
+        toast('User ID copied', 'success');
       });
     }
-    if (lvl) lvl.textContent = 'Lv.' + (5 + (idNum.length % 20));
+    if (lvl) lvl.textContent = 'Lv.' + (5 + (idDisplay.length % 20));
     const contrib = document.getElementById('apProfileContrib');
     if (contrib) {
       contrib.innerHTML = [n, roomState?.hostName || 'Host']
@@ -4241,6 +4535,7 @@
         .map((x) => `<img src="${avatarUrl(x)}" alt="" style="width:32px;height:32px;border-radius:50%;object-fit:cover">`)
         .join('');
     }
+    sheet?.querySelector('.ap-profile-more-menu')?.remove();
     document.getElementById('apProfileSheet')?.classList.add('open');
   }
 
@@ -4333,6 +4628,7 @@
     injectModals();
     injectGiftSheet();
     bindGiftSheet();
+    await refreshLiveUserProfile();
     const user = currentUser();
     if (!user) {
       partyRoomInitStarted = false;
@@ -4389,14 +4685,8 @@
     maybeShowPartyRules();
     maybeShowViewerOnboarding();
     bindScreenCaptureProtection();
-
-    if (!window.__apPartyRoomUnloadBound) {
-      window.__apPartyRoomUnloadBound = true;
-      window.addEventListener('pagehide', () => {
-        stopAgora({ skipEndRoom: true });
-        leaveSocket();
-      });
-    }
+    bindMediaResumeOnVisibility();
+    bindPartyBackGuard();
   }
 
   async function rejoinRoomOnSocket(type) {
@@ -4624,6 +4914,7 @@
     injectModals();
     injectGiftSheet();
     bindGiftSheet();
+    await refreshLiveUserProfile();
     const user = currentUser();
     if (!user) {
       toast('Please log in to watch or broadcast');
@@ -4697,11 +4988,8 @@
     applyRoleUiAfterJoin();
     postWelcomeMessage();
     bindScreenCaptureProtection();
-
-    window.addEventListener('beforeunload', () => {
-      stopAgora({ skipEndRoom: true });
-      leaveSocket();
-    });
+    bindMediaResumeOnVisibility();
+    bindPartyBackGuard();
   }
 
   function initStreamerCenter() {
@@ -4826,56 +5114,126 @@
     });
   }
 
-  function initCoinsRecharge() {
+  async function initCoinsRecharge() {
     const amounts = [99, 199, 499, 999, 1999, 4999];
     const requested = parseInt(qs('amount') || '', 10);
     let selected = amounts.includes(requested) ? requested : amounts[1];
+    let coinsPerInr = 10;
+    try {
+      const settings = await SocialWallet?.getWalletSettings?.();
+      coinsPerInr = settings?.coins_per_inr || 10;
+    } catch (_e) {}
+
     const amountEl = document.getElementById('rechargeAmount');
+    const coinsEl = document.getElementById('rechargeCoins');
     const utrEl = document.getElementById('rechargeUtr');
     const wrap = document.getElementById('rechargeAmountBtns');
+    const historyEl = document.getElementById('rechargeHistory');
+
+    const coinsFor = (inr) => Math.floor(inr * coinsPerInr);
+
     const syncAmount = () => {
-      if (amountEl) amountEl.textContent = '₹' + selected;
+      const coins = coinsFor(selected);
+      if (amountEl) amountEl.textContent = '₹' + selected.toLocaleString('en-IN');
+      if (coinsEl) coinsEl.textContent = coins.toLocaleString('en-IN') + ' coins';
     };
     syncAmount();
+
     wrap?.querySelectorAll('button').forEach((btn, i) => {
+      const inr = amounts[i];
+      const coinLabel = btn.querySelector('.recharge-coin-label');
+      if (coinLabel) coinLabel.textContent = coinsFor(inr).toLocaleString('en-IN') + ' coins';
       btn.addEventListener('click', () => {
         wrap.querySelectorAll('button').forEach((b) => b.classList.remove('active'));
         btn.classList.add('active');
-        selected = amounts[i] ?? selected;
+        selected = inr ?? selected;
         syncAmount();
       });
     });
-    // Apply initial selection UI if amount was prefilled.
     const initialIdx = amounts.indexOf(selected);
     if (initialIdx >= 0 && wrap) {
       wrap.querySelectorAll('button').forEach((b, i) => b.classList.toggle('active', i === initialIdx));
     }
+
+    async function loadRechargeHistory() {
+      if (!historyEl || !SocialWallet?.getRecharges) return;
+      try {
+        const res = await SocialWallet.getRecharges();
+        const rows = res.data || [];
+        if (!rows.length) {
+          historyEl.innerHTML = '<p class="recharge-history-empty">No recharge requests yet.</p>';
+          return;
+        }
+        historyEl.innerHTML = rows
+          .map((r) => {
+            const st = r.payment_status || 'pending';
+            const badge =
+              st === 'approved' ? 'approved' : st === 'rejected' ? 'rejected' : 'pending';
+            const coins =
+              st === 'approved' && r.coins_credited != null
+                ? Number(r.coins_credited).toLocaleString('en-IN')
+                : coinsFor(r.amount_inr).toLocaleString('en-IN');
+            return `<div class="recharge-history-item ${badge}">
+              <div><strong>₹${Number(r.amount_inr).toLocaleString('en-IN')}</strong> → ${coins} coins</div>
+              <div class="recharge-history-meta">UTR: ${r.transaction_id || '—'} · ${new Date(r.created_at).toLocaleString()}</div>
+              <span class="recharge-status-badge">${st}</span>
+            </div>`;
+          })
+          .join('');
+      } catch (_e) {
+        historyEl.innerHTML = '';
+      }
+    }
+    loadRechargeHistory();
+
     document.getElementById('rechargeSubmit')?.addEventListener('click', async () => {
-      const utr = (utrEl?.value || '').trim();
-      if (!utr || utr.length < 6) {
-        if (window.SocialUI) SocialUI.showError('UTR required', 'Enter your UPI transaction reference (UTR) after scanning the QR code.');
-        else toast('Enter your UPI transaction reference (UTR) after scanning the QR.', 'warning');
+      const utr = (utrEl?.value || '').trim().replace(/\s+/g, '');
+      if (!/^\d{10,22}$/.test(utr)) {
+        const msg = 'Enter the 10–22 digit UTR from your UPI payment receipt.';
+        if (window.SocialUI) SocialUI.showError('Invalid UTR', msg);
+        else toast(msg, 'warning');
         return;
       }
       if (!window.SocialWallet) {
-        if (window.SocialUI) SocialUI.showError('Sign in needed', 'Wallet service unavailable. Please log in again.');
+        if (window.SocialUI) SocialUI.showError('Sign in needed', 'Please log in again.');
         else toast('Please log in again.', 'error');
         return;
       }
+      const btn = document.getElementById('rechargeSubmit');
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Submitting…';
+      }
       try {
-        await SocialWallet.submitRecharge({
-          amount_inr: selected,
-          transaction_id: utr,
-          payment_method: 'qr_manual',
-        });
-        window.SocialFX?.coinRain?.(40);
-        if (window.SocialUI) SocialUI.showSuccess('Recharge submitted', 'Coins will be added after admin verification — usually within a few hours.');
-        else toast('Recharge submitted! Awaiting verification.', 'success');
-        setTimeout(() => { location.href = '/store.html?app=1'; }, 1200);
+        const proofFile = document.getElementById('rechargeProof')?.files?.[0] || null;
+        await SocialWallet.submitRecharge(
+          {
+            amount_inr: selected,
+            transaction_id: utr,
+            payment_method: 'qr_manual',
+          },
+          proofFile
+        );
+        const coins = coinsFor(selected);
+        if (window.SocialUI) {
+          SocialUI.showSuccess(
+            'Payment submitted',
+            `₹${selected.toLocaleString('en-IN')} → ${coins.toLocaleString('en-IN')} coins after admin verification (usually within a few hours).`
+          );
+        } else toast('Submitted! Coins credited after admin verifies your UTR.', 'success');
+        if (utrEl) utrEl.value = '';
+        const proofEl = document.getElementById('rechargeProof');
+        if (proofEl) proofEl.value = '';
+        await loadRechargeHistory();
       } catch (e) {
         const msg = window.SocialUI ? SocialUI.friendlyMessage(e.message) : e.message || 'Recharge submission failed';
         if (window.SocialUI) SocialUI.showError('Recharge failed', msg);
         else toast(msg, 'error');
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = 'I have paid — submit UTR';
+        }
       }
     });
   }

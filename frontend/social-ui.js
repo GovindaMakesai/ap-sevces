@@ -9,6 +9,8 @@
     'Invalid token': 'Your session expired. Please sign in again.',
     'Gift failed': 'We could not send that gift. Try again in a moment.',
     'Recharge submission failed': 'Recharge could not be submitted. Check your UTR and try again.',
+    'This payment reference was already submitted': 'This UTR was already used. Check your payment or contact support if you need help.',
+    'UTR must be 10–22 digits (check your UPI payment receipt)': 'Enter the full UTR number from your UPI app (10–22 digits).',
   };
 
   function friendlyMessage(msg) {

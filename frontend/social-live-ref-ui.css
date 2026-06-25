@@ -404,15 +404,25 @@ body.ap-ref-ui .gift-gallery-hint button {
 
 /* —— Profile sheet (reference) —— */
 .ap-profile-sheet-panel {
-  padding-top: 28px !important;
+  padding-top: 52px !important;
   max-height: min(88vh, 720px) !important;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
+.ap-modal-overlay.align-bottom.open .ap-profile-sheet-panel {
+  width: 100%;
 }
 
 .ap-profile-avatar-wrap {
   position: relative;
-  margin: -56px auto 12px;
-  width: 96px;
-  height: 96px;
+  margin: -44px auto 12px;
+  width: 88px;
+  height: 88px;
+  flex-shrink: 0;
 }
 
 .ap-profile-avatar-wrap img {
@@ -548,6 +558,11 @@ body.ap-ref-ui .gift-gallery-hint button {
   font-size: 10px;
   color: #6b7280;
   cursor: pointer;
+  min-width: 56px;
+  min-height: 56px;
+  padding: 4px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .ap-profile-actions button i {
@@ -590,4 +605,14 @@ body[data-live-page="live-room"] .party-header-center {
 
 .live-room .party-header-center {
   display: flex !important;
+}
+
+#apProfileSheet.open,
+#apTopupSheet.open {
+  z-index: 62;
+}
+
+.ap-profile-gift-btn {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }

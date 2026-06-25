@@ -48,7 +48,10 @@ router.put('/payments/:bookingId/approve', adminController.approvePayment);
 router.put('/payments/:bookingId/reject', adminController.rejectPayment);
 
 // Wallet / economy admin
-router.get('/recharges/pending', requirePermission('admin.recharges'), walletController.listPendingRecharges);
+router.get('/payments/pending', requirePermission('admin.recharges'), walletController.listPendingPayments);
+router.post('/payments/:source/:id/approve', requirePermission('admin.recharges'), walletController.approvePaymentRequest);
+router.post('/payments/:source/:id/reject', requirePermission('admin.recharges'), walletController.rejectPaymentRequest);
+router.get('/recharges/pending', requirePermission('admin.recharges'), walletController.listPendingPayments);
 router.post('/recharges/:id/approve', requirePermission('admin.recharges'), walletController.approveRecharge);
 router.post('/recharges/:id/reject', requirePermission('admin.recharges'), walletController.rejectRecharge);
 router.get('/withdrawals/pending', requirePermission('admin.withdrawals'), walletController.listPendingWithdrawals);
@@ -73,6 +76,11 @@ router.get('/live-dashboard', async (req, res) => {
   const data = await adminLiveService.getLiveDashboard();
   res.json({ success: true, data });
 });
+
+const roleApplicationController = require('../controllers/roleApplicationController');
+
+router.get('/role-applications/pending', roleApplicationController.listPending);
+router.post('/role-applications/:id/review', roleApplicationController.reviewApplication);
 
 router.post('/coin-seller-orders/:orderId/approve', async (req, res) => {
   try {
