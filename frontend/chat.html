@@ -2129,7 +2129,10 @@
 
             input.value = '';
             input.style.height = 'auto';
+            isTyping = false;
+            clearTimeout(typingTimeout);
             emitTypingState(false);
+            hideTypingIndicator();
 
             const localId = `local-${Date.now()}`;
             const optimistic = {
