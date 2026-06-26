@@ -8,7 +8,7 @@
   <script src="/ap-native-boot.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-theme.css">
-  <link rel="stylesheet" href="coin-seller.css?v=20260626cs-fix4">
+  <link rel="stylesheet" href="coin-seller.css?v=20260626cs-api-fix">
   <link rel="stylesheet" href="mobile-app.css">
 </head>
 <body class="cs-page">
@@ -216,7 +216,7 @@
   </div>
 
   <script src="ap-config.js"></script>
-  <script src="app.js"></script>
+  <script src="app.js?v=20260626-api-bind"></script>
   <script src="auth-guard.js"></script>
   <script src="social-ui.js"></script>
   <script src="social-shell.js"></script>
@@ -677,12 +677,15 @@
           Auth.ensureAccessToken?.() || Promise.resolve(),
           new Promise((r) => setTimeout(r, 5000)),
         ]).catch(() => {});
-        const get = API.getFresh || API.get;
-        const res = await get('/social/coin-seller/dashboard');
+        const res = await (typeof API.getFresh === 'function'
+          ? API.getFresh('/social/coin-seller/dashboard')
+          : API.get('/social/coin-seller/dashboard'));
         if (!res?.data) throw new Error(res?.message || 'Could not load seller dashboard');
         renderDashboard(res.data);
         try {
-          const xferRes = await get('/social/coin-seller/transfers?limit=50');
+          const xferRes = await (typeof API.getFresh === 'function'
+            ? API.getFresh('/social/coin-seller/transfers?limit=50')
+            : API.get('/social/coin-seller/transfers?limit=50'));
           if (Array.isArray(xferRes.data) && xferRes.data.length) {
             allTransfers = xferRes.data;
             renderActiveTab();

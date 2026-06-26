@@ -338,6 +338,12 @@ const API = {
     }
 };
 
+['request', 'get', 'getFresh', 'post', 'put', 'patch', 'delete', 'upload'].forEach((method) => {
+    if (typeof API[method] === 'function') {
+        API[method] = API[method].bind(API);
+    }
+});
+
 // ==================== SERVICES API ====================
 const ServicesAPI = {
     async getAll(category = null, search = null) {
