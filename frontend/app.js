@@ -120,6 +120,7 @@ const CONFIG = {
     FRONTEND_URL: IS_LOCAL ? LOCAL_FRONTEND_URL : LIVE_FRONTEND_URL,
 };
 window.CONFIG = CONFIG;
+window.normalizeApiUrl = normalizeApiUrl;
 
 console.log('≡ƒÜÇ App.js loaded');
 console.log('≡ƒôí API URL:', CONFIG.API_URL);
