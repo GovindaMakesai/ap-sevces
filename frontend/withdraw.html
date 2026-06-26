@@ -6,16 +6,22 @@
   <meta name="theme-color" content="#5b67f6">
   <title>Withdraw - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-withdraw.css">
+  <link rel="stylesheet" href="social-withdraw.css?v=20260625wd-flow">
   <link rel="stylesheet" href="mobile-app.css">
 </head>
 <body class="withdraw-app">
   <div class="wd-page">
     <header class="wd-header">
-      <a href="/points.html?app=1" aria-label="Back"><i class="fas fa-arrow-left"></i></a>
+      <a href="/points.html?app=1" class="wd-header-back" aria-label="Back"><i class="fas fa-arrow-left"></i></a>
       <h1>Withdraw</h1>
       <span class="wd-header-spacer" aria-hidden="true"></span>
     </header>
+
+    <div class="wd-steps" aria-label="Withdrawal steps">
+      <div class="wd-step active" id="stepAmount"><i class="fas fa-coins"></i>1. Amount</div>
+      <div class="wd-step" id="stepQr"><i class="fas fa-qrcode"></i>2. Upload QR</div>
+      <div class="wd-step" id="stepSubmit"><i class="fas fa-paper-plane"></i>3. Submit</div>
+    </div>
 
     <div class="wd-alert-banner" id="withdrawInfoBanner">
       <i class="fas fa-shield-alt"></i>
@@ -60,6 +66,10 @@
           <button type="button" class="wd-qr-change" id="qrChangeBtn">Change image</button>
         </div>
       </div>
+      <div class="wd-qr-success" id="qrSuccessBanner" hidden>
+        <i class="fas fa-check-circle"></i>
+        <span>QR uploaded — scroll down and tap <strong>Submit request</strong></span>
+      </div>
     </div>
 
     <div class="wd-card">
@@ -72,7 +82,8 @@
     </div>
 
     <footer class="wd-footer">
-      <button type="button" class="wd-btn-primary" id="submitWithdraw" disabled>Submit</button>
+      <button type="button" class="wd-btn-primary" id="submitWithdraw" disabled>Submit withdrawal request</button>
+      <p class="wd-submit-hint" id="submitHint">Enter amount and upload your payment QR to continue.</p>
     </footer>
   </div>
 
@@ -98,10 +109,45 @@
     }
     let withdrawable = 0;
 
+    function updateSteps() {
+      const amt = parseInt(document.getElementById('withdrawAmount').value, 10);
+      const amountOk = amt >= minCoins && amt <= withdrawable;
+      const qrOk = Boolean(selectedFile);
+      const ready = amountOk && qrOk;
+
+      document.getElementById('stepAmount').className = 'wd-step' + (amountOk ? ' done' : ' active');
+      document.getElementById('stepQr').className = 'wd-step' + (qrOk ? ' done' : amountOk ? ' active' : '');
+      document.getElementById('stepSubmit').className = 'wd-step' + (ready ? ' done active' : qrOk ? ' active' : '');
+
+      const hint = document.getElementById('submitHint');
+      const btn = document.getElementById('submitWithdraw');
+      if (ready) {
+        hint.textContent = 'Ready! Tap the button above to send your request to admin.';
+        hint.className = 'wd-submit-hint is-ready';
+        btn.textContent = 'Submit withdrawal request';
+      } else {
+        hint.className = 'wd-submit-hint';
+        btn.textContent = 'Submit withdrawal request';
+        const missing = [];
+        if (!amountOk) {
+          if (withdrawable < minCoins) missing.push(`need at least ${Number(minCoins).toLocaleString()} points (you have ${Number(withdrawable).toLocaleString()})`);
+          else if (!amt) missing.push('enter withdrawal amount');
+          else if (amt > withdrawable) missing.push('amount exceeds balance');
+          else missing.push(`minimum is ${Number(minCoins).toLocaleString()} points`);
+        }
+        if (!qrOk) missing.push('upload your UPI/bank QR photo');
+        hint.textContent = missing.length
+          ? 'To submit: ' + missing.join(' · ')
+          : 'Enter amount and upload your payment QR to continue.';
+      }
+    }
+
     function updateSubmitState() {
       const amt = parseInt(document.getElementById('withdrawAmount').value, 10);
       const ok = selectedFile && amt >= minCoins && amt <= withdrawable;
       document.getElementById('submitWithdraw').disabled = !ok;
+      document.getElementById('qrSuccessBanner').hidden = !selectedFile;
+      updateSteps();
     }
 
     function clearQrPreview() {
@@ -135,6 +181,7 @@
       wrap.hidden = false;
       placeholder.hidden = true;
       updateSubmitState();
+      document.getElementById('submitWithdraw')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
     document.addEventListener('DOMContentLoaded', async () => {
@@ -160,6 +207,7 @@
       document.getElementById('withdrawAmount').value = withdrawable >= minCoins ? minCoins : '';
       const zeroBanner = document.getElementById('zeroBalanceBanner');
       if (withdrawable < minCoins && zeroBanner) zeroBanner.hidden = false;
+      updateSteps();
 
       const zone = document.getElementById('qrUploadZone');
       const input = document.getElementById('qrFile');
@@ -216,7 +264,7 @@
         } catch (e) {
           SocialUI?.toast?.(e.message) || alert(e.message || 'Failed to submit');
           btn.disabled = false;
-          btn.textContent = 'Submit';
+          btn.textContent = 'Submit withdrawal request';
           updateSubmitState();
         }
       });
