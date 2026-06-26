@@ -528,17 +528,32 @@ body.ap-is-host .live-host-bar {
 .party-requests-sheet {
   position: fixed;
   inset: 0;
-  z-index: 120;
-  background: rgba(0, 0, 0, 0.55);
+  z-index: 1250;
+  background: rgba(0, 0, 0, 0.6);
   display: none;
-  align-items: flex-end;
-  justify-content: center;
-  padding-bottom: calc(var(--ap-bottom-bar-h, 58px) + env(safe-area-inset-bottom, 0));
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: stretch;
+  padding: env(safe-area-inset-top, 0) 0 0;
+  overflow: hidden;
+  pointer-events: none;
 }
-.party-requests-sheet.open { display: flex; }
+.party-requests-sheet.open {
+  display: flex;
+  pointer-events: auto;
+}
 
-body.party-requests-open .party-bottom-bar {
-  z-index: 40;
+body.party-requests-open .party-bottom-bar,
+body.party-requests-open #partyBottomBar {
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transform: translateY(100%);
+  z-index: 1 !important;
+}
+
+body.party-requests-open .party-host-bar,
+body.party-requests-open .live-host-bar {
   opacity: 0;
   pointer-events: none;
 }
@@ -546,12 +561,17 @@ body.party-requests-open .party-bottom-bar {
 .party-requests-panel {
   width: 100%;
   max-width: 480px;
-  max-height: min(52vh, calc(100dvh - var(--ap-bottom-bar-h, 58px) - env(safe-area-inset-bottom, 0) - 24px));
+  margin: 0 auto;
+  max-height: min(72dvh, 560px);
   background: rgba(18, 10, 40, 0.98);
   border-radius: 20px 20px 0 0;
-  padding: 16px 14px calc(16px + env(safe-area-inset-bottom, 0));
+  padding: 16px 14px calc(20px + env(safe-area-inset-bottom, 0));
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  pointer-events: auto;
+  position: relative;
+  z-index: 1;
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.45);
 }
 
 .party-requests-head {
@@ -2674,7 +2694,7 @@ body[data-live-page="party-room"] .ap-guest-rail:not(:empty) {
 }
 
 /* Mic link modal */
-body.ap-live-overlay-open .party-bottom-bar {
+body.ap-live-overlay-open:not(.party-requests-open) .party-bottom-bar {
   z-index: 46;
 }
 

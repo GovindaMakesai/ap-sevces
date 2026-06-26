@@ -87,7 +87,7 @@
     );
     if (openSheet) {
       openSheet.classList.remove('open', 'is-open', 'is-visible');
-      document.body.classList.remove('ap-live-overlay-open', 'ap-chat-open');
+      document.body.classList.remove('ap-live-overlay-open', 'ap-chat-open', 'party-requests-open');
       return true;
     }
     const emoji = document.getElementById('apEmojiPopover');

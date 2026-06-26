@@ -2945,9 +2945,32 @@
       document.getElementById('partyToolsSheet')?.classList.contains('open') ||
         document.getElementById('giftSheet')?.classList.contains('open') ||
         document.getElementById('apMicLinkModal')?.classList.contains('open') ||
-        document.getElementById('apTopupSheet')?.classList.contains('open')
+        document.getElementById('apTopupSheet')?.classList.contains('open') ||
+        document.getElementById('partyRequestsSheet')?.classList.contains('open')
     );
     document.body.classList.toggle('ap-live-overlay-open', open);
+  }
+
+  function syncBottomBarHeightVar() {
+    const bar = document.getElementById('partyBottomBar');
+    if (!bar) return;
+    const h = Math.ceil(bar.getBoundingClientRect().height || 58);
+    document.documentElement.style.setProperty('--ap-bottom-bar-h', `${h}px`);
+  }
+
+  function openPartyRequestsSheet() {
+    syncBottomBarHeightVar();
+    pinFixedOverlaysToBody();
+    renderJoinRequests();
+    document.body.classList.add('party-requests-open');
+    document.getElementById('partyRequestsSheet')?.classList.add('open');
+    syncLiveOverlayClass();
+  }
+
+  function closePartyRequestsSheet() {
+    document.body.classList.remove('party-requests-open');
+    document.getElementById('partyRequestsSheet')?.classList.remove('open');
+    syncLiveOverlayClass();
   }
 
   function isAppChromeNode(node) {
@@ -3258,13 +3281,15 @@
       'partyBottomBar',
       'apRoomStatusStrip',
       'partyToolsSheet',
-      'partyRequestsSheet',
       'apMicLinkModal',
       'giftSheet',
+      'partyRequestsSheet',
     ].forEach((id) => {
       const el = document.getElementById(id);
       if (el && el.parentElement !== document.body) document.body.appendChild(el);
     });
+    const requests = document.getElementById('partyRequestsSheet');
+    if (requests) document.body.appendChild(requests);
   }
 
   function bindMicLinkModal() {
@@ -3781,18 +3806,14 @@
       document.getElementById('partyBtnShare')?.click();
     });
     document.getElementById('partyBtnRequests')?.addEventListener('click', () => {
-      renderJoinRequests();
-      document.body.classList.add('party-requests-open');
-      document.getElementById('partyRequestsSheet')?.classList.add('open');
+      openPartyRequestsSheet();
     });
     document.getElementById('partyRequestsClose')?.addEventListener('click', () => {
-      document.body.classList.remove('party-requests-open');
-      document.getElementById('partyRequestsSheet')?.classList.remove('open');
+      closePartyRequestsSheet();
     });
     document.getElementById('partyRequestsSheet')?.addEventListener('click', (e) => {
       if (e.target.id === 'partyRequestsSheet') {
-        document.body.classList.remove('party-requests-open');
-        e.target.classList.remove('open');
+        closePartyRequestsSheet();
       }
     });
 
