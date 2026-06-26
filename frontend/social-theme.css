@@ -144,7 +144,83 @@ body.social-tabs-page #social-banner-slider + .social-post-feed {
 }
 
 body.social-explore-page {
-  --social-explore-header-h: calc(148px + env(safe-area-inset-top, 0px));
+  --social-explore-header-h: calc(168px + env(safe-area-inset-top, 0px));
+}
+
+/* Explore live — actions row + full-width pill tabs */
+.social-explore-page .social-explore-head {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 4px 8px;
+}
+
+.social-explore-page .social-explore-head .social-top-actions {
+  margin-left: auto;
+}
+
+.social-explore-page .social-explore-tabs-wrap {
+  margin: 0 -4px 10px;
+  padding: 0 12px;
+  overflow: hidden;
+}
+
+.social-explore-page .social-explore-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  padding: 4px 2px 6px;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
+}
+
+.social-explore-page .social-explore-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.social-explore-page .social-explore-tabs button {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+  border: 1px solid rgba(201, 162, 39, 0.28);
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--gold-700);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+  padding: 9px 16px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  white-space: nowrap;
+  letter-spacing: 0;
+  box-shadow: 0 1px 3px rgba(107, 79, 16, 0.06);
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, transform 0.12s ease;
+  position: relative;
+}
+
+.social-explore-page .social-explore-tabs button::after {
+  display: none;
+}
+
+.social-explore-page .social-explore-tabs button:active {
+  transform: scale(0.97);
+}
+
+.social-explore-page .social-explore-tabs button.active {
+  background: linear-gradient(135deg, var(--gold-500) 0%, var(--gold-600) 100%);
+  border-color: transparent;
+  color: #fff;
+  font-weight: 800;
+  font-size: 13px;
+  box-shadow: 0 4px 14px rgba(166, 124, 26, 0.35);
+}
+
+.social-explore-page .social-explore-tabs button:not(.active):hover {
+  background: rgba(245, 230, 200, 0.65);
+  border-color: rgba(201, 162, 39, 0.45);
 }
 
 body.social-explore-page .social-tabs-spacer {

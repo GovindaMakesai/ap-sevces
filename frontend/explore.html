@@ -6,24 +6,26 @@
   <meta name="theme-color" content="#fdf9f0">
   <title>Explore - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-theme.css?v=20260625tabs">
+  <link rel="stylesheet" href="social-theme.css?v=20260625explore-tabs">
   <script src="native-session-restore.js"></script>
   <script src="ap-config.js"></script>
   <script src="ap-native-boot.js"></script>
 </head>
 <body class="social-tabs-page social-explore-page">
   <header class="social-top">
-    <div class="social-top-bar">
-      <div class="social-main-tabs" id="exploreTabs">
-        <button type="button" data-tab="following">Following</button>
-        <button type="button" data-tab="explore" class="active">Live</button>
-        <button type="button" data-tab="party">Party</button>
-        <button type="button" data-tab="new">New</button>
-        <button type="button" data-tab="nearby">Nearby</button>
-      </div>
+    <div class="social-explore-head">
       <div class="social-top-actions">
         <a href="/rankings.html?app=1" class="social-icon-btn" aria-label="Rankings"><i class="fas fa-trophy"></i></a>
         <button type="button" class="social-global-pill" id="globalChip"><i class="fas fa-globe-asia"></i> Global</button>
+      </div>
+    </div>
+    <div class="social-explore-tabs-wrap">
+      <div class="social-main-tabs social-explore-tabs" id="exploreTabs" role="tablist" aria-label="Live sections">
+        <button type="button" role="tab" data-tab="following">Following</button>
+        <button type="button" role="tab" data-tab="explore" class="active">Live</button>
+        <button type="button" role="tab" data-tab="party">Party</button>
+        <button type="button" role="tab" data-tab="new">New</button>
+        <button type="button" role="tab" data-tab="nearby">Nearby</button>
       </div>
     </div>
     <div class="social-search">
@@ -47,24 +49,6 @@
   <div id="social-bottom-nav-mount"></div>
 
   <style>
-    #exploreTabs button {
-      border: none;
-      background: none;
-      font: inherit;
-      color: inherit;
-      cursor: pointer;
-      padding: 0;
-    }
-    .social-top-bar {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      width: 100%;
-    }
-    .social-top-bar .social-main-tabs {
-      flex: 1;
-      min-width: 0;
-    }
     .explore-tab-hint {
       margin: 0 16px 8px;
       font-size: 12px;
