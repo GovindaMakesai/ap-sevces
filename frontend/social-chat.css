@@ -409,37 +409,47 @@ html.ap-expo-app .chat-item .unread-badge {
   vertical-align: middle;
 }
 
-/* Thread view — full screen, flex column (no grid squeeze) */
-html.ap-expo-app body.chat-active .chat-page,
-html.ap-expo-app body.chat-active .chat-container {
+/* Thread open — edge-to-edge on every viewport (not only phones) */
+body.chat-active .chat-page,
+body.chat-active .chat-container {
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0;
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
   height: 100dvh;
   max-height: 100dvh;
   overflow: hidden;
-  padding: 0;
 }
 
-html.ap-expo-app body.chat-active .chat-layout {
+body.chat-active .chat-layout {
   display: flex !important;
   flex-direction: column;
   flex: 1 1 0;
   min-height: 0;
+  width: 100% !important;
+  max-width: none !important;
   height: 100dvh !important;
   max-height: 100dvh !important;
-  width: 100%;
+  margin: 0 !important;
+  padding: 0 !important;
   overflow: hidden;
-  grid-template-columns: unset;
-  gap: 0;
+  grid-template-columns: unset !important;
+  gap: 0 !important;
+  border-radius: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+  background: #fff;
 }
 
-html.ap-expo-app body.chat-active .chat-sidebar {
+body.chat-active .chat-sidebar {
   display: none !important;
 }
 
-html.ap-expo-app body.chat-active .chat-main {
+body.chat-active .chat-main {
   display: flex !important;
   flex: 1 1 0;
   min-height: 0;
@@ -448,8 +458,8 @@ html.ap-expo-app body.chat-active .chat-main {
   overflow: hidden;
 }
 
-html.ap-expo-app body.chat-active .chat-thread-pane,
-html.ap-expo-app body.chat-active #activeChat {
+body.chat-active .chat-thread-pane,
+body.chat-active #activeChat {
   display: flex !important;
   flex: 1 1 0;
   min-height: 0;
@@ -458,97 +468,51 @@ html.ap-expo-app body.chat-active #activeChat {
   overflow: hidden;
 }
 
-html.ap-expo-app body.chat-active .chat-header {
+body.chat-active .chat-header {
   flex-shrink: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 
-html.ap-expo-app body.chat-active .messages-container {
+body.chat-active .messages-container {
   flex: 1 1 0;
   min-height: 0;
+  width: 100%;
+  box-sizing: border-box;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  padding: 12px 14px;
+  padding: 10px 10px;
 }
 
-html.ap-expo-app body.chat-active .ap-msg-quick-row,
-html.ap-expo-app body.chat-active .chat-input-container {
+body.chat-active .ap-msg-quick-row,
+body.chat-active .chat-input-container {
   flex-shrink: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 
-html.ap-expo-app body.chat-active .chat-input-container {
+body.chat-active .chat-input-container {
   padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px) + var(--chat-kb-offset, 0px));
 }
 
-html.ap-expo-app body.chat-active #social-bottom-nav-mount,
-html.ap-expo-app body.chat-active .social-bottom-nav {
+body.chat-active #social-bottom-nav-mount,
+body.chat-active .social-bottom-nav {
   display: none !important;
 }
 
+html.ap-expo-app body.chat-active .chat-page,
+html.social-bridge-mode body.chat-active .chat-page {
+  padding-bottom: 0 !important;
+  padding-top: 0 !important;
+}
+
+html.ap-expo-app body.chat-active .chat-layout,
+html.social-bridge-mode body.chat-active .chat-layout {
+  border-radius: 0 !important;
+  min-height: 0 !important;
+}
+
 @media (max-width: 768px) {
-  body.chat-active .chat-page,
-  body.chat-active .chat-container {
-    display: flex;
-    flex-direction: column;
-    height: 100dvh;
-    max-height: 100dvh;
-    min-height: 0;
-    overflow: hidden;
-    padding: 0;
-  }
-
-  body.chat-active .chat-layout {
-    display: flex !important;
-    flex-direction: column;
-    flex: 1 1 0;
-    min-height: 0;
-    height: 100dvh !important;
-    max-height: 100dvh !important;
-    width: 100%;
-    overflow: hidden;
-    grid-template-columns: unset;
-    gap: 0;
-    border-radius: 0;
-    box-shadow: none;
-  }
-
-  body.chat-active .chat-sidebar {
-    display: none !important;
-  }
-
-  body.chat-active .chat-main {
-    display: flex !important;
-    flex: 1 1 0;
-    min-height: 0;
-    flex-direction: column;
-    width: 100%;
-    overflow: hidden;
-  }
-
-  body.chat-active #activeChat {
-    display: flex !important;
-    flex: 1 1 0;
-    min-height: 0;
-    flex-direction: column;
-    width: 100%;
-    overflow: hidden;
-  }
-
-  body.chat-active .messages-container {
-    flex: 1 1 0;
-    min-height: 0;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  body.chat-active #social-bottom-nav-mount,
-  body.chat-active .social-bottom-nav {
-    display: none !important;
-  }
-
-  body.chat-active .chat-page {
-    padding-bottom: 0 !important;
-  }
-
   html.ap-expo-app .chat-layout {
     display: flex;
     flex-direction: column;

@@ -2385,12 +2385,25 @@ html.social-bridge-mode .chat-layout {
   border-radius: 16px !important;
 }
 
+html.ap-expo-app body.chat-active .chat-layout,
+html.social-bridge-mode body.chat-active .chat-layout {
+  min-height: 0 !important;
+  border-radius: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
 /* Chat — no blue marketplace flash in native app */
 html.ap-expo-app .chat-page,
 html.social-bridge-mode .chat-page {
   background: var(--cream-bg) !important;
   padding-top: 0 !important;
   padding-bottom: calc(var(--social-bottom-nav-h, 62px) + 12px) !important;
+}
+
+html.ap-expo-app body.chat-active .chat-page,
+html.social-bridge-mode body.chat-active .chat-page {
+  padding-bottom: 0 !important;
 }
 
 html.ap-expo-app .chat-tab.active,
