@@ -150,6 +150,20 @@
           const payload = await res.json();
           if (payload.success && payload.data) {
             const e = payload.data;
+            const displayName = e.displayName || name;
+            document.getElementById('creatorName').textContent = displayName;
+            document.getElementById('creatorTitle').textContent = displayName;
+            const avatarEl = hero.querySelector('.creator-avatar');
+            if (avatarEl && e.profilePic) {
+              const picUrl = window.SocialShell?.getImageUrl
+                ? SocialShell.getImageUrl(e.profilePic, e.id || userId)
+                : (SocialUI.avatarUrl(displayName, e.profilePic));
+              avatarEl.onerror = () => {
+                avatarEl.onerror = null;
+                avatarEl.src = SocialUI.avatarUrl(displayName);
+              };
+              avatarEl.src = picUrl;
+            }
             const fmt = (n) => {
               const v = Number(n || 0);
               if (v >= 1e6) return (v / 1e6).toFixed(1) + 'M';

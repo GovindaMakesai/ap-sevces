@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#fff9f0">
     <script src="/ap-native-boot.js"></script>
     <link rel="stylesheet" href="/social-theme.css?v=20260625chatgift">
-    <link rel="stylesheet" href="/social-chat.css?v=20260626-chat-fix2">
+    <link rel="stylesheet" href="/social-chat.css?v=20260626-chat-fix3">
     
     <!-- Font Awesome 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -1531,6 +1531,7 @@
 
         const axiosClient = axios.create({
             baseURL: `${CONFIG.API_URL}/messages`,
+            timeout: 20000,
         });
         axiosClient.interceptors.request.use((config) => {
             const t = getChatToken();
@@ -1790,11 +1791,14 @@
 
         function resetChatPaneToList(message) {
             document.body.classList.remove('chat-active');
+            currentChatId = null;
             const emptyChat = document.getElementById('emptyChat');
             const activeChat = document.getElementById('activeChat');
             const isMobile = window.matchMedia('(max-width: 768px)').matches;
             if (activeChat) activeChat.style.display = 'none';
             if (emptyChat) emptyChat.style.display = isMobile ? 'none' : 'flex';
+            const sidebar = document.getElementById('chatSidebar');
+            if (sidebar) sidebar.style.display = '';
             if (message) Toast.show(message, 'error');
         }
 
@@ -2137,6 +2141,10 @@
                     return;
                 }
 
+                document.getElementById('chatUserName').textContent = chat.name;
+                document.getElementById('chatAvatar').textContent = chat.avatar;
+                updatePeerPresence(chat.otherUserId);
+
                 await loadMessages(currentChatId);
                 useChatStore.setState((state) => ({
                     conversations: state.conversations.map((c) =>
@@ -2144,13 +2152,14 @@
                     ),
                 }));
                 loadChatList();
-                document.getElementById('chatUserName').textContent = chat.name;
-                document.getElementById('chatAvatar').textContent = chat.avatar;
-                updatePeerPresence(chat.otherUserId);
             } catch (err) {
                 console.error('loadChat error:', err);
                 resetChatPaneToList('Could not open this chat');
             }
+        }
+
+        function chatRequestTimeout(ms) {
+            return new Promise((resolve) => setTimeout(resolve, ms));
         }
 
         // ==================== MESSAGES ====================
@@ -2158,10 +2167,13 @@
             const messagesContainer = document.getElementById('messagesContainer');
             if (!messagesContainer) return;
             const key = chatKey(chatId);
+            let loadFailed = false;
+            let failMessage = 'Failed to load messages';
             try {
-                if (typeof Auth?.ensureAccessToken === 'function') {
-                    await Auth.ensureAccessToken().catch(() => {});
-                }
+                await Promise.race([
+                    (typeof Auth?.ensureAccessToken === 'function' ? Auth.ensureAccessToken() : Promise.resolve()),
+                    chatRequestTimeout(5000),
+                ]).catch(() => {});
                 const response = await axiosClient.get(`/${encodeURIComponent(key)}`);
                 const payload = response.data?.data || response.data || {};
                 const serverMessages = extractServerMessages(response);
@@ -2182,14 +2194,79 @@
                     },
                 }));
             } catch (error) {
-                Toast.show(error?.response?.data?.message || 'Failed to load messages', 'error');
+                loadFailed = true;
+                failMessage = error?.response?.data?.message || error?.message || failMessage;
+                console.error('loadMessages error:', error);
+                Toast.show(failMessage, 'error');
+            }
+            try {
+                if (loadFailed) {
+                    messagesContainer.innerHTML =
+                        '<div class="chat-thread-empty"><i class="fas fa-exclamation-circle"></i><p>Could not load messages</p><small>' + escapeHtml(failMessage) + '</small><button type="button" class="btn-open" onclick="loadMessages(getActiveChatId())">Retry</button></div>';
+                } else {
+                    const chatMessages = useChatStore.getState().messages[key] || [];
+                    paintMessages(messagesContainer, chatMessages);
+                }
+            } catch (renderErr) {
+                console.error('paintMessages error:', renderErr);
                 messagesContainer.innerHTML =
-                    '<div class="chat-thread-empty"><i class="fas fa-exclamation-circle"></i><p>Could not load messages</p><button type="button" class="btn-open" onclick="loadMessages(currentChatId)">Retry</button></div>';
+                    '<div class="chat-thread-empty"><i class="fas fa-exclamation-circle"></i><p>Could not display messages</p><button type="button" class="btn-open" onclick="loadMessages(getActiveChatId())">Retry</button></div>';
+            }
+            scrollToBottom();
+        }
+
+        function paintMessages(container, messages) {
+            container.textContent = '';
+            if (!messages || !messages.length) {
+                container.innerHTML = '<div class="chat-thread-empty"><i class="fas fa-comments"></i><p>No messages yet</p><small>Say hello — your messages will appear here.</small></div>';
                 return;
             }
-            const chatMessages = useChatStore.getState().messages[key] || [];
-            messagesContainer.innerHTML = renderMessages(chatMessages);
-            scrollToBottom();
+            let lastDate = '';
+            const frag = document.createDocumentFragment();
+            messages.forEach((msg) => {
+                const currentDate = new Date(msg.createdAt || Date.now()).toDateString();
+                if (currentDate !== lastDate) {
+                    const divider = document.createElement('div');
+                    divider.className = 'message-date-divider';
+                    divider.innerHTML = '<span class="date-text">' + escapeHtml(new Date(msg.createdAt || Date.now()).toLocaleDateString()) + '</span>';
+                    frag.appendChild(divider);
+                    lastDate = currentDate;
+                }
+                const bubbleType = msg.type === 'sent' ? 'sent' : 'received';
+                const bodyText = String(msg.text || '').trim();
+                const wrapper = document.createElement('div');
+                wrapper.className = 'message-wrapper ' + bubbleType;
+                wrapper.dataset.msgId = String(msg.id || '');
+                const bubble = document.createElement('div');
+                bubble.className = 'message-bubble ' + bubbleType;
+                const content = document.createElement('div');
+                content.className = 'message-content';
+                if (bodyText) {
+                    content.textContent = bodyText;
+                } else if (!msg.image) {
+                    const ph = document.createElement('span');
+                    ph.className = 'msg-empty-placeholder';
+                    ph.textContent = 'Message unavailable';
+                    content.appendChild(ph);
+                }
+                if (msg.image) {
+                    const img = document.createElement('img');
+                    img.className = 'message-image';
+                    img.alt = 'Photo';
+                    img.loading = 'lazy';
+                    img.src = msg.image;
+                    img.addEventListener('click', () => openImageModal(msg.image));
+                    content.appendChild(img);
+                }
+                bubble.appendChild(content);
+                const timeRow = document.createElement('div');
+                timeRow.className = 'message-time';
+                timeRow.innerHTML = '<span>' + escapeHtml(msg.time || '') + '</span><span class="message-status">' + renderMessageStatusIcon(msg) + '</span>';
+                bubble.appendChild(timeRow);
+                wrapper.appendChild(bubble);
+                frag.appendChild(wrapper);
+            });
+            container.appendChild(frag);
         }
 
         function renderMessages(messages) {
@@ -2415,7 +2492,12 @@
             if (!messagesContainer || !currentChatId) return;
             const key = chatKey(currentChatId);
             const chatMessages = useChatStore.getState().messages[key] || [];
-            messagesContainer.innerHTML = renderMessages(chatMessages);
+            try {
+                paintMessages(messagesContainer, chatMessages);
+            } catch (e) {
+                console.error('renderActiveMessages:', e);
+                messagesContainer.innerHTML = renderMessages(chatMessages);
+            }
             scrollToBottom();
         }
 
@@ -3159,6 +3241,8 @@
 
         // Export functions for global use
         window.loadChat = loadChat;
+        window.loadMessages = loadMessages;
+        window.getActiveChatId = () => currentChatId;
         window.sendMessage = sendMessage;
         window.toggleEmojiPicker = toggleEmojiPicker;
         window.triggerFileUpload = triggerFileUpload;

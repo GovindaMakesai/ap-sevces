@@ -4796,7 +4796,19 @@
     document.getElementById('apSeatSheet')?.classList.add('open');
   }
 
-  function openProfileSheet(name, userId) {
+  function resolveLiveProfilePic(name, userId) {
+    const uid = String(userId || '');
+    if (uid && roomState?.hostId && uid === String(roomState.hostId)) {
+      return roomState.hostProfilePic || null;
+    }
+    const seat = (roomState?.seats || []).find((s) =>
+      (uid && String(s.userId) === uid) || (name && s.name === name)
+    );
+    if (seat?.profilePic || seat?.profile_pic) return seat.profilePic || seat.profile_pic;
+    return liveProfilePic(uid, null);
+  }
+
+  async function openProfileSheet(name, userId) {
     const n = name || 'User';
     const resolvedId =
       userId ||
@@ -4811,12 +4823,15 @@
       else delete sheet.dataset.userId;
     }
 
-    const seatGuest = (roomState?.seats || []).find((s) => s.name === n);
     const img = document.getElementById('apProfileAvatar');
     const nm = document.getElementById('apProfileName');
     const idEl = document.getElementById('apProfileId');
     const lvl = document.getElementById('apProfileLvl');
-    if (img) img.src = avatarUrl(n, seatGuest?.profile_pic || null);
+    const initialPic = resolveLiveProfilePic(n, resolvedId);
+    if (img) {
+      img.src = avatarUrl(n, initialPic);
+      img.dataset.userId = resolvedId || '';
+    }
     if (nm) nm.textContent = n;
     const idDisplay = activeProfileUser.userId
       ? activeProfileUser.userId.slice(0, 12)
@@ -4835,11 +4850,25 @@
       contrib.innerHTML = [n, roomState?.hostName || 'Host']
         .filter(Boolean)
         .slice(0, 3)
-        .map((x) => `<img src="${avatarUrl(x)}" alt="" style="width:32px;height:32px;border-radius:50%;object-fit:cover">`)
+        .map((x) => `<img src="${avatarUrl(x, resolveLiveProfilePic(x, x === roomState?.hostName ? roomState?.hostId : null))}" alt="" style="width:32px;height:32px;border-radius:50%;object-fit:cover">`)
         .join('');
     }
     sheet?.querySelector('.ap-profile-more-menu')?.remove();
     document.getElementById('apProfileSheet')?.classList.add('open');
+
+    if (resolvedId && window.API?.get) {
+      try {
+        if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken().catch(() => {});
+        const res = await API.get('/social/creators/' + encodeURIComponent(resolvedId) + '/engagement');
+        const data = res?.data;
+        if (data) {
+          const pic = data.profilePic || data.profile_pic;
+          const displayName = data.displayName || n;
+          if (nm) nm.textContent = displayName;
+          if (pic && img) img.src = avatarUrl(displayName, pic);
+        }
+      } catch (_e) { /* keep seat/host avatar */ }
+    }
   }
 
   function injectGiftSheet() {

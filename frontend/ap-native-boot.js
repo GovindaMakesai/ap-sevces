@@ -48,20 +48,12 @@
       'html.ap-expo-app .chat-input-wrapper:focus-within{border-color:#c9a227!important;box-shadow:0 0 0 3px rgba(201,162,39,.2)!important}',
       'html.ap-expo-app .send-btn,html.ap-expo-app .chat-input-action.send-btn{background:linear-gradient(135deg,#ff8c42,#f59e0b)!important;color:#fff!important}',
       'html.ap-expo-app .unread-badge{background:#f59e0b!important}',
-      'html.ap-expo-app .chat-page.ap-chat-loading{visibility:hidden}',
-      'html.ap-expo-app .chat-page.ap-chat-ready{visibility:visible}',
     ].join('');
     (document.head || html).appendChild(style);
   }
 
   if (path.includes('chat')) {
-    const markChatPage = function () {
-      var page = document.querySelector('.chat-page');
-      if (!page || page.classList.contains('ap-chat-ready')) return;
-      page.classList.add('ap-chat-loading');
-    };
-    if (document.body) markChatPage();
-    else document.addEventListener('DOMContentLoaded', markChatPage, { once: true });
+    /* Chat page must never be hidden at boot — caused blank/stuck Messages tab in WebView */
   }
 
   if (!onAuth && !localStorage.getItem('user') && !localStorage.getItem('token')) {
