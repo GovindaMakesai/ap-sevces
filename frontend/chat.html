@@ -1412,6 +1412,7 @@
                 });
             }
             syncNotificationBar();
+            setupViewportInsets();
             setupChatKeyboardInsets();
             setupChatGiftSheet();
             setupChatCoinTransfer();
@@ -1726,6 +1727,49 @@
 
         function syncNotificationBar() {
             /* notification bar removed — no empty warning strip */
+        }
+
+        function setupViewportInsets() {
+            const root = document.documentElement;
+            const apply = () => {
+                const vv = window.visualViewport;
+                let bottom = 0;
+                if (vv) {
+                    bottom = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+                }
+                if (root.classList.contains('ap-expo-app') && bottom < 16) {
+                    bottom = 16;
+                }
+                root.style.setProperty('--ap-viewport-bottom-inset', `${bottom}px`);
+                root.style.setProperty(
+                    '--ap-chat-bottom-pad',
+                    `max(env(safe-area-inset-bottom, 0px), ${bottom}px, 16px)`
+                );
+            };
+            window.visualViewport?.addEventListener('resize', apply);
+            window.visualViewport?.addEventListener('scroll', apply);
+            window.addEventListener('resize', apply);
+            apply();
+        }
+
+        function setChatOverlayOpen(open) {
+            document.body.classList.toggle('chat-overlay-open', Boolean(open));
+        }
+
+        function closeChatGiftSheet() {
+            const sheet = document.getElementById('chatGiftSheet');
+            if (sheet) sheet.hidden = true;
+            if (!document.getElementById('chatCoinSheet') || document.getElementById('chatCoinSheet').hidden) {
+                setChatOverlayOpen(false);
+            }
+        }
+
+        function closeChatCoinSheet() {
+            const sheet = document.getElementById('chatCoinSheet');
+            if (sheet) sheet.hidden = true;
+            if (!document.getElementById('chatGiftSheet') || document.getElementById('chatGiftSheet').hidden) {
+                setChatOverlayOpen(false);
+            }
         }
 
         function setupChatKeyboardInsets() {
@@ -2322,7 +2366,10 @@
                 wrapper.appendChild(bubble);
                 frag.appendChild(wrapper);
             });
-            container.appendChild(frag);
+            const stack = document.createElement('div');
+            stack.className = 'messages-stack';
+            stack.appendChild(frag);
+            container.appendChild(stack);
         }
 
         function renderMessages(messages) {
@@ -2367,7 +2414,7 @@
                 `;
             });
             
-            return html;
+            return '<div class="messages-stack">' + html + '</div>';
         }
 
         function openChatListMenu() {
@@ -3023,11 +3070,9 @@
         async function setupChatGiftSheet() {
             const sheet = document.getElementById('chatGiftSheet');
             if (!sheet) return;
-            document.getElementById('chatGiftClose')?.addEventListener('click', () => {
-                sheet.hidden = true;
-            });
+            document.getElementById('chatGiftClose')?.addEventListener('click', closeChatGiftSheet);
             sheet.addEventListener('click', (e) => {
-                if (e.target === sheet) sheet.hidden = true;
+                if (e.target === sheet) closeChatGiftSheet();
             });
             sheet.querySelector('.chat-gift-panel')?.addEventListener('click', (e) => e.stopPropagation());
             document.getElementById('chatGiftSend')?.addEventListener('click', (e) => {
@@ -3058,9 +3103,7 @@
         function setupChatCoinTransfer() {
             const sheet = document.getElementById('chatCoinSheet');
             if (!sheet) return;
-            document.getElementById('chatCoinClose')?.addEventListener('click', () => {
-                sheet.hidden = true;
-            });
+            document.getElementById('chatCoinClose')?.addEventListener('click', closeChatCoinSheet);
             document.getElementById('chatHeaderSellBtn')?.addEventListener('click', openChatCoinSheet);
             document.getElementById('chatCoinSend')?.addEventListener('click', sendChatCoins);
         }
@@ -3082,6 +3125,7 @@
                 document.getElementById('chatCoinInventory').textContent = '—';
             }
             sheet.hidden = false;
+            setChatOverlayOpen(true);
         }
 
         async function sendChatCoins() {
@@ -3105,7 +3149,7 @@
                     recipient_id: conv.otherUserId,
                     coins,
                 });
-                document.getElementById('chatCoinSheet').hidden = true;
+                closeChatCoinSheet();
                 document.getElementById('chatCoinAmount').value = '';
                 Toast.show(`${coins.toLocaleString('en-IN')} coins sent to ${conv.name}`, 'success');
                 await axiosClient.post('/send', {
@@ -3171,6 +3215,7 @@
                 document.getElementById('chatGiftBalance').textContent = '0';
             }
             sheet.hidden = false;
+            setChatOverlayOpen(true);
         }
 
         async function sendChatGift() {
@@ -3222,7 +3267,7 @@
                 const recipientName = conv?.name || document.getElementById('chatUserName')?.textContent || 'User';
                 const giftEvt = { from: 'You', to: recipientName, emoji: g.emoji, amount: coinCost, qty: 1 };
                 window.SocialFX?.playGift?.(giftEvt, { combo: 1 });
-                document.getElementById('chatGiftSheet').hidden = true;
+                closeChatGiftSheet();
                 Toast.show('Gift sent!', 'success');
                 try {
                     await axiosClient.post('/send', {
