@@ -702,7 +702,7 @@
       if (!follows.length && !pros.length) {
         if (content) content.style.display = 'none';
         mount.style.display = 'block';
-        mount.innerHTML = `<div class="social-empty-state"><p>You haven't followed anyone yet.</p><a href="/explore.html?app=1" class="btn-open">Discover live</a></div>`;
+        mount.innerHTML = `<div class="social-empty-state"><p>You haven't followed anyone yet.</p><a href="/discover-creators.html?app=1" class="btn-open">Discover creators</a></div>`;
         return;
       }
     }
@@ -953,7 +953,7 @@
         <div class="social-empty-state">
           <div class="illus" style="font-size:64px">📺</div>
           <p>You haven't followed yet,<br>come to follow</p>
-          <a href="/explore.html?app=1" class="btn-open">Explore live</a>
+          <a href="/discover-creators.html?app=1" class="btn-open">Discover creators</a>
         </div>`;
     } else if (type === 'nearby') {
       el.innerHTML = `

@@ -123,7 +123,7 @@
         (kind === 'followers'
           ? 'No followers yet. Go live and share your profile!'
           : 'You are not following anyone yet.') +
-        '</p><a href="/explore.html?app=1" class="social-follow-cta">Discover creators</a></div>';
+        '</p><a href="/discover-creators.html?app=1" class="social-follow-cta">Discover creators</a></div>';
     } else {
       list.innerHTML = items
         .map(function (item) {

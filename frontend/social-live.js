@@ -5288,6 +5288,7 @@
     const requested = parseInt(qs('amount') || '', 10);
     let selected = amounts.includes(requested) ? requested : amounts[1];
     let coinsPerInr = 10;
+    let proofFile = null;
     try {
       const settings = await SocialWallet?.getWalletSettings?.();
       coinsPerInr = settings?.coins_per_inr || 10;
@@ -5298,6 +5299,20 @@
     const utrEl = document.getElementById('rechargeUtr');
     const wrap = document.getElementById('rechargeAmountBtns');
     const historyEl = document.getElementById('rechargeHistory');
+    const submitBtn = document.getElementById('rechargeSubmit');
+    const submitHint = document.getElementById('rcSubmitHint');
+    const balanceEl = document.getElementById('rcWalletBalance');
+
+    if (balanceEl && SocialWallet?.fetchBalance) {
+      try {
+        const bal = await SocialWallet.fetchBalance(true);
+        const coins = Number(bal?.coin_balance ?? bal?.coins ?? 0);
+        balanceEl.innerHTML =
+          '<i class="fas fa-coins"></i>' + coins.toLocaleString('en-IN') + ' <span style="font-size:14px;font-weight:600">coins</span>';
+      } catch (_e) {
+        balanceEl.innerHTML = '<i class="fas fa-coins"></i>—';
+      }
+    }
 
     const coinsFor = (inr) => Math.floor(inr * coinsPerInr);
     const bonusRate = (inr) => {
@@ -5320,9 +5335,95 @@
       if (coinsEl) coinsEl.textContent = total.toLocaleString('en-IN') + ' coins';
       if (breakdownEl) {
         breakdownEl.textContent =
-          `Base ${base.toLocaleString('en-IN')} · Bonus +${bonus.toLocaleString('en-IN')} · Total ${total.toLocaleString('en-IN')} coins`;
+          `Base ${base.toLocaleString('en-IN')} · Bonus +${bonus.toLocaleString('en-IN')} · Total ${total.toLocaleString('en-IN')}`;
       }
+      updateRechargeUiState();
     };
+
+    function utrValid() {
+      const utr = (utrEl?.value || '').trim().replace(/\s+/g, '');
+      return /^\d{10,22}$/.test(utr);
+    }
+
+    function updateRechargeUiState() {
+      const utrOk = utrValid();
+      const stepPkg = document.getElementById('rcStepPkg');
+      const stepPay = document.getElementById('rcStepPay');
+      const stepUtr = document.getElementById('rcStepUtr');
+      if (stepPkg) stepPkg.className = 'rc-step done';
+      if (stepPay) stepPay.className = 'rc-step' + (utrOk ? ' done' : ' active');
+      if (stepUtr) stepUtr.className = 'rc-step' + (utrOk ? ' done active' : '');
+
+      if (submitBtn) {
+        submitBtn.disabled = !utrOk;
+        submitBtn.textContent = utrOk ? 'Submit payment for verification' : 'Enter UTR to submit';
+        submitBtn.classList.toggle('is-ready', utrOk);
+      }
+      if (submitHint) {
+        if (utrOk) {
+          submitHint.textContent = proofFile
+            ? 'Ready! Screenshot attached — tap the green button to submit.'
+            : 'Ready! Tap the green button to submit your payment.';
+          submitHint.className = 'rc-submit-hint is-ready';
+        } else {
+          submitHint.textContent = 'Step 1: pick package · Step 2: pay via QR · Step 3: paste UTR above';
+          submitHint.className = 'rc-submit-hint';
+        }
+      }
+    }
+
+    function clearProofPreview() {
+      proofFile = null;
+      const zone = document.getElementById('rechargeProofZone');
+      const preview = document.getElementById('rechargeProofPreview');
+      const wrapPreview = document.getElementById('rechargeProofPreviewWrap');
+      const placeholder = document.getElementById('rechargeProofPlaceholder');
+      const input = document.getElementById('rechargeProof');
+      if (preview?.src?.startsWith('blob:')) URL.revokeObjectURL(preview.src);
+      if (preview) preview.removeAttribute('src');
+      if (wrapPreview) wrapPreview.hidden = true;
+      if (placeholder) placeholder.hidden = false;
+      if (zone) zone.classList.remove('has-file');
+      if (input) input.value = '';
+      updateRechargeUiState();
+    }
+
+    function applyProofFile(file) {
+      if (!file || !String(file.type || '').startsWith('image/')) {
+        if (window.SocialUI) SocialUI.toast('Please choose an image file', 'warning');
+        else toast('Please choose an image file', 'warning');
+        return;
+      }
+      proofFile = file;
+      const zone = document.getElementById('rechargeProofZone');
+      const preview = document.getElementById('rechargeProofPreview');
+      const wrapPreview = document.getElementById('rechargeProofPreviewWrap');
+      const placeholder = document.getElementById('rechargeProofPlaceholder');
+      zone?.classList.add('has-file');
+      if (preview) preview.src = URL.createObjectURL(file);
+      if (wrapPreview) wrapPreview.hidden = false;
+      if (placeholder) placeholder.hidden = true;
+      updateRechargeUiState();
+    }
+
+    const proofZone = document.getElementById('rechargeProofZone');
+    const proofInput = document.getElementById('rechargeProof');
+    proofZone?.addEventListener('click', () => proofInput?.click());
+    proofZone?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        proofInput?.click();
+      }
+    });
+    proofInput?.addEventListener('change', () => {
+      const file = proofInput.files?.[0];
+      if (file) applyProofFile(file);
+    });
+    document.getElementById('rechargeProofChange')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      proofInput?.click();
+    });
+
     syncAmount();
 
     wrap?.querySelectorAll('button').forEach((btn, i) => {
@@ -5346,13 +5447,15 @@
       wrap.querySelectorAll('button').forEach((b, i) => b.classList.toggle('active', i === initialIdx));
     }
 
+    utrEl?.addEventListener('input', updateRechargeUiState);
+
     async function loadRechargeHistory() {
       if (!historyEl || !SocialWallet?.getRecharges) return;
       try {
         const res = await SocialWallet.getRecharges();
         const rows = res.data || [];
         if (!rows.length) {
-          historyEl.innerHTML = '<p class="recharge-history-empty">No recharge requests yet.</p>';
+          historyEl.innerHTML = '<p class="rc-history-empty recharge-history-empty">No recharge requests yet.</p>';
           return;
         }
         historyEl.innerHTML = rows
@@ -5363,11 +5466,11 @@
             const coins =
               st === 'approved' && r.coins_credited != null
                 ? Number(r.coins_credited).toLocaleString('en-IN')
-                : coinsFor(r.amount_inr).toLocaleString('en-IN');
-            return `<div class="recharge-history-item ${badge}">
+                : packageCoins(r.amount_inr).total.toLocaleString('en-IN');
+            return `<div class="rc-history-item recharge-history-item ${badge}">
               <div><strong>₹${Number(r.amount_inr).toLocaleString('en-IN')}</strong> → ${coins} coins</div>
-              <div class="recharge-history-meta">UTR: ${r.transaction_id || '—'} · ${new Date(r.created_at).toLocaleString()}</div>
-              <span class="recharge-status-badge">${st}</span>
+              <div class="rc-history-meta recharge-history-meta">UTR: ${r.transaction_id || '—'} · ${new Date(r.created_at).toLocaleString()}</div>
+              <span class="rc-status-badge recharge-status-badge">${st}</span>
             </div>`;
           })
           .join('');
@@ -5377,7 +5480,7 @@
     }
     loadRechargeHistory();
 
-    document.getElementById('rechargeSubmit')?.addEventListener('click', async () => {
+    submitBtn?.addEventListener('click', async () => {
       const utr = (utrEl?.value || '').trim().replace(/\s+/g, '');
       if (!/^\d{10,22}$/.test(utr)) {
         const msg = 'Enter the 10–22 digit UTR from your UPI payment receipt.';
@@ -5390,13 +5493,11 @@
         else toast('Please log in again.', 'error');
         return;
       }
-      const btn = document.getElementById('rechargeSubmit');
-      if (btn) {
-        btn.disabled = true;
-        btn.textContent = 'Submitting…';
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Submitting…';
       }
       try {
-        const proofFile = document.getElementById('rechargeProof')?.files?.[0] || null;
         await SocialWallet.submitRecharge(
           {
             amount_inr: selected,
@@ -5405,28 +5506,37 @@
           },
           proofFile
         );
-        const coins = coinsFor(selected);
+        const { total } = packageCoins(selected);
         if (window.SocialUI) {
           SocialUI.showSuccess(
             'Payment submitted',
-            `₹${selected.toLocaleString('en-IN')} → ${coins.toLocaleString('en-IN')} coins after admin verification (usually within a few hours).`
+            `₹${selected.toLocaleString('en-IN')} → ${total.toLocaleString('en-IN')} coins after admin verification (usually within a few hours).`
           );
         } else toast('Submitted! Coins credited after admin verifies your UTR.', 'success');
         if (utrEl) utrEl.value = '';
-        const proofEl = document.getElementById('rechargeProof');
-        if (proofEl) proofEl.value = '';
+        clearProofPreview();
         await loadRechargeHistory();
+        if (balanceEl && SocialWallet?.fetchBalance) {
+          try {
+            const bal = await SocialWallet.fetchBalance(true);
+            const coins = Number(bal?.coin_balance ?? bal?.coins ?? 0);
+            balanceEl.innerHTML =
+              '<i class="fas fa-coins"></i>' + coins.toLocaleString('en-IN') + ' <span style="font-size:14px;font-weight:600">coins</span>';
+          } catch (_e) {}
+        }
       } catch (e) {
         const msg = window.SocialUI ? SocialUI.friendlyMessage(e.message) : e.message || 'Recharge submission failed';
         if (window.SocialUI) SocialUI.showError('Recharge failed', msg);
         else toast(msg, 'error');
       } finally {
-        if (btn) {
-          btn.disabled = false;
-          btn.textContent = 'I have paid — submit UTR';
+        updateRechargeUiState();
+        if (submitBtn && !submitBtn.disabled) {
+          submitBtn.textContent = 'Submit payment for verification';
         }
       }
     });
+
+    updateRechargeUiState();
   }
 
   window.SocialLive = {

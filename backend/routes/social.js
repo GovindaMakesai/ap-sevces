@@ -1,12 +1,14 @@
 const express = require('express');
 const router = express.Router();
-const { verifyToken } = require('../middleware/auth');
+const { verifyToken, optionalAuth } = require('../middleware/auth');
 const social = require('../controllers/socialController');
 const roleApplicationController = require('../controllers/roleApplicationController');
 const privateUpload = require('../middleware/privateUpload');
 
 router.get('/gifts/catalog', social.listGiftCatalog);
 router.get('/coin-sellers', social.listCoinSellers);
+router.get('/discover/creators', optionalAuth, social.discoverCreators);
+router.get('/creators/:userId/engagement', optionalAuth, social.creatorEngagement);
 router.get('/posts', verifyToken, social.listPosts);
 
 router.use(verifyToken);

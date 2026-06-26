@@ -14,7 +14,7 @@
 
   g.AP_CONFIG = Object.freeze({
     USE_HTTPS_DOMAIN: USE_HTTPS,
-    BUILD_TAG: '20260625-wd-flow2',
+    BUILD_TAG: '20260625-profile-edit',
     PRODUCTION_BACKEND_URL: BACKEND,
     PRODUCTION_API_URL: BACKEND.replace(/\/$/, '') + '/api',
     PRODUCTION_FRONTEND_URL: FRONTEND,

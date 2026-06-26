@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#fff9f0">
     <script src="/ap-native-boot.js"></script>
     <link rel="stylesheet" href="/social-theme.css?v=20260625chatgift">
-    <link rel="stylesheet" href="/social-chat.css?v=20260625chat-unread">
+    <link rel="stylesheet" href="/social-chat.css?v=20260625-chat-fix2">
     
     <!-- Font Awesome 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -1034,6 +1034,9 @@
     </style>
 </head>
 <body class="ap-chat-boot">
+<script>
+(function(){var b=document.body;if(b){b.classList.remove('ap-chat-boot');b.classList.add('ap-chat-ready');}})();
+</script>
     <!-- Navbar -->
     <nav class="navbar">
         <div class="container">
@@ -1287,9 +1290,9 @@
     <script>
         // ==================== CHAT JAVASCRIPT ====================
         document.addEventListener('DOMContentLoaded', async function() {
+            document.body.classList.remove('ap-chat-boot');
+            document.body.classList.add('ap-chat-ready');
             if (typeof isNativeAppContext === 'function' && isNativeAppContext()) {
-                document.body.classList.remove('ap-chat-boot');
-                document.body.classList.add('ap-chat-ready');
                 document.documentElement.classList.add('social-app', 'ap-expo-app');
                 if (window.SocialShell?.initPage) {
                     SocialShell.initPage({ activeNav: 'chat' });
@@ -1314,6 +1317,7 @@
                 return;
             }
             setupSocketListeners();
+            setupChatListClicks();
             await loadConversations();
             setupChatSearch();
             setupChatTabs();
@@ -1374,7 +1378,9 @@
 
         function mapApiConversationToListItem(convId, otherUser, lastMessageText, lastMessageAt) {
             const ou = otherUser || {};
-            const name = `${ou.first_name || 'User'} ${ou.last_name || ''}`.trim();
+            const name = ou.displayName || `${ou.first_name || 'User'} ${ou.last_name || ''}`.trim();
+            const officialRoles = ['admin', 'super_admin', 'founder', 'ceo'];
+            const isOfficial = officialRoles.includes(ou.role) || name === 'AP Services';
             return {
                 id: String(convId),
                 name,
@@ -1383,6 +1389,7 @@
                 avatar: initialsFromName(ou.first_name, ou.last_name),
                 status: 'online',
                 unread: 0,
+                isOfficial,
                 bookingId: null,
                 category: ou.role || 'customer',
                 lastMessage: lastMessageText || 'No messages yet',
@@ -1650,6 +1657,43 @@
             return `${a}${b}`.toUpperCase() || 'U';
         }
 
+        function escapeHtml(str) {
+            return String(str || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function setupChatListClicks() {
+            const chatList = document.getElementById('chatList');
+            if (!chatList || chatList.dataset.clickBound) return;
+            chatList.dataset.clickBound = '1';
+            chatList.addEventListener('click', (e) => {
+                const item = e.target.closest('.chat-item[data-chat-id]');
+                if (!item) return;
+                const chatId = item.dataset.chatId;
+                if (chatId) loadChat(chatId, item);
+            });
+        }
+
+        function safeChatIdForSelector(id) {
+            const s = String(id || '');
+            if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') return CSS.escape(s);
+            return s.replace(/["\\]/g, '');
+        }
+
+        function resetChatPaneToList(message) {
+            document.body.classList.remove('chat-active');
+            const emptyChat = document.getElementById('emptyChat');
+            const activeChat = document.getElementById('activeChat');
+            const isMobile = window.matchMedia('(max-width: 768px)').matches;
+            if (activeChat) activeChat.style.display = 'none';
+            if (emptyChat) emptyChat.style.display = isMobile ? 'none' : 'flex';
+            if (message) Toast.show(message, 'error');
+        }
+
         // ==================== CHAT LIST ====================
         function loadChatList() {
             const chatList = document.getElementById('chatList');
@@ -1668,23 +1712,28 @@
             chatList.innerHTML = conversations.map((chat) => {
                 const isOfficial = chat.isOfficial || officialNames.some((k) => String(chat.name || '').toLowerCase().includes(k));
                 const hasUnread = (chat.unread || 0) > 0;
+                const safeId = escapeHtml(String(chat.id));
+                const safeName = escapeHtml(chat.name || 'User');
+                const safeLast = escapeHtml(chat.lastMessage || '');
+                const safeAvatar = escapeHtml(chat.avatar || initialsFromName(chat.first_name, chat.last_name));
+                const safeTime = escapeHtml(chat.time || '');
                 return `
-                <div class="chat-item${hasUnread ? ' has-unread' : ''} ${String(chat.id) === String(activeConversationId || '') ? 'active' : ''}" data-chat-id="${chat.id}" data-user-id="${chat.otherUserId || ''}" data-official="${isOfficial ? '1' : '0'}" data-unread="${chat.unread || 0}" onclick="loadChat('${chat.id}', this)">
+                <div class="chat-item${hasUnread ? ' has-unread' : ''} ${String(chat.id) === String(activeConversationId || '') ? 'active' : ''}" data-chat-id="${safeId}" data-user-id="${escapeHtml(String(chat.otherUserId || ''))}" data-official="${isOfficial ? '1' : '0'}" data-unread="${chat.unread || 0}">
                     <div class="chat-avatar">
-                        <div class="avatar-placeholder">${chat.avatar || initialsFromName(chat.first_name, chat.last_name)}</div>
+                        <div class="avatar-placeholder">${safeAvatar}</div>
                         ${hasUnread ? '<span class="chat-unread-dot" aria-hidden="true"></span>' : ''}
-                        <span class="status-dot ${chat.status}"></span>
+                        <span class="status-dot ${escapeHtml(chat.status || 'offline')}"></span>
                     </div>
                     <div class="chat-info">
                         <h4>
-                            ${chat.name}
+                            ${safeName}
                             ${isOfficial ? '<span class="ap-msg-official">Official</span>' : ''}
                             ${chat.bookingId ? '<i class="fas fa-calendar-check" title="Has booking"></i>' : ''}
                         </h4>
-                        <p>${chat.lastMessage}</p>
+                        <p>${safeLast}</p>
                     </div>
                     <div class="chat-meta">
-                        <div class="chat-time">${chat.time}</div>
+                        <div class="chat-time">${safeTime}</div>
                         ${hasUnread ? `<span class="unread-badge">${chat.unread > 99 ? '99+' : chat.unread}</span>` : ''}
                     </div>
                 </div>
@@ -1928,73 +1977,77 @@
 
         // ==================== LOAD CHAT ====================
         async function loadChat(chatId, sourceElement) {
-            hideTypingIndicator();
-            if (isTyping) {
-                isTyping = false;
-                clearTimeout(typingTimeout);
-                emitTypingState(false);
-            }
-            currentChatId = String(chatId);
-            useChatStore.setState({ activeConversationId: currentChatId });
-            const socket = socketService.get();
-            if (socket) {
-                socket.emit('join_conversation', { conversationId: currentChatId });
-            }
-            
-            // Update active state in sidebar
-            document.querySelectorAll('.chat-item').forEach(item => {
-                item.classList.remove('active');
-            });
-            const activeNode = sourceElement || document.querySelector(`.chat-item[data-chat-id="${currentChatId}"]`);
-            if (activeNode) activeNode.classList.add('active');
-            
-            // Show active chat, hide empty state
-            document.getElementById('emptyChat').style.display = 'none';
-            document.getElementById('activeChat').style.display = 'flex';
-            document.body.classList.add('chat-active');
+            try {
+                hideTypingIndicator();
+                if (isTyping) {
+                    isTyping = false;
+                    clearTimeout(typingTimeout);
+                    emitTypingState(false);
+                }
+                currentChatId = String(chatId);
+                useChatStore.setState({ activeConversationId: currentChatId });
+                const socket = socketService.get();
+                if (socket) {
+                    socket.emit('join_conversation', { conversationId: currentChatId });
+                }
 
-            const messagesContainer = document.getElementById('messagesContainer');
-            if (messagesContainer) {
-                messagesContainer.innerHTML = '<div class="chat-messages-loading" style="padding:24px;text-align:center;color:var(--gray-500)"><i class="fas fa-spinner fa-spin"></i> Loading messages…</div>';
-            }
-            
-            let chat = useChatStore.getState().conversations.find(item => String(item.id) === String(currentChatId));
-            if (!chat) {
-                try {
-                    const r = await axiosClient.get(`/${encodeURIComponent(currentChatId)}`);
-                    const d = r.data?.data;
-                    if (r.data?.success && d?.conversationId && d.otherUser) {
-                        chat = mapApiConversationToListItem(d.conversationId, d.otherUser, d.lastMessageText, d.lastMessageAt);
-                        upsertConversationInStore(chat);
-                        loadChatList();
+                document.querySelectorAll('.chat-item').forEach(item => {
+                    item.classList.remove('active');
+                });
+                const activeNode = sourceElement || document.querySelector(`.chat-item[data-chat-id="${safeChatIdForSelector(currentChatId)}"]`);
+                if (activeNode) activeNode.classList.add('active');
+
+                document.getElementById('emptyChat').style.display = 'none';
+                document.getElementById('activeChat').style.display = 'flex';
+                document.body.classList.add('chat-active');
+
+                const messagesContainer = document.getElementById('messagesContainer');
+                if (messagesContainer) {
+                    messagesContainer.innerHTML = '<div class="chat-messages-loading" style="padding:24px;text-align:center;color:var(--gray-500)"><i class="fas fa-spinner fa-spin"></i> Loading messages…</div>';
+                }
+
+                let chat = useChatStore.getState().conversations.find(item => String(item.id) === String(currentChatId));
+                if (!chat) {
+                    try {
+                        const r = await axiosClient.get(`/${encodeURIComponent(currentChatId)}`);
+                        const d = r.data?.data;
+                        if (r.data?.success && d?.conversationId && d.otherUser) {
+                            chat = mapApiConversationToListItem(d.conversationId, d.otherUser, d.lastMessageText, d.lastMessageAt);
+                            upsertConversationInStore(chat);
+                            loadChatList();
+                        }
+                    } catch (_e) {
+                        resetChatPaneToList('Could not open this chat');
+                        return;
                     }
-                } catch (_e) {
-                    Toast.show('Could not open this chat', 'error');
-                    document.getElementById('activeChat').style.display = 'none';
-                    document.getElementById('emptyChat').style.display = 'flex';
-                    document.body.classList.remove('chat-active');
+                }
+                if (!chat) {
+                    resetChatPaneToList('Could not open this chat');
                     return;
                 }
-            }
-            if (!chat) return;
 
-            await loadMessages(currentChatId);
-            useChatStore.setState((state) => ({
-                conversations: state.conversations.map((c) =>
-                    String(c.id) === String(currentChatId) ? { ...c, unread: 0 } : c
-                ),
-            }));
-            loadChatList();
-            document.getElementById('chatUserName').textContent = chat.name;
-            document.getElementById('chatAvatar').textContent = chat.avatar;
-            updatePeerPresence(chat.otherUserId);
+                await loadMessages(currentChatId);
+                useChatStore.setState((state) => ({
+                    conversations: state.conversations.map((c) =>
+                        String(c.id) === String(currentChatId) ? { ...c, unread: 0 } : c
+                    ),
+                }));
+                loadChatList();
+                document.getElementById('chatUserName').textContent = chat.name;
+                document.getElementById('chatAvatar').textContent = chat.avatar;
+                updatePeerPresence(chat.otherUserId);
+            } catch (err) {
+                console.error('loadChat error:', err);
+                resetChatPaneToList('Could not open this chat');
+            }
         }
 
         // ==================== MESSAGES ====================
         async function loadMessages(chatId) {
             const messagesContainer = document.getElementById('messagesContainer');
+            if (!messagesContainer) return;
             try {
-                const response = await axiosClient.get(`/${chatId}`);
+                const response = await axiosClient.get(`/${encodeURIComponent(chatId)}`);
                 const serverMessages = response.data?.data?.messages || [];
                 otherLastReadAt = response.data?.data?.otherLastReadAt || null;
                 updateMessageQuotaBanner(response.data?.data?.quota);
@@ -2016,18 +2069,8 @@
                 Toast.show(error?.response?.data?.message || 'Failed to load messages', 'error');
             }
             const chatMessages = useChatStore.getState().messages[chatId] || [];
-            
             messagesContainer.innerHTML = renderMessages(chatMessages);
             scrollToBottom();
-        }
-
-        function escapeHtml(str) {
-            return String(str || '')
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#39;');
         }
 
         function renderMessages(messages) {
@@ -2977,7 +3020,7 @@
             emitTypingState(false);
             isTyping = false;
             clearTimeout(typingTimeout);
-            document.body.classList.remove('chat-active');
+            resetChatPaneToList();
         }
 
         // Export functions for global use

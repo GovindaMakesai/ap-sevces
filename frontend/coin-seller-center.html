@@ -172,6 +172,7 @@
   <script src="config.js"></script>
   <script src="app.js"></script>
   <script src="auth-guard.js"></script>
+  <script src="social-ui.js"></script>
   <script src="social-shell.js"></script>
   <script>
     (async function () {
@@ -186,11 +187,18 @@
       }
 
       function openModal(id) {
-        document.getElementById(id)?.classList.add('open');
+        const el = document.getElementById(id);
+        if (el) el.classList.add('open');
       }
       function closeModal(id) {
         document.getElementById(id)?.classList.remove('open');
       }
+
+      document.querySelectorAll('.cs-modal').forEach((modal) => {
+        modal.addEventListener('click', (e) => {
+          if (e.target === modal) closeModal(modal.id);
+        });
+      });
 
       document.querySelectorAll('[data-close]').forEach((btn) => {
         btn.addEventListener('click', () => closeModal(btn.dataset.close));
@@ -318,29 +326,56 @@
 
       document.getElementById('xferSearchBtn').addEventListener('click', async () => {
         const id = document.getElementById('xferAccountId').value.trim();
-        if (!id) return toast('Enter account ID', 'warning');
+        if (!id) return toast('Enter buyer User ID or phone', 'warning');
+        const btn = document.getElementById('xferSearchBtn');
+        btn.disabled = true;
         try {
+          await Auth.ensureAccessToken?.();
           const res = await API.get(`/social/coin-seller/lookup/${encodeURIComponent(id)}`);
           xferRecipient = res.data;
           const el = document.getElementById('xferRecipient');
           el.hidden = false;
-          el.textContent = `Found: ${res.data.first_name || ''} ${res.data.last_name || ''} (${res.data.id})`;
+          el.innerHTML = `<i class="fas fa-check-circle" style="color:#2e7d32"></i> Found: <strong>${res.data.first_name || ''} ${res.data.last_name || ''}</strong>`;
         } catch (e) {
           xferRecipient = null;
+          document.getElementById('xferRecipient').hidden = true;
           toast(e?.message || 'User not found', 'error');
+        } finally {
+          btn.disabled = false;
         }
       });
 
       document.getElementById('xferSubmitBtn').addEventListener('click', async () => {
         const coins = parseInt(document.getElementById('xferAmount').value, 10);
-        const rid = xferRecipient?.id || document.getElementById('xferAccountId').value.trim();
+        const accountId = document.getElementById('xferAccountId').value.trim();
+        const rid = xferRecipient?.id || accountId;
+        if (!rid) return toast('Enter buyer User ID first', 'warning');
+        if (!coins || coins < 1000) return toast('Minimum transfer is 1,000 coins', 'warning');
+        const sellable = Number(dash?.sellable_coins ?? dash?.profile?.inventory_coins ?? 0);
+        if (sellable < coins) {
+          return toast(`Insufficient balance (have ${fmt(sellable)}, need ${fmt(coins)})`, 'error');
+        }
+        const btn = document.getElementById('xferSubmitBtn');
+        btn.disabled = true;
+        btn.textContent = 'Transferring…';
         try {
-          await API.post('/social/coin-seller/transfer', { recipient_id: rid, coins });
-          toast('Transfer completed', 'success');
+          await Auth.ensureAccessToken?.();
+          if (!xferRecipient) {
+            const lookup = await API.get(`/social/coin-seller/lookup/${encodeURIComponent(rid)}`);
+            xferRecipient = lookup.data;
+          }
+          await API.post('/social/coin-seller/transfer', { recipient_id: xferRecipient.id, coins });
+          toast(`Sent ${fmt(coins)} coins to ${xferRecipient.first_name || 'buyer'}`, 'success');
           closeModal('transferModal');
+          xferRecipient = null;
+          document.getElementById('xferAccountId').value = '';
+          document.getElementById('xferRecipient').hidden = true;
           await loadDashboard();
         } catch (e) {
           toast(e?.message || 'Transfer failed', 'error');
+        } finally {
+          btn.disabled = false;
+          btn.textContent = 'Transfer';
         }
       });
 
@@ -368,6 +403,7 @@
       });
 
       async function loadDashboard() {
+        await Auth.ensureAccessToken?.();
         const res = await API.get('/social/coin-seller/dashboard');
         renderDashboard(res.data);
       }
@@ -378,6 +414,7 @@
           window.location.href = '/login.html?app=1';
           return;
         }
+        await Auth.ensureAccessToken?.();
         await loadDashboard();
         document.getElementById('csLoading').hidden = true;
         document.getElementById('csMain').hidden = false;

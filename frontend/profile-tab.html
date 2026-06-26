@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#c9a227">
   <title>Me - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-theme.css">
+  <link rel="stylesheet" href="social-theme.css?v=20260625-profile-edit">
   <link rel="stylesheet" href="social-features.css">
   <style>
     html:not(.profile-ready) .social-profile-hero,
@@ -32,7 +32,13 @@
 <body class="social-profile-page">
   <div class="profile-loading-bar" id="profileLoadingBar"></div>
   <div class="social-profile-hero">
-    <img id="profileAvatar" src="" alt="Profile">
+    <div class="social-profile-avatar-wrap">
+      <button type="button" class="social-profile-avatar-btn" id="profileAvatarBtn" aria-label="Change profile picture">
+        <img id="profileAvatar" src="" alt="Profile">
+        <span class="social-profile-avatar-edit" aria-hidden="true"><i class="fas fa-camera"></i></span>
+      </button>
+      <input type="file" id="profileAvatarInput" accept="image/jpeg,image/png,image/webp,image/*" hidden>
+    </div>
     <h2 id="profileName">&nbsp;</h2>
     <p id="profileRole">&nbsp;</p>
     <div class="social-profile-uid" id="profileUidRow" style="display:none">
@@ -65,7 +71,34 @@
         <i class="fas fa-wallet"></i> Withdraw
       </a>
     </div>
+    <button type="button" class="social-profile-edit-link" id="editProfileBtn" style="display:none">
+      <i class="fas fa-user-edit"></i> Edit profile
+    </button>
     <button type="button" class="social-btn-orange social-profile-cta" id="profileMainBtn">Sign In</button>
+  </div>
+
+  <div class="social-profile-edit-sheet" id="profileEditSheet" aria-hidden="true">
+    <div class="social-profile-edit-panel" role="dialog" aria-labelledby="profileEditTitle">
+      <div class="social-profile-edit-head">
+        <h3 id="profileEditTitle">Edit profile</h3>
+        <button type="button" class="social-profile-edit-close" id="profileEditClose" aria-label="Close">&times;</button>
+      </div>
+      <form id="profileEditForm">
+        <div class="social-profile-edit-field">
+          <label for="editFirstName">First name</label>
+          <input type="text" id="editFirstName" name="first_name" autocomplete="given-name" maxlength="80" required>
+        </div>
+        <div class="social-profile-edit-field">
+          <label for="editLastName">Last name</label>
+          <input type="text" id="editLastName" name="last_name" autocomplete="family-name" maxlength="80">
+        </div>
+        <div class="social-profile-edit-field">
+          <label for="editPhone">Phone</label>
+          <input type="tel" id="editPhone" name="phone" autocomplete="tel" inputmode="tel" maxlength="15" placeholder="10-digit mobile number">
+        </div>
+        <button type="submit" class="social-profile-edit-save" id="profileEditSave">Save changes</button>
+      </form>
+    </div>
   </div>
 
   <nav class="social-menu-list">
@@ -76,6 +109,7 @@
     <a href="#" class="social-menu-item" id="agencyLink" style="display:none"><i class="fas fa-building"></i><span>Agency Center</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="#" class="social-menu-item" id="dashLink"><i class="fas fa-th-large"></i><span>My Dashboard</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/customer-dashboard.html#bookings" class="social-menu-item"><i class="fas fa-calendar-check"></i><span>My Bookings</span><i class="fas fa-chevron-right chevron"></i></a>
+    <a href="#" class="social-menu-item" id="editProfileMenuLink" style="display:none"><i class="fas fa-user-edit"></i><span>Edit Profile</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/store.html" class="social-menu-item"><i class="fas fa-store"></i><span>Store</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/vip.html" class="social-menu-item"><i class="fas fa-crown"></i><span>VIP Privileges</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/rankings.html" class="social-menu-item"><i class="fas fa-trophy"></i><span>Rankings</span><i class="fas fa-chevron-right chevron"></i></a>
@@ -127,7 +161,8 @@
           window.SocialUI ? SocialUI.avatarUrl(name, pic) : pic || SocialShell.avatarFallback(name);
       }
 
-      if (user) {
+      function paintProfileHeader(user) {
+        if (!user) return;
         const name = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email || 'User';
         document.getElementById('profileName').textContent = name;
         const roleLabels = {
@@ -141,7 +176,138 @@
           ceo: 'CEO',
         };
         const roleLabel = roleLabels[user.role] || 'Customer';
-        document.getElementById('profileRole').textContent = roleLabel + (user.email ? ' · ' + user.email.split('@')[0] : '');
+        document.getElementById('profileRole').textContent =
+          roleLabel + (user.email ? ' · ' + user.email.split('@')[0] : '');
+        paintProfileAvatar(user);
+      }
+
+      function applyUserUpdate(updated) {
+        if (!updated) return;
+        localStorage.setItem('user', JSON.stringify(updated));
+        if (window.AppState) AppState.user = updated;
+        user = updated;
+        paintProfileHeader(updated);
+        document.dispatchEvent(new CustomEvent('user:profile-updated', { detail: updated }));
+      }
+
+      function openProfileEdit() {
+        if (!user) {
+          location.href = '/login.html?redirect=' + encodeURIComponent('/profile-tab.html?app=1');
+          return;
+        }
+        document.getElementById('editFirstName').value = user.first_name || '';
+        document.getElementById('editLastName').value = user.last_name || '';
+        document.getElementById('editPhone').value = user.phone || '';
+        const sheet = document.getElementById('profileEditSheet');
+        sheet.classList.add('open');
+        sheet.setAttribute('aria-hidden', 'false');
+      }
+
+      function closeProfileEdit() {
+        const sheet = document.getElementById('profileEditSheet');
+        sheet.classList.remove('open');
+        sheet.setAttribute('aria-hidden', 'true');
+      }
+
+      function setupProfileEditing() {
+        const avatarBtn = document.getElementById('profileAvatarBtn');
+        const avatarInput = document.getElementById('profileAvatarInput');
+        const editBtn = document.getElementById('editProfileBtn');
+        const editMenu = document.getElementById('editProfileMenuLink');
+
+        avatarBtn?.addEventListener('click', () => {
+          if (!user) {
+            location.href = '/login.html?redirect=' + encodeURIComponent('/profile-tab.html?app=1');
+            return;
+          }
+          avatarInput?.click();
+        });
+
+        avatarInput?.addEventListener('change', async function () {
+          const file = this.files && this.files[0];
+          if (!file || !user) return;
+          if (!String(file.type || '').startsWith('image/')) {
+            SocialUI?.toast?.('Please choose an image file', 'warning');
+            this.value = '';
+            return;
+          }
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            document.getElementById('profileAvatar').src = e.target.result;
+          };
+          reader.readAsDataURL(file);
+          avatarBtn.disabled = true;
+          try {
+            await Auth.ensureAccessToken?.();
+            const fd = new FormData();
+            fd.append('photo', file);
+            const response = await API.upload('/auth/profile/photo', fd);
+            const updated = response?.data?.user;
+            if (updated) {
+              applyUserUpdate(updated);
+              SocialUI?.toast?.('Profile picture updated', 'success');
+            } else {
+              SocialUI?.toast?.(response?.message || 'Upload failed', 'error');
+            }
+          } catch (error) {
+            SocialUI?.toast?.(error?.message || 'Failed to upload profile picture', 'error');
+            paintProfileAvatar(user);
+          } finally {
+            avatarBtn.disabled = false;
+            this.value = '';
+          }
+        });
+
+        editBtn?.addEventListener('click', openProfileEdit);
+        editMenu?.addEventListener('click', (e) => {
+          e.preventDefault();
+          openProfileEdit();
+        });
+
+        document.getElementById('profileEditClose')?.addEventListener('click', closeProfileEdit);
+        document.getElementById('profileEditSheet')?.addEventListener('click', (e) => {
+          if (e.target.id === 'profileEditSheet') closeProfileEdit();
+        });
+
+        document.getElementById('profileEditForm')?.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          if (!user) return;
+          const first_name = document.getElementById('editFirstName').value.trim();
+          const last_name = document.getElementById('editLastName').value.trim();
+          const phone = document.getElementById('editPhone').value.trim();
+          if (!first_name) {
+            SocialUI?.toast?.('First name is required', 'warning');
+            return;
+          }
+          const saveBtn = document.getElementById('profileEditSave');
+          saveBtn.disabled = true;
+          saveBtn.textContent = 'Saving…';
+          try {
+            await Auth.ensureAccessToken?.();
+            const response = await API.patch('/auth/profile', { first_name, last_name, phone });
+            const updated = response?.data?.user;
+            if (updated) {
+              applyUserUpdate(updated);
+              closeProfileEdit();
+              SocialUI?.toast?.('Profile updated', 'success');
+            } else {
+              SocialUI?.toast?.(response?.message || 'Update failed', 'error');
+            }
+          } catch (error) {
+            SocialUI?.toast?.(error?.message || 'Failed to update profile', 'error');
+          } finally {
+            saveBtn.disabled = false;
+            saveBtn.textContent = 'Save changes';
+          }
+        });
+      }
+
+      setupProfileEditing();
+
+      if (user) {
+        paintProfileHeader(user);
+        document.getElementById('editProfileBtn').style.display = 'inline-flex';
+        document.getElementById('editProfileMenuLink').style.display = 'flex';
         const uidRow = document.getElementById('profileUidRow');
         const uidEl = document.getElementById('profileUserId');
         if (uidEl && user.id) {
@@ -157,7 +323,6 @@
             alert('ID: ' + user.id);
           }
         });
-        paintProfileAvatar(user);
         if (['admin', 'super_admin', 'founder', 'ceo'].includes(user.role) && adminDash) {
           adminDash.style.display = 'flex';
           adminDash.href = '/admin-dashboard.html?app=1';
@@ -234,6 +399,7 @@
         document.getElementById('profileName').textContent = 'Guest';
         document.getElementById('profileRole').textContent = 'Sign in to continue';
         document.getElementById('profileAvatar').src = SocialShell.avatarFallback('Guest');
+        document.querySelector('.social-profile-avatar-edit')?.style.setProperty('display', 'none');
         btn.textContent = 'Sign In';
         btn.onclick = () => {
           location.href = '/login.html?redirect=' + encodeURIComponent('/profile-tab.html?app=1');
@@ -242,7 +408,10 @@
       }
       if (window.SocialUI) SocialUI.bindAvatarFallbacks(document);
       document.addEventListener('user:profile-updated', (e) => {
-        if (e.detail) paintProfileAvatar(e.detail);
+        if (e.detail) {
+          user = e.detail;
+          paintProfileHeader(e.detail);
+        }
       });
       if (window.SocialNav) {
         SocialNav.registerRefresh(async () => {

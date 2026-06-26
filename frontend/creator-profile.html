@@ -22,6 +22,44 @@
       margin: 16px; padding: 12px 14px; border-radius: 12px; background: rgba(251, 191, 36, 0.12);
       font-size: 13px; color: #78350f; text-align: center;
     }
+    .creator-engagement-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin: 0 16px 16px;
+    }
+    .creator-engagement-card {
+      background: #fff;
+      border: 1px solid rgba(201, 162, 39, 0.25);
+      border-radius: 14px;
+      padding: 14px 12px;
+      text-align: center;
+    }
+    .creator-engagement-card strong {
+      display: block;
+      font-size: 18px;
+      color: #92400e;
+      margin-bottom: 4px;
+    }
+    .creator-engagement-card span {
+      font-size: 11px;
+      color: #8b6914;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      font-weight: 600;
+    }
+    .creator-live-banner {
+      margin: 0 16px 12px;
+      padding: 10px 14px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #fee2e2, #fecaca);
+      color: #991b1b;
+      font-size: 13px;
+      font-weight: 700;
+      text-align: center;
+      text-decoration: none;
+      display: block;
+    }
     .profile-loading .creator-avatar { background: #e5e7eb; animation: pulse 1.2s ease infinite; }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
   </style>
@@ -40,6 +78,8 @@
   <div class="creator-earnings-note">
     <strong>Creator earnings:</strong> You keep <strong>90%</strong> of gifts &amp; bookings · Platform share <strong>10%</strong>
   </div>
+  <div id="creatorLiveBanner" hidden></div>
+  <div class="creator-engagement-grid" id="creatorEngagement" hidden></div>
   <h3 class="creator-section-title">Recent posts</h3>
   <div class="social-post-feed" id="creatorPosts"></div>
   <div id="social-bottom-nav-mount"></div>
@@ -95,6 +135,50 @@
           alert('ID: ' + userId);
         }
       });
+
+      if (userId) {
+        try {
+          const api = (window.CONFIG && CONFIG.API_URL) || 'https://api.apservices.in/api';
+          const headers = {};
+          const token = (window.Auth && Auth.getToken && Auth.getToken()) || localStorage.getItem('token');
+          if (token) headers.Authorization = 'Bearer ' + token;
+          if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken().catch(() => {});
+          const res = await fetch(api + '/social/creators/' + encodeURIComponent(userId) + '/engagement', {
+            credentials: 'include',
+            headers,
+          });
+          const payload = await res.json();
+          if (payload.success && payload.data) {
+            const e = payload.data;
+            const fmt = (n) => {
+              const v = Number(n || 0);
+              if (v >= 1e6) return (v / 1e6).toFixed(1) + 'M';
+              if (v >= 1e3) return (v / 1e3).toFixed(1) + 'K';
+              return String(v);
+            };
+            const grid = document.getElementById('creatorEngagement');
+            grid.hidden = false;
+            grid.innerHTML =
+              '<div class="creator-engagement-card"><strong>' + e.engagementLabel + '</strong><span>Engagement</span></div>' +
+              '<div class="creator-engagement-card"><strong>' + fmt(e.followers) + '</strong><span>Followers</span></div>' +
+              '<div class="creator-engagement-card"><strong>' + fmt(e.giftCount) + '</strong><span>Gifts received</span></div>' +
+              '<div class="creator-engagement-card"><strong>' + fmt(e.liveSessions) + '</strong><span>Live sessions</span></div>';
+            if (e.isLive && e.liveChannel) {
+              const live = document.getElementById('creatorLiveBanner');
+              const roomPage = e.liveRoomType === 'party' ? 'party-room.html' : 'live-room.html';
+              live.hidden = false;
+              live.href = '/' + roomPage + '?channel=' + encodeURIComponent(e.liveChannel) + '&app=1';
+              live.innerHTML = '<i class="fas fa-circle" style="font-size:8px"></i> LIVE now · ' + fmt(e.liveViewers) + ' watching — Tap to join';
+            }
+            if (e.isFollowing) {
+              followBtn.textContent = 'Following';
+              followBtn.classList.add('is-on');
+            }
+          }
+        } catch (_err) {
+          console.warn('creator engagement', _err);
+        }
+      }
 
       const posts = (SocialInteractions.getPosts() || []).filter((p) => p.userName === name);
       const feed = document.getElementById('creatorPosts');

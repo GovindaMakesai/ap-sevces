@@ -282,7 +282,7 @@ body.cs-page {
   background: rgba(0, 0, 0, 0.45);
   display: none;
   align-items: flex-end;
-  z-index: 50;
+  z-index: 200;
 }
 
 .cs-modal.open {

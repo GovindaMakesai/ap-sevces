@@ -404,6 +404,106 @@ html.ap-expo-app .chat-item .unread-badge {
 /* Thread view */
 html.ap-expo-app body.chat-active .chat-main {
   background: #f3f4f6;
+  display: flex !important;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  flex-direction: column;
+}
+
+html.ap-expo-app body.chat-active .chat-sidebar {
+  display: none !important;
+}
+
+html.ap-expo-app body.chat-active #activeChat {
+  display: flex !important;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  flex-direction: column;
+  height: 100%;
+}
+
+html.ap-expo-app body.chat-active .chat-page,
+html.ap-expo-app body.chat-active .chat-container,
+html.ap-expo-app body.chat-active .chat-layout {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  height: calc(100dvh - 56px);
+  max-height: calc(100dvh - 56px);
+  overflow: hidden;
+}
+
+html.ap-expo-app body.chat-active .messages-container {
+  flex: 1;
+  min-height: 120px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 768px) {
+  body.chat-active .chat-page,
+  body.chat-active .chat-container,
+  body.chat-active .chat-layout {
+    display: flex;
+    flex-direction: column;
+    height: calc(100dvh - var(--header-height, 0px));
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  body.chat-active .chat-sidebar {
+    display: none !important;
+  }
+
+  body.chat-active .chat-main {
+    display: flex !important;
+    flex: 1;
+    min-height: 0;
+    flex-direction: column;
+    width: 100%;
+  }
+
+  body.chat-active #activeChat {
+    display: flex !important;
+    flex: 1;
+    min-height: 0;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  body.chat-active .messages-container {
+    flex: 1;
+    min-height: 100px;
+    overflow-y: auto;
+  }
+
+  html.ap-expo-app .chat-layout {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  html.ap-expo-app .chat-sidebar {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+  }
+
+  html.ap-expo-app .chat-main {
+    display: none;
+    flex-direction: column;
+    min-height: 0;
+    width: 100%;
+  }
+
+  html.ap-expo-app body.chat-active .chat-main {
+    display: flex !important;
+    flex: 1;
+    min-height: 0;
+  }
 }
 
 html.ap-expo-app .chat-header {

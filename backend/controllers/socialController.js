@@ -1,6 +1,7 @@
 const followService = require('../services/followService');
 const coinSellerService = require('../services/coinSellerService');
 const socialFeedService = require('../services/socialFeedService');
+const discoverCreatorService = require('../services/discoverCreatorService');
 const fileAssetService = require('../services/fileAssetService');
 const db = require('../config/database');
 
@@ -51,6 +52,40 @@ async function followStats(req, res) {
 async function liveFollowing(req, res) {
   const data = await followService.getLiveFollowingIds(uid(req));
   res.json({ success: true, data });
+}
+
+async function discoverCreators(req, res) {
+  try {
+    const period = ['daily', 'weekly', 'monthly'].includes(req.query.period)
+      ? req.query.period
+      : 'weekly';
+    const limit = parseInt(req.query.limit, 10) || 30;
+    const data = await discoverCreatorService.discoverTopCreators({
+      period,
+      limit,
+      viewerId: req.userId || null,
+    });
+    res.json({ success: true, data });
+  } catch (e) {
+    console.error('discoverCreators error:', e);
+    res.status(500).json({ success: false, message: 'Failed to load creators' });
+  }
+}
+
+async function creatorEngagement(req, res) {
+  try {
+    const data = await discoverCreatorService.getCreatorEngagement(
+      req.params.userId,
+      req.userId || null
+    );
+    if (!data) {
+      return res.status(404).json({ success: false, message: 'Creator not found' });
+    }
+    res.json({ success: true, data });
+  } catch (e) {
+    console.error('creatorEngagement error:', e);
+    res.status(500).json({ success: false, message: 'Failed to load creator profile' });
+  }
 }
 
 async function listGiftCatalog(_req, res) {
@@ -317,6 +352,8 @@ module.exports = {
   userFollowers,
   followStats,
   liveFollowing,
+  discoverCreators,
+  creatorEngagement,
   listGiftCatalog,
   listCoinSellers,
   buyFromSeller,
