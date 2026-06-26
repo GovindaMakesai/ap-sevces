@@ -42,6 +42,14 @@ function resolveApiUrl() {
     if (typeof window.__AP_API_URL__ === 'string' && window.__AP_API_URL__) {
         return window.__AP_API_URL__.replace(/\/$/, '');
     }
+    const host = (window.location.hostname || '').toLowerCase();
+    // Root marketing domain has no /api proxy — always hit API host
+    if (host === 'apservices.in' || host === 'www.apservices.in') {
+        return LIVE_API_URL;
+    }
+    if (host === 'api.apservices.in') {
+        return `${window.location.origin.replace(/\/$/, '')}/api`;
+    }
     if (IS_EXPO_WEBVIEW || IS_CAPACITOR || window.__AP_NATIVE_APP__) {
         return LIVE_API_URL;
     }
@@ -58,6 +66,13 @@ function resolveBackendUrl() {
     }
     if (typeof window.__AP_API_URL__ === 'string' && window.__AP_API_URL__) {
         return window.__AP_API_URL__.replace(/\/api\/?$/, '');
+    }
+    const host = (window.location.hostname || '').toLowerCase();
+    if (host === 'apservices.in' || host === 'www.apservices.in') {
+        return LIVE_BACKEND_URL;
+    }
+    if (host === 'api.apservices.in') {
+        return window.location.origin.replace(/\/$/, '');
     }
     if (IS_EXPO_WEBVIEW || IS_CAPACITOR || window.__AP_NATIVE_APP__) {
         return LIVE_BACKEND_URL;

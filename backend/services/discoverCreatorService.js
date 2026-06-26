@@ -114,15 +114,16 @@ async function discoverTopCreators({ period = 'weekly', limit = 30, viewerId = n
     console.warn('discoverTopCreators following skip:', e.message);
   }
 
-  let lb = [];
-  try {
-    lb = await Promise.race([
+  const [lbSettled, fallbackSettled] = await Promise.allSettled([
+    Promise.race([
       leaderboardService.getLeaderboard(period, 'creators', lim),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('leaderboard timeout')), 6000)),
-    ]);
-  } catch (e) {
-    console.warn('discoverTopCreators leaderboard skip:', e.message);
-  }
+      new Promise((resolve) => setTimeout(() => resolve([]), 3500)),
+    ]),
+    fetchFallbackCreators(lim),
+  ]);
+
+  const lb = lbSettled.status === 'fulfilled' ? lbSettled.value : [];
+  let rows = fallbackSettled.status === 'fulfilled' ? fallbackSettled.value : [];
 
   const scoreById = new Map();
   lb.forEach((row, i) => {
@@ -130,32 +131,24 @@ async function discoverTopCreators({ period = 'weekly', limit = 30, viewerId = n
   });
 
   let orderedIds = lb.map((r) => String(r.entity_id)).filter(Boolean);
-  let rows = [];
-  try {
-    rows = orderedIds.length ? await fetchCreatorRows(orderedIds) : [];
-  } catch (e) {
-    console.warn('discoverTopCreators fetchCreatorRows skip:', e.message);
-    rows = [];
-    orderedIds = [];
-  }
+  const rowMap = new Map(rows.map((r) => [String(r.id), r]));
 
-  if (rows.length < 5) {
+  if (orderedIds.length) {
     try {
-      const fallback = await fetchFallbackCreators(lim);
-      const seen = new Set(rows.map((r) => String(r.id)));
-      for (const row of fallback) {
-        if (!seen.has(String(row.id))) {
-          rows.push(row);
-          orderedIds.push(String(row.id));
-          seen.add(String(row.id));
-        }
-      }
+      const rankedRows = await fetchCreatorRows(orderedIds);
+      rankedRows.forEach((row) => {
+        const id = String(row.id);
+        rowMap.set(id, row);
+        if (!rows.some((r) => String(r.id) === id)) rows.push(row);
+      });
     } catch (e) {
-      console.warn('discoverTopCreators fallback skip:', e.message);
+      console.warn('discoverTopCreators fetchCreatorRows skip:', e.message);
     }
   }
 
-  const rowMap = new Map(rows.map((r) => [String(r.id), r]));
+  if (!orderedIds.length && rows.length) {
+    orderedIds = rows.map((r) => String(r.id));
+  }
   const creators = [];
 
   for (const id of orderedIds) {

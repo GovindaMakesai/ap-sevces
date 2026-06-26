@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#fdf9f0">
   <title>Discover Creators - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-theme.css?v=20260626-discover-chat">
-  <link rel="stylesheet" href="social-features.css?v=20260626-discover-chat">
+  <link rel="stylesheet" href="social-theme.css?v=20260626-discover-fix">
+  <link rel="stylesheet" href="social-features.css?v=20260626-discover-fix">
   <script src="native-session-restore.js"></script>
   <script src="ap-config.js"></script>
   <script src="ap-native-boot.js"></script>
@@ -38,7 +38,7 @@
 
   <div id="social-bottom-nav-mount"></div>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=20260626-discover-fix"></script>
   <script src="social-ui.js"></script>
   <script src="auth-guard.js"></script>
   <script src="social-interactions.js"></script>
@@ -62,25 +62,52 @@
       return String(v);
     }
 
+    async function discoverApiBase() {
+      const host = (window.location.hostname || '').toLowerCase();
+      if (host === 'api.apservices.in') {
+        return window.location.origin.replace(/\/$/, '') + '/api';
+      }
+      const fromConfig = (window.CONFIG && CONFIG.API_URL) || (window.AP_CONFIG && AP_CONFIG.PRODUCTION_API_URL);
+      if (fromConfig) return String(fromConfig).replace(/\/$/, '');
+      return 'https://api.apservices.in/api';
+    }
+
     async function fetchCreators(period) {
       const path = '/social/discover/creators?period=' + encodeURIComponent(period) + '&limit=40';
-      if (window.API?.get) {
-        const data = await API.get(path);
-        if (!data?.success) throw new Error(data?.message || 'Failed to load');
-        return data.data?.creators || [];
-      }
-      const api = (window.CONFIG && CONFIG.API_URL) || 'https://api.apservices.in/api';
-      const headers = {};
+      const api = await discoverApiBase();
+      const headers = { Accept: 'application/json' };
       const token = (window.Auth && Auth.getToken && Auth.getToken()) || localStorage.getItem('token');
       if (token) headers.Authorization = 'Bearer ' + token;
-      if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken().catch(() => {});
+
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 15000);
+      const timer = setTimeout(() => controller.abort(), 20000);
       try {
-        const res = await fetch(api + path, { credentials: 'include', headers, signal: controller.signal });
-        const data = await res.json();
-        if (!data.success) throw new Error(data.message || 'Failed to load');
+        const res = await fetch(api + path, {
+          method: 'GET',
+          credentials: 'omit',
+          headers,
+          signal: controller.signal,
+          mode: 'cors',
+        });
+        const text = await res.text();
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch (_e) {
+          throw new Error('Server returned an invalid response. Try again in a moment.');
+        }
+        if (!res.ok || !data?.success) {
+          throw new Error(data?.message || ('HTTP ' + res.status));
+        }
         return data.data?.creators || [];
+      } catch (err) {
+        if (err?.name === 'AbortError') {
+          throw new Error('Request timed out. Check your connection and retry.');
+        }
+        if (err?.message === 'Failed to fetch' || /network/i.test(err?.message || '')) {
+          throw new Error('Cannot reach the server. Check your internet and retry.');
+        }
+        throw err;
       } finally {
         clearTimeout(timer);
       }
@@ -149,7 +176,8 @@
         bindCreatorActions();
       } catch (err) {
         console.error(err);
-        list.innerHTML = '<div class="discover-creators-empty"><p>Could not load creators</p><button type="button" class="btn-open" id="discoverRetry">Retry</button></div>';
+        const msg = err?.message || 'Could not load creators';
+        list.innerHTML = '<div class="discover-creators-empty"><p>' + msg.replace(/</g, '&lt;') + '</p><button type="button" class="btn-open" id="discoverRetry">Retry</button></div>';
         document.getElementById('discoverRetry')?.addEventListener('click', () => loadCreators());
       }
     }
