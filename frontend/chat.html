@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#fff9f0">
     <script src="/ap-native-boot.js"></script>
     <link rel="stylesheet" href="/social-theme.css?v=20260625chatgift">
-    <link rel="stylesheet" href="/social-chat.css?v=20260626-chat-fix3">
+    <link rel="stylesheet" href="/social-chat.css?v=20260626-chat-syntax">
     
     <!-- Font Awesome 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -2174,7 +2174,12 @@
                     (typeof Auth?.ensureAccessToken === 'function' ? Auth.ensureAccessToken() : Promise.resolve()),
                     chatRequestTimeout(5000),
                 ]).catch(() => {});
-                const response = await axiosClient.get(`/${encodeURIComponent(key)}`);
+                const response = await Promise.race([
+                    axiosClient.get(`/${encodeURIComponent(key)}`),
+                    new Promise((_, reject) =>
+                        setTimeout(() => reject(new Error('Request timed out — check connection')), 22000)
+                    ),
+                ]);
                 const payload = response.data?.data || response.data || {};
                 const serverMessages = extractServerMessages(response);
                 otherLastReadAt = payload.otherLastReadAt || response.data?.otherLastReadAt || null;
@@ -3020,7 +3025,7 @@
             document.getElementById('chatCoinRecipient').textContent = conv.name || 'User';
             try {
                 const dash = await API.get('/social/coin-seller/dashboard');
-                const inv = Number(dash.data?.sellable_coins ?? dash.data?.profile?.inventory_coins || 0);
+                const inv = Number(dash.data?.sellable_coins ?? dash.data?.profile?.inventory_coins ?? 0);
                 document.getElementById('chatCoinInventory').textContent = inv.toLocaleString('en-IN');
             } catch (_e) {
                 document.getElementById('chatCoinInventory').textContent = '—';

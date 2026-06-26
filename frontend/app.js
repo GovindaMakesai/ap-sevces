@@ -45,13 +45,10 @@ function resolveApiUrl() {
     if (IS_EXPO_WEBVIEW || IS_CAPACITOR || window.__AP_NATIVE_APP__) {
         return LIVE_API_URL;
     }
-    if (isLanDevHost() && (window.location.port === '5500' || window.location.port === '')) {
-        return `${window.location.origin.replace(/\/$/, '')}/api`;
-    }
+    if (IS_LOCAL) return LOCAL_API_URL;
     if (isVercelHost()) {
         return `${window.location.origin.replace(/\/$/, '')}/api`;
     }
-    if (IS_LOCAL) return LOCAL_API_URL;
     return LIVE_API_URL;
 }
 
@@ -65,11 +62,9 @@ function resolveBackendUrl() {
     if (IS_EXPO_WEBVIEW || IS_CAPACITOR || window.__AP_NATIVE_APP__) {
         return LIVE_BACKEND_URL;
     }
+    if (IS_LOCAL) return LOCAL_API_URL.replace(/\/api\/?$/, '');
     if (isVercelHost()) {
         return LIVE_BACKEND_URL;
-    }
-    if (isLanDevHost() && (window.location.port === '5500' || window.location.port === '')) {
-        return window.location.origin.replace(/\/$/, '');
     }
     return resolveApiUrl().replace(/\/api\/?$/, '');
 }
