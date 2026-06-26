@@ -69,6 +69,7 @@ exports.requestWithdraw = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Valid withdrawal amount required' });
     }
     let qr_image_url = null;
+    let qr_asset_id = null;
     if (req.file) {
       const asset = await fileAssetService.registerPrivateFile({
         ownerId: req.userId,
@@ -78,7 +79,8 @@ exports.requestWithdraw = async (req, res) => {
         originalName: req.file.originalname,
         sizeBytes: req.file.size,
       });
-      qr_image_url = fileAssetService.buildSignedUrl(asset.id, 3600);
+      qr_asset_id = asset.id;
+      qr_image_url = fileAssetService.buildSignedUrl(asset.id, 86400 * 7);
     } else if (req.body.qr_image_url) {
       return res.status(400).json({
         success: false,
@@ -87,12 +89,32 @@ exports.requestWithdraw = async (req, res) => {
     }
     const withdrawal = await walletService.reserveWithdrawal(req.userId, amount, {
       qr_image_url,
+      qr_asset_id,
       method: 'qr_upi',
     });
+
+    try {
+      const Notification = require('../models/Notification');
+      const adminRows = await require('../config/database').query(
+        `SELECT id FROM users WHERE role IN ('admin', 'super_admin', 'founder', 'ceo') AND is_active = TRUE LIMIT 20`
+      );
+      for (const admin of adminRows.rows) {
+        await Notification.create({
+          user_id: admin.id,
+          type: 'withdrawal',
+          title: 'New withdrawal request',
+          message: `User requested withdrawal of ${amount.toLocaleString()} points — review in Admin → Withdrawals.`,
+          data: { withdrawal_id: withdrawal.id },
+        });
+      }
+    } catch (_notifyErr) {
+      /* non-fatal */
+    }
+
     res.status(201).json({
       success: true,
       message: 'Withdrawal request submitted for admin review',
-      data: withdrawal,
+      data: transactionService.enrichWithdrawalQr(withdrawal),
     });
   } catch (err) {
     const code = err.code === 'INSUFFICIENT_BALANCE' ? 400 : 500;

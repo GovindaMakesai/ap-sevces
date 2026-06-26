@@ -17,9 +17,13 @@
       <span class="wd-header-spacer" aria-hidden="true"></span>
     </header>
 
-    <div class="wd-alert-banner">
+    <div class="wd-alert-banner" id="withdrawInfoBanner">
       <i class="fas fa-shield-alt"></i>
       <span>Upload your UPI/bank QR — admin will pay to this code after review</span>
+    </div>
+
+    <div class="wd-zero-balance" id="zeroBalanceBanner" hidden>
+      <strong>Not enough points.</strong> Withdrawals use earned points (from gifts, live, bookings), not NR coins. Earn points on your Profile → Points, then return here.
     </div>
 
     <div class="wd-gradient-card" id="balanceCard">
@@ -154,6 +158,8 @@
       document.getElementById('totalCoins').textContent = fmt(withdrawable);
       document.getElementById('withdrawableHint').textContent = fmt(withdrawable);
       document.getElementById('withdrawAmount').value = withdrawable >= minCoins ? minCoins : '';
+      const zeroBanner = document.getElementById('zeroBalanceBanner');
+      if (withdrawable < minCoins && zeroBanner) zeroBanner.hidden = false;
 
       const zone = document.getElementById('qrUploadZone');
       const input = document.getElementById('qrFile');

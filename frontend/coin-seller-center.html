@@ -56,8 +56,9 @@
     <div class="cs-balance-card">
       <div class="cs-balance-row">
         <div>
-          <div style="font-size:13px;color:#8a6914;font-weight:600">Gold balance</div>
+          <div style="font-size:13px;color:#8a6914;font-weight:600">Available to sell</div>
           <strong><span id="csBalance">0</span> <i class="fas fa-coins" style="color:#f5b800"></i></strong>
+          <div style="font-size:11px;color:#a67c00;margin-top:4px" id="csBalanceBreakdown">Wallet + seller stock</div>
         </div>
         <a href="#" id="csDetailLink" style="font-size:13px;color:#ff8c00;font-weight:700;text-decoration:none">Detail &gt;</a>
       </div>
@@ -70,10 +71,10 @@
     </div>
 
     <div class="cs-quick-grid">
+      <button type="button" class="cs-quick-btn cs-quick-btn-sell" data-action="sell"><i class="fas fa-hand-holding-usd"></i>Sell Coins</button>
       <button type="button" class="cs-quick-btn" data-action="recharge"><i class="fas fa-download"></i>Top-up</button>
       <button type="button" class="cs-quick-btn" data-action="exchange"><i class="fas fa-sync-alt"></i>Exchange</button>
       <button type="button" class="cs-quick-btn" data-action="settings"><i class="fas fa-cog"></i>Settings</button>
-      <button type="button" class="cs-quick-btn" data-action="gift"><i class="fas fa-gift"></i>Gift Box</button>
     </div>
 
     <div class="cs-banner"><i class="fas fa-bullhorn"></i> Buy Coins at Affordable Prices</div>
@@ -94,7 +95,7 @@
     <div class="cs-transfer-list" id="csTransferList"></div>
   </div>
 
-  <button type="button" class="cs-fab" id="csAddTransfer">Add Transfer</button>
+  <button type="button" class="cs-fab" id="csAddTransfer">Sell Coins</button>
   <a href="/roles-guide.html?app=1" class="cs-guide-link">How Coin Seller &amp; Host roles work</a>
 
   <!-- Transfer modal -->
@@ -114,8 +115,8 @@
         <div id="xferRecipient" style="margin-top:8px;font-size:13px;color:#666" hidden></div>
       </div>
       <div class="cs-field">
-        <label>Transfer Amount (Minimum 5,000)</label>
-        <input type="number" id="xferAmount" min="5000" step="1000" value="5000">
+        <label>Transfer Amount (Minimum 1,000)</label>
+        <input type="number" id="xferAmount" min="1000" step="1000" value="5000">
       </div>
       <label style="font-size:13px;font-weight:600">Quick Fill</label>
       <div class="cs-quick-fill" id="xferQuickFill"></div>
@@ -174,7 +175,7 @@
   <script src="social-shell.js"></script>
   <script>
     (async function () {
-      const QUICK_AMOUNTS = [5000, 30000, 50000, 100000, 150000, 300000, 500000, 1000000];
+      const QUICK_AMOUNTS = [1000, 5000, 30000, 50000, 100000, 500000, 1000000];
       let dash = null;
       let selectedPkg = null;
       let xferRecipient = null;
@@ -205,13 +206,19 @@
         document.getElementById('csAvatar').textContent = name.slice(0, 2).toUpperCase();
         document.getElementById('csName').textContent = name;
         document.getElementById('csUserId').textContent = d.user?.id || '—';
-        document.getElementById('csBalance').textContent = fmt(d.profile?.inventory_coins);
+        document.getElementById('csBalance').textContent = fmt(d.sellable_coins ?? d.profile?.inventory_coins);
+        const inv = Number(d.profile?.inventory_coins || 0);
+        const wal = Number(d.wallet?.coin_balance || 0);
+        const breakdown = document.getElementById('csBalanceBreakdown');
+        if (breakdown) {
+          breakdown.textContent = `Stock ${fmt(inv)} + wallet ${fmt(wal)}`;
+        }
         document.getElementById('csLevelBadge').textContent = (d.level?.label || 'Beginner') + ' Seller';
         document.getElementById('csStatBeans').textContent = fmt(d.stats?.beansExchanged);
         document.getElementById('csStatRecharge').textContent = '$' + fmt(d.profile?.total_recharge_usd || 0);
         document.getElementById('csStatSold').textContent = fmt(d.stats?.coinsSold);
         document.getElementById('xferBalanceHint').textContent =
-          'Seller Coin Balance: ' + fmt(d.profile?.inventory_coins);
+          'Available to sell: ' + fmt(d.sellable_coins ?? d.profile?.inventory_coins);
 
         const notice = document.getElementById('csNotice');
         if (d.lowBalanceWarning) {
@@ -297,9 +304,9 @@
       document.querySelectorAll('.cs-quick-btn').forEach((btn) => {
         btn.addEventListener('click', () => {
           const a = btn.dataset.action;
-          if (a === 'recharge') window.location.href = '/coin-seller-recharge.html?app=1';
+          if (a === 'sell') openModal('transferModal');
+          else if (a === 'recharge') window.location.href = '/coin-seller-recharge.html?app=1';
           else if (a === 'exchange') openModal('exchangeModal');
-          else if (a === 'gift') window.location.href = '/lucky-gifts.html?app=1';
           else if (a === 'settings') toast('Seller settings coming soon', 'info');
         });
       });
@@ -371,22 +378,26 @@
           window.location.href = '/login.html?app=1';
           return;
         }
-        const user = Auth.getUser();
-        const sellerRoles = ['coin_seller', 'admin', 'super_admin', 'founder', 'ceo'];
-        if (!sellerRoles.includes(user?.role)) {
-          document.getElementById('csLoading').hidden = true;
-          document.getElementById('csApply').hidden = false;
-          document.getElementById('csAddTransfer').style.display = 'none';
-          return;
-        }
         await loadDashboard();
         document.getElementById('csLoading').hidden = true;
         document.getElementById('csMain').hidden = false;
         const help = document.getElementById('csHelp');
-        if (help) help.hidden = false;
+        if (help) {
+          help.hidden = false;
+          help.querySelector('span').innerHTML =
+            '<strong>How selling works:</strong> Enter buyer User ID → Sell any amount from your wallet (min 1,000). Payment with buyer is outside the app (UPI/bank). Optional: top-up wholesale stock via Top-up.';
+        }
       } catch (e) {
-        document.getElementById('csLoading').innerHTML =
-          `<p>${e?.message || 'Failed to load'}</p><button onclick="location.reload()">Retry</button>`;
+        document.getElementById('csLoading').hidden = true;
+        const msg = e?.message || 'Failed to load';
+        if (/100,?000|seller profile|not found/i.test(msg)) {
+          document.getElementById('csApply').hidden = false;
+          document.getElementById('csAddTransfer').style.display = 'none';
+        } else {
+          document.getElementById('csLoading').hidden = false;
+          document.getElementById('csLoading').innerHTML =
+            `<p>${msg}</p><button onclick="location.reload()">Retry</button>`;
+        }
       }
     })();
   </script>

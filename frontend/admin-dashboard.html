@@ -2991,7 +2991,7 @@
             const reason = prompt('Rejection reason (optional):') || '';
             try {
                 await API.post(`/admin/withdrawals/${id}/reject`, { notes: reason });
-                Toast.show('Withdrawal rejected — coins refunded', 'success');
+                Toast.show('Withdrawal rejected — points refunded', 'success');
                 loadWithdrawals();
             } catch (error) {
                 Toast.show(error.message || 'Failed', 'error');

@@ -21,6 +21,9 @@ async function ensureWithdrawalQrSchema() {
   try {
     await client.query('BEGIN');
     await client.query(sql);
+    await client.query(`
+      ALTER TABLE withdrawals ADD COLUMN IF NOT EXISTS qr_asset_id UUID;
+    `);
     await client.query('COMMIT');
     console.log('✅ Withdrawal QR schema ready');
   } catch (err) {

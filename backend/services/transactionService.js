@@ -1,4 +1,21 @@
 const db = require('../config/database');
+const fileAssetService = require('./fileAssetService');
+
+function enrichWithdrawalQr(row) {
+  if (!row) return row;
+  const out = { ...row };
+  if (out.qr_asset_id) {
+    out.qr_image_url = fileAssetService.buildSignedUrl(out.qr_asset_id, 3600);
+  } else if (out.qr_image_url) {
+    const m = String(out.qr_image_url).match(/\/api\/files\/([a-f0-9-]+)/i);
+    if (m) out.qr_image_url = fileAssetService.buildSignedUrl(m[1], 3600);
+  }
+  return out;
+}
+
+function enrichWithdrawals(rows) {
+  return (rows || []).map(enrichWithdrawalQr);
+}
 
 async function listTransactions(userId, { limit = 30, offset = 0 } = {}) {
   const res = await db.query(
@@ -19,7 +36,7 @@ async function listWithdrawals(userId, { limit = 20, offset = 0 } = {}) {
      FROM withdrawals WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
     [userId, limit, offset]
   );
-  return res.rows;
+  return enrichWithdrawals(res.rows);
 }
 
 async function getWithdrawalById(withdrawalId, userId = null) {
@@ -31,7 +48,7 @@ async function getWithdrawalById(withdrawalId, userId = null) {
     params.push(userId);
   }
   const res = await db.query(sql, params);
-  return res.rows[0] || null;
+  return enrichWithdrawalQr(res.rows[0] || null);
 }
 
 function normalizeUtr(raw) {
@@ -154,7 +171,18 @@ async function markWithdrawalPaid(withdrawalId, adminUserId, notes) {
     [adminUserId, notes || null, withdrawalId]
   );
   if (!res.rows.length) throw new Error('Withdrawal not found or already processed');
-  return res.rows[0];
+
+  const row = res.rows[0];
+  const Notification = require('../models/Notification');
+  await Notification.create({
+    user_id: row.user_id,
+    type: 'withdrawal',
+    title: 'Withdrawal paid',
+    message: `Admin sent ₹${Number(row.amount_inr || 0).toFixed(2)} — open Withdraw details to confirm receipt.`,
+    data: { withdrawal_id: row.id, status: 'paid' },
+  });
+
+  return enrichWithdrawalQr(row);
 }
 
 async function confirmWithdrawalReceipt(withdrawalId, userId) {
@@ -177,7 +205,7 @@ async function rejectWithdrawal(withdrawalId, adminUserId, notes) {
     const withdrawal = w.rows[0];
     if (withdrawal.status !== 'pending') throw new Error('Withdrawal already processed');
 
-    await walletService.creditCoins(
+    await walletService.creditStars(
       withdrawal.user_id,
       Number(withdrawal.amount),
       { type: 'withdrawal_refund', reference_type: 'withdrawal', reference_id: withdrawal.id },
@@ -251,7 +279,7 @@ async function listPendingWithdrawals(limit = 50) {
      WHERE w.status = 'pending' ORDER BY w.created_at ASC LIMIT $1`,
     [limit]
   );
-  return res.rows;
+  return enrichWithdrawals(res.rows);
 }
 
 async function listAwaitingConfirmWithdrawals(limit = 50) {
@@ -268,6 +296,8 @@ module.exports = {
   listTransactions,
   listWithdrawals,
   getWithdrawalById,
+  enrichWithdrawalQr,
+  enrichWithdrawals,
   createRechargeRequest,
   approveRecharge,
   rejectRecharge,

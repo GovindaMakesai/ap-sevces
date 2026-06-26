@@ -52,6 +52,92 @@ body.withdraw-app input[type='file'] {
   padding: calc(12px + env(safe-area-inset-top, 0)) 16px 0;
 }
 
+.wd-header-link {
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #5b67f6;
+  text-decoration: none;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  max-width: 88px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wd-balance-card {
+  background: linear-gradient(135deg, #fda4af 0%, #f472b6 45%, #ec4899 100%);
+  border-radius: 24px;
+  padding: 24px 20px;
+  color: #fff;
+  margin-bottom: 16px;
+  text-align: center;
+  box-shadow: 0 12px 32px rgba(236, 72, 153, 0.28);
+}
+
+.wd-balance-card .main {
+  font-size: 40px;
+  font-weight: 800;
+  line-height: 1.1;
+  word-break: break-word;
+}
+
+.wd-balance-card .lbl {
+  font-size: 13px;
+  opacity: 0.92;
+  margin-top: 6px;
+}
+
+.wd-balance-row {
+  display: flex;
+  justify-content: center;
+  gap: 40px;
+  margin-top: 18px;
+  font-size: 13px;
+}
+
+.wd-balance-row > div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.wd-balance-row strong {
+  font-size: 16px;
+  line-height: 1.2;
+  word-break: break-word;
+}
+
+.wd-balance-row span {
+  font-size: 11px;
+  opacity: 0.88;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.wd-btn-pink {
+  background: linear-gradient(135deg, #f472b6, #ec4899) !important;
+  box-shadow: 0 8px 24px rgba(236, 72, 153, 0.35) !important;
+  margin-top: 8px;
+}
+
+.wd-zero-balance {
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  color: #92400e;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.45;
+  margin-bottom: 12px;
+}
+
 .wd-header {
   display: flex;
   align-items: center;
@@ -151,7 +237,8 @@ body.withdraw-app input[type='file'] {
 
 .wd-gradient-card .cols {
   display: flex;
-  gap: 32px;
+  flex-wrap: wrap;
+  gap: 16px 32px;
   margin-top: 16px;
   font-size: 13px;
   opacity: 0.95;
@@ -161,11 +248,14 @@ body.withdraw-app input[type='file'] {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
+  flex: 1 1 120px;
 }
 
 .wd-gradient-card .cols strong {
   font-size: 16px;
   line-height: 1.2;
+  word-break: break-word;
 }
 
 .wd-gradient-card .cols span {
@@ -442,12 +532,14 @@ body.withdraw-app .footer {
   margin-bottom: 12px;
   display: flex;
   gap: 12px;
+  align-items: flex-start;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
 .wd-notice-icon {
-  width: 44px;
-  height: 44px;
+  width: 52px;
+  height: 52px;
+  min-width: 52px;
   border-radius: 50%;
   background: linear-gradient(135deg, #a78bfa, #6366f1);
   color: #fff;
@@ -458,10 +550,18 @@ body.withdraw-app .footer {
   font-size: 18px;
 }
 
+.wd-notice-body {
+  flex: 1;
+  min-width: 0;
+}
+
 .wd-notice-body h4 {
   margin: 0 0 6px;
-  font-size: 14px;
+  font-size: 13px;
   color: #111827;
+  line-height: 1.35;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .wd-notice-body p {

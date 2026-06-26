@@ -249,6 +249,7 @@ async function getDashboard(userId) {
 
   const transfers = await listTransfers(userId, { limit: 20 });
   const lowBalanceUsd = Number(profile.inventory_coins) / (level.coinsPerUsd || 9100);
+  const sellableCoins = Number(profile.inventory_coins) + Number(wallet.coin_balance);
 
   return {
     profile,
@@ -257,6 +258,7 @@ async function getDashboard(userId) {
       coin_balance: Number(wallet.coin_balance),
       star_balance: Number(wallet.star_balance),
     },
+    sellable_coins: sellableCoins,
     level,
     levels: SELLER_LEVELS,
     rechargePackages: RECHARGE_PACKAGES,
@@ -310,7 +312,7 @@ async function lookupRecipient(accountId) {
 
 async function transferCoins(sellerId, { recipientId, coins, transferType = 'user' }) {
   const amount = parseInt(coins, 10);
-  if (!amount || amount < 5000) throw new Error('Minimum transfer is 5,000 coins');
+  if (!amount || amount < 1000) throw new Error('Minimum transfer is 1,000 coins');
   if (!recipientId) throw new Error('Recipient is required');
   if (String(sellerId) === String(recipientId)) throw new Error('Cannot transfer to yourself');
 
@@ -326,14 +328,49 @@ async function transferCoins(sellerId, { recipientId, coins, transferType = 'use
     );
     const seller = sellerRes.rows[0];
     if (!seller) throw new Error('Seller profile not active');
-    if (Number(seller.inventory_coins) < amount) throw new Error('Insufficient seller coin balance');
 
-    await client.query(
-      `UPDATE coin_seller_profiles
-       SET inventory_coins = inventory_coins - $2, total_sold = total_sold + $2, updated_at = CURRENT_TIMESTAMP
-       WHERE user_id = $1`,
-      [sellerId, amount]
+    const walletRes = await client.query(
+      `SELECT * FROM wallets WHERE user_id = $1 FOR UPDATE`,
+      [sellerId]
     );
+    const wallet = walletRes.rows[0];
+    const inventoryAvail = Number(seller.inventory_coins || 0);
+    const walletAvail = Number(wallet?.coin_balance || 0);
+    const totalAvail = inventoryAvail + walletAvail;
+    if (totalAvail < amount) {
+      throw new Error(`Insufficient sellable balance (have ${totalAvail.toLocaleString()}, need ${amount.toLocaleString()})`);
+    }
+
+    let fromInventory = Math.min(amount, inventoryAvail);
+    let fromWallet = amount - fromInventory;
+
+    if (fromInventory > 0) {
+      await client.query(
+        `UPDATE coin_seller_profiles
+         SET inventory_coins = inventory_coins - $2, total_sold = total_sold + $2, updated_at = CURRENT_TIMESTAMP
+         WHERE user_id = $1`,
+        [sellerId, fromInventory]
+      );
+    }
+
+    if (fromWallet > 0) {
+      await walletService.debitCoins(
+        sellerId,
+        fromWallet,
+        {
+          type: 'coin_seller_sale',
+          reference_type: 'coin_seller_transfer',
+          metadata: { recipientId: recipient.id, transferType },
+        },
+        client
+      );
+      await client.query(
+        `UPDATE coin_seller_profiles
+         SET total_sold = total_sold + $2, updated_at = CURRENT_TIMESTAMP
+         WHERE user_id = $1`,
+        [sellerId, fromWallet]
+      );
+    }
 
     await walletService.creditCoins(
       recipient.id,
@@ -341,7 +378,7 @@ async function transferCoins(sellerId, { recipientId, coins, transferType = 'use
       {
         type: 'coin_seller_transfer',
         reference_type: 'coin_seller_transfer',
-        metadata: { sellerId, transferType },
+        metadata: { sellerId, transferType, fromInventory, fromWallet },
       },
       client
     );
@@ -356,7 +393,7 @@ async function transferCoins(sellerId, { recipientId, coins, transferType = 'use
     await auditLogService.log(sellerId, 'coin_seller.transfer', {
       entity_type: 'coin_seller_transfer',
       entity_id: xfer.rows[0].id,
-      metadata: { recipientId: recipient.id, coins: amount },
+      metadata: { recipientId: recipient.id, coins: amount, fromInventory, fromWallet },
     });
     return { transfer: xfer.rows[0], recipient };
   } catch (e) {

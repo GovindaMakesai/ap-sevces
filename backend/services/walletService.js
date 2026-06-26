@@ -278,7 +278,7 @@ function generateOrderNumber() {
   return `${ts}${rand}`;
 }
 
-async function reserveWithdrawal(userId, amount, { qr_image_url, method } = {}) {
+async function reserveWithdrawal(userId, amount, { qr_image_url, qr_asset_id, method } = {}) {
   const settings = await getWalletSettings();
   const amt = BigInt(amount);
   if (amt < BigInt(settings.min_withdrawal_coins)) {
@@ -296,9 +296,9 @@ async function reserveWithdrawal(userId, amount, { qr_image_url, method } = {}) 
     await client.query('BEGIN');
     await debitStars(userId, Number(amt), { type: 'withdrawal_hold', reference_type: 'withdrawal' }, client);
     const w = await client.query(
-      `INSERT INTO withdrawals (user_id, amount, status, method, qr_image_url, order_number, amount_inr)
-       VALUES ($1, $2, 'pending', $3, $4, $5, $6) RETURNING *`,
-      [userId, amt.toString(), method || 'qr_upi', String(qr_image_url).trim(), orderNumber, amountInr]
+      `INSERT INTO withdrawals (user_id, amount, status, method, qr_image_url, qr_asset_id, order_number, amount_inr)
+       VALUES ($1, $2, 'pending', $3, $4, $5, $6, $7) RETURNING *`,
+      [userId, amt.toString(), method || 'qr_upi', String(qr_image_url).trim(), qr_asset_id || null, orderNumber, amountInr]
     );
     await client.query('COMMIT');
     return w.rows[0];
