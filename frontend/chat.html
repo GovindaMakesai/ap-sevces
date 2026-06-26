@@ -6,8 +6,8 @@
     <title>Message - AP Services</title>
     <meta name="theme-color" content="#fff9f0">
     <script src="/ap-native-boot.js"></script>
-    <link rel="stylesheet" href="/social-theme.css?v=20260626-chat-fullwidth">
-    <link rel="stylesheet" href="/social-chat.css?v=20260626-chat-fullwidth">
+    <link rel="stylesheet" href="/social-theme.css?v=20260626-chat-app">
+    <link rel="stylesheet" href="/social-chat.css?v=20260626-chat-app">
     
     <!-- Font Awesome 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -53,7 +53,7 @@
             border: none;
             box-shadow: none;
             grid-template-columns: unset;
-            height: 100dvh;
+            height: 100%;
             min-height: 0;
         }
 
@@ -2108,15 +2108,20 @@
                 if (sendBtn) sendBtn.disabled = false;
                 return;
             }
-            banner.hidden = false;
-            if (infoBtn) infoBtn.hidden = false;
             const remaining = Math.max(0, Number(quota.remaining) || 0);
             const limit = Number(quota.limit) || 5;
-            text.textContent =
-                remaining > 0
-                    ? `Starter messages: ${remaining} left (${quota.used || 0}/${limit} used).`
-                    : `Message limit reached (${limit}). Contact support to continue.`;
-            banner.classList.toggle('is-limit', remaining <= 0);
+            if (remaining > 0) {
+                banner.hidden = true;
+                banner.classList.remove('is-limit');
+                if (infoBtn) infoBtn.hidden = true;
+                if (input) input.disabled = false;
+                if (sendBtn) sendBtn.disabled = false;
+                return;
+            }
+            banner.hidden = false;
+            if (infoBtn) infoBtn.hidden = false;
+            text.textContent = `Message limit reached (${limit}). Contact support to continue.`;
+            banner.classList.add('is-limit');
             if (!infoBtn?.dataset.bound) {
                 infoBtn.dataset.bound = '1';
                 infoBtn.addEventListener('click', () => {
@@ -2126,7 +2131,7 @@
                     );
                 });
             }
-            const blocked = remaining <= 0;
+            const blocked = true;
             if (input) input.disabled = blocked;
             if (sendBtn) sendBtn.disabled = blocked;
         }
