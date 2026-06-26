@@ -44,6 +44,7 @@
       'html.ap-expo-app .chat-tab.active{background:linear-gradient(135deg,#d4a84b,#9a7218)!important;color:#fff!important}',
       'html.ap-expo-app .chat-item.active{background:rgba(201,162,39,.12)!important;border-left-color:#c9a227!important}',
       'html.ap-expo-app .message-wrapper.sent .message-content{background:linear-gradient(135deg,#d4a84b,#9a7218)!important;color:#fff!important}',
+      'html.ap-expo-app .message-wrapper.received .message-content{background:#fff!important;color:#1f2937!important}',
       'html.ap-expo-app .chat-input-wrapper:focus-within{border-color:#c9a227!important;box-shadow:0 0 0 3px rgba(201,162,39,.2)!important}',
       'html.ap-expo-app .send-btn,html.ap-expo-app .chat-input-action.send-btn{background:linear-gradient(135deg,#ff8c42,#f59e0b)!important;color:#fff!important}',
       'html.ap-expo-app .unread-badge{background:#f59e0b!important}',
@@ -55,7 +56,8 @@
 
   if (path.includes('chat')) {
     const markChatBoot = function () {
-      if (document.body) document.body.classList.add('ap-chat-boot');
+      if (!document.body || document.body.classList.contains('ap-chat-ready')) return;
+      document.body.classList.add('ap-chat-boot');
     };
     if (document.body) markChatBoot();
     else document.addEventListener('DOMContentLoaded', markChatBoot, { once: true });

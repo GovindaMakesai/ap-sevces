@@ -595,6 +595,48 @@ html.ap-expo-app .message-content {
   word-break: break-word;
 }
 
+html.ap-expo-app .message-wrapper {
+  width: 100%;
+}
+
+html.ap-expo-app .message-wrapper.received .message-content {
+  background: #ffffff !important;
+  color: #1f2937 !important;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+html.ap-expo-app .message-wrapper.sent .message-content {
+  background: linear-gradient(135deg, #d4a84b, #9a7218) !important;
+  color: #ffffff !important;
+}
+
+html.ap-expo-app .message-wrapper.received .message-time {
+  color: #9ca3af !important;
+}
+
+html.ap-expo-app .message-wrapper.sent .message-time {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.msg-empty-placeholder {
+  font-style: italic;
+  opacity: 0.65;
+  font-size: 13px;
+}
+
+html.ap-expo-app .message-bubble.sent .message-content,
+html.ap-expo-app .message-bubble.received .message-content {
+  border-radius: 16px;
+}
+
+html.ap-expo-app .message-image {
+  display: block;
+  max-width: min(240px, 72vw);
+  border-radius: 12px;
+  margin-top: 4px;
+}
+
 html.ap-expo-app .chat-header {
   background: #fff;
   border-bottom: 1px solid var(--ap-msg-line);
@@ -633,15 +675,17 @@ html.ap-expo-app .messages-container {
   padding: 12px;
 }
 
-html.ap-expo-app .message-bubble.sent {
-  background: var(--ap-msg-bubble-out);
-  color: var(--ap-msg-text);
+html.ap-expo-app .message-bubble.sent,
+html.ap-expo-app .message-wrapper.sent .message-bubble {
+  background: transparent;
+  color: inherit;
   border: none;
 }
 
-html.ap-expo-app .message-bubble.received {
-  background: var(--ap-msg-bubble-in);
-  border: 1px solid #e5e7eb;
+html.ap-expo-app .message-bubble.received,
+html.ap-expo-app .message-wrapper.received .message-bubble {
+  background: transparent;
+  border: none;
 }
 
 .ap-msg-quick-row {

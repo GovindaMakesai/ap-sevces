@@ -127,7 +127,7 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 
 app.use('/uploads', (req, res, next) => {
   const p = req.path.toLowerCase();
-  if (p.includes('/private') || p.includes('/kyc') || p.includes('/withdrawal') || p.startsWith('/chat/')) {
+  if (p.includes('/private') || p.includes('/kyc') || p.includes('/withdrawal')) {
     return res.status(403).json({ success: false, message: 'Use signed file URL for private assets' });
   }
   return next();

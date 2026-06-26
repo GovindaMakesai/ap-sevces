@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#fff9f0">
     <script src="/ap-native-boot.js"></script>
     <link rel="stylesheet" href="/social-theme.css?v=20260625chatgift">
-    <link rel="stylesheet" href="/social-chat.css?v=20260625-chat-fix3">
+    <link rel="stylesheet" href="/social-chat.css?v=20260626-chat-blank">
     
     <!-- Font Awesome 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -1391,7 +1391,7 @@
             const officialRoles = ['admin', 'super_admin', 'founder', 'ceo'];
             const isOfficial = officialRoles.includes(ou.role) || name === 'AP Services';
             return {
-                id: String(convId),
+                id: chatKey(convId),
                 name,
                 first_name: ou.first_name || 'User',
                 last_name: ou.last_name || '',
@@ -1401,7 +1401,7 @@
                 isOfficial,
                 bookingId: null,
                 category: ou.role || 'customer',
-                lastMessage: lastMessageText || 'No messages yet',
+                lastMessage: formatListPreview(lastMessageText),
                 time: formatTime(lastMessageAt),
                 otherUserId: String(ou.id || '')
             };
@@ -1547,7 +1547,24 @@
         }
 
         function chatKey(id) {
-            return String(id || '');
+            const s = String(id || '').trim();
+            if (/^[0-9a-f-]{36}$/i.test(s)) return s.toLowerCase();
+            return s;
+        }
+
+        function messageTextFromServer(msg) {
+            if (!msg) return '';
+            if (msg.text != null && String(msg.text).trim() !== '') return String(msg.text);
+            if (msg.body != null && String(msg.body).trim() !== '') return String(msg.body);
+            if (msg.message != null && String(msg.message).trim() !== '') return String(msg.message);
+            return '';
+        }
+
+        function formatListPreview(text) {
+            const raw = String(text || '').trim();
+            if (!raw) return 'No messages yet';
+            if (raw.startsWith('__IMG__:')) return '📷 Photo';
+            return raw.length > 120 ? `${raw.slice(0, 117)}…` : raw;
         }
 
         const socketService = (() => {
@@ -1655,8 +1672,8 @@
         function mapServerMessageToUi(msg, readAtIso) {
             const id = String(msg.id);
             const me = getMyUserId();
-            let rawText = msg.text != null ? String(msg.text) : '';
-            let imagePath = msg.imageUrl;
+            let rawText = messageTextFromServer(msg);
+            let imagePath = msg.imageUrl || msg.image || null;
             if (!imagePath && rawText.startsWith('__IMG__:')) {
                 imagePath = rawText.slice('__IMG__:'.length);
                 rawText = '';
@@ -1747,7 +1764,7 @@
                 const hasUnread = (chat.unread || 0) > 0;
                 const safeId = escapeHtml(String(chat.id));
                 const safeName = escapeHtml(chat.name || 'User');
-                const safeLast = escapeHtml(chat.lastMessage || '');
+                const safeLast = escapeHtml(formatListPreview(chat.lastMessage));
                 const safeAvatar = escapeHtml(chat.avatar || initialsFromName(chat.first_name, chat.last_name));
                 const safeTime = escapeHtml(chat.time || '');
                 return `
@@ -1940,7 +1957,7 @@
             try {
                 const response = await axiosClient.get('/conversations');
                 const conversations = (response.data?.data?.conversations || []).map((conv) => ({
-                    id: String(conv.id),
+                    id: chatKey(conv.id),
                     name: conv.otherUser?.displayName || `${conv.otherUser?.first_name || 'User'} ${conv.otherUser?.last_name || ''}`.trim(),
                     first_name: conv.otherUser?.first_name || 'User',
                     last_name: conv.otherUser?.last_name || '',
@@ -1950,7 +1967,7 @@
                     isOfficial: Boolean(conv.isOfficial),
                     bookingId: null,
                     category: conv.otherUser?.role || 'customer',
-                    lastMessage: conv.lastMessageText || 'No messages yet',
+                    lastMessage: formatListPreview(conv.lastMessageText || conv.lastMessage || conv.body),
                     time: formatTime(conv.lastMessageAt),
                     otherUserId: String(conv.otherUser?.id || '')
                 }));
@@ -2140,12 +2157,16 @@
                     lastDate = currentDate;
                 }
                 
+                const bodyText = String(msg.text || '').trim();
+                const bodyHtml = bodyText
+                    ? escapeHtml(bodyText)
+                    : (msg.image ? '' : '<span class="msg-empty-placeholder">Message unavailable</span>');
                 html += `
                     <div class="message-wrapper ${msg.type}" data-msg-id="${escapeHtml(String(msg.id || ''))}">
-                        <div class="message-bubble" data-msg-text="${escapeHtml(msg.text || '')}">
+                        <div class="message-bubble ${msg.type}" data-msg-text="${escapeHtml(bodyText)}">
                             <div class="message-content">
-                                ${escapeHtml(msg.text || '')}
-                                ${msg.image ? `<img src="${escapeHtml(msg.image)}" class="message-image" alt="" onclick='openImageModal(${JSON.stringify(msg.image)})'>` : ''}
+                                ${bodyHtml}
+                                ${msg.image ? `<img src="${escapeHtml(msg.image)}" class="message-image" alt="Photo" loading="lazy" onclick='openImageModal(${JSON.stringify(msg.image)})'>` : ''}
                             </div>
                             <div class="message-time">
                                 <span>${msg.time}</span>
@@ -2351,7 +2372,7 @@
 
             socket.on('receive_message', async (payload) => {
                 hideTypingIndicator();
-                const conversationId = String(payload.conversationId);
+                const conversationId = chatKey(payload.conversationId);
                 const mid = String(payload.id);
                 const isMine = String(payload.senderId || '').toLowerCase() === getMyUserId();
 
@@ -2378,15 +2399,15 @@
                     return { messages: { ...state.messages, [conversationId]: existing } };
                 });
 
-                if (String(currentChatId) === conversationId) {
+                if (chatKey(currentChatId) === conversationId) {
                     renderActiveMessages();
-                    socket.emit('messages_read', { conversationId });
+                    socket.emit('messages_read', { conversationId: currentChatId });
                 }
                 await loadConversations();
             });
 
             socket.on('message_delivered', (payload) => {
-                const conversationId = String(payload.conversationId);
+                const conversationId = chatKey(payload.conversationId);
                 const messageId = String(payload.messageId);
                 useChatStore.setState((state) => ({
                     messages: {
@@ -2398,12 +2419,12 @@
                         ),
                     },
                 }));
-                if (String(currentChatId) === conversationId) renderActiveMessages();
+                if (chatKey(currentChatId) === conversationId) renderActiveMessages();
             });
 
             socket.on('messages_read', (payload) => {
-                const conversationId = String(payload.conversationId);
-                if (String(currentChatId) === conversationId) {
+                const conversationId = chatKey(payload.conversationId);
+                if (chatKey(currentChatId) === conversationId) {
                     otherLastReadAt = payload.readAt || new Date().toISOString();
                 }
                 useChatStore.setState((state) => ({
@@ -2414,11 +2435,11 @@
                         ),
                     },
                 }));
-                if (String(currentChatId) === conversationId) renderActiveMessages();
+                if (chatKey(currentChatId) === conversationId) renderActiveMessages();
             });
 
             socket.on('user_typing', (payload) => {
-                if (String(payload.conversationId) !== String(currentChatId)) return;
+                if (chatKey(payload.conversationId) !== chatKey(currentChatId)) return;
                 if (payload.userId && String(payload.userId) === getMyUserId()) return;
                 if (payload.isTyping) showTypingIndicator();
                 else hideTypingIndicator();
