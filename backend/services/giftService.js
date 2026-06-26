@@ -31,14 +31,24 @@ async function resolveGiftAmount(giftType, coinAmount) {
   );
 
   if (!res.rows[0]) {
+    const withCost = `${slug}_${amount}`;
+    res = await db.query(
+      `SELECT slug, coin_cost, emoji, name FROM gift_catalog
+       WHERE is_active = TRUE AND slug = $1
+       LIMIT 1`,
+      [withCost]
+    );
+  }
+
+  if (!res.rows[0]) {
     const byCost = await db.query(
       `SELECT slug, coin_cost FROM gift_catalog
        WHERE is_active = TRUE AND coin_cost = $1
        ORDER BY sort_order ASC`,
       [amount]
     );
-    if (byCost.rows.length === 1) {
-      res = byCost;
+    if (byCost.rows.length >= 1) {
+      return amount;
     }
   }
 

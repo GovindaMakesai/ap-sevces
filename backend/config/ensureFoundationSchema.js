@@ -93,9 +93,9 @@ async function seedRolesAndPermissions(client) {
     founder: ['wallet.read', 'wallet.recharge', 'wallet.withdraw', 'wallet.gift', 'live.join', 'live.host', 'admin.wallet', 'admin.withdrawals', 'admin.recharges', 'admin.users'],
     ceo: ['wallet.read', 'wallet.recharge', 'wallet.withdraw', 'wallet.gift', 'live.join', 'live.host', 'admin.wallet', 'admin.withdrawals', 'admin.recharges', 'admin.users'],
     bdm: ['wallet.read', 'live.join', 'live.host'],
-    agency: ['wallet.read', 'wallet.recharge', 'wallet.withdraw', 'live.join', 'live.host'],
+    agency: ['wallet.read', 'wallet.recharge', 'wallet.withdraw', 'wallet.gift', 'live.join', 'live.host'],
     vip_user: ['wallet.read', 'wallet.recharge', 'wallet.gift', 'live.join', 'live.host'],
-    coin_seller: ['wallet.read', 'wallet.recharge', 'admin.wallet', 'live.join', 'live.host'],
+    coin_seller: ['wallet.read', 'wallet.recharge', 'wallet.withdraw', 'wallet.gift', 'live.join', 'live.host'],
   };
 
   for (const [roleSlug, permSlugs] of Object.entries(rolePermMap)) {

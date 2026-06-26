@@ -61,8 +61,14 @@
 
   async function sendGift(payload) {
     const res = await API.post('/wallet/gifts', payload);
-    if (res.data?.balance) {
-      cached = res.data.balance;
+    const inner = res?.data || res;
+    const balance = inner?.balance;
+    if (balance && typeof balance === 'object') {
+      cached = {
+        coin_balance: balance.coin_balance ?? cached.coin_balance,
+        star_balance: balance.star_balance ?? cached.star_balance,
+      };
+      lastFetch = Date.now();
       document.dispatchEvent(new CustomEvent('wallet:balance', { detail: cached }));
     }
     return res;

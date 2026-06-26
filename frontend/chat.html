@@ -6,8 +6,8 @@
     <title>Message - AP Services</title>
     <meta name="theme-color" content="#fff9f0">
     <script src="/ap-native-boot.js"></script>
-    <link rel="stylesheet" href="/social-theme.css?v=20260625chat">
-    <link rel="stylesheet" href="/social-chat.css?v=20260625chat">
+    <link rel="stylesheet" href="/social-theme.css?v=20260625chatgift">
+    <link rel="stylesheet" href="/social-chat.css?v=20260625chatgift2">
     
     <!-- Font Awesome 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -2596,22 +2596,67 @@
             });
         }
 
+        function chatGiftSlugFor(item) {
+            if (item?.slug) return item.slug;
+            const base = String(item?.name || 'gift')
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, '_')
+                .replace(/^_|_$/g, '');
+            const cost = Number(item?.coin_cost ?? item?.cost) || 0;
+            return `${base}_${cost}`;
+        }
+
+        function parseGiftCatalogRows(res) {
+            if (Array.isArray(res)) return res;
+            if (Array.isArray(res?.data)) return res.data;
+            if (Array.isArray(res?.data?.data)) return res.data.data;
+            return [];
+        }
+
         function defaultChatGiftCatalog() {
-            const fromApi = window.AP_LIVE_EMOJI?.GIFT_CATALOG?.gift;
-            if (fromApi?.length) {
-                return fromApi.map((g, i) => ({
-                    slug: String(g.name || `gift_${i}`).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || `gift_${i}`,
-                    emoji: g.emoji,
-                    name: g.name,
-                    coin_cost: Number(g.cost) || 10,
-                }));
+            const catalog = window.AP_LIVE_EMOJI?.GIFT_CATALOG;
+            if (catalog && typeof catalog === 'object') {
+                const merged = [];
+                const seen = new Set();
+                Object.values(catalog).forEach((items) => {
+                    (items || []).forEach((g) => {
+                        const coin_cost = Number(g.cost) || 10;
+                        const slug = chatGiftSlugFor({ ...g, coin_cost });
+                        const key = `${slug}:${coin_cost}`;
+                        if (seen.has(key)) return;
+                        seen.add(key);
+                        merged.push({
+                            slug,
+                            emoji: g.emoji || '🎁',
+                            name: g.name || 'Gift',
+                            coin_cost,
+                        });
+                    });
+                });
+                if (merged.length) {
+                    merged.sort((a, b) => a.coin_cost - b.coin_cost);
+                    return merged;
+                }
             }
             return [
-                { slug: 'heart', emoji: '❤️', name: 'Heart', coin_cost: 10 },
-                { slug: 'rose', emoji: '🌹', name: 'Rose', coin_cost: 100 },
-                { slug: 'flowers', emoji: '💐', name: 'Flowers', coin_cost: 50 },
-                { slug: 'coffee', emoji: '☕', name: 'Coffee', coin_cost: 500 },
+                { slug: 'heart_10', emoji: '❤️', name: 'Heart', coin_cost: 10 },
+                { slug: 'flowers_50', emoji: '💐', name: 'Flowers', coin_cost: 50 },
+                { slug: 'rose_100', emoji: '🌹', name: 'Rose', coin_cost: 100 },
+                { slug: 'coffee_500', emoji: '☕', name: 'Coffee', coin_cost: 500 },
             ];
+        }
+
+        function resolveActiveChatRecipient() {
+            const conv = useChatStore.getState().conversations.find((c) => String(c.id) === String(currentChatId));
+            if (conv?.otherUserId) {
+                return { conv, otherUserId: String(conv.otherUserId) };
+            }
+            const node = document.querySelector(`.chat-item[data-chat-id="${currentChatId}"]`);
+            const fromDom = node?.dataset?.userId;
+            if (fromDom) {
+                return { conv, otherUserId: String(fromDom) };
+            }
+            return { conv: null, otherUserId: '' };
         }
 
         async function setupChatGiftSheet() {
@@ -2620,19 +2665,27 @@
             document.getElementById('chatGiftClose')?.addEventListener('click', () => {
                 sheet.hidden = true;
             });
-            document.getElementById('chatGiftSend')?.addEventListener('click', sendChatGift);
+            sheet.addEventListener('click', (e) => {
+                if (e.target === sheet) sheet.hidden = true;
+            });
+            sheet.querySelector('.chat-gift-panel')?.addEventListener('click', (e) => e.stopPropagation());
+            document.getElementById('chatGiftSend')?.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                sendChatGift();
+            });
             chatGiftCatalog = defaultChatGiftCatalog();
             renderChatGiftGrid();
             try {
                 if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken();
                 const res = await API.get('/social/gifts/catalog');
-                const rows = res.data || [];
+                const rows = parseGiftCatalogRows(res);
                 if (rows.length) {
                     chatGiftCatalog = rows.map((g) => ({
-                        slug: g.slug,
+                        slug: g.slug || chatGiftSlugFor(g),
                         emoji: g.emoji || '🎁',
                         name: g.name || 'Gift',
-                        coin_cost: Number(g.coin_cost || g.cost) || 10,
+                        coin_cost: Number(g.coin_cost ?? g.cost) || 10,
                     }));
                     renderChatGiftGrid();
                 }
@@ -2737,24 +2790,46 @@
                 Toast.show('Open a conversation first', 'warning');
                 return;
             }
+            const { otherUserId } = resolveActiveChatRecipient();
+            if (!otherUserId) {
+                Toast.show('Could not find recipient — reopen this chat', 'warning');
+                return;
+            }
             const sheet = document.getElementById('chatGiftSheet');
             if (!sheet) return;
-            if (window.SocialWallet) {
-                const b = await SocialWallet.fetchBalance(true);
-                document.getElementById('chatGiftBalance').textContent = (b.coin_balance || 0).toLocaleString();
+            if (!chatGiftCatalog.length) {
+                chatGiftCatalog = defaultChatGiftCatalog();
+                renderChatGiftGrid();
+            }
+            try {
+                if (window.SocialWallet) {
+                    const b = await SocialWallet.fetchBalance(true);
+                    document.getElementById('chatGiftBalance').textContent = (b.coin_balance || 0).toLocaleString();
+                }
+            } catch (_e) {
+                document.getElementById('chatGiftBalance').textContent = '0';
             }
             sheet.hidden = false;
         }
 
         async function sendChatGift() {
-            const conv = useChatStore.getState().conversations.find((c) => String(c.id) === String(currentChatId));
-            if (!conv?.otherUserId) {
+            if (!currentChatId) {
                 Toast.show('Open a conversation first', 'warning');
+                return;
+            }
+            const { conv, otherUserId } = resolveActiveChatRecipient();
+            if (!otherUserId) {
+                Toast.show('Could not find recipient — reopen this chat', 'warning');
                 return;
             }
             const g = chatGiftCatalog[selectedChatGiftIdx];
             if (!g) {
                 Toast.show('Select a gift', 'warning');
+                return;
+            }
+            const coinCost = Number(g.coin_cost) || 0;
+            if (!coinCost) {
+                Toast.show('Invalid gift — reload the page', 'warning');
                 return;
             }
             const btn = document.getElementById('chatGiftSend');
@@ -2764,32 +2839,73 @@
             }
             try {
                 if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken();
+                const balance = await SocialWallet?.fetchBalance?.(true);
+                if (balance && Number(balance.coin_balance || 0) < coinCost) {
+                    Toast.show('Not enough coins — recharge first', 'warning');
+                    setTimeout(() => {
+                        window.location.href = '/coins-recharge.html?app=1';
+                    }, 600);
+                    return;
+                }
+                const giftSlug = g.slug || chatGiftSlugFor(g);
                 const payload = {
-                    receiver_id: conv.otherUserId,
-                    coin_amount: Number(g.coin_cost),
-                    gift_type: g.slug || g.name || g.emoji,
+                    receiver_id: otherUserId,
+                    coin_amount: coinCost,
+                    gift_type: giftSlug,
                 };
                 if (window.SocialWallet?.sendGift) {
                     await SocialWallet.sendGift(payload);
                 } else {
                     await API.post('/wallet/gifts', payload);
                 }
-                const giftEvt = { from: 'You', to: conv.name, emoji: g.emoji, amount: g.coin_cost, qty: 1 };
+                const recipientName = conv?.name || document.getElementById('chatUserName')?.textContent || 'User';
+                const giftEvt = { from: 'You', to: recipientName, emoji: g.emoji, amount: coinCost, qty: 1 };
                 window.SocialFX?.playGift?.(giftEvt, { combo: 1 });
                 document.getElementById('chatGiftSheet').hidden = true;
                 Toast.show('Gift sent!', 'success');
-                await axiosClient.post('/send', {
-                    receiverId: conv.otherUserId,
-                    text: `🎁 Sent ${g.emoji} ${g.name} (${g.coin_cost} coins)`,
-                });
-                await loadMessages(currentChatId);
+                try {
+                    await axiosClient.post('/send', {
+                        receiverId: otherUserId,
+                        text: `🎁 Sent ${g.emoji} ${g.name} (${coinCost} coins)`,
+                    });
+                    await loadMessages(currentChatId);
+                } catch (msgErr) {
+                    console.warn('Gift sent but chat notice failed:', msgErr?.response?.data?.message || msgErr?.message);
+                }
             } catch (e) {
+                const status = e?.status || e?.response?.status;
                 const msg =
                     e?.message ||
                     e?.response?.data?.message ||
                     window.SocialUI?.friendlyMessage?.(e.message) ||
                     'Could not send gift';
-                Toast.show(msg, 'error');
+                if (status === 403 || /insufficient permissions/i.test(msg)) {
+                    Toast.show('Gift sending is not enabled for your account — contact support or try again after reload', 'error');
+                } else if (/insufficient/i.test(msg)) {
+                    Toast.show('Not enough coins — recharge first', 'warning');
+                    setTimeout(() => {
+                        window.location.href = '/coins-recharge.html?app=1';
+                    }, 600);
+                } else if (/unknown gift/i.test(msg)) {
+                    Toast.show('Gift catalog outdated — reloading…', 'warning');
+                    try {
+                        const res = await API.get('/social/gifts/catalog');
+                        const rows = parseGiftCatalogRows(res);
+                        if (rows.length) {
+                            chatGiftCatalog = rows.map((row) => ({
+                                slug: row.slug || chatGiftSlugFor(row),
+                                emoji: row.emoji || '🎁',
+                                name: row.name || 'Gift',
+                                coin_cost: Number(row.coin_cost ?? row.cost) || 10,
+                            }));
+                            renderChatGiftGrid();
+                        }
+                    } catch (_reloadErr) {
+                        /* ignore */
+                    }
+                } else {
+                    Toast.show(msg, 'error');
+                }
             } finally {
                 if (btn) {
                     btn.disabled = false;
