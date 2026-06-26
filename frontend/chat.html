@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#fff9f0">
     <script src="/ap-native-boot.js"></script>
     <link rel="stylesheet" href="/social-theme.css?v=20260625chatgift">
-    <link rel="stylesheet" href="/social-chat.css?v=20260625-chat-fix2">
+    <link rel="stylesheet" href="/social-chat.css?v=20260625-chat-fix3">
     
     <!-- Font Awesome 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -308,6 +308,13 @@
             min-height: 0;
         }
 
+        .chat-thread-pane {
+            flex: 1 1 0;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
         .chat-header {
             flex-shrink: 0;
             padding: var(--spacing-lg);
@@ -436,6 +443,8 @@
             border-radius: var(--radius-lg);
             position: relative;
             word-wrap: break-word;
+            white-space: pre-wrap;
+            word-break: break-word;
         }
 
         .message-wrapper.sent .message-content {
@@ -1112,7 +1121,7 @@
                     </div>
 
                     <!-- Active Chat (Hidden by default) -->
-                    <div id="activeChat" style="display: none; height: 100%; min-height: 0; flex-direction: column;">
+                    <div id="activeChat" class="chat-thread-pane" style="display: none; height: 100%; min-height: 0; flex-direction: column;">
                         <!-- Chat Header -->
                         <div class="chat-header">
                             <button type="button" class="chat-back-btn" onclick="closeMobileChat()" aria-label="Back to conversations">
@@ -1504,17 +1513,41 @@
             if (t) config.headers.Authorization = `Bearer ${t}`;
             return config;
         });
+        axiosClient.interceptors.response.use(
+            (response) => response,
+            async (error) => {
+                const status = error?.response?.status;
+                const original = error?.config;
+                if (status === 401 && original && !original.__apChatRetried && typeof Auth?.ensureAccessToken === 'function') {
+                    original.__apChatRetried = true;
+                    await Auth.ensureAccessToken().catch(() => {});
+                    const t = getChatToken();
+                    if (t) {
+                        original.headers = original.headers || {};
+                        original.headers.Authorization = `Bearer ${t}`;
+                        return axiosClient.request(original);
+                    }
+                }
+                return Promise.reject(error);
+            }
+        );
 
         function getMyUserId() {
             try {
-                if (AppState.user?.id) return String(AppState.user.id);
+                const authUser = typeof Auth !== 'undefined' && Auth.getUser?.();
+                if (authUser?.id) return String(authUser.id).toLowerCase();
+                if (AppState.user?.id) return String(AppState.user.id).toLowerCase();
                 const raw = localStorage.getItem('user');
                 if (raw) {
                     const u = JSON.parse(raw);
-                    if (u?.id) return String(u.id);
+                    if (u?.id) return String(u.id).toLowerCase();
                 }
             } catch (_e) { /* ignore */ }
             return '';
+        }
+
+        function chatKey(id) {
+            return String(id || '');
         }
 
         const socketService = (() => {
@@ -1629,7 +1662,7 @@
                 rawText = '';
             }
             const image = imagePath ? absoluteUploadUrl(imagePath) : null;
-            const type = String(msg.senderId) === me ? 'sent' : 'received';
+            const type = String(msg.senderId || '').toLowerCase() === me ? 'sent' : 'received';
             const status = type === 'sent' ? deriveMessageStatus({ type, status: msg.status, createdAt: msg.createdAt }, readAtIso) : 'read';
             return {
                 id,
@@ -1943,11 +1976,15 @@
             const banner = document.getElementById('apMsgQuotaBanner');
             const text = document.getElementById('apMsgQuotaText');
             const infoBtn = document.getElementById('apMsgQuotaInfo');
+            const input = document.getElementById('messageInput');
+            const sendBtn = document.getElementById('sendBtn');
             if (!banner || !text) return;
             if (!quota?.limited) {
                 banner.hidden = true;
                 banner.classList.remove('is-limit');
                 if (infoBtn) infoBtn.hidden = true;
+                if (input) input.disabled = false;
+                if (sendBtn) sendBtn.disabled = false;
                 return;
             }
             banner.hidden = false;
@@ -1968,8 +2005,6 @@
                     );
                 });
             }
-            const input = document.getElementById('messageInput');
-            const sendBtn = document.getElementById('sendBtn');
             const blocked = remaining <= 0;
             if (input) input.disabled = blocked;
             if (sendBtn) sendBtn.disabled = blocked;
@@ -1984,7 +2019,7 @@
                     clearTimeout(typingTimeout);
                     emitTypingState(false);
                 }
-                currentChatId = String(chatId);
+                currentChatId = chatKey(chatId);
                 useChatStore.setState({ activeConversationId: currentChatId });
                 const socket = socketService.get();
                 if (socket) {
@@ -1998,8 +2033,13 @@
                 if (activeNode) activeNode.classList.add('active');
 
                 document.getElementById('emptyChat').style.display = 'none';
-                document.getElementById('activeChat').style.display = 'flex';
+                const activeChat = document.getElementById('activeChat');
+                activeChat.style.display = 'flex';
                 document.body.classList.add('chat-active');
+                const messageInput = document.getElementById('messageInput');
+                const sendBtn = document.getElementById('sendBtn');
+                if (messageInput) messageInput.disabled = false;
+                if (sendBtn) sendBtn.disabled = false;
 
                 const messagesContainer = document.getElementById('messagesContainer');
                 if (messagesContainer) {
@@ -2046,11 +2086,16 @@
         async function loadMessages(chatId) {
             const messagesContainer = document.getElementById('messagesContainer');
             if (!messagesContainer) return;
+            const key = chatKey(chatId);
             try {
-                const response = await axiosClient.get(`/${encodeURIComponent(chatId)}`);
-                const serverMessages = response.data?.data?.messages || [];
-                otherLastReadAt = response.data?.data?.otherLastReadAt || null;
-                updateMessageQuotaBanner(response.data?.data?.quota);
+                if (typeof Auth?.ensureAccessToken === 'function') {
+                    await Auth.ensureAccessToken().catch(() => {});
+                }
+                const response = await axiosClient.get(`/${encodeURIComponent(key)}`);
+                const payload = response.data?.data || {};
+                const serverMessages = payload.messages || response.data?.messages || [];
+                otherLastReadAt = payload.otherLastReadAt || response.data?.otherLastReadAt || null;
+                updateMessageQuotaBanner(payload.quota);
                 const seen = new Set();
                 const mapped = [];
                 for (const msg of serverMessages) {
@@ -2062,18 +2107,24 @@
                 useChatStore.setState((state) => ({
                     messages: {
                         ...state.messages,
-                        [chatId]: mapped
-                    }
+                        [key]: mapped,
+                    },
                 }));
             } catch (error) {
                 Toast.show(error?.response?.data?.message || 'Failed to load messages', 'error');
+                messagesContainer.innerHTML =
+                    '<div class="chat-thread-empty"><i class="fas fa-exclamation-circle"></i><p>Could not load messages</p><button type="button" class="btn-open" onclick="loadMessages(currentChatId)">Retry</button></div>';
+                return;
             }
-            const chatMessages = useChatStore.getState().messages[chatId] || [];
+            const chatMessages = useChatStore.getState().messages[key] || [];
             messagesContainer.innerHTML = renderMessages(chatMessages);
             scrollToBottom();
         }
 
         function renderMessages(messages) {
+            if (!messages || !messages.length) {
+                return '<div class="chat-thread-empty"><i class="fas fa-comments"></i><p>No messages yet</p><small>Say hello — your messages will appear here.</small></div>';
+            }
             let html = '';
             let lastDate = '';
             
@@ -2236,7 +2287,7 @@
             useChatStore.setState((state) => ({
                 messages: {
                     ...state.messages,
-                    [currentChatId]: [...(state.messages[currentChatId] || []), optimistic],
+                    [chatKey(currentChatId)]: [...(state.messages[chatKey(currentChatId)] || []), optimistic],
                 },
             }));
             renderActiveMessages();
@@ -2249,8 +2300,9 @@
                 updateMessageQuotaBanner(res.data?.data?.quota);
                 const serverMsg = res.data?.data?.message;
                 if (serverMsg) {
+                    const key = chatKey(currentChatId);
                     useChatStore.setState((state) => {
-                        const list = (state.messages[currentChatId] || []).map((m) =>
+                        const list = (state.messages[key] || []).map((m) =>
                             String(m.id) === localId
                                 ? mapServerMessageToUi(serverMsg, otherLastReadAt)
                                 : m
@@ -2259,7 +2311,7 @@
                         if (!ids.has(String(serverMsg.id))) {
                             list.push(mapServerMessageToUi(serverMsg, otherLastReadAt));
                         }
-                        return { messages: { ...state.messages, [currentChatId]: list } };
+                        return { messages: { ...state.messages, [key]: list } };
                     });
                     renderActiveMessages();
                 } else {
@@ -2267,10 +2319,11 @@
                 }
                 await loadConversations();
             } catch (e) {
+                const key = chatKey(currentChatId);
                 useChatStore.setState((state) => ({
                     messages: {
                         ...state.messages,
-                        [currentChatId]: (state.messages[currentChatId] || []).map((m) =>
+                        [key]: (state.messages[key] || []).map((m) =>
                             String(m.id) === localId ? { ...m, status: 'failed' } : m
                         ),
                     },
@@ -2283,7 +2336,9 @@
 
         function renderActiveMessages() {
             const messagesContainer = document.getElementById('messagesContainer');
-            const chatMessages = useChatStore.getState().messages[currentChatId] || [];
+            if (!messagesContainer || !currentChatId) return;
+            const key = chatKey(currentChatId);
+            const chatMessages = useChatStore.getState().messages[key] || [];
             messagesContainer.innerHTML = renderMessages(chatMessages);
             scrollToBottom();
         }
@@ -2298,7 +2353,7 @@
                 hideTypingIndicator();
                 const conversationId = String(payload.conversationId);
                 const mid = String(payload.id);
-                const isMine = String(payload.senderId) === getMyUserId();
+                const isMine = String(payload.senderId || '').toLowerCase() === getMyUserId();
 
                 useChatStore.setState((state) => {
                     let existing = [...(state.messages[conversationId] || [])];

@@ -417,11 +417,31 @@
   color: #9ca3af;
 }
 
-.rc-proof-preview-wrap {
+.rc-proof-preview-wrap:not([hidden]) {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 10px;
+}
+
+.rc-proof-preview-wrap[hidden],
+.rc-proof-placeholder[hidden] {
+  display: none !important;
+}
+
+.rc-proof-preview-wrap img:not([src]),
+.rc-proof-preview-wrap img[src=""] {
+  display: none;
+}
+
+.rc-file-input-hidden {
+  position: absolute;
+  width: 0.1px;
+  height: 0.1px;
+  opacity: 0;
+  overflow: hidden;
+  z-index: -1;
+  pointer-events: none;
 }
 
 .rc-proof-preview-wrap img {

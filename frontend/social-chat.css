@@ -480,6 +480,15 @@ html.ap-expo-app body.chat-active .messages-container {
     overflow-y: auto;
   }
 
+  body.chat-active #social-bottom-nav-mount,
+  body.chat-active .social-bottom-nav {
+    display: none !important;
+  }
+
+  body.chat-active .chat-page {
+    padding-bottom: 0 !important;
+  }
+
   html.ap-expo-app .chat-layout {
     display: flex;
     flex-direction: column;
@@ -504,6 +513,86 @@ html.ap-expo-app body.chat-active .messages-container {
     flex: 1;
     min-height: 0;
   }
+}
+
+html.ap-expo-app body.chat-active .chat-page {
+  padding-bottom: 0 !important;
+  height: 100dvh;
+  max-height: 100dvh;
+}
+
+html.ap-expo-app body.chat-active #social-bottom-nav-mount,
+html.ap-expo-app body.chat-active .social-bottom-nav {
+  display: none !important;
+}
+
+html.ap-expo-app body.chat-active .chat-layout {
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+}
+
+html.ap-expo-app body.chat-active .chat-thread-pane,
+html.ap-expo-app body.chat-active #activeChat {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex !important;
+  flex-direction: column;
+  width: 100%;
+}
+
+html.ap-expo-app body.chat-active .messages-container {
+  flex: 1 1 0;
+  min-height: 120px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+html.ap-expo-app body.chat-active .chat-input-container {
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
+}
+
+.chat-thread-empty {
+  margin: auto;
+  text-align: center;
+  color: var(--ap-msg-muted, #9ca3af);
+  padding: 32px 20px;
+}
+
+.chat-thread-empty i {
+  font-size: 40px;
+  opacity: 0.35;
+  margin-bottom: 12px;
+  display: block;
+}
+
+.chat-thread-empty p {
+  margin: 0 0 6px;
+  font-weight: 600;
+  color: var(--ap-msg-text, #1f2937);
+}
+
+.chat-thread-empty small {
+  display: block;
+  font-size: 12px;
+  color: var(--ap-msg-muted, #9ca3af);
+}
+
+.chat-thread-empty .btn-open {
+  margin-top: 14px;
+  border: none;
+  border-radius: 999px;
+  padding: 10px 18px;
+  background: linear-gradient(135deg, #d4a84b, #9a7218);
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+html.ap-expo-app .message-content {
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 html.ap-expo-app .chat-header {

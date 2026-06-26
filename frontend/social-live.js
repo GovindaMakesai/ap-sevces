@@ -3314,7 +3314,17 @@
               </div>
               <label style="display:block;font-size:12px;font-weight:600;margin:8px 0 4px" for="apTopupUtr">UTR (from payment app)</label>
               <input type="text" id="apTopupUtr" inputmode="numeric" maxlength="22" placeholder="10–22 digit UTR" style="width:100%;box-sizing:border-box;padding:12px;border-radius:10px;border:1px solid #ddd;font-size:16px">
-              <input type="file" id="apTopupProof" accept="image/*" style="margin-top:8px;font-size:12px;width:100%">
+              <div class="rc-proof-upload ap-topup-proof" id="apTopupProofZone" role="button" tabindex="0" style="margin-top:10px;padding:14px 10px">
+                <div id="apTopupProofPlaceholder" class="rc-proof-placeholder">
+                  <div class="icon"><i class="fas fa-cloud-upload-alt"></i></div>
+                  <p style="margin:0;font-size:13px">Tap to attach receipt (optional)</p>
+                </div>
+                <div id="apTopupProofPreviewWrap" class="rc-proof-preview-wrap" hidden>
+                  <img id="apTopupProofPreview" alt="Payment screenshot" style="max-height:120px">
+                  <button type="button" class="rc-proof-change" id="apTopupProofChange">Change image</button>
+                </div>
+              </div>
+              <input type="file" id="apTopupProof" class="rc-file-input-hidden" accept="image/jpeg,image/png,image/webp,image/*" tabindex="-1" aria-hidden="true">
               <button type="button" class="ap-topup-recharge" id="apTopupSubmit" style="margin-top:12px">Submit for verification</button>
               <button type="button" class="ap-topup-back" id="apTopupBack" type="button" style="margin-top:8px;width:100%;border:none;background:none;color:#666;font-size:13px">← Change amount</button>
             </div>
@@ -3378,6 +3388,37 @@
         document.getElementById('apTopupStep2')?.setAttribute('hidden', '');
         document.getElementById('apTopupStep1')?.removeAttribute('hidden');
       });
+      let apTopupProofFile = null;
+      const apProofZone = document.getElementById('apTopupProofZone');
+      const apProofInput = document.getElementById('apTopupProof');
+      function applyApTopupProof(file) {
+        if (!file || !String(file.type || '').startsWith('image/')) {
+          toast('Please choose an image file', 'warning');
+          return;
+        }
+        apTopupProofFile = file;
+        const preview = document.getElementById('apTopupProofPreview');
+        const wrap = document.getElementById('apTopupProofPreviewWrap');
+        const placeholder = document.getElementById('apTopupProofPlaceholder');
+        apProofZone?.classList.add('has-file');
+        if (wrap) wrap.hidden = true;
+        if (placeholder) placeholder.hidden = false;
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (preview) preview.src = String(reader.result || '');
+          if (wrap) wrap.hidden = false;
+          if (placeholder) placeholder.hidden = true;
+        };
+        reader.readAsDataURL(file);
+      }
+      apProofZone?.addEventListener('click', () => apProofInput?.click());
+      apProofInput?.addEventListener('change', () => {
+        if (apProofInput.files?.[0]) applyApTopupProof(apProofInput.files[0]);
+      });
+      document.getElementById('apTopupProofChange')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        apProofInput?.click();
+      });
       document.getElementById('apTopupSubmit')?.addEventListener('click', async () => {
         const sel = document.querySelector('#apTopupGrid .ap-topup-pack.is-selected');
         const inr = parseFloat(sel?.dataset?.inr || '199');
@@ -3386,7 +3427,7 @@
           toast('Enter the 10–22 digit UTR from your UPI receipt', 'warning');
           return;
         }
-        const proof = document.getElementById('apTopupProof')?.files?.[0];
+        const proof = apTopupProofFile;
         const btn = document.getElementById('apTopupSubmit');
         if (btn) {
           btn.disabled = true;
@@ -3400,7 +3441,12 @@
           );
           toast('Submitted! Coins credit after admin verifies UTR.', 'success');
           document.getElementById('apTopupUtr').value = '';
-          document.getElementById('apTopupProof').value = '';
+          apTopupProofFile = null;
+          if (apProofInput) apProofInput.value = '';
+          document.getElementById('apTopupProofPreview')?.removeAttribute('src');
+          document.getElementById('apTopupProofPreviewWrap')?.setAttribute('hidden', '');
+          document.getElementById('apTopupProofPlaceholder')?.removeAttribute('hidden');
+          apProofZone?.classList.remove('has-file');
           document.getElementById('apTopupSheet')?.classList.remove('open');
           document.getElementById('apTopupStep2')?.setAttribute('hidden', '');
           document.getElementById('apTopupStep1')?.removeAttribute('hidden');
@@ -5400,10 +5446,22 @@
       const wrapPreview = document.getElementById('rechargeProofPreviewWrap');
       const placeholder = document.getElementById('rechargeProofPlaceholder');
       zone?.classList.add('has-file');
-      if (preview) preview.src = URL.createObjectURL(file);
-      if (wrapPreview) wrapPreview.hidden = false;
-      if (placeholder) placeholder.hidden = true;
-      updateRechargeUiState();
+      if (preview?.src?.startsWith('blob:')) URL.revokeObjectURL(preview.src);
+      if (wrapPreview) wrapPreview.hidden = true;
+      if (placeholder) placeholder.hidden = false;
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (preview) preview.src = String(reader.result || '');
+        if (wrapPreview) wrapPreview.hidden = false;
+        if (placeholder) placeholder.hidden = true;
+        updateRechargeUiState();
+      };
+      reader.onerror = () => {
+        zone?.classList.remove('has-file');
+        if (window.SocialUI) SocialUI.toast('Could not read image — try another file', 'error');
+        else toast('Could not read image — try another file', 'error');
+      };
+      reader.readAsDataURL(file);
     }
 
     const proofZone = document.getElementById('rechargeProofZone');

@@ -179,8 +179,14 @@
   }
 
   function avatarUrl(name, photoUrl) {
-    if (photoUrl && String(photoUrl).startsWith('http')) return photoUrl;
-    if (photoUrl && String(photoUrl).startsWith('data:')) return photoUrl;
+    if (photoUrl) {
+      const p = String(photoUrl).trim();
+      if (p.startsWith('http') || p.startsWith('data:') || p.startsWith('blob:')) return p;
+      if (p.startsWith('/')) {
+        const base = (window.CONFIG?.BACKEND_URL || String(window.CONFIG?.API_URL || '').replace(/\/api\/?$/, '') || '').replace(/\/$/, '');
+        return base ? base + p : p;
+      }
+    }
     const label = initials(name);
     return svgDataUrl(
       '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256">' +
@@ -274,7 +280,7 @@
 
   function bindAvatarFallbacks(root) {
     (root || document).querySelectorAll('img').forEach((img) => {
-      if (img.dataset.avBound) return;
+      if (img.dataset.avBound || img.dataset.profileAvatar) return;
       img.dataset.avBound = '1';
       const name = img.alt || img.dataset.name || 'User';
       if (!img.src || img.src === location.href) img.src = avatarUrl(name);

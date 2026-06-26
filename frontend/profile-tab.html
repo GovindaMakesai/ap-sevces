@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#c9a227">
   <title>Me - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-theme.css?v=20260625-profile-edit">
+  <link rel="stylesheet" href="social-theme.css?v=20260625-profile-me">
   <link rel="stylesheet" href="social-features.css">
   <style>
     html:not(.profile-ready) .social-profile-hero,
@@ -34,10 +34,10 @@
   <div class="social-profile-hero">
     <div class="social-profile-avatar-wrap">
       <button type="button" class="social-profile-avatar-btn" id="profileAvatarBtn" aria-label="Change profile picture">
-        <img id="profileAvatar" src="" alt="Profile">
+        <img id="profileAvatar" src="" alt="Profile" data-profile-avatar="1">
         <span class="social-profile-avatar-edit" aria-hidden="true"><i class="fas fa-camera"></i></span>
       </button>
-      <input type="file" id="profileAvatarInput" accept="image/jpeg,image/png,image/webp,image/*" hidden>
+      <input type="file" id="profileAvatarInput" class="rc-file-input-hidden" accept="image/jpeg,image/png,image/webp,image/*" tabindex="-1" aria-hidden="true">
     </div>
     <h2 id="profileName">&nbsp;</h2>
     <p id="profileRole">&nbsp;</p>
@@ -63,25 +63,32 @@
         <span>Points</span>
       </a>
     </div>
-    <div class="social-profile-wallet" id="profileWalletActions">
-      <a href="/coins-recharge.html?app=1" class="social-wallet-btn social-wallet-btn-topup">
-        <i class="fas fa-plus-circle"></i> Top Up
-      </a>
-      <a href="/points.html?app=1" class="social-wallet-btn social-wallet-btn-withdraw">
-        <i class="fas fa-wallet"></i> Withdraw
-      </a>
+    <div class="social-profile-actions" id="profileWalletActions">
+      <div class="social-profile-actions-row">
+        <a href="/coins-recharge.html?app=1" class="social-wallet-btn social-wallet-btn-topup">
+          <span class="social-wallet-btn-icon" aria-hidden="true"><i class="fas fa-plus"></i></span>
+          <span class="social-wallet-btn-label">Top Up</span>
+        </a>
+        <a href="/withdraw.html?app=1" class="social-wallet-btn social-wallet-btn-withdraw">
+          <span class="social-wallet-btn-icon" aria-hidden="true"><i class="fas fa-wallet"></i></span>
+          <span class="social-wallet-btn-label">Withdraw</span>
+        </a>
+      </div>
+      <button type="button" class="social-profile-edit-row" id="editProfileBtn" style="display:none">
+        <i class="fas fa-user-edit"></i>
+        <span>Edit profile</span>
+        <i class="fas fa-chevron-right chevron"></i>
+      </button>
     </div>
-    <button type="button" class="social-profile-edit-link" id="editProfileBtn" style="display:none">
-      <i class="fas fa-user-edit"></i> Edit profile
-    </button>
     <button type="button" class="social-btn-orange social-profile-cta" id="profileMainBtn">Sign In</button>
   </div>
 
   <div class="social-profile-edit-sheet" id="profileEditSheet" aria-hidden="true">
     <div class="social-profile-edit-panel" role="dialog" aria-labelledby="profileEditTitle">
+      <div class="social-profile-edit-grab" aria-hidden="true"></div>
       <div class="social-profile-edit-head">
         <h3 id="profileEditTitle">Edit profile</h3>
-        <button type="button" class="social-profile-edit-close" id="profileEditClose" aria-label="Close">&times;</button>
+        <button type="button" class="social-profile-edit-close" id="profileEditClose" aria-label="Close"><i class="fas fa-times"></i></button>
       </div>
       <form id="profileEditForm">
         <div class="social-profile-edit-field">
@@ -154,11 +161,18 @@
 
       function paintProfileAvatar(user) {
         if (!user) return;
+        const img = document.getElementById('profileAvatar');
+        if (!img) return;
         const name = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email || 'User';
-        const cacheKey = user.updated_at || user.profile_pic || user.id;
+        img.alt = name;
+        img.dataset.name = name;
+        const cacheKey = user.updated_at || Date.now();
         const pic = user.profile_pic ? SocialShell.getImageUrl(user.profile_pic, cacheKey) : null;
-        document.getElementById('profileAvatar').src =
-          window.SocialUI ? SocialUI.avatarUrl(name, pic) : pic || SocialShell.avatarFallback(name);
+        if (pic) {
+          img.src = pic;
+        } else {
+          img.src = window.SocialUI ? SocialUI.avatarUrl(name) : SocialShell.avatarFallback(name);
+        }
       }
 
       function paintProfileHeader(user) {
@@ -231,9 +245,10 @@
             this.value = '';
             return;
           }
+          const img = document.getElementById('profileAvatar');
           const reader = new FileReader();
           reader.onload = (e) => {
-            document.getElementById('profileAvatar').src = e.target.result;
+            if (img) img.src = e.target.result;
           };
           reader.readAsDataURL(file);
           avatarBtn.disabled = true;
@@ -245,9 +260,11 @@
             const updated = response?.data?.user;
             if (updated) {
               applyUserUpdate(updated);
+              paintProfileAvatar(updated);
               SocialUI?.toast?.('Profile picture updated', 'success');
             } else {
               SocialUI?.toast?.(response?.message || 'Upload failed', 'error');
+              paintProfileAvatar(user);
             }
           } catch (error) {
             SocialUI?.toast?.(error?.message || 'Failed to upload profile picture', 'error');
@@ -306,7 +323,7 @@
 
       if (user) {
         paintProfileHeader(user);
-        document.getElementById('editProfileBtn').style.display = 'inline-flex';
+        document.getElementById('editProfileBtn').style.display = 'flex';
         document.getElementById('editProfileMenuLink').style.display = 'flex';
         const uidRow = document.getElementById('profileUidRow');
         const uidEl = document.getElementById('profileUserId');

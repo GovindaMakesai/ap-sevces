@@ -372,6 +372,73 @@ body.social-explore-page .social-tabs-spacer {
   border-bottom-color: var(--gold-600);
 }
 
+.social-following-wrap {
+  padding: 0 0 88px;
+}
+
+.social-following-section-title {
+  margin: 12px 16px 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #8b6914;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.social-following-offline-section {
+  padding: 0 12px 16px;
+}
+
+.social-following-offline-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.social-following-offline-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid rgba(201, 162, 39, 0.18);
+  box-shadow: 0 2px 8px rgba(107, 79, 16, 0.06);
+  text-decoration: none;
+  color: inherit;
+}
+
+.social-following-offline-row img {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.social-following-offline-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #5c4510;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.social-following-offline-row small {
+  font-size: 12px;
+  color: #a67c1a;
+  flex-shrink: 0;
+}
+
+.social-following-offline-row .fa-chevron-right {
+  color: #c9a227;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
 .social-sub-tabs--with-actions {
   align-items: center;
   gap: 8px;
@@ -1711,6 +1778,16 @@ html.ap-expo-app .social-profile-hero {
   margin-bottom: 12px;
 }
 
+.rc-file-input-hidden {
+  position: absolute;
+  width: 0.1px;
+  height: 0.1px;
+  opacity: 0;
+  overflow: hidden;
+  z-index: -1;
+  pointer-events: none;
+}
+
 .social-profile-avatar-btn {
   position: relative;
   border: none;
@@ -1749,25 +1826,64 @@ html.ap-expo-app .social-profile-hero {
 }
 
 .social-profile-edit-link {
-  display: inline-flex;
+  display: none;
+}
+
+.social-profile-actions {
+  display: none;
+  margin: 16px auto 0;
+  padding: 0 16px;
+  max-width: 360px;
+}
+
+.social-profile-actions.is-visible {
+  display: block;
+}
+
+.social-profile-actions-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.social-profile-edit-row {
+  display: none;
   align-items: center;
-  gap: 6px;
+  gap: 12px;
+  width: 100%;
   margin-top: 10px;
-  padding: 8px 16px;
-  border: 1px solid rgba(201, 162, 39, 0.35);
-  border-radius: 999px;
+  padding: 13px 14px;
+  border: 1px solid rgba(201, 162, 39, 0.22);
+  border-radius: 12px;
   background: #fff;
+  box-shadow: var(--shadow-card);
   color: var(--gold-800);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
+  text-align: left;
+}
+
+.social-profile-edit-row i:first-child {
+  width: 22px;
+  color: var(--gold-600);
+  font-size: 16px;
+}
+
+.social-profile-edit-row span {
+  flex: 1;
+}
+
+.social-profile-edit-row .chevron {
+  color: #c4b5a0;
+  font-size: 12px;
 }
 
 .social-profile-edit-sheet {
   position: fixed;
   inset: 0;
   z-index: 300;
-  background: rgba(0, 0, 0, 0.45);
+  background: rgba(45, 33, 8, 0.42);
   display: none;
   align-items: flex-end;
   justify-content: center;
@@ -1782,9 +1898,18 @@ html.ap-expo-app .social-profile-hero {
   max-width: 480px;
   max-height: 90vh;
   overflow-y: auto;
-  background: #fff;
+  background: linear-gradient(180deg, #fffdf8 0%, #ffffff 120px);
   border-radius: 20px 20px 0 0;
-  padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0));
+  padding: 8px 16px calc(16px + env(safe-area-inset-bottom, 0));
+  box-shadow: 0 -8px 32px rgba(107, 79, 16, 0.12);
+}
+
+.social-profile-edit-grab {
+  width: 40px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(201, 162, 39, 0.35);
+  margin: 4px auto 12px;
 }
 
 .social-profile-edit-head {
@@ -1792,23 +1917,29 @@ html.ap-expo-app .social-profile-hero {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(201, 162, 39, 0.15);
 }
 
 .social-profile-edit-head h3 {
   margin: 0;
   font-size: 18px;
+  font-weight: 800;
   color: var(--gold-800);
 }
 
 .social-profile-edit-close {
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   border: none;
   border-radius: 50%;
-  background: #f3f4f6;
-  font-size: 20px;
+  background: rgba(201, 162, 39, 0.12);
+  font-size: 14px;
   cursor: pointer;
-  color: #6b7280;
+  color: var(--gold-700);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .social-profile-edit-field {
@@ -1979,42 +2110,68 @@ html.ap-expo-app .social-profile-hero {
 
 .social-profile-wallet {
   display: none;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  margin-top: 14px;
-  padding: 0 16px;
-  flex-wrap: wrap;
 }
 
 .social-profile-wallet.is-visible {
-  display: flex;
+  display: none;
 }
 
 .social-wallet-btn {
-  display: inline-flex;
+  display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 10px 18px;
-  border-radius: 999px;
+  min-height: 72px;
+  padding: 12px 10px;
+  border-radius: 14px;
   font-size: 13px;
-  font-weight: 700;
-  text-decoration: none;
+  font-weight: 800;
+  text-decoration: none !important;
   border: none;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(107, 79, 16, 0.12);
+  box-shadow: 0 4px 14px rgba(107, 79, 16, 0.14);
+  color: #fff !important;
+  -webkit-text-fill-color: #fff;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.social-wallet-btn-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  color: #fff !important;
+}
+
+.social-wallet-btn-label {
+  color: #fff !important;
+  -webkit-text-fill-color: #fff;
+  letter-spacing: 0.02em;
 }
 
 .social-wallet-btn-topup {
-  background: linear-gradient(135deg, #ff8c42, #f59e0b);
-  color: #fff;
+  background: linear-gradient(145deg, #ff9f4a, #ea580c) !important;
+  color: #fff !important;
 }
 
 .social-wallet-btn-withdraw {
-  background: linear-gradient(135deg, #f472b6, #ec4899);
-  color: #fff;
-  box-shadow: 0 4px 12px rgba(236, 72, 153, 0.25);
+  background: linear-gradient(145deg, #f472b6, #db2777) !important;
+  color: #fff !important;
+  box-shadow: 0 4px 14px rgba(219, 39, 119, 0.28);
+}
+
+html.social-app .social-profile-page .social-wallet-btn,
+html.social-app .social-profile-page .social-wallet-btn:visited,
+html.social-app .social-profile-page .social-wallet-btn:hover,
+html.social-app .social-profile-page .social-wallet-btn:active {
+  color: #fff !important;
+  -webkit-text-fill-color: #fff !important;
 }
 
 .social-stat-pill strong {

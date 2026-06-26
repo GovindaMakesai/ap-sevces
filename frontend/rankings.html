@@ -26,27 +26,34 @@
     <button type="button" class="social-rank-sub-tab active" data-period="daily">Daily</button>
     <button type="button" class="social-rank-sub-tab" data-period="weekly">Weekly</button>
     <button type="button" class="social-rank-sub-tab" data-period="monthly">Monthly</button>
-    <button type="button" class="social-rank-sub-tab">Rocket Host</button>
   </div>
 
   <div data-rank-panel="host">
-    <div class="social-rank-promo">
-      <span class="flags">🇮🇳 Weekly Host Rank</span>
-      <p>Top hosts win coins — live ≥ 3 hours</p>
-      <span class="dates">18/05/2026 - 28/05/2026 (UTC+8)</span>
+    <div class="social-rank-promo" id="rankPromoHost">
+      <span class="flags">🇮🇳 Host Rank</span>
+      <p>Top hosts by gifts received &amp; live time</p>
     </div>
     <div class="social-rank-list" id="rankListHost"></div>
   </div>
   <div data-rank-panel="rich" style="display:none">
-    <div class="social-rank-promo"><span class="flags">💰 Rich Rank</span><p>Top spenders this week</p></div>
+    <div class="social-rank-promo" id="rankPromoRich">
+      <span class="flags">💰 Rich Rank</span>
+      <p>Top coin spenders — real gift activity</p>
+    </div>
     <div class="social-rank-list" id="rankListRich"></div>
   </div>
   <div data-rank-panel="gift" style="display:none">
-    <div class="social-rank-promo"><span class="flags">🎁 Gift Rank</span><p>Most gifts sent</p></div>
+    <div class="social-rank-promo" id="rankPromoGift">
+      <span class="flags">🎁 Gift Rank</span>
+      <p>Most gifts sent by real users</p>
+    </div>
     <div class="social-rank-list" id="rankListGift"></div>
   </div>
   <div data-rank-panel="video" style="display:none">
-    <div class="social-rank-promo"><span class="flags">🎬 Video Rank</span><p>Top video creators</p></div>
+    <div class="social-rank-promo" id="rankPromoVideo">
+      <span class="flags">🎬 Video Rank</span>
+      <p>Top creators by posts, likes &amp; comments</p>
+    </div>
     <div class="social-rank-list" id="rankListVideo"></div>
   </div>
 
@@ -58,83 +65,92 @@
   <script src="social-nav.js"></script>
   <script src="social-fx.js"></script>
   <script>
-    const TAB_CATEGORY = { host: 'creators', rich: 'gifters', gift: 'gifters', video: 'creators' };
+    const TAB_CATEGORY = { host: 'creators', rich: 'gifters', gift: 'gifters', video: 'video' };
+    const TAB_MODE = { host: '', rich: '', gift: 'count', video: '' };
     let currentPeriod = 'daily';
     let currentTab = 'host';
 
+    function periodLabel(period) {
+      if (period === 'daily') return 'today';
+      if (period === 'weekly') return 'this week';
+      return 'this month';
+    }
+
+    function updatePromo() {
+      const el = document.getElementById('rankPromo' + currentTab.charAt(0).toUpperCase() + currentTab.slice(1));
+      if (!el) return;
+      const dates = el.querySelector('.dates');
+      if (dates) dates.textContent = 'Updated live · ' + periodLabel(currentPeriod);
+      else {
+        const span = document.createElement('span');
+        span.className = 'dates';
+        span.textContent = 'Updated live · ' + periodLabel(currentPeriod);
+        el.appendChild(span);
+      }
+    }
+
     async function fetchRankings(period, tab) {
       const category = TAB_CATEGORY[tab] || 'creators';
+      const mode = TAB_MODE[tab] || '';
       const api = (window.CONFIG && CONFIG.API_URL) || 'https://api.apservices.in/api';
-      const res = await fetch(`${api}/v1/leaderboards?period=${period}&category=${category}`, { credentials: 'include' });
+      const qs = new URLSearchParams({ period, category });
+      if (mode) qs.set('mode', mode);
+      const res = await fetch(`${api}/v1/leaderboards?${qs}`, { credentials: 'include' });
       const data = await res.json();
-      if (!data.success || !Array.isArray(data.data)) return RANK_DATA[tab] || [];
+      if (!data.success || !Array.isArray(data.data)) return [];
       return data.data.map((row) => ({
-        n: row.entity_label || String(row.entity_id).slice(0, 8),
-        s: formatScore(row.score),
+        id: row.entity_id,
+        n: row.entity_label || String(row.entity_id || '').slice(0, 8),
+        s: formatScore(row.score, tab),
+        pic: row.profile_pic || null,
       }));
     }
 
-    function formatScore(score) {
+    function formatScore(score, tab) {
       const n = Number(score || 0);
-      if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
-      if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
-      return String(n);
+      const suffix = tab === 'gift' ? ' gifts' : '';
+      if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M' + suffix;
+      if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K' + suffix;
+      return String(Math.round(n)) + suffix;
+    }
+
+    function avatarUrl(row) {
+      if (row.pic) return row.pic;
+      return `https://ui-avatars.com/api/?name=${encodeURIComponent((row.n || 'U').slice(0, 2))}&background=c9a227&color=fff`;
     }
 
     async function refreshRanks() {
       const id = 'rankList' + currentTab.charAt(0).toUpperCase() + currentTab.slice(1);
-      let rows = RANK_DATA[currentTab] || [];
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.innerHTML = '<p class="social-rank-empty" style="text-align:center;padding:24px;color:#8b6914">Loading rankings…</p>';
+      updatePromo();
+      let rows = [];
       try {
-        const fetched = await fetchRankings(currentPeriod, currentTab);
-        rows = fetched.length ? fetched : rows;
+        rows = await fetchRankings(currentPeriod, currentTab);
       } catch (e) {
         console.warn('rankings fetch', e);
       }
       renderRankList(id, rows);
     }
 
-    const RANK_DATA = {
-      host: [
-        { n: 'Varsace', s: '25.6M' }, { n: 'Kuldeep', s: '18.4M' }, { n: 'Affy', s: '12.1M' },
-        { n: 'Riya Live', s: '9.2M' }, { n: 'Rockstar', s: '7.1M' },
-      ],
-      rich: [
-        { n: 'MAAAA', s: '8.2M' }, { n: 'Riya', s: '6.1M' }, { n: 'Singhni', s: '4.8M' },
-        { n: 'Murshad', s: '3.9M' }, { n: 'Neetu', s: '3.1M' },
-      ],
-      gift: [
-        { n: 'Murshad', s: '520K gifts' }, { n: 'Neetu', s: '410K' }, { n: 'Ayan', s: '380K' },
-        { n: 'Priya', s: '290K' }, { n: 'Jeetu', s: '210K' },
-      ],
-      video: [
-        { n: 'Jeetu_live', s: '2.1M views' }, { n: 'Somii', s: '1.8M' }, { n: 'Rockstar', s: '1.2M' },
-        { n: 'Angel', s: '980K' }, { n: 'SAM', s: '760K' },
-      ],
-    };
-
-    function avatarUrl(name) {
-      return `https://ui-avatars.com/api/?name=${encodeURIComponent(name.slice(0, 2))}&background=c9a227&color=fff`;
-    }
-
-    function padRankRows(rows, min = 5) {
-      const list = Array.isArray(rows) ? rows.slice() : [];
-      const seeds = ['Varsace', 'Kuldeep', 'Affy', 'Riya Live', 'Rockstar', 'Neetu', 'Ayan'];
-      let i = 0;
-      while (list.length < min) {
-        list.push({ n: seeds[i % seeds.length], s: '—' });
-        i += 1;
-      }
-      return list;
+    function renderEmpty(el) {
+      el.innerHTML = `<div class="social-rank-empty" style="text-align:center;padding:32px 20px;color:#8b6914">
+        <div style="font-size:40px;margin-bottom:12px">🏆</div>
+        <p style="font-weight:700;margin:0 0 6px">No rankings yet ${periodLabel(currentPeriod)}</p>
+        <p style="font-size:13px;margin:0;opacity:0.85">Go live, send gifts, or post videos to appear here.</p>
+      </div>`;
     }
 
     function renderPodium(rows) {
-      const top = padRankRows(rows, 3).slice(0, 3);
+      const top = rows.slice(0, 3);
+      if (!top.length) return '';
       const order = top.length >= 3 ? [top[1], top[0], top[2]] : top;
       const ranks = top.length >= 3 ? [2, 1, 3] : top.map((_, i) => i + 1);
       return `<div class="social-rank-podium">${order.map((r, i) => `
         <div class="social-rank-podium-item rank-${ranks[i]}">
           ${ranks[i] === 1 ? '<span class="podium-crown">👑</span>' : ''}
-          <img class="podium-av" src="${avatarUrl(r.n)}" alt="">
+          <img class="podium-av" src="${avatarUrl(r)}" alt="" onerror="this.src='https://ui-avatars.com/api/?name=AP&background=c9a227&color=fff'">
           <strong>${r.n}</strong><br><small>${r.s}</small>
         </div>`).join('')}</div>`;
     }
@@ -142,20 +158,35 @@
     function renderRankList(id, rows) {
       const el = document.getElementById(id);
       if (!el) return;
-      const padded = padRankRows(rows.length ? rows : RANK_DATA[currentTab] || [], 5);
-      const rest = padded.slice(3);
-      el.innerHTML = renderPodium(padded) + rest.map((r, i) => `
+      if (!rows.length) {
+        renderEmpty(el);
+        return;
+      }
+      const rest = rows.slice(3);
+      el.innerHTML = renderPodium(rows) + rest.map((r, i) => `
         <div class="social-rank-row" style="animation-delay:${(i + 3) * 0.06}s">
           <span class="rank-num">${i + 4}</span>
-          <img src="${avatarUrl(r.n)}" alt="">
+          <img src="${avatarUrl(r)}" alt="" onerror="this.src='https://ui-avatars.com/api/?name=AP&background=c9a227&color=fff'">
           <div class="rank-info"><strong>${r.n}</strong> 🇮🇳<br><small>${r.s}</small></div>
-          <button type="button" class="social-rank-follow ap-pressable">Follow</button>
+          <button type="button" class="social-rank-follow ap-pressable" data-user-id="${r.id || ''}">Follow</button>
         </div>`).join('');
       el.querySelectorAll('.social-rank-follow').forEach((b) => {
-        b.addEventListener('click', () => {
-          b.textContent = 'Following';
-          b.disabled = true;
-          window.SocialFX?.showFollowBurst?.(b);
+        b.addEventListener('click', async () => {
+          const uid = b.dataset.userId;
+          if (!uid || !window.SocialInteractions?.toggleFollow) {
+            b.textContent = 'Following';
+            b.disabled = true;
+            window.SocialFX?.showFollowBurst?.(b);
+            return;
+          }
+          try {
+            await SocialInteractions.toggleFollow(uid);
+            b.textContent = 'Following';
+            b.disabled = true;
+            window.SocialFX?.showFollowBurst?.(b);
+          } catch (_e) {
+            window.SocialFX?.showFollowBurst?.(b);
+          }
         });
       });
     }

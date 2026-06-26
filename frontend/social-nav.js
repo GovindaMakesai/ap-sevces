@@ -135,6 +135,19 @@
         live.minimizeRoom();
         return true;
       }
+      try {
+        sessionStorage.setItem(
+          'ap_live_pip_session',
+          JSON.stringify({
+            url: location.pathname + location.search,
+            host: 'Live',
+            type: document.body?.dataset?.livePage || 'live-room',
+            ts: Date.now(),
+          })
+        );
+      } catch (_e) {}
+      navigateTo(HOME, { replace: false });
+      return true;
     }
     return goBack({ allowHistory: true });
   }

@@ -25,7 +25,8 @@
       if (!cacheKey) return url;
       return url + (url.includes('?') ? '&' : '?') + 'v=' + encodeURIComponent(String(cacheKey));
     }
-    const base = (window.CONFIG?.BACKEND_URL || '').replace(/\/$/, '');
+    const base = (window.CONFIG?.BACKEND_URL || String(window.CONFIG?.API_URL || '').replace(/\/api\/?$/, '') || '').replace(/\/$/, '');
+    if (!base) return path.startsWith('/') ? path : '/' + path;
     let url = `${base}${path.startsWith('/') ? '' : '/'}${path}`;
     if (cacheKey) url += (url.includes('?') ? '&' : '?') + 'v=' + encodeURIComponent(String(cacheKey));
     return url;
@@ -662,77 +663,134 @@
     const content = document.getElementById('exploreContent');
     if (!mount) return;
 
-    let pros = [];
-    if (window.Auth?.hasSession?.() || localStorage.getItem('user')) {
-      try {
-        if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken();
-        const res = await API.get('/social/following/live');
-        const rows = Array.isArray(res?.data) ? res.data : [];
-        pros = rows.map((r) => ({
-          id: r.channel,
-          channel: r.channel,
-          userId: r.id,
-          name: r.name || 'Host',
-          image: coverFallback(r.name || 'Host', false),
-          viewers: r.viewer_count || 0,
-          tag: 'Live',
-          live: true,
-        }));
-      } catch (e) {
-        console.warn('SocialShell: following live API', e);
-      }
+    const showContent = () => {
+      mount.style.display = 'none';
+      if (content) content.style.display = 'block';
+    };
+    const showEmpty = () => {
+      if (content) content.style.display = 'none';
+      mount.style.display = 'block';
+    };
+
+    showEmpty();
+    mount.innerHTML =
+      '<div class="social-empty-state"><p><i class="fas fa-spinner fa-spin"></i> Loading following…</p></div>';
+
+    const loggedIn = window.Auth?.hasSession?.() || localStorage.getItem('user');
+    if (!loggedIn) {
+      mount.innerHTML =
+        '<div class="social-empty-state"><p>Sign in to see people you follow.</p><a href="/app-auth.html?app=1" class="btn-open">Sign in</a></div>';
+      return;
     }
 
-    if (!pros.length) {
-      const follows = window.SocialInteractions?.getFollowingList
-        ? SocialInteractions.getFollowingList().map((e) => e.name)
-        : JSON.parse(localStorage.getItem('social_follows') || '[]').map((x) =>
-            typeof x === 'string' ? x : x.name
-          );
-      pros = await fetchActiveRooms(24, { party: false });
-      if (follows.length) {
-        pros = pros.filter((p) =>
-          follows.some(
-            (f) =>
-              p.name.toLowerCase().includes(String(f).toLowerCase()) ||
-              String(f).toLowerCase().includes(p.name.toLowerCase())
-          )
-        );
-      }
-      if (!follows.length && !pros.length) {
-        if (content) content.style.display = 'none';
-        mount.style.display = 'block';
-        mount.innerHTML = `<div class="social-empty-state"><p>You haven't followed anyone yet.</p><a href="/discover-creators.html?app=1" class="btn-open">Discover creators</a></div>`;
-        return;
-      }
+    try {
+      if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken();
+      if (window.SocialInteractions?.refreshFollowCache) await SocialInteractions.refreshFollowCache();
+    } catch (_e) {}
+
+    let following = [];
+    try {
+      const res = await API.get('/social/following?limit=200');
+      following = Array.isArray(res?.data) ? res.data : [];
+    } catch (e) {
+      console.warn('SocialShell: following API', e);
+    }
+
+    if (!following.length && window.SocialInteractions?.getFollowingList) {
+      following = SocialInteractions.getFollowingList().map((e) => ({
+        id: e.id || e.key,
+        first_name: e.name,
+        last_name: '',
+      }));
+    }
+
+    const liveMap = new Map();
+    try {
+      const liveRes = await API.get('/social/following/live');
+      const liveRows = Array.isArray(liveRes?.data) ? liveRes.data : [];
+      liveRows.forEach((r) => {
+        if (r?.id) liveMap.set(String(r.id), r);
+      });
+    } catch (e) {
+      console.warn('SocialShell: following live API', e);
     }
 
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      pros = pros.filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) || String(p.channel || '').toLowerCase().includes(q)
-      );
+      following = following.filter((u) => {
+        const name = `${u.first_name || ''} ${u.last_name || ''}`.trim().toLowerCase();
+        return name.includes(q) || String(u.id || '').toLowerCase().includes(q);
+      });
     }
-    if (!pros.length) {
-      if (content) content.style.display = 'none';
-      mount.style.display = 'block';
-      mount.innerHTML = `<div class="social-empty-state"><p>${searchQuery ? `No live hosts match "${searchQuery}"` : 'None of the people you follow are live right now.'}</p><button type="button" class="btn-open" onclick="SocialShell.goStartLive()">Go Live</button></div>`;
+
+    if (!following.length) {
+      showEmpty();
+      mount.innerHTML = searchQuery
+        ? `<div class="social-empty-state"><p>No following match "${escapeHtml(searchQuery)}".</p></div>`
+        : `<div class="social-empty-state"><p>You haven't followed anyone yet.</p><a href="/discover-creators.html?app=1" class="btn-open">Discover creators</a></div>`;
       return;
     }
-    mount.style.display = 'none';
-    if (content) {
-      content.style.display = 'block';
-      let grid = document.getElementById('exploreGrid');
-      if (!grid) {
-        grid = document.createElement('div');
-        grid.id = 'exploreGrid';
-        grid.className = 'social-grid';
-        content.appendChild(grid);
+
+    following.sort((a, b) => {
+      const aLive = liveMap.has(String(a.id)) ? 1 : 0;
+      const bLive = liveMap.has(String(b.id)) ? 1 : 0;
+      return bLive - aLive;
+    });
+
+    const liveCards = [];
+    const offlineRows = [];
+
+    following.forEach((u) => {
+      const uid = String(u.id);
+      const name = `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'User';
+      const live = liveMap.get(uid);
+      const photo = getImageUrl(u.profile_pic, u.updated_at) || coverFallback(name, false);
+      if (live?.channel) {
+        liveCards.push({
+          id: live.channel,
+          channel: live.channel,
+          userId: uid,
+          name,
+          image: photo,
+          viewers: live.viewer_count || 0,
+          tag: 'Live',
+          live: true,
+        });
+        return;
       }
-      grid.innerHTML = pros.map((p, i) => renderLiveCard(p, i, { party: false })).join('');
-      bindLiveCards(grid);
-    }
+      offlineRows.push({ uid, name, photo });
+    });
+
+    showContent();
+    const liveHtml = liveCards.map((p, i) => renderLiveCard(p, i, { party: false })).join('');
+    const offlineHtml = offlineRows.length
+      ? `<div class="social-following-offline-section">
+          <p class="social-following-section-title">${liveCards.length ? 'Offline' : 'People you follow'}</p>
+          <div class="social-following-offline-list">
+            ${offlineRows
+              .map((row) => {
+                const profileHref = withAppQuery(
+                  `/creator-profile.html?userId=${encodeURIComponent(row.uid)}&name=${encodeURIComponent(row.name)}`
+                );
+                return `<a href="${profileHref}" class="social-following-offline-row">
+                  <img src="${row.photo.replace(/"/g, '&quot;')}" alt="">
+                  <span class="social-following-offline-name">${escapeHtml(row.name)}</span>
+                  <small>View profile</small>
+                  <i class="fas fa-chevron-right"></i>
+                </a>`;
+              })
+              .join('')}
+          </div>
+        </div>`
+      : '';
+
+    const liveSection = liveCards.length
+      ? `<p class="social-following-section-title">Live now</p><div class="social-grid" id="exploreGrid">${liveHtml}</div>`
+      : '';
+
+    content.innerHTML = `<div class="social-following-wrap">${liveSection}${offlineHtml}</div>`;
+    const grid = content.querySelector('#exploreGrid');
+    if (grid) bindLiveCards(grid);
   }
 
   async function fillDiscoveryTab(tab, searchQuery) {

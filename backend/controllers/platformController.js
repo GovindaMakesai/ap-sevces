@@ -65,8 +65,8 @@ async function listAgencies(req, res) {
 }
 
 async function getLeaderboard(req, res) {
-  const { period = 'daily', category = 'creators' } = req.query;
-  const data = await leaderboardService.getLeaderboard(period, category, 50);
+  const { period = 'daily', category = 'creators', mode } = req.query;
+  const data = await leaderboardService.getLeaderboard(period, category, 50, { mode });
   res.json({ success: true, data, period, category });
 }
 

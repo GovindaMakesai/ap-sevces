@@ -89,6 +89,83 @@ const LAN_DEV_LOCKED = __DEV__ && String(process.env.EXPO_PUBLIC_USE_LAN_WEB) ==
 const IS_STANDALONE_APP = Constants.appOwnership === 'standalone';
 const LOAD_TIMEOUT_MS = isDevLocalBase(resolveFrontendBase()) ? 20000 : 45000;
 
+const HARDWARE_BACK_INJECT = `(function(){
+  var handled = false;
+  try {
+    var p = (location.pathname || '').toLowerCase();
+    var isLive = /\\/live-room\\.html$/i.test(p) || /\\/party-room\\.html$/i.test(p);
+    function closeLiveUi() {
+      var openSheet = document.querySelector('.party-tools-sheet.open, .gift-sheet.open, .party-requests-sheet.open, .social-broadcast-sheet-wrap.is-open, .ap-modal-overlay.is-open');
+      if (openSheet) {
+        openSheet.classList.remove('open', 'is-open', 'is-visible');
+        document.body.classList.remove('ap-live-overlay-open', 'ap-chat-open');
+        return true;
+      }
+      var emoji = document.getElementById('apEmojiPopover');
+      if (emoji && emoji.classList.contains('is-open')) {
+        emoji.classList.remove('is-open');
+        return true;
+      }
+      return false;
+    }
+    function minimizeLive() {
+      var live = window.APLive || window.SocialLive;
+      if (live && typeof live.minimizeRoom === 'function') {
+        live.minimizeRoom();
+        return true;
+      }
+      try {
+        sessionStorage.setItem('ap_live_pip_session', JSON.stringify({
+          url: location.pathname + location.search,
+          host: 'Live',
+          type: (document.body && document.body.dataset && document.body.dataset.livePage) || 'live-room',
+          ts: Date.now()
+        }));
+      } catch(e) {}
+      location.href = '/explore.html?app=1&source=expo-app';
+      return true;
+    }
+    if (window.SocialNav && window.SocialNav.handleHardwareBack) {
+      handled = !!window.SocialNav.handleHardwareBack();
+    } else if (isLive) {
+      if (closeLiveUi()) handled = true;
+      else handled = minimizeLive();
+    } else if (window.history.length > 1) {
+      window.history.back();
+      handled = true;
+    } else if (!/explore\\.html/i.test(p)) {
+      location.href='/explore.html?app=1&source=expo-app';
+      handled = true;
+    }
+  } catch(e) {}
+  if (!handled) {
+    window.ReactNativeWebView.postMessage(JSON.stringify({
+      type:'back_result',
+      handled:false,
+      route:location.pathname||''
+    }));
+  }
+})();true;`;
+
+const MINIMIZE_LIVE_INJECT = `(function(){
+  try {
+    var live = window.APLive || window.SocialLive;
+    if (live && typeof live.minimizeRoom === 'function') {
+      live.minimizeRoom();
+      return;
+    }
+    try {
+      sessionStorage.setItem('ap_live_pip_session', JSON.stringify({
+        url: location.pathname + location.search,
+        host: 'Live',
+        type: (document.body && document.body.dataset && document.body.dataset.livePage) || 'live-room',
+        ts: Date.now()
+      }));
+    } catch(e) {}
+    location.href = '/explore.html?app=1&source=expo-app';
+  } catch(e) {}
+})();true;`;
+
 async function requestAndroidMediaPermissions() {
   if (Platform.OS !== 'android') return { ok: true, platform: Platform.OS };
   try {
@@ -655,24 +732,7 @@ export default function App() {
   useEffect(() => {
     if (Platform.OS !== 'android') return undefined;
     const onHardwareBack = () => {
-      webViewRef.current?.injectJavaScript(`(function(){
-        var handled = false;
-        try {
-          if (window.SocialNav) handled = !!window.SocialNav.handleHardwareBack();
-          else if (window.history.length > 1) { window.history.back(); handled = true; }
-          else if (!/explore\\.html/i.test(location.pathname)) {
-            location.href='/explore.html?app=1&source=expo-app';
-            handled = true;
-          }
-        } catch(e) {}
-        if (!handled) {
-          window.ReactNativeWebView.postMessage(JSON.stringify({
-            type:'back_result',
-            handled:false,
-            route:location.pathname||''
-          }));
-        }
-      })();true;`);
+      webViewRef.current?.injectJavaScript(HARDWARE_BACK_INJECT);
       return true;
     };
     const sub = BackHandler.addEventListener('hardwareBackPress', onHardwareBack);
@@ -771,6 +831,10 @@ export default function App() {
         }
         if (data.type === 'back_result' && !data.handled) {
           const route = String(data.route || '');
+          if (/live-room\.html|party-room\.html/i.test(route)) {
+            webViewRef.current?.injectJavaScript(MINIMIZE_LIVE_INJECT);
+            return;
+          }
           if (webViewCanGoBackRef.current) {
             webViewRef.current?.goBack();
             return;
@@ -858,7 +922,7 @@ export default function App() {
         renderLoading={() => (
           <View style={styles.loading}>
             <ActivityIndicator size="large" color="#c9a227" />
-            <Text style={styles.loadingText}>Loading AP ServicesΓÇª</Text>
+            <Text style={styles.loadingText}>Loading AP Services...</Text>
           </View>
         )}
         pullToRefreshEnabled={false}

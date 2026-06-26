@@ -84,7 +84,7 @@
     <p class="rc-submit-hint" id="srSubmitHint">Pick package → pay via QR → paste UTR</p>
   </footer>
 
-  <input type="file" id="sellerProof" accept="image/jpeg,image/png,image/webp,image/*" tabindex="-1" aria-hidden="true">
+  <input type="file" id="sellerProof" class="rc-file-input-hidden" accept="image/jpeg,image/png,image/webp,image/*" tabindex="-1" aria-hidden="true">
 
   <script src="ap-config.js"></script>
   <script src="app.js"></script>
@@ -175,10 +175,18 @@
         proofFile = file;
         const zone = document.getElementById('sellerProofZone');
         const preview = document.getElementById('sellerProofPreview');
-        document.getElementById('sellerProofPreviewWrap').hidden = false;
-        document.getElementById('sellerProofPlaceholder').hidden = true;
+        const wrap = document.getElementById('sellerProofPreviewWrap');
+        const placeholder = document.getElementById('sellerProofPlaceholder');
         zone?.classList.add('has-file');
-        if (preview) preview.src = URL.createObjectURL(file);
+        if (wrap) wrap.hidden = true;
+        if (placeholder) placeholder.hidden = false;
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (preview) preview.src = String(reader.result || '');
+          if (wrap) wrap.hidden = false;
+          if (placeholder) placeholder.hidden = true;
+        };
+        reader.readAsDataURL(file);
       }
 
       const proofZone = document.getElementById('sellerProofZone');

@@ -2775,6 +2775,59 @@ body.ap-live-overlay-open .party-chat-row {
 }
 .ap-topup-agree a { color: #b45309; }
 
+.ap-topup-proof {
+  border: 2px dashed rgba(201, 162, 39, 0.45);
+  border-radius: 12px;
+  text-align: center;
+  cursor: pointer;
+  background: #fffdf8;
+}
+.ap-topup-proof.has-file {
+  border-style: solid;
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+.ap-topup-proof .rc-proof-placeholder .icon {
+  font-size: 28px;
+  color: #d97706;
+  margin-bottom: 6px;
+}
+.ap-topup-proof .rc-proof-preview-wrap:not([hidden]) {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.ap-topup-proof .rc-proof-preview-wrap[hidden],
+.ap-topup-proof .rc-proof-placeholder[hidden] {
+  display: none !important;
+}
+.ap-topup-proof .rc-proof-preview-wrap img {
+  max-width: 100%;
+  max-height: 120px;
+  border-radius: 10px;
+  object-fit: contain;
+}
+.ap-topup-proof .rc-proof-change {
+  border: none;
+  background: #fff;
+  color: #b45309;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.rc-file-input-hidden {
+  position: absolute;
+  width: 0.1px;
+  height: 0.1px;
+  opacity: 0;
+  overflow: hidden;
+  z-index: -1;
+  pointer-events: none;
+}
+
 /* Surprise shop */
 .ap-surprise-sheet {
   position: fixed; inset: 0; z-index: 56;

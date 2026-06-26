@@ -102,8 +102,8 @@ html.social-bridge-mode .chat-header {
   border-color: rgba(201, 162, 39, 0.2) !important;
 }
 
-html.social-app a,
-html.social-bridge-mode a:not(.social-bottom-nav a):not(.nav-item) {
+html.social-app a:not(.social-wallet-btn):not(.social-stat-pill):not(.social-menu-item):not(.social-bottom-nav a):not(.nav-item),
+html.social-bridge-mode a:not(.social-wallet-btn):not(.social-bottom-nav a):not(.nav-item) {
   color: #a67c1a;
 }
 
