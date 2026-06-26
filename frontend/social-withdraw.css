@@ -54,27 +54,40 @@ body.withdraw-app input[type='file'] {
 
 .wd-header-link {
   flex-shrink: 0;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   color: #5b67f6;
   text-decoration: none;
-  padding: 8px 14px;
+  padding: 8px 12px;
   border-radius: 999px;
   background: #fff;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-  min-width: auto;
-  width: auto;
-  height: auto;
   white-space: nowrap;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  min-width: 76px;
+  max-width: 96px;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.wd-header-side {
+  width: 76px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.wd-header-side--start {
+  justify-content: flex-start;
 }
 
 .wd-balance-card {
   background: linear-gradient(135deg, #fda4af 0%, #f472b6 45%, #ec4899 100%);
   border-radius: 24px;
-  padding: 28px 20px 24px;
+  padding: 28px 16px 26px;
   color: #fff;
   margin-bottom: 16px;
   text-align: center;
@@ -97,10 +110,11 @@ body.withdraw-app input[type='file'] {
 }
 
 .wd-balance-row {
-  display: flex;
-  justify-content: center;
-  gap: 40px;
-  margin-top: 18px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 20px;
+  margin-top: 20px;
+  padding: 0 4px;
   font-size: 13px;
 }
 
@@ -108,21 +122,29 @@ body.withdraw-app input[type='file'] {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  justify-content: center;
+  gap: 4px;
   min-width: 0;
+  padding: 8px 6px;
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
 }
 
 .wd-balance-row strong {
-  font-size: 16px;
+  font-size: 17px;
   line-height: 1.2;
   word-break: break-word;
 }
 
 .wd-balance-row span {
-  font-size: 11px;
-  opacity: 0.88;
+  font-size: 10px;
+  opacity: 0.95;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.02em;
+  line-height: 1.35;
+  white-space: normal;
+  text-align: center;
+  max-width: 100%;
 }
 
 .wd-btn-pink {
@@ -192,7 +214,7 @@ body.withdraw-app input[type='file'] {
 }
 
 .wd-header-spacer {
-  width: 36px;
+  width: 76px;
   flex-shrink: 0;
 }
 
@@ -480,6 +502,53 @@ body.withdraw-app input[type='file'] {
   box-shadow: none;
 }
 
+.wd-btn-primary.is-ready {
+  background: linear-gradient(135deg, #10b981, #059669);
+  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.4);
+  animation: wd-pulse-ready 2s ease-in-out infinite;
+}
+
+@keyframes wd-pulse-ready {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+}
+
+.wd-btn-inline-submit {
+  margin-top: 14px;
+  width: 100%;
+}
+
+.wd-flow-help {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #374151;
+}
+
+.wd-flow-help strong {
+  display: block;
+  margin-bottom: 8px;
+  color: #111827;
+  font-size: 14px;
+}
+
+.wd-flow-help ol {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.wd-flow-help li {
+  margin-bottom: 6px;
+}
+
+.wd-flow-help li:last-child {
+  margin-bottom: 0;
+}
+
 .wd-submit-hint {
   margin: 10px 0 0;
   font-size: 13px;
@@ -502,16 +571,17 @@ body.withdraw-app input[type='file'] {
 
 .wd-step {
   flex: 1 1 0;
-  min-width: 90px;
+  min-width: 0;
   background: #fff;
   border-radius: 12px;
-  padding: 10px 8px;
+  padding: 10px 6px;
   text-align: center;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   color: #9ca3af;
   border: 1px solid #e5e7eb;
-  line-height: 1.3;
+  line-height: 1.35;
+  word-break: break-word;
 }
 
 .wd-step i {
@@ -585,26 +655,32 @@ body.withdraw-app .footer {
 .wd-detail-row {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  gap: 12px;
   padding: 12px 0;
   border-bottom: 1px solid #f3f4f6;
   font-size: 14px;
 }
 
-.wd-detail-row:last-child {
-  border-bottom: none;
-}
-
 .wd-detail-row .label {
   color: #6b7280;
+  flex: 1;
+  min-width: 0;
+  line-height: 1.4;
 }
 
 .wd-detail-row .value {
   font-weight: 600;
   color: #111827;
   text-align: right;
-  max-width: 60%;
-  word-break: break-all;
+  flex: 1;
+  min-width: 0;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.wd-detail-row:last-child {
+  border-bottom: none;
 }
 
 .wd-qr-preview {

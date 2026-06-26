@@ -6,16 +6,29 @@
   <meta name="theme-color" content="#5b67f6">
   <title>Withdraw - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-withdraw.css?v=20260625wd-flow">
+  <link rel="stylesheet" href="social-withdraw.css?v=20260625wd-flow2">
   <link rel="stylesheet" href="mobile-app.css">
 </head>
 <body class="withdraw-app">
   <div class="wd-page">
     <header class="wd-header">
-      <a href="/points.html?app=1" class="wd-header-back" aria-label="Back"><i class="fas fa-arrow-left"></i></a>
+      <div class="wd-header-side wd-header-side--start">
+        <a href="/points.html?app=1" class="wd-header-back" aria-label="Back"><i class="fas fa-arrow-left"></i></a>
+      </div>
       <h1>Withdraw</h1>
-      <span class="wd-header-spacer" aria-hidden="true"></span>
+      <div class="wd-header-side">
+        <a href="/withdraw-notices.html?app=1" class="wd-header-link">History</a>
+      </div>
     </header>
+
+    <div class="wd-flow-help">
+      <strong>3 steps to send your request</strong>
+      <ol>
+        <li>Enter how many <strong>points</strong> to withdraw</li>
+        <li>Upload your <strong>UPI/bank QR</strong> photo (where admin sends money)</li>
+        <li>Tap <strong>Submit withdrawal request</strong> — the green button at the bottom</li>
+      </ol>
+    </div>
 
     <div class="wd-steps" aria-label="Withdrawal steps">
       <div class="wd-step active" id="stepAmount"><i class="fas fa-coins"></i>1. Amount</div>
@@ -68,8 +81,11 @@
       </div>
       <div class="wd-qr-success" id="qrSuccessBanner" hidden>
         <i class="fas fa-check-circle"></i>
-        <span>QR uploaded — scroll down and tap <strong>Submit request</strong></span>
+        <span>QR uploaded! Now tap the green button below to send your request to admin.</span>
       </div>
+      <button type="button" class="wd-btn-primary wd-btn-inline-submit" id="submitWithdrawInline" hidden disabled>
+        <i class="fas fa-paper-plane"></i> Submit withdrawal request
+      </button>
     </div>
 
     <div class="wd-card">
@@ -82,8 +98,10 @@
     </div>
 
     <footer class="wd-footer">
-      <button type="button" class="wd-btn-primary" id="submitWithdraw" disabled>Submit withdrawal request</button>
-      <p class="wd-submit-hint" id="submitHint">Enter amount and upload your payment QR to continue.</p>
+      <button type="button" class="wd-btn-primary" id="submitWithdraw" disabled>
+        <i class="fas fa-paper-plane"></i> Submit withdrawal request
+      </button>
+      <p class="wd-submit-hint" id="submitHint">Step 1: enter amount · Step 2: upload QR · Step 3: tap the button above</p>
     </footer>
   </div>
 
@@ -103,9 +121,9 @@
       const n = Number(coins).toLocaleString();
       if (usd != null && Number(usd) > 0) {
         const inr = Math.round(Number(coins) / rate);
-        return `${n} coins ($${usd} / ₹${inr.toLocaleString()})`;
+        return `${n} pts · $${usd} · ₹${inr.toLocaleString()}`;
       }
-      return `${n} coins`;
+      return `${n} points`;
     }
     let withdrawable = 0;
 
@@ -120,14 +138,11 @@
       document.getElementById('stepSubmit').className = 'wd-step' + (ready ? ' done active' : qrOk ? ' active' : '');
 
       const hint = document.getElementById('submitHint');
-      const btn = document.getElementById('submitWithdraw');
       if (ready) {
-        hint.textContent = 'Ready! Tap the button above to send your request to admin.';
+        hint.textContent = 'All set! Tap the green Submit button (here or at the bottom).';
         hint.className = 'wd-submit-hint is-ready';
-        btn.textContent = 'Submit withdrawal request';
       } else {
         hint.className = 'wd-submit-hint';
-        btn.textContent = 'Submit withdrawal request';
         const missing = [];
         if (!amountOk) {
           if (withdrawable < minCoins) missing.push(`need at least ${Number(minCoins).toLocaleString()} points (you have ${Number(withdrawable).toLocaleString()})`);
@@ -137,15 +152,23 @@
         }
         if (!qrOk) missing.push('upload your UPI/bank QR photo');
         hint.textContent = missing.length
-          ? 'To submit: ' + missing.join(' · ')
-          : 'Enter amount and upload your payment QR to continue.';
+          ? 'Still needed: ' + missing.join(' · ')
+          : 'Step 1: amount · Step 2: QR · Step 3: Submit';
       }
     }
 
     function updateSubmitState() {
       const amt = parseInt(document.getElementById('withdrawAmount').value, 10);
-      const ok = selectedFile && amt >= minCoins && amt <= withdrawable;
-      document.getElementById('submitWithdraw').disabled = !ok;
+      const ready = selectedFile && amt >= minCoins && amt <= withdrawable;
+      const btn = document.getElementById('submitWithdraw');
+      const btnInline = document.getElementById('submitWithdrawInline');
+      btn.disabled = !ready;
+      if (btnInline) {
+        btnInline.disabled = !ready;
+        btnInline.hidden = !selectedFile;
+        btnInline.classList.toggle('is-ready', ready);
+      }
+      btn.classList.toggle('is-ready', ready);
       document.getElementById('qrSuccessBanner').hidden = !selectedFile;
       updateSteps();
     }
@@ -235,7 +258,7 @@
 
       document.getElementById('withdrawAmount').addEventListener('input', updateSubmitState);
 
-      document.getElementById('submitWithdraw').addEventListener('click', async () => {
+      async function doSubmitWithdraw() {
         const amount = parseInt(document.getElementById('withdrawAmount').value, 10);
         if (!amount || amount < minCoins) {
           const usd = (await SocialWallet.getWalletSettings().catch(() => ({}))).min_withdrawal_usd;
@@ -248,26 +271,35 @@
           return;
         }
         if (!selectedFile) {
-          SocialUI?.toast?.('Upload your payment QR code') || alert('Upload your payment QR code');
+          SocialUI?.toast?.('Upload your payment QR code first') || alert('Upload your payment QR code');
           return;
         }
         const btn = document.getElementById('submitWithdraw');
+        const btnInline = document.getElementById('submitWithdrawInline');
         btn.disabled = true;
-        btn.textContent = 'Submitting…';
+        if (btnInline) btnInline.disabled = true;
+        const label = '<i class="fas fa-spinner fa-spin"></i> Submitting…';
+        btn.innerHTML = label;
+        if (btnInline) btnInline.innerHTML = label;
         try {
           const res = await SocialWallet.requestWithdrawWithQr(amount, selectedFile);
           const id = res.data?.id;
-          SocialUI?.toast?.('Request submitted — under review') || alert('Request submitted');
+          SocialUI?.toast?.('Request sent! Admin will review and pay you.') || alert('Request submitted');
           location.href = id
             ? `/withdraw-details.html?id=${id}&app=1`
             : '/withdraw-notices.html?app=1';
         } catch (e) {
           SocialUI?.toast?.(e.message) || alert(e.message || 'Failed to submit');
           btn.disabled = false;
-          btn.textContent = 'Submit withdrawal request';
+          if (btnInline) btnInline.disabled = false;
+          btn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit withdrawal request';
+          if (btnInline) btnInline.innerHTML = '<i class="fas fa-paper-plane"></i> Submit withdrawal request';
           updateSubmitState();
         }
-      });
+      }
+
+      document.getElementById('submitWithdraw').addEventListener('click', doSubmitWithdraw);
+      document.getElementById('submitWithdrawInline')?.addEventListener('click', doSubmitWithdraw);
     });
   </script>
 </body>
