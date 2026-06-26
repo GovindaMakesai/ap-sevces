@@ -18,6 +18,7 @@ function normalizeOutgoingChatMessage(messageRow, conversationId) {
         senderId: String(messageRow.sender_id),
         receiverId: String(messageRow.receiver_id),
         text,
+        body: bodyStr,
         imageUrl,
         createdAt: messageRow.created_at
     };

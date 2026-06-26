@@ -43,7 +43,9 @@ async function listConversationsForUser(currentUserId) {
 }
 
 async function getConversationById(conversationId) {
-    const r = await db.query(`SELECT * FROM conversations WHERE id = $1`, [conversationId]);
+    const id = String(conversationId || '').trim();
+    if (!id) return null;
+    const r = await db.query(`SELECT * FROM conversations WHERE id = $1::uuid`, [id]);
     return r.rows[0] || null;
 }
 

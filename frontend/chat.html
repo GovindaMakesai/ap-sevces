@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#fff9f0">
     <script src="/ap-native-boot.js"></script>
     <link rel="stylesheet" href="/social-theme.css?v=20260625chatgift">
-    <link rel="stylesheet" href="/social-chat.css?v=20260626-chat-ui">
+    <link rel="stylesheet" href="/social-chat.css?v=20260626-chat-fix2">
     
     <!-- Font Awesome 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -389,9 +389,7 @@
             overflow-y: auto;
             padding: var(--spacing-lg);
             background: var(--gray-50);
-            display: flex;
-            flex-direction: column;
-            gap: var(--spacing-md);
+            display: block;
         }
 
         .message-date-divider {
@@ -1042,9 +1040,9 @@
         }
     </style>
 </head>
-<body class="ap-chat-boot">
+<body>
 <script>
-(function(){var b=document.body;if(b){b.classList.remove('ap-chat-boot');b.classList.add('ap-chat-ready');}})();
+(function(){var p=document.querySelector('.chat-page');if(p){p.classList.remove('ap-chat-loading');p.classList.add('ap-chat-ready');}})();
 </script>
     <!-- Navbar -->
     <nav class="navbar">
@@ -1064,7 +1062,7 @@
     </nav>
 
     <!-- Chat Page -->
-    <section class="chat-page">
+    <section class="chat-page ap-chat-ready">
         <div class="chat-container">
             <div class="chat-layout">
                 <!-- Chat Sidebar -->
@@ -1298,13 +1296,30 @@
     
     <script>
         // ==================== CHAT JAVASCRIPT ====================
+        function markChatPageReady() {
+            document.querySelectorAll('.chat-page').forEach((el) => {
+                el.classList.remove('ap-chat-loading');
+                el.classList.add('ap-chat-ready');
+            });
+        }
+
+        async function ensureChatUser() {
+            try {
+                const u = Auth.getUser?.();
+                if (u?.id) return;
+                if (!localStorage.getItem('token')) return;
+                if (typeof Auth.refreshSession === 'function') {
+                    await Auth.refreshSession().catch(() => {});
+                    return;
+                }
+                if (typeof Auth.tryRefresh === 'function') {
+                    await Auth.tryRefresh().catch(() => {});
+                }
+            } catch (_e) { /* ignore */ }
+        }
+
         document.addEventListener('DOMContentLoaded', async function() {
-            document.body.classList.remove('ap-chat-boot');
-            document.body.classList.add('ap-chat-ready');
-            setTimeout(function() {
-                document.body.classList.remove('ap-chat-boot');
-                document.body.classList.add('ap-chat-ready');
-            }, 1500);
+            markChatPageReady();
             if (typeof isNativeAppContext === 'function' && isNativeAppContext()) {
                 document.documentElement.classList.add('social-app', 'ap-expo-app');
                 if (window.SocialShell?.initPage) {
@@ -1326,9 +1341,11 @@
                 openChatListMenu();
             });
             if (Auth.hasSession?.()) {
+                await ensureChatUser();
                 await Auth.ensureAccessToken?.().catch(() => {});
                 if (!Auth.checkAuth() && typeof Auth.repairSession === 'function') {
                     await Auth.repairSession().catch(() => {});
+                    await ensureChatUser();
                 }
             }
             if (!Auth.hasSession?.() && !Auth.checkAuth()) {
@@ -1422,7 +1439,7 @@
             if (!id) return;
 
             const existing = useChatStore.getState().conversations.find((conv) =>
-                String(conv.id) === id || String(conv.otherUserId) === id
+                chatKey(conv.id) === chatKey(id) || String(conv.otherUserId) === id
             );
             if (existing) {
                 await loadChat(existing.id);
@@ -1539,16 +1556,32 @@
             }
         );
 
+        function userIdFromJwt(token) {
+            try {
+                const part = String(token || '').split('.')[1];
+                if (!part) return '';
+                const payload = JSON.parse(atob(part.replace(/-/g, '+').replace(/_/g, '/')));
+                const id = payload.userId || payload.sub || payload.id;
+                return id ? String(id).toLowerCase() : '';
+            } catch (_e) {
+                return '';
+            }
+        }
+
         function getMyUserId() {
             try {
                 const authUser = typeof Auth !== 'undefined' && Auth.getUser?.();
                 if (authUser?.id) return String(authUser.id).toLowerCase();
+                if (authUser?.userId) return String(authUser.userId).toLowerCase();
                 if (AppState.user?.id) return String(AppState.user.id).toLowerCase();
                 const raw = localStorage.getItem('user');
                 if (raw) {
                     const u = JSON.parse(raw);
                     if (u?.id) return String(u.id).toLowerCase();
+                    if (u?.userId) return String(u.userId).toLowerCase();
                 }
+                const fromToken = userIdFromJwt(localStorage.getItem('token') || Auth.getToken?.());
+                if (fromToken) return fromToken;
             } catch (_e) { /* ignore */ }
             return '';
         }
@@ -1721,6 +1754,20 @@
                 .replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#39;');
+        }
+
+        function escapeAttr(str) {
+            return escapeHtml(str).replace(/[\r\n\u2028\u2029]+/g, ' ');
+        }
+
+        function extractServerMessages(response) {
+            const root = response?.data;
+            if (!root) return [];
+            if (Array.isArray(root)) return root;
+            if (Array.isArray(root.messages)) return root.messages;
+            if (Array.isArray(root.data?.messages)) return root.data.messages;
+            if (Array.isArray(root.data)) return root.data;
+            return [];
         }
 
         function setupChatListClicks() {
@@ -2116,8 +2163,8 @@
                     await Auth.ensureAccessToken().catch(() => {});
                 }
                 const response = await axiosClient.get(`/${encodeURIComponent(key)}`);
-                const payload = response.data?.data || {};
-                const serverMessages = payload.messages || response.data?.messages || [];
+                const payload = response.data?.data || response.data || {};
+                const serverMessages = extractServerMessages(response);
                 otherLastReadAt = payload.otherLastReadAt || response.data?.otherLastReadAt || null;
                 updateMessageQuotaBanner(payload.quota);
                 const seen = new Set();
@@ -2168,12 +2215,13 @@
                 const bodyHtml = bodyText
                     ? escapeHtml(bodyText)
                     : (msg.image ? '' : '<span class="msg-empty-placeholder">Message unavailable</span>');
+                const bubbleType = msg.type === 'sent' ? 'sent' : 'received';
                 html += `
-                    <div class="message-wrapper ${msg.type}" data-msg-id="${escapeHtml(String(msg.id || ''))}">
-                        <div class="message-bubble ${msg.type}" data-msg-text="${escapeHtml(bodyText)}">
+                    <div class="message-wrapper ${bubbleType}" data-msg-id="${escapeAttr(String(msg.id || ''))}">
+                        <div class="message-bubble ${bubbleType}">
                             <div class="message-content">
                                 ${bodyHtml}
-                                ${msg.image ? `<img src="${escapeHtml(msg.image)}" class="message-image" alt="Photo" loading="lazy" onclick='openImageModal(${JSON.stringify(msg.image)})'>` : ''}
+                                ${msg.image ? `<img src="${escapeAttr(msg.image)}" class="message-image" alt="Photo" loading="lazy" onclick='openImageModal(${JSON.stringify(msg.image)})'>` : ''}
                             </div>
                             <div class="message-time">
                                 <span>${msg.time}</span>
@@ -2227,7 +2275,7 @@
             container.dataset.msgActionsBound = '1';
             let pressTimer;
             const openMsgMenu = (bubble, wrapper) => {
-                const text = bubble.dataset.msgText || bubble.querySelector('.message-content')?.textContent || '';
+                const text = bubble.querySelector('.message-content')?.textContent?.trim() || '';
                 let sheet = document.getElementById('apMsgActionSheet');
                 if (!sheet) {
                     sheet = document.createElement('div');
@@ -2395,7 +2443,10 @@
                         senderId: payload.senderId,
                         createdAt: payload.createdAt,
                         text: payload.text,
+                        body: payload.body,
+                        message: payload.message,
                         imageUrl: payload.imageUrl,
+                        image: payload.image,
                         status: isMine ? 'sent' : undefined,
                     }, otherLastReadAt);
                     if (localIdx >= 0) {

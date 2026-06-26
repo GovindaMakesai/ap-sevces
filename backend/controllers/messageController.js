@@ -230,13 +230,15 @@ exports.getMessages = async (req, res) => {
                 quota,
                 otherLastReadAt: otherReadAt,
                 messages: messages.map((msg) => {
-                    const { text, imageUrl } = splitMessageBody(msg.body);
+                    const bodyStr = msg.body != null ? String(msg.body) : '';
+                    const { text, imageUrl } = splitMessageBody(bodyStr);
                     return {
                         id: String(msg.id),
                         conversationId: String(msg.conversation_id),
                         senderId: String(msg.sender_id),
                         receiverId: String(msg.receiver_id),
                         text,
+                        body: bodyStr,
                         imageUrl,
                         createdAt: msg.created_at
                     };

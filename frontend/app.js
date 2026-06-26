@@ -649,7 +649,12 @@ const Auth = {
 
     async repairSession() {
         const existing = localStorage.getItem('token');
-        if (existing && isAccessTokenUsable(existing)) return true;
+        if (existing && isAccessTokenUsable(existing)) {
+            if (!localStorage.getItem('user') && typeof this.refreshSession === 'function') {
+                await this.refreshSession().catch(() => {});
+            }
+            return true;
+        }
         await this.ensureAccessToken();
         const tok = localStorage.getItem('token');
         if (tok && isAccessTokenUsable(tok)) return true;
@@ -670,7 +675,12 @@ const Auth = {
 
     async ensureAccessToken() {
         const existing = localStorage.getItem('token');
-        if (existing && isAccessTokenUsable(existing)) return existing;
+        if (existing && isAccessTokenUsable(existing)) {
+            if (!localStorage.getItem('user') && typeof this.refreshSession === 'function') {
+                await this.refreshSession().catch(() => {});
+            }
+            return existing;
+        }
         if (existing && !isAccessTokenUsable(existing)) {
             localStorage.removeItem('token');
             AppState.token = null;
