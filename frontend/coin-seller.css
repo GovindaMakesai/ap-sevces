@@ -322,7 +322,11 @@ body.cs-page {
   inset: 0;
   background: rgba(0, 0, 0, 0.45);
   display: none;
-  align-items: flex-end;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: stretch;
+  overflow: hidden;
+  overscroll-behavior: contain;
   z-index: 200;
 }
 
@@ -334,10 +338,15 @@ body.cs-page {
   background: #fff;
   width: 100%;
   max-height: min(88dvh, 640px);
+  min-height: 0;
+  flex-shrink: 1;
   border-radius: 20px 20px 0 0;
   padding: 16px 16px calc(20px + env(safe-area-inset-bottom, 0));
+  overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
 }
 
 .cs-modal-head {
@@ -778,5 +787,43 @@ body.cs-page {
 }
 
 .cs-recharge-page .rc-page {
-  padding-bottom: calc(120px + env(safe-area-inset-bottom, 0));
+  padding-bottom: calc(150px + env(safe-area-inset-bottom, 0));
+}
+
+html.cs-modal-open,
+html.cs-modal-open body.cs-page {
+  overflow: hidden !important;
+  height: 100%;
+  touch-action: none;
+}
+
+html.ap-expo-app body.cs-page {
+  --social-bottom-nav-h: 0px;
+  padding-bottom: calc(120px + env(safe-area-inset-bottom, 0px)) !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+  height: auto;
+  min-height: 100dvh;
+}
+
+html.ap-expo-app:has(body.cs-page) {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+html.ap-expo-app body.cs-recharge-page {
+  --social-bottom-nav-h: 0px;
+  padding: 0 !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+  height: auto;
+  min-height: 100dvh;
+}
+
+.cs-recharge-page .rc-page {
+  min-height: 0;
+}
+
+.cs-recharge-page .rc-history {
+  padding-bottom: 32px;
 }

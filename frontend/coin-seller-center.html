@@ -8,7 +8,7 @@
   <script src="/ap-native-boot.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-theme.css">
-  <link rel="stylesheet" href="coin-seller.css?v=20260626cs">
+  <link rel="stylesheet" href="coin-seller.css?v=20260626cs-scroll">
   <link rel="stylesheet" href="mobile-app.css">
 </head>
 <body class="cs-page">
@@ -236,12 +236,16 @@
 
       function openModal(id) {
         document.getElementById(id)?.classList.add('open');
-        document.body.style.overflow = 'hidden';
+        document.documentElement.classList.add('cs-modal-open');
+        document.body.classList.add('cs-modal-open');
       }
 
       function closeModal(id) {
         document.getElementById(id)?.classList.remove('open');
-        if (!document.querySelector('.cs-modal.open')) document.body.style.overflow = '';
+        if (!document.querySelector('.cs-modal.open')) {
+          document.documentElement.classList.remove('cs-modal-open');
+          document.body.classList.remove('cs-modal-open');
+        }
       }
 
       document.querySelectorAll('.cs-modal').forEach((modal) => {

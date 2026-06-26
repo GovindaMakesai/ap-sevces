@@ -136,15 +136,16 @@
         return true;
       }
       try {
-        sessionStorage.setItem(
-          'ap_live_pip_session',
-          JSON.stringify({
-            url: location.pathname + location.search,
-            host: 'Live',
-            type: document.body?.dataset?.livePage || 'live-room',
-            ts: Date.now(),
-          })
-        );
+        const payload = {
+          url: location.pathname + location.search,
+          channel: new URLSearchParams(location.search).get('channel') || new URLSearchParams(location.search).get('room') || '',
+          host: 'Live',
+          type: document.body?.dataset?.livePage || 'live-room',
+          ts: Date.now(),
+          expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+        };
+        sessionStorage.setItem('ap_live_pip_session', JSON.stringify(payload));
+        if (payload.channel) localStorage.setItem('ap_live_active_session', JSON.stringify(payload));
       } catch (_e) {}
       navigateTo(HOME, { replace: false });
       return true;

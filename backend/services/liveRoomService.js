@@ -171,8 +171,10 @@ async function leaveRoom({ channel, userId }) {
 
 async function getActiveMembers(liveRoomId) {
   const res = await db.query(
-    `SELECT user_id, display_name, role, is_muted, gift_count, joined_at
-     FROM live_room_members WHERE live_room_id = $1 AND left_at IS NULL ORDER BY joined_at ASC`,
+    `SELECT m.user_id, m.display_name, m.role, m.is_muted, m.gift_count, m.joined_at, u.profile_pic
+     FROM live_room_members m
+     LEFT JOIN users u ON u.id = m.user_id
+     WHERE m.live_room_id = $1 AND m.left_at IS NULL ORDER BY m.joined_at ASC`,
     [liveRoomId]
   );
   return res.rows;
@@ -229,10 +231,17 @@ async function buildSnapshot(channel) {
     .map((m) => ({
       userId: m.user_id,
       name: m.display_name,
+      profilePic: m.profile_pic || null,
       muted: m.is_muted,
       gifts: Number(m.gift_count),
       isHost: m.role === 'host',
     }));
+
+  let hostProfilePic = null;
+  if (room.host_user_id) {
+    const hostPicRes = await db.query(`SELECT profile_pic FROM users WHERE id = $1`, [room.host_user_id]);
+    hostProfilePic = hostPicRes.rows[0]?.profile_pic || null;
+  }
 
   return {
     channel: room.channel,
@@ -240,6 +249,7 @@ async function buildSnapshot(channel) {
     roomId: room.id,
     hostId: room.host_user_id,
     hostName: room.host_display_name,
+    hostProfilePic,
     viewers: room.viewer_count,
     pkStatus: room.pk_status,
     messages,

@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#fff9f0">
     <script src="/ap-native-boot.js"></script>
     <link rel="stylesheet" href="/social-theme.css?v=20260625chatgift">
-    <link rel="stylesheet" href="/social-chat.css?v=20260626-chat-blank">
+    <link rel="stylesheet" href="/social-chat.css?v=20260626-chat-ui">
     
     <!-- Font Awesome 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -1301,6 +1301,10 @@
         document.addEventListener('DOMContentLoaded', async function() {
             document.body.classList.remove('ap-chat-boot');
             document.body.classList.add('ap-chat-ready');
+            setTimeout(function() {
+                document.body.classList.remove('ap-chat-boot');
+                document.body.classList.add('ap-chat-ready');
+            }, 1500);
             if (typeof isNativeAppContext === 'function' && isNativeAppContext()) {
                 document.documentElement.classList.add('social-app', 'ap-expo-app');
                 if (window.SocialShell?.initPage) {
@@ -1313,10 +1317,21 @@
             if (chatList) {
                 chatList.innerHTML = '<div class="chat-list-loading" style="padding:24px;text-align:center;color:var(--gray-500)"><i class="fas fa-spinner fa-spin"></i> Loading chats…</div>';
             }
+            setupChatListClicks();
+            setupChatSearch();
+            setupChatTabs();
+            setupMsgFilters();
+            setupMsgQuickChips();
+            document.querySelector('.ap-msg-top-actions button[aria-label="More"]')?.addEventListener('click', () => {
+                openChatListMenu();
+            });
             if (Auth.hasSession?.()) {
                 await Auth.ensureAccessToken?.().catch(() => {});
+                if (!Auth.checkAuth() && typeof Auth.repairSession === 'function') {
+                    await Auth.repairSession().catch(() => {});
+                }
             }
-            if (!Auth.checkAuth()) {
+            if (!Auth.hasSession?.() && !Auth.checkAuth()) {
                 if (typeof isNativeAppContext === 'function' && isNativeAppContext()) {
                     window.location.replace('/app-auth.html?app=1&redirect=' + encodeURIComponent(location.pathname + location.search));
                     return;
@@ -1326,12 +1341,7 @@
                 return;
             }
             setupSocketListeners();
-            setupChatListClicks();
             await loadConversations();
-            setupChatSearch();
-            setupChatTabs();
-            setupMsgFilters();
-            setupMsgQuickChips();
             if (window.SocialNav) {
                 SocialNav.registerRefresh(async () => {
                     await loadConversations();
@@ -1358,9 +1368,6 @@
                 } catch (_e) {}
             };
             showSellerTools();
-            document.querySelector('.ap-msg-top-actions button[aria-label="More"]')?.addEventListener('click', () => {
-                openChatListMenu();
-            });
             setupMessageActions();
             const messageInput = document.getElementById('messageInput');
             messageInput?.addEventListener('blur', () => {

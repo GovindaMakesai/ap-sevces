@@ -614,6 +614,7 @@ const Auth = {
                 return false;
             }
         }
+        if (localStorage.getItem('token')) return true;
         return false;
     },
 

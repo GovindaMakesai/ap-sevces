@@ -182,10 +182,9 @@
     if (photoUrl) {
       const p = String(photoUrl).trim();
       if (p.startsWith('http') || p.startsWith('data:') || p.startsWith('blob:')) return p;
-      if (p.startsWith('/')) {
-        const base = (window.CONFIG?.BACKEND_URL || String(window.CONFIG?.API_URL || '').replace(/\/api\/?$/, '') || '').replace(/\/$/, '');
-        return base ? base + p : p;
-      }
+      const base = (window.CONFIG?.BACKEND_URL || String(window.CONFIG?.API_URL || '').replace(/\/api\/?$/, '') || '').replace(/\/$/, '');
+      const path = p.startsWith('/') ? p : `/${p}`;
+      return base ? base + path : path;
     }
     const label = initials(name);
     return svgDataUrl(

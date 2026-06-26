@@ -516,13 +516,20 @@
     if (document.body?.dataset?.livePage) return;
     let raw;
     try {
-      raw = sessionStorage.getItem('ap_live_pip_session');
+      raw = localStorage.getItem('ap_live_active_session') || sessionStorage.getItem('ap_live_pip_session');
     } catch (_e) {}
     if (!raw) return;
     let data;
     try {
       data = JSON.parse(raw);
     } catch (_e) {
+      return;
+    }
+    if (data?.expiresAt && Date.now() > data.expiresAt) {
+      try {
+        localStorage.removeItem('ap_live_active_session');
+        sessionStorage.removeItem('ap_live_pip_session');
+      } catch (_e) {}
       return;
     }
     if (!data?.url || document.getElementById('apLivePipBar')) return;
@@ -546,6 +553,7 @@
     document.getElementById('apLivePipClose')?.addEventListener('click', () => {
       try {
         sessionStorage.removeItem('ap_live_pip_session');
+        localStorage.removeItem('ap_live_active_session');
       } catch (_e) {}
       bar.remove();
     });

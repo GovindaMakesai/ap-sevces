@@ -190,18 +190,80 @@
     if (!meta?.channel) return;
     try {
       sessionStorage.setItem('ap_live_join_meta', JSON.stringify(meta));
+      persistDurableLiveSession({ joinMeta: meta });
     } catch (_e) {}
+  }
+
+  const LIVE_SESSION_KEY = 'ap_live_active_session';
+  const LIVE_SESSION_TTL_MS = 24 * 60 * 60 * 1000;
+
+  function persistDurableLiveSession(extra) {
+    const ch = channelId();
+    if (!ch) return;
+    const payload = {
+      url: location.pathname + location.search,
+      channel: ch,
+      host: roomState?.hostName || displayName(currentUser()) || 'Live',
+      type: document.body.dataset.livePage || 'live-room',
+      ts: Date.now(),
+      expiresAt: Date.now() + LIVE_SESSION_TTL_MS,
+      ...(extra || {}),
+    };
+    try {
+      localStorage.setItem(LIVE_SESSION_KEY, JSON.stringify(payload));
+      sessionStorage.setItem('ap_live_pip_session', JSON.stringify(payload));
+    } catch (_e) {}
+  }
+
+  function readDurableLiveSession() {
+    try {
+      const raw = localStorage.getItem(LIVE_SESSION_KEY) || sessionStorage.getItem('ap_live_pip_session');
+      if (!raw) return null;
+      const data = JSON.parse(raw);
+      if (!data?.url || !data?.channel) return null;
+      if (data.expiresAt && Date.now() > data.expiresAt) {
+        localStorage.removeItem(LIVE_SESSION_KEY);
+        return null;
+      }
+      return data;
+    } catch (_e) {}
+    return null;
+  }
+
+  function clearDurableLiveSession() {
+    try {
+      localStorage.removeItem(LIVE_SESSION_KEY);
+      sessionStorage.removeItem('ap_live_pip_session');
+      sessionStorage.removeItem('ap_live_join_meta');
+    } catch (_e) {}
+  }
+
+  function restoreChannelFromDurableSession() {
+    if (qs('channel') || qs('room')) return;
+    const data = readDurableLiveSession();
+    if (!data?.channel) return;
+    const page = document.body.dataset.livePage || '';
+    if (data.type && page && data.type !== page) return;
+    const params = new URLSearchParams(location.search);
+    params.set('channel', data.channel);
+    history.replaceState(null, '', location.pathname + '?' + params.toString());
   }
 
   function restoreJoinMeta() {
     try {
-      const raw = sessionStorage.getItem('ap_live_join_meta');
-      if (!raw) return null;
-      const meta = JSON.parse(raw);
       const urlCh = qs('channel') || qs('room');
-      if (!meta?.channel || !urlCh || meta.channel !== urlCh) return null;
-      if (qs('host') !== '1' && meta.isHost) meta.isHost = false;
-      return meta;
+      const raw = sessionStorage.getItem('ap_live_join_meta');
+      if (raw && urlCh) {
+        const meta = JSON.parse(raw);
+        if (meta?.channel && meta.channel === urlCh) {
+          if (qs('host') !== '1' && meta.isHost) meta.isHost = false;
+          return meta;
+        }
+      }
+      const durable = readDurableLiveSession();
+      if (durable?.channel && urlCh && durable.channel === urlCh) {
+        return durable.joinMeta || { channel: durable.channel, isHost: false };
+      }
     } catch (_e) {}
     return null;
   }
@@ -489,8 +551,20 @@
   }
 
   function avatarUrl(name, profilePic) {
+    if (profilePic) {
+      const resolved = window.SocialShell?.getImageUrl?.(profilePic) || profilePic;
+      if (window.SocialUI?.avatarUrl) return SocialUI.avatarUrl(name, resolved);
+      return resolved;
+    }
     if (window.SocialUI?.avatarUrl) return SocialUI.avatarUrl(name, profilePic);
     return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128"><rect width="128" height="128" fill="#7c3aed"/></svg>')}`;
+  }
+
+  function liveProfilePic(userId, fallbackPic) {
+    if (fallbackPic) return fallbackPic;
+    const me = currentUser();
+    if (userId && me && String(userId) === String(me.id)) return me.profile_pic || null;
+    return null;
   }
 
   async function refreshLiveUserProfile() {
@@ -2503,7 +2577,7 @@
         <div class="seat-avatar">
           <span class="seat-num">${seatNum}</span>
           ${crown}
-          <img src="${avatarUrl(s.name)}" alt="">
+          <img src="${avatarUrl(s.name, s.profilePic || liveProfilePic(s.userId, null))}" alt="">
           ${mic}
           ${waveBars}
         </div>
@@ -2689,9 +2763,11 @@
       hostEl.title = full;
     }
     if (hostImg) {
-      const pic = isHost() ? currentUser()?.profile_pic : null;
+      const hostId = roomState?.hostId ? String(roomState.hostId) : '';
+      const pic = roomState?.hostProfilePic || liveProfilePic(hostId, isHost() ? currentUser()?.profile_pic : null);
       hostImg.src = avatarUrl(hostName, pic);
       hostImg.dataset.name = hostName;
+      if (pic) hostImg.dataset.avatarSrc = String(pic);
     }
 
     const vc = document.getElementById('liveViewerCount');
@@ -2862,7 +2938,8 @@
     const open = Boolean(
       document.getElementById('partyToolsSheet')?.classList.contains('open') ||
         document.getElementById('giftSheet')?.classList.contains('open') ||
-        document.getElementById('apMicLinkModal')?.classList.contains('open')
+        document.getElementById('apMicLinkModal')?.classList.contains('open') ||
+        document.getElementById('apTopupSheet')?.classList.contains('open')
     );
     document.body.classList.toggle('ap-live-overlay-open', open);
   }
@@ -3032,6 +3109,7 @@
     };
     try {
       sessionStorage.setItem('ap_live_pip_session', JSON.stringify(payload));
+      localStorage.setItem(LIVE_SESSION_KEY, JSON.stringify({ ...payload, expiresAt: Date.now() + LIVE_SESSION_TTL_MS }));
     } catch (_e) {}
     const dest = location.search.includes('app=1') || document.documentElement.classList.contains('ap-expo-app')
       ? '/explore.html?app=1'
@@ -3156,6 +3234,7 @@
 
   function openTopupSheet() {
     document.getElementById('apTopupSheet')?.classList.add('open');
+    syncLiveOverlayClass();
     if (window.SocialWallet?.fetchBalance) {
       SocialWallet.fetchBalance(true).then((b) => {
         const el = document.getElementById('apTopupBal');
@@ -3361,12 +3440,14 @@
         document.getElementById('apTopupSheet')?.classList.remove('open');
         document.getElementById('apTopupStep1')?.removeAttribute('hidden');
         document.getElementById('apTopupStep2')?.setAttribute('hidden', '');
+        syncLiveOverlayClass();
       });
       document.getElementById('apTopupSheet')?.addEventListener('click', (e) => {
         if (e.target.id === 'apTopupSheet') {
           e.target.classList.remove('open');
           document.getElementById('apTopupStep1')?.removeAttribute('hidden');
           document.getElementById('apTopupStep2')?.setAttribute('hidden', '');
+          syncLiveOverlayClass();
         }
       });
       document.getElementById('apTopupRecharge')?.addEventListener('click', () => {
@@ -3383,10 +3464,19 @@
         if (coinsEl) coinsEl.textContent = Number(coins).toLocaleString('en-IN') + ' coins';
         document.getElementById('apTopupStep1')?.setAttribute('hidden', '');
         document.getElementById('apTopupStep2')?.removeAttribute('hidden');
+        syncLiveOverlayClass();
+        setTimeout(() => {
+          document.getElementById('apTopupSubmit')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }, 120);
       });
       document.getElementById('apTopupBack')?.addEventListener('click', () => {
         document.getElementById('apTopupStep2')?.setAttribute('hidden', '');
         document.getElementById('apTopupStep1')?.removeAttribute('hidden');
+      });
+      document.getElementById('apTopupUtr')?.addEventListener('focus', () => {
+        setTimeout(() => {
+          document.getElementById('apTopupSubmit')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }, 200);
       });
       let apTopupProofFile = null;
       const apProofZone = document.getElementById('apTopupProofZone');
@@ -4356,6 +4446,7 @@
     setLiveStatus('', null);
     try {
       sessionStorage.removeItem('ap_live_pip_session');
+      clearDurableLiveSession();
     } catch (_e) {}
     await stopAgora({ skipEndRoom: hostEndingIntentionally });
     leaveSocket();
@@ -4843,6 +4934,7 @@
       return;
     }
     initForensicLog();
+    restoreChannelFromDurableSession();
     ensureHostChannelInUrl();
     const restored = restoreJoinMeta();
     if (restored && !lastJoinMeta) lastJoinMeta = restored;
@@ -5145,6 +5237,7 @@
     document.getElementById('liveSwipeHint')?.classList.add('is-hidden');
 
     initForensicLog();
+    restoreChannelFromDurableSession();
     ensureHostChannelInUrl();
     const restored = restoreJoinMeta();
     if (restored && !lastJoinMeta) lastJoinMeta = restored;

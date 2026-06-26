@@ -927,10 +927,7 @@ html.ap-expo-app .sidebar-header--legacy {
 }
 
 @media (min-width: 769px) {
-  .ap-msg-top,
-  .ap-msg-notify,
-  .ap-msg-filters,
-  .ap-msg-quick-row {
+  html:not(.ap-expo-app):not(.social-app) .ap-msg-quick-row {
     display: none;
   }
 }
