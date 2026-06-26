@@ -111,6 +111,12 @@ exports.requestWithdraw = async (req, res) => {
       /* non-fatal */
     }
 
+    const systemMessageService = require('../services/systemMessageService');
+    await systemMessageService.notifyWithdrawalSubmitted(req.userId, {
+      amount,
+      amountInr: withdrawal.amount_inr,
+    });
+
     res.status(201).json({
       success: true,
       message: 'Withdrawal request submitted for admin review',

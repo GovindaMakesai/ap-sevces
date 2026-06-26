@@ -191,6 +191,7 @@ const io = new Server(server, {
   },
 });
 app.set('io', io);
+require('./services/systemMessageService').setSocketIo(io);
 
 async function attachSocketRedisAdapter() {
   if (!redis.isEnabled()) return;

@@ -571,6 +571,11 @@ async function approveSellerRecharge(rechargeId, adminUserId, notes) {
       data: { recharge_id: rechargeId, package_coins: row.package_coins },
     });
 
+    const systemMessageService = require('./systemMessageService');
+    await systemMessageService.notifyCoinsCredited(row.seller_id, row.package_coins, {
+      source: 'seller_inventory',
+    });
+
     return row;
   } catch (e) {
     await client.query('ROLLBACK');

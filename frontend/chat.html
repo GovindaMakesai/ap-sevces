@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#fff9f0">
     <script src="/ap-native-boot.js"></script>
     <link rel="stylesheet" href="/social-theme.css?v=20260625chatgift">
-    <link rel="stylesheet" href="/social-chat.css?v=20260625chatgift2">
+    <link rel="stylesheet" href="/social-chat.css?v=20260625chat-unread">
     
     <!-- Font Awesome 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -159,6 +159,50 @@
         .chat-item.active {
             background: var(--primary-50);
             border-left: 3px solid var(--primary-600);
+        }
+
+        .chat-item.has-unread {
+            background: rgba(91, 103, 246, 0.07);
+        }
+
+        .chat-item.has-unread:not(.active) {
+            border-left: 3px solid #5b67f6;
+        }
+
+        .chat-item.has-unread .chat-info h4 {
+            font-weight: 800;
+            color: #111827;
+        }
+
+        .chat-item.has-unread .chat-info p {
+            color: #374151;
+            font-weight: 600;
+        }
+
+        .chat-item.has-unread .chat-time {
+            color: #5b67f6;
+            font-weight: 700;
+        }
+
+        .chat-unread-dot {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ef4444;
+            border: 2px solid #fff;
+            z-index: 2;
+        }
+
+        .chat-item.has-unread .unread-badge {
+            background: #ef4444;
+            min-width: 22px;
+            height: 22px;
+            line-height: 22px;
+            font-size: 11px;
+            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.35);
         }
 
         .chat-avatar {
@@ -1623,10 +1667,12 @@
             const officialNames = ['system', 'security', 'income', 'follower', 'official'];
             chatList.innerHTML = conversations.map((chat) => {
                 const isOfficial = chat.isOfficial || officialNames.some((k) => String(chat.name || '').toLowerCase().includes(k));
+                const hasUnread = (chat.unread || 0) > 0;
                 return `
-                <div class="chat-item ${String(chat.id) === String(activeConversationId || '') ? 'active' : ''}" data-chat-id="${chat.id}" data-user-id="${chat.otherUserId || ''}" data-official="${isOfficial ? '1' : '0'}" data-unread="${chat.unread || 0}" onclick="loadChat('${chat.id}', this)">
+                <div class="chat-item${hasUnread ? ' has-unread' : ''} ${String(chat.id) === String(activeConversationId || '') ? 'active' : ''}" data-chat-id="${chat.id}" data-user-id="${chat.otherUserId || ''}" data-official="${isOfficial ? '1' : '0'}" data-unread="${chat.unread || 0}" onclick="loadChat('${chat.id}', this)">
                     <div class="chat-avatar">
                         <div class="avatar-placeholder">${chat.avatar || initialsFromName(chat.first_name, chat.last_name)}</div>
+                        ${hasUnread ? '<span class="chat-unread-dot" aria-hidden="true"></span>' : ''}
                         <span class="status-dot ${chat.status}"></span>
                     </div>
                     <div class="chat-info">
@@ -1639,7 +1685,7 @@
                     </div>
                     <div class="chat-meta">
                         <div class="chat-time">${chat.time}</div>
-                        ${chat.unread > 0 ? `<span class="unread-badge">${chat.unread}</span>` : ''}
+                        ${hasUnread ? `<span class="unread-badge">${chat.unread > 99 ? '99+' : chat.unread}</span>` : ''}
                     </div>
                 </div>
             `;
@@ -1813,7 +1859,7 @@
                 const response = await axiosClient.get('/conversations');
                 const conversations = (response.data?.data?.conversations || []).map((conv) => ({
                     id: String(conv.id),
-                    name: `${conv.otherUser?.first_name || 'User'} ${conv.otherUser?.last_name || ''}`.trim(),
+                    name: conv.otherUser?.displayName || `${conv.otherUser?.first_name || 'User'} ${conv.otherUser?.last_name || ''}`.trim(),
                     first_name: conv.otherUser?.first_name || 'User',
                     last_name: conv.otherUser?.last_name || '',
                     avatar: initialsFromName(conv.otherUser?.first_name, conv.otherUser?.last_name),

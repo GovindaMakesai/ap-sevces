@@ -133,6 +133,12 @@ async function approveRecharge(rechargeId, adminUserId, notes) {
       data: { recharge_id: rechargeId, coins_credited: coins },
     });
 
+    const systemMessageService = require('./systemMessageService');
+    await systemMessageService.notifyCoinsCredited(recharge.user_id, coins, {
+      amountInr: recharge.amount_inr,
+      source: 'recharge',
+    });
+
     return { coins_credited: coins };
   } catch (e) {
     await client.query('ROLLBACK');
@@ -159,6 +165,9 @@ async function rejectRecharge(rechargeId, adminUserId, notes) {
     data: { recharge_id: rechargeId, status: 'rejected' },
   });
 
+  const systemMessageService = require('./systemMessageService');
+  await systemMessageService.notifyRechargeRejected(res.rows[0].user_id, { reason: notes });
+
   return res.rows[0];
 }
 
@@ -182,6 +191,12 @@ async function markWithdrawalPaid(withdrawalId, adminUserId, notes) {
     data: { withdrawal_id: row.id, status: 'paid' },
   });
 
+  const systemMessageService = require('./systemMessageService');
+  await systemMessageService.notifyWithdrawalPaid(row.user_id, {
+    amount: row.amount,
+    amountInr: row.amount_inr,
+  });
+
   return enrichWithdrawalQr(row);
 }
 
@@ -192,7 +207,15 @@ async function confirmWithdrawalReceipt(withdrawalId, userId) {
     [withdrawalId, userId]
   );
   if (!res.rows.length) throw new Error('Withdrawal not found or not awaiting confirmation');
-  return res.rows[0];
+  const row = res.rows[0];
+
+  const systemMessageService = require('./systemMessageService');
+  await systemMessageService.notifyWithdrawalCompleted(row.user_id, {
+    amount: row.amount,
+    amountInr: row.amount_inr,
+  });
+
+  return row;
 }
 
 async function rejectWithdrawal(withdrawalId, adminUserId, notes) {
@@ -217,6 +240,13 @@ async function rejectWithdrawal(withdrawalId, adminUserId, notes) {
       [adminUserId, notes || null, withdrawalId]
     );
     await client.query('COMMIT');
+
+    const systemMessageService = require('./systemMessageService');
+    await systemMessageService.notifyWithdrawalRejected(withdrawal.user_id, {
+      amount: withdrawal.amount,
+      reason: notes,
+    });
+
     return withdrawal;
   } catch (e) {
     await client.query('ROLLBACK');

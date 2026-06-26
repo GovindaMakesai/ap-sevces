@@ -2,6 +2,8 @@ const User = require('../models/User');
 const chatService = require('../services/chatService');
 const { splitMessageBody, normalizeOutgoingChatMessage } = require('../utils/chatMessageFormat');
 
+const OFFICIAL_DISPLAY_ROLES = new Set(['admin', 'super_admin', 'founder', 'ceo']);
+
 async function enrichConversation(conversation, currentUserId) {
     const otherId = chatService.otherParticipantId(conversation, currentUserId);
     let otherUser = null;
@@ -14,7 +16,11 @@ async function enrichConversation(conversation, currentUserId) {
     }
     const unreadCount = await chatService.unreadCountForConversation(conversation, currentUserId);
     const role = otherUser?.role || 'customer';
-    const isOfficial = role === 'admin' || role === 'worker';
+    const { isOfficialRole } = require('../services/systemMessageService');
+    const isOfficial = isOfficialRole(role) || role === 'worker';
+    const displayName = isOfficial && OFFICIAL_DISPLAY_ROLES.has(role)
+      ? 'AP Services'
+      : `${otherUser?.first_name || 'User'} ${otherUser?.last_name || ''}`.trim();
 
     return {
         id: String(conversation.id),
@@ -24,13 +30,15 @@ async function enrichConversation(conversation, currentUserId) {
                 id: String(otherUser.id),
                 first_name: otherUser.first_name,
                 last_name: otherUser.last_name,
-                role: otherUser.role
+                role: otherUser.role,
+                displayName,
             }
             : {
                 id: otherId,
                 first_name: 'User',
                 last_name: '',
-                role: 'customer'
+                role: 'customer',
+                displayName: 'User',
             },
         lastMessageText: conversation.last_message_text || '',
         lastMessageAt: conversation.last_message_at,
