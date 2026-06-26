@@ -8,7 +8,7 @@
   <script src="/ap-native-boot.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-theme.css">
-  <link rel="stylesheet" href="coin-seller.css?v=20260626cs-fix2">
+  <link rel="stylesheet" href="coin-seller.css?v=20260626cs-fix3">
   <link rel="stylesheet" href="mobile-app.css">
 </head>
 <body class="cs-page">
@@ -218,6 +218,30 @@
       let xferRecipient = null;
       let allTransfers = [];
       let activeTab = 'transfers';
+
+      function goRecharge() {
+        location.href = RECHARGE_URL;
+      }
+
+      function hideLoading(showMain) {
+        const loading = document.getElementById('csLoading');
+        const main = document.getElementById('csMain');
+        const help = document.getElementById('csHelp');
+        if (loading) loading.hidden = true;
+        if (showMain) {
+          if (main) main.hidden = false;
+          if (help) help.hidden = false;
+        }
+      }
+
+      function showLoadingError(msg) {
+        const loading = document.getElementById('csLoading');
+        if (!loading) return;
+        loading.hidden = false;
+        loading.innerHTML =
+          '<p style="margin:0 0 12px">' + String(msg || 'Failed to load') + '</p>' +
+          '<button type="button" onclick="location.reload()" style="padding:10px 18px;border:none;border-radius:8px;background:#c9a227;color:#fff;font-weight:700;cursor:pointer">Retry</button>';
+      }
 
       function toast(msg, type) {
         if (window.SocialUI?.toast) SocialUI.toast(msg, type);
@@ -595,8 +619,12 @@
       });
 
       async function loadDashboard() {
-        await Auth.ensureAccessToken?.();
+        await Promise.race([
+          Auth.ensureAccessToken?.() || Promise.resolve(),
+          new Promise((r) => setTimeout(r, 5000)),
+        ]).catch(() => {});
         const res = await API.get('/social/coin-seller/dashboard');
+        if (!res?.data) throw new Error(res?.message || 'Could not load seller dashboard');
         renderDashboard(res.data);
         try {
           const xferRes = await API.get('/social/coin-seller/transfers?limit=50');
@@ -612,23 +640,19 @@
         Auth.checkAuth();
         if (!Auth.hasSession?.()) {
           location.href = '/login.html?app=1&redirect=' + encodeURIComponent('/coin-seller-center.html?app=1');
-          return;
+        } else {
+          await loadDashboard();
+          hideLoading(true);
         }
-        await Auth.ensureAccessToken?.();
-        await loadDashboard();
-        document.getElementById('csLoading').hidden = true;
-        document.getElementById('csMain').hidden = false;
-        document.getElementById('csHelp').hidden = false;
       } catch (e) {
-        document.getElementById('csLoading').hidden = true;
         const msg = e?.message || 'Failed to load';
+        console.error('Coin seller center:', e);
         if (/100,?000|seller profile|not found|access required/i.test(msg)) {
+          hideLoading(false);
           document.getElementById('csApply').hidden = false;
           document.getElementById('csAddTransfer').style.display = 'none';
         } else {
-          document.getElementById('csLoading').hidden = false;
-          document.getElementById('csLoading').innerHTML =
-            `<p>${msg}</p><button type="button" onclick="location.reload()">Retry</button>`;
+          showLoadingError(msg);
         }
       }
     })();
