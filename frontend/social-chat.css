@@ -22,24 +22,26 @@ html.ap-expo-app body:has(.chat-page) > .footer {
 
 html.ap-expo-app .chat-page {
   padding: 0;
-  min-height: 100dvh;
+  min-height: 0;
   background: var(--ap-msg-bg);
+}
+
+html.ap-expo-app:not(.social-bridge-mode) .chat-page:not(.chat-active-page) {
+  min-height: calc(100dvh - var(--social-bottom-nav-h, 62px) - var(--social-safe-bottom, env(safe-area-inset-bottom, 0px)));
+}
+
+html.ap-expo-app body.chat-active .chat-page {
+  min-height: 0 !important;
 }
 
 html.ap-expo-app .chat-layout {
   display: flex;
   flex-direction: column;
-  height: calc(100dvh - var(--social-bottom-nav-h, 56px));
+  height: calc(100dvh - var(--social-bottom-nav-h, 62px) - var(--social-safe-bottom, env(safe-area-inset-bottom, 0px)));
   min-height: 0;
   border: none;
   box-shadow: none;
   border-radius: 0;
-  background: var(--ap-msg-bg);
-}
-
-html.ap-expo-app .chat-page {
-  padding: 0;
-  min-height: 100dvh;
   background: var(--ap-msg-bg);
 }
 
@@ -416,8 +418,6 @@ html.social-app body.chat-active {
   overflow: hidden;
   height: 100dvh;
   width: 100%;
-  position: fixed;
-  inset: 0;
 }
 
 body.chat-active .chat-page,
@@ -425,7 +425,7 @@ body.chat-active .chat-container {
   display: flex;
   flex-direction: column;
   flex: 1;
-  min-height: 0;
+  min-height: 0 !important;
   width: 100% !important;
   max-width: none !important;
   margin: 0 !important;
@@ -513,7 +513,35 @@ body.chat-active .chat-input-container {
   flex-shrink: 0;
   width: 100%;
   box-sizing: border-box;
-  padding-bottom: calc(8px + var(--chat-kb-offset, 0px));
+  z-index: 250;
+  background: #fff;
+}
+
+html.ap-expo-app body.chat-active .chat-input-container,
+html.social-app body.chat-active .chat-input-container {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--social-bottom-nav-h, 62px) + var(--social-safe-bottom, env(safe-area-inset-bottom, 0px)));
+  padding: 8px 12px calc(8px + var(--chat-kb-offset, 0px));
+  border-top: 1px solid #e5e7eb;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.04);
+}
+
+html.ap-expo-app body.chat-active .chat-typing-indicator,
+html.social-app body.chat-active .chat-typing-indicator {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--social-bottom-nav-h, 62px) + var(--social-safe-bottom, env(safe-area-inset-bottom, 0px)) + 52px + var(--chat-kb-offset, 0px));
+  z-index: 249;
+  background: #eef0f3;
+  margin: 0;
+}
+
+html.ap-expo-app body.chat-active .messages-container,
+html.social-app body.chat-active .messages-container {
+  padding-bottom: calc(64px + var(--chat-kb-offset, 0px));
 }
 
 html.ap-expo-app body.chat-active .chat-page,
@@ -556,8 +584,12 @@ html.social-bridge-mode body.chat-active .chat-layout {
   }
 }
 
+body.chat-active #emptyChat {
+  display: none !important;
+}
+
 .chat-thread-empty {
-  margin: auto;
+  margin: 24px auto;
   text-align: center;
   color: var(--ap-msg-muted, #9ca3af);
   padding: 32px 20px;

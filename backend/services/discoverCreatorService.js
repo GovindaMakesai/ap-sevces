@@ -107,8 +107,22 @@ async function getFollowingSet(viewerId) {
 
 async function discoverTopCreators({ period = 'weekly', limit = 30, viewerId = null } = {}) {
   const lim = Math.min(Math.max(parseInt(limit, 10) || 30, 1), 50);
-  const lb = await leaderboardService.getLeaderboard(period, 'creators', lim);
-  const followingSet = await getFollowingSet(viewerId);
+  let followingSet = null;
+  try {
+    followingSet = await getFollowingSet(viewerId);
+  } catch (e) {
+    console.warn('discoverTopCreators following skip:', e.message);
+  }
+
+  let lb = [];
+  try {
+    lb = await Promise.race([
+      leaderboardService.getLeaderboard(period, 'creators', lim),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('leaderboard timeout')), 6000)),
+    ]);
+  } catch (e) {
+    console.warn('discoverTopCreators leaderboard skip:', e.message);
+  }
 
   const scoreById = new Map();
   lb.forEach((row, i) => {
@@ -116,17 +130,28 @@ async function discoverTopCreators({ period = 'weekly', limit = 30, viewerId = n
   });
 
   let orderedIds = lb.map((r) => String(r.entity_id)).filter(Boolean);
-  let rows = await fetchCreatorRows(orderedIds);
+  let rows = [];
+  try {
+    rows = orderedIds.length ? await fetchCreatorRows(orderedIds) : [];
+  } catch (e) {
+    console.warn('discoverTopCreators fetchCreatorRows skip:', e.message);
+    rows = [];
+    orderedIds = [];
+  }
 
   if (rows.length < 5) {
-    const fallback = await fetchFallbackCreators(lim);
-    const seen = new Set(rows.map((r) => String(r.id)));
-    for (const row of fallback) {
-      if (!seen.has(String(row.id))) {
-        rows.push(row);
-        orderedIds.push(String(row.id));
-        seen.add(String(row.id));
+    try {
+      const fallback = await fetchFallbackCreators(lim);
+      const seen = new Set(rows.map((r) => String(r.id)));
+      for (const row of fallback) {
+        if (!seen.has(String(row.id))) {
+          rows.push(row);
+          orderedIds.push(String(row.id));
+          seen.add(String(row.id));
+        }
       }
+    } catch (e) {
+      console.warn('discoverTopCreators fallback skip:', e.message);
     }
   }
 

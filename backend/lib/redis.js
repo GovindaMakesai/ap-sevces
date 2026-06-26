@@ -18,14 +18,24 @@ async function getClient() {
   if (client) return client;
   if (!connectPromise) {
     connectPromise = (async () => {
-      const Redis = require('ioredis');
-      client = new Redis(process.env.REDIS_URL, {
-        maxRetriesPerRequest: 3,
-        lazyConnect: true,
-      });
-      client.on('error', (err) => console.error('[redis]', err.message));
-      await client.connect();
-      return client;
+      try {
+        const Redis = require('ioredis');
+        client = new Redis(process.env.REDIS_URL, {
+          maxRetriesPerRequest: 1,
+          lazyConnect: true,
+          connectTimeout: 2500,
+          commandTimeout: 2500,
+          enableOfflineQueue: false,
+        });
+        client.on('error', (err) => console.error('[redis]', err.message));
+        await client.connect();
+        return client;
+      } catch (err) {
+        console.warn('[redis] connect failed, using memory fallback:', err.message);
+        client = null;
+        connectPromise = null;
+        return null;
+      }
     })();
   }
   return connectPromise;
@@ -34,8 +44,13 @@ async function getClient() {
 async function get(key) {
   const c = await getClient();
   if (c) {
-    const val = await c.get(key);
-    return val ?? null;
+    try {
+      const val = await c.get(key);
+      return val ?? null;
+    } catch (err) {
+      console.warn('[redis] get failed:', err.message);
+      return null;
+    }
   }
   if (memoryTtl.has(key) && memoryTtl.get(key) < Date.now()) {
     memoryStore.delete(key);
@@ -49,9 +64,14 @@ async function set(key, value, ttlSeconds) {
   const str = typeof value === 'string' ? value : JSON.stringify(value);
   const c = await getClient();
   if (c) {
-    if (ttlSeconds) await c.setex(key, ttlSeconds, str);
-    else await c.set(key, str);
-    return;
+    try {
+      if (ttlSeconds) await c.setex(key, ttlSeconds, str);
+      else await c.set(key, str);
+      return;
+    } catch (err) {
+      console.warn('[redis] set failed:', err.message);
+      return;
+    }
   }
   memoryStore.set(key, str);
   if (ttlSeconds) memoryTtl.set(key, Date.now() + ttlSeconds * 1000);

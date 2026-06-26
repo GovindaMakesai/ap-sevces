@@ -177,8 +177,12 @@ async function getLeaderboard(periodType, category, limit = 50, opts = {}) {
   const key = periodKey(periodType);
   const modeKey = opts.mode || 'default';
   const cacheKey = `lb:${periodType}:${key}:${category}:${modeKey}`;
-  const cached = await redis.get(cacheKey);
-  if (cached) return JSON.parse(cached);
+  try {
+    const cached = await redis.get(cacheKey);
+    if (cached) return JSON.parse(cached);
+  } catch (e) {
+    console.warn('[leaderboard] cache read skipped:', e.message);
+  }
 
   let rows = [];
   const forceLive = category === 'video' || opts.mode === 'count';
@@ -200,7 +204,11 @@ async function getLeaderboard(periodType, category, limit = 50, opts = {}) {
   }
 
   rows = await enrichLeaderboardRows(rows);
-  await redis.set(cacheKey, JSON.stringify(rows), CACHE_TTL);
+  try {
+    await redis.set(cacheKey, JSON.stringify(rows), CACHE_TTL);
+  } catch (e) {
+    console.warn('[leaderboard] cache write skipped:', e.message);
+  }
   return rows;
 }
 
