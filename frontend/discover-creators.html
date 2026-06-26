@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#ffffff">
   <title>Discover Creators - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-theme.css?v=20260626-social-pack">
-  <link rel="stylesheet" href="social-features.css?v=20260626-social-pack">
+  <link rel="stylesheet" href="social-theme.css?v=20260627-social-fix">
+  <link rel="stylesheet" href="social-features.css?v=20260627-social-fix">
   <script src="native-session-restore.js"></script>
   <script src="ap-config.js"></script>
   <script src="ap-native-boot.js"></script>
@@ -38,10 +38,10 @@
 
   <div id="social-bottom-nav-mount"></div>
 
-  <script src="app.js?v=20260626-social-pack"></script>
+  <script src="app.js?v=20260627-social-fix"></script>
   <script src="social-ui.js"></script>
   <script src="auth-guard.js"></script>
-  <script src="social-interactions.js?v=20260626-social-pack"></script>
+  <script src="social-interactions.js?v=20260627-social-fix"></script>
   <script src="social-shell.js"></script>
   <script src="social-nav.js"></script>
   <script>
@@ -54,9 +54,10 @@
 
     function avatarUrl(creator) {
       if (creator.profilePic) {
-        const base = (window.CONFIG && CONFIG.BACKEND_URL) || 'https://api.apservices.in';
-        const pic = creator.profilePic;
-        return pic.startsWith('http') ? pic : base + pic;
+        const pic = String(creator.profilePic).trim();
+        if (/^https?:\/\//i.test(pic)) return pic;
+        const base = 'https://api.apservices.in';
+        return base + (pic.startsWith('/') ? pic : '/' + pic);
       }
       if (window.SocialUI?.avatarUrl) return SocialUI.avatarUrl(creator.displayName);
       return 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + encodeURIComponent(creator.displayName || 'c');
@@ -69,19 +70,12 @@
       return String(v);
     }
 
-    function apiBases() {
-      const bases = [DISCOVER_API];
-      const host = (window.location.hostname || '').toLowerCase();
-      if (host === 'api.apservices.in') {
-        bases.unshift(window.location.origin.replace(/\/$/, '') + '/api');
-      }
-      const cfg = (window.CONFIG?.API_URL || window.AP_CONFIG?.PRODUCTION_API_URL || '').replace(/\/$/, '');
-      if (cfg) bases.push(cfg);
-      return [...new Set(bases.filter(Boolean))];
-    }
-
-    async function fetchFromBase(api, period) {
-      const path = '/social/discover/creators?period=' + encodeURIComponent(period) + '&limit=40';
+    async function fetchCreators(period) {
+      const url =
+        DISCOVER_API +
+        '/social/discover/creators?period=' +
+        encodeURIComponent(period) +
+        '&limit=40';
       const headers = { Accept: 'application/json' };
       const token = localStorage.getItem('token');
       if (token) headers.Authorization = 'Bearer ' + token;
@@ -89,7 +83,7 @@
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 18000);
       try {
-        const res = await fetch(api + path, {
+        const res = await fetch(url, {
           method: 'GET',
           mode: 'cors',
           credentials: 'omit',
@@ -107,28 +101,18 @@
           throw new Error(data?.message || 'HTTP ' + res.status);
         }
         return data.data?.creators || [];
+      } catch (e) {
+        if (e?.name === 'AbortError') {
+          throw new Error('Request timed out. Check connection and retry.');
+        }
+        const msg = String(e?.message || '');
+        if (msg === 'Failed to fetch' || /malformed|invalid url/i.test(msg)) {
+          throw new Error('Cannot reach server. Check internet and retry.');
+        }
+        throw e;
       } finally {
         clearTimeout(timer);
       }
-    }
-
-    async function fetchCreators(period) {
-      let lastErr;
-      for (const api of apiBases()) {
-        try {
-          const creators = await fetchFromBase(api, period);
-          if (creators.length) return creators;
-        } catch (e) {
-          lastErr = e;
-        }
-      }
-      if (lastErr?.name === 'AbortError') {
-        throw new Error('Request timed out. Check connection and retry.');
-      }
-      if (lastErr?.message === 'Failed to fetch') {
-        throw new Error('Cannot reach server. Check internet and retry.');
-      }
-      throw lastErr || new Error('Could not load creators');
     }
 
     function isFollowingSafe(creator) {

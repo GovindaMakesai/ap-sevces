@@ -1493,6 +1493,20 @@ body.social-topics-page .social-topic-videos .thumb {
   background: #e5e7eb;
   border: 1px solid #e5e7eb;
 }
+body.social-topics-page .social-topic-thumb-placeholder i {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  color: #9ca3af;
+  font-size: 11px;
+  background: rgba(255, 255, 255, 0.85);
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+body.social-topics-page .social-topic-head img {
+  border: 1px solid #e5e7eb;
+  background: #f3f4f6;
+}
 
 body.social-discover-page {
   background: #f9fafb;

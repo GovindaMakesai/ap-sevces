@@ -4,6 +4,7 @@
 (function () {
   const MAX_VIDEO_SEC = 10;
   let pendingFile = null;
+  let pendingTrim = null;
   let editorState = null;
 
   function ensureOverlay() {
@@ -179,12 +180,16 @@
       const video = document.getElementById('socialCreateTrimVideo');
       const trimStart = document.getElementById('socialCreateTrimStart');
       const trimEnd = document.getElementById('socialCreateTrimEnd');
+      const hint = document.getElementById('socialCreateTrimHint');
       if (!video || !trimStart || !trimEnd) return;
 
       const url = URL.createObjectURL(file);
+      video.preload = 'metadata';
+      video.playsInline = true;
+      video.muted = true;
       video.src = url;
       video.onloadedmetadata = () => {
-        const dur = video.duration || MAX_VIDEO_SEC;
+        const dur = Number.isFinite(video.duration) ? video.duration : MAX_VIDEO_SEC;
         editorState.duration = dur;
         trimStart.min = '0';
         trimStart.max = String(Math.max(0, dur - 0.1));
@@ -195,6 +200,15 @@
         editorState.trimStart = 0;
         editorState.trimEnd = Math.min(dur, MAX_VIDEO_SEC);
         onTrimChange();
+      };
+      video.onerror = () => {
+        editorState.duration = MAX_VIDEO_SEC;
+        editorState.trimStart = 0;
+        editorState.trimEnd = MAX_VIDEO_SEC;
+        editorState.previewFailed = true;
+        trimStart.value = '0';
+        trimEnd.value = String(MAX_VIDEO_SEC);
+        if (hint) hint.textContent = 'Preview unavailable — apply to upload (max 10s clip)';
       };
       return;
     }
@@ -262,84 +276,6 @@
     });
   }
 
-  async function trimVideoBlob(file, start, end) {
-    const clipLen = Math.min(end - start, MAX_VIDEO_SEC);
-    if (clipLen <= 0) throw new Error('Invalid trim range');
-
-    return new Promise((resolve, reject) => {
-      const video = document.createElement('video');
-      video.muted = true;
-      video.playsInline = true;
-      const src = URL.createObjectURL(file);
-      video.src = src;
-
-      video.onloadedmetadata = () => {
-        const w = video.videoWidth || 720;
-        const h = video.videoHeight || 1280;
-        const scale = Math.min(1, 720 / Math.max(w, h));
-        const cw = Math.round(w * scale) | 0;
-        const ch = Math.round(h * scale) | 0;
-        const canvas = document.createElement('canvas');
-        canvas.width = cw;
-        canvas.height = ch;
-        const ctx = canvas.getContext('2d');
-
-        const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp8')
-          ? 'video/webm;codecs=vp8'
-          : MediaRecorder.isTypeSupported('video/webm')
-            ? 'video/webm'
-            : '';
-        if (!mime || !canvas.captureStream) {
-          URL.revokeObjectURL(src);
-          resolve(file);
-          return;
-        }
-
-        const stream = canvas.captureStream(24);
-        const recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 1200000 });
-        const chunks = [];
-        recorder.ondataavailable = (e) => e.data?.size && chunks.push(e.data);
-        recorder.onstop = () => {
-          URL.revokeObjectURL(src);
-          if (!chunks.length) {
-            resolve(file);
-            return;
-          }
-          resolve(new Blob(chunks, { type: mime.split(';')[0] }));
-        };
-        recorder.onerror = () => {
-          URL.revokeObjectURL(src);
-          resolve(file);
-        };
-
-        const stopAt = start + clipLen;
-        video.currentTime = start;
-        video.onseeked = () => {
-          recorder.start(200);
-          video.play().catch(() => {});
-          const tick = () => {
-            if (video.currentTime >= stopAt || video.ended) {
-              video.pause();
-              try {
-                recorder.stop();
-              } catch (_e) {
-                resolve(file);
-              }
-              return;
-            }
-            ctx.drawImage(video, 0, 0, cw, ch);
-            requestAnimationFrame(tick);
-          };
-          tick();
-        };
-      };
-      video.onerror = () => {
-        URL.revokeObjectURL(src);
-        reject(new Error('Could not read video'));
-      };
-    });
-  }
-
   async function applyEditor() {
     const applyBtn = document.getElementById('socialCreateEditorApply');
     const prog = document.getElementById('socialCreateProgress');
@@ -348,7 +284,7 @@
     applyBtn.textContent = 'Applying…';
     if (prog) {
       prog.style.display = 'block';
-      prog.textContent = editorState.mode === 'video' ? 'Trimming video…' : 'Cropping photo…';
+      prog.textContent = editorState.mode === 'video' ? 'Preparing video…' : 'Cropping photo…';
     }
 
     try {
@@ -356,10 +292,15 @@
       if (editorState.mode === 'image') {
         const blob = await exportCroppedImage();
         out = new File([blob], 'photo.jpg', { type: 'image/jpeg' });
+        pendingTrim = null;
       } else {
-        const blob = await trimVideoBlob(editorState.file, editorState.trimStart, editorState.trimEnd);
-        const ext = blob.type.includes('webm') ? 'webm' : 'mp4';
-        out = new File([blob], 'clip.' + ext, { type: blob.type || 'video/webm' });
+        const selLen = (editorState.trimEnd || 0) - (editorState.trimStart || 0);
+        if (selLen <= 0) throw new Error('Select a valid clip range.');
+        if (selLen > MAX_VIDEO_SEC + 0.15) {
+          throw new Error('Clip must be 10 seconds or less. Adjust the trim sliders.');
+        }
+        out = editorState.file;
+        pendingTrim = { start: editorState.trimStart || 0, end: editorState.trimEnd || MAX_VIDEO_SEC };
       }
       pendingFile = out;
       document.getElementById('socialCreateEditor').style.display = 'none';
@@ -393,6 +334,7 @@
 
   function clearPreview() {
     pendingFile = null;
+    pendingTrim = null;
     editorState = null;
     const prev = document.getElementById('socialCreatePreview');
     const editor = document.getElementById('socialCreateEditor');
@@ -419,6 +361,7 @@
     }
     const el = ensureOverlay();
     pendingFile = null;
+    pendingTrim = null;
     editorState = null;
     document.getElementById('socialCreateCaption').value = '';
     document.getElementById('socialCreatePreview').style.display = 'none';
@@ -434,6 +377,7 @@
   function close() {
     document.getElementById('social-create-overlay')?.classList.remove('is-open');
     pendingFile = null;
+    pendingTrim = null;
     editorState = null;
   }
 
@@ -452,7 +396,11 @@
       if (!window.SocialInteractions?.savePostFromForm) {
         throw new Error('Upload module not loaded. Refresh the page and try again.');
       }
-      await SocialInteractions.savePostFromForm(caption, vis, pendingFile, { skipCompress: true });
+      await SocialInteractions.savePostFromForm(caption, vis, pendingFile, {
+        skipCompress: true,
+        trimStart: pendingTrim?.start,
+        trimEnd: pendingTrim?.end,
+      });
       close();
       if (window.SocialUI) SocialUI.showSuccess('Posted!', 'Your moment is live on Square.');
       else if (window.SocialInteractions?.toast) SocialInteractions.toast('Posted to Square!', 'success');

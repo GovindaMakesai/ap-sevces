@@ -12,10 +12,28 @@
   const TOPIC_KINDS = ['topic', 'video', 'services', 'party', 'live', 'audio'];
 
   function topicThumb(i, label) {
-    const kind = TOPIC_KINDS[i % TOPIC_KINDS.length];
-    if (window.SocialUI?.themeCover) return SocialUI.themeCover(kind, label || 'Topic');
-    if (window.SocialShell?.coverFallback) return SocialShell.coverFallback(label || 'Topic', kind === 'party');
-    return '';
+    return topicPlaceholder(i, label);
+  }
+
+  function topicPlaceholder(i, label) {
+    const shades = ['#e5e7eb', '#d1d5db', '#cbd5e1', '#9ca3af'];
+    const bg = shades[Number(i) % shades.length];
+    const title = String(label || 'Topic')
+      .slice(0, 16)
+      .replace(/[<>&"]/g, '');
+    const svg =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="500">' +
+      '<rect width="100%" height="100%" fill="' +
+      bg +
+      '"/>' +
+      '<rect x="130" y="170" width="140" height="100" rx="10" fill="#f9fafb" stroke="#d1d5db" stroke-width="2"/>' +
+      '<polygon points="185,195 185,245 225,220" fill="#9ca3af"/>' +
+      '<text x="200" y="320" text-anchor="middle" font-family="Arial,sans-serif" font-size="13" fill="#6b7280">' +
+      title +
+      '</text>' +
+      '<text x="200" y="345" text-anchor="middle" font-family="Arial,sans-serif" font-size="11" fill="#9ca3af">Coming soon</text>' +
+      '</svg>';
+    return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
   }
 
   function toast(msg, type) {
@@ -173,35 +191,55 @@
     }
   }
 
-  async function loadPosts() {
-    if (window.API && localStorage.getItem('user')) {
-      try {
-        const res = await API.get('/social/posts');
-        if (res.success && Array.isArray(res.data)) {
-          return res.data.map((p) => {
-            const mapped = {
-              id: p.id,
-              userId: p.user_id,
-              userName: `${p.author?.first_name || ''} ${p.author?.last_name || ''}`.trim() || 'User',
-              text: p.body,
-              caption: p.body,
-              image: p.media_url,
-              likes: p.like_count || 0,
-              comments: p.comment_count || 0,
-              liked: !!p.liked,
-              createdAt: p.created_at,
-              fromApi: true,
-              isVideo: isVideoMediaUrl(p.media_url),
-            };
-            if (mapped.liked) setLike(mapped.id, true);
-            return mapped;
-          });
-        }
-      } catch (_e) {
-        /* fallback */
+  async function fetchApiPosts() {
+    if (!window.API || !(localStorage.getItem('user') || localStorage.getItem('token'))) return [];
+    try {
+      const res = await API.get('/social/posts');
+      if (res.success && Array.isArray(res.data)) {
+        return res.data.map((p) => {
+          const mapped = {
+            id: p.id,
+            userId: p.user_id,
+            userName: `${p.author?.first_name || ''} ${p.author?.last_name || ''}`.trim() || 'User',
+            text: p.body,
+            caption: p.body,
+            image: p.media_url,
+            likes: p.like_count || 0,
+            comments: p.comment_count || 0,
+            liked: !!p.liked,
+            createdAt: p.created_at,
+            fromApi: true,
+            isVideo: isVideoMediaUrl(p.media_url),
+          };
+          if (mapped.liked) setLike(mapped.id, true);
+          return mapped;
+        });
       }
+    } catch (_e) {
+      /* fallback */
     }
-    return getPosts();
+    return [];
+  }
+
+  function sortPostsNewest(posts) {
+    return [...posts].sort((a, b) => {
+      const ta = a.createdAt ? new Date(a.createdAt).getTime() : Number(a.id) || 0;
+      const tb = b.createdAt ? new Date(b.createdAt).getTime() : Number(b.id) || 0;
+      return tb - ta;
+    });
+  }
+
+  async function loadPosts() {
+    const local = getPosts();
+    const api = await fetchApiPosts();
+    if (!api.length) return local;
+    const byId = new Map();
+    api.forEach((p) => byId.set(String(p.id), p));
+    local.forEach((p) => {
+      const k = String(p.id);
+      byId.set(k, byId.has(k) ? { ...byId.get(k), ...p } : p);
+    });
+    return sortPostsNewest(Array.from(byId.values()));
   }
 
   function savePosts(posts) {
@@ -550,6 +588,12 @@
       if (post.isVideo && file.size > 12 * 1024 * 1024) {
         throw new Error('Video must be under 12 MB. Trim the clip or pick a shorter one.');
       }
+      if (post.isVideo && opts.trimEnd != null && opts.trimStart != null) {
+        const len = Number(opts.trimEnd) - Number(opts.trimStart);
+        if (len > 10.5) throw new Error('Video clip must be 10 seconds or less.');
+        post.trimStart = Number(opts.trimStart);
+        post.trimEnd = Number(opts.trimEnd);
+      }
       let blob = file;
       if (!post.isVideo && !opts.skipCompress) blob = await compressImage(file, 800);
       const mediaId = 'media-' + id;
@@ -773,9 +817,44 @@
   let reelItems = [];
   let reelIndex = 0;
 
-  async function buildReelItems(pros) {
-    const userPosts = getPosts().filter((p) => canViewPost(p) && postHasMedia(p));
-    const apiPosts = (await loadPosts()).filter((p) => canViewPost(p) && postHasMedia(p));
+  function bindVideoTrimPlayback(root) {
+    (root || document).querySelectorAll('video[data-trim-start]').forEach((v) => {
+      if (v.dataset.trimBound) return;
+      v.dataset.trimBound = '1';
+      const start = parseFloat(v.dataset.trimStart) || 0;
+      const end = parseFloat(v.dataset.trimEnd) || 0;
+      if (end <= start) return;
+      const seekStart = () => {
+        try {
+          v.currentTime = start;
+        } catch (_e) {}
+      };
+      v.addEventListener('loadedmetadata', seekStart);
+      v.addEventListener('timeupdate', () => {
+        if (v.currentTime >= end - 0.05) seekStart();
+      });
+    });
+  }
+
+  function videoTagAttrs(post) {
+    if (!postIsVideo(post)) return '';
+    if (post.trimStart == null || post.trimEnd == null) return '';
+    return ` data-trim-start="${post.trimStart}" data-trim-end="${post.trimEnd}"`;
+  }
+
+  async function buildReelItems(pros, options) {
+    const opts = options || {};
+    const videosOnly = opts.videosOnly !== false;
+    const startPostId = opts.startPostId || null;
+
+    function matchesFilter(p) {
+      if (!canViewPost(p)) return false;
+      if (startPostId && String(p.id) === String(startPostId)) return postHasMedia(p);
+      return videosOnly ? postIsVideo(p) : postHasMedia(p);
+    }
+
+    const userPosts = getPosts().filter(matchesFilter);
+    const apiPosts = (await loadPosts()).filter(matchesFilter);
     const merged = [];
     const seen = new Set();
     [...apiPosts, ...userPosts].forEach((p) => {
@@ -796,6 +875,8 @@
         gifts: p.gifts || 0,
         shares: p.shares || 0,
         isVideo: postIsVideo(p),
+        trimStart: p.trimStart,
+        trimEnd: p.trimEnd,
         liked: isLiked(p.id, p),
         mediaUrl: await getMediaUrl(p),
         thumb: p.thumb || (await getMediaUrl(p)),
@@ -892,13 +973,16 @@
     const wrap = document.getElementById(containerId);
     if (!wrap) return;
     const pros = window.SocialShell ? await SocialShell.fetchPros(8) : [];
-    reelItems = await buildReelItems(pros);
+    const startPost =
+      new URLSearchParams(location.search).get('post') ||
+      sessionStorage.getItem('social_reel_start');
+    reelItems = await buildReelItems(pros, { videosOnly: true, startPostId: startPost });
     const uiLayer = document.getElementById('reelUi');
 
     if (!reelItems.length) {
       const empty = document.createElement('p');
       empty.style.cssText = 'color:#fff;text-align:center;padding:40px;pointer-events:auto';
-      empty.textContent = 'No moments yet. Post a photo or video from Square.';
+      empty.textContent = 'No videos yet. Post a video from the Square camera.';
       wrap.insertBefore(empty, uiLayer || null);
       if (uiLayer) uiLayer.style.display = 'none';
       return;
@@ -924,7 +1008,7 @@
     scroll.innerHTML = reelItems
       .map((item, i) => {
         const media = item.isVideo
-          ? `<video src="${item.mediaUrl}" playsinline loop muted data-reel-video poster="${item.thumb || ''}"></video>`
+          ? `<video src="${item.mediaUrl}" playsinline loop muted data-reel-video poster="${item.thumb || ''}"${item.trimStart != null ? ` data-trim-start="${item.trimStart}" data-trim-end="${item.trimEnd}"` : ''}></video>`
           : `<img src="${item.mediaUrl || item.thumb}" alt="">`;
         return `<section class="social-reel-slide" data-index="${i}" data-item-id="${item.id}">
           ${media}
@@ -954,6 +1038,7 @@
     scroll.querySelectorAll('.social-reel-slide').forEach((s) => observer.observe(s));
 
     scroll.querySelectorAll('.social-reel-slide video, .social-reel-slide img').forEach((el) => markMediaOrientation(el));
+    bindVideoTrimPlayback(scroll);
 
     scroll.querySelectorAll('.social-reel-slide').forEach((slide) => {
       slide.addEventListener('click', (e) => {
@@ -1180,7 +1265,7 @@
           user &&
           (String(p.userId) === String(user.id) || p.userId === 'me' || String(p.userId) === String(user.email));
         const media = postIsVideo(p)
-          ? `<video src="${url}" playsinline muted poster="${thumbUrl || ''}"></video>`
+          ? `<video src="${url}" playsinline muted poster="${thumbUrl || ''}"${videoTagAttrs(p)}></video>`
           : `<img src="${url || SocialShell?.avatarFallback(p.userName)}" alt="">`;
         const liked = !p.demo && isLiked(p.id, p);
         const openReel = !p.demo && postHasMedia(p) ? ' data-open-reel="1"' : '';
@@ -1223,6 +1308,7 @@
       });
     });
     feed.querySelectorAll('.social-post-media video, .social-post-media img').forEach((el) => markMediaOrientation(el));
+    bindVideoTrimPlayback(feed);
 
     feed.querySelectorAll('[data-open-reel]').forEach((card) => {
       card.addEventListener('click', (e) => {
@@ -1320,9 +1406,9 @@
           ${[0, 1, 2, 3]
             .map(
               (n) =>
-                `<button type="button" class="thumb" data-go-video data-topic="${ti}">
+                `<button type="button" class="thumb social-topic-thumb-placeholder" data-go-video data-topic="${ti}">
                   <img src="${topicThumb(ti * 4 + n, 'Clip')}" alt="" loading="lazy" onerror="this.src='${fallbackThumb}'">
-                  <i class="fas fa-play"></i>
+                  <i class="fas fa-image"></i>
                 </button>`
             )
             .join('')}
@@ -1423,6 +1509,7 @@
     initRankingsPage,
     initVipPage,
     topicThumb,
+    topicPlaceholder,
     toast,
     openComments,
     getFollowStats,

@@ -1136,7 +1136,7 @@
         (t, ti) => `
       <section class="social-topic-block">
         <div class="social-topic-head">
-          <img src="${coverFallback(t.title, false)}" alt="">
+          <img src="${window.SocialInteractions?.topicPlaceholder ? SocialInteractions.topicPlaceholder(ti, t.title) : coverFallback(t.title, false)}" alt="">
           <div style="flex:1">
             <h3 style="font-size:15px;color:var(--gold-800);margin-bottom:6px">${t.title}</h3>
             <span class="social-flame"><i class="fas fa-fire"></i> ${t.heat}</span>
