@@ -1817,7 +1817,7 @@
             const emptyChat = document.getElementById('emptyChat');
             const activeChat = document.getElementById('activeChat');
             const isMobile = window.matchMedia('(max-width: 768px)').matches;
-            if (activeChat) activeChat.style.display = 'none';
+            if (activeChat) activeChat.hidden = true;
             if (emptyChat) emptyChat.style.display = isMobile ? 'none' : 'flex';
             const sidebar = document.getElementById('chatSidebar');
             if (sidebar) sidebar.style.display = '';
