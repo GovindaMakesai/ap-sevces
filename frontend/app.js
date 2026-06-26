@@ -34,13 +34,36 @@ function isVercelHost() {
     return /\.vercel\.app$/i.test(window.location.hostname || '');
 }
 
+/** Ensure native WebView always gets a valid absolute API root (fixes "URL malformed"). */
+function normalizeApiUrl(raw) {
+    const fallback = LIVE_API_URL;
+    if (!raw || typeof raw !== 'string') return fallback;
+    let s = raw.trim();
+    if (!s) return fallback;
+    if (!/^https?:\/\//i.test(s)) {
+        if (s.startsWith('//')) s = 'https:' + s;
+        else if (/^(api\.apservices\.in|apservices\.in)/i.test(s)) s = 'https://' + s.replace(/^\/+/, '');
+        else return fallback;
+    }
+    s = s.replace(/\/+$/, '');
+    if (!/\/api$/i.test(s)) {
+        s = s.replace(/\/api\/?$/i, '') + '/api';
+    }
+    try {
+        new URL(s);
+        return s;
+    } catch (_e) {
+        return fallback;
+    }
+}
+
 function resolveApiUrl() {
     // Expo LAN dev: same-origin /api via dev-server proxy (avoids cross-origin CORS in WebView)
     if (IS_EXPO_WEBVIEW && isLanDevHost() && (window.location.port === '5500' || window.location.port === '')) {
         return `${window.location.origin.replace(/\/$/, '')}/api`;
     }
     if (typeof window.__AP_API_URL__ === 'string' && window.__AP_API_URL__) {
-        return window.__AP_API_URL__.replace(/\/$/, '');
+        return normalizeApiUrl(window.__AP_API_URL__);
     }
     const host = (window.location.hostname || '').toLowerCase();
     // Root marketing domain has no /api proxy — always hit API host
@@ -223,9 +246,13 @@ const API = {
 
     _friendlyNetworkError(error, url) {
         const msg = error?.message || 'Request failed';
-        if (msg === 'Failed to fetch' || msg.includes('NetworkError')) {
+        if (
+            msg === 'Failed to fetch' ||
+            msg.includes('NetworkError') ||
+            /malformed|invalid url/i.test(msg)
+        ) {
             const err = new Error(
-                'Cannot reach the server. Check your internet connection and try again. (' + url + ')'
+                'Cannot reach the server. Check your internet connection and try again.'
             );
             err.cause = error;
             return err;

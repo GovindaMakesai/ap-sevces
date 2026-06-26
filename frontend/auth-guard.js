@@ -148,11 +148,12 @@
         if (!localStorage.getItem('user')) return false;
         return Boolean(cachedUser || getUser());
       }
-      const api =
+      const api = (window.normalizeApiUrl || ((u) => u || 'https://api.apservices.in/api'))(
         (typeof window.__AP_API_URL__ === 'string' && window.__AP_API_URL__) ||
-        (window.CONFIG && CONFIG.API_URL) ||
-        (window.AP_CONFIG && AP_CONFIG.PRODUCTION_API_URL) ||
-        'http://62.72.56.74:5000/api';
+          (window.CONFIG && CONFIG.API_URL) ||
+          (window.AP_CONFIG && AP_CONFIG.PRODUCTION_API_URL) ||
+          'https://api.apservices.in/api'
+      );
       const res = await fetch(api + '/auth/me', { credentials: 'include' });
       const data = await res.json().catch(() => ({}));
       if (res.status === 401) {
