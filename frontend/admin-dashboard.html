@@ -2776,8 +2776,8 @@
         async function approvePaymentRequest(source, id) {
             if (!confirm('Approve this payment request?')) return;
             try {
-                await API.post(`/admin/payments/${source}/${id}/approve`, {});
-                Toast.show('Payment approved', 'success');
+                const res = await API.post(`/admin/payments/${source}/${id}/approve`, {});
+                Toast.show(res?.message || 'Payment approved', 'success');
                 loadRecharges();
             } catch (e) {
                 Toast.show(e.message || 'Approve failed', 'error');

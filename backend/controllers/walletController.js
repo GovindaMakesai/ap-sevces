@@ -243,7 +243,14 @@ exports.approvePaymentRequest = async (req, res) => {
       req.userId,
       req.body.notes
     );
-    res.json({ success: true, data: result, message: 'Payment approved' });
+    const isSeller = req.params.source === 'coin_seller_recharges';
+    const coins = Number(
+      result?.coins_credited ?? result?.package_coins ?? 0
+    );
+    const message = isSeller
+      ? `${coins.toLocaleString()} coins added to seller stock (Coin Seller Center — not Profile wallet)`
+      : `${Number(result?.coins_credited || 0).toLocaleString()} coins added to user wallet`;
+    res.json({ success: true, data: result, message });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
   }

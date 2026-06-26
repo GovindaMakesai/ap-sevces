@@ -301,6 +301,12 @@ const API = {
     get(endpoint) { 
         return this.request(endpoint, { method: 'GET' }); 
     },
+
+    /** GET bypassing the short-lived in-memory cache (balances, approvals). */
+    getFresh(endpoint) {
+        const sep = endpoint.includes('?') ? '&' : '?';
+        return this.request(`${endpoint}${sep}_=${Date.now()}`, { method: 'GET' });
+    },
     
     post(endpoint, body) { 
         return this.request(endpoint, { 

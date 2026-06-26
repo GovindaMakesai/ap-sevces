@@ -24,6 +24,16 @@
     <button type="button" id="csNoticeBtn">Top-up</button>
   </div>
 
+  <div id="csPendingNotice" class="cs-notice" style="background:#e8f4fd;border-color:#4a9eed" hidden>
+    <i class="fas fa-clock" style="color:#4a9eed"></i>
+    <span id="csPendingText">Top-up awaiting admin approval</span>
+  </div>
+
+  <div id="csApprovedNotice" class="cs-notice" style="background:#e8f8ef;border-color:#2e9d5c" hidden>
+    <i class="fas fa-check-circle" style="color:#2e9d5c"></i>
+    <span id="csApprovedText">Stock credited — pull down or reopen to refresh</span>
+  </div>
+
   <div id="csApply" class="cs-apply-panel" hidden>
     <h3 style="margin:0 0 8px">Become a Coin Seller</h3>
     <p>Coin Sellers stock coins and transfer them to users. <a href="/role-apply.html?app=1" style="color:#c9a227">Apply for Coin Seller</a> or check your application status.</p>
@@ -59,7 +69,7 @@
         <div>
           <div style="font-size:13px;color:#8a6914;font-weight:600">Available to sell</div>
           <strong><span id="csBalance">0</span> <i class="fas fa-coins" style="color:#f5b800"></i></strong>
-          <div style="font-size:11px;color:#a67c00;margin-top:4px" id="csBalanceBreakdown">Wallet + seller stock</div>
+          <div style="font-size:11px;color:#a67c00;margin-top:4px" id="csBalanceBreakdown">Stock + wallet (Profile wallet is separate)</div>
         </div>
         <button type="button" class="cs-detail-btn" id="csDetailBtn">Detail ›</button>
       </div>
@@ -379,7 +389,37 @@
         document.getElementById('csBalance').textContent = fmt(d.sellable_coins);
         const inv = Number(d.profile?.inventory_coins || 0);
         const wal = Number(d.wallet?.coin_balance || 0);
-        document.getElementById('csBalanceBreakdown').textContent = `Stock ${fmt(inv)} + wallet ${fmt(wal)}`;
+        document.getElementById('csBalanceBreakdown').textContent =
+          `Stock ${fmt(inv)} + wallet ${fmt(wal)} · Profile NR coins are separate`;
+
+        const pending = d.pendingRecharges || {};
+        const pendingEl = document.getElementById('csPendingNotice');
+        const pendingText = document.getElementById('csPendingText');
+        if (pending.count > 0 && pendingEl && pendingText) {
+          pendingEl.hidden = false;
+          pendingText.textContent =
+            `${fmt(pending.coins)} coins in ${pending.count} top-up request(s) awaiting admin approval`;
+        } else if (pendingEl) {
+          pendingEl.hidden = true;
+        }
+
+        const approvedEl = document.getElementById('csApprovedNotice');
+        const approvedText = document.getElementById('csApprovedText');
+        const recentApproved = (d.recentRecharges || []).find((r) => r.status === 'approved');
+        if (recentApproved && approvedEl && approvedText) {
+          const approvedAt = new Date(recentApproved.updated_at || recentApproved.created_at).getTime();
+          const fresh = Date.now() - approvedAt < 48 * 60 * 60 * 1000;
+          if (fresh) {
+            approvedEl.hidden = false;
+            approvedText.textContent =
+              `${fmt(recentApproved.package_coins)} stock coins approved — total stock now ${fmt(inv)}`;
+          } else {
+            approvedEl.hidden = true;
+          }
+        } else if (approvedEl) {
+          approvedEl.hidden = true;
+        }
+
         document.getElementById('csLevelBadge').textContent = (d.level?.label || 'Beginner') + ' Seller';
         document.getElementById('csStatBeans').textContent = fmt(d.stats?.beansExchanged);
         document.getElementById('csStatRecharge').textContent = '$' + fmt(d.profile?.total_recharge_usd || 0);
@@ -637,17 +677,27 @@
           Auth.ensureAccessToken?.() || Promise.resolve(),
           new Promise((r) => setTimeout(r, 5000)),
         ]).catch(() => {});
-        const res = await API.get('/social/coin-seller/dashboard');
+        const get = API.getFresh || API.get;
+        const res = await get('/social/coin-seller/dashboard');
         if (!res?.data) throw new Error(res?.message || 'Could not load seller dashboard');
         renderDashboard(res.data);
         try {
-          const xferRes = await API.get('/social/coin-seller/transfers?limit=50');
+          const xferRes = await get('/social/coin-seller/transfers?limit=50');
           if (Array.isArray(xferRes.data) && xferRes.data.length) {
             allTransfers = xferRes.data;
             renderActiveTab();
           }
         } catch (_e) {}
       }
+
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && dash) {
+          loadDashboard().catch(() => {});
+        }
+      });
+      window.addEventListener('pageshow', (e) => {
+        if (e.persisted && dash) loadDashboard().catch(() => {});
+      });
 
       try {
         hideAppBottomNav();

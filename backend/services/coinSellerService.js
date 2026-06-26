@@ -248,6 +248,21 @@ async function getDashboard(userId) {
   );
 
   const transfers = await listTransfers(userId, { limit: 20 });
+  const pendingRechargeRes = await db.query(
+    `SELECT COUNT(*)::int AS pending_count,
+            COALESCE(SUM(package_coins), 0)::bigint AS pending_coins
+     FROM coin_seller_recharges
+     WHERE seller_id = $1 AND status = 'pending'`,
+    [userId]
+  );
+  const recentRechargeRes = await db.query(
+    `SELECT id, package_coins, amount_usd, status, created_at, updated_at
+     FROM coin_seller_recharges
+     WHERE seller_id = $1
+     ORDER BY updated_at DESC
+     LIMIT 5`,
+    [userId]
+  );
   const lowBalanceUsd = Number(profile.inventory_coins) / (level.coinsPerUsd || 9100);
   const sellableCoins = Number(profile.inventory_coins) + Number(wallet.coin_balance);
 
@@ -272,6 +287,11 @@ async function getDashboard(userId) {
     lowBalanceWarning: lowBalanceUsd < 10,
     lowBalanceUsd: Math.round(lowBalanceUsd * 100) / 100,
     recentTransfers: transfers,
+    pendingRecharges: {
+      count: Number(pendingRechargeRes.rows[0]?.pending_count || 0),
+      coins: Number(pendingRechargeRes.rows[0]?.pending_coins || 0),
+    },
+    recentRecharges: recentRechargeRes.rows,
     earnings: {
       coin_trading: Number(statsRes.rows[0]?.coins_sold || 0),
       referral_program: 0,
@@ -525,6 +545,7 @@ async function listSellerRecharges(sellerId, { limit = 20 } = {}) {
 
 async function approveSellerRecharge(rechargeId, adminUserId, notes) {
   const client = await db.pool.connect();
+  let credited = null;
   try {
     await client.query('BEGIN');
     const r = await client.query(
@@ -535,54 +556,94 @@ async function approveSellerRecharge(rechargeId, adminUserId, notes) {
     const row = r.rows[0];
     if (row.status !== 'pending') throw new Error('Recharge already processed');
 
-    const profileRes = await client.query(
+    const coinsToCredit = Number(row.package_coins);
+    if (!coinsToCredit || coinsToCredit <= 0) throw new Error('Invalid package coin amount');
+
+    let profileRes = await client.query(
       `SELECT * FROM coin_seller_profiles WHERE user_id = $1 FOR UPDATE`,
       [row.seller_id]
     );
-    const profile = profileRes.rows[0];
-    if (!profile) throw new Error('Seller profile not found');
+    let profile = profileRes.rows[0];
+    if (!profile) {
+      const userRes = await client.query(
+        `SELECT first_name, last_name FROM users WHERE id = $1`,
+        [row.seller_id]
+      );
+      const user = userRes.rows[0];
+      const displayName =
+        `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || 'Coin Seller';
+      await client.query(
+        `INSERT INTO coin_seller_profiles (user_id, display_name, inventory_coins, is_active)
+         VALUES ($1, $2, 0, TRUE)
+         ON CONFLICT (user_id) DO NOTHING`,
+        [row.seller_id, displayName]
+      );
+      profileRes = await client.query(
+        `SELECT * FROM coin_seller_profiles WHERE user_id = $1 FOR UPDATE`,
+        [row.seller_id]
+      );
+      profile = profileRes.rows[0];
+      if (!profile) throw new Error('Seller profile not found');
+    }
 
-    const newTotalUsd = Number(profile.total_recharge_usd) + Number(row.amount_usd);
-    await client.query(
+    const newTotalUsd = Number(profile.total_recharge_usd || 0) + Number(row.amount_usd || 0);
+    const profileUpd = await client.query(
       `UPDATE coin_seller_profiles
-       SET inventory_coins = inventory_coins + $2,
-           total_recharge_usd = total_recharge_usd + $3,
+       SET inventory_coins = COALESCE(inventory_coins, 0) + $2,
+           total_recharge_usd = COALESCE(total_recharge_usd, 0) + $3,
            seller_level = $4,
            updated_at = CURRENT_TIMESTAMP
-       WHERE user_id = $1`,
-      [row.seller_id, row.package_coins, row.amount_usd, resolveSellerLevel(newTotalUsd).slug]
+       WHERE user_id = $1
+       RETURNING inventory_coins, total_recharge_usd, seller_level`,
+      [row.seller_id, coinsToCredit, row.amount_usd, resolveSellerLevel(newTotalUsd).slug]
     );
 
-    await client.query(
+    const rechargeUpd = await client.query(
       `UPDATE coin_seller_recharges
        SET status = 'approved', admin_reviewed_by = $2, admin_notes = $3, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $1`,
+       WHERE id = $1
+       RETURNING *`,
       [rechargeId, adminUserId, notes || null]
     );
 
     await client.query('COMMIT');
-
-    const Notification = require('../models/Notification');
-    await Notification.create({
-      user_id: row.seller_id,
-      type: 'seller_recharge',
-      title: 'Seller stock approved',
-      message: `${Number(row.package_coins).toLocaleString()} coins added to your seller inventory.`,
-      data: { recharge_id: rechargeId, package_coins: row.package_coins },
-    });
-
-    const systemMessageService = require('./systemMessageService');
-    await systemMessageService.notifyCoinsCredited(row.seller_id, row.package_coins, {
-      source: 'seller_inventory',
-    });
-
-    return row;
+    credited = {
+      recharge: rechargeUpd.rows[0],
+      seller_id: row.seller_id,
+      coins_credited: coinsToCredit,
+      inventory_coins: Number(profileUpd.rows[0]?.inventory_coins || 0),
+      credit_target: 'seller_inventory',
+    };
   } catch (e) {
     await client.query('ROLLBACK');
     throw e;
   } finally {
     client.release();
   }
+
+  try {
+    const Notification = require('../models/Notification');
+    await Notification.create({
+      user_id: credited.seller_id,
+      type: 'seller_recharge',
+      title: 'Seller stock approved',
+      message: `${credited.coins_credited.toLocaleString()} coins added to your seller stock (Coin Seller Center).`,
+      data: {
+        recharge_id: rechargeId,
+        package_coins: credited.coins_credited,
+        inventory_coins: credited.inventory_coins,
+      },
+    });
+
+    const systemMessageService = require('./systemMessageService');
+    await systemMessageService.notifyCoinsCredited(credited.seller_id, credited.coins_credited, {
+      source: 'seller_inventory',
+    });
+  } catch (notifyErr) {
+    console.error('approveSellerRecharge notifications:', notifyErr.message);
+  }
+
+  return credited;
 }
 
 async function rejectSellerRecharge(rechargeId, adminUserId, reason) {

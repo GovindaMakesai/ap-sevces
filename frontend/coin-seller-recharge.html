@@ -297,10 +297,15 @@
           const settings = await SocialWallet?.getWalletSettings?.();
           coinsPerInr = settings?.coins_per_inr || 10;
         } catch (_e) {}
-        const dash = await API.get('/social/coin-seller/dashboard');
+        const get = API.getFresh || API.get;
+        const dash = await get('/social/coin-seller/dashboard');
         packages = dash.data?.rechargePackages || [];
         document.getElementById('srInventory').innerHTML =
           '<i class="fas fa-warehouse"></i>' + fmt(dash.data?.profile?.inventory_coins) + ' <span style="font-size:14px;font-weight:600">in stock</span>';
+        const pending = dash.data?.pendingRecharges;
+        if (pending?.count > 0) {
+          toast(`${fmt(pending.coins)} coins pending admin approval`, 'info');
+        }
         if (!packages.length) {
           packages = [
             { coins: 480000, usd: 50 },
@@ -310,6 +315,15 @@
         }
         renderPackages(packages);
         await loadHistory();
+        document.addEventListener('visibilitychange', async () => {
+          if (document.visibilityState !== 'visible') return;
+          try {
+            const fresh = await (API.getFresh || API.get)('/social/coin-seller/dashboard');
+            document.getElementById('srInventory').innerHTML =
+              '<i class="fas fa-warehouse"></i>' + fmt(fresh.data?.profile?.inventory_coins) + ' <span style="font-size:14px;font-weight:600">in stock</span>';
+            await loadHistory();
+          } catch (_e) {}
+        });
       } catch (e) {
         toast(e?.message || 'Could not load seller dashboard', 'error');
         setTimeout(() => { location.href = '/coin-seller-center.html?app=1'; }, 1200);
