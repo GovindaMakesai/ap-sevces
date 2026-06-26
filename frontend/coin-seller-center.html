@@ -8,7 +8,7 @@
   <script src="/ap-native-boot.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-theme.css">
-  <link rel="stylesheet" href="coin-seller.css?v=20260626cs-fix3">
+  <link rel="stylesheet" href="coin-seller.css?v=20260626cs-fix4">
   <link rel="stylesheet" href="mobile-app.css">
 </head>
 <body class="cs-page">
@@ -210,6 +210,20 @@
   <script src="auth-guard.js"></script>
   <script src="social-ui.js"></script>
   <script src="social-shell.js"></script>
+  <script>
+    window.goRecharge = function () {
+      location.href = '/coin-seller-recharge.html?app=1';
+    };
+    setTimeout(function () {
+      var loading = document.getElementById('csLoading');
+      var main = document.getElementById('csMain');
+      if (loading && main && main.hidden && loading.innerHTML.indexOf('fa-spinner') !== -1) {
+        loading.innerHTML =
+          '<p style="margin:0 0 12px">Loading timed out. Check connection and retry.</p>' +
+          '<button type="button" onclick="location.reload()" style="padding:10px 18px;border:none;border-radius:8px;background:#c9a227;color:#fff;font-weight:700;cursor:pointer">Retry</button>';
+      }
+    }, 22000);
+  </script>
   <script>
     (async function () {
       const QUICK_AMOUNTS = [1000, 5000, 10000, 30000, 50000, 100000, 500000];
@@ -484,16 +498,16 @@
       document.getElementById('xferAccountId').addEventListener('input', clearRecipient);
 
       document.getElementById('csAddTransfer').addEventListener('click', openTransferModal);
-      document.getElementById('csNoticeBtn')?.addEventListener('click', goRecharge);
-      document.getElementById('csLevelUp')?.addEventListener('click', goRecharge);
+      document.getElementById('csNoticeBtn')?.addEventListener('click', window.goRecharge);
+      document.getElementById('csLevelUp')?.addEventListener('click', window.goRecharge);
       document.getElementById('csDetailBtn')?.addEventListener('click', () => openModal('balanceModal'));
-      document.getElementById('detailTopupBtn')?.addEventListener('click', goRecharge);
+      document.getElementById('detailTopupBtn')?.addEventListener('click', window.goRecharge);
 
       document.querySelectorAll('.cs-quick-btn').forEach((btn) => {
         btn.addEventListener('click', () => {
           const a = btn.dataset.action;
           if (a === 'sell') openTransferModal();
-          else if (a === 'recharge') goRecharge();
+          else if (a === 'recharge') window.goRecharge();
           else if (a === 'exchange') openModal('exchangeModal');
           else if (a === 'settings') openModal('settingsModal');
         });

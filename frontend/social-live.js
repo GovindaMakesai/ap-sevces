@@ -3782,13 +3782,18 @@
     });
     document.getElementById('partyBtnRequests')?.addEventListener('click', () => {
       renderJoinRequests();
+      document.body.classList.add('party-requests-open');
       document.getElementById('partyRequestsSheet')?.classList.add('open');
     });
     document.getElementById('partyRequestsClose')?.addEventListener('click', () => {
+      document.body.classList.remove('party-requests-open');
       document.getElementById('partyRequestsSheet')?.classList.remove('open');
     });
     document.getElementById('partyRequestsSheet')?.addEventListener('click', (e) => {
-      if (e.target.id === 'partyRequestsSheet') e.target.classList.remove('open');
+      if (e.target.id === 'partyRequestsSheet') {
+        document.body.classList.remove('party-requests-open');
+        e.target.classList.remove('open');
+      }
     });
 
     document.getElementById('liveBtnInvite')?.addEventListener('click', () => {

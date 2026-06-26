@@ -528,20 +528,30 @@ body.ap-is-host .live-host-bar {
 .party-requests-sheet {
   position: fixed;
   inset: 0;
-  z-index: 45;
+  z-index: 120;
   background: rgba(0, 0, 0, 0.55);
   display: none;
   align-items: flex-end;
+  justify-content: center;
+  padding-bottom: calc(var(--ap-bottom-bar-h, 58px) + env(safe-area-inset-bottom, 0));
 }
 .party-requests-sheet.open { display: flex; }
 
+body.party-requests-open .party-bottom-bar {
+  z-index: 40;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .party-requests-panel {
   width: 100%;
-  max-height: 55vh;
+  max-width: 480px;
+  max-height: min(52vh, calc(100dvh - var(--ap-bottom-bar-h, 58px) - env(safe-area-inset-bottom, 0) - 24px));
   background: rgba(18, 10, 40, 0.98);
   border-radius: 20px 20px 0 0;
-  padding: 16px 14px calc(20px + env(safe-area-inset-bottom, 0));
+  padding: 16px 14px calc(16px + env(safe-area-inset-bottom, 0));
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .party-requests-head {
@@ -567,25 +577,55 @@ body.ap-is-host .live-host-bar {
 }
 .party-requests-list { display: flex; flex-direction: column; gap: 8px; }
 .party-req-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: 10px;
-  padding: 10px;
+  gap: 8px 10px;
+  padding: 10px 12px;
   background: rgba(255,255,255,0.08);
   border-radius: 12px;
 }
-.party-req-row img { width: 36px; height: 36px; border-radius: 50%; }
-.party-req-row .info { flex: 1; font-size: 13px; }
+.party-req-row img {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  grid-row: 1 / span 2;
+}
+.party-req-row .info {
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.35;
+  grid-column: 2;
+}
+.party-req-row .info strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .party-req-row button {
   border: none;
-  padding: 6px 12px;
+  padding: 8px 12px;
   border-radius: 999px;
   font-size: 11px;
   font-weight: 700;
   cursor: pointer;
+  white-space: nowrap;
+  min-width: 58px;
 }
-.party-req-row .accept { background: #22c55e; color: #fff; }
-.party-req-row .deny { background: rgba(255,255,255,0.15); color: #fff; }
+.party-req-row .accept {
+  grid-column: 3;
+  grid-row: 1;
+  background: #22c55e;
+  color: #fff;
+}
+.party-req-row .deny {
+  grid-column: 4;
+  grid-row: 1;
+  background: rgba(255,255,255,0.15);
+  color: #fff;
+}
 .party-requests-empty {
   text-align: center;
   color: rgba(255,255,255,0.45);
