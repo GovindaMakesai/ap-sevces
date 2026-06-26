@@ -532,6 +532,7 @@ body.cs-page {
 .cs-level-up {
   flex-shrink: 0;
   align-self: flex-start;
+  margin-left: 0;
   border: none;
   background: linear-gradient(90deg, #ffb300, #ff8f00);
   color: #fff;
@@ -568,18 +569,6 @@ body.cs-page {
   border-radius: 4px;
   white-space: nowrap;
   color: #5d4037;
-}
-
-.cs-level-up {
-  margin-left: 0;
-  border: none;
-  background: linear-gradient(90deg, #ffb300, #ff8f00);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 800;
-  padding: 8px 14px;
-  border-radius: 999px;
-  cursor: pointer;
 }
 
 .cs-pay-methods {
