@@ -181,6 +181,21 @@ async function discoverTopCreators({ period = 'weekly', limit = 30, viewerId = n
   return { period, creators };
 }
 
+async function discoverCreatorsFast({ limit = 30, viewerId = null } = {}) {
+  const lim = Math.min(Math.max(parseInt(limit, 10) || 30, 1), 50);
+  let followingSet = null;
+  try {
+    followingSet = await getFollowingSet(viewerId);
+  } catch (_e) {
+    followingSet = null;
+  }
+  const rows = await fetchFallbackCreators(lim);
+  const creators = rows.map((row, i) =>
+    mapCreatorRow(row, { rank: i + 1, viewerId, followingSet })
+  );
+  return { period: 'weekly', creators };
+}
+
 async function getCreatorEngagement(userId, viewerId = null) {
   const id = String(userId || '').trim();
   if (!id) return null;
@@ -199,6 +214,7 @@ async function getCreatorEngagement(userId, viewerId = null) {
 
 module.exports = {
   discoverTopCreators,
+  discoverCreatorsFast,
   getCreatorEngagement,
   formatScore,
 };

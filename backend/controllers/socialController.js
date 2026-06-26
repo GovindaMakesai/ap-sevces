@@ -60,15 +60,28 @@ async function discoverCreators(req, res) {
       ? req.query.period
       : 'weekly';
     const limit = parseInt(req.query.limit, 10) || 30;
-    const data = await discoverCreatorService.discoverTopCreators({
-      period,
-      limit,
-      viewerId: req.userId || null,
-    });
+    const data = await Promise.race([
+      discoverCreatorService.discoverTopCreators({
+        period,
+        limit,
+        viewerId: req.userId || null,
+      }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 12000)),
+    ]);
     res.json({ success: true, data });
   } catch (e) {
-    console.error('discoverCreators error:', e);
-    res.status(500).json({ success: false, message: 'Failed to load creators' });
+    console.warn('discoverCreators fallback:', e.message);
+    try {
+      const limit = parseInt(req.query.limit, 10) || 30;
+      const data = await discoverCreatorService.discoverCreatorsFast({
+        limit,
+        viewerId: req.userId || null,
+      });
+      return res.json({ success: true, data });
+    } catch (e2) {
+      console.error('discoverCreators error:', e2);
+      res.status(500).json({ success: false, message: 'Failed to load creators' });
+    }
   }
 }
 

@@ -137,6 +137,13 @@
     return isVideoMediaUrl(post.image || post.media_url || post.imageData);
   }
 
+  function postHasMedia(post) {
+    if (!post) return false;
+    if (postIsVideo(post)) return true;
+    if (post.mediaId || post.imageData) return true;
+    return Boolean(post.image || post.thumb);
+  }
+
   async function getMediaUrl(post) {
     if (!post) return '';
     if (post.imageData) return post.imageData;
@@ -494,7 +501,7 @@
           img.onerror = reject;
           img.src = url;
         }),
-        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 12000)),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 6000)),
       ]);
     } catch (_e) {
       return file;
@@ -514,10 +521,11 @@
     }
   }
 
-  async function savePostFromForm(caption, visibility, file) {
+  async function savePostFromForm(caption, visibility, file, options) {
     if (!caption && !file) {
       throw new Error('Add a caption or attach a photo/video.');
     }
+    const opts = options || {};
     const user = window.Auth?.getUser?.();
     const id = Date.now();
     const post = {
@@ -543,17 +551,26 @@
         throw new Error('Video must be under 12 MB. Trim the clip or pick a shorter one.');
       }
       let blob = file;
-      if (!post.isVideo) blob = await compressImage(file);
-      else {
-        const thumb = await generateVideoThumb(file);
-        if (thumb) post.thumb = thumb;
-      }
+      if (!post.isVideo && !opts.skipCompress) blob = await compressImage(file, 800);
       const mediaId = 'media-' + id;
       const stored = await storeMediaBlob(mediaId, blob);
       if (typeof stored === 'string') {
         post.mediaId = stored;
       } else {
         post.imageData = stored.imageData;
+      }
+      if (post.isVideo) {
+        generateVideoThumb(file).then((thumb) => {
+          if (!thumb) return;
+          const posts = getPosts();
+          const p = posts.find((x) => String(x.id) === String(id));
+          if (p) {
+            p.thumb = thumb;
+            savePosts(posts);
+          }
+        });
+      } else if (!post.thumb || post.thumb.includes('dicebear')) {
+        post.thumb = post.imageData || post.thumb;
       }
     }
 
@@ -757,8 +774,8 @@
   let reelIndex = 0;
 
   async function buildReelItems(pros) {
-    const userPosts = getPosts().filter((p) => canViewPost(p) && postIsVideo(p));
-    const apiPosts = (await loadPosts()).filter((p) => canViewPost(p) && postIsVideo(p));
+    const userPosts = getPosts().filter((p) => canViewPost(p) && postHasMedia(p));
+    const apiPosts = (await loadPosts()).filter((p) => canViewPost(p) && postHasMedia(p));
     const merged = [];
     const seen = new Set();
     [...apiPosts, ...userPosts].forEach((p) => {
@@ -778,7 +795,7 @@
         comments: p.comments || 0,
         gifts: p.gifts || 0,
         shares: p.shares || 0,
-        isVideo: true,
+        isVideo: postIsVideo(p),
         liked: isLiked(p.id, p),
         mediaUrl: await getMediaUrl(p),
         thumb: p.thumb || (await getMediaUrl(p)),
@@ -802,7 +819,7 @@
       thumb: p.image || (window.SocialUI?.themeCover('video', p.name) || p.image),
     }));
 
-    return fromPosts.filter((x) => x.isVideo && (x.mediaUrl || x.thumb));
+    return fromPosts.filter((x) => x.mediaUrl || x.thumb);
   }
 
   function openReelViewer(postId) {
@@ -881,7 +898,7 @@
     if (!reelItems.length) {
       const empty = document.createElement('p');
       empty.style.cssText = 'color:#fff;text-align:center;padding:40px;pointer-events:auto';
-      empty.textContent = 'No videos yet. Post from Square camera.';
+      empty.textContent = 'No moments yet. Post a photo or video from Square.';
       wrap.insertBefore(empty, uiLayer || null);
       if (uiLayer) uiLayer.style.display = 'none';
       return;
@@ -1166,11 +1183,11 @@
           ? `<video src="${url}" playsinline muted poster="${thumbUrl || ''}"></video>`
           : `<img src="${url || SocialShell?.avatarFallback(p.userName)}" alt="">`;
         const liked = !p.demo && isLiked(p.id, p);
-        const openReel = postIsVideo(p) ? ' data-open-reel="1"' : '';
+        const openReel = !p.demo && postHasMedia(p) ? ' data-open-reel="1"' : '';
         return `
       <article class="social-post-card" data-post-id="${p.id}"${openReel}>
         <div class="social-post-media">${media}
-          ${postIsVideo(p) ? '<span class="play-badge"><i class="fas fa-play"></i></span>' : ''}
+          ${postIsVideo(p) ? '<span class="play-badge"><i class="fas fa-play"></i></span>' : '<span class="play-badge play-badge--photo"><i class="fas fa-expand"></i></span>'}
           ${p.visibility === 'private' ? '<span class="social-post-private-badge"><i class="fas fa-lock"></i> Private</span>' : ''}
           ${isOwner ? `<button type="button" class="social-post-delete" data-delete-post="${p.id}" aria-label="Delete post"><i class="fas fa-times"></i></button>` : ''}
         </div>
@@ -1294,8 +1311,8 @@
         <div class="social-topic-head">
           <img src="${topicThumb(ti, t.title)}" alt="" loading="lazy" onerror="this.src='${fallbackThumb}'">
           <div style="flex:1">
-            <h3 style="font-size:15px;color:var(--gold-800);margin-bottom:6px">${t.title}</h3>
-            <span class="social-flame"><i class="fas fa-fire"></i> ${t.heat.toLocaleString()}</span>
+            <h3 class="social-topic-title">${t.title}</h3>
+            <span class="social-topic-heat"><i class="fas fa-chart-line"></i> ${t.heat.toLocaleString()}</span>
           </div>
           ${t.ended ? '<span style="color:#9ca3af;font-size:13px">ended</span>' : '<button type="button" class="social-join-btn" data-join-topic>Join room</button>'}
         </div>

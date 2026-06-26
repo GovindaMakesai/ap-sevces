@@ -558,7 +558,9 @@
   margin: 12px 0;
   border-radius: 12px;
   overflow: hidden;
+  max-height: 240px;
   background: #111;
+  display: none;
 }
 
 .social-create-preview-clear {
@@ -578,11 +580,20 @@
   align-items: center;
   justify-content: center;
 }
-  margin: 10px 0;
-  border-radius: 12px;
-  overflow: hidden;
-  max-height: 200px;
-  display: none;
+
+.social-create-preview-edit {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  z-index: 2;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 .social-create-preview img {
@@ -1318,3 +1329,182 @@ html.ap-expo-app .social-rank-header {
   color: #8b6914;
 }
 .discover-creators-empty i { font-size: 42px; opacity: 0.4; margin-bottom: 12px; display: block; }
+
+/* Media editor (crop / trim) */
+.social-create-editor {
+  margin: 12px 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #f9fafb;
+}
+.social-create-editor-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+}
+.social-create-editor-apply {
+  border: none;
+  background: #111827;
+  color: #fff;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.social-create-crop-stage {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  padding: 12px;
+  background: #111;
+}
+.social-create-crop-stage canvas {
+  display: block;
+  border-radius: 8px;
+  max-width: 100%;
+}
+.social-create-video-stage video {
+  width: 100%;
+  max-height: 220px;
+  display: block;
+  background: #000;
+}
+.social-create-trim-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #fff;
+}
+.social-create-trim-bar input[type="range"] {
+  width: 100%;
+  accent-color: #6366f1;
+}
+.social-create-trim-hint {
+  margin: 0;
+  padding: 0 12px 10px;
+  font-size: 12px;
+  color: #6b7280;
+}
+.social-create-crop-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #fff;
+  border-top: 1px solid #e5e7eb;
+}
+.social-create-crop-tools button {
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #374151;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.social-create-crop-tools button.active {
+  border-color: #6366f1;
+  background: #eef2ff;
+  color: #4338ca;
+}
+.social-create-zoom-label {
+  margin-left: auto;
+  font-size: 11px;
+  color: #6b7280;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.social-create-zoom-label input { width: 80px; }
+.social-create-progress {
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+  text-align: center;
+}
+
+.social-post-media .play-badge--photo {
+  background: rgba(0, 0, 0, 0.45);
+  font-size: 14px;
+}
+
+/* Topics — clean neutral theme (less yellow) */
+body.social-topics-page {
+  background: #f3f4f6;
+}
+body.social-topics-page .social-top {
+  background: #fff;
+  border-bottom: 1px solid #e5e7eb;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
+}
+body.social-topics-page .social-main-tabs a {
+  color: #6b7280;
+}
+body.social-topics-page .social-main-tabs a.active {
+  color: #111827;
+  border-bottom-color: #6366f1;
+}
+body.social-topics-page .social-topic-block {
+  margin: 10px 12px;
+  padding: 14px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  border-bottom: 1px solid #e5e7eb;
+}
+body.social-topics-page .social-topic-title {
+  font-size: 15px;
+  color: #111827;
+  margin: 0 0 6px;
+  font-weight: 700;
+}
+body.social-topics-page .social-topic-heat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #f3f4f6;
+  color: #4b5563;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+body.social-topics-page .social-topic-heat i {
+  color: #6366f1;
+  font-size: 11px;
+}
+body.social-topics-page .social-join-btn {
+  background: #111827;
+  color: #fff;
+}
+body.social-topics-page .social-topic-videos .thumb {
+  background: #e5e7eb;
+  border: 1px solid #e5e7eb;
+}
+
+body.social-discover-page {
+  background: #f9fafb;
+}
+body.social-discover-page .discover-creators-header {
+  background: #fff;
+  border-bottom: 1px solid #e5e7eb;
+}
+body.social-discover-page .discover-creators-head-text h1 {
+  color: #111827;
+}
+body.social-discover-page .discover-creators-loading,
+body.social-discover-page .discover-creators-empty {
+  color: #6b7280;
+}
