@@ -19,6 +19,7 @@ function publicUser(user, { self = false } = {}) {
       role: user.role,
       gender: user.gender || null,
       created_at: user.created_at,
+      updated_at: user.updated_at || null,
     };
   }
   return {

@@ -46,7 +46,7 @@ class User {
     static async findById(id) {
         const query = `
             SELECT id, email, phone, first_name, last_name, profile_pic,
-                   role, is_verified, gender, created_at
+                   role, is_verified, gender, created_at, updated_at
             FROM users WHERE id = $1
         `;
         const result = await db.query(query, [id]);
@@ -84,6 +84,16 @@ class User {
         await db.query(
             `UPDATE users SET ${sets.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
             values
+        );
+        return User.findById(id);
+    }
+
+    static async updateProfilePic(id, profilePic) {
+        const url = String(profilePic || '').trim();
+        if (!url) throw new Error('Invalid profile picture URL');
+        await db.query(
+            `UPDATE users SET profile_pic = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+            [url, id]
         );
         return User.findById(id);
     }

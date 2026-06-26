@@ -18,11 +18,17 @@
 
   const CHIP_FILTERS = ['Popular', 'India', 'Nepal', 'Global'];
 
-  function getImageUrl(path) {
+  function getImageUrl(path, cacheKey) {
     if (!path) return null;
-    if (String(path).startsWith('http')) return path;
+    if (String(path).startsWith('http')) {
+      const url = String(path);
+      if (!cacheKey) return url;
+      return url + (url.includes('?') ? '&' : '?') + 'v=' + encodeURIComponent(String(cacheKey));
+    }
     const base = (window.CONFIG?.BACKEND_URL || '').replace(/\/$/, '');
-    return `${base}${path.startsWith('/') ? '' : '/'}${path}`;
+    let url = `${base}${path.startsWith('/') ? '' : '/'}${path}`;
+    if (cacheKey) url += (url.includes('?') ? '&' : '?') + 'v=' + encodeURIComponent(String(cacheKey));
+    return url;
   }
 
   function pickTag(index) {

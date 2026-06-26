@@ -14,7 +14,7 @@
 
   g.AP_CONFIG = Object.freeze({
     USE_HTTPS_DOMAIN: USE_HTTPS,
-    BUILD_TAG: '20260625-chat-gifts',
+    BUILD_TAG: '20260625-profile-photo',
     PRODUCTION_BACKEND_URL: BACKEND,
     PRODUCTION_API_URL: BACKEND.replace(/\/$/, '') + '/api',
     PRODUCTION_FRONTEND_URL: FRONTEND,

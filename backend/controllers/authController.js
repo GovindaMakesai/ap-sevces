@@ -471,6 +471,33 @@ const updateProfile = async (req, res) => {
     }
 };
 
+const uploadProfilePhoto = async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ success: false, message: 'Photo file is required' });
+        }
+        const profilePic = `/uploads/${req.file.filename}`;
+        const user = await User.updateProfilePic(req.userId, profilePic);
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+        await db.query(
+            `UPDATE workers SET profile_photo_url = $1, updated_at = CURRENT_TIMESTAMP
+             WHERE user_id = $2 AND profile_photo_url IS DISTINCT FROM $1`,
+            [profilePic, req.userId]
+        );
+        const { publicUser } = require('../lib/userDto');
+        res.json({
+            success: true,
+            data: { user: publicUser(user, { self: true }) },
+            message: 'Profile photo updated',
+        });
+    } catch (error) {
+        console.error('❌ Upload profile photo error:', error);
+        res.status(500).json({ success: false, message: error.message || 'Failed to upload profile photo' });
+    }
+};
+
 // Get Me
 const getMe = async (req, res) => {
     try {
@@ -730,6 +757,7 @@ module.exports = {
     login,
     getMe,
     updateProfile,
+    uploadProfilePhoto,
     googleCallback,
     githubCallback,
     facebookCallback,

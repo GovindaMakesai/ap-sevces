@@ -763,6 +763,7 @@ const Auth = {
             if (res.success && res.data && res.data.user) {
                 AppState.user = res.data.user;
                 localStorage.setItem('user', JSON.stringify(res.data.user));
+                document.dispatchEvent(new CustomEvent('user:profile-updated', { detail: res.data.user }));
                 if (res.data.accessToken) {
                     localStorage.setItem('token', res.data.accessToken);
                 }

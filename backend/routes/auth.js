@@ -7,6 +7,7 @@ const GitHubStrategy = require('passport-github2').Strategy;
 const FacebookStrategy = require('passport-facebook').Strategy;
 const authController = require('../controllers/authController');
 const { verifyToken } = require('../middleware/auth');
+const upload = require('../middleware/upload');
 const {
     validateRegistration,
     validateLogin,
@@ -181,6 +182,7 @@ router.get('/session', require('../middleware/auth').optionalAuth, authControlle
 router.get('/me', verifyToken, authController.getMe);
 router.patch('/profile', verifyToken, authController.updateProfile);
 router.put('/profile', verifyToken, authController.updateProfile);
+router.post('/profile/photo', verifyToken, upload.single('photo'), authController.uploadProfilePhoto);
 if (isGoogleConfigured) {
     router.get('/google', (req, res, next) => {
         passport.authenticate('google', {

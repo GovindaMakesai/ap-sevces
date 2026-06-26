@@ -2300,6 +2300,53 @@
             document.getElementById('adminEmail').textContent = user.email;
             document.getElementById('adminInitials').textContent = user.first_name?.[0] || 'A';
 
+            function adminProfilePicUrl(u) {
+                if (!u?.profile_pic) return null;
+                const base = (typeof CONFIG !== 'undefined' && CONFIG.BACKEND_URL) ? CONFIG.BACKEND_URL.replace(/\/$/, '') : '';
+                let url = String(u.profile_pic).startsWith('http') ? u.profile_pic : `${base}${u.profile_pic}`;
+                const v = u.updated_at || u.id || Date.now();
+                return url + (url.includes('?') ? '&' : '?') + 'v=' + encodeURIComponent(String(v));
+            }
+
+            function paintAdminAvatar(u) {
+                const img = document.getElementById('adminAvatar');
+                const initials = document.getElementById('adminInitials');
+                const url = adminProfilePicUrl(u);
+                if (url && img) {
+                    img.src = url;
+                    img.style.display = 'block';
+                    if (initials) initials.style.display = 'none';
+                } else if (img) {
+                    img.style.display = 'none';
+                    if (initials) initials.style.display = '';
+                }
+            }
+            paintAdminAvatar(user);
+
+            document.getElementById('avatarUpload')?.addEventListener('change', async function() {
+                const file = this.files?.[0];
+                if (!file) return;
+                try {
+                    await Auth.ensureAccessToken?.();
+                    const fd = new FormData();
+                    fd.append('photo', file);
+                    const res = await API.upload('/auth/profile/photo', fd);
+                    const updated = res?.data?.user;
+                    if (updated) {
+                        localStorage.setItem('user', JSON.stringify(updated));
+                        document.dispatchEvent(new CustomEvent('user:profile-updated', { detail: updated }));
+                        paintAdminAvatar(updated);
+                        Toast.show('Profile photo updated', 'success');
+                    } else {
+                        Toast.show(res?.message || 'Upload failed', 'error');
+                    }
+                } catch (e) {
+                    Toast.show(e?.message || 'Failed to upload photo', 'error');
+                } finally {
+                    this.value = '';
+                }
+            });
+
             // Initialize date picker
             flatpickr("#dateRangePicker", {
                 mode: "range",

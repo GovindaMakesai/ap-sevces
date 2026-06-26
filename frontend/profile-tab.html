@@ -118,6 +118,15 @@
         document.documentElement.classList.add('profile-ready');
       }
 
+      function paintProfileAvatar(user) {
+        if (!user) return;
+        const name = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email || 'User';
+        const cacheKey = user.updated_at || user.profile_pic || user.id;
+        const pic = user.profile_pic ? SocialShell.getImageUrl(user.profile_pic, cacheKey) : null;
+        document.getElementById('profileAvatar').src =
+          window.SocialUI ? SocialUI.avatarUrl(name, pic) : pic || SocialShell.avatarFallback(name);
+      }
+
       if (user) {
         const name = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email || 'User';
         document.getElementById('profileName').textContent = name;
@@ -148,9 +157,7 @@
             alert('ID: ' + user.id);
           }
         });
-        const pic = user.profile_pic ? SocialShell.getImageUrl(user.profile_pic) : null;
-        document.getElementById('profileAvatar').src =
-          window.SocialUI ? SocialUI.avatarUrl(name, pic) : pic || SocialShell.avatarFallback(name);
+        paintProfileAvatar(user);
         if (['admin', 'super_admin', 'founder', 'ceo'].includes(user.role) && adminDash) {
           adminDash.style.display = 'flex';
           adminDash.href = '/admin-dashboard.html?app=1';
@@ -234,6 +241,15 @@
         dash.href = '/app-auth.html?app=1';
       }
       if (window.SocialUI) SocialUI.bindAvatarFallbacks(document);
+      document.addEventListener('user:profile-updated', (e) => {
+        if (e.detail) paintProfileAvatar(e.detail);
+      });
+      if (window.SocialNav) {
+        SocialNav.registerRefresh(async () => {
+          await Auth.refreshSession?.();
+          paintProfileAvatar(Auth.getUser());
+        });
+      }
       finishProfile();
     });
   </script>
