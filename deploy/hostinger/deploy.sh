@@ -88,4 +88,23 @@ else
   fi
 fi
 
+NGINX_SITE="${NGINX_SITE:-/etc/nginx/sites-available/ap-services}"
+if [ -f deploy/hostinger/nginx-ap-services.conf ] && command -v nginx >/dev/null 2>&1; then
+  DOMAIN="${AP_DOMAIN:-api.apservices.in}"
+  RENDERED="/tmp/nginx-ap-services-${DOMAIN}.conf"
+  sed "s/__DOMAIN__/${DOMAIN}/g" deploy/hostinger/nginx-ap-services.conf > "$RENDERED"
+  if [ ! -f "$NGINX_SITE" ] || ! cmp -s "$RENDERED" "$NGINX_SITE" 2>/dev/null; then
+    echo "==> Apply nginx site config for ${DOMAIN}"
+    if command -v sudo >/dev/null 2>&1; then
+      sudo cp "$RENDERED" "$NGINX_SITE"
+      sudo ln -sf "$NGINX_SITE" "/etc/nginx/sites-enabled/ap-services"
+      sudo nginx -t && sudo systemctl reload nginx
+    else
+      cp "$RENDERED" "$NGINX_SITE"
+      ln -sf "$NGINX_SITE" "/etc/nginx/sites-enabled/ap-services"
+      nginx -t && systemctl reload nginx
+    fi
+  fi
+fi
+
 echo "Deploy complete."

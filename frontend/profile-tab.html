@@ -34,7 +34,7 @@
   <div class="social-profile-hero">
     <div class="social-profile-avatar-wrap">
       <button type="button" class="social-profile-avatar-btn" id="profileAvatarBtn" aria-label="Change profile picture">
-        <img id="profileAvatar" src="" alt="Profile" data-profile-avatar="1">
+        <img id="profileAvatar" alt="Profile" data-profile-avatar="1" decoding="async">
         <span class="social-profile-avatar-edit" aria-hidden="true"><i class="fas fa-camera"></i></span>
       </button>
       <input type="file" id="profileAvatarInput" class="rc-file-input-hidden" accept="image/jpeg,image/png,image/webp,image/*" tabindex="-1" aria-hidden="true">
@@ -166,12 +166,17 @@
         const name = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email || 'User';
         img.alt = name;
         img.dataset.name = name;
+        const fallback = () => {
+          img.onerror = null;
+          img.src = window.SocialUI ? SocialUI.avatarUrl(name) : SocialShell.avatarFallback(name);
+        };
         const cacheKey = user.updated_at || Date.now();
         const pic = user.profile_pic ? SocialShell.getImageUrl(user.profile_pic, cacheKey) : null;
         if (pic) {
+          img.onerror = fallback;
           img.src = pic;
         } else {
-          img.src = window.SocialUI ? SocialUI.avatarUrl(name) : SocialShell.avatarFallback(name);
+          fallback();
         }
       }
 
