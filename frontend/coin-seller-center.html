@@ -8,7 +8,7 @@
   <script src="/ap-native-boot.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-theme.css">
-  <link rel="stylesheet" href="coin-seller.css?v=20260626cs-scroll">
+  <link rel="stylesheet" href="coin-seller.css?v=20260626cs-fix2">
   <link rel="stylesheet" href="mobile-app.css">
 </head>
 <body class="cs-page">
@@ -117,15 +117,16 @@
             <strong id="xferRecipientName">—</strong>
             <div class="cs-recipient-id" id="xferRecipientId">—</div>
           </div>
-          <span class="cs-recipient-check"><i class="fas fa-check-circle"></i> Selected</span>
+          <span class="cs-recipient-check"><i class="fas fa-check-circle"></i> Buyer found</span>
         </div>
       </div>
       <div class="cs-field">
         <label>Amount to send (min 1,000)</label>
-        <input type="number" id="xferAmount" min="1000" step="1000" value="5000" inputmode="numeric">
+        <input type="number" id="xferAmount" min="1000" step="1000" placeholder="Enter amount" inputmode="numeric">
       </div>
       <label style="font-size:13px;font-weight:600">Quick fill</label>
       <div class="cs-quick-fill" id="xferQuickFill"></div>
+      <p style="font-size:12px;color:#666;margin:0 0 6px" id="xferDeductHint">Coins are taken from <strong>seller stock first</strong>, then your wallet balance.</p>
       <p style="font-size:12px;color:#e53935;margin:0" id="xferBalanceHint">Available to sell: 0</p>
       <button type="button" class="cs-submit" id="xferSubmitBtn" disabled>Select buyer to transfer</button>
     </div>
@@ -258,8 +259,26 @@
         btn.addEventListener('click', () => closeModal(btn.dataset.close));
       });
 
-      function goRecharge() {
-        location.href = RECHARGE_URL;
+      function resetTransferModal() {
+        document.getElementById('xferAccountId').value = '';
+        document.getElementById('xferAmount').value = '';
+        clearRecipient();
+        document.querySelectorAll('#xferQuickFill button').forEach((b) => b.classList.remove('selected'));
+        updateXferSubmitState();
+      }
+
+      function openTransferModal() {
+        resetTransferModal();
+        openModal('transferModal');
+      }
+
+      function hideAppBottomNav() {
+        document.documentElement.classList.add('ap-expo-app', 'social-app', 'cs-seller-immersive');
+        document.documentElement.style.setProperty('--social-bottom-nav-h', '0px');
+        document.querySelectorAll('#social-bottom-nav-mount, .social-bottom-nav').forEach((el) => {
+          el.style.display = 'none';
+          el.innerHTML = '';
+        });
       }
 
       function updateXferSubmitState() {
@@ -286,6 +305,10 @@
       }
 
       function paintRecipient(user) {
+        if (!user?.id) {
+          clearRecipient();
+          return toast('User not found', 'error');
+        }
         xferRecipient = user;
         const card = document.getElementById('xferRecipient');
         const name = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'User';
@@ -380,8 +403,7 @@
             resell.onclick = () => {
               closeModal('xferDetailModal');
               document.getElementById('xferAccountId').value = row.dataset.recipient;
-              clearRecipient();
-              openModal('transferModal');
+              openTransferModal();
               document.getElementById('xferSearchBtn').click();
             };
             openModal('xferDetailModal');
@@ -423,7 +445,7 @@
 
       const qf = document.getElementById('xferQuickFill');
       qf.innerHTML = QUICK_AMOUNTS.map(
-        (a, i) => `<button type="button" data-amt="${a}" class="${i === 1 ? 'selected' : ''}">${fmt(a)}</button>`
+        (a) => `<button type="button" data-amt="${a}">${fmt(a)}</button>`
       ).join('');
       qf.querySelectorAll('button').forEach((btn) => {
         btn.addEventListener('click', () => {
@@ -437,7 +459,7 @@
       document.getElementById('xferAmount').addEventListener('input', updateXferSubmitState);
       document.getElementById('xferAccountId').addEventListener('input', clearRecipient);
 
-      document.getElementById('csAddTransfer').addEventListener('click', () => openModal('transferModal'));
+      document.getElementById('csAddTransfer').addEventListener('click', openTransferModal);
       document.getElementById('csNoticeBtn')?.addEventListener('click', goRecharge);
       document.getElementById('csLevelUp')?.addEventListener('click', goRecharge);
       document.getElementById('csDetailBtn')?.addEventListener('click', () => openModal('balanceModal'));
@@ -446,7 +468,7 @@
       document.querySelectorAll('.cs-quick-btn').forEach((btn) => {
         btn.addEventListener('click', () => {
           const a = btn.dataset.action;
-          if (a === 'sell') openModal('transferModal');
+          if (a === 'sell') openTransferModal();
           else if (a === 'recharge') goRecharge();
           else if (a === 'exchange') openModal('exchangeModal');
           else if (a === 'settings') openModal('settingsModal');
@@ -489,8 +511,10 @@
         try {
           await Auth.ensureAccessToken?.();
           const res = await API.get(`/social/coin-seller/lookup/${encodeURIComponent(id)}`);
-          paintRecipient(res.data);
-          toast('Buyer selected — enter amount and tap Send', 'success');
+          const user = res?.data || res;
+          if (!user?.id) throw new Error('User not found');
+          paintRecipient(user);
+          toast(`Found ${user.first_name || 'buyer'} — enter amount and tap Send`, 'success');
         } catch (e) {
           clearRecipient();
           toast(e?.message || 'User not found', 'error');
@@ -506,6 +530,17 @@
         if (!coins || coins < 1000) return toast('Minimum transfer is 1,000 coins', 'warning');
         const sellable = Number(dash?.sellable_coins ?? 0);
         if (sellable < coins) return toast(`Insufficient balance (have ${fmt(sellable)})`, 'error');
+        const inv = Number(dash?.profile?.inventory_coins || 0);
+        const wal = Number(dash?.wallet?.coin_balance || 0);
+        const fromStock = Math.min(coins, inv);
+        const fromWallet = coins - fromStock;
+        const name = `${xferRecipient.first_name || ''} ${xferRecipient.last_name || ''}`.trim() || 'buyer';
+        const deductMsg = fromWallet > 0
+          ? `${fmt(fromStock)} from seller stock + ${fmt(fromWallet)} from wallet`
+          : `${fmt(coins)} from seller stock`;
+        if (!window.confirm(`Send ${fmt(coins)} coins to ${name}?\n\nDeducted: ${deductMsg}\n\nBuyer receives coins in their wallet immediately.`)) {
+          return;
+        }
 
         const btn = document.getElementById('xferSubmitBtn');
         btn.disabled = true;
@@ -516,11 +551,9 @@
             recipient_id: xferRecipient.id,
             coins,
           });
-          const name = `${xferRecipient.first_name || ''} ${xferRecipient.last_name || ''}`.trim() || 'buyer';
           toast(`Sent ${fmt(coins)} coins to ${name}`, 'success');
           closeModal('transferModal');
-          document.getElementById('xferAccountId').value = '';
-          clearRecipient();
+          resetTransferModal();
           await loadDashboard();
         } catch (e) {
           toast(e?.message || 'Transfer failed', 'error');
@@ -536,8 +569,12 @@
 
       document.getElementById('exSubmitBtn').addEventListener('click', async () => {
         const beans = parseInt(document.getElementById('exAmount').value, 10);
+        const avail = Number(dash?.wallet?.star_balance || 0);
         if (!beans || beans < 100000 || beans % 100000 !== 0) {
           return toast('Enter beans in multiples of 100,000', 'warning');
+        }
+        if (avail < beans) {
+          return toast(`Insufficient beans (you have ${fmt(avail)})`, 'error');
         }
         const btn = document.getElementById('exSubmitBtn');
         btn.disabled = true;
@@ -571,6 +608,7 @@
       }
 
       try {
+        hideAppBottomNav();
         Auth.checkAuth();
         if (!Auth.hasSession?.()) {
           location.href = '/login.html?app=1&redirect=' + encodeURIComponent('/coin-seller-center.html?app=1');

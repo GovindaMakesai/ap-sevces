@@ -827,3 +827,59 @@ html.ap-expo-app body.cs-recharge-page {
 .cs-recharge-page .rc-history {
   padding-bottom: 32px;
 }
+
+/* Native app: hide bottom nav on coin seller pages — it covered buttons */
+html.ap-expo-app body.cs-page #social-bottom-nav-mount,
+html.ap-expo-app body.cs-page .social-bottom-nav,
+html.cs-seller-immersive #social-bottom-nav-mount,
+html.cs-seller-immersive .social-bottom-nav {
+  display: none !important;
+  height: 0 !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+}
+
+html.ap-expo-app body.cs-page {
+  padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+html.ap-expo-app .cs-fab {
+  display: none;
+}
+
+html.ap-expo-app body.cs-recharge-page .rc-footer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 200;
+  max-width: none;
+  margin: 0;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0));
+  background: linear-gradient(180deg, transparent 0%, #faf6ee 20%, #faf6ee 100%);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
+}
+
+html.ap-expo-app body.cs-recharge-page .rc-submit {
+  min-height: 52px;
+  font-size: 16px;
+}
+
+html.ap-expo-app body.cs-recharge-page .rc-submit.is-ready {
+  background: linear-gradient(135deg, #ff9f4a, #ea580c);
+  color: #fff;
+}
+
+.cs-modal {
+  z-index: 500;
+}
+
+.rc-submit--inline {
+  width: 100%;
+  margin-top: 16px;
+}
+
+.rc-submit-hint--inline {
+  text-align: center;
+  margin-top: 8px;
+}

@@ -362,6 +362,9 @@
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden') {
         pauseAgoraForBackground();
+        if (roomJoinCompleted && channelId()) {
+          persistDurableLiveSession();
+        }
       } else {
         onForegroundResume();
       }
@@ -372,6 +375,9 @@
     window.addEventListener('pagehide', () => {
       if (!hostEndingIntentional && !socketLeaveIntentional) {
         pauseAgoraForBackground();
+      }
+      if (roomJoinCompleted && channelId()) {
+        persistDurableLiveSession();
       }
     });
   }

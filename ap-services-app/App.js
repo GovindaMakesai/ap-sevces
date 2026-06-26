@@ -835,6 +835,18 @@ export default function App() {
             webViewRef.current?.injectJavaScript(MINIMIZE_LIVE_INJECT);
             return;
           }
+          webViewRef.current?.injectJavaScript(`(function(){
+            try {
+              var raw = localStorage.getItem('ap_live_active_session') || sessionStorage.getItem('ap_live_pip_session');
+              if (raw) {
+                var d = JSON.parse(raw);
+                if (d && d.url && (!d.expiresAt || Date.now() < d.expiresAt)) {
+                  location.href = '/explore.html?app=1&source=expo-app';
+                  return;
+                }
+              }
+            } catch(e) {}
+          })();true;`);
           if (webViewCanGoBackRef.current) {
             webViewRef.current?.goBack();
             return;

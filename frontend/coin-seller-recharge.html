@@ -8,7 +8,7 @@
   <script src="/ap-native-boot.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-theme.css">
-  <link rel="stylesheet" href="coin-seller.css?v=20260626cs-scroll">
+  <link rel="stylesheet" href="coin-seller.css?v=20260626cs-fix2">
   <link rel="stylesheet" href="social-recharge.css?v=20260625seller-rc">
 </head>
 <body class="cs-page cs-recharge-page recharge-page">
@@ -71,6 +71,8 @@
           <button type="button" class="rc-proof-change" id="sellerProofChange">Change image</button>
         </div>
       </div>
+      <button type="button" class="rc-submit rc-submit--inline" id="rechargeConfirmBtnInline" disabled>Enter UTR to submit</button>
+      <p class="rc-submit-hint rc-submit-hint--inline" id="srSubmitHintInline">Pick package → pay via QR → paste UTR</p>
     </section>
 
     <section class="rc-history">
@@ -123,18 +125,66 @@
         document.getElementById('srStepUtr')?.classList.toggle('active', utrOk);
         document.getElementById('srStepUtr')?.classList.toggle('done', utrOk);
 
-        const btn = document.getElementById('rechargeConfirmBtn');
-        const hint = document.getElementById('srSubmitHint');
-        if (btn) {
+        const label = utrOk ? 'Submit top-up for verification' : 'Enter UTR to submit';
+        [document.getElementById('rechargeConfirmBtn'), document.getElementById('rechargeConfirmBtnInline')].forEach((btn) => {
+          if (!btn) return;
           btn.disabled = !utrOk || !selected;
-          btn.textContent = utrOk ? 'Submit top-up for verification' : 'Enter UTR to submit';
+          btn.textContent = label;
           btn.classList.toggle('is-ready', utrOk && selected);
-        }
+        });
+        const hint = document.getElementById('srSubmitHint');
+        const hintInline = document.getElementById('srSubmitHintInline');
+        const hintText = utrOk
+          ? 'Ready — admin will credit seller stock after verification'
+          : 'Pick package → pay via QR → paste UTR';
         if (hint) {
-          hint.textContent = utrOk
-            ? 'Ready — admin will credit seller stock after verification'
-            : 'Pick package → pay via QR → paste UTR';
+          hint.textContent = hintText;
           hint.className = utrOk ? 'rc-submit-hint is-ready' : 'rc-submit-hint';
+        }
+        if (hintInline) {
+          hintInline.textContent = hintText;
+          hintInline.className = utrOk ? 'rc-submit-hint rc-submit-hint--inline is-ready' : 'rc-submit-hint rc-submit-hint--inline';
+        }
+      }
+
+      async function submitTopup() {
+        if (!selected || !utrValid()) {
+          toast('Select a package and enter a valid UTR', 'warning');
+          return;
+        }
+        const utr = document.getElementById('sellerUtr').value.trim().replace(/\s+/g, '');
+        const buttons = [document.getElementById('rechargeConfirmBtn'), document.getElementById('rechargeConfirmBtnInline')];
+        buttons.forEach((btn) => {
+          if (btn) {
+            btn.disabled = true;
+            btn.textContent = 'Submitting…';
+          }
+        });
+        try {
+          Auth.checkAuth();
+          await Auth.ensureAccessToken?.();
+          const fd = new FormData();
+          fd.append('package_coins', String(selected.coins));
+          fd.append('payment_channel', 'upi_qr');
+          fd.append('transaction_id', utr);
+          if (proofFile) fd.append('payment_proof', proofFile);
+          const res = await API.upload('/social/coin-seller/recharge', fd);
+          if (!res?.success) throw new Error(res?.message || 'Submission failed');
+          toast('Submitted! Seller stock updates after admin approval.', 'success');
+          document.getElementById('sellerUtr').value = '';
+          proofFile = null;
+          proofInput.value = '';
+          document.getElementById('sellerProofPreviewWrap').hidden = true;
+          document.getElementById('sellerProofPlaceholder').hidden = false;
+          document.getElementById('sellerProofZone')?.classList.remove('has-file');
+          await loadHistory();
+        } catch (e) {
+          toast(e?.message || 'Submission failed', 'error');
+        } finally {
+          buttons.forEach((btn) => {
+            if (btn) btn.textContent = utrValid() ? 'Submit top-up for verification' : 'Enter UTR to submit';
+          });
+          updateUi();
         }
       }
 
@@ -223,43 +273,20 @@
         }
       }
 
-      document.getElementById('rechargeConfirmBtn').addEventListener('click', async () => {
-        if (!selected || !utrValid()) {
-          toast('Select a package and enter a valid UTR', 'warning');
-          return;
-        }
-        const utr = document.getElementById('sellerUtr').value.trim().replace(/\s+/g, '');
-        const btn = document.getElementById('rechargeConfirmBtn');
-        btn.disabled = true;
-        btn.textContent = 'Submitting…';
-        try {
-          Auth.checkAuth();
-          await Auth.ensureAccessToken?.();
-          const fd = new FormData();
-          fd.append('package_coins', String(selected.coins));
-          fd.append('payment_channel', 'upi_qr');
-          fd.append('transaction_id', utr);
-          if (proofFile) fd.append('payment_proof', proofFile);
-          const res = await API.upload('/social/coin-seller/recharge', fd);
-          if (!res?.success) throw new Error(res?.message || 'Submission failed');
-          toast('Submitted! Seller stock updates after admin approval.', 'success');
-          document.getElementById('sellerUtr').value = '';
-          proofFile = null;
-          proofInput.value = '';
-          document.getElementById('sellerProofPreviewWrap').hidden = true;
-          document.getElementById('sellerProofPlaceholder').hidden = false;
-          document.getElementById('sellerProofZone')?.classList.remove('has-file');
-          await loadHistory();
-        } catch (e) {
-          toast(e?.message || 'Submission failed', 'error');
-        } finally {
-          btn.disabled = false;
-          btn.textContent = utrValid() ? 'Submit top-up for verification' : 'Enter UTR to submit';
-          updateUi();
-        }
-      });
+      document.getElementById('rechargeConfirmBtn').addEventListener('click', submitTopup);
+      document.getElementById('rechargeConfirmBtnInline').addEventListener('click', submitTopup);
+
+      function hideAppBottomNav() {
+        document.documentElement.classList.add('ap-expo-app', 'social-app', 'cs-seller-immersive');
+        document.documentElement.style.setProperty('--social-bottom-nav-h', '0px');
+        document.querySelectorAll('#social-bottom-nav-mount, .social-bottom-nav').forEach((el) => {
+          el.style.display = 'none';
+          el.innerHTML = '';
+        });
+      }
 
       try {
+        hideAppBottomNav();
         Auth.checkAuth();
         if (!Auth.hasSession?.()) {
           location.href = '/login.html?app=1&redirect=' + encodeURIComponent(location.pathname + location.search);
