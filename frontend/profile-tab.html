@@ -413,8 +413,18 @@
           SocialUI.openFollowSheet('followers', list);
         });
         btn.textContent = user.role === 'admin' ? 'Open Admin Dashboard' : 'Open Dashboard';
-        btn.onclick = () => SocialShell.redirectToDashboard();
-        dash.onclick = (e) => { e.preventDefault(); SocialShell.redirectToDashboard(); };
+        const isSocialApp = new URLSearchParams(location.search).get('app') === '1';
+        if (isSocialApp && ['coin_seller', 'creator', 'customer'].includes(user.role)) {
+          btn.style.display = 'none';
+          if (dash) dash.style.display = 'none';
+        } else {
+          btn.onclick = () => SocialShell.redirectToDashboard();
+          dash.onclick = (e) => { e.preventDefault(); SocialShell.redirectToDashboard(); };
+        }
+        if (user.role === 'admin') {
+          btn.style.display = '';
+          btn.onclick = () => SocialShell.redirectToDashboard();
+        }
         logout.style.display = 'flex';
         logout.onclick = (e) => { e.preventDefault(); Auth.logout(); };
       } else {

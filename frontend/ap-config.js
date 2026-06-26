@@ -14,7 +14,7 @@
 
   g.AP_CONFIG = Object.freeze({
     USE_HTTPS_DOMAIN: USE_HTTPS,
-    BUILD_TAG: '20260626-uploads-nginx',
+    BUILD_TAG: '20260626-coin-seller',
     PRODUCTION_BACKEND_URL: BACKEND,
     PRODUCTION_API_URL: BACKEND.replace(/\/$/, '') + '/api',
     PRODUCTION_FRONTEND_URL: FRONTEND,

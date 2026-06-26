@@ -14,7 +14,15 @@ body.cs-page {
   font-family: Inter, system-ui, sans-serif;
   background: #f5f5f7;
   color: var(--cs-text);
-  padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  min-height: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: calc(120px + env(safe-area-inset-bottom, 0px));
+}
+
+.cs-page-scroll {
+  overflow: visible;
 }
 
 .cs-header {
@@ -53,19 +61,33 @@ body.cs-page {
   align-items: center;
   gap: 8px;
   background: linear-gradient(90deg, #ffe082, #ffca28);
-  padding: 10px 14px;
-  font-size: 13px;
+  padding: 10px 12px;
+  font-size: 12px;
   font-weight: 600;
+  flex-wrap: nowrap;
+}
+
+.cs-notice > i {
+  flex-shrink: 0;
+}
+
+.cs-notice > span {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.35;
 }
 
 .cs-notice button {
-  margin-left: auto;
+  flex-shrink: 0;
+  margin-left: 4px;
   border: none;
   background: rgba(0, 0, 0, 0.08);
   border-radius: 999px;
-  padding: 4px 12px;
+  padding: 6px 12px;
   font-weight: 700;
+  font-size: 12px;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .cs-profile {
@@ -123,8 +145,21 @@ body.cs-page {
 
 .cs-balance-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
+  gap: 10px;
+}
+
+.cs-detail-btn {
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  font-size: 13px;
+  color: #ff8c00;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 4px 0;
+  white-space: nowrap;
 }
 
 .cs-balance-row strong {
@@ -237,6 +272,12 @@ body.cs-page {
   gap: 12px;
   padding: 12px 16px;
   border-bottom: 1px solid #f5f5f5;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.cs-transfer-item:active {
+  background: #fafafa;
 }
 
 .cs-transfer-item .avatar {
@@ -292,10 +333,11 @@ body.cs-page {
 .cs-modal-panel {
   background: #fff;
   width: 100%;
-  max-height: 90vh;
+  max-height: min(88dvh, 640px);
   border-radius: 20px 20px 0 0;
-  padding: 16px;
+  padding: 16px 16px calc(20px + env(safe-area-inset-bottom, 0));
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .cs-modal-head {
@@ -477,8 +519,27 @@ body.cs-page {
 
 .cs-profile-row {
   display: flex;
-  gap: 14px;
+  gap: 12px;
   align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.cs-profile-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.cs-level-up {
+  flex-shrink: 0;
+  align-self: flex-start;
+  border: none;
+  background: linear-gradient(90deg, #ffb300, #ff8f00);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 8px 14px;
+  border-radius: 999px;
+  cursor: pointer;
 }
 
 .cs-avatar-wrap {
@@ -510,7 +571,7 @@ body.cs-page {
 }
 
 .cs-level-up {
-  margin-left: auto;
+  margin-left: 0;
   border: none;
   background: linear-gradient(90deg, #ffb300, #ff8f00);
   color: #fff;
@@ -625,9 +686,108 @@ body.cs-page {
 .cs-guide-link {
   display: block;
   text-align: center;
-  margin: 12px;
+  margin: 16px 12px 8px;
+  padding: 12px;
   font-size: 13px;
   color: var(--cs-orange);
   font-weight: 700;
   text-decoration: none;
+  background: #fff;
+  border-radius: var(--cs-radius);
+  border: 1px solid var(--cs-line);
+}
+
+.cs-recipient-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 12px;
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+  border-radius: 12px;
+}
+
+.cs-recipient-card img {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--cs-gold-light);
+  flex-shrink: 0;
+}
+
+.cs-recipient-card .meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.cs-recipient-card .meta strong {
+  display: block;
+  font-size: 15px;
+}
+
+.cs-recipient-id {
+  font-size: 11px;
+  color: #666;
+  word-break: break-all;
+}
+
+.cs-recipient-check {
+  font-size: 11px;
+  font-weight: 700;
+  color: #15803d;
+  white-space: nowrap;
+}
+
+.cs-detail-sheet p {
+  margin: 0 0 10px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.cs-detail-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 14px;
+}
+
+.cs-settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.cs-settings-list button,
+.cs-settings-list a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  border: none;
+  background: #fff;
+  border-bottom: 1px solid #f0f0f0;
+  padding: 14px 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--cs-text);
+  text-decoration: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.cs-settings-list i {
+  color: var(--cs-orange);
+  width: 20px;
+}
+
+.cs-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cs-recharge-page .rc-page {
+  padding-bottom: calc(120px + env(safe-area-inset-bottom, 0));
 }

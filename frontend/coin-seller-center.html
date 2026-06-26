@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#fff8e1">
   <title>Coin Seller Center - AP Services</title>
   <script src="/ap-native-boot.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-theme.css">
-  <link rel="stylesheet" href="coin-seller.css">
+  <link rel="stylesheet" href="coin-seller.css?v=20260626cs">
   <link rel="stylesheet" href="mobile-app.css">
 </head>
 <body class="cs-page">
@@ -21,7 +21,7 @@
   <div id="csNotice" class="cs-notice" hidden>
     <i class="fas fa-exclamation-triangle"></i>
     <span id="csNoticeText"></span>
-    <button type="button" id="csNoticeBtn">Check &gt;</button>
+    <button type="button" id="csNoticeBtn">Top-up</button>
   </div>
 
   <div id="csApply" class="cs-apply-panel" hidden>
@@ -32,22 +32,23 @@
 
   <div id="csHelp" class="cs-notice" style="background:#fff8e1;border-color:#f5b800;margin:0 12px 12px" hidden>
     <i class="fas fa-lightbulb" style="color:#f5b800"></i>
-    <span><strong>How selling works:</strong> Top-up stock (admin verifies payment) → find buyer's User ID → Transfer coins (min 5,000). Payment with buyer is outside the app (UPI/bank).</span>
+    <span><strong>How selling works:</strong> Find buyer User ID → Transfer coins (min 1,000). Collect payment outside the app (UPI/bank). Optional: top-up wholesale stock via Top-up.</span>
   </div>
 
   <div id="csLoading" class="cs-loading"><i class="fas fa-spinner fa-spin"></i> Loading…</div>
-  <div id="csMain" hidden>
+
+  <div id="csMain" class="cs-page-scroll" hidden>
     <div class="cs-profile-top">
       <div class="cs-profile-row">
         <div class="cs-avatar-wrap">
           <div class="cs-avatar" id="csAvatar">CS</div>
           <span class="cs-seller-badge">Coins Seller</span>
         </div>
-        <div class="cs-profile-info" style="flex:1">
+        <div class="cs-profile-info">
           <h2 id="csName" style="margin:0 0 4px;font-size:16px">—</h2>
           <span class="cs-badge" id="csLevelBadge">Beginner</span>
           <div class="cs-id">ID: <span id="csUserId">—</span></div>
-          <a href="#" id="csMsgEdit" style="font-size:12px;color:#ff8c00;text-decoration:none">Message Edit &gt;</a>
+          <button type="button" id="csMsgEdit" style="border:none;background:none;font-size:12px;color:#ff8c00;font-weight:600;padding:4px 0;cursor:pointer">Message Edit ›</button>
         </div>
         <button type="button" class="cs-level-up" id="csLevelUp">Level Up</button>
       </div>
@@ -60,13 +61,10 @@
           <strong><span id="csBalance">0</span> <i class="fas fa-coins" style="color:#f5b800"></i></strong>
           <div style="font-size:11px;color:#a67c00;margin-top:4px" id="csBalanceBreakdown">Wallet + seller stock</div>
         </div>
-        <a href="#" id="csDetailLink" style="font-size:13px;color:#ff8c00;font-weight:700;text-decoration:none">Detail &gt;</a>
+        <button type="button" class="cs-detail-btn" id="csDetailBtn">Detail ›</button>
       </div>
       <div class="cs-pay-methods">
-        <span>Payment method:</span>
-        <span class="ico upi">UPI</span>
-        <span class="ico card"><i class="fas fa-credit-card"></i></span>
-        <span class="ico add"><i class="fas fa-plus"></i></span>
+        <span>Collect via UPI / bank (outside app)</span>
       </div>
     </div>
 
@@ -93,54 +91,80 @@
       <button type="button" class="cs-tab" data-tab="clients">Client</button>
     </div>
     <div class="cs-transfer-list" id="csTransferList"></div>
+
+    <a href="/roles-guide.html?app=1" class="cs-guide-link">How Coin Seller &amp; Host roles work ›</a>
   </div>
 
   <button type="button" class="cs-fab" id="csAddTransfer">Sell Coins</button>
-  <a href="/roles-guide.html?app=1" class="cs-guide-link">How Coin Seller &amp; Host roles work</a>
 
   <!-- Transfer modal -->
   <div class="cs-modal" id="transferModal">
     <div class="cs-modal-panel">
       <div class="cs-modal-head">
-        <h3>Transfer</h3>
+        <h3>Sell / Transfer coins</h3>
         <button type="button" data-close="transferModal">&times;</button>
       </div>
+      <p style="font-size:12px;color:#666;margin:0 0 12px">Search the buyer by User ID (from their Profile tab) or registered phone number.</p>
       <div class="cs-field">
-        <label>Account ID</label>
+        <label>Buyer account</label>
         <div class="cs-search-row">
-          <input type="text" id="xferAccountId" placeholder="User ID or phone number">
+          <input type="text" id="xferAccountId" placeholder="User ID or phone">
           <button type="button" id="xferSearchBtn">Search</button>
         </div>
-        <p style="font-size:11px;color:#999;margin:6px 0 0">Ask the buyer for their User ID from Profile, or use their registered phone.</p>
-        <div id="xferRecipient" style="margin-top:8px;font-size:13px;color:#666" hidden></div>
+        <div id="xferRecipient" class="cs-recipient-card" hidden>
+          <img id="xferRecipientAv" alt="">
+          <div class="meta">
+            <strong id="xferRecipientName">—</strong>
+            <div class="cs-recipient-id" id="xferRecipientId">—</div>
+          </div>
+          <span class="cs-recipient-check"><i class="fas fa-check-circle"></i> Selected</span>
+        </div>
       </div>
       <div class="cs-field">
-        <label>Transfer Amount (Minimum 1,000)</label>
-        <input type="number" id="xferAmount" min="1000" step="1000" value="5000">
+        <label>Amount to send (min 1,000)</label>
+        <input type="number" id="xferAmount" min="1000" step="1000" value="5000" inputmode="numeric">
       </div>
-      <label style="font-size:13px;font-weight:600">Quick Fill</label>
+      <label style="font-size:13px;font-weight:600">Quick fill</label>
       <div class="cs-quick-fill" id="xferQuickFill"></div>
-      <p style="font-size:12px;color:#e53935;margin:0" id="xferBalanceHint">Seller Coin Balance: 0</p>
-      <button type="button" class="cs-submit" id="xferSubmitBtn">Transfer</button>
+      <p style="font-size:12px;color:#e53935;margin:0" id="xferBalanceHint">Available to sell: 0</p>
+      <button type="button" class="cs-submit" id="xferSubmitBtn" disabled>Select buyer to transfer</button>
     </div>
   </div>
 
-  <!-- Recharge modal -->
-  <div class="cs-modal" id="rechargeModal">
+  <!-- Balance detail -->
+  <div class="cs-modal" id="balanceModal">
+    <div class="cs-modal-panel cs-detail-sheet">
+      <div class="cs-modal-head">
+        <h3>Balance details</h3>
+        <button type="button" data-close="balanceModal">&times;</button>
+      </div>
+      <div class="cs-detail-row"><span>Seller stock</span><strong id="detailStock">0</strong></div>
+      <div class="cs-detail-row"><span>Wallet coins</span><strong id="detailWallet">0</strong></div>
+      <div class="cs-detail-row"><span>Total sellable</span><strong id="detailTotal">0</strong></div>
+      <div class="cs-detail-row"><span>Beans (stars)</span><strong id="detailBeans">0</strong></div>
+      <p style="font-size:12px;color:#888;margin-top:12px">Transfers use seller stock first, then wallet coins. Top-up adds wholesale stock after admin verifies UPI payment.</p>
+      <button type="button" class="cs-submit" id="detailTopupBtn">Top-up seller stock</button>
+    </div>
+  </div>
+
+  <!-- Settings -->
+  <div class="cs-modal" id="settingsModal">
     <div class="cs-modal-panel">
       <div class="cs-modal-head">
-        <h3>Coin Seller Recharge</h3>
-        <button type="button" data-close="rechargeModal">&times;</button>
+        <h3>Seller settings</h3>
+        <button type="button" data-close="settingsModal">&times;</button>
       </div>
-      <div class="cs-pkg-grid" id="rechargePkgs"></div>
-      <p style="font-size:13px;font-weight:600;color:#666">Payment Channel</p>
-      <div class="cs-pay-list" id="rechargeChannels">
-        <label><span>Epay-USDT</span><input type="radio" name="payCh" value="epay-usdt" checked></label>
-        <label><span>USDT-2</span><input type="radio" name="payCh" value="usdt-2"></label>
-        <label><span>PayerMax</span><input type="radio" name="payCh" value="payermax"></label>
-        <label><span>Epay</span><input type="radio" name="payCh" value="epay"></label>
+      <div class="cs-field">
+        <label for="csSellerMessage">Shop message (shown to buyers)</label>
+        <textarea id="csSellerMessage" rows="3" maxlength="200" placeholder="e.g. Fast UPI delivery · Best rates" style="width:100%;padding:12px;border:1px solid #e0e0e0;border-radius:10px;font-size:14px;resize:vertical"></textarea>
       </div>
-      <button type="button" class="cs-submit" id="rechargeConfirmBtn">Confirm</button>
+      <div class="cs-settings-list">
+        <button type="button" id="csCopyIdBtn"><i class="fas fa-copy"></i> Copy my seller ID</button>
+        <a href="/coin-seller-recharge.html?app=1"><i class="fas fa-download"></i> Top-up seller stock</a>
+        <a href="/roles-guide.html?app=1"><i class="fas fa-book"></i> Seller &amp; host guide</a>
+        <a href="/help.html?app=1"><i class="fas fa-life-ring"></i> Help &amp; support</a>
+      </div>
+      <button type="button" class="cs-submit" id="csSaveMessageBtn">Save message</button>
     </div>
   </div>
 
@@ -148,15 +172,15 @@
   <div class="cs-modal" id="exchangeModal">
     <div class="cs-modal-panel">
       <div class="cs-modal-head">
-        <h3>Coin Seller Exchange</h3>
+        <h3>Exchange beans → stock</h3>
         <button type="button" data-close="exchangeModal">&times;</button>
       </div>
       <p style="font-size:13px">Beans available: <strong id="exBeansAvail">0</strong></p>
-      <p style="font-size:13px;color:#ff8c00" id="exRate">Exchange Rate: 100 beans = 95 coins</p>
+      <p style="font-size:13px;color:#ff8c00" id="exRate">Exchange Rate: 100,000 beans → coins</p>
       <div class="cs-field">
-        <label>Amount (multiple of 100,000)</label>
-        <input type="number" id="exAmount" min="100000" step="100000" placeholder="Please Enter">
-        <p style="font-size:13px;margin-top:6px">= <strong id="exPreview">0</strong> coins</p>
+        <label>Beans amount (multiple of 100,000)</label>
+        <input type="number" id="exAmount" min="100000" step="100000" placeholder="100000" inputmode="numeric">
+        <p style="font-size:13px;margin-top:6px">You receive: <strong id="exPreview">0</strong> coins in seller stock</p>
       </div>
       <table class="cs-level-table" id="exLevelTable">
         <thead>
@@ -168,30 +192,56 @@
     </div>
   </div>
 
+  <!-- Transfer detail -->
+  <div class="cs-modal" id="xferDetailModal">
+    <div class="cs-modal-panel">
+      <div class="cs-modal-head">
+        <h3>Transfer details</h3>
+        <button type="button" data-close="xferDetailModal">&times;</button>
+      </div>
+      <div id="xferDetailBody"></div>
+      <button type="button" class="cs-submit" id="xferResellBtn" style="display:none">Sell to this client again</button>
+    </div>
+  </div>
+
   <script src="ap-config.js"></script>
-  <script src="config.js"></script>
   <script src="app.js"></script>
   <script src="auth-guard.js"></script>
   <script src="social-ui.js"></script>
   <script src="social-shell.js"></script>
   <script>
     (async function () {
-      const QUICK_AMOUNTS = [1000, 5000, 30000, 50000, 100000, 500000, 1000000];
+      const QUICK_AMOUNTS = [1000, 5000, 10000, 30000, 50000, 100000, 500000];
+      const RECHARGE_URL = '/coin-seller-recharge.html?app=1';
       let dash = null;
-      let selectedPkg = null;
       let xferRecipient = null;
+      let allTransfers = [];
+      let activeTab = 'transfers';
 
       function toast(msg, type) {
-        if (window.Toast?.show) Toast.show(msg, type);
+        if (window.SocialUI?.toast) SocialUI.toast(msg, type);
+        else if (window.Toast?.show) Toast.show(msg, type);
         else alert(msg);
       }
 
-      function openModal(id) {
-        const el = document.getElementById(id);
-        if (el) el.classList.add('open');
+      function fmt(n) {
+        return Number(n || 0).toLocaleString('en-IN');
       }
+
+      function avatarFor(user, name) {
+        const pic = user?.profile_pic ? SocialShell.getImageUrl(user.profile_pic, user.id) : null;
+        if (pic) return pic;
+        return SocialUI?.avatarUrl?.(name || 'User') || SocialShell.avatarFallback(name || 'User');
+      }
+
+      function openModal(id) {
+        document.getElementById(id)?.classList.add('open');
+        document.body.style.overflow = 'hidden';
+      }
+
       function closeModal(id) {
         document.getElementById(id)?.classList.remove('open');
+        if (!document.querySelector('.cs-modal.open')) document.body.style.overflow = '';
       }
 
       document.querySelectorAll('.cs-modal').forEach((modal) => {
@@ -204,124 +254,226 @@
         btn.addEventListener('click', () => closeModal(btn.dataset.close));
       });
 
-      function fmt(n) {
-        return Number(n || 0).toLocaleString();
+      function goRecharge() {
+        location.href = RECHARGE_URL;
+      }
+
+      function updateXferSubmitState() {
+        const btn = document.getElementById('xferSubmitBtn');
+        const coins = parseInt(document.getElementById('xferAmount').value, 10) || 0;
+        const sellable = Number(dash?.sellable_coins ?? 0);
+        if (!xferRecipient) {
+          btn.disabled = true;
+          btn.textContent = 'Select buyer to transfer';
+          return;
+        }
+        if (coins < 1000) {
+          btn.disabled = true;
+          btn.textContent = 'Minimum 1,000 coins';
+          return;
+        }
+        if (sellable < coins) {
+          btn.disabled = true;
+          btn.textContent = `Need ${fmt(coins)} (have ${fmt(sellable)})`;
+          return;
+        }
+        btn.disabled = false;
+        btn.textContent = `Send ${fmt(coins)} coins`;
+      }
+
+      function paintRecipient(user) {
+        xferRecipient = user;
+        const card = document.getElementById('xferRecipient');
+        const name = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'User';
+        document.getElementById('xferRecipientName').textContent = name;
+        document.getElementById('xferRecipientId').textContent = 'ID: ' + user.id;
+        const img = document.getElementById('xferRecipientAv');
+        img.src = avatarFor(user, name);
+        img.onerror = () => { img.src = SocialUI?.avatarUrl?.(name) || ''; };
+        card.hidden = false;
+        updateXferSubmitState();
+      }
+
+      function clearRecipient() {
+        xferRecipient = null;
+        document.getElementById('xferRecipient').hidden = true;
+        updateXferSubmitState();
       }
 
       function renderDashboard(d) {
         dash = d;
         const name = `${d.user?.first_name || ''} ${d.user?.last_name || ''}`.trim() || 'Seller';
-        document.getElementById('csAvatar').textContent = name.slice(0, 2).toUpperCase();
+        const av = document.getElementById('csAvatar');
+        if (d.user?.profile_pic) {
+          av.innerHTML = `<img src="${avatarFor(d.user, name)}" alt="" style="width:100%;height:100%;border-radius:50%;object-fit:cover">`;
+        } else {
+          av.textContent = name.slice(0, 2).toUpperCase();
+        }
         document.getElementById('csName').textContent = name;
         document.getElementById('csUserId').textContent = d.user?.id || '—';
-        document.getElementById('csBalance').textContent = fmt(d.sellable_coins ?? d.profile?.inventory_coins);
+        document.getElementById('csBalance').textContent = fmt(d.sellable_coins);
         const inv = Number(d.profile?.inventory_coins || 0);
         const wal = Number(d.wallet?.coin_balance || 0);
-        const breakdown = document.getElementById('csBalanceBreakdown');
-        if (breakdown) {
-          breakdown.textContent = `Stock ${fmt(inv)} + wallet ${fmt(wal)}`;
-        }
+        document.getElementById('csBalanceBreakdown').textContent = `Stock ${fmt(inv)} + wallet ${fmt(wal)}`;
         document.getElementById('csLevelBadge').textContent = (d.level?.label || 'Beginner') + ' Seller';
         document.getElementById('csStatBeans').textContent = fmt(d.stats?.beansExchanged);
         document.getElementById('csStatRecharge').textContent = '$' + fmt(d.profile?.total_recharge_usd || 0);
         document.getElementById('csStatSold').textContent = fmt(d.stats?.coinsSold);
-        document.getElementById('xferBalanceHint').textContent =
-          'Available to sell: ' + fmt(d.sellable_coins ?? d.profile?.inventory_coins);
+        document.getElementById('xferBalanceHint').textContent = 'Available to sell: ' + fmt(d.sellable_coins);
+        document.getElementById('detailStock').textContent = fmt(inv);
+        document.getElementById('detailWallet').textContent = fmt(wal);
+        document.getElementById('detailTotal').textContent = fmt(d.sellable_coins);
+        document.getElementById('detailBeans').textContent = fmt(d.wallet?.star_balance);
 
         const notice = document.getElementById('csNotice');
         if (d.lowBalanceWarning) {
           notice.hidden = false;
           document.getElementById('csNoticeText').textContent =
-            `Balance is less than $10 (~$${d.lowBalanceUsd}). Please recharge.`;
+            `Low stock (~$${d.lowBalanceUsd}). Top-up to keep selling.`;
         } else {
           notice.hidden = true;
         }
 
-        renderTransfers(d.recentTransfers || []);
-        renderRechargePkgs(d.rechargePackages || []);
+        allTransfers = d.recentTransfers || [];
+        renderActiveTab();
         renderLevelTable(d.levels || []);
         document.getElementById('exBeansAvail').textContent = fmt(d.wallet?.star_balance);
+        const rate = d.level?.beansPer10k || 9500;
         document.getElementById('exRate').textContent =
-          `Exchange Rate: 10,000 beans = ${fmt(d.level?.beansPer10k || 9500)} coins`;
+          `Rate: 100,000 beans → ${fmt(Math.floor((100000 / 10000) * rate))} coins in stock`;
+        updateXferSubmitState();
+
+        const msg = localStorage.getItem('cs_seller_message_' + (d.user?.id || ''));
+        if (msg) document.getElementById('csSellerMessage').value = msg;
       }
 
-      function renderTransfers(rows) {
-        const el = document.getElementById('csTransferList');
-        if (!rows.length) {
-          el.innerHTML = '<div class="cs-empty"><i class="fas fa-exchange-alt"></i><p>No transfers yet</p></div>';
-          return;
-        }
-        el.innerHTML = rows
-          .map((t) => {
-            const n = `${t.first_name || ''} ${t.last_name || ''}`.trim() || 'User';
-            const dt = new Date(t.created_at).toLocaleString();
-            return `<div class="cs-transfer-item">
-              <div class="avatar">${n.slice(0, 2).toUpperCase()}</div>
-              <div class="meta"><strong>${n}</strong><div style="font-size:12px;color:#999">${dt}</div></div>
-              <div class="coins">${fmt(t.coins)}</div>
-            </div>`;
-          })
-          .join('');
+      function transferRowHtml(t, showCoins) {
+        const n = `${t.first_name || ''} ${t.last_name || ''}`.trim() || 'User';
+        const dt = new Date(t.created_at).toLocaleString();
+        const pic = t.profile_pic ? SocialShell.getImageUrl(t.profile_pic, t.recipient_id || t.id) : null;
+        const av = pic
+          ? `<img src="${pic}" alt="" style="width:44px;height:44px;border-radius:50%;object-fit:cover">`
+          : n.slice(0, 2).toUpperCase();
+        return `<div class="cs-transfer-item" data-recipient="${t.recipient_id || t.id}" data-coins="${t.coins || 0}" data-date="${t.created_at || ''}" data-name="${n.replace(/"/g, '')}">
+          <div class="avatar">${av}</div>
+          <div class="meta"><strong>${n}</strong><div style="font-size:12px;color:#999">${dt}</div></div>
+          ${showCoins !== false ? `<div class="coins">${fmt(t.coins)}</div>` : ''}
+        </div>`;
       }
 
-      function renderRechargePkgs(pkgs) {
-        const grid = document.getElementById('rechargePkgs');
-        grid.innerHTML = pkgs
-          .map((p, i) => `
-          <button type="button" class="cs-pkg${i === 0 ? ' selected' : ''}" data-coins="${p.coins}" data-usd="${p.usd}">
-            <strong><i class="fas fa-coins" style="color:#f5b800"></i> ${fmt(p.coins)}</strong>
-            <small>$${p.usd}</small>
-          </button>`)
-          .join('');
-        selectedPkg = pkgs[0] || null;
-        grid.querySelectorAll('.cs-pkg').forEach((btn) => {
-          btn.addEventListener('click', () => {
-            grid.querySelectorAll('.cs-pkg').forEach((b) => b.classList.remove('selected'));
-            btn.classList.add('selected');
-            selectedPkg = { coins: parseInt(btn.dataset.coins, 10), usd: parseFloat(btn.dataset.usd) };
+      function bindTransferClicks() {
+        document.querySelectorAll('.cs-transfer-item').forEach((row) => {
+          row.addEventListener('click', () => {
+            const name = row.dataset.name || 'User';
+            const body = document.getElementById('xferDetailBody');
+            body.innerHTML = `
+              <p><strong>${name}</strong></p>
+              <p style="font-size:13px;color:#666">User ID: ${row.dataset.recipient}</p>
+              <p style="font-size:13px">Coins sent: <strong>${fmt(row.dataset.coins)}</strong></p>
+              <p style="font-size:12px;color:#999">${new Date(row.dataset.date).toLocaleString()}</p>`;
+            const resell = document.getElementById('xferResellBtn');
+            resell.style.display = 'block';
+            resell.onclick = () => {
+              closeModal('xferDetailModal');
+              document.getElementById('xferAccountId').value = row.dataset.recipient;
+              clearRecipient();
+              openModal('transferModal');
+              document.getElementById('xferSearchBtn').click();
+            };
+            openModal('xferDetailModal');
           });
         });
       }
 
+      function renderActiveTab() {
+        const el = document.getElementById('csTransferList');
+        if (activeTab === 'clients') {
+          const map = new Map();
+          allTransfers.forEach((t) => {
+            const id = String(t.recipient_id);
+            if (!map.has(id) || new Date(t.created_at) > new Date(map.get(id).created_at)) {
+              map.set(id, t);
+            }
+          });
+          const clients = [...map.values()];
+          if (!clients.length) {
+            el.innerHTML = '<div class="cs-empty"><i class="fas fa-users"></i><p>No clients yet — sell coins to add clients</p></div>';
+            return;
+          }
+          el.innerHTML = clients.map((t) => transferRowHtml(t, false)).join('');
+        } else {
+          if (!allTransfers.length) {
+            el.innerHTML = '<div class="cs-empty"><i class="fas fa-exchange-alt"></i><p>No transfers yet</p></div>';
+            return;
+          }
+          el.innerHTML = allTransfers.map((t) => transferRowHtml(t, true)).join('');
+        }
+        bindTransferClicks();
+      }
+
       function renderLevelTable(levels) {
-        const tbody = document.querySelector('#exLevelTable tbody');
-        tbody.innerHTML = levels
-          .map(
-            (l) =>
-              `<tr><td>${l.label}</td><td>≥$${l.minRechargeUsd}</td><td>${fmt(l.beansPer10k)}</td></tr>`
-          )
+        document.querySelector('#exLevelTable tbody').innerHTML = levels
+          .map((l) => `<tr><td>${l.label}</td><td>≥$${l.minRechargeUsd}</td><td>${fmt(l.beansPer10k)}</td></tr>`)
           .join('');
       }
 
       const qf = document.getElementById('xferQuickFill');
       qf.innerHTML = QUICK_AMOUNTS.map(
-        (a, i) =>
-          `<button type="button" data-amt="${a}" class="${i === 0 ? 'selected' : ''}">${fmt(a)}</button>`
+        (a, i) => `<button type="button" data-amt="${a}" class="${i === 1 ? 'selected' : ''}">${fmt(a)}</button>`
       ).join('');
       qf.querySelectorAll('button').forEach((btn) => {
         btn.addEventListener('click', () => {
           qf.querySelectorAll('button').forEach((b) => b.classList.remove('selected'));
           btn.classList.add('selected');
           document.getElementById('xferAmount').value = btn.dataset.amt;
+          updateXferSubmitState();
         });
       });
 
+      document.getElementById('xferAmount').addEventListener('input', updateXferSubmitState);
+      document.getElementById('xferAccountId').addEventListener('input', clearRecipient);
+
       document.getElementById('csAddTransfer').addEventListener('click', () => openModal('transferModal'));
-      document.getElementById('csNoticeBtn')?.addEventListener('click', () => openModal('rechargeModal'));
+      document.getElementById('csNoticeBtn')?.addEventListener('click', goRecharge);
+      document.getElementById('csLevelUp')?.addEventListener('click', goRecharge);
+      document.getElementById('csDetailBtn')?.addEventListener('click', () => openModal('balanceModal'));
+      document.getElementById('detailTopupBtn')?.addEventListener('click', goRecharge);
 
       document.querySelectorAll('.cs-quick-btn').forEach((btn) => {
         btn.addEventListener('click', () => {
           const a = btn.dataset.action;
           if (a === 'sell') openModal('transferModal');
-          else if (a === 'recharge') window.location.href = '/coin-seller-recharge.html?app=1';
+          else if (a === 'recharge') goRecharge();
           else if (a === 'exchange') openModal('exchangeModal');
-          else if (a === 'settings') toast('Seller settings coming soon', 'info');
+          else if (a === 'settings') openModal('settingsModal');
         });
       });
 
-      document.getElementById('csLevelUp')?.addEventListener('click', () => {
-        openModal('rechargeModal');
-        toast('Recharge more to upgrade seller level', 'info');
+      document.querySelectorAll('.cs-tab').forEach((tab) => {
+        tab.addEventListener('click', () => {
+          document.querySelectorAll('.cs-tab').forEach((t) => t.classList.remove('active'));
+          tab.classList.add('active');
+          activeTab = tab.dataset.tab || 'transfers';
+          renderActiveTab();
+        });
+      });
+
+      document.getElementById('csMsgEdit')?.addEventListener('click', () => openModal('settingsModal'));
+      document.getElementById('csSaveMessageBtn')?.addEventListener('click', () => {
+        const uid = dash?.user?.id;
+        if (uid) localStorage.setItem('cs_seller_message_' + uid, document.getElementById('csSellerMessage').value.trim());
+        toast('Message saved', 'success');
+        closeModal('settingsModal');
+      });
+      document.getElementById('csCopyIdBtn')?.addEventListener('click', async () => {
+        const id = dash?.user?.id;
+        if (!id) return;
+        try {
+          await navigator.clipboard.writeText(String(id));
+          toast('Seller ID copied', 'success');
+        } catch (_e) {
+          toast('ID: ' + id, 'info');
+        }
       });
 
       document.getElementById('xferSearchBtn').addEventListener('click', async () => {
@@ -329,76 +481,75 @@
         if (!id) return toast('Enter buyer User ID or phone', 'warning');
         const btn = document.getElementById('xferSearchBtn');
         btn.disabled = true;
+        btn.textContent = '…';
         try {
           await Auth.ensureAccessToken?.();
           const res = await API.get(`/social/coin-seller/lookup/${encodeURIComponent(id)}`);
-          xferRecipient = res.data;
-          const el = document.getElementById('xferRecipient');
-          el.hidden = false;
-          el.innerHTML = `<i class="fas fa-check-circle" style="color:#2e7d32"></i> Found: <strong>${res.data.first_name || ''} ${res.data.last_name || ''}</strong>`;
+          paintRecipient(res.data);
+          toast('Buyer selected — enter amount and tap Send', 'success');
         } catch (e) {
-          xferRecipient = null;
-          document.getElementById('xferRecipient').hidden = true;
+          clearRecipient();
           toast(e?.message || 'User not found', 'error');
         } finally {
           btn.disabled = false;
+          btn.textContent = 'Search';
         }
       });
 
       document.getElementById('xferSubmitBtn').addEventListener('click', async () => {
+        if (!xferRecipient) return toast('Search and select a buyer first', 'warning');
         const coins = parseInt(document.getElementById('xferAmount').value, 10);
-        const accountId = document.getElementById('xferAccountId').value.trim();
-        const rid = xferRecipient?.id || accountId;
-        if (!rid) return toast('Enter buyer User ID first', 'warning');
         if (!coins || coins < 1000) return toast('Minimum transfer is 1,000 coins', 'warning');
-        const sellable = Number(dash?.sellable_coins ?? dash?.profile?.inventory_coins ?? 0);
-        if (sellable < coins) {
-          return toast(`Insufficient balance (have ${fmt(sellable)}, need ${fmt(coins)})`, 'error');
-        }
+        const sellable = Number(dash?.sellable_coins ?? 0);
+        if (sellable < coins) return toast(`Insufficient balance (have ${fmt(sellable)})`, 'error');
+
         const btn = document.getElementById('xferSubmitBtn');
         btn.disabled = true;
-        btn.textContent = 'Transferring…';
+        btn.textContent = 'Sending…';
         try {
           await Auth.ensureAccessToken?.();
-          if (!xferRecipient) {
-            const lookup = await API.get(`/social/coin-seller/lookup/${encodeURIComponent(rid)}`);
-            xferRecipient = lookup.data;
-          }
-          await API.post('/social/coin-seller/transfer', { recipient_id: xferRecipient.id, coins });
-          toast(`Sent ${fmt(coins)} coins to ${xferRecipient.first_name || 'buyer'}`, 'success');
+          await API.post('/social/coin-seller/transfer', {
+            recipient_id: xferRecipient.id,
+            coins,
+          });
+          const name = `${xferRecipient.first_name || ''} ${xferRecipient.last_name || ''}`.trim() || 'buyer';
+          toast(`Sent ${fmt(coins)} coins to ${name}`, 'success');
           closeModal('transferModal');
-          xferRecipient = null;
           document.getElementById('xferAccountId').value = '';
-          document.getElementById('xferRecipient').hidden = true;
+          clearRecipient();
           await loadDashboard();
         } catch (e) {
           toast(e?.message || 'Transfer failed', 'error');
-        } finally {
-          btn.disabled = false;
-          btn.textContent = 'Transfer';
+          updateXferSubmitState();
         }
-      });
-
-      document.getElementById('rechargeConfirmBtn').addEventListener('click', () => {
-        window.location.href = '/coin-seller-recharge.html?app=1';
       });
 
       document.getElementById('exAmount')?.addEventListener('input', (e) => {
         const beans = parseInt(e.target.value, 10) || 0;
         const rate = dash?.level?.beansPer10k || 9500;
-        const coins = Math.floor((beans / 10000) * rate);
-        document.getElementById('exPreview').textContent = fmt(coins);
+        document.getElementById('exPreview').textContent = fmt(Math.floor((beans / 10000) * rate));
       });
 
       document.getElementById('exSubmitBtn').addEventListener('click', async () => {
         const beans = parseInt(document.getElementById('exAmount').value, 10);
+        if (!beans || beans < 100000 || beans % 100000 !== 0) {
+          return toast('Enter beans in multiples of 100,000', 'warning');
+        }
+        const btn = document.getElementById('exSubmitBtn');
+        btn.disabled = true;
+        btn.textContent = 'Exchanging…';
         try {
+          await Auth.ensureAccessToken?.();
           const res = await API.post('/social/coin-seller/exchange', { beans });
-          toast(`Exchanged for ${fmt(res.data?.coinsOut)} coins`, 'success');
+          toast(`Added ${fmt(res.data?.coinsOut)} coins to seller stock`, 'success');
           closeModal('exchangeModal');
+          document.getElementById('exAmount').value = '';
           await loadDashboard();
         } catch (e) {
           toast(e?.message || 'Exchange failed', 'error');
+        } finally {
+          btn.disabled = false;
+          btn.textContent = 'Exchange';
         }
       });
 
@@ -406,34 +557,36 @@
         await Auth.ensureAccessToken?.();
         const res = await API.get('/social/coin-seller/dashboard');
         renderDashboard(res.data);
+        try {
+          const xferRes = await API.get('/social/coin-seller/transfers?limit=50');
+          if (Array.isArray(xferRes.data) && xferRes.data.length) {
+            allTransfers = xferRes.data;
+            renderActiveTab();
+          }
+        } catch (_e) {}
       }
 
       try {
         Auth.checkAuth();
         if (!Auth.hasSession?.()) {
-          window.location.href = '/login.html?app=1';
+          location.href = '/login.html?app=1&redirect=' + encodeURIComponent('/coin-seller-center.html?app=1');
           return;
         }
         await Auth.ensureAccessToken?.();
         await loadDashboard();
         document.getElementById('csLoading').hidden = true;
         document.getElementById('csMain').hidden = false;
-        const help = document.getElementById('csHelp');
-        if (help) {
-          help.hidden = false;
-          help.querySelector('span').innerHTML =
-            '<strong>How selling works:</strong> Enter buyer User ID → Sell any amount from your wallet (min 1,000). Payment with buyer is outside the app (UPI/bank). Optional: top-up wholesale stock via Top-up.';
-        }
+        document.getElementById('csHelp').hidden = false;
       } catch (e) {
         document.getElementById('csLoading').hidden = true;
         const msg = e?.message || 'Failed to load';
-        if (/100,?000|seller profile|not found/i.test(msg)) {
+        if (/100,?000|seller profile|not found|access required/i.test(msg)) {
           document.getElementById('csApply').hidden = false;
           document.getElementById('csAddTransfer').style.display = 'none';
         } else {
           document.getElementById('csLoading').hidden = false;
           document.getElementById('csLoading').innerHTML =
-            `<p>${msg}</p><button onclick="location.reload()">Retry</button>`;
+            `<p>${msg}</p><button type="button" onclick="location.reload()">Retry</button>`;
         }
       }
     })();

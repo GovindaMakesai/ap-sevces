@@ -224,7 +224,10 @@
       }
 
       document.getElementById('rechargeConfirmBtn').addEventListener('click', async () => {
-        if (!selected || !utrValid()) return;
+        if (!selected || !utrValid()) {
+          toast('Select a package and enter a valid UTR', 'warning');
+          return;
+        }
         const utr = document.getElementById('sellerUtr').value.trim().replace(/\s+/g, '');
         const btn = document.getElementById('rechargeConfirmBtn');
         btn.disabled = true;
@@ -237,7 +240,8 @@
           fd.append('payment_channel', 'upi_qr');
           fd.append('transaction_id', utr);
           if (proofFile) fd.append('payment_proof', proofFile);
-          await API.post('/social/coin-seller/recharge', fd);
+          const res = await API.upload('/social/coin-seller/recharge', fd);
+          if (!res?.success) throw new Error(res?.message || 'Submission failed');
           toast('Submitted! Seller stock updates after admin approval.', 'success');
           document.getElementById('sellerUtr').value = '';
           proofFile = null;
@@ -249,6 +253,8 @@
         } catch (e) {
           toast(e?.message || 'Submission failed', 'error');
         } finally {
+          btn.disabled = false;
+          btn.textContent = utrValid() ? 'Submit top-up for verification' : 'Enter UTR to submit';
           updateUi();
         }
       });

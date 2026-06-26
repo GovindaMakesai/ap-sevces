@@ -488,8 +488,8 @@ async function createPendingSellerRecharge(
   if (!profile?.is_active) throw new Error('Seller profile not active');
 
   const utr = transactionId ? String(transactionId).trim().replace(/\s+/g, '') : '';
-  if (utr && !/^\d{10,22}$/.test(utr)) {
-    throw new Error('UTR must be 10–22 digits when provided');
+  if (!utr || !/^\d{10,22}$/.test(utr)) {
+    throw new Error('Valid 10–22 digit UTR is required');
   }
   if (utr) {
     const dup = await db.query(
