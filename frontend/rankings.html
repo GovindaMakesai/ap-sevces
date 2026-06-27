@@ -59,8 +59,9 @@
 
   <div id="social-bottom-nav-mount"></div>
 
-  <script src="app.js"></script>
-  <script src="social-interactions.js"></script>
+  <script src="app.js?v=20260628-live-ui-fix"></script>
+  <script src="social-ui.js?v=20260628-live-ui-fix"></script>
+  <script src="social-interactions.js?v=20260628-live-ui-fix"></script>
   <script src="social-shell.js"></script>
   <script src="social-nav.js"></script>
   <script src="social-fx.js"></script>
@@ -212,20 +213,23 @@
       if (window.SocialNav) {
         SocialNav.registerRefresh(refreshRanks);
       }
-      SocialInteractions.initRankingsPage();
       document.querySelectorAll('.social-rank-sub-tab[data-period]').forEach((tab) => {
-        if (tab.dataset.periodBound) return;
-        tab.dataset.periodBound = '1';
-        tab.addEventListener('click', () => {
+        tab.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (tab.classList.contains('active')) return;
           document.querySelectorAll('.social-rank-sub-tab').forEach((t) => t.classList.remove('active'));
           tab.classList.add('active');
           currentPeriod = tab.dataset.period || 'daily';
           refreshRanks();
           window.SocialFX?.confetti?.({ count: 20, originY: 0.2 });
-        });
+        }, { passive: false });
       });
       window.setRankingsPeriod = (period) => {
         currentPeriod = period || 'daily';
+        document.querySelectorAll('.social-rank-sub-tab').forEach((t) => {
+          t.classList.toggle('active', t.dataset.period === currentPeriod);
+        });
         refreshRanks();
       };
     });

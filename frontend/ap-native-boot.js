@@ -12,6 +12,9 @@
   if (!isNative()) return;
 
   window.__AP_NATIVE_APP__ = true;
+  if (!window.__AP_API_URL__) {
+    window.__AP_API_URL__ = (window.AP_CONFIG && AP_CONFIG.PRODUCTION_API_URL) || 'https://api.apservices.in/api';
+  }
   const html = document.documentElement;
   const path = (window.location.pathname || '').toLowerCase();
   const SOCIAL_SHELL_PAGES = [

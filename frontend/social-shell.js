@@ -701,11 +701,13 @@
     } catch (_e) {}
 
     let following = [];
+    let followLoadError = '';
     try {
       const res = await API.get('/social/following?limit=200');
       following = Array.isArray(res?.data) ? res.data : [];
     } catch (e) {
       console.warn('SocialShell: following API', e);
+      followLoadError = String(e?.message || 'Could not load following');
     }
 
     if (!following.length && window.SocialInteractions?.getFollowingList) {
@@ -737,6 +739,21 @@
 
     if (!following.length) {
       showEmpty();
+      if (followLoadError && /auth|sign in|token|401/i.test(followLoadError)) {
+        mount.innerHTML =
+          '<div class="social-empty-state"><p>Session expired.</p><a href="/app-auth.html?app=1&redirect=' +
+          encodeURIComponent(location.pathname + location.search) +
+          '" class="btn-open">Sign in again</a></div>';
+        return;
+      }
+      if (followLoadError) {
+        mount.innerHTML =
+          '<div class="social-empty-state"><p>' +
+          escapeHtml(followLoadError) +
+          '</p><button type="button" class="btn-open" id="followingRetry">Retry</button></div>';
+        document.getElementById('followingRetry')?.addEventListener('click', () => fillFollowingView());
+        return;
+      }
       mount.innerHTML = searchQuery
         ? `<div class="social-empty-state"><p>No following match "${escapeHtml(searchQuery)}".</p></div>`
         : `<div class="social-empty-state"><p>You haven't followed anyone yet.</p><a href="/discover-creators.html?app=1" class="btn-open">Discover creators</a></div>`;

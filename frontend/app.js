@@ -115,7 +115,7 @@ function isNativeAppContext() {
 }
 
 const CONFIG = {
-    API_URL: resolveApiUrl(),
+    API_URL: normalizeApiUrl(resolveApiUrl()),
     BACKEND_URL: resolveBackendUrl(),
     FRONTEND_URL: IS_LOCAL ? LOCAL_FRONTEND_URL : LIVE_FRONTEND_URL,
 };

@@ -4314,6 +4314,22 @@
     bindRoomAvatars();
     document.getElementById('partyClose')?.addEventListener('click', () => endRoomOrExit());
     document.getElementById('liveClose')?.addEventListener('click', () => endRoomOrExit());
+    document.getElementById('liveMinimizeBtn')?.addEventListener('click', () => minimizeLiveRoom());
+    document.getElementById('partyMinimizeBtn')?.addEventListener('click', () => minimizeLiveRoom());
+
+    document.getElementById('liveHostBarToggle')?.addEventListener('click', () => {
+      const bar = document.getElementById('liveHostBar');
+      if (!bar) return;
+      bar.classList.toggle('is-collapsed');
+      const collapsed = bar.classList.contains('is-collapsed');
+      const btn = document.getElementById('liveHostBarToggle');
+      if (btn) {
+        btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+        btn.innerHTML = collapsed
+          ? '<i class="fas fa-sliders-h"></i> Host controls'
+          : '<i class="fas fa-chevron-up"></i> Hide controls';
+      }
+    });
 
     document.getElementById('partyBtnTools')?.addEventListener('click', () => {
       const sheet = document.getElementById('partyToolsSheet');

@@ -1110,6 +1110,25 @@ html.ap-expo-app .social-rank-header {
   color: var(--gold-800);
   box-shadow: 0 4px 12px rgba(201,162,39,0.15);
 }
+.social-rank-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 8px 12px 12px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  position: relative;
+  z-index: 35;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
+.social-rank-page--gold .social-rank-tabs {
+  background: var(--cream-bg, #fdf9f0);
+  position: sticky;
+  top: calc(52px + env(safe-area-inset-top, 0px));
+  z-index: 40;
+}
+
 .social-rank-sub-tab {
   flex-shrink: 0;
   padding: 8px 14px;
@@ -1120,6 +1139,11 @@ html.ap-expo-app .social-rank-header {
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
+  pointer-events: auto;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  position: relative;
+  z-index: 1;
 }
 .social-rank-sub-tab.active {
   background: linear-gradient(135deg, #e8c56a, #c9a227);

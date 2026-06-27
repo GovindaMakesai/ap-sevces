@@ -65,13 +65,14 @@
     <a href="/roles-guide.html?app=1" style="display:inline-block;margin-top:12px;font-size:13px;font-weight:700;color:#c9a227">Full guide →</a>
   </section>
 
-  <section class="streamer-card streamer-verify-card">
-    <h2>Live verification (video)</h2>
+  <section class="streamer-card streamer-verify-card" id="streamerVerifyCard">
+    <h2><i class="fas fa-shield-alt"></i> Live verification &amp; selfie</h2>
     <p style="font-size:13px;color:#374151;margin:0 0 12px;line-height:1.55">
-      Before your first <strong>video</strong> live stream, confirm identity and upload a selfie. Audio party rooms do not require this step.
+      Required once before <strong>video</strong> live. Step 1: confirm identity. Step 2: take a selfie in the app.
     </p>
-    <a href="/live-verify.html?redirect=/streamer-center.html%3Fapp%3D1&amp;app=1" class="streamer-link-pill" style="display:inline-flex;align-items:center;gap:8px;font-weight:800">
-      <i class="fas fa-id-card"></i> Open verification &amp; selfie
+    <div id="streamerVerifyStatus" style="font-size:13px;color:#78350f;margin-bottom:12px">Checking status…</div>
+    <a href="/live-verify.html?redirect=/streamer-center.html%3Fapp%3D1&amp;app=1" class="streamer-link-pill" id="streamerVerifyBtn" style="display:inline-flex;align-items:center;gap:8px;font-weight:800;background:linear-gradient(135deg,#ff8c42,#c9a227);color:#fff;padding:12px 18px;border-radius:999px;text-decoration:none">
+      <i class="fas fa-camera"></i> Start verification
     </a>
   </section>
 
@@ -159,6 +160,27 @@
 
       document.getElementById('streamerStartParty')?.addEventListener('click', () => SocialShell?.goStartParty?.());
       document.getElementById('streamerStartLive')?.addEventListener('click', () => SocialShell?.goStartLive?.('video'));
+
+      (async function loadVerifyStatus() {
+        const statusEl = document.getElementById('streamerVerifyStatus');
+        const btn = document.getElementById('streamerVerifyBtn');
+        if (!statusEl) return;
+        try {
+          if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken().catch(() => {});
+          const res = await API.get('/live/access-status');
+          const data = res?.data || {};
+          if (data.canStreamVideo || data.faceVerified) {
+            statusEl.innerHTML = '<i class="fas fa-check-circle" style="color:#16a34a"></i> Verified — you can start video live.';
+            if (btn) btn.textContent = 'Re-verify (optional)';
+          } else if (data.identityVerified) {
+            statusEl.textContent = 'Identity done — complete your selfie next.';
+          } else {
+            statusEl.textContent = 'Not verified yet — tap the button below.';
+          }
+        } catch (_e) {
+          statusEl.textContent = 'Tap below to verify before video live.';
+        }
+      })();
     })();
   </script>
 </body>
