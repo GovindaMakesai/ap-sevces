@@ -1683,60 +1683,99 @@ body.ap-live-status-visible .party-room {
   border-radius: 12px;
 }
 
-/* AP Services branded room loader */
+/* AP Services room entry — host cover (no branded preloader) */
 .ap-live-loader {
   position: fixed;
   inset: 0;
   z-index: 100;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
-  background: linear-gradient(160deg, #0a0618 0%, #1a0f3a 40%, #12082a 100%);
-  transition: opacity 0.35s ease, visibility 0.35s ease;
+  background: #0a0618;
+  transition: opacity 0.4s ease, visibility 0.4s ease;
+  overflow: hidden;
 }
 .ap-live-loader.is-hidden {
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
 }
-.ap-live-loader-inner { text-align: center; padding: 24px; }
-.ap-live-loader-logo {
-  width: 72px; height: 72px; margin: 0 auto 10px;
-  border-radius: 20px;
-  background: linear-gradient(135deg, #e8c56a, #c9a227);
-  color: #1a1000;
-  font-size: 28px; font-weight: 900;
-  display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 8px 32px rgba(201, 162, 39, 0.45);
+.ap-live-loader-cover {
+  position: absolute;
+  inset: 0;
+  background-color: #0a0618;
+  background-size: cover;
+  background-position: center;
+  transform: scale(1.03);
+  filter: blur(0);
+  transition: transform 0.5s ease, filter 0.5s ease;
 }
-.ap-live-loader-brand {
-  font-size: 18px; font-weight: 800; color: #fde68a;
-  letter-spacing: 0.08em; margin-bottom: 20px;
+.ap-live-loader.is-hidden .ap-live-loader-cover {
+  transform: scale(1);
 }
-@keyframes ap-loader-spin { to { transform: rotate(360deg); } }
-.ap-live-loader p { font-size: 13px; color: rgba(255,255,255,0.7); margin: 12px 0 0; font-weight: 500; }
-.ap-live-loader-steps {
-  display: flex; gap: 8px; justify-content: center; margin-bottom: 18px; flex-wrap: wrap;
+.ap-live-loader-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.15) 0%, rgba(0, 0, 0, 0.55) 55%, rgba(0, 0, 0, 0.82) 100%);
+  pointer-events: none;
 }
-.ap-live-loader-step {
-  font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
-  padding: 5px 10px; border-radius: 999px;
-  background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.45);
-  transition: background 0.25s, color 0.25s, box-shadow 0.25s;
+.ap-live-loader-inner {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  padding: 0 24px calc(28px + env(safe-area-inset-bottom, 0px));
+  width: 100%;
+  max-width: 420px;
 }
-.ap-live-loader-step.is-active {
-  background: rgba(251, 191, 36, 0.2); color: #fde68a;
-  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.35);
-}
-.ap-live-loader-step.is-done {
-  background: rgba(34, 197, 94, 0.18); color: #86efac;
-}
-.ap-live-loader-spin {
-  width: 40px; height: 40px; margin: 0 auto 14px;
-  border: 3px solid rgba(255,255,255,0.15);
-  border-top-color: #fbbf24;
+.ap-live-loader-avatar {
+  width: 88px;
+  height: 88px;
   border-radius: 50%;
-  animation: ap-loader-spin 0.8s linear infinite;
+  object-fit: cover;
+  border: 3px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  margin: 0 auto 12px;
+  display: block;
+}
+.ap-live-loader-avatar[hidden] {
+  display: none !important;
+}
+.ap-live-loader-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.92);
+  margin: 0 0 10px;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
+}
+.ap-live-loader-pulse {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.75);
+}
+.ap-live-loader-pulse::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ef4444;
+  box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.55);
+  animation: ap-loader-live-pulse 1.4s ease infinite;
+}
+@keyframes ap-loader-live-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.55); opacity: 1; }
+  50% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); opacity: 0.75; }
+}
+/* legacy loader bits — hidden if any remain in DOM */
+.ap-live-loader-logo,
+.ap-live-loader-brand,
+.ap-live-loader-steps,
+.ap-live-loader-spin {
+  display: none !important;
 }
 
 /* Room stats bar */

@@ -55,48 +55,19 @@ body[data-live-page='live-room'] .live-overlay {
   );
 }
 
-/* —— Loader —— */
-body[data-live-page='live-room'] .ap-live-loader {
-  background: radial-gradient(ellipse at center, #0f1118 0%, #07080c 100%);
+/* —— Loader: host cover only —— */
+body[data-live-page='live-room'] .ap-live-loader,
+body[data-live-page='party-room'] .ap-live-loader {
+  background: #07080c;
 }
 
-body[data-live-page='live-room'] .ap-live-loader-logo {
-  width: 52px;
-  height: 52px;
-  margin: 0 auto 12px;
-  border-radius: 16px;
-  background: linear-gradient(145deg, #1e2433, #12151c);
-  border: 1px solid var(--live-pro-border-strong);
-  box-shadow: var(--live-pro-shadow), var(--live-pro-shadow-inset);
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  color: var(--live-pro-text);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-body[data-live-page='live-room'] .ap-live-loader-brand {
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--live-pro-muted);
-}
-
-body[data-live-page='live-room'] .ap-live-loader-spin {
-  width: 28px;
-  height: 28px;
-  margin: 20px auto 14px;
-  border: 2px solid rgba(255, 255, 255, 0.08);
-  border-top-color: var(--live-pro-accent);
-  border-radius: 50%;
-  animation: live-pro-spin 0.85s linear infinite;
-}
-
-@keyframes live-pro-spin {
-  to { transform: rotate(360deg); }
+body[data-live-page='live-room'] .ap-live-loader-logo,
+body[data-live-page='live-room'] .ap-live-loader-brand,
+body[data-live-page='live-room'] .ap-live-loader-spin,
+body[data-live-page='party-room'] .ap-live-loader-logo,
+body[data-live-page='party-room'] .ap-live-loader-brand,
+body[data-live-page='party-room'] .ap-live-loader-spin {
+  display: none !important;
 }
 
 /* —— Header —— */

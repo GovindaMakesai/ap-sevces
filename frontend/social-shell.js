@@ -331,9 +331,13 @@
     const viewers = Math.max(0, Number(pro.viewers) || 0);
     const age = formatLiveAge(pro.startedAt || pro.updatedAt);
     const ch = encodeURIComponent(String(channel).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64));
+    const hostQs = [];
+    if (name) hostQs.push('hostName=' + encodeURIComponent(name));
+    if (pro.hostProfilePic) hostQs.push('profilePic=' + encodeURIComponent(String(pro.hostProfilePic)));
+    const extra = hostQs.length ? '&' + hostQs.join('&') : '';
     const href = party
-      ? `/party-room.html?channel=${ch}&app=1`
-      : `/live-room.html?channel=${ch}&feed=1&app=1`;
+      ? `/party-room.html?channel=${ch}${extra}&app=1`
+      : `/live-room.html?channel=${ch}&feed=1${extra}&app=1`;
     const liveBadge = '<span class="tag hot"><span class="live-pulse-dot"></span> LIVE</span>';
     const inRoom = `<span class="in-room"><i class="fas fa-signal"></i> ${formatViewers(viewers)}</span>`;
     const ageLabel = age ? `<span class="live-age">${age}</span>` : '';
@@ -469,7 +473,24 @@
         if (e?.target?.closest?.('a, button')) return;
         if (e) e.preventDefault();
         const href = withAppQuery(el.dataset.href);
-        if (href) window.location.href = href;
+        if (href) {
+          try {
+            const u = new URL(href, location.origin);
+            const channel = u.searchParams.get('channel') || '';
+            const name =
+              el.querySelector('.name')?.textContent?.replace(/^\s*🇮🇳\s*/, '').trim() ||
+              el.querySelector('img')?.alt ||
+              'Host';
+            const image = el.querySelector('img')?.src || '';
+            if (channel && image) {
+              sessionStorage.setItem(
+                'ap_live_launch_cover',
+                JSON.stringify({ channel, name, image, ts: Date.now() })
+              );
+            }
+          } catch (_e) {}
+          window.location.href = href;
+        }
       };
       el.addEventListener('click', go);
       el.addEventListener('keydown', (e) => {

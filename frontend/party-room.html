@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#1a0f3a">
   <title>Party Room - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-live.css?v=20260628-live-ui-fix">
+  <link rel="stylesheet" href="social-live.css?v=20260703-cover-loader">
   <link rel="stylesheet" href="social-live-session.css?v=20260703-minimize-fix">
   <link rel="stylesheet" href="social-live-ref-ui.css?v=20260628-hotfix">
   <link rel="stylesheet" href="social-fx.css">
@@ -70,16 +70,12 @@
 </head>
 <body class="live-dark ap-live-immersive" data-live-page="party-room">
   <div id="apLiveLoader" class="ap-live-loader" aria-live="polite">
+    <div class="ap-live-loader-cover" id="apLiveLoaderCover" aria-hidden="true"></div>
+    <div class="ap-live-loader-scrim" aria-hidden="true"></div>
     <div class="ap-live-loader-inner">
-      <div class="ap-live-loader-logo">AP</div>
-      <div class="ap-live-loader-brand">Voice Party</div>
-      <div class="ap-live-loader-steps">
-        <span class="ap-live-loader-step is-active">Connect</span>
-        <span class="ap-live-loader-step">Join room</span>
-        <span class="ap-live-loader-step">Voice ready</span>
-      </div>
-      <div class="ap-live-loader-spin"></div>
-      <p id="apLiveLoaderText">Connectingù</p>
+      <img id="apLiveLoaderAvatar" class="ap-live-loader-avatar" alt="" hidden>
+      <p id="apLiveLoaderText" class="ap-live-loader-label">Joining party...</p>
+      <span class="ap-live-loader-pulse" aria-hidden="true">Party</span>
     </div>
   </div>
 
@@ -256,7 +252,7 @@
   <script src="social-fx.js"></script>
   <script src="live-emoji-data.js"></script>
   <script src="live-session-provider.js?v=20260703-minimize-fix"></script>
-  <script src="social-live.js?v=20260703-no-screenshot"></script>
+  <script src="social-live.js?v=20260703-cover-loader"></script>
   <script src="social-nav.js"></script>
 </body>
 </html>

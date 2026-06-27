@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260703-no-screenshot';
+  window.__AP_LIVE_BUILD = '20260703-cover-loader';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -1592,25 +1592,156 @@
     return data;
   }
 
-  function setApLoaderStep(step) {
-    const steps = document.querySelectorAll('.ap-live-loader-step');
-    steps.forEach((el, i) => {
-      el.classList.toggle('is-done', i < step);
-      el.classList.toggle('is-active', i === step);
-    });
+  function setApLoaderStep(_step) {
+    /* steps UI removed — host cover loader only */
   }
 
-  function showApLoader(text, step) {
+  function readLaunchCover(channel) {
+    try {
+      const raw = sessionStorage.getItem('ap_live_launch_cover');
+      if (!raw) return null;
+      const data = JSON.parse(raw);
+      if (!data) return null;
+      if (channel && data.channel && String(data.channel) !== String(channel)) return null;
+      return data;
+    } catch (_e) {
+      return null;
+    }
+  }
+
+  function stashLaunchCover(channel, name, image) {
+    if (!channel || !image) return;
+    try {
+      sessionStorage.setItem(
+        'ap_live_launch_cover',
+        JSON.stringify({
+          channel: String(channel),
+          name: String(name || 'Host'),
+          image: String(image),
+          ts: Date.now(),
+        })
+      );
+    } catch (_e) {}
+  }
+
+  function resolveEntryCoverUrl(name, profilePic, party) {
+    const label = String(name || 'Host').trim() || 'Host';
+    if (profilePic) {
+      const resolved =
+        window.SocialShell?.getImageUrl?.(profilePic) ||
+        (String(profilePic).startsWith('http') || String(profilePic).startsWith('data:')
+          ? profilePic
+          : null);
+      if (resolved) return avatarUrl(label, resolved);
+    }
+    if (isHost()) {
+      const custom = getStreamCoverUrl(label);
+      if (custom) return custom;
+    }
+    return themeCover(party ? 'party' : 'live', label);
+  }
+
+  function paintApLoaderCover(name, profilePic, party) {
+    const loader = document.getElementById('apLiveLoader');
+    const cover = document.getElementById('apLiveLoaderCover');
+    const avatar = document.getElementById('apLiveLoaderAvatar');
+    const label = document.getElementById('apLiveLoaderText');
+    const pulse = document.querySelector('.ap-live-loader-pulse');
+    if (!loader || !cover) return;
+
+    const isParty = party != null ? Boolean(party) : isPartyRoomPage();
+    const hostName = String(name || roomState?.hostName || 'Host').trim() || 'Host';
+    const pic = profilePic || roomState?.hostProfilePic || null;
+    const imageUrl = resolveEntryCoverUrl(hostName, pic, isParty);
+
+    if (imageUrl) {
+      cover.style.backgroundImage = `url("${String(imageUrl).replace(/"/g, '\\"')}")`;
+      cover.style.backgroundSize = 'cover';
+      cover.style.backgroundPosition = 'center';
+    }
+
+    if (avatar) {
+      const avatarSrc = avatarUrl(hostName, pic);
+      if (avatarSrc) {
+        avatar.src = avatarSrc;
+        avatar.alt = hostName;
+        avatar.hidden = false;
+      } else {
+        avatar.hidden = true;
+      }
+    }
+
+    if (label) {
+      label.textContent = isParty ? hostName + ' — joining party' : hostName + ' — going live';
+    }
+    if (pulse) pulse.textContent = isParty ? 'Party' : 'Live';
+    loader.classList.remove('is-hidden');
+  }
+
+  async function primeApLoaderCover() {
+    if (!isLiveRoomPage() && !isPartyRoomPage()) return;
+    const party = isPartyRoomPage();
+    const ch = channelId();
+    const qs = new URLSearchParams(location.search);
+    const launch = readLaunchCover(ch);
+    let name = launch?.name || qs.get('hostName') || qs.get('host') || '';
+    let pic = qs.get('profilePic') || null;
+
+    if (launch?.image) {
+      const cover = document.getElementById('apLiveLoaderCover');
+      const avatar = document.getElementById('apLiveLoaderAvatar');
+      if (cover) {
+        cover.style.backgroundImage = `url("${String(launch.image).replace(/"/g, '\\"')}")`;
+        cover.style.backgroundSize = 'cover';
+        cover.style.backgroundPosition = 'center';
+      }
+      if (avatar && launch.image) {
+        avatar.src = launch.image;
+        avatar.alt = launch.name || name || 'Host';
+        avatar.hidden = false;
+      }
+      paintApLoaderCover(launch.name || name || 'Host', pic, party);
+      return;
+    }
+
+    if (isHost()) {
+      const me = currentUser();
+      name = name || displayName(me);
+      pic = pic || me?.profile_pic || null;
+      paintApLoaderCover(name, pic, party);
+      return;
+    }
+
+    if (!pic && ch && window.API) {
+      try {
+        const fetchList = API.getFresh || API.get;
+        const type = party ? 'party' : 'live';
+        const res = await fetchList(`/live/rooms?type=${type}&limit=40`);
+        const rows = Array.isArray(res?.data) ? res.data : [];
+        const room = rows.find((r) => String(r.channel) === String(ch));
+        if (room) {
+          name = name || room.hostName || 'Host';
+          pic = room.hostProfilePic || room.host_profile_pic || null;
+        }
+      } catch (_e) {}
+    }
+
+    paintApLoaderCover(name || 'Host', pic, party);
+  }
+
+  function showApLoader(text, _step) {
     const loader = document.getElementById('apLiveLoader');
     const txt = document.getElementById('apLiveLoaderText');
     if (txt && text) txt.textContent = text;
-    if (typeof step === 'number') setApLoaderStep(step);
     if (loader) loader.classList.remove('is-hidden');
   }
 
   function hideApLoader() {
     const loader = document.getElementById('apLiveLoader');
     if (loader) loader.classList.add('is-hidden');
+    try {
+      sessionStorage.removeItem('ap_live_launch_cover');
+    } catch (_e) {}
   }
 
   function isLanDevHost() {
@@ -2790,6 +2921,7 @@
       hostImg.src = avatarUrl(hostName, pic);
       hostImg.dataset.name = hostName;
       if (pic) hostImg.dataset.avatarSrc = String(pic);
+      paintApLoaderCover(hostName, pic, isPartyRoomPage());
     }
 
     const vc = document.getElementById('liveViewerCount');
@@ -5047,6 +5179,7 @@
 
   async function initPartyRoom() {
     bindScreenCaptureLifecycle();
+    primeApLoaderCover();
     if (partyRoomInitStarted) return;
     partyRoomInitStarted = true;
     bindMediaResumeOnVisibility();
@@ -5349,6 +5482,7 @@
 
   async function initLiveRoom() {
     bindScreenCaptureLifecycle();
+    primeApLoaderCover();
     bindMediaResumeOnVisibility();
     injectModals();
     injectGiftSheet();
@@ -5888,6 +6022,7 @@
   document.addEventListener('DOMContentLoaded', () => {
     const page = document.body?.dataset?.livePage;
     if (page === 'party-room' || page === 'live-room') {
+      primeApLoaderCover();
       bindScreenCaptureLifecycle();
       scheduleHideAppChrome();
       prepareLiveUiShell();
