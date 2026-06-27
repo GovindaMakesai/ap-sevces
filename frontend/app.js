@@ -223,7 +223,21 @@ function loginDestination(redirectAfter) {
 // ==================== API SERVICE WITH FORMDATA SUPPORT ====================
 const _apiInflight = new Map();
 const _apiGetCache = new Map();
-const API_GET_CACHE_MS = 900;
+const API_GET_CACHE_MS = 5000;
+const API_GET_CACHE_LONG_MS = 15000;
+
+function apiGetCacheTtl(endpoint) {
+  const p = String(endpoint || '');
+  if (
+    p.includes('/social/following') ||
+    p.includes('/live/rooms') ||
+    p.includes('/live/streamer-stats') ||
+    p.includes('/social/creators')
+  ) {
+    return API_GET_CACHE_LONG_MS;
+  }
+  return API_GET_CACHE_MS;
+}
 
 function apiBaseUrl() {
     return normalizeApiUrl(CONFIG.API_URL);
@@ -267,13 +281,14 @@ const API = {
         const cacheKey = `${method}:${endpoint}`;
         if (method === 'GET') {
             const hit = _apiGetCache.get(cacheKey);
-            if (hit && Date.now() - hit.at < API_GET_CACHE_MS) return hit.data;
+            const ttl = apiGetCacheTtl(endpoint);
+            if (hit && Date.now() - hit.at < ttl) return hit.data;
             if (_apiInflight.has(cacheKey)) return _apiInflight.get(cacheKey);
         }
         const url = joinApiUrl(endpoint);
         const run = (async () => {
             try {
-                return await this._fetchOnce(url, options);
+                return await this._fetchOnce(url, options, false, cacheKey);
             } catch (error) {
                 throw this._friendlyNetworkError(error, url);
             } finally {
@@ -303,7 +318,7 @@ const API = {
         return error;
     },
 
-    async _fetchOnce(url, options = {}, retried = false) {
+    async _fetchOnce(url, options = {}, retried = false, cacheKey = '') {
         console.log(`≡ƒôí API Request: ${options.method || 'GET'} ${url}`);
 
         if (typeof Auth !== 'undefined' && Auth.ensureAccessToken) {
@@ -359,11 +374,19 @@ const API = {
                 refreshed = await Auth.tryRefresh();
             }
             if (refreshed) {
-                return this._fetchOnce(url, options, true);
+                return this._fetchOnce(url, options, true, cacheKey);
             }
         }
 
         if (!response.ok) {
+            const method = (options.method || 'GET').toUpperCase();
+            if (response.status === 429 && method === 'GET' && cacheKey) {
+                const stale = _apiGetCache.get(cacheKey);
+                if (stale?.data) {
+                    console.warn('API 429 — serving cached response for', cacheKey);
+                    return stale.data;
+                }
+            }
             console.error('Γ¥î API Error Response:', data);
             if (typeof data === 'object' && data !== null) {
                 if (Array.isArray(data.errors) && data.errors.length) {

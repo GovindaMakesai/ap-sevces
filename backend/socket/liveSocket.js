@@ -1,6 +1,7 @@
 ﻿const { getAccessTokenFromRequest } = require('../services/authTokenService');
 const giftService = require('../services/giftService');
 const liveRoomService = require('../services/liveRoomService');
+const partyActivityService = require('../services/partyActivityService');
 const permissionService = require('../services/permissionService');
 
 const RATE_WINDOW_MS = 10_000;
@@ -27,9 +28,11 @@ function sanitizeChannel(raw) {
 }
 
 async function isRoomHost(socket, channel) {
-  const room = await liveRoomService.findByChannel(channel);
-  if (!room) return false;
-  return String(room.host_user_id) === String(socket.userId);
+  return liveRoomService.isRoomOwner(channel, socket.userId);
+}
+
+async function isRoomModerator(socket, channel) {
+  return liveRoomService.isRoomModerator(channel, socket.userId);
 }
 
 function safeAck(ack, answeredRef, payload) {
@@ -135,6 +138,17 @@ function registerLiveSocket(io) {
             safeAck(ack, answeredRef, { ok: false, message: 'This live has ended' });
             return;
           }
+          if (existingRoom.is_locked && !isHost) {
+            const pwdOk = await liveRoomService.verifyRoomPassword(channel, payload?.password);
+            if (!pwdOk) {
+              safeAck(ack, answeredRef, {
+                ok: false,
+                message: 'This room is locked — enter the password',
+                needsPassword: true,
+              });
+              return;
+            }
+          }
           await liveRoomService.joinRoom({
             channel,
             userId: socket.userId,
@@ -179,6 +193,16 @@ function registerLiveSocket(io) {
         io.to(`live:${channel}`).emit('live:viewer_count', { viewers: state?.viewers || 0 });
 
         safeAck(ack, answeredRef, { ok: true, state, isHost });
+
+        try {
+          const roomRow = await liveRoomService.findByChannel(channel);
+          if (roomRow?.id) {
+            await partyActivityService.recordActivity(socket.userId, 'join_room', {
+              liveRoomId: roomRow.id,
+              metadata: { channel },
+            });
+          }
+        } catch (_actErr) {}
       } catch (err) {
         console.error('live:join', err.message);
         safeAck(ack, answeredRef, { ok: false, message: err.message || 'Room join failed' });
@@ -196,8 +220,8 @@ function registerLiveSocket(io) {
     socket.on('live:kick', async (payload, ack) => {
       try {
         const channel = sanitizeChannel(payload?.channel || currentChannel);
-        if (!(await isRoomHost(socket, channel))) {
-          if (ack) ack({ ok: false, message: 'Only host can kick' });
+        if (!(await isRoomModerator(socket, channel))) {
+          if (ack) ack({ ok: false, message: 'Only host or admin can kick' });
           return;
         }
         const targetUserId = String(payload?.userId || '');
@@ -319,6 +343,17 @@ function registerLiveSocket(io) {
         }
 
         if (ack) ack({ ok: true, data: { gift, balance: result } });
+
+        try {
+          await partyActivityService.recordActivity(socket.userId, 'send_gift', {
+            liveRoomId: room.id,
+            metadata: { receiverId, amount: coinAmount },
+          });
+          await partyActivityService.recordActivity(receiverId, 'receive_gift', {
+            liveRoomId: room.id,
+            metadata: { senderId: socket.userId, amount: coinAmount },
+          });
+        } catch (_actErr) {}
       } catch (err) {
         console.error('live:gift', err.message);
         if (ack) {
@@ -335,7 +370,7 @@ function registerLiveSocket(io) {
       const room = await liveRoomService.findByChannel(channel);
       if (!room) return;
       const targetUserId = String(payload?.userId || socket.userId);
-      if (targetUserId !== socket.userId && !(await isRoomHost(socket, channel))) return;
+      if (targetUserId !== socket.userId && !(await isRoomModerator(socket, channel))) return;
       const muted = payload?.muted !== false;
       await liveRoomService.setMemberMuted(room.id, targetUserId, muted);
       io.to(`live:${channel}`).emit('live:member_mute', {
@@ -359,7 +394,7 @@ function registerLiveSocket(io) {
     socket.on('live:seat_response', async (payload) => {
       try {
         const channel = sanitizeChannel(payload?.channel || currentChannel);
-        if (!channel || !(await isRoomHost(socket, channel))) return;
+        if (!channel || !(await isRoomModerator(socket, channel))) return;
         const userId = String(payload?.userId || '');
         if (!userId) return;
         const accepted = payload?.accepted !== false;
@@ -381,6 +416,108 @@ function registerLiveSocket(io) {
         });
       } catch (err) {
         console.error('live:seat_response', err.message);
+      }
+    });
+
+    socket.on('live:admin_grant', async (payload, ack) => {
+      try {
+        const channel = sanitizeChannel(payload?.channel || currentChannel);
+        if (!(await isRoomHost(socket, channel))) {
+          if (ack) ack({ ok: false, message: 'Only the room owner can grant admin' });
+          return;
+        }
+        const userId = String(payload?.userId || '');
+        if (!userId) {
+          if (ack) ack({ ok: false, message: 'userId required' });
+          return;
+        }
+        await liveRoomService.setMemberAdmin({ channel, userId, isAdmin: true });
+        const state = await liveRoomService.buildSnapshot(channel);
+        io.to(`live:${channel}`).emit('live:state', state);
+        io.to(`live:${channel}`).emit('live:admin_changed', { userId, isAdmin: true });
+        if (ack) ack({ ok: true });
+      } catch (err) {
+        if (ack) ack({ ok: false, message: err.message });
+      }
+    });
+
+    socket.on('live:admin_revoke', async (payload, ack) => {
+      try {
+        const channel = sanitizeChannel(payload?.channel || currentChannel);
+        if (!(await isRoomHost(socket, channel))) {
+          if (ack) ack({ ok: false, message: 'Only the room owner can revoke admin' });
+          return;
+        }
+        const userId = String(payload?.userId || '');
+        await liveRoomService.setMemberAdmin({ channel, userId, isAdmin: false });
+        const state = await liveRoomService.buildSnapshot(channel);
+        io.to(`live:${channel}`).emit('live:state', state);
+        io.to(`live:${channel}`).emit('live:admin_changed', { userId, isAdmin: false });
+        if (ack) ack({ ok: true });
+      } catch (err) {
+        if (ack) ack({ ok: false, message: err.message });
+      }
+    });
+
+    socket.on('live:room_lock', async (payload, ack) => {
+      try {
+        const channel = sanitizeChannel(payload?.channel || currentChannel);
+        if (!(await isRoomHost(socket, channel))) {
+          if (ack) ack({ ok: false, message: 'Only the room owner can lock the room' });
+          return;
+        }
+        await liveRoomService.setRoomLock({
+          channel,
+          locked: payload?.locked !== false,
+          password: payload?.password,
+        });
+        const state = await liveRoomService.buildSnapshot(channel);
+        io.to(`live:${channel}`).emit('live:state', state);
+        io.to(`live:${channel}`).emit('live:room_lock', {
+          locked: payload?.locked !== false,
+          channel,
+        });
+        if (ack) ack({ ok: true });
+      } catch (err) {
+        if (ack) ack({ ok: false, message: err.message });
+      }
+    });
+
+    socket.on('live:seat_move', async (payload, ack) => {
+      try {
+        const channel = sanitizeChannel(payload?.channel || currentChannel);
+        const userId = String(payload?.userId || socket.userId);
+        const seatIndex = payload?.seatIndex;
+        const selfMove = userId === String(socket.userId);
+        if (!selfMove && !(await isRoomModerator(socket, channel))) {
+          if (ack) ack({ ok: false, message: 'Not allowed to move this user' });
+          return;
+        }
+        await liveRoomService.moveMemberSeat({ channel, userId, seatIndex });
+        const state = await liveRoomService.buildSnapshot(channel);
+        io.to(`live:${channel}`).emit('live:state', state);
+        io.to(`live:${channel}`).emit('live:seat_moved', { userId, seatIndex });
+        if (ack) ack({ ok: true });
+      } catch (err) {
+        if (ack) ack({ ok: false, message: err.message });
+      }
+    });
+
+    socket.on('live:demote_speaker', async (payload, ack) => {
+      try {
+        const channel = sanitizeChannel(payload?.channel || currentChannel);
+        if (!(await isRoomModerator(socket, channel))) {
+          if (ack) ack({ ok: false, message: 'Only host or admin can remove from seat' });
+          return;
+        }
+        const userId = String(payload?.userId || '');
+        await liveRoomService.demoteSpeaker({ channel, userId });
+        const state = await liveRoomService.buildSnapshot(channel);
+        io.to(`live:${channel}`).emit('live:state', state);
+        io.to(`live:${channel}`).emit('live:demoted', { userId });
+        if (ack) ack({ ok: true });
+      } catch (err) {
+        if (ack) ack({ ok: false, message: err.message });
       }
     });
 

@@ -538,9 +538,15 @@
     setTimeout(() => overlay.remove(), 4000);
   }
 
+  function agoraUidToUserId(uid) {
+    const map = window.__apAgoraUidMap || {};
+    return map[String(uid)] || String(uid);
+  }
+
   function setSpeaking(userId, active) {
-    if (active) speakingUsers.add(String(userId));
-    else speakingUsers.delete(String(userId));
+    const id = agoraUidToUserId(userId);
+    if (active) speakingUsers.add(String(id));
+    else speakingUsers.delete(String(id));
     document.querySelectorAll('.party-seat[data-user]').forEach((seat) => {
       const name = seat.dataset.user || '';
       const uid = seat.dataset.userId || name;
@@ -587,8 +593,8 @@
     try {
       client.on('volume-indicator', (volumes) => {
         volumes.forEach((v) => {
-          const id = v.uid === 0 ? uid : String(v.uid);
-          setSpeaking(id, v.level > 8);
+          const id = agoraUidToUserId(v.uid === 0 ? uid : v.uid);
+          setSpeaking(id, v.level > 6);
         });
       });
       client.enableAudioVolumeIndicator?.();

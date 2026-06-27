@@ -1,5 +1,6 @@
 /**
- * Signed Play Store .aab — uses Desktop ap-services-upload.jks (see setup-play-upload-key.ps1).
+ * Signed Play Store .aab — local Gradle build (no Expo/EAS account).
+ * Uses credentials/upload.jks — see setup-play-upload-key.ps1 and LOCAL_BUILD.md.
  */
 const { spawnSync } = require('child_process');
 const fs = require('fs');

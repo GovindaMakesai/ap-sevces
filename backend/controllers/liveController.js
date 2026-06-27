@@ -1,5 +1,5 @@
-const crypto = require('crypto');
 const liveRoomService = require('../services/liveRoomService');
+const { uidFromUserId } = require('../lib/agoraUid');
 
 let RtcTokenBuilder;
 let RtcRole;
@@ -12,10 +12,7 @@ try {
 }
 
 function uidFromUserId(userId) {
-  if (!userId) return 0;
-  const hex = crypto.createHash('md5').update(String(userId)).digest('hex').slice(0, 8);
-  const n = parseInt(hex, 16) % 2147483646;
-  return n + 1;
+  return require('../lib/agoraUid').uidFromUserId(userId);
 }
 
 exports.listActiveRooms = async (req, res) => {
@@ -118,6 +115,7 @@ exports.agoraToken = async (req, res) => {
 };
 
 const liveAccessService = require('../services/liveAccessService');
+const { getStreamerStats } = require('../services/liveHostStatsService');
 
 exports.liveAccessStatus = async (req, res) => {
   try {
@@ -147,5 +145,18 @@ exports.confirmIdentityStep = async (req, res) => {
   } catch (error) {
     console.error('[live] identity step', error);
     res.status(500).json({ success: false, message: error.message || 'Could not confirm identity' });
+  }
+};
+
+exports.streamerStats = async (req, res) => {
+  try {
+    const periodRaw = String(req.query.period || 'today').toLowerCase();
+    const period =
+      periodRaw === 'week' || periodRaw === 'weekly' ? 'week' : periodRaw === 'month' || periodRaw === 'monthly' ? 'month' : 'today';
+    const data = await getStreamerStats(req.userId, period);
+    res.json({ success: true, data });
+  } catch (error) {
+    console.error('[live] streamer stats', error);
+    res.status(500).json({ success: false, message: error.message || 'Could not load streamer stats' });
   }
 };

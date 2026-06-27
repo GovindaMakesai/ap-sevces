@@ -22,6 +22,7 @@ router.get('/rooms', liveController.listActiveRooms);
 router.get('/agora/config', liveController.agoraConfig);
 router.post('/agora/token', verifyToken, liveController.agoraToken);
 router.get('/access-status', verifyToken, liveController.liveAccessStatus);
+router.get('/streamer-stats', verifyToken, liveController.streamerStats);
 router.post('/verify/identity', verifyToken, liveController.confirmIdentityStep);
 router.post('/verify/face', verifyToken, faceUpload.single('photo'), liveController.submitFaceVerification);
 

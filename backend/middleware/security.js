@@ -7,7 +7,7 @@ const authRateMax = Number(process.env.AUTH_RATE_LIMIT_MAX) || (isProduction ? 8
 
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: isProduction ? 2500 : 5000,
+  max: isProduction ? 12000 : 20000,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: 'Too many requests. Please try again later.' },
@@ -15,7 +15,9 @@ const globalLimiter = rateLimit({
     req.method === 'OPTIONS' ||
     req.path === '/api/health' ||
     req.path === '/health' ||
-    req.path.startsWith('/api/live/rooms'),
+    req.path.startsWith('/api/live/rooms') ||
+    req.path.startsWith('/api/live/streamer-stats') ||
+    req.path.startsWith('/api/social/following'),
 });
 
 const authLimiter = rateLimit({

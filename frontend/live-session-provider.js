@@ -315,6 +315,25 @@
     document.body.classList.remove('ap-live-session-minimized');
   }
 
+  function openBrowsePage(href) {
+    const url = href || '/explore.html?app=1';
+    if (state === STATE.MINIMIZED) {
+      ensureBrowseShell(url);
+      return true;
+    }
+    if (isRoomPage()) {
+      sessionMeta = collectMeta();
+      state = STATE.MINIMIZED;
+      persistSession();
+      applyMinimizedDom();
+      ensureBrowseShell(url);
+      ensureMiniPlayer();
+      notifyNative('minimized', { type: sessionMeta.type, channel: sessionMeta.channel, browse: url });
+      return true;
+    }
+    return false;
+  }
+
   function minimize(browseUrl) {
     if (!isRoomPage()) return false;
     if (state === STATE.MINIMIZED) return true;
@@ -491,6 +510,7 @@
 
   window.LiveSession = {
     minimize,
+    openBrowsePage,
     expand,
     exit,
     forceCleanup,

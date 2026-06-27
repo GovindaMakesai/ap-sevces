@@ -664,6 +664,17 @@ body.party-requests-open .live-host-bar {
   margin: 0 0 12px;
 }
 .party-requests-list { display: flex; flex-direction: column; gap: 8px; }
+.party-requests-subtitle {
+  margin: 14px 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.7);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.party-online-dot { color: #4ade80; font-size: 11px; }
+body:not(.ap-is-host) .host-only-tool { display: none !important; }
+#partyBtnLock.is-active .ico { box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.45); }
 .party-req-row {
   display: grid;
   grid-template-columns: 40px minmax(0, 1fr) auto auto;

@@ -35,6 +35,7 @@ yarn-error.*
 # local env files
 .env*.local
 scripts/play-upload.local.properties
+credentials/
 
 # typescript
 *.tsbuildinfo

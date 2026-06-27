@@ -3,7 +3,7 @@
     "name": "AP Services",
     "slug": "ap-services-app",
     "scheme": "apservices",
-    "version": "1.0.17",
+    "version": "1.0.18",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -22,12 +22,14 @@
     },
     "android": {
       "package": "com.apservices.app",
-      "versionCode": 26,
+      "versionCode": 27,
       "usesCleartextTraffic": true,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS"
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MICROPHONE"
       ],
       "blockedPermissions": [
         "android.permission.READ_MEDIA_IMAGES",
@@ -57,16 +59,13 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "owner": "aparif786-web",
     "plugins": [
-      "expo-web-browser",
-      "expo-screen-capture"
+      "expo-web-browser"
     ],
     "extra": {
       "client": {
         "org": "Muqaddas Technology",
-        "contactEmail": "aparif786@gmail.com",
-        "playDeveloperName": "muqaddas technology"
+        "playDeveloperName": "Muqaddas Technology"
       }
     }
   }

@@ -117,7 +117,7 @@ const LIVE_MINIMIZE_INJECT = `(function(){
     if(window.LiveSession&&window.LiveSession.handleBack&&window.LiveSession.handleBack()) return;
     if(window.LiveSession&&window.LiveSession.minimize&&window.LiveSession.minimize('/explore.html?app=1')) return;
     var live=window.APLive||window.SocialLive;
-    if(live&&typeof live.leaveToExplore==='function'){live.leaveToExplore({minimize:false});return;}
+    if(live&&typeof live.leaveToExplore==='function'){live.leaveToExplore({minimize:true});return;}
     if(live&&typeof live.minimizeRoom==='function'){live.minimizeRoom();return;}
     window.location.href='/explore.html?app=1';
   } catch(e) {
@@ -156,7 +156,7 @@ const HARDWARE_BACK_INJECT = `(function(){
         return true;
       }
       if (live && typeof live.leaveToExplore === 'function') {
-        live.leaveToExplore({ minimize: false });
+        live.leaveToExplore({ minimize: true });
         return true;
       }
       window.location.href = '/explore.html?app=1';

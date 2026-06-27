@@ -20,6 +20,8 @@ const { ensureSecurityHardeningSchema } = require('./config/ensureSecurityHarden
 const { ensureProductionReadinessSchema } = require('./config/ensureProductionReadinessSchema');
 const { ensureRoleApplicationsSchema } = require('./config/ensureRoleApplicationsSchema');
 const { ensurePaymentApprovalsSchema } = require('./config/ensurePaymentApprovalsSchema');
+const { ensureLiveHostStatsSchema } = require('./config/ensureLiveHostStatsSchema');
+const { ensurePartyModerationSchema } = require('./config/ensurePartyModerationSchema');
 const { ensureWithdrawalQrSchema } = require('./config/ensureWithdrawalQrSchema');
 const { applySecurityMiddleware, authLimiter, walletLimiter } = require('./middleware/security');
 const webhookRoutes = require('./routes/webhooks');
@@ -223,6 +225,8 @@ async function startServer() {
   await ensureProductionReadinessSchema();
   await ensureRoleApplicationsSchema();
   await ensurePaymentApprovalsSchema();
+  await ensureLiveHostStatsSchema();
+  await ensurePartyModerationSchema();
   await attachSocketRedisAdapter();
   await platformService.getOrCreateTreasuryUserId();
   await liveRoomService.recoverActiveRooms();

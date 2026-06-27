@@ -23,11 +23,11 @@
       <button type="button">This week</button>
       <button type="button">This month</button>
     </div>
-    <div class="streamer-metrics">
-      <div class="metric"><div class="val">00:00:00</div><div class="lbl">Hours of Live Streaming</div></div>
-      <div class="metric"><div class="val">0</div><div class="lbl">Won points</div></div>
-      <div class="metric"><div class="val">0</div><div class="lbl">New followers</div></div>
-      <div class="metric"><div class="val">0</div><div class="lbl">Average Concurrent Users</div></div>
+    <div class="streamer-metrics" id="streamerPeriodMetrics">
+      <div class="metric"><div class="val" id="streamerLiveHours">00:00:00</div><div class="lbl">Hours of Live Streaming</div></div>
+      <div class="metric"><div class="val" id="streamerWonPoints">0</div><div class="lbl">Won points</div></div>
+      <div class="metric"><div class="val" id="streamerNewFollowers">0</div><div class="lbl">New followers</div></div>
+      <div class="metric"><div class="val" id="streamerAvgViewers">0</div><div class="lbl">Average Concurrent Users</div></div>
     </div>
   </section>
 
@@ -48,11 +48,11 @@
       <input type="file" id="streamerCoverInput" accept="image/*" hidden>
       <button type="button" class="btn-upload" id="streamerCoverBtn">Upload a new cover</button>
     </div>
-    <div class="streamer-metrics">
-      <div class="metric"><div class="val">00:00:00</div><div class="lbl">Hours of Live Streaming</div></div>
-      <div class="metric"><div class="val">0</div><div class="lbl">Won points</div></div>
-      <div class="metric"><div class="val">0</div><div class="lbl">New followers</div></div>
-      <div class="metric"><div class="val">0</div><div class="lbl">Audiences</div></div>
+    <div class="streamer-metrics" id="streamerLastMetrics">
+      <div class="metric"><div class="val" id="streamerLastHours">00:00:00</div><div class="lbl">Hours of Live Streaming</div></div>
+      <div class="metric"><div class="val" id="streamerLastPoints">0</div><div class="lbl">Won points</div></div>
+      <div class="metric"><div class="val" id="streamerLastFollowers">0</div><div class="lbl">New followers</div></div>
+      <div class="metric"><div class="val" id="streamerLastAudiences">0</div><div class="lbl">Audiences</div></div>
     </div>
   </section>
 
@@ -110,7 +110,7 @@
   <script src="auth-guard.js"></script>
   <script src="social-shell.js"></script>
   <script src="social-nav.js"></script>
-  <script src="social-live.js"></script>
+  <script src="social-live.js?v=20260706-explore-fix2"></script>
   <script>
     (function () {
       const user = window.Auth?.getUser?.() || null;
@@ -161,13 +161,15 @@
       document.getElementById('streamerStartParty')?.addEventListener('click', () => SocialShell?.goStartParty?.());
       document.getElementById('streamerStartLive')?.addEventListener('click', () => SocialShell?.goStartLive?.('video'));
 
-      const periodMap = ['daily', 'weekly', 'monthly'];
+      const periodMap = ['today', 'week', 'month'];
       document.querySelectorAll('.streamer-pills button').forEach((btn, idx) => {
         btn.addEventListener('click', () => {
           document.querySelectorAll('.streamer-pills button').forEach((b) => b.classList.remove('active'));
           btn.classList.add('active');
-          const period = periodMap[idx] || 'daily';
-          location.href = '/rankings.html?period=' + period + '&app=1';
+          const period = periodMap[idx] || 'today';
+          if (window.SocialLive?.loadStreamerStats) {
+            SocialLive.loadStreamerStats(period);
+          }
         });
       });
 

@@ -805,16 +805,11 @@
     const content = document.getElementById('exploreContent');
     if (!mount) return;
 
-    const showContent = () => {
-      mount.style.display = 'none';
-      if (content) content.style.display = 'block';
-    };
-    const showEmpty = () => {
-      if (content) content.style.display = 'none';
-      mount.style.display = 'block';
-    };
-
-    showEmpty();
+    if (content) {
+      content.style.display = 'none';
+      content.innerHTML = '<div class="social-grid" id="exploreGrid"></div>';
+    }
+    mount.style.display = 'block';
     mount.innerHTML =
       '<div class="social-empty-state"><p><i class="fas fa-spinner fa-spin"></i> Loading following…</p></div>';
 
@@ -827,7 +822,14 @@
 
     try {
       if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken();
-      if (window.SocialInteractions?.refreshFollowCache) await SocialInteractions.refreshFollowCache();
+      const now = Date.now();
+      if (
+        window.SocialInteractions?.refreshFollowCache &&
+        (!window.__apFollowCacheAt || now - window.__apFollowCacheAt > 60000)
+      ) {
+        await SocialInteractions.refreshFollowCache();
+        window.__apFollowCacheAt = now;
+      }
     } catch (_e) {}
 
     let following = [];
@@ -868,7 +870,6 @@
     }
 
     if (!following.length) {
-      showEmpty();
       if (followLoadError && /auth|sign in|token|401/i.test(followLoadError)) {
         mount.innerHTML =
           '<div class="social-empty-state"><p>Session expired.</p><a href="/app-auth.html?app=1&redirect=' +
@@ -924,7 +925,6 @@
       offlineRows.push({ uid, name, photo });
     });
 
-    showContent();
     const liveHtml = liveCards.map((p, i) => renderLiveCard(p, i, { party: Boolean(p.party) })).join('');
     const offlineHtml = offlineRows.length
       ? `<div class="social-following-offline-section">
@@ -948,14 +948,17 @@
       : '';
 
     const liveSection = liveCards.length
-      ? `<p class="social-following-section-title">Live now</p><div class="social-grid" id="exploreGrid">${liveHtml}</div>`
+      ? `<p class="social-following-section-title">Live now</p><div class="social-grid social-following-live-grid">${liveHtml}</div>`
       : '';
 
-    content.innerHTML = `<div class="social-following-wrap">${liveSection}${offlineHtml}</div>`;
-    const grid = content.querySelector('#exploreGrid');
+    mount.innerHTML = `<div class="social-following-wrap">${liveSection}${offlineHtml}</div>`;
+    const grid = mount.querySelector('.social-following-live-grid');
     if (grid) {
       bindLiveCards(grid);
       if (window.SocialUI?.bindAvatarFallbacks) SocialUI.bindAvatarFallbacks(grid);
+    } else {
+      bindLiveCards(mount);
+      if (window.SocialUI?.bindAvatarFallbacks) SocialUI.bindAvatarFallbacks(mount);
     }
   }
 

@@ -1,0 +1,5 @@
+# Copy to play-upload.local.properties and fill in (never commit the real file).
+keystore=../credentials/upload.jks
+alias=upload
+storePassword=YOUR_STORE_PASSWORD
+keyPassword=YOUR_KEY_PASSWORD

@@ -144,7 +144,7 @@ body.social-tabs-page #social-banner-slider + .social-post-feed {
 }
 
 body.social-explore-page {
-  --social-explore-header-h: calc(118px + env(safe-area-inset-top, 0px));
+  --social-explore-header-h: calc(128px + env(safe-area-inset-top, 0px));
 }
 
 body.social-explore-page #social-banner-slider {
@@ -155,31 +155,49 @@ body.social-explore-page #social-banner-slider {
   overflow: hidden;
 }
 
-/* Explore live — tabs + search (compact, no banner/chips) */
+/* Explore live — search/actions row, then tabs */
+.social-explore-page .social-explore-search-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 12px 8px;
+  min-width: 0;
+}
+
 .social-explore-page .social-explore-tabs-wrap {
-  margin: 0 0 8px;
+  margin: 0 0 6px;
   padding: 0 12px;
   overflow: hidden;
 }
 
-.social-explore-page .social-explore-tabs-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.social-explore-page .social-explore-tabs-row .social-explore-tabs {
+.social-explore-page .social-explore-search-row .social-search {
   flex: 1;
   min-width: 0;
-  padding-left: 0;
-  padding-right: 0;
+  margin: 0;
 }
 
 .social-explore-page .social-explore-actions {
   flex-shrink: 0;
   margin-left: 0;
   gap: 6px;
+}
+
+.social-explore-page .social-global-pill-text {
+  white-space: nowrap;
+}
+
+@media (max-width: 380px) {
+  .social-explore-page .social-global-pill-text {
+    display: none;
+  }
+
+  .social-explore-page .social-global-pill {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    justify-content: center;
+    border-radius: 50%;
+  }
 }
 
 .social-explore-page .social-explore-head {
@@ -189,12 +207,13 @@ body.social-explore-page #social-banner-slider {
 .social-explore-page .social-explore-tabs {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
   -ms-overflow-style: none;
-  padding: 4px 2px 6px;
+  padding: 4px 0 6px;
   -webkit-overflow-scrolling: touch;
   scroll-snap-type: x proximity;
 }
@@ -209,10 +228,10 @@ body.social-explore-page #social-banner-slider {
   border: 1px solid rgba(201, 162, 39, 0.28);
   background: rgba(255, 255, 255, 0.92);
   color: var(--gold-700);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   line-height: 1.2;
-  padding: 9px 16px;
+  padding: 8px 13px;
   border-radius: var(--radius-pill);
   cursor: pointer;
   white-space: nowrap;
@@ -282,7 +301,6 @@ body.social-explore-page .social-tabs-spacer {
 }
 
 .social-explore-page .social-search {
-  margin: 0 12px 6px;
   min-height: 42px;
   box-sizing: border-box;
 }
@@ -297,7 +315,7 @@ body.social-explore-page #social-filter-chips-mount {
 
 .social-explore-page #exploreContent,
 .social-explore-page #exploreEmpty {
-  padding-top: 0;
+  padding-top: 4px;
   margin-top: 0;
 }
 

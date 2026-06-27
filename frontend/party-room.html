@@ -195,6 +195,8 @@
       </div>
       <p class="party-requests-hint">Accept guests to add them to a seat</p>
       <div id="partyRequestsList" class="party-requests-list"></div>
+      <h4 class="party-requests-subtitle">In room (online)</h4>
+      <div id="partyAvailableList" class="party-requests-list"></div>
     </div>
   </div>
 
@@ -210,6 +212,7 @@
       <div class="party-tools-grid party-tools-grid-4 party-tools-row2">
         <button type="button" id="partyBtnEffects"><span class="ico effects"><i class="fas fa-sliders-h"></i></span>Effect&amp;Msg</button>
         <button type="button" id="partyBtnMinimize"><span class="ico minimize"><i class="fas fa-compress"></i></span>Minimize</button>
+        <button type="button" id="partyBtnLock" class="host-only-tool"><span class="ico lock"><i class="fas fa-lock"></i></span><span class="party-lock-label">Lock room</span></button>
       </div>
       <h3 class="party-tools-title party-tools-title--features">Features Centre</h3>
       <div class="party-tools-grid party-tools-grid-4">
@@ -236,8 +239,8 @@
   <script src="auth-guard.js"></script>
   <script src="social-fx.js"></script>
   <script src="live-emoji-data.js"></script>
-  <script src="live-session-provider.js?v=20260703-minimize-fix"></script>
-  <script src="social-live.js?v=20260706-following-back"></script>
+  <script src="live-session-provider.js?v=20260706-party-voice"></script>
+  <script src="social-live.js?v=20260706-party-voice"></script>
   <script src="social-nav.js"></script>
 </body>
 </html>

@@ -279,6 +279,9 @@
 
   async function resumeMediaAfterForeground() {
     if (document.visibilityState !== 'visible') return;
+    if (hasSpeakerSeat || (isHost() && publishSucceeded)) {
+      await ensureMicPublishing();
+    }
     if (lastJoinMeta?.isHost && publishSucceeded) {
       localTracks.forEach((t) => {
         try {
@@ -309,12 +312,14 @@
         } catch (_e) {}
       }
     });
+    await ensureMicPublishing();
     syncLiveUiState();
   }
 
   async function onMiniPlayerExpanded() {
     minimizingRoom = false;
     await onForegroundResume();
+    await ensureMicPublishing();
   }
 
   async function onForegroundResume() {
@@ -501,6 +506,253 @@
 
   function isPartyRoomPage() {
     return document.body.dataset.livePage === 'party-room';
+  }
+
+  function canModerateRoom() {
+    if (isHost()) return true;
+    const meId = currentUser()?.id;
+    if (!meId) return false;
+    const members = roomState?.onlineMembers || roomState?.seats || [];
+    return members.some(
+      (m) => String(m.userId) === String(meId) && (m.isAdmin || m.role === 'admin')
+    );
+  }
+
+  function syncAgoraUidMap() {
+    const map = {};
+    const list = [...(roomState?.seats || []), ...(roomState?.onlineMembers || [])];
+    list.forEach((m) => {
+      if (m.userId != null && m.agoraUid != null) map[String(m.agoraUid)] = String(m.userId);
+    });
+    const me = currentUser()?.id;
+    if (me && liveDebugState.agoraUid != null) map[String(liveDebugState.agoraUid)] = String(me);
+    window.__apAgoraUidMap = map;
+  }
+
+  function openInPartyBrowse(href) {
+    const url = String(href || '').startsWith('http')
+      ? href
+      : String(href || '').startsWith('/')
+        ? href
+        : '/' + String(href || '');
+    if (window.LiveSession?.openBrowsePage?.(url)) return true;
+    if (window.LiveSession?.minimize?.(url)) return true;
+    location.href = url;
+    return false;
+  }
+
+  async function ensureMicPublishing() {
+    if (!roomJoinCompleted || partyVoiceSkipped || !isPartyRoomPage()) return;
+    if (isHost()) {
+      if (!publishSucceeded) await resumeHostBroadcastIfNeeded();
+      else {
+        localTracks.forEach((t) => {
+          try {
+            t.setEnabled?.(!micMuted);
+          } catch (_e) {}
+        });
+      }
+      syncMicButtonUi();
+      return;
+    }
+    if (hasSpeakerSeat) {
+      if (!publishSucceeded || !localTracks.length) {
+        guestPublishAttempted = false;
+        await publishGuestAudio();
+      } else {
+        localTracks.forEach((t) => {
+          try {
+            t.setEnabled?.(!micMuted);
+          } catch (_e) {}
+        });
+      }
+      syncMicButtonUi();
+    }
+  }
+
+  function kickUserFromRoom(userId, reason) {
+    if (!canModerateRoom() || !liveSocket?.connected || !userId) return;
+    liveSocket.emit(
+      'live:kick',
+      { channel: channelId(), userId, reason: reason || 'kicked_by_mod' },
+      (res) => {
+        if (res?.ok) toast('User removed from party', 'success');
+        else toast(res?.message || 'Could not remove user', 'error');
+      }
+    );
+  }
+
+  function muteRemoteUser(userId, muted) {
+    if (!canModerateRoom() || !liveSocket?.connected || !userId) return;
+    liveSocket.emit('live:mute', { channel: channelId(), userId, muted: muted !== false });
+    toast(muted !== false ? 'User muted' : 'User unmuted', 'info');
+  }
+
+  function grantRoomAdmin(userId, grant) {
+    if (!isHost() || !liveSocket?.connected || !userId) return;
+    liveSocket.emit(
+      grant ? 'live:admin_grant' : 'live:admin_revoke',
+      { channel: channelId(), userId },
+      (res) => {
+        if (res?.ok) toast(grant ? 'Admin granted' : 'Admin revoked', 'success');
+        else toast(res?.message || 'Could not update admin', 'error');
+      }
+    );
+  }
+
+  function moveUserSeat(userId, seatIndex) {
+    if (!liveSocket?.connected) return;
+    liveSocket.emit(
+      'live:seat_move',
+      { channel: channelId(), userId, seatIndex },
+      (res) => {
+        if (res?.ok) toast('Seat updated', 'success');
+        else toast(res?.message || 'Could not move seat', 'error');
+      }
+    );
+  }
+
+  function demoteUserFromSeat(userId) {
+    if (!canModerateRoom() || !liveSocket?.connected || !userId) return;
+    liveSocket.emit('live:demote_speaker', { channel: channelId(), userId }, (res) => {
+      if (res?.ok) toast('Removed from seat', 'success');
+      else toast(res?.message || 'Could not remove from seat', 'error');
+    });
+  }
+
+  function toggleRoomLock() {
+    if (!isHost() || !liveSocket?.connected) return;
+    const locked = Boolean(roomState?.isLocked);
+    if (locked) {
+      liveSocket.emit('live:room_lock', { channel: channelId(), locked: false }, (res) => {
+        if (res?.ok) toast('Room unlocked', 'success');
+        else toast(res?.message || 'Could not unlock', 'error');
+      });
+      return;
+    }
+    const password = window.prompt('Set a room password (required to join):');
+    if (!password || !password.trim()) return;
+    liveSocket.emit(
+      'live:room_lock',
+      { channel: channelId(), locked: true, password: password.trim() },
+      (res) => {
+        if (res?.ok) toast('Room locked', 'success');
+        else toast(res?.message || 'Could not lock room', 'error');
+      }
+    );
+  }
+
+  function openModerationMenu(name, userId, seatNum) {
+    const me = currentUser()?.id;
+    if (!userId || String(userId) === String(me)) {
+      openProfileSheet(name, userId);
+      return;
+    }
+    const panel = document.querySelector('#apProfileSheet .ap-profile-sheet-panel');
+    openProfileSheet(name, userId);
+    let menu = panel?.querySelector('.ap-profile-more-menu');
+    if (!menu && panel) {
+      menu = document.createElement('div');
+      menu.className = 'ap-profile-more-menu';
+      panel.appendChild(menu);
+    }
+    if (!menu) return;
+    const isAdminMember = (roomState?.onlineMembers || []).some(
+      (m) => String(m.userId) === String(userId) && (m.isAdmin || m.role === 'admin')
+    );
+    menu.innerHTML = `
+      <button type="button" data-mod="mute">Mute user</button>
+      <button type="button" data-mod="unmute">Unmute user</button>
+      <button type="button" data-mod="move">Move to seat…</button>
+      <button type="button" data-mod="demote">Remove from seat</button>
+      <button type="button" data-mod="kick">Kick from room</button>
+      ${isHost() ? `<button type="button" data-mod="admin">${isAdminMember ? 'Revoke admin' : 'Make admin'}</button>` : ''}`;
+    menu.querySelector('[data-mod="mute"]')?.addEventListener('click', () => {
+      muteRemoteUser(userId, true);
+      menu.remove();
+    });
+    menu.querySelector('[data-mod="unmute"]')?.addEventListener('click', () => {
+      muteRemoteUser(userId, false);
+      menu.remove();
+    });
+    menu.querySelector('[data-mod="move"]')?.addEventListener('click', () => {
+      const seat = window.prompt('Seat number (1–15):', String(seatNum || 3));
+      if (seat) moveUserSeat(userId, Number(seat));
+      menu.remove();
+    });
+    menu.querySelector('[data-mod="demote"]')?.addEventListener('click', () => {
+      demoteUserFromSeat(userId);
+      menu.remove();
+    });
+    menu.querySelector('[data-mod="kick"]')?.addEventListener('click', () => {
+      if (window.confirm(`Remove ${name} from this party?`)) kickUserFromRoom(userId);
+      menu.remove();
+    });
+    menu.querySelector('[data-mod="admin"]')?.addEventListener('click', () => {
+      grantRoomAdmin(userId, !isAdminMember);
+      menu.remove();
+    });
+  }
+
+  function openAvailableUsersForSeat(seatNum) {
+    openPartyRequestsSheet();
+    renderAvailableUsers();
+    toast(`Pick someone to move to seat ${seatNum}`, 'info');
+    window.__apPendingSeatMove = seatNum;
+  }
+
+  function renderAvailableUsers() {
+    const list = document.getElementById('partyAvailableList');
+    if (!list) return;
+    const seated = new Set(
+      (roomState?.seats || []).map((s) => String(s.userId || '')).filter(Boolean)
+    );
+    const members = roomState?.onlineMembers || [];
+    const available = members.filter((m) => m.userId && !seated.has(String(m.userId)) && m.role === 'viewer');
+    if (!available.length) {
+      list.innerHTML = '<p class="party-requests-empty">Everyone on stage or no listeners yet</p>';
+      return;
+    }
+    list.innerHTML = available
+      .map(
+        (m) => `
+      <div class="party-req-row" data-user-id="${escapeHtml(String(m.userId))}">
+        <img src="${avatarUrl(m.name, m.profilePic)}" alt="">
+        <div class="info"><strong>${escapeHtml(m.name || 'Guest')}</strong><br><small class="party-online-dot">● Online</small></div>
+        ${canModerateRoom() ? `<button type="button" class="accept" data-invite-seat="${escapeHtml(String(m.userId))}">To seat</button>` : ''}
+      </div>`
+      )
+      .join('');
+    list.querySelectorAll('[data-invite-seat]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const uid = btn.dataset.inviteSeat;
+        const pendingSeat = window.__apPendingSeatMove;
+        if (pendingSeat && canModerateRoom()) {
+          liveSocket?.emit(
+            'live:seat_response',
+            { channel: channelId(), userId: uid, accepted: true },
+            () => {
+              moveUserSeat(uid, pendingSeat);
+              window.__apPendingSeatMove = null;
+            }
+          );
+          return;
+        }
+        liveSocket?.emit(
+          'live:seat_response',
+          { channel: channelId(), userId: uid, accepted: true },
+          () => toast('Invite sent', 'success')
+        );
+      });
+    });
+    list.querySelectorAll('.party-req-row[data-user-id]').forEach((row) => {
+      row.addEventListener('click', (e) => {
+        if (e.target.closest('button')) return;
+        const uid = row.dataset.userId;
+        const member = available.find((m) => String(m.userId) === String(uid));
+        openProfileSheet(member?.name || 'Guest', uid);
+      });
+    });
   }
 
   async function ensureSocketIo() {
@@ -1359,7 +1611,7 @@
 
     liveSocket.on('live:seat_request', (req) => {
       if (isLiveRoomPage()) return;
-      if (!isHost() || !req) return;
+      if (!canModerateRoom() || !req) return;
       const id = String(req.userId || req.id || '');
       if (!id || joinRequests.some((r) => String(r.id) === id)) return;
       joinRequests.push({
@@ -1418,7 +1670,42 @@
       if (me && String(payload?.userId) === String(me.id)) {
         toast('You were removed from this room', 'error');
         setTimeout(exitRoom, 900);
+        return;
       }
+      renderRoomState();
+    });
+
+    liveSocket.on('live:demoted', (payload) => {
+      const me = currentUser();
+      if (me && String(payload?.userId) === String(me.id)) {
+        hasSpeakerSeat = false;
+        guestPublishAttempted = false;
+        localTracks.forEach((t) => {
+          try {
+            t.setEnabled?.(false);
+          } catch (_e) {}
+        });
+        toast('You were removed from the seat', 'warning');
+      }
+      renderRoomState();
+    });
+
+    liveSocket.on('live:admin_changed', (payload) => {
+      const me = currentUser();
+      if (me && String(payload?.userId) === String(me.id)) {
+        toast(payload?.isAdmin ? 'You are now a room admin' : 'Admin access removed', 'info');
+      }
+      renderRoomState();
+    });
+
+    liveSocket.on('live:room_lock', (payload) => {
+      if (roomState) roomState.isLocked = payload?.locked !== false;
+      toast(payload?.locked !== false ? 'Room is now locked' : 'Room unlocked', 'info');
+      renderRoomState();
+    });
+
+    liveSocket.on('live:seat_moved', () => {
+      renderRoomState();
     });
     }
 
@@ -1438,7 +1725,7 @@
         reject(new Error('Room join timeout — check server connection'));
       }, 20000);
 
-      const emitJoin = () => {
+      const emitJoin = (joinPayload = {}) => {
         liveSocket.emit(
           'live:join',
           {
@@ -1446,6 +1733,7 @@
             type: type === 'live' ? 'live' : 'party',
             displayName: displayName(user),
             isHost: hostFlag,
+            ...joinPayload,
           },
           (res) => {
             clearTimeout(timer);
@@ -1453,6 +1741,12 @@
             liveDebugLog(
               `live:join ack channel=${ch} ok=${Boolean(res?.ok)} msg=${res?.message || 'none'}`
             );
+            if (res?.needsPassword) {
+              const pwd = window.prompt(res?.message || 'This room is locked. Enter password:');
+              if (pwd) emitJoin({ password: pwd });
+              else reject(new Error('Room password required'));
+              return;
+            }
             if (res?.ok) {
               roomState = res.state || { channel: ch, viewers: 1, hostName: displayName(user) };
               roomJoinCompleted = true;
@@ -1752,7 +2046,7 @@
   let apLoaderForceTimer = null;
 
   function scheduleLoaderForceDismiss(ms) {
-    const wait = ms || 10000;
+    const wait = ms || 8000;
     if (apLoaderForceTimer) clearTimeout(apLoaderForceTimer);
     apLoaderForceTimer = setTimeout(() => {
       apLoaderForceTimer = null;
@@ -1834,8 +2128,7 @@
 
   function showApLoader(text, _step) {
     if (roomJoinCompleted || sessionEstablished) {
-      const loaderTxt = document.getElementById('apLiveLoaderText');
-      if (loaderTxt && text) loaderTxt.textContent = text;
+      hideApLoader();
       return;
     }
     const loader = document.getElementById('apLiveLoader');
@@ -2080,7 +2373,8 @@
         await agoraClient.join(appId, agoraChannel, token, uid);
         auditChannel('agora', agoraChannel);
         liveDebugLog(`Agora join OK channel=${agoraChannel} uid=${uid}`);
-        updateLiveDebug({ agoraJoined: true });
+        updateLiveDebug({ agoraJoined: true, agoraUid: uid });
+        syncAgoraUidMap();
         forensicEvent('AGORA_JOIN_SUCCESS', { channel: agoraChannel, uid, role: host ? 'host' : 'audience' });
         syncLiveUiState();
         if (!host) {
@@ -2882,7 +3176,7 @@
     container.querySelectorAll('.party-seat[data-user-id]').forEach((btn) => {
       if (String(btn.dataset.userId) !== String(userId)) return;
       btn.classList.toggle('is-muted', Boolean(muted));
-      btn.classList.toggle('is-speaking', !muted);
+      btn.classList.remove('is-speaking');
       const micSpan = btn.querySelector('.mic-off, .mic-live');
       if (micSpan) {
         micSpan.className = muted ? 'mic-off' : 'mic-live';
@@ -2935,11 +3229,22 @@
 
     const slots = new Array(PARTY_MAX_SEATS).fill(null);
     slots[PARTY_HOST_SLOT] = host;
+    const unplaced = [];
+    guests.forEach((g) => {
+      const idx =
+        g.seatIndex != null ? Number(g.seatIndex) - 1 : g.seat_index != null ? Number(g.seat_index) - 1 : -1;
+      if (idx >= 0 && idx < PARTY_MAX_SEATS && idx !== PARTY_HOST_SLOT && !slots[idx]) {
+        slots[idx] = { ...g, host: false };
+      } else {
+        unplaced.push({ ...g, host: false });
+      }
+    });
     let guestIdx = 0;
     for (let i = 0; i < PARTY_MAX_SEATS; i += 1) {
-      if (i === PARTY_HOST_SLOT) continue;
-      if (guestIdx < guests.length) {
-        slots[i] = { ...guests[guestIdx], host: false };
+      if (i === PARTY_HOST_SLOT || slots[i]) continue;
+      const next = unplaced[guestIdx];
+      if (next) {
+        slots[i] = next;
         guestIdx += 1;
       } else {
         slots[i] = { empty: true, seatNum: i + 1 };
@@ -2975,7 +3280,17 @@
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         const name = btn.dataset.user || btn.querySelector('.seat-name')?.textContent;
-        openProfileSheet(name, btn.dataset.userId || '');
+        const uid = btn.dataset.userId || '';
+        const seatNum = Number(btn.dataset.seat) || 0;
+        if (canModerateRoom() && uid && !btn.classList.contains('is-host')) {
+          openModerationMenu(name, uid, seatNum);
+          return;
+        }
+        if (canModerateRoom() && btn.classList.contains('is-empty')) {
+          openAvailableUsersForSeat(seatNum);
+          return;
+        }
+        openProfileSheet(name, uid);
       });
     });
     container.querySelectorAll('[data-join-seat]').forEach((btn) => {
@@ -3029,6 +3344,7 @@
   }
 
   function renderRoomState() {
+    if (roomJoinCompleted) hideApLoader();
     const user = currentUser();
     const meId = user?.id ? String(user.id) : '';
     if (meId && roomState?.seats?.some((s) => String(s.userId) === meId && !s.isHost)) {
@@ -3070,6 +3386,15 @@
     renderChatFromState();
     renderGuestRail();
     syncFollowUI();
+    syncAgoraUidMap();
+    renderAvailableUsers();
+
+    const lockBtn = document.getElementById('partyBtnLock');
+    if (lockBtn) {
+      lockBtn.classList.toggle('is-active', Boolean(roomState?.isLocked));
+      const lockLbl = lockBtn.querySelector('.party-lock-label');
+      if (lockLbl) lockLbl.textContent = roomState?.isLocked ? 'Unlock' : 'Lock room';
+    }
 
     const audioAvatar = document.getElementById('liveAudioAvatar');
     if (audioAvatar) audioAvatar.src = avatarUrl(hostName);
@@ -3255,6 +3580,7 @@
     syncBottomBarHeightVar();
     pinFixedOverlaysToBody();
     renderJoinRequests();
+    renderAvailableUsers();
     document.body.classList.add('party-requests-open');
     document.getElementById('partyRequestsSheet')?.classList.add('open');
     syncLiveOverlayClass();
@@ -3391,6 +3717,7 @@
         frame?.classList.remove('open');
         const iframe = document.getElementById('apInRoomWebFrame');
         if (iframe) iframe.src = 'about:blank';
+        ensureMicPublishing();
       });
     }
     const titleEl = document.getElementById('apInRoomWebTitle');
@@ -3401,6 +3728,14 @@
   }
 
   function closeLiveUiForBack() {
+    const inRoomWeb = document.getElementById('apInRoomWebPanel')?.classList.contains('open');
+    if (inRoomWeb) {
+      document.getElementById('apInRoomWebPanel')?.classList.remove('open');
+      const iframe = document.getElementById('apInRoomWebFrame');
+      if (iframe) iframe.src = 'about:blank';
+      ensureMicPublishing();
+      return true;
+    }
     const openSheet = document.querySelector(
       '.party-tools-sheet.open, .gift-sheet.open, .party-requests-sheet.open, .social-broadcast-sheet-wrap.is-open, .ap-modal-overlay.open, .ap-modal-overlay.show'
     );
@@ -3423,7 +3758,7 @@
     setLiveStatus('', null);
     closeLiveOverlays();
 
-    if (opts.minimize !== false && window.LiveSession?.minimize?.('/explore.html?app=1')) {
+    if (opts.minimize !== false && window.LiveSession?.minimize?.(opts.browseUrl || '/explore.html?app=1')) {
       minimizingRoom = true;
       try {
         history.pushState({ apLiveRoom: 1 }, '');
@@ -3451,7 +3786,7 @@
     }
     if (closeLiveUiForBack()) return true;
     if (window.LiveSession?.handleBack?.()) return true;
-    leaveToExplore();
+    if (window.LiveSession?.minimize?.('/explore.html?app=1')) return true;
     return true;
   }
 
@@ -4147,6 +4482,7 @@
         closePartyRequestsSheet();
       }
     });
+    document.getElementById('partyBtnLock')?.addEventListener('click', () => toggleRoomLock());
 
     document.getElementById('liveBtnInvite')?.addEventListener('click', () => {
       document.getElementById('partyBtnShare')?.click();
@@ -4317,7 +4653,7 @@
         toast(`Invite sent to ${name}`, 'success');
         if (userId) {
           setTimeout(() => {
-            location.href = `/chat.html?id=${encodeURIComponent(userId)}&app=1`;
+            openInPartyBrowse(`/chat.html?id=${encodeURIComponent(userId)}&app=1`);
           }, 800);
         }
       });
@@ -5076,7 +5412,7 @@
       const id = activeProfileUser.userId;
       document.getElementById('apProfileSheet')?.classList.remove('open');
       if (id) {
-        location.href = `/chat.html?id=${encodeURIComponent(id)}&app=1`;
+        openInPartyBrowse(`/chat.html?id=${encodeURIComponent(id)}&app=1`);
         return;
       }
       toast('Message unavailable — user ID missing', 'warning');
@@ -5111,7 +5447,7 @@
       menu.querySelector('[data-act="chat"]')?.addEventListener('click', () => {
         menu.remove();
         document.getElementById('apProfileSheet')?.classList.remove('open');
-        location.href = `/chat.html?id=${encodeURIComponent(uid)}&app=1`;
+        openInPartyBrowse(`/chat.html?id=${encodeURIComponent(uid)}&app=1`);
       });
     });
   }
@@ -5273,6 +5609,13 @@
         }
       } catch (_e) { /* keep seat/host avatar */ }
     }
+    const friendBtn = document.getElementById('apProfileAddFriend');
+    if (friendBtn && resolvedId && window.SocialInteractions?.isFollowing) {
+      const following = SocialInteractions.isFollowing(resolvedId, n);
+      friendBtn.innerHTML = following
+        ? '<i class="fas fa-user-check"></i> Following'
+        : '<i class="fas fa-user-plus"></i> Add Friend';
+    }
   }
 
   function injectGiftSheet() {
@@ -5430,6 +5773,19 @@
     bindScreenCaptureProtection();
     bindMediaResumeOnVisibility();
     bindPartyBackGuard();
+    if (!window.__apPartyVoiceHealth) {
+      window.__apPartyVoiceHealth = setInterval(() => {
+        if (!isPartyRoomPage() || !roomJoinCompleted || socketLeaveIntentional) return;
+        if (!liveSocket?.connected && lastJoinMeta) {
+          try {
+            liveSocket?.connect?.();
+          } catch (_e) {}
+        }
+        if ((hasSpeakerSeat || isHost()) && (!publishSucceeded || !localTracks.length)) {
+          ensureMicPublishing();
+        }
+      }, 30000);
+    }
   }
 
   async function rejoinRoomOnSocket(type) {
@@ -5754,6 +6110,41 @@
     bindPartyBackGuard();
   }
 
+  let streamerStatsPeriod = 'today';
+
+  async function loadStreamerStats(period = 'today') {
+    streamerStatsPeriod = period || 'today';
+    const setText = (id, val) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = val;
+    };
+    try {
+      if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken().catch(() => {});
+      const res = await API.get('/live/streamer-stats?period=' + encodeURIComponent(period));
+      const data = res?.data || {};
+      const hours = data.totalFormatted || '00:00:00';
+      const points = Number(data.giftCoins || 0);
+      const followers = Number(data.newFollowers || 0);
+      const avg = Number(data.avgViewers || data.peakViewers || 0);
+      setText('streamerLiveHours', hours);
+      setText('streamerWonPoints', String(points));
+      setText('streamerNewFollowers', String(followers));
+      setText('streamerAvgViewers', String(avg));
+      const last = data.lastSession;
+      if (last) {
+        setText('streamerLastHours', last.formatted || '00:00:00');
+        setText('streamerLastAudiences', String(last.peakViewers || 0));
+      } else {
+        setText('streamerLastHours', '00:00:00');
+        setText('streamerLastAudiences', '0');
+      }
+      setText('streamerLastPoints', String(points));
+      setText('streamerLastFollowers', String(followers));
+    } catch (e) {
+      console.warn('[streamer] stats load failed', e);
+    }
+  }
+
   function initStreamerCenter() {
     const user = currentUser();
     const uidEl = document.getElementById('streamerUid');
@@ -5761,12 +6152,30 @@
       uidEl.textContent = 'ID:' + (String(user.id || user.email || '').slice(0, 12) || '76471242');
     }
 
-    document.querySelectorAll('.streamer-pills button').forEach((btn) => {
+    document.querySelectorAll('.streamer-pills button').forEach((btn, idx) => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('.streamer-pills button').forEach((b) => b.classList.remove('active'));
         btn.classList.add('active');
+        const periods = ['today', 'week', 'month'];
+        loadStreamerStats(periods[idx] || 'today');
       });
     });
+
+    loadStreamerStats('today');
+
+    if (!window.__apStreamerStatsRefreshBound) {
+      window.__apStreamerStatsRefreshBound = true;
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && document.body?.dataset?.livePage === 'streamer-center') {
+          loadStreamerStats(streamerStatsPeriod);
+        }
+      });
+      document.addEventListener('ap-page-refreshed', () => {
+        if (document.body?.dataset?.livePage === 'streamer-center') {
+          loadStreamerStats(streamerStatsPeriod);
+        }
+      });
+    }
 
     document.getElementById('streamerStartLive')?.addEventListener('click', () => {
       if (window.SocialShell?.openBroadcastPicker) SocialShell.openBroadcastPicker('live');
@@ -6192,6 +6601,7 @@
     initPartyRoom,
     initLiveRoom,
     initStreamerCenter,
+    loadStreamerStats,
     initLuckyGifts,
     initCoinsRecharge,
     getCoins,

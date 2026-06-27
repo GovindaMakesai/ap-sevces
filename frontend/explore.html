@@ -6,31 +6,31 @@
   <meta name="theme-color" content="#fdf9f0">
   <title>Explore - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-theme.css?v=20260706-following-back">
+  <link rel="stylesheet" href="social-theme.css?v=20260706-explore-fix2">
   <script src="native-session-restore.js"></script>
   <script src="ap-config.js"></script>
   <script src="ap-native-boot.js"></script>
 </head>
 <body class="social-tabs-page social-explore-page">
   <header class="social-top">
-    <div class="social-explore-tabs-wrap">
-      <div class="social-explore-tabs-row">
-        <div class="social-main-tabs social-explore-tabs" id="exploreTabs" role="tablist" aria-label="Live sections">
-          <button type="button" role="tab" data-tab="following">Following</button>
-          <button type="button" role="tab" data-tab="explore" class="active">Live</button>
-          <button type="button" role="tab" data-tab="party">Party</button>
-          <button type="button" role="tab" data-tab="new">New</button>
-          <button type="button" role="tab" data-tab="nearby">Nearby</button>
-        </div>
-        <div class="social-top-actions social-explore-actions">
-          <a href="/rankings.html?app=1" class="social-icon-btn" aria-label="Rankings"><i class="fas fa-trophy"></i></a>
-          <button type="button" class="social-global-pill" id="globalChip"><i class="fas fa-globe-asia"></i> Global</button>
-        </div>
+    <div class="social-explore-search-row">
+      <div class="social-search">
+        <i class="fas fa-search"></i>
+        <input type="search" data-social-search placeholder="Nickname or ID number" autocomplete="off">
+      </div>
+      <div class="social-top-actions social-explore-actions">
+        <a href="/rankings.html?app=1" class="social-icon-btn" aria-label="Rankings"><i class="fas fa-trophy"></i></a>
+        <button type="button" class="social-global-pill" id="globalChip" aria-label="Global marketplace"><i class="fas fa-globe-asia"></i><span class="social-global-pill-text">Global</span></button>
       </div>
     </div>
-    <div class="social-search">
-      <i class="fas fa-search"></i>
-      <input type="search" data-social-search placeholder="Nickname or ID number" autocomplete="off">
+    <div class="social-explore-tabs-wrap">
+      <div class="social-main-tabs social-explore-tabs" id="exploreTabs" role="tablist" aria-label="Live sections">
+        <button type="button" role="tab" data-tab="following">Following</button>
+        <button type="button" role="tab" data-tab="explore" class="active">Live</button>
+        <button type="button" role="tab" data-tab="party">Party</button>
+        <button type="button" role="tab" data-tab="new">New</button>
+        <button type="button" role="tab" data-tab="nearby">Nearby</button>
+      </div>
     </div>
   </header>
   <div class="social-tabs-spacer" aria-hidden="true"></div>
@@ -53,7 +53,7 @@
   <script src="social-interactions.js"></script>
   <script src="auth-guard.js"></script>
   <script src="social-create-post.js"></script>
-  <script src="social-shell.js?v=20260706-following-back"></script>
+  <script src="social-shell.js?v=20260706-explore-fix2"></script>
   <script src="social-nav.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', () => {
@@ -87,6 +87,19 @@
           tab === 'explore' || tab === 'new' || tab === 'nearby' ? '' : 'none';
       }
 
+      function resetExploreGrid() {
+        const content = document.getElementById('exploreContent');
+        const empty = document.getElementById('exploreEmpty');
+        if (content) {
+          content.innerHTML = '<div class="social-grid" id="exploreGrid"></div>';
+          content.style.display = 'block';
+        }
+        if (empty) {
+          empty.innerHTML = '';
+          empty.style.display = 'none';
+        }
+      }
+
       async function loadTab(tab, searchQuery) {
         currentTab = tab;
         setTabUi(tab);
@@ -102,22 +115,17 @@
         history.replaceState(null, '', '/explore.html' + (qs ? '?' + qs : ''));
 
         if (tab === 'following') {
-          content.style.display = 'none';
+          if (content) content.style.display = 'none';
           empty.style.display = 'block';
           await SocialShell.fillFollowingView(searchQuery || '');
           syncExploreHeaderSpacer();
           return;
         }
 
-        content.style.display = 'block';
-        empty.style.display = 'none';
+        resetExploreGrid();
+        content = document.getElementById('exploreContent');
+        empty = document.getElementById('exploreEmpty');
         let grid = document.getElementById('exploreGrid');
-        if (!grid) {
-          grid = document.createElement('div');
-          grid.id = 'exploreGrid';
-          grid.className = 'social-grid';
-          content.appendChild(grid);
-        }
 
         if (tab === 'party') {
           await SocialShell.fillGrid('exploreGrid', 12, { party: true, sort: 'trending' });
@@ -142,6 +150,7 @@
             card.style.display = name.includes(q) ? '' : 'none';
           });
         }
+        syncExploreHeaderSpacer();
       }
 
       SocialShell.initPage({ activeNav: 'explore' });
