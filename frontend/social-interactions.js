@@ -404,7 +404,7 @@
       const xhr = new XMLHttpRequest();
       xhr.open(method, url, true);
       xhr.timeout = 25000;
-      const token = localStorage.getItem('token');
+      const token = (window.Auth?.getToken?.() || localStorage.getItem('token'));
       if (token) xhr.setRequestHeader('Authorization', 'Bearer ' + token);
       if (body != null && method !== 'GET' && method !== 'DELETE') {
         xhr.setRequestHeader('Content-Type', 'application/json');
@@ -481,6 +481,7 @@
         key: String(u.id),
         id: String(u.id),
         name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'User',
+        photo: u.profile_pic || null,
       }));
       saveFollowEntries(entries);
     } catch (e) {
@@ -512,7 +513,7 @@
         new Promise((r) => setTimeout(r, 8000)),
       ]).catch(() => {});
     }
-    if (!localStorage.getItem('token')) {
+    if (!(window.Auth?.getToken?.() || localStorage.getItem('token'))) {
       const err = new Error('Authentication required');
       err.status = 401;
       throw err;
@@ -656,15 +657,23 @@
     const following = followIdCache ? followIdCache.size : getFollowEntries().length;
     const user = window.Auth?.getUser?.();
     const lookupId = String(userId || user?.id || user?.email || 'me');
-    const map = getFollowersMap();
-    const keys = new Set([lookupId, user?.email, user?.first_name, `${user?.first_name || ''} ${user?.last_name || ''}`.trim()].filter(Boolean).map(String));
     let followers = 0;
-    keys.forEach((k) => {
-      followers = Math.max(followers, (map[k] || []).length);
-    });
-    if (!followers && user) {
-      const me = String(user.id || user.email || '');
-      followers = Object.values(map).filter((arr) => arr.some((x) => String(x) === me)).length;
+    if (hasAuth() && isUuid(String(userId || user?.id || ''))) {
+      try {
+        const list = await fetchFollowersList(userId || user?.id);
+        followers = list.length;
+      } catch (_e) {}
+    }
+    if (!followers) {
+      const map = getFollowersMap();
+      const keys = new Set([lookupId, user?.email, user?.first_name, `${user?.first_name || ''} ${user?.last_name || ''}`.trim()].filter(Boolean).map(String));
+      keys.forEach((k) => {
+        followers = Math.max(followers, (map[k] || []).length);
+      });
+      if (!followers && user) {
+        const me = String(user.id || user.email || '');
+        followers = Object.values(map).filter((arr) => arr.some((x) => String(x) === me)).length;
+      }
     }
     let coins = 0;
     if (window.SocialWallet) {
@@ -681,13 +690,21 @@
   }
 
   async function fetchFollowingList() {
-    if (!hasAuth()) return getFollowingList();
+    if (!hasAuth()) return getFollowEntries().map(mapFollowEntry);
     try {
       await refreshFollowCache();
-      return getFollowEntries();
-    } catch (_e) {
-      return getFollowingList();
-    }
+    } catch (_e) {}
+    return getFollowEntries().map(mapFollowEntry);
+  }
+
+  function mapFollowEntry(e) {
+    return {
+      key: e.key,
+      id: e.id || e.key,
+      name: e.name,
+      photo: e.photo || null,
+      userId: e.id || e.key,
+    };
   }
 
   async function fetchFollowersList(userId) {
@@ -701,6 +718,7 @@
         key: String(u.id),
         id: String(u.id),
         name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'User',
+        photo: u.profile_pic || null,
         userId: String(u.id),
       }));
     } catch (e) {

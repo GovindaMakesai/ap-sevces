@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#fdf9f0">
   <title>Profile - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-theme.css">
-  <link rel="stylesheet" href="social-features.css">
+  <link rel="stylesheet" href="social-theme.css?v=20260701-social-fix">
+  <link rel="stylesheet" href="social-features.css?v=20260701-social-fix">
   <style>
     .creator-hero { text-align: center; padding: 24px 16px 12px; }
     .creator-avatar { width: 88px; height: 88px; border-radius: 50%; object-fit: cover; margin-bottom: 12px; border: 3px solid #fbbf24; }
@@ -63,7 +63,11 @@
     }
     .profile-loading .creator-avatar { background: #e5e7eb; animation: pulse 1.2s ease infinite; }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+    .creator-actions button { pointer-events: auto; touch-action: manipulation; }
   </style>
+  <script src="native-session-restore.js"></script>
+  <script src="ap-config.js"></script>
+  <script src="ap-native-boot.js"></script>
 </head>
 <body class="social-profile-page">
   <header class="social-store-header">
@@ -85,18 +89,32 @@
   <div class="social-post-feed" id="creatorPosts"></div>
   <div id="social-bottom-nav-mount"></div>
 
-  <script src="app.js?v=20260630-follow-fix"></script>
-  <script src="social-ui.js?v=20260630-follow-fix"></script>
-  <script src="social-interactions.js?v=20260630-follow-fix"></script>
+  <script src="app.js?v=20260701-social-fix"></script>
+  <script src="auth-guard.js"></script>
+  <script src="social-ui.js?v=20260701-social-fix"></script>
+  <script src="social-interactions.js?v=20260701-social-fix"></script>
   <script src="social-shell.js"></script>
   <script>
+    function profileApiRoot() {
+      return (window.AP_SERVICES_API_ROOT || 'https://api.apservices.in/api').replace(/\/+$/, '');
+    }
+
+    function requireAuthForAction() {
+      const authed = (window.Auth?.hasSession?.() || window.Auth?.getToken?.() || localStorage.getItem('token'));
+      if (authed) return true;
+      const redirect = encodeURIComponent(location.pathname + location.search);
+      location.href = '/app-auth.html?app=1&redirect=' + redirect;
+      return false;
+    }
+
     document.addEventListener('DOMContentLoaded', async () => {
       SocialShell.initPage({ activeNav: 'video' });
-      if (window.SocialInteractions?.refreshSocialCaches) {
-        await SocialInteractions.refreshSocialCaches().catch(() => {});
+      if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken().catch(() => {});
+      if (window.SocialInteractions?.refreshFollowCache) {
+        await SocialInteractions.refreshFollowCache().catch(() => {});
       }
       const params = new URLSearchParams(location.search);
-      const userId = params.get('userId') || params.get('id') || '';
+      const userId = (params.get('userId') || params.get('id') || '').trim();
       const name = decodeURIComponent(params.get('name') || 'User');
       document.getElementById('creatorTitle').textContent = name;
       document.getElementById('creatorName').textContent = name;
@@ -116,19 +134,37 @@
         '</div>';
 
       const followKey = userId || name;
-      let following = SocialInteractions.isFollowing(followKey, name);
+      let following = window.SocialInteractions?.isFollowing
+        ? SocialInteractions.isFollowing(followKey, name)
+        : false;
       const followBtn = document.getElementById('creatorFollow');
-      followBtn.textContent = following ? 'Following' : 'Follow';
-      followBtn.classList.toggle('is-on', following);
-      followBtn.onclick = async () => {
-        following = await SocialInteractions.toggleFollow(followKey, name);
+      const syncFollowBtn = () => {
         followBtn.textContent = following ? 'Following' : 'Follow';
         followBtn.classList.toggle('is-on', following);
-        SocialUI.toast(following ? 'You are now following ' + name : 'Unfollowed ' + name, following ? 'success' : 'info');
       };
+      syncFollowBtn();
 
-      document.getElementById('creatorChat')?.addEventListener('click', () => {
-        if (!userId) return;
+      followBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!requireAuthForAction()) return;
+        if (!window.SocialInteractions?.toggleFollow) {
+          SocialUI?.toast('Please wait and try again', 'warning');
+          return;
+        }
+        following = await SocialInteractions.toggleFollow(followKey, name);
+        syncFollowBtn();
+        SocialUI.toast(following ? 'You are now following ' + name : 'Unfollowed ' + name, following ? 'success' : 'info');
+      });
+
+      document.getElementById('creatorChat')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!userId) {
+          SocialUI?.toast('Message unavailable — user ID missing', 'warning');
+          return;
+        }
+        if (!requireAuthForAction()) return;
         location.href = '/chat.html?id=' + encodeURIComponent(userId) + '&app=1';
       });
       document.getElementById('creatorCopyId')?.addEventListener('click', async () => {
@@ -142,14 +178,10 @@
 
       if (userId) {
         try {
-          const api = (window.normalizeApiUrl && CONFIG?.API_URL)
-            ? normalizeApiUrl(CONFIG.API_URL)
-            : 'https://api.apservices.in/api';
           const headers = {};
-          const token = (window.Auth && Auth.getToken && Auth.getToken()) || localStorage.getItem('token');
+          const token = (window.Auth?.getToken?.() || localStorage.getItem('token'));
           if (token) headers.Authorization = 'Bearer ' + token;
-          if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken().catch(() => {});
-          const res = await fetch(api + '/social/creators/' + encodeURIComponent(userId) + '/engagement', {
+          const res = await fetch(profileApiRoot() + '/social/creators/' + encodeURIComponent(userId) + '/engagement', {
             credentials: 'include',
             headers,
           });

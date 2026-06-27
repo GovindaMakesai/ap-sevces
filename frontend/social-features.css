@@ -972,6 +972,23 @@
   font-size: 15px;
 }
 
+.social-follow-action {
+  flex-shrink: 0;
+  border: none;
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--orange-cta, #ff8c42);
+  color: #fff;
+  cursor: pointer;
+}
+
+.social-follow-action.is-on {
+  background: #e5e7eb;
+  color: #374151;
+}
+
 .social-follow-row img {
   width: 44px;
   height: 44px;
@@ -1086,14 +1103,22 @@
   gap: 8px;
   padding: 10px 12px;
   padding-top: 10px;
+  position: relative;
+  z-index: 1;
+  background: transparent;
+}
+
+.social-rank-page--gold .social-rank-sticky-top {
   position: sticky;
   top: 0;
   z-index: 30;
-  background: var(--cream-bg);
+  background: var(--cream-bg, #fdf9f0);
+  padding-top: env(safe-area-inset-top, 0px);
+  box-shadow: 0 2px 8px rgba(107, 79, 16, 0.06);
 }
 
-html.ap-expo-app .social-rank-header {
-  padding-top: 8px;
+html.ap-expo-app .social-rank-page--gold .social-rank-sticky-top {
+  padding-top: max(8px, env(safe-area-inset-top, 0px));
 }
 .social-rank-back { color: var(--gold-800); font-size: 18px; text-decoration: none; width: 32px; }
 .social-rank-main-tabs { display: flex; flex: 1; justify-content: center; gap: 12px; }
@@ -1109,6 +1134,9 @@ html.ap-expo-app .social-rank-header {
   background: linear-gradient(90deg, #fef3c7, #fde68a);
   color: var(--gold-800);
   box-shadow: 0 4px 12px rgba(201,162,39,0.15);
+  position: relative;
+  z-index: 1;
+  margin-top: 4px;
 }
 .social-rank-tabs {
   display: flex;
@@ -1117,16 +1145,17 @@ html.ap-expo-app .social-rank-header {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   position: relative;
-  z-index: 35;
   pointer-events: auto;
   touch-action: manipulation;
 }
 
 .social-rank-page--gold .social-rank-tabs {
-  background: var(--cream-bg, #fdf9f0);
-  position: sticky;
-  top: calc(52px + env(safe-area-inset-top, 0px));
-  z-index: 40;
+  background: transparent;
+  position: relative;
+  top: auto;
+  z-index: 1;
+  padding-top: 0;
+  padding-bottom: 10px;
 }
 
 .social-rank-page--gold .social-rank-tabs button.social-rank-sub-tab {

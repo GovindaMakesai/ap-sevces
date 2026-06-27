@@ -114,6 +114,7 @@
         if (e.target === sheet) sheet.classList.remove('open');
       });
       sheet.querySelector('#socialFollowClose').addEventListener('click', () => sheet.classList.remove('open'));
+      sheet.querySelector('.social-follow-panel')?.addEventListener('click', (e) => e.stopPropagation());
     }
     document.getElementById('socialFollowTitle').textContent = kind === 'followers' ? 'Followers' : 'Following';
     const list = document.getElementById('socialFollowList');
@@ -127,26 +128,30 @@
     } else {
       list.innerHTML = items
         .map(function (item) {
-          const uid = item.userId || item.id;
+          const uid = String(item.userId || item.id || item.key || '').trim();
           const profileHref =
             item.href ||
             (uid
-              ? '/creator-profile.html?userId=' + encodeURIComponent(uid) + '&name=' + encodeURIComponent(item.name) + '&app=1'
-              : '/creator-profile.html?name=' + encodeURIComponent(item.name) + '&app=1');
+              ? '/creator-profile.html?userId=' + encodeURIComponent(uid) + '&name=' + encodeURIComponent(item.name || 'User') + '&app=1'
+              : '/creator-profile.html?name=' + encodeURIComponent(item.name || 'User') + '&app=1');
+          const following = uid && window.SocialInteractions?.isFollowing
+            ? SocialInteractions.isFollowing(uid, item.name)
+            : false;
+          const followLabel = following ? 'Following' : 'Follow';
+          const followBtn = uid
+            ? '<button type="button" class="social-follow-action' + (following ? ' is-on' : '') + '" data-follow-id="' + encodeURIComponent(uid) + '" data-follow-name="' + encodeURIComponent(item.name || 'User') + '">' + followLabel + '</button>'
+            : '';
           const msgBtn = uid
-            ? '<button type="button" class="social-follow-msg" data-msg-id="' +
-              encodeURIComponent(uid) +
-              '" aria-label="Message"><i class="fas fa-comment"></i></button>'
+            ? '<button type="button" class="social-follow-msg" data-msg-id="' + encodeURIComponent(uid) + '" aria-label="Message"><i class="fas fa-comment"></i></button>'
             : '';
           return (
             '<div class="social-follow-row">' +
-            '<a class="social-follow-link" href="' +
-            profileHref +
-            '"><img src="' +
+            '<a class="social-follow-link" href="' + profileHref + '"><img src="' +
             avatarUrl(item.name, item.photo) +
             '" alt=""><span>' +
-            item.name +
+            (item.name || 'User') +
             '</span></a>' +
+            followBtn +
             msgBtn +
             '</div>'
           );
@@ -154,10 +159,28 @@
         .join('');
       list.querySelectorAll('.social-follow-msg').forEach((btn) => {
         btn.addEventListener('click', (e) => {
+          e.preventDefault();
           e.stopPropagation();
-          const id = btn.getAttribute('data-msg-id');
-          if (id) location.href = '/chat.html?id=' + id + '&app=1';
+          const id = String(btn.getAttribute('data-msg-id') || '').trim();
+          if (!id) return;
+          sheet.classList.remove('open');
+          location.href = '/chat.html?id=' + encodeURIComponent(id) + '&app=1';
         });
+      });
+      list.querySelectorAll('.social-follow-action').forEach((btn) => {
+        btn.addEventListener('click', async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const id = String(btn.getAttribute('data-follow-id') || '').trim();
+          const name = decodeURIComponent(btn.getAttribute('data-follow-name') || 'User');
+          if (!id || !window.SocialInteractions?.toggleFollow) return;
+          const now = await SocialInteractions.toggleFollow(id, name);
+          btn.textContent = now ? 'Following' : 'Follow';
+          btn.classList.toggle('is-on', now);
+        });
+      });
+      list.querySelectorAll('.social-follow-link').forEach((link) => {
+        link.addEventListener('click', () => sheet.classList.remove('open'));
       });
     }
     sheet.classList.add('open');

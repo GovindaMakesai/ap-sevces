@@ -131,10 +131,10 @@
 
   <div id="social-bottom-nav-mount"></div>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=20260701-social-fix"></script>
   <script src="social-wallet.js"></script>
-  <script src="social-ui.js"></script>
-  <script src="social-interactions.js?v=20260630-follow-fix"></script>
+  <script src="social-ui.js?v=20260701-social-fix"></script>
+  <script src="social-interactions.js?v=20260701-social-fix"></script>
   <script src="social-shell.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
@@ -406,18 +406,12 @@
           }
         }
         document.getElementById('statFollowingBtn')?.addEventListener('click', async () => {
-          const list = await (SocialInteractions.fetchFollowingList?.() || Promise.resolve(SocialInteractions.getFollowingList()));
-          SocialUI.openFollowSheet('following', list.map((e) => ({
-            name: e.name,
-            userId: e.id || e.key,
-          })));
+          const rows = await (SocialInteractions.fetchFollowingList?.() || Promise.resolve(SocialInteractions.getFollowingList()));
+          SocialUI.openFollowSheet('following', rows);
         });
         document.getElementById('statFollowersBtn')?.addEventListener('click', async () => {
-          const list = await (SocialInteractions.fetchFollowersList?.(user.id) || Promise.resolve(SocialInteractions.getFollowersList(user.id)));
-          SocialUI.openFollowSheet('followers', list.map((e) => ({
-            name: e.name,
-            userId: e.id || e.key || e.userId,
-          })));
+          const rows = await (SocialInteractions.fetchFollowersList?.(user.id) || Promise.resolve(SocialInteractions.getFollowersList(user.id)));
+          SocialUI.openFollowSheet('followers', rows);
         });
         btn.textContent = user.role === 'admin' ? 'Open Admin Dashboard' : 'Open Dashboard';
         const isSocialApp = new URLSearchParams(location.search).get('app') === '1';
