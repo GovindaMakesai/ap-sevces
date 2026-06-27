@@ -177,6 +177,7 @@
       updateMiniPlayer();
       return;
     }
+    document.getElementById('apLivePipBar')?.remove();
     const video = isVideoSession();
     miniPlayer = document.createElement('div');
     miniPlayer.id = 'apLiveMiniPlayer';
@@ -306,6 +307,7 @@
   function applyMinimizedDom() {
     document.documentElement.classList.add('ap-live-session-minimized');
     document.body.classList.add('ap-live-session-minimized');
+    document.getElementById('apLivePipBar')?.remove();
   }
 
   function clearMinimizedDom() {
@@ -449,7 +451,11 @@
   }
 
   function mountLegacyPipBar() {
-    if (isRoomPage() || isActive()) return;
+    if (isRoomPage() || isActive() || isMinimized()) return;
+    if (document.getElementById('apLiveMiniPlayer')) return;
+    try {
+      if (window.parent !== window && window.parent.LiveSession?.isMinimized?.()) return;
+    } catch (_e) {}
     const data = readStoredSession();
     if (!data?.url || document.getElementById('apLivePipBar')) return;
     const label = data.host || (data.type === 'party-room' ? 'Party' : 'Live');

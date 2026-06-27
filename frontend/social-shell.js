@@ -528,6 +528,12 @@
 
   function mountLivePipBar() {
     if (document.body?.dataset?.livePage) return;
+    if (document.getElementById('apLiveMiniPlayer')) return;
+    try {
+      if (window.parent !== window && window.parent.LiveSession?.isMinimized?.()) return;
+      if (window.parent !== window && window.parent.document?.getElementById('apLiveMiniPlayer')) return;
+    } catch (_e) {}
+    if (window.LiveSession?.isMinimized?.()) return;
     if (window.LiveSession?.mountLegacyPipBar) {
       window.LiveSession.mountLegacyPipBar();
       return;

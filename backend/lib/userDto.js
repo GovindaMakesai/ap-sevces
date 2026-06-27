@@ -53,6 +53,7 @@ function publicLiveRoom(row) {
     type: row.room_type,
     hostId: row.host_user_id,
     hostName: row.host_display_name,
+    hostProfilePic: row.host_profile_pic || null,
     viewers: row.viewer_count || 0,
     updatedAt: row.updated_at,
     startedAt: row.started_at,

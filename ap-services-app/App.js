@@ -1,5 +1,6 @@
 import {
   ActivityIndicator,
+  AppState,
   BackHandler,
   PermissionsAndroid,
   Platform,
@@ -89,11 +90,40 @@ const LAN_DEV_LOCKED = __DEV__ && String(process.env.EXPO_PUBLIC_USE_LAN_WEB) ==
 const IS_STANDALONE_APP = Constants.appOwnership === 'standalone';
 const LOAD_TIMEOUT_MS = isDevLocalBase(resolveFrontendBase()) ? 20000 : 45000;
 
+const LIVE_APP_FOREGROUND_INJECT = `(function(){
+  try { window.LiveSession && window.LiveSession.onAppForeground && window.LiveSession.onAppForeground(); } catch(e) {}
+})();true;`;
+
+const LIVE_APP_BACKGROUND_INJECT = `(function(){
+  try { window.LiveSession && window.LiveSession.onAppBackground && window.LiveSession.onAppBackground(); } catch(e) {}
+})();true;`;
+
+const LIVE_MINIMIZE_INJECT = `(function(){
+  try {
+    var p=(location.pathname||'').toLowerCase();
+    var isLive=/live-room\\.html|party-room\\.html/i.test(p)||!!(document.body&&document.body.dataset&&document.body.dataset.livePage);
+    if(!isLive) return;
+    var openSheet=document.querySelector('.party-tools-sheet.open,.gift-sheet.open,.party-requests-sheet.open,.social-broadcast-sheet-wrap.is-open,.ap-modal-overlay.is-open');
+    if(openSheet){
+      openSheet.classList.remove('open','is-open','is-visible');
+      document.body.classList.remove('ap-live-overlay-open','ap-chat-open');
+      return;
+    }
+    var emoji=document.getElementById('apEmojiPopover');
+    if(emoji&&emoji.classList.contains('is-open')){emoji.classList.remove('is-open');return;}
+    if(window.LiveSession&&window.LiveSession.isMinimized&&window.LiveSession.isMinimized()) return;
+    if(window.LiveSession&&window.LiveSession.minimize){window.LiveSession.minimize('/explore.html?app=1');return;}
+    var live=window.APLive||window.SocialLive;
+    if(live&&typeof live.minimizeRoom==='function'){live.minimizeRoom();return;}
+    try{history.pushState({apLiveRoom:1},'');}catch(e){}
+  } catch(e) {}
+})();true;`;
+
 const HARDWARE_BACK_INJECT = `(function(){
   var handled = false;
   try {
     var p = (location.pathname || '').toLowerCase();
-    var isLive = /\\/live-room\\.html$/i.test(p) || /\\/party-room\\.html$/i.test(p);
+    var isLive = /live-room\\.html|party-room\\.html/i.test(p) || !!(document.body && document.body.dataset && document.body.dataset.livePage);
     function closeLiveUi() {
       var openSheet = document.querySelector('.party-tools-sheet.open, .gift-sheet.open, .party-requests-sheet.open, .social-broadcast-sheet-wrap.is-open, .ap-modal-overlay.is-open');
       if (openSheet) {
@@ -109,6 +139,11 @@ const HARDWARE_BACK_INJECT = `(function(){
       return false;
     }
     function minimizeLive() {
+      if (window.LiveSession && window.LiveSession.isMinimized && window.LiveSession.isMinimized()) return true;
+      if (window.LiveSession && window.LiveSession.minimize) {
+        window.LiveSession.minimize('/explore.html?app=1');
+        return true;
+      }
       var live = window.APLive || window.SocialLive;
       if (live && typeof live.minimizeRoom === 'function') {
         live.minimizeRoom();
@@ -122,14 +157,16 @@ const HARDWARE_BACK_INJECT = `(function(){
           ts: Date.now()
         }));
       } catch(e) {}
-      location.href = '/explore.html?app=1&source=expo-app';
+      try { history.pushState({ apLiveRoom: 1 }, ''); } catch(e) {}
       return true;
     }
-    if (window.SocialNav && window.SocialNav.handleHardwareBack) {
-      handled = !!window.SocialNav.handleHardwareBack();
+    if (window.LiveSession && window.LiveSession.handleBack && window.LiveSession.handleBack()) {
+      handled = true;
     } else if (isLive) {
       if (closeLiveUi()) handled = true;
       else handled = minimizeLive();
+    } else if (window.SocialNav && window.SocialNav.handleHardwareBack) {
+      handled = !!window.SocialNav.handleHardwareBack();
     } else if (window.history.length > 1) {
       window.history.back();
       handled = true;
@@ -139,7 +176,7 @@ const HARDWARE_BACK_INJECT = `(function(){
     }
   } catch(e) {}
   if (!handled) {
-    window.ReactNativeWebView.postMessage(JSON.stringify({
+    window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
       type:'back_result',
       handled:false,
       route:location.pathname||''
@@ -147,24 +184,7 @@ const HARDWARE_BACK_INJECT = `(function(){
   }
 })();true;`;
 
-const MINIMIZE_LIVE_INJECT = `(function(){
-  try {
-    var live = window.APLive || window.SocialLive;
-    if (live && typeof live.minimizeRoom === 'function') {
-      live.minimizeRoom();
-      return;
-    }
-    try {
-      sessionStorage.setItem('ap_live_pip_session', JSON.stringify({
-        url: location.pathname + location.search,
-        host: 'Live',
-        type: (document.body && document.body.dataset && document.body.dataset.livePage) || 'live-room',
-        ts: Date.now()
-      }));
-    } catch(e) {}
-    location.href = '/explore.html?app=1&source=expo-app';
-  } catch(e) {}
-})();true;`;
+const MINIMIZE_LIVE_INJECT = LIVE_MINIMIZE_INJECT;
 
 async function requestAndroidMediaPermissions() {
   if (Platform.OS !== 'android') return { ok: true, platform: Platform.OS };
@@ -418,6 +438,7 @@ export default function App() {
   const webViewRef = useRef(null);
   const pendingTokenRef = useRef(null);
   const webViewReadyRef = useRef(false);
+  const webViewCurrentUrlRef = useRef('');
   const webViewCanGoBackRef = useRef(false);
   const homeBackAtRef = useRef(0);
   const handledTokenRef = useRef('');
@@ -429,8 +450,24 @@ export default function App() {
   const [lanFallbackDone, setLanFallbackDone] = useState(false);
   const nativeSessionRef = useRef(null);
   const oauthCompleteRef = useRef(false);
+  const screenCaptureBlockedRef = useRef(false);
   /** WebView source is set once ΓÇö post-login navigation uses injectJavaScript only */
   const webSourceUriRef = useRef('');
+
+  const syncScreenCaptureForUrl = useCallback(async (url) => {
+    const isLiveRoom = /live-room\.html|party-room\.html/i.test(url || '');
+    if (screenCaptureBlockedRef.current === isLiveRoom) return;
+    screenCaptureBlockedRef.current = isLiveRoom;
+    try {
+      if (isLiveRoom) {
+        await ScreenCapture.preventScreenCaptureAsync();
+      } else {
+        await ScreenCapture.allowScreenCaptureAsync();
+      }
+    } catch (err) {
+      console.warn('[screen-capture]', err?.message || err);
+    }
+  }, []);
 
   const isDevLocal = useMemo(() => isDevLocalBase(frontendBase), [frontendBase]);
   const frontendUrl = useMemo(() => buildFrontendUrl(frontendBase), [frontendBase]);
@@ -730,12 +767,36 @@ export default function App() {
   );
 
   useEffect(() => {
+    return () => {
+      ScreenCapture.allowScreenCaptureAsync().catch(() => {});
+    };
+  }, []);
+
+  useEffect(() => {
     if (Platform.OS !== 'android') return undefined;
     const onHardwareBack = () => {
+      const url = webViewCurrentUrlRef.current || '';
+      if (/live-room\.html|party-room\.html/i.test(url)) {
+        webViewRef.current?.injectJavaScript(LIVE_MINIMIZE_INJECT);
+        return true;
+      }
       webViewRef.current?.injectJavaScript(HARDWARE_BACK_INJECT);
       return true;
     };
     const sub = BackHandler.addEventListener('hardwareBackPress', onHardwareBack);
+    return () => sub.remove();
+  }, []);
+
+  useEffect(() => {
+    const onAppStateChange = (nextState) => {
+      if (!webViewRef.current) return;
+      if (nextState === 'background' || nextState === 'inactive') {
+        webViewRef.current.injectJavaScript(LIVE_APP_BACKGROUND_INJECT);
+      } else if (nextState === 'active') {
+        webViewRef.current.injectJavaScript(LIVE_APP_FOREGROUND_INJECT);
+      }
+    };
+    const sub = AppState.addEventListener('change', onAppStateChange);
     return () => sub.remove();
   }, []);
 
@@ -818,7 +879,9 @@ export default function App() {
         if (data.type === 'screen_capture') {
           (async () => {
             try {
-              if (data.enable) {
+              const enable = Boolean(data.enable);
+              screenCaptureBlockedRef.current = enable;
+              if (enable) {
                 await ScreenCapture.preventScreenCaptureAsync();
               } else {
                 await ScreenCapture.allowScreenCaptureAsync();
@@ -831,8 +894,9 @@ export default function App() {
         }
         if (data.type === 'back_result' && !data.handled) {
           const route = String(data.route || '');
-          if (/live-room\.html|party-room\.html/i.test(route)) {
-            webViewRef.current?.injectJavaScript(MINIMIZE_LIVE_INJECT);
+          const currentUrl = webViewCurrentUrlRef.current || '';
+          if (/live-room\.html|party-room\.html/i.test(route) || /live-room\.html|party-room\.html/i.test(currentUrl)) {
+            webViewRef.current?.injectJavaScript(LIVE_MINIMIZE_INJECT);
             return;
           }
           webViewRef.current?.injectJavaScript(`(function(){
@@ -841,30 +905,48 @@ export default function App() {
               if (raw) {
                 var d = JSON.parse(raw);
                 if (d && d.url && (!d.expiresAt || Date.now() < d.expiresAt)) {
+                  if (/live-room\\.html|party-room\\.html/i.test(d.url)) {
+                    location.href = d.url;
+                    return;
+                  }
                   location.href = '/explore.html?app=1&source=expo-app';
                   return;
                 }
               }
             } catch(e) {}
           })();true;`);
-          if (webViewCanGoBackRef.current) {
+          if (webViewCanGoBackRef.current && !/live-room\.html|party-room\.html/i.test(currentUrl)) {
             webViewRef.current?.goBack();
             return;
           }
           if (/explore\.html/i.test(route)) {
-            const now = Date.now();
-            if (now - homeBackAtRef.current < 2200) {
-              homeBackAtRef.current = 0;
-              BackHandler.exitApp();
-              return;
-            }
-            homeBackAtRef.current = now;
-            ToastAndroid.show('Press back again to exit', ToastAndroid.SHORT);
+            webViewRef.current?.injectJavaScript(`(function(){
+              try {
+                var raw = localStorage.getItem('ap_live_active_session') || sessionStorage.getItem('ap_live_pip_session');
+                if (raw) {
+                  var d = JSON.parse(raw);
+                  if (d && d.url && (!d.expiresAt || Date.now() < d.expiresAt)) return;
+                }
+              } catch(e) {}
+              window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({type:'back_result_exit_ok'}));
+            })();true;`);
             return;
           }
           webViewRef.current?.injectJavaScript(
             `window.location.href='/explore.html?app=1&source=expo-app';true;`
           );
+          return;
+        }
+        if (data.type === 'back_result_exit_ok') {
+          const now = Date.now();
+          if (now - homeBackAtRef.current < 2200) {
+            homeBackAtRef.current = 0;
+            BackHandler.exitApp();
+            return;
+          }
+          homeBackAtRef.current = now;
+          ToastAndroid.show('Press back again to exit', ToastAndroid.SHORT);
+          return;
         }
       } catch (_e) {
         /* not our message */
@@ -960,10 +1042,13 @@ export default function App() {
           setLoadError('');
           const url = e?.nativeEvent?.url || '';
           injectMobileLayout(url);
+          syncScreenCaptureForUrl(url);
         }}
         onNavigationStateChange={(nav) => {
           const url = nav?.url || '';
+          if (url) webViewCurrentUrlRef.current = url;
           webViewCanGoBackRef.current = Boolean(nav?.canGoBack);
+          syncScreenCaptureForUrl(url);
           if (url.includes('explore.html') || url.includes('dashboard')) {
             oauthCompleteRef.current = true;
             setLoadError('');
@@ -999,6 +1084,9 @@ export default function App() {
         cacheMode={Platform.OS === 'android' ? (__DEV__ ? 'LOAD_DEFAULT' : 'LOAD_NO_CACHE') : undefined}
         sharedCookiesEnabled
         thirdPartyCookiesEnabled
+        allowsInlineMediaPlayback
+        allowsPictureInPictureMediaPlayback
+        mediaPlaybackRequiresUserAction={false}
         originWhitelist={['*']}
         setSupportMultipleWindows={false}
       />

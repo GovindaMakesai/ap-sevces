@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260625-party-seats';
+  window.__AP_LIVE_BUILD = '20260703-no-screenshot';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -4508,6 +4508,7 @@
 
   async function exitRoom() {
     window.__apLeavingRoom = true;
+    releaseScreenCaptureProtection();
     minimizingRoom = false;
     hideApLoader();
     setLiveStatus('', null);
@@ -4812,12 +4813,45 @@
     document.getElementById('apViewerOnboard')?.classList.add('open');
   }
 
-  function bindScreenCaptureProtection() {
-    if (!window.ReactNativeWebView) return;
-    const enable = isLiveRoomPage() || isPartyRoomPage();
+  let screenCaptureEnabled = null;
+
+  function postNativeMessage(payload) {
     try {
-      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'screen_capture', enable }));
+      const raw = JSON.stringify(payload);
+      if (window.ReactNativeWebView?.postMessage) {
+        window.ReactNativeWebView.postMessage(raw);
+        return true;
+      }
     } catch (_e) {}
+    return false;
+  }
+
+  function setScreenCaptureProtection(enable) {
+    const shouldBlock =
+      Boolean(enable) && (isLiveRoomPage() || isPartyRoomPage());
+    if (screenCaptureEnabled === shouldBlock) return;
+    screenCaptureEnabled = shouldBlock;
+    postNativeMessage({ type: 'screen_capture', enable: shouldBlock });
+  }
+
+  function releaseScreenCaptureProtection() {
+    setScreenCaptureProtection(false);
+  }
+
+  function bindScreenCaptureProtection() {
+    setScreenCaptureProtection(true);
+  }
+
+  function bindScreenCaptureLifecycle() {
+    if (bindScreenCaptureLifecycle.bound) return;
+    bindScreenCaptureLifecycle.bound = true;
+    setScreenCaptureProtection(true);
+    window.addEventListener('pagehide', () => {
+      if (window.__apLeavingRoom) releaseScreenCaptureProtection();
+    });
+    window.addEventListener('beforeunload', () => {
+      if (window.__apLeavingRoom) releaseScreenCaptureProtection();
+    });
   }
 
   function openRulesModal() {
@@ -5012,6 +5046,7 @@
   }
 
   async function initPartyRoom() {
+    bindScreenCaptureLifecycle();
     if (partyRoomInitStarted) return;
     partyRoomInitStarted = true;
     bindMediaResumeOnVisibility();
@@ -5246,6 +5281,7 @@
   }
 
   async function initLiveFeedViewer() {
+    bindScreenCaptureLifecycle();
     injectModals();
     injectGiftSheet();
     bindGiftSheet();
@@ -5302,6 +5338,7 @@
     setTimeout(() => document.getElementById('liveSwipeHint')?.classList.add('is-hidden'), 7000);
 
     await switchToFeedRoom(0);
+    bindScreenCaptureProtection();
 
     window.addEventListener('beforeunload', () => {
       if (window.__apLeavingRoom || window.LiveSession?.shouldKeepPlayback?.()) return;
@@ -5311,6 +5348,7 @@
   }
 
   async function initLiveRoom() {
+    bindScreenCaptureLifecycle();
     bindMediaResumeOnVisibility();
     injectModals();
     injectGiftSheet();
@@ -5850,6 +5888,7 @@
   document.addEventListener('DOMContentLoaded', () => {
     const page = document.body?.dataset?.livePage;
     if (page === 'party-room' || page === 'live-room') {
+      bindScreenCaptureLifecycle();
       scheduleHideAppChrome();
       prepareLiveUiShell();
     }

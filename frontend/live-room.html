@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-live.css?v=20260628-live-ui-fix">
-  <link rel="stylesheet" href="social-live-session.css?v=20260628-live-ui-fix">
+  <link rel="stylesheet" href="social-live-session.css?v=20260703-minimize-fix">
   <link rel="stylesheet" href="social-live-ref-ui.css?v=20260628-hotfix">
   <link rel="stylesheet" href="social-fx.css">
   <link rel="stylesheet" href="social-live-pro.css">
@@ -57,6 +57,17 @@
           window.APLive.minimizeRoom();
         }
       });
+    })();
+    (function apBlockScreenshots() {
+      function enable() {
+        try {
+          if (window.ReactNativeWebView) {
+            window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'screen_capture', enable: true }));
+          }
+        } catch (_e) {}
+      }
+      enable();
+      document.addEventListener('DOMContentLoaded', enable);
     })();
   </script>
 </head>
@@ -208,8 +219,8 @@
   <script src="auth-guard.js"></script>
   <script src="social-fx.js"></script>
   <script src="live-emoji-data.js"></script>
-  <script src="live-session-provider.js?v=20260628-live-back"></script>
-  <script src="social-live.js?v=20260628-live-ui-fix"></script>
+  <script src="live-session-provider.js?v=20260703-minimize-fix"></script>
+  <script src="social-live.js?v=20260703-no-screenshot"></script>
   <script src="social-live-interactions.js"></script>
   <script src="social-nav.js"></script>
 </body>
