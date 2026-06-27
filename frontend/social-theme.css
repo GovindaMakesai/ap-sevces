@@ -147,6 +147,14 @@ body.social-explore-page {
   --social-explore-header-h: calc(168px + env(safe-area-inset-top, 0px));
 }
 
+body.social-explore-page #social-banner-slider {
+  display: none !important;
+  height: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: hidden;
+}
+
 /* Explore live — actions row + full-width pill tabs */
 .social-explore-page .social-explore-head {
   display: flex;

@@ -590,8 +590,31 @@
 
   async function refreshLiveUserProfile() {
     try {
-      if (window.Auth?.refreshSession) await Auth.refreshSession();
+      if (window.Auth?.repairSession) {
+        await Auth.repairSession();
+      } else if (window.Auth?.ensureAccessToken) {
+        await Auth.ensureAccessToken();
+      } else if (window.Auth?.refreshSession) {
+        await Auth.refreshSession();
+      }
     } catch (_e) {}
+  }
+
+  function paintLiveTickerStatus(text, ok) {
+    const ticker = document.getElementById('liveTicker');
+    if (!ticker || !text) return;
+    const hostName = roomState?.hostName || 'Host';
+    const viewers = roomState?.viewers || 0;
+    if (ok === true && /watching live|connected/i.test(text)) {
+      ticker.innerHTML =
+        '<span class="live-watch-pill">● Watching live</span>' +
+        escapeHtml(hostName) +
+        ' · ' +
+        viewers +
+        ' watching';
+    } else if (ok === true) {
+      ticker.textContent = text;
+    }
   }
 
   function themeCover(kind, label) {
@@ -1072,6 +1095,39 @@
     }
     if (!currentUser()) return null;
 
+    if (window.Auth?.repairSession) {
+      try {
+        const repaired = await Auth.repairSession();
+        if (repaired) {
+          const repairedTok = localStorage.getItem('token');
+          if (repairedTok && (!Auth.isAccessTokenUsable || Auth.isAccessTokenUsable(repairedTok))) {
+            cachedWsToken = repairedTok;
+            cachedWsTokenAt = now;
+            return repairedTok;
+          }
+        }
+      } catch (_e) {
+        /* fall through */
+      }
+    }
+
+    if (window.API?.get) {
+      try {
+        const res = await API.get('/auth/ws-token');
+        if (res?.data?.accessToken) {
+          localStorage.setItem('token', res.data.accessToken);
+          if (res.data.refreshToken) {
+            localStorage.setItem('ap_refresh_token', res.data.refreshToken);
+          }
+          cachedWsToken = res.data.accessToken;
+          cachedWsTokenAt = now;
+          return res.data.accessToken;
+        }
+      } catch (_e) {
+        /* fall through */
+      }
+    }
+
     const apiBase =
       (typeof window.__AP_API_URL__ === 'string' && window.__AP_API_URL__) ||
       (window.CONFIG && CONFIG.API_URL) ||
@@ -1079,10 +1135,13 @@
     const base = apiBase.replace(/\/$/, '');
 
     async function tryFetch(path, options, bodyObj) {
+      const headers = { 'Content-Type': 'application/json', ...(options?.headers || {}) };
+      const bearer = localStorage.getItem('token');
+      if (bearer) headers.Authorization = `Bearer ${bearer}`;
       const res = await fetch(`${base}${path}`, {
         credentials: 'include',
         ...options,
-        headers: { 'Content-Type': 'application/json', ...(options?.headers || {}) },
+        headers,
         body: bodyObj ? JSON.stringify(bodyObj) : options?.body,
       });
       const data = await res.json().catch(() => ({}));
@@ -1142,6 +1201,7 @@
     const token = await resolveSocketAuthToken();
     if (!token) {
       liveDebugLog('Socket skipped — missing auth token (sign in again)');
+      lastSocketIssue = 'missing auth token';
       updateLiveDebug({ socketConnected: false, roomJoined: false });
       throw new Error('Session expired — sign in again to join live');
     }
@@ -1202,10 +1262,12 @@
       const msg = err?.message || String(err);
       liveDebugLog(`Socket connect_error: ${msg}`);
       lastSocketIssue = `connect_error: ${msg}`;
-      if (/invalid token/i.test(msg) && !socketAuthRetrying) {
+      if (/invalid token|authentication required|jwt expired|unauthorized/i.test(msg) && !socketAuthRetrying) {
         socketAuthRetrying = true;
         try {
           localStorage.removeItem('token');
+          cachedWsToken = null;
+          if (window.Auth?.repairSession) await Auth.repairSession().catch(() => {});
           const fresh = await resolveSocketAuthToken();
           if (fresh && liveSocket) {
             liveSocket.auth = { token: fresh };
@@ -1807,10 +1869,37 @@
     await onHostBroadcastFailed('media_blocked', mediaBlock);
   }
 
+  function handleRoomJoinFailure() {
+    hideApLoader();
+    const authish = /sign in|session|token|auth|expired|not logged/i.test(lastSocketIssue || '');
+    setLiveStatus(
+      authish
+        ? 'Session expired — please sign in again'
+        : 'Could not join room — check connection and retry',
+      false
+    );
+    if (authish) {
+      setTimeout(() => {
+        location.href =
+          '/app-auth.html?app=1&redirect=' + encodeURIComponent(location.pathname + location.search);
+      }, 1600);
+    }
+  }
+
   function setLiveStatus(text, ok) {
     const el = document.getElementById('liveStatusBadge');
     const strip = document.getElementById('apRoomStatusStrip');
     const show = Boolean(text);
+    const viewerOk = ok === true && !isHost();
+    if (viewerOk) {
+      paintLiveTickerStatus(text, ok);
+      if (el) el.style.display = 'none';
+      if (strip) strip.classList.remove('is-visible');
+      document.body.classList.remove('ap-live-status-visible');
+      hideApLoader();
+      setApLoaderStep(3);
+      return;
+    }
     if (el) {
       el.style.display = show ? 'inline-flex' : 'none';
       el.textContent = text;
@@ -2941,7 +3030,16 @@
     const ticker = document.getElementById('liveTicker');
     if (ticker) {
       const viewers = roomState?.viewers || 0;
-      ticker.textContent = `${hostName} is live · ${viewers} watching — chat & send gifts below`;
+      if (!isHost() && remoteUsers.size > 0) {
+        ticker.innerHTML =
+          '<span class="live-watch-pill">● Watching live</span>' +
+          escapeHtml(hostName) +
+          ' · ' +
+          viewers +
+          ' watching';
+      } else {
+        ticker.textContent = `${hostName} is live · ${viewers} watching`;
+      }
     }
     const sub = document.getElementById('liveSubLabel');
     if (sub) sub.textContent = isHost() ? 'You are hosting' : 'Live now';
@@ -5216,7 +5314,12 @@
       console.error('[live] party room join failed', e);
       partyRoomInitStarted = false;
       hideApLoader();
-      setLiveStatus(e?.message || 'Could not connect to party room', false);
+      if (/sign in|session|expired|not logged|auth|token/i.test(e?.message || '')) {
+        lastSocketIssue = e.message;
+        handleRoomJoinFailure();
+      } else {
+        setLiveStatus(e?.message || 'Could not connect to party room', false);
+      }
       return;
     } finally {
       clearTimeout(joinGuard);
@@ -5224,8 +5327,7 @@
     applyRoleUiAfterJoin();
     if (!roomJoinCompleted) {
       partyRoomInitStarted = false;
-      hideApLoader();
-      setLiveStatus('Room join failed — sign in again and retry', false);
+      handleRoomJoinFailure();
       return;
     }
     partyVoiceSkipped = false;
@@ -5524,15 +5626,19 @@
     } catch (e) {
       console.error('[live] live room join failed', e);
       hideApLoader();
-      setLiveStatus(e?.message || 'Could not connect to live room', false);
+      if (/sign in|session|expired|not logged|auth|token/i.test(e?.message || '')) {
+        lastSocketIssue = e.message;
+        handleRoomJoinFailure();
+      } else {
+        setLiveStatus(e?.message || 'Could not connect to live room', false);
+      }
       return;
     } finally {
       clearTimeout(joinGuard);
     }
     applyRoleUiAfterJoin();
     if (!roomJoinCompleted) {
-      hideApLoader();
-      setLiveStatus('Room join failed — sign in again and retry', false);
+      handleRoomJoinFailure();
       return;
     }
 

@@ -327,14 +327,31 @@
 
 .live-chat-ticker {
   flex-shrink: 0;
-  padding: 6px 12px 4px 0;
+  padding: 4px 12px 4px 0;
   font-size: 10px;
   line-height: 1.35;
-  color: rgba(255, 255, 255, 0.75);
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.45), transparent);
+  color: rgba(255, 255, 255, 0.85);
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.15));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  order: 2;
+}
+.live-chat-ticker .live-watch-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #bbf7d0;
+  background: rgba(22, 101, 52, 0.75);
+  border: 1px solid rgba(34, 197, 94, 0.45);
+  vertical-align: middle;
 }
 
 .party-chat-feed {
@@ -1221,20 +1238,27 @@ body[data-live-page='live-room'] .live-room {
 
 .live-room .party-header-center { display: none !important; }
 
-/* Connection / live status — compact toast above bottom bar, does not block video */
+/* Connection / live status — inline above chat feed */
 .ap-room-status-strip {
   display: none;
-  position: fixed;
-  left: 10px;
-  right: 10px;
-  bottom: calc(var(--ap-bottom-bar-h, 64px) + env(safe-area-inset-bottom, 0px) + 92px);
+  position: relative;
+  left: auto;
+  right: auto;
+  bottom: auto;
   top: auto;
-  z-index: 44;
+  z-index: 2;
   flex-shrink: 0;
   justify-content: flex-start;
-  align-items: flex-end;
-  padding: 0;
+  align-items: stretch;
+  padding: 0 0 4px;
   pointer-events: none;
+  order: 1;
+}
+.party-chat-zone > .ap-room-status-strip {
+  width: 100%;
+}
+.party-chat-zone > .party-chat-feed {
+  order: 3;
 }
 .ap-room-status-strip.is-visible {
   display: flex;

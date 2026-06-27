@@ -767,7 +767,7 @@
     }
 
     const bannerMount = document.getElementById('social-banner-slider');
-    if (bannerMount && window.SocialBannerSlider) {
+    if (bannerMount && window.SocialBannerSlider && !document.body.classList.contains('social-explore-page')) {
       SocialBannerSlider.mount(bannerMount);
     }
 

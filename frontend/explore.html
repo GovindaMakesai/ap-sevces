@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#fdf9f0">
   <title>Explore - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-theme.css?v=20260625explore-tabs">
+  <link rel="stylesheet" href="social-theme.css?v=20260704-live-only">
   <script src="native-session-restore.js"></script>
   <script src="ap-config.js"></script>
   <script src="ap-native-boot.js"></script>
@@ -21,7 +21,6 @@
     </div>
     <div class="social-explore-tabs-wrap">
       <div class="social-main-tabs social-explore-tabs" id="exploreTabs" role="tablist" aria-label="Live sections">
-        <button type="button" role="tab" data-tab="following">Following</button>
         <button type="button" role="tab" data-tab="explore" class="active">Live</button>
         <button type="button" role="tab" data-tab="party">Party</button>
         <button type="button" role="tab" data-tab="new">New</button>
@@ -36,8 +35,6 @@
     <p class="explore-tab-hint" id="exploreTabHint" hidden></p>
   </header>
   <div class="social-tabs-spacer" aria-hidden="true"></div>
-
-  <div id="social-banner-slider"></div>
 
   <div id="exploreContent">
     <div class="social-grid" id="exploreGrid"></div>
@@ -61,18 +58,16 @@
   <script src="social-ui.js"></script>
   <script src="social-interactions.js"></script>
   <script src="auth-guard.js"></script>
-  <script src="social-banner-slider.js"></script>
   <script src="social-create-post.js"></script>
-  <script src="social-shell.js?v=20260703-cover-loader"></script>
+  <script src="social-shell.js?v=20260704-live-only"></script>
   <script src="social-nav.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       let currentTab = new URLSearchParams(location.search).get('tab') || 'explore';
-      const valid = ['following', 'explore', 'party', 'new', 'nearby'];
-      if (!valid.includes(currentTab)) currentTab = 'explore';
+      const valid = ['explore', 'party', 'new', 'nearby'];
+      if (!valid.includes(currentTab) || currentTab === 'following') currentTab = 'explore';
 
       const hints = {
-        following: 'Rooms from people you follow.',
         explore: 'Trending live broadcasts right now.',
         party: 'Voice party rooms — join or start one.',
         new: 'Recently started live rooms.',
@@ -108,13 +103,6 @@
         }
         const qs = params.toString();
         history.replaceState(null, '', '/explore.html' + (qs ? '?' + qs : ''));
-
-        if (tab === 'following') {
-          content.style.display = 'none';
-          empty.style.display = 'block';
-          await SocialShell.fillFollowingView(searchQuery || '');
-          return;
-        }
 
         content.style.display = 'block';
         empty.style.display = 'none';

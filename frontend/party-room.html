@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#1a0f3a">
   <title>Party Room - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-live.css?v=20260703-cover-loader">
+  <link rel="stylesheet" href="social-live.css?v=20260704-live-only">
   <link rel="stylesheet" href="social-live-session.css?v=20260703-minimize-fix">
   <link rel="stylesheet" href="social-live-ref-ui.css?v=20260628-hotfix">
   <link rel="stylesheet" href="social-fx.css">
@@ -154,15 +154,14 @@
         <button type="button" data-tab="chat">Chat</button>
       </div>
       <div class="party-chat-zone">
+        <div class="ap-room-status-strip" id="apRoomStatusStrip" aria-live="polite">
+          <span class="live-status-badge" id="liveStatusBadge" style="display:none">Connectingù</span>
+        </div>
         <div class="live-chat-ticker" id="liveTicker" aria-live="polite"></div>
         <div class="party-chat-feed" id="partyChatFeed"></div>
       </div>
     </div>
 
-  </div>
-
-  <div class="ap-room-status-strip" id="apRoomStatusStrip" aria-live="polite">
-    <span class="live-status-badge" id="liveStatusBadge" style="display:none">Connectingù</span>
   </div>
 
   <footer class="party-bottom-bar ap-bottom-ref" id="partyBottomBar">
@@ -252,7 +251,7 @@
   <script src="social-fx.js"></script>
   <script src="live-emoji-data.js"></script>
   <script src="live-session-provider.js?v=20260703-minimize-fix"></script>
-  <script src="social-live.js?v=20260703-cover-loader"></script>
+  <script src="social-live.js?v=20260704-live-only"></script>
   <script src="social-nav.js"></script>
 </body>
 </html>
