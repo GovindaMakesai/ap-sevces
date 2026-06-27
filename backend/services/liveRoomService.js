@@ -362,9 +362,11 @@ async function endOrphanRooms() {
 async function listActiveRooms({ roomType, limit = 30, sort = 'trending' } = {}) {
   const params = [];
   let sql = `SELECT lr.channel, lr.room_type, lr.host_user_id, lr.host_display_name, lr.viewer_count, lr.status, lr.updated_at, lr.started_at,
-                    u.profile_pic AS host_profile_pic
+                    COALESCE(u.profile_pic, w.profile_photo_url) AS host_profile_pic,
+                    u.updated_at AS host_updated_at
              FROM live_rooms lr
              LEFT JOIN users u ON u.id = lr.host_user_id
+             LEFT JOIN workers w ON w.user_id = u.id
              WHERE lr.status = 'active'
                AND lr.updated_at > CURRENT_TIMESTAMP - INTERVAL '30 minutes'
                AND EXISTS (

@@ -20,16 +20,26 @@
 
   function getImageUrl(path, cacheKey) {
     if (!path) return null;
-    if (String(path).startsWith('http')) {
-      const url = String(path);
-      if (!cacheKey) return url;
-      return url + (url.includes('?') ? '&' : '?') + 'v=' + encodeURIComponent(String(cacheKey));
+    let p = String(path).trim();
+    if (!p) return null;
+    if (p.startsWith('data:') || p.startsWith('blob:')) return p;
+    if (p.startsWith('//')) p = `https:${p}`;
+    if (p.startsWith('http://') || p.startsWith('https://')) {
+      if (!cacheKey) return p;
+      return p + (p.includes('?') ? '&' : '?') + 'v=' + encodeURIComponent(String(cacheKey));
     }
     const base = (window.CONFIG?.BACKEND_URL || String(window.CONFIG?.API_URL || '').replace(/\/api\/?$/, '') || '').replace(/\/$/, '');
-    if (!base) return path.startsWith('/') ? path : '/' + path;
-    let url = `${base}${path.startsWith('/') ? '' : '/'}${path}`;
+    if (!base) return p.startsWith('/') ? p : `/${p}`;
+    let url = `${base}${p.startsWith('/') ? '' : '/'}${p}`;
     if (cacheKey) url += (url.includes('?') ? '&' : '?') + 'v=' + encodeURIComponent(String(cacheKey));
     return url;
+  }
+
+  function escapeAttr(s) {
+    return String(s || '')
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;');
   }
 
   function pickTag(index) {
@@ -129,14 +139,78 @@
     return avatarFallback(name);
   }
 
-  function roomCardImage(room, party) {
-    const name = room.hostName || room.name || 'Host';
-    const pic = room.hostProfilePic || room.profile_pic || room.image;
-    const cacheKey = room.updatedAt || room.updated_at;
-    if (pic) {
-      return getImageUrl(pic, cacheKey) || coverFallback(name, party);
+  function hostCardImage(name, profilePic, updatedAt, party) {
+    const label = String(name || 'Host').trim() || 'Host';
+    const built = profilePic ? getImageUrl(profilePic, updatedAt) : null;
+    if (window.SocialUI?.avatarUrl) {
+      return SocialUI.avatarUrl(label, built);
     }
-    return coverFallback(name, party);
+    if (built) return built;
+    return coverFallback(label, party);
+  }
+
+  function roomCardImage(room, party) {
+    const name =
+      room.hostName ||
+      room.name ||
+      `${room.first_name || ''} ${room.last_name || ''}`.trim() ||
+      'Host';
+    const pic = room.hostProfilePic || room.host_profile_pic || room.profile_pic || room.profilePic;
+    const cacheKey = room.hostUpdatedAt || room.updatedAt || room.updated_at;
+    return hostCardImage(name, pic, cacheKey, party);
+  }
+
+  async function enrichRoomsWithHostPhotos(rooms) {
+    if (!Array.isArray(rooms) || !rooms.length) return rooms;
+    const picByHost = new Map();
+
+    const remember = (id, pic, updatedAt) => {
+      if (!id || !pic) return;
+      picByHost.set(String(id), { pic, updatedAt });
+    };
+
+    rooms.forEach((r) => {
+      const id = r.hostId || r.host_user_id;
+      const pic = r.hostProfilePic || r.host_profile_pic;
+      if (id && pic) remember(id, pic, r.hostUpdatedAt || r.updatedAt);
+    });
+
+    const missingIds = [
+      ...new Set(
+        rooms
+          .filter((r) => {
+            const id = r.hostId || r.host_user_id;
+            return id && !picByHost.has(String(id));
+          })
+          .map((r) => String(r.hostId || r.host_user_id))
+      ),
+    ];
+    if (!missingIds.length) return rooms;
+
+    const fetchList = API.getFresh || API.get;
+    await Promise.allSettled([
+      (async () => {
+        const res = await fetchList('/social/following?limit=200');
+        const rows = Array.isArray(res?.data) ? res.data : [];
+        rows.forEach((u) => remember(u.id, u.profile_pic, u.updated_at));
+      })(),
+      (async () => {
+        const res = await fetchList('/social/discover/creators?period=weekly&limit=100');
+        const rows = Array.isArray(res?.data) ? res.data : [];
+        rows.forEach((c) => remember(c.id || c.userId, c.profilePic || c.profile_pic, c.updatedAt));
+      })(),
+    ]);
+
+    return rooms.map((r) => {
+      const id = String(r.hostId || r.host_user_id || '');
+      const hit = picByHost.get(id);
+      if (!hit) return r;
+      return {
+        ...r,
+        hostProfilePic: r.hostProfilePic || r.host_profile_pic || hit.pic,
+        hostUpdatedAt: r.hostUpdatedAt || hit.updatedAt || r.updatedAt,
+      };
+    });
   }
 
   function renderNavIcon(item) {
@@ -249,7 +323,10 @@
     const channel = pro.channel || pro.id || '';
     if (!channel) return '';
     const name = pro.name || 'Host';
-    const img = pro.image || coverFallback(name, party);
+    const img = pro.image || hostCardImage(name, pro.hostProfilePic, pro.hostUpdatedAt || pro.updatedAt, party);
+    const imgAttr = escapeAttr(img);
+    const nameAttr = escapeAttr(name);
+    const fallbackAttr = escapeAttr(hostCardImage(name, null, null, party));
     const tag = party ? 'Party' : 'Live';
     const viewers = Math.max(0, Number(pro.viewers) || 0);
     const age = formatLiveAge(pro.startedAt || pro.updatedAt);
@@ -263,7 +340,7 @@
 
     return `
       <article class="social-live-card${party ? ' is-party' : ''}" data-href="${href}" role="button" tabindex="0">
-        <img src="${img}" alt="" loading="lazy" onerror="this.src='${coverFallback(name, party).replace(/'/g, '&#39;')}'">
+        <img src="${imgAttr}" alt="${nameAttr}" data-name="${nameAttr}" loading="lazy" onerror="this.onerror=null;this.src='${fallbackAttr}'">
         ${liveBadge}
         <span class="tag">${tag}</span>
         ${ageLabel}
@@ -417,21 +494,29 @@
     const roomType = party ? 'party' : 'live';
     const sort = opts.sort || 'trending';
     try {
-      const res = await API.get(`/live/rooms?type=${roomType}&limit=${limit}&sort=${sort}`);
-      const rows = Array.isArray(res?.data) ? res.data : [];
+      const fetchList = API.getFresh || API.get;
+      const res = await fetchList(`/live/rooms?type=${roomType}&limit=${limit}&sort=${sort}`);
+      let rows = Array.isArray(res?.data) ? res.data : [];
+      rows = await enrichRoomsWithHostPhotos(rows);
       return rows
         .filter((r) => r && r.channel && r.status !== 'ended')
         .filter((r) => !party || String(r.channel || '').startsWith('party-'))
         .filter((r) => party || !String(r.channel || '').startsWith('party-'))
         .map((r) => {
           const name = r.hostName || 'Host';
+          const hostProfilePic = r.hostProfilePic || r.host_profile_pic || null;
+          const hostUpdatedAt = r.hostUpdatedAt || r.updated_at || r.updatedAt;
           return {
             id: r.channel,
             channel: r.channel,
             userId: r.hostId,
             name,
-            hostProfilePic: r.hostProfilePic || null,
-            image: roomCardImage(r, party),
+            hostProfilePic,
+            hostUpdatedAt,
+            image: roomCardImage(
+              { ...r, hostProfilePic, hostUpdatedAt, hostName: name },
+              party
+            ),
             viewers: r.viewers || 0,
             startedAt: r.startedAt,
             updatedAt: r.updatedAt,
@@ -515,6 +600,7 @@
     }
     grid.innerHTML = rooms.map((p, i) => renderLiveCard(p, i, opts)).filter(Boolean).join('');
     bindLiveCards(grid);
+    if (window.SocialUI?.bindAvatarFallbacks) SocialUI.bindAvatarFallbacks(grid);
     bindGridInfiniteScroll(gridId, limit || 12, opts);
   }
 
@@ -793,7 +879,7 @@
       const uid = String(u.id);
       const name = `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'User';
       const live = liveMap.get(uid);
-      const photo = getImageUrl(u.profile_pic, u.updated_at) || coverFallback(name, false);
+      const photo = hostCardImage(name, u.profile_pic, u.updated_at, false);
       if (live?.channel) {
         const isParty =
           String(live.channel).startsWith('party-') || String(live.room_type || '').toLowerCase() === 'party';
@@ -843,7 +929,10 @@
 
     content.innerHTML = `<div class="social-following-wrap">${liveSection}${offlineHtml}</div>`;
     const grid = content.querySelector('#exploreGrid');
-    if (grid) bindLiveCards(grid);
+    if (grid) {
+      bindLiveCards(grid);
+      if (window.SocialUI?.bindAvatarFallbacks) SocialUI.bindAvatarFallbacks(grid);
+    }
   }
 
   async function fillDiscoveryTab(tab, searchQuery) {
@@ -1264,6 +1353,8 @@
     fetchPros,
     fetchActiveRooms,
     getImageUrl,
+    hostCardImage,
+    enrichRoomsWithHostPhotos,
     avatarFallback,
     coverFallback,
     redirectToDashboard,

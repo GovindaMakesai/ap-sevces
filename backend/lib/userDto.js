@@ -54,6 +54,7 @@ function publicLiveRoom(row) {
     hostId: row.host_user_id,
     hostName: row.host_display_name,
     hostProfilePic: row.host_profile_pic || null,
+    hostUpdatedAt: row.host_updated_at || null,
     viewers: row.viewer_count || 0,
     updatedAt: row.updated_at,
     startedAt: row.started_at,
