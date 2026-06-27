@@ -777,7 +777,7 @@ const Auth = {
                 }
 
                 if (!isNativeAppContext()) {
-                    const res = await fetch(`${CONFIG.API_URL}/auth/ws-token`, {
+                    const res = await fetch(joinApiUrl('/auth/ws-token'), {
                         method: 'GET',
                         credentials: 'include',
                     });
@@ -811,7 +811,7 @@ const Auth = {
                 const body = {};
                 const refreshToken = localStorage.getItem('ap_refresh_token');
                 if (refreshToken) body.refreshToken = refreshToken;
-                const res = await fetch(`${CONFIG.API_URL}/auth/refresh`, {
+                const res = await fetch(joinApiUrl('/auth/refresh'), {
                     method: 'POST',
                     credentials: 'include',
                     headers: { 'Content-Type': 'application/json' },

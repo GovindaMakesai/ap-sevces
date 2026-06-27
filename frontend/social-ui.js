@@ -56,7 +56,7 @@
     const titleEl = el.querySelector('.social-toast-title');
     const msgEl = el.querySelector('.social-toast-msg');
     if (icon) icon.innerHTML = '<i class="fas ' + (icons[t] || icons.info) + '"></i>';
-    const friendly = t === 'error' ? friendlyMessage(msg) : msg;
+    const friendly = friendlyMessage(msg);
     const defaultTitles = { success: 'Done', error: 'Oops', warning: 'Heads up', info: '' };
     if (titleEl) titleEl.textContent = title || defaultTitles[t] || '';
     if (msgEl) msgEl.textContent = friendly;

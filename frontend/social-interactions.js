@@ -399,8 +399,8 @@
 
   async function refreshFollowCache() {
     if (!window.API || !hasAuth()) return;
-    if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken();
     try {
+      await ensureFollowAuth();
       const res = await API.get('/social/following?limit=200');
       const rows = Array.isArray(res?.data) ? res.data : [];
       followIdCache = new Set(rows.map((u) => String(u.id)));
@@ -415,11 +415,35 @@
     }
   }
 
+  async function ensureFollowAuth() {
+    if (window.Auth?.ensureAccessToken) {
+      await Promise.race([
+        Auth.ensureAccessToken(),
+        new Promise((r) => setTimeout(r, 8000)),
+      ]).catch(() => {});
+    }
+    if (!localStorage.getItem('token')) {
+      const err = new Error('Authentication required');
+      err.status = 401;
+      throw err;
+    }
+  }
+
+  function followFailMessage(err) {
+    const msg = String(err?.message || '');
+    const status = err?.status;
+    if (status === 401 || /authentication required|token expired|invalid token|sign in/i.test(msg)) {
+      return { text: 'Your session expired. Please sign in again.', relogin: true };
+    }
+    const friendly = window.SocialUI?.friendlyMessage?.(msg) || msg;
+    return { text: friendly || 'Could not update follow — try again', relogin: false };
+  }
+
   async function toggleFollow(creatorId, creatorName) {
     const uid = String(creatorId || '').trim();
     if (window.API && hasAuth() && isUuid(uid)) {
       try {
-        if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken();
+        await ensureFollowAuth();
         let following = false;
         if (followIdCache != null) {
           following = followIdCache.has(uid);
@@ -433,18 +457,30 @@
           toggleFollowLocal(uid, creatorName);
           return false;
         }
-        await API.post(`/social/follow/${uid}`, {});
+        await API.request(`/social/follow/${uid}`, { method: 'POST' });
         if (!followIdCache) followIdCache = new Set();
         followIdCache.add(uid);
         toggleFollowLocal(uid, creatorName);
         return true;
       } catch (e) {
         console.warn('SocialInteractions: follow API error', e);
+        const fail = followFailMessage(e);
         if (window.SocialUI?.toast) {
-          SocialUI.toast(e?.message || 'Could not update follow — try again', 'warning');
+          SocialUI.toast(fail.text, fail.relogin ? 'error' : 'warning', fail.relogin ? 'Sign in' : undefined);
+        }
+        if (fail.relogin) {
+          setTimeout(() => {
+            const redirect = encodeURIComponent(location.pathname + location.search);
+            location.href = '/app-auth.html?app=1&redirect=' + redirect;
+          }, 1400);
         }
         return isFollowing(uid, creatorName);
       }
+    }
+    if (!hasAuth()) {
+      const redirect = encodeURIComponent(location.pathname + location.search);
+      location.href = '/app-auth.html?app=1&redirect=' + redirect;
+      return false;
     }
     return toggleFollowLocal(creatorId, creatorName);
   }

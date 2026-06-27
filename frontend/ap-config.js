@@ -14,7 +14,7 @@
 
   g.AP_CONFIG = Object.freeze({
     USE_HTTPS_DOMAIN: USE_HTTPS,
-    BUILD_TAG: '20260626-chat-thread',
+    BUILD_TAG: '20260628-follow-fix',
     PRODUCTION_BACKEND_URL: BACKEND,
     PRODUCTION_API_URL: BACKEND.replace(/\/$/, '') + '/api',
     PRODUCTION_FRONTEND_URL: FRONTEND,

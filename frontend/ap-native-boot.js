@@ -19,6 +19,7 @@
     '/store.html', '/vip.html', '/rankings.html', '/profile-tab.html', '/privileges.html',
     '/points.html', '/withdraw.html', '/chat.html', '/streamer-center.html',
     '/discover-creators.html', '/coins-recharge.html', '/coin-seller-center.html', '/coin-seller-recharge.html',
+    '/live-verify.html', '/creator-profile.html',
   ];
   const isSocialShellPage = SOCIAL_SHELL_PAGES.some(function (p) { return path.endsWith(p); });
 

@@ -38,10 +38,10 @@
 
   <div id="social-bottom-nav-mount"></div>
 
-  <script src="app.js?v=20260628-hotfix"></script>
-  <script src="social-ui.js"></script>
+  <script src="app.js?v=20260628-follow-fix"></script>
+  <script src="social-ui.js?v=20260628-follow-fix"></script>
   <script src="auth-guard.js"></script>
-  <script src="social-interactions.js?v=20260628-hotfix"></script>
+  <script src="social-interactions.js?v=20260628-follow-fix"></script>
   <script src="social-shell.js"></script>
   <script src="social-nav.js"></script>
   <script>
@@ -255,8 +255,11 @@
       }
     }
 
-    window.addEventListener('load', () => {
+    window.addEventListener('load', async () => {
       if (window.SocialShell?.initPage) SocialShell.initPage({ activeNav: 'explore' });
+      if (window.SocialInteractions?.refreshFollowCache) {
+        await SocialInteractions.refreshFollowCache().catch(() => {});
+      }
       document.querySelectorAll('.discover-creators-tab').forEach((btn) => {
         btn.addEventListener('click', () => {
           if (btn.dataset.period === currentPeriod) return;
