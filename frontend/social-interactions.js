@@ -432,21 +432,29 @@
   async function apiSocial(method, endpoint, body) {
     const m = (method || 'GET').toUpperCase();
     const path = String(endpoint || '');
-    if (window.API?.request && m !== 'GET') {
-      window.API.clearGetCache?.('/social/');
+    if (m !== 'GET') {
+      window.API?.clearGetCache?.('/social/');
     }
+
+    // Mutations: XHR is more reliable in Android WebView than fetch
+    if (m === 'POST' || m === 'DELETE' || m === 'PUT' || m === 'PATCH') {
+      await ensureFollowAuth().catch(() => {});
+      return xhrSocial(m, socialApiPath(path), m === 'POST' && body == null ? {} : body);
+    }
+
     try {
+      if (window.API?.getFresh) {
+        return await API.getFresh(path);
+      }
       if (window.API?.request) {
-        const opts = { method: m };
-        if (body != null && m !== 'GET' && m !== 'DELETE') opts.body = body;
-        return await API.request(path, opts);
+        return await API.request(path, { method: m });
       }
     } catch (e) {
       const msg = String(e?.message || '');
       if (!/malformed|invalid url|failed to fetch|network/i.test(msg)) throw e;
     }
-    const url = socialApiPath(path);
-    return xhrSocial(m, url, m === 'POST' && body == null ? {} : body);
+    await ensureFollowAuth().catch(() => {});
+    return xhrSocial(m, socialApiPath(path));
   }
 
   function followBtnLabel(following) {
@@ -554,12 +562,14 @@
           await apiSocial('DELETE', `/social/follow/${uid}`);
           followIdCache?.delete(uid);
           toggleFollowLocal(uid, creatorName);
+          refreshFollowCache().catch(() => {});
           return false;
         }
         await apiSocial('POST', `/social/follow/${uid}`, {});
         if (!followIdCache) followIdCache = new Set();
         followIdCache.add(uid);
         toggleFollowLocal(uid, creatorName);
+        refreshFollowCache().catch(() => {});
         return true;
       } catch (e) {
         console.warn('SocialInteractions: follow API error', e);

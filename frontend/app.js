@@ -311,19 +311,21 @@ const API = {
         }
 
         const headers = { ...options.headers };
-        const legacyToken = localStorage.getItem('token');
+        const legacyToken =
+            (typeof Auth !== 'undefined' && Auth.getToken && Auth.getToken()) ||
+            localStorage.getItem('token');
         if (legacyToken) {
             headers['Authorization'] = `Bearer ${legacyToken}`;
         }
 
         const isFormData = options.body instanceof FormData;
-        if (!isFormData && !headers['Content-Type']) {
-            headers['Content-Type'] = 'application/json';
-        }
-
         let body = options.body;
         if (!isFormData && body && typeof body === 'object') {
             body = JSON.stringify(body);
+        }
+        const hasJsonBody = body != null && typeof body === 'string' && !isFormData;
+        if (hasJsonBody && !headers['Content-Type']) {
+            headers['Content-Type'] = 'application/json';
         }
 
         let safeUrl = url;
