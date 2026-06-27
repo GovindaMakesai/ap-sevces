@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#fff9f0">
     <script src="/ap-native-boot.js"></script>
     <link rel="stylesheet" href="/social-theme.css?v=20260626-discover-chat">
-    <link rel="stylesheet" href="/social-chat.css?v=20260626-chat-android">
+    <link rel="stylesheet" href="/social-chat.css?v=20260702-chat-fix">
     
     <!-- Font Awesome 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -347,12 +347,15 @@
             align-items: center;
             justify-content: space-between;
             background: white;
+            overflow: visible;
         }
 
         .chat-user-info {
             display: flex;
             align-items: center;
             gap: var(--spacing-sm);
+            flex: 1;
+            min-width: 0;
         }
 
         .chat-user-details h3 {
@@ -406,33 +409,52 @@
             color: var(--primary-600);
         }
 
-        .chat-social-pill {
-            display: none;
-            align-items: center;
-            border: 1px solid var(--gray-300);
-            border-radius: 999px;
-            padding: 6px 12px;
-            font-size: 12px;
-            font-weight: 700;
+        .chat-header-more-wrap {
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        .chat-header-more-menu {
+            position: absolute;
+            top: calc(100% + 6px);
+            right: 0;
+            min-width: 168px;
             background: #fff;
-            color: var(--gray-700);
+            border: 1px solid var(--gray-200);
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+            padding: 6px 0;
+            z-index: 50;
+            display: none;
+        }
+
+        .chat-header-more-menu.open {
+            display: block;
+        }
+
+        .chat-header-more-menu button {
+            display: block;
+            width: 100%;
+            border: none;
+            background: transparent;
+            text-align: left;
+            padding: 10px 14px;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--gray-800);
             cursor: pointer;
-            white-space: nowrap;
         }
 
-        .chat-social-pill.is-visible {
-            display: inline-flex;
+        .chat-header-more-menu button:active {
+            background: var(--gray-100);
         }
 
-        .chat-social-pill.is-on {
-            background: #e5e7eb;
-            color: #374151;
+        .chat-header-more-menu button.is-on {
+            color: var(--gray-500);
         }
 
-        .chat-social-pill--block.is-on {
-            background: #fecaca;
+        .chat-header-more-menu button[data-act="block"].is-on {
             color: #991b1b;
-            border-color: #fca5a5;
         }
 
         /* ==================== MESSAGES AREA ==================== */
@@ -1215,14 +1237,21 @@
                                 </div>
                             </div>
                             <div class="chat-actions">
-                                <button type="button" class="chat-social-pill" id="chatHeaderFollowBtn" hidden>Follow</button>
-                                <button type="button" class="chat-social-pill chat-social-pill--block" id="chatHeaderBlockBtn" hidden>Block</button>
                                 <button type="button" class="chat-action-btn" id="chatHeaderGiftBtn" title="Send gift">
                                     <i class="fas fa-gift"></i>
                                 </button>
                                 <button type="button" class="chat-action-btn" id="chatHeaderSellBtn" title="Send coins" hidden>
                                     <i class="fas fa-coins"></i>
                                 </button>
+                                <div class="chat-header-more-wrap" id="chatHeaderMoreWrap" hidden>
+                                    <button type="button" class="chat-action-btn" id="chatHeaderMoreBtn" title="More options" aria-label="More options">
+                                        <i class="fas fa-ellipsis-v"></i>
+                                    </button>
+                                    <div class="chat-header-more-menu" id="chatHeaderMoreMenu">
+                                        <button type="button" data-act="follow" id="chatMenuFollow">Follow</button>
+                                        <button type="button" data-act="block" id="chatMenuBlock">Block</button>
+                                    </div>
+                                </div>
                                 <button type="button" class="chat-action-btn" onclick="showUserInfo()" title="View profile">
                                     <i class="fas fa-user"></i>
                                 </button>
@@ -1789,13 +1818,21 @@
                 if (vv) {
                     bottom = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
                 }
-                if (root.classList.contains('ap-expo-app') && bottom < 16) {
+                const kbOpen = bottom > 40;
+                document.body.classList.toggle('chat-keyboard-open', kbOpen);
+                if (vv) {
+                    root.style.setProperty('--chat-vv-height', `${vv.height}px`);
+                    root.style.setProperty('--chat-vv-offset-top', `${vv.offsetTop}px`);
+                }
+                if (root.classList.contains('ap-expo-app') && bottom < 16 && !kbOpen) {
                     bottom = 16;
                 }
                 root.style.setProperty('--ap-viewport-bottom-inset', `${bottom}px`);
                 root.style.setProperty(
                     '--ap-chat-bottom-pad',
-                    `max(env(safe-area-inset-bottom, 0px), ${bottom}px, 16px)`
+                    kbOpen
+                        ? 'max(env(safe-area-inset-bottom, 0px), 8px)'
+                        : `max(env(safe-area-inset-bottom, 0px), ${bottom}px, 16px)`
                 );
             };
             window.visualViewport?.addEventListener('resize', apply);
@@ -1825,20 +1862,22 @@
         }
 
         function setupChatKeyboardInsets() {
-            const root = document.getElementById('activeChat');
-            if (!root || !window.visualViewport) return;
             const apply = () => {
                 const vv = window.visualViewport;
+                if (!vv) return;
                 const offset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
-                root.style.setProperty('--chat-kb-offset', `${offset}px`);
-                if (offset > 0) scrollToBottom(true);
+                if (offset > 40) scrollToBottom(true);
             };
-            window.visualViewport.addEventListener('resize', apply);
-            window.visualViewport.addEventListener('scroll', apply);
+            window.visualViewport?.addEventListener('resize', apply);
+            window.visualViewport?.addEventListener('scroll', apply);
             document.getElementById('messageInput')?.addEventListener('focus', () => {
                 setTimeout(() => { apply(); scrollToBottom(true); }, 80);
             });
             apply();
+        }
+
+        function closeChatHeaderMoreMenu() {
+            document.getElementById('chatHeaderMoreMenu')?.classList.remove('open');
         }
 
         function deriveMessageStatus(msg, readAtIso) {
@@ -1932,7 +1971,8 @@
         }
 
         function resetChatPaneToList(message) {
-            document.body.classList.remove('chat-active');
+            document.body.classList.remove('chat-active', 'chat-keyboard-open');
+            closeChatHeaderMoreMenu();
             currentChatId = null;
             const emptyChat = document.getElementById('emptyChat');
             const activeChat = document.getElementById('activeChat');
@@ -2660,9 +2700,10 @@
         }
 
         function updateChatSocialBar() {
-            const followBtn = document.getElementById('chatHeaderFollowBtn');
-            const blockBtn = document.getElementById('chatHeaderBlockBtn');
-            if (!followBtn || !blockBtn) return;
+            const moreWrap = document.getElementById('chatHeaderMoreWrap');
+            const followBtn = document.getElementById('chatMenuFollow');
+            const blockBtn = document.getElementById('chatMenuBlock');
+            if (!moreWrap || !followBtn || !blockBtn) return;
 
             const peer = currentChatPeer;
             const key = currentChatId ? chatKey(currentChatId) : '';
@@ -2670,17 +2711,12 @@
             const hasTalked = msgs.length > 0;
 
             if (!peer?.otherUserId || !hasTalked) {
-                followBtn.classList.remove('is-visible', 'is-on');
-                blockBtn.classList.remove('is-visible', 'is-on');
-                followBtn.hidden = true;
-                blockBtn.hidden = true;
+                moreWrap.hidden = true;
+                closeChatHeaderMoreMenu();
                 return;
             }
 
-            followBtn.hidden = false;
-            blockBtn.hidden = false;
-            followBtn.classList.add('is-visible');
-            blockBtn.classList.add('is-visible');
+            moreWrap.hidden = false;
 
             const following = window.SocialInteractions?.isFollowing?.(peer.otherUserId, peer.name);
             followBtn.textContent = following ? 'Following' : 'Follow';
@@ -2692,14 +2728,26 @@
         }
 
         function bindChatSocialActions() {
-            const followBtn = document.getElementById('chatHeaderFollowBtn');
-            const blockBtn = document.getElementById('chatHeaderBlockBtn');
+            const moreBtn = document.getElementById('chatHeaderMoreBtn');
+            const menu = document.getElementById('chatHeaderMoreMenu');
+            const followBtn = document.getElementById('chatMenuFollow');
+            const blockBtn = document.getElementById('chatMenuBlock');
+            if (moreBtn && !moreBtn.dataset.bound) {
+                moreBtn.dataset.bound = '1';
+                moreBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    menu?.classList.toggle('open');
+                });
+            }
+            document.addEventListener('click', () => closeChatHeaderMoreMenu());
+            menu?.addEventListener('click', (e) => e.stopPropagation());
             if (followBtn && !followBtn.dataset.bound) {
                 followBtn.dataset.bound = '1';
                 followBtn.addEventListener('click', async () => {
                     if (!currentChatPeer?.otherUserId || !window.SocialInteractions?.toggleFollow) return;
                     await SocialInteractions.toggleFollow(currentChatPeer.otherUserId, currentChatPeer.name);
                     updateChatSocialBar();
+                    closeChatHeaderMoreMenu();
                 });
             }
             if (blockBtn && !blockBtn.dataset.bound) {
@@ -2708,6 +2756,7 @@
                     if (!currentChatPeer?.otherUserId || !window.SocialInteractions?.toggleBlock) return;
                     await SocialInteractions.toggleBlock(currentChatPeer.otherUserId, currentChatPeer.name);
                     updateChatSocialBar();
+                    closeChatHeaderMoreMenu();
                 });
             }
         }

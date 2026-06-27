@@ -489,6 +489,7 @@ body.chat-active .chat-header {
   width: 100%;
   box-sizing: border-box;
   background: #fff;
+  overflow: visible;
 }
 
 body.chat-active .ap-msg-quota-banner {
@@ -598,7 +599,26 @@ html.social-bridge-mode body.chat-active .chat-layout {
 }
 
 body.chat-active #activeChat {
-  margin-bottom: var(--chat-kb-offset, 0px);
+  margin-bottom: 0;
+}
+
+/* Keyboard open — fit thread to visible viewport (fixes blank gap + input jumping) */
+body.chat-keyboard-open.chat-active .chat-page,
+body.chat-keyboard-open.chat-active .chat-container {
+  position: fixed !important;
+  top: var(--chat-vv-offset-top, 0px) !important;
+  left: 0;
+  right: 0;
+  width: 100% !important;
+  height: var(--chat-vv-height, 100dvh) !important;
+  max-height: var(--chat-vv-height, 100dvh) !important;
+  z-index: 200;
+  transform: none;
+}
+
+body.chat-keyboard-open.chat-active #social-bottom-nav-mount,
+body.chat-keyboard-open.chat-active .social-bottom-nav {
+  display: none !important;
 }
 
 body.chat-active #emptyChat {

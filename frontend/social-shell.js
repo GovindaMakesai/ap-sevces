@@ -129,6 +129,16 @@
     return avatarFallback(name);
   }
 
+  function roomCardImage(room, party) {
+    const name = room.hostName || room.name || 'Host';
+    const pic = room.hostProfilePic || room.profile_pic || room.image;
+    const cacheKey = room.updatedAt || room.updated_at;
+    if (pic) {
+      return getImageUrl(pic, cacheKey) || coverFallback(name, party);
+    }
+    return coverFallback(name, party);
+  }
+
   function renderNavIcon(item) {
     if (item.icon === 'planet') {
       return `<span class="nav-planet" aria-hidden="true"><span class="nav-planet-glow"></span><span class="nav-planet-body"></span><span class="nav-planet-ring"></span></span>`;
@@ -413,18 +423,22 @@
         .filter((r) => r && r.channel && r.status !== 'ended')
         .filter((r) => !party || String(r.channel || '').startsWith('party-'))
         .filter((r) => party || !String(r.channel || '').startsWith('party-'))
-        .map((r) => ({
-          id: r.channel,
-          channel: r.channel,
-          userId: r.hostId,
-          name: r.hostName || 'Host',
-          image: coverFallback(r.hostName || 'Host', party),
-          viewers: r.viewers || 0,
-          startedAt: r.startedAt,
-          updatedAt: r.updatedAt,
-          tag: party ? 'Party' : 'Live',
-          live: true,
-        }));
+        .map((r) => {
+          const name = r.hostName || 'Host';
+          return {
+            id: r.channel,
+            channel: r.channel,
+            userId: r.hostId,
+            name,
+            hostProfilePic: r.hostProfilePic || null,
+            image: roomCardImage(r, party),
+            viewers: r.viewers || 0,
+            startedAt: r.startedAt,
+            updatedAt: r.updatedAt,
+            tag: party ? 'Party' : 'Live',
+            live: true,
+          };
+        });
     } catch (e) {
       console.warn('SocialShell: active rooms API', e);
       return [];
@@ -775,14 +789,18 @@
       const live = liveMap.get(uid);
       const photo = getImageUrl(u.profile_pic, u.updated_at) || coverFallback(name, false);
       if (live?.channel) {
+        const isParty =
+          String(live.channel).startsWith('party-') || String(live.room_type || '').toLowerCase() === 'party';
         liveCards.push({
           id: live.channel,
           channel: live.channel,
           userId: uid,
           name,
+          hostProfilePic: u.profile_pic || null,
           image: photo,
           viewers: live.viewer_count || 0,
-          tag: 'Live',
+          tag: isParty ? 'Party' : 'Live',
+          party: isParty,
           live: true,
         });
         return;
@@ -791,7 +809,7 @@
     });
 
     showContent();
-    const liveHtml = liveCards.map((p, i) => renderLiveCard(p, i, { party: false })).join('');
+    const liveHtml = liveCards.map((p, i) => renderLiveCard(p, i, { party: Boolean(p.party) })).join('');
     const offlineHtml = offlineRows.length
       ? `<div class="social-following-offline-section">
           <p class="social-following-section-title">${liveCards.length ? 'Offline' : 'People you follow'}</p>
