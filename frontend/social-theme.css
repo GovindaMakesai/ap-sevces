@@ -144,7 +144,7 @@ body.social-tabs-page #social-banner-slider + .social-post-feed {
 }
 
 body.social-explore-page {
-  --social-explore-header-h: calc(168px + env(safe-area-inset-top, 0px));
+  --social-explore-header-h: calc(118px + env(safe-area-inset-top, 0px));
 }
 
 body.social-explore-page #social-banner-slider {
@@ -155,22 +155,35 @@ body.social-explore-page #social-banner-slider {
   overflow: hidden;
 }
 
-/* Explore live — actions row + full-width pill tabs */
-.social-explore-page .social-explore-head {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  padding: 0 4px 8px;
-}
-
-.social-explore-page .social-explore-head .social-top-actions {
-  margin-left: auto;
-}
-
+/* Explore live — tabs + search (compact, no banner/chips) */
 .social-explore-page .social-explore-tabs-wrap {
-  margin: 0 -4px 10px;
+  margin: 0 0 8px;
   padding: 0 12px;
   overflow: hidden;
+}
+
+.social-explore-page .social-explore-tabs-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.social-explore-page .social-explore-tabs-row .social-explore-tabs {
+  flex: 1;
+  min-width: 0;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.social-explore-page .social-explore-actions {
+  flex-shrink: 0;
+  margin-left: 0;
+  gap: 6px;
+}
+
+.social-explore-page .social-explore-head {
+  display: none;
 }
 
 .social-explore-page .social-explore-tabs {
@@ -255,6 +268,7 @@ body.social-explore-page .social-tabs-spacer {
   display: flex;
   flex-direction: column;
   gap: 0;
+  padding-bottom: 6px;
 }
 
 .social-explore-page .social-main-tabs {
@@ -268,8 +282,8 @@ body.social-explore-page .social-tabs-spacer {
 }
 
 .social-explore-page .social-search {
-  margin: 0 12px 10px;
-  min-height: 44px;
+  margin: 0 12px 6px;
+  min-height: 42px;
   box-sizing: border-box;
 }
 
@@ -283,7 +297,12 @@ body.social-explore-page #social-filter-chips-mount {
 
 .social-explore-page #exploreContent,
 .social-explore-page #exploreEmpty {
-  padding-top: 4px;
+  padding-top: 0;
+  margin-top: 0;
+}
+
+.social-explore-page .social-grid {
+  padding-top: 6px;
 }
 
 .social-main-tabs::-webkit-scrollbar { display: none; }

@@ -6,32 +6,31 @@
   <meta name="theme-color" content="#fdf9f0">
   <title>Explore - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-theme.css?v=20260705-loader-fix">
+  <link rel="stylesheet" href="social-theme.css?v=20260705-explore-tight">
   <script src="native-session-restore.js"></script>
   <script src="ap-config.js"></script>
   <script src="ap-native-boot.js"></script>
 </head>
 <body class="social-tabs-page social-explore-page">
   <header class="social-top">
-    <div class="social-explore-head">
-      <div class="social-top-actions">
-        <a href="/rankings.html?app=1" class="social-icon-btn" aria-label="Rankings"><i class="fas fa-trophy"></i></a>
-        <button type="button" class="social-global-pill" id="globalChip"><i class="fas fa-globe-asia"></i> Global</button>
-      </div>
-    </div>
     <div class="social-explore-tabs-wrap">
-      <div class="social-main-tabs social-explore-tabs" id="exploreTabs" role="tablist" aria-label="Live sections">
-        <button type="button" role="tab" data-tab="explore" class="active">Live</button>
-        <button type="button" role="tab" data-tab="party">Party</button>
-        <button type="button" role="tab" data-tab="new">New</button>
-        <button type="button" role="tab" data-tab="nearby">Nearby</button>
+      <div class="social-explore-tabs-row">
+        <div class="social-main-tabs social-explore-tabs" id="exploreTabs" role="tablist" aria-label="Live sections">
+          <button type="button" role="tab" data-tab="explore" class="active">Live</button>
+          <button type="button" role="tab" data-tab="party">Party</button>
+          <button type="button" role="tab" data-tab="new">New</button>
+          <button type="button" role="tab" data-tab="nearby">Nearby</button>
+        </div>
+        <div class="social-top-actions social-explore-actions">
+          <a href="/rankings.html?app=1" class="social-icon-btn" aria-label="Rankings"><i class="fas fa-trophy"></i></a>
+          <button type="button" class="social-global-pill" id="globalChip"><i class="fas fa-globe-asia"></i> Global</button>
+        </div>
       </div>
     </div>
     <div class="social-search">
       <i class="fas fa-search"></i>
       <input type="search" data-social-search placeholder="Nickname or ID number" autocomplete="off">
     </div>
-    <p class="explore-tab-hint" id="exploreTabHint" hidden></p>
   </header>
   <div class="social-tabs-spacer" aria-hidden="true"></div>
 
@@ -45,12 +44,7 @@
   <div id="social-bottom-nav-mount"></div>
 
   <style>
-    .explore-tab-hint {
-      margin: 0 16px 8px;
-      font-size: 12px;
-      color: #8b6914;
-      line-height: 1.4;
-    }
+    .explore-tab-hint { display: none !important; }
   </style>
 
   <script src="app.js"></script>
@@ -73,15 +67,19 @@
         nearby: 'Popular rooms near you (enable location for best results).',
       };
 
+      function syncExploreHeaderSpacer() {
+        const top = document.querySelector('.social-explore-page .social-top');
+        const spacer = document.querySelector('.social-explore-page .social-tabs-spacer');
+        if (!top || !spacer) return;
+        const h = top.offsetHeight;
+        spacer.style.height = h + 'px';
+        document.documentElement.style.setProperty('--social-explore-header-h', h + 'px');
+      }
+
       function setTabUi(tab) {
         document.querySelectorAll('#exploreTabs button[data-tab]').forEach((btn) => {
           btn.classList.toggle('active', btn.dataset.tab === tab);
         });
-        const hint = document.getElementById('exploreTabHint');
-        if (hint) {
-          hint.textContent = hints[tab] || '';
-          hint.hidden = !hints[tab];
-        }
         const showParty = tab === 'party';
         const showLive = tab === 'explore' || tab === 'party' || tab === 'new' || tab === 'nearby';
         document.getElementById('social-start-party').style.display = showParty ? '' : 'none';
@@ -158,10 +156,17 @@
       })());
 
       document.getElementById('globalChip')?.addEventListener('click', () => {
-        document.querySelector('.chip[data-chip="Global"]')?.click();
+        const native = new URLSearchParams(location.search).get('app') === '1';
+        window.location.href = native ? '/services.html?app=1' : '/services.html';
       });
 
       loadTab(currentTab);
+      syncExploreHeaderSpacer();
+      window.addEventListener('resize', syncExploreHeaderSpacer);
+      if (window.ResizeObserver) {
+        const top = document.querySelector('.social-explore-page .social-top');
+        if (top) new ResizeObserver(syncExploreHeaderSpacer).observe(top);
+      }
     });
   </script>
 </body>
