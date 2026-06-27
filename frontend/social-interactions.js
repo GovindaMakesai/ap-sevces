@@ -1290,9 +1290,6 @@
     updateReelUI(reelItems[0]);
     bindReelActionsPanel();
 
-    const startPost =
-      new URLSearchParams(location.search).get('post') ||
-      sessionStorage.getItem('social_reel_start');
     if (startPost) {
       const idx = reelItems.findIndex((x) => String(x.postId) === String(startPost));
       if (idx > 0) {
