@@ -273,8 +273,12 @@ body.social-explore-page .social-tabs-spacer {
   box-sizing: border-box;
 }
 
-.social-explore-page #social-filter-chips-mount {
-  margin: 0 12px 6px;
+body.social-explore-page #social-filter-chips-mount {
+  display: none !important;
+  height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
 }
 
 .social-explore-page #exploreContent,

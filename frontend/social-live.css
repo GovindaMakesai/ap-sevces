@@ -1794,6 +1794,26 @@ body.ap-live-status-visible .party-room {
   0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.55); opacity: 1; }
   50% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); opacity: 0.75; }
 }
+.ap-live-loader-skip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 14px;
+  padding: 10px 22px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  pointer-events: auto;
+  backdrop-filter: blur(8px);
+}
+.ap-live-loader-skip:active {
+  transform: scale(0.98);
+  background: rgba(0, 0, 0, 0.6);
+}
 /* legacy loader bits — hidden if any remain in DOM */
 .ap-live-loader-logo,
 .ap-live-loader-brand,

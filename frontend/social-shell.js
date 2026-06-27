@@ -697,9 +697,12 @@
     ensureBottomNav(active);
 
     const chipsMount = document.getElementById('social-filter-chips-mount');
-    if (chipsMount) {
+    if (chipsMount && !document.body.classList.contains('social-explore-page')) {
       chipsMount.innerHTML = renderFilterChips(config.activeChip || 'Popular');
       bindFilterChips();
+    } else if (chipsMount) {
+      chipsMount.innerHTML = '';
+      chipsMount.hidden = true;
     }
 
     if (config.gridId) {

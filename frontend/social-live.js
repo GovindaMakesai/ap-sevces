@@ -1479,6 +1479,7 @@
               }
               renderRoomState();
               applyRoleUiAfterJoin();
+              hideApLoader();
               setApLoaderStep(2);
               setLiveStatus(serverIsHost ? 'Setting up broadcast…' : 'Connecting to stream…', null);
               if (serverIsHost) {
@@ -1703,7 +1704,8 @@
     return themeCover(party ? 'party' : 'live', label);
   }
 
-  function paintApLoaderCover(name, profilePic, party) {
+  function paintApLoaderCover(name, profilePic, party, opts) {
+    const options = opts || {};
     const loader = document.getElementById('apLiveLoader');
     const cover = document.getElementById('apLiveLoaderCover');
     const avatar = document.getElementById('apLiveLoaderAvatar');
@@ -1733,11 +1735,50 @@
       }
     }
 
-    if (label) {
+    if (label && options.text) {
+      label.textContent = options.text;
+    } else if (label && !roomJoinCompleted) {
       label.textContent = isParty ? hostName + ' — joining party' : hostName + ' — going live';
     }
     if (pulse) pulse.textContent = isParty ? 'Party' : 'Live';
-    loader.classList.remove('is-hidden');
+
+    const mayShow = options.show !== false && !roomJoinCompleted && !sessionEstablished;
+    if (mayShow) {
+      loader.classList.remove('is-hidden');
+      scheduleLoaderForceDismiss();
+    }
+  }
+
+  let apLoaderForceTimer = null;
+
+  function scheduleLoaderForceDismiss(ms) {
+    const wait = ms || 10000;
+    if (apLoaderForceTimer) clearTimeout(apLoaderForceTimer);
+    apLoaderForceTimer = setTimeout(() => {
+      apLoaderForceTimer = null;
+      const loader = document.getElementById('apLiveLoader');
+      if (!loader || loader.classList.contains('is-hidden')) return;
+      hideApLoader();
+      if (roomJoinCompleted && !sessionEstablished) onRoomReady();
+    }, wait);
+  }
+
+  function bindApLoaderDismiss() {
+    const skip = document.getElementById('apLiveLoaderSkip');
+    const loader = document.getElementById('apLiveLoader');
+    const dismiss = () => {
+      hideApLoader();
+      if (roomJoinCompleted && !sessionEstablished) onRoomReady();
+    };
+    skip?.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dismiss();
+    });
+    loader?.addEventListener('click', (e) => {
+      if (e.target === skip || skip?.contains(e.target)) return;
+      if (!loader.classList.contains('is-hidden')) dismiss();
+    });
   }
 
   async function primeApLoaderCover() {
@@ -1792,13 +1833,23 @@
   }
 
   function showApLoader(text, _step) {
+    if (roomJoinCompleted || sessionEstablished) {
+      const loaderTxt = document.getElementById('apLiveLoaderText');
+      if (loaderTxt && text) loaderTxt.textContent = text;
+      return;
+    }
     const loader = document.getElementById('apLiveLoader');
     const txt = document.getElementById('apLiveLoaderText');
     if (txt && text) txt.textContent = text;
     if (loader) loader.classList.remove('is-hidden');
+    scheduleLoaderForceDismiss();
   }
 
   function hideApLoader() {
+    if (apLoaderForceTimer) {
+      clearTimeout(apLoaderForceTimer);
+      apLoaderForceTimer = null;
+    }
     const loader = document.getElementById('apLiveLoader');
     if (loader) loader.classList.add('is-hidden');
     try {
@@ -1917,10 +1968,7 @@
     } else if (ok === false) {
       hideApLoader();
       if (text) toast(text, 'error');
-    } else if (text && !isActuallyLive()) {
-      if (sessionEstablished && roomJoinCompleted && (publishSucceeded || partyVoiceSkipped)) {
-        return;
-      }
+    } else if (text && !isActuallyLive() && !roomJoinCompleted && !sessionEstablished) {
       showApLoader(text);
     }
   }
@@ -3010,7 +3058,6 @@
       hostImg.src = avatarUrl(hostName, pic);
       hostImg.dataset.name = hostName;
       if (pic) hostImg.dataset.avatarSrc = String(pic);
-      paintApLoaderCover(hostName, pic, isPartyRoomPage());
     }
 
     const vc = document.getElementById('liveViewerCount');
@@ -6128,6 +6175,7 @@
   document.addEventListener('DOMContentLoaded', () => {
     const page = document.body?.dataset?.livePage;
     if (page === 'party-room' || page === 'live-room') {
+      bindApLoaderDismiss();
       primeApLoaderCover();
       bindScreenCaptureLifecycle();
       scheduleHideAppChrome();
