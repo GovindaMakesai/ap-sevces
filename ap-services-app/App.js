@@ -103,20 +103,26 @@ const LIVE_MINIMIZE_INJECT = `(function(){
     var p=(location.pathname||'').toLowerCase();
     var isLive=/live-room\\.html|party-room\\.html/i.test(p)||!!(document.body&&document.body.dataset&&document.body.dataset.livePage);
     if(!isLive) return;
-    var openSheet=document.querySelector('.party-tools-sheet.open,.gift-sheet.open,.party-requests-sheet.open,.social-broadcast-sheet-wrap.is-open,.ap-modal-overlay.is-open');
+    var openSheet=document.querySelector('.party-tools-sheet.open,.gift-sheet.open,.party-requests-sheet.open,.social-broadcast-sheet-wrap.is-open,.ap-modal-overlay.open,.ap-modal-overlay.show');
     if(openSheet){
-      openSheet.classList.remove('open','is-open','is-visible');
+      openSheet.classList.remove('open','is-open','is-visible','show');
       document.body.classList.remove('ap-live-overlay-open','ap-chat-open');
       return;
     }
     var emoji=document.getElementById('apEmojiPopover');
     if(emoji&&emoji.classList.contains('is-open')){emoji.classList.remove('is-open');return;}
     if(window.LiveSession&&window.LiveSession.isMinimized&&window.LiveSession.isMinimized()) return;
-    if(window.LiveSession&&window.LiveSession.minimize){window.LiveSession.minimize('/explore.html?app=1');return;}
+    if(window.APLive&&window.APLive.handleBack){window.APLive.handleBack();return;}
+    if(window.SocialLive&&window.SocialLive.handleBack){window.SocialLive.handleBack();return;}
+    if(window.LiveSession&&window.LiveSession.handleBack&&window.LiveSession.handleBack()) return;
+    if(window.LiveSession&&window.LiveSession.minimize&&window.LiveSession.minimize('/explore.html?app=1')) return;
     var live=window.APLive||window.SocialLive;
+    if(live&&typeof live.leaveToExplore==='function'){live.leaveToExplore({minimize:false});return;}
     if(live&&typeof live.minimizeRoom==='function'){live.minimizeRoom();return;}
-    try{history.pushState({apLiveRoom:1},'');}catch(e){}
-  } catch(e) {}
+    window.location.href='/explore.html?app=1';
+  } catch(e) {
+    try{window.location.href='/explore.html?app=1';}catch(_e){}
+  }
 })();true;`;
 
 const HARDWARE_BACK_INJECT = `(function(){
@@ -149,18 +155,20 @@ const HARDWARE_BACK_INJECT = `(function(){
         live.minimizeRoom();
         return true;
       }
-      try {
-        sessionStorage.setItem('ap_live_pip_session', JSON.stringify({
-          url: location.pathname + location.search,
-          host: 'Live',
-          type: (document.body && document.body.dataset && document.body.dataset.livePage) || 'live-room',
-          ts: Date.now()
-        }));
-      } catch(e) {}
-      try { history.pushState({ apLiveRoom: 1 }, ''); } catch(e) {}
+      if (live && typeof live.leaveToExplore === 'function') {
+        live.leaveToExplore({ minimize: false });
+        return true;
+      }
+      window.location.href = '/explore.html?app=1';
       return true;
     }
     if (window.LiveSession && window.LiveSession.handleBack && window.LiveSession.handleBack()) {
+      handled = true;
+    } else if (window.APLive && window.APLive.handleBack) {
+      window.APLive.handleBack();
+      handled = true;
+    } else if (window.SocialLive && window.SocialLive.handleBack) {
+      window.SocialLive.handleBack();
       handled = true;
     } else if (isLive) {
       if (closeLiveUi()) handled = true;

@@ -3400,46 +3400,81 @@
     frame?.classList.add('open');
   }
 
-  function bindPartyBackGuard() {
-    if (window.__apPartyBackGuard || window.__AP_LIVE_BACK_GUARD__) return;
-    window.__apPartyBackGuard = true;
-    if (!isPartyRoomPage() && !isLiveRoomPage()) return;
+  function closeLiveUiForBack() {
+    const openSheet = document.querySelector(
+      '.party-tools-sheet.open, .gift-sheet.open, .party-requests-sheet.open, .social-broadcast-sheet-wrap.is-open, .ap-modal-overlay.open, .ap-modal-overlay.show'
+    );
+    const emojiOpen = document.getElementById('apEmojiPopover')?.classList.contains('is-open');
+    if (openSheet || emojiOpen) {
+      if (openSheet) {
+        openSheet.classList.remove('open', 'is-open', 'is-visible', 'show');
+      }
+      if (emojiOpen) document.getElementById('apEmojiPopover')?.classList.remove('is-open');
+      document.body.classList.remove('ap-live-overlay-open', 'ap-chat-open');
+      closeLiveOverlays();
+      return true;
+    }
+    return false;
+  }
+
+  async function leaveToExplore(opts = {}) {
+    if (window.__apLeavingRoom) return;
+    hideApLoader();
+    setLiveStatus('', null);
+    closeLiveOverlays();
+
+    if (opts.minimize !== false && window.LiveSession?.minimize?.('/explore.html?app=1')) {
+      minimizingRoom = true;
+      try {
+        history.pushState({ apLiveRoom: 1 }, '');
+      } catch (_e) {}
+      return;
+    }
+
+    window.__apLeavingRoom = true;
+    minimizingRoom = false;
     try {
-      history.pushState({ apLiveRoom: true }, '');
-      window.addEventListener('popstate', () => {
-        if (!isPartyRoomPage() && !isLiveRoomPage()) return;
-        if (window.__apLeavingRoom) return;
-        history.pushState({ apLiveRoom: true }, '');
-        minimizeLiveRoom();
-      });
+      await stopAgora({ skipEndRoom: !isHost() || hostEndingIntentionally });
     } catch (_e) {}
+    leaveSocket();
+    try {
+      sessionStorage.removeItem('ap_live_pip_session');
+      if (!window.__apLiveSessionExitInProgress) window.LiveSession?.forceCleanup?.();
+    } catch (_e) {}
+    location.href = '/explore.html?app=1';
+  }
+
+  function handleLiveRoomBack() {
+    if (window.__apLeavingRoom) return true;
+    if (window.LiveSession?.isMinimized?.()) {
+      return window.LiveSession.handleBack?.() ?? true;
+    }
+    if (closeLiveUiForBack()) return true;
+    if (window.LiveSession?.handleBack?.()) return true;
+    leaveToExplore();
+    return true;
+  }
+
+  function initLiveBackGuard() {
+    if (window.__AP_LIVE_BACK_GUARD__) return;
+    window.__AP_LIVE_BACK_GUARD__ = true;
+    if (!isLiveRoomPage() && !isPartyRoomPage()) return;
+    try {
+      history.pushState({ apLiveRoom: 1 }, '');
+    } catch (_e) {}
+    window.addEventListener('popstate', () => {
+      if (window.__apLeavingRoom) return;
+      handleLiveRoomBack();
+    });
+  }
+
+  function bindPartyBackGuard() {
+    initLiveBackGuard();
   }
 
   function minimizeLiveRoom() {
     if (minimizingRoom) return;
-    hideApLoader();
-    setLiveStatus('', null);
-    closeLiveOverlays();
-    if (window.LiveSession?.minimize?.('/explore.html?app=1')) {
-      minimizingRoom = true;
-      return;
-    }
-    minimizingRoom = true;
-    const host = roomState?.hostName || (isHost() ? displayName(currentUser()) : 'Live');
-    const payload = {
-      url: location.pathname + location.search,
-      channel: channelId(),
-      host,
-      type: document.body.dataset.livePage || 'live-room',
-      ts: Date.now(),
-    };
-    try {
-      sessionStorage.setItem('ap_live_pip_session', JSON.stringify(payload));
-      localStorage.setItem(LIVE_SESSION_KEY, JSON.stringify({ ...payload, expiresAt: Date.now() + LIVE_SESSION_TTL_MS }));
-    } catch (_e) {}
-    try {
-      history.pushState({ apLiveRoom: 1 }, '');
-    } catch (_e) {}
+    leaveToExplore({ minimize: true });
   }
 
   function isChatPanelOpen() {
@@ -4799,7 +4834,7 @@
     await stopAgora({ skipEndRoom: hostEndingIntentionally });
     leaveSocket();
     const dest = '/explore.html?app=1';
-    location.replace(dest);
+    location.href = dest;
   }
 
   async function endRoomOrExit() {
@@ -6164,6 +6199,8 @@
     isActuallyLive,
     getChannel: channelId,
     minimizeRoom: minimizeLiveRoom,
+    handleBack: handleLiveRoomBack,
+    leaveToExplore,
     onMiniPlayerExpand: onMiniPlayerExpanded,
     exitRoom,
     getForensicReport() {
@@ -6176,6 +6213,7 @@
     const page = document.body?.dataset?.livePage;
     if (page === 'party-room' || page === 'live-room') {
       bindApLoaderDismiss();
+      initLiveBackGuard();
       primeApLoaderCover();
       bindScreenCaptureLifecycle();
       scheduleHideAppChrome();

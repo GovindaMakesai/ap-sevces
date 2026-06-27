@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#fdf9f0">
   <title>Explore - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-theme.css?v=20260705-explore-tight">
+  <link rel="stylesheet" href="social-theme.css?v=20260706-following-back">
   <script src="native-session-restore.js"></script>
   <script src="ap-config.js"></script>
   <script src="ap-native-boot.js"></script>
@@ -16,6 +16,7 @@
     <div class="social-explore-tabs-wrap">
       <div class="social-explore-tabs-row">
         <div class="social-main-tabs social-explore-tabs" id="exploreTabs" role="tablist" aria-label="Live sections">
+          <button type="button" role="tab" data-tab="following">Following</button>
           <button type="button" role="tab" data-tab="explore" class="active">Live</button>
           <button type="button" role="tab" data-tab="party">Party</button>
           <button type="button" role="tab" data-tab="new">New</button>
@@ -52,13 +53,13 @@
   <script src="social-interactions.js"></script>
   <script src="auth-guard.js"></script>
   <script src="social-create-post.js"></script>
-  <script src="social-shell.js?v=20260705-loader-fix"></script>
+  <script src="social-shell.js?v=20260706-following-back"></script>
   <script src="social-nav.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       let currentTab = new URLSearchParams(location.search).get('tab') || 'explore';
-      const valid = ['explore', 'party', 'new', 'nearby'];
-      if (!valid.includes(currentTab) || currentTab === 'following') currentTab = 'explore';
+      const valid = ['following', 'explore', 'party', 'new', 'nearby'];
+      if (!valid.includes(currentTab)) currentTab = 'explore';
 
       const hints = {
         explore: 'Trending live broadcasts right now.',
@@ -81,7 +82,6 @@
           btn.classList.toggle('active', btn.dataset.tab === tab);
         });
         const showParty = tab === 'party';
-        const showLive = tab === 'explore' || tab === 'party' || tab === 'new' || tab === 'nearby';
         document.getElementById('social-start-party').style.display = showParty ? '' : 'none';
         document.getElementById('social-start-live').style.display =
           tab === 'explore' || tab === 'new' || tab === 'nearby' ? '' : 'none';
@@ -100,6 +100,14 @@
         }
         const qs = params.toString();
         history.replaceState(null, '', '/explore.html' + (qs ? '?' + qs : ''));
+
+        if (tab === 'following') {
+          content.style.display = 'none';
+          empty.style.display = 'block';
+          await SocialShell.fillFollowingView(searchQuery || '');
+          syncExploreHeaderSpacer();
+          return;
+        }
 
         content.style.display = 'block';
         empty.style.display = 'none';

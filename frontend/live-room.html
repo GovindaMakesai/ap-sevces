@@ -43,21 +43,6 @@
       setTimeout(stripAppChrome, 0);
       [100, 500, 1500].forEach(function (ms) { setTimeout(stripAppChrome, ms); });
     })();
-    (function apLiveBackGuard() {
-      try { history.pushState({ apLiveRoom: 1 }, ''); } catch (_e) {}
-      window.__AP_LIVE_BACK_GUARD__ = true;
-      window.addEventListener('popstate', function () {
-        if (window.__apLeavingRoom) return;
-        try { history.pushState({ apLiveRoom: 1 }, ''); } catch (_e) {}
-        if (window.LiveSession && window.LiveSession.minimize) {
-          window.LiveSession.minimize('/explore.html?app=1');
-          return;
-        }
-        if (window.APLive && window.APLive.minimizeRoom) {
-          window.APLive.minimizeRoom();
-        }
-      });
-    })();
     (function apBlockScreenshots() {
       function enable() {
         try {
@@ -216,7 +201,7 @@
   <script src="social-fx.js"></script>
   <script src="live-emoji-data.js"></script>
   <script src="live-session-provider.js?v=20260703-minimize-fix"></script>
-  <script src="social-live.js?v=20260705-loader-fix"></script>
+  <script src="social-live.js?v=20260706-following-back"></script>
   <script src="social-live-interactions.js"></script>
   <script src="social-nav.js"></script>
 </body>
