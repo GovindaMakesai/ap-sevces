@@ -11,8 +11,8 @@ const AP = window.AP_CONFIG || {
 window.AP_CONFIG = AP;
 
 const LIVE_FRONTEND_URL = AP.PRODUCTION_FRONTEND_URL;
-const LIVE_API_URL = AP.PRODUCTION_API_URL;
-const LIVE_BACKEND_URL = AP.PRODUCTION_BACKEND_URL;
+const LIVE_API_URL = AP.PRODUCTION_API_URL || 'https://api.apservices.in/api';
+const LIVE_BACKEND_URL = AP.PRODUCTION_BACKEND_URL || 'https://api.apservices.in';
 const LOCAL_API_URL = 'http://localhost:5000/api';
 const LOCAL_FRONTEND_URL = 'http://localhost:5500';
 
@@ -34,12 +34,17 @@ function isVercelHost() {
     return /\.vercel\.app$/i.test(window.location.hostname || '');
 }
 
+/** Canonical production API root — never trust WebView injection alone. */
+const AP_SERVICES_API_ROOT = 'https://api.apservices.in/api';
+window.AP_SERVICES_API_ROOT = AP_SERVICES_API_ROOT;
+
 /** Ensure native WebView always gets a valid absolute API root (fixes "URL malformed"). */
 function normalizeApiUrl(raw) {
-    const fallback = LIVE_API_URL;
-    if (!raw || typeof raw !== 'string') return fallback;
+    const fallback = AP_SERVICES_API_ROOT;
+    if (raw == null) return fallback;
+    if (typeof raw !== 'string') return fallback;
     let s = raw.trim();
-    if (!s) return fallback;
+    if (!s || s === 'undefined' || s === 'null') return fallback;
     if (!/^https?:\/\//i.test(s)) {
         if (s.startsWith('//')) s = 'https:' + s;
         else if (/^(api\.apservices\.in|apservices\.in)/i.test(s)) s = 'https://' + s.replace(/^\/+/, '');
@@ -225,10 +230,24 @@ function apiBaseUrl() {
 }
 
 function joinApiUrl(endpoint) {
-    const base = apiBaseUrl();
     const path = String(endpoint || '');
-    if (/^https?:\/\//i.test(path)) return path;
-    return `${base}${path.startsWith('/') ? path : `/${path}`}`;
+    if (/^https?:\/\//i.test(path)) {
+        try {
+            new URL(path);
+            return path;
+        } catch (_e) {
+            return AP_SERVICES_API_ROOT + (path.startsWith('/') ? path : `/${path}`);
+        }
+    }
+    const bases = [apiBaseUrl(), AP_SERVICES_API_ROOT, LIVE_API_URL].filter(Boolean);
+    for (const base of bases) {
+        const url = `${String(base).replace(/\/+$/, '')}${path.startsWith('/') ? path : `/${path}`}`;
+        try {
+            new URL(url);
+            return url;
+        } catch (_e) { /* try next */ }
+    }
+    return `${AP_SERVICES_API_ROOT}${path.startsWith('/') ? path : `/${path}`}`;
 }
 window.joinApiUrl = joinApiUrl;
 
@@ -307,7 +326,15 @@ const API = {
             body = JSON.stringify(body);
         }
 
-        const response = await fetch(url, {
+        let safeUrl = url;
+        try {
+            new URL(safeUrl);
+        } catch (_e) {
+            const path = String(url).replace(/^https?:\/\/[^/]+/i, '').replace(/^\/api/i, '') || '/';
+            safeUrl = joinApiUrl(path);
+        }
+
+        const response = await fetch(safeUrl, {
             ...options,
             headers,
             body,

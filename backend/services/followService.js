@@ -35,6 +35,58 @@ async function isFollowing(followerId, followingId) {
   return res.rows.length > 0;
 }
 
+async function isBlocked(blockerId, blockedId) {
+  const res = await db.query(
+    `SELECT 1 FROM user_blocks WHERE blocker_id = $1 AND blocked_id = $2`,
+    [blockerId, blockedId]
+  );
+  return res.rows.length > 0;
+}
+
+async function blockUser(blockerId, blockedId) {
+  if (String(blockerId) === String(blockedId)) {
+    throw new Error('Cannot block yourself');
+  }
+  await unfollow(blockerId, blockedId);
+  await unfollow(blockedId, blockerId);
+  await db.query(
+    `INSERT INTO user_blocks (blocker_id, blocked_id) VALUES ($1, $2)
+     ON CONFLICT (blocker_id, blocked_id) DO NOTHING`,
+    [blockerId, blockedId]
+  );
+  return { blockerId, blockedId, blocked: true };
+}
+
+async function unblockUser(blockerId, blockedId) {
+  await db.query(
+    `DELETE FROM user_blocks WHERE blocker_id = $1 AND blocked_id = $2`,
+    [blockerId, blockedId]
+  );
+  return { blockerId, blockedId, blocked: false };
+}
+
+async function getBlockedUsers(blockerId, limit = 50) {
+  const res = await db.query(
+    `SELECT u.id, u.first_name, u.last_name, u.profile_pic, b.created_at
+     FROM user_blocks b
+     JOIN users u ON u.id = b.blocked_id
+     WHERE b.blocker_id = $1
+     ORDER BY b.created_at DESC
+     LIMIT $2`,
+    [blockerId, limit]
+  );
+  return res.rows;
+}
+
+async function getRelation(viewerId, targetId) {
+  const [following, blocked, blockedBy] = await Promise.all([
+    isFollowing(viewerId, targetId),
+    isBlocked(viewerId, targetId),
+    isBlocked(targetId, viewerId),
+  ]);
+  return { following, blocked, blockedBy };
+}
+
 async function getFollowers(userId, limit = 50) {
   const res = await db.query(
     `SELECT u.id, u.first_name, u.last_name, u.profile_pic, f.created_at
@@ -87,6 +139,11 @@ module.exports = {
   follow,
   unfollow,
   isFollowing,
+  isBlocked,
+  blockUser,
+  unblockUser,
+  getBlockedUsers,
+  getRelation,
   getFollowers,
   getFollowing,
   getStats,

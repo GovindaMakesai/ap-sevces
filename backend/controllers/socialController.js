@@ -28,8 +28,36 @@ async function unfollowUser(req, res) {
 }
 
 async function followStatus(req, res) {
-  const following = await followService.isFollowing(uid(req), req.params.userId);
-  res.json({ success: true, data: { following } });
+  const data = await followService.getRelation(uid(req), req.params.userId);
+  res.json({ success: true, data });
+}
+
+async function blockUser(req, res) {
+  try {
+    const data = await followService.blockUser(uid(req), req.params.userId);
+    res.json({ success: true, data });
+  } catch (e) {
+    res.status(400).json({ success: false, message: e.message });
+  }
+}
+
+async function unblockUser(req, res) {
+  try {
+    const data = await followService.unblockUser(uid(req), req.params.userId);
+    res.json({ success: true, data });
+  } catch (e) {
+    res.status(400).json({ success: false, message: e.message });
+  }
+}
+
+async function blockStatus(req, res) {
+  const blocked = await followService.isBlocked(uid(req), req.params.userId);
+  res.json({ success: true, data: { blocked } });
+}
+
+async function myBlocked(req, res) {
+  const data = await followService.getBlockedUsers(uid(req), parseInt(req.query.limit, 10) || 50);
+  res.json({ success: true, data });
 }
 
 async function myFollowing(req, res) {
@@ -361,6 +389,10 @@ module.exports = {
   followUser,
   unfollowUser,
   followStatus,
+  blockUser,
+  unblockUser,
+  blockStatus,
+  myBlocked,
   myFollowing,
   userFollowers,
   followStats,

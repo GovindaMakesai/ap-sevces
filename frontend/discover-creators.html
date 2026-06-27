@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#ffffff">
   <title>Discover Creators - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-theme.css?v=20260628-hotfix">
-  <link rel="stylesheet" href="social-features.css?v=20260628-hotfix">
+  <link rel="stylesheet" href="social-theme.css?v=20260629-friends">
+  <link rel="stylesheet" href="social-features.css?v=20260629-friends">
   <script src="native-session-restore.js"></script>
   <script src="ap-config.js"></script>
   <script src="ap-native-boot.js"></script>
@@ -29,7 +29,7 @@
 
   <div class="discover-creators-promo">
     <i class="fas fa-fire"></i>
-    <span>Follow creators you like — tap a profile to see their gifts, live stats &amp; posts.</span>
+    <span>Add creators as friends — tap profile for more options.</span>
   </div>
 
   <div class="discover-creators-list" id="discoverCreatorsList">
@@ -38,13 +38,14 @@
 
   <div id="social-bottom-nav-mount"></div>
 
-  <script src="app.js?v=20260628-live-ui-fix"></script>
-  <script src="social-ui.js?v=20260628-follow-fix"></script>
+  <script src="app.js?v=20260629-friends"></script>
+  <script src="social-ui.js?v=20260629-friends"></script>
   <script src="auth-guard.js"></script>
-  <script src="social-interactions.js?v=20260628-live-ui-fix"></script>
+  <script src="social-interactions.js?v=20260629-friends"></script>
   <script src="social-shell.js"></script>
   <script src="social-nav.js"></script>
   <script>
+    const API_ROOT = (window.AP_SERVICES_API_ROOT || 'https://api.apservices.in/api').replace(/\/+$/, '');
     const DISCOVER_PATH = '/social/discover/creators';
     let currentPeriod = 'weekly';
 
@@ -75,13 +76,7 @@
 
     function discoverRequestUrls(period) {
       const q = discoverQuery(period);
-      const urls = [];
-      const base = (window.normalizeApiUrl && CONFIG?.API_URL)
-        ? normalizeApiUrl(CONFIG.API_URL)
-        : 'https://api.apservices.in/api';
-      urls.push(base.replace(/\/+$/, '') + DISCOVER_PATH + q);
-      urls.push('https://api.apservices.in/api' + DISCOVER_PATH + q);
-      return [...new Set(urls)];
+      return [API_ROOT + DISCOVER_PATH + q];
     }
 
     function authHeaders() {
@@ -137,35 +132,26 @@
 
     async function fetchCreators(period) {
       const headers = authHeaders();
-      const path = DISCOVER_PATH + discoverQuery(period);
+      const url = discoverRequestUrls(period)[0];
 
-      if (window.API?.get) {
+      try {
+        const res = await httpGet(url, headers);
+        return parseDiscoverResponse(res);
+      } catch (e) {
+        console.warn('discover httpGet:', e);
+      }
+
+      if (window.SocialInteractions?.apiSocial) {
         try {
-          const data = await API.get(path);
+          const data = await SocialInteractions.apiSocial('GET', DISCOVER_PATH + discoverQuery(period));
           if (data?.success) return data.data?.creators || [];
         } catch (apiErr) {
-          console.warn('discover API.get:', apiErr);
+          console.warn('discover API:', apiErr);
+          throw apiErr;
         }
       }
 
-      let lastErr;
-      for (const url of discoverRequestUrls(period)) {
-        try {
-          const res = await httpGet(url, headers);
-          return parseDiscoverResponse(res);
-        } catch (e) {
-          lastErr = e;
-        }
-      }
-
-      const msg = String(lastErr?.message || '');
-      if (lastErr?.name === 'AbortError' || /timed out/i.test(msg)) {
-        throw new Error('Request timed out. Check connection and retry.');
-      }
-      if (/malformed|invalid url|failed to fetch|network/i.test(msg)) {
-        throw new Error('Cannot reach server. Check internet and retry.');
-      }
-      throw lastErr || new Error('Could not load creators');
+      throw new Error('Could not load creators');
     }
 
     function isFollowingSafe(creator) {
@@ -189,6 +175,10 @@
         ? '<span class="discover-live-pill"><i class="fas fa-circle"></i> LIVE · ' + formatCount(creator.liveViewers) + '</span>'
         : '';
       const following = isFollowingSafe(creator);
+      const blocked = window.SocialInteractions?.isBlocked?.(creator.id);
+      const friendLabel = window.SocialInteractions?.friendBtnLabel
+        ? SocialInteractions.friendBtnLabel(following)
+        : (following ? 'Friends' : 'Add Friend');
       return (
         '<article class="discover-creator-card" data-user-id="' + id + '">' +
           '<a class="discover-creator-main" href="' + href + '">' +
@@ -203,9 +193,14 @@
               '</div>' +
             '</div>' +
           '</a>' +
-          '<button type="button" class="discover-creator-follow' + (following ? ' is-on' : '') + '" data-follow-id="' + id + '" data-follow-name="' + name + '">' +
-            (following ? 'Following' : 'Follow') +
-          '</button>' +
+          '<div class="discover-creator-actions">' +
+            '<button type="button" class="discover-creator-follow' + (following ? ' is-on' : '') + (blocked ? ' is-blocked' : '') + '" data-follow-id="' + id + '" data-follow-name="' + name + '">' +
+              (blocked ? 'Blocked' : friendLabel) +
+            '</button>' +
+            '<button type="button" class="discover-creator-block" data-block-id="' + id + '" data-block-name="' + name + '" aria-label="' + (blocked ? 'Unblock' : 'Block') + '">' +
+              '<i class="fas fa-' + (blocked ? 'unlock' : 'ban') + '"></i>' +
+            '</button>' +
+          '</div>' +
         '</article>'
       );
     }
@@ -224,14 +219,39 @@
             location.href = '/app-auth.html?app=1&redirect=' + encodeURIComponent(location.pathname + location.search);
             return;
           }
-          if (!window.SocialInteractions?.toggleFollow) {
+          if (!window.SocialInteractions?.toggleFriend) {
             if (window.SocialUI) SocialUI.toast('Please wait and try again', 'warning');
             return;
           }
-          const now = await SocialInteractions.toggleFollow(id, name);
-          btn.textContent = now ? 'Following' : 'Follow';
+          if (btn.classList.contains('is-blocked')) {
+            SocialUI?.toast('Unblock first to add as friend', 'warning');
+            return;
+          }
+          const now = await SocialInteractions.toggleFriend(id, name);
+          btn.textContent = SocialInteractions.friendBtnLabel(now);
           btn.classList.toggle('is-on', now);
-          if (window.SocialUI) SocialUI.toast(now ? 'Following ' + name : 'Unfollowed ' + name, now ? 'success' : 'info');
+          if (window.SocialUI) SocialUI.toast(now ? 'Added ' + name + ' as friend' : 'Removed ' + name + ' from friends', now ? 'success' : 'info');
+        });
+      });
+      document.querySelectorAll('.discover-creator-block').forEach((btn) => {
+        if (btn.dataset.bound) return;
+        btn.dataset.bound = '1';
+        btn.addEventListener('click', async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const id = btn.dataset.blockId;
+          const name = btn.dataset.blockName;
+          if (!id || !window.SocialInteractions?.toggleBlock) return;
+          const blocked = await SocialInteractions.toggleBlock(id, name);
+          const card = btn.closest('.discover-creator-card');
+          const friendBtn = card?.querySelector('.discover-creator-follow');
+          if (friendBtn) {
+            friendBtn.classList.toggle('is-blocked', blocked);
+            friendBtn.classList.toggle('is-on', false);
+            friendBtn.textContent = blocked ? 'Blocked' : SocialInteractions.friendBtnLabel(false);
+          }
+          btn.innerHTML = '<i class="fas fa-' + (blocked ? 'unlock' : 'ban') + '"></i>';
+          btn.setAttribute('aria-label', blocked ? 'Unblock' : 'Block');
         });
       });
     }
@@ -257,8 +277,8 @@
 
     window.addEventListener('load', async () => {
       if (window.SocialShell?.initPage) SocialShell.initPage({ activeNav: 'explore' });
-      if (window.SocialInteractions?.refreshFollowCache) {
-        await SocialInteractions.refreshFollowCache().catch(() => {});
+      if (window.SocialInteractions?.refreshSocialCaches) {
+        await SocialInteractions.refreshSocialCaches().catch(() => {});
       }
       document.querySelectorAll('.discover-creators-tab').forEach((btn) => {
         btn.addEventListener('click', () => {

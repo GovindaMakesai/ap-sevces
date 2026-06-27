@@ -6,9 +6,9 @@
   <meta name="theme-color" content="#fdf9f0">
   <title>Rankings - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-theme.css">
-  <link rel="stylesheet" href="social-features.css">
-  <link rel="stylesheet" href="social-fx.css">
+  <link rel="stylesheet" href="social-theme.css?v=20260629-friends">
+  <link rel="stylesheet" href="social-features.css?v=20260629-friends">
+  <link rel="stylesheet" href="social-fx.css?v=20260629-friends">
 </head>
 <body class="social-rank-page social-rank-page--gold">
   <header class="social-rank-header">
@@ -59,17 +59,21 @@
 
   <div id="social-bottom-nav-mount"></div>
 
-  <script src="app.js?v=20260628-live-ui-fix"></script>
-  <script src="social-ui.js?v=20260628-live-ui-fix"></script>
-  <script src="social-interactions.js?v=20260628-live-ui-fix"></script>
+  <script src="app.js?v=20260629-friends"></script>
+  <script src="social-ui.js?v=20260629-friends"></script>
+  <script src="social-interactions.js?v=20260629-friends"></script>
   <script src="social-shell.js"></script>
   <script src="social-nav.js"></script>
   <script src="social-fx.js"></script>
   <script>
     const TAB_CATEGORY = { host: 'creators', rich: 'gifters', gift: 'gifters', video: 'video' };
     const TAB_MODE = { host: '', rich: '', gift: 'count', video: '' };
-    let currentPeriod = 'daily';
-    let currentTab = 'host';
+    const API_ROOT = (window.AP_SERVICES_API_ROOT || 'https://api.apservices.in/api').replace(/\/+$/, '');
+    const urlParams = new URLSearchParams(location.search);
+    let currentPeriod = ['daily', 'weekly', 'monthly'].includes(urlParams.get('period'))
+      ? urlParams.get('period')
+      : 'daily';
+    let currentTab = urlParams.get('tab') || 'host';
 
     function periodLabel(period) {
       if (period === 'daily') return 'today';
@@ -93,12 +97,9 @@
     async function fetchRankings(period, tab) {
       const category = TAB_CATEGORY[tab] || 'creators';
       const mode = TAB_MODE[tab] || '';
-      const api = (window.normalizeApiUrl && CONFIG?.API_URL)
-        ? normalizeApiUrl(CONFIG.API_URL)
-        : 'https://api.apservices.in/api';
       const qs = new URLSearchParams({ period, category });
       if (mode) qs.set('mode', mode);
-      const res = await fetch(`${api}/v1/leaderboards?${qs}`, { credentials: 'include' });
+      const res = await fetch(`${API_ROOT}/v1/leaderboards?${qs}`, { credentials: 'include' });
       const data = await res.json();
       if (!data.success || !Array.isArray(data.data)) return [];
       return data.data.map((row) => ({
@@ -171,21 +172,25 @@
           <span class="rank-num">${i + 4}</span>
           <img src="${avatarUrl(r)}" alt="" onerror="this.src='https://ui-avatars.com/api/?name=AP&background=c9a227&color=fff'">
           <div class="rank-info"><strong>${r.n}</strong> 🇮🇳<br><small>${r.s}</small></div>
-          <button type="button" class="social-rank-follow ap-pressable" data-user-id="${r.id || ''}">Follow</button>
+          <button type="button" class="social-rank-follow ap-pressable" data-user-id="${r.id || ''}">Add Friend</button>
         </div>`).join('');
       el.querySelectorAll('.social-rank-follow').forEach((b) => {
-        b.addEventListener('click', async () => {
-          const uid = b.dataset.userId;
-          if (!uid || !window.SocialInteractions?.toggleFollow) {
-            b.textContent = 'Following';
-            b.disabled = true;
+        const uid = b.dataset.userId;
+        if (uid && window.SocialInteractions?.isFollowing?.(uid)) {
+          b.textContent = 'Remove Friend';
+          b.classList.add('is-on');
+        }
+        b.addEventListener('click', async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (!uid || !window.SocialInteractions?.toggleFriend) {
             window.SocialFX?.showFollowBurst?.(b);
             return;
           }
           try {
-            await SocialInteractions.toggleFollow(uid);
-            b.textContent = 'Following';
-            b.disabled = true;
+            const now = await SocialInteractions.toggleFriend(uid);
+            b.textContent = SocialInteractions.friendBtnLabel(now);
+            b.classList.toggle('is-on', now);
             window.SocialFX?.showFollowBurst?.(b);
           } catch (_e) {
             window.SocialFX?.showFollowBurst?.(b);
@@ -194,9 +199,27 @@
       });
     }
 
+    function setPeriod(period, pushUrl) {
+      currentPeriod = ['daily', 'weekly', 'monthly'].includes(period) ? period : 'daily';
+      document.querySelectorAll('.social-rank-sub-tab').forEach((t) => {
+        t.classList.toggle('active', t.dataset.period === currentPeriod);
+      });
+      if (pushUrl !== false) {
+        const p = new URLSearchParams(location.search);
+        p.set('period', currentPeriod);
+        p.set('app', '1');
+        history.replaceState(null, '', '/rankings.html?' + p.toString());
+      }
+      refreshRanks();
+    }
+
     document.addEventListener('DOMContentLoaded', async () => {
       SocialShell.initPage({ activeNav: 'rankings' });
+      if (window.SocialInteractions?.refreshSocialCaches) {
+        await SocialInteractions.refreshSocialCaches().catch(() => {});
+      }
       document.querySelectorAll('.social-rank-main-tab').forEach((tab) => {
+        tab.classList.toggle('active', tab.dataset.tab === currentTab);
         tab.addEventListener('click', (e) => {
           e.preventDefault();
           document.querySelectorAll('.social-rank-main-tab').forEach((t) => t.classList.remove('active'));
@@ -205,8 +228,18 @@
           document.querySelectorAll('[data-rank-panel]').forEach((p) => {
             p.style.display = p.dataset.rankPanel === currentTab ? '' : 'none';
           });
+          const p = new URLSearchParams(location.search);
+          p.set('tab', currentTab);
+          p.set('app', '1');
+          history.replaceState(null, '', '/rankings.html?' + p.toString());
           refreshRanks();
         });
+      });
+      document.querySelectorAll('[data-rank-panel]').forEach((p) => {
+        p.style.display = p.dataset.rankPanel === currentTab ? '' : 'none';
+      });
+      document.querySelectorAll('.social-rank-sub-tab').forEach((t) => {
+        t.classList.toggle('active', t.dataset.period === currentPeriod);
       });
       await refreshRanks();
       window.refreshRanks = refreshRanks;
@@ -217,21 +250,12 @@
         tab.addEventListener('click', (e) => {
           e.preventDefault();
           e.stopPropagation();
-          if (tab.classList.contains('active')) return;
-          document.querySelectorAll('.social-rank-sub-tab').forEach((t) => t.classList.remove('active'));
-          tab.classList.add('active');
-          currentPeriod = tab.dataset.period || 'daily';
-          refreshRanks();
+          if (tab.dataset.period === currentPeriod) return;
+          setPeriod(tab.dataset.period || 'daily');
           window.SocialFX?.confetti?.({ count: 20, originY: 0.2 });
         }, { passive: false });
       });
-      window.setRankingsPeriod = (period) => {
-        currentPeriod = period || 'daily';
-        document.querySelectorAll('.social-rank-sub-tab').forEach((t) => {
-          t.classList.toggle('active', t.dataset.period === currentPeriod);
-        });
-        refreshRanks();
-      };
+      window.setRankingsPeriod = (period) => setPeriod(period);
     });
   </script>
 </body>

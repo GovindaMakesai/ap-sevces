@@ -383,6 +383,75 @@
   }
 
   let followIdCache = null;
+  let blockIdCache = null;
+
+  function socialApiRoot() {
+    if (window.AP_SERVICES_API_ROOT) return window.AP_SERVICES_API_ROOT;
+    if (window.joinApiUrl) return joinApiUrl('/').replace(/\/$/, '');
+    if (window.normalizeApiUrl && window.CONFIG?.API_URL) return normalizeApiUrl(CONFIG.API_URL);
+    return 'https://api.apservices.in/api';
+  }
+
+  function socialApiPath(endpoint) {
+    const root = socialApiRoot().replace(/\/+$/, '');
+    const path = String(endpoint || '');
+    if (/^https?:\/\//i.test(path)) return path;
+    return `${root}${path.startsWith('/') ? path : `/${path}`}`;
+  }
+
+  function xhrSocial(method, url, body) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open(method, url, true);
+      xhr.timeout = 25000;
+      const token = localStorage.getItem('token');
+      if (token) xhr.setRequestHeader('Authorization', 'Bearer ' + token);
+      if (body != null && method !== 'GET' && method !== 'DELETE') {
+        xhr.setRequestHeader('Content-Type', 'application/json');
+      }
+      xhr.onload = () => {
+        let data;
+        try {
+          data = JSON.parse(xhr.responseText || '{}');
+        } catch (_e) {
+          data = { message: xhr.responseText || 'Invalid response' };
+        }
+        if (xhr.status >= 200 && xhr.status < 300) resolve(data);
+        else {
+          const err = new Error(data.message || `HTTP ${xhr.status}`);
+          err.status = xhr.status;
+          reject(err);
+        }
+      };
+      xhr.onerror = () => reject(new Error('Network error'));
+      xhr.ontimeout = () => reject(new Error('Request timed out'));
+      xhr.send(body != null ? JSON.stringify(body) : null);
+    });
+  }
+
+  async function apiSocial(method, endpoint, body) {
+    const m = (method || 'GET').toUpperCase();
+    const path = String(endpoint || '');
+    if (window.API?.request && m !== 'GET') {
+      window.API.clearGetCache?.('/social/');
+    }
+    try {
+      if (window.API?.request) {
+        const opts = { method: m };
+        if (body != null && m !== 'GET' && m !== 'DELETE') opts.body = body;
+        return await API.request(path, opts);
+      }
+    } catch (e) {
+      const msg = String(e?.message || '');
+      if (!/malformed|invalid url|failed to fetch|network/i.test(msg)) throw e;
+    }
+    const url = socialApiPath(path);
+    return xhrSocial(m, url, m === 'POST' && body == null ? {} : body);
+  }
+
+  function friendBtnLabel(following) {
+    return following ? 'Remove Friend' : 'Add Friend';
+  }
 
   function isUuid(id) {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -398,10 +467,10 @@
   }
 
   async function refreshFollowCache() {
-    if (!window.API || !hasAuth()) return;
+    if (!hasAuth()) return;
     try {
       await ensureFollowAuth();
-      const res = await API.get('/social/following?limit=200');
+      const res = await apiSocial('GET', '/social/following?limit=200');
       const rows = Array.isArray(res?.data) ? res.data : [];
       followIdCache = new Set(rows.map((u) => String(u.id)));
       const entries = rows.map((u) => ({
@@ -413,6 +482,23 @@
     } catch (e) {
       console.warn('SocialInteractions: follow cache', e);
     }
+  }
+
+  async function refreshBlockCache() {
+    if (!hasAuth()) return;
+    try {
+      await ensureFollowAuth();
+      const res = await apiSocial('GET', '/social/blocks?limit=200');
+      const rows = Array.isArray(res?.data) ? res.data : [];
+      blockIdCache = new Set(rows.map((u) => String(u.id)));
+    } catch (e) {
+      console.warn('SocialInteractions: block cache', e);
+      blockIdCache = blockIdCache || new Set();
+    }
+  }
+
+  async function refreshSocialCaches() {
+    await Promise.all([refreshFollowCache(), refreshBlockCache()]);
   }
 
   async function ensureFollowAuth() {
@@ -441,23 +527,31 @@
 
   async function toggleFollow(creatorId, creatorName) {
     const uid = String(creatorId || '').trim();
-    if (window.API && hasAuth() && isUuid(uid)) {
+    if (hasAuth() && isUuid(uid)) {
       try {
         await ensureFollowAuth();
+        if (isBlocked(uid)) {
+          if (window.SocialUI?.toast) SocialUI.toast('Unblock this user first to add as friend', 'warning');
+          return false;
+        }
         let following = false;
         if (followIdCache != null) {
           following = followIdCache.has(uid);
         } else {
-          const statusRes = await API.get(`/social/follow/${uid}/status`);
-          following = Boolean(statusRes?.data?.following ?? statusRes?.following);
+          const statusRes = await apiSocial('GET', `/social/follow/${uid}/status`);
+          following = Boolean(statusRes?.data?.following);
+          if (statusRes?.data?.blocked) {
+            if (window.SocialUI?.toast) SocialUI.toast('You blocked this user', 'warning');
+            return false;
+          }
         }
         if (following) {
-          await API.delete(`/social/follow/${uid}`);
+          await apiSocial('DELETE', `/social/follow/${uid}`);
           followIdCache?.delete(uid);
           toggleFollowLocal(uid, creatorName);
           return false;
         }
-        await API.request(`/social/follow/${uid}`, { method: 'POST' });
+        await apiSocial('POST', `/social/follow/${uid}`, {});
         if (!followIdCache) followIdCache = new Set();
         followIdCache.add(uid);
         toggleFollowLocal(uid, creatorName);
@@ -483,6 +577,52 @@
       return false;
     }
     return toggleFollowLocal(creatorId, creatorName);
+  }
+
+  async function toggleFriend(creatorId, creatorName) {
+    return toggleFollow(creatorId, creatorName);
+  }
+
+  async function toggleBlock(userId, userName) {
+    const uid = String(userId || '').trim();
+    if (!hasAuth() || !isUuid(uid)) {
+      if (window.SocialUI?.toast) SocialUI.toast('Sign in to block users', 'warning');
+      return false;
+    }
+    try {
+      await ensureFollowAuth();
+      let blocked = blockIdCache != null ? blockIdCache.has(uid) : false;
+      if (blockIdCache == null) {
+        const st = await apiSocial('GET', `/social/block/${uid}/status`);
+        blocked = Boolean(st?.data?.blocked);
+      }
+      if (blocked) {
+        await apiSocial('DELETE', `/social/block/${uid}`);
+        blockIdCache?.delete(uid);
+        if (window.SocialUI?.toast) SocialUI.toast(`Unblocked ${userName || 'user'}`, 'info');
+        return false;
+      }
+      if (!window.confirm(`Block ${userName || 'this user'}? They cannot follow you or message you.`)) {
+        return false;
+      }
+      await apiSocial('POST', `/social/block/${uid}`, {});
+      if (!blockIdCache) blockIdCache = new Set();
+      blockIdCache.add(uid);
+      followIdCache?.delete(uid);
+      toggleFollowLocal(uid, userName);
+      if (window.SocialUI?.toast) SocialUI.toast(`Blocked ${userName || 'user'}`, 'success');
+      return true;
+    } catch (e) {
+      console.warn('SocialInteractions: block API', e);
+      if (window.SocialUI?.toast) SocialUI.toast(e?.message || 'Could not update block', 'error');
+      return isBlocked(uid);
+    }
+  }
+
+  function isBlocked(userId) {
+    const uid = String(userId || '').trim();
+    if (blockIdCache && isUuid(uid)) return blockIdCache.has(uid);
+    return false;
   }
 
   async function getFollowStats(userId) {
@@ -552,7 +692,7 @@
   }
 
   if (hasAuth()) {
-    document.addEventListener('DOMContentLoaded', () => refreshFollowCache());
+    document.addEventListener('DOMContentLoaded', () => refreshSocialCaches());
   }
 
   async function compressImage(file, maxW) {
@@ -1565,11 +1705,18 @@
     getFollowingList,
     getFollowersList,
     toggleFollow,
+    toggleFriend,
+    toggleBlock,
+    friendBtnLabel,
+    isBlocked,
     isFollowing,
     refreshFollowCache,
+    refreshBlockCache,
+    refreshSocialCaches,
     getFollowEntries,
     openReelViewer,
     toggleLikePost,
     postIsVideo,
+    apiSocial,
   };
 })();

@@ -1506,7 +1506,8 @@ html.social-video-page.social-native body {
   overflow-x: auto;
 }
 
-.social-rank-tabs a {
+.social-rank-tabs a,
+.social-rank-tabs button.social-rank-sub-tab {
   flex-shrink: 0;
   padding: 8px 14px;
   border-radius: var(--radius-pill);
@@ -1515,9 +1516,15 @@ html.social-video-page.social-native body {
   text-decoration: none;
   font-size: 12px;
   font-weight: 600;
+  background: transparent;
+  cursor: pointer;
+  pointer-events: auto;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.social-rank-tabs a.active {
+.social-rank-tabs a.active,
+.social-rank-tabs button.social-rank-sub-tab.active {
   background: rgba(255, 255, 255, 0.2);
   border-color: #fff;
   color: #fff;

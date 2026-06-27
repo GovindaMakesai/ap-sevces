@@ -161,6 +161,16 @@
       document.getElementById('streamerStartParty')?.addEventListener('click', () => SocialShell?.goStartParty?.());
       document.getElementById('streamerStartLive')?.addEventListener('click', () => SocialShell?.goStartLive?.('video'));
 
+      const periodMap = ['daily', 'weekly', 'monthly'];
+      document.querySelectorAll('.streamer-pills button').forEach((btn, idx) => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.streamer-pills button').forEach((b) => b.classList.remove('active'));
+          btn.classList.add('active');
+          const period = periodMap[idx] || 'daily';
+          location.href = '/rankings.html?period=' + period + '&app=1';
+        });
+      });
+
       (async function loadVerifyStatus() {
         const statusEl = document.getElementById('streamerVerifyStatus');
         const btn = document.getElementById('streamerVerifyBtn');

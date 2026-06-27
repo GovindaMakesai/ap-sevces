@@ -4730,15 +4730,15 @@
         toast('Follow unavailable for this user', 'warning');
         return;
       }
-      if (window.SocialInteractions?.toggleFollow) {
-        const now = await SocialInteractions.toggleFollow(userId, name);
+      if (window.SocialInteractions?.toggleFriend) {
+        const now = await SocialInteractions.toggleFriend(userId, name);
         const btn = document.getElementById('apProfileAddFriend');
         if (btn) {
           btn.innerHTML = now
-            ? '<i class="fas fa-user-check"></i> Friends'
+            ? '<i class="fas fa-user-minus"></i> Remove Friend'
             : '<i class="fas fa-user-plus"></i> Add Friend';
         }
-        toast(now ? `You're now friends with ${name}` : `Unfollowed ${name}`, now ? 'success' : 'info');
+        toast(now ? `You're now friends with ${name}` : `Removed ${name} from friends`, now ? 'success' : 'info');
         return;
       }
       toast('Follow feature loading…', 'info');
@@ -4791,10 +4791,18 @@
         toast('Report submitted — our team will review', 'success');
         menu.remove();
       });
-      menu.querySelector('[data-act="block"]')?.addEventListener('click', () => {
-        toast(`${name} blocked for this session`, 'info');
+      menu.querySelector('[data-act="block"]')?.addEventListener('click', async () => {
         menu.remove();
-        document.getElementById('apProfileSheet')?.classList.remove('open');
+        if (!uid) {
+          toast('Block unavailable — user ID missing', 'warning');
+          return;
+        }
+        if (window.SocialInteractions?.toggleBlock) {
+          const blocked = await SocialInteractions.toggleBlock(uid, name);
+          if (blocked) document.getElementById('apProfileSheet')?.classList.remove('open');
+          return;
+        }
+        toast('Block feature loading…', 'warning');
       });
       menu.querySelector('[data-act="copy"]')?.addEventListener('click', () => {
         if (navigator.clipboard) navigator.clipboard.writeText(name).catch(() => {});
