@@ -4730,15 +4730,15 @@
         toast('Follow unavailable for this user', 'warning');
         return;
       }
-      if (window.SocialInteractions?.toggleFriend) {
-        const now = await SocialInteractions.toggleFriend(userId, name);
+      if (window.SocialInteractions?.toggleFollow) {
+        const now = await SocialInteractions.toggleFollow(userId, name);
         const btn = document.getElementById('apProfileAddFriend');
         if (btn) {
           btn.innerHTML = now
-            ? '<i class="fas fa-user-minus"></i> Remove Friend'
-            : '<i class="fas fa-user-plus"></i> Add Friend';
+            ? '<i class="fas fa-user-check"></i> Following'
+            : '<i class="fas fa-user-plus"></i> Follow';
         }
-        toast(now ? `You're now friends with ${name}` : `Removed ${name} from friends`, now ? 'success' : 'info');
+        toast(now ? `You're now following ${name}` : `Unfollowed ${name}`, now ? 'success' : 'info');
         return;
       }
       toast('Follow feature loading…', 'info');
@@ -4783,26 +4783,12 @@
       menu.className = 'ap-profile-more-menu';
       menu.innerHTML = `
         <button type="button" data-act="report">Report user</button>
-        <button type="button" data-act="block">Block user</button>
         <button type="button" data-act="copy">Copy nickname</button>
         ${uid ? '<button type="button" data-act="chat">Open chat</button>' : ''}`;
       panel.appendChild(menu);
       menu.querySelector('[data-act="report"]')?.addEventListener('click', () => {
         toast('Report submitted — our team will review', 'success');
         menu.remove();
-      });
-      menu.querySelector('[data-act="block"]')?.addEventListener('click', async () => {
-        menu.remove();
-        if (!uid) {
-          toast('Block unavailable — user ID missing', 'warning');
-          return;
-        }
-        if (window.SocialInteractions?.toggleBlock) {
-          const blocked = await SocialInteractions.toggleBlock(uid, name);
-          if (blocked) document.getElementById('apProfileSheet')?.classList.remove('open');
-          return;
-        }
-        toast('Block feature loading…', 'warning');
       });
       menu.querySelector('[data-act="copy"]')?.addEventListener('click', () => {
         if (navigator.clipboard) navigator.clipboard.writeText(name).catch(() => {});

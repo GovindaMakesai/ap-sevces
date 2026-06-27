@@ -449,8 +449,12 @@
     return xhrSocial(m, url, m === 'POST' && body == null ? {} : body);
   }
 
+  function followBtnLabel(following) {
+    return following ? 'Following' : 'Follow';
+  }
+
   function friendBtnLabel(following) {
-    return following ? 'Remove Friend' : 'Add Friend';
+    return followBtnLabel(following);
   }
 
   function isUuid(id) {
@@ -531,7 +535,7 @@
       try {
         await ensureFollowAuth();
         if (isBlocked(uid)) {
-          if (window.SocialUI?.toast) SocialUI.toast('Unblock this user first to add as friend', 'warning');
+          if (window.SocialUI?.toast) SocialUI.toast('Unblock this user first to follow', 'warning');
           return false;
         }
         let following = false;
@@ -627,9 +631,10 @@
 
   async function getFollowStats(userId) {
     const uid = String(userId || window.Auth?.getUser?.()?.id || '').trim();
-    if (window.API && hasAuth() && isUuid(uid)) {
+    if (hasAuth() && isUuid(uid)) {
       try {
-        const res = await API.get(`/social/stats/${uid}`);
+        await ensureFollowAuth();
+        const res = await apiSocial('GET', `/social/stats/${uid}`);
         const data = res?.data || {};
         let coins = 0;
         if (window.SocialWallet) {
@@ -639,15 +644,16 @@
           } catch (_e) {}
         }
         return {
-          following: data.following || 0,
-          followers: data.followers || 0,
+          following: Number(data.following) || 0,
+          followers: Number(data.followers) || 0,
           coins,
         };
       } catch (e) {
         console.warn('SocialInteractions: stats API', e);
       }
     }
-    const following = getFollowEntries().length;
+    await refreshFollowCache().catch(() => {});
+    const following = followIdCache ? followIdCache.size : getFollowEntries().length;
     const user = window.Auth?.getUser?.();
     const lookupId = String(userId || user?.id || user?.email || 'me');
     const map = getFollowersMap();
@@ -672,6 +678,35 @@
 
   function getFollowingList() {
     return getFollowEntries();
+  }
+
+  async function fetchFollowingList() {
+    if (!hasAuth()) return getFollowingList();
+    try {
+      await refreshFollowCache();
+      return getFollowEntries();
+    } catch (_e) {
+      return getFollowingList();
+    }
+  }
+
+  async function fetchFollowersList(userId) {
+    const uid = String(userId || window.Auth?.getUser?.()?.id || '').trim();
+    if (!hasAuth() || !isUuid(uid)) return getFollowersList(uid);
+    try {
+      await ensureFollowAuth();
+      const res = await apiSocial('GET', `/social/followers/${uid}?limit=200`);
+      const rows = Array.isArray(res?.data) ? res.data : [];
+      return rows.map((u) => ({
+        key: String(u.id),
+        id: String(u.id),
+        name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'User',
+        userId: String(u.id),
+      }));
+    } catch (e) {
+      console.warn('SocialInteractions: followers API', e);
+      return getFollowersList(uid);
+    }
   }
 
   function getFollowersList(userId) {
@@ -1703,11 +1738,14 @@
     openComments,
     getFollowStats,
     getFollowingList,
+    fetchFollowingList,
+    fetchFollowersList,
     getFollowersList,
     toggleFollow,
     toggleFriend,
     toggleBlock,
     friendBtnLabel,
+    followBtnLabel,
     isBlocked,
     isFollowing,
     refreshFollowCache,

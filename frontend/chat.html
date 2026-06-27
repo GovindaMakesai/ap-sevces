@@ -406,6 +406,35 @@
             color: var(--primary-600);
         }
 
+        .chat-social-pill {
+            display: none;
+            align-items: center;
+            border: 1px solid var(--gray-300);
+            border-radius: 999px;
+            padding: 6px 12px;
+            font-size: 12px;
+            font-weight: 700;
+            background: #fff;
+            color: var(--gray-700);
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .chat-social-pill.is-visible {
+            display: inline-flex;
+        }
+
+        .chat-social-pill.is-on {
+            background: #e5e7eb;
+            color: #374151;
+        }
+
+        .chat-social-pill--block.is-on {
+            background: #fecaca;
+            color: #991b1b;
+            border-color: #fca5a5;
+        }
+
         /* ==================== MESSAGES AREA ==================== */
         .messages-container {
             flex: 1 1 0;
@@ -1186,6 +1215,8 @@
                                 </div>
                             </div>
                             <div class="chat-actions">
+                                <button type="button" class="chat-social-pill" id="chatHeaderFollowBtn" hidden>Follow</button>
+                                <button type="button" class="chat-social-pill chat-social-pill--block" id="chatHeaderBlockBtn" hidden>Block</button>
                                 <button type="button" class="chat-action-btn" id="chatHeaderGiftBtn" title="Send gift">
                                     <i class="fas fa-gift"></i>
                                 </button>
@@ -1331,9 +1362,10 @@
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
     
-    <script src="app.js?v=20260628-hotfix"></script>
+    <script src="app.js?v=20260630-follow-fix"></script>
     <script src="auth-guard.js"></script>
-    <script src="social-ui.js"></script>
+    <script src="social-ui.js?v=20260630-follow-fix"></script>
+    <script src="social-interactions.js?v=20260630-follow-fix"></script>
     <script src="social-wallet.js"></script>
     <script src="live-emoji-data.js"></script>
     <script src="social-fx.js"></script>
@@ -1383,6 +1415,10 @@
             setupChatTabs();
             setupMsgFilters();
             setupMsgQuickChips();
+            bindChatSocialActions();
+            if (window.SocialInteractions?.refreshSocialCaches) {
+                SocialInteractions.refreshSocialCaches().catch(() => {});
+            }
             document.querySelector('.ap-msg-top-actions button[aria-label="More"]')?.addEventListener('click', () => {
                 openChatListMenu();
             });
@@ -1555,6 +1591,7 @@
 
         // ==================== STATE ====================
         let currentChatId = null;
+        let currentChatPeer = null;
         let isTyping = false;
         let typingTimeout;
         let socketTypingTimeout;
@@ -2253,9 +2290,11 @@
 
                 document.getElementById('chatUserName').textContent = chat.name;
                 document.getElementById('chatAvatar').textContent = chat.avatar;
+                currentChatPeer = { otherUserId: chat.otherUserId, name: chat.name };
                 updatePeerPresence(chat.otherUserId);
 
                 await loadMessages(currentChatId);
+                updateChatSocialBar();
                 useChatStore.setState((state) => ({
                     conversations: state.conversations.map((c) =>
                         String(c.id) === String(currentChatId) ? { ...c, unread: 0 } : c
@@ -2617,6 +2656,60 @@
                 messagesContainer.innerHTML = renderMessages(chatMessages);
             }
             scrollToBottom();
+            updateChatSocialBar();
+        }
+
+        function updateChatSocialBar() {
+            const followBtn = document.getElementById('chatHeaderFollowBtn');
+            const blockBtn = document.getElementById('chatHeaderBlockBtn');
+            if (!followBtn || !blockBtn) return;
+
+            const peer = currentChatPeer;
+            const key = currentChatId ? chatKey(currentChatId) : '';
+            const msgs = key ? (useChatStore.getState().messages[key] || []) : [];
+            const hasTalked = msgs.length > 0;
+
+            if (!peer?.otherUserId || !hasTalked) {
+                followBtn.classList.remove('is-visible', 'is-on');
+                blockBtn.classList.remove('is-visible', 'is-on');
+                followBtn.hidden = true;
+                blockBtn.hidden = true;
+                return;
+            }
+
+            followBtn.hidden = false;
+            blockBtn.hidden = false;
+            followBtn.classList.add('is-visible');
+            blockBtn.classList.add('is-visible');
+
+            const following = window.SocialInteractions?.isFollowing?.(peer.otherUserId, peer.name);
+            followBtn.textContent = following ? 'Following' : 'Follow';
+            followBtn.classList.toggle('is-on', Boolean(following));
+
+            const blocked = window.SocialInteractions?.isBlocked?.(peer.otherUserId);
+            blockBtn.textContent = blocked ? 'Unblock' : 'Block';
+            blockBtn.classList.toggle('is-on', Boolean(blocked));
+        }
+
+        function bindChatSocialActions() {
+            const followBtn = document.getElementById('chatHeaderFollowBtn');
+            const blockBtn = document.getElementById('chatHeaderBlockBtn');
+            if (followBtn && !followBtn.dataset.bound) {
+                followBtn.dataset.bound = '1';
+                followBtn.addEventListener('click', async () => {
+                    if (!currentChatPeer?.otherUserId || !window.SocialInteractions?.toggleFollow) return;
+                    await SocialInteractions.toggleFollow(currentChatPeer.otherUserId, currentChatPeer.name);
+                    updateChatSocialBar();
+                });
+            }
+            if (blockBtn && !blockBtn.dataset.bound) {
+                blockBtn.dataset.bound = '1';
+                blockBtn.addEventListener('click', async () => {
+                    if (!currentChatPeer?.otherUserId || !window.SocialInteractions?.toggleBlock) return;
+                    await SocialInteractions.toggleBlock(currentChatPeer.otherUserId, currentChatPeer.name);
+                    updateChatSocialBar();
+                });
+            }
         }
 
         function setupSocketListeners() {

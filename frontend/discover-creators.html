@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#ffffff">
   <title>Discover Creators - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-theme.css?v=20260629-friends">
-  <link rel="stylesheet" href="social-features.css?v=20260629-friends">
+  <link rel="stylesheet" href="social-theme.css?v=20260630-follow-fix">
+  <link rel="stylesheet" href="social-features.css?v=20260630-follow-fix">
   <script src="native-session-restore.js"></script>
   <script src="ap-config.js"></script>
   <script src="ap-native-boot.js"></script>
@@ -29,7 +29,7 @@
 
   <div class="discover-creators-promo">
     <i class="fas fa-fire"></i>
-    <span>Add creators as friends — tap profile for more options.</span>
+    <span>Follow creators you like — tap a profile to see their gifts, live stats &amp; posts.</span>
   </div>
 
   <div class="discover-creators-list" id="discoverCreatorsList">
@@ -38,10 +38,10 @@
 
   <div id="social-bottom-nav-mount"></div>
 
-  <script src="app.js?v=20260629-friends"></script>
-  <script src="social-ui.js?v=20260629-friends"></script>
+  <script src="app.js?v=20260630-follow-fix"></script>
+  <script src="social-ui.js?v=20260630-follow-fix"></script>
   <script src="auth-guard.js"></script>
-  <script src="social-interactions.js?v=20260629-friends"></script>
+  <script src="social-interactions.js?v=20260630-follow-fix"></script>
   <script src="social-shell.js"></script>
   <script src="social-nav.js"></script>
   <script>
@@ -175,10 +175,7 @@
         ? '<span class="discover-live-pill"><i class="fas fa-circle"></i> LIVE · ' + formatCount(creator.liveViewers) + '</span>'
         : '';
       const following = isFollowingSafe(creator);
-      const blocked = window.SocialInteractions?.isBlocked?.(creator.id);
-      const friendLabel = window.SocialInteractions?.friendBtnLabel
-        ? SocialInteractions.friendBtnLabel(following)
-        : (following ? 'Friends' : 'Add Friend');
+      const followLabel = following ? 'Following' : 'Follow';
       return (
         '<article class="discover-creator-card" data-user-id="' + id + '">' +
           '<a class="discover-creator-main" href="' + href + '">' +
@@ -193,14 +190,9 @@
               '</div>' +
             '</div>' +
           '</a>' +
-          '<div class="discover-creator-actions">' +
-            '<button type="button" class="discover-creator-follow' + (following ? ' is-on' : '') + (blocked ? ' is-blocked' : '') + '" data-follow-id="' + id + '" data-follow-name="' + name + '">' +
-              (blocked ? 'Blocked' : friendLabel) +
-            '</button>' +
-            '<button type="button" class="discover-creator-block" data-block-id="' + id + '" data-block-name="' + name + '" aria-label="' + (blocked ? 'Unblock' : 'Block') + '">' +
-              '<i class="fas fa-' + (blocked ? 'unlock' : 'ban') + '"></i>' +
-            '</button>' +
-          '</div>' +
+          '<button type="button" class="discover-creator-follow' + (following ? ' is-on' : '') + '" data-follow-id="' + id + '" data-follow-name="' + name + '">' +
+            followLabel +
+          '</button>' +
         '</article>'
       );
     }
@@ -219,39 +211,14 @@
             location.href = '/app-auth.html?app=1&redirect=' + encodeURIComponent(location.pathname + location.search);
             return;
           }
-          if (!window.SocialInteractions?.toggleFriend) {
+          if (!window.SocialInteractions?.toggleFollow) {
             if (window.SocialUI) SocialUI.toast('Please wait and try again', 'warning');
             return;
           }
-          if (btn.classList.contains('is-blocked')) {
-            SocialUI?.toast('Unblock first to add as friend', 'warning');
-            return;
-          }
-          const now = await SocialInteractions.toggleFriend(id, name);
-          btn.textContent = SocialInteractions.friendBtnLabel(now);
+          const now = await SocialInteractions.toggleFollow(id, name);
+          btn.textContent = now ? 'Following' : 'Follow';
           btn.classList.toggle('is-on', now);
-          if (window.SocialUI) SocialUI.toast(now ? 'Added ' + name + ' as friend' : 'Removed ' + name + ' from friends', now ? 'success' : 'info');
-        });
-      });
-      document.querySelectorAll('.discover-creator-block').forEach((btn) => {
-        if (btn.dataset.bound) return;
-        btn.dataset.bound = '1';
-        btn.addEventListener('click', async (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          const id = btn.dataset.blockId;
-          const name = btn.dataset.blockName;
-          if (!id || !window.SocialInteractions?.toggleBlock) return;
-          const blocked = await SocialInteractions.toggleBlock(id, name);
-          const card = btn.closest('.discover-creator-card');
-          const friendBtn = card?.querySelector('.discover-creator-follow');
-          if (friendBtn) {
-            friendBtn.classList.toggle('is-blocked', blocked);
-            friendBtn.classList.toggle('is-on', false);
-            friendBtn.textContent = blocked ? 'Blocked' : SocialInteractions.friendBtnLabel(false);
-          }
-          btn.innerHTML = '<i class="fas fa-' + (blocked ? 'unlock' : 'ban') + '"></i>';
-          btn.setAttribute('aria-label', blocked ? 'Unblock' : 'Block');
+          if (window.SocialUI) SocialUI.toast(now ? 'Following ' + name : 'Unfollowed ' + name, now ? 'success' : 'info');
         });
       });
     }

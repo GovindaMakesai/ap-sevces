@@ -134,7 +134,7 @@
   <script src="app.js"></script>
   <script src="social-wallet.js"></script>
   <script src="social-ui.js"></script>
-  <script src="social-interactions.js"></script>
+  <script src="social-interactions.js?v=20260630-follow-fix"></script>
   <script src="social-shell.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
@@ -394,6 +394,9 @@
           SocialWallet.fetchBalance().then(paintWallet);
           document.addEventListener('wallet:balance', (e) => paintWallet(e.detail || {}));
         }
+        if (window.SocialInteractions?.refreshFollowCache) {
+          await SocialInteractions.refreshFollowCache().catch(() => {});
+        }
         if (window.SocialInteractions?.getFollowStats) {
           const s = await SocialInteractions.getFollowStats(user.id);
           document.getElementById('statFollowing').textContent = s.following;
@@ -402,16 +405,19 @@
             document.getElementById('statCoins').textContent = s.coins.toLocaleString();
           }
         }
-        document.getElementById('statFollowingBtn')?.addEventListener('click', () => {
-          const list = SocialInteractions.getFollowingList().map((e) => ({
+        document.getElementById('statFollowingBtn')?.addEventListener('click', async () => {
+          const list = await (SocialInteractions.fetchFollowingList?.() || Promise.resolve(SocialInteractions.getFollowingList()));
+          SocialUI.openFollowSheet('following', list.map((e) => ({
             name: e.name,
             userId: e.id || e.key,
-          }));
-          SocialUI.openFollowSheet('following', list);
+          })));
         });
-        document.getElementById('statFollowersBtn')?.addEventListener('click', () => {
-          const list = SocialInteractions.getFollowersList(user.id);
-          SocialUI.openFollowSheet('followers', list);
+        document.getElementById('statFollowersBtn')?.addEventListener('click', async () => {
+          const list = await (SocialInteractions.fetchFollowersList?.(user.id) || Promise.resolve(SocialInteractions.getFollowersList(user.id)));
+          SocialUI.openFollowSheet('followers', list.map((e) => ({
+            name: e.name,
+            userId: e.id || e.key || e.userId,
+          })));
         });
         btn.textContent = user.role === 'admin' ? 'Open Admin Dashboard' : 'Open Dashboard';
         const isSocialApp = new URLSearchParams(location.search).get('app') === '1';

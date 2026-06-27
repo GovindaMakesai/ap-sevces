@@ -12,15 +12,13 @@
     .creator-hero { text-align: center; padding: 24px 16px 12px; }
     .creator-avatar { width: 88px; height: 88px; border-radius: 50%; object-fit: cover; margin-bottom: 12px; border: 3px solid #fbbf24; }
     .creator-actions { display: flex; gap: 10px; justify-content: center; margin-top: 14px; flex-wrap: wrap; position: relative; z-index: 5; }
-    .creator-follow-btn, .creator-chat-btn, .creator-block-btn {
+    .creator-follow-btn, .creator-chat-btn {
       border: none; border-radius: 999px; padding: 10px 20px; font-weight: 700; cursor: pointer;
       touch-action: manipulation; pointer-events: auto; position: relative; z-index: 6;
     }
     .creator-follow-btn { background: #fbbf24; color: #1a1000; }
     .creator-follow-btn.is-on { background: #e5e7eb; color: #374151; }
-    .creator-follow-btn.is-blocked { background: #fecaca; color: #991b1b; }
     .creator-chat-btn { background: #111827; color: #fff; }
-    .creator-block-btn { background: #fff; color: #6b7280; border: 1px solid #e5e7eb; padding: 10px 14px; }
     .creator-earnings-note {
       margin: 16px; padding: 12px 14px; border-radius: 12px; background: rgba(251, 191, 36, 0.12);
       font-size: 13px; color: #78350f; text-align: center;
@@ -87,9 +85,9 @@
   <div class="social-post-feed" id="creatorPosts"></div>
   <div id="social-bottom-nav-mount"></div>
 
-  <script src="app.js?v=20260629-friends"></script>
-  <script src="social-ui.js?v=20260629-friends"></script>
-  <script src="social-interactions.js?v=20260629-friends"></script>
+  <script src="app.js?v=20260630-follow-fix"></script>
+  <script src="social-ui.js?v=20260630-follow-fix"></script>
+  <script src="social-interactions.js?v=20260630-follow-fix"></script>
   <script src="social-shell.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
@@ -113,55 +111,20 @@
         '<h2>' + name + '</h2>' +
         uidBlock +
         '<div class="creator-actions">' +
-        '<button type="button" class="creator-follow-btn" id="creatorFollow">Add Friend</button>' +
+        '<button type="button" class="creator-follow-btn" id="creatorFollow">Follow</button>' +
         (userId ? '<button type="button" class="creator-chat-btn" id="creatorChat"><i class="fas fa-comment"></i> Message</button>' : '') +
-        (userId ? '<button type="button" class="creator-block-btn" id="creatorBlock"><i class="fas fa-ban"></i> Block</button>' : '') +
         '</div>';
 
       const followKey = userId || name;
       let following = SocialInteractions.isFollowing(followKey, name);
-      let blocked = userId ? SocialInteractions.isBlocked?.(userId) : false;
       const followBtn = document.getElementById('creatorFollow');
-      const blockBtn = document.getElementById('creatorBlock');
-
-      function syncFriendBtn() {
-        if (blocked) {
-          followBtn.textContent = 'Blocked';
-          followBtn.classList.add('is-blocked');
-          followBtn.classList.remove('is-on');
-        } else {
-          followBtn.classList.remove('is-blocked');
-          followBtn.textContent = SocialInteractions.friendBtnLabel(following);
-          followBtn.classList.toggle('is-on', following);
-        }
-      }
-      syncFriendBtn();
-
-      if (blockBtn) {
-        blockBtn.innerHTML = blocked
-          ? '<i class="fas fa-unlock"></i> Unblock'
-          : '<i class="fas fa-ban"></i> Block';
-        blockBtn.onclick = async () => {
-          blocked = await SocialInteractions.toggleBlock(userId, name);
-          following = false;
-          blockBtn.innerHTML = blocked
-            ? '<i class="fas fa-unlock"></i> Unblock'
-            : '<i class="fas fa-ban"></i> Block';
-          syncFriendBtn();
-        };
-      }
-
+      followBtn.textContent = following ? 'Following' : 'Follow';
+      followBtn.classList.toggle('is-on', following);
       followBtn.onclick = async () => {
-        if (blocked) {
-          SocialUI.toast('Unblock first to add as friend', 'warning');
-          return;
-        }
-        following = await SocialInteractions.toggleFriend(followKey, name);
-        syncFriendBtn();
-        SocialUI.toast(
-          following ? 'Added ' + name + ' as friend' : 'Removed ' + name + ' from friends',
-          following ? 'success' : 'info'
-        );
+        following = await SocialInteractions.toggleFollow(followKey, name);
+        followBtn.textContent = following ? 'Following' : 'Follow';
+        followBtn.classList.toggle('is-on', following);
+        SocialUI.toast(following ? 'You are now following ' + name : 'Unfollowed ' + name, following ? 'success' : 'info');
       };
 
       document.getElementById('creatorChat')?.addEventListener('click', () => {
@@ -229,7 +192,8 @@
             }
             if (e.isFollowing) {
               following = true;
-              syncFriendBtn();
+              followBtn.textContent = 'Following';
+              followBtn.classList.add('is-on');
             }
           }
         } catch (_err) {

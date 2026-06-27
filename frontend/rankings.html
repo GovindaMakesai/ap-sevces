@@ -6,9 +6,9 @@
   <meta name="theme-color" content="#fdf9f0">
   <title>Rankings - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-theme.css?v=20260629-friends">
-  <link rel="stylesheet" href="social-features.css?v=20260629-friends">
-  <link rel="stylesheet" href="social-fx.css?v=20260629-friends">
+  <link rel="stylesheet" href="social-theme.css?v=20260630-follow-fix">
+  <link rel="stylesheet" href="social-features.css?v=20260630-follow-fix">
+  <link rel="stylesheet" href="social-fx.css?v=20260630-follow-fix">
 </head>
 <body class="social-rank-page social-rank-page--gold">
   <header class="social-rank-header">
@@ -59,9 +59,9 @@
 
   <div id="social-bottom-nav-mount"></div>
 
-  <script src="app.js?v=20260629-friends"></script>
-  <script src="social-ui.js?v=20260629-friends"></script>
-  <script src="social-interactions.js?v=20260629-friends"></script>
+  <script src="app.js?v=20260630-follow-fix"></script>
+  <script src="social-ui.js?v=20260630-follow-fix"></script>
+  <script src="social-interactions.js?v=20260630-follow-fix"></script>
   <script src="social-shell.js"></script>
   <script src="social-nav.js"></script>
   <script src="social-fx.js"></script>
@@ -172,24 +172,24 @@
           <span class="rank-num">${i + 4}</span>
           <img src="${avatarUrl(r)}" alt="" onerror="this.src='https://ui-avatars.com/api/?name=AP&background=c9a227&color=fff'">
           <div class="rank-info"><strong>${r.n}</strong> 🇮🇳<br><small>${r.s}</small></div>
-          <button type="button" class="social-rank-follow ap-pressable" data-user-id="${r.id || ''}">Add Friend</button>
+          <button type="button" class="social-rank-follow ap-pressable" data-user-id="${r.id || ''}">Follow</button>
         </div>`).join('');
       el.querySelectorAll('.social-rank-follow').forEach((b) => {
         const uid = b.dataset.userId;
         if (uid && window.SocialInteractions?.isFollowing?.(uid)) {
-          b.textContent = 'Remove Friend';
+          b.textContent = 'Following';
           b.classList.add('is-on');
         }
         b.addEventListener('click', async (e) => {
           e.preventDefault();
           e.stopPropagation();
-          if (!uid || !window.SocialInteractions?.toggleFriend) {
+          if (!uid || !window.SocialInteractions?.toggleFollow) {
             window.SocialFX?.showFollowBurst?.(b);
             return;
           }
           try {
-            const now = await SocialInteractions.toggleFriend(uid);
-            b.textContent = SocialInteractions.friendBtnLabel(now);
+            const now = await SocialInteractions.toggleFollow(uid);
+            b.textContent = now ? 'Following' : 'Follow';
             b.classList.toggle('is-on', now);
             window.SocialFX?.showFollowBurst?.(b);
           } catch (_e) {
