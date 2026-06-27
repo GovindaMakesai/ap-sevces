@@ -419,23 +419,31 @@
     const uid = String(creatorId || '').trim();
     if (window.API && hasAuth() && isUuid(uid)) {
       try {
-        const following =
-          followIdCache != null
-            ? followIdCache.has(uid)
-            : Boolean((await API.get(`/social/follow/${uid}/status`))?.data?.following);
+        if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken();
+        let following = false;
+        if (followIdCache != null) {
+          following = followIdCache.has(uid);
+        } else {
+          const statusRes = await API.get(`/social/follow/${uid}/status`);
+          following = Boolean(statusRes?.data?.following ?? statusRes?.following);
+        }
         if (following) {
           await API.delete(`/social/follow/${uid}`);
           followIdCache?.delete(uid);
           toggleFollowLocal(uid, creatorName);
           return false;
         }
-        await API.post(`/social/follow/${uid}`);
+        await API.post(`/social/follow/${uid}`, {});
         if (!followIdCache) followIdCache = new Set();
         followIdCache.add(uid);
         toggleFollowLocal(uid, creatorName);
         return true;
       } catch (e) {
-        console.warn('SocialInteractions: follow API fallback', e);
+        console.warn('SocialInteractions: follow API error', e);
+        if (window.SocialUI?.toast) {
+          SocialUI.toast(e?.message || 'Could not update follow — try again', 'warning');
+        }
+        return isFollowing(uid, creatorName);
       }
     }
     return toggleFollowLocal(creatorId, creatorName);
@@ -1448,9 +1456,14 @@
     });
 
     document.querySelectorAll('.social-rank-sub-tab').forEach((btn) => {
+      if (btn.dataset.periodBound) return;
+      btn.dataset.periodBound = '1';
       btn.addEventListener('click', () => {
         document.querySelectorAll('.social-rank-sub-tab').forEach((b) => b.classList.remove('active'));
         btn.classList.add('active');
+        if (typeof window.setRankingsPeriod === 'function') {
+          window.setRankingsPeriod(btn.dataset.period || 'daily');
+        }
       });
     });
 

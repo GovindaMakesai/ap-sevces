@@ -1,0 +1,165 @@
+/* Persistent live session — browse shell + draggable mini-player */
+.ap-live-browse-shell {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: #faf6ee;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+.ap-live-browse-shell.is-visible {
+  opacity: 1;
+  pointer-events: none;
+}
+.ap-live-browse-frame {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #faf6ee;
+  pointer-events: auto;
+}
+
+body.ap-live-session-minimized .party-room,
+body.ap-live-session-minimized #liveRoomRoot,
+body.ap-live-session-minimized #liveFeedScroll,
+body.ap-live-session-minimized .live-feed-backdrop {
+  visibility: hidden !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+}
+
+.ap-live-mini-player {
+  position: fixed;
+  right: 12px;
+  bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  z-index: 9100;
+  width: 168px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #111;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+  touch-action: none;
+  user-select: none;
+}
+.ap-live-mini-player.is-audio {
+  width: 220px;
+  background: linear-gradient(145deg, #1a0f3a, #2d1b69);
+}
+.ap-live-mini-player.is-dragging {
+  opacity: 0.92;
+  transition: none;
+}
+.ap-mini-player-drag {
+  cursor: grab;
+}
+.ap-mini-player-media {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 9 / 16;
+  max-height: 220px;
+  background: #000;
+  overflow: hidden;
+}
+.ap-mini-player-media--audio {
+  aspect-ratio: auto;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+}
+.ap-mini-player-video-host,
+.ap-mini-player-video-host video,
+.ap-mini-player-video-host canvas {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  display: block !important;
+}
+.ap-mini-player-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+}
+.ap-mini-player-chrome {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.65), transparent);
+}
+.ap-live-mini-player.is-audio .ap-mini-player-chrome {
+  position: static;
+  background: transparent;
+  padding: 8px 10px 0;
+}
+.ap-mini-player-live {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: #e11d48;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.ap-mini-player-viewers {
+  flex: 1;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ap-mini-player-close {
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.ap-mini-player-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px 10px;
+  color: #fff;
+}
+.ap-mini-player-meta {
+  min-width: 0;
+  flex: 1;
+}
+.ap-mini-player-meta strong {
+  display: block;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ap-mini-player-meta small {
+  display: block;
+  font-size: 10px;
+  opacity: 0.75;
+  margin-top: 2px;
+}
+.ap-mini-player-indicators {
+  display: flex;
+  gap: 8px;
+  font-size: 13px;
+  opacity: 0.9;
+  flex-shrink: 0;
+}

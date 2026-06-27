@@ -514,6 +514,10 @@
 
   function mountLivePipBar() {
     if (document.body?.dataset?.livePage) return;
+    if (window.LiveSession?.mountLegacyPipBar) {
+      window.LiveSession.mountLegacyPipBar();
+      return;
+    }
     let raw;
     try {
       raw = localStorage.getItem('ap_live_active_session') || sessionStorage.getItem('ap_live_pip_session');

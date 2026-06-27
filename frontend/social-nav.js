@@ -128,26 +128,18 @@
   }
 
   function handleHardwareBack() {
+    if (window.LiveSession?.handleBack?.()) return true;
     if (closeLocalUi()) return true;
     if (isImmersiveLive()) {
       const live = window.APLive || window.SocialLive;
+      if (window.LiveSession?.minimize?.('/explore.html?app=1')) return true;
       if (live?.minimizeRoom) {
         live.minimizeRoom();
         return true;
       }
       try {
-        const payload = {
-          url: location.pathname + location.search,
-          channel: new URLSearchParams(location.search).get('channel') || new URLSearchParams(location.search).get('room') || '',
-          host: 'Live',
-          type: document.body?.dataset?.livePage || 'live-room',
-          ts: Date.now(),
-          expiresAt: Date.now() + 24 * 60 * 60 * 1000,
-        };
-        sessionStorage.setItem('ap_live_pip_session', JSON.stringify(payload));
-        if (payload.channel) localStorage.setItem('ap_live_active_session', JSON.stringify(payload));
+        history.pushState({ apLiveRoom: 1 }, '');
       } catch (_e) {}
-      navigateTo(HOME, { replace: false });
       return true;
     }
     return goBack({ allowHistory: true });

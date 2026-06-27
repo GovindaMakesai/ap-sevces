@@ -573,6 +573,10 @@ body.ap-ref-ui .gift-gallery-hint button {
 }
 
 .ap-profile-actions button {
+  touch-action: manipulation;
+  pointer-events: auto;
+  cursor: pointer;
+}
   border: none;
   background: none;
   display: flex;
@@ -632,8 +636,11 @@ body[data-live-page="live-room"] .party-header-center {
 }
 
 #apProfileSheet.open,
-#apTopupSheet.open {
-  z-index: 62;
+#apTopupSheet.open,
+#apGiftSheet.open,
+#apSeatSheet.open {
+  z-index: 9200;
+  pointer-events: auto;
 }
 
 .ap-profile-gift-btn {

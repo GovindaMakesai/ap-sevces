@@ -220,7 +220,29 @@ const _apiInflight = new Map();
 const _apiGetCache = new Map();
 const API_GET_CACHE_MS = 900;
 
+function apiBaseUrl() {
+    return normalizeApiUrl(CONFIG.API_URL);
+}
+
+function joinApiUrl(endpoint) {
+    const base = apiBaseUrl();
+    const path = String(endpoint || '');
+    if (/^https?:\/\//i.test(path)) return path;
+    return `${base}${path.startsWith('/') ? path : `/${path}`}`;
+}
+window.joinApiUrl = joinApiUrl;
+
 const API = {
+    clearGetCache(prefix) {
+        if (!prefix) {
+            _apiGetCache.clear();
+            return;
+        }
+        for (const key of _apiGetCache.keys()) {
+            if (key.includes(prefix)) _apiGetCache.delete(key);
+        }
+    },
+
     async request(endpoint, options = {}) {
         const method = (options.method || 'GET').toUpperCase();
         const cacheKey = `${method}:${endpoint}`;
@@ -229,11 +251,12 @@ const API = {
             if (hit && Date.now() - hit.at < API_GET_CACHE_MS) return hit.data;
             if (_apiInflight.has(cacheKey)) return _apiInflight.get(cacheKey);
         }
+        const url = joinApiUrl(endpoint);
         const run = (async () => {
             try {
-                return await this._fetchOnce(`${CONFIG.API_URL}${endpoint}`, options);
+                return await this._fetchOnce(url, options);
             } catch (error) {
-                throw this._friendlyNetworkError(error, `${CONFIG.API_URL}${endpoint}`);
+                throw this._friendlyNetworkError(error, url);
             } finally {
                 if (method === 'GET') _apiInflight.delete(cacheKey);
             }
@@ -346,11 +369,13 @@ const API = {
         return this.request(`${endpoint}${sep}_=${Date.now()}`, { method: 'GET' });
     },
     
-    post(endpoint, body) { 
-        return this.request(endpoint, { 
-            method: 'POST', 
-            body: body 
-        }); 
+    post(endpoint, body) {
+        this.clearGetCache('/social/follow');
+        this.clearGetCache('/social/following');
+        return this.request(endpoint, {
+            method: 'POST',
+            body: body
+        });
     },
     
     put(endpoint, body) { 
@@ -367,8 +392,10 @@ const API = {
         });
     },
     
-    delete(endpoint) { 
-        return this.request(endpoint, { method: 'DELETE' }); 
+    delete(endpoint) {
+        this.clearGetCache('/social/follow');
+        this.clearGetCache('/social/following');
+        return this.request(endpoint, { method: 'DELETE' });
     },
     
     // Special method for file uploads

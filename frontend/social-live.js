@@ -312,6 +312,11 @@
     syncLiveUiState();
   }
 
+  async function onMiniPlayerExpanded() {
+    minimizingRoom = false;
+    await onForegroundResume();
+  }
+
   async function onForegroundResume() {
     if (document.visibilityState !== 'visible') return;
     if (lastJoinMeta?.channel && channelId()) {
@@ -361,20 +366,30 @@
     window.__apRoomBgSurvivalBound = true;
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden') {
-        pauseAgoraForBackground();
+        if (window.LiveSession?.shouldKeepPlayback?.()) {
+          window.LiveSession?.onAppBackground?.();
+        } else {
+          pauseAgoraForBackground();
+        }
         if (roomJoinCompleted && channelId()) {
           persistDurableLiveSession();
         }
       } else {
+        window.LiveSession?.onAppForeground?.();
         onForegroundResume();
       }
     });
     window.addEventListener('pageshow', (e) => {
-      if (e.persisted) onForegroundResume();
+      if (e.persisted) {
+        window.LiveSession?.onAppForeground?.();
+        onForegroundResume();
+      }
     });
     window.addEventListener('pagehide', () => {
-      if (!hostEndingIntentional && !socketLeaveIntentional) {
-        pauseAgoraForBackground();
+      if (!window.LiveSession?.shouldKeepPlayback?.()) {
+        if (!hostEndingIntentionally && !socketLeaveIntentional) {
+          pauseAgoraForBackground();
+        }
       }
       if (roomJoinCompleted && channelId()) {
         persistDurableLiveSession();
@@ -1695,6 +1710,7 @@
     setApLoaderStep(3);
     hideApLoader();
     syncLiveUiState();
+    window.LiveSession?.onRoomActive?.();
   }
 
   async function startAgora(mode) {
@@ -3108,7 +3124,7 @@
   }
 
   function bindPartyBackGuard() {
-    if (window.__apPartyBackGuard) return;
+    if (window.__apPartyBackGuard || window.__AP_LIVE_BACK_GUARD__) return;
     window.__apPartyBackGuard = true;
     if (!isPartyRoomPage() && !isLiveRoomPage()) return;
     try {
@@ -3124,10 +3140,14 @@
 
   function minimizeLiveRoom() {
     if (minimizingRoom) return;
-    minimizingRoom = true;
     hideApLoader();
     setLiveStatus('', null);
     closeLiveOverlays();
+    if (window.LiveSession?.minimize?.('/explore.html?app=1')) {
+      minimizingRoom = true;
+      return;
+    }
+    minimizingRoom = true;
     const host = roomState?.hostName || (isHost() ? displayName(currentUser()) : 'Live');
     const payload = {
       url: location.pathname + location.search,
@@ -3140,10 +3160,9 @@
       sessionStorage.setItem('ap_live_pip_session', JSON.stringify(payload));
       localStorage.setItem(LIVE_SESSION_KEY, JSON.stringify({ ...payload, expiresAt: Date.now() + LIVE_SESSION_TTL_MS }));
     } catch (_e) {}
-    const dest = location.search.includes('app=1') || document.documentElement.classList.contains('ap-expo-app')
-      ? '/explore.html?app=1'
-      : '/explore.html?app=1';
-    location.href = dest;
+    try {
+      history.pushState({ apLiveRoom: 1 }, '');
+    } catch (_e) {}
   }
 
   function isChatPanelOpen() {
@@ -4476,6 +4495,9 @@
     minimizingRoom = false;
     hideApLoader();
     setLiveStatus('', null);
+    if (!window.__apLiveSessionExitInProgress) {
+      window.LiveSession?.forceCleanup?.();
+    }
     try {
       sessionStorage.removeItem('ap_live_pip_session');
       clearDurableLiveSession();
@@ -5272,6 +5294,7 @@
     await switchToFeedRoom(0);
 
     window.addEventListener('beforeunload', () => {
+      if (window.__apLeavingRoom || window.LiveSession?.shouldKeepPlayback?.()) return;
       stopAgora({ skipEndRoom: true });
       leaveSocket();
     });
@@ -5442,27 +5465,71 @@
       { rank: 3, name: 'Affy 🍒', score: '12,100,550', coins: '500,000' },
       { rank: 4, name: 'MAAAA', score: '8,200,000', coins: '200,000' },
     ];
-    const list = document.getElementById('luckyRankList');
-    if (list) {
+    let luckyPeriod = '3day';
+
+    function luckyClaimKey(period, rank) {
+      return `ap_lucky_claimed_${period}_${rank}`;
+    }
+
+    function luckyClaimsForPeriod(period) {
+      try {
+        const raw = localStorage.getItem(`ap_lucky_claims_${period}`);
+        return raw ? JSON.parse(raw) : {};
+      } catch (_e) {
+        return {};
+      }
+    }
+
+    function markLuckyClaimed(period, rank) {
+      const map = luckyClaimsForPeriod(period);
+      map[String(rank)] = Date.now();
+      try {
+        localStorage.setItem(`ap_lucky_claims_${period}`, JSON.stringify(map));
+      } catch (_e) {}
+    }
+
+    function renderLuckyRankList() {
+      const list = document.getElementById('luckyRankList');
+      if (!list) return;
+      const claims = luckyClaimsForPeriod(luckyPeriod);
       list.innerHTML = LUCKY_RANKS.map((r) => {
         const medal = r.rank <= 3 ? ['🥇', '🥈', '🥉'][r.rank - 1] : r.rank;
+        const claimed = Boolean(claims[String(r.rank)]);
+        const btnLabel = claimed ? 'Claimed' : 'Receive';
+        const btnDisabled = claimed ? ' disabled' : '';
         return `<div class="lucky-rank-row">
           <span class="rank-badge">${medal}</span>
           <img src="${avatarUrl(r.name)}" alt="">
           <div class="info"><div class="name">${r.name} 🇮🇳</div>
           <div class="scores"><span>🎉 ${r.score}</span><span>🪙 ${r.coins}</span></div></div>
-          <button type="button" class="btn-receive" data-rank="${r.rank}">Receive</button>
+          <button type="button" class="btn-receive${claimed ? ' is-claimed' : ''}" data-rank="${r.rank}" data-period="${luckyPeriod}"${btnDisabled}>${btnLabel}</button>
         </div>`;
       }).join('');
-      list.querySelectorAll('.btn-receive').forEach((btn) => {
-        btn.addEventListener('click', () => toast('Reward claimed for rank ' + btn.dataset.rank));
+      list.querySelectorAll('.btn-receive:not([disabled])').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const period = btn.dataset.period || luckyPeriod;
+          const rank = btn.dataset.rank;
+          if (luckyClaimsForPeriod(period)[String(rank)]) {
+            toast('Already claimed for this ranking period');
+            return;
+          }
+          markLuckyClaimed(period, rank);
+          btn.textContent = 'Claimed';
+          btn.disabled = true;
+          btn.classList.add('is-claimed');
+          toast('Reward claimed for rank ' + rank);
+        });
       });
     }
 
-    document.querySelectorAll('.lucky-sub-tabs button').forEach((btn) => {
+    renderLuckyRankList();
+
+    document.querySelectorAll('.lucky-sub-tabs button').forEach((btn, idx) => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('.lucky-sub-tabs button').forEach((b) => b.classList.remove('active'));
         btn.classList.add('active');
+        luckyPeriod = idx === 0 ? 'daily' : '3day';
+        renderLuckyRankList();
       });
     });
 
@@ -5760,7 +5827,9 @@
     getCoins,
     refreshCoinDisplay,
     isActuallyLive,
+    getChannel: channelId,
     minimizeRoom: minimizeLiveRoom,
+    onMiniPlayerExpand: onMiniPlayerExpanded,
     exitRoom,
     getForensicReport() {
       return window.__liveDebug || { events: [] };

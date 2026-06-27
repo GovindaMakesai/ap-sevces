@@ -1,6 +1,7 @@
 const db = require('../config/database');
 const walletService = require('./walletService');
 const fraudService = require('./fraudService');
+const leaderboardService = require('./leaderboardService');
 
 async function getActiveRules() {
   const res = await db.query(`SELECT * FROM reward_rules WHERE active = true`);
@@ -12,7 +13,26 @@ async function verifyEligibility(userId, rule) {
   const now = new Date();
 
   if (rule.rule_type === 'daily') {
-    return { eventKey: `daily:${now.toISOString().slice(0, 10)}`, metadata: { period: 'daily' } };
+    return {
+      eventKey: `${rule.slug}:daily:${now.toISOString().slice(0, 10)}`,
+      metadata: { period: 'daily', slug: rule.slug },
+    };
+  }
+
+  if (rule.rule_type === 'weekly') {
+    const bucket = leaderboardService.periodKey('weekly', now);
+    return {
+      eventKey: `${rule.slug}:weekly:${bucket}`,
+      metadata: { period: 'weekly', slug: rule.slug },
+    };
+  }
+
+  if (rule.rule_type === 'monthly') {
+    const bucket = leaderboardService.periodKey('monthly', now);
+    return {
+      eventKey: `${rule.slug}:monthly:${bucket}`,
+      metadata: { period: 'monthly', slug: rule.slug },
+    };
   }
 
   if (rule.rule_type === 'hourly' || rule.rule_type === 'quarter_hour') {
@@ -30,7 +50,7 @@ async function verifyEligibility(userId, rule) {
     const bucket = rule.rule_type === 'quarter_hour'
       ? `${now.toISOString().slice(0, 16)}`
       : now.toISOString().slice(0, 13);
-    return { eventKey: `${rule.rule_type}:${bucket}`, metadata: { live_seconds: liveSeconds } };
+    return { eventKey: `${rule.slug}:${rule.rule_type}:${bucket}`, metadata: { live_seconds: liveSeconds } };
   }
 
   if (rule.rule_type === 'onboarding') {

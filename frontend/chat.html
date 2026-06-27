@@ -1331,7 +1331,7 @@
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
     
-    <script src="app.js?v=20260626-api-bind"></script>
+    <script src="app.js?v=20260628-hotfix"></script>
     <script src="auth-guard.js"></script>
     <script src="social-ui.js"></script>
     <script src="social-wallet.js"></script>
@@ -1387,8 +1387,14 @@
                 openChatListMenu();
             });
             if (Auth.hasSession?.()) {
-                await ensureChatUser();
-                await Auth.ensureAccessToken?.().catch(() => {});
+                await Promise.race([
+                    ensureChatUser(),
+                    new Promise((r) => setTimeout(r, 8000)),
+                ]);
+                await Promise.race([
+                    Auth.ensureAccessToken?.() || Promise.resolve(),
+                    new Promise((r) => setTimeout(r, 8000)),
+                ]).catch(() => {});
                 if (!Auth.checkAuth() && typeof Auth.repairSession === 'function') {
                     await Auth.repairSession().catch(() => {});
                     await ensureChatUser();
@@ -1576,8 +1582,17 @@
             return (typeof Auth !== 'undefined' && Auth.getToken?.()) || localStorage.getItem('token') || '';
         }
 
+        function chatApiBase() {
+            const raw = (window.CONFIG && CONFIG.API_URL) || 'https://api.apservices.in/api';
+            return (window.normalizeApiUrl ? normalizeApiUrl(raw) : raw).replace(/\/+$/, '');
+        }
+
+        function chatSocketOrigin() {
+            return chatApiBase().replace(/\/api\/?$/, '');
+        }
+
         const axiosClient = axios.create({
-            baseURL: `${CONFIG.API_URL}/messages`,
+            baseURL: `${chatApiBase()}/messages`,
             timeout: 20000,
         });
         axiosClient.interceptors.request.use((config) => {
@@ -1663,7 +1678,7 @@
                     if (!token) return null;
                     if (socket && socket.connected) return socket;
                     if (!socket) {
-                        socket = io(CONFIG.API_URL.replace(/\/api\/?$/, ''), {
+                        socket = io(chatSocketOrigin(), {
                             auth: { token },
                             transports: ['websocket', 'polling'],
                             reconnection: true,
@@ -2794,7 +2809,7 @@
                 fd.append('receiverId', activeConversation.otherUserId);
                 fd.append('image', file);
                 try {
-                    await axios.post(`${CONFIG.API_URL}/messages/send`, fd, { headers: auth });
+                    await axios.post(`${chatApiBase()}/messages/send`, fd, { headers: auth });
                     await loadMessages(currentChatId);
                     await loadConversations();
                 } catch (e) {
@@ -2980,7 +2995,7 @@
             const role = String(conv.category || '').toLowerCase();
             if (role === 'worker') {
                 try {
-                    const r = await axios.get(`${CONFIG.API_URL}/workers/user/${encodeURIComponent(otherUserId)}`);
+                    const r = await axios.get(`${chatApiBase()}/workers/user/${encodeURIComponent(otherUserId)}`);
                     const wid = r.data?.data?.id;
                     if (wid) {
                         window.location.href = `/worker-profile.html?id=${encodeURIComponent(wid)}&app=1`;

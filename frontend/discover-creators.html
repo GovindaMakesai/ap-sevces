@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#ffffff">
   <title>Discover Creators - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-theme.css?v=20260627-discover-fix">
-  <link rel="stylesheet" href="social-features.css?v=20260627-discover-fix">
+  <link rel="stylesheet" href="social-theme.css?v=20260628-hotfix">
+  <link rel="stylesheet" href="social-features.css?v=20260628-hotfix">
   <script src="native-session-restore.js"></script>
   <script src="ap-config.js"></script>
   <script src="ap-native-boot.js"></script>
@@ -38,10 +38,10 @@
 
   <div id="social-bottom-nav-mount"></div>
 
-  <script src="app.js?v=20260627-discover-fix"></script>
+  <script src="app.js?v=20260628-hotfix"></script>
   <script src="social-ui.js"></script>
   <script src="auth-guard.js"></script>
-  <script src="social-interactions.js?v=20260627-discover-fix"></script>
+  <script src="social-interactions.js?v=20260628-hotfix"></script>
   <script src="social-shell.js"></script>
   <script src="social-nav.js"></script>
   <script>
@@ -76,15 +76,11 @@
     function discoverRequestUrls(period) {
       const q = discoverQuery(period);
       const urls = [];
-      const host = (location.hostname || '').toLowerCase();
-      if (host === 'api.apservices.in' || host === 'localhost' || host === '127.0.0.1') {
-        urls.push('/api' + DISCOVER_PATH + q);
-      }
+      const base = (window.normalizeApiUrl && CONFIG?.API_URL)
+        ? normalizeApiUrl(CONFIG.API_URL)
+        : 'https://api.apservices.in/api';
+      urls.push(base.replace(/\/+$/, '') + DISCOVER_PATH + q);
       urls.push('https://api.apservices.in/api' + DISCOVER_PATH + q);
-      const cfg = (window.CONFIG?.API_URL || window.AP_CONFIG?.PRODUCTION_API_URL || '').trim();
-      if (/^https?:\/\//i.test(cfg)) {
-        urls.push(cfg.replace(/\/$/, '') + DISCOVER_PATH + q);
-      }
       return [...new Set(urls)];
     }
 

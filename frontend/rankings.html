@@ -92,7 +92,9 @@
     async function fetchRankings(period, tab) {
       const category = TAB_CATEGORY[tab] || 'creators';
       const mode = TAB_MODE[tab] || '';
-      const api = (window.CONFIG && CONFIG.API_URL) || 'https://api.apservices.in/api';
+      const api = (window.normalizeApiUrl && CONFIG?.API_URL)
+        ? normalizeApiUrl(CONFIG.API_URL)
+        : 'https://api.apservices.in/api';
       const qs = new URLSearchParams({ period, category });
       if (mode) qs.set('mode', mode);
       const res = await fetch(`${api}/v1/leaderboards?${qs}`, { credentials: 'include' });
@@ -212,6 +214,8 @@
       }
       SocialInteractions.initRankingsPage();
       document.querySelectorAll('.social-rank-sub-tab[data-period]').forEach((tab) => {
+        if (tab.dataset.periodBound) return;
+        tab.dataset.periodBound = '1';
         tab.addEventListener('click', () => {
           document.querySelectorAll('.social-rank-sub-tab').forEach((t) => t.classList.remove('active'));
           tab.classList.add('active');
@@ -220,6 +224,10 @@
           window.SocialFX?.confetti?.({ count: 20, originY: 0.2 });
         });
       });
+      window.setRankingsPeriod = (period) => {
+        currentPeriod = period || 'daily';
+        refreshRanks();
+      };
     });
   </script>
 </body>

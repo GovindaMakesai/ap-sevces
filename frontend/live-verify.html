@@ -63,7 +63,7 @@
     <div class="lv-status" id="lvStatus"></div>
   </div>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=20260628-hotfix"></script>
   <script src="social-shell.js"></script>
   <script>
     (async function () {
@@ -127,9 +127,7 @@
         const fd = new FormData();
         fd.append('photo', file);
         try {
-          await api.post('/live/verify/face', fd, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-          });
+          await API.upload('/live/verify/face', fd);
           document.getElementById('lvStepFace').classList.add('done');
           document.getElementById('lvContinueBtn').disabled = false;
           setStatus('Face verification complete. You can go live with video.', true);

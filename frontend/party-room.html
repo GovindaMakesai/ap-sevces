@@ -6,8 +6,9 @@
   <meta name="theme-color" content="#1a0f3a">
   <title>Party Room - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-live.css?v=20260627-party-req">
-  <link rel="stylesheet" href="social-live-ref-ui.css?v=20260625party">
+  <link rel="stylesheet" href="social-live.css?v=20260628-live-back">
+  <link rel="stylesheet" href="social-live-session.css?v=20260628-hotfix">
+  <link rel="stylesheet" href="social-live-ref-ui.css?v=20260628-hotfix">
   <link rel="stylesheet" href="social-fx.css">
   <style id="ap-immersive-critical">
     html.ap-live-immersive .social-bridge-header,
@@ -38,6 +39,21 @@
       document.addEventListener('DOMContentLoaded', stripAppChrome);
       setTimeout(stripAppChrome, 0);
       [100, 500, 1500].forEach(function (ms) { setTimeout(stripAppChrome, ms); });
+    })();
+    (function apLiveBackGuard() {
+      try { history.pushState({ apLiveRoom: 1 }, ''); } catch (_e) {}
+      window.__AP_LIVE_BACK_GUARD__ = true;
+      window.addEventListener('popstate', function () {
+        if (window.__apLeavingRoom) return;
+        try { history.pushState({ apLiveRoom: 1 }, ''); } catch (_e) {}
+        if (window.LiveSession && window.LiveSession.minimize) {
+          window.LiveSession.minimize('/explore.html?app=1');
+          return;
+        }
+        if (window.APLive && window.APLive.minimizeRoom) {
+          window.APLive.minimizeRoom();
+        }
+      });
     })();
   </script>
 </head>
@@ -227,7 +243,8 @@
   <script src="auth-guard.js"></script>
   <script src="social-fx.js"></script>
   <script src="live-emoji-data.js"></script>
-  <script src="social-live.js?v=20260627-party-req"></script>
+  <script src="live-session-provider.js?v=20260628-live-back"></script>
+  <script src="social-live.js?v=20260628-hotfix"></script>
   <script src="social-nav.js"></script>
 </body>
 </html>
