@@ -39,6 +39,13 @@ const { connectMongo } = require('./config/mongodb');
 
 validateEnv();
 
+process.on('unhandledRejection', (reason) => {
+  logger.error('Unhandled promise rejection', { error: reason?.message || String(reason) });
+});
+process.on('uncaughtException', (err) => {
+  logger.error('Uncaught exception', { error: err?.message || String(err) });
+});
+
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const workerRoutes = require('./routes/workers');

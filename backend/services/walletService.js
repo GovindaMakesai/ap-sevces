@@ -38,12 +38,18 @@ async function getWalletSettings() {
 
 /**
  * Lock wallet row for atomic balance updates (prevents race conditions).
+ * FOR UPDATE is only used inside an explicit pool transaction — never on autocommit pool.query.
  */
+function isTxnClient(client) {
+  return Boolean(client && typeof client.release === 'function');
+}
+
 async function getOrCreateWallet(userId, client = db) {
   const q = client.query.bind(client);
+  const lock = isTxnClient(client) ? ' FOR UPDATE' : '';
   let res = await q(
     `SELECT id, user_id, coin_balance, star_balance, created_at, updated_at
-     FROM wallets WHERE user_id = $1 FOR UPDATE`,
+     FROM wallets WHERE user_id = $1${lock}`,
     [userId]
   );
   if (res.rows.length) return res.rows[0];
@@ -55,7 +61,7 @@ async function getOrCreateWallet(userId, client = db) {
   );
   res = await q(
     `SELECT id, user_id, coin_balance, star_balance, created_at, updated_at
-     FROM wallets WHERE user_id = $1 FOR UPDATE`,
+     FROM wallets WHERE user_id = $1${lock}`,
     [userId]
   );
   return res.rows[0];
@@ -72,7 +78,7 @@ async function getBalance(userId) {
       star_balance: Number(wallet.star_balance),
     };
   } catch (e) {
-    await client.query('ROLLBACK');
+    await db.safeRollback(client);
     throw e;
   } finally {
     client.release();
@@ -113,17 +119,9 @@ async function creditCoins(userId, amount, meta = {}, client) {
     await c.query('BEGIN');
     const result = await run(c);
     await c.query('COMMIT');
-    if (Number(result.balance) >= 100000) {
-      setImmediate(() => {
-        try {
-          const { ensureSellerAccess } = require('./coinSellerService');
-          ensureSellerAccess(userId).catch(() => {});
-        } catch (_e) { /* best-effort */ }
-      });
-    }
     return result;
   } catch (e) {
-    await c.query('ROLLBACK');
+    await db.safeRollback(c);
     throw e;
   } finally {
     c.release();
@@ -170,7 +168,7 @@ async function debitCoins(userId, amount, meta = {}, client) {
     await c.query('COMMIT');
     return result;
   } catch (e) {
-    await c.query('ROLLBACK');
+    await db.safeRollback(c);
     throw e;
   } finally {
     c.release();
@@ -211,7 +209,7 @@ async function creditStars(userId, amount, meta = {}, client) {
     await c.query('COMMIT');
     return result;
   } catch (e) {
-    await c.query('ROLLBACK');
+    await db.safeRollback(c);
     throw e;
   } finally {
     c.release();
@@ -258,7 +256,7 @@ async function debitStars(userId, amount, meta = {}, client) {
     await c.query('COMMIT');
     return result;
   } catch (e) {
-    await c.query('ROLLBACK');
+    await db.safeRollback(c);
     throw e;
   } finally {
     c.release();
@@ -298,7 +296,7 @@ async function reserveWithdrawal(userId, amount, { qr_image_url, qr_asset_id, me
     await client.query('COMMIT');
     return w.rows[0];
   } catch (e) {
-    await client.query('ROLLBACK');
+    await db.safeRollback(client);
     throw e;
   } finally {
     client.release();

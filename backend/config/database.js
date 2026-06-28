@@ -16,7 +16,19 @@ const useSsl =
 const pool = new Pool({
   connectionString,
   ssl: useSsl ? { rejectUnauthorized: false } : false,
+  max: Number(process.env.PG_POOL_MAX) || 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000,
 });
+
+async function safeRollback(client) {
+  if (!client || typeof client.query !== 'function') return;
+  try {
+    await client.query('ROLLBACK');
+  } catch (_e) {
+    /* connection idle or already rolled back */
+  }
+}
 
 const testConnection = async () => {
   try {
@@ -31,5 +43,6 @@ const testConnection = async () => {
 module.exports = {
   query: (text, params) => pool.query(text, params),
   pool,
+  safeRollback,
   testConnection
 };

@@ -343,8 +343,15 @@ function registerLiveSocket(io) {
         }
 
         if (ack) {
-          const senderBalance = await walletService.getBalance(socket.userId);
-          ack({ ok: true, data: { gift, balance: senderBalance, ...result } });
+          ack({
+            ok: true,
+            data: {
+              gift,
+              balance: result.sender_balance || null,
+              platform_fee: result.platform_fee,
+              creator_amount: result.creator_amount,
+            },
+          });
         }
 
         try {

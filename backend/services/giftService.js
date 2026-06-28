@@ -78,7 +78,7 @@ async function sendGift({ senderId, receiverId, liveRoomId, giftType, coinAmount
   try {
     await client.query('BEGIN');
 
-    await walletService.debitCoins(
+    const debitResult = await walletService.debitCoins(
       senderId,
       Number(amount),
       {
@@ -168,9 +168,12 @@ async function sendGift({ senderId, receiverId, liveRoomId, giftType, coinAmount
       gift: gift.rows[0],
       platform_fee: Number(platformFee),
       creator_amount: Number(creatorAmount),
+      sender_balance: {
+        coin_balance: Number(debitResult.balance),
+      },
     };
   } catch (e) {
-    await client.query('ROLLBACK');
+    await db.safeRollback(client);
     throw e;
   } finally {
     client.release();

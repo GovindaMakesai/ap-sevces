@@ -148,7 +148,7 @@ async function completeOrder(orderId, approverId, { role = 'seller', rejectionRe
     });
     return upd.rows[0];
   } catch (e) {
-    await client.query('ROLLBACK');
+    await db.safeRollback(client);
     throw e;
   } finally {
     client.release();
@@ -343,6 +343,8 @@ async function transferCoins(sellerId, { recipientId, coins, transferType = 'use
   const client = await db.pool.connect();
   try {
     await client.query('BEGIN');
+    await client.query("SET LOCAL lock_timeout = '8s'");
+    await client.query("SET LOCAL statement_timeout = '20s'");
     const sellerRes = await client.query(
       `SELECT * FROM coin_seller_profiles WHERE user_id = $1 FOR UPDATE`,
       [sellerId]
@@ -401,7 +403,7 @@ async function transferCoins(sellerId, { recipientId, coins, transferType = 'use
       );
     }
 
-    const creditResult = await walletService.creditCoins(
+    await walletService.creditCoins(
       recipient.id,
       amount,
       {
@@ -424,18 +426,13 @@ async function transferCoins(sellerId, { recipientId, coins, transferType = 'use
 
     await client.query('COMMIT');
 
-    setImmediate(() => {
-      auditLogService
-        .log(sellerId, 'coin_seller.transfer', {
-          entity_type: 'coin_seller_transfer',
-          entity_id: xfer.rows[0].id,
-          metadata: { recipientId: recipient.id, coins: amount, fromInventory, fromWallet },
-        })
-        .catch(() => {});
-      if (Number(creditResult?.balance || 0) >= 100000) {
-        ensureSellerAccess(recipient.id).catch(() => {});
-      }
-    });
+    void auditLogService
+      .log(sellerId, 'coin_seller.transfer', {
+        entity_type: 'coin_seller_transfer',
+        entity_id: xfer.rows[0].id,
+        metadata: { recipientId: recipient.id, coins: amount, fromInventory, fromWallet },
+      })
+      .catch(() => {});
 
     return {
       transfer: xfer.rows[0],
@@ -447,7 +444,7 @@ async function transferCoins(sellerId, { recipientId, coins, transferType = 'use
       },
     };
   } catch (e) {
-    await client.query('ROLLBACK');
+    await db.safeRollback(client);
     throw e;
   } finally {
     client.release();
@@ -496,7 +493,7 @@ async function exchangeBeans(sellerId, beansAmount) {
     });
     return { beans, coinsOut, level: level.slug };
   } catch (e) {
-    await client.query('ROLLBACK');
+    await db.safeRollback(client);
     throw e;
   } finally {
     client.release();
@@ -645,7 +642,7 @@ async function approveSellerRecharge(rechargeId, adminUserId, notes) {
       credit_target: 'seller_inventory',
     };
   } catch (e) {
-    await client.query('ROLLBACK');
+    await db.safeRollback(client);
     throw e;
   } finally {
     client.release();
