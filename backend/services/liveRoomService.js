@@ -6,6 +6,11 @@ const {
   recordSessionEnd,
   HEARTBEAT_SECONDS,
 } = require('./liveHostStatsService');
+const {
+  accumulateMemberWatchTime,
+  recordRoomJoin,
+  flushMemberSessionStats,
+} = require('./liveUserAnalyticsService');
 
 /** In-memory hot cache — DB is source of truth. */
 const roomCache = new Map();
@@ -78,7 +83,7 @@ async function hostRoom({ channel, roomType, hostUserId, hostDisplayName }) {
     await client.query(
       `INSERT INTO live_room_members (live_room_id, user_id, display_name, role, left_at, last_seen_at)
        VALUES ($1, $2, $3, 'host', NULL, CURRENT_TIMESTAMP)
-       ON CONFLICT (live_room_id, user_id) DO UPDATE SET display_name = EXCLUDED.display_name, role = 'host', left_at = NULL, joined_at = CURRENT_TIMESTAMP, last_seen_at = CURRENT_TIMESTAMP`,
+       ON CONFLICT (live_room_id, user_id) DO UPDATE SET display_name = EXCLUDED.display_name, role = 'host', left_at = NULL, joined_at = CURRENT_TIMESTAMP, last_seen_at = CURRENT_TIMESTAMP, active_seconds = 0`,
       [liveRoom.id, hostUserId, hostDisplayName]
     );
 
@@ -126,7 +131,8 @@ async function joinRoom({ channel, userId, displayName, asHost = false }) {
          display_name = EXCLUDED.display_name,
          left_at = NULL,
          joined_at = CURRENT_TIMESTAMP,
-         last_seen_at = CURRENT_TIMESTAMP`,
+         last_seen_at = CURRENT_TIMESTAMP,
+         active_seconds = 0`,
       [room.id, userId, displayName, asHost ? 'host' : 'viewer', asHost ? 1 : null]
     );
 
@@ -145,6 +151,9 @@ async function joinRoom({ channel, userId, displayName, asHost = false }) {
         `INSERT INTO live_room_events (live_room_id, user_id, event_type, payload) VALUES ($1, $2, 'join', $3)`,
         [room.id, userId, JSON.stringify({ display_name: displayName })]
       );
+      try {
+        await recordRoomJoin(userId, room.room_type);
+      } catch (_e) {}
     }
 
     room = (await client.query(`SELECT * FROM live_rooms WHERE id = $1`, [room.id])).rows[0];
@@ -162,6 +171,10 @@ async function joinRoom({ channel, userId, displayName, asHost = false }) {
 async function leaveRoom({ channel, userId }) {
   const room = await findByChannel(channel);
   if (!room) return null;
+
+  try {
+    await flushMemberSessionStats(room, userId);
+  } catch (_e) {}
 
   await db.query(
     `UPDATE live_room_members SET left_at = CURRENT_TIMESTAMP WHERE live_room_id = $1 AND user_id = $2 AND left_at IS NULL`,
@@ -464,11 +477,7 @@ async function listActiveRooms({ roomType, limit = 30, sort = 'trending' } = {})
 async function touchHeartbeat(channel, userId) {
   const room = await findByChannel(channel);
   if (!room || room.status !== 'active') return;
-  await db.query(
-    `UPDATE live_room_members SET last_seen_at = CURRENT_TIMESTAMP
-     WHERE live_room_id = $1 AND user_id = $2 AND left_at IS NULL`,
-    [room.id, userId]
-  );
+  await accumulateMemberWatchTime(room, userId, HEARTBEAT_SECONDS);
   const isHost = String(room.host_user_id) === String(userId);
   if (isHost) {
     await accumulateHostHeartbeat(room, userId, HEARTBEAT_SECONDS);

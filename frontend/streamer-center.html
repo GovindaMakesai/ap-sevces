@@ -32,6 +32,23 @@
   </section>
 
   <section class="streamer-card">
+    <h2>Your activity <span style="font-size:11px;font-weight:600;color:#9ca3af">watch + host + gifts</span></h2>
+    <div class="streamer-pills streamer-activity-pills">
+      <button type="button" class="active" data-activity-period="today">Today</button>
+      <button type="button" data-activity-period="week">This week</button>
+      <button type="button" data-activity-period="month">This month</button>
+    </div>
+    <div class="streamer-metrics" id="userActivityMetrics">
+      <div class="metric"><div class="val" id="activityWatchTime">00:00:00</div><div class="lbl">Watching live &amp; party</div></div>
+      <div class="metric"><div class="val" id="activityHostTime">00:00:00</div><div class="lbl">Hosting time</div></div>
+      <div class="metric"><div class="val" id="activityGiftsSent">0</div><div class="lbl">Gifts sent (coins)</div></div>
+      <div class="metric"><div class="val" id="activityGiftsRecv">0</div><div class="lbl">Gifts received (coins)</div></div>
+      <div class="metric"><div class="val" id="activityRoomsJoined">0</div><div class="lbl">Rooms joined</div></div>
+      <div class="metric"><div class="val" id="activityPartyWatch">00:00:00</div><div class="lbl">Party time (watch)</div></div>
+    </div>
+  </section>
+
+  <section class="streamer-card">
     <h2>Your earnings split</h2>
     <p style="font-size:14px;color:#374151;margin:0 0 8px;line-height:1.5">
       <strong>You keep 90%</strong> of gifts and live earnings. <strong>Platform share is 10%</strong> — shown transparently on every gift and booking.
@@ -110,7 +127,7 @@
   <script src="auth-guard.js"></script>
   <script src="social-shell.js"></script>
   <script src="social-nav.js"></script>
-  <script src="social-live.js?v=20260706-explore-fix2"></script>
+  <script src="social-live.js?v=20260628-analytics-mic"></script>
   <script>
     (function () {
       const user = window.Auth?.getUser?.() || null;
@@ -169,6 +186,9 @@
           const period = periodMap[idx] || 'today';
           if (window.SocialLive?.loadStreamerStats) {
             SocialLive.loadStreamerStats(period);
+          }
+          if (window.SocialLive?.loadUserAnalytics) {
+            SocialLive.loadUserAnalytics(period);
           }
         });
       });

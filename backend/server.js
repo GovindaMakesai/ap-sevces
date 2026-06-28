@@ -21,6 +21,7 @@ const { ensureProductionReadinessSchema } = require('./config/ensureProductionRe
 const { ensureRoleApplicationsSchema } = require('./config/ensureRoleApplicationsSchema');
 const { ensurePaymentApprovalsSchema } = require('./config/ensurePaymentApprovalsSchema');
 const { ensureLiveHostStatsSchema } = require('./config/ensureLiveHostStatsSchema');
+const { ensureLiveUserAnalyticsSchema } = require('./config/ensureLiveUserAnalyticsSchema');
 const { ensurePartyModerationSchema } = require('./config/ensurePartyModerationSchema');
 const { ensureWithdrawalQrSchema } = require('./config/ensureWithdrawalQrSchema');
 const { applySecurityMiddleware, authLimiter, walletLimiter } = require('./middleware/security');
@@ -233,6 +234,7 @@ async function startServer() {
   await ensureRoleApplicationsSchema();
   await ensurePaymentApprovalsSchema();
   await ensureLiveHostStatsSchema();
+  await ensureLiveUserAnalyticsSchema();
   await ensurePartyModerationSchema();
   await attachSocketRedisAdapter();
   await platformService.getOrCreateTreasuryUserId();

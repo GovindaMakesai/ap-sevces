@@ -283,13 +283,7 @@
       await ensureMicPublishing();
     }
     if (lastJoinMeta?.isHost && publishSucceeded) {
-      localTracks.forEach((t) => {
-        try {
-          const kind = t.getTrackType?.() || '';
-          if (kind === 'audio') t.setEnabled?.(!micMuted);
-          else if (kind === 'video') t.setEnabled?.(true);
-        } catch (_e) {}
-      });
+      await applyLocalMicMuteState();
       syncLiveUiState();
       hideApLoader();
       return;
@@ -542,29 +536,21 @@
   }
 
   async function ensureMicPublishing() {
-    if (!roomJoinCompleted || partyVoiceSkipped || !isPartyRoomPage()) return;
+    if (!roomJoinCompleted || partyVoiceSkipped) return;
+    if (!isPartyRoomPage() && !isLiveRoomPage()) return;
     if (isHost()) {
       if (!publishSucceeded) await resumeHostBroadcastIfNeeded();
-      else {
-        localTracks.forEach((t) => {
-          try {
-            t.setEnabled?.(!micMuted);
-          } catch (_e) {}
-        });
-      }
+      else await applyLocalMicMuteState();
       syncMicButtonUi();
       return;
     }
+    if (!isPartyRoomPage()) return;
     if (hasSpeakerSeat) {
       if (!publishSucceeded || !localTracks.length) {
         guestPublishAttempted = false;
         await publishGuestAudio();
       } else {
-        localTracks.forEach((t) => {
-          try {
-            t.setEnabled?.(!micMuted);
-          } catch (_e) {}
-        });
+        await applyLocalMicMuteState();
       }
       syncMicButtonUi();
     }
@@ -1680,7 +1666,10 @@
         );
       }
       const me = currentUser();
-      if (me && String(me.id) === uid) micMuted = muted;
+      if (me && String(me.id) === uid) {
+        micMuted = muted;
+        void applyLocalMicMuteState();
+      }
       patchSeatMuteUi(uid, muted);
       syncMicButtonUi();
     });
@@ -3089,10 +3078,40 @@
     }
   }
 
+  function getLocalAudioTrack() {
+    return (
+      localTracks.find((t) => typeof t.getTrackType === 'function' && t.getTrackType() === 'audio') ||
+      localTracks.find((t) => typeof t.setMuted === 'function' && typeof t.setEnabled === 'function' && !t.getTrackType) ||
+      null
+    );
+  }
+
+  async function applyLocalMicMuteState() {
+    const audio = getLocalAudioTrack();
+    if (audio) {
+      try {
+        if (typeof audio.setMuted === 'function') await audio.setMuted(micMuted);
+        if (typeof audio.setEnabled === 'function') await audio.setEnabled(!micMuted);
+      } catch (_e) {}
+    }
+    const stream = window.__apLocalStream;
+    if (stream?.getAudioTracks) {
+      stream.getAudioTracks().forEach((t) => {
+        try {
+          t.enabled = !micMuted;
+        } catch (_e) {}
+      });
+    }
+    localTracks.forEach((t) => {
+      try {
+        if (t.getTrackType?.() === 'video') t.setEnabled?.(true);
+      } catch (_e) {}
+    });
+  }
+
   async function toggleMic() {
     micMuted = !micMuted;
-    const audio = localTracks.find((t) => t.getTrackType?.() === 'audio' || t.setEnabled);
-    if (audio?.setEnabled) await audio.setEnabled(!micMuted);
+    await applyLocalMicMuteState();
     if (liveSocket) liveSocket.emit('live:mute', { channel: channelId(), muted: micMuted });
     const me = currentUser();
     window.SocialFX?.setSpeaking?.(me?.id || displayName(me), !micMuted);
@@ -6553,6 +6572,36 @@
   }
 
   let streamerStatsPeriod = 'today';
+  let userAnalyticsPeriod = 'today';
+
+  function formatActivityDuration(totalSeconds) {
+    const sec = Math.max(0, Math.floor(Number(totalSeconds) || 0));
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = sec % 60;
+    return [h, m, s].map((n) => String(n).padStart(2, '0')).join(':');
+  }
+
+  async function loadUserAnalytics(period = 'today') {
+    userAnalyticsPeriod = period || 'today';
+    const setText = (id, val) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = val;
+    };
+    try {
+      if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken().catch(() => {});
+      const res = await API.get('/live/my-analytics?period=' + encodeURIComponent(period));
+      const data = res?.data || {};
+      setText('activityWatchTime', data.totalWatchFormatted || formatActivityDuration(data.totalWatchSeconds));
+      setText('activityHostTime', data.totalHostFormatted || formatActivityDuration(data.totalHostSeconds));
+      setText('activityGiftsSent', String(data.giftsSentCoins || 0));
+      setText('activityGiftsRecv', String(data.giftsReceivedCoins || 0));
+      setText('activityRoomsJoined', String(data.roomsJoined || 0));
+      setText('activityPartyWatch', formatActivityDuration(data.partyWatchSeconds));
+    } catch (e) {
+      console.warn('[analytics] load failed', e);
+    }
+  }
 
   async function loadStreamerStats(period = 'today') {
     streamerStatsPeriod = period || 'today';
@@ -6604,20 +6653,31 @@
     });
 
     loadStreamerStats('today');
+    loadUserAnalytics('today');
 
     if (!window.__apStreamerStatsRefreshBound) {
       window.__apStreamerStatsRefreshBound = true;
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible' && document.body?.dataset?.livePage === 'streamer-center') {
           loadStreamerStats(streamerStatsPeriod);
+          loadUserAnalytics(userAnalyticsPeriod);
         }
       });
       document.addEventListener('ap-page-refreshed', () => {
         if (document.body?.dataset?.livePage === 'streamer-center') {
           loadStreamerStats(streamerStatsPeriod);
+          loadUserAnalytics(userAnalyticsPeriod);
         }
       });
     }
+
+    document.querySelectorAll('[data-activity-period]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-activity-period]').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        loadUserAnalytics(btn.dataset.activityPeriod || 'today');
+      });
+    });
 
     document.getElementById('streamerStartLive')?.addEventListener('click', () => {
       if (window.SocialShell?.openBroadcastPicker) SocialShell.openBroadcastPicker('live');
@@ -7044,6 +7104,7 @@
     initLiveRoom,
     initStreamerCenter,
     loadStreamerStats,
+    loadUserAnalytics,
     initLuckyGifts,
     initCoinsRecharge,
     getCoins,

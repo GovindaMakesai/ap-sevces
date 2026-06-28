@@ -94,6 +94,7 @@ exports.agoraToken = async (req, res) => {
 
 const liveAccessService = require('../services/liveAccessService');
 const { getStreamerStats } = require('../services/liveHostStatsService');
+const { getUserAnalytics } = require('../services/liveUserAnalyticsService');
 
 exports.liveAccessStatus = async (req, res) => {
   try {
@@ -136,5 +137,18 @@ exports.streamerStats = async (req, res) => {
   } catch (error) {
     console.error('[live] streamer stats', error);
     res.status(500).json({ success: false, message: error.message || 'Could not load streamer stats' });
+  }
+};
+
+exports.myAnalytics = async (req, res) => {
+  try {
+    const periodRaw = String(req.query.period || 'today').toLowerCase();
+    const period =
+      periodRaw === 'week' || periodRaw === 'weekly' ? 'week' : periodRaw === 'month' || periodRaw === 'monthly' ? 'month' : 'today';
+    const data = await getUserAnalytics(req.userId, period);
+    res.json({ success: true, data });
+  } catch (error) {
+    console.error('[live] my analytics', error);
+    res.status(500).json({ success: false, message: error.message || 'Could not load analytics' });
   }
 };

@@ -161,6 +161,11 @@ async function sendGift({ senderId, receiverId, liveRoomId, giftType, coinAmount
 
     await client.query('COMMIT');
 
+    try {
+      const { recordGiftStats } = require('./liveUserAnalyticsService');
+      await recordGiftStats(senderId, receiverId, Number(amount), Number(creatorAmount));
+    } catch (_e) {}
+
     await leaderboardService.ingestGiftLeaderboards(gift.rows[0]);
     await charityService.allocateFromGift(Number(amount), gift.rows[0].id);
 
