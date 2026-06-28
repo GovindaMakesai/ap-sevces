@@ -442,6 +442,11 @@ const API = {
     post(endpoint, body) {
         this.clearGetCache('/social/follow');
         this.clearGetCache('/social/following');
+        this.clearGetCache('/wallet/balance');
+        this.clearGetCache('/social/coin-seller');
+        if (window.SocialWallet?.invalidateBalance) {
+            SocialWallet.invalidateBalance();
+        }
         return this.request(endpoint, {
             method: 'POST',
             body: body

@@ -239,6 +239,7 @@
       const QUICK_AMOUNTS = [1000, 5000, 10000, 30000, 50000, 100000, 500000];
       const RECHARGE_URL = '/coin-seller-recharge.html?app=1';
       let dash = null;
+      let xferInFlight = false;
       let xferRecipient = null;
       let allTransfers = [];
       let activeTab = 'transfers';
@@ -603,9 +604,20 @@
       });
 
       document.getElementById('xferSubmitBtn').addEventListener('click', async () => {
+        if (xferInFlight) return;
         if (!xferRecipient) return toast('Search and select a buyer first', 'warning');
         const coins = parseInt(document.getElementById('xferAmount').value, 10);
         if (!coins || coins < 1000) return toast('Minimum transfer is 1,000 coins', 'warning');
+
+        const btn = document.getElementById('xferSubmitBtn');
+        btn.disabled = true;
+        btn.textContent = 'Checking…';
+        try {
+          await Auth.ensureAccessToken?.();
+          const freshDash = await (API.getFresh || API.get)('/social/coin-seller/dashboard');
+          dash = freshDash?.data || freshDash || dash;
+        } catch (_e) { /* use cached dash */ }
+
         const sellable = Number(dash?.sellable_coins ?? 0);
         if (sellable < coins) return toast(`Insufficient balance (have ${fmt(sellable)})`, 'error');
         const inv = Number(dash?.profile?.inventory_coins || 0);
@@ -617,18 +629,27 @@
           ? `${fmt(fromStock)} from seller stock + ${fmt(fromWallet)} from wallet`
           : `${fmt(coins)} from seller stock`;
         if (!window.confirm(`Send ${fmt(coins)} coins to ${name}?\n\nDeducted: ${deductMsg}\n\nBuyer receives coins in their wallet immediately.`)) {
+          updateXferSubmitState();
           return;
         }
 
-        const btn = document.getElementById('xferSubmitBtn');
-        btn.disabled = true;
+        xferInFlight = true;
         btn.textContent = 'Sending…';
         try {
           await Auth.ensureAccessToken?.();
-          await API.post('/social/coin-seller/transfer', {
+          const res = await API.post('/social/coin-seller/transfer', {
             recipient_id: xferRecipient.id,
             coins,
           });
+          if (res?.data?.seller_balance) {
+            if (!dash) dash = {};
+            dash.sellable_coins = res.data.seller_balance.sellable_coins;
+            if (!dash.wallet) dash.wallet = {};
+            dash.wallet.coin_balance = res.data.seller_balance.coin_balance;
+            if (!dash.profile) dash.profile = {};
+            dash.profile.inventory_coins = res.data.seller_balance.inventory_coins;
+          }
+          if (window.SocialWallet?.invalidateBalance) SocialWallet.invalidateBalance();
           toast(`Sent ${fmt(coins)} coins to ${name}`, 'success');
           closeModal('transferModal');
           resetTransferModal();
@@ -636,6 +657,8 @@
         } catch (e) {
           toast(e?.message || 'Transfer failed', 'error');
           updateXferSubmitState();
+        } finally {
+          xferInFlight = false;
         }
       });
 

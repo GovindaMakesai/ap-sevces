@@ -204,14 +204,15 @@ async function ensureSellerAccess(userId) {
   const privileged = ['coin_seller', 'admin', 'super_admin', 'founder', 'ceo'].includes(user?.role);
   if (privileged || balance >= 100000) {
     let profile = await getProfile(userId);
+    const name = `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || 'Coin Seller';
     if (!profile) {
-      const name = `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || 'Coin Seller';
       profile = await upsertProfile(userId, { displayName: name, inventoryCoins: 0, isActive: true });
+    } else if (privileged && !profile.is_active) {
+      profile = await upsertProfile(userId, { displayName: profile.display_name || name, isActive: true });
     }
     if (!privileged && balance >= 100000) {
       const { syncUserRole } = require('./permissionService');
       await syncUserRole(userId, 'coin_seller');
-      await db.query(`UPDATE users SET role = 'coin_seller' WHERE id = $1`, [userId]);
     }
     return profile;
   }
@@ -343,17 +344,25 @@ async function transferCoins(sellerId, { recipientId, coins, transferType = 'use
   try {
     await client.query('BEGIN');
     const sellerRes = await client.query(
-      `SELECT * FROM coin_seller_profiles WHERE user_id = $1 AND is_active = TRUE FOR UPDATE`,
+      `SELECT * FROM coin_seller_profiles WHERE user_id = $1 FOR UPDATE`,
       [sellerId]
     );
-    const seller = sellerRes.rows[0];
-    if (!seller) throw new Error('Seller profile not active');
+    let seller = sellerRes.rows[0];
+    if (!seller) throw new Error('Seller profile not found');
+    if (!seller.is_active) {
+      const roleRes = await client.query(`SELECT role FROM users WHERE id = $1`, [sellerId]);
+      const privileged = ['coin_seller', 'admin', 'super_admin', 'founder', 'ceo'].includes(
+        roleRes.rows[0]?.role
+      );
+      if (!privileged) throw new Error('Seller profile not active');
+      await client.query(
+        `UPDATE coin_seller_profiles SET is_active = TRUE, updated_at = CURRENT_TIMESTAMP WHERE user_id = $1`,
+        [sellerId]
+      );
+      seller = { ...seller, is_active: true };
+    }
 
-    const walletRes = await client.query(
-      `SELECT * FROM wallets WHERE user_id = $1 FOR UPDATE`,
-      [sellerId]
-    );
-    const wallet = walletRes.rows[0];
+    const wallet = await walletService.getOrCreateWallet(sellerId, client);
     const inventoryAvail = Number(seller.inventory_coins || 0);
     const walletAvail = Number(wallet?.coin_balance || 0);
     const totalAvail = inventoryAvail + walletAvail;
@@ -415,7 +424,24 @@ async function transferCoins(sellerId, { recipientId, coins, transferType = 'use
       entity_id: xfer.rows[0].id,
       metadata: { recipientId: recipient.id, coins: amount, fromInventory, fromWallet },
     });
-    return { transfer: xfer.rows[0], recipient };
+
+    const sellerWalletAfter = await walletService.getOrCreateWallet(sellerId, client);
+    const sellerProfileAfter = await client.query(
+      `SELECT inventory_coins FROM coin_seller_profiles WHERE user_id = $1`,
+      [sellerId]
+    );
+    const invAfter = Number(sellerProfileAfter.rows[0]?.inventory_coins || 0);
+    const sellableAfter = invAfter + Number(sellerWalletAfter.coin_balance || 0);
+
+    return {
+      transfer: xfer.rows[0],
+      recipient,
+      seller_balance: {
+        coin_balance: Number(sellerWalletAfter.coin_balance || 0),
+        inventory_coins: invAfter,
+        sellable_coins: sellableAfter,
+      },
+    };
   } catch (e) {
     await client.query('ROLLBACK');
     throw e;

@@ -3288,9 +3288,9 @@
             if (!sheet) return;
             document.getElementById('chatCoinRecipient').textContent = conv.name || 'User';
             try {
-                const dash = await API.get('/social/coin-seller/dashboard');
-                const inv = Number(dash.data?.sellable_coins ?? dash.data?.profile?.inventory_coins ?? 0);
-                document.getElementById('chatCoinInventory').textContent = inv.toLocaleString('en-IN');
+                const dash = await (API.getFresh || API.get)('/social/coin-seller/dashboard');
+                const sellable = Number(dash?.data?.sellable_coins ?? dash?.data?.profile?.inventory_coins ?? 0);
+                document.getElementById('chatCoinInventory').textContent = sellable.toLocaleString('en-IN');
             } catch (_e) {
                 document.getElementById('chatCoinInventory').textContent = '—';
             }
@@ -3310,26 +3310,43 @@
                 return;
             }
             const btn = document.getElementById('chatCoinSend');
+            if (btn?.disabled || window.__apCoinXferBusy) return;
+            window.__apCoinXferBusy = true;
             if (btn) {
                 btn.disabled = true;
                 btn.textContent = 'Sending…';
             }
             try {
-                await API.post('/social/coin-seller/transfer', {
+                await Auth.ensureAccessToken?.().catch(() => {});
+                const res = await API.post('/social/coin-seller/transfer', {
                     recipient_id: conv.otherUserId,
                     coins,
                 });
+                if (window.SocialWallet?.invalidateBalance) SocialWallet.invalidateBalance();
+                if (res?.data?.seller_balance && window.API?.clearGetCache) {
+                    API.clearGetCache('/social/coin-seller');
+                }
                 closeChatCoinSheet();
                 document.getElementById('chatCoinAmount').value = '';
+                const invEl = document.getElementById('chatCoinInventory');
+                const sellable = res?.data?.seller_balance?.sellable_coins;
+                if (invEl && sellable != null) {
+                    invEl.textContent = Number(sellable).toLocaleString('en-IN');
+                }
                 Toast.show(`${coins.toLocaleString('en-IN')} coins sent to ${conv.name}`, 'success');
-                await axiosClient.post('/send', {
-                    receiverId: conv.otherUserId,
-                    text: `💰 Sent ${coins.toLocaleString('en-IN')} coins`,
-                });
-                await loadMessages(currentChatId);
+                try {
+                    await axiosClient.post('/send', {
+                        receiverId: conv.otherUserId,
+                        text: `💰 Sent ${coins.toLocaleString('en-IN')} coins`,
+                    });
+                    await loadMessages(currentChatId);
+                } catch (msgErr) {
+                    console.warn('Chat coin receipt message failed', msgErr);
+                }
             } catch (e) {
                 Toast.show(e?.message || 'Transfer failed', 'error');
             } finally {
+                window.__apCoinXferBusy = false;
                 if (btn) {
                     btn.disabled = false;
                     btn.textContent = 'Send coins';

@@ -342,7 +342,10 @@ function registerLiveSocket(io) {
           io.to(`live:${channel}`).emit('pk:score', pkSnapshot);
         }
 
-        if (ack) ack({ ok: true, data: { gift, balance: result } });
+        if (ack) {
+          const senderBalance = await walletService.getBalance(socket.userId);
+          ack({ ok: true, data: { gift, balance: senderBalance, ...result } });
+        }
 
         try {
           await partyActivityService.recordActivity(socket.userId, 'send_gift', {

@@ -946,9 +946,9 @@
     }
   }
 
-  async function getCoins() {
+  async function getCoins(forceFresh = false) {
     if (window.SocialWallet) {
-      const b = await SocialWallet.fetchBalance();
+      const b = await SocialWallet.fetchBalance(forceFresh);
       return b.coin_balance || 0;
     }
     return 0;
@@ -4757,12 +4757,13 @@
   async function sendSelectedGift() {
     const sheet = document.getElementById('giftSheet');
     if (!sheet) return;
+    if (window.__apGiftSending) return;
     const items = GIFT_CATALOG[giftCategory] || GIFT_CATALOG.gift;
     const g = items[selectedGiftIdx] || items[0];
     if (!g) return;
     const unitCost = parseInt(g.cost, 10) || 10;
     const cost = unitCost * giftQty;
-    const balance = await getCoins();
+    const balance = await getCoins(true);
     if (balance < cost) {
       toast('Not enough coins — recharge first', 'warning');
       openTopupSheet();
@@ -4775,7 +4776,15 @@
       return;
     }
 
-    const finishOk = () => {
+    window.__apGiftSending = true;
+    const sendBtn = document.getElementById('giftSendBtn');
+    if (sendBtn) {
+      sendBtn.disabled = true;
+      sendBtn.textContent = 'Sending…';
+    }
+
+    const finishOk = async () => {
+      if (window.SocialWallet?.fetchBalance) await SocialWallet.fetchBalance(true);
       const giftEvt = { from: displayName(currentUser()), to, emoji: g.emoji, amount: cost, qty: giftQty };
       const combo = window.SocialFX?.trackCombo?.(g.emoji, giftQty) || 1;
       window.SocialFX?.playGift?.(giftEvt, { combo });
@@ -4785,9 +4794,17 @@
       const sendBtn = document.getElementById('giftSendBtn');
       const balEl = document.getElementById('giftCoinsBal');
       if (sendBtn && balEl) window.SocialFX?.coinFly?.(sendBtn, balEl, cost);
-      refreshCoinDisplay();
+      await refreshCoinDisplay();
       toast('Gift sent!', 'success');
       sheet.classList.remove('open');
+    };
+
+    const releaseGiftSend = () => {
+      window.__apGiftSending = false;
+      if (sendBtn) {
+        sendBtn.disabled = false;
+        sendBtn.textContent = 'Send';
+      }
     };
 
     const tryApi = async (reason) => {
@@ -4801,6 +4818,8 @@
         } else {
           toast(msg, 'error');
         }
+      } finally {
+        releaseGiftSend();
       }
     };
 
@@ -4818,7 +4837,20 @@
         },
         async (res) => {
           if (res?.ok) {
-            finishOk();
+            const bal = res?.data?.balance;
+            if (bal && window.SocialWallet) {
+              document.dispatchEvent(
+                new CustomEvent('wallet:balance', {
+                  detail: {
+                    coin_balance: bal.coin_balance ?? 0,
+                    star_balance: bal.star_balance ?? 0,
+                  },
+                })
+              );
+              if (window.SocialWallet.invalidateBalance) SocialWallet.invalidateBalance();
+            }
+            await finishOk();
+            releaseGiftSend();
             return;
           }
           const msg = res?.message || '';
@@ -4829,10 +4861,15 @@
           if (/insufficient/i.test(msg)) {
             toast('Not enough coins — recharge first', 'warning');
             openTopupSheet();
+            releaseGiftSend();
             return;
           }
-          if (msg) toast(msg, 'error');
-          else await tryApi('Gift failed');
+          if (msg) {
+            toast(msg, 'error');
+            releaseGiftSend();
+          } else {
+            await tryApi('Gift failed');
+          }
         }
       );
     } else {

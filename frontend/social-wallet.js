@@ -12,6 +12,10 @@
     return base + (path.startsWith('/') ? path : '/' + path);
   }
 
+  function invalidateBalance() {
+    lastFetch = 0;
+  }
+
   async function fetchBalance(force) {
     if (!window.API) return cached;
     if (window.Auth?.hasSession && !Auth.hasSession()) return cached;
@@ -70,6 +74,8 @@
       };
       lastFetch = Date.now();
       document.dispatchEvent(new CustomEvent('wallet:balance', { detail: cached }));
+    } else {
+      await fetchBalance(true);
     }
     return res;
   }
@@ -121,6 +127,7 @@
 
   window.SocialWallet = {
     fetchBalance,
+    invalidateBalance,
     getCachedBalance,
     getPointsBalance,
     getCoinsBalance,
