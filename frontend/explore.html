@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#fdf9f0">
   <title>Explore - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-theme.css?v=20260624-live-party">
+  <link rel="stylesheet" href="social-theme.css?v=20260624-tab-fix">
   <script src="native-session-restore.js"></script>
   <script src="ap-config.js"></script>
   <script src="ap-native-boot.js"></script>
@@ -49,7 +49,7 @@
   <script src="social-interactions.js"></script>
   <script src="auth-guard.js"></script>
   <script src="social-create-post.js"></script>
-  <script src="social-shell.js?v=20260624-live-party"></script>
+  <script src="social-shell.js?v=20260624-tab-fix"></script>
   <script src="social-nav.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', () => {
@@ -94,6 +94,7 @@
           empty.innerHTML = '';
           empty.style.display = 'none';
         }
+        window.__exploreGridToken = (window.__exploreGridToken || 0) + 1;
       }
 
       async function loadTab(tab, searchQuery) {
@@ -119,27 +120,35 @@
         }
 
         resetExploreGrid();
-        content = document.getElementById('exploreContent');
-        empty = document.getElementById('exploreEmpty');
-        let grid = document.getElementById('exploreGrid');
+        const grid = document.getElementById('exploreGrid');
+        const loadToken = window.__exploreGridToken;
 
-        if (tab === 'party') {
-          await SocialShell.fillGrid('exploreGrid', 12, { party: true, sort: 'trending' });
-        } else if (tab === 'new' || tab === 'nearby') {
-          if (tab === 'nearby' && navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-              () => SocialShell.fillDiscoveryTab(tab, searchQuery),
-              () => SocialShell.fillDiscoveryTab(tab, searchQuery),
-              { timeout: 4000 }
-            );
+        try {
+          if (tab === 'party') {
+            await SocialShell.fillGrid('exploreGrid', 12, { party: true, sort: 'trending', loadToken });
+          } else if (tab === 'new' || tab === 'nearby') {
+            if (tab === 'nearby' && navigator.geolocation) {
+              navigator.geolocation.getCurrentPosition(
+                () => SocialShell.fillDiscoveryTab(tab, searchQuery),
+                () => SocialShell.fillDiscoveryTab(tab, searchQuery),
+                { timeout: 4000 }
+              );
+            } else {
+              await SocialShell.fillDiscoveryTab(tab, searchQuery);
+            }
           } else {
-            await SocialShell.fillDiscoveryTab(tab, searchQuery);
+            await SocialShell.fillGrid('exploreGrid', 12, { party: false, sort: 'trending', loadToken });
           }
-        } else {
-          await SocialShell.fillGrid('exploreGrid', 12, { party: false, sort: 'trending' });
+        } catch (err) {
+          console.error('Explore loadTab', err);
+          if (grid && loadToken === window.__exploreGridToken) {
+            grid.classList.add('is-empty');
+            grid.innerHTML =
+              '<div class="social-empty-live-grid is-error" data-empty-live><h3>Could not load</h3><p>Tap a tab again or pull to refresh.</p></div>';
+          }
         }
 
-        if (searchQuery) {
+        if (searchQuery && grid && loadToken === window.__exploreGridToken) {
           const q = searchQuery.toLowerCase();
           [...grid.querySelectorAll('.social-live-card')].forEach((card) => {
             const name = (card.querySelector('.social-card-name')?.textContent || '').toLowerCase();

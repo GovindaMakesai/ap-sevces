@@ -676,6 +676,10 @@
 
   const gridScrollState = {};
 
+  function gridStateKey(gridId, opts = {}) {
+    return `${gridId}:${opts.sort || 'trending'}:${opts.party ? 'party' : 'live'}`;
+  }
+
   function bindGridInfiniteScroll(gridId, limit, opts) {
     const grid = document.getElementById(gridId);
     if (!grid || grid.dataset.infiniteBound === '1') return;
@@ -684,7 +688,7 @@
     sentinel.className = 'social-grid-sentinel';
     sentinel.setAttribute('aria-hidden', 'true');
     grid.after(sentinel);
-    const key = `${gridId}:${opts.sort || 'trending'}`;
+    const key = gridStateKey(gridId, opts);
     if (!gridScrollState[key]) gridScrollState[key] = { limit: limit || 12, loading: false };
 
     const observer = new IntersectionObserver(
@@ -703,34 +707,50 @@
   async function fillGrid(gridId, limit, opts = {}) {
     const grid = document.getElementById(gridId);
     if (!grid) return;
-    const key = `${gridId}:${opts.sort || 'trending'}`;
+    const key = gridStateKey(gridId, opts);
     if (!gridScrollState[key]) gridScrollState[key] = { limit: limit || 12, loading: false };
     const st = gridScrollState[key];
     if (st.loading) return;
     st.loading = true;
     if (!opts.append) {
+      grid.classList.remove('is-empty');
       grid.innerHTML =
         gridSectionTitle(opts && opts.party) +
         '<div class="social-grid-loading"><span class="social-spinner"></span></div>';
     }
-    const { rooms, error } = await fetchActiveRooms(limit || st.limit, opts);
-    st.loading = false;
-    if (!rooms.length) {
+    try {
+      const { rooms, error } = await fetchActiveRooms(limit || st.limit, opts);
+      if (opts.loadToken != null && opts.loadToken !== window.__exploreGridToken) return;
+      if (!rooms.length) {
+        if (!opts.append) {
+          grid.classList.add('is-empty');
+          grid.innerHTML =
+            gridSectionTitle(opts && opts.party) +
+            renderEmptyLiveGrid(opts && opts.party, { error: Boolean(error) });
+          bindEmptyLiveGrid(grid, opts);
+        }
+        return;
+      }
+      grid.classList.remove('is-empty');
+      grid.innerHTML =
+        gridSectionTitle(opts && opts.party) +
+        rooms.map((p, i) => renderLiveCard(p, i, opts)).filter(Boolean).join('');
+      bindLiveCards(grid);
+      if (window.SocialUI?.bindAvatarFallbacks) SocialUI.bindAvatarFallbacks(grid);
+      bindGridInfiniteScroll(gridId, limit || 12, opts);
+      updateExploreTabCounts();
+    } catch (e) {
+      console.warn('SocialShell: fillGrid', e);
       if (!opts.append) {
         grid.classList.add('is-empty');
-        grid.innerHTML = gridSectionTitle(opts && opts.party) + renderEmptyLiveGrid(opts && opts.party, { error: Boolean(error) });
+        grid.innerHTML =
+          gridSectionTitle(opts && opts.party) +
+          renderEmptyLiveGrid(opts && opts.party, { error: true });
         bindEmptyLiveGrid(grid, opts);
       }
-      return;
+    } finally {
+      st.loading = false;
     }
-    grid.classList.remove('is-empty');
-    grid.innerHTML =
-      gridSectionTitle(opts && opts.party) +
-      rooms.map((p, i) => renderLiveCard(p, i, opts)).filter(Boolean).join('');
-    bindLiveCards(grid);
-    if (window.SocialUI?.bindAvatarFallbacks) SocialUI.bindAvatarFallbacks(grid);
-    bindGridInfiniteScroll(gridId, limit || 12, opts);
-    updateExploreTabCounts();
   }
 
   function setExploreTabCount(tab, count) {
