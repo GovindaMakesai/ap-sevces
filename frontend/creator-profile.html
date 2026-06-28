@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#fdf9f0">
   <title>Profile - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-theme.css?v=20260702-follow-fix">
-  <link rel="stylesheet" href="social-features.css?v=20260702-follow-fix">
+  <link rel="stylesheet" href="social-theme.css?v=20260628-profile-fix">
+  <link rel="stylesheet" href="social-features.css?v=20260628-profile-fix">
   <style>
     .creator-hero { text-align: center; padding: 24px 16px 12px; }
     .creator-avatar { width: 88px; height: 88px; border-radius: 50%; object-fit: cover; margin-bottom: 12px; border: 3px solid #fbbf24; }
@@ -28,6 +28,9 @@
       grid-template-columns: repeat(2, 1fr);
       gap: 10px;
       margin: 0 16px 16px;
+    }
+    .creator-engagement-grid.cols-3 {
+      grid-template-columns: repeat(3, 1fr);
     }
     .creator-engagement-card {
       background: #fff;
@@ -193,9 +196,10 @@
             document.getElementById('creatorTitle').textContent = displayName;
             const avatarEl = hero.querySelector('.creator-avatar');
             if (avatarEl && e.profilePic) {
+              const cacheKey = e.profileUpdatedAt || e.id || userId;
               const picUrl = window.SocialShell?.getImageUrl
-                ? SocialShell.getImageUrl(e.profilePic, e.id || userId)
-                : (SocialUI.avatarUrl(displayName, e.profilePic));
+                ? SocialShell.getImageUrl(e.profilePic, cacheKey)
+                : SocialUI.avatarUrl(displayName, e.profilePic);
               avatarEl.onerror = () => {
                 avatarEl.onerror = null;
                 avatarEl.src = SocialUI.avatarUrl(displayName);
@@ -210,11 +214,13 @@
             };
             const grid = document.getElementById('creatorEngagement');
             grid.hidden = false;
+            grid.className = 'creator-engagement-grid cols-3';
             grid.innerHTML =
-              '<div class="creator-engagement-card"><strong>' + e.engagementLabel + '</strong><span>Engagement</span></div>' +
               '<div class="creator-engagement-card"><strong>' + fmt(e.followers) + '</strong><span>Followers</span></div>' +
-              '<div class="creator-engagement-card"><strong>' + fmt(e.giftCount) + '</strong><span>Gifts received</span></div>' +
-              '<div class="creator-engagement-card"><strong>' + fmt(e.liveSessions) + '</strong><span>Live sessions</span></div>';
+              '<div class="creator-engagement-card"><strong>' + fmt(e.following) + '</strong><span>Following</span></div>' +
+              '<div class="creator-engagement-card"><strong>' + fmt(e.giftCount) + '</strong><span>Gifts</span></div>' +
+              '<div class="creator-engagement-card"><strong>' + fmt(e.liveSessions) + '</strong><span>Live sessions</span></div>' +
+              '<div class="creator-engagement-card"><strong>' + e.engagementLabel + '</strong><span>Engagement</span></div>';
             if (e.isLive && e.liveChannel) {
               const live = document.getElementById('creatorLiveBanner');
               const roomPage = e.liveRoomType === 'party' ? 'party-room.html' : 'live-room.html';

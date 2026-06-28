@@ -62,11 +62,31 @@
     <div class="ap-live-loader-scrim" aria-hidden="true"></div>
     <div class="ap-live-loader-inner">
       <img id="apLiveLoaderAvatar" class="ap-live-loader-avatar" alt="" hidden>
-      <p id="apLiveLoaderText" class="ap-live-loader-label">Joining live…</p>
+      <p id="apLiveLoaderText" class="ap-live-loader-label">Connecting…</p>
       <span class="ap-live-loader-pulse" aria-hidden="true">Live</span>
-      <button type="button" class="ap-live-loader-skip" id="apLiveLoaderSkip">Enter room</button>
+      <button type="button" class="ap-live-loader-skip" id="apLiveLoaderSkip">Enter room now</button>
     </div>
   </div>
+  <script>
+    (function apLoaderHotfix() {
+      function dismiss() {
+        var l = document.getElementById('apLiveLoader');
+        if (l) {
+          l.classList.add('is-hidden');
+          l.style.display = 'none';
+          l.style.visibility = 'hidden';
+          l.style.pointerEvents = 'none';
+        }
+        document.body.classList.add('ap-room-active');
+      }
+      document.getElementById('apLiveLoaderSkip')?.addEventListener('click', function (e) {
+        e.preventDefault();
+        dismiss();
+      });
+      setTimeout(dismiss, 2500);
+      setTimeout(dismiss, 5000);
+    })();
+  </script>
 
   <div id="liveFeedBackdrop" class="live-feed-backdrop" aria-hidden="true"></div>
   <div id="liveFeedScroll" class="live-feed-scroll" aria-hidden="true"></div>
@@ -201,7 +221,7 @@
   <script src="social-fx.js"></script>
   <script src="live-emoji-data.js"></script>
   <script src="live-session-provider.js?v=20260703-minimize-fix"></script>
-  <script src="social-live.js?v=20260706-following-back"></script>
+  <script src="social-live.js?v=20260628-join-fix4"></script>
   <script src="social-live-interactions.js"></script>
   <script src="social-nav.js"></script>
 </body>

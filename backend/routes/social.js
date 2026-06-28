@@ -9,6 +9,7 @@ router.get('/gifts/catalog', social.listGiftCatalog);
 router.get('/coin-sellers', social.listCoinSellers);
 router.get('/discover/creators', optionalAuth, social.discoverCreators);
 router.get('/creators/:userId/engagement', optionalAuth, social.creatorEngagement);
+router.get('/stats/:userId', optionalAuth, social.followStats);
 router.get('/posts', verifyToken, social.listPosts);
 
 router.use(verifyToken);
@@ -25,7 +26,6 @@ router.get('/following/live', social.liveFollowing);
 router.get('/followers', social.userFollowers);
 router.get('/followers/:userId', social.userFollowers);
 router.get('/stats', social.followStats);
-router.get('/stats/:userId', social.followStats);
 
 router.post('/coin-sellers/:sellerId/buy', social.buyFromSeller);
 router.get('/coin-seller-orders', social.mySellerOrders);

@@ -17,8 +17,9 @@ function buildDisplayName(user) {
 async function fetchCreatorRows(userIds) {
   if (!userIds.length) return [];
   const res = await db.query(
-    `SELECT u.id, u.first_name, u.last_name, u.profile_pic, u.role,
+    `SELECT u.id, u.first_name, u.last_name, u.profile_pic, u.role, u.updated_at,
             (SELECT COUNT(*)::int FROM user_follows WHERE following_id = u.id) AS followers,
+            (SELECT COUNT(*)::int FROM user_follows WHERE follower_id = u.id) AS following,
             (SELECT COALESCE(SUM(gt.creator_amount), 0)::float FROM gift_transactions gt WHERE gt.receiver_id = u.id) AS gift_earnings,
             (SELECT COUNT(*)::int FROM gift_transactions gt WHERE gt.receiver_id = u.id) AS gift_count,
             (SELECT COUNT(*)::int FROM live_rooms lr WHERE lr.host_user_id = u.id) AS live_sessions,
@@ -41,8 +42,9 @@ async function fetchCreatorRows(userIds) {
 
 async function fetchFallbackCreators(limit) {
   const res = await db.query(
-    `SELECT u.id, u.first_name, u.last_name, u.profile_pic, u.role,
+    `SELECT u.id, u.first_name, u.last_name, u.profile_pic, u.role, u.updated_at,
             (SELECT COUNT(*)::int FROM user_follows WHERE following_id = u.id) AS followers,
+            (SELECT COUNT(*)::int FROM user_follows WHERE follower_id = u.id) AS following,
             COALESCE((SELECT SUM(gt.creator_amount) FROM gift_transactions gt WHERE gt.receiver_id = u.id), 0)::float AS gift_earnings,
             (SELECT COUNT(*)::int FROM gift_transactions gt WHERE gt.receiver_id = u.id) AS gift_count,
             (SELECT COUNT(*)::int FROM live_rooms lr WHERE lr.host_user_id = u.id) AS live_sessions,
@@ -82,11 +84,13 @@ function mapCreatorRow(row, { rank = null, engagementScore = null, viewerId = nu
     firstName: row.first_name || '',
     lastName: row.last_name || '',
     profilePic: row.profile_pic || null,
+    profileUpdatedAt: row.updated_at || null,
     role: row.role || 'customer',
     rank,
     engagementScore: score,
     engagementLabel: formatScore(score),
     followers: Number(row.followers || 0),
+    following: Number(row.following || 0),
     giftCount: Number(row.gift_count || 0),
     giftEarnings: Number(row.gift_earnings || 0),
     liveSessions: Number(row.live_sessions || 0),
@@ -204,12 +208,18 @@ async function getCreatorEngagement(userId, viewerId = null) {
   const followingSet = await getFollowingSet(viewerId);
   const lb = await leaderboardService.getLeaderboard('weekly', 'creators', 100);
   const lbRow = lb.find((r) => String(r.entity_id) === id);
-  return mapCreatorRow(rows[0], {
+  const stats = await followService.getStats(id);
+  const mapped = mapCreatorRow(rows[0], {
     rank: lbRow?.rank || null,
     engagementScore: lbRow ? Number(lbRow.score || 0) : null,
     viewerId,
     followingSet,
   });
+  return {
+    ...mapped,
+    followers: Number(stats.followers) || mapped.followers,
+    following: Number(stats.following) || mapped.following,
+  };
 }
 
 module.exports = {

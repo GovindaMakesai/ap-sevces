@@ -112,6 +112,13 @@ async function joinRoom({ channel, userId, displayName, asHost = false }) {
   const client = await db.pool.connect();
   try {
     await client.query('BEGIN');
+    const prevMember = await client.query(
+      `SELECT left_at FROM live_room_members WHERE live_room_id = $1 AND user_id = $2 FOR UPDATE`,
+      [room.id, userId]
+    );
+    const wasAlreadyInRoom =
+      prevMember.rows.length > 0 && prevMember.rows[0].left_at == null;
+
     await client.query(
       `INSERT INTO live_room_members (live_room_id, user_id, display_name, role, left_at, last_seen_at, seat_index)
        VALUES ($1, $2, $3, $4, NULL, CURRENT_TIMESTAMP, $5)
@@ -133,10 +140,12 @@ async function joinRoom({ channel, userId, displayName, asHost = false }) {
       [viewers, room.id]
     );
 
-    await client.query(
-      `INSERT INTO live_room_events (live_room_id, user_id, event_type, payload) VALUES ($1, $2, 'join', $3)`,
-      [room.id, userId, JSON.stringify({ display_name: displayName })]
-    );
+    if (!wasAlreadyInRoom) {
+      await client.query(
+        `INSERT INTO live_room_events (live_room_id, user_id, event_type, payload) VALUES ($1, $2, 'join', $3)`,
+        [room.id, userId, JSON.stringify({ display_name: displayName })]
+      );
+    }
 
     room = (await client.query(`SELECT * FROM live_rooms WHERE id = $1`, [room.id])).rows[0];
     await client.query('COMMIT');
@@ -169,9 +178,14 @@ async function leaveRoom({ channel, userId }) {
     room.id,
   ]);
 
-  await db.query(
-    `INSERT INTO live_room_events (live_room_id, user_id, event_type, payload) VALUES ($1, $2, 'leave', '{}')`,
+  const memberRow = await db.query(
+    `SELECT display_name FROM live_room_members WHERE live_room_id = $1 AND user_id = $2 LIMIT 1`,
     [room.id, userId]
+  );
+  const leaveName = memberRow.rows[0]?.display_name || 'Someone';
+  await db.query(
+    `INSERT INTO live_room_events (live_room_id, user_id, event_type, payload) VALUES ($1, $2, 'leave', $3)`,
+    [room.id, userId, JSON.stringify({ display_name: leaveName })]
   );
 
   return { ...room, viewer_count: viewers };
@@ -206,11 +220,24 @@ async function buildSnapshot(channel) {
   const events = await getRecentEvents(room.id, 30);
 
   const messages = events
-    .filter((e) => e.event_type === 'chat' || e.event_type === 'join' || e.event_type === 'seat_join')
+    .filter((e) => e.event_type === 'chat' || e.event_type === 'join' || e.event_type === 'leave' || e.event_type === 'seat_join')
     .map((e) => {
       const p = parsePayload(e.payload);
       if (e.event_type === 'join') {
-        return { type: 'system', text: `${p.display_name || 'Someone'} joined`, at: e.created_at };
+        return {
+          id: `evt-${e.id}`,
+          type: 'system',
+          text: `${p.display_name || 'Someone'} joined`,
+          at: e.created_at,
+        };
+      }
+      if (e.event_type === 'leave') {
+        return {
+          id: `evt-${e.id}`,
+          type: 'system',
+          text: `${p.display_name || 'Someone'} left`,
+          at: e.created_at,
+        };
       }
       if (e.event_type === 'seat_join') {
         return {

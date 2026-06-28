@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#c9a227">
   <title>Me - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-theme.css?v=20260625-profile-me">
+  <link rel="stylesheet" href="social-theme.css?v=20260628-profile-fix">
   <link rel="stylesheet" href="social-features.css">
   <style>
     html:not(.profile-ready) .social-profile-hero,
@@ -139,13 +139,22 @@
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
       Auth.checkAuth();
+      let user = Auth.getUser();
       if (Auth.hasSession?.()) {
         await Auth.ensureAccessToken?.();
         try {
           await Auth.refreshSession?.();
         } catch (_e) {}
+        try {
+          const meRes = await API.get('/auth/me');
+          const freshUser = meRes?.data?.user || meRes?.data;
+          if (freshUser?.id) {
+            localStorage.setItem('user', JSON.stringify(freshUser));
+            if (window.AppState) AppState.user = freshUser;
+            user = freshUser;
+          }
+        } catch (_e) {}
       }
-      let user = Auth.getUser();
 
       SocialShell.initPage({ activeNav: 'profile' });
       const btn = document.getElementById('profileMainBtn');

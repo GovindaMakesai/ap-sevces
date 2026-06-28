@@ -615,7 +615,21 @@ function registerLiveSocket(io) {
       }
 
       // Viewer drop: grace period before DB leave (mobile background / brief network loss).
-      // pruneStaleMembers (120s) removes stale rows; immediate leave caused unwanted ejects.
+      if (!wasHost) {
+        const userId = socket.userId;
+        const displayName = socket.data.liveDisplayName || 'User';
+        setTimeout(async () => {
+          try {
+            if (socket.connected) return;
+            const updated = await liveRoomService.leaveRoom({ channel, userId });
+            if (updated) {
+              io.to(`live:${channel}`).emit('live:viewer_count', { viewers: updated.viewer_count });
+              const state = await liveRoomService.buildSnapshot(channel);
+              if (state) io.to(`live:${channel}`).emit('live:state', state);
+            }
+          } catch (_e) {}
+        }, 45000);
+      }
     });
   });
 }

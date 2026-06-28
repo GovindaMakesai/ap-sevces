@@ -642,13 +642,13 @@
 
   async function getFollowStats(userId) {
     const uid = String(userId || window.Auth?.getUser?.()?.id || '').trim();
-    if (hasAuth() && isUuid(uid)) {
+    if (isUuid(uid)) {
       try {
-        await ensureFollowAuth();
+        if (hasAuth()) await ensureFollowAuth();
         const res = await apiSocial('GET', `/social/stats/${uid}`);
         const data = res?.data || {};
         let coins = 0;
-        if (window.SocialWallet) {
+        if (window.SocialWallet && hasAuth() && (!userId || String(userId) === String(window.Auth?.getUser?.()?.id))) {
           try {
             const b = await SocialWallet.fetchBalance();
             coins = b.coin_balance || 0;

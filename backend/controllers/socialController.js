@@ -73,6 +73,9 @@ async function userFollowers(req, res) {
 
 async function followStats(req, res) {
   const userId = req.params.userId || uid(req);
+  if (!userId) {
+    return res.status(400).json({ success: false, message: 'User id required' });
+  }
   const data = await followService.getStats(userId);
   res.json({ success: true, data });
 }

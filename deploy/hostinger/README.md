@@ -109,6 +109,20 @@ curl -s http://127.0.0.1:5000/api/health
 curl -s http://127.0.0.1:5000/api/live/agora/config
 ```
 
+Expect `ready:true` and the new `appId` after Agora credentials are set.
+
+### Update Agora credentials on VPS
+
+After creating a new Agora project (e.g. **ap-service**), SSH in and run:
+
+```bash
+cd /var/www/ap-services
+AGORA_APP_ID=your_app_id AGORA_APP_CERTIFICATE=your_certificate \
+  bash deploy/hostinger/update-agora-on-vps.sh
+```
+
+Or edit `/var/www/ap-services/backend/.env` manually, then `pm2 restart ap-api --update-env`.
+
 Public: http://62.72.56.74:5000/api/health
 
 ## Next: domain + HTTPS (recommended)
