@@ -11,10 +11,6 @@ try {
   RtcTokenBuilder = null;
 }
 
-function uidFromUserId(userId) {
-  return require('../lib/agoraUid').uidFromUserId(userId);
-}
-
 exports.listActiveRooms = async (req, res) => {
   try {
     const roomType = req.query.type === 'party' ? 'party' : req.query.type === 'live' ? 'live' : null;
