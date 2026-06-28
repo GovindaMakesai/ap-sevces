@@ -401,7 +401,7 @@ async function transferCoins(sellerId, { recipientId, coins, transferType = 'use
       );
     }
 
-    await walletService.creditCoins(
+    const creditResult = await walletService.creditCoins(
       recipient.id,
       amount,
       {
@@ -418,26 +418,30 @@ async function transferCoins(sellerId, { recipientId, coins, transferType = 'use
       [sellerId, recipient.id, amount, transferType === 'seller' ? 'seller' : 'user']
     );
 
-    await client.query('COMMIT');
-    await auditLogService.log(sellerId, 'coin_seller.transfer', {
-      entity_type: 'coin_seller_transfer',
-      entity_id: xfer.rows[0].id,
-      metadata: { recipientId: recipient.id, coins: amount, fromInventory, fromWallet },
-    });
+    const invAfter = inventoryAvail - fromInventory;
+    const walletAfter = walletAvail - fromWallet;
+    const sellableAfter = invAfter + walletAfter;
 
-    const sellerWalletAfter = await walletService.getOrCreateWallet(sellerId, client);
-    const sellerProfileAfter = await client.query(
-      `SELECT inventory_coins FROM coin_seller_profiles WHERE user_id = $1`,
-      [sellerId]
-    );
-    const invAfter = Number(sellerProfileAfter.rows[0]?.inventory_coins || 0);
-    const sellableAfter = invAfter + Number(sellerWalletAfter.coin_balance || 0);
+    await client.query('COMMIT');
+
+    setImmediate(() => {
+      auditLogService
+        .log(sellerId, 'coin_seller.transfer', {
+          entity_type: 'coin_seller_transfer',
+          entity_id: xfer.rows[0].id,
+          metadata: { recipientId: recipient.id, coins: amount, fromInventory, fromWallet },
+        })
+        .catch(() => {});
+      if (Number(creditResult?.balance || 0) >= 100000) {
+        ensureSellerAccess(recipient.id).catch(() => {});
+      }
+    });
 
     return {
       transfer: xfer.rows[0],
       recipient,
       seller_balance: {
-        coin_balance: Number(sellerWalletAfter.coin_balance || 0),
+        coin_balance: walletAfter,
         inventory_coins: invAfter,
         sellable_coins: sellableAfter,
       },

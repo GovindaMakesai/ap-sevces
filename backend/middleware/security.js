@@ -18,7 +18,8 @@ const globalLimiter = rateLimit({
     req.path.startsWith('/api/live/rooms') ||
     req.path.startsWith('/api/live/streamer-stats') ||
     req.path.startsWith('/api/social/following') ||
-    req.path.startsWith('/api/messages/conversations'),
+    req.path.startsWith('/api/messages/conversations') ||
+    req.path.startsWith('/api/social/coin-seller/transfer'),
 });
 
 const authLimiter = rateLimit({

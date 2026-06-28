@@ -106,14 +106,7 @@ async function creditCoins(userId, amount, meta = {}, client) {
   };
 
   if (client) {
-    const result = await run(client);
-    if (Number(result.balance) >= 100000) {
-      try {
-        const { ensureSellerAccess } = require('./coinSellerService');
-        await ensureSellerAccess(userId);
-      } catch (_e) { /* best-effort */ }
-    }
-    return result;
+    return run(client);
   }
   const c = await db.pool.connect();
   try {
@@ -121,10 +114,12 @@ async function creditCoins(userId, amount, meta = {}, client) {
     const result = await run(c);
     await c.query('COMMIT');
     if (Number(result.balance) >= 100000) {
-      try {
-        const { ensureSellerAccess } = require('./coinSellerService');
-        await ensureSellerAccess(userId);
-      } catch (_e) { /* best-effort */ }
+      setImmediate(() => {
+        try {
+          const { ensureSellerAccess } = require('./coinSellerService');
+          ensureSellerAccess(userId).catch(() => {});
+        } catch (_e) { /* best-effort */ }
+      });
     }
     return result;
   } catch (e) {

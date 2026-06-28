@@ -447,9 +447,12 @@ const API = {
         if (window.SocialWallet?.invalidateBalance) {
             SocialWallet.invalidateBalance();
         }
+        const ep = String(endpoint || '');
+        const timeout = ep.includes('/coin-seller/transfer') ? 45000 : undefined;
         return this.request(endpoint, {
             method: 'POST',
-            body: body
+            body: body,
+            timeout,
         });
     },
     
