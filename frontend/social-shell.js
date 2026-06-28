@@ -393,21 +393,39 @@
     if (!document.body.classList.contains('social-explore-page')) return;
     const liveBtn = document.getElementById('social-start-live');
     const partyBtn = document.getElementById('social-start-party');
-    if (!liveBtn || !partyBtn) return;
     const party = Boolean(opts.party);
+    document.body.classList.toggle('explore-has-rooms', Boolean(hasRooms));
+    document.body.classList.toggle('explore-empty-state', !hasRooms);
+    document.body.classList.toggle('explore-tab-party', party);
+    document.body.classList.toggle('explore-tab-live', !party);
+    if (!liveBtn || !partyBtn) return;
     if (hasRooms) {
+      liveBtn.hidden = party;
+      partyBtn.hidden = !party;
       liveBtn.style.display = party ? 'none' : '';
       partyBtn.style.display = party ? '' : 'none';
     } else {
+      liveBtn.hidden = true;
+      partyBtn.hidden = true;
       liveBtn.style.display = 'none';
       partyBtn.style.display = 'none';
     }
   }
 
-  function gridSectionTitle(party) {
-    return party
-      ? '<p class="social-grid-section-title"><i class="fas fa-microphone-lines"></i> Party rooms live now</p>'
-      : '<p class="social-grid-section-title"><i class="fas fa-video"></i> Live broadcasts now</p>';
+  function renderExploreFeedHead(party, count) {
+    const isParty = Boolean(party);
+    const icon = isParty ? 'fa-microphone-lines' : 'fa-video';
+    const label = isParty ? 'Party rooms live now' : 'Live broadcasts now';
+    const n = Math.max(0, Number(count) || 0);
+    const countHtml = n > 0 ? `<span class="social-explore-feed-count">${n}</span>` : '';
+    return `<div class="social-explore-feed-head"><h2 class="social-explore-feed-title"><i class="fas ${icon}"></i><span>${label}</span>${countHtml}</h2></div>`;
+  }
+
+  function renderExploreCardsHtml(rooms, opts) {
+    return `<div class="social-grid social-grid-cards">${rooms
+      .map((p, i) => renderLiveCard(p, i, opts))
+      .filter(Boolean)
+      .join('')}</div>`;
   }
 
   function renderLiveCard(pro, index, opts) {
@@ -477,24 +495,27 @@
     const altHint = opts.altHint || '';
 
     return `
-      <div class="social-empty-live-grid${isError ? ' is-error' : ''}" data-empty-live>
-        <div class="social-empty-live-visual" aria-hidden="true">
-          <span class="social-empty-live-ring social-empty-live-ring--1"></span>
-          <span class="social-empty-live-ring social-empty-live-ring--2"></span>
-          <div class="social-empty-live-icon"><i class="fas ${icon}"></i></div>
+      <div class="social-explore-empty-shell">
+        <div class="social-empty-live-grid${isError ? ' is-error' : ''}${party ? ' is-party' : ' is-live'}" data-empty-live>
+          <p class="social-empty-live-badge"><i class="fas ${icon}"></i> ${party ? 'Party' : 'Live'}</p>
+          <div class="social-empty-live-visual" aria-hidden="true">
+            <span class="social-empty-live-ring social-empty-live-ring--1"></span>
+            <span class="social-empty-live-ring social-empty-live-ring--2"></span>
+            <div class="social-empty-live-icon"><i class="fas ${icon}"></i></div>
+          </div>
+          <h3>${escapeHtml(title)}</h3>
+          <p class="social-empty-live-desc">${escapeHtml(subtitle)}</p>
+          ${altHint}
+          <div class="social-empty-live-actions">
+            ${
+              isError
+                ? `<button type="button" class="social-empty-live-btn" data-empty-action="retry">Try again</button>`
+                : `<button type="button" class="social-empty-live-btn" data-empty-action="${primaryAction}">${escapeHtml(primaryLabel)}</button>`
+            }
+            <a href="${escapeAttr(secondaryHref)}" class="social-empty-live-link">Discover creators</a>
+          </div>
+          <p class="social-empty-live-hint"><i class="fas fa-arrows-rotate"></i> Pull down to refresh</p>
         </div>
-        <h3>${escapeHtml(title)}</h3>
-        <p>${escapeHtml(subtitle)}</p>
-        ${altHint}
-        <div class="social-empty-live-actions">
-          ${
-            isError
-              ? `<button type="button" class="social-empty-live-btn" data-empty-action="retry">Try again</button>`
-              : `<button type="button" class="social-empty-live-btn" data-empty-action="${primaryAction}">${escapeHtml(primaryLabel)}</button>`
-          }
-          <a href="${escapeAttr(secondaryHref)}" class="social-empty-live-link">Discover creators</a>
-        </div>
-        <p class="social-empty-live-hint"><i class="fas fa-arrows-rotate"></i> Pull down to refresh</p>
       </div>`;
   }
 
@@ -519,8 +540,8 @@
     el.querySelector('[data-empty-action="start-live"]')?.addEventListener('click', () => goStartLive());
     el.querySelector('[data-empty-action="start-party"]')?.addEventListener('click', () => goStartParty());
     el.querySelector('[data-empty-action="retry"]')?.addEventListener('click', () => {
-      const grid = el.closest('.social-grid');
-      const gridId = grid?.id || 'exploreGrid';
+      const mount = el.closest('.social-explore-mount') || el.closest('.social-grid');
+      const gridId = mount?.id || 'exploreGrid';
       fillGrid(gridId, 12, { ...(opts || {}), append: false });
     });
     el.querySelector('[data-switch-tab]')?.addEventListener('click', (e) => {
@@ -750,9 +771,9 @@
     if (st.loading) return;
     st.loading = true;
     if (!opts.append) {
-      grid.classList.remove('is-empty');
+      grid.classList.remove('is-empty', 'has-rooms');
       grid.classList.add('is-loading');
-      grid.innerHTML = '<div class="social-grid-loading"><span class="social-spinner"></span></div>';
+      grid.innerHTML = '<div class="social-explore-loading"><span class="social-spinner"></span></div>';
       syncExploreFloatingActions(false, opts);
     }
     try {
@@ -762,6 +783,7 @@
       if (!rooms.length) {
         if (!opts.append) {
           grid.classList.add('is-empty');
+          grid.classList.remove('has-rooms');
           const altHint = error ? '' : await emptyStateAltHint(Boolean(opts.party));
           grid.innerHTML = renderEmptyLiveGrid(opts && opts.party, {
             error: Boolean(error),
@@ -774,9 +796,9 @@
         return;
       }
       grid.classList.remove('is-empty');
+      grid.classList.add('has-rooms');
       grid.innerHTML =
-        gridSectionTitle(opts && opts.party) +
-        rooms.map((p, i) => renderLiveCard(p, i, opts)).filter(Boolean).join('');
+        renderExploreFeedHead(opts && opts.party, rooms.length) + renderExploreCardsHtml(rooms, opts);
       bindLiveCards(grid);
       if (window.SocialUI?.bindAvatarFallbacks) SocialUI.bindAvatarFallbacks(grid);
       bindGridInfiniteScroll(gridId, limit || 12, opts);
@@ -787,6 +809,7 @@
       grid.classList.remove('is-loading');
       if (!opts.append) {
         grid.classList.add('is-empty');
+        grid.classList.remove('has-rooms');
         grid.innerHTML = renderEmptyLiveGrid(opts && opts.party, { error: true });
         bindEmptyLiveGrid(grid, opts);
         syncExploreFloatingActions(false, opts);
@@ -1013,7 +1036,7 @@
 
     if (content) {
       content.style.display = 'none';
-      content.innerHTML = '<div class="social-grid" id="exploreGrid"></div>';
+      content.innerHTML = '<div class="social-explore-mount" id="exploreGrid"></div>';
     }
     mount.style.display = 'block';
     mount.innerHTML =
@@ -1206,7 +1229,7 @@
     if (!grid && content) {
       grid = document.createElement('div');
       grid.id = 'exploreGrid';
-      grid.className = 'social-grid';
+      grid.className = 'social-explore-mount';
       content.appendChild(grid);
     }
     if (!grid) return;
