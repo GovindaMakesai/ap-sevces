@@ -188,8 +188,7 @@ function registerLiveSocket(io) {
             seats: [],
           };
         }
-        socket.emit('live:state', state);
-        socket.to(`live:${channel}`).emit('live:state', state);
+        io.to(`live:${channel}`).emit('live:state', state);
         io.to(`live:${channel}`).emit('live:viewer_count', { viewers: state?.viewers || 0 });
 
         safeAck(ack, answeredRef, { ok: true, state, isHost });
@@ -215,6 +214,25 @@ function registerLiveSocket(io) {
       const channel = sanitizeChannel(payload?.channel || currentChannel);
       if (!channel) return;
       await liveRoomService.touchHeartbeat(channel, socket.userId);
+    });
+
+    socket.on('live:request_state', async (payload, ack) => {
+      try {
+        const channel = sanitizeChannel(payload?.channel || currentChannel);
+        if (!channel) {
+          if (ack) ack({ ok: false, message: 'channel required' });
+          return;
+        }
+        const state = await liveRoomService.buildSnapshot(channel);
+        if (!state) {
+          if (ack) ack({ ok: false, message: 'Room not found' });
+          return;
+        }
+        if (ack) ack({ ok: true, state });
+        else socket.emit('live:state', state);
+      } catch (err) {
+        if (ack) ack({ ok: false, message: err.message || 'Could not load room state' });
+      }
     });
 
     socket.on('live:kick', async (payload, ack) => {

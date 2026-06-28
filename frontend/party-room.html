@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#1a0f3a">
   <title>Party Room - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-live.css?v=20260705-loader-fix">
+  <link rel="stylesheet" href="social-live.css?v=20260624-host-users">
   <link rel="stylesheet" href="social-live-session.css?v=20260703-minimize-fix">
   <link rel="stylesheet" href="social-live-ref-ui.css?v=20260628-hotfix">
   <link rel="stylesheet" href="social-fx.css">
@@ -117,7 +117,7 @@
 
     <div class="party-host-bar" id="partyHostBar">
       <button type="button" class="party-host-action" id="partyBtnInvite"><i class="fas fa-user-plus"></i> Invite</button>
-      <button type="button" class="party-host-action" id="partyBtnRequests"><i class="fas fa-inbox"></i> Requests <span id="partyReqCount" class="party-req-badge">0</span></button>
+      <button type="button" class="party-host-action" id="partyBtnRequests"><i class="fas fa-users"></i> Users <span id="partyReqCount" class="party-req-badge" hidden>0</span></button>
     </div>
 
     <div class="party-invite-row">
@@ -193,7 +193,7 @@
         <h3>Join requests</h3>
         <button type="button" id="partyRequestsClose"><i class="fas fa-times"></i></button>
       </div>
-      <p class="party-requests-hint">Accept guests to add them to a seat</p>
+      <p class="party-requests-hint">Guests listening in the room appear below. Accept mic requests to put them on a seat.</p>
       <div id="partyRequestsList" class="party-requests-list"></div>
       <h4 class="party-requests-subtitle">In room (online)</h4>
       <div id="partyAvailableList" class="party-requests-list"></div>
@@ -240,7 +240,7 @@
   <script src="social-fx.js"></script>
   <script src="live-emoji-data.js"></script>
   <script src="live-session-provider.js?v=20260706-party-voice"></script>
-  <script src="social-live.js?v=20260706-party-voice"></script>
+  <script src="social-live.js?v=20260624-host-users"></script>
   <script src="social-nav.js"></script>
 </body>
 </html>

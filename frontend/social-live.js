@@ -701,14 +701,123 @@
     window.__apPendingSeatMove = seatNum;
   }
 
-  function renderAvailableUsers() {
-    const list = document.getElementById('partyAvailableList');
-    if (!list) return;
+  function getPartyRoomMembers() {
+    const online = roomState?.onlineMembers;
+    if (Array.isArray(online) && online.length) return online;
+    const hostId = String(roomState?.hostId || '');
+    const fromSeats = (roomState?.seats || [])
+      .filter((s) => s?.userId)
+      .map((s) => ({
+        userId: s.userId,
+        name: s.name,
+        role: s.isHost ? 'host' : s.isAdmin ? 'admin' : 'speaker',
+        profilePic: s.profilePic || null,
+        muted: s.muted,
+        seatIndex: s.seatIndex,
+      }));
+    if (fromSeats.length) return fromSeats;
+    if (hostId && roomState?.hostName) {
+      return [{ userId: hostId, name: roomState.hostName, role: 'host', profilePic: roomState.hostProfilePic }];
+    }
+    return [];
+  }
+
+  function getPartyAudienceMembers() {
+    const hostId = String(roomState?.hostId || '');
     const seated = new Set(
       (roomState?.seats || []).map((s) => String(s.userId || '')).filter(Boolean)
     );
-    const members = roomState?.onlineMembers || [];
-    const available = members.filter((m) => m.userId && !seated.has(String(m.userId)) && m.role === 'viewer');
+    return getPartyRoomMembers().filter((m) => {
+      if (!m?.userId) return false;
+      const uid = String(m.userId);
+      if (hostId && uid === hostId) return false;
+      if (seated.has(uid)) return false;
+      const role = String(m.role || 'viewer');
+      return role === 'viewer' || role === 'admin';
+    });
+  }
+
+  function requestFreshRoomState() {
+    if (!liveSocket?.connected || !channelId()) return;
+    liveSocket.emit('live:request_state', { channel: channelId() }, (res) => {
+      if (res?.ok && res.state) {
+        roomState = res.state;
+        renderRoomState();
+      }
+    });
+  }
+
+  function ensurePartyAudienceBar() {
+    if (!isPartyRoomPage() || document.getElementById('partyAudienceBar')) return;
+    const hostBar = document.getElementById('partyHostBar');
+    if (!hostBar) return;
+    hostBar.insertAdjacentHTML(
+      'afterend',
+      `<div id="partyAudienceBar" class="party-audience-bar" hidden>
+        <div class="party-audience-head">
+          <span class="party-audience-title"><i class="fas fa-users"></i> In room · <strong id="partyAudienceCount">0</strong></span>
+          <button type="button" class="party-audience-manage" id="partyAudienceManage">View all</button>
+        </div>
+        <div class="party-audience-scroll" id="partyAudienceList" role="list"></div>
+        <p class="party-audience-empty" id="partyAudienceEmpty">Waiting for guests — tap Share to invite friends</p>
+      </div>`
+    );
+    document.getElementById('partyAudienceManage')?.addEventListener('click', () => openPartyRequestsSheet());
+    document.getElementById('partyAudienceList')?.addEventListener('click', (e) => {
+      const chip = e.target.closest('[data-audience-id]');
+      if (!chip) return;
+      openProfileSheet(chip.dataset.audienceName || 'Guest', chip.dataset.audienceId || '');
+    });
+  }
+
+  function renderPartyAudienceBar() {
+    if (!isPartyRoomPage() || !isHost()) return;
+    ensurePartyAudienceBar();
+    const bar = document.getElementById('partyAudienceBar');
+    if (!bar) return;
+    const audience = getPartyAudienceMembers();
+    const countEl = document.getElementById('partyAudienceCount');
+    const listEl = document.getElementById('partyAudienceList');
+    const emptyEl = document.getElementById('partyAudienceEmpty');
+    const usersBtn = document.getElementById('partyBtnRequests');
+    const reqBadge = document.getElementById('partyReqCount');
+    if (countEl) countEl.textContent = String(audience.length);
+    if (reqBadge) {
+      const pending = joinRequests.length;
+      reqBadge.textContent = String(pending > 0 ? pending : audience.length);
+      reqBadge.hidden = pending === 0 && audience.length === 0;
+    }
+    if (usersBtn) {
+      usersBtn.title =
+        audience.length > 0
+          ? `${audience.length} guest${audience.length === 1 ? '' : 's'} in room`
+          : 'View guests in your party room';
+    }
+    bar.hidden = false;
+    if (!audience.length) {
+      if (listEl) listEl.innerHTML = '';
+      if (emptyEl) emptyEl.hidden = false;
+      return;
+    }
+    if (emptyEl) emptyEl.hidden = true;
+    if (!listEl) return;
+    listEl.innerHTML = audience
+      .slice(0, 24)
+      .map(
+        (m) => `
+      <button type="button" class="party-audience-chip" data-audience-id="${escapeHtml(String(m.userId))}" data-audience-name="${escapeAttr(m.name || 'Guest')}" role="listitem">
+        <img src="${avatarUrl(m.name, m.profilePic)}" alt="">
+        <span>${escapeHtml(String(m.name || 'Guest').slice(0, 12))}</span>
+      </button>`
+      )
+      .join('');
+    window.SocialUI?.bindAvatarFallbacks?.(listEl);
+  }
+
+  function renderAvailableUsers() {
+    const list = document.getElementById('partyAvailableList');
+    if (!list) return;
+    const available = getPartyAudienceMembers();
     if (!available.length) {
       list.innerHTML = '<p class="party-requests-empty">Everyone on stage or no listeners yet</p>';
       return;
@@ -1605,8 +1714,15 @@
       const prev = lastViewerCount || roomState?.viewers || 0;
       if (viewers !== prev) window.SocialFX?.onViewerCountChange?.(viewers, prev);
       lastViewerCount = viewers;
+      if (roomState) roomState.viewers = viewers;
       const el = document.getElementById('liveViewerCount');
       if (el) el.textContent = String(viewers);
+      if (isHost() && isPartyRoomPage() && viewers !== getPartyAudienceMembers().length + 1) {
+        requestFreshRoomState();
+      } else {
+        renderTopGifters();
+        renderPartyAudienceBar();
+      }
     });
 
     liveSocket.on('live:seat_request', (req) => {
@@ -3133,6 +3249,10 @@
       .replace(/>/g, '&gt;');
   }
 
+  function escapeAttr(s) {
+    return escapeHtml(s).replace(/"/g, '&quot;');
+  }
+
   function renderChatFromState() {
     (roomState?.messages || []).forEach((m) => rememberChatMessage(m));
     renderChatFeed();
@@ -3387,6 +3507,7 @@
     renderGuestRail();
     syncFollowUI();
     syncAgoraUidMap();
+    renderPartyAudienceBar();
     renderAvailableUsers();
 
     const lockBtn = document.getElementById('partyBtnLock');
@@ -3489,25 +3610,44 @@
     const row = document.getElementById('partyViewerAvatars');
     if (!row) return;
     const viewers = roomState?.viewers || 1;
+    const audience = getPartyAudienceMembers();
     const seats = (roomState?.seats || []).filter((s) => s && s.name && !s.isHost);
     const gifts = roomState?.gifts || [];
-    const names = seats.length
-      ? seats.map((s) => ({ name: s.name, gifts: s.gifts || 0 }))
-      : gifts.slice(0, 2).map((g, i) => ({ name: g.from || 'Fan' + (i + 1), gifts: g.amount || 0 }));
+    let show = audience.slice(0, 4).map((m) => ({
+      name: m.name || 'Guest',
+      profilePic: m.profilePic,
+      gifts: 0,
+      userId: m.userId,
+    }));
+    if (!show.length && seats.length) {
+      show = seats.slice(0, 3).map((s) => ({ name: s.name, profilePic: s.profilePic, gifts: s.gifts || 0, userId: s.userId }));
+    }
+    if (!show.length && gifts.length) {
+      show = gifts.slice(0, 2).map((g, i) => ({ name: g.from || 'Fan' + (i + 1), gifts: g.amount || 0 }));
+    }
     let html = '';
-    if (names.length) {
-      html = names
-        .slice(0, 3)
+    if (show.length) {
+      html = show
+        .slice(0, 4)
         .map(
           (n, i) =>
-            `<span class="ap-top-gifter${i === 0 ? ' has-crown' : ''}"><img src="${avatarUrl(n.name)}" alt="${escapeHtml(n.name)}" data-name="${escapeHtml(n.name)}">${
+            `<span class="ap-top-gifter${i === 0 ? ' has-crown' : ''}"${
+              n.userId ? ` data-audience-id="${escapeHtml(String(n.userId))}"` : ''
+            }><img src="${avatarUrl(n.name, n.profilePic)}" alt="${escapeHtml(n.name)}" data-name="${escapeHtml(n.name)}">${
               n.gifts > 0 ? `<em>${formatGiftCount(n.gifts)}</em>` : ''
             }</span>`
         )
         .join('');
     }
-    html += `<span class="party-viewer-count" id="liveViewerCount">${viewers}</span>`;
+    html += `<span class="party-viewer-count" id="liveViewerCount" title="Tap to view everyone in room">${viewers}</span>`;
     row.innerHTML = html;
+    row.classList.toggle('is-clickable', isHost() && isPartyRoomPage());
+    if (!row.dataset.audienceBound) {
+      row.dataset.audienceBound = '1';
+      row.addEventListener('click', () => {
+        if (isHost() && isPartyRoomPage()) openPartyRequestsSheet();
+      });
+    }
     window.SocialUI?.bindAvatarFallbacks?.(row);
   }
 
@@ -5822,6 +5962,12 @@
           ensureMicPublishing();
         }
       }, 30000);
+    }
+    if (!window.__apPartyHostAudienceRefresh && isHost()) {
+      window.__apPartyHostAudienceRefresh = setInterval(() => {
+        if (!isPartyRoomPage() || !roomJoinCompleted || !isHost() || socketLeaveIntentional) return;
+        requestFreshRoomState();
+      }, 12000);
     }
   }
 
