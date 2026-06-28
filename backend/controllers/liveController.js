@@ -1,15 +1,5 @@
 const liveRoomService = require('../services/liveRoomService');
-const { uidFromUserId } = require('../lib/agoraUid');
-
-let RtcTokenBuilder;
-let RtcRole;
-try {
-  const agora = require('agora-access-token');
-  RtcTokenBuilder = agora.RtcTokenBuilder;
-  RtcRole = agora.RtcRole;
-} catch (_e) {
-  RtcTokenBuilder = null;
-}
+const agoraTokenService = require('../services/agoraTokenService');
 
 exports.listActiveRooms = async (req, res) => {
   try {
@@ -31,30 +21,17 @@ exports.listActiveRooms = async (req, res) => {
 };
 
 exports.agoraConfig = (_req, res) => {
-  const appId = process.env.AGORA_APP_ID || null;
-  const hasCertificate = Boolean(process.env.AGORA_APP_CERTIFICATE);
-  const production = process.env.NODE_ENV === 'production';
   res.json({
     success: true,
-    appId,
-    hasCertificate,
-    production,
-    ready: Boolean(appId && hasCertificate),
-    mockAllowed: !production,
+    ...agoraTokenService.getPublicConfig(),
   });
 };
 
 exports.agoraToken = async (req, res) => {
   try {
-    const appId = process.env.AGORA_APP_ID || '';
-    const appCertificate = process.env.AGORA_APP_CERTIFICATE || '';
     const production = process.env.NODE_ENV === 'production';
-    const channel =
-      String(req.body?.channel || req.query?.channel || 'ap-party')
-        .replace(/[^a-zA-Z0-9_-]/g, '')
-        .slice(0, 64) || 'ap-party';
+    const channel = agoraTokenService.sanitizeChannel(req.body?.channel || req.query?.channel);
     const wantsPublisher = req.body?.role === 'host' || req.body?.role === 'publisher';
-    const uid = uidFromUserId(req.userId || req.user?.id);
 
     if (wantsPublisher) {
       const canPublish = await liveRoomService.canPublishInRoom(channel, req.userId);
@@ -66,44 +43,49 @@ exports.agoraToken = async (req, res) => {
       }
     }
 
-    if (!appId || !appCertificate || !RtcTokenBuilder) {
+    if (!agoraTokenService.isAgoraConfigured()) {
       if (production) {
         return res.status(503).json({
           success: false,
           mode: 'unavailable',
-          message: 'Live streaming requires AGORA_APP_ID and AGORA_APP_CERTIFICATE on the server.',
+          message: 'Live voice requires AGORA_APP_ID and AGORA_APP_CERTIFICATE on the server.',
         });
       }
+      const { appId } = agoraTokenService.getAgoraCredentials();
       return res.json({
         success: true,
         mode: 'mock',
         appId: appId || null,
         channel,
-        uid,
+        uid: require('../lib/agoraUid').uidFromUserId(req.userId),
         token: null,
         message: 'Set AGORA_APP_ID and AGORA_APP_CERTIFICATE for real live audio/video.',
       });
     }
 
-    const role = wantsPublisher ? RtcRole.PUBLISHER : RtcRole.SUBSCRIBER;
-    const expire = Math.floor(Date.now() / 1000) + 3600;
-    const token = RtcTokenBuilder.buildTokenWithUid(
-      appId,
-      appCertificate,
-      channel,
-      uid,
-      role,
-      expire
-    );
-
-    console.log('[live] agora token issued', {
+    const built = agoraTokenService.buildRtcToken({
       channel,
       userId: req.userId,
-      uid,
-      role: wantsPublisher ? 'publisher' : 'subscriber',
+      publisher: wantsPublisher,
     });
 
-    res.json({ success: true, mode: 'live', appId, channel, uid, token, expire, role: wantsPublisher ? 'publisher' : 'subscriber' });
+    console.log('[live] agora token issued', {
+      channel: built.channel,
+      userId: req.userId,
+      uid: built.uid,
+      role: built.role,
+    });
+
+    res.json({
+      success: true,
+      mode: 'live',
+      appId: built.appId,
+      channel: built.channel,
+      uid: built.uid,
+      token: built.token,
+      expire: built.expire,
+      role: built.role,
+    });
   } catch (error) {
     console.error('[live] agora token', error);
     res.status(500).json({ success: false, message: error.message || 'Token error' });

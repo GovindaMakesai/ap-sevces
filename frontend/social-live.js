@@ -2000,10 +2000,11 @@
         qs('host') === '1' ||
         (roomState?.hostId && user?.id && String(roomState.hostId) === String(user.id))
     );
-    const role = inferredHost
-      ? roomState?.hostId && user?.id && String(roomState.hostId) !== String(user.id)
-        ? 'publisher'
-        : 'host'
+    const wantsPublisher = inferredHost || hasSpeakerSeat;
+    const role = wantsPublisher
+      ? roomState?.hostId && user?.id && String(roomState.hostId) === String(user.id)
+        ? 'host'
+        : 'publisher'
       : 'audience';
     const roomType = document.body.dataset.livePage === 'party-room' ? 'party' : 'live';
 
@@ -2011,9 +2012,17 @@
     forensicEvent('TOKEN_REQUEST_START', { channel, role, inferredHost, userId, roomType });
 
     const payloads = [
-      { channel, role },
+      { channel, role: wantsPublisher ? (role === 'host' ? 'host' : 'publisher') : 'audience' },
       // Compatibility payload for stricter server checks.
-      { channel, role, isHost: inferredHost, asHost: inferredHost, roomType, type: roomType, hostId: roomState?.hostId },
+      {
+        channel,
+        role: wantsPublisher ? (role === 'host' ? 'host' : 'publisher') : 'audience',
+        isHost: inferredHost,
+        asHost: inferredHost,
+        roomType,
+        type: roomType,
+        hostId: roomState?.hostId,
+      },
     ];
 
     let data = null;
@@ -2063,6 +2072,126 @@
     liveDebugLog(`Token OK mode=${data.mode} uid=${data.uid} channel=${tokenChannel}`);
     updateLiveDebug({ tokenReceived: true });
     return data;
+  }
+
+  function agoraUidFromCred(cred) {
+    if (cred?.uid == null || cred.uid === '') return null;
+    const n = Number(cred.uid);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function friendlyAgoraError(msg) {
+    const raw = String(msg || '');
+    if (/CAN_NOT_GET_GATEWAY|dynamic use static key|invalid token|token/i.test(raw)) {
+      return 'Voice connection failed — reconnecting. If this keeps happening, Agora credentials on the server may need updating.';
+    }
+    return raw || 'Voice connection failed';
+  }
+
+  function bindAgoraClientHandlers(client, agoraChannel) {
+    if (!client || client.__apHandlersBound) return;
+    client.__apHandlersBound = true;
+    client.on('user-published', async (user, mediaType) => {
+      liveDebugLog(`user-published uid=${user.uid} media=${mediaType}`);
+      forensicEvent('REMOTE_USER_PUBLISHED', { uid: user.uid, mediaType, channel: agoraChannel });
+      await playRemoteMedia(user, mediaType);
+    });
+    client.on('user-unpublished', (user) => {
+      liveDebugLog(`user-unpublished uid=${user.uid}`);
+      remoteUsers.delete(user.uid);
+      updateLiveDebug({ remoteUsersCount: remoteUsers.size });
+      const container = document.getElementById('liveRemoteHost');
+      if (container && remoteUsers.size === 0) {
+        container.innerHTML = '';
+        setLiveStreamVisible(false);
+        if (!isHost()) applyLiveBackground(broadcastMode === 'audio' ? 'audio' : 'live', roomState?.hostName);
+      }
+      syncLiveUiState();
+    });
+    client.on('token-privilege-will-expire', () => {
+      refreshAgoraTokenAndRenew().catch(() => {});
+    });
+  }
+
+  async function refreshAgoraTokenAndRenew() {
+    if (!agoraClient?.renewToken || !liveDebugState.agoraJoined) return;
+    const asPublisher = isHost() || hasSpeakerSeat;
+    const cred = await fetchAgoraToken(channelId(), asPublisher);
+    if (!cred?.token) return;
+    await agoraClient.renewToken(cred.token);
+    liveDebugLog('Agora token renewed');
+  }
+
+  async function joinAgoraWithRetry(client, channel, asPublisher, maxAttempts = 3) {
+    let lastErr;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      let cred;
+      try {
+        cred = await fetchAgoraToken(channel, asPublisher);
+      } catch (e) {
+        lastErr = e;
+        if (attempt >= maxAttempts) break;
+        await new Promise((r) => setTimeout(r, 700 * attempt));
+        continue;
+      }
+      const appId = String(cred?.appId || '').trim();
+      const token = cred?.token;
+      const agoraChannel = cred?.channel || channel;
+      const uid = agoraUidFromCred(cred);
+      if (!appId || !token) {
+        lastErr = new Error(cred?.message || 'Missing Agora appId or token');
+        if (attempt >= maxAttempts) break;
+        await new Promise((r) => setTimeout(r, 700 * attempt));
+        continue;
+      }
+      try {
+        if (liveDebugState.agoraJoined && client) {
+          try {
+            await client.leave();
+          } catch (_e) {}
+          liveDebugState.agoraJoined = false;
+        }
+        bindAgoraClientHandlers(client, agoraChannel);
+        await client.join(appId, agoraChannel, token, uid);
+        auditChannel('agora', agoraChannel);
+        liveDebugLog(`Agora join OK channel=${agoraChannel} uid=${uid} attempt=${attempt}`);
+        updateLiveDebug({ agoraJoined: true, agoraUid: uid });
+        syncAgoraUidMap();
+        return { appId, token, channel: agoraChannel, uid };
+      } catch (e) {
+        lastErr = e;
+        liveDebugLog(`Agora join attempt ${attempt}/${maxAttempts} failed: ${e?.message || e}`);
+        if (attempt < maxAttempts) {
+          await new Promise((r) => setTimeout(r, 900 * attempt));
+        }
+      }
+    }
+    throw lastErr || new Error('Agora join failed');
+  }
+
+  function schedulePartyAgoraRetry() {
+    if (window.__apPartyAgoraRetryTimer) return;
+    let tries = 0;
+    window.__apPartyAgoraRetryTimer = setInterval(async () => {
+      if (!isPartyRoomPage() || !roomJoinCompleted || liveDebugState.agoraJoined || isHost()) {
+        clearInterval(window.__apPartyAgoraRetryTimer);
+        window.__apPartyAgoraRetryTimer = null;
+        return;
+      }
+      tries += 1;
+      if (tries > 6) {
+        clearInterval(window.__apPartyAgoraRetryTimer);
+        window.__apPartyAgoraRetryTimer = null;
+        setLiveStatus('Voice unavailable — chat still works', null);
+        return;
+      }
+      try {
+        await startAgora('party');
+        partyVoiceSkipped = false;
+        clearInterval(window.__apPartyAgoraRetryTimer);
+        window.__apPartyAgoraRetryTimer = null;
+      } catch (_e) {}
+    }, 5000);
   }
 
   function setApLoaderStep(_step) {
@@ -2419,79 +2548,25 @@
     }, 45000);
 
     try {
-    let cred;
-    try {
-      cred = await fetchAgoraToken(ch, host);
-    } catch (e) {
-      const msg = e?.message || String(e);
-      console.error('[live] token failed', e);
-      liveDebugLog(`Token FAILED: ${msg}`);
-      updateLiveDebug({ tokenReceived: false, agoraJoined: false });
-      if (host) {
-        await onHostBroadcastFailed('token_failed', msg);
-      } else {
-        onRoomReady();
-        applyLiveBackground(broadcastMode === 'audio' ? 'audio' : 'live', roomState?.hostName);
-        setLiveStatus('Waiting for host stream…', null);
-        syncLiveUiState();
-      }
-      return;
-    }
-
-    const appId = cred?.appId;
-    const token = cred?.token;
-    const agoraChannel = cred.channel || ch;
-    if (!appId || !token) {
-      const msg = cred?.message || 'Server response missing Agora appId or token';
-      liveDebugLog(`Token invalid response: ${msg}`);
-      updateLiveDebug({ tokenReceived: false });
-      if (host) {
-        await onHostBroadcastFailed('token_invalid', msg);
-      } else {
-        setLiveStatus(msg, false);
-      }
-      return;
-    }
-
-    try {
       const AgoraRTC = await loadAgoraScript();
       if (agoraClient) {
         try {
           await agoraClient.leave();
-        } catch (leaveErr) {
-          liveDebugLog(`Agora leave (pre-join): ${leaveErr?.message || leaveErr}`);
-        }
+        } catch (_e) {}
+        agoraClient = null;
+        liveDebugState.agoraJoined = false;
       }
-
       agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
-      const uid = cred.uid != null ? cred.uid : null;
 
-      agoraClient.on('user-published', async (user, mediaType) => {
-        liveDebugLog(`user-published uid=${user.uid} media=${mediaType}`);
-        forensicEvent('REMOTE_USER_PUBLISHED', { uid: user.uid, mediaType, channel: agoraChannel });
-        await playRemoteMedia(user, mediaType);
-      });
-
-      agoraClient.on('user-unpublished', (user) => {
-        liveDebugLog(`user-unpublished uid=${user.uid}`);
-        remoteUsers.delete(user.uid);
-        updateLiveDebug({ remoteUsersCount: remoteUsers.size });
-        const container = document.getElementById('liveRemoteHost');
-        if (container && remoteUsers.size === 0) {
-          container.innerHTML = '';
-          setLiveStreamVisible(false);
-          if (!isHost()) applyLiveBackground(broadcastMode === 'audio' ? 'audio' : 'live', roomState?.hostName);
-        }
-        syncLiveUiState();
-      });
-
+      let joined;
       try {
-        await agoraClient.join(appId, agoraChannel, token, uid);
-        auditChannel('agora', agoraChannel);
-        liveDebugLog(`Agora join OK channel=${agoraChannel} uid=${uid}`);
-        updateLiveDebug({ agoraJoined: true, agoraUid: uid });
-        syncAgoraUidMap();
-        forensicEvent('AGORA_JOIN_SUCCESS', { channel: agoraChannel, uid, role: host ? 'host' : 'audience' });
+        const asPublisher = host || hasSpeakerSeat;
+        joined = await joinAgoraWithRetry(agoraClient, ch, asPublisher, 3);
+        forensicEvent('AGORA_JOIN_SUCCESS', {
+          channel: joined.channel,
+          uid: joined.uid,
+          role: host ? 'host' : 'audience',
+        });
         syncLiveUiState();
         if (!host) {
           for (const remoteUser of agoraClient.remoteUsers) {
@@ -2503,16 +2578,24 @@
         const msg = joinErr?.message || String(joinErr);
         console.error('[live] Agora join failed', joinErr);
         liveDebugLog(`Agora join FAILED: ${msg}`);
-        forensicEvent('AGORA_JOIN_FAILED', { channel: agoraChannel, msg });
+        forensicEvent('AGORA_JOIN_FAILED', { channel: ch, msg });
         updateLiveDebug({ agoraJoined: false });
+        const friendly = friendlyAgoraError(msg);
         if (host) {
-          await onHostBroadcastFailed('agora_join_failed', `Agora join failed: ${msg}`);
+          await onHostBroadcastFailed('agora_join_failed', friendly);
+        } else if (isPartyRoomPage()) {
+          partyVoiceSkipped = true;
+          onRoomReady();
+          setLiveStatus('Connecting to party audio…', null);
+          schedulePartyAgoraRetry();
         } else {
-          setLiveStatus(`Agora join failed: ${msg}`, false);
+          onRoomReady();
+          setLiveStatus(friendly, null);
         }
         return;
       }
 
+      const uid = joined.uid;
       window.SocialFX?.initAgoraVolumeIndicator?.(agoraClient, uid || currentUser()?.id);
 
       if (host) {
@@ -2534,7 +2617,7 @@
             publishSucceeded = true;
             partyVoiceSkipped = false;
             liveDebugLog('Publish OK party audio');
-            forensicEvent('PUBLISH_SUCCESS', { channel: agoraChannel, mode: 'party' });
+            forensicEvent('PUBLISH_SUCCESS', { channel: joined.channel, mode: 'party' });
             updateLiveDebug({ hostPublishing: true, publishSucceeded: true });
           } catch (pubErr) {
             const msg = pubErr?.message || String(pubErr);
@@ -2553,7 +2636,7 @@
             await agoraClient.publish(audioTrack);
             publishSucceeded = true;
             liveDebugLog('Publish OK live audio');
-            forensicEvent('PUBLISH_SUCCESS', { channel: agoraChannel, mode: 'audio' });
+            forensicEvent('PUBLISH_SUCCESS', { channel: joined.channel, mode: 'audio' });
             updateLiveDebug({ hostPublishing: true, publishSucceeded: true });
           } catch (pubErr) {
             const msg = pubErr?.message || String(pubErr);
@@ -2582,7 +2665,7 @@
             await agoraClient.publish([audioTrack, videoTrack]);
             publishSucceeded = true;
             liveDebugLog('Publish OK live video+audio');
-            forensicEvent('PUBLISH_SUCCESS', { channel: agoraChannel, mode: 'video' });
+            forensicEvent('PUBLISH_SUCCESS', { channel: joined.channel, mode: 'video' });
             updateLiveDebug({ hostPublishing: true, publishSucceeded: true });
           } catch (pubErr) {
             const msg = pubErr?.message || String(pubErr);
@@ -2647,8 +2730,8 @@
   }
 
   async function publishGuestAudio() {
-    if (!hasSpeakerSeat || isHost() || guestPublishAttempted) return;
-    if (localTracks.length) return;
+    if (!hasSpeakerSeat || isHost()) return;
+    if (localTracks.length && publishSucceeded) return;
     const user = currentUser();
     if (!user?.id) {
       toast('Sign in again to use the mic', 'error');
@@ -2656,55 +2739,54 @@
     }
     if (guestPublishInProgress) return;
     guestPublishInProgress = true;
-    guestPublishAttempted = true;
+    if (!guestPublishAttempted) guestPublishAttempted = true;
     const ch = channelId();
     try {
-      const cred = await fetchAgoraToken(ch, true);
-      if (!cred?.appId || !cred?.token) {
-        toast(cred?.message || 'Could not authorize mic', 'error');
-        guestPublishAttempted = false;
-        return;
-      }
-
       const AgoraRTC = await loadAgoraScript();
-
       if (!agoraClient) {
         agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
-        agoraClient.on('user-published', async (remoteUser, mediaType) => {
-          await playRemoteMedia(remoteUser, mediaType);
-        });
-        agoraClient.on('user-unpublished', (remoteUser) => {
-          remoteUsers.delete(remoteUser.uid);
-          updateLiveDebug({ remoteUsersCount: remoteUsers.size });
-          syncLiveUiState();
-        });
       }
 
-      const agoraChannel = cred.channel || ch;
-      const uid = cred.uid != null ? cred.uid : null;
-      if (liveDebugState.agoraJoined) {
-        const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
-        localTracks = [audioTrack];
-        await agoraClient.publish(audioTrack);
+      if (liveDebugState.agoraJoined && agoraClient?.renewToken) {
+        try {
+          const cred = await fetchAgoraToken(ch, true);
+          if (cred?.token) {
+            await agoraClient.renewToken(cred.token);
+            liveDebugLog('Guest upgraded token for mic publish');
+          }
+        } catch (renewErr) {
+          liveDebugLog(`Guest renewToken failed, rejoining: ${renewErr?.message || renewErr}`);
+          await joinAgoraWithRetry(agoraClient, ch, true, 2);
+        }
       } else {
-        await agoraClient.join(cred.appId, agoraChannel, cred.token, uid);
-        updateLiveDebug({ agoraJoined: true });
-        const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
-        localTracks = [audioTrack];
-        await agoraClient.publish(audioTrack);
+        await joinAgoraWithRetry(agoraClient, ch, true, 3);
       }
+
+      for (const t of localTracks) {
+        try {
+          await agoraClient.unpublish(t);
+          t.stop?.();
+          t.close?.();
+        } catch (_e) {}
+      }
+      localTracks = [];
+
+      const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+      localTracks = [audioTrack];
+      await agoraClient.publish(audioTrack);
       publishSucceeded = true;
+      partyVoiceSkipped = false;
       micMuted = false;
       liveDebugLog('Publish OK guest audio');
-      updateLiveDebug({ hostPublishing: true, publishSucceeded: true });
+      updateLiveDebug({ hostPublishing: true, publishSucceeded: true, agoraJoined: true });
       syncMicButtonUi();
       renderPartySeats(roomState?.hostName);
       toast('Mic is live — tap mic to mute', 'success');
     } catch (e) {
-      const msg = e?.message || String(e);
+      const msg = friendlyAgoraError(e?.message || String(e));
       liveDebugLog(`Guest publish FAILED: ${msg}`);
       guestPublishAttempted = false;
-      toast(`Mic publish failed: ${msg}`, 'error');
+      toast(`Mic failed: ${msg}`, 'error');
     } finally {
       guestPublishInProgress = false;
     }

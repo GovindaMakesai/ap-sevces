@@ -34,7 +34,12 @@ function validateEnv() {
     console.warn(`⚠️  OAuth still points at Render (${renderLeak.join(', ')}) — update to ap-sevces.vercel.app`);
   }
   if (!process.env.AGORA_APP_ID || !process.env.AGORA_APP_CERTIFICATE) {
-    console.warn('⚠️  AGORA_APP_ID / AGORA_APP_CERTIFICATE not set — live video will not work in production');
+    console.warn('⚠️  AGORA_APP_ID / AGORA_APP_CERTIFICATE not set — live voice will not work in production');
+  } else {
+    const appId = String(process.env.AGORA_APP_ID).trim();
+    if (appId.length !== 32) {
+      console.warn(`⚠️  AGORA_APP_ID looks invalid (length ${appId.length}, expected 32) — party/live voice may fail`);
+    }
   }
   if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 16) {
     console.warn('⚠️  JWT_SECRET should be at least 16 characters for production');
