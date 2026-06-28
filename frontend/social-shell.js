@@ -374,17 +374,55 @@
       </article>`;
   }
 
-  function renderEmptyLiveGrid(party) {
-    const startFn = party ? 'SocialShell.goStartParty()' : 'SocialShell.goStartLive()';
-    const label = party ? 'Start Party' : 'Go Live';
-    const icon = party ? 'fa-users' : 'fa-video';
+  function renderEmptyLiveGrid(party, opts = {}) {
+    const isError = opts.error;
+    const icon = party ? 'fa-microphone-lines' : 'fa-tower-broadcast';
+    const title = isError
+      ? 'Could not load rooms'
+      : party
+        ? 'No party rooms yet'
+        : 'No live broadcasts';
+    const subtitle = isError
+      ? 'Check your connection and try again.'
+      : party
+        ? 'Voice parties show up here when hosts go live. Start one or check back soon!'
+        : 'When creators go live, their rooms appear here. Be the first to broadcast!';
+    const primaryLabel = party ? 'Start a Party' : 'Go Live';
+    const primaryAction = party ? 'start-party' : 'start-live';
+    const secondaryHref = withAppQuery('/discover-creators.html');
+
     return `
-      <div class="social-empty-live-grid">
-        <div class="social-empty-live-icon"><i class="fas ${icon}"></i></div>
-        <h3>No one is ${party ? 'partying' : 'live'} right now</h3>
-        <p>Only real active rooms appear here. Be the first to broadcast!</p>
-        <button type="button" class="social-empty-live-btn" onclick="${startFn}">${label}</button>
+      <div class="social-empty-live-grid${isError ? ' is-error' : ''}" data-empty-live>
+        <div class="social-empty-live-visual" aria-hidden="true">
+          <span class="social-empty-live-ring social-empty-live-ring--1"></span>
+          <span class="social-empty-live-ring social-empty-live-ring--2"></span>
+          <div class="social-empty-live-icon"><i class="fas ${icon}"></i></div>
+        </div>
+        <h3>${escapeHtml(title)}</h3>
+        <p>${escapeHtml(subtitle)}</p>
+        <div class="social-empty-live-actions">
+          ${
+            isError
+              ? `<button type="button" class="social-empty-live-btn" data-empty-action="retry">Try again</button>`
+              : `<button type="button" class="social-empty-live-btn" data-empty-action="${primaryAction}">${escapeHtml(primaryLabel)}</button>`
+          }
+          <a href="${escapeAttr(secondaryHref)}" class="social-empty-live-link">Discover creators</a>
+        </div>
+        <p class="social-empty-live-hint"><i class="fas fa-arrows-rotate"></i> Pull down to refresh</p>
       </div>`;
+  }
+
+  function bindEmptyLiveGrid(root, opts = {}) {
+    const el = (root || document).querySelector('[data-empty-live]');
+    if (!el || el.dataset.bound) return;
+    el.dataset.bound = '1';
+    el.querySelector('[data-empty-action="start-live"]')?.addEventListener('click', () => goStartLive());
+    el.querySelector('[data-empty-action="start-party"]')?.addEventListener('click', () => goStartParty());
+    el.querySelector('[data-empty-action="retry"]')?.addEventListener('click', () => {
+      const grid = el.closest('.social-grid');
+      const gridId = grid?.id || 'exploreGrid';
+      fillGrid(gridId, 12, { ...(opts || {}), append: false });
+    });
   }
 
   function renderFilterChips(activeLabel) {
@@ -535,7 +573,7 @@
       const res = await API.get(`/live/rooms?type=${roomType}&limit=${limit}&sort=${sort}`);
       let rows = Array.isArray(res?.data) ? res.data : [];
       rows = await enrichRoomsWithHostPhotos(rows);
-      return rows
+      const rooms = rows
         .filter((r) => r && r.channel && r.status !== 'ended')
         .filter((r) => !party || String(r.channel || '').startsWith('party-'))
         .filter((r) => party || !String(r.channel || '').startsWith('party-'))
@@ -561,9 +599,10 @@
             live: true,
           };
         });
+      return { rooms, error: null };
     } catch (e) {
       console.warn('SocialShell: active rooms API', e);
-      return [];
+      return { rooms: [], error: e };
     }
   }
 
@@ -629,12 +668,17 @@
       grid.innerHTML =
         '<div class="social-grid-loading"><span class="social-spinner"></span></div>';
     }
-    const rooms = await fetchActiveRooms(limit || st.limit, opts);
+    const { rooms, error } = await fetchActiveRooms(limit || st.limit, opts);
     st.loading = false;
     if (!rooms.length) {
-      if (!opts.append) grid.innerHTML = renderEmptyLiveGrid(opts && opts.party);
+      if (!opts.append) {
+        grid.classList.add('is-empty');
+        grid.innerHTML = renderEmptyLiveGrid(opts && opts.party, { error: Boolean(error) });
+        bindEmptyLiveGrid(grid, opts);
+      }
       return;
     }
+    grid.classList.remove('is-empty');
     grid.innerHTML = rooms.map((p, i) => renderLiveCard(p, i, opts)).filter(Boolean).join('');
     bindLiveCards(grid);
     if (window.SocialUI?.bindAvatarFallbacks) SocialUI.bindAvatarFallbacks(grid);
