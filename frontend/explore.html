@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#fdf9f0">
   <title>Explore - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-theme.css?v=20260624-tab-fix">
+  <link rel="stylesheet" href="social-theme.css?v=20260624-explore-grid">
   <script src="native-session-restore.js"></script>
   <script src="ap-config.js"></script>
   <script src="ap-native-boot.js"></script>
@@ -49,7 +49,7 @@
   <script src="social-interactions.js"></script>
   <script src="auth-guard.js"></script>
   <script src="social-create-post.js"></script>
-  <script src="social-shell.js?v=20260624-tab-fix"></script>
+  <script src="social-shell.js?v=20260624-explore-grid"></script>
   <script src="social-nav.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', () => {
@@ -77,10 +77,11 @@
         document.querySelectorAll('#exploreTabs button[data-tab]').forEach((btn) => {
           btn.classList.toggle('active', btn.dataset.tab === tab);
         });
-        const showParty = tab === 'party';
-        document.getElementById('social-start-party').style.display = showParty ? '' : 'none';
-        document.getElementById('social-start-live').style.display =
-          tab === 'explore' || tab === 'new' || tab === 'nearby' ? '' : 'none';
+        if (window.SocialShell?.syncExploreFloatingActions) {
+          SocialShell.syncExploreFloatingActions(false, {
+            party: tab === 'party',
+          });
+        }
       }
 
       function resetExploreGrid() {

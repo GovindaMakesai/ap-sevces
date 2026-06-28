@@ -356,6 +356,54 @@
       .join('') || 'H';
   }
 
+  function isPartyRoomRow(r) {
+    const roomType = String(r?.type || r?.room_type || '').toLowerCase();
+    return roomType === 'party' || String(r?.channel || '').startsWith('party-');
+  }
+
+  function normalizeRoomRows(rows, partyFilter) {
+    return (Array.isArray(rows) ? rows : [])
+      .filter((r) => r && r.channel)
+      .filter((r) => (partyFilter ? isPartyRoomRow(r) : !isPartyRoomRow(r)));
+  }
+
+  function mapRoomToCard(r, isParty) {
+    const name = r.hostName || r.host_display_name || 'Host';
+    const hostProfilePic = r.hostProfilePic || r.host_profile_pic || null;
+    const hostUpdatedAt = r.hostUpdatedAt || r.updated_at || r.updatedAt;
+    return {
+      id: r.channel,
+      channel: r.channel,
+      userId: r.hostId || r.host_user_id,
+      name,
+      hostProfilePic,
+      hostUpdatedAt,
+      roomType: isParty ? 'party' : 'live',
+      party: isParty,
+      image: roomCardImage({ ...r, hostProfilePic, hostUpdatedAt, hostName: name }, isParty),
+      viewers: r.viewers || r.viewer_count || 0,
+      startedAt: r.startedAt || r.started_at,
+      updatedAt: r.updatedAt || r.updated_at,
+      tag: isParty ? 'Party' : 'Live',
+      live: true,
+    };
+  }
+
+  function syncExploreFloatingActions(hasRooms, opts = {}) {
+    if (!document.body.classList.contains('social-explore-page')) return;
+    const liveBtn = document.getElementById('social-start-live');
+    const partyBtn = document.getElementById('social-start-party');
+    if (!liveBtn || !partyBtn) return;
+    const party = Boolean(opts.party);
+    if (hasRooms) {
+      liveBtn.style.display = party ? 'none' : '';
+      partyBtn.style.display = party ? '' : 'none';
+    } else {
+      liveBtn.style.display = 'none';
+      partyBtn.style.display = 'none';
+    }
+  }
+
   function gridSectionTitle(party) {
     return party
       ? '<p class="social-grid-section-title"><i class="fas fa-microphone-lines"></i> Party rooms live now</p>'
@@ -416,16 +464,17 @@
     const title = isError
       ? 'Could not load rooms'
       : party
-        ? 'No party rooms yet'
-        : 'No live broadcasts';
+        ? 'No party rooms right now'
+        : 'No live broadcasts right now';
     const subtitle = isError
       ? 'Check your connection and try again.'
       : party
-        ? 'Voice parties show up here when hosts go live. Start one or check back soon!'
-        : 'When creators go live, their rooms appear here. Be the first to broadcast!';
+        ? 'Start a voice party or check back when someone goes live.'
+        : 'When creators go live, their rooms show up here as cards you can tap to watch.';
     const primaryLabel = party ? 'Start a Party' : 'Go Live';
     const primaryAction = party ? 'start-party' : 'start-live';
     const secondaryHref = withAppQuery('/discover-creators.html');
+    const altHint = opts.altHint || '';
 
     return `
       <div class="social-empty-live-grid${isError ? ' is-error' : ''}" data-empty-live>
@@ -436,6 +485,7 @@
         </div>
         <h3>${escapeHtml(title)}</h3>
         <p>${escapeHtml(subtitle)}</p>
+        ${altHint}
         <div class="social-empty-live-actions">
           ${
             isError
@@ -448,6 +498,20 @@
       </div>`;
   }
 
+  async function emptyStateAltHint(party) {
+    try {
+      const otherParty = !party;
+      const res = await API.get(`/live/rooms?type=${otherParty ? 'party' : 'live'}&limit=5&sort=trending`);
+      const rows = normalizeRoomRows(res?.data, otherParty);
+      if (!rows.length) return '';
+      const tab = otherParty ? 'party' : 'explore';
+      const label = otherParty ? 'party' : 'live';
+      return `<p class="social-empty-live-alt"><button type="button" class="social-empty-live-alt-btn" data-switch-tab="${tab}"><i class="fas fa-arrow-right"></i> ${rows.length} ${label} room${rows.length === 1 ? '' : 's'} active — view now</button></p>`;
+    } catch (_e) {
+      return '';
+    }
+  }
+
   function bindEmptyLiveGrid(root, opts = {}) {
     const el = (root || document).querySelector('[data-empty-live]');
     if (!el || el.dataset.bound) return;
@@ -458,6 +522,11 @@
       const grid = el.closest('.social-grid');
       const gridId = grid?.id || 'exploreGrid';
       fillGrid(gridId, 12, { ...(opts || {}), append: false });
+    });
+    el.querySelector('[data-switch-tab]')?.addEventListener('click', (e) => {
+      const tab = e.currentTarget.dataset.switchTab;
+      if (!tab) return;
+      document.querySelector(`#exploreTabs button[data-tab="${tab}"]`)?.click();
     });
   }
 
@@ -609,40 +678,8 @@
       const res = await API.get(`/live/rooms?type=${roomType}&limit=${limit}&sort=${sort}`);
       let rows = Array.isArray(res?.data) ? res.data : [];
       rows = await enrichRoomsWithHostPhotos(rows);
-      const rooms = rows
-        .filter((r) => r && r.channel && r.status !== 'ended')
-        .map((r) => {
-          const roomType = String(r.type || r.room_type || '').toLowerCase();
-          const isParty =
-            roomType === 'party' ||
-            String(r.channel || '').startsWith('party-');
-          return { row: r, isParty };
-        })
-        .filter(({ isParty }) => (party ? isParty : !isParty))
-        .map(({ row: r, isParty }) => {
-          const name = r.hostName || r.host_display_name || 'Host';
-          const hostProfilePic = r.hostProfilePic || r.host_profile_pic || null;
-          const hostUpdatedAt = r.hostUpdatedAt || r.updated_at || r.updatedAt;
-          return {
-            id: r.channel,
-            channel: r.channel,
-            userId: r.hostId || r.host_user_id,
-            name,
-            hostProfilePic,
-            hostUpdatedAt,
-            roomType: isParty ? 'party' : 'live',
-            party: isParty,
-            image: roomCardImage(
-              { ...r, hostProfilePic, hostUpdatedAt, hostName: name },
-              isParty
-            ),
-            viewers: r.viewers || r.viewer_count || 0,
-            startedAt: r.startedAt || r.started_at,
-            updatedAt: r.updatedAt || r.updated_at,
-            tag: isParty ? 'Party' : 'Live',
-            live: true,
-          };
-        });
+      const filtered = normalizeRoomRows(rows, party);
+      const rooms = filtered.map((r) => mapRoomToCard(r, party));
       return { rooms, error: null };
     } catch (e) {
       console.warn('SocialShell: active rooms API', e);
@@ -714,21 +751,26 @@
     st.loading = true;
     if (!opts.append) {
       grid.classList.remove('is-empty');
-      grid.innerHTML =
-        gridSectionTitle(opts && opts.party) +
-        '<div class="social-grid-loading"><span class="social-spinner"></span></div>';
+      grid.classList.add('is-loading');
+      grid.innerHTML = '<div class="social-grid-loading"><span class="social-spinner"></span></div>';
+      syncExploreFloatingActions(false, opts);
     }
     try {
       const { rooms, error } = await fetchActiveRooms(limit || st.limit, opts);
       if (opts.loadToken != null && opts.loadToken !== window.__exploreGridToken) return;
+      grid.classList.remove('is-loading');
       if (!rooms.length) {
         if (!opts.append) {
           grid.classList.add('is-empty');
-          grid.innerHTML =
-            gridSectionTitle(opts && opts.party) +
-            renderEmptyLiveGrid(opts && opts.party, { error: Boolean(error) });
+          const altHint = error ? '' : await emptyStateAltHint(Boolean(opts.party));
+          grid.innerHTML = renderEmptyLiveGrid(opts && opts.party, {
+            error: Boolean(error),
+            altHint,
+          });
           bindEmptyLiveGrid(grid, opts);
+          syncExploreFloatingActions(false, opts);
         }
+        updateExploreTabCounts();
         return;
       }
       grid.classList.remove('is-empty');
@@ -738,15 +780,16 @@
       bindLiveCards(grid);
       if (window.SocialUI?.bindAvatarFallbacks) SocialUI.bindAvatarFallbacks(grid);
       bindGridInfiniteScroll(gridId, limit || 12, opts);
+      syncExploreFloatingActions(true, opts);
       updateExploreTabCounts();
     } catch (e) {
       console.warn('SocialShell: fillGrid', e);
+      grid.classList.remove('is-loading');
       if (!opts.append) {
         grid.classList.add('is-empty');
-        grid.innerHTML =
-          gridSectionTitle(opts && opts.party) +
-          renderEmptyLiveGrid(opts && opts.party, { error: true });
+        grid.innerHTML = renderEmptyLiveGrid(opts && opts.party, { error: true });
         bindEmptyLiveGrid(grid, opts);
+        syncExploreFloatingActions(false, opts);
       }
     } finally {
       st.loading = false;
@@ -780,16 +823,8 @@
       ]);
       const liveRows = Array.isArray(liveRes?.data) ? liveRes.data : [];
       const partyRows = Array.isArray(partyRes?.data) ? partyRes.data : [];
-      const liveCount = liveRows.filter(
-        (r) =>
-          String(r.type || r.room_type || '').toLowerCase() !== 'party' &&
-          !String(r.channel || '').startsWith('party-')
-      ).length;
-      const partyCount = partyRows.filter(
-        (r) =>
-          String(r.type || r.room_type || '').toLowerCase() === 'party' ||
-          String(r.channel || '').startsWith('party-')
-      ).length;
+      const liveCount = normalizeRoomRows(liveRows, false).length;
+      const partyCount = normalizeRoomRows(partyRows, true).length;
       setExploreTabCount('explore', liveCount);
       setExploreTabCount('party', partyCount);
     } catch (_e) {}
@@ -1563,6 +1598,7 @@
     fillFollowingView,
     fillDiscoveryTab,
     updateExploreTabCounts,
+    syncExploreFloatingActions,
     runGlobalSearch,
     renderSearchResults,
     fetchPros,
