@@ -91,13 +91,23 @@
       html += `</div>`;
     }
     if (rooms.length) {
-      html += `<p class="social-search-section">Live rooms</p><div class="social-grid">`;
+      html += `<p class="social-search-section">Live &amp; party</p><div class="social-grid">`;
       rooms.forEach((r, i) => {
-        const page = r.room_type === 'party' ? 'party-room' : 'live-room';
-        html += `<a href="/${page}.html?channel=${encodeURIComponent(r.channel)}&app=1" class="social-live-card">
-          <span class="social-card-name">${escapeHtml(r.host_display_name || r.channel)}</span>
-          <span class="social-card-meta">${formatViewers(r.viewer_count || 0)} watching</span>
-        </a>`;
+        const isParty =
+          String(r.room_type || r.type || '').toLowerCase() === 'party' ||
+          String(r.channel || '').startsWith('party-');
+        html += renderLiveCard(
+          {
+            channel: r.channel,
+            name: r.host_display_name || r.hostName || r.channel,
+            hostProfilePic: r.host_profile_pic || r.hostProfilePic,
+            viewers: r.viewer_count || r.viewers || 0,
+            party: isParty,
+            roomType: isParty ? 'party' : 'live',
+          },
+          i,
+          { party: isParty }
+        );
       });
       html += `</div>`;
     }
@@ -111,6 +121,8 @@
       });
     }
     mount.innerHTML = html;
+    bindLiveCards(mount);
+    if (window.SocialUI?.bindAvatarFallbacks) SocialUI.bindAvatarFallbacks(mount);
   }
 
   function escapeHtml(s) {
@@ -335,16 +347,34 @@
     return `${hr}h ago`;
   }
 
+  function hostInitials(name) {
+    return String(name || 'H')
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((p) => p[0]?.toUpperCase() || '')
+      .join('') || 'H';
+  }
+
+  function gridSectionTitle(party) {
+    return party
+      ? '<p class="social-grid-section-title"><i class="fas fa-microphone-lines"></i> Party rooms live now</p>'
+      : '<p class="social-grid-section-title"><i class="fas fa-video"></i> Live broadcasts now</p>';
+  }
+
   function renderLiveCard(pro, index, opts) {
-    const party = opts && opts.party;
+    const party =
+      Boolean(opts && opts.party) ||
+      Boolean(pro.party) ||
+      pro.roomType === 'party' ||
+      pro.tag === 'Party';
     const channel = pro.channel || pro.id || '';
     if (!channel) return '';
-    const name = pro.name || 'Host';
+    const name = pro.name || pro.hostName || 'Host';
     const img = pro.image || hostCardImage(name, pro.hostProfilePic, pro.hostUpdatedAt || pro.updatedAt, party);
     const imgAttr = escapeAttr(img);
     const nameAttr = escapeAttr(name);
     const fallbackAttr = escapeAttr(hostCardImage(name, null, null, party));
-    const tag = party ? 'Party' : 'Live';
     const viewers = Math.max(0, Number(pro.viewers) || 0);
     const age = formatLiveAge(pro.startedAt || pro.updatedAt);
     const ch = encodeURIComponent(String(channel).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64));
@@ -355,21 +385,27 @@
     const href = party
       ? `/party-room.html?channel=${ch}${extra}&app=1`
       : `/live-room.html?channel=${ch}&feed=1${extra}&app=1`;
-    const liveBadge = '<span class="tag hot"><span class="live-pulse-dot"></span> LIVE</span>';
-    const inRoom = `<span class="in-room"><i class="fas fa-signal"></i> ${formatViewers(viewers)}</span>`;
-    const ageLabel = age ? `<span class="live-age">${age}</span>` : '';
+    const typeBadge = party
+      ? '<span class="live-type-badge live-type-badge--party"><i class="fas fa-microphone-lines"></i> PARTY</span>'
+      : '<span class="live-type-badge live-type-badge--live"><i class="fas fa-video"></i> LIVE</span>';
+    const viewerBadge = `<span class="live-viewer-badge"><i class="fas fa-users"></i> ${formatViewers(viewers)}</span>`;
+    const initials = escapeHtml(hostInitials(name));
+    const ageLabel = age ? `<span class="live-age">${escapeHtml(age)}</span>` : '';
 
     return `
-      <article class="social-live-card${party ? ' is-party' : ''}" data-href="${href}" role="button" tabindex="0">
+      <article class="social-live-card${party ? ' is-party' : ' is-live'}" data-href="${href}" data-room-type="${party ? 'party' : 'live'}" role="button" tabindex="0">
         <img src="${imgAttr}" alt="${nameAttr}" data-name="${nameAttr}" loading="lazy" onerror="this.onerror=null;this.src='${fallbackAttr}'">
-        ${liveBadge}
-        <span class="tag">${tag}</span>
-        ${ageLabel}
+        ${typeBadge}
+        ${viewerBadge}
         <div class="bottom">
-          <div class="bottom-row">
-            <span class="name">🇮🇳 ${name}</span>
-            ${inRoom}
+          <div class="live-host-row">
+            <span class="live-host-avatar" aria-hidden="true">${initials}</span>
+            <div class="live-host-meta">
+              <span class="name social-card-name">${escapeHtml(name)}</span>
+              <span class="live-host-sub">${party ? 'Voice party · Tap to join' : 'Broadcasting · Tap to watch'}</span>
+            </div>
           </div>
+          ${ageLabel}
         </div>
       </article>`;
   }
@@ -575,27 +611,35 @@
       rows = await enrichRoomsWithHostPhotos(rows);
       const rooms = rows
         .filter((r) => r && r.channel && r.status !== 'ended')
-        .filter((r) => !party || String(r.channel || '').startsWith('party-'))
-        .filter((r) => party || !String(r.channel || '').startsWith('party-'))
         .map((r) => {
-          const name = r.hostName || 'Host';
+          const roomType = String(r.type || r.room_type || '').toLowerCase();
+          const isParty =
+            roomType === 'party' ||
+            String(r.channel || '').startsWith('party-');
+          return { row: r, isParty };
+        })
+        .filter(({ isParty }) => (party ? isParty : !isParty))
+        .map(({ row: r, isParty }) => {
+          const name = r.hostName || r.host_display_name || 'Host';
           const hostProfilePic = r.hostProfilePic || r.host_profile_pic || null;
           const hostUpdatedAt = r.hostUpdatedAt || r.updated_at || r.updatedAt;
           return {
             id: r.channel,
             channel: r.channel,
-            userId: r.hostId,
+            userId: r.hostId || r.host_user_id,
             name,
             hostProfilePic,
             hostUpdatedAt,
+            roomType: isParty ? 'party' : 'live',
+            party: isParty,
             image: roomCardImage(
               { ...r, hostProfilePic, hostUpdatedAt, hostName: name },
-              party
+              isParty
             ),
-            viewers: r.viewers || 0,
-            startedAt: r.startedAt,
-            updatedAt: r.updatedAt,
-            tag: party ? 'Party' : 'Live',
+            viewers: r.viewers || r.viewer_count || 0,
+            startedAt: r.startedAt || r.started_at,
+            updatedAt: r.updatedAt || r.updated_at,
+            tag: isParty ? 'Party' : 'Live',
             live: true,
           };
         });
@@ -666,6 +710,7 @@
     st.loading = true;
     if (!opts.append) {
       grid.innerHTML =
+        gridSectionTitle(opts && opts.party) +
         '<div class="social-grid-loading"><span class="social-spinner"></span></div>';
     }
     const { rooms, error } = await fetchActiveRooms(limit || st.limit, opts);
@@ -673,16 +718,61 @@
     if (!rooms.length) {
       if (!opts.append) {
         grid.classList.add('is-empty');
-        grid.innerHTML = renderEmptyLiveGrid(opts && opts.party, { error: Boolean(error) });
+        grid.innerHTML = gridSectionTitle(opts && opts.party) + renderEmptyLiveGrid(opts && opts.party, { error: Boolean(error) });
         bindEmptyLiveGrid(grid, opts);
       }
       return;
     }
     grid.classList.remove('is-empty');
-    grid.innerHTML = rooms.map((p, i) => renderLiveCard(p, i, opts)).filter(Boolean).join('');
+    grid.innerHTML =
+      gridSectionTitle(opts && opts.party) +
+      rooms.map((p, i) => renderLiveCard(p, i, opts)).filter(Boolean).join('');
     bindLiveCards(grid);
     if (window.SocialUI?.bindAvatarFallbacks) SocialUI.bindAvatarFallbacks(grid);
     bindGridInfiniteScroll(gridId, limit || 12, opts);
+    updateExploreTabCounts();
+  }
+
+  function setExploreTabCount(tab, count) {
+    const btn = document.querySelector(`#exploreTabs button[data-tab="${tab}"]`);
+    if (!btn) return;
+    let badge = btn.querySelector('.explore-tab-count');
+    const n = Math.max(0, Number(count) || 0);
+    if (n > 0) {
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'explore-tab-count';
+        btn.appendChild(badge);
+      }
+      badge.textContent = n > 99 ? '99+' : String(n);
+      badge.hidden = false;
+    } else if (badge) {
+      badge.hidden = true;
+    }
+  }
+
+  async function updateExploreTabCounts() {
+    if (!document.body.classList.contains('social-explore-page')) return;
+    try {
+      const [liveRes, partyRes] = await Promise.all([
+        API.get('/live/rooms?type=live&limit=50&sort=trending'),
+        API.get('/live/rooms?type=party&limit=50&sort=trending'),
+      ]);
+      const liveRows = Array.isArray(liveRes?.data) ? liveRes.data : [];
+      const partyRows = Array.isArray(partyRes?.data) ? partyRes.data : [];
+      const liveCount = liveRows.filter(
+        (r) =>
+          String(r.type || r.room_type || '').toLowerCase() !== 'party' &&
+          !String(r.channel || '').startsWith('party-')
+      ).length;
+      const partyCount = partyRows.filter(
+        (r) =>
+          String(r.type || r.room_type || '').toLowerCase() === 'party' ||
+          String(r.channel || '').startsWith('party-')
+      ).length;
+      setExploreTabCount('explore', liveCount);
+      setExploreTabCount('party', partyCount);
+    } catch (_e) {}
   }
 
   function markNativeApp() {
@@ -858,6 +948,7 @@
     if (window.SocialUI) SocialUI.bindAvatarFallbacks(document);
 
     bindLiveCards(document);
+    updateExploreTabCounts();
   }
 
   async function fillFollowingView(searchQuery) {
@@ -985,7 +1076,18 @@
       offlineRows.push({ uid, name, photo });
     });
 
-    const liveHtml = liveCards.map((p, i) => renderLiveCard(p, i, { party: Boolean(p.party) })).join('');
+    const partyLive = liveCards.filter((p) => p.party);
+    const videoLive = liveCards.filter((p) => !p.party);
+
+    const renderSection = (title, cards, party) => {
+      if (!cards.length) return '';
+      const html = cards.map((p, i) => renderLiveCard(p, i, { party })).join('');
+      return `<p class="social-following-section-title">${title}</p><div class="social-grid social-following-live-grid">${html}</div>`;
+    };
+
+    const liveHtml =
+      renderSection('<i class="fas fa-video"></i> Live now', videoLive, false) +
+      renderSection('<i class="fas fa-microphone-lines"></i> In party', partyLive, true);
     const offlineHtml = offlineRows.length
       ? `<div class="social-following-offline-section">
           <p class="social-following-section-title">${liveCards.length ? 'Offline' : 'People you follow'}</p>
@@ -1007,16 +1109,21 @@
         </div>`
       : '';
 
-    const liveSection = liveCards.length
-      ? `<p class="social-following-section-title">Live now</p><div class="social-grid social-following-live-grid">${liveHtml}</div>`
-      : '';
+    const liveSection = liveCards.length ? liveHtml : '';
 
-    mount.innerHTML = `<div class="social-following-wrap">${liveSection}${offlineHtml}</div>`;
-    const grid = mount.querySelector('.social-following-live-grid');
-    if (grid) {
-      bindLiveCards(grid);
-      if (window.SocialUI?.bindAvatarFallbacks) SocialUI.bindAvatarFallbacks(grid);
+    if (!liveCards.length && offlineRows.length) {
+      mount.innerHTML = `<div class="social-following-wrap">
+        <p class="social-following-section-title social-following-none-live">No one you follow is live right now</p>
+        ${offlineHtml}
+      </div>`;
     } else {
+      mount.innerHTML = `<div class="social-following-wrap">${liveSection}${offlineHtml}</div>`;
+    }
+    mount.querySelectorAll('.social-following-live-grid').forEach((g) => {
+      bindLiveCards(g);
+      if (window.SocialUI?.bindAvatarFallbacks) SocialUI.bindAvatarFallbacks(g);
+    });
+    if (!mount.querySelector('.social-following-live-grid')) {
       bindLiveCards(mount);
       if (window.SocialUI?.bindAvatarFallbacks) SocialUI.bindAvatarFallbacks(mount);
     }
@@ -1435,6 +1542,7 @@
     openBroadcastPicker,
     fillFollowingView,
     fillDiscoveryTab,
+    updateExploreTabCounts,
     runGlobalSearch,
     renderSearchResults,
     fetchPros,

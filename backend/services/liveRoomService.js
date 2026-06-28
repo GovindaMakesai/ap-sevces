@@ -411,13 +411,13 @@ async function listActiveRooms({ roomType, limit = 30, sort = 'trending' } = {})
              LEFT JOIN users u ON u.id = lr.host_user_id
              LEFT JOIN workers w ON w.user_id = u.id
              WHERE lr.status = 'active'
-               AND lr.updated_at > CURRENT_TIMESTAMP - INTERVAL '30 minutes'
+               AND lr.updated_at > CURRENT_TIMESTAMP - INTERVAL '3 hours'
                AND EXISTS (
                  SELECT 1 FROM live_room_members m
                  WHERE m.live_room_id = lr.id
                    AND m.role = 'host'
                    AND m.left_at IS NULL
-                   AND m.last_seen_at > CURRENT_TIMESTAMP - INTERVAL '10 minutes'
+                   AND m.last_seen_at > CURRENT_TIMESTAMP - INTERVAL '45 minutes'
                )`;
   if (roomType) {
     params.push(roomType);

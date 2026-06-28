@@ -697,6 +697,158 @@ html.ap-expo-app body.social-tabs-page .social-top {
   object-fit: cover;
 }
 
+.social-grid-section-title {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 10px;
+  padding: 0 2px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-800, #1e293b);
+}
+
+.social-grid-section-title i {
+  font-size: 14px;
+  color: var(--gold-700, #9a7218);
+}
+
+.social-live-card.is-live {
+  box-shadow: inset 0 0 0 2px rgba(239, 68, 68, 0.35);
+}
+
+.social-live-card.is-party {
+  box-shadow: inset 0 0 0 2px rgba(139, 92, 246, 0.4);
+}
+
+.live-type-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 5px 9px;
+  border-radius: var(--radius-pill, 999px);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.live-type-badge--live {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  animation: social-live-pulse-tag 1.4s ease-in-out infinite;
+}
+
+.live-type-badge--party {
+  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+}
+
+.live-viewer-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: var(--radius-pill, 999px);
+  background: rgba(0, 0, 0, 0.62);
+  color: #fff;
+}
+
+.live-host-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.live-host-avatar {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #e8c56a, #9a7218);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+}
+
+.social-live-card.is-party .live-host-avatar {
+  background: linear-gradient(135deg, #a78bfa, #6d28d9);
+}
+
+.live-host-meta {
+  min-width: 0;
+  flex: 1;
+}
+
+.social-live-card .live-host-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 9px;
+  font-weight: 600;
+  opacity: 0.82;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.social-live-card .live-age {
+  position: static;
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #e2e8f0;
+}
+
+.social-following-section-title i {
+  margin-right: 4px;
+  color: var(--gold-700, #9a7218);
+}
+
+.social-following-none-live {
+  color: var(--ink-500, #64748b);
+  font-weight: 600;
+}
+
+.explore-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  margin-left: 5px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+#exploreTabs button[data-tab="party"] .explore-tab-count {
+  background: #8b5cf6;
+}
+
 .social-live-card .tag {
   position: absolute;
   top: 8px;
@@ -1136,19 +1288,6 @@ html.ap-expo-app body.social-tabs-page .social-top {
   border-radius: 50%;
   background: #fff;
   display: inline-block;
-}
-
-.social-live-card .live-age {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  z-index: 2;
-  font-size: 10px;
-  font-weight: 700;
-  padding: 3px 7px;
-  border-radius: 8px;
-  background: rgba(0, 0, 0, 0.55);
-  color: #e2e8f0;
 }
 
 @keyframes social-live-pulse-tag {
