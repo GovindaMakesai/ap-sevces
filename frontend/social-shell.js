@@ -160,6 +160,9 @@
     return hostCardImage(name, pic, cacheKey, party);
   }
 
+  let _enrichPhotosCacheAt = 0;
+  let _enrichPhotosCache = null;
+
   async function enrichRoomsWithHostPhotos(rooms) {
     if (!Array.isArray(rooms) || !rooms.length) return rooms;
     const picByHost = new Map();
@@ -187,19 +190,28 @@
     ];
     if (!missingIds.length) return rooms;
 
-    const fetchList = API.getFresh || API.get;
-    await Promise.allSettled([
-      (async () => {
-        const res = await fetchList('/social/following?limit=200');
+    const now = Date.now();
+    if (_enrichPhotosCache && now - _enrichPhotosCacheAt < 120000) {
+      _enrichPhotosCache.forEach((v, k) => picByHost.set(k, v));
+    } else if (window.API?.get) {
+      try {
+        const res = await API.get('/social/discover/creators?period=weekly&limit=50');
         const rows = Array.isArray(res?.data) ? res.data : [];
-        rows.forEach((u) => remember(u.id, u.profile_pic, u.updated_at));
-      })(),
-      (async () => {
-        const res = await fetchList('/social/discover/creators?period=weekly&limit=100');
-        const rows = Array.isArray(res?.data) ? res.data : [];
-        rows.forEach((c) => remember(c.id || c.userId, c.profilePic || c.profile_pic, c.updatedAt));
-      })(),
-    ]);
+        const cache = new Map();
+        rows.forEach((c) => {
+          const id = String(c.id || c.userId || '');
+          const pic = c.profilePic || c.profile_pic;
+          if (id && pic) {
+            remember(id, pic, c.updatedAt);
+            cache.set(id, { pic, updatedAt: c.updatedAt });
+          }
+        });
+        _enrichPhotosCache = cache;
+        _enrichPhotosCacheAt = now;
+      } catch (e) {
+        console.warn('SocialShell: enrich host photos', e);
+      }
+    }
 
     return rooms.map((r) => {
       const id = String(r.hostId || r.host_user_id || '');
@@ -257,10 +269,15 @@
     });
   }
 
+  let _chatUnreadSyncAt = 0;
+
   async function syncChatUnreadFromApi() {
     if (!hasAppSession() || !window.API?.get) return getChatUnreadCount();
+    const now = Date.now();
+    if (now - _chatUnreadSyncAt < 60000) return getChatUnreadCount();
+    _chatUnreadSyncAt = now;
     try {
-      const res = await API.get('/conversations');
+      const res = await API.get('/messages/conversations');
       const total = Number(res?.data?.totalUnread);
       const count = Number.isFinite(total)
         ? total
@@ -515,8 +532,7 @@
     const roomType = party ? 'party' : 'live';
     const sort = opts.sort || 'trending';
     try {
-      const fetchList = API.getFresh || API.get;
-      const res = await fetchList(`/live/rooms?type=${roomType}&limit=${limit}&sort=${sort}`);
+      const res = await API.get(`/live/rooms?type=${roomType}&limit=${limit}&sort=${sort}`);
       let rows = Array.isArray(res?.data) ? res.data : [];
       rows = await enrichRoomsWithHostPhotos(rows);
       return rows

@@ -121,8 +121,15 @@ async function backfillHostStatsFromRooms(userId) {
   return res.rows.length;
 }
 
+const _backfillAt = new Map();
+const BACKFILL_COOLDOWN_MS = 5 * 60 * 1000;
+
 async function getStreamerStats(userId, period = 'today') {
-  await backfillHostStatsFromRooms(userId);
+  const lastBackfill = _backfillAt.get(String(userId)) || 0;
+  if (Date.now() - lastBackfill > BACKFILL_COOLDOWN_MS) {
+    _backfillAt.set(String(userId), Date.now());
+    backfillHostStatsFromRooms(userId).catch(() => {});
+  }
   const since = periodStart(period);
 
   const roomsRes = await db.query(

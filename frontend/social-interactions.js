@@ -755,7 +755,13 @@
   }
 
   if (hasAuth()) {
-    document.addEventListener('DOMContentLoaded', () => refreshSocialCaches());
+    document.addEventListener('DOMContentLoaded', () => {
+      const now = Date.now();
+      if (!window.__apSocialCacheAt || now - window.__apSocialCacheAt > 60000) {
+        window.__apSocialCacheAt = now;
+        refreshSocialCaches().catch(() => {});
+      }
+    });
   }
 
   async function compressImage(file, maxW) {

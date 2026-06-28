@@ -12,19 +12,21 @@ async function ensureLiveHostStatsSchema() {
   await db.query(fs.readFileSync(sqlPath, 'utf8'));
   console.log('✅ Live host stats schema ready (broadcast duration)');
 
-  try {
-    const hosts = await db.query(
-      `SELECT DISTINCT host_user_id FROM live_rooms WHERE host_user_id IS NOT NULL LIMIT 500`
-    );
-    let n = 0;
-    for (const row of hosts.rows) {
-      await backfillHostStatsFromRooms(row.host_user_id);
-      n += 1;
+  setImmediate(async () => {
+    try {
+      const hosts = await db.query(
+        `SELECT DISTINCT host_user_id FROM live_rooms WHERE host_user_id IS NOT NULL LIMIT 25`
+      );
+      let n = 0;
+      for (const row of hosts.rows) {
+        await backfillHostStatsFromRooms(row.host_user_id);
+        n += 1;
+      }
+      if (n) console.log(`✅ Backfilled live stats for ${n} host(s) (background)`);
+    } catch (e) {
+      console.warn('[live] host stats backfill skipped:', e.message);
     }
-    if (n) console.log(`✅ Backfilled live stats for ${n} host(s)`);
-  } catch (e) {
-    console.warn('[live] host stats backfill skipped:', e.message);
-  }
+  });
 }
 
 module.exports = { ensureLiveHostStatsSchema };

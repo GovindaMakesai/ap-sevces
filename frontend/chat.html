@@ -1391,14 +1391,14 @@
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
     
-    <script src="app.js?v=20260702-follow-fix"></script>
+    <script src="app.js?v=20260628-perf"></script>
     <script src="auth-guard.js"></script>
     <script src="social-ui.js?v=20260702-follow-fix"></script>
-    <script src="social-interactions.js?v=20260702-follow-fix"></script>
+    <script src="social-interactions.js?v=20260628-perf"></script>
     <script src="social-wallet.js"></script>
     <script src="live-emoji-data.js"></script>
     <script src="social-fx.js"></script>
-    <script src="social-shell.js"></script>
+    <script src="social-shell.js?v=20260628-perf"></script>
     <script src="social-nav.js"></script>
     
     <script>
@@ -1445,37 +1445,50 @@
             setupMsgFilters();
             setupMsgQuickChips();
             bindChatSocialActions();
-            if (window.SocialInteractions?.refreshSocialCaches) {
+            const sessionReady = Auth.hasSession?.()
+                ? Promise.race([
+                    (async () => {
+                        await Promise.race([
+                            ensureChatUser(),
+                            new Promise((r) => setTimeout(r, 5000)),
+                        ]);
+                        await Promise.race([
+                            Auth.ensureAccessToken?.() || Promise.resolve(),
+                            new Promise((r) => setTimeout(r, 5000)),
+                        ]).catch(() => {});
+                        if (!Auth.checkAuth() && typeof Auth.repairSession === 'function') {
+                            await Auth.repairSession().catch(() => {});
+                        }
+                    })(),
+                    new Promise((r) => setTimeout(r, 6000)),
+                ])
+                : Promise.resolve();
+            if (window.SocialInteractions?.refreshSocialCaches && !window.__apSocialCacheAt) {
+                window.__apSocialCacheAt = Date.now();
                 SocialInteractions.refreshSocialCaches().catch(() => {});
             }
             document.querySelector('.ap-msg-top-actions button[aria-label="More"]')?.addEventListener('click', () => {
                 openChatListMenu();
             });
+            const conversationsPromise = sessionReady.then(() => {
+                if (!Auth.hasSession?.() && !Auth.checkAuth()) {
+                    if (typeof isNativeAppContext === 'function' && isNativeAppContext()) {
+                        window.location.replace('/app-auth.html?app=1&redirect=' + encodeURIComponent(location.pathname + location.search));
+                        return null;
+                    }
+                    Toast.show('Please login to use chat', 'warning');
+                    setTimeout(() => { window.location.href = '/login.html'; }, 800);
+                    return null;
+                }
+                setupSocketListeners();
+                return loadConversations();
+            });
             if (Auth.hasSession?.()) {
-                await Promise.race([
-                    ensureChatUser(),
-                    new Promise((r) => setTimeout(r, 8000)),
-                ]);
-                await Promise.race([
-                    Auth.ensureAccessToken?.() || Promise.resolve(),
-                    new Promise((r) => setTimeout(r, 8000)),
-                ]).catch(() => {});
-                if (!Auth.checkAuth() && typeof Auth.repairSession === 'function') {
-                    await Auth.repairSession().catch(() => {});
-                    await ensureChatUser();
-                }
+                await conversationsPromise;
+            } else {
+                conversationsPromise.catch(() => {});
             }
-            if (!Auth.hasSession?.() && !Auth.checkAuth()) {
-                if (typeof isNativeAppContext === 'function' && isNativeAppContext()) {
-                    window.location.replace('/app-auth.html?app=1&redirect=' + encodeURIComponent(location.pathname + location.search));
-                    return;
-                }
-                Toast.show('Please login to use chat', 'warning');
-                setTimeout(() => { window.location.href = '/login.html'; }, 800);
-                return;
-            }
-            setupSocketListeners();
-            await loadConversations();
+            if (!Auth.hasSession?.() && !Auth.checkAuth()) return;
             if (window.SocialNav) {
                 SocialNav.registerRefresh(async () => {
                     await loadConversations();

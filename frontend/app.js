@@ -228,11 +228,11 @@ const API_GET_CACHE_LONG_MS = 15000;
 
 function apiGetCacheTtl(endpoint) {
   const p = String(endpoint || '');
-  if (
-    p.includes('/social/following') ||
+  if (p.includes('/social/following') ||
     p.includes('/live/rooms') ||
     p.includes('/live/streamer-stats') ||
-    p.includes('/social/creators')
+    p.includes('/social/creators') ||
+    p.includes('/messages/conversations')
   ) {
     return API_GET_CACHE_LONG_MS;
   }
@@ -351,13 +351,31 @@ const API = {
             safeUrl = joinApiUrl(path);
         }
 
-        const response = await fetch(safeUrl, {
-            ...options,
-            headers,
-            body,
-            mode: 'cors',
-            credentials: 'include',
-        });
+        const controller = new AbortController();
+        const timeoutMs = Number(options.timeout) || 20000;
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+        const priorSignal = options.signal;
+
+        let response;
+        try {
+            response = await fetch(safeUrl, {
+                ...options,
+                headers,
+                body,
+                mode: 'cors',
+                credentials: 'include',
+                signal: priorSignal || controller.signal,
+            });
+        } catch (error) {
+            if (error?.name === 'AbortError') {
+                const err = new Error('Request timed out. Please try again.');
+                err.status = 408;
+                throw err;
+            }
+            throw error;
+        } finally {
+            clearTimeout(timeoutId);
+        }
 
         let data;
         const contentType = response.headers.get('content-type');
@@ -886,7 +904,14 @@ const Auth = {
         return this._refreshing;
     },
 
-    async refreshSession() {
+    async refreshSession(force = false) {
+        const now = Date.now();
+        if (!force && this._lastSessionRefresh && now - this._lastSessionRefresh < 30000) {
+            return Boolean(AppState.user || localStorage.getItem('user'));
+        }
+        if (this._refreshingSession) return this._refreshingSession;
+
+        this._refreshingSession = (async () => {
         const cached = localStorage.getItem('user');
         if (cached) {
             try {
@@ -907,6 +932,7 @@ const Auth = {
                 if (res.data.accessToken) {
                     localStorage.setItem('token', res.data.accessToken);
                 }
+                this._lastSessionRefresh = Date.now();
                 return true;
             }
         } catch (e) {
@@ -917,20 +943,42 @@ const Auth = {
                     await this.requestNativeSession();
                     ok = await this.tryRefresh();
                 }
-                if (ok) return this.refreshSession();
+                if (ok) {
+                    try {
+                        const res2 = await API.get('/auth/me');
+                        if (res2.success && res2.data?.user) {
+                            AppState.user = res2.data.user;
+                            localStorage.setItem('user', JSON.stringify(res2.data.user));
+                            if (res2.data.accessToken) {
+                                localStorage.setItem('token', res2.data.accessToken);
+                            }
+                            this._lastSessionRefresh = Date.now();
+                            return true;
+                        }
+                    } catch (_e2) { /* fall through */ }
+                }
                 if (isNativeAppContext() && localStorage.getItem('user')) {
                     return false;
                 }
                 this.tokenInvalidCleanup();
                 return false;
             }
-            // Network/CORS blip ΓÇö keep cached session in native app
+            // Network/CORS blip — keep cached session in native app
             if (isNativeAppContext() && (localStorage.getItem('user') || localStorage.getItem('token'))) {
+                this._lastSessionRefresh = Date.now();
                 return true;
             }
             return Boolean(AppState.user || localStorage.getItem('user'));
         }
+        this._lastSessionRefresh = Date.now();
         return Boolean(AppState.user || localStorage.getItem('user'));
+        })();
+
+        try {
+            return await this._refreshingSession;
+        } finally {
+            this._refreshingSession = null;
+        }
     },
 
     tokenInvalidCleanup() {
@@ -1787,13 +1835,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     Auth.checkAuth();
     if (Auth.hasSession()) {
         if (!(isNativeAppContext() && onAuthScreen)) {
-            if (isNativeAppContext()) {
-                Auth.ensureAccessToken().catch(() => {});
-                Auth.refreshSession().catch(() => {});
-            } else {
-                await Auth.ensureAccessToken();
-                await Auth.refreshSession();
-            }
+            Auth.ensureAccessToken().catch(() => {});
+            Auth.refreshSession().catch(() => {});
         }
         scheduleProactiveSessionRefresh();
     }
