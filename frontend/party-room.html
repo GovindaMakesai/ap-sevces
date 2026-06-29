@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#1a0f3a">
   <title>Party Room - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-live.css?v=20260624-chat-avatars">
+  <link rel="stylesheet" href="social-live.css?v=20260624-party-admin-music">
   <link rel="stylesheet" href="social-live-session.css?v=20260703-minimize-fix">
   <link rel="stylesheet" href="social-live-ref-ui.css?v=20260628-hotfix">
   <link rel="stylesheet" href="social-fx.css">
@@ -231,6 +231,7 @@
       <div class="party-tools-grid party-tools-grid-4">
         <a href="/chat.html?app=1" class="ap-tool-msg"><span class="ico msg"><i class="fas fa-envelope"></i><span class="ap-notify-dot"></span></span>Message</a>
         <button type="button" id="partyBtnSound"><span class="ico sound"><i class="fas fa-volume-up"></i></span>Sound</button>
+        <button type="button" id="partyBtnMusic"><span class="ico music"><i class="fas fa-music"></i></span>Music</button>
         <button type="button" id="partyBtnShare"><span class="ico share"><i class="fas fa-share"></i></span>Share</button>
         <button type="button" id="partyBtnReport" class="ap-tool-end"><span class="ico report"><i class="fas fa-exclamation-circle"></i></span>Report</button>
       </div>
@@ -255,6 +256,19 @@
     </div>
   </div>
 
+  <audio id="partyBgMusic" loop preload="none" style="display:none" aria-hidden="true"></audio>
+  <div class="party-music-sheet" id="partyMusicSheet" aria-hidden="true">
+    <div class="party-music-panel">
+      <h3>Party music</h3>
+      <p>Listen while you chat ? this plays on your device and does not interrupt voice.</p>
+      <div id="partyMusicList"></div>
+      <div class="party-music-actions">
+        <button type="button" class="party-music-stop" id="partyMusicStop">Stop</button>
+        <button type="button" class="party-music-close" id="partyMusicClose">Close</button>
+      </div>
+    </div>
+  </div>
+
   <script src="/socket.io/socket.io.js"></script>
   <script src="ap-config.js"></script>
   <script src="app.js?v=20260624-party-fix"></script>
@@ -266,7 +280,7 @@
   <script src="live-emoji-data.js"></script>
   <script src="social-shell.js?v=20260624-chat-avatars"></script>
   <script src="live-session-provider.js?v=20260624-android-back"></script>
-  <script src="social-live.js?v=20260624-chat-avatars"></script>
+  <script src="social-live.js?v=20260624-party-admin-music"></script>
   <script src="social-nav.js?v=20260624-android-back"></script>
 </body>
 </html>

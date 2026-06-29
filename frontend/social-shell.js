@@ -18,12 +18,24 @@
 
   const CHIP_FILTERS = ['Popular', 'India', 'Nepal', 'Global'];
 
-  function getImageUrl(path, cacheKey) {
+  function normalizeMediaPath(path) {
     if (!path) return null;
     let p = String(path).trim();
     if (!p) return null;
     if (p.startsWith('data:') || p.startsWith('blob:')) return p;
-    if (p.startsWith('//')) p = `https:${p}`;
+    if (p.startsWith('//')) return `https:${p}`;
+    const embedded = p.match(/https?:\/\/[^\s"'<>]+/i);
+    if (embedded) return embedded[0];
+    if (/^[\w.-]+\.[a-z]{2,}(\/|$)/i.test(p) && !p.startsWith('/')) {
+      return `https://${p.replace(/^\/+/, '')}`;
+    }
+    return p;
+  }
+
+  function getImageUrl(path, cacheKey) {
+    const p = normalizeMediaPath(path);
+    if (!p) return null;
+    if (p.startsWith('data:') || p.startsWith('blob:')) return p;
     if (p.startsWith('http://') || p.startsWith('https://')) {
       if (!cacheKey) return p;
       return p + (p.includes('?') ? '&' : '?') + 'v=' + encodeURIComponent(String(cacheKey));

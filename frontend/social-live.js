@@ -61,6 +61,13 @@
   let chatTab = 'all';
   let followed = false;
   let soundOn = true;
+  let partyMusicPlayingId = '';
+  const PARTY_MUSIC_TRACKS = [
+    { id: 'chill', title: 'Chill lounge', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3' },
+    { id: 'upbeat', title: 'Upbeat party', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3' },
+    { id: 'soft', title: 'Soft evening', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3' },
+    { id: 'groove', title: 'Late night groove', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3' },
+  ];
   let micMuted = false;
   let chestSec = 294;
   let teamProgress = 1;
@@ -801,7 +808,7 @@
   }
 
   function renderPartyAudienceBar() {
-    if (!isPartyRoomPage() || !isHost()) return;
+    if (!isPartyRoomPage() || !canModerateRoom()) return;
     ensurePartyAudienceBar();
     const bar = document.getElementById('partyAudienceBar');
     if (!bar) return;
@@ -910,7 +917,9 @@
 
   function syncHostBarUi() {
     const hosting = isHost();
+    const moderating = canModerateRoom();
     document.body.classList.toggle('ap-is-host', hosting);
+    document.body.classList.toggle('ap-can-moderate', moderating && !hosting);
   }
 
   function applyRoleUiAfterJoin() {
@@ -929,8 +938,8 @@
       const ticker = document.getElementById('partyTicker');
       if (ticker) ticker.textContent = 'You are hosting — tap Share so friends join this room';
     } else {
-      document.body.classList.remove('ap-is-host');
       followed = true;
+      syncHostBarUi();
     }
     syncBottomBarForRole();
     renderRoomState();
@@ -2102,6 +2111,7 @@
 
   function leaveRoomOnly() {
     stopHeartbeat();
+    stopPartyMusic();
     if (hostEndedRecoverTimer) {
       clearTimeout(hostEndedRecoverTimer);
       hostEndedRecoverTimer = null;
@@ -4073,6 +4083,7 @@
     syncToolBadges();
     renderQuickChips();
     syncMicButtonUi();
+    syncHostBarUi();
     bindRoomAvatars();
   }
 
@@ -4242,7 +4253,8 @@
         document.getElementById('giftSheet')?.classList.contains('open') ||
         document.getElementById('apMicLinkModal')?.classList.contains('open') ||
         document.getElementById('apTopupSheet')?.classList.contains('open') ||
-        document.getElementById('partyRequestsSheet')?.classList.contains('open')
+        document.getElementById('partyRequestsSheet')?.classList.contains('open') ||
+        document.getElementById('partyMusicSheet')?.classList.contains('open')
     );
     document.body.classList.toggle('ap-live-overlay-open', open);
   }
@@ -4300,11 +4312,87 @@
   function ensureInviteInline() {
     const pill = document.getElementById('partyInvitePill');
     if (!pill) return;
-    pill.classList.add('party-event-pill--inline');
-    const target = isLiveRoomPage()
-      ? document.querySelector('.party-meta-row--live')
-      : document.getElementById('partyHostBar');
+    pill.classList.remove('party-event-pill--inline');
+    if (isLiveRoomPage()) {
+      const target = document.getElementById('partyLiveActions');
+      if (target && pill.parentElement !== target) target.appendChild(pill);
+      return;
+    }
+    const target = document.querySelector('.party-invite-row') || document.getElementById('partyHostBar');
     if (target && pill.parentElement !== target) target.appendChild(pill);
+  }
+
+  function ensurePartyMusicUi() {
+    const list = document.getElementById('partyMusicList');
+    if (!list || list.dataset.bound === '1') return;
+    list.dataset.bound = '1';
+    list.innerHTML = PARTY_MUSIC_TRACKS.map(
+      (track) =>
+        `<button type="button" class="party-music-track" data-music-id="${escapeAttr(track.id)}">` +
+        `<i class="fas fa-play"></i><span>${escapeHtml(track.title)}</span></button>`
+    ).join('');
+    list.querySelectorAll('[data-music-id]').forEach((btn) => {
+      btn.addEventListener('click', () => playPartyMusic(btn.dataset.musicId));
+    });
+  }
+
+  function getPartyBgMusicEl() {
+    return document.getElementById('partyBgMusic');
+  }
+
+  function syncPartyMusicUi() {
+    document.querySelectorAll('.party-music-track').forEach((btn) => {
+      btn.classList.toggle('is-playing', btn.dataset.musicId === partyMusicPlayingId);
+      const icon = btn.querySelector('i');
+      if (icon) icon.className = btn.dataset.musicId === partyMusicPlayingId ? 'fas fa-pause' : 'fas fa-play';
+    });
+  }
+
+  function stopPartyMusic() {
+    const audio = getPartyBgMusicEl();
+    if (audio) {
+      audio.pause();
+      audio.removeAttribute('src');
+      audio.load();
+    }
+    partyMusicPlayingId = '';
+    syncPartyMusicUi();
+  }
+
+  function playPartyMusic(trackId) {
+    const track = PARTY_MUSIC_TRACKS.find((t) => t.id === trackId);
+    if (!track) return;
+    const audio = getPartyBgMusicEl();
+    if (!audio) return;
+    if (partyMusicPlayingId === trackId && !audio.paused) {
+      stopPartyMusic();
+      toast('Music stopped', 'info');
+      return;
+    }
+    partyMusicPlayingId = trackId;
+    audio.src = track.url;
+    audio.volume = 0.35;
+    audio.play().then(() => {
+      syncPartyMusicUi();
+      toast(`Playing ${track.title}`, 'success');
+    }).catch(() => {
+      partyMusicPlayingId = '';
+      syncPartyMusicUi();
+      toast('Could not play music on this device', 'warning');
+    });
+  }
+
+  function openPartyMusicSheet() {
+    ensurePartyMusicUi();
+    syncPartyMusicUi();
+    document.getElementById('partyToolsSheet')?.classList.remove('open');
+    document.getElementById('partyMusicSheet')?.classList.add('open');
+    syncLiveOverlayClass();
+  }
+
+  function closePartyMusicSheet() {
+    document.getElementById('partyMusicSheet')?.classList.remove('open');
+    syncLiveOverlayClass();
   }
 
   function isAppChromeNode(node) {
@@ -4359,6 +4447,7 @@
     if (except !== 'gift') document.getElementById('giftSheet')?.classList.remove('open');
     if (except !== 'mic') document.getElementById('apMicLinkModal')?.classList.remove('open');
     if (except !== 'requests') closePartyRequestsSheet();
+    if (except !== 'music') closePartyMusicSheet();
     if (except !== 'chat') closeChatPanelOnly();
     document.getElementById('apEmojiPopover')?.classList.remove('is-open');
     syncLiveOverlayClass();
@@ -5914,6 +6003,19 @@
         if (ico) ico.className = soundOn ? 'fas fa-volume-up' : 'fas fa-volume-mute';
         btn.classList.toggle('is-muted', !soundOn);
       }
+    });
+
+    document.getElementById('partyBtnMusic')?.addEventListener('click', () => openPartyMusicSheet());
+    document.getElementById('partyMusicStop')?.addEventListener('click', () => {
+      stopPartyMusic();
+      toast('Music stopped', 'info');
+    });
+    document.getElementById('partyMusicClose')?.addEventListener('click', () => closePartyMusicSheet());
+    document.getElementById('partyMusicSheet')?.addEventListener('click', (e) => {
+      if (e.target.id === 'partyMusicSheet') closePartyMusicSheet();
+    });
+    document.getElementById('partyMusicSheet')?.querySelector('.party-music-panel')?.addEventListener('click', (e) => {
+      e.stopPropagation();
     });
 
     document.getElementById('partyBtnShare')?.addEventListener('click', () => openInAppShareSheet());

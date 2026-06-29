@@ -39,10 +39,10 @@
   <div id="social-bottom-nav-mount"></div>
 
   <script src="app.js?v=20260702-follow-fix"></script>
-  <script src="social-ui.js?v=20260702-follow-fix"></script>
+  <script src="social-ui.js?v=20260624-profile-url-fix"></script>
   <script src="auth-guard.js"></script>
-  <script src="social-interactions.js?v=20260702-follow-fix"></script>
-  <script src="social-shell.js"></script>
+  <script src="social-interactions.js?v=20260624-profile-url-fix"></script>
+  <script src="social-shell.js?v=20260624-profile-url-fix"></script>
   <script src="social-nav.js"></script>
   <script>
     const API_ROOT = (window.AP_SERVICES_API_ROOT || 'https://api.apservices.in/api').replace(/\/+$/, '');
@@ -54,10 +54,17 @@
     }
 
     function avatarUrl(creator) {
-      if (creator.profilePic) {
-        const pic = String(creator.profilePic).trim();
-        if (/^https?:\/\//i.test(pic)) return pic;
-        return 'https://api.apservices.in' + (pic.startsWith('/') ? pic : '/' + pic);
+      const pic = creator.profilePic || creator.profile_pic;
+      if (pic) {
+        if (window.SocialShell?.getImageUrl) {
+          const built = SocialShell.getImageUrl(pic, creator.profileUpdatedAt || creator.updated_at);
+          if (built) return built;
+        }
+        const raw = String(pic).trim();
+        if (/^https?:\/\//i.test(raw)) return raw;
+        if (raw.startsWith('//')) return 'https:' + raw;
+        const base = (window.CONFIG?.BACKEND_URL || 'https://api.apservices.in').replace(/\/$/, '');
+        return base + (raw.startsWith('/') ? raw : '/' + raw);
       }
       if (window.SocialUI?.avatarUrl) return SocialUI.avatarUrl(creator.displayName);
       return 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + encodeURIComponent(creator.displayName || 'c');
@@ -76,7 +83,8 @@
 
     function discoverRequestUrls(period) {
       const q = discoverQuery(period);
-      return [API_ROOT + DISCOVER_PATH + q];
+      const root = (window.CONFIG?.API_URL || window.AP_SERVICES_API_ROOT || 'https://api.apservices.in/api').replace(/\/+$/, '');
+      return [root + DISCOVER_PATH + q];
     }
 
     function authHeaders() {

@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-live.css?v=20260624-chat-avatars">
+  <link rel="stylesheet" href="social-live.css?v=20260624-party-admin-music">
   <link rel="stylesheet" href="social-live-session.css?v=20260703-minimize-fix">
   <link rel="stylesheet" href="social-live-ref-ui.css?v=20260628-hotfix">
   <link rel="stylesheet" href="social-fx.css">
@@ -120,7 +120,6 @@
           <button type="button" class="party-follow-btn" id="partyHostFollow" aria-label="Follow host">+</button>
         </div>
         <div class="party-header-right">
-          <button type="button" class="party-users-btn" id="partyBtnUsersAll" aria-label="People in room"><i class="fas fa-users"></i></button>
           <div class="party-viewers" id="partyViewerAvatars">
             <span class="party-viewer-count" id="liveViewerCount">0</span>
           </div>
@@ -131,7 +130,11 @@
 
       <div class="party-meta-row party-meta-row--live">
         <span class="live-mode-badge" id="liveModeBadge"><i class="fas fa-video"></i> VIDEO LIVE</span>
-        <button type="button" class="party-event-pill party-event-pill--inline" id="partyInvitePill">
+      </div>
+
+      <div class="party-live-actions" id="partyLiveActions">
+        <button type="button" class="party-users-btn" id="partyBtnUsersAll" aria-label="People in room"><i class="fas fa-users"></i></button>
+        <button type="button" class="party-event-pill" id="partyInvitePill">
           <span class="pill-title"><i class="fas fa-user-plus"></i> Invite friends</span>
           <span class="pill-sub">Tap to share</span>
         </button>
@@ -144,13 +147,13 @@
           <i class="fas fa-sliders-h"></i> Host controls
         </button>
         <div class="live-host-bar-actions" id="liveHostBarActions">
-        <button type="button" class="party-host-action host-only-tool" id="partyBtnRequests"><i class="fas fa-users"></i> Guests <span id="partyReqCount" class="party-req-badge" hidden>0</span></button>
-        <button type="button" class="party-host-action" id="liveBtnModeVideo" data-mode="video"><i class="fas fa-video"></i> Video</button>
-        <button type="button" class="party-host-action" id="liveBtnModeAudio" data-mode="audio"><i class="fas fa-microphone"></i> Audio only</button>
-        <button type="button" class="party-host-action" id="liveBtnHostMute"><i class="fas fa-microphone"></i> Mic</button>
-        <button type="button" class="party-host-action" id="liveBtnFlipCam" title="Flip camera"><i class="fas fa-sync-alt"></i> Flip</button>
-        <button type="button" class="party-host-action" id="liveBtnFilters" title="Video filters"><i class="fas fa-magic"></i> Filter</button>
-        <button type="button" class="party-host-action" id="liveBtnInvite"><i class="fas fa-share"></i> Share</button>
+        <button type="button" class="party-host-action mod-tool" id="partyBtnRequests"><i class="fas fa-users"></i> Guests <span id="partyReqCount" class="party-req-badge" hidden>0</span></button>
+        <button type="button" class="party-host-action host-only-tool" id="liveBtnModeVideo" data-mode="video"><i class="fas fa-video"></i> Video</button>
+        <button type="button" class="party-host-action host-only-tool" id="liveBtnModeAudio" data-mode="audio"><i class="fas fa-microphone"></i> Audio only</button>
+        <button type="button" class="party-host-action host-only-tool" id="liveBtnHostMute"><i class="fas fa-microphone"></i> Mic</button>
+        <button type="button" class="party-host-action host-only-tool" id="liveBtnFlipCam" title="Flip camera"><i class="fas fa-sync-alt"></i> Flip</button>
+        <button type="button" class="party-host-action host-only-tool" id="liveBtnFilters" title="Video filters"><i class="fas fa-magic"></i> Filter</button>
+        <button type="button" class="party-host-action host-only-tool" id="liveBtnInvite"><i class="fas fa-share"></i> Share</button>
         </div>
       </div>
 
@@ -213,6 +216,7 @@
       <div class="party-tools-grid party-tools-grid-4">
         <a href="/chat.html?app=1" class="ap-tool-msg"><span class="ico msg"><i class="fas fa-envelope"></i><span class="ap-notify-dot"></span></span>Message</a>
         <button type="button" id="partyBtnSound"><span class="ico sound"><i class="fas fa-volume-up"></i></span>Sound</button>
+        <button type="button" id="partyBtnMusic"><span class="ico music"><i class="fas fa-music"></i></span>Music</button>
         <button type="button" id="partyBtnShare"><span class="ico share"><i class="fas fa-share"></i></span>Share</button>
         <button type="button" id="partyBtnReport" class="ap-tool-end"><span class="ico report"><i class="fas fa-exclamation-circle"></i></span>Report</button>
       </div>
@@ -236,6 +240,19 @@
     </div>
   </div>
 
+  <audio id="partyBgMusic" loop preload="none" style="display:none" aria-hidden="true"></audio>
+  <div class="party-music-sheet" id="partyMusicSheet" aria-hidden="true">
+    <div class="party-music-panel">
+      <h3>Party music</h3>
+      <p>Listen while you chat — this plays on your device and does not interrupt voice.</p>
+      <div id="partyMusicList"></div>
+      <div class="party-music-actions">
+        <button type="button" class="party-music-stop" id="partyMusicStop">Stop</button>
+        <button type="button" class="party-music-close" id="partyMusicClose">Close</button>
+      </div>
+    </div>
+  </div>
+
   <script src="/socket.io/socket.io.js"></script>
   <script src="ap-config.js"></script>
   <script src="app.js"></script>
@@ -247,7 +264,7 @@
   <script src="live-emoji-data.js"></script>
   <script src="social-shell.js?v=20260624-chat-avatars"></script>
   <script src="live-session-provider.js?v=20260624-android-back"></script>
-  <script src="social-live.js?v=20260624-chat-avatars"></script>
+  <script src="social-live.js?v=20260624-party-admin-music"></script>
   <script src="social-live-interactions.js"></script>
   <script src="social-nav.js?v=20260624-android-back"></script>
 </body>

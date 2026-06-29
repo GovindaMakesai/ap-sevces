@@ -203,8 +203,15 @@
 
   function avatarUrl(name, photoUrl) {
     if (photoUrl) {
+      if (window.SocialShell?.getImageUrl) {
+        const built = SocialShell.getImageUrl(photoUrl);
+        if (built) return built;
+      }
       const p = String(photoUrl).trim();
       if (p.startsWith('http') || p.startsWith('data:') || p.startsWith('blob:')) return p;
+      if (p.startsWith('//')) return `https:${p}`;
+      const embedded = p.match(/https?:\/\/[^\s"'<>]+/i);
+      if (embedded) return embedded[0];
       const base = (window.CONFIG?.BACKEND_URL || String(window.CONFIG?.API_URL || '').replace(/\/api\/?$/, '') || '').replace(/\/$/, '');
       const path = p.startsWith('/') ? p : `/${p}`;
       return base ? base + path : path;
