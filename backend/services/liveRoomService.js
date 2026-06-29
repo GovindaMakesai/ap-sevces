@@ -204,6 +204,12 @@ async function leaveRoom({ channel, userId }) {
   return { ...room, viewer_count: viewers };
 }
 
+async function getMemberProfilePic(userId) {
+  if (!userId) return null;
+  const res = await db.query(`SELECT profile_pic FROM users WHERE id = $1 LIMIT 1`, [userId]);
+  return res.rows[0]?.profile_pic || null;
+}
+
 async function getActiveMembers(liveRoomId) {
   const res = await db.query(
     `SELECT m.user_id, m.display_name, m.role, m.is_muted, m.gift_count, m.joined_at, m.seat_index,
@@ -230,6 +236,9 @@ async function buildSnapshot(channel) {
   if (!room) return null;
 
   const members = await getActiveMembers(room.id);
+  const profileByUser = new Map(
+    members.map((m) => [String(m.user_id), m.profile_pic || null])
+  );
   const events = await getRecentEvents(room.id, 30);
 
   const messages = events
@@ -266,6 +275,7 @@ async function buildSnapshot(channel) {
         user: p.user || 'User',
         text: p.text || '',
         lvl: p.lvl || 1,
+        profilePic: e.user_id ? profileByUser.get(String(e.user_id)) || null : null,
         at: e.created_at,
       };
     });
@@ -353,17 +363,24 @@ async function setMemberMuted(liveRoomId, userId, muted) {
   );
 }
 
+function maxSpeakersForRoom(room) {
+  if (!room) return 14;
+  return room.room_type === 'live' ? 4 : 14;
+}
+
 async function promoteToSpeaker({ channel, userId, displayName }) {
   const room = await findByChannel(channel);
   if (!room) throw new Error('Room not found');
 
+  const maxSpeakers = maxSpeakersForRoom(room);
   const countRes = await db.query(
     `SELECT COUNT(*)::int AS n FROM live_room_members
      WHERE live_room_id = $1 AND left_at IS NULL AND role = 'speaker'`,
     [room.id]
   );
-  if ((countRes.rows[0]?.n || 0) >= 14) {
-    throw new Error('Party room is full — maximum 15 people on stage');
+  if ((countRes.rows[0]?.n || 0) >= maxSpeakers) {
+    const label = room.room_type === 'live' ? 'Live stage is full — max 5 on stream' : 'Party room is full — maximum 15 people on stage';
+    throw new Error(label);
   }
 
   const memberRes = await db.query(
@@ -562,7 +579,7 @@ async function canPublishInRoom(channel, userId) {
     [room.id, userId]
   );
   const role = String(member.rows[0]?.role || '');
-  return room.room_type === 'party' && (role === 'speaker' || role === 'admin');
+  return (room.room_type === 'party' || room.room_type === 'live') && (role === 'speaker' || role === 'admin');
 }
 
 async function isRoomOwner(channel, userId) {
@@ -661,6 +678,7 @@ module.exports = {
   joinRoom,
   leaveRoom,
   getActiveMembers,
+  getMemberProfilePic,
   buildSnapshot,
   logChatEvent,
   setMemberMuted,
@@ -675,6 +693,7 @@ module.exports = {
   isUserBanned,
   kickMember,
   canPublishInRoom,
+  maxSpeakersForRoom,
   isRoomOwner,
   isRoomModerator,
   setMemberAdmin,

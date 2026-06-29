@@ -16,6 +16,8 @@
   const PARTY_MAX_SEATS = 15;
   const PARTY_HOST_SLOT = 1;
   const PARTY_MAX_GUESTS = PARTY_MAX_SEATS - 1;
+  const LIVE_MAX_GUESTS = 4;
+  const chatProfileCache = new Map();
 
   function giftSlugFor(item) {
     if (item?.slug) return item.slug;
@@ -458,6 +460,7 @@
     liveSocket.emit('live:join', meta, (res) => {
       if (res?.ok) {
         roomState = res.state || roomState || { channel: meta.channel, viewers: 1 };
+        seedChatProfileCacheFromState(roomState);
         roomJoinCompleted = true;
         persistJoinMeta({ ...meta, isHost: Boolean(res.state?.hostId && String(res.state.hostId) === String(currentUser()?.id)) });
         onSocketRejoinSuccess();
@@ -576,7 +579,7 @@
       syncMicButtonUi();
       return;
     }
-    if (!isPartyRoomPage()) return;
+    if (!isPartyRoomPage() && !isLiveRoomPage()) return;
     if (hasSpeakerSeat) {
       if (!publishSucceeded || !localTracks.length) {
         guestPublishAttempted = false;
@@ -768,6 +771,7 @@
     liveSocket.emit('live:request_state', { channel: channelId() }, (res) => {
       if (res?.ok && res.state) {
         roomState = res.state;
+        seedChatProfileCacheFromState(roomState);
         renderRoomState();
       }
     });
@@ -927,11 +931,6 @@
     } else {
       document.body.classList.remove('ap-is-host');
       followed = true;
-      const joinBtn = document.getElementById('partyBtnJoinSeat');
-      if (joinBtn) {
-        joinBtn.textContent = 'Request mic';
-        joinBtn.style.display = 'none';
-      }
     }
     syncBottomBarForRole();
     renderRoomState();
@@ -1778,6 +1777,7 @@
     liveSocket.on('live:state', (state) => {
       const prevViewers = roomState?.viewers || lastViewerCount;
       roomState = mergeRoomState(state);
+      seedChatProfileCacheFromState(roomState);
       if (state?.viewers != null && state.viewers !== prevViewers) {
         window.SocialFX?.onViewerCountChange?.(state.viewers, prevViewers);
       }
@@ -1808,8 +1808,10 @@
 
     liveSocket.on('live:chat', (msg) => {
       rememberChatMessage(msg);
+      const em = extractEmojiReaction(msg?.text);
+      if (em && msg?.userId) spawnSeatEmojiReaction(msg.userId, em);
       if (msg && /joined/i.test(msg.text || '') && msg.user) {
-        window.SocialFX?.showJoinBanner?.({ name: msg.user, avatar: avatarUrl(msg.user) });
+        window.SocialFX?.showJoinBanner?.({ name: msg.user, avatar: avatarUrl(msg.user, getChatProfilePic(msg)) });
       }
       renderChatFeed();
     });
@@ -1866,7 +1868,6 @@
     });
 
     liveSocket.on('live:seat_request', (req) => {
-      if (isLiveRoomPage()) return;
       if (!canModerateRoom() || !req) return;
       const id = String(req.userId || req.id || '');
       if (!id || joinRequests.some((r) => String(r.id) === id)) return;
@@ -1876,23 +1877,23 @@
         userId: id,
       });
       renderJoinRequests();
-      toast(`${req.name || 'Someone'} wants a seat`);
+      toast(`${req.name || 'Someone'} wants to join${isLiveRoomPage() ? ' the stream' : ' a seat'}`);
     });
 
     liveSocket.on('live:seat_response', async (res) => {
-      if (isLiveRoomPage()) return;
       if (!res || isHost()) return;
       const me = currentUser();
       if (String(res.userId) !== String(me?.id)) return;
       if (res.accepted) {
         hasSpeakerSeat = true;
         hideMicLinkModal();
-        toast('You got a seat — mic is on', 'success');
+        toast(isLiveRoomPage() ? 'You joined the live — mic is on' : 'You got a seat — mic is on', 'success');
         await publishGuestAudio();
-        renderPartySeats(roomState?.hostName);
+        if (isPartyRoomPage()) renderPartySeats(roomState?.hostName);
+        else renderGuestRail();
       } else {
         showMicLinkModal('rejected');
-        toast('Seat request declined');
+        toast(isLiveRoomPage() ? 'Join request declined' : 'Seat request declined');
       }
     });
 
@@ -2005,6 +2006,7 @@
             }
             if (res?.ok) {
               roomState = res.state || { channel: ch, viewers: 1, hostName: displayName(user) };
+              seedChatProfileCacheFromState(roomState);
               roomJoinCompleted = true;
               const me = currentUser();
               const serverIsHost =
@@ -3480,12 +3482,16 @@
       document.body.appendChild(pop);
       pop.querySelectorAll('[data-emo]').forEach((b) => {
         b.addEventListener('click', () => {
+          const emo = b.dataset.emo;
           const input = document.getElementById('liveChatInput');
+          const me = currentUser();
+          if (me?.id && emo) spawnSeatEmojiReaction(me.id, emo);
           if (input) {
-            input.value += b.dataset.emo;
+            input.value += emo;
             input.focus();
           }
           pop.classList.remove('is-open');
+          if (emo && liveSocket?.connected) sendChat(emo);
         });
       });
     }
@@ -3517,8 +3523,16 @@
   }
 
   function handleMicButton() {
-    if (isLiveRoomPage() && !isHost()) return;
-    if (isHost()) {
+    if (isLiveRoomPage() && !isHost() && !hasSpeakerSeat) {
+      closeLiveOverlays('mic');
+      requestSeatJoin();
+      return;
+    }
+    if (isLiveRoomPage() && !isHost() && hasSpeakerSeat) {
+      toggleMic();
+      return;
+    }
+    if (isLiveRoomPage() && isHost()) {
       if (!publishSucceeded) {
         if (isLanHttpInNativeWebView()) {
           toast('Voice/video needs HTTPS — run npm start in ap-services-app', 'warning');
@@ -3537,6 +3551,96 @@
     }
     closeLiveOverlays('mic');
     requestSeatJoin();
+  }
+
+  function cacheChatProfile(userId, pic) {
+    const uid = String(userId || '').trim();
+    if (!uid || !pic) return;
+    chatProfileCache.set(uid, pic);
+  }
+
+  function seedChatProfileCacheFromState(state) {
+    if (!state) return;
+    (state.seats || []).forEach((s) => {
+      const pic = s?.profilePic || s?.profile_pic;
+      if (s?.userId && pic) cacheChatProfile(s.userId, pic);
+    });
+    (state.onlineMembers || []).forEach((m) => {
+      const pic = m?.profilePic || m?.profile_pic;
+      if (m?.userId && pic) cacheChatProfile(m.userId, pic);
+    });
+    if (state.hostId && state.hostProfilePic) cacheChatProfile(state.hostId, state.hostProfilePic);
+    (state.messages || []).forEach((m) => {
+      if (m?.userId && m.profilePic) cacheChatProfile(m.userId, m.profilePic);
+    });
+  }
+
+  function getChatProfilePic(msg) {
+    if (!msg) return null;
+    if (msg.profilePic) {
+      if (msg.userId) cacheChatProfile(msg.userId, msg.profilePic);
+      return msg.profilePic;
+    }
+    const uid = String(msg.userId || '').trim();
+    if (uid && chatProfileCache.has(uid)) return chatProfileCache.get(uid);
+    const resolved = resolveLiveProfilePic(msg.user, uid);
+    if (resolved && uid) cacheChatProfile(uid, resolved);
+    return resolved || null;
+  }
+
+  function extractEmojiReaction(text) {
+    const t = String(text || '').trim();
+    if (!t || t.length > 16) return null;
+    if (EMOJI_PICKS.includes(t)) return t;
+    const stripped = t.replace(/[\s\u200d\ufe0f]/g, '');
+    if (!stripped) return null;
+    try {
+      if (/^[\p{Extended_Pictographic}\u{1F3FB}-\u{1F3FF}\u{1F9B0}-\u{1F9B3}]+$/u.test(stripped)) return t;
+    } catch (_e) {
+      if (/^[\u{1F300}-\u{1FAFF}]+$/u.test(stripped)) return t;
+    }
+    return null;
+  }
+
+  function spawnSeatEmojiReaction(userId, emoji) {
+    const uid = String(userId || '');
+    if (!uid || !emoji) return;
+    const targets = [];
+    if (isPartyRoomPage()) {
+      const seat = document.querySelector(`.party-seat[data-user-id="${uid}"] .seat-avatar`);
+      if (seat) targets.push(seat);
+    }
+    if (isLiveRoomPage()) {
+      const guest = document.querySelector(`.ap-guest-seat[data-guest-id="${uid}"]`);
+      if (guest) targets.push(guest);
+      if (uid === String(roomState?.hostId || '')) {
+        const hostImg = document.getElementById('liveHostAvatar');
+        if (hostImg?.parentElement) targets.push(hostImg.parentElement);
+      }
+    }
+    if (!targets.length && uid === String(currentUser()?.id || '')) {
+      const mine = document.querySelector(`.party-seat[data-user-id="${uid}"] .seat-avatar`);
+      if (mine) targets.push(mine);
+    }
+    targets.forEach((el) => spawnFloatingEmojisOnEl(el, emoji, 4));
+  }
+
+  function spawnFloatingEmojisOnEl(container, emoji, count) {
+    if (!container) return;
+    const host = container.classList?.contains('seat-avatar') || container.classList?.contains('ap-guest-seat')
+      ? container
+      : container;
+    if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+    for (let i = 0; i < (count || 3); i += 1) {
+      const el = document.createElement('span');
+      el.className = 'ap-seat-emoji-float';
+      el.textContent = emoji;
+      el.style.setProperty('--drift-x', `${Math.round((Math.random() - 0.5) * 36)}px`);
+      el.style.setProperty('--rise', `${Math.round(28 + Math.random() * 24)}px`);
+      el.style.animationDelay = `${i * 0.12}s`;
+      host.appendChild(el);
+      setTimeout(() => el.remove(), 2400);
+    }
   }
 
   function chatMsgKey(msg) {
@@ -3564,8 +3668,21 @@
       if (pendingIdx >= 0) chatMessages.splice(pendingIdx, 1);
     }
     const key = chatMsgKey(msg);
+    const pic = getChatProfilePic(msg);
+    const enriched = { ...msg, profilePic: pic || msg.profilePic || null };
+    if (enriched.userId && enriched.profilePic) cacheChatProfile(enriched.userId, enriched.profilePic);
+    const existingIdx = chatMessages.findIndex((m) => chatMsgKey(m) === key);
+    if (existingIdx >= 0) {
+      const prev = chatMessages[existingIdx];
+      chatMessages[existingIdx] = {
+        ...prev,
+        ...enriched,
+        profilePic: enriched.profilePic || prev.profilePic || null,
+      };
+      return;
+    }
     if (chatMessages.some((m) => chatMsgKey(m) === key)) return;
-    chatMessages.push({ ...msg });
+    chatMessages.push(enriched);
     if (chatMessages.length > 80) chatMessages = chatMessages.slice(-80);
   }
 
@@ -3586,14 +3703,22 @@
         } else {
           div.className = 'party-chat-msg';
           const uid = msg.userId || '';
-          const pic = resolveLiveProfilePic(msg.user, uid);
+          const pic = msg.profilePic || getChatProfilePic(msg);
+          const avatarSrc = avatarUrl(msg.user, pic);
           const lvlInfo = window.SocialFX
             ? SocialFX.getUserLevel(msg.userId || msg.user, msg.giftSpend)
             : { level: msg.lvl || 2, isVip: false, isFan: false };
           const badge = window.SocialFX
             ? SocialFX.levelBadgeHtml(lvlInfo.level, { isVip: lvlInfo.isVip, isFan: lvlInfo.isFan })
             : `<span class="lvl">${msg.lvl || 1}</span>`;
-          div.innerHTML = `<button type="button" class="party-chat-avatar-btn" data-chat-user="${escapeAttr(msg.user || 'User')}" data-chat-uid="${escapeHtml(String(uid))}"><img src="${avatarUrl(msg.user, pic)}" alt=""></button>${badge}<button type="button" class="party-chat-user-btn" data-chat-user="${escapeAttr(msg.user || 'User')}" data-chat-uid="${escapeHtml(String(uid))}"><span class="user">${escapeHtml(msg.user)}</span></button> ${escapeHtml(msg.text)}`;
+          div.innerHTML = `<button type="button" class="party-chat-avatar-btn" data-chat-user="${escapeAttr(msg.user || 'User')}" data-chat-uid="${escapeHtml(String(uid))}"><img src="${avatarSrc}" alt="" data-name="${escapeAttr(msg.user || 'User')}" loading="lazy"></button>${badge}<button type="button" class="party-chat-user-btn" data-chat-user="${escapeAttr(msg.user || 'User')}" data-chat-uid="${escapeHtml(String(uid))}"><span class="user">${escapeHtml(msg.user)}</span></button> ${escapeHtml(msg.text)}`;
+          const img = div.querySelector('.party-chat-avatar-btn img');
+          if (img) {
+            img.onerror = () => {
+              img.onerror = null;
+              img.src = avatarUrl(msg.user, null);
+            };
+          }
           div.querySelectorAll('.party-chat-avatar-btn, .party-chat-user-btn').forEach((btn) => {
             btn.addEventListener('click', (e) => {
               e.stopPropagation();
@@ -3618,7 +3743,10 @@
   }
 
   function renderChatFromState() {
-    (roomState?.messages || []).forEach((m) => rememberChatMessage(m));
+    (roomState?.messages || []).forEach((m) => {
+      const enriched = { ...m, profilePic: m.profilePic || getChatProfilePic(m) };
+      rememberChatMessage(enriched);
+    });
     renderChatFeed();
   }
 
@@ -3671,7 +3799,7 @@
     });
   }
 
-  function countPartyGuests() {
+  function countStageGuests() {
     const seen = new Set();
     return (roomState?.seats || []).filter((s) => {
       if (!s || s.isHost) return false;
@@ -3682,8 +3810,17 @@
     }).length;
   }
 
+  function isStageFull() {
+    if (isLiveRoomPage()) return countStageGuests() >= LIVE_MAX_GUESTS;
+    return countStageGuests() >= PARTY_MAX_GUESTS;
+  }
+
   function isPartySeatsFull() {
-    return countPartyGuests() >= PARTY_MAX_GUESTS;
+    return isStageFull();
+  }
+
+  function countPartyGuests() {
+    return countStageGuests();
   }
 
   function renderPartySeats(hostName) {
@@ -3844,8 +3981,8 @@
     }
     const joinBtn = document.getElementById('partyBtnJoinSeat');
     if (joinBtn) {
-      joinBtn.textContent = 'Request mic';
-      const showRequest = isPartyRoomPage() && !isHost() && !hasSpeakerSeat;
+      joinBtn.textContent = isLiveRoomPage() ? 'Join live' : 'Request mic';
+      const showRequest = !isHost() && !hasSpeakerSeat && (isPartyRoomPage() || isLiveRoomPage());
       joinBtn.style.display = showRequest ? '' : 'none';
     }
     const hostName = roomState?.hostName || displayName(user);
@@ -4008,13 +4145,13 @@
         )
         .join('');
     }
-    html += `<span class="party-viewer-count" id="liveViewerCount" title="Tap to view everyone in room">${viewers}</span>`;
+    html += `<span class="party-viewer-count${isLiveRoomPage() ? ' live-joined-count' : ''}" id="liveViewerCount" title="Tap to view everyone in room">${viewers}${isLiveRoomPage() ? ' joined' : ''}</span>`;
     row.innerHTML = html;
-    row.classList.toggle('is-clickable', isPartyRoomPage());
+    row.classList.toggle('is-clickable', isPartyRoomPage() || isLiveRoomPage());
     if (!row.dataset.audienceBound) {
       row.dataset.audienceBound = '1';
       row.addEventListener('click', (e) => {
-        if (!isPartyRoomPage()) return;
+        if (!isPartyRoomPage() && !isLiveRoomPage()) return;
         if (e.target.closest('.ap-top-gifter[data-audience-id]')) {
           const chip = e.target.closest('[data-audience-id]');
           openProfileSheet(chip.dataset.audienceName || 'Guest', chip.dataset.audienceId || '');
@@ -4027,23 +4164,23 @@
   }
 
   function renderGuestRail() {
-    if (isPartyRoomPage()) return;
     const rail = document.getElementById('apGuestRail');
     if (!rail) return;
-    const seats = (roomState?.seats || []).filter((s) => s && !s.isHost);
-    if (!seats.length) {
+    const guests = collectPartySeatGuests().slice(0, LIVE_MAX_GUESTS);
+    if (!guests.length) {
       rail.innerHTML = '';
       rail.style.display = 'none';
+      document.body.classList.remove('ap-has-live-guests');
       return;
     }
+    document.body.classList.add('ap-has-live-guests');
     rail.style.display = 'flex';
-    rail.innerHTML = seats
-      .slice(0, 5)
+    rail.innerHTML = guests
       .map(
         (s) => `
       <button type="button" class="ap-guest-seat" data-guest="${escapeHtml(s.name)}" data-guest-id="${escapeHtml(String(s.userId || ''))}">
         <span class="ap-guest-gift">${formatGiftCount(s.gifts || 0)}</span>
-        <img src="${avatarUrl(s.name)}" alt="">
+        <img src="${avatarUrl(s.name, s.profilePic || liveProfilePic(s.userId, null))}" alt="" data-name="${escapeAttr(s.name || 'Guest')}" loading="lazy">
         <span class="ap-guest-name">${escapeHtml(String(s.name).slice(0, 8))}</span>
       </button>`
       )
@@ -4051,6 +4188,7 @@
     rail.querySelectorAll('.ap-guest-seat').forEach((btn) => {
       btn.addEventListener('click', () => openProfileSheet(btn.dataset.guest, btn.dataset.guestId || ''));
     });
+    window.SocialUI?.bindAvatarFallbacks?.(rail);
   }
 
   function showMicLinkModal(mode) {
@@ -4178,8 +4316,9 @@
     const joinBtn = document.getElementById('partyBtnJoinSeat');
     const hosting = isHost();
     if (joinBtn) {
-      joinBtn.textContent = 'Request mic';
-      joinBtn.style.display = isPartyRoomPage() && !hosting && !hasSpeakerSeat ? '' : 'none';
+      joinBtn.textContent = isLiveRoomPage() ? 'Join live' : 'Request mic';
+      const showRequest = !hosting && !hasSpeakerSeat && (isPartyRoomPage() || isLiveRoomPage());
+      joinBtn.style.display = showRequest ? '' : 'none';
     }
     if (followBtn) {
       const hideFollow = hosting || followed;
@@ -4564,7 +4703,28 @@
         `<aside class="ap-guest-rail" id="apGuestRail" aria-label="Guests"></aside>`
       );
     }
-    if (!document.getElementById('apMicLinkModal') && isPartyRoomPage()) {
+    if (!document.getElementById('partyRequestsSheet') && isLiveRoomPage()) {
+      document.body.insertAdjacentHTML(
+        'beforeend',
+        `<div class="party-requests-sheet" id="partyRequestsSheet">
+          <div class="party-requests-panel">
+            <div class="party-requests-head">
+              <h3>People in live</h3>
+              <button type="button" id="partyRequestsClose"><i class="fas fa-times"></i></button>
+            </div>
+            <p class="party-requests-hint">Viewers watching the stream. Accept mic requests to let guests join on camera (up to 4 guests).</p>
+            <div id="partyRequestsList" class="party-requests-list"></div>
+            <h4 class="party-requests-subtitle">In room (online)</h4>
+            <div id="partyAvailableList" class="party-requests-list"></div>
+            <h4 class="party-requests-subtitle">Room gift totals</h4>
+            <div id="partyRoomGiftAnalytics" class="party-gift-analytics"></div>
+            <h4 class="party-requests-subtitle">Gift history</h4>
+            <div id="partyGiftHistoryList" class="party-gift-history"></div>
+          </div>
+        </div>`
+      );
+    }
+    if (!document.getElementById('apMicLinkModal') && (isPartyRoomPage() || isLiveRoomPage())) {
       document.body.insertAdjacentHTML(
         'beforeend',
         `<div class="ap-modal-overlay" id="apMicLinkModal">
@@ -5034,11 +5194,10 @@
   }
 
   function requestSeatJoin() {
-    if (isLiveRoomPage()) return;
     if (isHost()) return;
     const user = currentUser();
     if (!user?.id) {
-      toast('Please log in to request a seat', 'error');
+      toast('Please log in to join', 'error');
       return;
     }
     const name = displayName(user);
@@ -5048,11 +5207,16 @@
       return;
     }
     if (hasSpeakerSeat) {
-      toast('You already have a seat', 'info');
+      toast(isLiveRoomPage() ? 'You are already on the stream' : 'You already have a seat', 'info');
       return;
     }
-    if (isPartySeatsFull()) {
-      toast('Party is full — all 15 seats taken', 'warning');
+    if (isStageFull()) {
+      toast(
+        isLiveRoomPage()
+          ? 'Live stage is full — max 5 people (host + 4 guests)'
+          : 'Party is full — all 15 seats taken',
+        'warning'
+      );
       return;
     }
     if (!liveSocket?.connected) {
@@ -5067,11 +5231,11 @@
       liveSocket.emit('live:chat', {
         channel: channelId(),
         type: 'system',
-        text: `${name} requested to join a seat`,
+        text: `${name} requested to join${isLiveRoomPage() ? ' the live' : ' a seat'}`,
       });
     micLinkPending = true;
     showMicLinkModal('waiting');
-    toast('Request sent to host');
+    toast(isLiveRoomPage() ? 'Request sent to host' : 'Request sent to host');
   }
 
   function bindHostControls(pageType) {
@@ -5536,6 +5700,7 @@
       type: 'chat',
       user: displayName(me),
       userId: me?.id,
+      profilePic: me?.profile_pic || null,
       lvl: lvlInfo.level,
       text: t,
       at: Date.now(),
@@ -5543,6 +5708,9 @@
       broadcast: chatRegionFilter === 'broadcast',
       pending: !liveSocket?.connected,
     };
+    if (optimistic.userId && optimistic.profilePic) cacheChatProfile(optimistic.userId, optimistic.profilePic);
+    const em = extractEmojiReaction(t);
+    if (em && optimistic.userId) spawnSeatEmojiReaction(optimistic.userId, em);
     rememberChatMessage(optimistic);
     ensureChatTabShowsMessages();
     renderChatFeed();
@@ -6527,6 +6695,7 @@
           clearTimeout(timer);
           if (res?.ok) {
             roomState = res.state || { channel: ch, viewers: 1 };
+            seedChatProfileCacheFromState(roomState);
             roomJoinCompleted = true;
             const me = currentUser();
             const serverIsHost =

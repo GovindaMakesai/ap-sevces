@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-live.css?v=20260705-loader-fix">
+  <link rel="stylesheet" href="social-live.css?v=20260624-chat-live-guests">
   <link rel="stylesheet" href="social-live-session.css?v=20260703-minimize-fix">
   <link rel="stylesheet" href="social-live-ref-ui.css?v=20260628-hotfix">
   <link rel="stylesheet" href="social-fx.css">
@@ -120,6 +120,7 @@
           <button type="button" class="party-follow-btn" id="partyHostFollow" aria-label="Follow host">+</button>
         </div>
         <div class="party-header-right">
+          <button type="button" class="party-users-btn" id="partyBtnUsersAll" aria-label="People in room"><i class="fas fa-users"></i></button>
           <div class="party-viewers" id="partyViewerAvatars">
             <span class="party-viewer-count" id="liveViewerCount">0</span>
           </div>
@@ -139,6 +140,7 @@
           <i class="fas fa-sliders-h"></i> Host controls
         </button>
         <div class="live-host-bar-actions" id="liveHostBarActions">
+        <button type="button" class="party-host-action host-only-tool" id="partyBtnRequests"><i class="fas fa-users"></i> Guests <span id="partyReqCount" class="party-req-badge" hidden>0</span></button>
         <button type="button" class="party-host-action" id="liveBtnModeVideo" data-mode="video"><i class="fas fa-video"></i> Video</button>
         <button type="button" class="party-host-action" id="liveBtnModeAudio" data-mode="audio"><i class="fas fa-microphone"></i> Audio only</button>
         <button type="button" class="party-host-action" id="liveBtnHostMute"><i class="fas fa-microphone"></i> Mic</button>
@@ -176,11 +178,30 @@
       <button type="button" id="liveChatSend" class="ap-chat-send-btn" aria-label="Send"><i class="fas fa-paper-plane"></i></button>
     </div>
     <button type="button" class="party-btn-follow ap-btn-follow-hidden" id="liveBtnFollow" aria-hidden="true">Follow +</button>
+    <button type="button" class="party-btn-join-seat ap-btn-follow-hidden" id="partyBtnJoinSeat" style="display:none">Join live</button>
     <div class="party-bottom-actions">
       <button type="button" id="partyBtnTools" class="ap-btn-grid" aria-label="Tools"><i class="fas fa-th"></i><span class="ap-notify-dot" id="apToolsNotifyDot" hidden></span></button>
+      <button type="button" id="liveBtnMic" class="ap-btn-mic-ring" aria-label="Request mic"><i class="fas fa-microphone"></i></button>
       <button type="button" id="liveBtnGift" class="party-btn-gift ap-btn-gift-hero" aria-label="Gifts"><span class="ap-gift-glow"></span><i class="fas fa-gift"></i></button>
     </div>
   </footer>
+
+  <div class="party-requests-sheet" id="partyRequestsSheet">
+    <div class="party-requests-panel">
+      <div class="party-requests-head">
+        <h3>People in live</h3>
+        <button type="button" id="partyRequestsClose"><i class="fas fa-times"></i></button>
+      </div>
+      <p class="party-requests-hint">Viewers watching the stream. Accept mic requests to let guests join on camera (up to 4 guests).</p>
+      <div id="partyRequestsList" class="party-requests-list"></div>
+      <h4 class="party-requests-subtitle">In room (online)</h4>
+      <div id="partyAvailableList" class="party-requests-list"></div>
+      <h4 class="party-requests-subtitle">Room gift totals</h4>
+      <div id="partyRoomGiftAnalytics" class="party-gift-analytics"></div>
+      <h4 class="party-requests-subtitle">Gift history</h4>
+      <div id="partyGiftHistoryList" class="party-gift-history"></div>
+    </div>
+  </div>
 
   <div class="party-tools-sheet" id="partyToolsSheet">
     <div class="party-tools-panel party-tools-panel-ref">
@@ -221,7 +242,7 @@
   <script src="social-fx.js"></script>
   <script src="live-emoji-data.js"></script>
   <script src="live-session-provider.js?v=20260703-minimize-fix"></script>
-  <script src="social-live.js?v=20260624-party-fix"></script>
+  <script src="social-live.js?v=20260624-chat-live-guests"></script>
   <script src="social-live-interactions.js"></script>
   <script src="social-nav.js"></script>
 </body>

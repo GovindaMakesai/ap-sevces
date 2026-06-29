@@ -2754,6 +2754,35 @@ body[data-live-page="party-room"] .ap-guest-rail:not(:empty) {
   text-overflow: ellipsis;
 }
 
+@keyframes ap-emoji-float-up {
+  0% { opacity: 0; transform: translate(-50%, 50%) scale(0.5); }
+  12% { opacity: 1; transform: translate(calc(-50% + var(--drift-x, 0px) * 0.15), calc(50% - var(--rise, 24px) * 0.15)) scale(1.15); }
+  100% { opacity: 0; transform: translate(calc(-50% + var(--drift-x, 0px)), calc(50% - var(--rise, 32px))) scale(1.25); }
+}
+.ap-seat-emoji-float {
+  position: absolute;
+  left: 50%;
+  bottom: 50%;
+  font-size: 22px;
+  line-height: 1;
+  pointer-events: none;
+  z-index: 40;
+  animation: ap-emoji-float-up 2.2s ease-out forwards;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.45));
+}
+.seat-avatar,
+.ap-guest-seat,
+.party-host {
+  overflow: visible;
+}
+.party-viewer-count.live-joined-count {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(0,0,0,0.45);
+  white-space: nowrap;
+}
+
 .ap-bottom-ref {
   justify-content: space-between;
   gap: 8px;
@@ -3255,8 +3284,16 @@ body.ap-keyboard-open .ap-topup-panel {
 body.ap-ref-ui .party-viewers { align-items: center; }
 body.ap-ref-ui .live-room .party-viewers span:not(.party-viewer-count):not(.ap-top-gifter):not(em) { display: none; }
 
-/* Solo video live: full-screen host camera, no right-side rails */
-body[data-live-page="live-room"] .ap-guest-rail { display: none !important; }
+/* Solo video live: guest rail on right when guests are on stage */
+body[data-live-page="live-room"] .ap-guest-rail {
+  display: none;
+}
+body[data-live-page="live-room"].ap-has-live-guests .ap-guest-rail {
+  display: flex !important;
+  right: 10px;
+  bottom: 38%;
+  z-index: 25;
+}
 body[data-live-page="live-room"]:not(.is-pk-mode) .live-room .live-local-video,
 body[data-live-page="live-room"]:not(.is-pk-mode) .live-room .live-fallback-video {
   left: 0 !important;

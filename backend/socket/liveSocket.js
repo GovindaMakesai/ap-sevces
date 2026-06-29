@@ -282,10 +282,12 @@ function registerLiveSocket(io) {
         if (!text) return;
 
         const displayName = socket.data.liveDisplayName || 'User';
+        const profilePic = await liveRoomService.getMemberProfilePic(socket.userId);
         const eventId = await liveRoomService.logChatEvent(room.id, socket.userId, {
           user: displayName,
           text,
           lvl: payload?.lvl || 1,
+          profilePic,
         });
 
         const msg = {
@@ -293,6 +295,7 @@ function registerLiveSocket(io) {
           type: 'chat',
           userId: socket.userId,
           user: displayName,
+          profilePic,
           lvl: payload?.lvl || 1,
           text,
           at: Date.now(),
