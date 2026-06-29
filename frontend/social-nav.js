@@ -128,6 +128,10 @@
   }
 
   function handleHardwareBack() {
+    try {
+      if (window.parent !== window && window.parent.LiveSession?.handleBack?.()) return true;
+    } catch (_e) {}
+    if (window.LiveSession?.onAndroidBack?.()) return true;
     if (window.LiveSession?.handleBack?.()) return true;
     if (closeLocalUi()) return true;
     if (isImmersiveLive()) {

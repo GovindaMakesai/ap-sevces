@@ -414,19 +414,63 @@
     return true;
   }
 
+  function closeLiveOverlaysForBack() {
+    const openSheet = document.querySelector(
+      '.party-tools-sheet.open, .gift-sheet.open, .party-requests-sheet.open, .social-broadcast-sheet-wrap.is-open, .ap-modal-overlay.open, .ap-modal-overlay.show'
+    );
+    if (openSheet) {
+      openSheet.classList.remove('open', 'is-open', 'is-visible', 'show');
+      document.body.classList.remove('ap-live-overlay-open', 'ap-chat-open', 'party-requests-open');
+      return true;
+    }
+    const emoji = document.getElementById('apEmojiPopover');
+    if (emoji?.classList.contains('is-open')) {
+      emoji.classList.remove('is-open');
+      return true;
+    }
+    return false;
+  }
+
+  function backInsideBrowseFrame() {
+    const frame = document.getElementById('apLiveBrowseFrame');
+    if (!frame?.contentWindow) return false;
+    try {
+      const child = frame.contentWindow;
+      if (child.SocialNav?.handleHardwareBack?.()) return true;
+      if (child.SocialNav?.goBack?.()) return true;
+      if (child.history.length > 1) {
+        child.history.back();
+        return true;
+      }
+    } catch (_e) {}
+    return false;
+  }
+
   function handleBack() {
+    if (closeLiveOverlaysForBack()) return true;
     if (state === STATE.MINIMIZED) {
-      const frame = document.getElementById('apLiveBrowseFrame');
-      try {
-        if (frame?.contentWindow?.history?.length > 1) {
-          frame.contentWindow.history.back();
-          return true;
-        }
-      } catch (_e) {}
+      if (backInsideBrowseFrame()) return true;
+      expand();
       return true;
     }
     if (isRoomPage()) {
-      return minimize();
+      return minimize('/explore.html?app=1&source=expo-app');
+    }
+    return false;
+  }
+
+  function onAndroidBack() {
+    if (window.APLive?.handleBack?.()) {
+      notifyNative('back_handled', { minimized: state === STATE.MINIMIZED });
+      return true;
+    }
+    if (window.SocialLive?.handleBack?.()) {
+      notifyNative('back_handled', { minimized: state === STATE.MINIMIZED });
+      return true;
+    }
+    if (handleBack()) {
+      notifyNative('back_handled', { minimized: state === STATE.MINIMIZED });
+      return true;
     }
     return false;
   }
@@ -520,6 +564,7 @@
     isActive,
     navigateBrowse,
     handleBack,
+    onAndroidBack,
     onAppBackground,
     onAppForeground,
     mountLegacyPipBar,

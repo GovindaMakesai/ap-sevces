@@ -100,28 +100,19 @@ const LIVE_APP_BACKGROUND_INJECT = `(function(){
 
 const LIVE_MINIMIZE_INJECT = `(function(){
   try {
+    function ack(){ try{window.ReactNativeWebView&&window.ReactNativeWebView.postMessage(JSON.stringify({type:'hardware_back_handled'}));}catch(_e){} }
     var p=(location.pathname||'').toLowerCase();
     var isLive=/live-room\\.html|party-room\\.html/i.test(p)||!!(document.body&&document.body.dataset&&document.body.dataset.livePage);
-    if(!isLive) return;
-    var openSheet=document.querySelector('.party-tools-sheet.open,.gift-sheet.open,.party-requests-sheet.open,.social-broadcast-sheet-wrap.is-open,.ap-modal-overlay.open,.ap-modal-overlay.show');
-    if(openSheet){
-      openSheet.classList.remove('open','is-open','is-visible','show');
-      document.body.classList.remove('ap-live-overlay-open','ap-chat-open');
-      return;
-    }
-    var emoji=document.getElementById('apEmojiPopover');
-    if(emoji&&emoji.classList.contains('is-open')){emoji.classList.remove('is-open');return;}
-    if(window.LiveSession&&window.LiveSession.isMinimized&&window.LiveSession.isMinimized()) return;
-    if(window.APLive&&window.APLive.handleBack){window.APLive.handleBack();return;}
-    if(window.SocialLive&&window.SocialLive.handleBack){window.SocialLive.handleBack();return;}
-    if(window.LiveSession&&window.LiveSession.handleBack&&window.LiveSession.handleBack()) return;
-    if(window.LiveSession&&window.LiveSession.minimize&&window.LiveSession.minimize('/explore.html?app=1')) return;
-    var live=window.APLive||window.SocialLive;
-    if(live&&typeof live.leaveToExplore==='function'){live.leaveToExplore({minimize:true});return;}
-    if(live&&typeof live.minimizeRoom==='function'){live.minimizeRoom();return;}
-    window.location.href='/explore.html?app=1';
+    var hasMin=window.LiveSession&&window.LiveSession.isMinimized&&window.LiveSession.isMinimized();
+    if(!isLive&&!hasMin) return;
+    if(window.LiveSession&&window.LiveSession.onAndroidBack&&window.LiveSession.onAndroidBack()){ack();return;}
+    if(window.APLive&&window.APLive.handleBack){window.APLive.handleBack();ack();return;}
+    if(window.SocialLive&&window.SocialLive.handleBack){window.SocialLive.handleBack();ack();return;}
+    if(window.LiveSession&&window.LiveSession.handleBack&&window.LiveSession.handleBack()){ack();return;}
+    if(window.LiveSession&&window.LiveSession.minimize&&window.LiveSession.minimize('/explore.html?app=1&source=expo-app')){ack();return;}
+    ack();
   } catch(e) {
-    try{window.location.href='/explore.html?app=1';}catch(_e){}
+    try{window.ReactNativeWebView&&window.ReactNativeWebView.postMessage(JSON.stringify({type:'hardware_back_handled'}));}catch(_e){}
   }
 })();true;`;
 
@@ -145,9 +136,13 @@ const HARDWARE_BACK_INJECT = `(function(){
       return false;
     }
     function minimizeLive() {
+      if (window.LiveSession && window.LiveSession.onAndroidBack) {
+        window.LiveSession.onAndroidBack();
+        return true;
+      }
       if (window.LiveSession && window.LiveSession.isMinimized && window.LiveSession.isMinimized()) return true;
       if (window.LiveSession && window.LiveSession.minimize) {
-        window.LiveSession.minimize('/explore.html?app=1');
+        window.LiveSession.minimize('/explore.html?app=1&source=expo-app');
         return true;
       }
       var live = window.APLive || window.SocialLive;
@@ -159,10 +154,11 @@ const HARDWARE_BACK_INJECT = `(function(){
         live.leaveToExplore({ minimize: true });
         return true;
       }
-      window.location.href = '/explore.html?app=1';
       return true;
     }
-    if (window.LiveSession && window.LiveSession.handleBack && window.LiveSession.handleBack()) {
+    if (window.LiveSession && window.LiveSession.onAndroidBack && window.LiveSession.onAndroidBack()) {
+      handled = true;
+    } else if (window.LiveSession && window.LiveSession.handleBack && window.LiveSession.handleBack()) {
       handled = true;
     } else if (window.APLive && window.APLive.handleBack) {
       window.APLive.handleBack();
@@ -784,11 +780,27 @@ export default function App() {
     if (Platform.OS !== 'android') return undefined;
     const onHardwareBack = () => {
       const url = webViewCurrentUrlRef.current || '';
-      if (/live-room\.html|party-room\.html/i.test(url)) {
+      const onLiveUrl = /live-room\.html|party-room\.html/i.test(url);
+      if (onLiveUrl) {
         webViewRef.current?.injectJavaScript(LIVE_MINIMIZE_INJECT);
         return true;
       }
-      webViewRef.current?.injectJavaScript(HARDWARE_BACK_INJECT);
+      webViewRef.current?.injectJavaScript(
+        `(function(){
+          try {
+            var raw = localStorage.getItem('ap_live_active_session') || sessionStorage.getItem('ap_live_pip_session');
+            if (raw) {
+              var d = JSON.parse(raw);
+              if (d && d.url && /live-room\\.html|party-room\\.html/i.test(d.url) && (!d.expiresAt || Date.now() < d.expiresAt)) {
+                if (window.LiveSession && window.LiveSession.onAndroidBack && window.LiveSession.onAndroidBack()) return;
+                if (window.LiveSession && window.LiveSession.isMinimized && window.LiveSession.isMinimized()) return;
+                location.href = d.url;
+                return;
+              }
+            }
+          } catch(e) {}
+        })();` + HARDWARE_BACK_INJECT
+      );
       return true;
     };
     const sub = BackHandler.addEventListener('hardwareBackPress', onHardwareBack);
@@ -898,6 +910,9 @@ export default function App() {
               console.warn('[screen-capture]', err?.message || err);
             }
           })();
+          return;
+        }
+        if (data.type === 'hardware_back_handled' || data.type === 'back_handled') {
           return;
         }
         if (data.type === 'back_result' && !data.handled) {

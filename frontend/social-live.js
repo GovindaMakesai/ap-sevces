@@ -4421,12 +4421,23 @@
     setLiveStatus('', null);
     closeLiveOverlays();
 
-    if (opts.minimize !== false && window.LiveSession?.minimize?.(opts.browseUrl || '/explore.html?app=1')) {
-      minimizingRoom = true;
-      try {
-        history.pushState({ apLiveRoom: 1 }, '');
-      } catch (_e) {}
-      return;
+    const browseUrl = opts.browseUrl || '/explore.html?app=1&source=expo-app';
+    if (opts.minimize !== false) {
+      if (window.LiveSession?.minimize?.(browseUrl)) {
+        minimizingRoom = true;
+        try {
+          history.pushState({ apLiveRoom: 1 }, '');
+          history.pushState({ apLiveRoom: 2 }, '');
+        } catch (_e) {}
+        return;
+      }
+      if ((isPartyRoomPage() || isLiveRoomPage()) && window.LiveSession?.openBrowsePage?.(browseUrl)) {
+        minimizingRoom = true;
+        return;
+      }
+      if ((isPartyRoomPage() || isLiveRoomPage()) && opts.minimize !== false) {
+        return;
+      }
     }
 
     window.__apLeavingRoom = true;
@@ -4439,7 +4450,7 @@
       sessionStorage.removeItem('ap_live_pip_session');
       if (!window.__apLiveSessionExitInProgress) window.LiveSession?.forceCleanup?.();
     } catch (_e) {}
-    location.href = '/explore.html?app=1';
+    location.href = browseUrl;
   }
 
   function handleLiveRoomBack() {
@@ -4449,7 +4460,8 @@
     }
     if (closeLiveUiForBack()) return true;
     if (window.LiveSession?.handleBack?.()) return true;
-    if (window.LiveSession?.minimize?.('/explore.html?app=1')) return true;
+    if (window.LiveSession?.minimize?.('/explore.html?app=1&source=expo-app')) return true;
+    leaveToExplore({ minimize: true });
     return true;
   }
 
@@ -4459,6 +4471,7 @@
     if (!isLiveRoomPage() && !isPartyRoomPage()) return;
     try {
       history.pushState({ apLiveRoom: 1 }, '');
+      history.pushState({ apLiveRoom: 2 }, '');
     } catch (_e) {}
     window.addEventListener('popstate', () => {
       if (window.__apLeavingRoom) return;
