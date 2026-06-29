@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#1a0f3a">
   <title>Party Room - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-live.css?v=20260624-join-fix2">
+  <link rel="stylesheet" href="social-live.css?v=20260624-party-fix">
   <link rel="stylesheet" href="social-live-session.css?v=20260703-minimize-fix">
   <link rel="stylesheet" href="social-live-ref-ui.css?v=20260628-hotfix">
   <link rel="stylesheet" href="social-fx.css">
@@ -59,7 +59,7 @@
     <div class="ap-live-loader-scrim" aria-hidden="true"></div>
     <div class="ap-live-loader-inner">
       <img id="apLiveLoaderAvatar" class="ap-live-loader-avatar" alt="" hidden>
-      <p id="apLiveLoaderText" class="ap-live-loader-label">Connectingù</p>
+      <p id="apLiveLoaderText" class="ap-live-loader-label">Connecting?</p>
       <span class="ap-live-loader-pulse" aria-hidden="true">Party</span>
       <button type="button" class="ap-live-loader-skip" id="apLiveLoaderSkip">Enter room now</button>
     </div>
@@ -101,6 +101,7 @@
         <span class="party-rank-badge party-rank-crown" aria-hidden="true"><i class="fas fa-crown"></i></span>
       </div>
       <div class="party-header-right">
+        <button type="button" class="party-users-btn" id="partyBtnUsersAll" aria-label="People in room"><i class="fas fa-users"></i></button>
         <div class="party-viewers" id="partyViewerAvatars">
           <span class="party-viewer-count" id="liveViewerCount">1</span>
         </div>
@@ -114,7 +115,7 @@
       <span class="party-stat"><i class="fas fa-fire"></i> Pop <strong id="partyPopScore">100+</strong></span>
       <span class="party-stat party-music-bar"><i class="fas fa-music"></i> <strong id="partyMusicScore">14</strong> <span class="party-stat-pct" id="partyPopPct">64.17%</span></span>
       <button type="button" class="party-rule-btn" id="partyRuleBtn"><i class="fas fa-clipboard-list"></i> Rule</button>
-      <span class="party-room-id" id="partyRoomId">ID: ù</span>
+      <span class="party-room-id" id="partyRoomId">ID: ?</span>
     </div>
 
     <div class="party-widgets">
@@ -161,7 +162,7 @@
       </div>
       <div class="party-chat-zone">
         <div class="ap-room-status-strip" id="apRoomStatusStrip" aria-live="polite">
-          <span class="live-status-badge" id="liveStatusBadge" style="display:none">Connectingù</span>
+          <span class="live-status-badge" id="liveStatusBadge" style="display:none">Connecting?</span>
         </div>
         <div class="live-chat-ticker" id="liveTicker" aria-live="polite"></div>
         <div class="party-chat-feed" id="partyChatFeed"></div>
@@ -174,7 +175,7 @@
     <div class="live-chat-compose ap-compose-inline" id="liveChatCompose">
       <span class="ap-char-count is-empty" id="apCharCount" aria-hidden="true"></span>
       <button type="button" class="ap-chat-emoji-btn" id="apChatEmojiBtn" aria-label="Emoji"><i class="far fa-smile"></i></button>
-      <input type="text" id="liveChatInput" placeholder="Say somethingù" maxlength="280" autocomplete="off" enterkeyhint="send">
+      <input type="text" id="liveChatInput" placeholder="Say something?" maxlength="280" autocomplete="off" enterkeyhint="send">
       <button type="button" id="liveChatSend" class="ap-chat-send-btn" aria-label="Send"><i class="fas fa-paper-plane"></i></button>
     </div>
     <button type="button" class="party-btn-follow ap-btn-follow-hidden" id="partyBtnFollow" aria-hidden="true">Follow +</button>
@@ -217,6 +218,10 @@
       <div id="partyRequestsList" class="party-requests-list"></div>
       <h4 class="party-requests-subtitle">In room (online)</h4>
       <div id="partyAvailableList" class="party-requests-list"></div>
+      <h4 class="party-requests-subtitle">Room gift totals</h4>
+      <div id="partyRoomGiftAnalytics" class="party-gift-analytics"></div>
+      <h4 class="party-requests-subtitle">Gift history</h4>
+      <div id="partyGiftHistoryList" class="party-gift-history"></div>
     </div>
   </div>
 
@@ -252,7 +257,7 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="ap-config.js"></script>
-  <script src="app.js"></script>
+  <script src="app.js?v=20260624-party-fix"></script>
   <script src="social-wallet.js"></script>
   <script src="social-ui.js"></script>
   <script src="social-interactions.js"></script>
@@ -260,7 +265,7 @@
   <script src="social-fx.js"></script>
   <script src="live-emoji-data.js"></script>
   <script src="live-session-provider.js?v=20260706-party-voice"></script>
-  <script src="social-live.js?v=20260628-analytics-mic"></script>
+  <script src="social-live.js?v=20260624-party-fix"></script>
   <script src="social-nav.js"></script>
 </body>
 </html>

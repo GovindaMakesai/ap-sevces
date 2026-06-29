@@ -17,7 +17,13 @@ const globalLimiter = rateLimit({
     req.path === '/health' ||
     req.path.startsWith('/api/live/rooms') ||
     req.path.startsWith('/api/live/streamer-stats') ||
+    req.path.startsWith('/api/live/my-analytics') ||
     req.path.startsWith('/api/social/following') ||
+    req.path.startsWith('/api/social/followers') ||
+    req.path.startsWith('/api/auth/me') ||
+    req.path.startsWith('/api/auth/refresh') ||
+    req.path.startsWith('/api/auth/ws-token') ||
+    req.path.startsWith('/api/wallet/balance') ||
     req.path.startsWith('/api/messages/conversations') ||
     req.path.startsWith('/api/social/coin-seller/transfer'),
 });

@@ -688,7 +688,8 @@ body.ap-is-host .live-host-bar {
   cursor: pointer;
 }
 
-body.ap-is-host #partyViewerAvatars.is-clickable {
+body.ap-is-host #partyViewerAvatars.is-clickable,
+#partyViewerAvatars.is-clickable {
   outline: none;
 }
 
@@ -3730,3 +3731,109 @@ html.ap-expo-app .ap-chip {
   border: none;
   background: #fff;
 }
+
+/* Party fix batch — users list, chat avatars, profile sheet, gifts, drag seats */
+.party-users-btn {
+  border: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fbbf24;
+  margin-right: 6px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.party-viewers.is-clickable,
+#partyViewerAvatars.is-clickable {
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.party-chat-msg {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.party-chat-avatar-btn,
+.party-chat-user-btn {
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.party-chat-avatar-btn img {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: cover;
+  vertical-align: middle;
+}
+.party-chat-user-btn .user {
+  font-weight: 700;
+  color: #fbbf24;
+}
+.party-gift-analytics,
+.party-gift-history {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.party-gift-stat-row,
+.party-gift-history-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 13px;
+}
+.party-gift-history-row img {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.party-gift-stat-row strong {
+  margin-left: auto;
+  font-size: 12px;
+  color: #fbbf24;
+}
+.party-seat.is-dragging { opacity: 0.55; transform: scale(0.96); }
+.party-seat.is-drop-target { outline: 2px dashed #fbbf24; outline-offset: 2px; }
+.ap-profile-actions--grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 14px;
+}
+.ap-profile-action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 64px;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #f9fafb;
+  color: #111827;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.ap-profile-action-btn i { font-size: 16px; color: #7c3aed; }
+.ap-profile-action-btn--primary {
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  border-color: transparent;
+  color: #1a1000;
+}
+.ap-profile-action-btn--primary i { color: #1a1000; }
+.ap-profile-action-btn--ghost { grid-column: span 3; min-height: 44px; flex-direction: row; }
+.ap-emoji-popover { z-index: 45; }
+.ap-btn-mic-ring { z-index: 50; position: relative; }
+.ap-btn-mic-ring i { pointer-events: none; }

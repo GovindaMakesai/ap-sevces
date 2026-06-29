@@ -63,6 +63,7 @@
   let chestSec = 294;
   let teamProgress = 1;
   let joinRequests = [];
+  let roomGiftHistory = [];
   let chatMessages = [];
   let hasSpeakerSeat = false;
   let pkScoreLeft = 0;
@@ -512,6 +513,27 @@
     );
   }
 
+  function isRoomHostUserId(userId) {
+    if (!userId) return false;
+    return String(roomState?.hostId || '') === String(userId);
+  }
+
+  function getPartyMembersForList() {
+    return getPartyRoomMembers().filter((m) => m?.userId);
+  }
+
+  function memberListRoleLabel(m) {
+    const hostId = String(roomState?.hostId || '');
+    const uid = String(m.userId || '');
+    if (hostId && uid === hostId) return 'Host';
+    const seated = new Set(
+      (roomState?.seats || []).map((s) => String(s.userId || '')).filter(Boolean)
+    );
+    if (seated.has(uid)) return 'On seat';
+    if (m.isAdmin || m.role === 'admin') return 'Admin';
+    return 'In room';
+  }
+
   function syncAgoraUidMap() {
     const map = {};
     const list = [...(roomState?.seats || []), ...(roomState?.onlineMembers || [])];
@@ -558,6 +580,10 @@
 
   function kickUserFromRoom(userId, reason) {
     if (!canModerateRoom() || !liveSocket?.connected || !userId) return;
+    if (isRoomHostUserId(userId)) {
+      toast('Cannot remove the room host', 'warning');
+      return;
+    }
     liveSocket.emit(
       'live:kick',
       { channel: channelId(), userId, reason: reason || 'kicked_by_mod' },
@@ -643,16 +669,20 @@
       panel.appendChild(menu);
     }
     if (!menu) return;
+    const isTargetHost = isRoomHostUserId(userId);
     const isAdminMember = (roomState?.onlineMembers || []).some(
       (m) => String(m.userId) === String(userId) && (m.isAdmin || m.role === 'admin')
     );
-    menu.innerHTML = `
+    const modActions = canModerateRoom()
+      ? `
       <button type="button" data-mod="mute">Mute user</button>
       <button type="button" data-mod="unmute">Unmute user</button>
       <button type="button" data-mod="move">Move to seat…</button>
       <button type="button" data-mod="demote">Remove from seat</button>
-      <button type="button" data-mod="kick">Kick from room</button>
-      ${isHost() ? `<button type="button" data-mod="admin">${isAdminMember ? 'Revoke admin' : 'Make admin'}</button>` : ''}`;
+      ${!isTargetHost ? '<button type="button" data-mod="kick">Kick from room</button>' : ''}
+      ${isHost() && !isTargetHost ? `<button type="button" data-mod="admin">${isAdminMember ? 'Revoke admin' : 'Make admin'}</button>` : ''}`
+      : '';
+    menu.innerHTML = modActions;
     menu.querySelector('[data-mod="mute"]')?.addEventListener('click', () => {
       muteRemoteUser(userId, true);
       menu.remove();
@@ -803,18 +833,19 @@
   function renderAvailableUsers() {
     const list = document.getElementById('partyAvailableList');
     if (!list) return;
-    const available = getPartyAudienceMembers();
+    const available = getPartyMembersForList();
     if (!available.length) {
-      list.innerHTML = '<p class="party-requests-empty">Everyone on stage or no listeners yet</p>';
+      list.innerHTML = '<p class="party-requests-empty">No one else in the room yet — share to invite friends</p>';
       return;
     }
+    const mod = canModerateRoom();
     list.innerHTML = available
       .map(
         (m) => `
       <div class="party-req-row" data-user-id="${escapeHtml(String(m.userId))}">
         <img src="${avatarUrl(m.name, m.profilePic)}" alt="">
-        <div class="info"><strong>${escapeHtml(m.name || 'Guest')}</strong><br><small class="party-online-dot">● Online</small></div>
-        ${canModerateRoom() ? `<button type="button" class="accept" data-invite-seat="${escapeHtml(String(m.userId))}">To seat</button>` : ''}
+        <div class="info"><strong>${escapeHtml(m.name || 'Guest')}</strong><br><small class="party-online-dot">● ${escapeHtml(memberListRoleLabel(m))}</small></div>
+        ${mod && !isRoomHostUserId(m.userId) && memberListRoleLabel(m) !== 'On seat' ? `<button type="button" class="accept" data-invite-seat="${escapeHtml(String(m.userId))}">To seat</button>` : ''}
       </div>`
       )
       .join('');
@@ -1683,12 +1714,24 @@
     });
 
     liveSocket.on('live:gift', (gift) => {
+      if (gift) {
+        roomGiftHistory.push({
+          from: gift.from || gift.senderName || 'User',
+          to: gift.to || gift.recipientName || gift.recipient || 'Host',
+          toUserId: gift.toUserId || gift.recipientId || null,
+          emoji: gift.emoji || '🎁',
+          amount: Number(gift.amount || gift.coins || 0),
+          at: Date.now(),
+        });
+        if (roomGiftHistory.length > 40) roomGiftHistory = roomGiftHistory.slice(-40);
+      }
       showWinBanner(gift);
       showGiftFlyBanner(gift);
       const combo = window.SocialFX?.trackCombo?.(gift.emoji || 'gift', gift.qty || 1) || 1;
       window.SocialFX?.playGift?.(gift, { combo });
       onGiftTeamProgress(gift.amount || 100);
       if (roomState) renderRoomState();
+      renderRoomGiftPanels();
     });
 
     liveSocket.on('pk:start', (snapshot) => {
@@ -3110,7 +3153,23 @@
   }
 
   async function toggleMic() {
+    const wasMuted = micMuted;
     micMuted = !micMuted;
+    if (!micMuted && !wasMuted) {
+      /* noop */
+    }
+    if (!micMuted) {
+      if (hasSpeakerSeat && (!publishSucceeded || !getLocalAudioTrack())) {
+        await publishGuestAudio();
+      }
+      const audio = getLocalAudioTrack();
+      if (audio) {
+        try {
+          if (typeof audio.setEnabled === 'function') await audio.setEnabled(true);
+          if (typeof audio.setMuted === 'function') await audio.setMuted(false);
+        } catch (_e) {}
+      }
+    }
     await applyLocalMicMuteState();
     if (liveSocket) liveSocket.emit('live:mute', { channel: channelId(), muted: micMuted });
     const me = currentUser();
@@ -3425,13 +3484,21 @@
           div.textContent = msg.text || '';
         } else {
           div.className = 'party-chat-msg';
+          const uid = msg.userId || '';
+          const pic = resolveLiveProfilePic(msg.user, uid);
           const lvlInfo = window.SocialFX
             ? SocialFX.getUserLevel(msg.userId || msg.user, msg.giftSpend)
             : { level: msg.lvl || 2, isVip: false, isFan: false };
           const badge = window.SocialFX
             ? SocialFX.levelBadgeHtml(lvlInfo.level, { isVip: lvlInfo.isVip, isFan: lvlInfo.isFan })
             : `<span class="lvl">${msg.lvl || 1}</span>`;
-          div.innerHTML = `${badge}<span class="user">${escapeHtml(msg.user)}</span> ${escapeHtml(msg.text)}`;
+          div.innerHTML = `<button type="button" class="party-chat-avatar-btn" data-chat-user="${escapeAttr(msg.user || 'User')}" data-chat-uid="${escapeHtml(String(uid))}"><img src="${avatarUrl(msg.user, pic)}" alt=""></button>${badge}<button type="button" class="party-chat-user-btn" data-chat-user="${escapeAttr(msg.user || 'User')}" data-chat-uid="${escapeHtml(String(uid))}"><span class="user">${escapeHtml(msg.user)}</span></button> ${escapeHtml(msg.text)}`;
+          div.querySelectorAll('.party-chat-avatar-btn, .party-chat-user-btn').forEach((btn) => {
+            btn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              openProfileSheet(btn.dataset.chatUser || 'User', btn.dataset.chatUid || '');
+            });
+          });
         }
         feed.appendChild(div);
       });
@@ -3616,6 +3683,7 @@
         else requestSeatJoin();
       });
     });
+    if (canModerateRoom()) bindSeatDragDrop(container);
   }
 
   function formatGiftCount(n) {
@@ -3754,8 +3822,13 @@
       btn.classList.toggle('is-muted', micMuted);
       btn.classList.toggle('is-live', isHost() && !micMuted);
       btn.classList.toggle('is-pending', micLinkPending);
-      const icon = btn.querySelector('i');
-      if (icon) icon.className = micMuted ? 'fas fa-microphone-slash' : 'fas fa-microphone';
+      let icon = btn.querySelector('i');
+      if (!icon) {
+        btn.textContent = '';
+        icon = document.createElement('i');
+        btn.appendChild(icon);
+      }
+      icon.className = micMuted ? 'fas fa-microphone-slash' : 'fas fa-microphone';
     });
   }
 
@@ -3828,7 +3901,7 @@
         .map(
           (n, i) =>
             `<span class="ap-top-gifter${i === 0 ? ' has-crown' : ''}"${
-              n.userId ? ` data-audience-id="${escapeHtml(String(n.userId))}"` : ''
+              n.userId ? ` data-audience-id="${escapeHtml(String(n.userId))}" data-audience-name="${escapeAttr(n.name || 'Guest')}"` : ''
             }><img src="${avatarUrl(n.name, n.profilePic)}" alt="${escapeHtml(n.name)}" data-name="${escapeHtml(n.name)}">${
               n.gifts > 0 ? `<em>${formatGiftCount(n.gifts)}</em>` : ''
             }</span>`
@@ -3837,11 +3910,17 @@
     }
     html += `<span class="party-viewer-count" id="liveViewerCount" title="Tap to view everyone in room">${viewers}</span>`;
     row.innerHTML = html;
-    row.classList.toggle('is-clickable', isHost() && isPartyRoomPage());
+    row.classList.toggle('is-clickable', isPartyRoomPage());
     if (!row.dataset.audienceBound) {
       row.dataset.audienceBound = '1';
-      row.addEventListener('click', () => {
-        if (isHost() && isPartyRoomPage()) openPartyRequestsSheet();
+      row.addEventListener('click', (e) => {
+        if (!isPartyRoomPage()) return;
+        if (e.target.closest('.ap-top-gifter[data-audience-id]')) {
+          const chip = e.target.closest('[data-audience-id]');
+          openProfileSheet(chip.dataset.audienceName || 'Guest', chip.dataset.audienceId || '');
+          return;
+        }
+        openPartyRequestsSheet();
       });
     }
     window.SocialUI?.bindAvatarFallbacks?.(row);
@@ -3917,6 +3996,15 @@
     pinFixedOverlaysToBody();
     renderJoinRequests();
     renderAvailableUsers();
+    renderRoomGiftPanels();
+    const head = document.querySelector('#partyRequestsSheet .party-requests-head h3');
+    const hint = document.querySelector('#partyRequestsSheet .party-requests-hint');
+    if (head) head.textContent = canModerateRoom() ? 'Room members' : 'People in room';
+    if (hint) {
+      hint.textContent = canModerateRoom()
+        ? 'Accept mic requests and invite listeners to seats. Drag seats to move guests.'
+        : 'Everyone currently in this party room. Tap a name to view their profile.';
+    }
     document.body.classList.add('party-requests-open');
     document.getElementById('partyRequestsSheet')?.classList.add('open');
     syncLiveOverlayClass();
@@ -4704,17 +4792,22 @@
   function renderJoinRequests() {
     const list = document.getElementById('partyRequestsList');
     const badge = document.getElementById('partyReqCount');
-    if (badge) badge.textContent = String(joinRequests.length);
+    const mod = canModerateRoom();
+    if (badge) badge.textContent = String(mod ? joinRequests.length : getPartyMembersForList().length);
     if (!list) return;
+    if (!mod) {
+      list.innerHTML = '<p class="party-requests-empty">Mic requests are reviewed by the host or room admin</p>';
+      return;
+    }
     if (!joinRequests.length) {
-      list.innerHTML = '<p class="party-requests-empty">No pending requests</p>';
+      list.innerHTML = '<p class="party-requests-empty">No pending mic requests</p>';
       return;
     }
     list.innerHTML = joinRequests
       .map(
         (r) => `
       <div class="party-req-row" data-req="${r.id}">
-        <img src="${avatarUrl(r.name)}" alt="">
+        <img src="${avatarUrl(r.name, r.profilePic)}" alt="">
         <div class="info"><strong>${escapeHtml(r.name)}</strong><br><small>wants a seat</small></div>
         <button type="button" class="accept" data-accept="${r.id}">Accept</button>
         <button type="button" class="deny" data-deny="${r.id}">Deny</button>
@@ -4753,6 +4846,89 @@
             accepted: false,
           });
         }
+      });
+    });
+  }
+
+  function renderRoomGiftPanels() {
+    const analyticsEl = document.getElementById('partyRoomGiftAnalytics');
+    const historyEl = document.getElementById('partyGiftHistoryList');
+    if (!analyticsEl && !historyEl) return;
+
+    const totals = new Map();
+    roomGiftHistory.forEach((g) => {
+      const key = String(g.toUserId || g.to || 'host');
+      const label = g.to || 'Host';
+      const prev = totals.get(key) || { label, coins: 0, count: 0 };
+      prev.coins += Number(g.amount || 0);
+      prev.count += 1;
+      totals.set(key, prev);
+    });
+    (roomState?.gifts || []).forEach((g) => {
+      const key = String(g.toUserId || g.to || g.from || 'guest');
+      const label = g.to || g.from || 'Guest';
+      const prev = totals.get(key) || { label, coins: 0, count: 0 };
+      prev.coins += Number(g.amount || g.coins || 0);
+      prev.count += 1;
+      totals.set(key, prev);
+    });
+
+    if (analyticsEl) {
+      const rows = [...totals.values()].sort((a, b) => b.coins - a.coins).slice(0, 8);
+      analyticsEl.innerHTML = rows.length
+        ? rows
+            .map(
+              (r) =>
+                `<div class="party-gift-stat-row"><span>${escapeHtml(r.label)}</span><strong>${formatGiftCount(r.coins)} coins · ${r.count} gifts</strong></div>`
+            )
+            .join('')
+        : '<p class="party-requests-empty">No gifts sent in this room yet</p>';
+    }
+
+    if (historyEl) {
+      const recent = roomGiftHistory.slice(-12).reverse();
+      historyEl.innerHTML = recent.length
+        ? recent
+            .map(
+              (g) =>
+                `<div class="party-gift-history-row"><img src="${avatarUrl(g.from)}" alt=""><span><strong>${escapeHtml(g.from)}</strong> → ${escapeHtml(g.to)} ${g.emoji || '🎁'} <em>${formatGiftCount(g.amount)}</em></span></div>`
+            )
+            .join('')
+        : '<p class="party-requests-empty">Gift history will appear here as people send gifts</p>';
+    }
+  }
+
+  function bindSeatDragDrop(container) {
+    if (!container || !canModerateRoom()) return;
+    let dragUserId = null;
+    container.querySelectorAll('.party-seat[data-seat][data-user-id]').forEach((seat) => {
+      if (seat.classList.contains('is-host') || seat.classList.contains('is-empty')) return;
+      seat.draggable = true;
+      seat.addEventListener('dragstart', (e) => {
+        dragUserId = seat.dataset.userId;
+        seat.classList.add('is-dragging');
+        try {
+          e.dataTransfer.setData('text/plain', dragUserId || '');
+          e.dataTransfer.effectAllowed = 'move';
+        } catch (_e) {}
+      });
+      seat.addEventListener('dragend', () => seat.classList.remove('is-dragging'));
+    });
+    container.querySelectorAll('.party-seat[data-seat]').forEach((target) => {
+      target.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        target.classList.add('is-drop-target');
+      });
+      target.addEventListener('dragleave', () => target.classList.remove('is-drop-target'));
+      target.addEventListener('drop', (e) => {
+        e.preventDefault();
+        target.classList.remove('is-drop-target');
+        const uid = dragUserId || e.dataTransfer.getData('text/plain');
+        const seatNum = Number(target.dataset.seat);
+        if (uid && seatNum && canModerateRoom() && !isRoomHostUserId(uid)) {
+          moveUserSeat(uid, seatNum);
+        }
+        dragUserId = null;
       });
     });
   }
@@ -4893,7 +5069,6 @@
           <p class="ap-share-sheet-sub">Pick someone you follow — they'll get a chat invite with your room link</p>
           <div class="ap-share-user-list" id="apShareUserList"></div>
           <div class="ap-share-actions">
-            <button type="button" class="ap-share-link-btn" id="apShareCopyLink"><i class="fas fa-link"></i> Copy link</button>
             <button type="button" class="ap-share-cancel" id="apShareCancel">Close</button>
           </div>
         </div>
@@ -4904,21 +5079,6 @@
     });
     document.getElementById('apShareCancel')?.addEventListener('click', () => {
       document.getElementById('apInAppShareSheet')?.classList.remove('open');
-    });
-    document.getElementById('apShareCopyLink')?.addEventListener('click', async () => {
-      const url = viewerShareUrl();
-      try {
-        if (window.SocialUI?.shareLink) {
-          await SocialUI.shareLink({ title: 'Join my live', url });
-        } else if (navigator.share) {
-          await navigator.share({ title: 'Join my live', url });
-        } else {
-          await navigator.clipboard.writeText(url);
-          toast('Link copied', 'success');
-        }
-      } catch (e) {
-        if (e?.name !== 'AbortError') toast('Could not share link', 'error');
-      }
     });
   }
 
@@ -5426,12 +5586,13 @@
       }
     });
 
-    document.getElementById('partyBtnShare')?.addEventListener('click', () => shareRoomLink());
+    document.getElementById('partyBtnShare')?.addEventListener('click', () => openInAppShareSheet());
     document.getElementById('partyBtnJoinSeat')?.addEventListener('click', () => requestSeatJoin());
     document.getElementById('partyInvitePill')?.addEventListener('click', (e) => {
       e.preventDefault();
-      shareRoomLink();
+      openInAppShareSheet();
     });
+    document.getElementById('partyBtnUsersAll')?.addEventListener('click', () => openPartyRequestsSheet());
     document.getElementById('apBtnChatBubble')?.addEventListener('click', () => focusChatCompose());
 
     document.getElementById('partyRuleBtn')?.addEventListener('click', openRulesModal);
@@ -5696,33 +5857,29 @@
             </div>
             <div class="ap-profile-cards">
               <div class="ap-profile-card ap-profile-card--contrib">
-                <h4>Contribution List <i class="fas fa-chevron-right"></i></h4>
+                <h4>Top supporters <i class="fas fa-chevron-right"></i></h4>
                 <div class="ap-profile-placeholder-row" id="apProfileContrib"></div>
-              </div>
-              <div class="ap-profile-card ap-profile-card--fan">
-                <h4>Fan Club <i class="fas fa-chevron-right"></i></h4>
-                <div class="ap-profile-placeholder-row" id="apProfileFan"></div>
               </div>
             </div>
             <div class="ap-profile-section">
-              <h4>Gift Gallery <span>Lit: 0/12</span></h4>
+              <h4>Gift Gallery <span id="apProfileGiftLit">Lit: 0/12</span></h4>
               <div class="ap-profile-placeholder-row" id="apProfileGifts">
                 <span>+</span><span>+</span><span>+</span>
               </div>
             </div>
-            <div class="ap-profile-section">
+            <div class="ap-profile-section ap-profile-section--compact">
               <h4>Medal <span>Number of medals: 0</span></h4>
               <div class="ap-profile-placeholder-row hex" id="apProfileMedals">
                 <span>+</span><span>+</span><span>+</span>
               </div>
             </div>
-            <button type="button" class="ap-profile-gift-btn" id="apProfileGiftBtn">🎁 Give gifts</button>
-            <div class="ap-profile-actions">
-              <button type="button" id="apProfileViewFull"><i class="fas fa-user"></i> View profile</button>
-              <button type="button" id="apProfileAddFriend"><i class="fas fa-user-plus"></i> Add Friend</button>
-              <button type="button" id="apProfileMention"><i class="fas fa-at"></i> Mention</button>
-              <button type="button" id="apProfileMessage"><i class="far fa-envelope"></i> Message</button>
-              <button type="button" id="apProfileMore"><i class="fas fa-ellipsis-h"></i> More</button>
+            <button type="button" class="ap-profile-gift-btn" id="apProfileGiftBtn"><i class="fas fa-gift"></i> Send gift</button>
+            <div class="ap-profile-actions ap-profile-actions--grid">
+              <button type="button" class="ap-profile-action-btn" id="apProfileViewFull"><i class="fas fa-user"></i><span>Profile</span></button>
+              <button type="button" class="ap-profile-action-btn ap-profile-action-btn--primary" id="apProfileAddFriend"><i class="fas fa-user-plus"></i><span>Add friend</span></button>
+              <button type="button" class="ap-profile-action-btn" id="apProfileMention"><i class="fas fa-at"></i><span>Mention</span></button>
+              <button type="button" class="ap-profile-action-btn" id="apProfileMessage"><i class="far fa-envelope"></i><span>Message</span></button>
+              <button type="button" class="ap-profile-action-btn ap-profile-action-btn--ghost" id="apProfileMore"><i class="fas fa-ellipsis-h"></i><span>More</span></button>
             </div>
           </div>
         </div>`
@@ -5769,8 +5926,8 @@
         const btn = document.getElementById('apProfileAddFriend');
         if (btn) {
           btn.innerHTML = now
-            ? '<i class="fas fa-user-check"></i> Following'
-            : '<i class="fas fa-user-plus"></i> Follow';
+            ? '<i class="fas fa-user-check"></i><span>Following</span>'
+            : '<i class="fas fa-user-plus"></i><span>Add friend</span>';
         }
         toast(now ? `You're now following ${name}` : `Unfollowed ${name}`, now ? 'success' : 'info');
         return;
@@ -6032,8 +6189,8 @@
     if (friendBtn && resolvedId && window.SocialInteractions?.isFollowing) {
       const following = SocialInteractions.isFollowing(resolvedId, n);
       friendBtn.innerHTML = following
-        ? '<i class="fas fa-user-check"></i> Following'
-        : '<i class="fas fa-user-plus"></i> Add Friend';
+        ? '<i class="fas fa-user-check"></i><span>Following</span>'
+        : '<i class="fas fa-user-plus"></i><span>Add friend</span>';
     }
   }
 
@@ -6055,7 +6212,6 @@
             <button type="button" data-cat="gift" class="active">Gift</button>
             <button type="button" data-cat="lucky">Lucky</button>
             <button type="button" data-cat="island">Interaction</button>
-            <button type="button" data-cat="fan">Fan Club</button>
             <button type="button" data-cat="privilege">Privi</button>
             <button type="button" class="gift-tab-bell" aria-label="Notifications"><i class="fas fa-bell"></i></button>
           </div>

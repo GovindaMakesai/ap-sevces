@@ -525,6 +525,9 @@ async function isUserBanned(liveRoomId, userId) {
 async function kickMember({ channel, userId, bannedBy, reason }) {
   const room = await findByChannel(channel);
   if (!room) throw new Error('Room not found');
+  if (String(room.host_user_id) === String(userId)) {
+    throw new Error('Cannot remove the room host');
+  }
   await db.query(
     `INSERT INTO live_room_bans (live_room_id, user_id, banned_by, reason)
      VALUES ($1, $2, $3, $4) ON CONFLICT (live_room_id, user_id) DO NOTHING`,

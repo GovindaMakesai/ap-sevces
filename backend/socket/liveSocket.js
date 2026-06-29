@@ -247,6 +247,11 @@ function registerLiveSocket(io) {
           if (ack) ack({ ok: false, message: 'userId required' });
           return;
         }
+        const room = await liveRoomService.findByChannel(channel);
+        if (room && String(room.host_user_id) === targetUserId) {
+          if (ack) ack({ ok: false, message: 'Cannot remove the room host' });
+          return;
+        }
         await liveRoomService.kickMember({
           channel,
           userId: targetUserId,

@@ -131,7 +131,7 @@
 
   <div id="social-bottom-nav-mount"></div>
 
-  <script src="app.js?v=20260702-follow-fix"></script>
+  <script src="app.js?v=20260624-party-fix"></script>
   <script src="social-wallet.js"></script>
   <script src="social-ui.js?v=20260702-follow-fix"></script>
   <script src="social-interactions.js?v=20260702-follow-fix"></script>
@@ -168,6 +168,7 @@
         if (loadingBar) loadingBar.remove();
         document.documentElement.classList.add('profile-ready');
       }
+      setTimeout(finishProfile, 2500);
 
       function paintProfileAvatar(user) {
         if (!user) return;
@@ -414,11 +415,15 @@
             document.getElementById('statCoins').textContent = s.coins.toLocaleString();
           }
         }
-        document.getElementById('statFollowingBtn')?.addEventListener('click', async () => {
+        document.getElementById('statFollowingBtn')?.addEventListener('click', async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
           const rows = await (SocialInteractions.fetchFollowingList?.() || Promise.resolve(SocialInteractions.getFollowingList()));
           SocialUI.openFollowSheet('following', rows);
         });
-        document.getElementById('statFollowersBtn')?.addEventListener('click', async () => {
+        document.getElementById('statFollowersBtn')?.addEventListener('click', async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
           const rows = await (SocialInteractions.fetchFollowersList?.(user.id) || Promise.resolve(SocialInteractions.getFollowersList(user.id)));
           SocialUI.openFollowSheet('followers', rows);
         });

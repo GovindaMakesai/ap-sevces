@@ -207,6 +207,10 @@
     window.location.replace(homeUrl(user || getUser()));
   }
 
+  function clearAuthRestoring() {
+    document.documentElement.classList.remove('auth-restoring');
+  }
+
   async function requireAuth() {
     if (!isNative()) return;
 
@@ -215,8 +219,10 @@
     if (isAuthPage()) {
       if (isLoggedIn()) {
         document.documentElement.classList.add('auth-restoring');
+        const restoreTimer = setTimeout(clearAuthRestoring, 2500);
         validateSession().then((ok) => {
-          document.documentElement.classList.remove('auth-restoring');
+          clearTimeout(restoreTimer);
+          clearAuthRestoring();
           if (ok) {
             completeLoginAndEnterApp(getUser());
             return;
@@ -250,7 +256,10 @@
 
     markAuthedUi();
 
+    const restoreTimer = setTimeout(clearAuthRestoring, 2500);
     validateSession().then((ok) => {
+      clearTimeout(restoreTimer);
+      clearAuthRestoring();
       if (!ok && !isLoggedIn()) {
         markGuestUi();
         localStorage.removeItem('user');

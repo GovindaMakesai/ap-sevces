@@ -229,10 +229,12 @@ const API_GET_CACHE_LONG_MS = 15000;
 function apiGetCacheTtl(endpoint) {
   const p = String(endpoint || '');
   if (p.includes('/social/following') ||
+    p.includes('/social/followers') ||
     p.includes('/live/rooms') ||
     p.includes('/live/streamer-stats') ||
     p.includes('/social/creators') ||
-    p.includes('/messages/conversations')
+    p.includes('/messages/conversations') ||
+    p.includes('/auth/me')
   ) {
     return API_GET_CACHE_LONG_MS;
   }
@@ -288,7 +290,7 @@ const API = {
         const url = joinApiUrl(endpoint);
         const run = (async () => {
             try {
-                return await this._fetchOnce(url, options, false, cacheKey);
+                return await this._fetchOnce(url, options, false, cacheKey, 0);
             } catch (error) {
                 throw this._friendlyNetworkError(error, url);
             } finally {
@@ -318,7 +320,7 @@ const API = {
         return error;
     },
 
-    async _fetchOnce(url, options = {}, retried = false, cacheKey = '') {
+    async _fetchOnce(url, options = {}, retried = false, cacheKey = '', rateLimitRetry = 0) {
         console.log(`≡ƒôí API Request: ${options.method || 'GET'} ${url}`);
 
         if (typeof Auth !== 'undefined' && Auth.ensureAccessToken) {
@@ -392,7 +394,7 @@ const API = {
                 refreshed = await Auth.tryRefresh();
             }
             if (refreshed) {
-                return this._fetchOnce(url, options, true, cacheKey);
+                return this._fetchOnce(url, options, true, cacheKey, rateLimitRetry);
             }
         }
 
@@ -404,6 +406,15 @@ const API = {
                     console.warn('API 429 — serving cached response for', cacheKey);
                     return stale.data;
                 }
+                if (rateLimitRetry < 2) {
+                    const delay = 400 * (rateLimitRetry + 1);
+                    await new Promise((r) => setTimeout(r, delay));
+                    return this._fetchOnce(url, options, retried, cacheKey, rateLimitRetry + 1);
+                }
+            }
+            if (response.status === 429 && method === 'GET' && rateLimitRetry < 1) {
+                await new Promise((r) => setTimeout(r, 600));
+                return this._fetchOnce(url, options, retried, cacheKey, rateLimitRetry + 1);
             }
             console.error('Γ¥î API Error Response:', data);
             if (typeof data === 'object' && data !== null) {
@@ -1896,6 +1907,29 @@ window.PWA = PWA;
 window.CONFIG = CONFIG;
 
 console.log('Γ£à App.js initialized');
+
+/** Prevent blank screens when session restore or profile paint stalls (native WebView). */
+(function apSessionRecoveryBoot() {
+    function clearStuckUiLocks() {
+        document.documentElement.classList.remove('auth-restoring', 'auth-locked');
+        document.documentElement.classList.add('profile-ready');
+        const bar = document.getElementById('profileLoadingBar');
+        if (bar) bar.remove();
+        const explore = document.getElementById('exploreContent');
+        if (explore) {
+            explore.style.removeProperty('opacity');
+            explore.style.removeProperty('pointer-events');
+        }
+    }
+    [1800, 3500].forEach((ms) => setTimeout(clearStuckUiLocks, ms));
+    window.addEventListener('pageshow', clearStuckUiLocks);
+    window.addEventListener('error', () => {
+        clearStuckUiLocks();
+    });
+    window.addEventListener('unhandledrejection', () => {
+        clearStuckUiLocks();
+    });
+})();
 console.log('≡ƒôª Available APIs:', { 
     ServicesAPI, 
     Auth, 
