@@ -31,6 +31,7 @@ async function enrichConversation(conversation, currentUserId) {
                 first_name: otherUser.first_name,
                 last_name: otherUser.last_name,
                 role: otherUser.role,
+                profile_pic: otherUser.profile_pic || null,
                 displayName,
             }
             : {

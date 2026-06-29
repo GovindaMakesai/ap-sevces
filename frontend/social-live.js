@@ -958,14 +958,38 @@
     return n || user.email?.split('@')[0] || 'User';
   }
 
-  function avatarUrl(name, profilePic) {
-    if (profilePic) {
-      const resolved = window.SocialShell?.getImageUrl?.(profilePic) || profilePic;
-      if (window.SocialUI?.avatarUrl) return SocialUI.avatarUrl(name, resolved);
-      return resolved;
+  function resolveMediaUrl(path, cacheKey) {
+    if (!path) return null;
+    if (window.SocialShell?.getImageUrl) return SocialShell.getImageUrl(path, cacheKey);
+    let p = String(path).trim();
+    if (!p) return null;
+    if (p.startsWith('data:') || p.startsWith('blob:')) return p;
+    if (p.startsWith('//')) p = `https:${p}`;
+    if (p.startsWith('http://') || p.startsWith('https://')) {
+      if (!cacheKey) return p;
+      return p + (p.includes('?') ? '&' : '?') + 'v=' + encodeURIComponent(String(cacheKey));
     }
-    if (window.SocialUI?.avatarUrl) return SocialUI.avatarUrl(name, profilePic);
-    return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128"><rect width="128" height="128" fill="#7c3aed"/></svg>')}`;
+    const base = (window.CONFIG?.BACKEND_URL || String(window.CONFIG?.API_URL || '').replace(/\/api\/?$/, '') || '').replace(/\/$/, '');
+    const rel = p.startsWith('/') ? p : `/${p}`;
+    const url = base ? `${base}${rel}` : rel;
+    if (!cacheKey) return url;
+    return url + (url.includes('?') ? '&' : '?') + 'v=' + encodeURIComponent(String(cacheKey));
+  }
+
+  function avatarUrl(name, profilePic) {
+    const resolved = resolveMediaUrl(profilePic);
+    if (window.SocialUI?.avatarUrl) return SocialUI.avatarUrl(name, resolved);
+    if (resolved) return resolved;
+    const label = String(name || 'U')
+      .trim()
+      .split(/\s+/)
+      .map((w) => w[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase() || 'U';
+    return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#e8c56a"/><stop offset="100%" stop-color="#9a7218"/></linearGradient></defs><rect width="128" height="128" rx="64" fill="url(#g)"/><text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" font-family="Arial,sans-serif" font-size="48" font-weight="700" fill="#fff">${label}</text></svg>`
+    )}`;
   }
 
   function liveProfilePic(userId, fallbackPic) {
@@ -3583,7 +3607,7 @@
     }
     const uid = String(msg.userId || '').trim();
     if (uid && chatProfileCache.has(uid)) return chatProfileCache.get(uid);
-    const resolved = resolveLiveProfilePic(msg.user, uid);
+    const resolved = resolveLiveProfilePic(msg.user, uid) || liveProfilePic(uid, null);
     if (resolved && uid) cacheChatProfile(uid, resolved);
     return resolved || null;
   }
@@ -3711,7 +3735,7 @@
           const badge = window.SocialFX
             ? SocialFX.levelBadgeHtml(lvlInfo.level, { isVip: lvlInfo.isVip, isFan: lvlInfo.isFan })
             : `<span class="lvl">${msg.lvl || 1}</span>`;
-          div.innerHTML = `<button type="button" class="party-chat-avatar-btn" data-chat-user="${escapeAttr(msg.user || 'User')}" data-chat-uid="${escapeHtml(String(uid))}"><img src="${avatarSrc}" alt="" data-name="${escapeAttr(msg.user || 'User')}" loading="lazy"></button>${badge}<button type="button" class="party-chat-user-btn" data-chat-user="${escapeAttr(msg.user || 'User')}" data-chat-uid="${escapeHtml(String(uid))}"><span class="user">${escapeHtml(msg.user)}</span></button> ${escapeHtml(msg.text)}`;
+          div.innerHTML = `<button type="button" class="party-chat-avatar-btn" data-chat-user="${escapeAttr(msg.user || 'User')}" data-chat-uid="${escapeHtml(String(uid))}"><img src="${escapeAttr(avatarSrc)}" alt="" data-name="${escapeAttr(msg.user || 'User')}" data-avatar-src="${escapeAttr(pic || '')}" loading="lazy"></button>${badge}<button type="button" class="party-chat-user-btn" data-chat-user="${escapeAttr(msg.user || 'User')}" data-chat-uid="${escapeHtml(String(uid))}"><span class="user">${escapeHtml(msg.user)}</span></button> <span class="party-chat-text">${escapeHtml(msg.text)}</span>`;
           const img = div.querySelector('.party-chat-avatar-btn img');
           if (img) {
             img.onerror = () => {
@@ -3728,6 +3752,7 @@
         }
         feed.appendChild(div);
       });
+    window.SocialUI?.bindAvatarFallbacks?.(feed);
     feed.scrollTop = feed.scrollHeight;
   }
 
@@ -6404,8 +6429,7 @@
 
   function profilePicUrl(name, pic, cacheKey) {
     if (!pic) return avatarUrl(name, null);
-    const resolved = window.SocialShell?.getImageUrl?.(pic, cacheKey || pic) || pic;
-    return avatarUrl(name, resolved);
+    return avatarUrl(name, resolveMediaUrl(pic, cacheKey || pic) || pic);
   }
 
   async function loadProfileEngagement(userId, name, img, nameEl) {

@@ -498,6 +498,33 @@
             margin-bottom: var(--spacing-sm);
         }
 
+        .message-wrapper.received {
+            display: flex;
+            align-items: flex-end;
+            gap: 8px;
+        }
+
+        .message-avatar {
+            width: 28px;
+            height: 28px;
+            min-width: 28px;
+            min-height: 28px;
+            border-radius: 50%;
+            object-fit: cover;
+            flex-shrink: 0;
+            display: block;
+        }
+
+        .message-avatar--placeholder {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--primary-100);
+            color: var(--primary-700);
+            font-size: 10px;
+            font-weight: 700;
+        }
+
         .message-wrapper.sent {
             justify-content: flex-end;
         }
@@ -1472,15 +1499,15 @@
             });
             const conversationsPromise = sessionReady.then(() => {
                 if (!Auth.hasSession?.() && !Auth.checkAuth()) {
-                    if (typeof isNativeAppContext === 'function' && isNativeAppContext()) {
-                        window.location.replace('/app-auth.html?app=1&redirect=' + encodeURIComponent(location.pathname + location.search));
+                if (typeof isNativeAppContext === 'function' && isNativeAppContext()) {
+                    window.location.replace('/app-auth.html?app=1&redirect=' + encodeURIComponent(location.pathname + location.search));
                         return null;
-                    }
-                    Toast.show('Please login to use chat', 'warning');
-                    setTimeout(() => { window.location.href = '/login.html'; }, 800);
-                    return null;
                 }
-                setupSocketListeners();
+                Toast.show('Please login to use chat', 'warning');
+                setTimeout(() => { window.location.href = '/login.html'; }, 800);
+                    return null;
+            }
+            setupSocketListeners();
                 return loadConversations();
             });
             if (Auth.hasSession?.()) {
@@ -1540,6 +1567,36 @@
             });
         }
 
+        function chatProfilePhotoUrl(name, profilePic) {
+            if (!profilePic) return null;
+            const resolved = window.SocialShell?.getImageUrl?.(profilePic) || profilePic;
+            if (window.SocialUI?.avatarUrl) return SocialUI.avatarUrl(name, resolved);
+            return resolved;
+        }
+
+        function chatAvatarInnerHtml(name, profilePic, initials) {
+            const label = initials || initialsFromName(name, '');
+            const src = profilePic ? chatProfilePhotoUrl(name, profilePic) : null;
+            if (src && profilePic) {
+                return `<img class="avatar-img" src="${escapeAttr(src)}" alt="" data-name="${escapeAttr(name || 'User')}" loading="lazy">`;
+            }
+            return `<div class="avatar-placeholder">${escapeHtml(label)}</div>`;
+        }
+
+        function paintChatHeaderAvatar(chat) {
+            const wrap = document.querySelector('#activeChat .chat-avatar');
+            if (!wrap) return;
+            const statusDot = wrap.querySelector('.status-dot');
+            const statusClass = statusDot?.className || 'status-dot online';
+            const statusId = statusDot?.id || 'userStatus';
+            const name = chat?.name || 'User';
+            const initials = chat?.avatar || initialsFromName(chat?.first_name, chat?.last_name);
+            wrap.innerHTML =
+                chatAvatarInnerHtml(name, chat?.profile_pic, initials) +
+                `<span class="${escapeAttr(statusClass)}" id="${escapeAttr(statusId)}"></span>`;
+            window.SocialUI?.bindAvatarFallbacks?.(wrap);
+        }
+
         function mapApiConversationToListItem(convId, otherUser, lastMessageText, lastMessageAt) {
             const ou = otherUser || {};
             const name = ou.displayName || `${ou.first_name || 'User'} ${ou.last_name || ''}`.trim();
@@ -1550,6 +1607,7 @@
                 name,
                 first_name: ou.first_name || 'User',
                 last_name: ou.last_name || '',
+                profile_pic: ou.profile_pic || null,
                 avatar: initialsFromName(ou.first_name, ou.last_name),
                 status: 'online',
                 unread: 0,
@@ -2020,10 +2078,11 @@
                 const safeLast = escapeHtml(formatListPreview(chat.lastMessage));
                 const safeAvatar = escapeHtml(chat.avatar || initialsFromName(chat.first_name, chat.last_name));
                 const safeTime = escapeHtml(chat.time || '');
+                const avatarHtml = chatAvatarInnerHtml(chat.name || 'User', chat.profile_pic, chat.avatar);
                 return `
                 <div class="chat-item${hasUnread ? ' has-unread' : ''} ${String(chat.id) === String(activeConversationId || '') ? 'active' : ''}" data-chat-id="${safeId}" data-user-id="${escapeHtml(String(chat.otherUserId || ''))}" data-official="${isOfficial ? '1' : '0'}" data-unread="${chat.unread || 0}">
                     <div class="chat-avatar">
-                        <div class="avatar-placeholder">${safeAvatar}</div>
+                        ${avatarHtml}
                         ${hasUnread ? '<span class="chat-unread-dot" aria-hidden="true"></span>' : ''}
                         <span class="status-dot ${escapeHtml(chat.status || 'offline')}"></span>
                     </div>
@@ -2042,6 +2101,7 @@
                 </div>
             `;
             }).join('');
+            window.SocialUI?.bindAvatarFallbacks?.(chatList);
             updateFilterBadges();
         }
 
@@ -2214,6 +2274,7 @@
                     name: conv.otherUser?.displayName || `${conv.otherUser?.first_name || 'User'} ${conv.otherUser?.last_name || ''}`.trim(),
                     first_name: conv.otherUser?.first_name || 'User',
                     last_name: conv.otherUser?.last_name || '',
+                    profile_pic: conv.otherUser?.profile_pic || null,
                     avatar: initialsFromName(conv.otherUser?.first_name, conv.otherUser?.last_name),
                     status: 'online',
                     unread: Number(conv.unreadCount) || 0,
@@ -2295,22 +2356,22 @@
                     emitTypingState(false);
                 }
                 currentChatId = chatKey(chatId);
-                useChatStore.setState({ activeConversationId: currentChatId });
-                const socket = socketService.get();
-                if (socket) {
-                    socket.emit('join_conversation', { conversationId: currentChatId });
-                }
-
-                document.querySelectorAll('.chat-item').forEach(item => {
-                    item.classList.remove('active');
-                });
+            useChatStore.setState({ activeConversationId: currentChatId });
+            const socket = socketService.get();
+            if (socket) {
+                socket.emit('join_conversation', { conversationId: currentChatId });
+            }
+            
+            document.querySelectorAll('.chat-item').forEach(item => {
+                item.classList.remove('active');
+            });
                 const activeNode = sourceElement || document.querySelector(`.chat-item[data-chat-id="${safeChatIdForSelector(currentChatId)}"]`);
-                if (activeNode) activeNode.classList.add('active');
-
-                document.getElementById('emptyChat').style.display = 'none';
+            if (activeNode) activeNode.classList.add('active');
+            
+            document.getElementById('emptyChat').style.display = 'none';
                 const activeChat = document.getElementById('activeChat');
                 activeChat.hidden = false;
-                document.body.classList.add('chat-active');
+            document.body.classList.add('chat-active');
                 const messageInput = document.getElementById('messageInput');
                 const sendBtn = document.getElementById('sendBtn');
                 if (messageInput) messageInput.disabled = false;
@@ -2342,18 +2403,18 @@
                 }
 
                 document.getElementById('chatUserName').textContent = chat.name;
-                document.getElementById('chatAvatar').textContent = chat.avatar;
-                currentChatPeer = { otherUserId: chat.otherUserId, name: chat.name };
+                paintChatHeaderAvatar(chat);
+                currentChatPeer = { otherUserId: chat.otherUserId, name: chat.name, profilePic: chat.profile_pic || null };
                 updatePeerPresence(chat.otherUserId);
 
-                await loadMessages(currentChatId);
+            await loadMessages(currentChatId);
                 updateChatSocialBar();
-                useChatStore.setState((state) => ({
-                    conversations: state.conversations.map((c) =>
-                        String(c.id) === String(currentChatId) ? { ...c, unread: 0 } : c
-                    ),
-                }));
-                loadChatList();
+            useChatStore.setState((state) => ({
+                conversations: state.conversations.map((c) =>
+                    String(c.id) === String(currentChatId) ? { ...c, unread: 0 } : c
+                ),
+            }));
+            loadChatList();
             } catch (err) {
                 console.error('loadChat error:', err);
                 resetChatPaneToList('Could not open this chat');
@@ -2444,6 +2505,30 @@
                 const wrapper = document.createElement('div');
                 wrapper.className = 'message-wrapper ' + bubbleType;
                 wrapper.dataset.msgId = String(msg.id || '');
+                if (bubbleType === 'received') {
+                    const peerName = currentChatPeer?.name || 'User';
+                    const peerInitials = initialsFromName(peerName.split(' ')[0], peerName.split(' ').slice(1).join(' '));
+                    if (currentChatPeer?.profilePic) {
+                        const av = document.createElement('img');
+                        av.className = 'message-avatar';
+                        av.alt = '';
+                        av.loading = 'lazy';
+                        av.dataset.name = peerName;
+                        av.src = chatProfilePhotoUrl(peerName, currentChatPeer.profilePic) || '';
+                        av.onerror = () => {
+                            const ph = document.createElement('div');
+                            ph.className = 'message-avatar message-avatar--placeholder';
+                            ph.textContent = peerInitials;
+                            av.replaceWith(ph);
+                        };
+                        wrapper.appendChild(av);
+                    } else {
+                        const ph = document.createElement('div');
+                        ph.className = 'message-avatar message-avatar--placeholder';
+                        ph.textContent = peerInitials;
+                        wrapper.appendChild(ph);
+                    }
+                }
                 const bubble = document.createElement('div');
                 bubble.className = 'message-bubble ' + bubbleType;
                 const content = document.createElement('div');
@@ -2477,6 +2562,7 @@
             stack.className = 'messages-stack';
             stack.appendChild(frag);
             container.appendChild(stack);
+            window.SocialUI?.bindAvatarFallbacks?.(container);
         }
 
         function renderMessages(messages) {
@@ -2503,8 +2589,17 @@
                     ? escapeHtml(bodyText)
                     : (msg.image ? '' : '<span class="msg-empty-placeholder">Message unavailable</span>');
                 const bubbleType = msg.type === 'sent' ? 'sent' : 'received';
+                const peerName = currentChatPeer?.name || 'User';
+                const peerInitials = initialsFromName(peerName.split(' ')[0], peerName.split(' ').slice(1).join(' '));
+                const peerAvatar =
+                    bubbleType === 'received'
+                        ? currentChatPeer?.profilePic
+                            ? `<img class="message-avatar" src="${escapeAttr(chatProfilePhotoUrl(peerName, currentChatPeer.profilePic) || '')}" alt="" data-name="${escapeAttr(peerName)}" loading="lazy">`
+                            : `<div class="message-avatar message-avatar--placeholder">${escapeHtml(peerInitials)}</div>`
+                        : '';
                 html += `
                     <div class="message-wrapper ${bubbleType}" data-msg-id="${escapeAttr(String(msg.id || ''))}">
+                        ${peerAvatar}
                         <div class="message-bubble ${bubbleType}">
                             <div class="message-content">
                                 ${bodyHtml}
@@ -2678,7 +2773,7 @@
                     });
                     renderActiveMessages();
                 } else {
-                    await loadMessages(currentChatId);
+                await loadMessages(currentChatId);
                 }
                 await loadConversations();
             } catch (e) {
@@ -2706,7 +2801,7 @@
                 paintMessages(messagesContainer, chatMessages);
             } catch (e) {
                 console.error('renderActiveMessages:', e);
-                messagesContainer.innerHTML = renderMessages(chatMessages);
+            messagesContainer.innerHTML = renderMessages(chatMessages);
             }
             scrollToBottom();
             updateChatSocialBar();
@@ -2793,11 +2888,11 @@
                     const localIdx = isMine
                         ? existing.findIndex((m) => String(m.id).startsWith('local-') && m.status === 'sending')
                         : -1;
-                    const message = mapServerMessageToUi({
-                        id: payload.id,
-                        senderId: payload.senderId,
-                        createdAt: payload.createdAt,
-                        text: payload.text,
+                const message = mapServerMessageToUi({
+                    id: payload.id,
+                    senderId: payload.senderId,
+                    createdAt: payload.createdAt,
+                    text: payload.text,
                         body: payload.body,
                         message: payload.message,
                         imageUrl: payload.imageUrl,
@@ -2823,8 +2918,8 @@
                 const conversationId = chatKey(payload.conversationId);
                 const messageId = String(payload.messageId);
                 useChatStore.setState((state) => ({
-                    messages: {
-                        ...state.messages,
+                        messages: {
+                            ...state.messages,
                         [conversationId]: (state.messages[conversationId] || []).map((m) =>
                             String(m.id) === messageId && m.type === 'sent' && m.status !== 'read'
                                 ? { ...m, status: 'delivered' }

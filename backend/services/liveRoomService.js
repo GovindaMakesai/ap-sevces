@@ -275,7 +275,7 @@ async function buildSnapshot(channel) {
         user: p.user || 'User',
         text: p.text || '',
         lvl: p.lvl || 1,
-        profilePic: e.user_id ? profileByUser.get(String(e.user_id)) || null : null,
+        profilePic: p.profilePic || (e.user_id ? profileByUser.get(String(e.user_id)) || null : null),
         at: e.created_at,
       };
     });
