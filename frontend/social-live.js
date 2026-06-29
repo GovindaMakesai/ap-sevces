@@ -3607,19 +3607,19 @@
     if (!uid || !emoji) return;
     const targets = [];
     if (isPartyRoomPage()) {
-      const seat = document.querySelector(`.party-seat[data-user-id="${uid}"] .seat-avatar`);
+      const seat = document.querySelector(`.party-seat[data-user-id="${uid}"]`);
       if (seat) targets.push(seat);
     }
     if (isLiveRoomPage()) {
       const guest = document.querySelector(`.ap-guest-seat[data-guest-id="${uid}"]`);
       if (guest) targets.push(guest);
       if (uid === String(roomState?.hostId || '')) {
-        const hostImg = document.getElementById('liveHostAvatar');
-        if (hostImg?.parentElement) targets.push(hostImg.parentElement);
+        const hostWrap = document.querySelector('.party-host');
+        if (hostWrap) targets.push(hostWrap);
       }
     }
     if (!targets.length && uid === String(currentUser()?.id || '')) {
-      const mine = document.querySelector(`.party-seat[data-user-id="${uid}"] .seat-avatar`);
+      const mine = document.querySelector(`.party-seat[data-user-id="${uid}"]`);
       if (mine) targets.push(mine);
     }
     targets.forEach((el) => spawnFloatingEmojisOnEl(el, emoji, 4));
@@ -3627,9 +3627,7 @@
 
   function spawnFloatingEmojisOnEl(container, emoji, count) {
     if (!container) return;
-    const host = container.classList?.contains('seat-avatar') || container.classList?.contains('ap-guest-seat')
-      ? container
-      : container;
+    const host = container;
     if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
     for (let i = 0; i < (count || 3); i += 1) {
       const el = document.createElement('span');
@@ -4232,6 +4230,7 @@
   function openPartyRequestsSheet() {
     syncBottomBarHeightVar();
     pinFixedOverlaysToBody();
+    bindPartyRequestsSheet();
     renderJoinRequests();
     renderAvailableUsers();
     renderRoomGiftPanels();
@@ -4239,9 +4238,13 @@
     const hint = document.querySelector('#partyRequestsSheet .party-requests-hint');
     if (head) head.textContent = canModerateRoom() ? 'Room members' : 'People in room';
     if (hint) {
-      hint.textContent = canModerateRoom()
-        ? 'Accept mic requests and invite listeners to seats. Drag seats to move guests.'
-        : 'Everyone currently in this party room. Tap a name to view their profile.';
+      hint.textContent = isLiveRoomPage()
+        ? canModerateRoom()
+          ? 'Viewers and gift activity. Accept mic requests to add guests to the stream.'
+          : 'Everyone watching this live. Tap a name to view their profile.'
+        : canModerateRoom()
+          ? 'Accept mic requests and invite listeners to seats. Drag seats to move guests.'
+          : 'Everyone currently in this party room. Tap a name to view their profile.';
     }
     document.body.classList.add('party-requests-open');
     document.getElementById('partyRequestsSheet')?.classList.add('open');
@@ -4252,6 +4255,36 @@
     document.body.classList.remove('party-requests-open');
     document.getElementById('partyRequestsSheet')?.classList.remove('open');
     syncLiveOverlayClass();
+  }
+
+  function bindPartyRequestsSheet() {
+    if (window.__apPartyRequestsBound) return;
+    window.__apPartyRequestsBound = true;
+    document.addEventListener(
+      'click',
+      (e) => {
+        if (e.target.closest('#partyRequestsClose')) {
+          e.preventDefault();
+          e.stopPropagation();
+          closePartyRequestsSheet();
+          return;
+        }
+        const sheet = document.getElementById('partyRequestsSheet');
+        if (sheet?.classList.contains('open') && e.target === sheet) {
+          closePartyRequestsSheet();
+        }
+      },
+      true
+    );
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      if (document.getElementById('partyRequestsSheet')?.classList.contains('open')) {
+        closePartyRequestsSheet();
+      }
+    });
+    document.getElementById('partyRequestsSheet')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+    });
   }
 
   function isAppChromeNode(node) {
@@ -4399,16 +4432,21 @@
       ensureMicPublishing();
       return true;
     }
+    const requestsOpen = document.getElementById('partyRequestsSheet')?.classList.contains('open');
     const openSheet = document.querySelector(
-      '.party-tools-sheet.open, .gift-sheet.open, .party-requests-sheet.open, .social-broadcast-sheet-wrap.is-open, .ap-modal-overlay.open, .ap-modal-overlay.show'
+      '.party-tools-sheet.open, .gift-sheet.open, .social-broadcast-sheet-wrap.is-open, .ap-modal-overlay.open, .ap-modal-overlay.show'
     );
     const emojiOpen = document.getElementById('apEmojiPopover')?.classList.contains('is-open');
+    if (requestsOpen) {
+      closePartyRequestsSheet();
+      return true;
+    }
     if (openSheet || emojiOpen) {
       if (openSheet) {
         openSheet.classList.remove('open', 'is-open', 'is-visible', 'show');
       }
       if (emojiOpen) document.getElementById('apEmojiPopover')?.classList.remove('is-open');
-      document.body.classList.remove('ap-live-overlay-open', 'ap-chat-open');
+      document.body.classList.remove('ap-live-overlay-open', 'ap-chat-open', 'party-requests-open');
       closeLiveOverlays();
       return true;
     }
@@ -5263,14 +5301,7 @@
     document.getElementById('partyBtnRequests')?.addEventListener('click', () => {
       openPartyRequestsSheet();
     });
-    document.getElementById('partyRequestsClose')?.addEventListener('click', () => {
-      closePartyRequestsSheet();
-    });
-    document.getElementById('partyRequestsSheet')?.addEventListener('click', (e) => {
-      if (e.target.id === 'partyRequestsSheet') {
-        closePartyRequestsSheet();
-      }
-    });
+    bindPartyRequestsSheet();
     document.getElementById('partyBtnLock')?.addEventListener('click', () => toggleRoomLock());
 
     document.getElementById('liveBtnInvite')?.addEventListener('click', () => {
@@ -7552,6 +7583,7 @@
     minimizeRoom: minimizeLiveRoom,
     handleBack: handleLiveRoomBack,
     leaveToExplore,
+    closePartyRequestsSheet,
     onMiniPlayerExpand: onMiniPlayerExpanded,
     exitRoom,
     getForensicReport() {

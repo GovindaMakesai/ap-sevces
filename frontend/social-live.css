@@ -54,9 +54,13 @@
 .party-host img {
   width: 36px;
   height: 36px;
+  min-width: 36px;
+  min-height: 36px;
   border-radius: 50%;
   border: 2px solid #fbbf24;
   object-fit: cover;
+  display: block;
+  flex-shrink: 0;
 }
 
 .party-host { flex: 1 1 auto; min-width: 0; max-width: calc(100vw - 120px); }
@@ -106,9 +110,11 @@
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  flex-wrap: nowrap;
   flex-shrink: 0;
   margin-left: auto;
+  min-width: 0;
 }
 
 .party-viewers {
@@ -116,6 +122,10 @@
   align-items: center;
   gap: 4px;
   flex-direction: row;
+  flex-wrap: nowrap;
+  max-width: min(148px, 40vw);
+  min-width: 0;
+  overflow: hidden;
 }
 
 .party-viewers .ap-top-gifter {
@@ -634,6 +644,8 @@ body.ap-is-host .live-host-bar {
 
 .party-audience-scroll {
   display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
   gap: 8px;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
@@ -661,8 +673,11 @@ body.ap-is-host .live-host-bar {
 .party-audience-chip img {
   width: 36px;
   height: 36px;
+  min-width: 36px;
+  min-height: 36px;
   border-radius: 50%;
   object-fit: cover;
+  display: block;
   border: 2px solid rgba(167, 139, 250, 0.85);
 }
 
@@ -696,7 +711,7 @@ body.ap-is-host #partyViewerAvatars.is-clickable,
 .party-requests-sheet {
   position: fixed;
   inset: 0;
-  z-index: 1250;
+  z-index: 13050;
   background: rgba(0, 0, 0, 0.6);
   display: none;
   flex-direction: column;
@@ -753,10 +768,14 @@ body.party-requests-open .live-host-bar {
   border: none;
   background: rgba(255,255,255,0.12);
   color: #fff;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   cursor: pointer;
+  flex-shrink: 0;
+  touch-action: manipulation;
+  position: relative;
+  z-index: 2;
 }
 .party-requests-hint {
   font-size: 12px;
@@ -787,8 +806,11 @@ body:not(.ap-is-host) .host-only-tool { display: none !important; }
 .party-req-row img {
   width: 40px;
   height: 40px;
+  min-width: 40px;
+  min-height: 40px;
   border-radius: 50%;
   object-fit: cover;
+  display: block;
   grid-row: 1 / span 2;
 }
 .party-req-row .info {
@@ -1801,12 +1823,32 @@ body.ap-live-status-visible .party-room {
 }
 
 .live-room .party-viewers {
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0;
+  flex-direction: row;
+  align-items: center;
+  gap: 3px;
+  max-width: min(152px, 42vw);
 }
 
-.live-room .party-viewers span:not(.party-viewer-count):not(.live-viewers-label) {
+.live-room .party-viewers .ap-top-gifter {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.live-room .party-viewers .ap-top-gifter img {
+  width: 24px;
+  height: 24px;
+  border-width: 1.5px;
+}
+
+.live-room .party-viewers .ap-top-gifter em {
+  font-size: 6px;
+  bottom: -4px;
+  padding: 0 2px;
+}
+
+.live-room .party-viewers span:not(.party-viewer-count):not(.live-viewers-label):not(.ap-top-gifter):not(em) {
   display: none;
 }
 
@@ -2020,6 +2062,9 @@ body.ap-room-active .ap-live-loader {
   flex-shrink: 0;
   position: relative;
   z-index: 22;
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  gap: 8px;
 }
 .party-meta-row {
   display: flex;
@@ -2384,15 +2429,21 @@ body.live-feed-mode .live-feed-rail { display: flex; }
 
 .ap-top-gifter {
   position: relative;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 28px;
   height: 28px;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 50%;
 }
 .ap-top-gifter img {
   width: 28px; height: 28px;
   border-radius: 50%;
   border: 2px solid rgba(255,255,255,0.85);
   object-fit: cover;
+  display: block;
 }
 .ap-top-gifter.has-crown img { border-color: #fbbf24; box-shadow: 0 0 8px rgba(251,191,36,0.6); }
 .ap-top-gifter em {
@@ -2729,9 +2780,12 @@ body[data-live-page="party-room"] .ap-guest-rail:not(:empty) {
 }
 .ap-guest-seat img {
   width: 44px; height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   border-radius: 50%;
   border: 2px solid #fff;
   object-fit: cover;
+  display: block;
 }
 .ap-guest-gift {
   position: absolute;
@@ -2771,9 +2825,18 @@ body[data-live-page="party-room"] .ap-guest-rail:not(:empty) {
   filter: drop-shadow(0 2px 4px rgba(0,0,0,0.45));
 }
 .seat-avatar,
+.party-seat,
+.ap-guest-seat,
+.party-host {
+  position: relative;
+}
+.party-seat,
 .ap-guest-seat,
 .party-host {
   overflow: visible;
+}
+.seat-avatar {
+  overflow: hidden;
 }
 .party-viewer-count.live-joined-count {
   font-size: 11px;
@@ -3639,14 +3702,54 @@ html.ap-expo-app .ap-chip {
 .ap-share-sheet-panel { max-height: 70vh; }
 .ap-share-sheet-title { margin: 0 0 4px; font-size: 18px; color: #111; text-align: center; }
 .ap-share-sheet-sub { margin: 0 0 14px; font-size: 12px; color: #6b7280; text-align: center; }
-.ap-share-user-list { display: flex; flex-direction: column; gap: 8px; max-height: 45vh; overflow-y: auto; }
-.ap-share-user-row {
-  display: flex; align-items: center; gap: 12px; width: 100%;
-  border: none; background: #f9fafb; border-radius: 12px; padding: 10px 12px; cursor: pointer;
+.ap-share-user-list {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 10px;
+  max-height: none;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding: 4px 2px 8px;
+  scroll-snap-type: x proximity;
 }
-.ap-share-user-row img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
-.ap-share-user-row span { flex: 1; text-align: left; font-weight: 600; color: #111; }
-.ap-share-status { flex: 0 0 auto !important; font-size: 12px; color: #6b7280; font-weight: 600; }
+.ap-share-user-row {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 72px;
+  border: none;
+  background: #f9fafb;
+  border-radius: 14px;
+  padding: 10px 6px;
+  cursor: pointer;
+  scroll-snap-align: start;
+}
+.ap-share-user-row img {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}
+.ap-share-user-row span:not(.ap-share-status) {
+  flex: none;
+  width: 100%;
+  text-align: center;
+  font-weight: 600;
+  color: #111;
+  font-size: 11px;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ap-share-status { flex: 0 0 auto !important; font-size: 10px; color: #6b7280; font-weight: 600; text-align: center; }
 .ap-share-status.is-sent { color: #16a34a; }
 .ap-share-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
 .ap-share-link-btn {
@@ -3803,8 +3906,11 @@ html.ap-expo-app .ap-chip {
 .party-chat-avatar-btn img {
   width: 22px;
   height: 22px;
+  min-width: 22px;
+  min-height: 22px;
   border-radius: 50%;
   object-fit: cover;
+  display: block;
   vertical-align: middle;
 }
 .party-chat-user-btn .user {

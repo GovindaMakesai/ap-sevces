@@ -415,8 +415,17 @@
   }
 
   function closeLiveOverlaysForBack() {
+    if (document.getElementById('partyRequestsSheet')?.classList.contains('open')) {
+      if (typeof window.SocialLive?.closePartyRequestsSheet === 'function') {
+        window.SocialLive.closePartyRequestsSheet();
+      } else {
+        document.getElementById('partyRequestsSheet')?.classList.remove('open');
+        document.body.classList.remove('party-requests-open', 'ap-live-overlay-open', 'ap-chat-open');
+      }
+      return true;
+    }
     const openSheet = document.querySelector(
-      '.party-tools-sheet.open, .gift-sheet.open, .party-requests-sheet.open, .social-broadcast-sheet-wrap.is-open, .ap-modal-overlay.open, .ap-modal-overlay.show'
+      '.party-tools-sheet.open, .gift-sheet.open, .social-broadcast-sheet-wrap.is-open, .ap-modal-overlay.open, .ap-modal-overlay.show'
     );
     if (openSheet) {
       openSheet.classList.remove('open', 'is-open', 'is-visible', 'show');
