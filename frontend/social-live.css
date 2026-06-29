@@ -49,9 +49,11 @@
   max-width: 40%;
   min-width: 0;
   flex-shrink: 1;
+  position: relative;
+  overflow: visible;
 }
 
-.party-host img {
+.party-host > img {
   width: 36px;
   height: 36px;
   min-width: 36px;
@@ -110,11 +112,9 @@
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 6px;
-  flex-wrap: nowrap;
+  gap: 8px;
   flex-shrink: 0;
   margin-left: auto;
-  min-width: 0;
 }
 
 .party-viewers {
@@ -123,19 +123,23 @@
   gap: 4px;
   flex-direction: row;
   flex-wrap: nowrap;
-  max-width: min(148px, 40vw);
-  min-width: 0;
+  max-width: min(46vw, 200px);
   overflow: hidden;
 }
 
 .party-viewers .ap-top-gifter {
   margin-left: -6px;
+  flex-shrink: 0;
 }
 .party-viewers .ap-top-gifter:first-child { margin-left: 0; }
-
 .party-viewer-count {
-  font-size: 12px; font-weight: 700; padding: 2px 8px;
-  background: rgba(0,0,0,0.35); border-radius: 12px;
+  flex-shrink: 0;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 8px;
+  background: rgba(0,0,0,0.35);
+  border-radius: 12px;
 }
 
 .party-close {
@@ -644,8 +648,6 @@ body.ap-is-host .live-host-bar {
 
 .party-audience-scroll {
   display: flex;
-  flex-direction: row;
-  flex-wrap: nowrap;
   gap: 8px;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
@@ -673,11 +675,8 @@ body.ap-is-host .live-host-bar {
 .party-audience-chip img {
   width: 36px;
   height: 36px;
-  min-width: 36px;
-  min-height: 36px;
   border-radius: 50%;
   object-fit: cover;
-  display: block;
   border: 2px solid rgba(167, 139, 250, 0.85);
 }
 
@@ -711,7 +710,7 @@ body.ap-is-host #partyViewerAvatars.is-clickable,
 .party-requests-sheet {
   position: fixed;
   inset: 0;
-  z-index: 13050;
+  z-index: 1250;
   background: rgba(0, 0, 0, 0.6);
   display: none;
   flex-direction: column;
@@ -724,6 +723,7 @@ body.ap-is-host #partyViewerAvatars.is-clickable,
 .party-requests-sheet.open {
   display: flex;
   pointer-events: auto;
+  z-index: 12000;
 }
 
 body.party-requests-open .party-bottom-bar,
@@ -772,8 +772,10 @@ body.party-requests-open .live-host-bar {
   height: 36px;
   border-radius: 50%;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
-  touch-action: manipulation;
   position: relative;
   z-index: 2;
 }
@@ -1825,30 +1827,19 @@ body.ap-live-status-visible .party-room {
 .live-room .party-viewers {
   flex-direction: row;
   align-items: center;
-  gap: 3px;
-  max-width: min(152px, 42vw);
+  justify-content: flex-end;
+  gap: 4px;
+  flex-wrap: nowrap;
+}
+
+.live-room .party-viewers span:not(.party-viewer-count):not(.live-viewers-label):not(.ap-top-gifter) {
+  display: none;
 }
 
 .live-room .party-viewers .ap-top-gifter {
-  display: inline-block;
-  width: 24px;
-  height: 24px;
-  flex-shrink: 0;
+  display: inline-flex;
 }
-
-.live-room .party-viewers .ap-top-gifter img {
-  width: 24px;
-  height: 24px;
-  border-width: 1.5px;
-}
-
 .live-room .party-viewers .ap-top-gifter em {
-  font-size: 6px;
-  bottom: -4px;
-  padding: 0 2px;
-}
-
-.live-room .party-viewers span:not(.party-viewer-count):not(.live-viewers-label):not(.ap-top-gifter):not(em) {
   display: none;
 }
 
@@ -2030,40 +2021,58 @@ body.ap-room-active .ap-live-loader {
   top: auto;
   right: auto;
   z-index: 1;
-  min-width: 78px;
+  min-width: 0;
   width: auto;
-  max-width: 42%;
-  min-height: 48px;
+  max-width: none;
+  min-height: 34px;
   text-align: center;
   text-decoration: none;
   color: #fff;
   background: linear-gradient(180deg, #ec4899, #be185d);
   border: none;
-  border-radius: 12px;
-  padding: 6px 8px;
+  border-radius: 999px;
+  padding: 6px 12px;
   font-size: 10px;
   font-weight: 800;
   box-shadow: 0 4px 12px rgba(236,72,153,0.45);
   line-height: 1.2;
   cursor: pointer;
   text-shadow: 0 1px 2px rgba(0,0,0,0.45);
-  display: flex;
-  flex-direction: column;
+  display: inline-flex;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-  flex-shrink: 0;
+  gap: 6px;
+  flex-shrink: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.party-event-pill--inline {
+  margin-left: auto;
+  max-width: min(52%, 220px);
+}
+.party-event-pill .pill-title {
+  display: inline;
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.party-event-pill .pill-sub {
+  display: none;
+}
+.party-event-pill .pill-title i {
+  margin-right: 4px;
 }
 .party-invite-row {
+  display: none;
+}
+.party-host-bar,
+.party-meta-row.party-meta-row--live {
   display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  padding: 0 10px 8px;
-  flex-shrink: 0;
-  position: relative;
-  z-index: 22;
-  overflow-x: auto;
   flex-wrap: nowrap;
+  align-items: center;
   gap: 8px;
 }
 .party-meta-row {
@@ -2434,12 +2443,15 @@ body.live-feed-mode .live-feed-rail { display: flex; }
   justify-content: center;
   width: 28px;
   height: 28px;
-  flex-shrink: 0;
-  overflow: hidden;
+  min-width: 28px;
+  min-height: 28px;
   border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
 }
 .ap-top-gifter img {
-  width: 28px; height: 28px;
+  width: 100%;
+  height: 100%;
   border-radius: 50%;
   border: 2px solid rgba(255,255,255,0.85);
   object-fit: cover;
@@ -2779,7 +2791,8 @@ body[data-live-page="party-room"] .ap-guest-rail:not(:empty) {
   text-align: center;
 }
 .ap-guest-seat img {
-  width: 44px; height: 44px;
+  width: 44px;
+  height: 44px;
   min-width: 44px;
   min-height: 44px;
   border-radius: 50%;
@@ -2825,12 +2838,6 @@ body[data-live-page="party-room"] .ap-guest-rail:not(:empty) {
   filter: drop-shadow(0 2px 4px rgba(0,0,0,0.45));
 }
 .seat-avatar,
-.party-seat,
-.ap-guest-seat,
-.party-host {
-  position: relative;
-}
-.party-seat,
 .ap-guest-seat,
 .party-host {
   overflow: visible;
@@ -2838,6 +2845,7 @@ body[data-live-page="party-room"] .ap-guest-rail:not(:empty) {
 .seat-avatar {
   overflow: hidden;
 }
+
 .party-viewer-count.live-joined-count {
   font-size: 11px;
   padding: 2px 8px;
@@ -3702,54 +3710,14 @@ html.ap-expo-app .ap-chip {
 .ap-share-sheet-panel { max-height: 70vh; }
 .ap-share-sheet-title { margin: 0 0 4px; font-size: 18px; color: #111; text-align: center; }
 .ap-share-sheet-sub { margin: 0 0 14px; font-size: 12px; color: #6b7280; text-align: center; }
-.ap-share-user-list {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: nowrap;
-  gap: 10px;
-  max-height: none;
-  overflow-x: auto;
-  overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
-  padding: 4px 2px 8px;
-  scroll-snap-type: x proximity;
-}
+.ap-share-user-list { display: flex; flex-direction: column; gap: 8px; max-height: 45vh; overflow-y: auto; }
 .ap-share-user-row {
-  flex: 0 0 auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  width: 72px;
-  border: none;
-  background: #f9fafb;
-  border-radius: 14px;
-  padding: 10px 6px;
-  cursor: pointer;
-  scroll-snap-align: start;
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  border: none; background: #f9fafb; border-radius: 12px; padding: 10px 12px; cursor: pointer;
 }
-.ap-share-user-row img {
-  width: 44px;
-  height: 44px;
-  min-width: 44px;
-  min-height: 44px;
-  border-radius: 50%;
-  object-fit: cover;
-  display: block;
-}
-.ap-share-user-row span:not(.ap-share-status) {
-  flex: none;
-  width: 100%;
-  text-align: center;
-  font-weight: 600;
-  color: #111;
-  font-size: 11px;
-  line-height: 1.2;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.ap-share-status { flex: 0 0 auto !important; font-size: 10px; color: #6b7280; font-weight: 600; text-align: center; }
+.ap-share-user-row img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
+.ap-share-user-row span { flex: 1; text-align: left; font-weight: 600; color: #111; }
+.ap-share-status { flex: 0 0 auto !important; font-size: 12px; color: #6b7280; font-weight: 600; }
 .ap-share-status.is-sent { color: #16a34a; }
 .ap-share-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
 .ap-share-link-btn {
@@ -3910,8 +3878,8 @@ html.ap-expo-app .ap-chip {
   min-height: 22px;
   border-radius: 50%;
   object-fit: cover;
-  display: block;
   vertical-align: middle;
+  display: block;
 }
 .party-chat-user-btn .user {
   font-weight: 700;
