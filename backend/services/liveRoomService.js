@@ -276,7 +276,13 @@ async function buildSnapshot(channel) {
     .map((e) => parsePayload(e.payload));
 
   const seats = members
-    .filter((m) => m.role === 'host' || m.role === 'speaker' || m.role === 'admin')
+    .filter(
+      (m) =>
+        m.role === 'host' ||
+        m.role === 'speaker' ||
+        m.role === 'admin' ||
+        m.seat_index != null
+    )
     .sort((a, b) => {
       const ai = a.seat_index != null ? Number(a.seat_index) : 999;
       const bi = b.seat_index != null ? Number(b.seat_index) : 999;
@@ -293,6 +299,7 @@ async function buildSnapshot(channel) {
       isAdmin: m.role === 'admin',
       seatIndex: m.seat_index,
       agoraUid: uidFromUserId(m.user_id),
+      role: m.role === 'viewer' && m.seat_index != null ? 'speaker' : m.role,
     }));
 
   const onlineMembers = members.map((m) => ({
@@ -370,7 +377,7 @@ async function promoteToSpeaker({ channel, userId, displayName }) {
     `UPDATE live_room_members SET role = 'speaker', display_name = COALESCE(NULLIF(display_name, ''), $3), seat_index = COALESCE(seat_index, (
       SELECT COALESCE(MAX(seat_index), 1) + 1 FROM live_room_members WHERE live_room_id = $1 AND left_at IS NULL AND role IN ('speaker', 'admin')
     ))
-     WHERE live_room_id = $1 AND user_id = $2 AND left_at IS NULL AND role = 'viewer'`,
+     WHERE live_room_id = $1 AND user_id = $2 AND left_at IS NULL AND role IN ('viewer', 'admin')`,
     [room.id, userId, name]
   );
 
@@ -478,6 +485,11 @@ async function touchHeartbeat(channel, userId) {
   const room = await findByChannel(channel);
   if (!room || room.status !== 'active') return;
   await accumulateMemberWatchTime(room, userId, HEARTBEAT_SECONDS);
+  await db.query(
+    `UPDATE live_room_members SET last_seen_at = CURRENT_TIMESTAMP
+     WHERE live_room_id = $1 AND user_id = $2 AND left_at IS NULL`,
+    [room.id, userId]
+  );
   const isHost = String(room.host_user_id) === String(userId);
   if (isHost) {
     await accumulateHostHeartbeat(room, userId, HEARTBEAT_SECONDS);
@@ -503,6 +515,8 @@ async function pruneStaleMembers(staleSeconds = 90) {
     `UPDATE live_room_members m SET left_at = CURRENT_TIMESTAMP
      FROM live_rooms r
      WHERE m.live_room_id = r.id AND m.left_at IS NULL AND r.status = 'active'
+       AND m.role = 'viewer'
+       AND m.seat_index IS NULL
        AND m.last_seen_at < CURRENT_TIMESTAMP - ($1 || ' seconds')::interval
      RETURNING r.channel, m.user_id`,
     [staleSeconds]

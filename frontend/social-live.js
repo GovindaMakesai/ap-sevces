@@ -178,12 +178,22 @@
         liveSocket.emit('live:heartbeat', { channel: channelId() });
       }
     }, 25000);
+    if (window.__apStateRefreshTimer) clearInterval(window.__apStateRefreshTimer);
+    if (isPartyRoomPage()) {
+      window.__apStateRefreshTimer = setInterval(() => {
+        if (roomJoinCompleted && liveSocket?.connected) requestFreshRoomState();
+      }, 60000);
+    }
   }
 
   function stopHeartbeat() {
     if (heartbeatTimer) {
       clearInterval(heartbeatTimer);
       heartbeatTimer = null;
+    }
+    if (window.__apStateRefreshTimer) {
+      clearInterval(window.__apStateRefreshTimer);
+      window.__apStateRefreshTimer = null;
     }
   }
 
@@ -961,9 +971,100 @@
 
   function liveProfilePic(userId, fallbackPic) {
     if (fallbackPic) return fallbackPic;
+    const uid = String(userId || '');
+    if (uid && roomState?.hostId && uid === String(roomState.hostId)) {
+      return roomState.hostProfilePic || null;
+    }
+    const seat = (roomState?.seats || []).find((s) => uid && String(s.userId) === uid);
+    if (seat?.profilePic) return seat.profilePic;
+    const online = (roomState?.onlineMembers || []).find((m) => uid && String(m.userId) === uid);
+    if (online?.profilePic) return online.profilePic;
     const me = currentUser();
-    if (userId && me && String(userId) === String(me.id)) return me.profile_pic || null;
+    if (uid && me && uid === String(me.id)) return me.profile_pic || null;
     return null;
+  }
+
+  function resolveHostProfilePic() {
+    const hostId = String(roomState?.hostId || '');
+    const hostSeat = (roomState?.seats || []).find(
+      (s) => s?.isHost || (hostId && String(s?.userId) === hostId)
+    );
+    const pic =
+      roomState?.hostProfilePic ||
+      hostSeat?.profilePic ||
+      liveProfilePic(hostId, isHost() ? currentUser()?.profile_pic : null);
+    return pic || null;
+  }
+
+  function mergeRoomState(incoming) {
+    if (!incoming) return roomState;
+    if (!roomState) return incoming;
+    const prev = roomState;
+    const merged = { ...incoming };
+    const prevSeats = Array.isArray(prev.seats) ? prev.seats : [];
+    const nextSeats = Array.isArray(incoming.seats) ? incoming.seats : [];
+    if (nextSeats.length < prevSeats.length && prevSeats.length > 0) {
+      const nextIds = new Set(nextSeats.map((s) => String(s.userId)));
+      const carry = prevSeats.filter(
+        (s) => s?.userId && !s.isHost && !nextIds.has(String(s.userId))
+      );
+      if (carry.length) merged.seats = [...nextSeats, ...carry];
+    }
+    if (!merged.hostProfilePic && prev.hostProfilePic) merged.hostProfilePic = prev.hostProfilePic;
+    if (!merged.hostName && prev.hostName) merged.hostName = prev.hostName;
+    return merged;
+  }
+
+  function collectPartySeatGuests() {
+    const hostId = String(roomState?.hostId || '');
+    const seen = new Set();
+    const guests = [];
+    const pushGuest = (g) => {
+      if (!g) return;
+      const uid = g.userId != null ? String(g.userId) : '';
+      const key = uid || String(g.name || '');
+      if (!key || (hostId && uid === hostId)) return;
+      if (seen.has(key)) return;
+      seen.add(key);
+      guests.push({
+        userId: g.userId,
+        name: g.name || 'Guest',
+        profilePic: g.profilePic || g.profile_pic || liveProfilePic(g.userId, null),
+        muted: Boolean(g.muted),
+        gifts: Number(g.gifts || 0),
+        seatIndex: g.seatIndex != null ? g.seatIndex : g.seat_index,
+        isHost: false,
+        isAdmin: Boolean(g.isAdmin || g.role === 'admin'),
+      });
+    };
+    (roomState?.seats || []).forEach((s) => {
+      if (!s || s.isHost) return;
+      pushGuest(s);
+    });
+    (roomState?.onlineMembers || []).forEach((m) => {
+      if (!m || m.role === 'host') return;
+      const onStage =
+        m.role === 'speaker' ||
+        m.role === 'admin' ||
+        m.seatIndex != null ||
+        m.seat_index != null;
+      if (onStage) pushGuest(m);
+    });
+    return guests;
+  }
+
+  function paintHostAvatarImg(img, hostName) {
+    if (!img) return;
+    const pic = resolveHostProfilePic();
+    const url = avatarUrl(hostName, pic);
+    img.alt = hostName || 'Host';
+    img.dataset.name = hostName || 'Host';
+    if (pic) img.dataset.avatarSrc = String(pic);
+    img.onerror = () => {
+      img.onerror = null;
+      img.src = avatarUrl(hostName, null);
+    };
+    if (img.src !== url) img.src = url;
   }
 
   async function refreshLiveUserProfile() {
@@ -1676,7 +1777,7 @@
 
     liveSocket.on('live:state', (state) => {
       const prevViewers = roomState?.viewers || lastViewerCount;
-      roomState = state;
+      roomState = mergeRoomState(state);
       if (state?.viewers != null && state.viewers !== prevViewers) {
         window.SocialFX?.onViewerCountChange?.(state.viewers, prevViewers);
       }
@@ -3544,7 +3645,7 @@
         <div class="seat-avatar">
           <span class="seat-num">${seatNum}</span>
           ${crown}
-          <img src="${avatarUrl(s.name, s.profilePic || liveProfilePic(s.userId, null))}" alt="">
+          <img src="${avatarUrl(s.name, s.profilePic || liveProfilePic(s.userId, s.host ? resolveHostProfilePic() : null))}" alt="" data-name="${escapeAttr(s.name || 'User')}" loading="lazy">
           ${mic}
           ${waveBars}
         </div>
@@ -3592,9 +3693,11 @@
     const me = displayName(currentUser());
     const meId = currentUser()?.id ? String(currentUser().id) : '';
     const hosting = isHost();
+    const hostPic = resolveHostProfilePic();
     const host = {
       name: hosting ? me : hostName || 'Host',
       userId: hosting ? meId : roomState?.hostId || '',
+      profilePic: hostPic,
       host: true,
       gifts: 0,
       muted: micMuted,
@@ -3602,8 +3705,7 @@
     };
 
     const seenGuests = new Set();
-    const guests = (roomState?.seats || []).filter((s) => {
-      if (!s || !s.name || s.isHost) return false;
+    const guests = collectPartySeatGuests().filter((s) => {
       const key = String(s.userId || s.name);
       if (seenGuests.has(key)) return false;
       seenGuests.add(key);
@@ -3684,6 +3786,8 @@
       });
     });
     if (canModerateRoom()) bindSeatDragDrop(container);
+    window.SocialUI?.bindAvatarFallbacks?.(container);
+    paintHostAvatarImg(document.getElementById('partyHostAvatar'), hostName);
   }
 
   function formatGiftCount(n) {
@@ -3753,11 +3857,7 @@
       hostEl.title = full;
     }
     if (hostImg) {
-      const hostId = roomState?.hostId ? String(roomState.hostId) : '';
-      const pic = roomState?.hostProfilePic || liveProfilePic(hostId, isHost() ? currentUser()?.profile_pic : null);
-      hostImg.src = avatarUrl(hostName, pic);
-      hostImg.dataset.name = hostName;
-      if (pic) hostImg.dataset.avatarSrc = String(pic);
+      paintHostAvatarImg(hostImg, hostName);
     }
 
     const vc = document.getElementById('liveViewerCount');
@@ -6081,7 +6181,7 @@
   function resolveLiveProfilePic(name, userId) {
     const uid = String(userId || '');
     if (uid && roomState?.hostId && uid === String(roomState.hostId)) {
-      return roomState.hostProfilePic || null;
+      return resolveHostProfilePic();
     }
     const seat = (roomState?.seats || []).find((s) =>
       (uid && String(s.userId) === uid) || (name && s.name === name)
