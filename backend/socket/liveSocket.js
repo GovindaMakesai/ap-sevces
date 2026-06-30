@@ -557,6 +557,23 @@ function registerLiveSocket(io) {
       }
     });
 
+    socket.on('live:room_style', async (payload, ack) => {
+      try {
+        const channel = sanitizeChannel(payload?.channel || currentChannel);
+        if (!(await isRoomHost(socket, channel))) {
+          if (ack) ack({ ok: false, message: 'Only host can change background' });
+          return;
+        }
+        const style = await liveRoomService.setRoomStyle(channel, {
+          backgroundId: payload?.backgroundId,
+        });
+        io.to(`live:${channel}`).emit('live:room_style', style);
+        if (ack) ack({ ok: true, data: style });
+      } catch (err) {
+        if (ack) ack({ ok: false, message: err.message });
+      }
+    });
+
     socket.on('live:end', async (payload, ack) => {
       try {
         const channel = sanitizeChannel(payload?.channel || currentChannel);
@@ -581,11 +598,21 @@ function registerLiveSocket(io) {
 
       try {
         if (wasHost) {
-          // Only end the room when the host explicitly leaves — not on brief socket drops
-          // (mobile network / polling→websocket upgrade used to kill live for everyone).
           if (intentional) {
-            await liveRoomService.endRoom(channel, 'host_left');
-            io.to(`live:${channel}`).emit('live:ended', { channel });
+            const result = await liveRoomService.hostStepAway({
+              channel,
+              userId: socket.userId,
+            });
+            if (result.ended) {
+              io.to(`live:${channel}`).emit('live:ended', { channel });
+            } else {
+              const state = await liveRoomService.buildSnapshot(channel);
+              if (state) io.to(`live:${channel}`).emit('live:state', state);
+              io.to(`live:${channel}`).emit('live:chat', {
+                type: 'system',
+                text: 'Host stepped away — room stays open for guests',
+              });
+            }
           }
           return;
         }

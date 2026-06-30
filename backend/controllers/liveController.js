@@ -152,3 +152,22 @@ exports.myAnalytics = async (req, res) => {
     res.status(500).json({ success: false, message: error.message || 'Could not load analytics' });
   }
 };
+
+exports.uploadPartyMusic = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No audio file uploaded' });
+    }
+    const url = `/uploads/party-music/${req.file.filename}`;
+    res.json({
+      success: true,
+      data: {
+        url,
+        name: req.file.originalname || req.file.filename,
+      },
+    });
+  } catch (error) {
+    console.error('[live] party music upload', error);
+    res.status(500).json({ success: false, message: error.message || 'Upload failed' });
+  }
+};

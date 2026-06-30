@@ -96,6 +96,9 @@
       }
     }
 
+    let rankCache = [];
+    let rankVisible = 20;
+
     async function fetchRankings(period, tab) {
       const category = TAB_CATEGORY[tab] || 'creators';
       const mode = TAB_MODE[tab] || '';
@@ -134,10 +137,12 @@
       let rows = [];
       try {
         rows = await fetchRankings(currentPeriod, currentTab);
+        rankCache = rows;
+        rankVisible = 20;
       } catch (e) {
         console.warn('rankings fetch', e);
       }
-      renderRankList(id, rows);
+      renderRankList(id, rankCache.slice(0, rankVisible), rankCache.length > rankVisible);
     }
 
     function renderEmpty(el) {
@@ -161,7 +166,7 @@
         </div>`).join('')}</div>`;
     }
 
-    function renderRankList(id, rows) {
+    function renderRankList(id, rows, hasMore) {
       const el = document.getElementById(id);
       if (!el) return;
       if (!rows.length) {
@@ -169,13 +174,26 @@
         return;
       }
       const rest = rows.slice(3);
-      el.innerHTML = renderPodium(rows) + rest.map((r, i) => `
+      el.innerHTML =
+        renderPodium(rows) +
+        rest
+          .map(
+            (r, i) => `
         <div class="social-rank-row" style="animation-delay:${(i + 3) * 0.06}s">
           <span class="rank-num">${i + 4}</span>
-          <img src="${avatarUrl(r)}" alt="" onerror="this.src='https://ui-avatars.com/api/?name=AP&background=c9a227&color=fff'">
+          <img src="${avatarUrl(r)}" alt="" loading="lazy" decoding="async" onerror="this.src='https://ui-avatars.com/api/?name=AP&background=c9a227&color=fff'">
           <div class="rank-info"><strong>${r.n}</strong> 🇮🇳<br><small>${r.s}</small></div>
           <button type="button" class="social-rank-follow ap-pressable" data-user-id="${r.id || ''}">Follow</button>
-        </div>`).join('');
+        </div>`
+          )
+          .join('') +
+        (hasMore
+          ? '<button type="button" class="social-rank-load-more" id="rankLoadMore">Load more</button>'
+          : '');
+      el.querySelector('#rankLoadMore')?.addEventListener('click', () => {
+        rankVisible += 20;
+        renderRankList(id, rankCache.slice(0, rankVisible), rankCache.length > rankVisible);
+      });
       el.querySelectorAll('.social-rank-follow').forEach((b) => {
         const uid = b.dataset.userId;
         if (uid && window.SocialInteractions?.isFollowing?.(uid)) {

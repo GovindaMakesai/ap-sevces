@@ -1,12 +1,16 @@
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
 const router = express.Router();
 const { verifyToken } = require('../middleware/auth');
 const liveController = require('../controllers/liveController');
 const liveAccessService = require('../services/liveAccessService');
 
 liveAccessService.ensureUploadDir();
+const partyMusicDir = path.join(__dirname, '../uploads/party-music');
+if (!fs.existsSync(partyMusicDir)) fs.mkdirSync(partyMusicDir, { recursive: true });
+
 const faceUpload = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, liveAccessService.ensureUploadDir()),
@@ -18,6 +22,23 @@ const faceUpload = multer({
   limits: { fileSize: 5 * 1024 * 1024 },
 });
 
+const partyMusicUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, partyMusicDir),
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname || '.mp3').slice(0, 6) || '.mp3';
+      cb(null, `music-${req.userId}-${Date.now()}${ext}`);
+    },
+  }),
+  limits: { fileSize: 15 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ok =
+      /^audio\//.test(file.mimetype || '') ||
+      /\.(mp3|m4a|wav|ogg|aac)$/i.test(file.originalname || '');
+    cb(null, ok);
+  },
+});
+
 router.get('/rooms', liveController.listActiveRooms);
 router.get('/agora/config', liveController.agoraConfig);
 router.post('/agora/token', verifyToken, liveController.agoraToken);
@@ -26,5 +47,6 @@ router.get('/streamer-stats', verifyToken, liveController.streamerStats);
 router.get('/my-analytics', verifyToken, liveController.myAnalytics);
 router.post('/verify/identity', verifyToken, liveController.confirmIdentityStep);
 router.post('/verify/face', verifyToken, faceUpload.single('photo'), liveController.submitFaceVerification);
+router.post('/party-music', verifyToken, partyMusicUpload.single('music'), liveController.uploadPartyMusic);
 
 module.exports = router;

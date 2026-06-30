@@ -44,6 +44,22 @@
   const EMOJI_PICKS = _liveEmoji.EMOJI_PICKS || [
     '\u{1F600}', '\u{1F602}', '\u2764\uFE0F', '\u{1F525}', '\u{1F44D}', '\u{1F389}', '\u{1F4AF}',
     '\u{1F339}', '\u{1F490}', '\u{1F381}', '\u{1F44F}', '\u{1F60D}', '\u{1F64F}', '\u{1F4AA}', '\u2728',
+    '\u{1F917}', '\u{1F618}', '\u{1F48B}', '\u{1F970}', '\u{1F495}', '\u{1FAF6}',
+  ];
+  const SEAT_REACTION_EMOJIS = _liveEmoji.SEAT_REACTION_EMOJIS || [
+    '\u{1F917}', '\u{1F618}', '\u{1F48B}', '\u{1F970}', '\u{1F495}', '\u{1FAF6}', '\u{1F60D}', '\u2764\uFE0F',
+  ];
+  const PARTY_BACKGROUNDS = [
+    { id: 'cosmic', label: 'Cosmic', premium: false, css: 'radial-gradient(ellipse at 30% 20%, #4c1d95 0%, #1e1033 45%, #0a0612 100%)' },
+    { id: 'neon', label: 'Neon', premium: false, css: 'linear-gradient(160deg, #0f172a 0%, #581c87 40%, #be185d 100%)' },
+    { id: 'sunset', label: 'Sunset', premium: false, css: 'linear-gradient(180deg, #7c2d12 0%, #c2410c 35%, #1c1917 100%)' },
+    { id: 'ocean', label: 'Ocean', premium: false, css: 'linear-gradient(180deg, #0c4a6e 0%, #0369a1 40%, #082f49 100%)' },
+    { id: 'forest', label: 'Forest', premium: false, css: 'linear-gradient(180deg, #14532d 0%, #166534 40%, #052e16 100%)' },
+    { id: 'gold', label: 'Gold VIP', premium: true, css: 'linear-gradient(160deg, #422006 0%, #ca8a04 45%, #1a1000 100%)' },
+    { id: 'diamond', label: 'Diamond', premium: true, css: 'linear-gradient(160deg, #0e7490 0%, #a5f3fc 35%, #164e63 100%)' },
+    { id: 'galaxy', label: 'Galaxy', premium: true, css: 'radial-gradient(circle at 70% 30%, #6366f1 0%, #312e81 40%, #020617 100%)' },
+    { id: 'aurora', label: 'Aurora', premium: true, css: 'linear-gradient(135deg, #064e3b 0%, #7c3aed 50%, #0f172a 100%)' },
+    { id: 'royal', label: 'Royal', premium: true, css: 'linear-gradient(160deg, #4a044e 0%, #7e22ce 40%, #1e1b4b 100%)' },
   ];
   let quickChipsExpanded = false;
   let chatRegionFilter = 'room';
@@ -62,7 +78,9 @@
   let followed = false;
   let soundOn = true;
   let partyMusicPlayingId = '';
-  const PARTY_MUSIC_TRACKS = [
+  let partyMusicCustomTracks = [];
+  const PARTY_MUSIC_STORAGE_KEY = 'ap_party_music_tracks';
+  const PARTY_MUSIC_PRESETS = [
     { id: 'chill', title: 'Chill lounge', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3' },
     { id: 'upbeat', title: 'Upbeat party', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3' },
     { id: 'soft', title: 'Soft evening', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3' },
@@ -84,6 +102,9 @@
   let activeChannelOverride = '';
   let feedSwitching = false;
   let feedObserver = null;
+  let feedTouchStartY = 0;
+  let feedTouchStartAt = 0;
+  let chatInputFocused = false;
   let lastViewerCount = 0;
   let lastCoinBalance = null;
   let pkBattleActive = false;
@@ -793,13 +814,11 @@
       `<div id="partyAudienceBar" class="party-audience-bar" hidden>
         <div class="party-audience-head">
           <span class="party-audience-title"><i class="fas fa-users"></i> In room · <strong id="partyAudienceCount">0</strong></span>
-          <button type="button" class="party-audience-manage" id="partyAudienceManage">View all</button>
         </div>
         <div class="party-audience-scroll" id="partyAudienceList" role="list"></div>
         <p class="party-audience-empty" id="partyAudienceEmpty">Waiting for guests — tap Share to invite friends</p>
       </div>`
     );
-    document.getElementById('partyAudienceManage')?.addEventListener('click', () => openPartyRequestsSheet());
     document.getElementById('partyAudienceList')?.addEventListener('click', (e) => {
       const chip = e.target.closest('[data-audience-id]');
       if (!chip) return;
@@ -1037,8 +1056,15 @@
     const nextSeats = Array.isArray(incoming.seats) ? incoming.seats : [];
     if (nextSeats.length < prevSeats.length && prevSeats.length > 0) {
       const nextIds = new Set(nextSeats.map((s) => String(s.userId)));
+      const onlineIds = new Set(
+        (incoming.onlineMembers || []).map((m) => String(m.userId)).filter(Boolean)
+      );
       const carry = prevSeats.filter(
-        (s) => s?.userId && !s.isHost && !nextIds.has(String(s.userId))
+        (s) =>
+          s?.userId &&
+          !s.isHost &&
+          !nextIds.has(String(s.userId)) &&
+          onlineIds.has(String(s.userId))
       );
       if (carry.length) merged.seats = [...nextSeats, ...carry];
     }
@@ -1860,6 +1886,14 @@
           at: Date.now(),
         });
         if (roomGiftHistory.length > 40) roomGiftHistory = roomGiftHistory.slice(-40);
+        rememberChatMessage({
+          type: 'gift',
+          user: gift.from || gift.senderName || 'User',
+          userId: gift.fromUserId || gift.senderId || null,
+          text: `${gift.emoji || '🎁'} sent to ${gift.to || gift.recipientName || 'Host'} · ${formatGiftCount(gift.amount || gift.coins || 0)} coins`,
+          gift,
+        });
+        renderChatFeed();
       }
       showWinBanner(gift);
       showGiftFlyBanner(gift);
@@ -1986,6 +2020,12 @@
         toast(payload?.isAdmin ? 'You are now a room admin' : 'Admin access removed', 'info');
       }
       renderRoomState();
+    });
+
+    liveSocket.on('live:room_style', (payload) => {
+      if (!roomState) return;
+      roomState.roomStyle = payload || roomState.roomStyle;
+      applyRoomBackground(payload?.backgroundId || roomState.roomStyle?.backgroundId);
     });
 
     liveSocket.on('live:room_lock', (payload) => {
@@ -3189,7 +3229,7 @@
         window.__apLocalStream.getTracks().forEach((t) => t.stop());
       }
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { exact: nextFacing } },
+        video: { facingMode: { ideal: nextFacing } },
         audio: false,
       }).catch(() =>
         navigator.mediaDevices.getUserMedia({ video: { facingMode: nextFacing }, audio: false })
@@ -3625,7 +3665,7 @@
   function extractEmojiReaction(text) {
     const t = String(text || '').trim();
     if (!t || t.length > 16) return null;
-    if (EMOJI_PICKS.includes(t)) return t;
+    if (EMOJI_PICKS.includes(t) || SEAT_REACTION_EMOJIS.includes(t)) return t;
     const stripped = t.replace(/[\s\u200d\ufe0f]/g, '');
     if (!stripped) return null;
     try {
@@ -3656,7 +3696,8 @@
       const mine = document.querySelector(`.party-seat[data-user-id="${uid}"] .seat-avatar`);
       if (mine) targets.push(mine);
     }
-    targets.forEach((el) => spawnFloatingEmojisOnEl(el, emoji, 4));
+    const floatCount = SEAT_REACTION_EMOJIS.includes(emoji) ? 7 : 4;
+    targets.forEach((el) => spawnFloatingEmojisOnEl(el, emoji, floatCount));
   }
 
   function spawnFloatingEmojisOnEl(container, emoji, count) {
@@ -3665,9 +3706,10 @@
       ? container
       : container;
     if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+    const isAffection = SEAT_REACTION_EMOJIS.includes(emoji);
     for (let i = 0; i < (count || 3); i += 1) {
       const el = document.createElement('span');
-      el.className = 'ap-seat-emoji-float';
+      el.className = 'ap-seat-emoji-float' + (isAffection ? ' ap-seat-emoji-float--affection' : '');
       el.textContent = emoji;
       el.style.setProperty('--drift-x', `${Math.round((Math.random() - 0.5) * 36)}px`);
       el.style.setProperty('--rise', `${Math.round(28 + Math.random() * 24)}px`);
@@ -3734,6 +3776,13 @@
           div.className =
             'party-chat-msg system' + (isJoin ? ' join-msg' : '') + (isLeave ? ' leave-msg' : '');
           div.textContent = msg.text || '';
+        } else if (msg.type === 'gift') {
+          div.className = 'party-chat-msg party-chat-msg--gift';
+          const g = msg.gift || {};
+          div.innerHTML =
+            `<span class="party-chat-gift-ico">${escapeHtml(g.emoji || '🎁')}</span>` +
+            `<span><strong>${escapeHtml(msg.user || g.from || 'User')}</strong> sent ${escapeHtml(g.emoji || '🎁')} to ` +
+            `<strong>${escapeHtml(g.to || g.recipientName || 'Host')}</strong> · ${formatGiftCount(g.amount || g.coins || 0)} coins</span>`;
         } else {
           div.className = 'party-chat-msg';
           const uid = msg.userId || '';
@@ -3745,7 +3794,8 @@
           const badge = window.SocialFX
             ? SocialFX.levelBadgeHtml(lvlInfo.level, { isVip: lvlInfo.isVip, isFan: lvlInfo.isFan })
             : `<span class="lvl">${msg.lvl || 1}</span>`;
-          div.innerHTML = `<button type="button" class="party-chat-avatar-btn" data-chat-user="${escapeAttr(msg.user || 'User')}" data-chat-uid="${escapeHtml(String(uid))}"><img src="${escapeAttr(avatarSrc)}" alt="" data-name="${escapeAttr(msg.user || 'User')}" data-avatar-src="${escapeAttr(pic || '')}" loading="lazy"></button>${badge}<button type="button" class="party-chat-user-btn" data-chat-user="${escapeAttr(msg.user || 'User')}" data-chat-uid="${escapeHtml(String(uid))}"><span class="user">${escapeHtml(msg.user)}</span></button> <span class="party-chat-text">${escapeHtml(msg.text)}</span>`;
+          const adminBadge = uid && isAdminUserId(uid) ? '<span class="party-chat-admin-badge">Admin</span>' : '';
+          div.innerHTML = `<button type="button" class="party-chat-avatar-btn" data-chat-user="${escapeAttr(msg.user || 'User')}" data-chat-uid="${escapeHtml(String(uid))}"><img src="${escapeAttr(avatarSrc)}" alt="" data-name="${escapeAttr(msg.user || 'User')}" data-avatar-src="${escapeAttr(pic || '')}" loading="lazy" decoding="async" fetchpriority="low"></button>${badge}${adminBadge}<button type="button" class="party-chat-user-btn" data-chat-user="${escapeAttr(msg.user || 'User')}" data-chat-uid="${escapeHtml(String(uid))}"><span class="user">${escapeHtml(msg.user)}</span></button> <span class="party-chat-text">${escapeHtml(msg.text)}</span>`;
           const img = div.querySelector('.party-chat-avatar-btn img');
           if (img) {
             img.onerror = () => {
@@ -3800,6 +3850,10 @@
         ? '<span class="mic-live"><i class="fas fa-microphone"></i></span>'
         : '';
     const crown = s.host ? '<span class="seat-crown">👑</span>' : '';
+    const adminBadge =
+      !s.host && (s.isAdmin || s.role === 'admin' || isAdminUserId(s.userId))
+        ? '<span class="seat-admin-badge">Admin</span>'
+        : '';
     const waveBars = s.speaking
       ? '<div class="seat-wave-bars"><span></span><span></span><span></span><span></span></div>'
       : '';
@@ -3808,7 +3862,8 @@
         <div class="seat-avatar">
           <span class="seat-num">${seatNum}</span>
           ${crown}
-          <img src="${avatarUrl(s.name, s.profilePic || liveProfilePic(s.userId, s.host ? resolveHostProfilePic() : null))}" alt="" data-name="${escapeAttr(s.name || 'User')}" loading="lazy">
+          ${adminBadge}
+          <img src="${avatarUrl(s.name, s.profilePic || liveProfilePic(s.userId, s.host ? resolveHostProfilePic() : null))}" alt="" data-name="${escapeAttr(s.name || 'User')}" loading="eager" decoding="async">
           ${mic}
           ${waveBars}
         </div>
@@ -4084,6 +4139,7 @@
     renderQuickChips();
     syncMicButtonUi();
     syncHostBarUi();
+    if (roomState?.roomStyle?.backgroundId) applyRoomBackground(roomState.roomStyle.backgroundId);
     bindRoomAvatars();
   }
 
@@ -4254,7 +4310,8 @@
         document.getElementById('apMicLinkModal')?.classList.contains('open') ||
         document.getElementById('apTopupSheet')?.classList.contains('open') ||
         document.getElementById('partyRequestsSheet')?.classList.contains('open') ||
-        document.getElementById('partyMusicSheet')?.classList.contains('open')
+        document.getElementById('partyMusicSheet')?.classList.contains('open') ||
+        document.getElementById('partyBgPickerSheet')?.classList.contains('open')
     );
     document.body.classList.toggle('ap-live-overlay-open', open);
   }
@@ -4322,18 +4379,182 @@
     if (target && pill.parentElement !== target) target.appendChild(pill);
   }
 
-  function ensurePartyMusicUi() {
-    const list = document.getElementById('partyMusicList');
-    if (!list || list.dataset.bound === '1') return;
-    list.dataset.bound = '1';
-    list.innerHTML = PARTY_MUSIC_TRACKS.map(
-      (track) =>
-        `<button type="button" class="party-music-track" data-music-id="${escapeAttr(track.id)}">` +
-        `<i class="fas fa-play"></i><span>${escapeHtml(track.title)}</span></button>`
+  function loadPartyMusicCustomTracks() {
+    try {
+      const raw = localStorage.getItem(PARTY_MUSIC_STORAGE_KEY);
+      partyMusicCustomTracks = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(partyMusicCustomTracks)) partyMusicCustomTracks = [];
+    } catch (_e) {
+      partyMusicCustomTracks = [];
+    }
+  }
+
+  function savePartyMusicCustomTracks() {
+    try {
+      localStorage.setItem(PARTY_MUSIC_STORAGE_KEY, JSON.stringify(partyMusicCustomTracks.slice(0, 20)));
+    } catch (_e) {}
+  }
+
+  function getPartyMusicTracks() {
+    loadPartyMusicCustomTracks();
+    return [...PARTY_MUSIC_PRESETS, ...partyMusicCustomTracks];
+  }
+
+  function resolvePartyMusicUrl(url) {
+    if (!url) return '';
+    const u = String(url).trim();
+    if (u.startsWith('http') || u.startsWith('blob:') || u.startsWith('data:')) return u;
+    if (window.SocialShell?.getImageUrl) return SocialShell.getImageUrl(u) || u;
+    const base = (window.CONFIG?.BACKEND_URL || '').replace(/\/$/, '');
+    return base ? `${base}${u.startsWith('/') ? '' : '/'}${u}` : u;
+  }
+
+  function applyRoomBackground(backgroundId) {
+    const bg = PARTY_BACKGROUNDS.find((b) => b.id === backgroundId) || PARTY_BACKGROUNDS[0];
+    const floor = document.querySelector('.party-room-grid-floor');
+    const roomRoot = document.querySelector('.party-room') || document.querySelector('.live-room');
+    const target = floor || roomRoot;
+    if (target && bg?.css) {
+      target.style.background = bg.css;
+      target.style.backgroundSize = 'cover';
+    }
+    if (roomRoot && !floor) {
+      roomRoot.style.background = bg.css;
+    }
+  }
+
+  function isAdminUserId(userId) {
+    const uid = String(userId || '');
+    if (!uid) return false;
+    return (roomState?.onlineMembers || []).some(
+      (m) => String(m.userId) === uid && (m.isAdmin || m.role === 'admin')
+    ) || (roomState?.seats || []).some(
+      (s) => String(s.userId) === uid && (s.isAdmin || s.role === 'admin')
+    );
+  }
+
+  function ensureRoomBackgroundPicker() {
+    if (!isHost() || document.getElementById('partyBgPickerSheet')) return;
+    const items = PARTY_BACKGROUNDS.map(
+      (b) =>
+        `<button type="button" class="party-bg-tile${b.premium ? ' is-premium' : ''}" data-bg-id="${escapeAttr(b.id)}" style="background:${b.css}">` +
+        `<span>${escapeHtml(b.label)}</span>${b.premium ? '<em>VIP</em>' : ''}</button>`
     ).join('');
+    document.body.insertAdjacentHTML(
+      'beforeend',
+      `<div class="party-music-sheet party-bg-sheet" id="partyBgPickerSheet" aria-hidden="true">
+        <div class="party-music-panel">
+          <h3>Room background</h3>
+          <p>Pick a look for your party — premium themes need coins or VIP.</p>
+          <div class="party-bg-grid">${items}</div>
+          <div class="party-music-actions">
+            <button type="button" class="party-music-close" id="partyBgPickerClose">Close</button>
+          </div>
+        </div>
+      </div>`
+    );
+    document.getElementById('partyBgPickerClose')?.addEventListener('click', () => {
+      document.getElementById('partyBgPickerSheet')?.classList.remove('open');
+      syncLiveOverlayClass();
+    });
+    document.getElementById('partyBgPickerSheet')?.addEventListener('click', (e) => {
+      if (e.target.id === 'partyBgPickerSheet') {
+        e.target.classList.remove('open');
+        syncLiveOverlayClass();
+      }
+    });
+    document.querySelector('#partyBgPickerSheet .party-music-panel')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+    });
+    document.querySelectorAll('.party-bg-tile').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const bg = PARTY_BACKGROUNDS.find((b) => b.id === btn.dataset.bgId);
+        if (!bg) return;
+        if (bg.premium) {
+          const bal = await getCoins(true);
+          if (bal < 500) {
+            toast('Premium backgrounds need 500+ coins or VIP', 'warning');
+            openTopupSheet();
+            return;
+          }
+        }
+        applyRoomBackground(bg.id);
+        if (roomState) roomState.roomStyle = { backgroundId: bg.id };
+        if (liveSocket?.connected && isHost()) {
+          liveSocket.emit('live:room_style', { channel: channelId(), backgroundId: bg.id });
+        }
+        toast(`Background: ${bg.label}`, 'success');
+        document.getElementById('partyBgPickerSheet')?.classList.remove('open');
+        syncLiveOverlayClass();
+      });
+    });
+  }
+
+  function openRoomBackgroundPicker() {
+    ensureRoomBackgroundPicker();
+    document.getElementById('partyToolsSheet')?.classList.remove('open');
+    document.getElementById('partyBgPickerSheet')?.classList.add('open');
+    syncLiveOverlayClass();
+  }
+
+  async function uploadPartyMusicFile(file) {
+    if (!file || !window.API) throw new Error('No file');
+    if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken();
+    const fd = new FormData();
+    fd.append('music', file);
+    const res = await API.post('/live/party-music', fd);
+    const data = res?.data?.data || res?.data;
+    if (!data?.url) throw new Error(res?.data?.message || 'Upload failed');
+    return data;
+  }
+
+  function renderPartyMusicList() {
+    const list = document.getElementById('partyMusicList');
+    if (!list) return;
+    const tracks = getPartyMusicTracks();
+    list.innerHTML =
+      tracks
+        .map(
+          (track) =>
+            `<button type="button" class="party-music-track" data-music-id="${escapeAttr(track.id)}">` +
+            `<i class="fas fa-play"></i><span>${escapeHtml(track.title)}</span></button>`
+        )
+        .join('') +
+      `<label class="party-music-upload"><i class="fas fa-upload"></i> Upload your music<input type="file" id="partyMusicUploadInput" accept="audio/*,.mp3,.m4a,.wav,.ogg" hidden></label>`;
     list.querySelectorAll('[data-music-id]').forEach((btn) => {
       btn.addEventListener('click', () => playPartyMusic(btn.dataset.musicId));
     });
+    document.getElementById('partyMusicUploadInput')?.addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      e.target.value = '';
+      if (!file) return;
+      try {
+        toast('Uploading music…', 'info');
+        const uploaded = await uploadPartyMusicFile(file);
+        const id = `custom-${Date.now()}`;
+        partyMusicCustomTracks.unshift({
+          id,
+          title: uploaded.name || file.name || 'My track',
+          url: uploaded.url,
+        });
+        savePartyMusicCustomTracks();
+        renderPartyMusicList();
+        playPartyMusic(id);
+      } catch (err) {
+        toast(err?.message || 'Could not upload music', 'error');
+      }
+    });
+  }
+
+  function ensurePartyMusicUi() {
+    const list = document.getElementById('partyMusicList');
+    if (!list) return;
+    if (list.dataset.bound !== '1') {
+      list.dataset.bound = '1';
+      renderPartyMusicList();
+      return;
+    }
+    renderPartyMusicList();
   }
 
   function getPartyBgMusicEl() {
@@ -4360,7 +4581,7 @@
   }
 
   function playPartyMusic(trackId) {
-    const track = PARTY_MUSIC_TRACKS.find((t) => t.id === trackId);
+    const track = getPartyMusicTracks().find((t) => t.id === trackId);
     if (!track) return;
     const audio = getPartyBgMusicEl();
     if (!audio) return;
@@ -4370,7 +4591,7 @@
       return;
     }
     partyMusicPlayingId = trackId;
-    audio.src = track.url;
+    audio.src = resolvePartyMusicUrl(track.url);
     audio.volume = 0.35;
     audio.play().then(() => {
       syncPartyMusicUi();
@@ -5318,6 +5539,7 @@
 
   function bindSeatDragDrop(container) {
     if (!container || !canModerateRoom()) return;
+    if ('ontouchstart' in window) return;
     let dragUserId = null;
     container.querySelectorAll('.party-seat[data-seat][data-user-id]').forEach((seat) => {
       if (seat.classList.contains('is-host') || seat.classList.contains('is-empty')) return;
@@ -5430,7 +5652,7 @@
       );
     });
 
-    document.getElementById('liveBtnHostMute')?.addEventListener('click', () => handleMicButton());
+    document.getElementById('liveBtnHostMute')?.addEventListener('click', () => toggleMic());
 
     document.getElementById('liveBtnFlipCam')?.addEventListener('click', () => switchCameraFacing());
     document.getElementById('liveBtnFilters')?.addEventListener('click', () => openVideoFilterSheet());
@@ -5457,6 +5679,17 @@
       if (!list.some((x) => x.name === s.name)) list.push({ name: s.name, id: s.userId });
     });
     return list.filter((r) => r.name);
+  }
+
+  function getActiveGiftRecipients() {
+    const meId = String(currentUser()?.id || '');
+    const all = getGiftRecipients();
+    const sendAll = document.getElementById('giftSendAll')?.checked;
+    if (sendAll) return all.filter((r) => String(r.id || '') !== meId);
+    const sheet = document.getElementById('giftSheet');
+    const to = sheet?.dataset?.to || roomState?.hostName || 'Host';
+    const one = all.find((r) => r.name === to) || all[0];
+    return one ? [one] : [];
   }
 
   function resolveGiftReceiverId(toName) {
@@ -5527,6 +5760,14 @@
     } catch (_e) {
       users = [];
     }
+
+    const seen = new Set();
+    users = users.filter((u) => {
+      const id = String(u.id || u.key || '').trim();
+      if (!id || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
 
     if (!users.length) {
       list.innerHTML =
@@ -5674,15 +5915,22 @@
     if (!g) return;
     const unitCost = parseInt(g.cost, 10) || 10;
     const cost = unitCost * giftQty;
+    const sendAll = document.getElementById('giftSendAll')?.checked;
+    const recipients = getActiveGiftRecipients();
+    if (!recipients.length) {
+      toast('Pick someone to receive the gift', 'warning');
+      return;
+    }
+    const totalCost = sendAll ? cost * recipients.length : cost;
     const balance = await getCoins(true);
-    if (balance < cost) {
+    if (balance < totalCost) {
       toast('Not enough coins — recharge first', 'warning');
       openTopupSheet();
       return;
     }
     const to = sheet.dataset.to || roomState?.hostName || 'Host';
     const receiverId = resolveGiftReceiverId(to);
-    if (!receiverId) {
+    if (!sendAll && !receiverId) {
       toast('Wait for the host to connect, then try again', 'warning');
       return;
     }
@@ -5734,58 +5982,49 @@
       }
     };
 
-    if (liveSocket?.connected) {
-      liveSocket.emit(
-        'live:gift',
-        {
-          channel: channelId(),
-          to,
-          toUserId: receiverId,
-          emoji: g.emoji,
-          giftSlug: g.slug,
-          amount: cost,
-          qty: giftQty,
-        },
-        async (res) => {
-          if (res?.ok) {
-            const bal = res?.data?.balance;
-            if (bal && window.SocialWallet) {
-              document.dispatchEvent(
-                new CustomEvent('wallet:balance', {
-                  detail: {
-                    coin_balance: bal.coin_balance ?? 0,
-                    star_balance: bal.star_balance ?? 0,
-                  },
-                })
-              );
-              if (window.SocialWallet.invalidateBalance) SocialWallet.invalidateBalance();
-            }
-            await finishOk();
-            releaseGiftSend();
-            return;
-          }
-          const msg = res?.message || '';
-          if (/room not found|receiver not found/i.test(msg)) {
-            await tryApi(msg);
-            return;
-          }
-          if (/insufficient/i.test(msg)) {
-            toast('Not enough coins — recharge first', 'warning');
-            openTopupSheet();
-            releaseGiftSend();
-            return;
-          }
-          if (msg) {
-            toast(msg, 'error');
-            releaseGiftSend();
-          } else {
-            await tryApi('Gift failed');
-          }
+    const targets = sendAll ? recipients : [{ name: to, id: receiverId }];
+
+    const emitOneGift = (target) =>
+      new Promise((resolve) => {
+        if (!liveSocket?.connected) {
+          resolve({ ok: false });
+          return;
         }
-      );
-    } else {
-      await tryApi('Gift failed');
+        liveSocket.emit(
+          'live:gift',
+          {
+            channel: channelId(),
+            to: target.name,
+            toUserId: String(target.id || ''),
+            emoji: g.emoji,
+            giftSlug: g.slug,
+            amount: cost,
+            qty: giftQty,
+          },
+          (res) => resolve(res || { ok: false })
+        );
+      });
+
+    if (liveSocket?.connected) {
+      (async () => {
+        try {
+          for (const target of targets) {
+            if (!target.id) continue;
+            const res = await emitOneGift(target);
+            if (!res?.ok) {
+              toast(res?.message || 'Gift failed for ' + (target.name || 'user'), 'error');
+              break;
+            }
+          }
+          await finishOk();
+        } finally {
+          releaseGiftSend();
+        }
+      })();
+      return;
     }
+
+    await tryApi('Gift failed');
   }
 
   function bindGiftSheet() {
@@ -5912,6 +6151,18 @@
     window.__apCommonBound = true;
     prepareLiveUiShell();
     bindRoomAvatars();
+    const chatInputEl = document.getElementById('liveChatInput');
+    if (chatInputEl && !chatInputEl.dataset.focusBound) {
+      chatInputEl.dataset.focusBound = '1';
+      chatInputEl.addEventListener('focus', () => {
+        chatInputFocused = true;
+      });
+      chatInputEl.addEventListener('blur', () => {
+        setTimeout(() => {
+          chatInputFocused = document.activeElement === chatInputEl;
+        }, 150);
+      });
+    }
     document.getElementById('partyClose')?.addEventListener('click', () => endRoomOrExit());
     document.getElementById('liveClose')?.addEventListener('click', () => endRoomOrExit());
     document.getElementById('liveMinimizeBtn')?.addEventListener('click', () => minimizeLiveRoom());
@@ -6006,6 +6257,7 @@
     });
 
     document.getElementById('partyBtnMusic')?.addEventListener('click', () => openPartyMusicSheet());
+    document.getElementById('partyBtnBackground')?.addEventListener('click', () => openRoomBackgroundPicker());
     document.getElementById('partyMusicStop')?.addEventListener('click', () => {
       stopPartyMusic();
       toast('Music stopped', 'info');
@@ -6668,9 +6920,12 @@
     if (balBtn) balBtn.innerHTML = `${COIN_EMOJI} <span id="giftCoinsBal">0</span> &gt;`;
     document.getElementById('giftSendAll')?.addEventListener('change', (e) => {
       const row = document.getElementById('giftRecipients');
+      const meId = String(currentUser()?.id || '');
       if (!row) return;
       if (e.target.checked) {
-        row.querySelectorAll('.gift-recipient').forEach((b) => b.classList.add('is-active'));
+        row.querySelectorAll('.gift-recipient').forEach((b) => {
+          b.classList.toggle('is-active', String(b.dataset.userId || '') !== meId);
+        });
       } else {
         row.querySelectorAll('.gift-recipient').forEach((b, i) => b.classList.toggle('is-active', i === 0));
       }
@@ -6941,10 +7196,36 @@
   }
 
   function feedInteractionBlocked() {
+    if (chatInputFocused || document.body.classList.contains('ap-keyboard-open')) return true;
+    const chatInput = document.getElementById('liveChatInput');
+    if (chatInput && document.activeElement === chatInput) return true;
     return Boolean(
       document.querySelector(
-        '#apProfileSheet.open, #apGiftSheet.open, #apTopupSheet.open, #apSeatSheet.open, .ap-gift-sheet.open'
-      ) || document.body.classList.contains('ap-sheet-open')
+        '#apProfileSheet.open, #apGiftSheet.open, #giftSheet.open, #apTopupSheet.open, #apSeatSheet.open, .ap-gift-sheet.open, .gift-sheet.open, .party-tools-sheet.open, .party-requests-sheet.open, .party-music-sheet.open, #partyBgPickerSheet.open, #apInAppShareSheet.open, #apEmojiPopover.is-open'
+      ) || document.body.classList.contains('ap-sheet-open') || document.body.classList.contains('ap-live-overlay-open') || document.body.classList.contains('party-requests-open')
+    );
+  }
+
+  function bindFeedScrollGuard() {
+    const scroll = document.getElementById('liveFeedScroll');
+    if (!scroll || scroll.dataset.guardBound === '1') return;
+    scroll.dataset.guardBound = '1';
+    scroll.addEventListener(
+      'touchstart',
+      (e) => {
+        feedTouchStartY = e.touches?.[0]?.clientY || 0;
+        feedTouchStartAt = Date.now();
+      },
+      { passive: true }
+    );
+    scroll.addEventListener(
+      'touchmove',
+      (e) => {
+        if (feedInteractionBlocked()) {
+          e.stopPropagation();
+        }
+      },
+      { passive: false }
     );
   }
 
@@ -7050,15 +7331,16 @@
       (entries) => {
         if (feedInteractionBlocked() || feedSwitching) return;
         entries.forEach((en) => {
-          if (en.isIntersecting && en.intersectionRatio >= 0.55) {
+          if (en.isIntersecting && en.intersectionRatio >= 0.88) {
             const i = parseInt(en.target.dataset.index, 10);
             if (!Number.isNaN(i) && i !== activeFeedIndex) switchToFeedRoom(i);
           }
         });
       },
-      { root: scroll, threshold: [0.55, 0.75] }
+      { root: scroll, threshold: [0.88, 0.95] }
     );
     scroll.querySelectorAll('.live-feed-slide').forEach((s) => feedObserver.observe(s));
+    bindFeedScrollGuard();
 
     setTimeout(() => document.getElementById('liveSwipeHint')?.classList.add('is-hidden'), 7000);
 

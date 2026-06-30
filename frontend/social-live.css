@@ -4047,3 +4047,91 @@ html.ap-expo-app .ap-chip {
   color: #fff;
 }
 .party-tools-grid .ico.music { background: linear-gradient(135deg, #38bdf8, #6366f1); }
+.party-tools-grid .ico.bg { background: linear-gradient(135deg, #a855f7, #6366f1); }
+
+.seat-admin-badge,
+.party-chat-admin-badge {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #fde68a;
+  background: rgba(251, 191, 36, 0.22);
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  vertical-align: middle;
+}
+.seat-admin-badge {
+  position: absolute;
+  top: -2px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+}
+.party-chat-msg--gift {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: rgba(236, 72, 153, 0.14);
+  border: 1px solid rgba(236, 72, 153, 0.28);
+  font-size: 12px;
+}
+.party-chat-gift-ico { font-size: 18px; line-height: 1; }
+.ap-seat-emoji-float--affection {
+  font-size: 22px;
+  filter: drop-shadow(0 2px 6px rgba(236, 72, 153, 0.45));
+}
+.party-music-upload {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 6px;
+  padding: 12px;
+  border: 1px dashed rgba(255, 255, 255, 0.28);
+  border-radius: 12px;
+  color: #f9a8d4;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.party-bg-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.party-bg-tile {
+  position: relative;
+  min-height: 72px;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  color: #fff;
+  font-weight: 700;
+  font-size: 11px;
+  cursor: pointer;
+  overflow: hidden;
+}
+.party-bg-tile span {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.65);
+}
+.party-bg-tile em {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  font-size: 9px;
+  font-style: normal;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fde68a;
+}
+.party-bg-tile.is-premium { border-color: rgba(251, 191, 36, 0.55); }

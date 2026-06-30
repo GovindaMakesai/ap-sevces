@@ -72,6 +72,10 @@
     EMOJI_PICKS: [
       '\u{1F600}', '\u{1F602}', '\u2764\uFE0F', '\u{1F525}', '\u{1F44D}', '\u{1F389}', '\u{1F4AF}',
       '\u{1F339}', '\u{1F490}', '\u{1F381}', '\u{1F44F}', '\u{1F60D}', '\u{1F64F}', '\u{1F4AA}', '\u2728',
+      '\u{1F917}', '\u{1F618}', '\u{1F48B}', '\u{1F970}', '\u{1F495}', '\u{1FAF6}', '\u{1F929}', '\u{1F60E}',
+    ],
+    SEAT_REACTION_EMOJIS: [
+      '\u{1F917}', '\u{1F618}', '\u{1F48B}', '\u{1F970}', '\u{1F495}', '\u{1FAF6}', '\u{1F60D}', '\u2764\uFE0F',
     ],
     QUICK_CHIP_DEFS: [
       { id: 'hi', label: '\u{1F339} Hi there!', send: '\u{1F339} Hi there!' },

@@ -14,6 +14,7 @@ const {
 
 /** In-memory hot cache — DB is source of truth. */
 const roomCache = new Map();
+const roomStyleByChannel = new Map();
 const ROOM_CACHE_TTL_MS = 5000;
 
 function cacheRoom(channel, row) {
@@ -344,6 +345,7 @@ async function buildSnapshot(channel) {
     onlineMembers,
     isLocked: Boolean(room.is_locked),
     updatedAt: room.updated_at,
+    roomStyle: getRoomStyle(room.channel),
   };
 }
 
@@ -671,6 +673,41 @@ async function verifyRoomPassword(channel, password) {
   return room.lock_password === hash;
 }
 
+function getRoomStyle(channel) {
+  return roomStyleByChannel.get(channel) || { backgroundId: 'cosmic' };
+}
+
+async function setRoomStyle(channel, { backgroundId } = {}) {
+  const style = { backgroundId: backgroundId || 'cosmic', at: Date.now() };
+  roomStyleByChannel.set(channel, style);
+  const room = await findByChannel(channel);
+  if (room) {
+    try {
+      await db.query(
+        `INSERT INTO live_room_events (live_room_id, event_type, payload) VALUES ($1, 'room_style', $2)`,
+        [room.id, JSON.stringify(style)]
+      );
+    } catch (_e) {}
+  }
+  return style;
+}
+
+async function hostStepAway({ channel, userId }) {
+  const room = await findByChannel(channel);
+  if (!room) return { ended: true, remaining: 0 };
+  await leaveRoom({ channel, userId });
+  const countRes = await db.query(
+    `SELECT COUNT(*)::int AS c FROM live_room_members WHERE live_room_id = $1 AND left_at IS NULL`,
+    [room.id]
+  );
+  const remaining = countRes.rows[0]?.c || 0;
+  if (remaining === 0) {
+    await endRoom(channel, 'empty_after_host_left');
+    return { ended: true, remaining: 0 };
+  }
+  return { ended: false, remaining };
+}
+
 module.exports = {
   findByChannel,
   findById,
@@ -701,5 +738,8 @@ module.exports = {
   moveMemberSeat,
   setRoomLock,
   verifyRoomPassword,
+  getRoomStyle,
+  setRoomStyle,
+  hostStepAway,
   roomCache,
 };
