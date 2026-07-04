@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260628-join-fix4';
+  window.__AP_LIVE_BUILD = '20260704-agora-billing';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -2300,8 +2300,17 @@
 
   function friendlyAgoraError(msg) {
     const raw = String(msg || '');
-    if (/CAN_NOT_GET_GATEWAY|quota|minutes|exhausted|dynamic use static key|invalid token|token/i.test(raw)) {
-      return 'Voice connection failed — check Agora quota and server credentials, then retry.';
+    if (/CAN_NOT_GET_GATEWAY/i.test(raw)) {
+      return 'Live audio/video is blocked: Agora account suspended (unpaid balance). Open Agora Console → Billing, add a card or top up until Available Balance is $0 or positive, then start a new live.';
+    }
+    if (/quota|minutes|exhausted/i.test(raw)) {
+      return 'Agora quota exceeded — top up minutes in Agora Console Billing, then retry.';
+    }
+    if (/dynamic use static key|invalid token|token/i.test(raw)) {
+      return 'Agora token invalid — check AGORA_APP_ID / AGORA_APP_CERTIFICATE on the server.';
+    }
+    if (/permission|NotAllowedError|NotFoundError|Could not start video source/i.test(raw)) {
+      return 'Camera/mic permission blocked — allow access in browser/app settings and retry.';
     }
     return raw || 'Voice connection failed';
   }
@@ -2885,15 +2894,22 @@
         updateLiveDebug({ agoraJoined: false });
         const friendly = friendlyAgoraError(msg);
         if (host) {
+          toast(friendly, 'error');
           await onHostBroadcastFailed('agora_join_failed', friendly);
         } else if (isPartyRoomPage()) {
           partyVoiceSkipped = true;
           onRoomReady();
-          setLiveStatus('Connecting to party audio…', null);
-          schedulePartyAgoraRetry();
+          if (/CAN_NOT_GET_GATEWAY/i.test(msg)) {
+            setLiveStatus(friendly, false);
+            toast(friendly, 'error');
+          } else {
+            setLiveStatus('Connecting to party audio…', null);
+            schedulePartyAgoraRetry();
+          }
         } else {
           onRoomReady();
-          setLiveStatus(friendly, null);
+          setLiveStatus(friendly, /CAN_NOT_GET_GATEWAY/i.test(msg) ? false : null);
+          if (/CAN_NOT_GET_GATEWAY/i.test(msg)) toast(friendly, 'error');
         }
         return;
       }
