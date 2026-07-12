@@ -220,7 +220,11 @@
     } else if (window.API?.get) {
       try {
         const res = await API.get('/social/discover/creators?period=weekly&limit=50');
-        const rows = Array.isArray(res?.data) ? res.data : [];
+        const rows = Array.isArray(res?.data)
+          ? res.data
+          : Array.isArray(res?.data?.creators)
+            ? res.data.creators
+            : [];
         const cache = new Map();
         rows.forEach((c) => {
           const id = String(c.id || c.userId || '');
@@ -707,17 +711,54 @@
     const party = opts && opts.party;
     const roomType = party ? 'party' : 'live';
     const sort = opts.sort || 'trending';
-    try {
-      const res = await API.get(`/live/rooms?type=${roomType}&limit=${limit}&sort=${sort}`);
-      let rows = Array.isArray(res?.data) ? res.data : [];
-      rows = await enrichRoomsWithHostPhotos(rows);
-      const filtered = normalizeRoomRows(rows, party);
-      const rooms = filtered.map((r) => mapRoomToCard(r, party));
-      return { rooms, error: null };
-    } catch (e) {
-      console.warn('SocialShell: active rooms API', e);
-      return { rooms: [], error: e };
+    const path = `/live/rooms?type=${roomType}&limit=${limit}&sort=${sort}`;
+    let lastError = null;
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        if (attempt > 0 && window.API?.clearGetCache) {
+          API.clearGetCache('/live/rooms');
+        }
+        let res = null;
+        if (window.API?.get) {
+          res = await API.get(path);
+        } else {
+          const base = window.AP_SERVICES_API_ROOT || 'https://api.apservices.in/api';
+          const r = await fetch(`${base}${path}`, { credentials: 'include', cache: 'no-store' });
+          res = await r.json();
+          if (!r.ok) throw new Error(res?.message || `HTTP ${r.status}`);
+        }
+        let rows = Array.isArray(res?.data) ? res.data : [];
+        rows = await enrichRoomsWithHostPhotos(rows);
+        const filtered = normalizeRoomRows(rows, party);
+        const rooms = filtered.map((r) => mapRoomToCard(r, party));
+        return { rooms, error: null };
+      } catch (e) {
+        lastError = e;
+        console.warn(`SocialShell: active rooms API attempt ${attempt + 1}`, e);
+        await new Promise((r) => setTimeout(r, 350 * (attempt + 1)));
+      }
     }
+
+    // Last-chance direct fetch bypassing API cache/auth helpers
+    try {
+      const base = window.AP_SERVICES_API_ROOT || 'https://api.apservices.in/api';
+      const r = await fetch(`${base}${path}&_=${Date.now()}`, {
+        credentials: 'omit',
+        cache: 'no-store',
+        mode: 'cors',
+      });
+      const res = await r.json();
+      if (r.ok && Array.isArray(res?.data)) {
+        const filtered = normalizeRoomRows(res.data, party);
+        return { rooms: filtered.map((row) => mapRoomToCard(row, party)), error: null };
+      }
+    } catch (e2) {
+      lastError = e2;
+    }
+
+    console.warn('SocialShell: active rooms API failed', lastError);
+    return { rooms: [], error: lastError || new Error('Could not load rooms') };
   }
 
   async function fetchPros(limit = 12) {
@@ -790,7 +831,10 @@
     }
     try {
       const { rooms, error } = await fetchActiveRooms(limit || st.limit, opts);
-      if (opts.loadToken != null && opts.loadToken !== window.__exploreGridToken) return;
+      if (opts.loadToken != null && opts.loadToken !== window.__exploreGridToken) {
+        // Newer tab switch in progress — ignore stale result, but don't leave spinner if empty.
+        if (!rooms.length) return;
+      }
       grid.classList.remove('is-loading');
       if (!rooms.length) {
         if (!opts.append) {

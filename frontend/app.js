@@ -331,7 +331,11 @@ const API = {
         console.log(`≡ƒôí API Request: ${options.method || 'GET'} ${url}`);
 
         if (typeof Auth !== 'undefined' && Auth.ensureAccessToken) {
-            await Auth.ensureAccessToken();
+            try {
+                await Auth.ensureAccessToken();
+            } catch (_e) {
+                /* Public endpoints (live rooms) must still load if refresh fails */
+            }
         }
 
         const headers = { ...options.headers };
