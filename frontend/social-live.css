@@ -3383,14 +3383,14 @@ body[data-live-page="live-room"]:not(.is-pk-mode) .live-room .live-fallback-vide
 body[data-live-page="live-room"]:not(.is-pk-mode) .live-room .live-local-video.is-host-only {
   z-index: 3;
 }
-/* Front-camera host preview only — selfie mirror. Back camera stays unflipped. */
+/* Front-camera host preview only — selfie mirror. Back camera forced unflipped. */
 body[data-live-page="live-room"] .live-local-host-mirror video {
-  transform: scaleX(-1);
+  transform: scaleX(-1) !important;
 }
 body[data-live-page="live-room"] .live-local-video:not(.live-local-host-mirror) video,
 body[data-live-page="live-room"] #liveLocalHost:not(.live-local-host-mirror) video,
 body[data-live-page="live-room"] #liveLocalVideo {
-  transform: none;
+  transform: none !important;
 }
 
 /* —— Reference bottom bar (Bigo-style) —— */

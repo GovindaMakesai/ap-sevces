@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260712-front-mirror';
+  window.__AP_LIVE_BUILD = '20260712-cam-mirror-v3';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -3177,15 +3177,59 @@
     });
   }
 
+  function detectCameraFacing(track, fallback = 'user') {
+    try {
+      const facing = track?.getMediaStreamTrack?.()?.getSettings?.()?.facingMode;
+      if (facing === 'environment' || facing === 'user') return facing;
+    } catch (_e) {}
+    return fallback === 'environment' ? 'environment' : 'user';
+  }
+
+  function applyHostPreviewMirror(localBox, facing) {
+    if (!localBox) return;
+    const wantMirror = facing === 'user';
+    localBox.classList.toggle('live-local-host-mirror', wantMirror);
+    localBox.querySelectorAll('video').forEach((v) => {
+      // Force override Agora/browser inline transforms so flip can't stick.
+      v.style.setProperty('transform', wantMirror ? 'scaleX(-1)' : 'none', 'important');
+    });
+  }
+
   function playLocalHostPreview(videoTrack) {
     const localBox = document.getElementById('liveLocalHost');
     if (!localBox || !videoTrack?.play) return;
     localBox.innerHTML = '';
     localBox.style.display = '';
-    // Agora mirror only (no CSS flip) — avoid double-invert.
-    // Front: selfie mirror. Back: real orientation.
-    localBox.classList.remove('live-local-host-mirror');
-    videoTrack.play(localBox, { mirror: cameraFacing === 'user' });
+    // Always disable Agora's built-in mirror — it sticks across switchCamera().
+    // Front selfie flip is CSS-only; back camera stays unflipped.
+    videoTrack.play(localBox, { mirror: false });
+    applyHostPreviewMirror(localBox, cameraFacing);
+    requestAnimationFrame(() => applyHostPreviewMirror(localBox, cameraFacing));
+    setTimeout(() => applyHostPreviewMirror(localBox, cameraFacing), 50);
+  }
+
+  async function replaceHostCameraTrack(nextFacing) {
+    const AgoraRTC = window.AgoraRTC || (await loadAgoraScript());
+    const oldVideo = getLocalVideoTrack();
+    const audioTrack = localTracks.find((t) => (t.getTrackType?.() || t.trackMediaType) === 'audio');
+    if (!agoraClient || !publishSucceeded) return null;
+    if (oldVideo) {
+      try {
+        await agoraClient.unpublish([oldVideo]);
+      } catch (_e) {}
+      try {
+        oldVideo.stop();
+        oldVideo.close();
+      } catch (_e) {}
+    }
+    const newVideo = await AgoraRTC.createCameraVideoTrack({
+      facingMode: nextFacing,
+    });
+    localTracks = audioTrack ? [audioTrack, newVideo] : [newVideo];
+    await agoraClient.publish(newVideo);
+    cameraFacing = detectCameraFacing(newVideo, nextFacing);
+    playLocalHostPreview(newVideo);
+    return newVideo;
   }
 
   async function switchCameraFacing() {
@@ -3194,16 +3238,28 @@
       return;
     }
     const nextFacing = cameraFacing === 'user' ? 'environment' : 'user';
-    const videoTrack = getLocalVideoTrack();
     try {
       const AgoraRTC = window.AgoraRTC || (await loadAgoraScript());
 
+      // Recreate track (not switchCamera) so mirror state cannot stick from front → back.
+      if (agoraClient && publishSucceeded) {
+        try {
+          await replaceHostCameraTrack(nextFacing);
+          applyVideoFilter();
+          toast(cameraFacing === 'user' ? 'Front camera' : 'Back camera', 'success');
+          return;
+        } catch (recreateErr) {
+          console.warn('[live] camera recreate failed, falling back', recreateErr);
+        }
+      }
+
+      const videoTrack = getLocalVideoTrack();
       if (typeof videoTrack?.switchCamera === 'function') {
         await videoTrack.switchCamera();
-        cameraFacing = nextFacing;
+        cameraFacing = detectCameraFacing(videoTrack, nextFacing);
         playLocalHostPreview(videoTrack);
         applyVideoFilter();
-        toast(nextFacing === 'user' ? 'Front camera' : 'Back camera', 'success');
+        toast(cameraFacing === 'user' ? 'Front camera' : 'Back camera', 'success');
         return;
       }
 
@@ -3211,35 +3267,19 @@
         const cameras = await AgoraRTC.getCameras();
         if (cameras.length >= 2) {
           const currentId = videoTrack.getMediaStreamTrack?.()?.getSettings?.()?.deviceId;
+          const envCam = cameras.find((c) => /back|rear|environment/i.test(c.label || ''));
+          const userCam = cameras.find((c) => /front|user|face/i.test(c.label || ''));
           const pick =
+            (nextFacing === 'environment' ? envCam : userCam) ||
             cameras.find((c) => c.deviceId && c.deviceId !== currentId) ||
-            cameras[nextFacing === 'user' ? 0 : cameras.length - 1];
+            cameras[0];
           await videoTrack.setDevice(pick.deviceId);
-          cameraFacing = nextFacing;
+          cameraFacing = detectCameraFacing(videoTrack, nextFacing);
           playLocalHostPreview(videoTrack);
           applyVideoFilter();
-          toast(nextFacing === 'user' ? 'Front camera' : 'Back camera', 'success');
+          toast(cameraFacing === 'user' ? 'Front camera' : 'Back camera', 'success');
           return;
         }
-      }
-
-      if (agoraClient && publishSucceeded && videoTrack) {
-        const audioTrack = localTracks.find((t) => (t.getTrackType?.() || t.trackMediaType) === 'audio');
-        try {
-          await agoraClient.unpublish([videoTrack]);
-        } catch (_e) {}
-        try {
-          videoTrack.stop();
-          videoTrack.close();
-        } catch (_e) {}
-        const newVideo = await AgoraRTC.createCameraVideoTrack({ facingMode: nextFacing });
-        localTracks = audioTrack ? [audioTrack, newVideo] : [newVideo];
-        await agoraClient.publish(newVideo);
-        playLocalHostPreview(newVideo);
-        cameraFacing = nextFacing;
-        applyVideoFilter();
-        toast(nextFacing === 'user' ? 'Front camera' : 'Back camera', 'success');
-        return;
       }
 
       if (!navigator.mediaDevices?.getUserMedia) {
@@ -3251,20 +3291,23 @@
         window.__apLocalStream.getTracks().forEach((t) => t.stop());
       }
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: nextFacing } },
+        video: { facingMode: { exact: nextFacing } },
         audio: false,
       }).catch(() =>
-        navigator.mediaDevices.getUserMedia({ video: { facingMode: nextFacing }, audio: false })
+        navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: nextFacing } },
+          audio: false,
+        })
       );
       window.__apLocalStream = stream;
       const box = document.getElementById('liveLocalHost');
       const vid = box?.querySelector('video') || document.getElementById('liveLocalVideo');
-      if (box) box.classList.toggle('live-local-host-mirror', cameraFacing === 'user');
       if (vid) {
         vid.srcObject = stream;
         vid.muted = true;
         await vid.play?.();
       }
+      applyHostPreviewMirror(box, cameraFacing);
       applyVideoFilter();
       toast(nextFacing === 'user' ? 'Front camera' : 'Back camera', 'success');
     } catch (e) {
@@ -5436,12 +5479,7 @@
     if (root) root.classList.remove('is-audio-mode');
     if (localBox) {
       localBox.style.display = '';
-      // Agora play() owns mirror; CSS class is only for getUserMedia preview.
-      if (!getLocalVideoTrack()) {
-        localBox.classList.toggle('live-local-host-mirror', cameraFacing === 'user');
-      } else {
-        localBox.classList.remove('live-local-host-mirror');
-      }
+      applyHostPreviewMirror(localBox, cameraFacing);
     }
     if (fallback && localBox?.querySelector('video')) fallback.style.display = 'none';
     if (bg) bg.style.display = 'none';
