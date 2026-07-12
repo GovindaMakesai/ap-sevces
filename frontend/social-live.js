@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260712-no-mirror';
+  window.__AP_LIVE_BUILD = '20260712-front-mirror';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -3182,9 +3182,10 @@
     if (!localBox || !videoTrack?.play) return;
     localBox.innerHTML = '';
     localBox.style.display = '';
+    // Agora mirror only (no CSS flip) — avoid double-invert.
+    // Front: selfie mirror. Back: real orientation.
     localBox.classList.remove('live-local-host-mirror');
-    // Always unmirrored so host preview matches what viewers see (back cam especially).
-    videoTrack.play(localBox, { mirror: false });
+    videoTrack.play(localBox, { mirror: cameraFacing === 'user' });
   }
 
   async function switchCameraFacing() {
@@ -3258,6 +3259,7 @@
       window.__apLocalStream = stream;
       const box = document.getElementById('liveLocalHost');
       const vid = box?.querySelector('video') || document.getElementById('liveLocalVideo');
+      if (box) box.classList.toggle('live-local-host-mirror', cameraFacing === 'user');
       if (vid) {
         vid.srcObject = stream;
         vid.muted = true;
@@ -3289,7 +3291,8 @@
       if (isHost() && wantVideo && box) {
         box.innerHTML = '';
         box.style.display = '';
-        box.classList.remove('live-local-host-mirror');
+        cameraFacing = 'user';
+        box.classList.add('live-local-host-mirror');
         const el = document.createElement('video');
         el.srcObject = stream;
         el.autoplay = true;
@@ -5433,7 +5436,7 @@
     if (root) root.classList.remove('is-audio-mode');
     if (localBox) {
       localBox.style.display = '';
-      localBox.classList.remove('live-local-host-mirror');
+      localBox.classList.toggle('live-local-host-mirror', cameraFacing === 'user');
     }
     if (fallback && localBox?.querySelector('video')) fallback.style.display = 'none';
     if (bg) bg.style.display = 'none';
