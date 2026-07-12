@@ -5436,7 +5436,12 @@
     if (root) root.classList.remove('is-audio-mode');
     if (localBox) {
       localBox.style.display = '';
-      localBox.classList.toggle('live-local-host-mirror', cameraFacing === 'user');
+      // Agora play() owns mirror; CSS class is only for getUserMedia preview.
+      if (!getLocalVideoTrack()) {
+        localBox.classList.toggle('live-local-host-mirror', cameraFacing === 'user');
+      } else {
+        localBox.classList.remove('live-local-host-mirror');
+      }
     }
     if (fallback && localBox?.querySelector('video')) fallback.style.display = 'none';
     if (bg) bg.style.display = 'none';
