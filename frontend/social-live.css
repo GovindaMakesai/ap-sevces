@@ -2980,16 +2980,39 @@ body[data-live-page="party-room"] .ap-guest-rail:not(:empty) {
   position: relative;
   cursor: pointer;
   text-align: center;
+  width: 64px;
+  max-width: 64px;
 }
-.ap-guest-seat img {
-  width: 44px;
-  height: 44px;
-  min-width: 44px;
-  min-height: 44px;
-  border-radius: 50%;
-  border: 2px solid #fff;
-  object-fit: cover;
+.ap-guest-avatar {
+  position: relative;
   display: block;
+  width: 48px;
+  height: 48px;
+  margin: 0 auto;
+  border-radius: 50%;
+  overflow: hidden;
+  background: linear-gradient(135deg, #4c1d95, #831843);
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  box-sizing: border-box;
+  line-height: 0;
+  flex-shrink: 0;
+}
+.ap-guest-seat img,
+.ap-guest-avatar img {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: none !important;
+  max-height: none !important;
+  border-radius: 50%;
+  border: none !important;
+  object-fit: cover !important;
+  object-position: center center !important;
+  display: block;
+  z-index: 1;
 }
 .ap-guest-gift {
   position: absolute;
@@ -4494,16 +4517,26 @@ html.ap-expo-app .ap-chip {
 }
 .ap-guest-avatar {
   position: relative;
-  display: inline-block;
+  display: block;
+  width: 48px;
+  height: 48px;
+  margin: 0 auto;
   border-radius: 50%;
+  overflow: hidden;
   line-height: 0;
 }
 .ap-guest-avatar img {
-  width: 100%;
-  height: 100%;
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
   border-radius: 50%;
-  object-fit: cover;
+  object-fit: cover !important;
+  object-position: center center !important;
   display: block;
+  z-index: 1;
 }
 
 /* Special admin ID chip */
