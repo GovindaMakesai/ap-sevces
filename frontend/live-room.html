@@ -8,11 +8,11 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-live.css?v=20260713-chat-hist">
+  <link rel="stylesheet" href="social-live.css?v=20260713-host-row">
   <link rel="stylesheet" href="social-live-session.css?v=20260713-live-ux">
   <link rel="stylesheet" href="social-live-ref-ui.css?v=20260628-hotfix">
   <link rel="stylesheet" href="social-fx.css">
-  <link rel="stylesheet" href="social-live-pro.css?v=20260713-host-badge">
+  <link rel="stylesheet" href="social-live-pro.css?v=20260713-host-row">
   <link rel="stylesheet" href="beauty/ui/beauty-sheet.css?v=20260713-beauty-engine">
   <style id="ap-immersive-critical">
     html.ap-live-immersive .social-bridge-header,
@@ -139,23 +139,22 @@
           <span class="pill-title"><i class="fas fa-user-plus"></i> Invite friends</span>
           <span class="pill-sub">Tap to share</span>
         </button>
+        <div class="live-host-bar is-collapsed" id="liveHostBar" hidden aria-hidden="true">
+          <button type="button" class="live-host-bar-toggle" id="liveHostBarToggle" aria-expanded="false">
+            <i class="fas fa-sliders-h"></i> Host controls
+          </button>
+          <div class="live-host-bar-actions" id="liveHostBarActions">
+            <button type="button" class="party-host-action mod-tool" id="partyBtnRequests"><i class="fas fa-users"></i> Guests <span id="partyReqCount" class="party-req-badge" hidden>0</span></button>
+            <button type="button" class="party-host-action host-only-tool" id="liveBtnModeVideo" data-mode="video"><i class="fas fa-video"></i> Video</button>
+            <button type="button" class="party-host-action host-only-tool" id="liveBtnModeAudio" data-mode="audio"><i class="fas fa-microphone"></i> Audio only</button>
+            <button type="button" class="party-host-action host-only-tool" id="liveBtnHostMute"><i class="fas fa-microphone"></i> Mic</button>
+            <button type="button" class="party-host-action host-only-tool" id="liveBtnFlipCam" title="Flip camera"><i class="fas fa-sync-alt"></i> Flip</button>
+            <button type="button" class="party-host-action host-only-tool" id="liveBtnFilters" title="Filters"><i class="fas fa-magic"></i> Filters</button>
+          </div>
+        </div>
       </div>
 
       <div class="party-win-banner" id="partyWinBanner"></div>
-
-      <div class="live-host-bar is-collapsed" id="liveHostBar">
-        <button type="button" class="live-host-bar-toggle" id="liveHostBarToggle" aria-expanded="false">
-          <i class="fas fa-sliders-h"></i> Host controls
-        </button>
-        <div class="live-host-bar-actions" id="liveHostBarActions">
-        <button type="button" class="party-host-action mod-tool" id="partyBtnRequests"><i class="fas fa-users"></i> Guests <span id="partyReqCount" class="party-req-badge" hidden>0</span></button>
-        <button type="button" class="party-host-action host-only-tool" id="liveBtnModeVideo" data-mode="video"><i class="fas fa-video"></i> Video</button>
-        <button type="button" class="party-host-action host-only-tool" id="liveBtnModeAudio" data-mode="audio"><i class="fas fa-microphone"></i> Audio only</button>
-        <button type="button" class="party-host-action host-only-tool" id="liveBtnHostMute"><i class="fas fa-microphone"></i> Mic</button>
-        <button type="button" class="party-host-action host-only-tool" id="liveBtnFlipCam" title="Flip camera"><i class="fas fa-sync-alt"></i> Flip</button>
-        <button type="button" class="party-host-action host-only-tool" id="liveBtnFilters" title="Filters"><i class="fas fa-magic"></i> Filters</button>
-        </div>
-      </div>
 
       <div class="live-spacer"></div>
 
@@ -271,7 +270,7 @@
   <script src="social-shell.js?v=20260713-live-ux"></script>
   <script src="live-session-provider.js?v=20260624-android-back"></script>
   <script type="module" src="beauty/index.js?v=20260713-beauty-engine"></script>
-  <script src="social-live.js?v=20260713-chat-hist"></script>
+  <script src="social-live.js?v=20260713-host-row"></script>
   <script src="social-live-interactions.js"></script>
   <script src="social-nav.js?v=20260624-android-back"></script>
 </body>

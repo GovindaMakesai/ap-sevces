@@ -534,8 +534,7 @@
   box-shadow: 0 4px 16px rgba(236,72,153,0.55);
 }
 
-.party-host-bar,
-.live-host-bar {
+.party-host-bar {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -546,6 +545,14 @@
   pointer-events: auto;
   touch-action: manipulation;
   background: transparent;
+}
+
+/* Live host controls hidden by default (HTML also uses [hidden]) */
+.live-host-bar,
+.live-host-bar[hidden],
+body:not(.ap-is-host) .live-host-bar,
+body.ap-can-moderate .live-host-bar {
+  display: none !important;
 }
 
 body.ap-is-host .party-header {
@@ -563,58 +570,78 @@ body.ap-is-host .party-host-meta .sub #partyHostLabel {
   font-weight: 800;
 }
 
-body:not(.ap-is-host):not(.ap-can-moderate) .party-host-bar,
-body:not(.ap-is-host):not(.ap-can-moderate) .live-host-bar {
+body:not(.ap-is-host):not(.ap-can-moderate) .party-host-bar {
   display: none !important;
 }
+
 body.ap-is-host .party-host-bar,
-body.ap-is-host .live-host-bar,
-body.ap-can-moderate .party-host-bar,
-body.ap-can-moderate .live-host-bar {
+body.ap-can-moderate .party-host-bar {
   display: flex !important;
   flex-direction: column;
   align-items: stretch;
   gap: 6px;
 }
 
-/* Collapsed = compact left CTA (not a full-width strip) */
-body.ap-is-host .live-host-bar.is-collapsed,
-body.ap-can-moderate .live-host-bar.is-collapsed,
-.live-room .live-overlay > .live-host-bar.is-collapsed {
+/* Host-only: sit in the Users + Invite row */
+body.ap-is-host .live-host-bar:not([hidden]) {
+  display: inline-flex !important;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  margin: 0 !important;
+  padding: 0 !important;
+  flex: 0 0 auto;
+  width: auto;
+  max-width: none;
+  position: relative;
+  z-index: 26;
+  pointer-events: auto;
+  touch-action: manipulation;
+  background: transparent;
+}
+
+body.ap-is-host .live-host-bar.is-collapsed:not([hidden]) {
   display: inline-flex !important;
   flex-direction: row !important;
-  flex: 0 0 auto !important;
-  align-self: flex-start !important;
   align-items: center !important;
-  justify-content: flex-start !important;
+  justify-content: flex-end !important;
+  align-self: center !important;
   width: fit-content !important;
   max-width: fit-content !important;
   min-width: 0 !important;
-  margin: 0 0 8px 12px !important;
-  padding: 0 !important;
+}
+
+body.ap-is-host .live-host-bar:not(.is-collapsed):not([hidden]) {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  flex: 1 0 100%;
+  width: 100% !important;
+  max-width: 100% !important;
+  margin-top: 4px !important;
 }
 
 .live-host-bar-toggle {
-  align-self: flex-start;
+  align-self: flex-end;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
   flex: 0 0 auto;
   width: auto;
   max-width: none;
   border: none;
   border-radius: 999px;
-  min-height: 40px;
-  padding: 10px 16px;
+  min-height: 42px;
+  padding: 8px 14px;
   background: linear-gradient(135deg, #fbbf24, #f59e0b);
   color: #111827;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.01em;
   line-height: 1.2;
   white-space: nowrap;
-  box-shadow: 0 6px 18px rgba(245, 158, 11, 0.35);
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35);
   cursor: pointer;
   pointer-events: auto;
   touch-action: manipulation;
@@ -625,14 +652,15 @@ body.ap-can-moderate .live-host-bar.is-collapsed,
   width: auto !important;
   max-width: none !important;
   flex: 0 0 auto !important;
-  align-self: auto !important;
+  align-self: center !important;
 }
 
 .live-host-bar-toggle i {
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .live-host-bar:not(.is-collapsed) .live-host-bar-toggle {
+  align-self: flex-end;
   background: rgba(0, 0, 0, 0.55);
   color: #fff;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
@@ -2432,6 +2460,7 @@ body.ap-room-active .ap-live-loader {
 .party-live-actions {
   display: flex;
   flex-direction: row;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;

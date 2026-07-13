@@ -194,10 +194,16 @@ body[data-live-page='live-room'] .live-pulse-dot {
   50% { box-shadow: 0 0 0 6px transparent; opacity: 0.85; }
 }
 
-/* —— Host controls —— */
-body[data-live-page='live-room'] .live-host-bar {
-  margin: 0 12px 6px;
-  padding: 0;
+/* —— Host controls (host-only; aligned with Users + Invite) —— */
+body[data-live-page='live-room'] .live-host-bar,
+body[data-live-page='live-room'] .live-host-bar[hidden],
+body[data-live-page='live-room']:not(.ap-is-host) .live-host-bar {
+  display: none !important;
+}
+
+body[data-live-page='live-room'].ap-is-host .live-host-bar:not([hidden]) {
+  margin: 0 !important;
+  padding: 0 !important;
   gap: 6px;
   border-radius: 0;
   background: transparent;
@@ -207,33 +213,28 @@ body[data-live-page='live-room'] .live-host-bar {
   box-shadow: none;
 }
 
-body[data-live-page='live-room'] .live-host-bar.is-collapsed,
-body[data-live-page='live-room'].ap-is-host .live-host-bar.is-collapsed,
-body[data-live-page='live-room'].ap-can-moderate .live-host-bar.is-collapsed {
+body[data-live-page='live-room'].ap-is-host .live-host-bar.is-collapsed:not([hidden]) {
   display: inline-flex !important;
   flex-direction: row !important;
   flex: 0 0 auto !important;
-  align-self: flex-start !important;
+  align-self: center !important;
   width: fit-content !important;
   max-width: fit-content !important;
   min-width: 0 !important;
-  margin: 0 0 10px 12px !important;
+  margin: 0 !important;
   padding: 0 !important;
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
 }
 
 body[data-live-page='live-room'] .live-host-bar-toggle {
   min-height: 42px;
-  padding: 10px 18px;
+  padding: 8px 14px;
   border-radius: 999px;
   background: linear-gradient(135deg, #fbbf24, #f59e0b);
   color: #111827;
   border: none;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
-  box-shadow: 0 8px 20px rgba(245, 158, 11, 0.4);
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35);
   width: auto !important;
   flex: 0 0 auto !important;
   white-space: nowrap;

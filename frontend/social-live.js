@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260713-chat-hist';
+  window.__AP_LIVE_BUILD = '20260713-host-row';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -1380,6 +1380,20 @@
     const moderating = canModerateRoom();
     document.body.classList.toggle('ap-is-host', hosting);
     document.body.classList.toggle('ap-can-moderate', moderating && !hosting);
+    const liveHostBar = document.getElementById('liveHostBar');
+    if (liveHostBar) {
+      /* Live host controls are host-only — never show to viewers/mods */
+      liveHostBar.hidden = !hosting;
+      liveHostBar.setAttribute('aria-hidden', hosting ? 'false' : 'true');
+      if (!hosting) {
+        liveHostBar.classList.add('is-collapsed');
+        const btn = document.getElementById('liveHostBarToggle');
+        if (btn) {
+          btn.setAttribute('aria-expanded', 'false');
+          btn.innerHTML = '<i class="fas fa-sliders-h"></i> Host controls';
+        }
+      }
+    }
   }
 
   function applyRoleUiAfterJoin() {
