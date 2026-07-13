@@ -215,8 +215,9 @@
   let beautySyncPromise = null;
   // Canvas custom-track publish was unpublishing the real camera and failing to
   // republish, leaving hosts "Video live" with black/no video for viewers.
-  // Keep camera as the published track; beauty uses Agora native + local CSS.
-  const PUBLISH_CANVAS_BEAUTY = false;
+  // Publish canvas face beauty/effects to viewers. Swap is guarded: raw camera
+  // stays alive as the canvas source and is restored immediately if publish fails.
+  const PUBLISH_CANVAS_BEAUTY = true;
 
   /**
    * Snapchat / Instagram-style looks.
@@ -247,8 +248,8 @@
       swatch: 'linear-gradient(145deg,#f5d0c5,#e8b4a0)',
       css: 'brightness(1.06) contrast(0.96) saturate(1.08)',
       grade: 'brightness(1.06) contrast(0.96) saturate(1.08)',
-      skin: 2.2,
-      skinMix: 0.42,
+      skin: 3.2,
+      skinMix: 0.58,
       glow: 0.18,
       blush: { color: 'rgba(255,140,130,0.28)', size: 0.12 },
       highlight: 0.22,
@@ -3533,14 +3534,19 @@
           if (localBox) {
             playLocalHostPreview(videoTrack);
           }
-          // Preview CSS + Agora native beauty only — never swap published camera here.
-          applyVideoFilter();
-          ensureHostVideoVisible();
-          setLiveStreamVisible(true);
-          // Verify mic stayed published (some devices drop audio after camera start)
-          setTimeout(() => {
-            ensureHostAudioPublishing().catch((e) => liveDebugLog(`post-live mic check: ${e?.message || e}`));
-          }, 1200);
+      // Preview shows processed frames when beauty is published.
+      applyVideoFilter();
+      ensureHostVideoVisible();
+      setLiveStreamVisible(true);
+      // Verify mic stayed published (some devices drop audio after camera start)
+      setTimeout(() => {
+        ensureHostAudioPublishing().catch((e) => liveDebugLog(`post-live mic check: ${e?.message || e}`));
+      }, 1200);
+      setTimeout(() => {
+        if (videoFilterId && videoFilterId !== 'none') {
+          syncPublishedBeautyTrack().catch((e) => liveDebugLog(`post-live beauty: ${e?.message || e}`));
+        }
+      }, 700);
         }
         onRoomReady();
         syncLiveUiState();
@@ -3726,13 +3732,16 @@
 
   function drawFaceSoftMask(maskCtx, w, h) {
     maskCtx.clearRect(0, 0, w, h);
+    // Wider oval covering cheeks + forehead so skin smooth reads on the face,
+    // not as a flat full-frame color wash.
     const cx = w * 0.5;
-    const cy = h * 0.38;
-    const rx = w * 0.34;
-    const ry = h * 0.28;
-    const g = maskCtx.createRadialGradient(cx, cy, rx * 0.15, cx, cy, Math.max(rx, ry));
+    const cy = h * 0.4;
+    const rx = w * 0.38;
+    const ry = h * 0.34;
+    const g = maskCtx.createRadialGradient(cx, cy, rx * 0.12, cx, cy, Math.max(rx, ry));
     g.addColorStop(0, 'rgba(255,255,255,1)');
-    g.addColorStop(0.55, 'rgba(255,255,255,0.85)');
+    g.addColorStop(0.45, 'rgba(255,255,255,0.95)');
+    g.addColorStop(0.78, 'rgba(255,255,255,0.55)');
     g.addColorStop(1, 'rgba(255,255,255,0)');
     maskCtx.fillStyle = g;
     maskCtx.beginPath();
@@ -3983,44 +3992,57 @@
     return customTrack;
   }
 
+  function canvasLooksAlive(canvas) {
+    try {
+      const w = canvas?.width || 0;
+      const h = canvas?.height || 0;
+      if (w < 8 || h < 8) return false;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      if (!ctx) return false;
+      const sample = ctx.getImageData(Math.floor(w * 0.4), Math.floor(h * 0.35), 12, 12).data;
+      let lit = 0;
+      for (let i = 0; i < sample.length; i += 4) {
+        if (sample[i] + sample[i + 1] + sample[i + 2] > 30) lit += 1;
+      }
+      return lit > 8;
+    } catch (_e) {
+      return false;
+    }
+  }
+
+  async function waitForBeautyFrames(timeoutMs = 2200) {
+    const started = Date.now();
+    while (Date.now() - started < timeoutMs) {
+      if (beautyPipeline?.canvas && canvasLooksAlive(beautyPipeline.canvas)) return true;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    return Boolean(beautyPipeline?.canvas && canvasLooksAlive(beautyPipeline.canvas));
+  }
+
   async function syncPublishedBeautyTrack() {
     if (!agoraClient || !publishSucceeded || !isHost() || broadcastMode === 'audio') return;
     if (beautySyncPromise) return beautySyncPromise;
     beautySyncPromise = (async () => {
-      const audioTrack = localTracks.find((t) => (t.getTrackType?.() || t.trackMediaType) === 'audio');
-      const wantBeauty = videoFilterId && videoFilterId !== 'none';
+      const audioTrack =
+        localTracks.find((t) => (t.getTrackType?.() || t.trackMediaType) === 'audio') ||
+        getLocalAudioTrack?.();
+      const wantBeauty = Boolean(PUBLISH_CANVAS_BEAUTY && videoFilterId && videoFilterId !== 'none');
 
-      // Always prefer keeping the real camera published.
-      if (!PUBLISH_CANVAS_BEAUTY) {
-        if (beautyPipeline?.customTrack) {
-          try {
-            await agoraClient.unpublish([beautyPipeline.customTrack]);
-          } catch (_e) {}
-          const doomed = beautyPipeline.customTrack;
-          stopBeautyPipeline();
-          try {
-            doomed?.stop?.();
-            doomed?.close?.();
-          } catch (_e) {}
+      const restoreRawCamera = async () => {
+        if (!rawCameraTrack) return;
+        try {
+          const published = agoraClient.localTracks || [];
+          const already = published.includes?.(rawCameraTrack);
+          if (!already) await agoraClient.publish(rawCameraTrack);
+        } catch (e) {
+          liveDebugLog(`restore camera publish failed: ${e?.message || e}`);
         }
-        if (rawCameraTrack) {
-          const already =
-            (agoraClient.localTracks || []).includes?.(rawCameraTrack) ||
-            getLocalVideoTrack() === rawCameraTrack;
-          if (!already) {
-            try {
-              await agoraClient.publish(rawCameraTrack);
-            } catch (e) {
-              liveDebugLog(`restore camera publish failed: ${e?.message || e}`);
-            }
-          }
-          localTracks = audioTrack ? [audioTrack, rawCameraTrack] : [rawCameraTrack];
-          playLocalHostPreview(rawCameraTrack);
-        }
+        localTracks = audioTrack ? [audioTrack, rawCameraTrack] : [rawCameraTrack];
+        playLocalHostPreview(rawCameraTrack);
         await applyAgoraBeautyEffect(rawCameraTrack);
         applyLocalPreviewCss();
-        return;
-      }
+        ensureHostVideoVisible();
+      };
 
       if (!wantBeauty) {
         if (beautyPipeline?.customTrack) {
@@ -4028,55 +4050,70 @@
             await agoraClient.unpublish([beautyPipeline.customTrack]);
           } catch (_e) {}
           stopBeautyPipeline();
-          if (rawCameraTrack) {
-            try {
-              await agoraClient.publish(rawCameraTrack);
-            } catch (e) {
-              liveDebugLog(`restore raw after beauty off: ${e?.message || e}`);
-            }
-            localTracks = audioTrack ? [audioTrack, rawCameraTrack] : [rawCameraTrack];
-            playLocalHostPreview(rawCameraTrack);
-          }
         }
-        await applyAgoraBeautyEffect(rawCameraTrack);
-        applyLocalPreviewCss();
+        await restoreRawCamera();
+        return;
+      }
+
+      // Pipeline already live — filter change only updates the draw loop.
+      if (beautyPipeline?.customTrack) {
+        const published = agoraClient.localTracks || [];
+        if (published.includes?.(beautyPipeline.customTrack)) {
+          await applyAgoraBeautyEffect(rawCameraTrack);
+          applyLocalPreviewCss();
+          playLocalHostPreview(beautyPipeline.customTrack);
+          return;
+        }
+      }
+
+      let custom = beautyPipeline?.customTrack;
+      if (!custom) {
+        custom = await startBeautyPipeline(rawCameraTrack);
+      }
+      if (!custom) {
+        liveDebugLog('beauty pipeline unavailable — keeping raw camera');
+        await restoreRawCamera();
+        return;
+      }
+
+      const framesOk = await waitForBeautyFrames(2200);
+      if (!framesOk) {
+        liveDebugLog('beauty canvas still black — keeping raw camera');
+        try {
+          await agoraClient.unpublish([custom]);
+        } catch (_e) {}
+        stopBeautyPipeline();
+        await restoreRawCamera();
+        toast('Face effect not ready — try another look', 'warning');
         return;
       }
 
       await applyAgoraBeautyEffect(rawCameraTrack);
 
-      let custom = beautyPipeline?.customTrack;
-      if (!custom) {
-        custom = await startBeautyPipeline(rawCameraTrack);
-        if (!custom) {
-          applyLocalPreviewCss();
-          return;
-        }
-        const oldVideo = getLocalVideoTrack();
-        try {
-          await agoraClient.publish(custom);
-        } catch (e) {
-          liveDebugLog(`beauty publish failed: ${e?.message || e}`);
-          stopBeautyPipeline();
-          if (rawCameraTrack) {
-            try {
-              await agoraClient.publish(rawCameraTrack);
-            } catch (_e2) {}
-            localTracks = audioTrack ? [audioTrack, rawCameraTrack] : [rawCameraTrack];
-            playLocalHostPreview(rawCameraTrack);
-          }
-          applyLocalPreviewCss();
-          return;
-        }
+      const oldVideo = getLocalVideoTrack();
+      try {
+        // Unpublish raw only after canvas has real frames, then publish beauty.
         if (oldVideo && oldVideo !== custom) {
           try {
             await agoraClient.unpublish([oldVideo]);
           } catch (_e) {}
         }
+        await agoraClient.publish(custom);
         localTracks = audioTrack ? [audioTrack, custom] : [custom];
+        applyLocalPreviewCss();
+        playLocalHostPreview(custom);
+        ensureHostVideoVisible();
+        setLiveStreamVisible(true);
+        liveDebugLog(`beauty published filter=${videoFilterId}`);
+      } catch (e) {
+        liveDebugLog(`beauty publish failed: ${e?.message || e}`);
+        try {
+          await agoraClient.unpublish([custom]);
+        } catch (_e) {}
+        stopBeautyPipeline();
+        await restoreRawCamera();
+        toast('Could not apply face effect — camera restored', 'warning');
       }
-      applyLocalPreviewCss();
-      playLocalHostPreview(custom);
     })().finally(() => {
       beautySyncPromise = null;
     });
@@ -4180,14 +4217,29 @@
       setLiveStreamVisible(true);
       liveDebugLog('host camera republished OK');
       await ensureHostAudioPublishing();
+      if (PUBLISH_CANVAS_BEAUTY && videoFilterId && videoFilterId !== 'none') {
+        setTimeout(() => {
+          syncPublishedBeautyTrack().catch((e) => liveDebugLog(`beauty reapply: ${e?.message || e}`));
+        }, 400);
+      }
     } catch (e) {
       liveDebugLog(`host camera republish failed: ${e?.message || e}`);
     }
   }
 
+  function isCanvasBeautyLive() {
+    return Boolean(
+      PUBLISH_CANVAS_BEAUTY &&
+        beautyPipeline?.customTrack &&
+        videoFilterId &&
+        videoFilterId !== 'none'
+    );
+  }
+
   function applyLocalPreviewCss() {
-    const preset = VIDEO_FILTERS[videoFilterId] || VIDEO_FILTERS.none;
-    const css = preset.css || '';
+    // When canvas beauty is published, effects are already in the frames —
+    // CSS tint on top made it look like only the background color changed.
+    const css = isCanvasBeautyLive() ? '' : VIDEO_FILTERS[videoFilterId]?.css || '';
     [
       document.getElementById('liveLocalHost'),
       document.querySelector('#liveLocalHost video'),
@@ -4204,9 +4256,8 @@
     applyAgoraBeautyEffect(rawCameraTrack || getLocalVideoTrack()).catch(() => {});
     clearTimeout(window.__apBeautySyncTimer);
     window.__apBeautySyncTimer = setTimeout(() => {
-      // Only runs restore/cleanup path when canvas publish is disabled.
       syncPublishedBeautyTrack().catch((e) => liveDebugLog(`beauty sync: ${e?.message || e}`));
-    }, 160);
+    }, 120);
   }
 
   function renderFilterRail(cat = 'all') {
@@ -4250,7 +4301,7 @@
             <div class="ap-filter-head">
               <div>
                 <h3>Filters</h3>
-                <p class="ap-filter-sub">Swipe &amp; tap a look — beauty, glow &amp; vibes</p>
+                <p class="ap-filter-sub">Beauty &amp; effects apply to your face on the live stream</p>
               </div>
               <button type="button" id="apFilterClose" aria-label="Close"><i class="fas fa-times"></i></button>
             </div>
