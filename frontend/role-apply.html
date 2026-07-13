@@ -100,7 +100,7 @@
         ],
         requirements: [
           'Active account in good standing',
-          'BD promo code required — your BD reviews the request',
+          'BD promo code optional — with a code your BD reviews; without it Admin reviews',
           'Provide a clear agency name and contact phone',
         ],
         approvedLink: '/agency-center.html?app=1',
@@ -156,9 +156,12 @@
         if (promoHint) promoHint.textContent = 'Required for Host. Get this from your Agency (not BD).';
         if (promoInput) promoInput.placeholder = 'Enter agency invite code';
       } else if (selectedRole === 'agency') {
-        if (promoLabel) promoLabel.textContent = 'BD promo code';
-        if (promoHint) promoHint.textContent = 'Required for Agency. Get this code from your BD.';
-        if (promoInput) promoInput.placeholder = 'Enter your BD code';
+        if (promoLabel) promoLabel.textContent = 'BD promo code (optional)';
+        if (promoHint) {
+          promoHint.textContent =
+            'Optional. With a BD code, your BD reviews the request. Without one, Admin reviews and assigns a BD.';
+        }
+        if (promoInput) promoInput.placeholder = 'Enter BD code or leave blank';
       }
 
       const wrap = document.getElementById('roleStatusWrap');

@@ -73,15 +73,19 @@ async function submitApplication(userId, { roleType, message, contactPhone, agen
   let normalizedPromo = null;
   if (role === 'agency') {
     const hierarchyService = require('./hierarchyService');
-    const promo = await hierarchyService.resolvePromoCode(promoCode);
-    if (!promo) {
-      throw new Error('A valid BD promo code is required to apply as Agency');
+    const rawPromo = String(promoCode || '').trim();
+    if (rawPromo) {
+      const promo = await hierarchyService.resolvePromoCode(rawPromo);
+      if (!promo) {
+        throw new Error('Invalid BD promo code. Leave it blank to apply without a code, or ask your BD for a valid one.');
+      }
+      if (promo.scope !== 'both' && promo.scope !== 'agency') {
+        throw new Error('This promo code does not allow Agency applications');
+      }
+      targetBdUserId = promo.bd_user_id;
+      normalizedPromo = String(promo.code).toUpperCase();
     }
-    if (promo.scope !== 'both' && promo.scope !== 'agency') {
-      throw new Error('This promo code does not allow Agency applications');
-    }
-    targetBdUserId = promo.bd_user_id;
-    normalizedPromo = String(promo.code).toUpperCase();
+    // No promo code → admin reviews and assigns a BD on approval
   } else if (role === 'creator') {
     const hierarchyService = require('./hierarchyService');
     const invite = await hierarchyService.resolveAgencyInviteCode(promoCode);
