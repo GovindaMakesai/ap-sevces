@@ -466,6 +466,20 @@ function registerLiveSocket(io) {
       }
     });
 
+    socket.on('live:guest_mic_ready', (payload) => {
+      try {
+        const channel = sanitizeChannel(payload?.channel || currentChannel);
+        if (!channel) return;
+        io.to(`live:${channel}`).emit('live:guest_mic_ready', {
+          userId: payload?.userId != null ? String(payload.userId) : '',
+          agoraUid: payload?.agoraUid,
+          at: Date.now(),
+        });
+      } catch (err) {
+        console.error('live:guest_mic_ready', err.message);
+      }
+    });
+
     socket.on('live:admin_grant', async (payload, ack) => {
       try {
         const channel = sanitizeChannel(payload?.channel || currentChannel);

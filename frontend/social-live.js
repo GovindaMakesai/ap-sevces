@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260713-chat-hide';
+  window.__AP_LIVE_BUILD = '20260713-seat-mic';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -2331,17 +2331,45 @@
     window.SocialFX?.init?.();
 
     liveSocket.on('live:state', (state) => {
+      const prevSeatIds = new Set(
+        (roomState?.seats || [])
+          .filter((s) => s && !s.isHost && s.userId)
+          .map((s) => String(s.userId))
+      );
       const prevViewers = roomState?.viewers || lastViewerCount;
       roomState = mergeRoomState(state);
       seedChatProfileCacheFromState(roomState);
       if (state?.viewers != null && state.viewers !== prevViewers) {
         window.SocialFX?.onViewerCountChange?.(state.viewers, prevViewers);
       }
+      const nextSeatIds = (roomState?.seats || [])
+        .filter((s) => s && !s.isHost && s.userId)
+        .map((s) => String(s.userId));
+      const seatAdded = nextSeatIds.some((id) => !prevSeatIds.has(id));
       if (renderRoomStateTimer) clearTimeout(renderRoomStateTimer);
       renderRoomStateTimer = setTimeout(() => {
         renderRoomStateTimer = null;
         renderRoomState({ soft: sessionEstablished });
+        // New on-seat guest — pull their mic (host + other viewers)
+        if (seatAdded && agoraClient && liveDebugState.agoraJoined) {
+          resubscribeAllRemoteMedia().catch(() => {});
+          ensureRemoteAudioPlaying().catch(() => {});
+          setTimeout(() => {
+            resubscribeAllRemoteMedia().catch(() => {});
+            ensureRemoteAudioPlaying().catch(() => {});
+          }, 800);
+        }
       }, 80);
+    });
+
+    liveSocket.on('live:guest_mic_ready', (payload) => {
+      const uid = payload?.userId != null ? String(payload.userId) : '';
+      const me = currentUser();
+      if (uid && me && uid === String(me.id)) return;
+      liveDebugLog(`guest_mic_ready from ${uid || payload?.agoraUid || '?'}`);
+      resubscribeAllRemoteMedia().catch(() => {});
+      ensureRemoteAudioPlaying().catch(() => {});
+      setTimeout(() => ensureRemoteAudioPlaying().catch(() => {}), 600);
     });
 
     liveSocket.on('live:member_mute', (payload) => {
@@ -2717,36 +2745,41 @@
     });
   }
 
-  async function fetchAgoraToken(channel, asHost) {
+  async function fetchAgoraToken(channel, asPublisher = false) {
     const user = currentUser();
     const userId = user?.id != null ? String(user.id) : null;
-    const inferredHost = Boolean(
-      asHost ||
-        qs('host') === '1' ||
-        (roomState?.hostId && user?.id && String(roomState.hostId) === String(user.id))
+    const isActualHost = Boolean(
+      (roomState?.hostId && user?.id && String(roomState.hostId) === String(user.id)) ||
+        (qs('host') === '1' && !hasSpeakerSeat && !roomState?.hostId)
     );
-    const wantsPublisher = inferredHost || hasSpeakerSeat;
-    const role = wantsPublisher
-      ? roomState?.hostId && user?.id && String(roomState.hostId) === String(user.id)
-        ? 'host'
-        : 'publisher'
-      : 'audience';
+    // Publisher request must NOT imply host — seated guests need publisher tokens too.
+    const wantsPublisher = Boolean(asPublisher) || isActualHost || hasSpeakerSeat;
+    const role = wantsPublisher ? (isActualHost ? 'host' : 'publisher') : 'audience';
     const roomType = document.body.dataset.livePage === 'party-room' ? 'party' : 'live';
 
-    liveDebugLog(`Token request channel=${channel} role=${role} inferredHost=${inferredHost} userId=${userId}`);
-    forensicEvent('TOKEN_REQUEST_START', { channel, role, inferredHost, userId, roomType });
+    liveDebugLog(
+      `Token request channel=${channel} role=${role} asPublisher=${Boolean(asPublisher)} seated=${hasSpeakerSeat} userId=${userId}`
+    );
+    forensicEvent('TOKEN_REQUEST_START', {
+      channel,
+      role,
+      asPublisher: Boolean(asPublisher),
+      hasSpeakerSeat,
+      userId,
+      roomType,
+    });
 
     const payloads = [
-      { channel, role: wantsPublisher ? (role === 'host' ? 'host' : 'publisher') : 'audience' },
-      // Compatibility payload for stricter server checks.
+      { channel, role },
       {
         channel,
-        role: wantsPublisher ? (role === 'host' ? 'host' : 'publisher') : 'audience',
-        isHost: inferredHost,
-        asHost: inferredHost,
+        role,
+        isHost: isActualHost,
+        asHost: isActualHost,
         roomType,
         type: roomType,
         hostId: roomState?.hostId,
+        seated: hasSpeakerSeat,
       },
     ];
 
@@ -2764,16 +2797,29 @@
     }
 
     if (!data?.success) {
-      forensicEvent('TOKEN_REQUEST_FAILED', { channel, role, inferredHost, userId, message: lastErr?.message || data?.message });
+      forensicEvent('TOKEN_REQUEST_FAILED', {
+        channel,
+        role,
+        hasSpeakerSeat,
+        userId,
+        message: lastErr?.message || data?.message,
+      });
       const raw = lastErr?.message || data?.message || 'Agora token request failed';
-      if (/publisher token requires host/i.test(raw)) {
+      if (/publisher token requires/i.test(raw)) {
         if (!liveDebugState.socketConnected) {
-          throw new Error('Real-time socket not connected — room must join before going live. Reload and check Socket: YES in the debug bar.');
+          throw new Error(
+            'Real-time socket not connected — room must join before going live. Reload and check Socket: YES in the debug bar.'
+          );
         }
         if (!roomJoinCompleted) {
           throw new Error('Room not joined yet — wait for socket connection, then try again.');
         }
-        throw new Error('Server does not recognize you as host for this room. Start a new live/party from Streamer Center.');
+        if (hasSpeakerSeat) {
+          throw new Error('Seat accepted but mic token denied — ask host to remove/re-add you to the seat.');
+        }
+        throw new Error(
+          'Server does not recognize you as host for this room. Start a new live/party from Streamer Center.'
+        );
       }
       throw new Error(raw);
     }
@@ -2789,12 +2835,12 @@
     forensicEvent('TOKEN_SUCCESS', {
       channel: tokenChannel,
       role,
-      inferredHost,
+      hasSpeakerSeat,
       userId,
       uid: data.uid,
       mode: data.mode,
     });
-    liveDebugLog(`Token OK mode=${data.mode} uid=${data.uid} channel=${tokenChannel}`);
+    liveDebugLog(`Token OK mode=${data.mode} uid=${data.uid} channel=${tokenChannel} role=${role}`);
     updateLiveDebug({ tokenReceived: true });
     return data;
   }
@@ -3915,25 +3961,36 @@
     const ch = channelId();
     try {
       const AgoraRTC = await loadAgoraScript();
-      if (!agoraClient) {
-        agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
-      }
 
-      // Always leave + rejoin with a publisher token. renewToken alone does not
-      // upgrade an audience/subscriber join, so invited guests stay silent.
+      // Fresh client avoids sticky audience-join state after seat accept
+      if (agoraClient) {
+        try {
+          for (const t of localTracks) {
+            try {
+              await agoraClient.unpublish(t);
+            } catch (_e) {}
+            try {
+              t.stop?.();
+              t.close?.();
+            } catch (_e2) {}
+          }
+        } catch (_e) {}
+        localTracks = [];
+        try {
+          await agoraClient.leave();
+        } catch (_e) {}
+        agoraClient = null;
+        liveDebugState.agoraJoined = false;
+      }
+      agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
       await joinAgoraWithRetry(agoraClient, ch, true, 3);
 
-      for (const t of localTracks) {
-        try {
-          await agoraClient.unpublish(t);
-          t.stop?.();
-          t.close?.();
-        } catch (_e) {}
-      }
-      localTracks = [];
-
       const audioTrack = await withTimeout(
-        AgoraRTC.createMicrophoneAudioTrack(),
+        AgoraRTC.createMicrophoneAudioTrack({
+          AEC: true,
+          ANS: true,
+          AGC: true,
+        }),
         25000,
         'Microphone access'
       );
@@ -3942,14 +3999,14 @@
         if (typeof audioTrack.setMuted === 'function') await audioTrack.setMuted(false);
       } catch (_e) {}
       localTracks = [audioTrack];
-      await agoraClient.publish(audioTrack);
+      await agoraClient.publish([audioTrack]);
       publishSucceeded = true;
       partyVoiceSkipped = false;
       micMuted = false;
       liveDebugLog('Publish OK guest audio');
       updateLiveDebug({ hostPublishing: true, publishSucceeded: true, agoraJoined: true });
 
-      // Rejoin drops remote subscriptions — restore host A/V so seat join doesn't go silent
+      // Rejoin drops remote subscriptions — restore host A/V
       bindAudioUnlockGestures();
       for (const remoteUser of agoraClient.remoteUsers || []) {
         try {
@@ -3960,8 +4017,17 @@
         }
       }
       await ensureRemoteAudioPlaying().catch(() => {});
-      setTimeout(() => ensureRemoteAudioPlaying().catch(() => {}), 500);
-      setTimeout(() => ensureRemoteAudioPlaying().catch(() => {}), 1500);
+      setTimeout(() => ensureRemoteAudioPlaying().catch(() => {}), 400);
+      setTimeout(() => ensureRemoteAudioPlaying().catch(() => {}), 1200);
+
+      // Tell host/viewers to pull our mic (covers missed user-published on some devices)
+      try {
+        liveSocket?.emit('live:guest_mic_ready', {
+          channel: ch,
+          userId: user.id,
+          agoraUid: liveDebugState.agoraUid,
+        });
+      } catch (_e) {}
 
       syncMicButtonUi();
       renderPartySeats(roomState?.hostName);
@@ -7215,7 +7281,9 @@
       setTimeout(() => ensureRemoteAudioPlaying().catch(() => {}), 200);
     }
     if (mediaType === 'audio') {
-      if (soundOn && user.audioTrack) {
+      // Hosts must always hear on-seat guests; soundOn only mutes for viewers.
+      const shouldPlay = Boolean(soundOn || isHost());
+      if (shouldPlay && user.audioTrack) {
         try {
           user.audioTrack.setVolume?.(100);
         } catch (_e) {}
@@ -7232,8 +7300,10 @@
         } catch (_e) {
           showTapForSoundHint();
         }
-      } else {
-        user.audioTrack?.stop();
+      } else if (!shouldPlay) {
+        try {
+          user.audioTrack?.stop();
+        } catch (_e) {}
       }
     }
     remoteUsers.set(user.uid, user);
@@ -7309,8 +7379,9 @@
   }
 
   async function ensureRemoteAudioPlaying() {
-    // Hosts must hear on-seat guests; viewers must hear host + guests.
-    if (!soundOn || !agoraClient) return;
+    // Hosts must hear on-seat guests even if viewer "sound" toggle is off.
+    if (!agoraClient) return;
+    if (!soundOn && !isHost()) return;
     const remotes = agoraClient.remoteUsers || [];
     for (const user of remotes) {
       try {
