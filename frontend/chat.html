@@ -2168,9 +2168,18 @@
                 const term = searchInput.value.trim();
                 if (!term) return;
                 const uuidLike = /^[0-9a-f-]{8,36}$/i.test(term);
+                const displayIdLike = /^\d{6,8}$/.test(term);
                 if (uuidLike) {
                     e.preventDefault();
                     await openChatFromUrlParam(term);
+                } else if (displayIdLike && window.API?.get) {
+                    e.preventDefault();
+                    try {
+                        if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken();
+                        const res = await API.get('/search?q=' + encodeURIComponent(term) + '&type=users&limit=1');
+                        const u = res?.data?.users?.[0];
+                        if (u?.id) await openChatFromUrlParam(u.id);
+                    } catch (_err) { /* ignore */ }
                 }
             });
             searchInput.addEventListener('input', function(e) {
@@ -2211,7 +2220,7 @@
                             row.type = 'button';
                             row.className = 'chat-item chat-item--search';
                             row.dataset.userId = u.id;
-                            row.innerHTML = '<div class="chat-avatar"><div class="avatar-placeholder">' + initialsFromName(u.first_name, u.last_name) + '</div></div><div class="chat-info"><h4>' + uname + '</h4><p>ID: ' + String(u.id).slice(0, 12) + '…</p></div>';
+                            row.innerHTML = '<div class="chat-avatar"><div class="avatar-placeholder">' + initialsFromName(u.first_name, u.last_name) + '</div></div><div class="chat-info"><h4>' + uname + '</h4><p>ID: ' + (window.formatUserDisplayId?.(u) || u.display_id || String(u.id).slice(0, 8)) + '</p></div>';
                             row.addEventListener('click', () => openChatFromUrlParam(u.id));
                             list.prepend(row);
                             remoteRows.push(row);

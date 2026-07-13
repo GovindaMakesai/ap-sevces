@@ -17,7 +17,7 @@ function buildDisplayName(user) {
 async function fetchCreatorRows(userIds) {
   if (!userIds.length) return [];
   const res = await db.query(
-    `SELECT u.id, u.first_name, u.last_name, u.profile_pic, u.role, u.updated_at,
+    `SELECT u.id, u.first_name, u.last_name, u.profile_pic, u.role, u.display_id, u.updated_at,
             (SELECT COUNT(*)::int FROM user_follows WHERE following_id = u.id) AS followers,
             (SELECT COUNT(*)::int FROM user_follows WHERE follower_id = u.id) AS following,
             (SELECT COALESCE(SUM(gt.creator_amount), 0)::float FROM gift_transactions gt WHERE gt.receiver_id = u.id) AS gift_earnings,
@@ -42,7 +42,7 @@ async function fetchCreatorRows(userIds) {
 
 async function fetchFallbackCreators(limit) {
   const res = await db.query(
-    `SELECT u.id, u.first_name, u.last_name, u.profile_pic, u.role, u.updated_at,
+    `SELECT u.id, u.first_name, u.last_name, u.profile_pic, u.role, u.display_id, u.updated_at,
             (SELECT COUNT(*)::int FROM user_follows WHERE following_id = u.id) AS followers,
             (SELECT COUNT(*)::int FROM user_follows WHERE follower_id = u.id) AS following,
             COALESCE((SELECT SUM(gt.creator_amount) FROM gift_transactions gt WHERE gt.receiver_id = u.id), 0)::float AS gift_earnings,
@@ -80,6 +80,7 @@ function mapCreatorRow(row, { rank = null, engagementScore = null, viewerId = nu
   const isFollowing = followingSet ? followingSet.has(String(row.id)) : false;
   return {
     id: String(row.id),
+    displayId: row.display_id != null ? String(row.display_id) : null,
     displayName: buildDisplayName(row),
     firstName: row.first_name || '',
     lastName: row.last_name || '',

@@ -1,6 +1,7 @@
 // backend/models/User.js
 const db = require('../config/database');
 const bcrypt = require('bcryptjs');
+const { allocateDisplayId } = require('../lib/displayId');
 
 class User {
     // Create a new user
@@ -11,19 +12,31 @@ class User {
         // Hash password
         const salt = await bcrypt.genSalt(10);
         const password_hash = await bcrypt.hash(password, salt);
+        const display_id = await allocateDisplayId();
         
         const query = `
-            INSERT INTO users (email, phone, password_hash, first_name, last_name, role, gender)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
-            RETURNING id, email, phone, first_name, last_name, role, gender, created_at
+            INSERT INTO users (email, phone, password_hash, first_name, last_name, role, gender, display_id)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            RETURNING id, email, phone, first_name, last_name, role, gender, display_id, created_at
         `;
         
-        const values = [email, phone, password_hash, first_name, last_name, role, normalizedGender];
+        const values = [email, phone, password_hash, first_name, last_name, role, normalizedGender, display_id];
         
         try {
             const result = await db.query(query, values);
             return result.rows[0];
         } catch (error) {
+            if (error.code === '23505' && String(error.constraint || '').includes('display_id')) {
+                // Rare collision — retry once with a new ID
+                const retryId = await allocateDisplayId();
+                const retry = await db.query(
+                    `INSERT INTO users (email, phone, password_hash, first_name, last_name, role, gender, display_id)
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                     RETURNING id, email, phone, first_name, last_name, role, gender, display_id, created_at`,
+                    [email, phone, password_hash, first_name, last_name, role, normalizedGender, retryId]
+                );
+                return retry.rows[0];
+            }
             throw error;
         }
     }
@@ -41,12 +54,19 @@ class User {
         const result = await db.query(query, [phone]);
         return result.rows[0];
     }
+
+    static async findByDisplayId(displayId) {
+        const n = parseInt(displayId, 10);
+        if (!Number.isFinite(n)) return null;
+        const result = await db.query('SELECT * FROM users WHERE display_id = $1 LIMIT 1', [n]);
+        return result.rows[0] || null;
+    }
     
     // Find user by ID
     static async findById(id) {
         const query = `
             SELECT id, email, phone, first_name, last_name, profile_pic,
-                   role, is_verified, gender, created_at, updated_at
+                   role, is_verified, gender, display_id, created_at, updated_at
             FROM users WHERE id = $1
         `;
         const result = await db.query(query, [id]);

@@ -132,7 +132,7 @@
   <div id="social-bottom-nav-mount"></div>
 
   <script src="ap-config.js"></script>
-  <script src="app.js?v=20260624-party-fix"></script>
+  <script src="app.js?v=20260713-display-id"></script>
   <script src="social-wallet.js"></script>
   <script src="social-ui.js?v=20260624-profile-url-fix"></script>
   <script src="social-interactions.js?v=20260624-profile-url-fix"></script>
@@ -344,17 +344,41 @@
         document.getElementById('editProfileMenuLink').style.display = 'flex';
         const uidRow = document.getElementById('profileUidRow');
         const uidEl = document.getElementById('profileUserId');
-        if (uidEl && user.id) {
-          uidEl.textContent = String(user.id);
+        const publicId = window.formatUserDisplayId?.(user) || '';
+        if (uidEl) {
+          uidEl.textContent = publicId || '…';
           if (uidRow) uidRow.style.display = 'flex';
         }
-        document.getElementById('profileCopyId')?.addEventListener('click', async () => {
+        // Force a fresh /auth/me so display_id is never stuck on old localStorage UUID era
+        (async () => {
           try {
-            await navigator.clipboard.writeText(String(user.id));
+            await Auth.ensureAccessToken?.();
+            const meRes = await (API.getFresh || API.get)('/auth/me');
+            const fresh = meRes?.data?.user || meRes?.data;
+            if (fresh) {
+              localStorage.setItem('user', JSON.stringify(fresh));
+              if (window.AppState) AppState.user = fresh;
+              user = fresh;
+              const id = window.formatUserDisplayId?.(fresh) || '';
+              if (uidEl) uidEl.textContent = id || '—';
+            }
+          } catch (_e) {}
+        })();
+        document.getElementById('profileCopyId')?.addEventListener('click', async () => {
+          const copyVal =
+            window.formatUserDisplayId?.(Auth.getUser?.() || user) ||
+            window.formatUserDisplayId?.(user) ||
+            '';
+          if (!copyVal) {
+            SocialUI?.toast?.('User ID not ready yet — pull to refresh', 'warning');
+            return;
+          }
+          try {
+            await navigator.clipboard.writeText(copyVal);
             if (window.SocialUI?.toast) SocialUI.toast('User ID copied');
             else alert('User ID copied');
           } catch (_e) {
-            alert('ID: ' + user.id);
+            alert('ID: ' + copyVal);
           }
         });
         if (['admin', 'super_admin', 'founder', 'ceo'].includes(user.role) && adminDash) {

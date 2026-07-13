@@ -12,17 +12,20 @@ async function globalSearch({ q, type = 'all', limit = 20, offset = 0 } = {}) {
   const results = { users: [], live_rooms: [], coin_sellers: [], total: 0 };
 
   if (type === 'all' || type === 'users' || type === 'creators') {
+    const displayId = /^\d{6,8}$/.test(query) ? Number(query) : null;
     const users = await db.query(
-      `SELECT id, first_name, last_name, email, role, profile_pic,
+      `SELECT id, first_name, last_name, email, role, profile_pic, display_id,
               CASE WHEN role IN ('creator','worker','host') THEN true ELSE false END AS is_creator
        FROM users
        WHERE (
          email ILIKE $1 OR phone ILIKE $1 OR first_name ILIKE $1 OR last_name ILIKE $1
          OR id::text = $2 OR CAST(id AS text) LIKE $1
+         OR ($5::int IS NOT NULL AND display_id = $5)
+         OR CAST(display_id AS text) LIKE $1
        )
        ORDER BY created_at DESC
        LIMIT $3 OFFSET $4`,
-      [like, query, lim, off]
+      [like, query, lim, off, displayId]
     );
     results.users = users.rows;
   }

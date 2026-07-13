@@ -130,6 +130,7 @@ async function joinRoom({ channel, userId, displayName, asHost = false }) {
        VALUES ($1, $2, $3, $4, NULL, CURRENT_TIMESTAMP, $5)
        ON CONFLICT (live_room_id, user_id) DO UPDATE SET
          display_name = EXCLUDED.display_name,
+         role = CASE WHEN $4::text = 'host' THEN 'host' ELSE live_room_members.role END,
          left_at = NULL,
          joined_at = CURRENT_TIMESTAMP,
          last_seen_at = CURRENT_TIMESTAMP,
@@ -214,7 +215,7 @@ async function getMemberProfilePic(userId) {
 async function getActiveMembers(liveRoomId) {
   const res = await db.query(
     `SELECT m.user_id, m.display_name, m.role, m.is_muted, m.gift_count, m.joined_at, m.seat_index,
-            m.last_seen_at, u.profile_pic
+            m.last_seen_at, u.profile_pic, u.display_id
      FROM live_room_members m
      LEFT JOIN users u ON u.id = m.user_id
      WHERE m.live_room_id = $1 AND m.left_at IS NULL ORDER BY m.joined_at ASC`,
@@ -302,6 +303,7 @@ async function buildSnapshot(channel) {
     })
     .map((m) => ({
       userId: m.user_id,
+      displayId: m.display_id != null ? String(m.display_id) : null,
       name: m.display_name,
       profilePic: m.profile_pic || null,
       muted: m.is_muted,
@@ -315,6 +317,7 @@ async function buildSnapshot(channel) {
 
   const onlineMembers = members.map((m) => ({
     userId: m.user_id,
+    displayId: m.display_id != null ? String(m.display_id) : null,
     name: m.display_name,
     role: m.role,
     profilePic: m.profile_pic || null,
@@ -325,9 +328,15 @@ async function buildSnapshot(channel) {
   }));
 
   let hostProfilePic = null;
+  let hostDisplayId = null;
   if (room.host_user_id) {
-    const hostPicRes = await db.query(`SELECT profile_pic FROM users WHERE id = $1`, [room.host_user_id]);
+    const hostPicRes = await db.query(
+      `SELECT profile_pic, display_id FROM users WHERE id = $1`,
+      [room.host_user_id]
+    );
     hostProfilePic = hostPicRes.rows[0]?.profile_pic || null;
+    hostDisplayId =
+      hostPicRes.rows[0]?.display_id != null ? String(hostPicRes.rows[0].display_id) : null;
   }
 
   return {
@@ -336,6 +345,7 @@ async function buildSnapshot(channel) {
     roomId: room.id,
     hostId: room.host_user_id,
     hostName: room.host_display_name,
+    hostDisplayId,
     hostProfilePic,
     viewers: room.viewer_count,
     pkStatus: room.pk_status,
@@ -456,9 +466,17 @@ async function recoverActiveRooms() {
 }
 
 async function endOrphanRooms() {
+  // Only end truly abandoned rooms: no active members AND host heartbeat stale.
+  // Never kill a room that still has an active host member (viewer_count can briefly
+  // hit 0 during reconnect races and was wiping lives every minute).
   const res = await db.query(
-    `UPDATE live_rooms SET status = 'ended', ended_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-     WHERE status = 'active' AND viewer_count = 0
+    `UPDATE live_rooms lr SET status = 'ended', ended_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+     WHERE lr.status = 'active'
+       AND lr.updated_at < CURRENT_TIMESTAMP - INTERVAL '3 minutes'
+       AND NOT EXISTS (
+         SELECT 1 FROM live_room_members m
+         WHERE m.live_room_id = lr.id AND m.left_at IS NULL
+       )
      RETURNING *`
   );
   for (const row of res.rows) {
@@ -470,19 +488,27 @@ async function endOrphanRooms() {
 
 async function listActiveRooms({ roomType, limit = 30, sort = 'trending' } = {}) {
   const params = [];
+  // Show rooms that are active + recently touched, and still have a living host
+  // (either host member present OR host_user_id set with fresh updated_at).
+  // Previous host-member-only filter hid rooms after brief host reconnect gaps.
   let sql = `SELECT lr.channel, lr.room_type, lr.host_user_id, lr.host_display_name, lr.viewer_count, lr.status, lr.updated_at, lr.started_at,
                     COALESCE(u.profile_pic, w.profile_photo_url) AS host_profile_pic,
-                    u.updated_at AS host_updated_at
+                    u.updated_at AS host_updated_at,
+                    u.display_id AS host_display_id
              FROM live_rooms lr
              LEFT JOIN users u ON u.id = lr.host_user_id
              LEFT JOIN workers w ON w.user_id = u.id
              WHERE lr.status = 'active'
                AND lr.updated_at > CURRENT_TIMESTAMP - INTERVAL '12 hours'
-               AND EXISTS (
-                 SELECT 1 FROM live_room_members m
-                 WHERE m.live_room_id = lr.id
-                   AND m.role = 'host'
-                   AND m.left_at IS NULL
+               AND lr.host_user_id IS NOT NULL
+               AND (
+                 EXISTS (
+                   SELECT 1 FROM live_room_members m
+                   WHERE m.live_room_id = lr.id
+                     AND m.user_id = lr.host_user_id
+                     AND m.left_at IS NULL
+                 )
+                 OR lr.updated_at > CURRENT_TIMESTAMP - INTERVAL '2 minutes'
                )`;
   if (roomType) {
     params.push(roomType);
@@ -496,8 +522,18 @@ async function listActiveRooms({ roomType, limit = 30, sort = 'trending' } = {})
         : 'viewer_count DESC, updated_at DESC';
   params.push(Math.min(Math.max(parseInt(limit, 10) || 30, 1), 50));
   sql += ` ORDER BY ${orderBy} LIMIT $${params.length}`;
-  const res = await db.query(sql, params);
-  return res.rows;
+  try {
+    const res = await db.query(sql, params);
+    return res.rows;
+  } catch (err) {
+    // Older DBs without users.display_id — retry without that column
+    if (String(err.message || '').includes('display_id')) {
+      const fallbackSql = sql.replace(/,\s*u\.display_id AS host_display_id/, '');
+      const res = await db.query(fallbackSql, params);
+      return res.rows;
+    }
+    throw err;
+  }
 }
 
 async function touchHeartbeat(channel, userId) {
@@ -695,16 +731,22 @@ async function setRoomStyle(channel, { backgroundId } = {}) {
 async function hostStepAway({ channel, userId }) {
   const room = await findByChannel(channel);
   if (!room) return { ended: true, remaining: 0 };
-  await leaveRoom({ channel, userId });
+  // Keep host membership alive so the room stays listed; only end if truly empty.
+  // Marking host left_at used to hide the room from /live/rooms immediately.
   const countRes = await db.query(
-    `SELECT COUNT(*)::int AS c FROM live_room_members WHERE live_room_id = $1 AND left_at IS NULL`,
-    [room.id]
+    `SELECT COUNT(*)::int AS c FROM live_room_members WHERE live_room_id = $1 AND left_at IS NULL AND user_id <> $2`,
+    [room.id, userId]
   );
   const remaining = countRes.rows[0]?.c || 0;
   if (remaining === 0) {
     await endRoom(channel, 'empty_after_host_left');
     return { ended: true, remaining: 0 };
   }
+  await db.query(
+    `UPDATE live_rooms SET updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+    [room.id]
+  );
+  invalidateRoomCache(channel);
   return { ended: false, remaining };
 }
 

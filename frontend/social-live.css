@@ -3774,33 +3774,33 @@ html.ap-expo-app .ap-chip {
   text-overflow: ellipsis;
 }
 
-/* Beauty filter picker (Instagram / Snapchat style) */
+/* Filter picker — Instagram / Snapchat horizontal rail */
 .ap-filter-sheet {
   position: fixed;
   inset: 0;
   z-index: 56;
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(0, 0, 0, 0.45);
   display: none;
   align-items: flex-end;
 }
 .ap-filter-sheet.open { display: flex; }
 .ap-filter-panel {
   width: 100%;
-  background: linear-gradient(180deg, #1a1420 0%, #0f0f14 100%);
+  background: linear-gradient(180deg, rgba(28, 24, 36, 0.98) 0%, #0c0c10 100%);
   border-radius: 22px 22px 0 0;
-  padding: 16px 16px calc(20px + env(safe-area-inset-bottom, 0));
+  padding: 14px 0 calc(18px + env(safe-area-inset-bottom, 0));
   color: #fff;
-  max-height: 72vh;
-  overflow: auto;
+  box-shadow: 0 -12px 40px rgba(0,0,0,0.45);
 }
 .ap-filter-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
   gap: 12px;
+  padding: 0 16px;
 }
-.ap-filter-head h3 { margin: 0; font-size: 17px; font-weight: 800; }
+.ap-filter-head h3 { margin: 0; font-size: 16px; font-weight: 800; letter-spacing: 0.01em; }
 .ap-filter-sub {
   margin: 4px 0 0;
   font-size: 12px;
@@ -3818,38 +3818,90 @@ html.ap-expo-app .ap-chip {
   cursor: pointer;
   flex-shrink: 0;
 }
-.ap-filter-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
+.ap-filter-cats {
+  display: flex;
+  gap: 8px;
+  padding: 0 16px 12px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 }
-.ap-filter-opt {
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.05);
-  color: #fff;
-  border-radius: 16px;
-  padding: 14px 8px 12px;
+.ap-filter-cats::-webkit-scrollbar { display: none; }
+.ap-filter-cat {
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.04);
+  color: #d1d5db;
+  border-radius: 999px;
+  padding: 7px 14px;
   font-size: 12px;
   font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.ap-filter-cat.is-on {
+  background: #fff;
+  color: #111;
+  border-color: #fff;
+}
+.ap-filter-rail {
+  display: flex;
+  gap: 14px;
+  padding: 4px 16px 8px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+.ap-filter-rail::-webkit-scrollbar { display: none; }
+.ap-filter-chip {
+  flex: 0 0 auto;
+  width: 72px;
+  border: none;
+  background: transparent;
+  color: #e5e7eb;
+  padding: 0;
   cursor: pointer;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  min-height: 84px;
+  gap: 8px;
+  scroll-snap-align: center;
 }
-.ap-filter-emoji {
-  font-size: 26px;
-  line-height: 1;
+.ap-filter-swatch {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.18);
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.25);
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+.ap-filter-chip.is-active .ap-filter-swatch {
+  border-color: #fff;
+  box-shadow: 0 0 0 3px rgba(255,255,255,0.35), inset 0 0 0 1px rgba(0,0,0,0.2);
+  transform: scale(1.06);
 }
 .ap-filter-name {
+  font-size: 11px;
+  font-weight: 700;
   text-align: center;
   line-height: 1.2;
+  max-width: 72px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.85;
 }
-.ap-filter-opt.is-active {
-  border-color: #f9a8d4;
-  background: linear-gradient(160deg, rgba(249, 168, 212, 0.28), rgba(167, 139, 250, 0.18));
-  box-shadow: 0 0 0 1px rgba(249, 168, 212, 0.35);
+.ap-filter-chip.is-active .ap-filter-name {
+  opacity: 1;
+  color: #fff;
+}
+
+/* legacy grid class kept harmless if cached HTML appears */
+.ap-filter-grid {
+  display: flex;
+  gap: 14px;
+  padding: 4px 16px 8px;
+  overflow-x: auto;
 }
 
 .ap-inroom-web {

@@ -236,6 +236,8 @@ async function startServer() {
   await ensureLiveHostStatsSchema();
   await ensureLiveUserAnalyticsSchema();
   await ensurePartyModerationSchema();
+  const { ensureDisplayIdSchema } = require('./config/ensureDisplayIdSchema');
+  await ensureDisplayIdSchema();
   await attachSocketRedisAdapter();
   await platformService.getOrCreateTreasuryUserId();
   await liveRoomService.recoverActiveRooms();

@@ -114,11 +114,11 @@
         <h3>Sell / Transfer coins</h3>
         <button type="button" data-close="transferModal">&times;</button>
       </div>
-      <p style="font-size:12px;color:#666;margin:0 0 12px">Search the buyer by User ID (from their Profile tab) or registered phone number.</p>
+      <p style="font-size:12px;color:#666;margin:0 0 12px">Search the buyer by 7-digit User ID (from their Profile tab) or registered phone number.</p>
       <div class="cs-field">
         <label>Buyer account</label>
         <div class="cs-search-row">
-          <input type="text" id="xferAccountId" placeholder="User ID or phone">
+          <input type="text" id="xferAccountId" placeholder="7-digit User ID or phone">
           <button type="button" id="xferSearchBtn">Search</button>
         </div>
         <div id="xferRecipient" class="cs-recipient-card" hidden>
@@ -362,7 +362,8 @@
         const card = document.getElementById('xferRecipient');
         const name = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'User';
         document.getElementById('xferRecipientName').textContent = name;
-        document.getElementById('xferRecipientId').textContent = 'ID: ' + user.id;
+        document.getElementById('xferRecipientId').textContent =
+          'ID: ' + (window.formatUserDisplayId?.(user) || user.display_id || '—');
         const img = document.getElementById('xferRecipientAv');
         img.src = avatarFor(user, name);
         img.onerror = () => { img.src = SocialUI?.avatarUrl?.(name) || ''; };
@@ -386,7 +387,8 @@
           av.textContent = name.slice(0, 2).toUpperCase();
         }
         document.getElementById('csName').textContent = name;
-        document.getElementById('csUserId').textContent = d.user?.id || '—';
+        document.getElementById('csUserId').textContent =
+          window.formatUserDisplayId?.(d.user) || d.user?.display_id || '—';
         document.getElementById('csBalance').textContent = fmt(d.sellable_coins);
         const inv = Number(d.profile?.inventory_coins || 0);
         const wal = Number(d.wallet?.coin_balance || 0);
@@ -460,7 +462,7 @@
         const av = pic
           ? `<img src="${pic}" alt="" style="width:44px;height:44px;border-radius:50%;object-fit:cover">`
           : n.slice(0, 2).toUpperCase();
-        return `<div class="cs-transfer-item" data-recipient="${t.recipient_id || t.id}" data-coins="${t.coins || 0}" data-date="${t.created_at || ''}" data-name="${n.replace(/"/g, '')}">
+        return `<div class="cs-transfer-item" data-recipient="${t.recipient_id || t.id}" data-display-id="${t.display_id || ''}" data-coins="${t.coins || 0}" data-date="${t.created_at || ''}" data-name="${n.replace(/"/g, '')}">
           <div class="avatar">${av}</div>
           <div class="meta"><strong>${n}</strong><div style="font-size:12px;color:#999">${dt}</div></div>
           ${showCoins !== false ? `<div class="coins">${fmt(t.coins)}</div>` : ''}
@@ -471,17 +473,18 @@
         document.querySelectorAll('.cs-transfer-item').forEach((row) => {
           row.addEventListener('click', () => {
             const name = row.dataset.name || 'User';
+            const publicId = row.dataset.displayId || window.formatUserDisplayId?.(null, row.dataset.displayId) || row.dataset.recipient;
             const body = document.getElementById('xferDetailBody');
             body.innerHTML = `
               <p><strong>${name}</strong></p>
-              <p style="font-size:13px;color:#666">User ID: ${row.dataset.recipient}</p>
+              <p style="font-size:13px;color:#666">User ID: ${publicId}</p>
               <p style="font-size:13px">Coins sent: <strong>${fmt(row.dataset.coins)}</strong></p>
               <p style="font-size:12px;color:#999">${new Date(row.dataset.date).toLocaleString()}</p>`;
             const resell = document.getElementById('xferResellBtn');
             resell.style.display = 'block';
             resell.onclick = () => {
               closeModal('xferDetailModal');
-              document.getElementById('xferAccountId').value = row.dataset.recipient;
+              document.getElementById('xferAccountId').value = row.dataset.displayId || row.dataset.recipient;
               openTransferModal();
               document.getElementById('xferSearchBtn').click();
             };

@@ -224,7 +224,7 @@ async function getDashboard(userId) {
   if (!profile) throw new Error('Coin seller profile not found — need 100,000+ NR coins or admin approval');
 
   const userRes = await db.query(
-    `SELECT id, first_name, last_name, profile_pic, role, is_verified, created_at FROM users WHERE id = $1`,
+    `SELECT id, first_name, last_name, profile_pic, role, is_verified, display_id, created_at FROM users WHERE id = $1`,
     [userId]
   );
   const user = userRes.rows[0];
@@ -309,7 +309,7 @@ async function getDashboard(userId) {
 
 async function listTransfers(sellerId, { limit = 30 } = {}) {
   const res = await db.query(
-    `SELECT t.*, u.first_name, u.last_name, u.profile_pic
+    `SELECT t.*, u.first_name, u.last_name, u.profile_pic, u.display_id
      FROM coin_seller_transfers t
      JOIN users u ON u.id = t.recipient_id
      WHERE t.seller_id = $1
@@ -323,10 +323,14 @@ async function listTransfers(sellerId, { limit = 30 } = {}) {
 async function lookupRecipient(accountId) {
   const id = String(accountId || '').trim();
   if (!id) return null;
+  const displayId = /^\d{6,8}$/.test(id) ? Number(id) : null;
   const res = await db.query(
-    `SELECT id, first_name, last_name, profile_pic, role FROM users
-     WHERE id::text = $1 OR phone = $1 LIMIT 1`,
-    [id]
+    `SELECT id, first_name, last_name, profile_pic, role, display_id FROM users
+     WHERE id::text = $1
+        OR phone = $1
+        OR ($2::int IS NOT NULL AND display_id = $2)
+     LIMIT 1`,
+    [id, displayId]
   );
   return res.rows[0] || null;
 }

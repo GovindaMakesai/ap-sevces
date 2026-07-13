@@ -1917,6 +1917,24 @@ window.LocationService = LocationService;
 window.PWA = PWA;
 window.CONFIG = CONFIG;
 
+/** Public 7-digit user ID for display/copy. Never returns a UUID. */
+function formatUserDisplayId(userOrId, displayId) {
+  if (displayId != null && String(displayId).trim()) {
+    const n = String(displayId).replace(/\D/g, '');
+    if (n.length >= 6 && n.length <= 8) return n;
+  }
+  if (userOrId && typeof userOrId === 'object') {
+    if (userOrId.display_id != null) return formatUserDisplayId(null, userOrId.display_id);
+    if (userOrId.displayId != null) return formatUserDisplayId(null, userOrId.displayId);
+    userOrId = userOrId.id;
+  }
+  const raw = String(userOrId || '').trim();
+  if (/^\d{6,8}$/.test(raw)) return raw;
+  // Never show internal UUID as "User ID"
+  return '';
+}
+window.formatUserDisplayId = formatUserDisplayId;
+
 console.log('Γ£à App.js initialized');
 
 /** Prevent blank screens when session restore or profile paint stalls (native WebView). */

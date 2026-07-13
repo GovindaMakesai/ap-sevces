@@ -1,14 +1,17 @@
 /**
  * Response serializers — only expose fields appropriate for each audience.
  */
+const { formatDisplayId } = require('./displayId');
 
 function publicUser(user, { self = false } = {}) {
   if (!user) return null;
+  const displayId = formatDisplayId(user.display_id);
   const base = {
     first_name: user.first_name,
     last_name: user.last_name,
     profile_pic: user.profile_pic || null,
     is_verified: Boolean(user.is_verified),
+    display_id: displayId,
   };
   if (self) {
     return {
@@ -24,6 +27,7 @@ function publicUser(user, { self = false } = {}) {
   }
   return {
     ...base,
+    id: user.id,
     display_name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'User',
   };
 }
@@ -53,6 +57,7 @@ function publicLiveRoom(row) {
     type: row.room_type,
     hostId: row.host_user_id,
     hostName: row.host_display_name,
+    hostDisplayId: row.host_display_id != null ? String(row.host_display_id) : null,
     hostProfilePic: row.host_profile_pic || null,
     hostUpdatedAt: row.host_updated_at || null,
     viewers: row.viewer_count || 0,

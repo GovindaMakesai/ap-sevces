@@ -77,7 +77,8 @@
       const name = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Agency';
       document.getElementById('agAvatar').textContent = name.slice(0, 2).toUpperCase();
       document.getElementById('agName').textContent = name;
-      document.getElementById('agUserId').textContent = user.id;
+      document.getElementById('agUserId').textContent =
+        window.formatUserDisplayId?.(user) || user.display_id || '—';
     })();
   </script>
 </body>

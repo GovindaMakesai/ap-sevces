@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260713-beauty-filters';
+  window.__AP_LIVE_BUILD = '20260713-cam-fix';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -177,10 +177,23 @@
   let reconnectRejoinTimer = null;
   let partyVoiceSkipped = false;
   let cameraFacing = 'user';
-  let videoFilterId = 'soft_natural';
+  let videoFilterId = 'natural';
   try {
     const savedFilter = localStorage.getItem('ap_live_beauty_filter');
-    if (savedFilter) videoFilterId = savedFilter;
+    const LEGACY_FILTER_MAP = {
+      soft_natural: 'natural',
+      fair_skin: 'glow',
+      porcelain: 'silk',
+      clear_skin: 'velvet',
+      soft_glam: 'glam',
+      rosy_blush: 'rose',
+      warm_glow: 'golden',
+      cool_fresh: 'fresh',
+      radiant: 'glow',
+      dreamy: 'dream',
+      hd_smooth: 'velvet',
+    };
+    if (savedFilter) videoFilterId = LEGACY_FILTER_MAP[savedFilter] || savedFilter;
   } catch (_e) {}
   let guestPublishInProgress = false;
   let guestPublishAttempted = false;
@@ -195,94 +208,274 @@
   let cachedWsTokenAt = 0;
   let activeProfileUser = { name: '', userId: '' };
   let profileSheetActionsBound = false;
-  let beautyPipeline = null; // canvas beauty for published stream
+  let beautyPipeline = null; // optional canvas beauty (preview/effects only unless enabled)
   let rawCameraTrack = null;
+  let beautySyncPromise = null;
+  // Canvas custom-track publish was unpublishing the real camera and failing to
+  // republish, leaving hosts "Video live" with black/no video for viewers.
+  // Keep camera as the published track; beauty uses Agora native + local CSS.
+  const PUBLISH_CANVAS_BEAUTY = false;
 
-  // Instagram/Snapchat-style beauty looks (fair skin, soft glam, etc.)
+  /**
+   * Snapchat / Instagram-style looks.
+   * Processed on canvas (skin smooth + glow + makeup overlays + grade),
+   * plus Agora beauty when available.
+   */
   const VIDEO_FILTERS = {
     none: {
       label: 'Original',
-      emoji: '📷',
+      cat: 'beauty',
+      swatch: 'linear-gradient(145deg,#3f3f46,#18181b)',
       css: '',
-      canvas: 'none',
+      grade: 'none',
+      skin: 0,
+      skinMix: 0,
+      glow: 0,
+      blush: null,
+      highlight: 0,
+      lip: null,
+      wash: null,
+      sparkle: 0,
+      vignette: 0,
       beauty: null,
     },
-    soft_natural: {
-      label: 'Soft Natural',
-      emoji: '✨',
-      css: 'brightness(1.08) contrast(0.94) saturate(1.06) blur(0.35px)',
-      canvas: 'brightness(1.08) contrast(0.94) saturate(1.06) blur(0.35px)',
-      beauty: { lighteningLevel: 0.55, smoothnessLevel: 0.45, rednessLevel: 0.12, lighteningContrastLevel: 1 },
+    natural: {
+      label: 'Natural',
+      cat: 'beauty',
+      swatch: 'linear-gradient(145deg,#f5d0c5,#e8b4a0)',
+      css: 'brightness(1.06) contrast(0.96) saturate(1.08)',
+      grade: 'brightness(1.06) contrast(0.96) saturate(1.08)',
+      skin: 2.2,
+      skinMix: 0.42,
+      glow: 0.18,
+      blush: { color: 'rgba(255,140,130,0.28)', size: 0.12 },
+      highlight: 0.22,
+      lip: { color: 'rgba(220,90,100,0.18)', y: 0.62 },
+      wash: null,
+      sparkle: 0,
+      vignette: 0.12,
+      beauty: { lighteningLevel: 0.45, smoothnessLevel: 0.55, rednessLevel: 0.18, lighteningContrastLevel: 1 },
     },
-    fair_skin: {
-      label: 'Fair Skin',
-      emoji: '🤍',
-      css: 'brightness(1.16) contrast(0.88) saturate(0.92) blur(0.45px)',
-      canvas: 'brightness(1.16) contrast(0.88) saturate(0.92) blur(0.45px)',
-      beauty: { lighteningLevel: 0.85, smoothnessLevel: 0.6, rednessLevel: 0.08, lighteningContrastLevel: 1 },
+    glow: {
+      label: 'Glow',
+      cat: 'beauty',
+      swatch: 'linear-gradient(145deg,#fff7ed,#fdba74)',
+      css: 'brightness(1.12) contrast(0.92) saturate(1.12)',
+      grade: 'brightness(1.12) contrast(0.92) saturate(1.14)',
+      skin: 3.2,
+      skinMix: 0.55,
+      glow: 0.42,
+      blush: { color: 'rgba(255,160,120,0.32)', size: 0.14 },
+      highlight: 0.4,
+      lip: { color: 'rgba(230,100,110,0.22)', y: 0.62 },
+      wash: { color: 'rgba(255,220,180,0.14)', mode: 'soft-light' },
+      sparkle: 0.35,
+      vignette: 0.18,
+      beauty: { lighteningLevel: 0.7, smoothnessLevel: 0.7, rednessLevel: 0.2, lighteningContrastLevel: 1 },
     },
-    porcelain: {
-      label: 'Porcelain',
-      emoji: '💎',
-      css: 'brightness(1.2) contrast(0.85) saturate(0.85) blur(0.55px)',
-      canvas: 'brightness(1.2) contrast(0.85) saturate(0.85) blur(0.55px)',
-      beauty: { lighteningLevel: 0.95, smoothnessLevel: 0.72, rednessLevel: 0.05, lighteningContrastLevel: 0 },
+    silk: {
+      label: 'Silk',
+      cat: 'beauty',
+      swatch: 'linear-gradient(145deg,#faf5ff,#e9d5ff)',
+      css: 'brightness(1.1) contrast(0.9) saturate(1.05)',
+      grade: 'brightness(1.1) contrast(0.9) saturate(1.05)',
+      skin: 4.0,
+      skinMix: 0.62,
+      glow: 0.35,
+      blush: { color: 'rgba(255,170,190,0.3)', size: 0.13 },
+      highlight: 0.35,
+      lip: { color: 'rgba(210,80,120,0.2)', y: 0.63 },
+      wash: { color: 'rgba(250,240,255,0.12)', mode: 'soft-light' },
+      sparkle: 0.2,
+      vignette: 0.15,
+      beauty: { lighteningLevel: 0.75, smoothnessLevel: 0.85, rednessLevel: 0.12, lighteningContrastLevel: 0 },
     },
-    clear_skin: {
-      label: 'Clear Skin',
-      emoji: '🧴',
-      css: 'brightness(1.1) contrast(0.9) saturate(1.02) blur(0.6px)',
-      canvas: 'brightness(1.1) contrast(0.9) saturate(1.02) blur(0.6px)',
-      beauty: { lighteningLevel: 0.6, smoothnessLevel: 0.85, rednessLevel: 0.1, lighteningContrastLevel: 1 },
+    velvet: {
+      label: 'Velvet',
+      cat: 'beauty',
+      swatch: 'linear-gradient(145deg,#ffe4e6,#fda4af)',
+      css: 'brightness(1.08) contrast(0.94) saturate(1.1)',
+      grade: 'brightness(1.08) contrast(0.94) saturate(1.1)',
+      skin: 4.5,
+      skinMix: 0.68,
+      glow: 0.28,
+      blush: { color: 'rgba(255,120,140,0.34)', size: 0.15 },
+      highlight: 0.28,
+      lip: { color: 'rgba(200,60,90,0.28)', y: 0.63 },
+      wash: null,
+      sparkle: 0.15,
+      vignette: 0.2,
+      beauty: { lighteningLevel: 0.55, smoothnessLevel: 0.9, rednessLevel: 0.22, lighteningContrastLevel: 1 },
     },
-    soft_glam: {
-      label: 'Soft Glam',
-      emoji: '💋',
-      css: 'brightness(1.12) contrast(0.92) saturate(1.18) blur(0.4px) sepia(0.08)',
-      canvas: 'brightness(1.12) contrast(0.92) saturate(1.18) blur(0.4px) sepia(0.08)',
-      beauty: { lighteningLevel: 0.7, smoothnessLevel: 0.55, rednessLevel: 0.28, lighteningContrastLevel: 1 },
+    glam: {
+      label: 'Glam',
+      cat: 'beauty',
+      swatch: 'linear-gradient(145deg,#fb7185,#be123c)',
+      css: 'brightness(1.1) contrast(0.95) saturate(1.28)',
+      grade: 'brightness(1.1) contrast(0.95) saturate(1.28) sepia(0.06)',
+      skin: 3.4,
+      skinMix: 0.52,
+      glow: 0.38,
+      blush: { color: 'rgba(255,90,110,0.4)', size: 0.16 },
+      highlight: 0.45,
+      lip: { color: 'rgba(190,30,70,0.42)', y: 0.64 },
+      wash: { color: 'rgba(255,180,200,0.1)', mode: 'overlay' },
+      sparkle: 0.55,
+      vignette: 0.22,
+      beauty: { lighteningLevel: 0.65, smoothnessLevel: 0.65, rednessLevel: 0.38, lighteningContrastLevel: 1 },
     },
-    rosy_blush: {
-      label: 'Rosy Blush',
-      emoji: '🌸',
-      css: 'brightness(1.1) contrast(0.93) saturate(1.22) blur(0.35px) hue-rotate(-6deg)',
-      canvas: 'brightness(1.1) contrast(0.93) saturate(1.22) blur(0.35px) hue-rotate(-6deg)',
-      beauty: { lighteningLevel: 0.65, smoothnessLevel: 0.5, rednessLevel: 0.4, lighteningContrastLevel: 1 },
+    rose: {
+      label: 'Rose',
+      cat: 'looks',
+      swatch: 'linear-gradient(145deg,#fecdd3,#e11d48)',
+      css: 'brightness(1.08) contrast(0.94) saturate(1.2) hue-rotate(-8deg)',
+      grade: 'brightness(1.08) contrast(0.94) saturate(1.22) hue-rotate(-8deg)',
+      skin: 2.8,
+      skinMix: 0.48,
+      glow: 0.3,
+      blush: { color: 'rgba(255,100,140,0.45)', size: 0.17 },
+      highlight: 0.3,
+      lip: { color: 'rgba(220,50,100,0.35)', y: 0.63 },
+      wash: { color: 'rgba(255,150,180,0.16)', mode: 'soft-light' },
+      sparkle: 0.25,
+      vignette: 0.16,
+      beauty: { lighteningLevel: 0.6, smoothnessLevel: 0.55, rednessLevel: 0.45, lighteningContrastLevel: 1 },
     },
-    warm_glow: {
-      label: 'Warm Glow',
-      emoji: '🌅',
-      css: 'brightness(1.12) contrast(0.95) saturate(1.2) sepia(0.2) blur(0.3px)',
-      canvas: 'brightness(1.12) contrast(0.95) saturate(1.2) sepia(0.2) blur(0.3px)',
-      beauty: { lighteningLevel: 0.68, smoothnessLevel: 0.4, rednessLevel: 0.22, lighteningContrastLevel: 1 },
+    peach: {
+      label: 'Peach',
+      cat: 'looks',
+      swatch: 'linear-gradient(145deg,#fed7aa,#fb923c)',
+      css: 'brightness(1.1) contrast(0.94) saturate(1.18) sepia(0.12)',
+      grade: 'brightness(1.1) contrast(0.94) saturate(1.18) sepia(0.12)',
+      skin: 3.0,
+      skinMix: 0.5,
+      glow: 0.36,
+      blush: { color: 'rgba(255,150,100,0.4)', size: 0.15 },
+      highlight: 0.34,
+      lip: { color: 'rgba(230,90,80,0.3)', y: 0.62 },
+      wash: { color: 'rgba(255,200,150,0.18)', mode: 'soft-light' },
+      sparkle: 0.2,
+      vignette: 0.14,
+      beauty: { lighteningLevel: 0.62, smoothnessLevel: 0.58, rednessLevel: 0.3, lighteningContrastLevel: 1 },
     },
-    cool_fresh: {
-      label: 'Cool Fresh',
-      emoji: '❄️',
-      css: 'brightness(1.1) contrast(0.96) saturate(1.08) hue-rotate(10deg) blur(0.3px)',
-      canvas: 'brightness(1.1) contrast(0.96) saturate(1.08) hue-rotate(10deg) blur(0.3px)',
-      beauty: { lighteningLevel: 0.7, smoothnessLevel: 0.42, rednessLevel: 0.06, lighteningContrastLevel: 1 },
+    golden: {
+      label: 'Golden',
+      cat: 'looks',
+      swatch: 'linear-gradient(145deg,#fde68a,#d97706)',
+      css: 'brightness(1.12) contrast(0.96) saturate(1.25) sepia(0.22)',
+      grade: 'brightness(1.12) contrast(0.96) saturate(1.25) sepia(0.22)',
+      skin: 2.6,
+      skinMix: 0.45,
+      glow: 0.48,
+      blush: { color: 'rgba(255,170,80,0.35)', size: 0.14 },
+      highlight: 0.5,
+      lip: { color: 'rgba(200,80,60,0.28)', y: 0.62 },
+      wash: { color: 'rgba(255,190,80,0.2)', mode: 'soft-light' },
+      sparkle: 0.4,
+      vignette: 0.25,
+      beauty: { lighteningLevel: 0.68, smoothnessLevel: 0.5, rednessLevel: 0.25, lighteningContrastLevel: 1 },
     },
-    radiant: {
-      label: 'Radiant',
-      emoji: '☀️',
-      css: 'brightness(1.18) contrast(0.9) saturate(1.15) blur(0.4px)',
-      canvas: 'brightness(1.18) contrast(0.9) saturate(1.15) blur(0.4px)',
-      beauty: { lighteningLevel: 0.8, smoothnessLevel: 0.5, rednessLevel: 0.14, lighteningContrastLevel: 2 },
+    fresh: {
+      label: 'Fresh',
+      cat: 'looks',
+      swatch: 'linear-gradient(145deg,#a5f3fc,#22d3ee)',
+      css: 'brightness(1.1) contrast(0.98) saturate(1.12) hue-rotate(12deg)',
+      grade: 'brightness(1.1) contrast(0.98) saturate(1.12) hue-rotate(12deg)',
+      skin: 2.4,
+      skinMix: 0.44,
+      glow: 0.28,
+      blush: { color: 'rgba(255,160,150,0.28)', size: 0.12 },
+      highlight: 0.32,
+      lip: { color: 'rgba(220,100,120,0.22)', y: 0.62 },
+      wash: { color: 'rgba(180,230,255,0.12)', mode: 'soft-light' },
+      sparkle: 0.15,
+      vignette: 0.12,
+      beauty: { lighteningLevel: 0.58, smoothnessLevel: 0.5, rednessLevel: 0.12, lighteningContrastLevel: 1 },
     },
-    dreamy: {
-      label: 'Dreamy',
-      emoji: '☁️',
-      css: 'brightness(1.14) contrast(0.86) saturate(1.1) blur(0.7px)',
-      canvas: 'brightness(1.14) contrast(0.86) saturate(1.1) blur(0.7px)',
-      beauty: { lighteningLevel: 0.75, smoothnessLevel: 0.7, rednessLevel: 0.12, lighteningContrastLevel: 0 },
+    dream: {
+      label: 'Dream',
+      cat: 'fx',
+      swatch: 'linear-gradient(145deg,#e0e7ff,#a78bfa)',
+      css: 'brightness(1.14) contrast(0.88) saturate(1.15)',
+      grade: 'brightness(1.14) contrast(0.88) saturate(1.15)',
+      skin: 3.6,
+      skinMix: 0.58,
+      glow: 0.5,
+      blush: { color: 'rgba(200,160,255,0.28)', size: 0.14 },
+      highlight: 0.42,
+      lip: { color: 'rgba(180,100,160,0.25)', y: 0.63 },
+      wash: { color: 'rgba(200,180,255,0.16)', mode: 'soft-light' },
+      sparkle: 0.65,
+      vignette: 0.28,
+      beauty: { lighteningLevel: 0.72, smoothnessLevel: 0.75, rednessLevel: 0.15, lighteningContrastLevel: 0 },
     },
-    hd_smooth: {
-      label: 'HD Smooth',
-      emoji: '🎬',
-      css: 'brightness(1.08) contrast(1.02) saturate(1.05) blur(0.5px)',
-      canvas: 'brightness(1.08) contrast(1.02) saturate(1.05) blur(0.5px)',
-      beauty: { lighteningLevel: 0.5, smoothnessLevel: 0.75, rednessLevel: 0.1, lighteningContrastLevel: 1 },
+    cinema: {
+      label: 'Cinema',
+      cat: 'fx',
+      swatch: 'linear-gradient(145deg,#57534e,#1c1917)',
+      css: 'brightness(1.02) contrast(1.12) saturate(0.92)',
+      grade: 'brightness(1.02) contrast(1.14) saturate(0.9) sepia(0.08)',
+      skin: 2.0,
+      skinMix: 0.35,
+      glow: 0.15,
+      blush: { color: 'rgba(180,100,80,0.22)', size: 0.1 },
+      highlight: 0.18,
+      lip: { color: 'rgba(140,50,50,0.25)', y: 0.63 },
+      wash: { color: 'rgba(40,30,20,0.12)', mode: 'multiply' },
+      sparkle: 0,
+      vignette: 0.45,
+      beauty: { lighteningLevel: 0.35, smoothnessLevel: 0.45, rednessLevel: 0.1, lighteningContrastLevel: 2 },
+    },
+    neon: {
+      label: 'Neon',
+      cat: 'fx',
+      swatch: 'linear-gradient(145deg,#f0abfc,#22d3ee)',
+      css: 'brightness(1.08) contrast(1.08) saturate(1.45) hue-rotate(20deg)',
+      grade: 'brightness(1.08) contrast(1.1) saturate(1.5) hue-rotate(18deg)',
+      skin: 2.2,
+      skinMix: 0.4,
+      glow: 0.45,
+      blush: { color: 'rgba(255,80,200,0.35)', size: 0.14 },
+      highlight: 0.38,
+      lip: { color: 'rgba(255,40,180,0.4)', y: 0.63 },
+      wash: { color: 'rgba(80,220,255,0.14)', mode: 'screen' },
+      sparkle: 0.7,
+      vignette: 0.3,
+      beauty: { lighteningLevel: 0.55, smoothnessLevel: 0.5, rednessLevel: 0.2, lighteningContrastLevel: 1 },
+    },
+    dusk: {
+      label: 'Dusk',
+      cat: 'fx',
+      swatch: 'linear-gradient(145deg,#c4b5fd,#7c3aed)',
+      css: 'brightness(1.05) contrast(1.02) saturate(1.2) hue-rotate(-18deg)',
+      grade: 'brightness(1.05) contrast(1.02) saturate(1.22) hue-rotate(-18deg)',
+      skin: 2.8,
+      skinMix: 0.48,
+      glow: 0.32,
+      blush: { color: 'rgba(200,100,180,0.35)', size: 0.14 },
+      highlight: 0.3,
+      lip: { color: 'rgba(160,40,120,0.35)', y: 0.63 },
+      wash: { color: 'rgba(120,60,180,0.14)', mode: 'soft-light' },
+      sparkle: 0.3,
+      vignette: 0.32,
+      beauty: { lighteningLevel: 0.5, smoothnessLevel: 0.55, rednessLevel: 0.28, lighteningContrastLevel: 1 },
+    },
+    soft_focus: {
+      label: 'Soft Focus',
+      cat: 'fx',
+      swatch: 'linear-gradient(145deg,#fce7f3,#f9a8d4)',
+      css: 'brightness(1.12) contrast(0.86) saturate(1.08)',
+      grade: 'brightness(1.12) contrast(0.86) saturate(1.08)',
+      skin: 5.0,
+      skinMix: 0.72,
+      glow: 0.55,
+      blush: { color: 'rgba(255,180,200,0.3)', size: 0.15 },
+      highlight: 0.48,
+      lip: { color: 'rgba(220,120,150,0.22)', y: 0.62 },
+      wash: { color: 'rgba(255,230,240,0.12)', mode: 'soft-light' },
+      sparkle: 0.45,
+      vignette: 0.2,
+      beauty: { lighteningLevel: 0.7, smoothnessLevel: 0.88, rednessLevel: 0.18, lighteningContrastLevel: 0 },
     },
   };
 
@@ -410,6 +603,7 @@
     }
     if (lastJoinMeta?.isHost && publishSucceeded) {
       await applyLocalMicMuteState();
+      await ensureHostVideoPublishing().catch(() => {});
       ensureHostVideoVisible();
       syncLiveUiState();
       hideApLoader();
@@ -551,7 +745,16 @@
   }
 
   async function resumeHostBroadcastIfNeeded() {
-    if (!isHost() || !roomJoinCompleted || publishSucceeded || agoraStartInProgress) return;
+    if (!isHost() || !roomJoinCompleted || agoraStartInProgress) return;
+    if (publishSucceeded) {
+      // Already "live" but camera may have died after beauty/flip — recover video.
+      if (broadcastMode !== 'audio') {
+        await ensureHostVideoPublishing().catch((e) =>
+          liveDebugLog(`ensureHostVideo: ${e?.message || e}`)
+        );
+      }
+      return;
+    }
     const page = document.body.dataset.livePage;
     const mode = page === 'party-room' ? 'party' : 'live';
     agoraStartInProgress = true;
@@ -2529,8 +2732,8 @@
           if ((isHost() || hasSpeakerSeat) && !publishSucceeded) {
             await ensureMicPublishing();
           }
-          if (isHost() && broadcastMode !== 'audio' && publishSucceeded && !getLocalVideoTrack()) {
-            await resumeHostBroadcastIfNeeded();
+          if (isHost() && broadcastMode !== 'audio' && publishSucceeded) {
+            await ensureHostVideoPublishing();
           }
         }
       } catch (e) {
@@ -2583,8 +2786,9 @@
 
       if (isHost() && publishSucceeded) {
         const audio = getLocalAudioTrack?.();
-        const video = broadcastMode === 'audio' ? true : getLocalVideoTrack?.();
-        if (!audio || (broadcastMode !== 'audio' && !video)) unhealthy = true;
+        const videoOk =
+          broadcastMode === 'audio' ? true : isLocalCameraHealthy();
+        if (!audio || !videoOk) unhealthy = true;
       }
 
       if (unhealthy) {
@@ -3247,10 +3451,8 @@
           if (localBox) {
             playLocalHostPreview(videoTrack);
           }
+          // Preview CSS + Agora native beauty only — never swap published camera here.
           applyVideoFilter();
-          if (videoFilterId && videoFilterId !== 'none') {
-            syncPublishedBeautyTrack().catch(() => {});
-          }
           ensureHostVideoVisible();
           setLiveStreamVisible(true);
         }
@@ -3377,6 +3579,8 @@
     try {
       beautyPipeline.video?.remove?.();
       beautyPipeline.canvas?.remove?.();
+      beautyPipeline.soft?.remove?.();
+      beautyPipeline.mask?.remove?.();
     } catch (_e) {}
     beautyPipeline = null;
   }
@@ -3397,21 +3601,229 @@
     }
   }
 
+  function ensureBeautyAux(w, h) {
+    if (!beautyPipeline) return null;
+    if (
+      beautyPipeline.soft &&
+      beautyPipeline.soft.width === w &&
+      beautyPipeline.soft.height === h
+    ) {
+      return beautyPipeline;
+    }
+    const soft = document.createElement('canvas');
+    soft.width = w;
+    soft.height = h;
+    soft.style.cssText = 'position:fixed;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none';
+    const mask = document.createElement('canvas');
+    mask.width = w;
+    mask.height = h;
+    mask.style.cssText = soft.style.cssText;
+    document.body.appendChild(soft);
+    document.body.appendChild(mask);
+    beautyPipeline.soft = soft;
+    beautyPipeline.softCtx = soft.getContext('2d', { alpha: true, desynchronized: true });
+    beautyPipeline.mask = mask;
+    beautyPipeline.maskCtx = mask.getContext('2d', { alpha: true, desynchronized: true });
+    beautyPipeline.sparkles = [];
+    for (let i = 0; i < 28; i++) {
+      beautyPipeline.sparkles.push({
+        x: Math.random(),
+        y: Math.random() * 0.7,
+        r: 0.8 + Math.random() * 2.2,
+        a: 0.25 + Math.random() * 0.55,
+        sp: 0.002 + Math.random() * 0.006,
+        ph: Math.random() * Math.PI * 2,
+      });
+    }
+    return beautyPipeline;
+  }
+
+  function drawFaceSoftMask(maskCtx, w, h) {
+    maskCtx.clearRect(0, 0, w, h);
+    const cx = w * 0.5;
+    const cy = h * 0.38;
+    const rx = w * 0.34;
+    const ry = h * 0.28;
+    const g = maskCtx.createRadialGradient(cx, cy, rx * 0.15, cx, cy, Math.max(rx, ry));
+    g.addColorStop(0, 'rgba(255,255,255,1)');
+    g.addColorStop(0.55, 'rgba(255,255,255,0.85)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    maskCtx.fillStyle = g;
+    maskCtx.beginPath();
+    maskCtx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+    maskCtx.fill();
+  }
+
+  function drawCheekBlush(ctx, w, h, blush) {
+    if (!blush) return;
+    const size = Math.min(w, h) * (blush.size || 0.13);
+    const cheeks = [
+      [w * 0.28, h * 0.46],
+      [w * 0.72, h * 0.46],
+    ];
+    ctx.save();
+    ctx.globalCompositeOperation = 'soft-light';
+    cheeks.forEach(([x, y]) => {
+      const g = ctx.createRadialGradient(x, y, 0, x, y, size);
+      g.addColorStop(0, blush.color);
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x, y, size, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.restore();
+  }
+
+  function drawHighlight(ctx, w, h, amount) {
+    if (!amount) return;
+    ctx.save();
+    ctx.globalCompositeOperation = 'soft-light';
+    ctx.globalAlpha = amount;
+    const spots = [
+      [w * 0.5, h * 0.28, w * 0.18],
+      [w * 0.5, h * 0.42, w * 0.06],
+      [w * 0.32, h * 0.4, w * 0.08],
+      [w * 0.68, h * 0.4, w * 0.08],
+      [w * 0.5, h * 0.55, w * 0.1],
+    ];
+    spots.forEach(([x, y, r]) => {
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, 'rgba(255,255,255,0.95)');
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.restore();
+  }
+
+  function drawLipTint(ctx, w, h, lip) {
+    if (!lip) return;
+    const y = h * (lip.y || 0.63);
+    const rx = w * 0.09;
+    const ry = h * 0.025;
+    ctx.save();
+    ctx.globalCompositeOperation = 'multiply';
+    const g = ctx.createRadialGradient(w * 0.5, y, 0, w * 0.5, y, rx);
+    g.addColorStop(0, lip.color);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.ellipse(w * 0.5, y, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawWash(ctx, w, h, wash) {
+    if (!wash) return;
+    ctx.save();
+    ctx.globalCompositeOperation = wash.mode || 'soft-light';
+    ctx.fillStyle = wash.color;
+    ctx.fillRect(0, 0, w, h);
+    ctx.restore();
+  }
+
+  function drawSparkles(ctx, w, h, amount, sparkles, t) {
+    if (!amount || !sparkles?.length) return;
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    sparkles.forEach((s) => {
+      const pulse = 0.45 + 0.55 * Math.sin(t * 0.004 + s.ph);
+      const x = ((s.x + t * s.sp * 0.02) % 1) * w;
+      const y = s.y * h;
+      ctx.globalAlpha = s.a * amount * pulse;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(x, y, s.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = s.a * amount * pulse * 0.7;
+      ctx.fillRect(x - s.r * 2.2, y - 0.6, s.r * 4.4, 1.2);
+      ctx.fillRect(x - 0.6, y - s.r * 2.2, 1.2, s.r * 4.4);
+    });
+    ctx.restore();
+  }
+
+  function drawVignette(ctx, w, h, amount) {
+    if (!amount) return;
+    ctx.save();
+    const g = ctx.createRadialGradient(
+      w * 0.5,
+      h * 0.42,
+      Math.min(w, h) * 0.25,
+      w * 0.5,
+      h * 0.5,
+      Math.max(w, h) * 0.72
+    );
+    g.addColorStop(0, 'rgba(0,0,0,0)');
+    g.addColorStop(1, `rgba(0,0,0,${Math.min(0.75, amount)})`);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+    ctx.restore();
+  }
+
+  function drawFaceGlow(ctx, w, h, amount) {
+    if (!amount) return;
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    ctx.globalAlpha = amount * 0.55;
+    const g = ctx.createRadialGradient(w * 0.5, h * 0.36, 0, w * 0.5, h * 0.36, Math.min(w, h) * 0.38);
+    g.addColorStop(0, 'rgba(255,245,230,0.9)');
+    g.addColorStop(0.55, 'rgba(255,220,200,0.25)');
+    g.addColorStop(1, 'rgba(255,200,180,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+    ctx.restore();
+  }
+
   function beautyDrawLoop() {
     if (!beautyPipeline) return;
     const { video, canvas, ctx } = beautyPipeline;
     if (video.readyState >= 2 && canvas.width && canvas.height) {
       const preset = VIDEO_FILTERS[videoFilterId] || VIDEO_FILTERS.none;
-      ctx.filter = preset.canvas || 'none';
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      // Soft skin blend: light second pass for fair/smooth looks
-      if (preset.beauty && (preset.beauty.smoothnessLevel || 0) > 0.55) {
+      const w = canvas.width;
+      const h = canvas.height;
+      const aux = ensureBeautyAux(w, h);
+      const softCtx = aux.softCtx;
+      const maskCtx = aux.maskCtx;
+
+      ctx.filter = preset.grade || 'none';
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.drawImage(video, 0, 0, w, h);
+      ctx.filter = 'none';
+
+      if (preset.skin > 0 && preset.skinMix > 0) {
+        softCtx.clearRect(0, 0, w, h);
+        softCtx.filter = `blur(${preset.skin}px) brightness(1.04) saturate(1.04)`;
+        softCtx.drawImage(video, 0, 0, w, h);
+        softCtx.filter = 'none';
+        drawFaceSoftMask(maskCtx, w, h);
+        softCtx.globalCompositeOperation = 'destination-in';
+        softCtx.drawImage(aux.mask, 0, 0);
+        softCtx.globalCompositeOperation = 'source-over';
         ctx.save();
-        ctx.globalAlpha = 0.22;
-        ctx.filter = 'blur(1.2px) brightness(1.05)';
-        ctx.drawImage(canvas, 0, 0);
+        ctx.globalAlpha = preset.skinMix;
+        ctx.drawImage(aux.soft, 0, 0);
+        ctx.restore();
+
+        ctx.save();
+        ctx.globalAlpha = Math.min(0.28, preset.skinMix * 0.35);
+        ctx.globalCompositeOperation = 'overlay';
+        ctx.filter = 'contrast(1.25) brightness(1.05)';
+        ctx.drawImage(video, 0, 0, w, h);
+        ctx.filter = 'none';
         ctx.restore();
       }
+
+      drawFaceGlow(ctx, w, h, preset.glow || 0);
+      drawCheekBlush(ctx, w, h, preset.blush);
+      drawHighlight(ctx, w, h, preset.highlight || 0);
+      drawLipTint(ctx, w, h, preset.lip);
+      drawWash(ctx, w, h, preset.wash);
+      drawSparkles(ctx, w, h, preset.sparkle || 0, aux.sparkles, performance.now());
+      drawVignette(ctx, w, h, preset.vignette || 0);
     }
     beautyPipeline.raf = requestAnimationFrame(beautyDrawLoop);
   }
@@ -3445,12 +3857,34 @@
     document.body.appendChild(canvas);
     const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
 
-    beautyPipeline = { video, canvas, ctx, raf: 0, stream: null, customTrack: null, sourceTrack: track };
+    beautyPipeline = {
+      video,
+      canvas,
+      ctx,
+      raf: 0,
+      stream: null,
+      customTrack: null,
+      sourceTrack: track,
+      soft: null,
+      softCtx: null,
+      mask: null,
+      maskCtx: null,
+      sparkles: [],
+    };
+    ensureBeautyAux(w, h);
     beautyDrawLoop();
 
-    // Wait a couple frames so canvas has content before capture
-    await new Promise((r) => setTimeout(r, 80));
-    const stream = canvas.captureStream(24);
+    // Wait until the camera has real frames (avoids publishing a black canvas)
+    await new Promise((resolve) => {
+      const started = Date.now();
+      const tick = () => {
+        if (video.readyState >= 2 && video.videoWidth > 0) return resolve();
+        if (Date.now() - started > 2500) return resolve();
+        requestAnimationFrame(tick);
+      };
+      tick();
+    });
+    const stream = canvas.captureStream(28);
     beautyPipeline.stream = stream;
     const mst = stream.getVideoTracks()[0];
     if (!mst) return null;
@@ -3465,56 +3899,203 @@
 
   async function syncPublishedBeautyTrack() {
     if (!agoraClient || !publishSucceeded || !isHost() || broadcastMode === 'audio') return;
-    const audioTrack = localTracks.find((t) => (t.getTrackType?.() || t.trackMediaType) === 'audio');
-    const wantBeauty = videoFilterId && videoFilterId !== 'none';
+    if (beautySyncPromise) return beautySyncPromise;
+    beautySyncPromise = (async () => {
+      const audioTrack = localTracks.find((t) => (t.getTrackType?.() || t.trackMediaType) === 'audio');
+      const wantBeauty = videoFilterId && videoFilterId !== 'none';
 
-    if (!wantBeauty) {
-      // Restore raw camera if we were on beauty canvas
-      if (beautyPipeline?.customTrack) {
-        try {
-          await agoraClient.unpublish([beautyPipeline.customTrack]);
-        } catch (_e) {}
-        stopBeautyPipeline();
-        if (rawCameraTrack) {
+      // Always prefer keeping the real camera published.
+      if (!PUBLISH_CANVAS_BEAUTY) {
+        if (beautyPipeline?.customTrack) {
           try {
-            await agoraClient.publish(rawCameraTrack);
+            await agoraClient.unpublish([beautyPipeline.customTrack]);
           } catch (_e) {}
+          const doomed = beautyPipeline.customTrack;
+          stopBeautyPipeline();
+          try {
+            doomed?.stop?.();
+            doomed?.close?.();
+          } catch (_e) {}
+        }
+        if (rawCameraTrack) {
+          const already =
+            (agoraClient.localTracks || []).includes?.(rawCameraTrack) ||
+            getLocalVideoTrack() === rawCameraTrack;
+          if (!already) {
+            try {
+              await agoraClient.publish(rawCameraTrack);
+            } catch (e) {
+              liveDebugLog(`restore camera publish failed: ${e?.message || e}`);
+            }
+          }
           localTracks = audioTrack ? [audioTrack, rawCameraTrack] : [rawCameraTrack];
           playLocalHostPreview(rawCameraTrack);
         }
+        await applyAgoraBeautyEffect(rawCameraTrack);
+        applyLocalPreviewCss();
+        return;
       }
+
+      if (!wantBeauty) {
+        if (beautyPipeline?.customTrack) {
+          try {
+            await agoraClient.unpublish([beautyPipeline.customTrack]);
+          } catch (_e) {}
+          stopBeautyPipeline();
+          if (rawCameraTrack) {
+            try {
+              await agoraClient.publish(rawCameraTrack);
+            } catch (e) {
+              liveDebugLog(`restore raw after beauty off: ${e?.message || e}`);
+            }
+            localTracks = audioTrack ? [audioTrack, rawCameraTrack] : [rawCameraTrack];
+            playLocalHostPreview(rawCameraTrack);
+          }
+        }
+        await applyAgoraBeautyEffect(rawCameraTrack);
+        applyLocalPreviewCss();
+        return;
+      }
+
       await applyAgoraBeautyEffect(rawCameraTrack);
+
+      let custom = beautyPipeline?.customTrack;
+      if (!custom) {
+        custom = await startBeautyPipeline(rawCameraTrack);
+        if (!custom) {
+          applyLocalPreviewCss();
+          return;
+        }
+        const oldVideo = getLocalVideoTrack();
+        try {
+          await agoraClient.publish(custom);
+        } catch (e) {
+          liveDebugLog(`beauty publish failed: ${e?.message || e}`);
+          stopBeautyPipeline();
+          if (rawCameraTrack) {
+            try {
+              await agoraClient.publish(rawCameraTrack);
+            } catch (_e2) {}
+            localTracks = audioTrack ? [audioTrack, rawCameraTrack] : [rawCameraTrack];
+            playLocalHostPreview(rawCameraTrack);
+          }
+          applyLocalPreviewCss();
+          return;
+        }
+        if (oldVideo && oldVideo !== custom) {
+          try {
+            await agoraClient.unpublish([oldVideo]);
+          } catch (_e) {}
+        }
+        localTracks = audioTrack ? [audioTrack, custom] : [custom];
+      }
       applyLocalPreviewCss();
+      playLocalHostPreview(custom);
+    })().finally(() => {
+      beautySyncPromise = null;
+    });
+    return beautySyncPromise;
+  }
+
+  function isLocalCameraHealthy() {
+    const track = rawCameraTrack || getLocalVideoTrack();
+    if (!track) return false;
+    try {
+      const mst = track.getMediaStreamTrack?.();
+      if (mst && mst.readyState === 'ended') return false;
+      if (track.isPlaying === false && typeof track.isPlaying === 'boolean') {
+        // still may be published; readyState is the real check
+      }
+    } catch (_e) {}
+    // Prefer Agora's published list when available
+    try {
+      const published = agoraClient?.localTracks || [];
+      const hasPublishedVideo = published.some((t) => {
+        const type = t.getTrackType?.() || t.trackMediaType;
+        return type === 'video';
+      });
+      if (published.length && !hasPublishedVideo) return false;
+    } catch (_e) {}
+    return true;
+  }
+
+  async function ensureHostVideoPublishing() {
+    if (!isHost() || broadcastMode === 'audio' || !agoraClient || !publishSucceeded) return;
+    if (!liveDebugState.agoraJoined) return;
+
+    if (isLocalCameraHealthy() && getLocalVideoTrack()) {
+      ensureHostVideoVisible();
       return;
     }
 
-    // Prefer Agora native beauty on desktop; still run canvas so mobile viewers get the look.
-    await applyAgoraBeautyEffect(rawCameraTrack);
+    liveDebugLog('host video missing/unhealthy — republishing camera');
+    const audioTrack = getLocalAudioTrack?.() ||
+      localTracks.find((t) => (t.getTrackType?.() || t.trackMediaType) === 'audio');
 
-    let custom = beautyPipeline?.customTrack;
-    if (!custom) {
-      custom = await startBeautyPipeline(rawCameraTrack);
-      if (!custom) {
-        applyLocalPreviewCss();
+    // Tear down broken beauty custom track if any
+    if (beautyPipeline?.customTrack) {
+      try {
+        await agoraClient.unpublish([beautyPipeline.customTrack]);
+      } catch (_e) {}
+      stopBeautyPipeline();
+    }
+
+    // Drop dead video from localTracks
+    localTracks = localTracks.filter((t) => {
+      const type = t.getTrackType?.() || t.trackMediaType;
+      if (type !== 'video') return true;
+      try {
+        const mst = t.getMediaStreamTrack?.();
+        return mst && mst.readyState !== 'ended';
+      } catch (_e) {
+        return false;
+      }
+    });
+
+    let cam = rawCameraTrack;
+    const camDead = (() => {
+      try {
+        return !cam || cam.getMediaStreamTrack?.()?.readyState === 'ended';
+      } catch (_e) {
+        return true;
+      }
+    })();
+
+    if (camDead) {
+      try {
+        const AgoraRTC = window.AgoraRTC || (await loadAgoraScript());
+        cam = await AgoraRTC.createCameraVideoTrack({ facingMode: cameraFacing });
+        rawCameraTrack = cam;
+      } catch (e) {
+        liveDebugLog(`recreate camera failed: ${e?.message || e}`);
+        toast('Camera stopped — tap Flip or rejoin to restore', 'warning');
         return;
       }
-      const oldVideo = getLocalVideoTrack();
-      if (oldVideo && oldVideo !== custom) {
+    }
+
+    try {
+      // Unpublish any stale video tracks first
+      const stale = (agoraClient.localTracks || []).filter((t) => {
+        const type = t.getTrackType?.() || t.trackMediaType;
+        return type === 'video' && t !== cam;
+      });
+      if (stale.length) {
         try {
-          await agoraClient.unpublish([oldVideo]);
+          await agoraClient.unpublish(stale);
         } catch (_e) {}
       }
-      try {
-        await agoraClient.publish(custom);
-      } catch (e) {
-        liveDebugLog(`beauty publish failed: ${e?.message || e}`);
-        applyLocalPreviewCss();
-        return;
-      }
-      localTracks = audioTrack ? [audioTrack, custom] : [custom];
+      const already = (agoraClient.localTracks || []).includes?.(cam);
+      if (!already) await agoraClient.publish(cam);
+      localTracks = audioTrack ? [audioTrack, cam] : [cam];
+      playLocalHostPreview(cam);
+      await applyAgoraBeautyEffect(cam);
+      applyLocalPreviewCss();
+      ensureHostVideoVisible();
+      setLiveStreamVisible(true);
+      liveDebugLog('host camera republished OK');
+    } catch (e) {
+      liveDebugLog(`host camera republish failed: ${e?.message || e}`);
     }
-    applyLocalPreviewCss();
-    playLocalHostPreview(custom);
   }
 
   function applyLocalPreviewCss() {
@@ -3533,17 +4114,44 @@
 
   function applyVideoFilter() {
     applyLocalPreviewCss();
-    applyAgoraBeautyEffect().catch(() => {});
-    // Debounce republish path so rapid filter taps stay smooth
+    applyAgoraBeautyEffect(rawCameraTrack || getLocalVideoTrack()).catch(() => {});
     clearTimeout(window.__apBeautySyncTimer);
     window.__apBeautySyncTimer = setTimeout(() => {
+      // Only runs restore/cleanup path when canvas publish is disabled.
       syncPublishedBeautyTrack().catch((e) => liveDebugLog(`beauty sync: ${e?.message || e}`));
-    }, 180);
+    }, 160);
+  }
+
+  function renderFilterRail(cat = 'all') {
+    const rail = document.getElementById('apFilterGrid');
+    if (!rail) return;
+    const entries = Object.entries(VIDEO_FILTERS).filter(([, f]) => cat === 'all' || f.cat === cat || !f.cat);
+    rail.innerHTML = entries
+      .map(
+        ([id, f]) =>
+          `<button type="button" class="ap-filter-chip${id === videoFilterId ? ' is-active' : ''}" data-filter="${id}" data-cat="${f.cat || 'beauty'}">
+            <span class="ap-filter-swatch" style="background:${f.swatch || '#333'}"></span>
+            <span class="ap-filter-name">${escapeHtml(f.label)}</span>
+          </button>`
+      )
+      .join('');
+    rail.querySelectorAll('.ap-filter-chip').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        videoFilterId = btn.dataset.filter || 'none';
+        try {
+          localStorage.setItem('ap_live_beauty_filter', videoFilterId);
+        } catch (_e) {}
+        rail.querySelectorAll('.ap-filter-chip').forEach((b) => b.classList.toggle('is-active', b === btn));
+        applyVideoFilter();
+        toast(VIDEO_FILTERS[videoFilterId]?.label || 'Original', 'success');
+        btn.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+      });
+    });
   }
 
   function openVideoFilterSheet() {
     if (!isHost() || broadcastMode === 'audio') {
-      toast('Beauty filters are for video live only', 'info');
+      toast('Filters are for video live only', 'info');
       return;
     }
     let sheet = document.getElementById('apFilterSheet');
@@ -3554,12 +4162,18 @@
           <div class="ap-filter-panel">
             <div class="ap-filter-head">
               <div>
-                <h3>Beauty filters</h3>
-                <p class="ap-filter-sub">Fair skin · soft glam · smooth — like Instagram &amp; Snapchat</p>
+                <h3>Filters</h3>
+                <p class="ap-filter-sub">Swipe &amp; tap a look — beauty, glow &amp; vibes</p>
               </div>
               <button type="button" id="apFilterClose" aria-label="Close"><i class="fas fa-times"></i></button>
             </div>
-            <div class="ap-filter-grid" id="apFilterGrid"></div>
+            <div class="ap-filter-cats" id="apFilterCats">
+              <button type="button" class="ap-filter-cat is-on" data-cat="all">All</button>
+              <button type="button" class="ap-filter-cat" data-cat="beauty">Beauty</button>
+              <button type="button" class="ap-filter-cat" data-cat="looks">Looks</button>
+              <button type="button" class="ap-filter-cat" data-cat="fx">Effects</button>
+            </div>
+            <div class="ap-filter-rail" id="apFilterGrid"></div>
           </div>
         </div>`
       );
@@ -3568,34 +4182,22 @@
       sheet?.addEventListener('click', (e) => {
         if (e.target === sheet) sheet.classList.remove('open');
       });
-      const grid = document.getElementById('apFilterGrid');
-      if (grid) {
-        grid.innerHTML = Object.entries(VIDEO_FILTERS)
-          .map(
-            ([id, f]) =>
-              `<button type="button" class="ap-filter-opt" data-filter="${id}">
-                <span class="ap-filter-emoji">${f.emoji || '✨'}</span>
-                <span class="ap-filter-name">${escapeHtml(f.label)}</span>
-              </button>`
-          )
-          .join('');
-        grid.querySelectorAll('.ap-filter-opt').forEach((btn) => {
-          btn.addEventListener('click', () => {
-            videoFilterId = btn.dataset.filter || 'none';
-            try {
-              localStorage.setItem('ap_live_beauty_filter', videoFilterId);
-            } catch (_e) {}
-            grid.querySelectorAll('.ap-filter-opt').forEach((b) => b.classList.toggle('is-active', b === btn));
-            applyVideoFilter();
-            toast(`${VIDEO_FILTERS[videoFilterId]?.emoji || ''} ${VIDEO_FILTERS[videoFilterId]?.label || 'Original'}`, 'success');
-          });
-        });
-      }
+      document.getElementById('apFilterCats')?.addEventListener('click', (e) => {
+        const btn = e.target.closest('.ap-filter-cat');
+        if (!btn) return;
+        document.querySelectorAll('.ap-filter-cat').forEach((b) => b.classList.toggle('is-on', b === btn));
+        renderFilterRail(btn.dataset.cat || 'all');
+      });
+      renderFilterRail('all');
+    } else {
+      renderFilterRail(document.querySelector('.ap-filter-cat.is-on')?.dataset?.cat || 'all');
     }
-    document
-      .querySelectorAll('#apFilterGrid .ap-filter-opt')
-      .forEach((btn) => btn.classList.toggle('is-active', btn.dataset.filter === videoFilterId));
     sheet.classList.add('open');
+    requestAnimationFrame(() => {
+      document
+        .querySelector('#apFilterGrid .ap-filter-chip.is-active')
+        ?.scrollIntoView({ inline: 'center', block: 'nearest' });
+    });
   }
 
   function getLocalVideoTrack() {
@@ -3642,7 +4244,13 @@
     const audioTrack = localTracks.find((t) => (t.getTrackType?.() || t.trackMediaType) === 'audio');
     if (!agoraClient || !publishSucceeded) return null;
 
-    stopBeautyPipeline();
+    // Unpublish beauty custom track BEFORE stopping it (stopping a published track = black video)
+    if (beautyPipeline?.customTrack) {
+      try {
+        await agoraClient.unpublish([beautyPipeline.customTrack]);
+      } catch (_e) {}
+      stopBeautyPipeline();
+    }
 
     // Create + publish new first so viewers keep a stream during camera flip.
     const newVideo = await AgoraRTC.createCameraVideoTrack({
@@ -7357,7 +7965,20 @@
       (n === roomState?.hostName ? roomState?.hostId : null) ||
       (roomState?.seats || []).find((s) => s.name === n)?.userId ||
       '';
-    activeProfileUser = { name: n, userId: resolvedId ? String(resolvedId) : '' };
+    const seatHit =
+      (roomState?.seats || []).find((s) => String(s.userId || '') === String(resolvedId)) ||
+      (roomState?.onlineMembers || []).find((s) => String(s.userId || '') === String(resolvedId)) ||
+      (roomState?.seats || []).find((s) => s.name === n) ||
+      null;
+    const resolvedDisplayId =
+      seatHit?.displayId ||
+      (n === roomState?.hostName ? roomState?.hostDisplayId : null) ||
+      null;
+    activeProfileUser = {
+      name: n,
+      userId: resolvedId ? String(resolvedId) : '',
+      displayId: resolvedDisplayId ? String(resolvedDisplayId) : '',
+    };
 
     const sheet = document.getElementById('apProfileSheet');
     if (sheet) {
@@ -7375,18 +7996,20 @@
       img.dataset.userId = resolvedId || '';
     }
     if (nm) nm.textContent = n;
-    const idDisplay = activeProfileUser.userId
-      ? activeProfileUser.userId.slice(0, 12)
-      : String(n).split('').reduce((a, c) => a + c.charCodeAt(0), 0).toString().slice(0, 8);
+    const idDisplay =
+      window.formatUserDisplayId?.(null, activeProfileUser.displayId) ||
+      activeProfileUser.displayId ||
+      '';
     if (idEl) {
-      idEl.innerHTML = `ID: ${idDisplay} <button type="button" id="apProfileCopyId" aria-label="Copy ID"><i class="far fa-copy"></i></button>`;
+      idEl.innerHTML = `ID: ${idDisplay || '—'} <button type="button" id="apProfileCopyId" aria-label="Copy ID"><i class="far fa-copy"></i></button>`;
       document.getElementById('apProfileCopyId')?.addEventListener('click', () => {
-        const full = activeProfileUser.userId || idDisplay;
+        const full = idDisplay || activeProfileUser.displayId;
+        if (!full) return;
         if (navigator.clipboard) navigator.clipboard.writeText(full).catch(() => {});
         toast('User ID copied', 'success');
       });
     }
-    if (lvl) lvl.textContent = 'Lv.' + (5 + (idDisplay.length % 20));
+    if (lvl) lvl.textContent = 'Lv.' + (5 + ((idDisplay || '0').length % 20));
     const followersEl = document.getElementById('apProfileFollowers');
     const followingEl = document.getElementById('apProfileFollowing');
     if (followersEl) followersEl.textContent = '0';
@@ -8077,7 +8700,8 @@
     const user = currentUser();
     const uidEl = document.getElementById('streamerUid');
     if (uidEl && user) {
-      uidEl.textContent = 'ID:' + (String(user.id || user.email || '').slice(0, 12) || '76471242');
+      const publicId = window.formatUserDisplayId?.(user) || String(user.display_id || '');
+      uidEl.textContent = publicId ? 'ID:' + publicId : 'ID:—';
     }
 
     document.querySelectorAll('[data-stats-period]').forEach((btn) => {

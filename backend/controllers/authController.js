@@ -501,12 +501,29 @@ const uploadProfilePhoto = async (req, res) => {
 // Get Me
 const getMe = async (req, res) => {
     try {
-        const user = await User.findById(req.userId);
+        let user = await User.findById(req.userId);
         if (!user) {
             return res.status(404).json({
                 success: false,
                 message: 'User not found'
             });
+        }
+        if (user.display_id == null) {
+            const { allocateDisplayId } = require('../lib/displayId');
+            const db = require('../config/database');
+            for (let i = 0; i < 20; i++) {
+                const displayId = await allocateDisplayId();
+                try {
+                    await db.query(
+                        `UPDATE users SET display_id = $1 WHERE id = $2 AND display_id IS NULL`,
+                        [displayId, user.id]
+                    );
+                    break;
+                } catch (err) {
+                    if (err.code !== '23505') throw err;
+                }
+            }
+            user = await User.findById(req.userId);
         }
         const { publicUser } = require('../lib/userDto');
         res.json({ success: true, data: { user: publicUser(user, { self: true }) } });

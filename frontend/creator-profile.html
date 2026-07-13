@@ -125,7 +125,7 @@
       const hero = document.getElementById('creatorHero');
       hero.classList.remove('profile-loading');
       const uidBlock = userId
-        ? '<p class="creator-user-id">ID: <strong>' + userId + '</strong> <button type="button" class="creator-copy-id" id="creatorCopyId" aria-label="Copy ID"><i class="fas fa-copy"></i></button></p>'
+        ? '<p class="creator-user-id">ID: <strong id="creatorDisplayId">…</strong> <button type="button" class="creator-copy-id" id="creatorCopyId" aria-label="Copy ID"><i class="fas fa-copy"></i></button></p>'
         : '';
       hero.innerHTML =
         '<img class="creator-avatar" src="' + SocialUI.avatarUrl(name) + '" alt="">' +
@@ -170,12 +170,18 @@
         if (!requireAuthForAction()) return;
         location.href = '/chat.html?id=' + encodeURIComponent(userId) + '&app=1';
       });
+      let publicDisplayId = window.formatUserDisplayId?.(null, null) || '';
       document.getElementById('creatorCopyId')?.addEventListener('click', async () => {
+        const copyVal = publicDisplayId || '';
+        if (!copyVal) {
+          SocialUI?.toast?.('User ID unavailable', 'warning');
+          return;
+        }
         try {
-          await navigator.clipboard.writeText(String(userId));
+          await navigator.clipboard.writeText(String(copyVal));
           SocialUI.toast('User ID copied');
         } catch (_e) {
-          alert('ID: ' + userId);
+          alert('ID: ' + copyVal);
         }
       });
 
@@ -191,6 +197,9 @@
           const payload = await res.json();
           if (payload.success && payload.data) {
             const e = payload.data;
+            publicDisplayId = window.formatUserDisplayId?.(e) || e.displayId || e.display_id || '';
+            const idEl = document.getElementById('creatorDisplayId');
+            if (idEl) idEl.textContent = publicDisplayId || '—';
             const displayName = e.displayName || name;
             document.getElementById('creatorName').textContent = displayName;
             document.getElementById('creatorTitle').textContent = displayName;
