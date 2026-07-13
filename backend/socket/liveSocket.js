@@ -347,14 +347,16 @@ function registerLiveSocket(io) {
           liveRoomId: room.id,
           giftType: payload?.giftSlug || payload?.giftType || payload?.emoji || 'gift',
           coinAmount,
+          qty: payload?.qty || 1,
         });
 
+        const charged = Number(result.gift?.coin_amount || coinAmount);
         const gift = {
           id: result.gift.id,
           from: socket.data.liveDisplayName || 'User',
           to: String(payload?.to || room.host_display_name || 'Host').slice(0, 32),
           emoji: payload?.emoji || '\u{1F381}',
-          amount: coinAmount,
+          amount: charged,
           qty: payload?.qty || 1,
           at: Date.now(),
         };
@@ -385,11 +387,11 @@ function registerLiveSocket(io) {
         try {
           await partyActivityService.recordActivity(socket.userId, 'send_gift', {
             liveRoomId: room.id,
-            metadata: { receiverId, amount: coinAmount },
+            metadata: { receiverId, amount: charged },
           });
           await partyActivityService.recordActivity(receiverId, 'receive_gift', {
             liveRoomId: room.id,
-            metadata: { senderId: socket.userId, amount: coinAmount },
+            metadata: { senderId: socket.userId, amount: charged },
           });
         } catch (_actErr) {}
       } catch (err) {

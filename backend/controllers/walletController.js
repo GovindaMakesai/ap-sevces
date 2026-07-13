@@ -205,6 +205,7 @@ exports.sendGift = async (req, res) => {
       liveRoomId: roomId,
       giftType: type,
       coinAmount: coins,
+      qty: parseInt(req.body?.qty || req.body?.quantity || 1, 10) || 1,
     });
 
     const balance = await walletService.getBalance(req.userId);

@@ -2458,6 +2458,8 @@
                 }
             } catch (error) {
                 console.error('Failed to load dashboard stats:', error);
+                const tbody = document.getElementById('recentActivity');
+                if (tbody) tbody.innerHTML = `<tr><td colspan="4" class="empty-state">${error.message || 'Failed to load activity'}</td></tr>`;
             }
         }
 
@@ -2497,6 +2499,8 @@
                 }
             } catch (error) {
                 console.error('Failed to load users:', error);
+                const tbody = document.getElementById('usersTable');
+                if (tbody) tbody.innerHTML = `<tr><td colspan="7" class="empty-state">${error.message || 'Failed to load users'}</td></tr>`;
             }
         }
 
@@ -2557,6 +2561,8 @@
                 }
             } catch (error) {
                 console.error('Failed to load workers:', error);
+                const tbody = document.getElementById('workersTable');
+                if (tbody) tbody.innerHTML = `<tr><td colspan="7" class="empty-state">${error.message || 'Failed to load workers'}</td></tr>`;
             }
         }
 
@@ -2603,6 +2609,8 @@
                 }
             } catch (error) {
                 console.error('Failed to load services:', error);
+                const container = document.getElementById('servicesPreview');
+                if (container) container.innerHTML = `<div class="empty-state">${error.message || 'Failed to load services'}</div>`;
             }
         }
 
@@ -2646,6 +2654,8 @@
                 }
             } catch (error) {
                 console.error('Failed to load bookings:', error);
+                const tbody = document.getElementById('bookingsTable');
+                if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="empty-state">${error.message || 'Failed to load bookings'}</td></tr>`;
             }
         }
 
@@ -2689,6 +2699,8 @@
                 }
             } catch (error) {
                 console.error('Failed to load payments:', error);
+                const tbody = document.getElementById('paymentsTable');
+                if (tbody) tbody.innerHTML = `<tr><td colspan="10" class="empty-state">${error.message || 'Failed to load payments'}</td></tr>`;
             }
         }
 
@@ -3339,6 +3351,8 @@
                 }
             } catch (error) {
                 console.error('Failed to load reviews:', error);
+                const tbody = document.getElementById('reviewsTable');
+                if (tbody) tbody.innerHTML = `<tr><td colspan="7" class="empty-state">${error.message || 'Failed to load reviews'}</td></tr>`;
             }
         }
 

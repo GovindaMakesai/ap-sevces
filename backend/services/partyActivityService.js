@@ -3,15 +3,16 @@ const db = require('../config/database');
 const DAILY_CAPS = {
   join_room: { coins: 50, max: 5 },
   speak_minute: { coins: 30, max: 60 },
-  send_gift: { coins: 100, max: 20 },
-  receive_gift: { coins: 80, max: 20 },
+  send_gift: { coins: 0, max: 20 },
+  receive_gift: { coins: 0, max: 20 },
   daily_login: { coins: 25, max: 1 },
 };
 
 const REWARD_TABLE = {
   join_room: { coins: 10, xp: 5 },
-  send_gift: { coins: 5, xp: 3 },
-  receive_gift: { coins: 8, xp: 4 },
+  /* Gifts must not rebate spendable coins — that made deductions look broken */
+  send_gift: { coins: 0, xp: 3 },
+  receive_gift: { coins: 0, xp: 4 },
   speak_session: { coins: 15, xp: 10 },
   stay_active: { coins: 12, xp: 6 },
 };
@@ -44,9 +45,10 @@ async function recordActivity(userId, activityType, { liveRoomId = null, metadat
     try {
       const walletService = require('./walletService');
       await walletService.creditCoins(userId, coins, {
-        reason: `party_${activityType}`,
-        referenceType: 'party_activity',
-        referenceId: res.rows[0]?.id,
+        type: `party_${activityType}`,
+        reference_type: 'party_activity',
+        reference_id: res.rows[0]?.id,
+        metadata: { activity_type: activityType, ...(metadata || {}) },
       });
     } catch (e) {
       console.warn('[party] activity coin credit', e.message);

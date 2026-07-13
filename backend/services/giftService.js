@@ -7,10 +7,13 @@ const fraudService = require('./fraudService');
 const pkBattleService = require('./pkBattleService');
 
 /**
- * Atomic gift with configurable Host/Agency/BD/Platform split.
+ * Resolve chargeable gift total.
+ * Catalog unit cost is authoritative; client may send total (unit * qty) or unit + qty.
+ * Never silently clamp a multi-qty total down to unit cost.
  */
-async function resolveGiftAmount(giftType, coinAmount) {
+async function resolveGiftAmount(giftType, coinAmount, qty = 1) {
   const amount = Number(coinAmount);
+  const quantity = Math.max(1, Math.min(10000, Math.floor(Number(qty) || 1)));
   if (!Number.isFinite(amount) || amount <= 0) throw new Error('Gift amount must be positive');
 
   const raw = String(giftType || '').trim();
@@ -30,6 +33,7 @@ async function resolveGiftAmount(giftType, coinAmount) {
   );
 
   if (!res.rows[0]) {
+    /* Legacy slug forms like like_20 when client sent slug "like" + amount 20 */
     const withCost = `${slug}_${amount}`;
     res = await db.query(
       `SELECT slug, coin_cost, emoji, name FROM gift_catalog
@@ -37,6 +41,19 @@ async function resolveGiftAmount(giftType, coinAmount) {
        LIMIT 1`,
       [withCost]
     );
+  }
+
+  if (!res.rows[0]) {
+    const unitGuess = Math.floor(amount / quantity);
+    if (unitGuess > 0 && amount % quantity === 0) {
+      const withQtyUnit = `${slug}_${unitGuess}`;
+      res = await db.query(
+        `SELECT slug, coin_cost, emoji, name FROM gift_catalog
+         WHERE is_active = TRUE AND slug = $1
+         LIMIT 1`,
+        [withQtyUnit]
+      );
+    }
   }
 
   if (!res.rows[0]) {
@@ -52,18 +69,28 @@ async function resolveGiftAmount(giftType, coinAmount) {
   }
 
   if (res.rows[0]) {
-    const expected = Number(res.rows[0].coin_cost);
-    if (amount !== expected) {
-      return expected;
+    const unit = Number(res.rows[0].coin_cost);
+    if (!Number.isFinite(unit) || unit <= 0) {
+      throw new Error('Invalid gift catalog cost');
     }
-    return expected;
+    /* Client sent full total (qty * unit) — charge that */
+    if (amount >= unit && amount % unit === 0) {
+      return amount;
+    }
+    /* Client sent unit price only — apply qty */
+    if (amount === unit) {
+      return unit * quantity;
+    }
+    throw new Error(
+      `Gift amount mismatch for "${res.rows[0].slug}": expected ${unit} (or multiple), got ${amount}`
+    );
   }
 
   throw new Error(`Unknown gift type "${raw || giftType}". Try reloading the app.`);
 }
 
-async function sendGift({ senderId, receiverId, liveRoomId, giftType, coinAmount }) {
-  const amount = BigInt(await resolveGiftAmount(giftType, coinAmount));
+async function sendGift({ senderId, receiverId, liveRoomId, giftType, coinAmount, qty = 1 }) {
+  const amount = BigInt(await resolveGiftAmount(giftType, coinAmount, qty));
   if (senderId === receiverId) throw new Error('Cannot gift yourself');
 
   await fraudService.checkGiftAbuse(senderId, Number(amount));
@@ -78,7 +105,13 @@ async function sendGift({ senderId, receiverId, liveRoomId, giftType, coinAmount
       {
         type: 'gift_sent',
         reference_type: 'gift',
-        metadata: { receiver_id: receiverId, gift_type: giftType, live_room_id: liveRoomId },
+        metadata: {
+          receiver_id: receiverId,
+          gift_type: giftType,
+          live_room_id: liveRoomId,
+          qty: Math.max(1, Math.floor(Number(qty) || 1)),
+          charged: Number(amount),
+        },
       },
       client
     );
