@@ -547,6 +547,15 @@ function registerLiveSocket(io) {
           return;
         }
         const userId = String(payload?.userId || '');
+        if (!userId) {
+          if (ack) ack({ ok: false, message: 'userId required' });
+          return;
+        }
+        const room = await liveRoomService.findByChannel(channel);
+        if (room && String(room.host_user_id) === userId) {
+          if (ack) ack({ ok: false, message: 'Cannot remove the room host' });
+          return;
+        }
         await liveRoomService.demoteSpeaker({ channel, userId });
         const state = await liveRoomService.buildSnapshot(channel);
         io.to(`live:${channel}`).emit('live:state', state);

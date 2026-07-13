@@ -923,6 +923,24 @@
     }
   }
 
+  async function stopGuestMediaPublishing() {
+    publishSucceeded = false;
+    guestPublishAttempted = false;
+    hasSpeakerSeat = false;
+    for (const t of localTracks) {
+      try {
+        if (agoraClient) await agoraClient.unpublish(t);
+      } catch (_e) {}
+      try {
+        t.stop?.();
+        t.close?.();
+      } catch (_e) {}
+    }
+    localTracks = [];
+    updateLiveDebug({ hostPublishing: false, publishSucceeded: false });
+    syncMicButtonUi();
+  }
+
   function kickUserFromRoom(userId, reason) {
     if (!canModerateRoom() || !liveSocket?.connected || !userId) return;
     if (isRoomHostUserId(userId)) {
@@ -933,7 +951,7 @@
       'live:kick',
       { channel: channelId(), userId, reason: reason || 'kicked_by_mod' },
       (res) => {
-        if (res?.ok) toast('User removed from party', 'success');
+        if (res?.ok) toast('User removed from room', 'success');
         else toast(res?.message || 'Could not remove user', 'error');
       }
     );
@@ -971,9 +989,16 @@
 
   function demoteUserFromSeat(userId) {
     if (!canModerateRoom() || !liveSocket?.connected || !userId) return;
+    if (isRoomHostUserId(userId)) {
+      toast('Cannot remove the room host', 'warning');
+      return;
+    }
     liveSocket.emit('live:demote_speaker', { channel: channelId(), userId }, (res) => {
-      if (res?.ok) toast('Removed from seat', 'success');
-      else toast(res?.message || 'Could not remove from seat', 'error');
+      if (res?.ok) {
+        toast(isLiveRoomPage() ? 'Guest removed from live' : 'Removed from seat', 'success');
+      } else {
+        toast(res?.message || 'Could not remove guest', 'error');
+      }
     });
   }
 
@@ -1018,13 +1043,16 @@
     const isAdminMember = (roomState?.onlineMembers || []).some(
       (m) => String(m.userId) === String(userId) && (m.isAdmin || m.role === 'admin')
     );
+    const onStage = (roomState?.seats || []).some((s) => String(s.userId || '') === String(userId) && !s.isHost);
+    const removeLabel = isLiveRoomPage() ? 'Remove from live' : 'Remove from seat';
+    const kickLabel = isLiveRoomPage() ? 'Remove from room' : 'Kick from room';
     const modActions = canModerateRoom()
       ? `
       <button type="button" data-mod="mute">Mute user</button>
       <button type="button" data-mod="unmute">Unmute user</button>
-      <button type="button" data-mod="move">Move to seat…</button>
-      <button type="button" data-mod="demote">Remove from seat</button>
-      ${!isTargetHost ? '<button type="button" data-mod="kick">Kick from room</button>' : ''}
+      ${isPartyRoomPage() ? '<button type="button" data-mod="move">Move to seat…</button>' : ''}
+      ${onStage || isPartyRoomPage() ? `<button type="button" data-mod="demote">${removeLabel}</button>` : ''}
+      ${!isTargetHost ? `<button type="button" data-mod="kick">${kickLabel}</button>` : ''}
       ${isHost() && !isTargetHost ? `<button type="button" data-mod="admin">${isAdminMember ? 'Revoke admin' : 'Make admin'}</button>` : ''}`
       : '';
     menu.innerHTML = modActions;
@@ -1046,7 +1074,8 @@
       menu.remove();
     });
     menu.querySelector('[data-mod="kick"]')?.addEventListener('click', () => {
-      if (window.confirm(`Remove ${name} from this party?`)) kickUserFromRoom(userId);
+      const roomWord = isLiveRoomPage() ? 'live' : 'party';
+      if (window.confirm(`Remove ${name} from this ${roomWord}?`)) kickUserFromRoom(userId);
       menu.remove();
     });
     menu.querySelector('[data-mod="admin"]')?.addEventListener('click', () => {
@@ -1184,14 +1213,24 @@
     }
     const mod = canModerateRoom();
     list.innerHTML = available
-      .map(
-        (m) => `
+      .map((m) => {
+        const role = memberListRoleLabel(m);
+        const onSeat = role === 'On seat';
+        let actionBtn = '';
+        if (mod && !isRoomHostUserId(m.userId)) {
+          if (onSeat) {
+            actionBtn = `<button type="button" class="deny" data-remove-seat="${escapeHtml(String(m.userId))}">Remove</button>`;
+          } else {
+            actionBtn = `<button type="button" class="accept" data-invite-seat="${escapeHtml(String(m.userId))}">${isLiveRoomPage() ? 'Add' : 'To seat'}</button>`;
+          }
+        }
+        return `
       <div class="party-req-row" data-user-id="${escapeHtml(String(m.userId))}">
         <img src="${avatarUrl(m.name, m.profilePic)}" alt="">
-        <div class="info"><strong>${escapeHtml(m.name || 'Guest')}</strong><br><small class="party-online-dot">● ${escapeHtml(memberListRoleLabel(m))}</small></div>
-        ${mod && !isRoomHostUserId(m.userId) && memberListRoleLabel(m) !== 'On seat' ? `<button type="button" class="accept" data-invite-seat="${escapeHtml(String(m.userId))}">To seat</button>` : ''}
-      </div>`
-      )
+        <div class="info"><strong>${escapeHtml(m.name || 'Guest')}</strong><br><small class="party-online-dot">● ${escapeHtml(role)}</small></div>
+        ${actionBtn}
+      </div>`;
+      })
       .join('');
     list.querySelectorAll('[data-invite-seat]').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -1215,11 +1254,25 @@
         );
       });
     });
+    list.querySelectorAll('[data-remove-seat]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const uid = btn.dataset.removeSeat;
+        const member = available.find((m) => String(m.userId) === String(uid));
+        const label = member?.name || 'this guest';
+        if (!window.confirm(`Remove ${label} from ${isLiveRoomPage() ? 'live' : 'the seat'}?`)) return;
+        demoteUserFromSeat(uid);
+      });
+    });
     list.querySelectorAll('.party-req-row[data-user-id]').forEach((row) => {
       row.addEventListener('click', (e) => {
         if (e.target.closest('button')) return;
         const uid = row.dataset.userId;
         const member = available.find((m) => String(m.userId) === String(uid));
+        if (mod && uid && !isRoomHostUserId(uid)) {
+          openModerationMenu(member?.name || 'Guest', uid);
+          return;
+        }
         openProfileSheet(member?.name || 'Guest', uid);
       });
     });
@@ -2323,14 +2376,11 @@
     liveSocket.on('live:demoted', (payload) => {
       const me = currentUser();
       if (me && String(payload?.userId) === String(me.id)) {
-        hasSpeakerSeat = false;
-        guestPublishAttempted = false;
-        localTracks.forEach((t) => {
-          try {
-            t.setEnabled?.(false);
-          } catch (_e) {}
-        });
-        toast('You were removed from the seat', 'warning');
+        stopGuestMediaPublishing().catch(() => {});
+        toast(
+          isLiveRoomPage() ? 'Host removed you from live' : 'You were removed from the seat',
+          'warning'
+        );
       }
       renderRoomState();
     });
@@ -5433,7 +5483,15 @@
       )
       .join('');
     rail.querySelectorAll('.ap-guest-seat').forEach((btn) => {
-      btn.addEventListener('click', () => openProfileSheet(btn.dataset.guest, btn.dataset.guestId || ''));
+      btn.addEventListener('click', () => {
+        const name = btn.dataset.guest || 'Guest';
+        const uid = btn.dataset.guestId || '';
+        if (canModerateRoom() && uid && !isRoomHostUserId(uid)) {
+          openModerationMenu(name, uid);
+          return;
+        }
+        openProfileSheet(name, uid);
+      });
     });
     window.SocialUI?.bindAvatarFallbacks?.(rail);
   }
@@ -5489,9 +5547,15 @@
     const hint = document.querySelector('#partyRequestsSheet .party-requests-hint');
     if (head) head.textContent = canModerateRoom() ? 'Room members' : 'People in room';
     if (hint) {
-      hint.textContent = canModerateRoom()
-        ? 'Accept mic requests and invite listeners to seats. Drag seats to move guests.'
-        : 'Everyone currently in this party room. Tap a name to view their profile.';
+      if (canModerateRoom()) {
+        hint.textContent = isLiveRoomPage()
+          ? 'Accept mic requests to add guests. Tap a guest or use Remove to take them off live.'
+          : 'Accept mic requests and invite listeners to seats. Tap a seated guest to remove them.';
+      } else {
+        hint.textContent = isLiveRoomPage()
+          ? 'Everyone currently in this live. Tap a name to view their profile.'
+          : 'Everyone currently in this party room. Tap a name to view their profile.';
+      }
     }
     document.body.classList.add('party-requests-open');
     document.getElementById('partyRequestsSheet')?.classList.add('open');
