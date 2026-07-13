@@ -41,17 +41,17 @@ body[data-live-page='live-room'] .live-room::after {
   z-index: 0;
   pointer-events: none;
   background:
-    radial-gradient(ellipse 120% 80% at 50% 100%, rgba(59, 130, 246, 0.08), transparent 55%),
-    linear-gradient(180deg, rgba(0, 0, 0, 0.15) 0%, transparent 28%, rgba(0, 0, 0, 0.55) 100%);
+    radial-gradient(ellipse 120% 80% at 50% 100%, rgba(59, 130, 246, 0.05), transparent 55%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.08) 0%, transparent 22%, rgba(0, 0, 0, 0.28) 100%);
 }
 
 body[data-live-page='live-room'] .live-overlay {
   background: linear-gradient(
     180deg,
-    rgba(7, 8, 12, 0.55) 0%,
-    transparent 22%,
-    transparent 62%,
-    rgba(7, 8, 12, 0.82) 100%
+    rgba(7, 8, 12, 0.28) 0%,
+    transparent 16%,
+    transparent 72%,
+    rgba(7, 8, 12, 0.35) 100%
   );
 }
 
@@ -192,14 +192,67 @@ body[data-live-page='live-room'] .live-pulse-dot {
 /* —— Host controls —— */
 body[data-live-page='live-room'] .live-host-bar {
   margin: 0 12px 6px;
-  padding: 8px;
+  padding: 0;
   gap: 6px;
+  border-radius: 0;
+  background: transparent;
+  border: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+}
+
+body[data-live-page='live-room'] .live-host-bar.is-collapsed,
+body[data-live-page='live-room'].ap-is-host .live-host-bar.is-collapsed,
+body[data-live-page='live-room'].ap-can-moderate .live-host-bar.is-collapsed {
+  display: inline-flex !important;
+  flex-direction: row !important;
+  flex: 0 0 auto !important;
+  align-self: flex-start !important;
+  width: fit-content !important;
+  max-width: fit-content !important;
+  min-width: 0 !important;
+  margin: 0 0 10px 12px !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+body[data-live-page='live-room'] .live-host-bar-toggle {
+  min-height: 42px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  color: #111827;
+  border: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: 0 8px 20px rgba(245, 158, 11, 0.4);
+  width: auto !important;
+  flex: 0 0 auto !important;
+  white-space: nowrap;
+}
+
+body[data-live-page='live-room'] .live-host-bar.is-collapsed .live-host-bar-toggle {
+  width: auto !important;
+  max-width: none !important;
+}
+
+body[data-live-page='live-room'] .live-host-bar:not(.is-collapsed) .live-host-bar-toggle {
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+
+body[data-live-page='live-room'] .live-host-bar-actions {
+  padding: 6px;
   border-radius: var(--live-pro-radius);
-  background: var(--live-pro-surface-elevated);
-  border: 1px solid var(--live-pro-border);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  box-shadow: var(--live-pro-shadow), var(--live-pro-shadow-inset);
+  background: rgba(10, 12, 18, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 body[data-live-page='live-room'] .party-host-action {
@@ -235,6 +288,7 @@ body[data-live-page='live-room'] .party-chat-row {
   margin: 0 12px 4px;
   padding: 0;
   background: transparent;
+  border-top: none;
 }
 
 body[data-live-page='live-room'] .party-chat-tabs {
@@ -249,32 +303,34 @@ body[data-live-page='live-room'] .party-chat-tabs button {
   text-transform: uppercase;
   padding: 5px 12px;
   border-radius: var(--live-pro-radius-pill);
-  background: transparent;
+  background: rgba(0, 0, 0, 0.25);
   border: 1px solid transparent;
   color: var(--live-pro-muted);
 }
 
 body[data-live-page='live-room'] .party-chat-tabs button.active {
-  background: var(--live-pro-surface);
+  background: rgba(255, 255, 255, 0.12);
   border-color: var(--live-pro-border);
   color: var(--live-pro-text);
 }
 
 body[data-live-page='live-room'] .party-chat-zone {
   border-radius: var(--live-pro-radius);
-  background: var(--live-pro-surface);
-  border: 1px solid var(--live-pro-border);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: transparent;
+  border: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 body[data-live-page='live-room'] .party-chat-msg {
   font-size: 12px;
   line-height: 1.45;
-  padding: 6px 10px;
+  padding: 5px 9px;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid transparent;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
 }
 
 body[data-live-page='live-room'] .party-chat-msg .user {
@@ -283,9 +339,9 @@ body[data-live-page='live-room'] .party-chat-msg .user {
 }
 
 body[data-live-page='live-room'] .party-chat-msg.system {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: var(--live-pro-border);
-  color: var(--live-pro-muted);
+  background: rgba(251, 191, 36, 0.12);
+  border-color: rgba(251, 191, 36, 0.15);
+  color: #fde68a;
   font-size: 11px;
 }
 
@@ -296,6 +352,11 @@ body[data-live-page='live-room'] .party-chat-msg .lvl {
   border-radius: 4px;
   background: rgba(255, 255, 255, 0.08);
   color: var(--live-pro-muted);
+}
+
+body[data-live-page='live-room'] .live-chat-ticker {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.75);
 }
 
 /* —— Bottom bar —— */
