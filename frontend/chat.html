@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#fff9f0">
     <script src="/ap-native-boot.js"></script>
     <link rel="stylesheet" href="/social-theme.css?v=20260626-discover-chat">
-    <link rel="stylesheet" href="/social-chat.css?v=20260713-blank-fix">
+    <link rel="stylesheet" href="/social-chat.css?v=20260713-msg-load">
     
     <!-- Font Awesome 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -17,6 +17,30 @@
     
     <!-- Custom Styles -->
     <link rel="stylesheet" href="styles.css">
+
+    <!-- If CDN/scripts hang, still escape the forever-loading placeholder -->
+    <script>
+      (function () {
+        setTimeout(function () {
+          var list = document.getElementById('chatList');
+          if (!list) return;
+          var empty = list.querySelector('.ap-msg-empty');
+          if (!empty) return;
+          var title = (empty.querySelector('p') && empty.querySelector('p').textContent) || '';
+          if (!/loading messages/i.test(title)) return;
+          if (typeof window.loadConversations === 'function') {
+            window.loadConversations().catch(function () {});
+            return;
+          }
+          empty.innerHTML =
+            '<i class="fas fa-comments"></i><p>Still loading…</p>' +
+            '<small>Tap Retry</small>' +
+            '<button type="button" id="chatBootRetry" style="margin-top:12px;padding:8px 16px;border-radius:8px;border:none;background:#e6a23c;color:#fff;cursor:pointer">Retry</button>';
+          var btn = document.getElementById('chatBootRetry');
+          if (btn) btn.onclick = function () { location.reload(); };
+        }, 9000);
+      })();
+    </script>
     
     <!-- Chat Page Specific Styles -->
     <style>
@@ -1232,7 +1256,7 @@
                         <div class="ap-msg-empty" id="chatListPlaceholder">
                             <i class="fas fa-comments"></i>
                             <p>Loading messages…</p>
-                            <small>Pull to refresh if this stays empty</small>
+                            <small>Please wait</small>
                         </div>
                     </div>
                 </aside>
@@ -1418,11 +1442,8 @@
     <!-- Toast Container -->
     <div id="toast" class="toast"></div>
 
-    <!-- Emoji Mart Library -->
-    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
-    
-    <script src="app.js?v=20260628-perf"></script>
+    <!-- Socket.io loaded async after chat boot (sync CDN was blocking Messages on slow networks) -->
+    <script src="app.js?v=20260713-msg-load"></script>
     <script src="auth-guard.js"></script>
     <script src="social-ui.js?v=20260702-follow-fix"></script>
     <script src="social-interactions.js?v=20260628-perf"></script>
@@ -1456,14 +1477,31 @@
             } catch (_e) { /* ignore */ }
         }
 
-        document.addEventListener('DOMContentLoaded', async function() {
-            markChatPageReady();
-            ensureChatPaneNotBlank();
-            if (typeof isNativeAppContext === 'function' && isNativeAppContext()) {
-                document.documentElement.classList.add('social-app', 'ap-expo-app');
-                if (window.SocialShell?.initPage) SocialShell.initPage({ activeNav: 'chat' });
-                else if (window.SocialShell?.ensureBottomNav) SocialShell.ensureBottomNav('chat');
-            }
+        function loadSocketIoScript() {
+            return new Promise((resolve) => {
+                if (typeof io === 'function') {
+                    resolve(true);
+                    return;
+                }
+                const existing = document.querySelector('script[data-ap-socket-io]');
+                if (existing) {
+                    existing.addEventListener('load', () => resolve(typeof io === 'function'));
+                    existing.addEventListener('error', () => resolve(false));
+                    setTimeout(() => resolve(typeof io === 'function'), 8000);
+                    return;
+                }
+                const s = document.createElement('script');
+                s.src = 'https://cdn.socket.io/4.8.1/socket.io.min.js';
+                s.async = true;
+                s.dataset.apSocketIo = '1';
+                s.onload = () => resolve(typeof io === 'function');
+                s.onerror = () => resolve(false);
+                document.head.appendChild(s);
+                setTimeout(() => resolve(typeof io === 'function'), 8000);
+            });
+        }
+
+        async function bootChatPage() {
             const chatList = document.getElementById('chatList');
             const paintListStatus = (title, sub, retry) => {
                 if (!chatList) return;
@@ -1475,14 +1513,33 @@
                         : '') +
                     '</div>';
             };
+            // Paint immediately so a later crash cannot leave the static placeholder forever
             paintListStatus('Loading messages…', 'Please wait');
-            setupChatListClicks();
-            setupChatSearch();
-            setupChatTabs();
-            setupMsgFilters();
-            setupMsgQuickChips();
-            bindChatSocialActions();
-            document.querySelector('.ap-msg-top-actions button[aria-label="More"]')?.addEventListener('click', () => openChatListMenu());
+            markChatPageReady();
+            try { ensureChatPaneNotBlank(); } catch (_e) { /* ignore */ }
+
+            try {
+                if (typeof isNativeAppContext === 'function' && isNativeAppContext()) {
+                    document.documentElement.classList.add('social-app', 'ap-expo-app');
+                    if (window.SocialShell?.initPage) SocialShell.initPage({ activeNav: 'chat' });
+                    else if (window.SocialShell?.ensureBottomNav) SocialShell.ensureBottomNav('chat');
+                }
+            } catch (shellErr) {
+                console.warn('SocialShell init skipped', shellErr);
+            }
+
+            try {
+                setupChatListClicks();
+                setupChatSearch();
+                setupChatTabs();
+                setupMsgFilters();
+                setupMsgQuickChips();
+                bindChatSocialActions();
+                setupChatListPullRefresh();
+                document.querySelector('.ap-msg-top-actions button[aria-label="More"]')?.addEventListener('click', () => openChatListMenu());
+            } catch (uiErr) {
+                console.warn('chat UI bind skipped', uiErr);
+            }
 
             const waitForSession = async () => {
                 if (Auth.hasSession?.() || Auth.checkAuth?.() || getChatToken()) return true;
@@ -1491,14 +1548,23 @@
                         let done = false;
                         const finish = () => { if (!done) { done = true; resolve(); } };
                         window.addEventListener('ap-session-injected', finish, { once: true });
-                        setTimeout(finish, 8000);
+                        setTimeout(finish, 6000);
                     });
-                    await Auth.ensureAccessToken?.().catch(() => {});
-                    await Auth.repairSession?.().catch(() => {});
+                    await Promise.race([
+                        Promise.resolve(Auth.ensureAccessToken?.()).catch(() => {}),
+                        new Promise((r) => setTimeout(r, 4000)),
+                    ]);
+                    await Promise.race([
+                        Promise.resolve(Auth.repairSession?.()).catch(() => {}),
+                        new Promise((r) => setTimeout(r, 3000)),
+                    ]);
                     await ensureChatUser();
                 } else {
                     await ensureChatUser();
-                    await Auth.ensureAccessToken?.().catch(() => {});
+                    await Promise.race([
+                        Promise.resolve(Auth.ensureAccessToken?.()).catch(() => {}),
+                        new Promise((r) => setTimeout(r, 4000)),
+                    ]);
                 }
                 return Boolean(Auth.hasSession?.() || Auth.checkAuth?.() || getChatToken());
             };
@@ -1509,20 +1575,25 @@
                     window.location.replace('/app-auth.html?app=1&redirect=' + encodeURIComponent(location.pathname + location.search));
                     return;
                 }
-                paintListStatus('Please sign in to view messages', '');
+                paintListStatus('Please sign in to view messages', '', true);
                 if (window.Toast?.show) Toast.show('Please login to use chat', 'warning');
                 setTimeout(() => { window.location.href = '/login.html'; }, 800);
                 return;
             }
 
-            try { setupSocketListeners(); } catch (e) { console.warn('socket setup skipped', e); }
+            // Load list first; realtime socket is optional and must not block
             try {
                 await loadConversations();
             } catch (err) {
                 console.error('chat init failed', err);
                 paintListStatus('Could not load chats', (err && err.message) || '', true);
             }
-            ensureChatPaneNotBlank();
+            try { ensureChatPaneNotBlank(); } catch (_e) { /* ignore */ }
+
+            loadSocketIoScript().then((ok) => {
+                if (!ok) return;
+                try { setupSocketListeners(); } catch (e) { console.warn('socket setup skipped', e); }
+            });
 
             if (window.SocialNav) {
                 SocialNav.registerRefresh(async () => {
@@ -1530,12 +1601,16 @@
                     if (currentChatId) await loadChat(currentChatId);
                 });
             }
-            syncNotificationBar();
-            setupViewportInsets();
-            setupChatKeyboardInsets();
-            setupChatGiftSheet();
-            setupChatCoinTransfer();
-            document.getElementById('chatHeaderGiftBtn')?.addEventListener('click', () => openChatGiftSheet());
+            try {
+                syncNotificationBar();
+                setupViewportInsets();
+                setupChatKeyboardInsets();
+                setupChatGiftSheet();
+                setupChatCoinTransfer();
+                document.getElementById('chatHeaderGiftBtn')?.addEventListener('click', () => openChatGiftSheet());
+            } catch (extraErr) {
+                console.warn('chat extras skipped', extraErr);
+            }
             const sellerRoles = ['coin_seller', 'admin', 'super_admin', 'founder', 'ceo'];
             const u = Auth.getUser?.();
             const showSellerTools = async () => {
@@ -1548,7 +1623,7 @@
                 } catch (_e) {}
             };
             showSellerTools();
-            setupMessageActions();
+            try { setupMessageActions(); } catch (_e) { /* ignore */ }
             document.getElementById('messageInput')?.addEventListener('blur', () => {
                 if (isTyping) {
                     isTyping = false;
@@ -1559,8 +1634,23 @@
             const urlParams = new URLSearchParams(window.location.search);
             const chatParam = urlParams.get('conversation') || urlParams.get('id') || urlParams.get('worker');
             if (chatParam) await openChatFromUrlParam(chatParam.trim());
-            ensureChatPaneNotBlank();
-        });
+            try { ensureChatPaneNotBlank(); } catch (_e) { /* ignore */ }
+        }
+
+        function startChatBoot() {
+            bootChatPage().catch((err) => {
+                console.error('bootChatPage failed', err);
+                const chatList = document.getElementById('chatList');
+                if (chatList) {
+                    chatList.innerHTML = '<div class="ap-msg-empty"><i class="fas fa-comments"></i><p>Could not load chats</p><small>Tap Retry</small><button type="button" onclick="location.reload()" style="margin-top:12px;padding:8px 16px;border-radius:8px;border:none;background:#e6a23c;color:#fff;cursor:pointer">Retry</button></div>';
+                }
+            });
+        }
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', startChatBoot);
+        } else {
+            startChatBoot();
+        }
 
 
 
@@ -2151,6 +2241,30 @@
             });
         }
 
+        /** Soft pull-to-refresh on the conversation list (mobile WebView). */
+        function setupChatListPullRefresh() {
+            const sidebar = document.getElementById('chatSidebar');
+            const list = document.getElementById('chatList');
+            const target = list || sidebar;
+            if (!target || target.dataset.pullBound) return;
+            target.dataset.pullBound = '1';
+            let startY = 0;
+            let pulling = false;
+            target.addEventListener('touchstart', (e) => {
+                if (target.scrollTop > 2) return;
+                startY = e.touches[0]?.clientY || 0;
+                pulling = true;
+            }, { passive: true });
+            target.addEventListener('touchend', (e) => {
+                if (!pulling) return;
+                pulling = false;
+                const endY = e.changedTouches[0]?.clientY || 0;
+                if (endY - startY > 70 && target.scrollTop <= 2) {
+                    loadConversations().catch(() => {});
+                }
+            }, { passive: true });
+        }
+
         function safeChatIdForSelector(id) {
             const s = String(id || '');
             if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') return CSS.escape(s);
@@ -2420,6 +2534,9 @@
         async function loadConversations() {
             const chatList = document.getElementById('chatList');
             try {
+                if (chatList && !useChatStore.getState().conversations.length) {
+                    chatList.innerHTML = '<div class="ap-msg-empty"><i class="fas fa-comments"></i><p>Loading messages…</p><small>Please wait</small></div>';
+                }
                 if (typeof Auth?.ensureAccessToken === 'function') {
                     await Promise.race([
                         Auth.ensureAccessToken(),
@@ -2430,7 +2547,7 @@
                 const response = await Promise.race([
                     axiosClient.get('/conversations'),
                     new Promise((_, reject) =>
-                        setTimeout(() => reject(new Error('Request timed out — check connection')), 22000)
+                        setTimeout(() => reject(new Error('Request timed out — check connection')), 18000)
                     ),
                 ]);
                 const root = response?.data;
@@ -2438,6 +2555,7 @@
                     root?.data?.conversations ||
                     root?.conversations ||
                     (Array.isArray(root?.data) ? root.data : null) ||
+                    (Array.isArray(root) ? root : null) ||
                     [];
                 const conversations = (Array.isArray(list) ? list : []).map((conv) => ({
                     id: chatKey(conv.id),
@@ -3081,6 +3199,12 @@
         }
 
         function setupSocketListeners() {
+            if (typeof io !== 'function') {
+                loadSocketIoScript().then((ok) => {
+                    if (ok) setupSocketListeners();
+                });
+                return;
+            }
             const socket = socketService.connect();
             if (!socket) return;
             if (socket.__apChatBound) return;
@@ -3851,6 +3975,7 @@
 
         // Export functions for global use
         window.loadChat = loadChat;
+        window.loadConversations = loadConversations;
         window.loadMessages = loadMessages;
         window.getActiveChatId = () => currentChatId;
         window.sendMessage = sendMessage;
