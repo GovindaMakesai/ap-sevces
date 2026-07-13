@@ -2,57 +2,151 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#2563eb">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#fff8e1">
   <title>BD Center - AP Services</title>
   <script src="/ap-native-boot.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-theme.css?v=20260713-bd-promo">
-  <link rel="stylesheet" href="coin-seller.css">
+  <link rel="stylesheet" href="social-theme.css?v=20260713-bd">
+  <link rel="stylesheet" href="coin-seller.css?v=20260713-bd">
+  <link rel="stylesheet" href="mobile-app.css">
   <style>
-    .bd-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 12px; }
-    .bd-card {
-      background: #fff; border-radius: 14px; padding: 14px;
-      box-shadow: 0 1px 4px rgba(0,0,0,.06);
+    .bd-rewards {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      padding: 12px;
     }
-    .bd-card span { font-size: 12px; color: #64748b; }
-    .bd-card strong { display: block; font-size: 22px; margin-top: 6px; color: #1e40af; }
-    .bd-list { padding: 0 12px 24px; }
-    .bd-list h3 { font-size: 14px; margin: 8px 0; color: #334155; }
-    .bd-item {
-      display: flex; justify-content: space-between; align-items: center; gap: 10px;
-      background: #fff; border-radius: 12px; padding: 12px; margin-bottom: 8px;
+    .bd-reward-card {
+      background: linear-gradient(135deg, #c9a227, #ff8c00);
+      color: #fff;
+      border-radius: 14px;
+      padding: 14px;
+      text-align: center;
+    }
+    .bd-reward-card span { font-size: 12px; opacity: .9; }
+    .bd-reward-card strong { display: block; font-size: 22px; margin: 8px 0 4px; }
+    .bd-reward-card em { font-style: normal; font-size: 11px; opacity: .85; }
+    .bd-mgmt {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      padding: 0 12px 12px;
+      text-align: center;
+    }
+    .bd-mgmt > div {
+      background: #fff;
+      border-radius: 14px;
+      padding: 12px 8px;
       box-shadow: 0 1px 3px rgba(0,0,0,.05);
     }
-    .bd-item small { color: #94a3b8; }
-    .bd-links { display: flex; gap: 8px; padding: 0 12px 16px; }
-    .bd-links a {
-      flex: 1; text-align: center; padding: 12px; border-radius: 12px;
-      background: #eff6ff; color: #1d4ed8; font-weight: 700; text-decoration: none; font-size: 13px;
+    .bd-mgmt strong { display: block; font-size: 20px; color: #1a1a1a; }
+    .bd-mgmt div div { font-size: 11px; color: #8a8a8a; margin: 4px 0 8px; }
+    .bd-mgmt button {
+      border: none;
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 10px;
+      font-weight: 700;
+      color: #fff;
+      cursor: pointer;
     }
+    .bd-mgmt .gold { background: #c9a227; }
+    .bd-mgmt .orange { background: #ff8c00; }
     .bd-promo {
-      margin: 0 12px 16px; padding: 14px; border-radius: 14px;
-      background: linear-gradient(135deg, #1d4ed8, #2563eb); color: #fff;
+      margin: 0 12px 14px;
+      padding: 14px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #fff8e1, #ffe082);
+      border: 1px solid #f0e6d0;
     }
+    .bd-promo .label { font-size: 12px; color: #8a6914; font-weight: 600; }
     .bd-promo code {
-      display: inline-block; margin-top: 8px; padding: 8px 12px; border-radius: 10px;
-      background: rgba(255,255,255,.18); font-size: 20px; font-weight: 900; letter-spacing: 0.08em;
+      display: inline-block;
+      margin-top: 8px;
+      padding: 8px 14px;
+      border-radius: 10px;
+      background: #fff;
+      color: #8a6914;
+      font-size: 20px;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      border: 1px solid #f0e6d0;
     }
+    .bd-promo p { margin: 8px 0 0; font-size: 12px; color: #a67c00; line-height: 1.4; }
+    .bd-promo .bd-promo-actions { display: flex; gap: 8px; margin-top: 12px; }
     .bd-promo button {
-      margin-top: 10px; border: none; border-radius: 10px; padding: 8px 12px;
-      font-weight: 800; background: #fff; color: #1d4ed8; cursor: pointer;
+      border: none;
+      border-radius: 999px;
+      padding: 8px 14px;
+      font-weight: 800;
+      font-size: 12px;
+      cursor: pointer;
+      background: #ff8c00;
+      color: #fff;
     }
-    .bd-actions { display: flex; gap: 6px; flex-shrink: 0; }
-    .bd-actions button {
-      border: none; border-radius: 8px; padding: 8px 10px; font-size: 11px; font-weight: 800; cursor: pointer;
+    .bd-promo button.ghost {
+      background: #fff;
+      color: #8a6914;
+      border: 1px solid #f0e6d0;
     }
-    .bd-actions .ok { background: #16a34a; color: #fff; }
-    .bd-actions .no { background: #e5e7eb; color: #374151; }
+    .bd-section { padding: 0 12px 20px; }
+    .bd-section h3 {
+      margin: 0 0 10px;
+      font-size: 14px;
+      font-weight: 700;
+      color: #1a1a1a;
+    }
+    .bd-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #fff;
+      border-radius: 12px;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.05);
+      flex-wrap: wrap;
+    }
+    .bd-item .av {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: #ffe082;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 12px;
+      flex-shrink: 0;
+      color: #8a6914;
+    }
+    .bd-item .meta { flex: 1; min-width: 120px; }
+    .bd-item .meta strong { display: block; font-size: 14px; }
+    .bd-item .meta small { color: #999; font-size: 11px; }
+    .bd-item .actions { display: flex; gap: 6px; }
+    .bd-item .actions button {
+      border: none;
+      border-radius: 999px;
+      padding: 6px 12px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #fff;
+      cursor: pointer;
+    }
+    .bd-item .actions .ok { background: #16a34a; }
+    .bd-item .actions .no { background: #9ca3af; }
+    .bd-quick {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      padding: 0 12px 14px;
+    }
   </style>
 </head>
 <body class="cs-page">
   <header class="cs-header">
-    <a href="/profile-tab.html?app=1"><i class="fas fa-arrow-left"></i></a>
+    <a href="/profile-tab.html?app=1" aria-label="Back"><i class="fas fa-arrow-left"></i></a>
     <h1>BD Center</h1>
     <span style="width:36px"></span>
   </header>
@@ -61,50 +155,87 @@
     <div class="cs-avatar" id="bdAvatar">BD</div>
     <div class="cs-profile-info">
       <h2 id="bdName">—</h2>
-      <span class="cs-badge" style="background:#3b82f6">🟦 BD</span>
+      <span class="cs-badge">BD</span>
       <div class="cs-id">ID: <span id="bdUserId">—</span></div>
     </div>
   </div>
 
+  <div class="bd-rewards">
+    <div class="bd-reward-card">
+      <span>Month revenue</span>
+      <strong id="sRev">0</strong>
+      <em>coins</em>
+    </div>
+    <div class="bd-reward-card">
+      <span>Month gifts</span>
+      <strong id="sGifts">0</strong>
+      <em>settled</em>
+    </div>
+  </div>
+
+  <div class="bd-mgmt">
+    <div>
+      <strong id="sAgencies">0</strong>
+      <div>Agencies</div>
+      <button type="button" class="gold" onclick="location.href='/hierarchy.html?app=1'">Tree</button>
+    </div>
+    <div>
+      <strong id="sHosts">0</strong>
+      <div>Hosts</div>
+      <button type="button" class="orange" id="bdScrollPending">Requests</button>
+    </div>
+  </div>
+
   <div class="bd-promo" id="bdPromoBox">
-    <div style="font-size:12px;opacity:.9">Your Agency promo code</div>
+    <div class="label">Your Agency promo code</div>
     <code id="bdPromoCode">······</code>
-    <div style="font-size:12px;margin-top:8px;opacity:.9">Share this code. Users apply with it — requests appear below for you to accept.</div>
-    <button type="button" id="bdCopyPromo">Copy code</button>
+    <p>Share this with people applying as Agency. Requests show below for you to Accept or Reject.</p>
+    <div class="bd-promo-actions">
+      <button type="button" id="bdCopyPromo"><i class="fas fa-copy"></i> Copy code</button>
+      <button type="button" class="ghost" id="bdSharePromo"><i class="fas fa-share"></i> Share</button>
+    </div>
   </div>
 
-  <div class="bd-links">
-    <a href="/hierarchy.html?app=1"><i class="fas fa-sitemap"></i> Hierarchy</a>
-    <a href="/agency-center.html?app=1"><i class="fas fa-building"></i> Agencies</a>
+  <div class="bd-quick">
+    <button type="button" class="cs-quick-btn" onclick="location.href='/hierarchy.html?app=1'">
+      <i class="fas fa-sitemap"></i> Hierarchy
+    </button>
+    <button type="button" class="cs-quick-btn" id="bdRefreshBtn">
+      <i class="fas fa-sync-alt"></i> Refresh
+    </button>
   </div>
 
-  <div class="bd-stats" id="bdStats">
-    <div class="bd-card"><span>Agencies</span><strong id="sAgencies">—</strong></div>
-    <div class="bd-card"><span>Hosts</span><strong id="sHosts">—</strong></div>
-    <div class="bd-card"><span>Month gifts</span><strong id="sGifts">—</strong></div>
-    <div class="bd-card"><span>Month coins</span><strong id="sCoins">—</strong></div>
-    <div class="bd-card"><span>Month revenue</span><strong id="sRev">—</strong></div>
-    <div class="bd-card"><span>Pending requests</span><strong id="sPending">—</strong></div>
+  <div class="cs-stats" style="margin:0 12px 14px">
+    <div class="cs-date-range">Network overview</div>
+    <div class="cs-stat-row">
+      <div><strong id="sCoins">0</strong><span>Gift coins</span></div>
+      <div><strong id="sPending">0</strong><span>Pending</span></div>
+      <div><strong id="sAgencies2">0</strong><span>Agencies</span></div>
+    </div>
   </div>
 
-  <div class="bd-list">
+  <div class="bd-section" id="pendingSection">
     <h3>Pending Agency requests</h3>
-    <div id="pendingApps"><p style="color:#94a3b8;font-size:13px">Loading…</p></div>
+    <div id="pendingApps"><p style="color:#999;font-size:13px">Loading…</p></div>
   </div>
 
-  <div class="bd-list">
+  <div class="bd-section">
     <h3>Top agencies</h3>
-    <div id="topAgencies"><p style="color:#94a3b8;font-size:13px">Loading…</p></div>
+    <div id="topAgencies"><p style="color:#999;font-size:13px">Loading…</p></div>
   </div>
 
   <script src="ap-config.js"></script>
   <script src="config.js"></script>
-  <script src="app.js?v=20260713-bd-promo"></script>
+  <script src="app.js?v=20260713-bd"></script>
   <script src="auth-guard.js"></script>
+  <script src="social-shell.js?v=20260713-bd"></script>
   <script>
     (async function () {
       Auth.checkAuth();
-      if (!Auth.hasSession?.()) { location.href = '/login.html?app=1'; return; }
+      if (!Auth.hasSession?.()) {
+        location.href = '/login.html?app=1&redirect=' + encodeURIComponent('/bd-center.html?app=1');
+        return;
+      }
       const user = Auth.getUser();
       const role = String(user?.role || '').toLowerCase();
       if (!['bdm', 'admin', 'super_admin', 'founder', 'ceo'].includes(role)) {
@@ -112,8 +243,20 @@
         location.href = '/profile-tab.html?app=1';
         return;
       }
+
+      document.documentElement.style.setProperty('--social-bottom-nav-h', '0px');
+      document.querySelectorAll('#social-bottom-nav-mount, .social-bottom-nav').forEach((el) => {
+        el.style.display = 'none';
+      });
+
       const name = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'BD';
-      document.getElementById('bdAvatar').textContent = name.slice(0, 2).toUpperCase();
+      const avatar = document.getElementById('bdAvatar');
+      if (user.profile_pic && window.SocialShell?.getImageUrl) {
+        avatar.innerHTML = `<img src="${SocialShell.getImageUrl(user.profile_pic, user.id)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%" onerror="this.remove()">`;
+        if (!avatar.querySelector('img')) avatar.textContent = name.slice(0, 2).toUpperCase();
+      } else {
+        avatar.textContent = name.slice(0, 2).toUpperCase();
+      }
       document.getElementById('bdName').textContent = name;
       document.getElementById('bdUserId').textContent =
         window.formatUserDisplayId?.(user) || user.display_id || '—';
@@ -133,6 +276,7 @@
         const res = await API.get('/bd/dashboard');
         const d = res.data || {};
         document.getElementById('sAgencies').textContent = d.agencyCount ?? 0;
+        document.getElementById('sAgencies2').textContent = d.agencyCount ?? 0;
         document.getElementById('sHosts').textContent = d.hostCount ?? 0;
         document.getElementById('sGifts').textContent = d.monthGifts ?? 0;
         document.getElementById('sCoins').textContent = Number(d.monthGiftCoins || 0).toLocaleString();
@@ -140,16 +284,18 @@
         const list = document.getElementById('topAgencies');
         const rows = d.topAgencies || [];
         if (!rows.length) {
-          list.innerHTML = '<p style="color:#94a3b8;font-size:13px">No agencies yet</p>';
+          list.innerHTML = '<p style="color:#999;font-size:13px">No agencies yet — share your promo code</p>';
         } else {
-          list.innerHTML = rows.map((a) => `
-            <div class="bd-item">
-              <div>
-                <strong>${a.name || 'Agency'}</strong>
-                <div><small>${a.hosts || 0} hosts</small></div>
+          list.innerHTML = rows.map((a) => {
+            const n = a.name || 'Agency';
+            return `<div class="bd-item">
+              <div class="av">${n.slice(0, 2).toUpperCase()}</div>
+              <div class="meta">
+                <strong>${n}</strong>
+                <small>${a.hosts || 0} hosts · income ${Number(a.total_income || 0).toLocaleString()}</small>
               </div>
-              <div><strong>${Number(a.total_income || 0).toLocaleString()}</strong><div><small>income</small></div></div>
-            </div>`).join('');
+            </div>`;
+          }).join('');
         }
       }
 
@@ -169,38 +315,67 @@
           const rows = res.data || [];
           document.getElementById('sPending').textContent = rows.length;
           if (!rows.length) {
-            mount.innerHTML = '<p style="color:#94a3b8;font-size:13px">No pending requests</p>';
+            mount.innerHTML = '<p style="color:#999;font-size:13px">No pending Agency requests</p>';
             return;
           }
           mount.innerHTML = rows.map((a) => {
             const n = `${a.first_name || ''} ${a.last_name || ''}`.trim() || a.email || 'User';
             const roleLabel = a.role_type === 'agency' ? 'Agency' : 'Host';
             return `<div class="bd-item">
-              <div>
-                <strong>${n}</strong> · ${roleLabel}
-                <div><small>Code ${a.promo_code || '—'} · ${new Date(a.created_at).toLocaleString()}</small></div>
-                <div><small>${(a.message || a.agency_name || '').slice(0, 80) || '—'}</small></div>
+              <div class="av">${n.slice(0, 2).toUpperCase()}</div>
+              <div class="meta">
+                <strong>${n}</strong>
+                <small>${roleLabel} · ${a.promo_code || '—'} · ${new Date(a.created_at).toLocaleString()}</small>
+                <small style="display:block">${(a.message || a.agency_name || '').slice(0, 80) || ''}</small>
               </div>
-              <div class="bd-actions">
+              <div class="actions">
                 <button type="button" class="ok" data-approve="${a.id}" data-role="${a.role_type}">Accept</button>
                 <button type="button" class="no" data-reject="${a.id}">Reject</button>
               </div>
             </div>`;
           }).join('');
         } catch (e) {
-          mount.innerHTML = `<p style="color:#ef4444;font-size:13px">${e.message || 'Failed'}</p>`;
+          mount.innerHTML = `<p style="color:#c62828;font-size:13px">${e.message || 'Failed'}</p>`;
         }
+      }
+
+      async function refreshAll() {
+        await Promise.all([loadPromo(), loadDashboard(), loadAgencies(), loadPending()]);
       }
 
       document.getElementById('bdCopyPromo').onclick = async () => {
         if (!promoCode) return;
         try {
           await navigator.clipboard.writeText(promoCode);
-          alert('Promo code copied');
+          if (window.Toast?.show) Toast.show('Promo code copied', 'success');
+          else alert('Promo code copied');
         } catch (_e) {
           prompt('Copy this code:', promoCode);
         }
       };
+
+      document.getElementById('bdSharePromo').onclick = async () => {
+        if (!promoCode) return;
+        const text = `Join as an Agency on AP Services with my BD code: ${promoCode}\n${location.origin}/role-apply.html?role=agency&promo=${encodeURIComponent(promoCode)}&app=1`;
+        if (navigator.share) {
+          try {
+            await navigator.share({ title: 'AP Services Agency invite', text });
+            return;
+          } catch (_e) { /* fall through */ }
+        }
+        try {
+          await navigator.clipboard.writeText(text);
+          if (window.Toast?.show) Toast.show('Invite text copied', 'success');
+          else alert('Invite text copied');
+        } catch (_e) {
+          prompt('Copy:', text);
+        }
+      };
+
+      document.getElementById('bdScrollPending').onclick = () => {
+        document.getElementById('pendingSection')?.scrollIntoView({ behavior: 'smooth' });
+      };
+      document.getElementById('bdRefreshBtn').onclick = () => refreshAll().catch(() => {});
 
       document.getElementById('pendingApps').addEventListener('click', async (e) => {
         const approve = e.target.closest('[data-approve]');
@@ -230,9 +405,7 @@
           }
           try {
             await API.post('/bd/applications/' + id + '/review', payload);
-            await loadPending();
-            await loadDashboard();
-            await loadAgencies();
+            await refreshAll();
           } catch (err) {
             alert(err.message || 'Approve failed');
           }
@@ -250,10 +423,10 @@
       });
 
       try {
-        await Promise.all([loadPromo(), loadDashboard(), loadAgencies(), loadPending()]);
+        await refreshAll();
       } catch (e) {
         document.getElementById('pendingApps').innerHTML =
-          `<p style="color:#ef4444;font-size:13px">${e.message || 'Failed to load'}</p>`;
+          `<p style="color:#c62828;font-size:13px">${e.message || 'Failed to load'}</p>`;
       }
     })();
   </script>
