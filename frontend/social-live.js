@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260713-seat-voice';
+  window.__AP_LIVE_BUILD = '20260713-chat-hide';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -8201,18 +8201,77 @@
     });
 
     function setLiveChatHidden(hidden) {
-      document.body.classList.toggle('ap-chat-hidden', Boolean(hidden));
+      const on = Boolean(hidden);
+      document.body.classList.toggle('ap-chat-hidden', on);
       const showFab = document.getElementById('liveBtnShowChat');
-      if (showFab) showFab.hidden = !hidden;
+      if (showFab) {
+        showFab.hidden = !on;
+        showFab.setAttribute('aria-hidden', on ? 'false' : 'true');
+        if (on) {
+          showFab.style.display = 'inline-flex';
+        } else {
+          showFab.style.display = 'none';
+        }
+      }
       try {
-        localStorage.setItem('ap_live_chat_hidden', hidden ? '1' : '0');
+        localStorage.setItem('ap_live_chat_hidden', on ? '1' : '0');
       } catch (_e) {}
     }
-    document.getElementById('liveBtnHideChat')?.addEventListener('click', () => setLiveChatHidden(true));
-    document.getElementById('liveBtnShowChat')?.addEventListener('click', () => setLiveChatHidden(false));
+    const hideChatBtn = document.getElementById('liveBtnHideChat');
+    const showChatBtn = document.getElementById('liveBtnShowChat');
+    const onHideChat = (e) => {
+      e?.preventDefault?.();
+      e?.stopPropagation?.();
+      setLiveChatHidden(true);
+    };
+    const onShowChat = (e) => {
+      e?.preventDefault?.();
+      e?.stopPropagation?.();
+      setLiveChatHidden(false);
+    };
+    // pointerup is more reliable than click on some Android WebViews
+    hideChatBtn?.addEventListener('pointerup', onHideChat);
+    hideChatBtn?.addEventListener('click', onHideChat);
+    showChatBtn?.addEventListener('pointerup', onShowChat);
+    showChatBtn?.addEventListener('click', onShowChat);
     try {
       if (localStorage.getItem('ap_live_chat_hidden') === '1') setLiveChatHidden(true);
-    } catch (_e) {}
+      else setLiveChatHidden(false);
+    } catch (_e) {
+      setLiveChatHidden(false);
+    }
+
+    // Swipe down on chat row to hide (phones)
+    const chatRow = document.getElementById('partyChatRow') || document.querySelector('.party-chat-row');
+    if (chatRow && chatRow.dataset.swipeHideBound !== '1') {
+      chatRow.dataset.swipeHideBound = '1';
+      let startY = 0;
+      let startX = 0;
+      let tracking = false;
+      chatRow.addEventListener(
+        'touchstart',
+        (e) => {
+          if (e.touches.length !== 1) return;
+          startY = e.touches[0].clientY;
+          startX = e.touches[0].clientX;
+          tracking = true;
+        },
+        { passive: true }
+      );
+      chatRow.addEventListener(
+        'touchend',
+        (e) => {
+          if (!tracking) return;
+          tracking = false;
+          const t = e.changedTouches?.[0];
+          if (!t) return;
+          const dy = t.clientY - startY;
+          const dx = t.clientX - startX;
+          if (dy > 56 && Math.abs(dy) > Math.abs(dx) * 1.15) setLiveChatHidden(true);
+        },
+        { passive: true }
+      );
+    }
 
     document.getElementById('partyBtnTools')?.addEventListener('click', () => {
       const sheet = document.getElementById('partyToolsSheet');

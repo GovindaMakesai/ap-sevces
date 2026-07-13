@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-live.css?v=20260713-invite-join">
+  <link rel="stylesheet" href="social-live.css?v=20260713-chat-hide">
   <link rel="stylesheet" href="social-live-session.css?v=20260713-live-ux">
   <link rel="stylesheet" href="social-live-ref-ui.css?v=20260628-hotfix">
   <link rel="stylesheet" href="social-fx.css">
@@ -160,12 +160,11 @@
       <div class="live-spacer"></div>
 
       <div class="party-chat-row" id="partyChatRow">
-        <div class="party-chat-swipe-handle" id="partyChatSwipeHandle" aria-hidden="true" title="Swipe down to hide chat"><span></span></div>
-        <div class="party-chat-tabs">
-          <button type="button" class="active" data-tab="all">All</button>
-          <button type="button" data-tab="room">Room</button>
-          <button type="button" data-tab="chat">Chat</button>
-          <button type="button" id="liveBtnHideChat" class="party-chat-hide-btn" aria-label="Hide chat" title="Hide chat"><i class="fas fa-eye-slash"></i></button>
+        <div class="party-chat-controls">
+          <button type="button" id="liveBtnHideChat" class="party-chat-hide-btn party-chat-hide-btn--solo" aria-label="Hide chat" title="Hide chat">
+            <i class="fas fa-eye-slash" aria-hidden="true"></i>
+            <span>Hide</span>
+          </button>
         </div>
         <div class="party-chat-zone live-chat-tall">
         <div class="ap-room-status-strip" id="apRoomStatusStrip" aria-live="polite">
@@ -175,7 +174,10 @@
         <div class="party-chat-feed" id="partyChatFeed"></div>
       </div>
       </div>
-      <button type="button" class="live-show-chat-fab" id="liveBtnShowChat" hidden aria-label="Show chat"><i class="fas fa-comments"></i></button>
+      <button type="button" class="live-show-chat-fab" id="liveBtnShowChat" hidden aria-label="Show chat">
+        <i class="fas fa-comments" aria-hidden="true"></i>
+        <span>Chat</span>
+      </button>
 
     </div>
   </div>

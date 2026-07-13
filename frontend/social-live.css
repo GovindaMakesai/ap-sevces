@@ -325,6 +325,18 @@
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
 }
 
+.party-chat-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 8px 6px 10px;
+  flex-shrink: 0;
+  z-index: 6;
+  pointer-events: auto;
+}
+
 .party-chat-tabs {
   display: flex;
   flex-direction: column;
@@ -367,7 +379,7 @@
   pointer-events: auto;
   display: flex;
   flex-direction: column;
-  padding-top: 10px;
+  padding-top: 4px;
 }
 
 .live-chat-ticker {
@@ -598,30 +610,74 @@ body.ap-can-moderate .live-host-bar {
   -webkit-backdrop-filter: blur(10px);
 }
 
+/* Large phone-friendly hide control (replaces All / Room / Chat tabs) */
+.party-chat-hide-btn--solo {
+  display: inline-flex !important;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 48px !important;
+  min-height: 72px !important;
+  padding: 10px 8px !important;
+  border-radius: 14px !important;
+  background: rgba(0, 0, 0, 0.45) !important;
+  border: 1px solid rgba(255, 255, 255, 0.28) !important;
+  color: #fff !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.02em;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  pointer-events: auto !important;
+  touch-action: manipulation;
+  z-index: 8;
+  -webkit-tap-highlight-color: transparent;
+}
+.party-chat-hide-btn--solo i {
+  font-size: 16px;
+  line-height: 1;
+}
+.party-chat-hide-btn--solo span {
+  writing-mode: horizontal-tb;
+  transform: none;
+  line-height: 1.1;
+}
+
 .live-show-chat-fab {
   position: absolute;
   left: 12px;
   bottom: calc(var(--ap-bottom-bar-h) + 14px + env(safe-area-inset-bottom, 0));
-  z-index: 40;
-  width: 42px;
-  height: 42px;
+  z-index: 55;
+  min-width: 52px;
+  height: 52px;
+  padding: 0 14px;
+  gap: 6px;
   border: none;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
   color: #fff;
-  display: inline-flex;
+  display: none;
   align-items: center;
   justify-content: center;
   pointer-events: auto;
   touch-action: manipulation;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.28);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.22);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
   transition: transform 0.2s ease, opacity 0.2s ease;
+  font-size: 12px;
+  font-weight: 800;
 }
-.live-show-chat-fab:not([hidden]) {
+.live-show-chat-fab[hidden] {
+  display: none !important;
+}
+body.ap-chat-hidden .live-show-chat-fab:not([hidden]) {
+  display: inline-flex !important;
   animation: ap-chat-fab-in 0.28s ease;
+}
+.live-show-chat-fab i {
+  font-size: 16px;
 }
 @keyframes ap-chat-fab-in {
   from { opacity: 0; transform: translateY(10px) scale(0.92); }
@@ -646,7 +702,8 @@ body.ap-chat-hidden #partyChatRow {
 
 body.ap-chat-hidden .live-chat-ticker,
 body.ap-chat-hidden .party-chat-feed,
-body.ap-chat-hidden .party-chat-zone {
+body.ap-chat-hidden .party-chat-zone,
+body.ap-chat-hidden .party-chat-controls {
   opacity: 0 !important;
   background: transparent !important;
   pointer-events: none !important;
