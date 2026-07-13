@@ -8,7 +8,7 @@
     { id: 'video', href: '/video.html', icon: 'fa-video' },
     { id: 'rankings', href: '/rankings.html', icon: 'fa-trophy' },
     { id: 'explore', href: '/explore.html', icon: 'planet', center: true },
-    { id: 'chat', href: '/chat.html', icon: 'fa-comment-dots', badge: true },
+    { id: 'chat', href: '/chat.html?_cb=20260713c', icon: 'fa-comment-dots', badge: true },
     { id: 'profile', href: '/profile-tab.html', icon: 'fa-user' },
   ];
 
@@ -1316,7 +1316,7 @@
       window.location.href = '/app-auth.html?app=1';
       return;
     }
-    goStartLiveBroadcast({ mode: 'video' });
+    openBroadcastPicker('live');
   }
 
   function goStartLiveBroadcast(opts) {
@@ -1345,12 +1345,18 @@
         return;
       }
       const channel = 'live-' + base + '-' + Date.now().toString(36).slice(-6);
+      const filterId = opts?.filter || readSavedBeautyFilter();
+      const filterQ =
+        mode === 'video' && filterId && filterId !== 'none'
+          ? '&filter=' + encodeURIComponent(filterId)
+          : '';
       window.location.href =
         '/live-room.html?host=1&mode=' +
         encodeURIComponent(mode) +
         '&channel=' +
         encodeURIComponent(channel) +
         topic +
+        filterQ +
         '&app=1';
     };
     if (mode === 'video' && !isParty && !opts?.skipVerify) {
@@ -1396,6 +1402,140 @@
     return el;
   }
 
+  const PRELIVE_FILTERS = [
+    { id: 'none', label: 'Original', swatch: 'linear-gradient(145deg,#3f3f46,#18181b)' },
+    { id: 'natural', label: 'Natural', swatch: 'linear-gradient(145deg,#f5d0c5,#e8b4a0)' },
+    { id: 'glow', label: 'Glow', swatch: 'linear-gradient(145deg,#fff7ed,#fdba74)' },
+    { id: 'silk', label: 'Silk', swatch: 'linear-gradient(145deg,#fce7f3,#f9a8d4)' },
+    { id: 'velvet', label: 'Velvet', swatch: 'linear-gradient(145deg,#e0e7ff,#a5b4fc)' },
+    { id: 'glam', label: 'Glam', swatch: 'linear-gradient(145deg,#fdf2f8,#fb7185)' },
+    { id: 'rose', label: 'Rose', swatch: 'linear-gradient(145deg,#ffe4e6,#fb7185)' },
+    { id: 'golden', label: 'Golden', swatch: 'linear-gradient(145deg,#fef3c7,#f59e0b)' },
+    { id: 'fresh', label: 'Fresh', swatch: 'linear-gradient(145deg,#ecfdf5,#34d399)' },
+    { id: 'dream', label: 'Dream', swatch: 'linear-gradient(145deg,#ede9fe,#a78bfa)' },
+  ];
+
+  const PRELIVE_FILTER_CSS = {
+    none: '',
+    natural: 'brightness(1.06) contrast(0.96) saturate(1.08)',
+    glow: 'brightness(1.12) contrast(0.92) saturate(1.12)',
+    silk: 'brightness(1.1) contrast(0.94) saturate(1.05)',
+    velvet: 'brightness(1.08) contrast(0.97) saturate(1.1)',
+    glam: 'brightness(1.1) contrast(1.02) saturate(1.18)',
+    rose: 'brightness(1.08) contrast(0.98) saturate(1.15) hue-rotate(-6deg)',
+    golden: 'brightness(1.1) contrast(0.95) saturate(1.2) sepia(0.12)',
+    fresh: 'brightness(1.08) contrast(0.98) saturate(1.12) hue-rotate(8deg)',
+    dream: 'brightness(1.06) contrast(0.9) saturate(1.08) blur(0.2px)',
+  };
+
+  function readSavedBeautyFilter() {
+    try {
+      const raw = localStorage.getItem('ap_live_beauty_filter');
+      if (raw === 'natural' && !localStorage.getItem('ap_live_beauty_filter_picked')) {
+        localStorage.setItem('ap_live_beauty_filter', 'none');
+        return 'none';
+      }
+      return raw || 'none';
+    } catch (_e) {
+      return 'none';
+    }
+  }
+
+  function saveBeautyFilter(id) {
+    try {
+      localStorage.setItem('ap_live_beauty_filter', id);
+      localStorage.setItem('ap_live_beauty_filter_picked', '1');
+    } catch (_e) {}
+  }
+
+  function stopPrelivePreview(el) {
+    const video = el?.querySelector?.('#prelivePreviewVideo');
+    const stream = video?.srcObject;
+    if (stream) {
+      stream.getTracks().forEach((t) => t.stop());
+      video.srcObject = null;
+    }
+  }
+
+  async function openPreliveFilterStep(opts, el) {
+    let selected = readSavedBeautyFilter();
+    if (!PRELIVE_FILTERS.some((f) => f.id === selected)) selected = 'none';
+
+    el.innerHTML = `
+      <div class="social-broadcast-sheet">
+        <h3>Beauty filters</h3>
+        <p>Pick a look before you go live — it applies to your camera for viewers.</p>
+        <div class="social-prelive-preview">
+          <video id="prelivePreviewVideo" playsinline muted autoplay></video>
+        </div>
+        <div class="social-prelive-filters" id="preliveFilterRail"></div>
+        <div class="social-prelive-actions">
+          <button type="button" class="back" data-prelive-back>Back</button>
+          <button type="button" class="go" data-prelive-go>Go live</button>
+        </div>
+      </div>`;
+
+    const rail = el.querySelector('#preliveFilterRail');
+    const video = el.querySelector('#prelivePreviewVideo');
+
+    function paintRail() {
+      rail.innerHTML = PRELIVE_FILTERS.map(
+        (f) => `<button type="button" class="social-prelive-chip${f.id === selected ? ' is-active' : ''}" data-filter="${f.id}">
+          <span class="social-prelive-swatch" style="background:${f.swatch}"></span>
+          <span>${f.label}</span>
+        </button>`
+      ).join('');
+      if (video) video.style.filter = PRELIVE_FILTER_CSS[selected] || '';
+    }
+    paintRail();
+    rail.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-filter]');
+      if (!btn) return;
+      selected = btn.dataset.filter || 'natural';
+      saveBeautyFilter(selected);
+      paintRail();
+    });
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 720 }, height: { ideal: 1280 } },
+        audio: false,
+      });
+      if (video) {
+        video.srcObject = stream;
+        video.style.filter = PRELIVE_FILTER_CSS[selected] || '';
+      }
+    } catch (_e) {
+      const preview = el.querySelector('.social-prelive-preview');
+      if (preview) {
+        preview.innerHTML =
+          '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#fff;padding:16px;text-align:center;font-size:13px">Camera preview unavailable — filter still saves for live.</div>';
+      }
+    }
+
+    el.querySelector('[data-prelive-back]')?.addEventListener('click', () => {
+      stopPrelivePreview(el);
+      openBroadcastPicker('live', opts);
+    });
+    el.querySelector('[data-prelive-go]')?.addEventListener('click', () => {
+      saveBeautyFilter(selected);
+      stopPrelivePreview(el);
+      el.classList.remove('is-open');
+      goStartLiveBroadcast({
+        ...(opts || {}),
+        mode: 'video',
+        filter: selected,
+        confirmed: true,
+      });
+    });
+    el.onclick = (e) => {
+      if (e.target === el) {
+        stopPrelivePreview(el);
+        el.classList.remove('is-open');
+      }
+    };
+  }
+
   function openBroadcastPicker(kind, opts) {
     const user = window.Auth?.getUser?.();
     if (!user) {
@@ -1403,6 +1543,7 @@
       return;
     }
     const el = ensureBroadcastOverlay();
+    stopPrelivePreview(el);
     if (kind === 'party') {
       goStartParty(opts);
       return;
@@ -1415,7 +1556,7 @@
           <div class="social-broadcast-options">
             <button type="button" class="social-broadcast-opt" data-go-live="video">
               <span class="ico video"><i class="fas fa-video"></i></span>
-              <div><strong>Video + audio</strong><span>Camera livestream</span></div>
+              <div><strong>Video + audio</strong><span>Choose beauty filter, then go live</span></div>
             </button>
             <button type="button" class="social-broadcast-opt" data-go-live="audio">
               <span class="ico audio"><i class="fas fa-microphone"></i></span>
@@ -1424,16 +1565,24 @@
           </div>
           <button type="button" class="social-broadcast-cancel" data-broadcast-cancel>Cancel</button>
         </div>`;
-      el.querySelectorAll('[data-go-live]').forEach((btn) => {
-        btn.addEventListener('click', () => {
+      el.querySelector('[data-go-live="video"]')?.addEventListener('click', () => {
+        openPreliveFilterStep(opts, el);
+      });
+      el.querySelector('[data-go-live="audio"]')?.addEventListener('click', () => {
+        stopPrelivePreview(el);
+        el.classList.remove('is-open');
+        goStartLiveBroadcast({ ...(opts || {}), mode: 'audio' });
+      });
+      el.querySelector('[data-broadcast-cancel]')?.addEventListener('click', () => {
+        stopPrelivePreview(el);
+        el.classList.remove('is-open');
+      });
+      el.onclick = (e) => {
+        if (e.target === el) {
+          stopPrelivePreview(el);
           el.classList.remove('is-open');
-          goStartLiveBroadcast({ ...(opts || {}), mode: btn.dataset.goLive });
-        });
-      });
-      el.querySelector('[data-broadcast-cancel]')?.addEventListener('click', () => el.classList.remove('is-open'));
-      el.addEventListener('click', (e) => {
-        if (e.target === el) el.classList.remove('is-open');
-      });
+        }
+      };
       el.classList.add('is-open');
       return;
     }
@@ -1448,7 +1597,7 @@
             </button>
             <button type="button" class="social-broadcast-opt" data-go-live="video">
               <span class="ico video"><i class="fas fa-video"></i></span>
-              <div><strong>Video live</strong><span>Camera + audio broadcast</span></div>
+              <div><strong>Video live</strong><span>Beauty filter → camera broadcast</span></div>
             </button>
             <button type="button" class="social-broadcast-opt" data-go-live="audio">
               <span class="ico audio"><i class="fas fa-microphone"></i></span>
@@ -1458,19 +1607,28 @@
           <button type="button" class="social-broadcast-cancel" data-broadcast-cancel>Cancel</button>
         </div>`;
     el.querySelector('[data-go-party]')?.addEventListener('click', () => {
+      stopPrelivePreview(el);
       el.classList.remove('is-open');
       goStartParty(opts);
     });
-    el.querySelectorAll('[data-go-live]').forEach((btn) => {
-      btn.addEventListener('click', () => {
+    el.querySelector('[data-go-live="video"]')?.addEventListener('click', () => {
+      openPreliveFilterStep(opts, el);
+    });
+    el.querySelector('[data-go-live="audio"]')?.addEventListener('click', () => {
+      stopPrelivePreview(el);
+      el.classList.remove('is-open');
+      goStartLiveBroadcast({ ...(opts || {}), mode: 'audio' });
+    });
+    el.querySelector('[data-broadcast-cancel]')?.addEventListener('click', () => {
+      stopPrelivePreview(el);
+      el.classList.remove('is-open');
+    });
+    el.onclick = (e) => {
+      if (e.target === el) {
+        stopPrelivePreview(el);
         el.classList.remove('is-open');
-        goStartLiveBroadcast({ ...(opts || {}), mode: btn.dataset.goLive });
-      });
-    });
-    el.querySelector('[data-broadcast-cancel]')?.addEventListener('click', () => el.classList.remove('is-open'));
-    el.addEventListener('click', (e) => {
-      if (e.target === el) el.classList.remove('is-open');
-    });
+      }
+    };
     el.classList.add('is-open');
   }
 
