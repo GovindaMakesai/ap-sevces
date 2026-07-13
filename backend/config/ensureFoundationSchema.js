@@ -92,7 +92,7 @@ async function seedRolesAndPermissions(client) {
     super_admin: ['wallet.read', 'wallet.recharge', 'wallet.withdraw', 'wallet.gift', 'live.join', 'live.host', 'admin.wallet', 'admin.withdrawals', 'admin.recharges', 'admin.users'],
     founder: ['wallet.read', 'wallet.recharge', 'wallet.withdraw', 'wallet.gift', 'live.join', 'live.host', 'admin.wallet', 'admin.withdrawals', 'admin.recharges', 'admin.users'],
     ceo: ['wallet.read', 'wallet.recharge', 'wallet.withdraw', 'wallet.gift', 'live.join', 'live.host', 'admin.wallet', 'admin.withdrawals', 'admin.recharges', 'admin.users'],
-    bdm: ['wallet.read', 'live.join', 'live.host'],
+    bdm: ['wallet.read', 'wallet.recharge', 'wallet.withdraw', 'wallet.gift', 'live.join', 'live.host'],
     agency: ['wallet.read', 'wallet.recharge', 'wallet.withdraw', 'wallet.gift', 'live.join', 'live.host'],
     vip_user: ['wallet.read', 'wallet.recharge', 'wallet.gift', 'live.join', 'live.host'],
     coin_seller: ['wallet.read', 'wallet.recharge', 'wallet.withdraw', 'wallet.gift', 'live.join', 'live.host'],
