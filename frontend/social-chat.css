@@ -1052,6 +1052,35 @@ html.social-app .chat-gift-send {
   display: none !important;
 }
 
+.room-invite-card {
+  min-width: 200px;
+  max-width: 280px;
+  padding: 4px 0;
+}
+.room-invite-card strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 14px;
+}
+.room-invite-card-sub {
+  font-size: 12px;
+  opacity: 0.85;
+  margin-bottom: 10px;
+  line-height: 1.35;
+  word-break: break-word;
+}
+.room-invite-join-btn {
+  border: none;
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-weight: 800;
+  font-size: 13px;
+  background: linear-gradient(135deg, #f59e0b, #ea580c);
+  color: #fff;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
 @media (min-width: 769px) {
   html:not(.ap-expo-app):not(.social-app) .ap-msg-quick-row {
     display: none;

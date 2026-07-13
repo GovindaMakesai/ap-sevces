@@ -9,7 +9,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <script src="/ap-native-boot.js"></script>
     <link rel="stylesheet" href="/social-theme.css?v=20260626-discover-chat">
-    <link rel="stylesheet" href="/social-chat.css?v=20260713-token-fix">
+    <link rel="stylesheet" href="/social-chat.css?v=20260713-invite-join">
     
     <!-- Font Awesome 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -1783,6 +1783,27 @@
         /**
          * ?id= may be a conversation UUID (deep link) OR another user's id / worker profile id.
          */
+        async function flushPendingRoomInvite(receiverId, conversationId) {
+            try {
+                const pending = JSON.parse(localStorage.getItem('ap_share_pending') || 'null');
+                if (!pending?.text) return;
+                const matchUser =
+                    pending.userId &&
+                    String(pending.userId) === String(receiverId || '');
+                const fresh = pending.at && Date.now() - Number(pending.at) < 15 * 60 * 1000;
+                if (!matchUser || !fresh) return;
+                await axiosClient.post('/send', {
+                    receiverId: String(pending.userId),
+                    text: pending.text,
+                });
+                localStorage.removeItem('ap_share_pending');
+                if (conversationId) {
+                    await loadMessages(conversationId);
+                    await loadConversations();
+                }
+            } catch (_e) {}
+        }
+
         async function openChatFromUrlParam(rawId) {
             const id = String(rawId).trim();
             if (!id) return;
@@ -1792,6 +1813,7 @@
             );
             if (existing) {
                 await loadChat(existing.id);
+                await flushPendingRoomInvite(existing.otherUserId || id, existing.id);
                 return;
             }
 
@@ -1808,6 +1830,7 @@
                     upsertConversationInStore(item);
                     loadChatList();
                     await loadChat(d.conversationId);
+                    await flushPendingRoomInvite(d.otherUser?.id || id, d.conversationId);
                     return;
                 }
             } catch (e) {
@@ -1828,15 +1851,7 @@
                 await loadConversations();
                 if (conversationId) {
                     await loadChat(conversationId);
-                    try {
-                        const pending = JSON.parse(localStorage.getItem('ap_share_pending') || 'null');
-                        if (pending?.userId && String(pending.userId) === String(id) && pending.text) {
-                            await axiosClient.post('/send', { receiverId: id, text: pending.text });
-                            localStorage.removeItem('ap_share_pending');
-                            await loadMessages(conversationId);
-                            await loadConversations();
-                        }
-                    } catch (_e) {}
+                    await flushPendingRoomInvite(id, conversationId);
                 } else {
                     Toast.show('Could not create conversation', 'error');
                 }
@@ -2092,10 +2107,98 @@
             if (!raw) return 'No messages yet';
             if (raw.startsWith('__IMG__:')) return '📷 Photo';
             if (raw.includes('__AGENCY_HOST_INVITE__:')) return 'Agency host invite';
+            if (parseRoomInvite(raw)) return '🎥 Live / party invite';
             return raw.length > 120 ? `${raw.slice(0, 117)}…` : raw;
         }
 
         const AGENCY_HOST_INVITE_PREFIX = '__AGENCY_HOST_INVITE__:';
+
+        function parseRoomInvite(text) {
+            const raw = String(text || '');
+            const abs = raw.match(/https?:\/\/[^\s<>"']*?\/(?:live-room|party-room)\.html\?[^\s<>"']+/i);
+            const rel = raw.match(/\/(?:live-room|party-room)\.html\?[^\s<>"']+/i);
+            let href = (abs && abs[0]) || (rel && rel[0]) || '';
+            if (!href) return null;
+            href = href.replace(/[.,;:!?)]+$/, '');
+            let path = href;
+            try {
+                if (/^https?:\/\//i.test(href)) {
+                    const u = new URL(href);
+                    path = u.pathname + u.search;
+                }
+            } catch (_e) {}
+            if (!/\/(live-room|party-room)\.html/i.test(path)) return null;
+            const isParty = /party-room\.html/i.test(path);
+            let channel = '';
+            try {
+                channel = new URL(path, location.origin).searchParams.get('channel') || '';
+            } catch (_e) {}
+            return {
+                path,
+                isParty,
+                channel,
+                preview: raw.split('\n')[0].slice(0, 80),
+            };
+        }
+
+        function openRoomInviteInApp(path) {
+            let dest = String(path || '').trim();
+            if (!dest) return;
+            try {
+                if (/^https?:\/\//i.test(dest)) {
+                    const u = new URL(dest);
+                    dest = u.pathname + u.search;
+                }
+            } catch (_e) {}
+            if (!dest.startsWith('/')) dest = '/' + dest;
+            try {
+                const u = new URL(dest, location.origin);
+                u.searchParams.delete('host');
+                u.searchParams.set('app', '1');
+                dest = u.pathname + u.search;
+            } catch (_e) {}
+            // Leave any minimized host session / browse iframe so join loads top-level
+            try {
+                localStorage.removeItem('ap_live_active_session');
+                sessionStorage.removeItem('ap_live_pip_session');
+                sessionStorage.removeItem('ap_live_join_meta');
+            } catch (_e) {}
+            try {
+                const topWin = window.top || window;
+                if (topWin !== window) {
+                    try {
+                        topWin.LiveSession?.forceCleanup?.();
+                    } catch (_e) {}
+                    topWin.location.href = dest;
+                    return;
+                }
+                window.LiveSession?.forceCleanup?.();
+            } catch (_e) {}
+            location.href = dest;
+        }
+
+        function buildRoomInviteCard(invite) {
+            const wrap = document.createElement('div');
+            wrap.className = 'room-invite-card';
+            const title = document.createElement('strong');
+            title.textContent = invite.isParty ? 'Party room invite' : 'Live stream invite';
+            const sub = document.createElement('div');
+            sub.className = 'room-invite-card-sub';
+            sub.textContent = invite.preview || (invite.channel ? `Room ${invite.channel}` : 'Tap to join in the app');
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'room-invite-join-btn';
+            btn.textContent = 'Join now';
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                openRoomInviteInApp(invite.path);
+            });
+            wrap.appendChild(title);
+            wrap.appendChild(sub);
+            wrap.appendChild(btn);
+            return wrap;
+        }
 
         function parseAgencyHostInvite(text) {
             const raw = String(text || '');
@@ -3100,8 +3203,11 @@
                 const content = document.createElement('div');
                 content.className = 'message-content';
                 const agencyInvite = parseAgencyHostInvite(bodyText);
+                const roomInvite = !agencyInvite ? parseRoomInvite(bodyText) : null;
                 if (agencyInvite) {
                     content.appendChild(buildAgencyHostInviteCard(agencyInvite, msg));
+                } else if (roomInvite) {
+                    content.appendChild(buildRoomInviteCard(roomInvite));
                 } else if (bodyText) {
                     content.textContent = bodyText;
                 } else if (!msg.image) {
@@ -3155,6 +3261,7 @@
                 
                 const bodyText = String(msg.text || '').trim();
                 const agencyInvite = parseAgencyHostInvite(bodyText);
+                const roomInvite = !agencyInvite ? parseRoomInvite(bodyText) : null;
                 const bodyHtml = agencyInvite
                     ? `<div class="agency-host-invite-card" data-invite-id="${escapeAttr(agencyInvite.invite_id)}" style="min-width:200px">
                         <strong>Host invitation</strong>
@@ -3165,6 +3272,12 @@
                               <button type="button" class="agency-invite-reject" data-invite-id="${escapeAttr(agencyInvite.invite_id)}" style="border:none;border-radius:999px;padding:8px 14px;font-weight:700;background:#9ca3af;color:#fff;cursor:pointer">Reject</button>
                             </div>`
                           : '<div style="font-size:12px;opacity:.8">Waiting for their response…</div>'}
+                      </div>`
+                    : roomInvite
+                    ? `<div class="room-invite-card">
+                        <strong>${roomInvite.isParty ? 'Party room invite' : 'Live stream invite'}</strong>
+                        <div class="room-invite-card-sub">${escapeHtml(roomInvite.preview || 'Tap to join in the app')}</div>
+                        <button type="button" class="room-invite-join-btn" data-room-invite-path="${escapeAttr(roomInvite.path)}">Join now</button>
                       </div>`
                     : bodyText
                     ? escapeHtml(bodyText)
@@ -3201,6 +3314,13 @@
         }
 
         document.addEventListener('click', (e) => {
+            const roomJoin = e.target.closest?.('.room-invite-join-btn');
+            if (roomJoin) {
+                e.preventDefault();
+                const path = roomJoin.getAttribute('data-room-invite-path');
+                if (path) openRoomInviteInApp(path);
+                return;
+            }
             const accept = e.target.closest?.('.agency-invite-accept');
             const reject = e.target.closest?.('.agency-invite-reject');
             if (!accept && !reject) return;

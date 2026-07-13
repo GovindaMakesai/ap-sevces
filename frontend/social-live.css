@@ -4043,6 +4043,19 @@ html.ap-expo-app .ap-chip {
   background: linear-gradient(135deg, #fbbf24, #d97706); color: #1a1000; font-weight: 700; cursor: pointer;
 }
 .ap-share-loading, .ap-share-empty { text-align: center; color: #6b7280; font-size: 13px; padding: 16px 8px; }
+.ap-share-copy-link {
+  display: block;
+  width: calc(100% - 16px);
+  margin: 8px auto 0;
+  padding: 12px 14px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f59e0b, #ea580c);
+  color: #fff;
+  font-weight: 800;
+  font-size: 13px;
+  cursor: pointer;
+}
 .ap-share-cancel {
   width: 100%; margin-top: 12px; border: none; padding: 12px; border-radius: 999px;
   background: #f3f4f6; color: #374151; font-weight: 700; cursor: pointer;

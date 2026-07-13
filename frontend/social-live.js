@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260713-audio-video-switch';
+  window.__AP_LIVE_BUILD = '20260713-invite-join';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -609,12 +609,39 @@
   }
 
   function viewerShareUrl() {
-    const params = new URLSearchParams(location.search);
-    params.delete('host');
-    if (!params.get('channel') && !params.get('room')) {
-      params.set('channel', channelId());
+    const page = document.body.dataset.livePage === 'party-room' ? 'party-room.html' : 'live-room.html';
+    const ch = channelId();
+    const params = new URLSearchParams();
+    if (ch) params.set('channel', ch);
+    params.set('app', '1');
+    // Viewer join only — never share host=1 / feed swipe mode
+    const modeQs = (qs('mode') || '').toLowerCase();
+    if (modeQs === 'audio') params.set('mode', 'audio');
+    return `${location.origin}/${page}?${params.toString()}`;
+  }
+
+  function viewerSharePath() {
+    try {
+      const u = new URL(viewerShareUrl());
+      return u.pathname + u.search;
+    } catch (_e) {
+      return viewerShareUrl();
     }
-    return `${location.origin}${location.pathname}?${params.toString()}`;
+  }
+
+  async function sendRoomInviteToUser(userId, text) {
+    const uid = String(userId || '').trim();
+    if (!uid || !text) throw new Error('Missing invite target');
+    if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken().catch(() => {});
+    const api = window.API;
+    if (!api?.post) throw new Error('Chat API unavailable');
+    // Ensure conversation exists, then send (works for new + existing chats)
+    try {
+      await api.post('/messages/conversations', { receiverId: uid });
+    } catch (_e) {
+      /* get-or-create may 404 elsewhere — /send still resolves peer */
+    }
+    await api.post('/messages/send', { receiverId: uid, text });
   }
 
   async function resumeMediaAfterForeground() {
@@ -7673,7 +7700,10 @@
     const hostName = roomState?.hostName || displayName(currentUser()) || 'Host';
     const page = document.body.dataset.livePage === 'party-room' ? 'party' : 'live';
     const url = viewerShareUrl();
-    const inviteText = `${hostName} invited you to a ${page} room on AP Services: ${url}`;
+    const path = viewerSharePath();
+    const inviteText =
+      `${hostName} invited you to a ${page} room on AP Services.\n` +
+      `Tap Join to enter: ${path}\n${url}`;
 
     let users = [];
     try {
@@ -7703,7 +7733,16 @@
 
     if (!users.length) {
       list.innerHTML =
-        '<p class="ap-share-empty">Follow people first to invite them here, or copy the room link below.</p>';
+        '<p class="ap-share-empty">Follow people first to invite them here, or copy the room link below.</p>' +
+        `<button type="button" class="ap-share-copy-link" id="apShareCopyLink">Copy room link</button>`;
+      document.getElementById('apShareCopyLink')?.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard?.writeText(url);
+          toast('Room link copied', 'success');
+        } catch (_e) {
+          prompt('Copy room link:', url);
+        }
+      });
       return;
     }
 
@@ -7719,26 +7758,39 @@
       .join('');
 
     list.querySelectorAll('.ap-share-user-row').forEach((btn) => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         const userId = btn.dataset.shareUser;
         const name = btn.dataset.shareName || 'User';
         const statusEl = btn.querySelector('.ap-share-status');
-        if (statusEl) {
-          statusEl.innerHTML = '<i class="fas fa-check"></i> Sent';
-          statusEl.classList.add('is-sent');
-        }
+        if (btn.disabled) return;
         btn.disabled = true;
+        if (statusEl) statusEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending…';
         try {
-          localStorage.setItem(
-            'ap_share_pending',
-            JSON.stringify({ userId, name, text: inviteText, at: Date.now() })
-          );
-        } catch (_e) {}
-        toast(`Invite sent to ${name}`, 'success');
-        if (userId) {
-          setTimeout(() => {
-            openInPartyBrowse(`/chat.html?id=${encodeURIComponent(userId)}&app=1`);
-          }, 800);
+          await sendRoomInviteToUser(userId, inviteText);
+          if (statusEl) {
+            statusEl.innerHTML = '<i class="fas fa-check"></i> Sent';
+            statusEl.classList.add('is-sent');
+          }
+          toast(`Invite sent to ${name}`, 'success');
+          try {
+            localStorage.removeItem('ap_share_pending');
+          } catch (_e) {}
+        } catch (e) {
+          btn.disabled = false;
+          if (statusEl) statusEl.innerHTML = '<i class="fas fa-paper-plane"></i> Retry';
+          // Fallback: open chat with pending text so invite still goes out
+          try {
+            localStorage.setItem(
+              'ap_share_pending',
+              JSON.stringify({ userId, name, text: inviteText, at: Date.now() })
+            );
+          } catch (_e) {}
+          toast(e?.message || 'Could not send invite — opening chat…', 'warning');
+          if (userId) {
+            setTimeout(() => {
+              openInPartyBrowse(`/chat.html?id=${encodeURIComponent(userId)}&app=1`);
+            }, 400);
+          }
         }
       });
     });
