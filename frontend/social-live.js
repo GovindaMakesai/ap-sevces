@@ -6218,7 +6218,12 @@
     pill.classList.remove('party-event-pill--inline');
     if (isLiveRoomPage()) {
       const target = document.getElementById('partyLiveActions');
-      if (target && pill.parentElement !== target) target.appendChild(pill);
+      if (!target) return;
+      const hostBar = document.getElementById('liveHostBar');
+      if (pill.parentElement !== target || (hostBar && pill.nextElementSibling !== hostBar && hostBar.parentElement === target)) {
+        if (hostBar && hostBar.parentElement === target) target.insertBefore(pill, hostBar);
+        else target.appendChild(pill);
+      }
       return;
     }
     const target = document.querySelector('.party-invite-row') || document.getElementById('partyHostBar');
