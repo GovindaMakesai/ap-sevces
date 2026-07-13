@@ -298,6 +298,31 @@
   position: relative;
   z-index: 28;
   pointer-events: auto;
+  transition: transform 0.28s ease, opacity 0.28s ease, max-height 0.28s ease, min-height 0.28s ease;
+  will-change: transform, opacity;
+}
+
+.party-chat-swipe-handle {
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
+  width: 56px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  touch-action: none;
+  cursor: grab;
+}
+.party-chat-swipe-handle span {
+  width: 36px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.38);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
 }
 
 .party-chat-tabs {
@@ -310,13 +335,13 @@
 .party-chat-tabs button {
   writing-mode: vertical-rl;
   transform: rotate(180deg);
-  border: none;
+  border: 1px solid rgba(255, 255, 255, 0.14);
   padding: 8px 4px;
   border-radius: 8px;
   font-size: 10px;
   font-weight: 700;
-  background: rgba(0, 0, 0, 0.5);
-  color: #e2e8f0;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(248, 250, 252, 0.92);
   cursor: pointer;
   pointer-events: auto;
   touch-action: manipulation;
@@ -324,9 +349,13 @@
   z-index: 2;
   min-width: 28px;
   min-height: 44px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
 }
 .party-chat-tabs button.active {
-  background: linear-gradient(180deg, #f59e0b, #ea580c);
+  background: rgba(245, 158, 11, 0.52);
+  border-color: rgba(251, 191, 36, 0.45);
   color: #fff;
 }
 
@@ -338,6 +367,7 @@
   pointer-events: auto;
   display: flex;
   flex-direction: column;
+  padding-top: 10px;
 }
 
 .live-chat-ticker {
@@ -380,21 +410,33 @@
   max-height: min(20vh, 150px);
   pointer-events: auto;
   -webkit-overflow-scrolling: touch;
+  background: transparent;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 14%, #000 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 14%, #000 100%);
 }
 .party-chat-msg {
   align-self: flex-start; max-width: 92%;
   padding: 5px 9px; border-radius: 12px;
-  background: rgba(0,0,0,0.28); font-size: 11px; line-height: 1.35;
+  background: rgba(0, 0, 0, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 11px; line-height: 1.35;
   color: #f8fafc;
-  backdrop-filter: blur(2px);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  box-shadow: none;
 }
 .party-chat-msg .lvl {
   display: inline-block; min-width: 16px; text-align: center;
-  background: #22c55e; color: #fff; font-size: 9px; font-weight: 800;
+  background: rgba(34, 197, 94, 0.72); color: #fff; font-size: 9px; font-weight: 800;
   border-radius: 4px; padding: 1px 4px; margin-right: 4px;
 }
 .party-chat-msg .user { color: #7dd3fc; font-weight: 700; }
-.party-chat-msg.system { background: rgba(251,191,36,0.25); color: #fde68a; }
+.party-chat-msg.system {
+  background: rgba(251, 191, 36, 0.14);
+  border-color: rgba(251, 191, 36, 0.22);
+  color: #fde68a;
+}
 
 .live-chat-compose {
   flex-shrink: 0;
@@ -549,8 +591,11 @@ body.ap-can-moderate .live-host-bar {
   min-height: 28px !important;
   padding: 6px !important;
   border-radius: 8px !important;
-  background: rgba(0, 0, 0, 0.45) !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
   color: #e2e8f0 !important;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .live-show-chat-fab {
@@ -562,21 +607,30 @@ body.ap-can-moderate .live-host-bar {
   height: 42px;
   border: none;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.4);
+  background: rgba(255, 255, 255, 0.12);
   color: #fff;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   pointer-events: auto;
   touch-action: manipulation;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.22);
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+.live-show-chat-fab:not([hidden]) {
+  animation: ap-chat-fab-in 0.28s ease;
+}
+@keyframes ap-chat-fab-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.92); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 body.ap-chat-hidden .party-chat-row,
 body.ap-chat-hidden #partyChatRow {
-  display: none !important;
+  transform: translateY(110%) !important;
   visibility: hidden !important;
   opacity: 0 !important;
   height: 0 !important;
@@ -587,14 +641,15 @@ body.ap-chat-hidden #partyChatRow {
   pointer-events: none !important;
   background: transparent !important;
   border: none !important;
+  overflow: hidden !important;
 }
 
 body.ap-chat-hidden .live-chat-ticker,
 body.ap-chat-hidden .party-chat-feed,
 body.ap-chat-hidden .party-chat-zone {
-  display: none !important;
   opacity: 0 !important;
   background: transparent !important;
+  pointer-events: none !important;
 }
 
 body.ap-live-session-minimized .party-chat-row,
@@ -1670,6 +1725,20 @@ body[data-live-page='live-room'] .live-room {
   pointer-events: none;
 }
 .live-room.is-audio-mode .live-audio-stage { display: flex; }
+/* Camera must sit above the voice stage so audio→video switch never stays covered */
+.live-room .live-local-video.is-host-only,
+.live-room.ap-has-video-stream .live-remote-video {
+  z-index: 3;
+}
+.live-room.ap-has-video-stream .live-audio-stage,
+.live-room:not(.is-audio-mode) .live-audio-stage {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+}
+.live-room.ap-has-video-stream:not(.is-audio-mode) .live-bg {
+  display: none !important;
+}
 .live-audio-avatar {
   width: 120px;
   height: 120px;
@@ -4629,9 +4698,11 @@ html.ap-expo-app .ap-chip {
   gap: 8px;
   padding: 6px 8px;
   border-radius: 10px;
-  background: rgba(236, 72, 153, 0.14);
-  border: 1px solid rgba(236, 72, 153, 0.28);
+  background: rgba(236, 72, 153, 0.1);
+  border: 1px solid rgba(236, 72, 153, 0.2);
   font-size: 12px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 .party-chat-gift-ico { font-size: 18px; line-height: 1; }
 .ap-seat-emoji-float--affection {

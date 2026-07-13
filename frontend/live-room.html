@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-live.css?v=20260713-guest-avatar">
+  <link rel="stylesheet" href="social-live.css?v=20260713-audio-video-switch">
   <link rel="stylesheet" href="social-live-session.css?v=20260713-live-ux">
   <link rel="stylesheet" href="social-live-ref-ui.css?v=20260628-hotfix">
   <link rel="stylesheet" href="social-fx.css">
@@ -160,6 +160,7 @@
       <div class="live-spacer"></div>
 
       <div class="party-chat-row" id="partyChatRow">
+        <div class="party-chat-swipe-handle" id="partyChatSwipeHandle" aria-hidden="true" title="Swipe down to hide chat"><span></span></div>
         <div class="party-chat-tabs">
           <button type="button" class="active" data-tab="all">All</button>
           <button type="button" data-tab="room">Room</button>
@@ -268,7 +269,7 @@
   <script src="social-shell.js?v=20260713-live-ux"></script>
   <script src="live-session-provider.js?v=20260624-android-back"></script>
   <script type="module" src="beauty/index.js?v=20260713-beauty-engine"></script>
-  <script src="social-live.js?v=20260713-seat-fix"></script>
+  <script src="social-live.js?v=20260713-audio-video-switch"></script>
   <script src="social-live-interactions.js"></script>
   <script src="social-nav.js?v=20260624-android-back"></script>
 </body>
