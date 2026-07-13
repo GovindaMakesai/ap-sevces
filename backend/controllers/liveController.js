@@ -38,7 +38,7 @@ exports.agoraToken = async (req, res) => {
       if (!canPublish) {
         return res.status(403).json({
           success: false,
-          message: 'Publisher token requires host (or approved party speaker)',
+          message: 'Publisher token requires host or an approved on-seat speaker',
         });
       }
     }

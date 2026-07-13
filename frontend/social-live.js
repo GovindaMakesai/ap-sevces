@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260713-invite-join';
+  window.__AP_LIVE_BUILD = '20260713-seat-voice';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -2453,8 +2453,14 @@
         guestPublishAttempted = false;
         publishSucceeded = false;
         hideMicLinkModal();
-        toast(isLiveRoomPage() ? 'You joined the live — mic is on' : 'You got a seat — mic is on', 'success');
+        toast(isLiveRoomPage() ? 'You joined the live — enabling mic…' : 'You got a seat — enabling mic…', 'success');
+        // Brief wait so publisher-token ACL sees the new speaker/seat row
+        await new Promise((r) => setTimeout(r, 250));
         await publishGuestAudio();
+        if (!publishSucceeded) {
+          await new Promise((r) => setTimeout(r, 800));
+          await publishGuestAudio();
+        }
         if (isPartyRoomPage()) renderPartySeats(roomState?.hostName);
         else renderGuestRail();
       } else {
@@ -2990,6 +2996,9 @@
         const videoOk =
           broadcastMode === 'audio' || isPartyRoomPage() ? true : isLocalCameraHealthy();
         if (!audioOk || !videoOk) unhealthy = true;
+      }
+      if (!isHost() && hasSpeakerSeat && publishSucceeded) {
+        if (!isLocalMicHealthy()) unhealthy = true;
       }
 
       if (unhealthy) {
@@ -3890,7 +3899,11 @@
 
   async function publishGuestAudio() {
     if (!hasSpeakerSeat || isHost()) return;
-    if (localTracks.length && publishSucceeded && getLocalAudioTrack()) return;
+    if (localTracks.length && publishSucceeded && getLocalAudioTrack() && isLocalMicHealthy()) {
+      await applyLocalMicMuteState();
+      syncMicButtonUi();
+      return;
+    }
     const user = currentUser();
     if (!user?.id) {
       toast('Sign in again to use the mic', 'error');
@@ -3924,6 +3937,10 @@
         25000,
         'Microphone access'
       );
+      try {
+        if (typeof audioTrack.setEnabled === 'function') await audioTrack.setEnabled(true);
+        if (typeof audioTrack.setMuted === 'function') await audioTrack.setMuted(false);
+      } catch (_e) {}
       localTracks = [audioTrack];
       await agoraClient.publish(audioTrack);
       publishSucceeded = true;
@@ -3931,6 +3948,21 @@
       micMuted = false;
       liveDebugLog('Publish OK guest audio');
       updateLiveDebug({ hostPublishing: true, publishSucceeded: true, agoraJoined: true });
+
+      // Rejoin drops remote subscriptions — restore host A/V so seat join doesn't go silent
+      bindAudioUnlockGestures();
+      for (const remoteUser of agoraClient.remoteUsers || []) {
+        try {
+          if (remoteUser.hasVideo) await playRemoteMedia(remoteUser, 'video');
+          if (remoteUser.hasAudio) await playRemoteMedia(remoteUser, 'audio');
+        } catch (subErr) {
+          liveDebugLog(`guest resubscribe: ${subErr?.message || subErr}`);
+        }
+      }
+      await ensureRemoteAudioPlaying().catch(() => {});
+      setTimeout(() => ensureRemoteAudioPlaying().catch(() => {}), 500);
+      setTimeout(() => ensureRemoteAudioPlaying().catch(() => {}), 1500);
+
       syncMicButtonUi();
       renderPartySeats(roomState?.hostName);
       renderGuestRail();
@@ -7277,7 +7309,8 @@
   }
 
   async function ensureRemoteAudioPlaying() {
-    if (isHost() || !soundOn || !agoraClient) return;
+    // Hosts must hear on-seat guests; viewers must hear host + guests.
+    if (!soundOn || !agoraClient) return;
     const remotes = agoraClient.remoteUsers || [];
     for (const user of remotes) {
       try {
@@ -7296,7 +7329,7 @@
   }
 
   function showTapForSoundHint() {
-    if (isHost() || !soundOn) return;
+    if (!soundOn) return;
     let el = document.getElementById('apTapForSound');
     if (!el) {
       document.body.insertAdjacentHTML(

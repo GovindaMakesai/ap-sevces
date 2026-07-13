@@ -685,13 +685,20 @@ async function canPublishInRoom(channel, userId) {
   if (!room || room.status === 'ended') return false;
   if (String(room.host_user_id) === String(userId)) return true;
   const member = await db.query(
-    `SELECT role FROM live_room_members
+    `SELECT role, seat_index FROM live_room_members
      WHERE live_room_id = $1 AND user_id = $2 AND left_at IS NULL
      LIMIT 1`,
     [room.id, userId]
   );
-  const role = String(member.rows[0]?.role || '');
-  return (room.room_type === 'party' || room.room_type === 'live') && (role === 'speaker' || role === 'admin');
+  const row = member.rows[0];
+  if (!row) return false;
+  const role = String(row.role || '');
+  if (role === 'speaker' || role === 'admin') return true;
+  // On-seat guests must get a publisher token even if role briefly lags behind seat_index
+  if (row.seat_index != null && (room.room_type === 'party' || room.room_type === 'live')) {
+    return true;
+  }
+  return false;
 }
 
 async function isRoomOwner(channel, userId) {
