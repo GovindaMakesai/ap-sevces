@@ -1510,14 +1510,9 @@
     });
 
     try {
+      // Match live-room Agora/fallback constraints — forced 720x1280 crops/zooms too hard on phones.
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: 'user' },
-          width: { ideal: 720 },
-          height: { ideal: 1280 },
-          // Prefer natural framing — avoid aggressive crop from forced high res
-          aspectRatio: { ideal: 9 / 16 },
-        },
+        video: { facingMode: 'user' },
         audio: false,
       });
       if (video) {
