@@ -1461,17 +1461,30 @@
     let selected = readSavedBeautyFilter();
     if (!PRELIVE_FILTERS.some((f) => f.id === selected)) selected = 'none';
 
+    el.classList.add('is-prelive');
     el.innerHTML = `
-      <div class="social-broadcast-sheet">
-        <h3>Beauty filters</h3>
-        <p>Pick a look before you go live — it applies to your camera for viewers.</p>
-        <div class="social-prelive-preview">
+      <div class="social-broadcast-sheet social-prelive-sheet">
+        <div class="social-prelive-stage">
           <video id="prelivePreviewVideo" playsinline muted autoplay></video>
-        </div>
-        <div class="social-prelive-filters" id="preliveFilterRail"></div>
-        <div class="social-prelive-actions">
-          <button type="button" class="back" data-prelive-back>Back</button>
-          <button type="button" class="go" data-prelive-go>Go live</button>
+          <div class="social-prelive-scrim social-prelive-scrim-top" aria-hidden="true"></div>
+          <div class="social-prelive-scrim social-prelive-scrim-bottom" aria-hidden="true"></div>
+          <header class="social-prelive-top">
+            <button type="button" class="social-prelive-icon-btn" data-prelive-back aria-label="Back">
+              <i class="fas fa-chevron-left"></i>
+            </button>
+            <div class="social-prelive-title">
+              <strong>Ready to go live</strong>
+              <span>Pick a look for your camera</span>
+            </div>
+            <span class="social-prelive-live-pill"><i class="fas fa-circle"></i> Preview</span>
+          </header>
+          <div class="social-prelive-bottom">
+            <div class="social-prelive-filters" id="preliveFilterRail"></div>
+            <button type="button" class="social-prelive-go" data-prelive-go>
+              <i class="fas fa-video"></i>
+              <span>Go live</span>
+            </button>
+          </div>
         </div>
       </div>`;
 
@@ -1491,36 +1504,48 @@
     rail.addEventListener('click', (e) => {
       const btn = e.target.closest('[data-filter]');
       if (!btn) return;
-      selected = btn.dataset.filter || 'natural';
+      selected = btn.dataset.filter || 'none';
       saveBeautyFilter(selected);
       paintRail();
     });
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 720 }, height: { ideal: 1280 } },
+        video: {
+          facingMode: { ideal: 'user' },
+          width: { ideal: 720 },
+          height: { ideal: 1280 },
+          // Prefer natural framing — avoid aggressive crop from forced high res
+          aspectRatio: { ideal: 9 / 16 },
+        },
         audio: false,
       });
       if (video) {
         video.srcObject = stream;
+        video.setAttribute('playsinline', '');
+        video.muted = true;
+        video.play?.().catch(() => {});
         video.style.filter = PRELIVE_FILTER_CSS[selected] || '';
       }
     } catch (_e) {
-      const preview = el.querySelector('.social-prelive-preview');
-      if (preview) {
-        preview.innerHTML =
-          '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#fff;padding:16px;text-align:center;font-size:13px">Camera preview unavailable — filter still saves for live.</div>';
+      const stage = el.querySelector('.social-prelive-stage');
+      if (stage && !stage.querySelector('.social-prelive-fallback')) {
+        const fb = document.createElement('div');
+        fb.className = 'social-prelive-fallback';
+        fb.textContent = 'Camera preview unavailable — filter still saves for live.';
+        stage.appendChild(fb);
       }
     }
 
     el.querySelector('[data-prelive-back]')?.addEventListener('click', () => {
       stopPrelivePreview(el);
+      el.classList.remove('is-prelive');
       openBroadcastPicker('live', opts);
     });
     el.querySelector('[data-prelive-go]')?.addEventListener('click', () => {
       saveBeautyFilter(selected);
       stopPrelivePreview(el);
-      el.classList.remove('is-open');
+      el.classList.remove('is-open', 'is-prelive');
       goStartLiveBroadcast({
         ...(opts || {}),
         mode: 'video',
@@ -1531,7 +1556,7 @@
     el.onclick = (e) => {
       if (e.target === el) {
         stopPrelivePreview(el);
-        el.classList.remove('is-open');
+        el.classList.remove('is-open', 'is-prelive');
       }
     };
   }
@@ -1544,6 +1569,7 @@
     }
     const el = ensureBroadcastOverlay();
     stopPrelivePreview(el);
+    el.classList.remove('is-prelive');
     if (kind === 'party') {
       goStartParty(opts);
       return;
