@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260713-host-back';
+  window.__AP_LIVE_BUILD = '20260713-host-left';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -6284,9 +6284,17 @@
       const target = document.getElementById('partyLiveActions');
       if (!target) return;
       const hostBar = document.getElementById('liveHostBar');
-      if (pill.parentElement !== target || (hostBar && pill.nextElementSibling !== hostBar && hostBar.parentElement === target)) {
-        if (hostBar && hostBar.parentElement === target) target.insertBefore(pill, hostBar);
-        else target.appendChild(pill);
+      const usersBtn = document.getElementById('partyBtnUsersAll');
+      /* Order: Host controls (left) → Users → Invite (right) */
+      if (hostBar && hostBar.parentElement === target && target.firstElementChild !== hostBar) {
+        target.insertBefore(hostBar, target.firstElementChild);
+      }
+      if (usersBtn && usersBtn.parentElement === target) {
+        if (hostBar && hostBar.parentElement === target) target.insertBefore(usersBtn, hostBar.nextSibling);
+        else target.insertBefore(usersBtn, target.firstElementChild);
+      }
+      if (pill.parentElement !== target || target.lastElementChild !== pill) {
+        target.appendChild(pill);
       }
       return;
     }

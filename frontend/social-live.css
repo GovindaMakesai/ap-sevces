@@ -796,7 +796,7 @@ body.ap-is-host .live-host-bar:not([hidden]),
 body.ap-is-host #liveHostBar:not([hidden]) {
   display: inline-flex !important;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: flex-start;
   gap: 6px;
   margin: 0 !important;
   padding: 0 !important;
@@ -816,7 +816,7 @@ body.ap-is-host #liveHostBar.is-collapsed:not([hidden]) {
   display: inline-flex !important;
   flex-direction: row !important;
   align-items: center !important;
-  justify-content: flex-end !important;
+  justify-content: flex-start !important;
   align-self: center !important;
   width: fit-content !important;
   max-width: fit-content !important;
@@ -3421,7 +3421,7 @@ body.ap-room-active .ap-live-loader {
   flex-direction: row;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: 8px;
   padding: 0 10px 8px;
   flex-shrink: 0;
@@ -3432,7 +3432,31 @@ body.ap-room-active .ap-live-loader {
 
 .party-live-actions .party-users-btn {
   margin-right: 0;
+  margin-left: auto;
   flex-shrink: 0;
+  order: 2;
+}
+
+.party-live-actions .party-event-pill {
+  margin-left: 0;
+  flex-shrink: 0;
+  order: 3;
+}
+
+/* Host: Host controls left, Users + Invite pushed right */
+body.ap-is-host .party-live-actions .live-host-bar,
+body.ap-is-host .party-live-actions #liveHostBar {
+  order: 1;
+  margin-right: auto;
+  align-self: center;
+}
+
+body.ap-is-host .party-live-actions .party-users-btn {
+  margin-left: 0;
+}
+
+body.ap-is-host .party-live-actions .party-event-pill {
+  margin-left: 0;
 }
 
 .party-host-bar,
