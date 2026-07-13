@@ -179,7 +179,11 @@ async function leaveRoom({ channel, userId }) {
   } catch (_e) {}
 
   await db.query(
-    `UPDATE live_room_members SET left_at = CURRENT_TIMESTAMP WHERE live_room_id = $1 AND user_id = $2 AND left_at IS NULL`,
+    `UPDATE live_room_members
+     SET left_at = CURRENT_TIMESTAMP,
+         role = CASE WHEN role = 'host' THEN 'host' ELSE 'viewer' END,
+         seat_index = CASE WHEN role = 'host' THEN seat_index ELSE NULL END
+     WHERE live_room_id = $1 AND user_id = $2 AND left_at IS NULL`,
     [room.id, userId]
   );
 

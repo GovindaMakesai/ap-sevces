@@ -923,7 +923,7 @@
     }
   }
 
-  async function stopGuestMediaPublishing() {
+  async function stopGuestMediaPublishing({ rejoinAsAudience = false } = {}) {
     publishSucceeded = false;
     guestPublishAttempted = false;
     hasSpeakerSeat = false;
@@ -939,6 +939,13 @@
     localTracks = [];
     updateLiveDebug({ hostPublishing: false, publishSucceeded: false });
     syncMicButtonUi();
+    if (rejoinAsAudience && agoraClient && channelId()) {
+      try {
+        await joinAgoraWithRetry(agoraClient, channelId(), false, 2);
+      } catch (e) {
+        liveDebugLog(`Audience rejoin after demote failed: ${e?.message || e}`);
+      }
+    }
   }
 
   function kickUserFromRoom(userId, reason) {
@@ -2327,6 +2334,8 @@
       if (String(res.userId) !== String(me?.id)) return;
       if (res.accepted) {
         hasSpeakerSeat = true;
+        guestPublishAttempted = false;
+        publishSucceeded = false;
         hideMicLinkModal();
         toast(isLiveRoomPage() ? 'You joined the live — mic is on' : 'You got a seat — mic is on', 'success');
         await publishGuestAudio();
@@ -2376,7 +2385,7 @@
     liveSocket.on('live:demoted', (payload) => {
       const me = currentUser();
       if (me && String(payload?.userId) === String(me.id)) {
-        stopGuestMediaPublishing().catch(() => {});
+        stopGuestMediaPublishing({ rejoinAsAudience: true }).catch(() => {});
         toast(
           isLiveRoomPage() ? 'Host removed you from live' : 'You were removed from the seat',
           'warning'
@@ -2561,6 +2570,9 @@
       socketLeaveIntentional = false;
     }
     publishSucceeded = false;
+    hasSpeakerSeat = false;
+    guestPublishAttempted = false;
+    guestPublishInProgress = false;
     hostEndingIntentionally = false;
     updateLiveDebug({ socketConnected: false, roomJoined: false, publishSucceeded: false });
   }
@@ -3538,6 +3550,11 @@
       } else {
         onRoomReady();
         applyLiveBackground(broadcastMode === 'audio' ? 'audio' : 'live', roomState?.hostName);
+        if (hasSpeakerSeat) {
+          await publishGuestAudio().catch((e) =>
+            liveDebugLog(`Guest publish after join: ${e?.message || e}`)
+          );
+        }
       }
     } catch (err) {
       const msg = err?.message || String(err);
@@ -3580,7 +3597,7 @@
 
   async function publishGuestAudio() {
     if (!hasSpeakerSeat || isHost()) return;
-    if (localTracks.length && publishSucceeded) return;
+    if (localTracks.length && publishSucceeded && getLocalAudioTrack()) return;
     const user = currentUser();
     if (!user?.id) {
       toast('Sign in again to use the mic', 'error');
@@ -3588,7 +3605,7 @@
     }
     if (guestPublishInProgress) return;
     guestPublishInProgress = true;
-    if (!guestPublishAttempted) guestPublishAttempted = true;
+    guestPublishAttempted = true;
     const ch = channelId();
     try {
       const AgoraRTC = await loadAgoraScript();
@@ -3596,20 +3613,9 @@
         agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
       }
 
-      if (liveDebugState.agoraJoined && agoraClient?.renewToken) {
-        try {
-          const cred = await fetchAgoraToken(ch, true);
-          if (cred?.token) {
-            await agoraClient.renewToken(cred.token);
-            liveDebugLog('Guest upgraded token for mic publish');
-          }
-        } catch (renewErr) {
-          liveDebugLog(`Guest renewToken failed, rejoining: ${renewErr?.message || renewErr}`);
-          await joinAgoraWithRetry(agoraClient, ch, true, 2);
-        }
-      } else {
-        await joinAgoraWithRetry(agoraClient, ch, true, 3);
-      }
+      // Always leave + rejoin with a publisher token. renewToken alone does not
+      // upgrade an audience/subscriber join, so invited guests stay silent.
+      await joinAgoraWithRetry(agoraClient, ch, true, 3);
 
       for (const t of localTracks) {
         try {
@@ -3620,7 +3626,11 @@
       }
       localTracks = [];
 
-      const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+      const audioTrack = await withTimeout(
+        AgoraRTC.createMicrophoneAudioTrack(),
+        25000,
+        'Microphone access'
+      );
       localTracks = [audioTrack];
       await agoraClient.publish(audioTrack);
       publishSucceeded = true;
@@ -3630,10 +3640,12 @@
       updateLiveDebug({ hostPublishing: true, publishSucceeded: true, agoraJoined: true });
       syncMicButtonUi();
       renderPartySeats(roomState?.hostName);
+      renderGuestRail();
       toast('Mic is live — tap mic to mute', 'success');
     } catch (e) {
       const msg = friendlyAgoraError(e?.message || String(e));
       liveDebugLog(`Guest publish FAILED: ${msg}`);
+      publishSucceeded = false;
       guestPublishAttempted = false;
       toast(`Mic failed: ${msg}`, 'error');
     } finally {
@@ -4571,6 +4583,8 @@
     publishSucceeded = false;
     setLiveStreamVisible(false);
     stopBeautyPipeline();
+    guestPublishAttempted = false;
+    guestPublishInProgress = false;
     for (const t of localTracks) {
       try {
         t.stop?.();
@@ -5268,10 +5282,26 @@
     const user = currentUser();
     const meId = user?.id ? String(user.id) : '';
     if (meId && roomState?.seats?.some((s) => String(s.userId) === meId && !s.isHost)) {
-      const wasSpeaker = hasSpeakerSeat;
       hasSpeakerSeat = true;
-      if (!wasSpeaker && !isHost() && !localTracks.length && !guestPublishInProgress && !guestPublishAttempted) {
-        publishGuestAudio();
+      if (
+        !isHost() &&
+        !publishSucceeded &&
+        !guestPublishInProgress &&
+        (!guestPublishAttempted || !getLocalAudioTrack())
+      ) {
+        const now = Date.now();
+        if (!window.__apGuestPubRetryAt || now - window.__apGuestPubRetryAt > 2500) {
+          window.__apGuestPubRetryAt = now;
+          publishGuestAudio().catch(() => {});
+        }
+      }
+    } else if (meId && hasSpeakerSeat) {
+      const stillSeated = (roomState?.seats || []).some(
+        (s) => String(s.userId) === meId && !s.isHost
+      );
+      if (!stillSeated) {
+        hasSpeakerSeat = false;
+        guestPublishAttempted = false;
       }
     }
     const joinBtn = document.getElementById('partyBtnJoinSeat');
