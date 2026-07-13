@@ -2881,6 +2881,31 @@ body[data-live-page="party-room"] .ap-guest-rail:not(:empty) {
 .ap-guest-seat {
   overflow: visible;
 }
+.ap-guest-seat {
+  position: relative;
+}
+.ap-guest-remove {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  z-index: 5;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: #ef4444;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 20px;
+  text-align: center;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+  pointer-events: auto;
+}
+.ap-guest-remove:active {
+  transform: scale(0.94);
+}
 .seat-avatar {
   overflow: hidden;
 }

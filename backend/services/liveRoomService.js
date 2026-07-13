@@ -230,11 +230,30 @@ async function getActiveMembers(liveRoomId) {
 
 async function getRecentEvents(liveRoomId, limit = 40) {
   const res = await db.query(
-    `SELECT event_type, payload, user_id, created_at FROM live_room_events
+    `SELECT id, event_type, payload, user_id, created_at FROM live_room_events
      WHERE live_room_id = $1 ORDER BY created_at DESC LIMIT $2`,
     [liveRoomId, limit]
   );
   return res.rows.reverse();
+}
+
+/** Prefer real chat/gifts so join/leave spam does not wipe the visible history. */
+async function getRecentChatFeed(liveRoomId) {
+  const chats = await db.query(
+    `SELECT id, event_type, payload, user_id, created_at FROM live_room_events
+     WHERE live_room_id = $1 AND event_type IN ('chat', 'gift')
+     ORDER BY created_at DESC LIMIT 80`,
+    [liveRoomId]
+  );
+  const system = await db.query(
+    `SELECT id, event_type, payload, user_id, created_at FROM live_room_events
+     WHERE live_room_id = $1 AND event_type IN ('join', 'leave', 'seat_join')
+     ORDER BY created_at DESC LIMIT 25`,
+    [liveRoomId]
+  );
+  return [...chats.rows, ...system.rows].sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  );
 }
 
 async function buildSnapshot(channel) {
@@ -245,15 +264,16 @@ async function buildSnapshot(channel) {
   const profileByUser = new Map(
     members.map((m) => [String(m.user_id), m.profile_pic || null])
   );
-  const events = await getRecentEvents(room.id, 30);
+  const events = await getRecentChatFeed(room.id);
 
   const messages = events
-    .filter((e) => e.event_type === 'chat' || e.event_type === 'join' || e.event_type === 'leave' || e.event_type === 'seat_join')
+    .filter((e) => e.event_type === 'chat' || e.event_type === 'join' || e.event_type === 'leave' || e.event_type === 'seat_join' || e.event_type === 'gift')
     .map((e) => {
       const p = parsePayload(e.payload);
+      const eventId = e.id != null ? String(e.id) : `t-${new Date(e.created_at).getTime()}`;
       if (e.event_type === 'join') {
         return {
-          id: `evt-${e.id}`,
+          id: `evt-${eventId}`,
           type: 'system',
           text: `${p.display_name || 'Someone'} joined`,
           at: e.created_at,
@@ -261,7 +281,7 @@ async function buildSnapshot(channel) {
       }
       if (e.event_type === 'leave') {
         return {
-          id: `evt-${e.id}`,
+          id: `evt-${eventId}`,
           type: 'system',
           text: `${p.display_name || 'Someone'} left`,
           at: e.created_at,
@@ -269,13 +289,25 @@ async function buildSnapshot(channel) {
       }
       if (e.event_type === 'seat_join') {
         return {
+          id: `evt-${eventId}`,
           type: 'system',
           text: `${p.display_name || 'Someone'} joined a seat`,
           at: e.created_at,
         };
       }
+      if (e.event_type === 'gift') {
+        return {
+          id: `evt-${eventId}`,
+          type: 'gift',
+          user: p.from || p.senderName || 'User',
+          userId: e.user_id || p.fromUserId || null,
+          text: `${p.emoji || '🎁'} sent to ${p.to || p.recipientName || 'Host'}`,
+          gift: p,
+          at: e.created_at,
+        };
+      }
       return {
-        id: `evt-${e.id}`,
+        id: `evt-${eventId}`,
         type: 'chat',
         userId: e.user_id,
         user: p.user || 'User',
