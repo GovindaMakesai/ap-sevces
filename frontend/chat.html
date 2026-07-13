@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#fff9f0">
     <script src="/ap-native-boot.js"></script>
     <link rel="stylesheet" href="/social-theme.css?v=20260626-discover-chat">
-    <link rel="stylesheet" href="/social-chat.css?v=20260713-msg-load">
+    <link rel="stylesheet" href="/social-chat.css?v=20260713-msg-debug">
     
     <!-- Font Awesome 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -1586,7 +1586,7 @@
                 await loadConversations();
             } catch (err) {
                 console.error('chat init failed', err);
-                paintListStatus('Could not load chats', (err && err.message) || '', true);
+                paintChatLoadError(err, { stage: 'bootChatPage' });
             }
             try { ensureChatPaneNotBlank(); } catch (_e) { /* ignore */ }
 
@@ -1640,10 +1640,7 @@
         function startChatBoot() {
             bootChatPage().catch((err) => {
                 console.error('bootChatPage failed', err);
-                const chatList = document.getElementById('chatList');
-                if (chatList) {
-                    chatList.innerHTML = '<div class="ap-msg-empty"><i class="fas fa-comments"></i><p>Could not load chats</p><small>Tap Retry</small><button type="button" onclick="location.reload()" style="margin-top:12px;padding:8px 16px;border-radius:8px;border:none;background:#e6a23c;color:#fff;cursor:pointer">Retry</button></div>';
-                }
+                paintChatLoadError(err, { stage: 'startChatBoot' });
             });
         }
         if (document.readyState === 'loading') {
@@ -1818,6 +1815,89 @@
             return (window.normalizeApiUrl ? normalizeApiUrl(raw) : raw).replace(/\/+$/, '');
         }
 
+        /** Build a short on-screen debug dump when conversation load fails. */
+        function buildChatLoadDebug(error, extra) {
+            const u = (typeof Auth !== 'undefined' && Auth.getUser?.()) || (() => {
+                try { return JSON.parse(localStorage.getItem('user') || 'null'); } catch (_e) { return null; }
+            })();
+            const token = getChatToken();
+            const status = error?.status || error?.response?.status || '';
+            const apiMsg =
+                error?.response?.data?.message ||
+                (typeof error?.response?.data === 'string' ? error.response.data : '') ||
+                '';
+            const lines = [
+                `time: ${new Date().toISOString()}`,
+                `online: ${typeof navigator !== 'undefined' ? navigator.onLine : '?'}`,
+                `native: ${typeof isNativeAppContext === 'function' ? isNativeAppContext() : false}`,
+                `api: ${chatApiBase()}`,
+                `endpoint: GET /messages/conversations`,
+                `hasToken: ${Boolean(token)}`,
+                `tokenLen: ${token ? String(token).length : 0}`,
+                `hasSession: ${Boolean(Auth?.hasSession?.() || Auth?.checkAuth?.() || token)}`,
+                `userId: ${u?.id || u?.userId || getMyUserId?.() || '(none)'}`,
+                `displayId: ${u?.display_id ?? u?.displayId ?? '(none)'}`,
+                `role: ${u?.role || '(none)'}`,
+                `http: ${status || '(none)'}`,
+                `error: ${(error && (error.message || String(error))) || '(none)'}`,
+            ];
+            if (apiMsg) lines.push(`apiMsg: ${String(apiMsg).slice(0, 180)}`);
+            if (extra) {
+                Object.keys(extra).forEach((k) => {
+                    const v = extra[k];
+                    if (v == null || v === '') return;
+                    lines.push(`${k}: ${typeof v === 'string' ? v : JSON.stringify(v).slice(0, 120)}`);
+                });
+            }
+            const text = lines.join('\n');
+            try {
+                window.__chatLoadDebug = { at: Date.now(), lines, error: error?.message || String(error || '') };
+                localStorage.setItem('chat_load_debug', text);
+            } catch (_e) { /* ignore */ }
+            console.warn('[chat load debug]\n' + text, error);
+            return text;
+        }
+
+        function paintChatLoadError(error, extra) {
+            const chatList = document.getElementById('chatList');
+            if (!chatList) return;
+            const debug = buildChatLoadDebug(error, extra);
+            const short =
+                error?.response?.data?.message ||
+                error?.message ||
+                'Request failed';
+            chatList.innerHTML =
+                '<div class="ap-msg-empty">' +
+                '<i class="fas fa-comments"></i>' +
+                '<p>Could not load chats</p>' +
+                '<small>' + escapeHtml(String(short).slice(0, 140)) + '</small>' +
+                '<pre id="chatLoadDebugBox" style="margin:12px 8px 0;padding:10px;max-width:100%;overflow:auto;text-align:left;font-size:11px;line-height:1.35;background:#1a1a1a;color:#f5f5f5;border-radius:8px;white-space:pre-wrap;word-break:break-word">' +
+                escapeHtml(debug) +
+                '</pre>' +
+                '<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px">' +
+                '<button type="button" onclick="loadConversations()" style="padding:8px 16px;border-radius:8px;border:none;background:#e6a23c;color:#fff;cursor:pointer">Retry</button>' +
+                '<button type="button" onclick="window.copyChatLoadDebug&&copyChatLoadDebug()" style="padding:8px 16px;border-radius:8px;border:1px solid #c9a227;background:#fff;color:#8a6a12;cursor:pointer">Copy debug</button>' +
+                '</div></div>';
+        }
+
+        function copyChatLoadDebug() {
+            const text =
+                document.getElementById('chatLoadDebugBox')?.textContent ||
+                localStorage.getItem('chat_load_debug') ||
+                '';
+            if (!text) return;
+            const done = () => {
+                if (window.Toast?.show) Toast.show('Debug copied', 'success');
+            };
+            if (navigator.clipboard?.writeText) {
+                navigator.clipboard.writeText(text).then(done).catch(() => {
+                    window.prompt('Copy debug:', text);
+                });
+            } else {
+                window.prompt('Copy debug:', text);
+            }
+        }
+
         function chatSocketOrigin() {
             return chatApiBase().replace(/\/api\/?$/, '');
         }
@@ -1826,35 +1906,43 @@
         async function chatRequest(method, path, body) {
             const endpoint = `/messages${path.startsWith('/') ? path : `/${path}`}`;
             const upper = String(method || 'GET').toUpperCase();
-            if (window.API && typeof API.request === 'function') {
-                return API.request(endpoint, {
+            try {
+                if (window.API && typeof API.request === 'function') {
+                    return await API.request(endpoint, {
+                        method: upper,
+                        body: body != null ? body : undefined,
+                        timeout: 22000,
+                    });
+                }
+                const headers = { Accept: 'application/json' };
+                const token = getChatToken();
+                if (token) headers.Authorization = `Bearer ${token}`;
+                let payload = body;
+                if (payload != null && !(payload instanceof FormData)) {
+                    headers['Content-Type'] = 'application/json';
+                    payload = JSON.stringify(payload);
+                }
+                const res = await fetch(`${chatApiBase()}${endpoint}`, {
                     method: upper,
-                    body: body != null ? body : undefined,
-                    timeout: 22000,
+                    headers,
+                    body: upper === 'GET' || upper === 'HEAD' ? undefined : payload,
+                    credentials: 'include',
                 });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    const err = new Error(data.message || `HTTP ${res.status}`);
+                    err.status = res.status;
+                    err.response = { status: res.status, data };
+                    throw err;
+                }
+                return data;
+            } catch (e) {
+                if (e && typeof e === 'object') {
+                    if (e.status == null && e.response?.status != null) e.status = e.response.status;
+                    e.chatEndpoint = `${upper} ${endpoint}`;
+                }
+                throw e;
             }
-            const headers = { Accept: 'application/json' };
-            const token = getChatToken();
-            if (token) headers.Authorization = `Bearer ${token}`;
-            let payload = body;
-            if (payload != null && !(payload instanceof FormData)) {
-                headers['Content-Type'] = 'application/json';
-                payload = JSON.stringify(payload);
-            }
-            const res = await fetch(`${chatApiBase()}${endpoint}`, {
-                method: upper,
-                headers,
-                body: upper === 'GET' || upper === 'HEAD' ? undefined : payload,
-                credentials: 'include',
-            });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) {
-                const err = new Error(data.message || `HTTP ${res.status}`);
-                err.status = res.status;
-                err.response = { status: res.status, data };
-                throw err;
-            }
-            return data;
         }
 
         const axiosClient = {
@@ -2557,7 +2645,13 @@
                     (Array.isArray(root?.data) ? root.data : null) ||
                     (Array.isArray(root) ? root : null) ||
                     [];
-                const conversations = (Array.isArray(list) ? list : []).map((conv) => ({
+                if (!Array.isArray(list)) {
+                    throw Object.assign(new Error('Unexpected conversations response shape'), {
+                        status: 'shape',
+                        response: { data: { message: 'Bad response shape', preview: JSON.stringify(root).slice(0, 200) } },
+                    });
+                }
+                const conversations = list.map((conv) => ({
                     id: chatKey(conv.id),
                     name: conv.otherUser?.displayName || `${conv.otherUser?.first_name || 'User'} ${conv.otherUser?.last_name || ''}`.trim(),
                     first_name: conv.otherUser?.first_name || 'User',
@@ -2582,14 +2676,24 @@
                 useChatStore.setState({ conversations });
                 loadChatList();
                 ensureChatPaneNotBlank();
+                try {
+                    window.__chatLoadDebug = {
+                        at: Date.now(),
+                        ok: true,
+                        count: conversations.length,
+                        totalUnread: badgeTotal,
+                    };
+                } catch (_e) { /* ignore */ }
             } catch (error) {
                 console.error('loadConversations error:', error);
                 if (window.Toast?.show) {
                     Toast.show(error?.response?.data?.message || error.message || 'Failed to load conversations', 'error');
                 }
-                if (chatList) {
-                    chatList.innerHTML = '<div class="ap-msg-empty"><i class="fas fa-comments"></i><p>Could not load chats</p><small>Tap Retry</small><button type="button" onclick="loadConversations()" style="margin-top:12px;padding:8px 16px;border-radius:8px;border:none;background:#e6a23c;color:#fff;cursor:pointer">Retry</button></div>';
-                }
+                paintChatLoadError(error, {
+                    client: window.API?.request ? 'API.request' : 'fetch',
+                    stage: 'loadConversations',
+                    chatEndpoint: error?.chatEndpoint || 'GET /messages/conversations',
+                });
                 ensureChatPaneNotBlank();
             }
         }
@@ -3976,6 +4080,7 @@
         // Export functions for global use
         window.loadChat = loadChat;
         window.loadConversations = loadConversations;
+        window.copyChatLoadDebug = copyChatLoadDebug;
         window.loadMessages = loadMessages;
         window.getActiveChatId = () => currentChatId;
         window.sendMessage = sendMessage;
