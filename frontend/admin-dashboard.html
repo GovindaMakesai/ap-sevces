@@ -2977,6 +2977,9 @@
                     const agencyName = prompt('Agency display name (optional):', row.agency_name || '') || undefined;
                     if (agencyName) payload.agency_name = agencyName;
                 } else if (roleType === 'creator') {
+                    if (row?.target_agency_id) {
+                        payload.agency_id = row.target_agency_id;
+                    } else {
                     const agenciesRes = await API.get('/admin/agencies');
                     let agencies = agenciesRes.data || [];
                     if (row?.target_bd_user_id) {
@@ -2998,6 +3001,7 @@
                             return;
                         }
                         payload.agency_id = agencies[idx].id;
+                    }
                     }
                 }
                 const promoNote = row?.promo_code ? ` (promo ${row.promo_code})` : '';

@@ -111,6 +111,8 @@ async function resolvePromoCode(rawCode) {
 }
 
 async function listPendingForBd(bdUserId, { limit = 50 } = {}) {
+  // BD reviews Agencies. Hosts join via Agency invite code / DM (not BD promo).
+  // Legacy host apps without target_agency_id still appear for BD.
   const res = await db.query(
     `SELECT a.*, u.email, u.first_name, u.last_name, u.phone, u.profile_pic, u.display_id,
             u.role AS current_role
@@ -118,7 +120,10 @@ async function listPendingForBd(bdUserId, { limit = 50 } = {}) {
      JOIN users u ON u.id = a.user_id
      WHERE a.status = 'pending'
        AND a.target_bd_user_id = $1
-       AND a.role_type IN ('creator', 'agency')
+       AND (
+         a.role_type = 'agency'
+         OR (a.role_type = 'creator' AND a.target_agency_id IS NULL)
+       )
      ORDER BY a.created_at ASC
      LIMIT $2`,
     [bdUserId, limit]
@@ -389,6 +394,7 @@ async function createAgencyUnderBd({
   });
   await permissionService.syncUserRole(ownerUserId, 'agency');
   await assignAgencyToBd(actorUserId, agency.id, bdUserId);
+  await ensureAgencyInviteCode(agency.id, actorUserId);
   return getAgencyDetail(agency.id);
 }
 
@@ -718,6 +724,314 @@ async function getAgencyNode(agencyId) {
   };
 }
 
+const AGENCY_HOST_INVITE_PREFIX = '__AGENCY_HOST_INVITE__:';
+
+function generateAgencyInviteCode(seed = '') {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = 'AG';
+  const base = String(seed || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(-4);
+  code += base || '';
+  while (code.length < 8) {
+    code += alphabet[Math.floor(Math.random() * alphabet.length)];
+  }
+  return code.slice(0, 12);
+}
+
+async function ensureAgencyInviteCode(agencyId, actorUserId = null) {
+  const existing = await db.query(
+    `SELECT * FROM agency_invite_codes WHERE agency_id = $1 AND active = TRUE ORDER BY created_at ASC LIMIT 1`,
+    [agencyId]
+  );
+  if (existing.rows[0]) return existing.rows[0];
+
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const code = generateAgencyInviteCode(String(agencyId).replace(/-/g, '').slice(-6));
+    try {
+      const res = await db.query(
+        `INSERT INTO agency_invite_codes (agency_id, code, label, active, created_by)
+         VALUES ($1, $2, $3, TRUE, $4) RETURNING *`,
+        [agencyId, code, 'Default agency host invite', actorUserId]
+      );
+      return res.rows[0];
+    } catch (e) {
+      if (!/unique|duplicate/i.test(e.message || '')) throw e;
+    }
+  }
+  throw new Error('Could not create agency invite code');
+}
+
+async function resolveAgencyInviteCode(raw) {
+  const code = String(raw || '').trim().toUpperCase();
+  if (!code) return null;
+  const res = await db.query(
+    `SELECT c.*, a.name AS agency_name, a.bd_user_id, a.owner_user_id, a.status AS agency_status
+     FROM agency_invite_codes c
+     JOIN agencies a ON a.id = c.agency_id
+     WHERE UPPER(c.code) = $1 AND c.active = TRUE
+     LIMIT 1`,
+    [code]
+  );
+  const row = res.rows[0];
+  if (!row) return null;
+  if (row.agency_status && row.agency_status !== 'active') return null;
+  if (row.max_uses != null && Number(row.use_count || 0) >= Number(row.max_uses)) return null;
+  return row;
+}
+
+async function bumpAgencyInviteUse(code) {
+  if (!code) return;
+  await db.query(
+    `UPDATE agency_invite_codes
+     SET use_count = use_count + 1, updated_at = CURRENT_TIMESTAMP
+     WHERE UPPER(code) = UPPER($1)`,
+    [String(code)]
+  );
+}
+
+async function getAgencyOwnedByUser(ownerUserId) {
+  const res = await db.query(
+    `SELECT * FROM agencies WHERE owner_user_id = $1 AND status = 'active' ORDER BY created_at DESC LIMIT 1`,
+    [ownerUserId]
+  );
+  return res.rows[0] || null;
+}
+
+async function getAgencyInviteForOwner(ownerUserId) {
+  const agency = await getAgencyOwnedByUser(ownerUserId);
+  if (!agency) throw new Error('Agency not found for this user');
+  const invite = await ensureAgencyInviteCode(agency.id, ownerUserId);
+  return {
+    agency_id: agency.id,
+    agency_name: agency.name,
+    code: invite.code,
+    label: invite.label,
+    use_count: invite.use_count,
+    apply_url: `/role-apply.html?role=creator&promo=${encodeURIComponent(invite.code)}&app=1`,
+  };
+}
+
+async function inviteHostToAgency(ownerUserId, userRef) {
+  const agency = await getAgencyOwnedByUser(ownerUserId);
+  if (!agency) throw new Error('Agency not found for this user');
+  if (!agency.bd_user_id) throw new Error('Agency must be assigned to a BD before inviting hosts');
+
+  const invitee = await resolveUserRef(userRef);
+  if (!invitee) throw new Error('User not found — use email or public User ID');
+  if (String(invitee.id) === String(ownerUserId)) throw new Error('Cannot invite yourself');
+
+  const existingHost = await db.query(
+    `SELECT agency_id FROM host_profiles WHERE user_id = $1 AND status = 'active'`,
+    [invitee.id]
+  );
+  if (existingHost.rows[0]) {
+    if (String(existingHost.rows[0].agency_id) === String(agency.id)) {
+      throw new Error('This user is already a host in your agency');
+    }
+    throw new Error('This user already belongs to another agency');
+  }
+
+  const pending = await db.query(
+    `SELECT id FROM agency_host_invites
+     WHERE agency_id = $1 AND invitee_user_id = $2 AND status = 'pending'
+     LIMIT 1`,
+    [agency.id, invitee.id]
+  );
+  if (pending.rows[0]) throw new Error('An invite is already pending for this user');
+
+  const inviteCode = await ensureAgencyInviteCode(agency.id, ownerUserId);
+  const inviteRes = await db.query(
+    `INSERT INTO agency_host_invites
+       (agency_id, invited_by, invitee_user_id, status, invite_code, message_preview)
+     VALUES ($1, $2, $3, 'pending', $4, $5) RETURNING *`,
+    [
+      agency.id,
+      ownerUserId,
+      invitee.id,
+      inviteCode.code,
+      `${agency.name || 'Agency'} invited you to become a Host`,
+    ]
+  );
+  const invite = inviteRes.rows[0];
+
+  const payload = {
+    invite_id: invite.id,
+    agency_id: agency.id,
+    agency_name: agency.name || 'Agency',
+    code: inviteCode.code,
+    apply_path: `/role-apply.html?role=creator&promo=${inviteCode.code}&app=1`,
+  };
+  const messageBody =
+    `${agency.name || 'An agency'} invited you to become a Host on AP Services.\n` +
+    `Tap Accept to join, or Reject to decline.\n` +
+    `${AGENCY_HOST_INVITE_PREFIX}${JSON.stringify(payload)}`;
+
+  const chatService = require('./chatService');
+  const conv = await chatService.findOrCreateConversationByUserIds(ownerUserId, invitee.id);
+  const row = await chatService.appendMessage(conv.id, String(ownerUserId), String(invitee.id), messageBody);
+  const sent = {
+    conversation: conv,
+    message: {
+      id: row.id,
+      conversation_id: row.conversation_id,
+      sender_id: row.sender_id,
+      receiver_id: row.receiver_id,
+      text: row.body,
+      created_at: row.created_at,
+    },
+  };
+
+  await audit(ownerUserId, 'agency.invite_host', 'agency_host_invite', invite.id, {
+    inviteeUserId: invitee.id,
+    agencyId: agency.id,
+  });
+
+  return {
+    invite,
+    invitee: {
+      id: invitee.id,
+      email: invitee.email,
+      display_id: invitee.display_id,
+      first_name: invitee.first_name,
+      last_name: invitee.last_name,
+    },
+    conversation_id: sent.conversation?.id,
+    message: sent.message,
+  };
+}
+
+async function respondToAgencyHostInvite(inviteeUserId, inviteId, decision) {
+  const status = decision === 'accepted' || decision === 'approved' ? 'accepted' : 'rejected';
+  const invRes = await db.query(`SELECT * FROM agency_host_invites WHERE id = $1`, [inviteId]);
+  const invite = invRes.rows[0];
+  if (!invite) throw new Error('Invite not found');
+  if (String(invite.invitee_user_id) !== String(inviteeUserId)) {
+    throw new Error('This invite is not for you');
+  }
+  if (invite.status !== 'pending') throw new Error('Invite already processed');
+
+  if (status === 'rejected') {
+    await db.query(
+      `UPDATE agency_host_invites
+       SET status = 'rejected', responded_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1`,
+      [inviteId]
+    );
+    const Notification = require('../models/Notification');
+    await Notification.create({
+      user_id: invite.invited_by,
+      type: 'agency_host_invite',
+      title: 'Host invite declined',
+      message: 'A user declined your host invitation.',
+      data: { invite_id: inviteId, status: 'rejected' },
+    });
+    return { status: 'rejected', invite_id: inviteId };
+  }
+
+  await assignHostToAgency(invite.invited_by, inviteeUserId, invite.agency_id);
+  await db.query(
+    `UPDATE agency_host_invites
+     SET status = 'accepted', responded_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+     WHERE id = $1`,
+    [inviteId]
+  );
+  if (invite.invite_code) await bumpAgencyInviteUse(invite.invite_code);
+
+  // Close any pending host role application for this user under this agency
+  await db.query(
+    `UPDATE role_applications
+     SET status = 'approved', reviewed_by = $2, reviewed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+     WHERE user_id = $1 AND role_type = 'creator' AND status = 'pending'
+       AND (target_agency_id = $3 OR target_agency_id IS NULL)`,
+    [inviteeUserId, invite.invited_by, invite.agency_id]
+  );
+
+  const Notification = require('../models/Notification');
+  await Notification.create({
+    user_id: invite.invited_by,
+    type: 'agency_host_invite',
+    title: 'Host invite accepted',
+    message: 'A user accepted your host invitation and joined your agency.',
+    data: { invite_id: inviteId, status: 'accepted', agency_id: invite.agency_id },
+  });
+  await Notification.create({
+    user_id: inviteeUserId,
+    type: 'role_application',
+    title: 'You are now a Host',
+    message: 'You joined an agency as Host. Open Streamer Center to go live.',
+    data: { invite_id: inviteId, role_type: 'creator', status: 'approved' },
+  });
+
+  return { status: 'accepted', invite_id: inviteId, agency_id: invite.agency_id };
+}
+
+async function listPendingHostAppsForAgency(ownerUserId) {
+  const agency = await getAgencyOwnedByUser(ownerUserId);
+  if (!agency) throw new Error('Agency not found for this user');
+  const apps = await db.query(
+    `SELECT a.*, u.email, u.first_name, u.last_name, u.phone, u.profile_pic, u.display_id
+     FROM role_applications a
+     JOIN users u ON u.id = a.user_id
+     WHERE a.status = 'pending'
+       AND a.role_type = 'creator'
+       AND a.target_agency_id = $1
+     ORDER BY a.created_at ASC
+     LIMIT 50`,
+    [agency.id]
+  );
+  const invites = await db.query(
+    `SELECT i.*, u.email, u.first_name, u.last_name, u.display_id, u.profile_pic
+     FROM agency_host_invites i
+     JOIN users u ON u.id = i.invitee_user_id
+     WHERE i.agency_id = $1 AND i.status = 'pending'
+     ORDER BY i.created_at DESC
+     LIMIT 50`,
+    [agency.id]
+  );
+  return { agency, applications: apps.rows, invites: invites.rows };
+}
+
+async function agencyReviewHostApplication(ownerUserId, applicationId, { decision, reason } = {}) {
+  const agency = await getAgencyOwnedByUser(ownerUserId);
+  if (!agency) throw new Error('Agency not found for this user');
+
+  const appRes = await db.query(`SELECT * FROM role_applications WHERE id = $1`, [applicationId]);
+  const app = appRes.rows[0];
+  if (!app) throw new Error('Application not found');
+  if (app.status !== 'pending') throw new Error('Application already processed');
+  if (app.role_type !== 'creator') throw new Error('Only Host applications can be reviewed here');
+  if (String(app.target_agency_id) !== String(agency.id)) {
+    throw new Error('This application is not for your agency');
+  }
+
+  const status = decision === 'approved' || decision === 'accepted' ? 'approved' : 'rejected';
+  if (status === 'rejected') {
+    const roleApplicationService = require('./roleApplicationService');
+    return roleApplicationService.reviewApplication(applicationId, ownerUserId, {
+      decision: 'rejected',
+      reason: reason || 'Not approved by agency',
+    });
+  }
+
+  await assignHostToAgency(ownerUserId, app.user_id, agency.id);
+  await db.query(
+    `UPDATE role_applications
+     SET status = 'approved', reviewed_by = $2, reviewed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+     WHERE id = $1`,
+    [applicationId, ownerUserId]
+  );
+  if (app.promo_code) await bumpAgencyInviteUse(app.promo_code);
+
+  const Notification = require('../models/Notification');
+  await Notification.create({
+    user_id: app.user_id,
+    type: 'role_application',
+    title: 'Host application approved',
+    message: 'Your Host application was approved by the agency. Open Streamer Center to continue.',
+    data: { application_id: applicationId, role_type: 'creator', status: 'approved' },
+  });
+  return { ...app, status: 'approved', agency_id: agency.id };
+}
+
 module.exports = {
   assignBd,
   removeBd,
@@ -745,4 +1059,13 @@ module.exports = {
   listPendingForBd,
   bdReviewApplication,
   bumpPromoUse,
+  ensureAgencyInviteCode,
+  resolveAgencyInviteCode,
+  bumpAgencyInviteUse,
+  getAgencyInviteForOwner,
+  inviteHostToAgency,
+  respondToAgencyHostInvite,
+  listPendingHostAppsForAgency,
+  agencyReviewHostApplication,
+  AGENCY_HOST_INVITE_PREFIX,
 };

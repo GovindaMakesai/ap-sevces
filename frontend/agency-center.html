@@ -62,6 +62,11 @@
     <p style="font-size:12px;color:#666;margin:12px 0 0">Manage hosts, track commissions, and grow your agency network.</p>
   </div>
 
+  <div class="ag-host-list" id="pendingHostList" style="padding-top:8px">
+    <h3 style="padding:8px 12px;font-size:14px">Pending host requests</h3>
+    <div id="agPendingHosts" style="padding:0 12px 12px"><p style="color:#999;font-size:13px">Loading…</p></div>
+  </div>
+
   <div class="ag-host-list" id="hostList">
     <h3 style="padding:8px 0;font-size:14px">Hosts</h3>
     <div id="agHosts"><p style="color:#999;font-size:13px">Loading…</p></div>
@@ -119,6 +124,53 @@
         document.getElementById('agHosts').innerHTML =
           `<p style="color:#c62828;font-size:13px">${e.message || 'Failed to load dashboard'}</p>`;
       }
+
+      async function loadPendingHosts() {
+        const mount = document.getElementById('agPendingHosts');
+        if (!mount) return;
+        try {
+          const res = await API.get('/agency/host-applications');
+          const apps = res.data?.applications || [];
+          if (!apps.length) {
+            mount.innerHTML = '<p style="color:#999;font-size:13px">No pending host applications</p>';
+            return;
+          }
+          mount.innerHTML = apps.map((a) => {
+            const n = `${a.first_name || ''} ${a.last_name || ''}`.trim() || a.email || 'User';
+            return `<div class="ag-host-item" style="flex-wrap:wrap">
+              <div class="av">${n.slice(0, 2).toUpperCase()}</div>
+              <div style="flex:1;min-width:120px">
+                <strong>${n}</strong>
+                <div style="font-size:11px;color:#999">ID ${a.display_id || '—'} · ${a.promo_code || ''}</div>
+              </div>
+              <div style="display:flex;gap:6px">
+                <button type="button" class="pink" data-approve="${a.id}" style="border:none;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:700;color:#fff;background:#16a34a;cursor:pointer">Accept</button>
+                <button type="button" class="grey" data-reject="${a.id}" style="border:none;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:700;color:#fff;background:#9ca3af;cursor:pointer">Reject</button>
+              </div>
+            </div>`;
+          }).join('');
+        } catch (e) {
+          mount.innerHTML = `<p style="color:#c62828;font-size:13px">${e.message || 'Failed'}</p>`;
+        }
+      }
+
+      document.getElementById('agPendingHosts')?.addEventListener('click', async (e) => {
+        const ok = e.target.closest('[data-approve]');
+        const no = e.target.closest('[data-reject]');
+        if (!ok && !no) return;
+        const id = (ok || no).getAttribute(ok ? 'data-approve' : 'data-reject');
+        const decision = ok ? 'approved' : 'rejected';
+        const reason = decision === 'rejected' ? (prompt('Rejection reason (optional):') || undefined) : undefined;
+        try {
+          await API.post(`/agency/host-applications/${id}/review`, { decision, reason });
+          await loadPendingHosts();
+          location.reload();
+        } catch (err) {
+          alert(err.message || 'Failed');
+        }
+      });
+
+      await loadPendingHosts();
     })();
   </script>
 </body>

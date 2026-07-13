@@ -452,3 +452,91 @@ exports.bdReviewApplication = async (req, res) => {
     res.status(e.status || 400).json({ success: false, message: e.message });
   }
 };
+
+exports.getAgencyInviteCode = async (req, res) => {
+  try {
+    const role = String(req.userRole || '').toLowerCase();
+    if (role !== 'agency' && !STAFF.has(role)) {
+      return res.status(403).json({ success: false, message: 'Agency access required' });
+    }
+    const ownerId = STAFF.has(role) && req.query.user_id ? req.query.user_id : req.userId;
+    const data = await hierarchyService.getAgencyInviteForOwner(ownerId);
+    res.json({ success: true, data });
+  } catch (e) {
+    res.status(e.status || 400).json({ success: false, message: e.message });
+  }
+};
+
+exports.inviteHostToAgency = async (req, res) => {
+  try {
+    const role = String(req.userRole || '').toLowerCase();
+    if (role !== 'agency' && !STAFF.has(role)) {
+      return res.status(403).json({ success: false, message: 'Agency access required' });
+    }
+    const userRef =
+      req.body.user_ref ||
+      req.body.user_id ||
+      req.body.display_id ||
+      req.body.email ||
+      req.body.query;
+    if (!userRef) {
+      return res.status(400).json({ success: false, message: 'Enter email or public User ID' });
+    }
+    const data = await hierarchyService.inviteHostToAgency(req.userId, userRef);
+    res.json({
+      success: true,
+      data,
+      message: `Invite sent to ${data.invitee?.email || data.invitee?.display_id || 'user'}`,
+    });
+  } catch (e) {
+    res.status(e.status || 400).json({ success: false, message: e.message });
+  }
+};
+
+exports.respondToAgencyHostInvite = async (req, res) => {
+  try {
+    const decision = req.body.decision || (req.body.accept ? 'accepted' : 'rejected');
+    const data = await hierarchyService.respondToAgencyHostInvite(
+      req.userId,
+      req.params.id,
+      decision
+    );
+    res.json({
+      success: true,
+      data,
+      message: data.status === 'accepted' ? 'You joined the agency as Host' : 'Invite declined',
+    });
+  } catch (e) {
+    res.status(e.status || 400).json({ success: false, message: e.message });
+  }
+};
+
+exports.agencyPendingHosts = async (req, res) => {
+  try {
+    const role = String(req.userRole || '').toLowerCase();
+    if (role !== 'agency' && !STAFF.has(role)) {
+      return res.status(403).json({ success: false, message: 'Agency access required' });
+    }
+    const data = await hierarchyService.listPendingHostAppsForAgency(req.userId);
+    res.json({ success: true, data });
+  } catch (e) {
+    res.status(e.status || 400).json({ success: false, message: e.message });
+  }
+};
+
+exports.agencyReviewHostApplication = async (req, res) => {
+  try {
+    const role = String(req.userRole || '').toLowerCase();
+    if (role !== 'agency' && !STAFF.has(role)) {
+      return res.status(403).json({ success: false, message: 'Agency access required' });
+    }
+    const decision = req.body.decision || (req.body.approve ? 'approved' : 'rejected');
+    const data = await hierarchyService.agencyReviewHostApplication(req.userId, req.params.id, {
+      decision,
+      reason: req.body.reason,
+    });
+    res.json({ success: true, data, message: `Application ${data.status || decision}` });
+  } catch (e) {
+    res.status(e.status || 400).json({ success: false, message: e.message });
+  }
+};

@@ -19,11 +19,13 @@
       <button type="button" class="cs-quick-btn" style="flex:1" id="shareInvite"><i class="fas fa-paper-plane"></i>Send Invite Link</button>
       <button type="button" class="cs-quick-btn" style="flex:1" id="copyCode"><i class="fas fa-gift"></i>Copy Invite Code</button>
     </div>
+    <p id="inviteCodeHint" style="font-size:12px;color:#888;margin:-8px 0 16px">Loading agency invite code…</p>
     <div class="cs-field">
-      <label>Creator ID</label>
-      <input type="text" id="creatorId" placeholder="Please Enter">
+      <label>User ID or email</label>
+      <input type="text" id="creatorId" placeholder="Public User ID or email">
     </div>
-    <button type="button" class="cs-submit" id="inviteBtn">Invite</button>
+    <button type="button" class="cs-submit" id="inviteBtn">Send invite message</button>
+    <p style="font-size:12px;color:#888;margin-top:10px">Sends a chat message so they can Accept or Reject joining your agency as Host.</p>
     <h3 style="margin-top:24px;font-size:14px">Invite Host Task</h3>
     <table class="cs-level-table">
       <thead><tr><th>On MIC Reward</th><th>Income Reward</th></tr></thead>
@@ -40,20 +42,87 @@
   <script src="app.js"></script>
   <script src="auth-guard.js"></script>
   <script>
-    const code = 'AP' + Math.random().toString(36).slice(2, 8).toUpperCase();
-    document.getElementById('copyCode')?.addEventListener('click', () => {
-      navigator.clipboard?.writeText(code);
-      alert('Invite code copied: ' + code);
+    let inviteMeta = null;
+
+    function applyUrl() {
+      if (!inviteMeta?.code) return location.origin + '/role-apply.html?role=creator&app=1';
+      return location.origin + '/role-apply.html?role=creator&promo=' + encodeURIComponent(inviteMeta.code) + '&app=1';
+    }
+
+    async function loadInviteCode() {
+      const hint = document.getElementById('inviteCodeHint');
+      try {
+        const res = await API.get('/agency/invite-code');
+        inviteMeta = res.data || {};
+        if (hint) {
+          hint.innerHTML = `Agency code: <strong style="letter-spacing:0.06em">${inviteMeta.code || '—'}</strong>
+            · Hosts use this on Apply for Host`;
+        }
+      } catch (e) {
+        if (hint) hint.textContent = e.message || 'Could not load invite code';
+      }
+    }
+
+    document.getElementById('copyCode')?.addEventListener('click', async () => {
+      if (!inviteMeta?.code) {
+        await loadInviteCode();
+      }
+      if (!inviteMeta?.code) return alert('Invite code unavailable');
+      try {
+        await navigator.clipboard?.writeText(inviteMeta.code);
+        alert('Invite code copied: ' + inviteMeta.code + '\n\nShare with hosts to apply.');
+      } catch (_e) {
+        prompt('Copy this agency invite code:', inviteMeta.code);
+      }
     });
-    document.getElementById('shareInvite')?.addEventListener('click', () => {
-      const url = location.origin + '/register.html?ref=' + code;
-      navigator.share?.({ url, title: 'Join AP Services' }) || navigator.clipboard?.writeText(url);
+
+    document.getElementById('shareInvite')?.addEventListener('click', async () => {
+      if (!inviteMeta?.code) await loadInviteCode();
+      const url = applyUrl();
+      const text = `Join my agency as a Host on AP Services. Apply here: ${url}`;
+      if (navigator.share) {
+        try {
+          await navigator.share({ title: 'Join as Host', text, url });
+          return;
+        } catch (_e) { /* fall through */ }
+      }
+      try {
+        await navigator.clipboard?.writeText(url);
+        alert('Invite link copied:\n' + url);
+      } catch (_e) {
+        prompt('Copy invite link:', url);
+      }
     });
-    document.getElementById('inviteBtn')?.addEventListener('click', () => {
+
+    document.getElementById('inviteBtn')?.addEventListener('click', async () => {
       const id = document.getElementById('creatorId').value.trim();
-      if (!id) return alert('Enter creator ID');
-      alert('Invitation sent to ' + id);
+      if (!id) return alert('Enter public User ID or email');
+      const btn = document.getElementById('inviteBtn');
+      btn.disabled = true;
+      try {
+        const res = await API.post('/agency/invite-host', { user_ref: id });
+        const peer = res.data?.invitee;
+        const label = peer?.email || peer?.display_id || id;
+        alert(res.message || ('Invite sent to ' + label));
+        document.getElementById('creatorId').value = '';
+        if (peer?.id && confirm('Open chat with this user?')) {
+          location.href = '/chat.html?id=' + encodeURIComponent(peer.id) + '&app=1';
+        }
+      } catch (e) {
+        alert(e.message || 'Invite failed');
+      } finally {
+        btn.disabled = false;
+      }
     });
+
+    (async function init() {
+      Auth.checkAuth();
+      if (!Auth.hasSession?.()) {
+        location.href = '/login.html?redirect=' + encodeURIComponent('/add-creator.html?app=1');
+        return;
+      }
+      await loadInviteCode();
+    })();
   </script>
 </body>
 </html>

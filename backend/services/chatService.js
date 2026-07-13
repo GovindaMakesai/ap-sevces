@@ -9,9 +9,24 @@ function orderUserPair(a, b) {
 }
 
 async function resolveToUserId(maybeId) {
-    const id = String(maybeId);
+    const id = String(maybeId || '').trim();
+    if (!id) return null;
     const user = await User.findById(id);
     if (user) return String(user.id);
+    if (/^\d{4,12}$/.test(id)) {
+        const byDisplay = await User.findByDisplayId?.(Number(id));
+        if (byDisplay) return String(byDisplay.id);
+        const db = require('../config/database');
+        const r = await db.query(`SELECT id FROM users WHERE display_id = $1 LIMIT 1`, [Number(id)]);
+        if (r.rows[0]) return String(r.rows[0].id);
+    }
+    if (id.includes('@')) {
+        const byEmail = await User.findByEmail?.(id);
+        if (byEmail) return String(byEmail.id);
+        const db = require('../config/database');
+        const r = await db.query(`SELECT id FROM users WHERE lower(email) = lower($1) LIMIT 1`, [id]);
+        if (r.rows[0]) return String(r.rows[0].id);
+    }
     const worker = await Worker.findById(id);
     if (worker && worker.user_id) return String(worker.user_id);
     return null;

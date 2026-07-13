@@ -43,9 +43,9 @@
         <input type="text" id="applyAgencyName" placeholder="e.g. Alpha Creators">
       </div>
       <div class="ap-field" id="promoCodeField" hidden>
-        <label for="applyPromoCode">BD promo code</label>
-        <input type="text" id="applyPromoCode" placeholder="Enter your BD code" autocomplete="off" style="text-transform:uppercase">
-        <small style="display:block;margin-top:6px;color:#888;font-size:12px">Required for Host &amp; Agency. Get this code from your BD.</small>
+        <label for="applyPromoCode" id="applyPromoLabel">Promo code</label>
+        <input type="text" id="applyPromoCode" placeholder="Enter code" autocomplete="off" style="text-transform:uppercase">
+        <small id="applyPromoHint" style="display:block;margin-top:6px;color:#888;font-size:12px"></small>
       </div>
       <div class="ap-field">
         <label for="applyPhone">Contact phone</label>
@@ -84,7 +84,7 @@
         requirements: [
           'Active account in good standing',
           'Stable internet for streaming',
-          'BD promo code required — your BD reviews the request',
+          'Agency invite code required — your Agency reviews the request',
         ],
         approvedLink: '/streamer-center.html?app=1',
         approvedLabel: 'Open Streamer Center',
@@ -148,6 +148,18 @@
       if (agencyField) agencyField.hidden = selectedRole !== 'agency';
       const promoField = document.getElementById('promoCodeField');
       if (promoField) promoField.hidden = !(selectedRole === 'agency' || selectedRole === 'creator');
+      const promoLabel = document.getElementById('applyPromoLabel');
+      const promoHint = document.getElementById('applyPromoHint');
+      const promoInput = document.getElementById('applyPromoCode');
+      if (selectedRole === 'creator') {
+        if (promoLabel) promoLabel.textContent = 'Agency invite code';
+        if (promoHint) promoHint.textContent = 'Required for Host. Get this from your Agency (not BD).';
+        if (promoInput) promoInput.placeholder = 'Enter agency invite code';
+      } else if (selectedRole === 'agency') {
+        if (promoLabel) promoLabel.textContent = 'BD promo code';
+        if (promoHint) promoHint.textContent = 'Required for Agency. Get this code from your BD.';
+        if (promoInput) promoInput.placeholder = 'Enter your BD code';
+      }
 
       const wrap = document.getElementById('roleStatusWrap');
       const form = document.getElementById('applyFormCard');

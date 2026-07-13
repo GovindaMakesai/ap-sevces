@@ -69,18 +69,28 @@ async function submitApplication(userId, { roleType, message, contactPhone, agen
   }
 
   let targetBdUserId = null;
+  let targetAgencyId = null;
   let normalizedPromo = null;
-  if (role === 'creator' || role === 'agency') {
+  if (role === 'agency') {
     const hierarchyService = require('./hierarchyService');
     const promo = await hierarchyService.resolvePromoCode(promoCode);
     if (!promo) {
-      throw new Error('A valid BD promo code is required to apply as Host or Agency');
+      throw new Error('A valid BD promo code is required to apply as Agency');
     }
-    if (promo.scope !== 'both' && promo.scope !== role) {
-      throw new Error(`This promo code does not allow ${role === 'creator' ? 'Host' : 'Agency'} applications`);
+    if (promo.scope !== 'both' && promo.scope !== 'agency') {
+      throw new Error('This promo code does not allow Agency applications');
     }
     targetBdUserId = promo.bd_user_id;
     normalizedPromo = String(promo.code).toUpperCase();
+  } else if (role === 'creator') {
+    const hierarchyService = require('./hierarchyService');
+    const invite = await hierarchyService.resolveAgencyInviteCode(promoCode);
+    if (!invite) {
+      throw new Error('A valid Agency invite code is required to apply as Host');
+    }
+    targetAgencyId = invite.agency_id;
+    targetBdUserId = invite.bd_user_id || null;
+    normalizedPromo = String(invite.code).toUpperCase();
   }
 
   const msgParts = [];
@@ -90,8 +100,8 @@ async function submitApplication(userId, { roleType, message, contactPhone, agen
 
   const res = await db.query(
     `INSERT INTO role_applications
-       (user_id, role_type, message, contact_phone, status, promo_code, target_bd_user_id, agency_name)
-     VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7) RETURNING *`,
+       (user_id, role_type, message, contact_phone, status, promo_code, target_bd_user_id, agency_name, target_agency_id)
+     VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, $8) RETURNING *`,
     [
       userId,
       role,
@@ -100,12 +110,43 @@ async function submitApplication(userId, { roleType, message, contactPhone, agen
       normalizedPromo,
       targetBdUserId,
       agencyName || null,
+      targetAgencyId,
     ]
   );
-  return {
+  const created = {
     ...res.rows[0],
     role_label: ROLE_LABELS[role],
   };
+  if (role === 'creator' && targetAgencyId) {
+    await notifyAgencyOfHostApp(created);
+  }
+  return created;
+}
+
+async function notifyAgencyOfHostApp(app) {
+  if (app.role_type !== 'creator' || !app.target_agency_id) return;
+  try {
+    const agencyRes = await db.query(
+      `SELECT owner_user_id, name FROM agencies WHERE id = $1`,
+      [app.target_agency_id]
+    );
+    const agency = agencyRes.rows[0];
+    if (!agency?.owner_user_id) return;
+    await Notification.create({
+      user_id: agency.owner_user_id,
+      type: 'role_application',
+      title: 'New Host application',
+      message: `Someone applied to join ${agency.name || 'your agency'} as Host. Open Agency Center to Accept or Reject.`,
+      data: {
+        application_id: app.id,
+        role_type: 'creator',
+        status: 'pending',
+        agency_id: app.target_agency_id,
+      },
+    });
+  } catch (_e) {
+    /* non-fatal */
+  }
 }
 
 async function listPending({ limit = 50 } = {}) {
@@ -220,8 +261,8 @@ async function reviewApplication(
     return { ...upd, role_label: ROLE_LABELS.agency, agency };
   }
 
-  if (status === 'approved' && app.role_type === 'creator' && agencyId) {
-    const agency = await hierarchyService.resolveAgencyRef(agencyId, {
+  if (status === 'approved' && app.role_type === 'creator' && (agencyId || app.target_agency_id)) {
+    const agency = await hierarchyService.resolveAgencyRef(agencyId || app.target_agency_id, {
       bdUserId: app.target_bd_user_id || null,
     });
     if (!agency) {
@@ -230,7 +271,13 @@ async function reviewApplication(
     await permissionService.syncUserRole(app.user_id, 'creator');
     await hierarchyService.assignHostToAgency(adminUserId, app.user_id, agency.id);
     const upd = await markReviewed(applicationId, adminUserId, 'approved');
-    if (app.promo_code) await hierarchyService.bumpPromoUse(app.promo_code);
+    if (app.promo_code) {
+      if (app.target_agency_id) {
+        await hierarchyService.bumpAgencyInviteUse(app.promo_code);
+      } else {
+        await hierarchyService.bumpPromoUse(app.promo_code);
+      }
+    }
     await notify(app, 'approved', reason);
     return { ...upd, role_label: ROLE_LABELS.creator };
   }

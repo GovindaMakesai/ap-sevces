@@ -1804,7 +1804,93 @@
             const raw = String(text || '').trim();
             if (!raw) return 'No messages yet';
             if (raw.startsWith('__IMG__:')) return '📷 Photo';
+            if (raw.includes('__AGENCY_HOST_INVITE__:')) return 'Agency host invite';
             return raw.length > 120 ? `${raw.slice(0, 117)}…` : raw;
+        }
+
+        const AGENCY_HOST_INVITE_PREFIX = '__AGENCY_HOST_INVITE__:';
+
+        function parseAgencyHostInvite(text) {
+            const raw = String(text || '');
+            const idx = raw.indexOf(AGENCY_HOST_INVITE_PREFIX);
+            if (idx < 0) return null;
+            try {
+                const json = raw.slice(idx + AGENCY_HOST_INVITE_PREFIX.length).trim();
+                const data = JSON.parse(json);
+                if (!data?.invite_id) return null;
+                return {
+                    ...data,
+                    visibleText: raw.slice(0, idx).trim(),
+                };
+            } catch (_e) {
+                return null;
+            }
+        }
+
+        function buildAgencyHostInviteCard(invite, msg) {
+            const wrap = document.createElement('div');
+            wrap.className = 'agency-host-invite-card';
+            wrap.style.cssText = 'min-width:200px;max-width:280px';';
+            const title = document.createElement('strong');
+            title.textContent = 'Host invitation';
+            title.style.display = 'block';
+            title.style.marginBottom = '6px';
+            wrap.appendChild(title);
+            const desc = document.createElement('div');
+            desc.style.cssText = 'font-size:13px;line-height:1.4;margin-bottom:10px';
+            desc.textContent =
+                invite.visibleText ||
+                `${invite.agency_name || 'An agency'} invited you to become a Host.`;
+            wrap.appendChild(desc);
+            const isReceived = msg?.type !== 'sent';
+            if (isReceived) {
+                const actions = document.createElement('div');
+                actions.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap';
+                const accept = document.createElement('button');
+                accept.type = 'button';
+                accept.textContent = 'Accept';
+                accept.style.cssText =
+                    'border:none;border-radius:999px;padding:8px 14px;font-weight:700;background:#16a34a;color:#fff;cursor:pointer';
+                const reject = document.createElement('button');
+                reject.type = 'button';
+                reject.textContent = 'Reject';
+                reject.style.cssText =
+                    'border:none;border-radius:999px;padding:8px 14px;font-weight:700;background:#9ca3af;color:#fff;cursor:pointer';
+                accept.addEventListener('click', () => respondAgencyHostInvite(invite.invite_id, 'accepted', wrap));
+                reject.addEventListener('click', () => respondAgencyHostInvite(invite.invite_id, 'rejected', wrap));
+                actions.appendChild(accept);
+                actions.appendChild(reject);
+                wrap.appendChild(actions);
+            } else {
+                const note = document.createElement('div');
+                note.style.cssText = 'font-size:12px;opacity:.8';
+                note.textContent = 'Waiting for their response…';
+                wrap.appendChild(note);
+            }
+            return wrap;
+        }
+
+        async function respondAgencyHostInvite(inviteId, decision, cardEl) {
+            try {
+                const res = await API.post(`/host/invites/${inviteId}/respond`, { decision });
+                if (cardEl) {
+                    cardEl.innerHTML =
+                        '<strong>Host invitation</strong><div style="margin-top:6px;font-size:13px">' +
+                        escapeHtml(res.message || (decision === 'accepted' ? 'Accepted' : 'Declined')) +
+                        '</div>';
+                }
+                if (window.Toast?.show) Toast.show(res.message || 'Done', 'success');
+                if (decision === 'accepted') {
+                    setTimeout(() => {
+                        if (confirm('Open Streamer Center?')) {
+                            location.href = '/streamer-center.html?app=1';
+                        }
+                    }, 400);
+                }
+            } catch (e) {
+                if (window.Toast?.show) Toast.show(e.message || 'Failed', 'error');
+                else alert(e.message || 'Failed');
+            }
         }
 
         const socketService = (() => {
@@ -2089,6 +2175,7 @@
                     <div class="chat-info">
                         <h4>
                             ${safeName}
+                            ${!isOfficial ? window.formatRoleBadgeHtml?.(chat.category, { withEmoji: false }) || '' : ''}
                             ${isOfficial ? '<span class="ap-msg-official">Official</span>' : ''}
                             ${chat.bookingId ? '<i class="fas fa-calendar-check" title="Has booking"></i>' : ''}
                         </h4>
@@ -2411,9 +2498,19 @@
                     return;
                 }
 
-                document.getElementById('chatUserName').textContent = chat.name;
+                const nameEl = document.getElementById('chatUserName');
+                if (nameEl) {
+                    const roleBadge = window.formatRoleBadgeHtml?.(chat.category, { withEmoji: false }) || '';
+                    nameEl.innerHTML =
+                        escapeHtml(chat.name || 'User') + (roleBadge ? ' ' + roleBadge : '');
+                }
                 paintChatHeaderAvatar(chat);
-                currentChatPeer = { otherUserId: chat.otherUserId, name: chat.name, profilePic: chat.profile_pic || null };
+                currentChatPeer = {
+                    otherUserId: chat.otherUserId,
+                    name: chat.name,
+                    profilePic: chat.profile_pic || null,
+                    role: chat.category || null,
+                };
                 updatePeerPresence(chat.otherUserId);
 
             await loadMessages(currentChatId);
@@ -2542,7 +2639,10 @@
                 bubble.className = 'message-bubble ' + bubbleType;
                 const content = document.createElement('div');
                 content.className = 'message-content';
-                if (bodyText) {
+                const agencyInvite = parseAgencyHostInvite(bodyText);
+                if (agencyInvite) {
+                    content.appendChild(buildAgencyHostInviteCard(agencyInvite, msg));
+                } else if (bodyText) {
                     content.textContent = bodyText;
                 } else if (!msg.image) {
                     const ph = document.createElement('span');
@@ -2594,7 +2694,19 @@
                 }
                 
                 const bodyText = String(msg.text || '').trim();
-                const bodyHtml = bodyText
+                const agencyInvite = parseAgencyHostInvite(bodyText);
+                const bodyHtml = agencyInvite
+                    ? `<div class="agency-host-invite-card" data-invite-id="${escapeAttr(agencyInvite.invite_id)}" style="min-width:200px">
+                        <strong>Host invitation</strong>
+                        <div style="font-size:13px;margin:6px 0 10px">${escapeHtml(agencyInvite.visibleText || ((agencyInvite.agency_name || 'Agency') + ' invited you to become a Host.'))}</div>
+                        ${msg.type !== 'sent'
+                          ? `<div style="display:flex;gap:8px">
+                              <button type="button" class="agency-invite-accept" data-invite-id="${escapeAttr(agencyInvite.invite_id)}" style="border:none;border-radius:999px;padding:8px 14px;font-weight:700;background:#16a34a;color:#fff;cursor:pointer">Accept</button>
+                              <button type="button" class="agency-invite-reject" data-invite-id="${escapeAttr(agencyInvite.invite_id)}" style="border:none;border-radius:999px;padding:8px 14px;font-weight:700;background:#9ca3af;color:#fff;cursor:pointer">Reject</button>
+                            </div>`
+                          : '<div style="font-size:12px;opacity:.8">Waiting for their response…</div>'}
+                      </div>`
+                    : bodyText
                     ? escapeHtml(bodyText)
                     : (msg.image ? '' : '<span class="msg-empty-placeholder">Message unavailable</span>');
                 const bubbleType = msg.type === 'sent' ? 'sent' : 'received';
@@ -2627,6 +2739,16 @@
             
             return '<div class="messages-stack">' + html + '</div>';
         }
+
+        document.addEventListener('click', (e) => {
+            const accept = e.target.closest?.('.agency-invite-accept');
+            const reject = e.target.closest?.('.agency-invite-reject');
+            if (!accept && !reject) return;
+            const btn = accept || reject;
+            const inviteId = btn.getAttribute('data-invite-id');
+            const card = btn.closest('.agency-host-invite-card');
+            respondAgencyHostInvite(inviteId, accept ? 'accepted' : 'rejected', card);
+        });
 
         function openChatListMenu() {
             let sheet = document.getElementById('apChatListMenu');
