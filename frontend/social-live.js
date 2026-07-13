@@ -179,9 +179,17 @@
   let reconnectRejoinTimer = null;
   let partyVoiceSkipped = false;
   let cameraFacing = 'user';
-  let videoFilterId = 'natural';
+  let videoFilterId = 'none';
   try {
-    const savedFilter = localStorage.getItem('ap_live_beauty_filter');
+    // One-time: older builds defaulted to "natural" without the user picking a look.
+    const rawSaved = localStorage.getItem('ap_live_beauty_filter');
+    if (rawSaved === 'natural' && !localStorage.getItem('ap_live_beauty_filter_picked')) {
+      localStorage.setItem('ap_live_beauty_filter', 'none');
+    }
+  } catch (_e) {}
+  try {
+    const urlFilter = new URLSearchParams(location.search).get('filter');
+    const savedFilter = urlFilter || localStorage.getItem('ap_live_beauty_filter');
     const LEGACY_FILTER_MAP = {
       soft_natural: 'natural',
       fair_skin: 'glow',
@@ -195,8 +203,18 @@
       dreamy: 'dream',
       hd_smooth: 'velvet',
     };
-    if (savedFilter) videoFilterId = LEGACY_FILTER_MAP[savedFilter] || savedFilter;
-  } catch (_e) {}
+    if (savedFilter) {
+      videoFilterId = LEGACY_FILTER_MAP[savedFilter] || savedFilter;
+    }
+    if (urlFilter) {
+      try {
+        localStorage.setItem('ap_live_beauty_filter', videoFilterId);
+        localStorage.setItem('ap_live_beauty_filter_picked', '1');
+      } catch (_e) {}
+    }
+  } catch (_e) {
+    videoFilterId = 'none';
+  }
   let guestPublishInProgress = false;
   let guestPublishAttempted = false;
   let hostEndingIntentionally = false;
@@ -995,6 +1013,25 @@
     );
   }
 
+  function clearLocalSeatState(userId) {
+    const uid = String(userId || '');
+    if (!uid || !roomState) return;
+    if (Array.isArray(roomState.seats)) {
+      roomState.seats = roomState.seats.filter((s) => String(s?.userId) !== uid);
+    }
+    if (Array.isArray(roomState.onlineMembers)) {
+      roomState.onlineMembers = roomState.onlineMembers.map((m) => {
+        if (String(m?.userId) !== uid) return m;
+        return {
+          ...m,
+          role: m.role === 'admin' ? 'admin' : 'viewer',
+          seatIndex: null,
+          seat_index: null,
+        };
+      });
+    }
+  }
+
   function demoteUserFromSeat(userId) {
     if (!canModerateRoom() || !liveSocket?.connected || !userId) return;
     if (isRoomHostUserId(userId)) {
@@ -1003,6 +1040,8 @@
     }
     liveSocket.emit('live:demote_speaker', { channel: channelId(), userId }, (res) => {
       if (res?.ok) {
+        clearLocalSeatState(userId);
+        renderRoomState();
         toast(isLiveRoomPage() ? 'Guest removed from live' : 'Removed from seat', 'success');
       } else {
         toast(res?.message || 'Could not remove guest', 'error');
@@ -1238,25 +1277,38 @@
       })
       .join('');
     list.querySelectorAll('[data-invite-seat]').forEach((btn) => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
         const uid = btn.dataset.inviteSeat;
-        const pendingSeat = window.__apPendingSeatMove;
-        if (pendingSeat && canModerateRoom()) {
-          liveSocket?.emit(
-            'live:seat_response',
-            { channel: channelId(), userId: uid, accepted: true },
-            () => {
-              moveUserSeat(uid, pendingSeat);
-              window.__apPendingSeatMove = null;
-            }
-          );
+        if (!uid || !liveSocket?.connected) {
+          toast('Not connected — try again', 'error');
           return;
         }
-        liveSocket?.emit(
-          'live:seat_response',
-          { channel: channelId(), userId: uid, accepted: true },
-          () => toast('Invite sent', 'success')
-        );
+        if (isLiveRoomPage() && countStageGuests() >= LIVE_MAX_GUESTS) {
+          toast('Live stage is full — max 4 guests', 'warning');
+          return;
+        }
+        if (isPartyRoomPage() && isPartySeatsFull()) {
+          toast('Party is full — max 15 on stage', 'warning');
+          return;
+        }
+        const pendingSeat = window.__apPendingSeatMove;
+        const payload = {
+          channel: channelId(),
+          userId: uid,
+          accepted: true,
+        };
+        if (pendingSeat) payload.seatIndex = pendingSeat;
+        btn.disabled = true;
+        liveSocket.emit('live:seat_response', payload, (res) => {
+          btn.disabled = false;
+          window.__apPendingSeatMove = null;
+          if (res?.ok) {
+            toast(isLiveRoomPage() ? 'Added to live' : 'Added to seat', 'success');
+          } else {
+            toast(res?.message || 'Could not add to seat', 'error');
+          }
+        });
       });
     });
     list.querySelectorAll('[data-remove-seat]').forEach((btn) => {
@@ -1414,24 +1466,12 @@
     if (!roomState) return incoming;
     const prev = roomState;
     const merged = { ...incoming };
-    const prevSeats = Array.isArray(prev.seats) ? prev.seats : [];
-    const nextSeats = Array.isArray(incoming.seats) ? incoming.seats : [];
-    if (nextSeats.length < prevSeats.length && prevSeats.length > 0) {
-      const nextIds = new Set(nextSeats.map((s) => String(s.userId)));
-      const onlineIds = new Set(
-        (incoming.onlineMembers || []).map((m) => String(m.userId)).filter(Boolean)
-      );
-      const carry = prevSeats.filter(
-        (s) =>
-          s?.userId &&
-          !s.isHost &&
-          !nextIds.has(String(s.userId)) &&
-          onlineIds.has(String(s.userId))
-      );
-      if (carry.length) merged.seats = [...nextSeats, ...carry];
-    }
+    // Trust server seats. Previously we "carried" missing seats back which made
+    // Remove-from-seat look broken (guest stayed on the rail).
+    if (!Array.isArray(merged.seats)) merged.seats = Array.isArray(prev.seats) ? prev.seats : [];
     if (!merged.hostProfilePic && prev.hostProfilePic) merged.hostProfilePic = prev.hostProfilePic;
     if (!merged.hostName && prev.hostName) merged.hostName = prev.hostName;
+    if (!merged.hostUserRole && prev.hostUserRole) merged.hostUserRole = prev.hostUserRole;
     return merged;
   }
 
@@ -1455,6 +1495,7 @@
         seatIndex: g.seatIndex != null ? g.seatIndex : g.seat_index,
         isHost: false,
         isAdmin: Boolean(g.isAdmin || g.role === 'admin'),
+        userRole: g.userRole || g.user_role || null,
       });
     };
     (roomState?.seats || []).forEach((s) => {
@@ -1466,8 +1507,8 @@
       const onStage =
         m.role === 'speaker' ||
         m.role === 'admin' ||
-        m.seatIndex != null ||
-        m.seat_index != null;
+        (m.seatIndex != null && m.role !== 'viewer') ||
+        (m.seat_index != null && m.role !== 'viewer');
       if (onStage) pushGuest(m);
     });
     return guests;
@@ -2396,7 +2437,9 @@
 
     liveSocket.on('live:demoted', (payload) => {
       const me = currentUser();
-      if (me && String(payload?.userId) === String(me.id)) {
+      const uid = payload?.userId;
+      if (uid) clearLocalSeatState(uid);
+      if (me && String(uid) === String(me.id)) {
         stopGuestMediaPublishing({ rejoinAsAudience: true }).catch(() => {});
         toast(
           isLiveRoomPage() ? 'Host removed you from live' : 'You were removed from the seat',
@@ -3591,14 +3634,162 @@
   async function restartAgoraForMode() {
     if (agoraModeSwitchInProgress) return;
     agoraModeSwitchInProgress = true;
+    const mode = broadcastMode;
     try {
+      // Prefer in-place track switch so mic/camera don't get stuck after leave/rejoin.
+      if (agoraClient && publishSucceeded && isHost() && !isPartyRoomPage()) {
+        await switchHostBroadcastTracks(mode);
+        syncLiveUiState();
+        return;
+      }
       await stopAgora({ skipEndRoom: true });
+      await new Promise((r) => setTimeout(r, 250));
       const page = document.body.dataset.livePage;
       await startAgora(page === 'party-room' ? 'party' : 'live');
+      syncLiveUiState();
+    } catch (e) {
+      liveDebugLog(`mode switch failed: ${e?.message || e}`);
+      toast('Could not switch mode — retrying…', 'warning');
+      try {
+        await stopAgora({ skipEndRoom: true });
+        await new Promise((r) => setTimeout(r, 400));
+        await startAgora(isPartyRoomPage() ? 'party' : 'live');
+      } catch (e2) {
+        toast(e2?.message || 'Mode switch failed', 'error');
+      }
       syncLiveUiState();
     } finally {
       agoraModeSwitchInProgress = false;
     }
+  }
+
+  async function switchHostBroadcastTracks(mode) {
+    const AgoraRTC = window.AgoraRTC || (await loadAgoraScript());
+    const hostName = roomState?.hostName || displayName(currentUser());
+
+    if (mode === 'audio') {
+      if (beautyPipeline?.customTrack) {
+        try {
+          await agoraClient.unpublish([beautyPipeline.customTrack]);
+        } catch (_e) {}
+        stopBeautyPipeline();
+      }
+      const video = getLocalVideoTrack() || rawCameraTrack;
+      if (video) {
+        try {
+          await agoraClient.unpublish([video]);
+        } catch (_e) {}
+        try {
+          video.stop?.();
+          video.close?.();
+        } catch (_e) {}
+      }
+      localTracks = localTracks.filter((t) => {
+        const type = t.getTrackType?.() || t.trackMediaType;
+        return type !== 'video' && t !== video && t !== rawCameraTrack;
+      });
+      rawCameraTrack = null;
+
+      let audio = getLocalAudioTrack();
+      if (!audio) {
+        audio = await withTimeout(AgoraRTC.createMicrophoneAudioTrack(), 25000, 'Microphone access');
+        await agoraClient.publish(audio);
+        localTracks = [audio];
+      } else {
+        try {
+          if (typeof audio.setEnabled === 'function') await audio.setEnabled(true);
+          if (typeof audio.setMuted === 'function') await audio.setMuted(false);
+        } catch (_e) {}
+        const published = agoraClient.localTracks || [];
+        if (!published.includes?.(audio)) {
+          try {
+            await agoraClient.publish(audio);
+          } catch (_e) {}
+        }
+      }
+      micMuted = false;
+      publishSucceeded = true;
+
+      const localBox = document.getElementById('liveLocalHost');
+      if (localBox) {
+        localBox.innerHTML = '';
+        localBox.style.display = 'none';
+      }
+      const fallback = document.getElementById('liveLocalVideo');
+      if (fallback) fallback.style.display = 'none';
+      setLiveStreamVisible(false);
+      applyLiveBackground('audio', hostName);
+      syncMicButtonUi();
+      liveDebugLog('Switched to audio-only (in-place)');
+      return;
+    }
+
+    // video mode — keep existing mic, add/recreate camera
+    let audio = getLocalAudioTrack();
+    if (!audio) {
+      audio = await withTimeout(AgoraRTC.createMicrophoneAudioTrack(), 25000, 'Microphone access');
+      try {
+        await agoraClient.publish(audio);
+      } catch (_e) {}
+      localTracks = [audio, ...localTracks.filter((t) => t !== audio)];
+    } else {
+      try {
+        if (typeof audio.setEnabled === 'function') await audio.setEnabled(true);
+        if (typeof audio.setMuted === 'function') await audio.setMuted(false);
+      } catch (_e) {}
+    }
+    micMuted = false;
+
+    let video = getLocalVideoTrack();
+    if (!video || video === beautyPipeline?.customTrack) {
+      if (beautyPipeline?.customTrack) {
+        try {
+          await agoraClient.unpublish([beautyPipeline.customTrack]);
+        } catch (_e) {}
+        stopBeautyPipeline();
+      }
+      video = await withTimeout(
+        AgoraRTC.createCameraVideoTrack({ facingMode: cameraFacing }),
+        30000,
+        'Camera access'
+      );
+      rawCameraTrack = video;
+      try {
+        await agoraClient.publish(video);
+      } catch (pubErr) {
+        try {
+          video.stop?.();
+          video.close?.();
+        } catch (_e) {}
+        throw pubErr;
+      }
+      localTracks = audio ? [audio, video] : [video];
+    } else {
+      rawCameraTrack = video;
+      try {
+        if (typeof video.setEnabled === 'function') await video.setEnabled(true);
+      } catch (_e) {}
+      const published = agoraClient.localTracks || [];
+      if (!published.includes?.(video)) {
+        await agoraClient.publish(video);
+      }
+      localTracks = audio ? [audio, video] : [video];
+    }
+
+    publishSucceeded = true;
+    const root = document.getElementById('liveRoomRoot');
+    if (root) root.classList.remove('is-audio-mode');
+    playLocalHostPreview(rawCameraTrack || video);
+    ensureHostVideoVisible();
+    applyLiveBackground('live', hostName);
+    setLiveStreamVisible(true);
+    syncMicButtonUi();
+    if (videoFilterId && videoFilterId !== 'none') {
+      setTimeout(() => {
+        syncPublishedBeautyTrack().catch((e) => liveDebugLog(`post-switch beauty: ${e?.message || e}`));
+      }, 400);
+    }
+    liveDebugLog('Switched to video (in-place)');
   }
 
   async function startLocalMicOnly() {
@@ -3670,7 +3861,19 @@
     }
   }
 
+  function applyBeautyEngineState() {
+    clearTimeout(window.__apBeautySyncTimer);
+    window.__apBeautySyncTimer = setTimeout(() => {
+      syncPublishedBeautyTrack().catch((e) => liveDebugLog(`beauty engine sync: ${e?.message || e}`));
+    }, 100);
+  }
+
   function stopBeautyPipeline() {
+    if (window.APBeauty?.camera) {
+      try {
+        window.APBeauty.camera.stop?.();
+      } catch (_e) {}
+    }
     if (!beautyPipeline) return;
     try {
       cancelAnimationFrame(beautyPipeline.raf);
@@ -3744,14 +3947,27 @@
     return beautyPipeline;
   }
 
+  let beautyFaceBox = null; // {x,y,w,h} normalized 0..1 from FaceDetector when available
+  let beautyFaceDetector = null;
+  let beautyFaceDetectAt = 0;
+
+  function beautyFaceLayout(w, h) {
+    const box = beautyFaceBox;
+    if (!box) {
+      return { cx: w * 0.5, cy: h * 0.4, rx: w * 0.38, ry: h * 0.34 };
+    }
+    return {
+      cx: (box.x + box.w / 2) * w,
+      cy: (box.y + box.h * 0.42) * h,
+      rx: Math.max(w * 0.16, box.w * w * 0.55),
+      ry: Math.max(h * 0.18, box.h * h * 0.52),
+    };
+  }
+
   function drawFaceSoftMask(maskCtx, w, h) {
     maskCtx.clearRect(0, 0, w, h);
-    // Wider oval covering cheeks + forehead so skin smooth reads on the face,
-    // not as a flat full-frame color wash.
-    const cx = w * 0.5;
-    const cy = h * 0.4;
-    const rx = w * 0.38;
-    const ry = h * 0.34;
+    // Prefer tracked face box (browser FaceDetector) — closer to Instagram placement.
+    const { cx, cy, rx, ry } = beautyFaceLayout(w, h);
     const g = maskCtx.createRadialGradient(cx, cy, rx * 0.12, cx, cy, Math.max(rx, ry));
     g.addColorStop(0, 'rgba(255,255,255,1)');
     g.addColorStop(0.45, 'rgba(255,255,255,0.95)');
@@ -3763,12 +3979,40 @@
     maskCtx.fill();
   }
 
+  async function detectBeautyFaceBox(videoEl) {
+    if (!videoEl || videoEl.readyState < 2) return;
+    const now = Date.now();
+    if (now - beautyFaceDetectAt < 180) return;
+    beautyFaceDetectAt = now;
+    try {
+      if (!beautyFaceDetector && typeof FaceDetector !== 'undefined') {
+        beautyFaceDetector = new FaceDetector({ fastMode: true, maxDetectedFaces: 1 });
+      }
+      if (!beautyFaceDetector) return;
+      const faces = await beautyFaceDetector.detect(videoEl);
+      const face = faces?.[0];
+      if (!face?.boundingBox) return;
+      const bw = Math.max(1, videoEl.videoWidth || 1);
+      const bh = Math.max(1, videoEl.videoHeight || 1);
+      const b = face.boundingBox;
+      beautyFaceBox = {
+        x: b.x / bw,
+        y: b.y / bh,
+        w: b.width / bw,
+        h: b.height / bh,
+      };
+    } catch (_e) {
+      /* FaceDetector unsupported or failed — keep oval fallback */
+    }
+  }
+
   function drawCheekBlush(ctx, w, h, blush) {
     if (!blush) return;
-    const size = Math.min(w, h) * (blush.size || 0.13);
+    const { cx, cy, rx, ry } = beautyFaceLayout(w, h);
+    const size = Math.min(rx, ry) * (blush.size ? blush.size * 2.2 : 0.42);
     const cheeks = [
-      [w * 0.28, h * 0.46],
-      [w * 0.72, h * 0.46],
+      [cx - rx * 0.62, cy + ry * 0.18],
+      [cx + rx * 0.62, cy + ry * 0.18],
     ];
     ctx.save();
     ctx.globalCompositeOperation = 'soft-light';
@@ -3786,15 +4030,16 @@
 
   function drawHighlight(ctx, w, h, amount) {
     if (!amount) return;
+    const { cx, cy, rx, ry } = beautyFaceLayout(w, h);
     ctx.save();
     ctx.globalCompositeOperation = 'soft-light';
     ctx.globalAlpha = amount;
     const spots = [
-      [w * 0.5, h * 0.28, w * 0.18],
-      [w * 0.5, h * 0.42, w * 0.06],
-      [w * 0.32, h * 0.4, w * 0.08],
-      [w * 0.68, h * 0.4, w * 0.08],
-      [w * 0.5, h * 0.55, w * 0.1],
+      [cx, cy - ry * 0.55, rx * 0.55],
+      [cx, cy - ry * 0.05, rx * 0.18],
+      [cx - rx * 0.45, cy - ry * 0.08, rx * 0.22],
+      [cx + rx * 0.45, cy - ry * 0.08, rx * 0.22],
+      [cx, cy + ry * 0.35, rx * 0.28],
     ];
     spots.forEach(([x, y, r]) => {
       const g = ctx.createRadialGradient(x, y, 0, x, y, r);
@@ -3810,17 +4055,18 @@
 
   function drawLipTint(ctx, w, h, lip) {
     if (!lip) return;
-    const y = h * (lip.y || 0.63);
-    const rx = w * 0.09;
-    const ry = h * 0.025;
+    const { cx, cy, rx, ry } = beautyFaceLayout(w, h);
+    const y = cy + ry * (lip.y != null ? lip.y * 1.2 : 0.58);
+    const lipRx = rx * 0.28;
+    const lipRy = ry * 0.12;
     ctx.save();
     ctx.globalCompositeOperation = 'multiply';
-    const g = ctx.createRadialGradient(w * 0.5, y, 0, w * 0.5, y, rx);
+    const g = ctx.createRadialGradient(cx, y, 0, cx, y, lipRx);
     g.addColorStop(0, lip.color);
     g.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = g;
     ctx.beginPath();
-    ctx.ellipse(w * 0.5, y, rx, ry, 0, 0, Math.PI * 2);
+    ctx.ellipse(cx, y, lipRx, lipRy, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }
@@ -3874,10 +4120,11 @@
 
   function drawFaceGlow(ctx, w, h, amount) {
     if (!amount) return;
+    const { cx, cy, rx, ry } = beautyFaceLayout(w, h);
     ctx.save();
     ctx.globalCompositeOperation = 'screen';
     ctx.globalAlpha = amount * 0.55;
-    const g = ctx.createRadialGradient(w * 0.5, h * 0.36, 0, w * 0.5, h * 0.36, Math.min(w, h) * 0.38);
+    const g = ctx.createRadialGradient(cx, cy - ry * 0.1, 0, cx, cy - ry * 0.1, Math.max(rx, ry) * 1.05);
     g.addColorStop(0, 'rgba(255,245,230,0.9)');
     g.addColorStop(0.55, 'rgba(255,220,200,0.25)');
     g.addColorStop(1, 'rgba(255,200,180,0)');
@@ -3896,6 +4143,7 @@
       const aux = ensureBeautyAux(w, h);
       const softCtx = aux.softCtx;
       const maskCtx = aux.maskCtx;
+      void detectBeautyFaceBox(video);
 
       ctx.filter = preset.grade || 'none';
       ctx.globalAlpha = 1;
@@ -4040,6 +4288,52 @@
       const audioTrack =
         localTracks.find((t) => (t.getTrackType?.() || t.trackMediaType) === 'audio') ||
         getLocalAudioTrack?.();
+
+      // Prefer Earn4U Beauty Engine when loaded AND enabled
+      const APB = window.APBeauty;
+      if (APB?.camera && APB?.engine && APB.engine.isBeautyActive?.()) {
+        try {
+          const AgoraRTC = window.AgoraRTC || (await loadAgoraScript());
+          let custom = APB.camera.getCustomTrack?.();
+          if (!custom) {
+            custom = await APB.camera.start(AgoraRTC, rawCameraTrack);
+          }
+          const published = agoraClient.localTracks || [];
+          const oldVideo = published.find?.((t) => {
+            const type = t.getTrackType?.() || t.trackMediaType;
+            return type === 'video' && t !== custom;
+          });
+          if (oldVideo) {
+            try {
+              await agoraClient.unpublish([oldVideo]);
+            } catch (_e) {}
+          }
+          if (!published.includes?.(custom)) {
+            await agoraClient.publish(custom);
+          }
+          localTracks = audioTrack ? [audioTrack, custom] : [custom];
+          playLocalHostPreview(custom);
+          ensureHostVideoVisible();
+          setLiveStreamVisible(true);
+          liveDebugLog(`beauty engine published provider=${APB.engine.manager?.getActiveProviderId?.()}`);
+          return;
+        } catch (e) {
+          liveDebugLog(`beauty engine failed, legacy canvas: ${e?.message || e}`);
+          try {
+            await APB.camera.stop?.();
+          } catch (_e) {}
+          // fall through to legacy
+        }
+      } else if (APB?.camera?.getCustomTrack?.()) {
+        // Engine turned off — drop custom track before legacy/raw path
+        try {
+          await agoraClient.unpublish([APB.camera.getCustomTrack()]);
+        } catch (_e) {}
+        try {
+          await APB.camera.stop?.();
+        } catch (_e) {}
+      }
+
       const wantBeauty = Boolean(PUBLISH_CANVAS_BEAUTY && videoFilterId && videoFilterId !== 'none');
 
       const restoreRawCamera = async () => {
@@ -4292,6 +4586,7 @@
         videoFilterId = btn.dataset.filter || 'none';
         try {
           localStorage.setItem('ap_live_beauty_filter', videoFilterId);
+          localStorage.setItem('ap_live_beauty_filter_picked', '1');
         } catch (_e) {}
         rail.querySelectorAll('.ap-filter-chip').forEach((b) => b.classList.toggle('is-active', b === btn));
         applyVideoFilter();
@@ -4304,6 +4599,11 @@
   function openVideoFilterSheet() {
     if (!isHost() || broadcastMode === 'audio') {
       toast('Filters are for video live only', 'info');
+      return;
+    }
+    // Earn4U Beauty Engine sheet (MediaPipe / commercial providers)
+    if (window.APBeauty?.openSheet) {
+      window.APBeauty.openSheet();
       return;
     }
     let sheet = document.getElementById('apFilterSheet');
@@ -5139,6 +5439,10 @@
     const admin = memberIsAdminMarked(s) || isAdminUserId(s.userId);
     const adminBadge =
       !s.host && admin ? '<span class="seat-admin-badge">Admin</span>' : '';
+    const roleBadge =
+      !admin && s.userRole
+        ? window.formatRoleBadgeHtml?.(s.userRole, { withEmoji: false }) || ''
+        : '';
     const waveBars = s.speaking
       ? '<div class="seat-wave-bars"><span></span><span></span><span></span><span></span></div>'
       : '';
@@ -5153,7 +5457,7 @@
           ${mic}
           ${waveBars}
         </div>
-        <span class="seat-name">${escapeHtml(s.name)}</span>
+        <span class="seat-name">${escapeHtml(s.name)}${roleBadge ? ` ${roleBadge}` : ''}</span>
         <span class="seat-gifts">🎁 ${formatGiftCount(s.gifts || 0)}</span>
       </button>`;
   }
@@ -5215,6 +5519,10 @@
       gifts: 0,
       muted: micMuted,
       speaking: hosting && !micMuted,
+      userRole:
+        roomState?.hostUserRole ||
+        (hosting ? currentUser()?.role : null) ||
+        null,
     };
 
     const seenGuests = new Set();
@@ -5382,7 +5690,13 @@
     const hostImg = document.getElementById('partyHostAvatar') || document.getElementById('liveHostAvatar');
     if (hostEl) {
       const full = hostName || 'Host';
-      hostEl.textContent = full;
+      const hostRole =
+        roomState?.hostUserRole || (isHost() ? currentUser()?.role : null) || null;
+      const hostBadge =
+        !roomState?.hostIsPlatformAdmin && hostRole
+          ? window.formatRoleBadgeHtml?.(hostRole, { withEmoji: false }) || ''
+          : '';
+      hostEl.innerHTML = `${escapeHtml(full)}${hostBadge ? ` ${hostBadge}` : ''}`;
       hostEl.title = full;
     }
     if (hostImg) {
@@ -5574,6 +5888,10 @@
         const uid = String(s.userId || '');
         const canRemove = canModerateRoom() && uid && !isRoomHostUserId(uid);
         const admin = memberIsAdminMarked(s) || isAdminUserId(uid);
+        const roleBadge =
+          !admin && s.userRole
+            ? window.formatRoleBadgeHtml?.(s.userRole, { withEmoji: false }) || ''
+            : '';
         return `
       <button type="button" class="ap-guest-seat${admin ? ' is-admin-user' : ''}" data-guest="${escapeHtml(s.name)}" data-guest-id="${escapeHtml(uid)}">
         ${canRemove ? `<span class="ap-guest-remove" data-remove-guest="${escapeHtml(uid)}" title="Remove guest" aria-label="Remove guest">×</span>` : ''}
@@ -5582,7 +5900,7 @@
           ${adminAvatarTagHtml(admin)}
           <img src="${avatarUrl(s.name, s.profilePic || liveProfilePic(s.userId, null))}" alt="" data-name="${escapeAttr(s.name || 'Guest')}" loading="lazy">
         </span>
-        <span class="ap-guest-name">${escapeHtml(String(s.name).slice(0, 8))}</span>
+        <span class="ap-guest-name">${escapeHtml(String(s.name).slice(0, 8))}${roleBadge ? ` ${roleBadge}` : ''}</span>
       </button>`;
       })
       .join('');
@@ -6933,7 +7251,8 @@
   }
 
   function ensureHostVideoVisible() {
-    if (!isActuallyLive() || broadcastMode === 'audio') return;
+    if (broadcastMode === 'audio') return;
+    if (!publishSucceeded && !getLocalVideoTrack() && !rawCameraTrack) return;
     const root = document.getElementById('liveRoomRoot');
     const localBox = document.getElementById('liveLocalHost');
     const fallback = document.getElementById('liveLocalVideo');
@@ -6992,14 +7311,22 @@
         joinRequests = joinRequests.filter((x) => String(x.id) !== String(btn.dataset.accept));
         renderJoinRequests();
         if (req && liveSocket) {
-          liveSocket.emit('live:seat_response', {
-            channel: channelId(),
-            userId: req.userId || req.id,
-            name: req.name,
-            accepted: true,
-          });
+          liveSocket.emit(
+            'live:seat_response',
+            {
+              channel: channelId(),
+              userId: req.userId || req.id,
+              name: req.name,
+              accepted: true,
+            },
+            (res) => {
+              if (res?.ok) toast(isLiveRoomPage() ? 'Guest joined live' : 'Guest accepted', 'success');
+              else toast(res?.message || 'Could not accept guest', 'error');
+            }
+          );
+        } else {
+          toast('Guest accepted');
         }
-        toast('Guest accepted');
       });
     });
     list.querySelectorAll('[data-deny]').forEach((btn) => {
@@ -7712,6 +8039,20 @@
       }
     });
 
+    function setLiveChatHidden(hidden) {
+      document.body.classList.toggle('ap-chat-hidden', Boolean(hidden));
+      const showFab = document.getElementById('liveBtnShowChat');
+      if (showFab) showFab.hidden = !hidden;
+      try {
+        localStorage.setItem('ap_live_chat_hidden', hidden ? '1' : '0');
+      } catch (_e) {}
+    }
+    document.getElementById('liveBtnHideChat')?.addEventListener('click', () => setLiveChatHidden(true));
+    document.getElementById('liveBtnShowChat')?.addEventListener('click', () => setLiveChatHidden(false));
+    try {
+      if (localStorage.getItem('ap_live_chat_hidden') === '1') setLiveChatHidden(true);
+    } catch (_e) {}
+
     document.getElementById('partyBtnTools')?.addEventListener('click', () => {
       const sheet = document.getElementById('partyToolsSheet');
       if (!sheet) return;
@@ -8066,7 +8407,7 @@
               <div class="info">
                 <h3 id="apProfileName">User</h3>
                 <div class="ap-profile-badges">
-                  <span>🇮🇳</span><span id="apProfileLvl">Lv.18</span><span>🎵 1</span><span>💎 3</span>
+                  <span id="apProfileRoleBadge"></span><span>🇮🇳</span><span id="apProfileLvl">Lv.18</span><span>🎵 1</span><span>💎 3</span>
                 </div>
                 <p class="ap-profile-id-row" id="apProfileId">ID: — <button type="button" id="apProfileCopyId" aria-label="Copy ID"><i class="far fa-copy"></i></button></p>
                 <div class="ap-profile-social-stats" id="apProfileSocialStats">
@@ -8346,6 +8687,12 @@
       const followingEl = document.getElementById('apProfileFollowing');
       if (followersEl) followersEl.textContent = formatProfileCount(data.followers);
       if (followingEl) followingEl.textContent = formatProfileCount(data.following);
+      const roleBadgeEl = document.getElementById('apProfileRoleBadge');
+      if (roleBadgeEl && data.role && !activeProfileUser?.isAdmin) {
+        roleBadgeEl.innerHTML = window.formatRoleBadgeHtml?.(data.role, { withEmoji: true }) || '';
+        roleBadgeEl.hidden = !roleBadgeEl.innerHTML;
+        if (activeProfileUser) activeProfileUser.userRole = data.role;
+      }
       return data;
     } catch (e) {
       console.warn('[live] profile engagement', e);
@@ -8373,6 +8720,14 @@
       name: n,
       userId: resolvedId ? String(resolvedId) : '',
       displayId: resolvedDisplayId ? String(resolvedDisplayId) : '',
+      userRole:
+        seatHit?.userRole ||
+        (resolvedId &&
+        roomState?.hostId &&
+        String(resolvedId) === String(roomState.hostId)
+          ? roomState.hostUserRole
+          : null) ||
+        null,
       isAdmin: Boolean(
         memberIsAdminMarked(seatHit) ||
           isAdminUserId(resolvedId) ||
@@ -8394,6 +8749,14 @@
     const adminTag = document.getElementById('apProfileAdminTag');
     if (avatarWrap) avatarWrap.classList.toggle('ap-admin-frame', activeProfileUser.isAdmin);
     if (adminTag) adminTag.hidden = !activeProfileUser.isAdmin;
+
+    const roleBadgeEl = document.getElementById('apProfileRoleBadge');
+    if (roleBadgeEl) {
+      roleBadgeEl.innerHTML = activeProfileUser.isAdmin
+        ? ''
+        : window.formatRoleBadgeHtml?.(activeProfileUser.userRole, { withEmoji: true }) || '';
+      roleBadgeEl.hidden = !roleBadgeEl.innerHTML;
+    }
 
     const img = document.getElementById('apProfileAvatar');
     const nm = document.getElementById('apProfileName');
@@ -9719,6 +10082,8 @@
     leaveToExplore,
     onMiniPlayerExpand: onMiniPlayerExpanded,
     exitRoom,
+    applyBeautyEngineState,
+    openBeautySheet: () => openVideoFilterSheet(),
     getForensicReport() {
       return window.__liveDebug || { events: [] };
     },

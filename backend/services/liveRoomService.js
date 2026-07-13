@@ -332,7 +332,6 @@ async function buildSnapshot(channel) {
       (m) =>
         m.role === 'host' ||
         m.role === 'speaker' ||
-        m.role === 'admin' ||
         m.seat_index != null
     )
     .sort((a, b) => {
@@ -351,6 +350,7 @@ async function buildSnapshot(channel) {
       isHost: m.role === 'host',
       isAdmin: m.role === 'admin' || isPlatformAdminRole(m.user_role),
       isPlatformAdmin: isPlatformAdminRole(m.user_role),
+      userRole: m.user_role || null,
       seatIndex: m.seat_index,
       agoraUid: uidFromUserId(m.user_id),
       role: m.role === 'viewer' && m.seat_index != null ? 'speaker' : m.role,
@@ -361,6 +361,7 @@ async function buildSnapshot(channel) {
     displayId: m.display_id != null ? String(m.display_id) : null,
     name: m.display_name,
     role: m.role,
+    userRole: m.user_role || null,
     profilePic: m.profile_pic || null,
     muted: m.is_muted,
     seatIndex: m.seat_index,
@@ -373,6 +374,7 @@ async function buildSnapshot(channel) {
   let hostProfilePic = null;
   let hostDisplayId = null;
   let hostIsPlatformAdmin = false;
+  let hostUserRole = null;
   if (room.host_user_id) {
     const hostPicRes = await db.query(
       `SELECT profile_pic, display_id, role FROM users WHERE id = $1`,
@@ -382,6 +384,7 @@ async function buildSnapshot(channel) {
     hostDisplayId =
       hostPicRes.rows[0]?.display_id != null ? String(hostPicRes.rows[0].display_id) : null;
     hostIsPlatformAdmin = isPlatformAdminRole(hostPicRes.rows[0]?.role);
+    hostUserRole = hostPicRes.rows[0]?.role || null;
   }
 
   return {
@@ -393,6 +396,7 @@ async function buildSnapshot(channel) {
     hostDisplayId,
     hostProfilePic,
     hostIsPlatformAdmin,
+    hostUserRole,
     viewers: room.viewer_count,
     pkStatus: room.pk_status,
     messages,
@@ -426,7 +430,7 @@ function maxSpeakersForRoom(room) {
   return room.room_type === 'live' ? 4 : 14;
 }
 
-async function promoteToSpeaker({ channel, userId, displayName }) {
+async function promoteToSpeaker({ channel, userId, displayName, seatIndex = null }) {
   const room = await findByChannel(channel);
   if (!room) throw new Error('Room not found');
 
@@ -442,18 +446,34 @@ async function promoteToSpeaker({ channel, userId, displayName }) {
   }
 
   const memberRes = await db.query(
-    `SELECT display_name FROM live_room_members
+    `SELECT display_name, role, seat_index FROM live_room_members
      WHERE live_room_id = $1 AND user_id = $2 AND left_at IS NULL`,
     [room.id, userId]
   );
+  if (!memberRes.rows[0]) throw new Error('User is not in this room');
+  if (memberRes.rows[0].role === 'host') throw new Error('Host is already on stage');
+
   const name = String(displayName || memberRes.rows[0]?.display_name || 'Guest').slice(0, 32);
+  const preferredSeat =
+    seatIndex != null && seatIndex !== ''
+      ? Math.max(1, Math.min(15, parseInt(seatIndex, 10) || 1))
+      : null;
 
   await db.query(
-    `UPDATE live_room_members SET role = 'speaker', display_name = COALESCE(NULLIF(display_name, ''), $3), seat_index = COALESCE(seat_index, (
-      SELECT COALESCE(MAX(seat_index), 1) + 1 FROM live_room_members WHERE live_room_id = $1 AND left_at IS NULL AND role IN ('speaker', 'admin')
-    ))
-     WHERE live_room_id = $1 AND user_id = $2 AND left_at IS NULL AND role IN ('viewer', 'admin')`,
-    [room.id, userId, name]
+    `UPDATE live_room_members SET
+       role = CASE WHEN role = 'admin' THEN 'admin' ELSE 'speaker' END,
+       display_name = COALESCE(NULLIF(display_name, ''), $3),
+       seat_index = COALESCE(
+         $4::int,
+         seat_index,
+         (
+           SELECT COALESCE(MAX(seat_index), 1) + 1
+           FROM live_room_members
+           WHERE live_room_id = $1 AND left_at IS NULL AND role IN ('speaker', 'admin', 'host')
+         )
+       )
+     WHERE live_room_id = $1 AND user_id = $2 AND left_at IS NULL AND role IN ('viewer', 'admin', 'speaker')`,
+    [room.id, userId, name, preferredSeat]
   );
 
   await db.query(
@@ -461,7 +481,7 @@ async function promoteToSpeaker({ channel, userId, displayName }) {
     [room.id, userId, JSON.stringify({ display_name: name })]
   );
 
-  cacheRoom(channel, room);
+  invalidateRoomCache(channel);
   return room;
 }
 
@@ -710,11 +730,22 @@ async function setMemberAdmin({ channel, userId, isAdmin }) {
 async function demoteSpeaker({ channel, userId }) {
   const room = await findByChannel(channel);
   if (!room) throw new Error('Room not found');
-  await db.query(
-    `UPDATE live_room_members SET role = 'viewer', seat_index = NULL
-     WHERE live_room_id = $1 AND user_id = $2 AND left_at IS NULL AND role IN ('speaker', 'admin')`,
+  const res = await db.query(
+    `UPDATE live_room_members
+     SET seat_index = NULL,
+         role = CASE
+           WHEN role = 'host' THEN role
+           WHEN role = 'admin' THEN 'admin'
+           ELSE 'viewer'
+         END
+     WHERE live_room_id = $1
+       AND user_id = $2
+       AND left_at IS NULL
+       AND role <> 'host'
+     RETURNING user_id`,
     [room.id, userId]
   );
+  if (!res.rows[0]) throw new Error('User is not on a seat');
   invalidateRoomCache(channel);
   return room;
 }

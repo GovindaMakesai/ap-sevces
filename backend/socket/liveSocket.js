@@ -429,12 +429,18 @@ function registerLiveSocket(io) {
       });
     });
 
-    socket.on('live:seat_response', async (payload) => {
+    socket.on('live:seat_response', async (payload, ack) => {
       try {
         const channel = sanitizeChannel(payload?.channel || currentChannel);
-        if (!channel || !(await isRoomModerator(socket, channel))) return;
+        if (!channel || !(await isRoomModerator(socket, channel))) {
+          if (ack) ack({ ok: false, message: 'Only host or admin can manage seats' });
+          return;
+        }
         const userId = String(payload?.userId || '');
-        if (!userId) return;
+        if (!userId) {
+          if (ack) ack({ ok: false, message: 'userId required' });
+          return;
+        }
         const accepted = payload?.accepted !== false;
 
         if (accepted) {
@@ -442,6 +448,7 @@ function registerLiveSocket(io) {
             channel,
             userId,
             displayName: payload?.name,
+            seatIndex: payload?.seatIndex ?? payload?.seat_index ?? null,
           });
           const state = await liveRoomService.buildSnapshot(channel);
           io.to(`live:${channel}`).emit('live:state', state);
@@ -452,8 +459,10 @@ function registerLiveSocket(io) {
           accepted,
           at: Date.now(),
         });
+        if (ack) ack({ ok: true });
       } catch (err) {
         console.error('live:seat_response', err.message);
+        if (ack) ack({ ok: false, message: err.message || 'Seat update failed' });
       }
     });
 
