@@ -1956,6 +1956,45 @@ function formatAdminIdHtml(displayId, { isAdmin = false } = {}) {
 }
 window.formatAdminIdHtml = formatAdminIdHtml;
 
+/** Normalize hierarchy role for badges: bd | agency | host | admin | null */
+function hierarchyRoleFromUser(userOrRole) {
+  if (!userOrRole) return null;
+  if (typeof userOrRole === 'object') {
+    if (window.isPlatformAdminUser?.(userOrRole)) return 'admin';
+    const r = String(userOrRole.role || userOrRole.badge || '').toLowerCase();
+    if (r === 'bdm' || r === 'bd') return 'bd';
+    if (r === 'agency') return 'agency';
+    if (r === 'creator' || r === 'host') return 'host';
+    if (['admin', 'super_admin', 'founder', 'ceo'].includes(r)) return 'admin';
+    return null;
+  }
+  const r = String(userOrRole).toLowerCase();
+  if (r === 'bdm' || r === 'bd') return 'bd';
+  if (r === 'agency') return 'agency';
+  if (r === 'creator' || r === 'host') return 'host';
+  if (['admin', 'super_admin', 'founder', 'ceo'].includes(r)) return 'admin';
+  return null;
+}
+window.hierarchyRoleFromUser = hierarchyRoleFromUser;
+
+const HIERARCHY_BADGE_META = {
+  admin: { label: 'ADMIN', className: 'ap-role-badge ap-role-badge--admin', emoji: '' },
+  bd: { label: 'BD', className: 'ap-role-badge ap-role-badge--bd', emoji: '🟦' },
+  agency: { label: 'Agency', className: 'ap-role-badge ap-role-badge--agency', emoji: '🟨' },
+  host: { label: 'Host', className: 'ap-role-badge ap-role-badge--host', emoji: '🟩' },
+};
+
+/** Compact role chip beside usernames (BD / Agency / Host / Admin). */
+function formatRoleBadgeHtml(userOrRole, { withEmoji = true } = {}) {
+  const key = hierarchyRoleFromUser(userOrRole);
+  if (!key || !HIERARCHY_BADGE_META[key]) return '';
+  const meta = HIERARCHY_BADGE_META[key];
+  const emoji = withEmoji && meta.emoji ? `${meta.emoji} ` : '';
+  return `<span class="${meta.className}" title="${meta.label}">${emoji}${meta.label}</span>`;
+}
+window.formatRoleBadgeHtml = formatRoleBadgeHtml;
+window.HIERARCHY_BADGE_META = HIERARCHY_BADGE_META;
+
 console.log('Γ£à App.js initialized');
 
 /** Prevent blank screens when session restore or profile paint stalls (native WebView). */

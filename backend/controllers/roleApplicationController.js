@@ -20,7 +20,9 @@ exports.getApplicationStatus = async (req, res) => {
     const currentRole = userRes.rows[0]?.role;
     const hasRole =
       currentRole === roleType ||
-      (roleType === 'coin_seller' && ['coin_seller', 'admin', 'super_admin', 'founder', 'ceo'].includes(currentRole));
+      (roleType === 'coin_seller' && ['coin_seller', 'admin', 'super_admin', 'founder', 'ceo'].includes(currentRole)) ||
+      (roleType === 'agency' && ['agency', 'admin', 'super_admin', 'founder', 'ceo'].includes(currentRole)) ||
+      (roleType === 'creator' && ['creator', 'admin', 'super_admin', 'founder', 'ceo'].includes(currentRole));
     res.json({
       success: true,
       data: {
@@ -45,6 +47,8 @@ exports.submitApplication = async (req, res) => {
       roleType: req.body.role_type || req.body.roleType,
       message: req.body.message,
       contactPhone: req.body.contact_phone || req.body.phone,
+      agencyName: req.body.agency_name || req.body.agencyName || req.body.name,
+      promoCode: req.body.promo_code || req.body.promoCode || req.body.code,
     });
     res.status(201).json({
       success: true,
@@ -71,6 +75,9 @@ exports.reviewApplication = async (req, res) => {
     const data = await roleApplicationService.reviewApplication(req.params.id, req.userId, {
       decision,
       reason: req.body.reason || req.body.notes,
+      agencyId: req.body.agency_id || req.body.agencyId,
+      bdUserId: req.body.bd_user_id || req.body.bdUserId,
+      agencyName: req.body.agency_name || req.body.agencyName,
     });
     res.json({ success: true, data, message: `Application ${data.status}` });
   } catch (e) {

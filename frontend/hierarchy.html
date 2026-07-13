@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#1e3a8a">
+  <title>Hierarchy - AP Services</title>
+  <script src="/ap-native-boot.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="social-theme.css?v=20260713-hierarchy">
+  <link rel="stylesheet" href="coin-seller.css">
+  <style>
+    .hier-page { max-width: 720px; margin: 0 auto; padding-bottom: 40px; }
+    .hier-toolbar { display: flex; gap: 8px; padding: 12px; flex-wrap: wrap; }
+    .hier-toolbar input, .hier-toolbar select {
+      flex: 1; min-width: 140px; border: 1px solid #e5e7eb; border-radius: 10px;
+      padding: 10px 12px; font-size: 14px;
+    }
+    .hier-stats {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 0 12px 12px;
+    }
+    .hier-stat {
+      background: #fff; border-radius: 12px; padding: 12px; text-align: center;
+      box-shadow: 0 1px 4px rgba(0,0,0,.06);
+    }
+    .hier-stat strong { display: block; font-size: 20px; color: #1e3a8a; }
+    .hier-stat span { font-size: 11px; color: #6b7280; }
+    .hier-tree { padding: 0 12px; }
+    .hier-node {
+      background: #fff; border-radius: 12px; margin-bottom: 8px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.05); overflow: hidden;
+    }
+    .hier-row {
+      display: flex; align-items: center; gap: 10px; padding: 12px 14px; cursor: pointer;
+      border: none; background: transparent; width: 100%; text-align: left;
+    }
+    .hier-row:hover { background: #f8fafc; }
+    .hier-expand {
+      width: 22px; height: 22px; border-radius: 6px; border: 1px solid #e5e7eb;
+      display: inline-flex; align-items: center; justify-content: center; font-size: 10px; color: #64748b;
+      flex-shrink: 0;
+    }
+    .hier-avatar {
+      width: 36px; height: 36px; border-radius: 50%; background: #e2e8f0;
+      display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 12px;
+      overflow: hidden; flex-shrink: 0;
+    }
+    .hier-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .hier-meta { flex: 1; min-width: 0; }
+    .hier-meta strong { display: block; font-size: 14px; }
+    .hier-meta small { color: #94a3b8; font-size: 11px; }
+    .hier-children { padding: 0 0 8px 28px; display: none; }
+    .hier-children.open { display: block; }
+    .hier-agency .hier-row { padding-left: 8px; }
+    .hier-host .hier-row { padding-left: 4px; }
+    .hier-empty { text-align: center; padding: 40px 16px; color: #94a3b8; }
+    .hier-skel {
+      height: 56px; margin: 0 12px 8px; border-radius: 12px;
+      background: linear-gradient(90deg, #f1f5f9, #e2e8f0, #f1f5f9);
+      background-size: 200% 100%; animation: hierShimmer 1.2s infinite;
+    }
+    @keyframes hierShimmer { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
+    .hier-crumb { padding: 8px 14px; font-size: 12px; color: #64748b; }
+  </style>
+</head>
+<body class="cs-page hier-page">
+  <header class="cs-header">
+    <a href="/profile-tab.html?app=1" aria-label="Back"><i class="fas fa-arrow-left"></i></a>
+    <h1>Hierarchy</h1>
+    <a href="/bd-center.html?app=1" style="width:36px;text-align:center;color:inherit"><i class="fas fa-chart-pie"></i></a>
+  </header>
+
+  <div class="hier-crumb" id="hierCrumb">Admin → BD → Agency → Host</div>
+
+  <div class="hier-stats" id="hierStats">
+    <div class="hier-stat"><strong id="statBd">—</strong><span>BDs</span></div>
+    <div class="hier-stat"><strong id="statAg">—</strong><span>Agencies</span></div>
+    <div class="hier-stat"><strong id="statHost">—</strong><span>Hosts</span></div>
+  </div>
+
+  <div class="hier-toolbar">
+    <input type="search" id="hierSearch" placeholder="Search BD, agency, host…">
+    <select id="hierFilter">
+      <option value="all">All roles</option>
+      <option value="bd">BD only</option>
+      <option value="agency">With agencies</option>
+    </select>
+  </div>
+
+  <div class="hier-tree" id="hierTree">
+    <div class="hier-skel"></div>
+    <div class="hier-skel"></div>
+    <div class="hier-skel"></div>
+  </div>
+
+  <script src="ap-config.js"></script>
+  <script src="config.js"></script>
+  <script src="app.js?v=20260713-hierarchy"></script>
+  <script src="auth-guard.js"></script>
+  <script>
+    (async function () {
+      Auth.checkAuth();
+      if (!Auth.hasSession?.()) { location.href = '/login.html?app=1'; return; }
+      const user = Auth.getUser();
+      const role = String(user?.role || '').toLowerCase();
+      const staff = ['admin', 'super_admin', 'founder', 'ceo'].includes(role);
+      if (!staff && role !== 'bdm') {
+        alert('Hierarchy access required');
+        location.href = '/profile-tab.html?app=1';
+        return;
+      }
+
+      const treeEl = document.getElementById('hierTree');
+      const searchEl = document.getElementById('hierSearch');
+      const filterEl = document.getElementById('hierFilter');
+      let treeData = [];
+
+      function esc(s) {
+        return String(s || '').replace(/[&<>"']/g, (c) => ({
+          '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        }[c]));
+      }
+
+      function badge(type) {
+        return window.formatRoleBadgeHtml?.(type, { withEmoji: true }) || '';
+      }
+
+      function avatarHtml(name, pic) {
+        if (pic) return `<img src="${esc(pic)}" alt="">`;
+        return esc((name || '?').slice(0, 2).toUpperCase());
+      }
+
+      function countTree(nodes) {
+        let bd = 0, ag = 0, host = 0;
+        (nodes || []).forEach((n) => {
+          if (n.type === 'bd') bd += 1;
+          (n.children || []).forEach((a) => {
+            ag += 1;
+            host += (a.children || []).length;
+          });
+        });
+        return { bd, ag, host };
+      }
+
+      function renderHost(h) {
+        return `<div class="hier-node hier-host">
+          <div class="hier-row" style="cursor:default">
+            <span class="hier-expand" style="visibility:hidden"></span>
+            <div class="hier-avatar">${avatarHtml(h.name, h.profilePic)}</div>
+            <div class="hier-meta">
+              <strong>${esc(h.name)} ${badge('host')}</strong>
+              <small>ID ${esc(h.displayId || '—')}</small>
+            </div>
+          </div>
+        </div>`;
+      }
+
+      function renderAgency(a, bdId) {
+        const id = `ag-${a.id}`;
+        const hosts = a.children || [];
+        return `<div class="hier-node hier-agency" data-agency="${esc(a.id)}" data-bd="${esc(bdId)}">
+          <button type="button" class="hier-row" data-toggle="${id}">
+            <span class="hier-expand"><i class="fas fa-chevron-right"></i></span>
+            <div class="hier-avatar">${avatarHtml(a.name, a.owner?.profilePic)}</div>
+            <div class="hier-meta">
+              <strong>${esc(a.name)} ${badge('agency')}</strong>
+              <small>${hosts.length ? hosts.length + ' hosts' : 'Tap to load hosts'} · Owner ${esc(a.owner?.name || '')}</small>
+            </div>
+          </button>
+          <div class="hier-children" id="${id}" data-loaded="${hosts.length ? '1' : '0'}">
+            ${hosts.map(renderHost).join('') || '<div class="hier-empty" style="padding:12px">Loading…</div>'}
+          </div>
+        </div>`;
+      }
+
+      function renderBd(bd) {
+        const id = `bd-${bd.id}`;
+        const agencies = bd.children || [];
+        return `<div class="hier-node hier-bd" data-bd="${esc(bd.id)}">
+          <button type="button" class="hier-row" data-toggle="${id}">
+            <span class="hier-expand"><i class="fas fa-chevron-right"></i></span>
+            <div class="hier-avatar">${avatarHtml(bd.name, bd.profilePic)}</div>
+            <div class="hier-meta">
+              <strong>${esc(bd.name)} ${badge('bd')}</strong>
+              <small>${agencies.length} agencies · ID ${esc(bd.displayId || '—')}</small>
+            </div>
+          </button>
+          <div class="hier-children" id="${id}">
+            ${agencies.map((a) => renderAgency(a, bd.id)).join('') || '<div class="hier-empty" style="padding:12px">No agencies</div>'}
+          </div>
+        </div>`;
+      }
+
+      function paint(nodes) {
+        const counts = countTree(nodes);
+        document.getElementById('statBd').textContent = counts.bd;
+        document.getElementById('statAg').textContent = counts.ag;
+        document.getElementById('statHost').textContent = counts.host;
+        if (!nodes.length) {
+          treeEl.innerHTML = '<div class="hier-empty"><i class="fas fa-sitemap" style="font-size:32px;opacity:.4"></i><p>No hierarchy data yet</p></div>';
+          return;
+        }
+        treeEl.innerHTML = nodes.map(renderBd).join('');
+      }
+
+      async function loadTree() {
+        const q = searchEl.value.trim();
+        const params = new URLSearchParams();
+        if (q) params.set('q', q);
+        const res = await API.get('/hierarchy?' + params.toString());
+        treeData = res.data || [];
+        let filtered = treeData;
+        if (filterEl.value === 'agency') {
+          filtered = treeData.filter((b) => (b.children || []).length);
+        }
+        paint(filtered);
+      }
+
+      treeEl.addEventListener('click', async (e) => {
+        const btn = e.target.closest('[data-toggle]');
+        if (!btn) return;
+        const id = btn.getAttribute('data-toggle');
+        const panel = document.getElementById(id);
+        const icon = btn.querySelector('.hier-expand i');
+        if (!panel) return;
+        const open = panel.classList.toggle('open');
+        if (icon) icon.className = open ? 'fas fa-chevron-down' : 'fas fa-chevron-right';
+
+        if (open && id.startsWith('ag-') && panel.dataset.loaded !== '1') {
+          const agencyId = id.slice(3);
+          try {
+            const res = await API.get('/hierarchy/agency/' + agencyId);
+            const hosts = res.data?.children || [];
+            panel.innerHTML = hosts.length
+              ? hosts.map(renderHost).join('')
+              : '<div class="hier-empty" style="padding:12px">No hosts</div>';
+            panel.dataset.loaded = '1';
+          } catch (err) {
+            panel.innerHTML = `<div class="hier-empty" style="padding:12px">${esc(err.message || 'Failed')}</div>`;
+          }
+        }
+      });
+
+      let t;
+      searchEl.addEventListener('input', () => {
+        clearTimeout(t);
+        t = setTimeout(loadTree, 280);
+      });
+      filterEl.addEventListener('change', loadTree);
+
+      try {
+        await loadTree();
+      } catch (e) {
+        treeEl.innerHTML = `<div class="hier-empty">${esc(e.message || 'Failed to load')}</div>`;
+      }
+    })();
+  </script>
+</body>
+</html>

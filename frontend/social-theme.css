@@ -2292,6 +2292,35 @@ html.ap-expo-app .social-profile-hero {
   letter-spacing: 0.04em;
   color: #92400e;
 }
+.ap-role-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1.4;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.ap-role-badge--bd {
+  color: #1e3a8a;
+  background: linear-gradient(135deg, #bfdbfe, #60a5fa);
+}
+.ap-role-badge--agency {
+  color: #713f12;
+  background: linear-gradient(135deg, #fde68a, #fbbf24);
+}
+.ap-role-badge--host {
+  color: #14532d;
+  background: linear-gradient(135deg, #bbf7d0, #4ade80);
+}
+.ap-role-badge--admin {
+  color: #1c1917;
+  background: linear-gradient(135deg, #fde68a, #f59e0b 55%, #d97706);
+}
 #profileName.is-admin-name {
   color: #b45309;
 }

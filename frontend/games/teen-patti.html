@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Teen Patti</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh;
+      background: linear-gradient(180deg, #4c1d95, #1e1b4b);
+      color: #ede9fe; font-family: system-ui, sans-serif;
+      display: flex; flex-direction: column; align-items: center; padding: 20px 16px;
+      touch-action: manipulation;
+    }
+    h1 { font-size: 1.35rem; margin: 0 0 6px; }
+    p { font-size: 0.85rem; opacity: 0.9; text-align: center; max-width: 340px; margin: 0; }
+    .table {
+      width: 100%; max-width: 360px; margin: 18px 0;
+      background: radial-gradient(circle at 50% 40%, #166534, #052e16);
+      border: 3px solid #a78bfa; border-radius: 24px; padding: 18px 14px 16px;
+      box-shadow: 0 14px 32px rgba(0,0,0,0.35);
+    }
+    .seat { margin-bottom: 18px; }
+    .seat:last-child { margin-bottom: 0; }
+    .label { text-align: center; font-size: 0.8rem; font-weight: 800; opacity: 0.9; margin-bottom: 8px; }
+    .hand { display: flex; justify-content: center; gap: 8px; min-height: 96px; }
+    .card {
+      width: 64px; height: 92px; background: #fff; color: #111;
+      border-radius: 10px; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; font-weight: 900;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.28);
+    }
+    .card .rank { font-size: 1.25rem; line-height: 1; }
+    .card .suit { font-size: 1.1rem; }
+    .card.back {
+      background: repeating-linear-gradient(45deg, #4c1d95, #4c1d95 6px, #6d28d9 6px, #6d28d9 12px);
+      color: transparent;
+    }
+    .rank-name {
+      text-align: center; margin-top: 8px; font-size: 0.78rem; font-weight: 800;
+      min-height: 18px; color: #fde68a;
+    }
+    .hud {
+      display: flex; gap: 12px; margin-bottom: 12px; font-weight: 800; font-size: 0.9rem;
+    }
+    .hud span { background: rgba(0,0,0,0.28); padding: 8px 12px; border-radius: 999px; }
+    .actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+    button {
+      border: none; border-radius: 14px; padding: 14px 22px; font-weight: 900;
+    }
+    #deal { background: #fbbf24; color: #3b0764; }
+    #see { background: #a78bfa; color: #1e1b4b; }
+    #pack { background: rgba(255,255,255,0.12); color: #ede9fe; }
+    button:disabled { opacity: 0.45; }
+    #status { margin-top: 16px; text-align: center; min-height: 52px; font-weight: 800; }
+  </style>
+</head>
+<body>
+  <h1>🃏 Teen Patti</h1>
+  <p>3-card showdown. Trail &gt; Pure sequence &gt; Sequence &gt; Color &gt; Pair &gt; High card. Local demo.</p>
+  <div class="hud">
+    <span>Bank: <strong id="bank">100</strong></span>
+    <span>Boot: <strong id="boot">10</strong></span>
+  </div>
+  <div class="table">
+    <div class="seat">
+      <div class="label">Dealer / CPU</div>
+      <div class="hand" id="cpuHand"></div>
+      <div class="rank-name" id="cpuRank"></div>
+    </div>
+    <div class="seat">
+      <div class="label">You</div>
+      <div class="hand" id="youHand"></div>
+      <div class="rank-name" id="youRank"></div>
+    </div>
+  </div>
+  <div class="actions">
+    <button type="button" id="deal">DEAL</button>
+    <button type="button" id="see" disabled>SEE / SHOW</button>
+    <button type="button" id="pack" disabled>PACK</button>
+  </div>
+  <div id="status">Pay the boot and deal.</div>
+  <script>
+    var RANKS = ["A","2","3","4","5","6","7","8","9","10","J","Q","K"];
+    var VALS = { A:14, K:13, Q:12, J:11 };
+    var SUITS = ["♠","♥","♦","♣"];
+    var bank = 100;
+    var boot = 10;
+    var busy = false;
+    var youCards = [];
+    var cpuCards = [];
+    var seen = false;
+
+    function post(o) {
+      try {
+        if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+          window.ReactNativeWebView.postMessage(JSON.stringify(o));
+        }
+      } catch (e) {}
+    }
+
+    function val(r) { return VALS[r] || Number(r); }
+
+    function freshDeck() {
+      var d = [];
+      SUITS.forEach(function (s) {
+        RANKS.forEach(function (r) { d.push({ rank: r, suit: s, v: val(r) }); });
+      });
+      for (var i = d.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var t = d[i]; d[i] = d[j]; d[j] = t;
+      }
+      return d;
+    }
+
+    function paintCard(c, faceDown) {
+      var div = document.createElement("div");
+      div.className = "card" + (faceDown ? " back" : "");
+      if (!faceDown) {
+        div.innerHTML = '<span class="rank">' + c.rank + '</span><span class="suit">' + c.suit + '</span>';
+        div.style.color = (c.suit === "♥" || c.suit === "♦") ? "#dc2626" : "#111";
+      } else {
+        div.innerHTML = '<span class="rank">?</span><span class="suit"></span>';
+      }
+      return div;
+    }
+
+    function renderHands(revealCpu) {
+      var you = document.getElementById("youHand");
+      var cpu = document.getElementById("cpuHand");
+      you.innerHTML = "";
+      cpu.innerHTML = "";
+      youCards.forEach(function (c) { you.appendChild(paintCard(c, !seen)); });
+      cpuCards.forEach(function (c) { cpu.appendChild(paintCard(c, !revealCpu)); });
+    }
+
+    /** Score hand: higher is better. Returns { score, name, tiebreak[] } */
+    function evaluate(cards) {
+      var sorted = cards.slice().sort(function (a, b) { return b.v - a.v; });
+      var vals = sorted.map(function (c) { return c.v; });
+      var suits = sorted.map(function (c) { return c.suit; });
+      var sameSuit = suits[0] === suits[1] && suits[1] === suits[2];
+      var trail = vals[0] === vals[1] && vals[1] === vals[2];
+      var pair = vals[0] === vals[1] || vals[1] === vals[2] || vals[0] === vals[2];
+
+      function isSeq(v) {
+        var s = v.slice().sort(function (a, b) { return a - b; });
+        // A-2-3
+        if (s[0] === 2 && s[1] === 3 && s[2] === 14) return true;
+        return s[0] + 1 === s[1] && s[1] + 1 === s[2];
+      }
+      var seq = isSeq(vals);
+      var pure = sameSuit && seq;
+
+      var pairVal = 0;
+      var kicker = 0;
+      if (pair && !trail) {
+        if (vals[0] === vals[1]) { pairVal = vals[0]; kicker = vals[2]; }
+        else if (vals[1] === vals[2]) { pairVal = vals[1]; kicker = vals[0]; }
+        else { pairVal = vals[0]; kicker = vals[1]; }
+      }
+
+      var seqHigh = vals[0];
+      if (seq) {
+        var s = vals.slice().sort(function (a, b) { return a - b; });
+        if (s[0] === 2 && s[1] === 3 && s[2] === 14) seqHigh = 3; // A-2-3 lowest sequence
+        else seqHigh = s[2];
+      }
+
+      if (trail) return { score: 600 + vals[0], name: "Trail (" + sorted[0].rank + ")", tie: vals };
+      if (pure) return { score: 500 + seqHigh, name: "Pure sequence", tie: [seqHigh].concat(vals) };
+      if (seq) return { score: 400 + seqHigh, name: "Sequence", tie: [seqHigh].concat(vals) };
+      if (sameSuit) return { score: 300 + vals[0], name: "Color", tie: vals };
+      if (pair) return { score: 200 + pairVal, name: "Pair (" + pairVal + ")", tie: [pairVal, kicker] };
+      return { score: 100 + vals[0], name: "High card " + sorted[0].rank, tie: vals };
+    }
+
+    function compare(a, b) {
+      if (a.score !== b.score) return a.score - b.score;
+      for (var i = 0; i < Math.max(a.tie.length, b.tie.length); i++) {
+        var av = a.tie[i] || 0, bv = b.tie[i] || 0;
+        if (av !== bv) return av - bv;
+      }
+      return 0;
+    }
+
+    function paintHud() {
+      document.getElementById("bank").textContent = String(bank);
+      document.getElementById("boot").textContent = String(boot);
+    }
+
+    function setButtons(dealOn, seeOn, packOn) {
+      document.getElementById("deal").disabled = !dealOn;
+      document.getElementById("see").disabled = !seeOn;
+      document.getElementById("pack").disabled = !packOn;
+    }
+
+    document.getElementById("deal").onclick = function () {
+      if (busy) return;
+      if (bank < boot) {
+        document.getElementById("status").textContent = "Not enough bank for boot.";
+        return;
+      }
+      bank -= boot;
+      seen = false;
+      var deck = freshDeck();
+      youCards = [deck.pop(), deck.pop(), deck.pop()];
+      cpuCards = [deck.pop(), deck.pop(), deck.pop()];
+      document.getElementById("youRank").textContent = "";
+      document.getElementById("cpuRank").textContent = "";
+      renderHands(false);
+      paintHud();
+      document.getElementById("status").textContent = "Cards dealt. SEE to show, or PACK to fold.";
+      setButtons(false, true, true);
+      post({ type: "REQUEST_TEENPATTI", boot: boot });
+    };
+
+    document.getElementById("pack").onclick = function () {
+      if (busy) return;
+      busy = true;
+      seen = true;
+      renderHands(true);
+      var cpuE = evaluate(cpuCards);
+      document.getElementById("youRank").textContent = "Packed";
+      document.getElementById("cpuRank").textContent = cpuE.name;
+      document.getElementById("status").textContent = "You packed. Lost boot " + boot + ".";
+      setButtons(true, false, false);
+      post({ type: "TEENPATTI_RESULT", result: "pack", boot: boot, bank: bank });
+      busy = false;
+    };
+
+    document.getElementById("see").onclick = function () {
+      if (busy) return;
+      busy = true;
+      seen = true;
+      var youE = evaluate(youCards);
+      var cpuE = evaluate(cpuCards);
+      renderHands(true);
+      document.getElementById("youRank").textContent = youE.name;
+      document.getElementById("cpuRank").textContent = cpuE.name;
+      var cmp = compare(youE, cpuE);
+      var pot = boot * 2;
+      var result;
+      if (cmp > 0) {
+        bank += pot;
+        result = "win";
+        document.getElementById("status").textContent = "You win! +" + pot + " (" + youE.name + ")";
+      } else if (cmp < 0) {
+        result = "lose";
+        document.getElementById("status").textContent = "CPU wins with " + cpuE.name + ".";
+      } else {
+        bank += boot;
+        result = "tie";
+        document.getElementById("status").textContent = "Tie — boot returned.";
+      }
+      paintHud();
+      setButtons(true, false, false);
+      post({
+        type: "TEENPATTI_RESULT",
+        result: result,
+        you: youE.name,
+        cpu: cpuE.name,
+        boot: boot,
+        bank: bank,
+        openReddy: true
+      });
+      busy = false;
+    };
+
+    paintHud();
+    setButtons(true, false, false);
+    post({ type: "GAME_READY", game: "teenpatti" });
+  </script>
+</body>
+</html>

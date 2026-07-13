@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Roulette</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh;
+      background: linear-gradient(180deg, #111827, #030712);
+      color: #f3f4f6; font-family: system-ui, sans-serif;
+      display: flex; flex-direction: column; align-items: center; padding: 20px 16px;
+      touch-action: manipulation;
+    }
+    h1 { font-size: 1.35rem; margin: 0 0 6px; }
+    p { font-size: 0.85rem; opacity: 0.85; text-align: center; max-width: 320px; margin: 0; }
+    .wheel-wrap {
+      position: relative; width: 260px; height: 260px; margin: 22px 0 12px;
+    }
+    .wheel {
+      width: 100%; height: 100%; border-radius: 50%;
+      border: 6px solid #fbbf24;
+      background: conic-gradient(
+        #b91c1c 0deg 18deg, #111 18deg 36deg,
+        #b91c1c 36deg 54deg, #111 54deg 72deg,
+        #b91c1c 72deg 90deg, #111 90deg 108deg,
+        #b91c1c 108deg 126deg, #111 126deg 144deg,
+        #b91c1c 144deg 162deg, #111 162deg 180deg,
+        #b91c1c 180deg 198deg, #111 198deg 216deg,
+        #b91c1c 216deg 234deg, #111 234deg 252deg,
+        #b91c1c 252deg 270deg, #111 270deg 288deg,
+        #b91c1c 288deg 306deg, #111 306deg 324deg,
+        #15803d 324deg 342deg, #111 342deg 360deg
+      );
+      box-shadow: inset 0 0 0 10px rgba(0,0,0,0.25), 0 12px 30px rgba(0,0,0,0.45);
+      transition: transform 3.2s cubic-bezier(0.12, 0.75, 0.08, 1);
+    }
+    .pointer {
+      position: absolute; top: -8px; left: 50%; transform: translateX(-50%);
+      width: 0; height: 0;
+      border-left: 12px solid transparent;
+      border-right: 12px solid transparent;
+      border-top: 22px solid #fbbf24;
+      z-index: 2;
+      filter: drop-shadow(0 2px 2px rgba(0,0,0,0.4));
+    }
+    .hub {
+      position: absolute; inset: 42%; border-radius: 50%;
+      background: radial-gradient(circle at 35% 30%, #fde68a, #b45309);
+      border: 3px solid #fff;
+      z-index: 1;
+    }
+    .bets {
+      display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin: 8px 0 14px;
+    }
+    .bets button {
+      border: 2px solid transparent; border-radius: 12px; padding: 10px 14px;
+      font-weight: 900; color: #fff; min-width: 72px;
+    }
+    .bets button.red { background: #b91c1c; }
+    .bets button.black { background: #1f2937; }
+    .bets button.green { background: #15803d; }
+    .bets button.active { border-color: #fbbf24; box-shadow: 0 0 0 2px rgba(251,191,36,0.35); }
+    .row { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+    .row button, #spin {
+      border: none; border-radius: 14px; padding: 12px 18px; font-weight: 900;
+    }
+    .row button { background: rgba(255,255,255,0.1); color: #fff; }
+    #spin { background: #fbbf24; color: #111; padding: 14px 28px; font-size: 1rem; }
+    #spin:disabled { opacity: 0.45; }
+    .meta { font-weight: 800; opacity: 0.95; }
+    #status { margin-top: 14px; text-align: center; min-height: 48px; font-weight: 800; }
+  </style>
+</head>
+<body>
+  <h1>🎡 Roulette</h1>
+  <p>Bet red / black / green (0). Local demo — app can open Reddy betting from the room panel.</p>
+  <div class="wheel-wrap">
+    <div class="pointer"></div>
+    <div class="wheel" id="wheel"></div>
+    <div class="hub"></div>
+  </div>
+  <div class="bets" id="bets">
+    <button type="button" class="red active" data-color="red">RED</button>
+    <button type="button" class="black" data-color="black">BLACK</button>
+    <button type="button" class="green" data-color="green">GREEN 0</button>
+  </div>
+  <div class="row">
+    <button type="button" id="betDown">−</button>
+    <span class="meta">Bet <strong id="betLabel">10</strong></span>
+    <button type="button" id="betUp">+</button>
+    <span class="meta">Bank <strong id="bank">100</strong></span>
+  </div>
+  <button type="button" id="spin">SPIN</button>
+  <div id="status">Pick a color, then spin.</div>
+  <script>
+    // European-style simplified pockets: 0 green, then red/black alternating
+    var POCKETS = [
+      { n: 32, c: "red" }, { n: 15, c: "black" }, { n: 19, c: "red" }, { n: 4, c: "black" },
+      { n: 21, c: "red" }, { n: 2, c: "black" }, { n: 25, c: "red" }, { n: 17, c: "black" },
+      { n: 34, c: "red" }, { n: 6, c: "black" }, { n: 27, c: "red" }, { n: 13, c: "black" },
+      { n: 36, c: "red" }, { n: 11, c: "black" }, { n: 30, c: "red" }, { n: 8, c: "black" },
+      { n: 23, c: "red" }, { n: 10, c: "black" }, { n: 5, c: "red" }, { n: 24, c: "black" },
+      { n: 16, c: "red" }, { n: 33, c: "black" }, { n: 1, c: "red" }, { n: 20, c: "black" },
+      { n: 14, c: "red" }, { n: 31, c: "black" }, { n: 9, c: "red" }, { n: 22, c: "black" },
+      { n: 18, c: "red" }, { n: 29, c: "black" }, { n: 7, c: "red" }, { n: 28, c: "black" },
+      { n: 12, c: "red" }, { n: 35, c: "black" }, { n: 3, c: "red" }, { n: 26, c: "black" },
+      { n: 0, c: "green" }
+    ];
+    var bank = 100;
+    var bet = 10;
+    var color = "red";
+    var busy = false;
+    var rotation = 0;
+
+    function post(o) {
+      try {
+        if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+          window.ReactNativeWebView.postMessage(JSON.stringify(o));
+        }
+      } catch (e) {}
+    }
+
+    function paint() {
+      document.getElementById("bank").textContent = String(bank);
+      document.getElementById("betLabel").textContent = String(bet);
+    }
+
+    document.querySelectorAll("#bets button").forEach(function (btn) {
+      btn.onclick = function () {
+        if (busy) return;
+        color = btn.dataset.color;
+        document.querySelectorAll("#bets button").forEach(function (b) { b.classList.remove("active"); });
+        btn.classList.add("active");
+      };
+    });
+
+    document.getElementById("betDown").onclick = function () {
+      if (busy) return;
+      bet = Math.max(5, bet - 5);
+      paint();
+    };
+    document.getElementById("betUp").onclick = function () {
+      if (busy) return;
+      bet = Math.min(50, bet + 5);
+      paint();
+    };
+
+    document.getElementById("spin").onclick = function () {
+      if (busy) return;
+      if (bank < bet) {
+        document.getElementById("status").textContent = "Not enough bank.";
+        return;
+      }
+      busy = true;
+      this.disabled = true;
+      bank -= bet;
+      paint();
+      var idx = Math.floor(Math.random() * POCKETS.length);
+      var pocket = POCKETS[idx];
+      var slice = 360 / POCKETS.length;
+      // Pointer is at top; rotate so selected pocket centers under pointer
+      var target = 360 * 5 + (360 - (idx * slice + slice / 2));
+      rotation = target;
+      var wheel = document.getElementById("wheel");
+      wheel.style.transform = "rotate(" + rotation + "deg)";
+      document.getElementById("status").textContent = "Spinning…";
+      post({ type: "REQUEST_ROULETTE", bet: bet, color: color });
+
+      setTimeout(function () {
+        var win = pocket.c === color;
+        var mult = color === "green" ? 14 : 2;
+        var payout = win ? bet * mult : 0;
+        if (win) bank += payout;
+        paint();
+        document.getElementById("status").textContent = win
+          ? "Hit " + pocket.n + " (" + pocket.c + ")! +" + payout
+          : "Landed " + pocket.n + " (" + pocket.c + "). Lost " + bet;
+        busy = false;
+        document.getElementById("spin").disabled = false;
+        post({
+          type: "ROULETTE_RESULT",
+          win: win,
+          number: pocket.n,
+          color: pocket.c,
+          betColor: color,
+          bet: bet,
+          payout: payout,
+          bank: bank,
+          openReddy: true
+        });
+      }, 3300);
+    };
+
+    paint();
+    post({ type: "GAME_READY", game: "roulette" });
+  </script>
+</body>
+</html>

@@ -1441,6 +1441,9 @@
                             <i class="fas fa-user-tag"></i> Role Applications
                             <span class="badge warning" id="roleAppsBadge">0</span>
                         </button>
+                        <button class="nav-item" data-section="bd-hierarchy">
+                            <i class="fas fa-sitemap"></i> BD &amp; Hierarchy
+                        </button>
                         <button class="nav-item" data-section="withdrawals">
                             <i class="fas fa-money-bill-wave"></i> Withdrawals
                             <span class="badge warning" id="withdrawalsBadge">0</span>
@@ -1628,6 +1631,7 @@
                                 <option value="coin_seller">Coin Sellers</option>
                                 <option value="creator">Hosts / Creators</option>
                                 <option value="agency">Agency</option>
+                                <option value="bdm">BD</option>
                                 <option value="admin">Admins</option>
                                 <option value="super_admin">Super Admins</option>
                             </select>
@@ -1894,13 +1898,13 @@
                     <!-- Role Applications -->
                     <div class="dashboard-section" id="role-applications-section">
                         <div class="section-header">
-                            <h2><i class="fas fa-user-tag"></i> Host &amp; Coin Seller Applications</h2>
+                            <h2><i class="fas fa-user-tag"></i> Host, Agency &amp; Coin Seller Applications</h2>
                             <button class="btn-outline" onclick="loadRoleApplications()">
                                 <i class="fas fa-sync-alt"></i> Refresh
                             </button>
                         </div>
                         <p style="color:var(--gray-500);margin-bottom:16px;font-size:14px">
-                            Review user requests to become a Host or Coin Seller. Approving assigns the role and sends an in-app notification.
+                            Approve Host (assign Agency), Agency (assign BD), or Coin Seller. Approving assigns the role and notifies the user.
                         </p>
                         <div class="admin-cards-view" id="roleAppsCards"></div>
                         <div class="table-container admin-table-view">
@@ -1919,6 +1923,58 @@
                                     <tr><td colspan="6" class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Loading…</td></tr>
                                 </tbody>
                             </table>
+                        </div>
+                    </div>
+
+                    <!-- BD & Hierarchy -->
+                    <div class="dashboard-section" id="bd-hierarchy-section">
+                        <div class="section-header">
+                            <h2><i class="fas fa-sitemap"></i> BD → Agency → Host</h2>
+                            <div style="display:flex;gap:8px;flex-wrap:wrap">
+                                <a class="btn-outline" href="/hierarchy.html?app=1" target="_blank"><i class="fas fa-project-diagram"></i> Open tree</a>
+                                <button class="btn-outline" onclick="loadBdHierarchy()"><i class="fas fa-sync-alt"></i> Refresh</button>
+                            </div>
+                        </div>
+                        <div class="filter-bar" style="margin-bottom:16px">
+                            <div class="search-box" style="flex:1">
+                                <i class="fas fa-user-plus"></i>
+                                <input type="text" id="bdAssignUserId" placeholder="User UUID to assign as BD">
+                            </div>
+                            <button class="btn-primary" onclick="assignBdFromAdmin()"><i class="fas fa-check"></i> Assign BD</button>
+                        </div>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>BD</th>
+                                        <th>Email</th>
+                                        <th>Agencies</th>
+                                        <th>Hosts</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="bdListTable">
+                                    <tr><td colspan="5" class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Loading…</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="section-header" style="margin-top:28px">
+                            <h2><i class="fas fa-percent"></i> Gift commission rules</h2>
+                            <button class="btn-outline" onclick="loadCommissionRules()"><i class="fas fa-sync-alt"></i> Refresh</button>
+                        </div>
+                        <p style="color:var(--gray-500);margin-bottom:12px;font-size:14px">
+                            Percent of gift gross (default Host 70 / Agency 20 / Platform 10). BD can be set &gt; 0 later.
+                        </p>
+                        <div id="commissionRulesCards" class="admin-cards-view"></div>
+                        <div class="filter-bar">
+                            <select class="filter-select" id="commRole">
+                                <option value="host">host</option>
+                                <option value="agency">agency</option>
+                                <option value="bd">bd</option>
+                                <option value="platform">platform</option>
+                            </select>
+                            <input type="number" id="commPct" class="filter-select" min="0" max="100" step="0.01" placeholder="%">
+                            <button class="btn-primary" onclick="saveCommissionRule()">Save rule</button>
                         </div>
                     </div>
 
@@ -2812,6 +2868,7 @@
             try {
                 const response = await API.get('/admin/role-applications/pending');
                 const rows = response.data || [];
+                window.__pendingRoleApps = rows;
                 const badge = document.getElementById('roleAppsBadge');
                 if (badge) badge.textContent = rows.length;
                 if (!rows.length) {
@@ -2836,6 +2893,7 @@
                             <div class="admin-approval-kv">
                                 <div><span>Role requested</span><strong>${a.role_label}</strong></div>
                                 <div><span>Phone</span><strong>${a.contact_phone || a.phone || '—'}</strong></div>
+                                <div><span>BD promo</span><strong>${a.promo_code || '—'}</strong></div>
                                 <div class="full"><span>Message</span><strong>${a.message || '—'}</strong></div>
                                 <div class="full"><span>Submitted</span><strong>${new Date(a.created_at).toLocaleString()}</strong></div>
                             </div>
@@ -2870,9 +2928,30 @@
         }
 
         async function approveRoleApp(id) {
-            if (!confirm('Approve this role application?')) return;
+            const row = (window.__pendingRoleApps || []).find((a) => String(a.id) === String(id));
+            const roleType = row?.role_type || '';
+            const payload = { decision: 'approved' };
             try {
-                await API.post(`/admin/role-applications/${id}/review`, { decision: 'approved' });
+                if (roleType === 'agency') {
+                    let bdUserId = row?.target_bd_user_id || '';
+                    if (!bdUserId) {
+                        bdUserId = prompt('Assign to BD — enter BD user UUID:');
+                        if (!bdUserId) return;
+                    }
+                    payload.bd_user_id = String(bdUserId).trim();
+                    const agencyName = prompt('Agency display name (optional):', row.agency_name || '') || undefined;
+                    if (agencyName) payload.agency_name = agencyName;
+                } else if (roleType === 'creator') {
+                    const agencyId = prompt('Assign Host to Agency — enter Agency UUID:');
+                    if (!agencyId || !agencyId.trim()) {
+                        Toast.show('Agency UUID required', 'error');
+                        return;
+                    }
+                    payload.agency_id = agencyId.trim();
+                }
+                const promoNote = row?.promo_code ? ` (promo ${row.promo_code})` : '';
+                if (!confirm(`Approve this ${row?.role_label || roleType} application${promoNote}?`)) return;
+                await API.post(`/admin/role-applications/${id}/review`, payload);
                 Toast.show('Application approved — user notified', 'success');
                 loadRoleApplications();
             } catch (e) {
@@ -2887,6 +2966,97 @@
                 await API.post(`/admin/role-applications/${id}/review`, { decision: 'rejected', reason: reason || 'Not approved at this time' });
                 Toast.show('Application rejected — user notified', 'success');
                 loadRoleApplications();
+            } catch (e) {
+                Toast.show(e.message || 'Failed', 'error');
+            }
+        }
+
+        async function loadBdHierarchy() {
+            const tbody = document.getElementById('bdListTable');
+            if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Loading…</td></tr>';
+            try {
+                const response = await API.get('/admin/bd');
+                const rows = response.data || [];
+                if (!rows.length) {
+                    if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No BDs yet — assign a user above</td></tr>';
+                } else if (tbody) {
+                    tbody.innerHTML = rows.map((b) => {
+                        const name = b.display_name || `${b.first_name || ''} ${b.last_name || ''}`.trim() || 'BD';
+                        return `<tr>
+                            <td><strong>${name}</strong><br><small>${b.user_id}</small></td>
+                            <td>${b.email || '—'}</td>
+                            <td>${b.agency_count ?? 0}</td>
+                            <td>${b.host_count ?? 0}</td>
+                            <td>
+                                <button class="icon-btn delete" title="Remove BD" onclick="removeBdFromAdmin('${b.user_id}')"><i class="fas fa-user-minus"></i></button>
+                            </td>
+                        </tr>`;
+                    }).join('');
+                }
+            } catch (e) {
+                if (tbody) tbody.innerHTML = `<tr><td colspan="5" class="empty-state">${e.message || 'Failed'}</td></tr>`;
+            }
+            loadCommissionRules();
+        }
+
+        async function assignBdFromAdmin() {
+            const userId = document.getElementById('bdAssignUserId')?.value?.trim();
+            if (!userId) {
+                Toast.show('Enter a user UUID', 'error');
+                return;
+            }
+            try {
+                await API.post('/admin/bd/assign', { user_id: userId });
+                Toast.show('BD assigned', 'success');
+                document.getElementById('bdAssignUserId').value = '';
+                loadBdHierarchy();
+            } catch (e) {
+                Toast.show(e.message || 'Failed', 'error');
+            }
+        }
+
+        async function removeBdFromAdmin(userId) {
+            if (!confirm('Remove BD role? Agencies must be transferred first.')) return;
+            try {
+                await API.delete('/admin/bd/' + userId);
+                Toast.show('BD removed', 'success');
+                loadBdHierarchy();
+            } catch (e) {
+                Toast.show(e.message || 'Failed', 'error');
+            }
+        }
+
+        async function loadCommissionRules() {
+            const mount = document.getElementById('commissionRulesCards');
+            if (!mount) return;
+            try {
+                const res = await API.get('/admin/commission-rules');
+                const rules = res.data?.rules || [];
+                const splits = res.data?.splits || {};
+                mount.innerHTML = `<article class="admin-approval-card">
+                    <div class="admin-approval-kv">
+                        ${Object.keys(splits).length
+                            ? Object.entries(splits).map(([k, v]) => `<div><span>${k}</span><strong>${v}%</strong></div>`).join('')
+                            : '<div class="full"><span>No active rules</span></div>'}
+                        <div class="full"><span>Active rule rows</span><strong>${rules.length}</strong></div>
+                    </div>
+                </article>`;
+            } catch (e) {
+                mount.innerHTML = `<p class="empty-state">${e.message || 'Failed to load rules'}</p>`;
+            }
+        }
+
+        async function saveCommissionRule() {
+            const role = document.getElementById('commRole')?.value;
+            const percentage = Number(document.getElementById('commPct')?.value);
+            if (!role || !Number.isFinite(percentage)) {
+                Toast.show('Role and percentage required', 'error');
+                return;
+            }
+            try {
+                await API.put('/admin/commission-rules', { role, percentage, active: true });
+                Toast.show('Commission rule saved', 'success');
+                loadCommissionRules();
             } catch (e) {
                 Toast.show(e.message || 'Failed', 'error');
             }
@@ -3300,6 +3470,7 @@
             if (section === 'payments') loadPayments();
             if (section === 'recharges') loadRecharges();
             if (section === 'role-applications') loadRoleApplications();
+            if (section === 'bd-hierarchy') loadBdHierarchy();
             if (section === 'withdrawals') loadWithdrawals();
             if (section === 'reviews') loadReviews();
         }

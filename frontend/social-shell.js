@@ -96,8 +96,10 @@
       users.forEach((u) => {
         const name = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email || 'User';
         html += `<a href="/creator-profile.html?id=${u.id}&app=1" class="social-search-user">
-          <span class="social-search-user-name">${escapeHtml(name)}</span>
-          <span class="social-search-user-id">ID ${u.id}</span>
+          <span class="social-search-user-name">${escapeHtml(name)} ${
+            window.formatRoleBadgeHtml?.(u.role || u, { withEmoji: true }) || ''
+          }</span>
+          <span class="social-search-user-id">ID ${u.display_id || u.id}</span>
         </a>`;
       });
       html += `</div>`;
@@ -1651,6 +1653,7 @@
       coin_seller: '/coin-seller-center.html',
       creator: '/streamer-center.html',
       agency: '/agency-center.html',
+      bdm: '/bd-center.html',
     };
     window.location.href = withAppQuery(routes[role] || '/customer-dashboard.html');
   }

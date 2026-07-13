@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#faf6ee">
   <title>Streamer Center - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-live.css">
+  <link rel="stylesheet" href="social-live.css?v=20260713-daily-hours">
   <link rel="stylesheet" href="mobile-app.css">
 </head>
 <body data-live-page="streamer-center" class="streamer-page">
@@ -17,7 +17,8 @@
   </header>
 
   <section class="streamer-card">
-    <h2>Live Stream Data <a href="/rankings.html?app=1">More data &gt;</a></h2>
+    <h2>Hosting time <a href="/rankings.html?app=1">More data &gt;</a></h2>
+    <p style="font-size:12px;color:#6b7280;margin:-4px 0 10px">Live + Party combined · hours per day</p>
     <div class="streamer-pills" id="streamerStatsPills">
       <button type="button" class="active" data-stats-period="today">Today · 1 day</button>
       <button type="button" data-stats-period="week">This week · 7 days</button>
@@ -27,11 +28,16 @@
     </div>
     <p class="streamer-period-days" id="streamerPeriodDaysLabel">Showing <strong>1</strong> day</p>
     <div class="streamer-metrics" id="streamerPeriodMetrics">
-      <div class="metric"><div class="val" id="streamerPeriodDays">1</div><div class="lbl">Number of days</div></div>
-      <div class="metric"><div class="val" id="streamerLiveHours">00:00:00</div><div class="lbl">Hours of Live Streaming</div></div>
+      <div class="metric"><div class="val" id="streamerPeriodDays">1</div><div class="lbl">Days in range</div></div>
+      <div class="metric"><div class="val" id="streamerLiveHours">0h 0m</div><div class="lbl">Total host time</div></div>
+      <div class="metric"><div class="val" id="streamerLiveOnlyHours">0h 0m</div><div class="lbl">Live only</div></div>
+      <div class="metric"><div class="val" id="streamerPartyOnlyHours">0h 0m</div><div class="lbl">Party only</div></div>
       <div class="metric"><div class="val" id="streamerWonPoints">0</div><div class="lbl">Won points</div></div>
       <div class="metric"><div class="val" id="streamerNewFollowers">0</div><div class="lbl">New followers</div></div>
-      <div class="metric"><div class="val" id="streamerAvgViewers">0</div><div class="lbl">Average Concurrent Users</div></div>
+    </div>
+    <div class="streamer-daily-hours" id="streamerDailyHours">
+      <h3 style="font-size:13px;margin:16px 0 8px;color:#374151">Per day (Live + Party)</h3>
+      <div id="streamerDailyList" class="streamer-daily-list"><p style="font-size:12px;color:#9ca3af">Loading…</p></div>
     </div>
   </section>
 
@@ -135,7 +141,7 @@
   <script src="auth-guard.js"></script>
   <script src="social-shell.js"></script>
   <script src="social-nav.js"></script>
-  <script src="social-live.js?v=20260713-cam-fix"></script>
+  <script src="social-live.js?v=20260713-daily-hours"></script>
   <script>
     (async function () {
       let user = window.Auth?.getUser?.() || null;
@@ -154,8 +160,19 @@
       const uidEl = document.getElementById('streamerUid');
       if (uidEl) {
         const publicId = window.formatUserDisplayId?.(user) || '';
-        uidEl.textContent = publicId ? 'ID:' + publicId : 'ID:—';
+        const badge = window.formatRoleBadgeHtml?.(user, { withEmoji: true }) || '';
+        uidEl.innerHTML =
+          (badge ? badge + ' ' : '') + (publicId ? 'ID:' + publicId : 'ID:—');
       }
+
+      try {
+        const dash = await API.get('/host/dashboard');
+        const d = dash?.data || {};
+        const won = document.getElementById('streamerWonPoints');
+        if (won && d.monthStars != null) {
+          won.textContent = Number(d.monthStars || 0).toLocaleString();
+        }
+      } catch (_e) {}
 
       const key = user?.id ? 'ap_streamer_cover_' + user.id : null;
       const preview = document.getElementById('streamerCoverPreview');

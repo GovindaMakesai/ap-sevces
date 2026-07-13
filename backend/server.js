@@ -22,6 +22,7 @@ const { ensureRoleApplicationsSchema } = require('./config/ensureRoleApplication
 const { ensurePaymentApprovalsSchema } = require('./config/ensurePaymentApprovalsSchema');
 const { ensureLiveHostStatsSchema } = require('./config/ensureLiveHostStatsSchema');
 const { ensureLiveUserAnalyticsSchema } = require('./config/ensureLiveUserAnalyticsSchema');
+const { ensureBdHierarchySchema } = require('./config/ensureBdHierarchySchema');
 const { ensurePartyModerationSchema } = require('./config/ensurePartyModerationSchema');
 const { ensureWithdrawalQrSchema } = require('./config/ensureWithdrawalQrSchema');
 const { applySecurityMiddleware, authLimiter, walletLimiter } = require('./middleware/security');
@@ -64,6 +65,7 @@ const storeRoutes = require('./routes/store');
 const trustRoutes = require('./routes/trust');
 const filesRoutes = require('./routes/files');
 const searchRoutes = require('./routes/search');
+const hierarchyRoutes = require('./routes/hierarchy');
 
 const app = express();
 const server = http.createServer(app);
@@ -170,6 +172,7 @@ app.use('/api/trust', trustRoutes);
 app.use('/api/files', filesRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/v1', platformRoutes);
+app.use('/api', hierarchyRoutes);
 
 app.get('/api/health', async (_req, res) => {
   const health = { success: true, status: 'online', checks: {} };
@@ -235,6 +238,7 @@ async function startServer() {
   await ensurePaymentApprovalsSchema();
   await ensureLiveHostStatsSchema();
   await ensureLiveUserAnalyticsSchema();
+  await ensureBdHierarchySchema();
   await ensurePartyModerationSchema();
   const { ensureDisplayIdSchema } = require('./config/ensureDisplayIdSchema');
   await ensureDisplayIdSchema();

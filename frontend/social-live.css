@@ -1252,6 +1252,24 @@ body[data-live-page='live-room'] .live-room {
 .streamer-metrics .metric { text-align: center; }
 .streamer-metrics .val { font-size: 22px; font-weight: 800; color: #111827; }
 .streamer-metrics .lbl { font-size: 11px; color: #9ca3af; margin-top: 4px; }
+.streamer-daily-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.streamer-daily-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #f9fafb;
+  border-radius: 10px;
+  font-size: 13px;
+}
+.streamer-daily-row strong { font-weight: 800; color: #111827; }
+.streamer-daily-row .sub { font-size: 11px; color: #9ca3af; }
+.streamer-daily-row .hrs { font-weight: 800; color: #ea580c; white-space: nowrap; }
 
 .streamer-cover-box {
   background: #f9fafb; border-radius: 12px; padding: 20px; text-align: center;
@@ -4380,6 +4398,37 @@ html.ap-expo-app .ap-chip {
   background-clip: text;
   color: transparent;
   white-space: nowrap;
+}
+
+/* Hierarchy role badges: BD / Agency / Host */
+.ap-role-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1.4;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.ap-role-badge--bd {
+  color: #1e3a8a;
+  background: linear-gradient(135deg, #bfdbfe, #60a5fa);
+}
+.ap-role-badge--agency {
+  color: #713f12;
+  background: linear-gradient(135deg, #fde68a, #fbbf24);
+}
+.ap-role-badge--host {
+  color: #14532d;
+  background: linear-gradient(135deg, #bbf7d0, #4ade80);
+}
+.ap-role-badge--admin {
+  color: #1c1917;
+  background: linear-gradient(135deg, #fde68a, #f59e0b 55%, #d97706);
 }
 .ap-profile-id-row.is-admin-id,
 .social-profile-uid.is-admin-id {

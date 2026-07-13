@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Room Games</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh;
+      background: linear-gradient(180deg, #1e293b, #0f172a);
+      color: #e2e8f0; font-family: system-ui, sans-serif;
+      padding: 20px 16px 40px; touch-action: manipulation;
+    }
+    h1 { font-size: 1.35rem; text-align: center; margin: 0 0 8px; }
+    p { text-align: center; opacity: 0.85; font-size: 0.85rem; max-width: 340px; margin: 0 auto 20px; }
+    .grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+      max-width: 420px; margin: 0 auto;
+    }
+    a.game {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 8px; min-height: 110px; padding: 16px 10px; border-radius: 18px;
+      text-decoration: none; color: inherit; font-weight: 900;
+      box-shadow: 0 10px 24px rgba(0,0,0,0.28);
+    }
+    a.game span { font-size: 1.8rem; }
+    a.game small { font-weight: 600; opacity: 0.85; font-size: 0.72rem; text-align: center; }
+    .cardwar { background: linear-gradient(160deg, #16a34a, #14532d); }
+    .champcar { background: linear-gradient(160deg, #14b8a6, #0f766e); }
+    .greedy { background: linear-gradient(160deg, #f97316, #9a3412); }
+    .roulette { background: linear-gradient(160deg, #ef4444, #111827); }
+    .teenpatti { background: linear-gradient(160deg, #8b5cf6, #4c1d95); grid-column: 1 / -1; }
+  </style>
+</head>
+<body>
+  <h1>🎮 Room Games</h1>
+  <p>Local demos for the live/party game panel. Each page posts WebView events for the native/app shell.</p>
+  <div class="grid">
+    <a class="game cardwar" href="/games/card-war.html"><span>🃏</span>Card War<small>Higher card wins</small></a>
+    <a class="game champcar" href="/games/champ-car.html"><span>🏎️</span>Champ Car<small>Race → Reddy</small></a>
+    <a class="game greedy" href="/games/greedy.html"><span>💎</span>Greedy<small>Pick the prize gem</small></a>
+    <a class="game roulette" href="/games/roulette.html"><span>🎡</span>Roulette<small>Red / Black / Green</small></a>
+    <a class="game teenpatti" href="/games/teen-patti.html"><span>🃏</span>Teen Patti<small>Trail · Sequence · Color · Pair</small></a>
+  </div>
+  <script>
+    try {
+      if (window.ReactNativeWebView) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: "GAME_READY", game: "hub" }));
+      }
+    } catch (e) {}
+  </script>
+</body>
+</html>

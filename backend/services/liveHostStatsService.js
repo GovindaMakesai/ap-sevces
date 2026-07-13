@@ -197,18 +197,95 @@ async function getStreamerStats(userId, period = 'today') {
           )
         : 0;
 
+  // Per-day combined live + party hours (from daily table + rooms for accuracy)
+  const dailyMap = new Map();
+  const days = periodDays(period);
+  for (let i = 0; i < days; i++) {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() - (days - 1 - i));
+    const key = d.toISOString().slice(0, 10);
+    dailyMap.set(key, { date: key, liveSeconds: 0, partySeconds: 0, totalSeconds: 0 });
+  }
+
+  try {
+    const dailyRes = await db.query(
+      `SELECT stat_date::text AS date,
+              COALESCE(live_seconds, 0)::bigint AS live_seconds,
+              COALESCE(party_seconds, 0)::bigint AS party_seconds
+       FROM live_host_stat_daily
+       WHERE host_user_id = $1 AND stat_date >= $2::date
+       ORDER BY stat_date ASC`,
+      [userId, since.toISOString().slice(0, 10)]
+    );
+    for (const row of dailyRes.rows) {
+      const key = String(row.date).slice(0, 10);
+      if (!dailyMap.has(key)) continue;
+      const live = Number(row.live_seconds || 0);
+      const party = Number(row.party_seconds || 0);
+      dailyMap.set(key, {
+        date: key,
+        liveSeconds: live,
+        partySeconds: party,
+        totalSeconds: live + party,
+      });
+    }
+  } catch (_e) {
+    /* table may not exist yet — fall back to rooms */
+  }
+
+  // Prefer room aggregation when daily is empty or lower (active sessions)
+  const roomByDay = new Map();
+  for (const row of roomsRes.rows) {
+    const endTs = row.ended_at || row.updated_at || row.started_at;
+    if (!endTs) continue;
+    const key = new Date(endTs).toISOString().slice(0, 10);
+    if (!dailyMap.has(key)) continue;
+    const sec = sessionSecondsFromRow(row);
+    const cur = roomByDay.get(key) || { liveSeconds: 0, partySeconds: 0 };
+    if (String(row.room_type) === 'party') cur.partySeconds += sec;
+    else cur.liveSeconds += sec;
+    roomByDay.set(key, cur);
+  }
+  for (const [key, roomDay] of roomByDay.entries()) {
+    const existing = dailyMap.get(key);
+    const roomTotal = roomDay.liveSeconds + roomDay.partySeconds;
+    if (!existing || roomTotal > existing.totalSeconds) {
+      dailyMap.set(key, {
+        date: key,
+        liveSeconds: roomDay.liveSeconds,
+        partySeconds: roomDay.partySeconds,
+        totalSeconds: roomTotal,
+      });
+    }
+  }
+
+  const daily = [...dailyMap.values()]
+    .sort((a, b) => (a.date < b.date ? 1 : -1))
+    .map((d) => ({
+      ...d,
+      totalFormatted: formatDuration(d.totalSeconds),
+      liveFormatted: formatDuration(d.liveSeconds),
+      partyFormatted: formatDuration(d.partySeconds),
+      hoursLabel: formatHoursLabel(d.totalSeconds),
+    }));
+
   return {
     period,
-    periodDays: periodDays(period),
+    periodDays: days,
     liveSeconds,
     partySeconds,
     totalSeconds,
     totalFormatted: formatDuration(totalSeconds),
+    liveFormatted: formatDuration(liveSeconds),
+    partyFormatted: formatDuration(partySeconds),
+    hoursLabel: formatHoursLabel(totalSeconds),
     giftCoins: Number(giftsRes.rows[0]?.coins || 0),
     newFollowers: Number(followsRes.rows[0]?.c || 0),
     peakViewers,
     avgViewers,
     sessionCount,
+    daily,
     lastSession: last
       ? {
           seconds: lastSeconds,
@@ -220,9 +297,19 @@ async function getStreamerStats(userId, period = 'today') {
   };
 }
 
+function formatHoursLabel(totalSeconds) {
+  const sec = Math.max(0, Math.floor(Number(totalSeconds) || 0));
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  if (h <= 0 && m <= 0) return '0h 0m';
+  if (h <= 0) return `${m}m`;
+  return `${h}h ${m}m`;
+}
+
 module.exports = {
   HEARTBEAT_SECONDS,
   formatDuration,
+  formatHoursLabel,
   periodDays,
   periodStart,
   recordSessionEnd,

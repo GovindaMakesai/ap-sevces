@@ -21,6 +21,9 @@
       <button type="button" class="ap-role-tab active" data-role="creator">
         <i class="fas fa-video"></i> Host
       </button>
+      <button type="button" class="ap-role-tab" data-role="agency">
+        <i class="fas fa-building"></i> Agency
+      </button>
       <button type="button" class="ap-role-tab" data-role="coin_seller">
         <i class="fas fa-coins"></i> Coin Seller
       </button>
@@ -35,6 +38,15 @@
     <div class="ap-card" id="applyFormCard">
       <h2>Submit application</h2>
       <p style="margin:0 0 12px;font-size:13px;color:#888">Tell us briefly about your experience. Admin reviews within 24–48 hours.</p>
+      <div class="ap-field" id="agencyNameField" hidden>
+        <label for="applyAgencyName">Agency name</label>
+        <input type="text" id="applyAgencyName" placeholder="e.g. Alpha Creators">
+      </div>
+      <div class="ap-field" id="promoCodeField" hidden>
+        <label for="applyPromoCode">BD promo code</label>
+        <input type="text" id="applyPromoCode" placeholder="Enter your BD code" autocomplete="off" style="text-transform:uppercase">
+        <small style="display:block;margin-top:6px;color:#888;font-size:12px">Required for Host &amp; Agency. Get this code from your BD.</small>
+      </div>
       <div class="ap-field">
         <label for="applyPhone">Contact phone</label>
         <input type="tel" id="applyPhone" placeholder="Your WhatsApp / phone number">
@@ -65,17 +77,34 @@
         icon: 'fa-video',
         benefits: [
           'Go live (video) and host party voice rooms',
-          'Earn points/beans from viewer gifts',
+          'Earn 70% of gift coins (stars) by default',
           'Access Streamer Center and analytics',
           'Build followers on the platform',
         ],
         requirements: [
           'Active account in good standing',
           'Stable internet for streaming',
-          'Follow community guidelines',
+          'BD promo code required — your BD reviews the request',
         ],
         approvedLink: '/streamer-center.html?app=1',
         approvedLabel: 'Open Streamer Center',
+      },
+      agency: {
+        title: 'Become an Agency',
+        icon: 'fa-building',
+        benefits: [
+          'Manage multiple hosts under your agency',
+          'Earn agency commission on host gifts (default 20%)',
+          'Agency Center analytics and host invites',
+          'Assigned under a BD after approval',
+        ],
+        requirements: [
+          'Active account in good standing',
+          'BD promo code required — your BD reviews the request',
+          'Provide a clear agency name and contact phone',
+        ],
+        approvedLink: '/agency-center.html?app=1',
+        approvedLabel: 'Open Agency Center',
       },
       coin_seller: {
         title: 'Become a Coin Seller',
@@ -114,6 +143,11 @@
         <ul>${copy.benefits.map((b) => `<li>${b}</li>`).join('')}</ul>
         <p><strong>Requirements</strong></p>
         <ul>${copy.requirements.map((r) => `<li>${r}</li>`).join('')}</ul>`;
+
+      const agencyField = document.getElementById('agencyNameField');
+      if (agencyField) agencyField.hidden = selectedRole !== 'agency';
+      const promoField = document.getElementById('promoCodeField');
+      if (promoField) promoField.hidden = !(selectedRole === 'agency' || selectedRole === 'creator');
 
       const wrap = document.getElementById('roleStatusWrap');
       const form = document.getElementById('applyFormCard');
@@ -192,6 +226,8 @@
           role_type: selectedRole,
           message: document.getElementById('applyMessage').value.trim(),
           contact_phone: document.getElementById('applyPhone').value.trim(),
+          agency_name: document.getElementById('applyAgencyName')?.value.trim() || undefined,
+          promo_code: document.getElementById('applyPromoCode')?.value.trim() || undefined,
         });
         toast('Application submitted! We will notify you when reviewed.', 'success');
         document.getElementById('applyMessage').value = '';
@@ -212,11 +248,15 @@
         }
         const params = new URLSearchParams(location.search);
         const urlRole = params.get('role');
-        if (urlRole === 'coin_seller' || urlRole === 'creator') {
+        if (urlRole === 'coin_seller' || urlRole === 'creator' || urlRole === 'agency') {
           selectedRole = urlRole;
           document.querySelectorAll('.ap-role-tab').forEach((t) => {
             t.classList.toggle('active', t.dataset.role === urlRole);
           });
+        }
+        const promo = params.get('promo') || params.get('code');
+        if (promo && document.getElementById('applyPromoCode')) {
+          document.getElementById('applyPromoCode').value = promo.toUpperCase();
         }
         const user = Auth.getUser();
         if (user?.phone) document.getElementById('applyPhone').value = user.phone;

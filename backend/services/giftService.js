@@ -1,6 +1,5 @@
 const db = require('../config/database');
 const walletService = require('./walletService');
-const platformService = require('./platformService');
 const commissionService = require('./commissionService');
 const leaderboardService = require('./leaderboardService');
 const charityService = require('./charityService');
@@ -8,7 +7,7 @@ const fraudService = require('./fraudService');
 const pkBattleService = require('./pkBattleService');
 
 /**
- * Atomic gift: debit sender, credit receiver (minus platform fee), log gift_transactions.
+ * Atomic gift with configurable Host/Agency/BD/Platform split.
  */
 async function resolveGiftAmount(giftType, coinAmount) {
   const amount = Number(coinAmount);
@@ -69,11 +68,6 @@ async function sendGift({ senderId, receiverId, liveRoomId, giftType, coinAmount
 
   await fraudService.checkGiftAbuse(senderId, Number(amount));
 
-  const settings = await walletService.getWalletSettings();
-  const feePct = BigInt(settings.gift_platform_fee_pct || 20);
-  const platformFee = (amount * feePct) / 100n;
-  const creatorAmount = amount - platformFee;
-
   const client = await db.pool.connect();
   try {
     await client.query('BEGIN');
@@ -89,24 +83,7 @@ async function sendGift({ senderId, receiverId, liveRoomId, giftType, coinAmount
       client
     );
 
-    const creditResult = await walletService.creditStars(
-      receiverId,
-      Number(creatorAmount),
-      {
-        type: 'gift_received',
-        reference_type: 'gift',
-        metadata: { sender_id: senderId, gift_type: giftType, platform_fee: Number(platformFee) },
-      },
-      client
-    );
-
-    if (Number(platformFee) > 0) {
-      await platformService.creditPlatformFee(Number(platformFee), {
-        reference_type: 'gift',
-        metadata: { sender_id: senderId, receiver_id: receiverId },
-      }, client);
-    }
-
+    // Insert gift row first so settlement can reference gift_id
     const gift = await client.query(
       `INSERT INTO gift_transactions (sender_id, receiver_id, live_room_id, gift_type, coin_amount, platform_fee, creator_amount)
        VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
@@ -116,18 +93,31 @@ async function sendGift({ senderId, receiverId, liveRoomId, giftType, coinAmount
         liveRoomId || null,
         giftType || 'gift',
         amount.toString(),
-        platformFee.toString(),
-        creatorAmount.toString(),
+        '0',
+        '0',
       ]
     );
 
-    await commissionService.distributeFromGift({
-      sourceUserId: receiverId,
-      creatorAmount: Number(creatorAmount),
-      giftTransactionId: gift.rows[0].id,
-      walletTransactionId: creditResult.transaction.id,
+    const settlement = await commissionService.settleGift({
+      giftId: gift.rows[0].id,
+      hostUserId: receiverId,
+      grossCoins: Number(amount),
+      senderId,
+      giftType,
       client,
     });
+
+    const hostShare = settlement.find((s) => s.role === 'host')?.amount || 0;
+    const platformShare = settlement
+      .filter((s) => s.role === 'platform')
+      .reduce((n, s) => n + Number(s.amount || 0), 0);
+
+    await client.query(
+      `UPDATE gift_transactions
+       SET platform_fee = $1, creator_amount = $2
+       WHERE id = $3`,
+      [String(platformShare), String(hostShare), gift.rows[0].id]
+    );
 
     if (liveRoomId) {
       await client.query(
@@ -145,7 +135,9 @@ async function sendGift({ senderId, receiverId, liveRoomId, giftType, coinAmount
             receiver_id: receiverId,
             gift_type: giftType,
             coin_amount: Number(amount),
-            platform_fee: Number(platformFee),
+            platform_fee: Number(platformShare),
+            host_amount: Number(hostShare),
+            settlement,
           }),
         ]
       );
@@ -161,18 +153,37 @@ async function sendGift({ senderId, receiverId, liveRoomId, giftType, coinAmount
 
     await client.query('COMMIT');
 
+    const giftRow = {
+      ...gift.rows[0],
+      platform_fee: String(platformShare),
+      creator_amount: String(hostShare),
+    };
+
     try {
-      const { recordGiftStats } = require('./liveUserAnalyticsService');
-      await recordGiftStats(senderId, receiverId, Number(amount), Number(creatorAmount));
+      const agencyShare = settlement.find((s) => s.role === 'agency');
+      if (agencyShare?.amount && agencyShare.userId) {
+        const { resolveGiftParties } = require('./hierarchyService');
+        const parties = await resolveGiftParties(receiverId);
+        if (parties.agencyId) {
+          const agencyPerformanceService = require('./agencyPerformanceService');
+          await agencyPerformanceService.recordGiftRevenue(parties.agencyId, Number(agencyShare.amount));
+        }
+      }
     } catch (_e) {}
 
-    await leaderboardService.ingestGiftLeaderboards(gift.rows[0]);
-    await charityService.allocateFromGift(Number(amount), gift.rows[0].id);
+    try {
+      const { recordGiftStats } = require('./liveUserAnalyticsService');
+      await recordGiftStats(senderId, receiverId, Number(amount), Number(hostShare));
+    } catch (_e) {}
+
+    await leaderboardService.ingestGiftLeaderboards(giftRow);
+    await charityService.allocateFromGift(Number(amount), giftRow.id);
 
     return {
-      gift: gift.rows[0],
-      platform_fee: Number(platformFee),
-      creator_amount: Number(creatorAmount),
+      gift: giftRow,
+      platform_fee: Number(platformShare),
+      creator_amount: Number(hostShare),
+      settlement,
       sender_balance: {
         coin_balance: Number(debitResult.balance),
       },

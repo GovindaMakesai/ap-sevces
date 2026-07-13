@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#c9a227">
   <title>Me - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-theme.css?v=20260713-admin-badge">
+  <link rel="stylesheet" href="social-theme.css?v=20260713-hierarchy">
   <link rel="stylesheet" href="social-features.css">
   <style>
     html:not(.profile-ready) .social-profile-hero,
@@ -111,10 +111,12 @@
 
   <nav class="social-menu-list">
     <a href="#" class="social-menu-item" id="adminDashLink" style="display:none"><i class="fas fa-shield-alt"></i><span>Admin Dashboard</span><i class="fas fa-chevron-right chevron"></i></a>
-    <a href="/role-apply.html?app=1" class="social-menu-item" id="roleApplyLink"><i class="fas fa-user-plus"></i><span>Apply for Host / Seller</span><i class="fas fa-chevron-right chevron"></i></a>
+    <a href="/role-apply.html?app=1" class="social-menu-item" id="roleApplyLink"><i class="fas fa-user-plus"></i><span>Apply for Host / Agency / Seller</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/coin-seller-center.html?app=1" class="social-menu-item" id="coinSellerLink"><i class="fas fa-coins"></i><span>Coin Seller Center</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/streamer-center.html?app=1" class="social-menu-item" id="hostCenterLink"><i class="fas fa-video"></i><span>Host / Streamer Center</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/live-verify.html?redirect=/streamer-center.html%3Fapp%3D1&amp;app=1" class="social-menu-item" id="liveVerifyLink"><i class="fas fa-id-card"></i><span>Live verification &amp; selfie</span><i class="fas fa-chevron-right chevron"></i></a>
+    <a href="#" class="social-menu-item" id="bdCenterLink" style="display:none"><i class="fas fa-network-wired"></i><span>BD Center</span><i class="fas fa-chevron-right chevron"></i></a>
+    <a href="#" class="social-menu-item" id="hierarchyLink" style="display:none"><i class="fas fa-sitemap"></i><span>Hierarchy</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="#" class="social-menu-item" id="agencyLink" style="display:none"><i class="fas fa-building"></i><span>Agency Center</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="#" class="social-menu-item" id="dashLink"><i class="fas fa-th-large"></i><span>My Dashboard</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/customer-dashboard.html#bookings" class="social-menu-item"><i class="fas fa-calendar-check"></i><span>My Bookings</span><i class="fas fa-chevron-right chevron"></i></a>
@@ -133,7 +135,7 @@
   <div id="social-bottom-nav-mount"></div>
 
   <script src="ap-config.js"></script>
-  <script src="app.js?v=20260713-admin-badge"></script>
+  <script src="app.js?v=20260713-hierarchy"></script>
   <script src="social-wallet.js"></script>
   <script src="social-ui.js?v=20260624-profile-url-fix"></script>
   <script src="social-interactions.js?v=20260624-profile-url-fix"></script>
@@ -232,12 +234,17 @@
           coin_seller: 'Coin Seller',
           creator: 'Host / Creator',
           agency: 'Agency',
+          bdm: 'Business Development (BD)',
           founder: 'Founder',
           ceo: 'CEO',
         };
         const roleLabel = roleLabels[user.role] || 'Customer';
-        document.getElementById('profileRole').textContent =
-          roleLabel + (user.email ? ' · ' + user.email.split('@')[0] : '');
+        const roleEl = document.getElementById('profileRole');
+        const badgeHtml = window.formatRoleBadgeHtml?.(user, { withEmoji: true }) || '';
+        roleEl.innerHTML =
+          (badgeHtml ? badgeHtml + ' ' : '') +
+          roleLabel +
+          (user.email ? ' · ' + user.email.split('@')[0] : '');
         paintProfileAvatar(user);
         paintAdminIdRow(user);
       }
@@ -417,6 +424,18 @@
         if (['agency', 'admin', 'super_admin'].includes(user.role) && agencyLink) {
           agencyLink.style.display = 'flex';
           agencyLink.href = '/agency-center.html?app=1';
+        }
+        const bdLink = document.getElementById('bdCenterLink');
+        const hierLink = document.getElementById('hierarchyLink');
+        if (['bdm', 'admin', 'super_admin', 'founder', 'ceo'].includes(user.role)) {
+          if (bdLink) {
+            bdLink.style.display = 'flex';
+            bdLink.href = '/bd-center.html?app=1';
+          }
+          if (hierLink) {
+            hierLink.style.display = 'flex';
+            hierLink.href = '/hierarchy.html?app=1';
+          }
         }
         if (dash && window.SocialShell?.redirectToDashboard) {
           dash.addEventListener('click', (e) => {

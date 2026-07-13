@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Card War</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh;
+      background: linear-gradient(180deg, #14532d, #052e16);
+      color: #ecfdf5; font-family: system-ui, sans-serif;
+      display: flex; flex-direction: column; align-items: center; padding: 20px;
+      touch-action: manipulation;
+    }
+    h1 { font-size: 1.3rem; }
+    .row { display: flex; gap: 24px; margin: 24px 0; }
+    .card {
+      width: 100px; height: 140px; background: #fff; color: #111;
+      border-radius: 12px; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; font-weight: 900;
+      box-shadow: 0 10px 24px rgba(0,0,0,0.35);
+    }
+    .card .rank { font-size: 2rem; }
+    .card .suit { font-size: 1.5rem; }
+    button {
+      background: #22c55e; color: #052e16; border: none; padding: 14px 28px;
+      border-radius: 14px; font-weight: 900;
+    }
+    #status { margin-top: 16px; font-weight: 800; min-height: 40px; text-align: center; }
+  </style>
+</head>
+<body>
+  <h1>🃏 Card War</h1>
+  <p style="opacity:0.85;text-align:center;max-width:300px;font-size:0.85rem">Higher card wins. Local demo (app uses Deck of Cards API).</p>
+  <div class="row">
+    <div>
+      <div style="text-align:center;margin-bottom:6px">You</div>
+      <div class="card" id="you"><span class="rank">?</span><span class="suit"></span></div>
+    </div>
+    <div>
+      <div style="text-align:center;margin-bottom:6px">CPU</div>
+      <div class="card" id="cpu"><span class="rank">?</span><span class="suit"></span></div>
+    </div>
+  </div>
+  <button type="button" id="deal">DEAL</button>
+  <div id="status"></div>
+  <script>
+    var RANKS = ["A","2","3","4","5","6","7","8","9","10","J","Q","K"];
+    var VALS = { A:14, J:11, Q:12, K:13 };
+    var SUITS = ["♠","♥","♦","♣"];
+    function post(o) {
+      try {
+        if (window.ReactNativeWebView) {
+          window.ReactNativeWebView.postMessage(JSON.stringify(o));
+        }
+      } catch (e) {}
+    }
+    function draw() {
+      var r = RANKS[Math.floor(Math.random() * RANKS.length)];
+      var s = SUITS[Math.floor(Math.random() * SUITS.length)];
+      return { rank: r, suit: s, v: VALS[r] || Number(r) };
+    }
+    function paint(id, c) {
+      var el = document.getElementById(id);
+      el.querySelector(".rank").textContent = c.rank;
+      el.querySelector(".suit").textContent = c.suit;
+      el.style.color = (c.suit === "♥" || c.suit === "♦") ? "#dc2626" : "#111";
+    }
+    document.getElementById("deal").onclick = function () {
+      var a = draw(), b = draw();
+      paint("you", a); paint("cpu", b);
+      var msg = a.v > b.v ? "You win!" : a.v < b.v ? "CPU wins!" : "War / tie!";
+      document.getElementById("status").textContent = msg;
+      post({ type: "CARD_WAR_RESULT", you: a.v, cpu: b.v, winner: a.v > b.v ? "you" : a.v < b.v ? "cpu" : "tie" });
+    };
+    post({ type: "GAME_READY", game: "cardwar" });
+  </script>
+</body>
+</html>

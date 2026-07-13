@@ -7,7 +7,7 @@
   <title>Agency Center - AP Services</title>
   <script src="/ap-native-boot.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-theme.css">
+  <link rel="stylesheet" href="social-theme.css?v=20260713-hierarchy">
   <link rel="stylesheet" href="coin-seller.css">
   <style>
     .ag-rewards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 12px; }
@@ -16,10 +16,18 @@
       color: #fff; border-radius: 14px; padding: 14px; text-align: center;
     }
     .ag-reward-card strong { display: block; font-size: 22px; margin: 8px 0; }
-    .ag-mgmt { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 0 12px 12px; text-align: center; }
+    .ag-mgmt { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; padding: 0 12px 12px; text-align: center; }
     .ag-mgmt button { border: none; border-radius: 999px; padding: 6px 8px; font-size: 10px; font-weight: 700; color: #fff; cursor: pointer; }
     .ag-mgmt .pink { background: #ec4899; } .ag-mgmt .grey { background: #9ca3af; }
-    .ag-mgmt .blue { background: #3b82f6; } .ag-mgmt .purple { background: #8b5cf6; }
+    .ag-host-list { padding: 0 12px 24px; }
+    .ag-host-item {
+      display: flex; align-items: center; gap: 10px; background: #fff; border-radius: 12px;
+      padding: 10px 12px; margin-bottom: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.05);
+    }
+    .ag-host-item .av {
+      width: 36px; height: 36px; border-radius: 50%; background: #fde68a;
+      display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 12px;
+    }
   </style>
 </head>
 <body class="cs-page">
@@ -33,43 +41,42 @@
     <div class="cs-avatar" id="agAvatar">AG</div>
     <div class="cs-profile-info">
       <h2 id="agName">—</h2>
-      <span class="cs-badge">Agency</span>
+      <span class="cs-badge">🟨 Agency</span>
       <div class="cs-id">ID: <span id="agUserId">—</span></div>
+      <div class="cs-id" id="agAgencyName" style="margin-top:4px;color:#666"></div>
     </div>
   </div>
 
   <div class="ag-rewards">
-    <div class="ag-reward-card"><span>Host Invitation Rewards</span><strong id="agHostReward">0</strong><button class="cs-submit" style="opacity:0.5" disabled>Collect</button></div>
-    <div class="ag-reward-card"><span>Active Agent Rewards</span><strong id="agAgentReward">0</strong><button class="cs-submit" style="opacity:0.5" disabled>Collect</button></div>
+    <div class="ag-reward-card"><span>Month revenue</span><strong id="agCommission">0</strong><span style="opacity:.85;font-size:11px">coins</span></div>
+    <div class="ag-reward-card"><span>Month gifts</span><strong id="agGifts">0</strong><span style="opacity:.85;font-size:11px">settled</span></div>
   </div>
 
   <div class="ag-mgmt">
     <div><strong id="agAllHosts">0</strong><div>All hosts</div><button class="pink" onclick="location.href='/add-creator.html?app=1'">+ Host</button></div>
-    <div><strong id="agActiveHosts">0</strong><div>Active hosts</div><button class="grey">Details</button></div>
-    <div><strong>0</strong><div>Agency List</div><button class="blue">+ Agency</button></div>
-    <div><strong>0</strong><div>Idol Weekly</div><button class="purple">+ Idol</button></div>
+    <div><strong id="agActiveHosts">0</strong><div>Active hosts</div><button class="grey" onclick="document.getElementById('hostList').scrollIntoView({behavior:'smooth'})">Details</button></div>
   </div>
 
   <div class="cs-stats" style="margin-top:12px">
-    <div class="cs-date-range">Commission · Last 7 days</div>
-    <div class="cs-stat-row">
-      <div><strong id="agCommission">0</strong><span>Commission</span></div>
-      <div><strong>4%</strong><span>Rate</span></div>
-      <div><strong>D</strong><span>Level</span></div>
-    </div>
+    <div class="cs-date-range">Commission · Configurable gift split (default 20% agency)</div>
     <p style="font-size:12px;color:#666;margin:12px 0 0">Manage hosts, track commissions, and grow your agency network.</p>
+  </div>
+
+  <div class="ag-host-list" id="hostList">
+    <h3 style="padding:8px 0;font-size:14px">Hosts</h3>
+    <div id="agHosts"><p style="color:#999;font-size:13px">Loading…</p></div>
   </div>
 
   <script src="ap-config.js"></script>
   <script src="config.js"></script>
-  <script src="app.js"></script>
+  <script src="app.js?v=20260713-hierarchy"></script>
   <script src="auth-guard.js"></script>
   <script>
     (async function () {
       Auth.checkAuth();
       if (!Auth.hasSession?.()) { location.href = '/login.html?app=1'; return; }
       const user = Auth.getUser();
-      if (!['agency', 'admin', 'super_admin'].includes(user?.role)) {
+      if (!['agency', 'admin', 'super_admin', 'founder', 'ceo'].includes(user?.role)) {
         alert('Agency access required');
         location.href = '/profile-tab.html?app=1';
         return;
@@ -79,6 +86,39 @@
       document.getElementById('agName').textContent = name;
       document.getElementById('agUserId').textContent =
         window.formatUserDisplayId?.(user) || user.display_id || '—';
+
+      try {
+        const res = await API.get('/agency/dashboard');
+        const d = res.data || {};
+        const agency = d.agency || {};
+        document.getElementById('agAgencyName').textContent = agency.name
+          ? `Agency: ${agency.name}`
+          : '';
+        document.getElementById('agCommission').textContent =
+          Number(d.monthRevenueCoins || 0).toLocaleString();
+        document.getElementById('agGifts').textContent = d.monthGifts ?? 0;
+        const hosts = d.hosts || [];
+        document.getElementById('agAllHosts').textContent = hosts.length;
+        document.getElementById('agActiveHosts').textContent = hosts.length;
+        const list = document.getElementById('agHosts');
+        if (!hosts.length) {
+          list.innerHTML = '<p style="color:#999;font-size:13px">No hosts assigned yet</p>';
+        } else {
+          list.innerHTML = hosts.map((h) => {
+            const n = `${h.first_name || ''} ${h.last_name || ''}`.trim() || 'Host';
+            return `<div class="ag-host-item">
+              <div class="av">${n.slice(0, 2).toUpperCase()}</div>
+              <div>
+                <strong>${n}</strong> ${window.formatRoleBadgeHtml?.('host') || ''}
+                <div style="font-size:11px;color:#999">ID ${h.display_id || '—'}</div>
+              </div>
+            </div>`;
+          }).join('');
+        }
+      } catch (e) {
+        document.getElementById('agHosts').innerHTML =
+          `<p style="color:#c62828;font-size:13px">${e.message || 'Failed to load dashboard'}</p>`;
+      }
     })();
   </script>
 </body>

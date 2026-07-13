@@ -5077,7 +5077,11 @@
             : `<span class="lvl">${msg.lvl || 1}</span>`;
           const admin = uid && isAdminUserId(uid);
           const adminBadge = admin ? '<span class="party-chat-admin-badge">Admin</span>' : '';
-          div.innerHTML = `<button type="button" class="party-chat-avatar-btn${adminAvatarFrameClass(admin)}" data-chat-user="${escapeAttr(msg.user || 'User')}" data-chat-uid="${escapeHtml(String(uid))}"><img src="${escapeAttr(avatarSrc)}" alt="" data-name="${escapeAttr(msg.user || 'User')}" data-avatar-src="${escapeAttr(pic || '')}" loading="lazy" decoding="async" fetchpriority="low">${adminAvatarTagHtml(admin)}</button>${badge}${adminBadge}<button type="button" class="party-chat-user-btn" data-chat-user="${escapeAttr(msg.user || 'User')}" data-chat-uid="${escapeHtml(String(uid))}"><span class="user${admin ? ' is-admin-name' : ''}">${escapeHtml(msg.user)}</span></button> <span class="party-chat-text">${escapeHtml(msg.text)}</span>`;
+          const roleBadge =
+            !admin && msg.role
+              ? window.formatRoleBadgeHtml?.(msg.role, { withEmoji: true }) || ''
+              : '';
+          div.innerHTML = `<button type="button" class="party-chat-avatar-btn${adminAvatarFrameClass(admin)}" data-chat-user="${escapeAttr(msg.user || 'User')}" data-chat-uid="${escapeHtml(String(uid))}"><img src="${escapeAttr(avatarSrc)}" alt="" data-name="${escapeAttr(msg.user || 'User')}" data-avatar-src="${escapeAttr(pic || '')}" loading="lazy" decoding="async" fetchpriority="low">${adminAvatarTagHtml(admin)}</button>${badge}${adminBadge}${roleBadge}<button type="button" class="party-chat-user-btn" data-chat-user="${escapeAttr(msg.user || 'User')}" data-chat-uid="${escapeHtml(String(uid))}"><span class="user${admin ? ' is-admin-name' : ''}">${escapeHtml(msg.user)}</span></button> <span class="party-chat-text">${escapeHtml(msg.text)}</span>`;
           const img = div.querySelector('.party-chat-avatar-btn img');
           if (img) {
             img.onerror = () => {
@@ -7616,6 +7620,7 @@
       user: displayName(me),
       userId: me?.id,
       profilePic: me?.profile_pic || null,
+      role: me?.role || null,
       lvl: lvlInfo.level,
       text: t,
       at: Date.now(),
@@ -9084,14 +9089,14 @@
       const data = res?.data || {};
       const days = Number(data.periodDays) || periodDaysLabel(period);
       setPeriodDaysUi('stats', days);
-      const hours = data.totalFormatted || '00:00:00';
+      const hours = data.hoursLabel || data.totalFormatted || '0h 0m';
       const points = Number(data.giftCoins || 0);
       const followers = Number(data.newFollowers || 0);
-      const avg = Number(data.avgViewers || data.peakViewers || 0);
       setText('streamerLiveHours', hours);
+      setText('streamerLiveOnlyHours', data.liveFormatted ? formatHoursShort(data.liveSeconds) : '0h 0m');
+      setText('streamerPartyOnlyHours', data.partyFormatted ? formatHoursShort(data.partySeconds) : '0h 0m');
       setText('streamerWonPoints', String(points));
       setText('streamerNewFollowers', String(followers));
-      setText('streamerAvgViewers', String(avg));
       const last = data.lastSession;
       if (last) {
         setText('streamerLastHours', last.formatted || '00:00:00');
@@ -9102,9 +9107,51 @@
       }
       setText('streamerLastPoints', String(points));
       setText('streamerLastFollowers', String(followers));
+      renderDailyHours(data.daily || []);
     } catch (e) {
       console.warn('[streamer] stats load failed', e);
     }
+  }
+
+  function formatHoursShort(totalSeconds) {
+    const sec = Math.max(0, Math.floor(Number(totalSeconds) || 0));
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    if (h <= 0 && m <= 0) return '0h 0m';
+    if (h <= 0) return `${m}m`;
+    return `${h}h ${m}m`;
+  }
+
+  function renderDailyHours(rows) {
+    const list = document.getElementById('streamerDailyList');
+    if (!list) return;
+    if (!rows.length) {
+      list.innerHTML = '<p style="font-size:12px;color:#9ca3af">No hosting time in this period</p>';
+      return;
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    list.innerHTML = rows
+      .map((d) => {
+        const dateLabel =
+          d.date === today
+            ? 'Today'
+            : new Date(d.date + 'T12:00:00').toLocaleDateString(undefined, {
+                weekday: 'short',
+                month: 'short',
+                day: 'numeric',
+              });
+        const hrs = d.hoursLabel || formatHoursShort(d.totalSeconds);
+        const live = formatHoursShort(d.liveSeconds);
+        const party = formatHoursShort(d.partySeconds);
+        return `<div class="streamer-daily-row">
+          <div>
+            <strong>${dateLabel}</strong>
+            <div class="sub">Live ${live} · Party ${party}</div>
+          </div>
+          <div class="hrs">${hrs}</div>
+        </div>`;
+      })
+      .join('');
   }
 
   function initStreamerCenter() {

@@ -53,6 +53,7 @@ function registerLiveSocket(io) {
       const jwt = require('jsonwebtoken');
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       socket.userId = String(decoded.userId);
+      socket.userRole = decoded.role || null;
       socket.data.displayName =
         String(decoded.first_name || decoded.name || 'User').trim().slice(0, 32) || 'User';
       return next();
@@ -296,6 +297,7 @@ function registerLiveSocket(io) {
           userId: socket.userId,
           user: displayName,
           profilePic,
+          role: socket.userRole || null,
           lvl: payload?.lvl || 1,
           text,
           at: Date.now(),

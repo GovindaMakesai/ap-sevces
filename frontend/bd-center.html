@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#2563eb">
+  <title>BD Center - AP Services</title>
+  <script src="/ap-native-boot.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="social-theme.css?v=20260713-bd-promo">
+  <link rel="stylesheet" href="coin-seller.css">
+  <style>
+    .bd-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 12px; }
+    .bd-card {
+      background: #fff; border-radius: 14px; padding: 14px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.06);
+    }
+    .bd-card span { font-size: 12px; color: #64748b; }
+    .bd-card strong { display: block; font-size: 22px; margin-top: 6px; color: #1e40af; }
+    .bd-list { padding: 0 12px 24px; }
+    .bd-list h3 { font-size: 14px; margin: 8px 0; color: #334155; }
+    .bd-item {
+      display: flex; justify-content: space-between; align-items: center; gap: 10px;
+      background: #fff; border-radius: 12px; padding: 12px; margin-bottom: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.05);
+    }
+    .bd-item small { color: #94a3b8; }
+    .bd-links { display: flex; gap: 8px; padding: 0 12px 16px; }
+    .bd-links a {
+      flex: 1; text-align: center; padding: 12px; border-radius: 12px;
+      background: #eff6ff; color: #1d4ed8; font-weight: 700; text-decoration: none; font-size: 13px;
+    }
+    .bd-promo {
+      margin: 0 12px 16px; padding: 14px; border-radius: 14px;
+      background: linear-gradient(135deg, #1d4ed8, #2563eb); color: #fff;
+    }
+    .bd-promo code {
+      display: inline-block; margin-top: 8px; padding: 8px 12px; border-radius: 10px;
+      background: rgba(255,255,255,.18); font-size: 20px; font-weight: 900; letter-spacing: 0.08em;
+    }
+    .bd-promo button {
+      margin-top: 10px; border: none; border-radius: 10px; padding: 8px 12px;
+      font-weight: 800; background: #fff; color: #1d4ed8; cursor: pointer;
+    }
+    .bd-actions { display: flex; gap: 6px; flex-shrink: 0; }
+    .bd-actions button {
+      border: none; border-radius: 8px; padding: 8px 10px; font-size: 11px; font-weight: 800; cursor: pointer;
+    }
+    .bd-actions .ok { background: #16a34a; color: #fff; }
+    .bd-actions .no { background: #e5e7eb; color: #374151; }
+  </style>
+</head>
+<body class="cs-page">
+  <header class="cs-header">
+    <a href="/profile-tab.html?app=1"><i class="fas fa-arrow-left"></i></a>
+    <h1>BD Center</h1>
+    <span style="width:36px"></span>
+  </header>
+
+  <div class="cs-profile">
+    <div class="cs-avatar" id="bdAvatar">BD</div>
+    <div class="cs-profile-info">
+      <h2 id="bdName">—</h2>
+      <span class="cs-badge" style="background:#3b82f6">🟦 BD</span>
+      <div class="cs-id">ID: <span id="bdUserId">—</span></div>
+    </div>
+  </div>
+
+  <div class="bd-promo" id="bdPromoBox">
+    <div style="font-size:12px;opacity:.9">Your Host / Agency promo code</div>
+    <code id="bdPromoCode">······</code>
+    <div style="font-size:12px;margin-top:8px;opacity:.9">Share this code. Users apply with it — requests appear below for you to accept.</div>
+    <button type="button" id="bdCopyPromo">Copy code</button>
+  </div>
+
+  <div class="bd-links">
+    <a href="/hierarchy.html?app=1"><i class="fas fa-sitemap"></i> Hierarchy</a>
+    <a href="/agency-center.html?app=1"><i class="fas fa-building"></i> Agencies</a>
+  </div>
+
+  <div class="bd-stats" id="bdStats">
+    <div class="bd-card"><span>Agencies</span><strong id="sAgencies">—</strong></div>
+    <div class="bd-card"><span>Hosts</span><strong id="sHosts">—</strong></div>
+    <div class="bd-card"><span>Month gifts</span><strong id="sGifts">—</strong></div>
+    <div class="bd-card"><span>Month coins</span><strong id="sCoins">—</strong></div>
+    <div class="bd-card"><span>Month revenue</span><strong id="sRev">—</strong></div>
+    <div class="bd-card"><span>Pending requests</span><strong id="sPending">—</strong></div>
+  </div>
+
+  <div class="bd-list">
+    <h3>Pending Host / Agency requests</h3>
+    <div id="pendingApps"><p style="color:#94a3b8;font-size:13px">Loading…</p></div>
+  </div>
+
+  <div class="bd-list">
+    <h3>Top agencies</h3>
+    <div id="topAgencies"><p style="color:#94a3b8;font-size:13px">Loading…</p></div>
+  </div>
+
+  <script src="ap-config.js"></script>
+  <script src="config.js"></script>
+  <script src="app.js?v=20260713-bd-promo"></script>
+  <script src="auth-guard.js"></script>
+  <script>
+    (async function () {
+      Auth.checkAuth();
+      if (!Auth.hasSession?.()) { location.href = '/login.html?app=1'; return; }
+      const user = Auth.getUser();
+      const role = String(user?.role || '').toLowerCase();
+      if (!['bdm', 'admin', 'super_admin', 'founder', 'ceo'].includes(role)) {
+        alert('BD access required');
+        location.href = '/profile-tab.html?app=1';
+        return;
+      }
+      const name = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'BD';
+      document.getElementById('bdAvatar').textContent = name.slice(0, 2).toUpperCase();
+      document.getElementById('bdName').textContent = name;
+      document.getElementById('bdUserId').textContent =
+        window.formatUserDisplayId?.(user) || user.display_id || '—';
+
+      let agencies = [];
+      let promoCode = '';
+
+      async function loadPromo() {
+        const res = await API.get('/bd/promo-codes');
+        const rows = res.data || [];
+        const active = rows.find((r) => r.active) || rows[0];
+        promoCode = active?.code || '';
+        document.getElementById('bdPromoCode').textContent = promoCode || '—';
+      }
+
+      async function loadDashboard() {
+        const res = await API.get('/bd/dashboard');
+        const d = res.data || {};
+        document.getElementById('sAgencies').textContent = d.agencyCount ?? 0;
+        document.getElementById('sHosts').textContent = d.hostCount ?? 0;
+        document.getElementById('sGifts').textContent = d.monthGifts ?? 0;
+        document.getElementById('sCoins').textContent = Number(d.monthGiftCoins || 0).toLocaleString();
+        document.getElementById('sRev').textContent = Number(d.monthRevenueCoins || 0).toLocaleString();
+        const list = document.getElementById('topAgencies');
+        const rows = d.topAgencies || [];
+        if (!rows.length) {
+          list.innerHTML = '<p style="color:#94a3b8;font-size:13px">No agencies yet</p>';
+        } else {
+          list.innerHTML = rows.map((a) => `
+            <div class="bd-item">
+              <div>
+                <strong>${a.name || 'Agency'}</strong>
+                <div><small>${a.hosts || 0} hosts</small></div>
+              </div>
+              <div><strong>${Number(a.total_income || 0).toLocaleString()}</strong><div><small>income</small></div></div>
+            </div>`).join('');
+        }
+      }
+
+      async function loadAgencies() {
+        try {
+          const res = await API.get('/bd/agencies');
+          agencies = res.data || [];
+        } catch (_e) {
+          agencies = [];
+        }
+      }
+
+      async function loadPending() {
+        const mount = document.getElementById('pendingApps');
+        try {
+          const res = await API.get('/bd/applications');
+          const rows = res.data || [];
+          document.getElementById('sPending').textContent = rows.length;
+          if (!rows.length) {
+            mount.innerHTML = '<p style="color:#94a3b8;font-size:13px">No pending requests</p>';
+            return;
+          }
+          mount.innerHTML = rows.map((a) => {
+            const n = `${a.first_name || ''} ${a.last_name || ''}`.trim() || a.email || 'User';
+            const roleLabel = a.role_type === 'agency' ? 'Agency' : 'Host';
+            return `<div class="bd-item">
+              <div>
+                <strong>${n}</strong> · ${roleLabel}
+                <div><small>Code ${a.promo_code || '—'} · ${new Date(a.created_at).toLocaleString()}</small></div>
+                <div><small>${(a.message || a.agency_name || '').slice(0, 80) || '—'}</small></div>
+              </div>
+              <div class="bd-actions">
+                <button type="button" class="ok" data-approve="${a.id}" data-role="${a.role_type}">Accept</button>
+                <button type="button" class="no" data-reject="${a.id}">Reject</button>
+              </div>
+            </div>`;
+          }).join('');
+        } catch (e) {
+          mount.innerHTML = `<p style="color:#ef4444;font-size:13px">${e.message || 'Failed'}</p>`;
+        }
+      }
+
+      document.getElementById('bdCopyPromo').onclick = async () => {
+        if (!promoCode) return;
+        try {
+          await navigator.clipboard.writeText(promoCode);
+          alert('Promo code copied');
+        } catch (_e) {
+          prompt('Copy this code:', promoCode);
+        }
+      };
+
+      document.getElementById('pendingApps').addEventListener('click', async (e) => {
+        const approve = e.target.closest('[data-approve]');
+        const reject = e.target.closest('[data-reject]');
+        if (approve) {
+          const id = approve.getAttribute('data-approve');
+          const roleType = approve.getAttribute('data-role');
+          const payload = { decision: 'approved' };
+          if (roleType === 'creator') {
+            if (!agencies.length) {
+              alert('Create/approve an Agency under you first, then accept Hosts.');
+              return;
+            }
+            if (agencies.length === 1) {
+              payload.agency_id = agencies[0].id;
+            } else {
+              const names = agencies.map((a, i) => `${i + 1}. ${a.name}`).join('\n');
+              const pick = prompt(`Assign host to agency number:\n${names}`, '1');
+              if (pick == null) return;
+              const idx = Math.max(0, (parseInt(pick, 10) || 1) - 1);
+              payload.agency_id = agencies[idx]?.id;
+              if (!payload.agency_id) {
+                alert('Invalid agency');
+                return;
+              }
+            }
+          }
+          try {
+            await API.post('/bd/applications/' + id + '/review', payload);
+            await loadPending();
+            await loadDashboard();
+            await loadAgencies();
+          } catch (err) {
+            alert(err.message || 'Approve failed');
+          }
+        }
+        if (reject) {
+          const id = reject.getAttribute('data-reject');
+          const reason = prompt('Rejection reason (optional):', '') || undefined;
+          try {
+            await API.post('/bd/applications/' + id + '/review', { decision: 'rejected', reason });
+            await loadPending();
+          } catch (err) {
+            alert(err.message || 'Reject failed');
+          }
+        }
+      });
+
+      try {
+        await Promise.all([loadPromo(), loadDashboard(), loadAgencies(), loadPending()]);
+      } catch (e) {
+        document.getElementById('pendingApps').innerHTML =
+          `<p style="color:#ef4444;font-size:13px">${e.message || 'Failed to load'}</p>`;
+      }
+    })();
+  </script>
+</body>
+</html>
