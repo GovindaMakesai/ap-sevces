@@ -13,7 +13,8 @@
   <header class="streamer-top">
     <button type="button" class="back" data-ap-back aria-label="Back"><i class="fas fa-arrow-left"></i></button>
     <h1>Streamer Center</h1>
-    <p class="uid" id="streamerUid">ID:76471242</p>
+    <p class="uid" id="streamerUid">ID:—</p>
+    <p class="streamer-agency" id="streamerAgency" hidden></p>
   </header>
 
   <section class="streamer-card">
@@ -190,7 +191,33 @@
         if (won && d.monthStars != null) {
           won.textContent = Number(d.monthStars || 0).toLocaleString();
         }
-      } catch (_e) {}
+        const agencyEl = document.getElementById('streamerAgency');
+        if (agencyEl) {
+          const agency = d.agency || null;
+          const name = agency?.name || d.profile?.agency_name || '';
+          if (name) {
+            agencyEl.hidden = false;
+            agencyEl.classList.remove('unassigned');
+            const ownerBit = agency?.owner_display_id
+              ? ` · Owner ID ${agency.owner_display_id}`
+              : '';
+            agencyEl.innerHTML =
+              `<i class="fas fa-building"></i> Agency: <strong>${String(name).replace(/</g, '&lt;')}</strong>${ownerBit}`;
+          } else {
+            agencyEl.hidden = false;
+            agencyEl.classList.add('unassigned');
+            agencyEl.innerHTML =
+              `<i class="fas fa-building"></i> Not assigned to an agency`;
+          }
+        }
+      } catch (_e) {
+        const agencyEl = document.getElementById('streamerAgency');
+        if (agencyEl) {
+          agencyEl.hidden = false;
+          agencyEl.classList.add('unassigned');
+          agencyEl.innerHTML = `<i class="fas fa-building"></i> Agency info unavailable`;
+        }
+      }
 
       const key = user?.id ? 'ap_streamer_cover_' + user.id : null;
       const preview = document.getElementById('streamerCoverPreview');

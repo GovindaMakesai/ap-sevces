@@ -463,9 +463,20 @@ async function getAgencyDetail(agencyId) {
 
 async function getHostAgency(userId) {
   const res = await db.query(
-    `SELECT hp.*, a.name AS agency_name, a.bd_user_id, a.owner_user_id
+    `SELECT hp.*,
+            a.name AS agency_name,
+            a.bd_user_id,
+            a.owner_user_id,
+            ou.first_name AS agency_owner_first_name,
+            ou.last_name AS agency_owner_last_name,
+            ou.display_id AS agency_owner_display_id,
+            bd.first_name AS bd_first_name,
+            bd.last_name AS bd_last_name,
+            bd.display_id AS bd_display_id
      FROM host_profiles hp
      JOIN agencies a ON a.id = hp.agency_id
+     LEFT JOIN users ou ON ou.id = a.owner_user_id
+     LEFT JOIN users bd ON bd.id = a.bd_user_id
      WHERE hp.user_id = $1 AND hp.status = 'active'`,
     [userId]
   );
@@ -663,8 +674,25 @@ async function hostDashboard(hostUserId) {
        AND created_at >= CURRENT_DATE`,
     [hostUserId]
   );
+  const agencyName = profile?.agency_name || null;
+  const agencyOwner = profile
+    ? `${profile.agency_owner_first_name || ''} ${profile.agency_owner_last_name || ''}`.trim() || null
+    : null;
   return {
     profile,
+    agency: profile
+      ? {
+          id: profile.agency_id,
+          name: agencyName,
+          owner_user_id: profile.owner_user_id,
+          owner_name: agencyOwner,
+          owner_display_id: profile.agency_owner_display_id || null,
+          bd_user_id: profile.bd_user_id,
+          bd_name:
+            `${profile.bd_first_name || ''} ${profile.bd_last_name || ''}`.trim() || null,
+          bd_display_id: profile.bd_display_id || null,
+        }
+      : null,
     monthGifts: month.rows[0]?.gifts || 0,
     monthStars: Number(month.rows[0]?.stars || 0),
     dayStars: Number(day.rows[0]?.stars || 0),

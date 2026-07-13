@@ -293,8 +293,8 @@
   gap: 0;
   min-height: 72px;
   max-height: min(20vh, 150px);
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(0, 0, 0, 0.25);
+  border-top: none;
+  background: transparent;
   position: relative;
   z-index: 28;
   pointer-events: auto;
@@ -346,7 +346,7 @@
   font-size: 10px;
   line-height: 1.35;
   color: rgba(255, 255, 255, 0.85);
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.15));
+  background: transparent;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -383,10 +383,10 @@
 }
 .party-chat-msg {
   align-self: flex-start; max-width: 92%;
-  padding: 6px 10px; border-radius: 12px;
-  background: rgba(0,0,0,0.55); font-size: 11px; line-height: 1.35;
+  padding: 5px 9px; border-radius: 12px;
+  background: rgba(0,0,0,0.28); font-size: 11px; line-height: 1.35;
   color: #f8fafc;
-  backdrop-filter: blur(4px);
+  backdrop-filter: blur(2px);
 }
 .party-chat-msg .lvl {
   display: inline-block; min-width: 16px; text-align: center;
@@ -491,6 +491,7 @@
   z-index: 26;
   pointer-events: auto;
   touch-action: manipulation;
+  background: transparent;
 }
 
 body.ap-is-host .party-header {
@@ -539,6 +540,80 @@ body.ap-can-moderate .live-host-bar {
 
 .live-host-bar.is-collapsed .live-host-bar-actions {
   display: none;
+}
+
+.party-chat-hide-btn {
+  writing-mode: horizontal-tb !important;
+  transform: none !important;
+  min-width: 28px;
+  min-height: 28px !important;
+  padding: 6px !important;
+  border-radius: 8px !important;
+  background: rgba(0, 0, 0, 0.45) !important;
+  color: #e2e8f0 !important;
+}
+
+.live-show-chat-fab {
+  position: absolute;
+  left: 12px;
+  bottom: calc(var(--ap-bottom-bar-h) + 14px + env(safe-area-inset-bottom, 0));
+  z-index: 40;
+  width: 42px;
+  height: 42px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.4);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  touch-action: manipulation;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+body.ap-chat-hidden .party-chat-row,
+body.ap-chat-hidden #partyChatRow {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  pointer-events: none !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+body.ap-chat-hidden .live-chat-ticker,
+body.ap-chat-hidden .party-chat-feed,
+body.ap-chat-hidden .party-chat-zone {
+  display: none !important;
+  opacity: 0 !important;
+  background: transparent !important;
+}
+
+body.ap-live-session-minimized .party-chat-row,
+body.ap-live-session-minimized #partyChatRow,
+body.ap-live-session-minimized .live-show-chat-fab,
+body.ap-live-session-minimized .party-chat-feed,
+body.ap-live-session-minimized .live-chat-ticker,
+body.ap-live-session-minimized .live-overlay {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Keep camera full-bleed under chrome — no opaque bands */
+body[data-live-page="live-room"] .live-remote-video,
+body[data-live-page="live-room"] .live-local-video,
+body[data-live-page="live-room"] .live-fallback-video {
+  z-index: 3;
 }
 
 .party-minimize-btn {
@@ -1073,7 +1148,7 @@ body[data-live-page='live-room'] .live-room {
   flex-direction: column;
   min-height: 0;
   pointer-events: auto;
-  background: linear-gradient(180deg, rgba(0,0,0,0.5) 0%, transparent 18%, transparent 70%, rgba(0,0,0,0.55) 100%);
+  background: linear-gradient(180deg, rgba(0,0,0,0.28) 0%, transparent 14%, transparent 78%, rgba(0,0,0,0.3) 100%);
   padding-bottom: calc(var(--ap-bottom-bar-h) + env(safe-area-inset-bottom, 0));
 }
 .live-room .live-overlay > * { pointer-events: auto; }
@@ -1217,6 +1292,26 @@ body[data-live-page='live-room'] .live-room {
 }
 .streamer-top h1 { font-size: 18px; color: #374151; margin: 0; }
 .streamer-top .uid { font-size: 12px; color: #9ca3af; margin-top: 4px; }
+.streamer-top .streamer-agency {
+  margin: 6px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #8a6914;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #fff8e1;
+  border: 1px solid #f0e6d0;
+}
+.streamer-top .streamer-agency i { color: #c9a227; font-size: 11px; }
+.streamer-top .streamer-agency.unassigned {
+  color: #6b7280;
+  background: #f3f4f6;
+  border-color: #e5e7eb;
+  font-weight: 500;
+}
 
 .streamer-card {
   margin: 0 14px 14px; background: #fff; border-radius: 20px;
@@ -4469,6 +4564,17 @@ html.ap-expo-app .ap-chip {
 .ap-role-badge--admin {
   color: #1c1917;
   background: linear-gradient(135deg, #fde68a, #f59e0b 55%, #d97706);
+}
+.seat-name .ap-role-badge,
+.ap-guest-name .ap-role-badge,
+#liveHostName .ap-role-badge,
+#partyHostName .ap-role-badge {
+  font-size: 9px;
+  padding: 1px 5px;
+  margin-left: 2px;
+}
+#apProfileRoleBadge:empty {
+  display: none;
 }
 .ap-profile-id-row.is-admin-id,
 .social-profile-uid.is-admin-id {
