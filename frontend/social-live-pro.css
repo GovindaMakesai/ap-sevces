@@ -197,8 +197,13 @@ body[data-live-page='live-room'] .live-pulse-dot {
 /* —— Host controls (host-only; aligned with Users + Invite) —— */
 body[data-live-page='live-room'] .live-host-bar,
 body[data-live-page='live-room'] .live-host-bar[hidden],
-body[data-live-page='live-room']:not(.ap-is-host) .live-host-bar {
+body[data-live-page='live-room']:not(.ap-is-host) .live-host-bar,
+body[data-live-page='live-room']:not(.ap-is-host) #liveHostBar,
+body[data-live-page='live-room']:not(.ap-is-host) .live-host-bar-toggle,
+body[data-live-page='live-room']:not(.ap-is-host) .live-host-bar-actions {
   display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
 
 body[data-live-page='live-room'].ap-is-host .live-host-bar:not([hidden]) {

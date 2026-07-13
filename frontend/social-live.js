@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260713-host-row';
+  window.__AP_LIVE_BUILD = '20260713-host-only';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -883,6 +883,17 @@
     return clientClaimsHost();
   }
 
+  /** Host controls / host-only chrome — never trust URL ?host=1 alone */
+  function isConfirmedRoomHost() {
+    const me = currentUser();
+    return Boolean(
+      roomJoinCompleted &&
+        me?.id &&
+        roomState?.hostId &&
+        String(roomState.hostId) === String(me.id)
+    );
+  }
+
   function isLiveRoomPage() {
     return document.body.dataset.livePage === 'live-room';
   }
@@ -1376,16 +1387,22 @@
   }
 
   function syncHostBarUi() {
-    const hosting = isHost();
-    const moderating = canModerateRoom();
+    const hosting = isConfirmedRoomHost();
     document.body.classList.toggle('ap-is-host', hosting);
-    document.body.classList.toggle('ap-can-moderate', moderating && !hosting);
+    document.body.classList.toggle('ap-can-moderate', canModerateRoom() && !hosting);
     const liveHostBar = document.getElementById('liveHostBar');
     if (liveHostBar) {
-      /* Live host controls are host-only — never show to viewers/mods */
-      liveHostBar.hidden = !hosting;
-      liveHostBar.setAttribute('aria-hidden', hosting ? 'false' : 'true');
-      if (!hosting) {
+      /* Strict host-only — viewers must never see this control */
+      if (hosting) {
+        liveHostBar.hidden = false;
+        liveHostBar.removeAttribute('hidden');
+        liveHostBar.setAttribute('aria-hidden', 'false');
+        liveHostBar.style.removeProperty('display');
+      } else {
+        liveHostBar.hidden = true;
+        liveHostBar.setAttribute('hidden', '');
+        liveHostBar.setAttribute('aria-hidden', 'true');
+        liveHostBar.style.setProperty('display', 'none', 'important');
         liveHostBar.classList.add('is-collapsed');
         const btn = document.getElementById('liveHostBarToggle');
         if (btn) {
@@ -6930,6 +6947,7 @@
     ensureChatPanelChrome();
     ensureBottomComposeLayout();
     syncBottomBarForRole();
+    syncHostBarUi();
     injectGiftSheet();
     if (isPartyRoomPage()) bindMicLinkModal();
     ensureLiveDebugPanel();
@@ -8288,6 +8306,10 @@
     document.getElementById('partyMinimizeBtn')?.addEventListener('click', () => minimizeLiveRoom());
 
     document.getElementById('liveHostBarToggle')?.addEventListener('click', () => {
+      if (!isConfirmedRoomHost()) {
+        syncHostBarUi();
+        return;
+      }
       const bar = document.getElementById('liveHostBar');
       if (!bar) return;
       bar.classList.toggle('is-collapsed');

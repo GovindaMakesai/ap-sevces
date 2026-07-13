@@ -547,12 +547,17 @@
   background: transparent;
 }
 
-/* Live host controls hidden by default (HTML also uses [hidden]) */
+/* Live host controls: host-only (never viewers) */
 .live-host-bar,
 .live-host-bar[hidden],
 body:not(.ap-is-host) .live-host-bar,
-body.ap-can-moderate .live-host-bar {
+body:not(.ap-is-host) #liveHostBar,
+body:not(.ap-is-host) .live-host-bar-toggle,
+body:not(.ap-is-host) .live-host-bar-actions,
+body.ap-can-moderate:not(.ap-is-host) .live-host-bar {
   display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
 
 body.ap-is-host .party-header {

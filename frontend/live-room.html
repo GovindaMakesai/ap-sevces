@@ -8,13 +8,24 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-live.css?v=20260713-host-row">
+  <link rel="stylesheet" href="social-live.css?v=20260713-host-only">
   <link rel="stylesheet" href="social-live-session.css?v=20260713-live-ux">
   <link rel="stylesheet" href="social-live-ref-ui.css?v=20260628-hotfix">
   <link rel="stylesheet" href="social-fx.css">
-  <link rel="stylesheet" href="social-live-pro.css?v=20260713-host-row">
+  <link rel="stylesheet" href="social-live-pro.css?v=20260713-host-only">
   <link rel="stylesheet" href="beauty/ui/beauty-sheet.css?v=20260713-beauty-engine">
   <style id="ap-immersive-critical">
+    /* Host controls: hidden until confirmed host (body.ap-is-host) */
+    #liveHostBar,
+    #liveHostBar[hidden],
+    body:not(.ap-is-host) #liveHostBar,
+    body:not(.ap-is-host) .live-host-bar,
+    body:not(.ap-is-host) .live-host-bar-toggle,
+    body:not(.ap-is-host) .live-host-bar-actions {
+      display: none !important;
+      visibility: hidden !important;
+      pointer-events: none !important;
+    }
     html.ap-live-immersive .social-bridge-header,
     html.ap-live-immersive #ap-bridge-header,
     html.ap-live-immersive .social-bottom-nav,
@@ -270,7 +281,7 @@
   <script src="social-shell.js?v=20260713-live-ux"></script>
   <script src="live-session-provider.js?v=20260624-android-back"></script>
   <script type="module" src="beauty/index.js?v=20260713-beauty-engine"></script>
-  <script src="social-live.js?v=20260713-host-row"></script>
+  <script src="social-live.js?v=20260713-host-only"></script>
   <script src="social-live-interactions.js"></script>
   <script src="social-nav.js?v=20260624-android-back"></script>
 </body>
