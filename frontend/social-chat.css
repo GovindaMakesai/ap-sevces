@@ -265,6 +265,10 @@ html.ap-expo-app .ap-msg-top {
 html.ap-expo-app .chat-list {
   padding: 0;
   background: var(--ap-msg-bg);
+  flex: 1 1 auto;
+  min-height: 220px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 html.ap-expo-app .chat-item {
