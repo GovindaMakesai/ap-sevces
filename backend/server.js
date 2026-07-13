@@ -154,7 +154,7 @@ db.testConnection();
 
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/auth', authLimiter, authRoutes);
-app.use('/api/users', authLimiter, userRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api/workers', workerRoutes);
 app.use('/api/services', serviceRoutes);
 app.use('/api/bookings', bookingRoutes);
