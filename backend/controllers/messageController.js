@@ -53,7 +53,36 @@ exports.listConversations = async (req, res) => {
     try {
         const currentUserId = String(req.userId);
         const rows = await chatService.listConversationsForUser(currentUserId);
-        const enriched = await Promise.all(rows.map((conv) => enrichConversation(conv, currentUserId)));
+        const enriched = [];
+        for (const conv of rows) {
+            try {
+                enriched.push(await enrichConversation(conv, currentUserId));
+            } catch (rowErr) {
+                console.warn('enrichConversation skip', conv?.id, rowErr.message);
+                try {
+                    const otherId = chatService.otherParticipantId(conv, currentUserId);
+                    enriched.push({
+                        id: String(conv.id),
+                        participants: [String(conv.user_low), String(conv.user_high)],
+                        otherUser: {
+                            id: otherId || '',
+                            first_name: 'User',
+                            last_name: '',
+                            role: 'customer',
+                            profile_pic: null,
+                            displayName: 'User',
+                        },
+                        lastMessageText: conv.last_message_text || '',
+                        lastMessageAt: conv.last_message_at,
+                        updatedAt: conv.updated_at,
+                        unreadCount: 0,
+                        isOfficial: false,
+                    });
+                } catch (_e) {
+                    /* skip totally broken row */
+                }
+            }
+        }
         const totalUnread = enriched.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
 
         res.json({

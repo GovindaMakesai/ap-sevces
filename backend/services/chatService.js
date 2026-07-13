@@ -2,9 +2,13 @@ const db = require('../config/database');
 const User = require('../models/User');
 const Worker = require('../models/Worker');
 
+function normId(id) {
+    return String(id || '').trim().toLowerCase();
+}
+
 function orderUserPair(a, b) {
-    const x = String(a);
-    const y = String(b);
+    const x = normId(a);
+    const y = normId(b);
     return x.localeCompare(y) < 0 ? [x, y] : [y, x];
 }
 
@@ -12,45 +16,44 @@ async function resolveToUserId(maybeId) {
     const id = String(maybeId || '').trim();
     if (!id) return null;
     const user = await User.findById(id);
-    if (user) return String(user.id);
+    if (user) return normId(user.id);
     if (/^\d{4,12}$/.test(id)) {
         const byDisplay = await User.findByDisplayId?.(Number(id));
-        if (byDisplay) return String(byDisplay.id);
-        const db = require('../config/database');
+        if (byDisplay) return normId(byDisplay.id);
         const r = await db.query(`SELECT id FROM users WHERE display_id = $1 LIMIT 1`, [Number(id)]);
-        if (r.rows[0]) return String(r.rows[0].id);
+        if (r.rows[0]) return normId(r.rows[0].id);
     }
     if (id.includes('@')) {
         const byEmail = await User.findByEmail?.(id);
-        if (byEmail) return String(byEmail.id);
-        const db = require('../config/database');
+        if (byEmail) return normId(byEmail.id);
         const r = await db.query(`SELECT id FROM users WHERE lower(email) = lower($1) LIMIT 1`, [id]);
-        if (r.rows[0]) return String(r.rows[0].id);
+        if (r.rows[0]) return normId(r.rows[0].id);
     }
     const worker = await Worker.findById(id);
-    if (worker && worker.user_id) return String(worker.user_id);
+    if (worker && worker.user_id) return normId(worker.user_id);
     return null;
 }
 
 async function findOrCreateConversationByUserIds(userIdA, userIdB) {
     const [user_low, user_high] = orderUserPair(userIdA, userIdB);
     const existing = await db.query(
-        `SELECT * FROM conversations WHERE user_low = $1 AND user_high = $2`,
+        `SELECT * FROM conversations WHERE user_low = $1::uuid AND user_high = $2::uuid`,
         [user_low, user_high]
     );
     if (existing.rows[0]) return existing.rows[0];
     const ins = await db.query(
-        `INSERT INTO conversations (user_low, user_high) VALUES ($1, $2) RETURNING *`,
+        `INSERT INTO conversations (user_low, user_high) VALUES ($1::uuid, $2::uuid) RETURNING *`,
         [user_low, user_high]
     );
     return ins.rows[0];
 }
 
 async function listConversationsForUser(currentUserId) {
-    const uid = String(currentUserId);
+    const uid = normId(currentUserId);
+    if (!uid) return [];
     const result = await db.query(
         `SELECT * FROM conversations
-         WHERE user_low = $1 OR user_high = $1
+         WHERE user_low = $1::uuid OR user_high = $1::uuid
          ORDER BY last_message_at DESC NULLS LAST, updated_at DESC`,
         [uid]
     );
@@ -60,31 +63,32 @@ async function listConversationsForUser(currentUserId) {
 async function getConversationById(conversationId) {
     const id = String(conversationId || '').trim();
     if (!id) return null;
+    if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
     const r = await db.query(`SELECT * FROM conversations WHERE id = $1::uuid`, [id]);
     return r.rows[0] || null;
 }
 
 function otherParticipantId(conversation, currentUserId) {
-    const uid = String(currentUserId);
-    if (String(conversation.user_low) === uid) return String(conversation.user_high);
-    if (String(conversation.user_high) === uid) return String(conversation.user_low);
+    const uid = normId(currentUserId);
+    if (normId(conversation.user_low) === uid) return normId(conversation.user_high);
+    if (normId(conversation.user_high) === uid) return normId(conversation.user_low);
     return null;
 }
 
 async function userParticipates(conversation, userId) {
-    const uid = String(userId);
-    return String(conversation.user_low) === uid || String(conversation.user_high) === uid;
+    const uid = normId(userId);
+    return normId(conversation.user_low) === uid || normId(conversation.user_high) === uid;
 }
 
 async function unreadCountForConversation(conversation, userId) {
-    const uid = String(userId);
+    const uid = normId(userId);
     const lastRead =
-        String(conversation.user_low) === uid
+        normId(conversation.user_low) === uid
             ? conversation.user_low_last_read_at
             : conversation.user_high_last_read_at;
     const r = await db.query(
         `SELECT COUNT(*)::int AS c FROM chat_messages
-         WHERE conversation_id = $1 AND receiver_id = $2
+         WHERE conversation_id = $1 AND receiver_id = $2::uuid
            AND created_at > COALESCE($3::timestamp, TIMESTAMP '1970-01-01')`,
         [conversation.id, uid, lastRead]
     );
@@ -94,13 +98,13 @@ async function unreadCountForConversation(conversation, userId) {
 async function markConversationRead(conversationId, userId) {
     const conv = await getConversationById(conversationId);
     if (!conv) return;
-    const uid = String(userId);
-    if (String(conv.user_low) === uid) {
+    const uid = normId(userId);
+    if (normId(conv.user_low) === uid) {
         await db.query(
             `UPDATE conversations SET user_low_last_read_at = CURRENT_TIMESTAMP WHERE id = $1`,
             [conversationId]
         );
-    } else if (String(conv.user_high) === uid) {
+    } else if (normId(conv.user_high) === uid) {
         await db.query(
             `UPDATE conversations SET user_high_last_read_at = CURRENT_TIMESTAMP WHERE id = $1`,
             [conversationId]
