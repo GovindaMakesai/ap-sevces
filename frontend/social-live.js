@@ -9019,10 +9019,15 @@
 
   let streamerStatsPeriod = 'today';
   let userAnalyticsPeriod = 'today';
+  let streamerDailyAll = [];
+  let streamerLivePage = 1;
+  let streamerPartyPage = 1;
+  const STREAMER_PAGE_SIZE = 7;
 
   function periodDaysLabel(period) {
     if (period === 'week') return 7;
     if (period === 'month') return 30;
+    if (period === '90' || period === 'older') return 90;
     const n = parseInt(period, 10);
     if (Number.isFinite(n) && n >= 1) return n;
     return 1;
@@ -9078,6 +9083,8 @@
 
   async function loadStreamerStats(period = 'today') {
     streamerStatsPeriod = period || 'today';
+    streamerLivePage = 1;
+    streamerPartyPage = 1;
     const setText = (id, val) => {
       const el = document.getElementById(id);
       if (el) el.textContent = val;
@@ -9089,12 +9096,16 @@
       const data = res?.data || {};
       const days = Number(data.periodDays) || periodDaysLabel(period);
       setPeriodDaysUi('stats', days);
-      const hours = data.hoursLabel || data.totalFormatted || '0h 0m';
       const points = Number(data.giftCoins || 0);
       const followers = Number(data.newFollowers || 0);
-      setText('streamerLiveHours', hours);
-      setText('streamerLiveOnlyHours', data.liveFormatted ? formatHoursShort(data.liveSeconds) : '0h 0m');
-      setText('streamerPartyOnlyHours', data.partyFormatted ? formatHoursShort(data.partySeconds) : '0h 0m');
+      setText(
+        'streamerLiveOnlyHours',
+        data.liveHoursLabel || formatHoursShort(data.liveSeconds)
+      );
+      setText(
+        'streamerPartyOnlyHours',
+        data.partyHoursLabel || formatHoursShort(data.partySeconds)
+      );
       setText('streamerWonPoints', String(points));
       setText('streamerNewFollowers', String(followers));
       const last = data.lastSession;
@@ -9107,9 +9118,32 @@
       }
       setText('streamerLastPoints', String(points));
       setText('streamerLastFollowers', String(followers));
-      renderDailyHours(data.daily || []);
+      streamerDailyAll = data.daily || [];
+      renderDailyHoursPaged();
+      toggleMoreThanMonthTabs(Boolean(data.hasOlderThanMonth));
     } catch (e) {
       console.warn('[streamer] stats load failed', e);
+    }
+  }
+
+  function toggleMoreThanMonthTabs(show) {
+    const statsTab = document.getElementById('streamerMoreMonthTab');
+    const activityTab = document.getElementById('activityMoreMonthTab');
+    if (statsTab) statsTab.hidden = !show;
+    if (activityTab) activityTab.hidden = !show;
+    if (!show) {
+      if (streamerStatsPeriod === '90' || streamerStatsPeriod === '14') {
+        streamerStatsPeriod = 'month';
+        document.querySelectorAll('[data-stats-period]').forEach((b) => {
+          b.classList.toggle('active', b.dataset.statsPeriod === 'month');
+        });
+      }
+      if (userAnalyticsPeriod === '90' || userAnalyticsPeriod === '14') {
+        userAnalyticsPeriod = 'month';
+        document.querySelectorAll('[data-activity-period]').forEach((b) => {
+          b.classList.toggle('active', b.dataset.activityPeriod === 'month');
+        });
+      }
     }
   }
 
@@ -9122,36 +9156,74 @@
     return `${h}h ${m}m`;
   }
 
-  function renderDailyHours(rows) {
-    const list = document.getElementById('streamerDailyList');
-    if (!list) return;
-    if (!rows.length) {
-      list.innerHTML = '<p style="font-size:12px;color:#9ca3af">No hosting time in this period</p>';
-      return;
-    }
+  function dailyDateLabel(dateStr) {
     const today = new Date().toISOString().slice(0, 10);
-    list.innerHTML = rows
+    if (dateStr === today) return 'Today';
+    return new Date(dateStr + 'T12:00:00').toLocaleDateString(undefined, {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    });
+  }
+
+  function pageSlice(rows, page) {
+    const totalPages = Math.max(1, Math.ceil(rows.length / STREAMER_PAGE_SIZE));
+    const safePage = Math.min(Math.max(1, page), totalPages);
+    const start = (safePage - 1) * STREAMER_PAGE_SIZE;
+    return {
+      rows: rows.slice(start, start + STREAMER_PAGE_SIZE),
+      page: safePage,
+      totalPages,
+    };
+  }
+
+  function renderKindDailyList(kind, page) {
+    const isLive = kind === 'live';
+    const listId = isLive ? 'streamerDailyLiveList' : 'streamerDailyPartyList';
+    const pagerId = isLive ? 'streamerLivePager' : 'streamerPartyPager';
+    const labelId = isLive ? 'streamerLivePageLabel' : 'streamerPartyPageLabel';
+    const list = document.getElementById(listId);
+    const pager = document.getElementById(pagerId);
+    const label = document.getElementById(labelId);
+    if (!list) return 1;
+
+    const filtered = (streamerDailyAll || []).filter((d) =>
+      isLive ? Number(d.liveSeconds || 0) > 0 : Number(d.partySeconds || 0) > 0
+    );
+    if (!filtered.length) {
+      list.innerHTML = `<p style="font-size:12px;color:#9ca3af">No ${isLive ? 'live' : 'party'} hours in this period</p>`;
+      if (pager) pager.hidden = true;
+      return 1;
+    }
+
+    const sliced = pageSlice(filtered, page);
+    list.innerHTML = sliced.rows
       .map((d) => {
-        const dateLabel =
-          d.date === today
-            ? 'Today'
-            : new Date(d.date + 'T12:00:00').toLocaleDateString(undefined, {
-                weekday: 'short',
-                month: 'short',
-                day: 'numeric',
-              });
-        const hrs = d.hoursLabel || formatHoursShort(d.totalSeconds);
-        const live = formatHoursShort(d.liveSeconds);
-        const party = formatHoursShort(d.partySeconds);
-        return `<div class="streamer-daily-row">
-          <div>
-            <strong>${dateLabel}</strong>
-            <div class="sub">Live ${live} · Party ${party}</div>
-          </div>
+        const secs = isLive ? d.liveSeconds : d.partySeconds;
+        const hrs = isLive
+          ? d.liveHoursLabel || formatHoursShort(secs)
+          : d.partyHoursLabel || formatHoursShort(secs);
+        return `<div class="streamer-daily-row streamer-daily-row--${kind}">
+          <div><strong>${dailyDateLabel(d.date)}</strong></div>
           <div class="hrs">${hrs}</div>
         </div>`;
       })
       .join('');
+
+    if (pager) {
+      pager.hidden = sliced.totalPages <= 1;
+      const prev = pager.querySelector('[data-page-dir="-1"]');
+      const next = pager.querySelector('[data-page-dir="1"]');
+      if (prev) prev.disabled = sliced.page <= 1;
+      if (next) next.disabled = sliced.page >= sliced.totalPages;
+    }
+    if (label) label.textContent = `${sliced.page} / ${sliced.totalPages}`;
+    return sliced.page;
+  }
+
+  function renderDailyHoursPaged() {
+    streamerLivePage = renderKindDailyList('live', streamerLivePage);
+    streamerPartyPage = renderKindDailyList('party', streamerPartyPage);
   }
 
   function initStreamerCenter() {
@@ -9176,6 +9248,19 @@
         btn.classList.add('active');
         loadUserAnalytics(btn.dataset.activityPeriod || 'today');
       });
+    });
+
+    document.getElementById('streamerLivePager')?.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-page-dir]');
+      if (!btn) return;
+      streamerLivePage += Number(btn.dataset.pageDir) || 0;
+      renderDailyHoursPaged();
+    });
+    document.getElementById('streamerPartyPager')?.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-page-dir]');
+      if (!btn) return;
+      streamerPartyPage += Number(btn.dataset.pageDir) || 0;
+      renderDailyHoursPaged();
     });
 
     loadStreamerStats('today');

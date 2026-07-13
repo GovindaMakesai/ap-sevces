@@ -268,7 +268,35 @@ async function getStreamerStats(userId, period = 'today') {
       liveFormatted: formatDuration(d.liveSeconds),
       partyFormatted: formatDuration(d.partySeconds),
       hoursLabel: formatHoursLabel(d.totalSeconds),
+      liveHoursLabel: formatHoursLabel(d.liveSeconds),
+      partyHoursLabel: formatHoursLabel(d.partySeconds),
     }));
+
+  let hasOlderThanMonth = false;
+  try {
+    const older = await db.query(
+      `SELECT 1
+       FROM live_host_stat_daily
+       WHERE host_user_id = $1
+         AND stat_date < (CURRENT_DATE - INTERVAL '30 days')
+         AND (COALESCE(live_seconds,0) + COALESCE(party_seconds,0)) > 0
+       LIMIT 1`,
+      [userId]
+    );
+    hasOlderThanMonth = older.rows.length > 0;
+    if (!hasOlderThanMonth) {
+      const olderRoom = await db.query(
+        `SELECT 1 FROM live_rooms
+         WHERE host_user_id = $1
+           AND status = 'ended'
+           AND COALESCE(ended_at, updated_at) < (CURRENT_TIMESTAMP - INTERVAL '30 days')
+           AND COALESCE(ended_at, updated_at) >= (CURRENT_TIMESTAMP - INTERVAL '90 days')
+         LIMIT 1`,
+        [userId]
+      );
+      hasOlderThanMonth = olderRoom.rows.length > 0;
+    }
+  } catch (_e) {}
 
   return {
     period,
@@ -280,12 +308,15 @@ async function getStreamerStats(userId, period = 'today') {
     liveFormatted: formatDuration(liveSeconds),
     partyFormatted: formatDuration(partySeconds),
     hoursLabel: formatHoursLabel(totalSeconds),
+    liveHoursLabel: formatHoursLabel(liveSeconds),
+    partyHoursLabel: formatHoursLabel(partySeconds),
     giftCoins: Number(giftsRes.rows[0]?.coins || 0),
     newFollowers: Number(followsRes.rows[0]?.c || 0),
     peakViewers,
     avgViewers,
     sessionCount,
     daily,
+    hasOlderThanMonth,
     lastSession: last
       ? {
           seconds: lastSeconds,

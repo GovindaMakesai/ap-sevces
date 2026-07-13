@@ -1270,6 +1270,46 @@ body[data-live-page='live-room'] .live-room {
 .streamer-daily-row strong { font-weight: 800; color: #111827; }
 .streamer-daily-row .sub { font-size: 11px; color: #9ca3af; }
 .streamer-daily-row .hrs { font-weight: 800; color: #ea580c; white-space: nowrap; }
+.streamer-metrics--split {
+  grid-template-columns: repeat(2, 1fr);
+}
+.metric--live .val { color: #c2410c; }
+.metric--party .val { color: #7c3aed; }
+.streamer-daily-title {
+  font-size: 13px;
+  margin: 16px 0 8px;
+  font-weight: 800;
+}
+.streamer-daily-title--live { color: #c2410c; }
+.streamer-daily-title--party { color: #7c3aed; }
+.streamer-daily-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 10px;
+}
+.streamer-daily-pager button {
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #374151;
+  cursor: pointer;
+}
+.streamer-daily-pager button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.streamer-daily-pager span {
+  font-size: 12px;
+  font-weight: 700;
+  color: #6b7280;
+}
+.streamer-daily-row--live .hrs { color: #c2410c; }
+.streamer-daily-row--party .hrs { color: #7c3aed; }
 
 .streamer-cover-box {
   background: #f9fafb; border-radius: 12px; padding: 20px; text-align: center;

@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#faf6ee">
   <title>Streamer Center - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-live.css?v=20260713-daily-hours">
+  <link rel="stylesheet" href="social-live.css?v=20260713-hours-split">
   <link rel="stylesheet" href="mobile-app.css">
 </head>
 <body data-live-page="streamer-center" class="streamer-page">
@@ -17,38 +17,56 @@
   </header>
 
   <section class="streamer-card">
-    <h2>Hosting time <a href="/rankings.html?app=1">More data &gt;</a></h2>
-    <p style="font-size:12px;color:#6b7280;margin:-4px 0 10px">Live + Party combined · hours per day</p>
+    <h2>Hosting time</h2>
+    <p style="font-size:12px;color:#6b7280;margin:-4px 0 10px">Live and Party tracked separately · hours per day</p>
     <div class="streamer-pills" id="streamerStatsPills">
-      <button type="button" class="active" data-stats-period="today">Today · 1 day</button>
-      <button type="button" data-stats-period="week">This week · 7 days</button>
-      <button type="button" data-stats-period="month">This month · 30 days</button>
-      <button type="button" data-stats-period="14">14 days</button>
-      <button type="button" data-stats-period="90">90 days</button>
+      <button type="button" class="active" data-stats-period="today">Today</button>
+      <button type="button" data-stats-period="week">Week</button>
+      <button type="button" data-stats-period="month">Month</button>
+      <button type="button" data-stats-period="90" id="streamerMoreMonthTab" hidden>More than month</button>
     </div>
     <p class="streamer-period-days" id="streamerPeriodDaysLabel">Showing <strong>1</strong> day</p>
-    <div class="streamer-metrics" id="streamerPeriodMetrics">
-      <div class="metric"><div class="val" id="streamerPeriodDays">1</div><div class="lbl">Days in range</div></div>
-      <div class="metric"><div class="val" id="streamerLiveHours">0h 0m</div><div class="lbl">Total host time</div></div>
-      <div class="metric"><div class="val" id="streamerLiveOnlyHours">0h 0m</div><div class="lbl">Live only</div></div>
-      <div class="metric"><div class="val" id="streamerPartyOnlyHours">0h 0m</div><div class="lbl">Party only</div></div>
+    <div class="streamer-metrics streamer-metrics--split" id="streamerPeriodMetrics">
+      <div class="metric metric--live">
+        <div class="val" id="streamerLiveOnlyHours">0h 0m</div>
+        <div class="lbl">Live hours</div>
+      </div>
+      <div class="metric metric--party">
+        <div class="val" id="streamerPartyOnlyHours">0h 0m</div>
+        <div class="lbl">Party hours</div>
+      </div>
       <div class="metric"><div class="val" id="streamerWonPoints">0</div><div class="lbl">Won points</div></div>
       <div class="metric"><div class="val" id="streamerNewFollowers">0</div><div class="lbl">New followers</div></div>
     </div>
-    <div class="streamer-daily-hours" id="streamerDailyHours">
-      <h3 style="font-size:13px;margin:16px 0 8px;color:#374151">Per day (Live + Party)</h3>
-      <div id="streamerDailyList" class="streamer-daily-list"><p style="font-size:12px;color:#9ca3af">Loading…</p></div>
+
+    <div class="streamer-daily-hours">
+      <h3 class="streamer-daily-title streamer-daily-title--live">Live · per day</h3>
+      <div id="streamerDailyLiveList" class="streamer-daily-list"><p style="font-size:12px;color:#9ca3af">Loading…</p></div>
+      <div class="streamer-daily-pager" id="streamerLivePager" hidden>
+        <button type="button" data-page-dir="-1" data-page-kind="live">Prev</button>
+        <span id="streamerLivePageLabel">1 / 1</span>
+        <button type="button" data-page-dir="1" data-page-kind="live">Next</button>
+      </div>
+    </div>
+
+    <div class="streamer-daily-hours" style="margin-top:18px">
+      <h3 class="streamer-daily-title streamer-daily-title--party">Party · per day</h3>
+      <div id="streamerDailyPartyList" class="streamer-daily-list"><p style="font-size:12px;color:#9ca3af">Loading…</p></div>
+      <div class="streamer-daily-pager" id="streamerPartyPager" hidden>
+        <button type="button" data-page-dir="-1" data-page-kind="party">Prev</button>
+        <span id="streamerPartyPageLabel">1 / 1</span>
+        <button type="button" data-page-dir="1" data-page-kind="party">Next</button>
+      </div>
     </div>
   </section>
 
   <section class="streamer-card">
     <h2>Your activity <span style="font-size:11px;font-weight:600;color:#9ca3af">watch + host + gifts</span></h2>
     <div class="streamer-pills streamer-activity-pills" id="streamerActivityPills">
-      <button type="button" class="active" data-activity-period="today">Today · 1 day</button>
-      <button type="button" data-activity-period="week">This week · 7 days</button>
-      <button type="button" data-activity-period="month">This month · 30 days</button>
-      <button type="button" data-activity-period="14">14 days</button>
-      <button type="button" data-activity-period="90">90 days</button>
+      <button type="button" class="active" data-activity-period="today">Today</button>
+      <button type="button" data-activity-period="week">Week</button>
+      <button type="button" data-activity-period="month">Month</button>
+      <button type="button" data-activity-period="90" id="activityMoreMonthTab" hidden>More than month</button>
     </div>
     <p class="streamer-period-days" id="activityPeriodDaysLabel">Showing <strong>1</strong> day</p>
     <div class="streamer-metrics" id="userActivityMetrics">
@@ -141,7 +159,7 @@
   <script src="auth-guard.js"></script>
   <script src="social-shell.js"></script>
   <script src="social-nav.js"></script>
-  <script src="social-live.js?v=20260713-daily-hours"></script>
+  <script src="social-live.js?v=20260713-hours-split"></script>
   <script>
     (async function () {
       let user = window.Auth?.getUser?.() || null;
