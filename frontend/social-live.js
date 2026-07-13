@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260713-host-only';
+  window.__AP_LIVE_BUILD = '20260713-gift-host';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -93,6 +93,49 @@
   let teamProgress = 1;
   let joinRequests = [];
   let roomGiftHistory = [];
+
+  function pushRoomGift(gift) {
+    if (!gift) return;
+    const entry = {
+      id: gift.id || null,
+      from: gift.from || gift.senderName || 'User',
+      fromUserId: gift.fromUserId || gift.senderId || null,
+      to: gift.to || gift.recipientName || gift.recipient || 'Host',
+      toUserId: gift.toUserId || gift.recipientId || gift.receiver_id || null,
+      emoji: gift.emoji || gift.gift_type || '🎁',
+      amount: Number(gift.amount || gift.coins || gift.coin_amount || 0),
+      at: gift.at ? new Date(gift.at).getTime() : Date.now(),
+    };
+    const key = entry.id
+      ? `id:${entry.id}`
+      : `${entry.from}|${entry.to}|${entry.emoji}|${entry.amount}|${Math.floor(entry.at / 5000)}`;
+    if (roomGiftHistory.some((g) => (g.id && entry.id && g.id === entry.id) || g._key === key)) {
+      return;
+    }
+    entry._key = key;
+    roomGiftHistory.push(entry);
+    if (roomGiftHistory.length > 40) roomGiftHistory = roomGiftHistory.slice(-40);
+  }
+
+  function hydrateGiftHistoryFromState(state) {
+    const gifts = state?.gifts || [];
+    gifts.forEach((g) => pushRoomGift(g));
+    (state?.messages || [])
+      .filter((m) => m?.type === 'gift')
+      .forEach((m) => {
+        pushRoomGift({
+          id: m.id,
+          from: m.user || m.gift?.from,
+          fromUserId: m.userId || m.gift?.fromUserId,
+          to: m.gift?.to || m.gift?.recipientName || 'Host',
+          toUserId: m.gift?.toUserId || m.gift?.receiver_id,
+          emoji: m.gift?.emoji || '🎁',
+          amount: m.gift?.amount || m.gift?.coin_amount || m.gift?.coins || 0,
+          at: m.at,
+          ...(m.gift || {}),
+        });
+      });
+  }
   let chatMessages = [];
   let hasSpeakerSeat = false;
   let pkScoreLeft = 0;
@@ -2367,6 +2410,7 @@
       const prevViewers = roomState?.viewers || lastViewerCount;
       roomState = mergeRoomState(state);
       seedChatProfileCacheFromState(roomState);
+      hydrateGiftHistoryFromState(roomState);
       if (state?.viewers != null && state.viewers !== prevViewers) {
         window.SocialFX?.onViewerCountChange?.(state.viewers, prevViewers);
       }
@@ -2378,6 +2422,7 @@
       renderRoomStateTimer = setTimeout(() => {
         renderRoomStateTimer = null;
         renderRoomState({ soft: sessionEstablished });
+        renderRoomGiftPanels();
         // New on-seat guest — pull their mic (host + other viewers)
         if (seatAdded && agoraClient && liveDebugState.agoraJoined) {
           resubscribeAllRemoteMedia().catch(() => {});
@@ -2430,15 +2475,7 @@
 
     liveSocket.on('live:gift', (gift) => {
       if (gift) {
-        roomGiftHistory.push({
-          from: gift.from || gift.senderName || 'User',
-          to: gift.to || gift.recipientName || gift.recipient || 'Host',
-          toUserId: gift.toUserId || gift.recipientId || null,
-          emoji: gift.emoji || '🎁',
-          amount: Number(gift.amount || gift.coins || 0),
-          at: Date.now(),
-        });
-        if (roomGiftHistory.length > 40) roomGiftHistory = roomGiftHistory.slice(-40);
+        pushRoomGift(gift);
         rememberChatMessage({
           type: 'gift',
           user: gift.from || gift.senderName || 'User',
@@ -2450,11 +2487,16 @@
       }
       showWinBanner(gift);
       showGiftFlyBanner(gift);
-      const combo = window.SocialFX?.trackCombo?.(gift.emoji || 'gift', gift.qty || 1) || 1;
+      const combo = window.SocialFX?.trackCombo?.(gift?.emoji || 'gift', gift?.qty || 1) || 1;
       window.SocialFX?.playGift?.(gift, { combo });
-      onGiftTeamProgress(gift.amount || 100);
+      onGiftTeamProgress(gift?.amount || gift?.coins || 100);
       if (roomState) renderRoomState();
       renderRoomGiftPanels();
+      /* Host points (stars) update after gift settlement */
+      if (isConfirmedRoomHost() || isHost()) {
+        refreshCoinDisplay().catch(() => {});
+        if (window.SocialWallet?.fetchBalance) SocialWallet.fetchBalance(true).catch(() => {});
+      }
     });
 
     liveSocket.on('pk:start', (snapshot) => {
@@ -5922,6 +5964,8 @@
 
     if (document.getElementById('partySeats')) renderPartySeats(hostName);
     renderChatFromState();
+    hydrateGiftHistoryFromState(roomState);
+    renderRoomGiftPanels();
     renderGuestRail();
     syncFollowUI();
     syncAgoraUidMap();
@@ -8070,18 +8114,29 @@
       sendBtn.textContent = 'Sending…';
     }
 
-    const finishOk = async () => {
+    const finishOk = async (chargedAmount) => {
       if (window.SocialWallet?.fetchBalance) await SocialWallet.fetchBalance(true);
-      const giftEvt = { from: displayName(currentUser()), to, emoji: g.emoji, amount: cost, qty: giftQty };
+      const amt = Number(chargedAmount || cost);
+      const giftEvt = {
+        from: displayName(currentUser()),
+        fromUserId: currentUser()?.id || null,
+        to,
+        toUserId: receiverId || null,
+        emoji: g.emoji,
+        amount: amt,
+        qty: giftQty,
+      };
+      pushRoomGift(giftEvt);
       const combo = window.SocialFX?.trackCombo?.(g.emoji, giftQty) || 1;
       window.SocialFX?.playGift?.(giftEvt, { combo });
       showWinBanner(giftEvt);
       showGiftFlyBanner(giftEvt);
-      onGiftTeamProgress(cost);
-      const sendBtn = document.getElementById('giftSendBtn');
+      onGiftTeamProgress(amt);
+      const sendBtnEl = document.getElementById('giftSendBtn');
       const balEl = document.getElementById('giftCoinsBal');
-      if (sendBtn && balEl) window.SocialFX?.coinFly?.(sendBtn, balEl, cost);
+      if (sendBtnEl && balEl) window.SocialFX?.coinFly?.(sendBtnEl, balEl, amt);
       await refreshCoinDisplay();
+      renderRoomGiftPanels();
       toast('Gift sent!', 'success');
       sheet.classList.remove('open');
     };
@@ -8097,6 +8152,16 @@
     const tryApi = async (reason) => {
       try {
         await sendGiftViaApi(receiverId, cost, g.emoji, to, g.slug);
+        pushRoomGift({
+          from: displayName(currentUser()),
+          fromUserId: currentUser()?.id || null,
+          to,
+          toUserId: receiverId,
+          emoji: g.emoji,
+          amount: cost,
+          qty: giftQty,
+        });
+        renderRoomGiftPanels();
       } catch (e) {
         const msg = window.SocialUI?.friendlyMessage(e.message) || e.message || reason || 'Gift failed';
         if (/insufficient/i.test(msg)) {
@@ -8115,9 +8180,10 @@
     const emitOneGift = (target) =>
       new Promise((resolve) => {
         if (!liveSocket?.connected) {
-          resolve({ ok: false });
+          resolve({ ok: false, message: 'Not connected' });
           return;
         }
+        const timer = setTimeout(() => resolve({ ok: false, message: 'Gift timed out' }), 12000);
         liveSocket.emit(
           'live:gift',
           {
@@ -8129,22 +8195,49 @@
             amount: cost,
             qty: giftQty,
           },
-          (res) => resolve(res || { ok: false })
+          (res) => {
+            clearTimeout(timer);
+            resolve(res || { ok: false, message: 'Gift failed' });
+          }
         );
       });
 
     if (liveSocket?.connected) {
       (async () => {
+        let sent = 0;
+        let lastCharged = cost;
+        let lastError = '';
         try {
           for (const target of targets) {
-            if (!target.id) continue;
+            if (!target.id) {
+              lastError = 'Receiver not found';
+              continue;
+            }
             const res = await emitOneGift(target);
             if (!res?.ok) {
-              toast(res?.message || 'Gift failed for ' + (target.name || 'user'), 'error');
+              lastError = res?.message || 'Gift failed for ' + (target.name || 'user');
               break;
             }
+            sent += 1;
+            const bal = res?.data?.balance?.coin_balance;
+            if (bal != null && window.SocialWallet) {
+              try {
+                /* keep local cache in sync if server returned balance */
+              } catch (_e) {}
+            }
+            lastCharged = Number(res?.data?.gift?.amount || cost);
           }
-          await finishOk();
+          if (sent > 0) {
+            await finishOk(lastCharged);
+          } else {
+            toast(lastError || 'Gift failed', 'error');
+            if (/insufficient/i.test(lastError || '')) openTopupSheet();
+            /* Socket rejected — try REST once for single recipient */
+            if (!sendAll && receiverId && /not connected|timed out|failed/i.test(lastError || '')) {
+              await tryApi(lastError);
+              return;
+            }
+          }
         } finally {
           releaseGiftSend();
         }

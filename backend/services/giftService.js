@@ -77,13 +77,8 @@ async function resolveGiftAmount(giftType, coinAmount, qty = 1) {
     if (amount >= unit && amount % unit === 0) {
       return amount;
     }
-    /* Client sent unit price only — apply qty */
-    if (amount === unit) {
-      return unit * quantity;
-    }
-    throw new Error(
-      `Gift amount mismatch for "${res.rows[0].slug}": expected ${unit} (or multiple), got ${amount}`
-    );
+    /* Client sent unit price (or odd amount) — charge unit * qty */
+    return unit * quantity;
   }
 
   throw new Error(`Unknown gift type "${raw || giftType}". Try reloading the app.`);
@@ -165,9 +160,14 @@ async function sendGift({ senderId, receiverId, liveRoomId, giftType, coinAmount
           liveRoomId,
           senderId,
           JSON.stringify({
+            fromUserId: senderId,
+            toUserId: receiverId,
             receiver_id: receiverId,
             gift_type: giftType,
+            emoji: giftType,
+            amount: Number(amount),
             coin_amount: Number(amount),
+            qty: Math.max(1, Math.floor(Number(qty) || 1)),
             platform_fee: Number(platformShare),
             host_amount: Number(hostShare),
             settlement,

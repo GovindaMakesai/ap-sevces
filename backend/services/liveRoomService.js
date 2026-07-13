@@ -300,13 +300,22 @@ async function buildSnapshot(channel) {
         };
       }
       if (e.event_type === 'gift') {
+        const coins = Number(p.amount || p.coin_amount || p.coins || 0);
         return {
           id: `evt-${eventId}`,
           type: 'gift',
           user: p.from || p.senderName || 'User',
           userId: e.user_id || p.fromUserId || null,
-          text: `${p.emoji || '🎁'} sent to ${p.to || p.recipientName || 'Host'}`,
-          gift: p,
+          text: `${p.emoji || '🎁'} sent to ${p.to || p.recipientName || 'Host'}${coins ? ` · ${coins} coins` : ''}`,
+          gift: {
+            from: p.from || p.senderName || 'User',
+            fromUserId: e.user_id || p.fromUserId || null,
+            to: p.to || p.recipientName || 'Host',
+            toUserId: p.toUserId || p.receiver_id || null,
+            emoji: p.emoji || '🎁',
+            amount: coins,
+            ...p,
+          },
           at: e.created_at,
         };
       }
@@ -324,8 +333,21 @@ async function buildSnapshot(channel) {
 
   const gifts = events
     .filter((e) => e.event_type === 'gift')
-    .slice(-5)
-    .map((e) => parsePayload(e.payload));
+    .slice(-20)
+    .map((e) => {
+      const p = parsePayload(e.payload);
+      return {
+        id: e.id != null ? String(e.id) : undefined,
+        from: p.from || p.senderName || 'User',
+        fromUserId: e.user_id || p.fromUserId || null,
+        to: p.to || p.recipientName || 'Host',
+        toUserId: p.toUserId || p.receiver_id || null,
+        emoji: p.emoji || '🎁',
+        amount: Number(p.amount || p.coin_amount || p.coins || 0),
+        at: e.created_at,
+        ...p,
+      };
+    });
 
   const seats = members
     .filter(

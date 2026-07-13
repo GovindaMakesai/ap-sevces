@@ -353,15 +353,20 @@ function registerLiveSocket(io) {
         const charged = Number(result.gift?.coin_amount || coinAmount);
         const gift = {
           id: result.gift.id,
-          from: socket.data.liveDisplayName || 'User',
+          from: socket.data.liveDisplayName || socket.data.displayName || 'User',
+          fromUserId: socket.userId,
           to: String(payload?.to || room.host_display_name || 'Host').slice(0, 32),
+          toUserId: receiverId,
           emoji: payload?.emoji || '\u{1F381}',
           amount: charged,
+          coins: charged,
           qty: payload?.qty || 1,
           at: Date.now(),
         };
 
         io.to(`live:${channel}`).emit('live:gift', gift);
+        /* Also emit to sender socket in case they left the room channel briefly */
+        socket.emit('live:gift', gift);
         const state = await liveRoomService.buildSnapshot(channel);
         io.to(`live:${channel}`).emit('live:state', state);
 
