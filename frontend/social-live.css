@@ -291,8 +291,8 @@
   flex-shrink: 0;
   display: flex;
   gap: 0;
-  min-height: 72px;
-  max-height: min(20vh, 150px);
+  min-height: 120px;
+  max-height: min(36vh, 280px);
   border-top: none;
   background: transparent;
   position: relative;
@@ -419,7 +419,7 @@
   overflow-y: auto;
   flex: 1;
   min-height: 0;
-  max-height: min(20vh, 150px);
+  max-height: min(36vh, 280px);
   pointer-events: auto;
   -webkit-overflow-scrolling: touch;
   background: transparent;
@@ -1335,9 +1335,9 @@ body[data-live-page='live-room'] .live-room {
   min-height: 12px;
   pointer-events: none;
 }
-.live-room .party-chat-row { flex-shrink: 0; max-height: min(22vh, 160px); min-height: 80px; }
-.live-room .party-chat-zone { max-height: min(22vh, 160px); }
-.live-room .party-chat-feed { max-height: min(22vh, 160px); }
+.live-room .party-chat-row { flex-shrink: 0; max-height: min(38vh, 300px); min-height: 120px; }
+.live-room .party-chat-zone { max-height: min(38vh, 300px); }
+.live-room .party-chat-feed { max-height: min(38vh, 300px); overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .live-room .live-chat-compose {
   flex-shrink: 0;
   position: relative;
@@ -3914,12 +3914,21 @@ body.ap-keyboard-open .ap-emoji-popover.is-open {
   bottom: calc(var(--ap-bottom-bar-h) + var(--ap-kb-offset, 0px) + 8px + env(safe-area-inset-bottom, 0));
 }
 
+/* Expand chat history while composing / keyboard open — do not shrink */
 body.ap-chat-open .party-chat-row,
-body.ap-chat-open .live-room .party-chat-row {
-  max-height: min(14vh, 110px);
+body.ap-chat-open .live-room .party-chat-row,
+body.ap-keyboard-open .party-chat-row,
+body.ap-keyboard-open .live-room .party-chat-row {
+  max-height: min(48vh, 420px) !important;
+  min-height: 160px;
 }
-body.ap-chat-open .party-chat-feed {
-  max-height: min(14vh, 110px);
+body.ap-chat-open .party-chat-zone,
+body.ap-chat-open .party-chat-feed,
+body.ap-keyboard-open .party-chat-zone,
+body.ap-keyboard-open .party-chat-feed {
+  max-height: min(48vh, 420px) !important;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 @media (max-height: 680px) {
@@ -3935,8 +3944,8 @@ body.ap-chat-open .party-chat-feed {
   }
   .party-invite-row,
   .party-meta-row { padding-bottom: 6px; }
-  .party-chat-row { max-height: min(16vh, 120px); }
-  .party-chat-feed { max-height: min(16vh, 120px); }
+  .party-chat-row { max-height: min(32vh, 240px); }
+  .party-chat-feed { max-height: min(32vh, 240px); }
 }
 
 @media (max-width: 380px) {

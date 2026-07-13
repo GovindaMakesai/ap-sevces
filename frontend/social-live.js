@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260713-host-badge';
+  window.__AP_LIVE_BUILD = '20260713-chat-hist';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -5520,7 +5520,7 @@
     }
     if (chatMessages.some((m) => chatMsgKey(m) === key)) return;
     chatMessages.push(enriched);
-    if (chatMessages.length > 80) chatMessages = chatMessages.slice(-80);
+    if (chatMessages.length > 250) chatMessages = chatMessages.slice(-250);
   }
 
   function renderChatFeed() {
@@ -6749,11 +6749,17 @@
     const input = document.getElementById('liveChatInput');
     if (input) {
       input.focus();
-      chatTab = 'chat';
+      /* Keep full room history visible while composing (do not filter to chat-only) */
+      chatTab = 'all';
       document.querySelectorAll('.party-chat-tabs button').forEach((b) => {
-        b.classList.toggle('active', b.dataset.tab === 'chat');
+        b.classList.toggle('active', b.dataset.tab === 'all');
       });
+      document.body.classList.add('ap-chat-open');
       renderChatFromState();
+      requestAnimationFrame(() => {
+        const feed = document.getElementById('partyChatFeed');
+        if (feed) feed.scrollTop = feed.scrollHeight;
+      });
     }
   }
 
@@ -8242,10 +8248,18 @@
       chatInputEl.dataset.focusBound = '1';
       chatInputEl.addEventListener('focus', () => {
         chatInputFocused = true;
+        chatTab = 'all';
+        document.body.classList.add('ap-chat-open');
+        renderChatFromState();
+        requestAnimationFrame(() => {
+          const feed = document.getElementById('partyChatFeed');
+          if (feed) feed.scrollTop = feed.scrollHeight;
+        });
       });
       chatInputEl.addEventListener('blur', () => {
         setTimeout(() => {
           chatInputFocused = document.activeElement === chatInputEl;
+          if (!chatInputFocused) document.body.classList.remove('ap-chat-open');
         }, 150);
       });
     }
@@ -8325,6 +8339,15 @@
           toast('Chat hidden — tap Chat to show', 'info');
         } else if (showBtn) {
           setLiveChatHidden(false);
+          chatTab = 'all';
+          document.querySelectorAll('.party-chat-tabs button').forEach((b) => {
+            b.classList.toggle('active', b.dataset.tab === 'all');
+          });
+          renderChatFromState();
+          requestAnimationFrame(() => {
+            const feed = document.getElementById('partyChatFeed');
+            if (feed) feed.scrollTop = feed.scrollHeight;
+          });
           toast('Chat shown', 'info');
         }
       };
