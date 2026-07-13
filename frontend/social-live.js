@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260713-seat-mic';
+  window.__AP_LIVE_BUILD = '20260713-chat-toggle';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -8274,37 +8274,71 @@
     function setLiveChatHidden(hidden) {
       const on = Boolean(hidden);
       document.body.classList.toggle('ap-chat-hidden', on);
+      ensureLiveChatShowFab();
       const showFab = document.getElementById('liveBtnShowChat');
       if (showFab) {
-        showFab.hidden = !on;
-        showFab.setAttribute('aria-hidden', on ? 'false' : 'true');
         if (on) {
-          showFab.style.display = 'inline-flex';
+          showFab.removeAttribute('hidden');
+          showFab.setAttribute('aria-hidden', 'false');
+          showFab.style.setProperty('display', 'inline-flex', 'important');
         } else {
-          showFab.style.display = 'none';
+          showFab.setAttribute('hidden', '');
+          showFab.setAttribute('aria-hidden', 'true');
+          showFab.style.setProperty('display', 'none', 'important');
         }
       }
       try {
         localStorage.setItem('ap_live_chat_hidden', on ? '1' : '0');
       } catch (_e) {}
     }
-    const hideChatBtn = document.getElementById('liveBtnHideChat');
-    const showChatBtn = document.getElementById('liveBtnShowChat');
-    const onHideChat = (e) => {
-      e?.preventDefault?.();
-      e?.stopPropagation?.();
-      setLiveChatHidden(true);
-    };
-    const onShowChat = (e) => {
-      e?.preventDefault?.();
-      e?.stopPropagation?.();
-      setLiveChatHidden(false);
-    };
-    // pointerup is more reliable than click on some Android WebViews
-    hideChatBtn?.addEventListener('pointerup', onHideChat);
-    hideChatBtn?.addEventListener('click', onHideChat);
-    showChatBtn?.addEventListener('pointerup', onShowChat);
-    showChatBtn?.addEventListener('click', onShowChat);
+    window.setLiveChatHidden = setLiveChatHidden;
+
+    function ensureLiveChatShowFab() {
+      let fab = document.getElementById('liveBtnShowChat');
+      if (!fab) {
+        fab = document.createElement('button');
+        fab.type = 'button';
+        fab.id = 'liveBtnShowChat';
+        fab.className = 'live-show-chat-fab';
+        fab.setAttribute('aria-label', 'Show chat');
+        fab.innerHTML = '<i class="fas fa-comments" aria-hidden="true"></i><span>Chat</span>';
+        document.body.appendChild(fab);
+      } else if (fab.parentElement !== document.body) {
+        // Escape live-overlay stacking so taps always hit the button
+        document.body.appendChild(fab);
+      }
+      return fab;
+    }
+    ensureLiveChatShowFab();
+
+    if (!window.__apChatVisBound) {
+      window.__apChatVisBound = true;
+      let chatVisLockUntil = 0;
+      const handleChatVisTap = (e) => {
+        const hideBtn = e.target?.closest?.('#liveBtnHideChat, .party-chat-hide-btn--solo');
+        const showBtn = e.target?.closest?.('#liveBtnShowChat');
+        if (!hideBtn && !showBtn) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const now = Date.now();
+        if (now < chatVisLockUntil) return;
+        chatVisLockUntil = now + 400;
+        if (hideBtn) {
+          setLiveChatHidden(true);
+          toast('Chat hidden — tap Chat to show', 'info');
+        } else if (showBtn) {
+          setLiveChatHidden(false);
+          toast('Chat shown', 'info');
+        }
+      };
+      document.addEventListener('click', handleChatVisTap, true);
+      document.addEventListener(
+        'touchend',
+        handleChatVisTap,
+        { capture: true, passive: false }
+      );
+    }
+
     try {
       if (localStorage.getItem('ap_live_chat_hidden') === '1') setLiveChatHidden(true);
       else setLiveChatHidden(false);
@@ -8322,6 +8356,10 @@
       chatRow.addEventListener(
         'touchstart',
         (e) => {
+          if (e.target?.closest?.('#liveBtnHideChat, .party-chat-hide-btn--solo, a, button, input')) {
+            tracking = false;
+            return;
+          }
           if (e.touches.length !== 1) return;
           startY = e.touches[0].clientY;
           startX = e.touches[0].clientX;
@@ -8338,7 +8376,10 @@
           if (!t) return;
           const dy = t.clientY - startY;
           const dx = t.clientX - startX;
-          if (dy > 56 && Math.abs(dy) > Math.abs(dx) * 1.15) setLiveChatHidden(true);
+          if (dy > 56 && Math.abs(dy) > Math.abs(dx) * 1.15) {
+            setLiveChatHidden(true);
+            toast('Chat hidden — tap Chat to show', 'info');
+          }
         },
         { passive: true }
       );

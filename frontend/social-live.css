@@ -617,67 +617,78 @@ body.ap-can-moderate .live-host-bar {
   align-items: center;
   justify-content: center;
   gap: 4px;
-  min-width: 48px !important;
-  min-height: 72px !important;
+  min-width: 52px !important;
+  min-height: 78px !important;
   padding: 10px 8px !important;
   border-radius: 14px !important;
-  background: rgba(0, 0, 0, 0.45) !important;
-  border: 1px solid rgba(255, 255, 255, 0.28) !important;
+  background: rgba(0, 0, 0, 0.55) !important;
+  border: 1px solid rgba(255, 255, 255, 0.35) !important;
   color: #fff !important;
   font-size: 11px !important;
   font-weight: 800 !important;
   letter-spacing: 0.02em;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
   pointer-events: auto !important;
   touch-action: manipulation;
-  z-index: 8;
-  -webkit-tap-highlight-color: transparent;
+  z-index: 30;
+  position: relative;
+  cursor: pointer;
+  -webkit-tap-highlight-color: rgba(245, 158, 11, 0.35);
 }
 .party-chat-hide-btn--solo i {
-  font-size: 16px;
+  font-size: 18px;
   line-height: 1;
+  pointer-events: none;
 }
 .party-chat-hide-btn--solo span {
   writing-mode: horizontal-tb;
   transform: none;
   line-height: 1.1;
+  pointer-events: none;
 }
 
+/* Fixed above bottom bar — escapes live-overlay stacking (z-index 12) */
 .live-show-chat-fab {
-  position: absolute;
+  position: fixed !important;
   left: 12px;
-  bottom: calc(var(--ap-bottom-bar-h) + 14px + env(safe-area-inset-bottom, 0));
-  z-index: 55;
-  min-width: 52px;
-  height: 52px;
-  padding: 0 14px;
-  gap: 6px;
+  bottom: calc(var(--ap-bottom-bar-h) + 18px + env(safe-area-inset-bottom, 0));
+  z-index: 130 !important;
+  min-width: 56px;
+  height: 56px;
+  padding: 0 16px;
+  gap: 8px;
   border: none;
   border-radius: 999px;
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(0, 0, 0, 0.72);
   color: #fff;
   display: none;
   align-items: center;
   justify-content: center;
-  pointer-events: auto;
+  pointer-events: auto !important;
   touch-action: manipulation;
-  border: 1px solid rgba(255, 255, 255, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.35);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
-  transition: transform 0.2s ease, opacity 0.2s ease;
-  font-size: 12px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  font-size: 13px;
   font-weight: 800;
+  cursor: pointer;
+  -webkit-tap-highlight-color: rgba(245, 158, 11, 0.35);
 }
 .live-show-chat-fab[hidden] {
   display: none !important;
+  pointer-events: none !important;
 }
 body.ap-chat-hidden .live-show-chat-fab:not([hidden]) {
   display: inline-flex !important;
   animation: ap-chat-fab-in 0.28s ease;
 }
+.live-show-chat-fab i,
+.live-show-chat-fab span {
+  pointer-events: none;
+}
 .live-show-chat-fab i {
-  font-size: 16px;
+  font-size: 18px;
 }
 @keyframes ap-chat-fab-in {
   from { opacity: 0; transform: translateY(10px) scale(0.92); }
@@ -686,7 +697,7 @@ body.ap-chat-hidden .live-show-chat-fab:not([hidden]) {
 
 body.ap-chat-hidden .party-chat-row,
 body.ap-chat-hidden #partyChatRow {
-  transform: translateY(110%) !important;
+  display: none !important;
   visibility: hidden !important;
   opacity: 0 !important;
   height: 0 !important;
@@ -695,8 +706,6 @@ body.ap-chat-hidden #partyChatRow {
   margin: 0 !important;
   padding: 0 !important;
   pointer-events: none !important;
-  background: transparent !important;
-  border: none !important;
   overflow: hidden !important;
 }
 
@@ -704,8 +713,7 @@ body.ap-chat-hidden .live-chat-ticker,
 body.ap-chat-hidden .party-chat-feed,
 body.ap-chat-hidden .party-chat-zone,
 body.ap-chat-hidden .party-chat-controls {
-  opacity: 0 !important;
-  background: transparent !important;
+  display: none !important;
   pointer-events: none !important;
 }
 
