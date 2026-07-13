@@ -466,16 +466,27 @@ async function recoverActiveRooms() {
 }
 
 async function endOrphanRooms() {
-  // Only end truly abandoned rooms: no active members AND host heartbeat stale.
-  // Never kill a room that still has an active host member (viewer_count can briefly
-  // hit 0 during reconnect races and was wiping lives every minute).
+  // End rooms that are empty, OR whose host stopped heartbeating.
+  // Viewer heartbeats alone used to keep ghost lives listed while Agora was empty
+  // (host left media but socket members / updated_at stayed fresh).
   const res = await db.query(
     `UPDATE live_rooms lr SET status = 'ended', ended_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
      WHERE lr.status = 'active'
-       AND lr.updated_at < CURRENT_TIMESTAMP - INTERVAL '3 minutes'
-       AND NOT EXISTS (
-         SELECT 1 FROM live_room_members m
-         WHERE m.live_room_id = lr.id AND m.left_at IS NULL
+       AND (
+         (
+           lr.updated_at < CURRENT_TIMESTAMP - INTERVAL '3 minutes'
+           AND NOT EXISTS (
+             SELECT 1 FROM live_room_members m
+             WHERE m.live_room_id = lr.id AND m.left_at IS NULL
+           )
+         )
+         OR NOT EXISTS (
+           SELECT 1 FROM live_room_members hm
+           WHERE hm.live_room_id = lr.id
+             AND hm.user_id = lr.host_user_id
+             AND hm.left_at IS NULL
+             AND hm.last_seen_at > CURRENT_TIMESTAMP - INTERVAL '5 minutes'
+         )
        )
      RETURNING *`
   );
@@ -488,9 +499,8 @@ async function endOrphanRooms() {
 
 async function listActiveRooms({ roomType, limit = 30, sort = 'trending' } = {}) {
   const params = [];
-  // Show rooms that are active + recently touched, and still have a living host
-  // (either host member present OR host_user_id set with fresh updated_at).
-  // Previous host-member-only filter hid rooms after brief host reconnect gaps.
+  // Only list rooms whose host is still heartbeating. Do NOT use room.updated_at
+  // alone — viewers also touch that timestamp and kept empty Agora channels listed.
   let sql = `SELECT lr.channel, lr.room_type, lr.host_user_id, lr.host_display_name, lr.viewer_count, lr.status, lr.updated_at, lr.started_at,
                     COALESCE(u.profile_pic, w.profile_photo_url) AS host_profile_pic,
                     u.updated_at AS host_updated_at,
@@ -501,14 +511,12 @@ async function listActiveRooms({ roomType, limit = 30, sort = 'trending' } = {})
              WHERE lr.status = 'active'
                AND lr.updated_at > CURRENT_TIMESTAMP - INTERVAL '12 hours'
                AND lr.host_user_id IS NOT NULL
-               AND (
-                 EXISTS (
-                   SELECT 1 FROM live_room_members m
-                   WHERE m.live_room_id = lr.id
-                     AND m.user_id = lr.host_user_id
-                     AND m.left_at IS NULL
-                 )
-                 OR lr.updated_at > CURRENT_TIMESTAMP - INTERVAL '2 minutes'
+               AND EXISTS (
+                 SELECT 1 FROM live_room_members m
+                 WHERE m.live_room_id = lr.id
+                   AND m.user_id = lr.host_user_id
+                   AND m.left_at IS NULL
+                   AND m.last_seen_at > CURRENT_TIMESTAMP - INTERVAL '2 minutes'
                )`;
   if (roomType) {
     params.push(roomType);
