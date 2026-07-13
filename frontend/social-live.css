@@ -549,7 +549,13 @@
 }
 
 body.ap-is-host .party-header {
-  box-shadow: inset 0 3px 0 #fbbf24;
+  box-shadow: none;
+}
+
+/* Host already has "You are hosting" in the header — hide overlapping mode badge */
+body.ap-is-host .party-meta-row.party-meta-row--live,
+body.ap-is-host #liveModeBadge {
+  display: none !important;
 }
 
 body.ap-is-host .party-host-meta .sub #partyHostLabel {

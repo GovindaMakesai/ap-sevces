@@ -156,6 +156,11 @@ body.ap-is-host[data-live-page='live-room'] .party-header {
   border-bottom: none;
 }
 
+body.ap-is-host[data-live-page='live-room'] .party-meta-row.party-meta-row--live,
+body.ap-is-host[data-live-page='live-room'] #liveModeBadge {
+  display: none !important;
+}
+
 /* —— Live badge —— */
 body[data-live-page='live-room'] .live-mode-badge {
   font-size: 10px;

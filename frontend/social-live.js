@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260713-chat-toggle';
+  window.__AP_LIVE_BUILD = '20260713-host-badge';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -1697,24 +1697,21 @@
   function updateModeBadge(mode, hosting) {
     const el = document.getElementById('liveModeBadge');
     if (!el) return;
+    /* Hosts use the header "You are hosting" label — badge overlaps that pill */
+    if (isHost()) {
+      el.style.display = 'none';
+      el.classList.remove('is-audio', 'is-host');
+      return;
+    }
     const showHosting = Boolean(hosting);
     el.classList.toggle('is-audio', mode === 'audio' && !showHosting);
     el.classList.toggle('is-host', showHosting);
-    if (showHosting) {
-      el.innerHTML =
-        mode === 'audio'
-          ? '<i class="fas fa-microphone"></i> HOSTING · VOICE'
-          : '<i class="fas fa-video"></i> HOSTING · VIDEO';
-    } else if (mode === 'audio') {
+    if (mode === 'audio') {
       el.innerHTML = '<i class="fas fa-microphone"></i> VOICE LIVE';
     } else {
       el.innerHTML = '<i class="fas fa-video"></i> VIDEO LIVE';
     }
-    if (isHost() && !showHosting) {
-      el.style.display = 'none';
-    } else {
-      el.style.display = '';
-    }
+    el.style.display = '';
   }
 
   async function getCoins(forceFresh = false) {
