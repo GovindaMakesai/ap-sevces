@@ -1943,7 +1943,7 @@
                             <button class="btn-primary" onclick="assignBdFromAdmin()"><i class="fas fa-check"></i> Make BD</button>
                         </div>
                         <p style="color:var(--gray-500);margin:-8px 0 16px;font-size:13px">
-                            Assigning BD auto-creates their <strong>promo code</strong>. Agencies may apply with that code (BD reviews) or without (Admin reviews &amp; assigns BD). Hosts join via Agency invite.
+                            Assigning BD auto-creates their <strong>promo code</strong>. Agencies may apply/approve with or without a BD. Hosts join via Agency invite.
                         </p>
                         <div id="bdAssignResult" class="admin-cards-view" style="margin-bottom:16px"></div>
                         <div class="table-container">
@@ -2949,29 +2949,29 @@
             const payload = { decision: 'approved' };
             try {
                 if (roleType === 'agency') {
-                    // Promo already pinned the BD — do not ask for UUID
+                    // Promo may already pin a BD. Otherwise BD assignment is optional.
                     if (!row?.target_bd_user_id) {
                         const bdsRes = await API.get('/admin/bd');
                         const bds = bdsRes.data || [];
-                        if (!bds.length) {
-                            Toast.show('Create a BD first (BD & Hierarchy section)', 'error');
-                            return;
-                        }
-                        if (bds.length === 1) {
-                            payload.bd_user_id = bds[0].user_id;
-                        } else {
+                        if (bds.length) {
                             const names = bds.map((b, i) => {
                                 const n = `${b.first_name || ''} ${b.last_name || ''}`.trim() || b.email || 'BD';
                                 return `${i + 1}. ${n} · User ID ${b.display_id || '—'} · ${b.promo_code || ''}`;
                             }).join('\n');
-                            const pick = prompt(`Assign Agency to BD number:\n${names}`, '1');
-                            if (pick == null) return;
-                            const idx = Math.max(0, (parseInt(pick, 10) || 1) - 1);
-                            if (!bds[idx]) {
-                                Toast.show('Invalid BD selection', 'error');
-                                return;
+                            const pick = prompt(
+                                `Assign Agency to a BD (optional).\nLeave blank to approve WITHOUT a BD.\nCancel to abort.\n\n${names}`,
+                                ''
+                            );
+                            if (pick === null) return;
+                            const trimmed = String(pick).trim();
+                            if (trimmed) {
+                                const idx = Math.max(0, (parseInt(trimmed, 10) || 1) - 1);
+                                if (!bds[idx]) {
+                                    Toast.show('Invalid BD selection', 'error');
+                                    return;
+                                }
+                                payload.bd_user_id = bds[idx].user_id;
                             }
-                            payload.bd_user_id = bds[idx].user_id;
                         }
                     }
                     const agencyName = prompt('Agency display name (optional):', row.agency_name || '') || undefined;
@@ -3005,7 +3005,13 @@
                     }
                 }
                 const promoNote = row?.promo_code ? ` (promo ${row.promo_code})` : '';
-                if (!confirm(`Approve this ${row?.role_label || roleType} application${promoNote}?`)) return;
+                const bdNote =
+                    roleType === 'agency'
+                        ? payload.bd_user_id || row?.target_bd_user_id
+                            ? ' (with BD)'
+                            : ' (without BD)'
+                        : '';
+                if (!confirm(`Approve this ${row?.role_label || roleType} application${promoNote}${bdNote}?`)) return;
                 await API.post(`/admin/role-applications/${id}/review`, payload);
                 Toast.show('Application approved — user notified', 'success');
                 loadRoleApplications();

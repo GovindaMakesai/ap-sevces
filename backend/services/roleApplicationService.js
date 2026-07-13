@@ -237,7 +237,7 @@ async function reviewApplication(
   const hierarchyService = require('./hierarchyService');
 
   if (status === 'approved' && app.role_type === 'agency') {
-    let resolvedBd = bdUserId || app.target_bd_user_id;
+    let resolvedBd = bdUserId || app.target_bd_user_id || null;
     if (resolvedBd) {
       const bdUser = await hierarchyService.resolveUserRef(resolvedBd);
       if (!bdUser) {
@@ -245,9 +245,7 @@ async function reviewApplication(
       }
       resolvedBd = bdUser.id;
     }
-    if (!resolvedBd) {
-      throw new Error('Assign a BD (email or User ID) to approve an agency application');
-    }
+    // BD is optional: with BD they sit under that BD; without BD admin can assign later
     const agency = await hierarchyService.createAgencyUnderBd({
       actorUserId: adminUserId,
       name:
@@ -256,7 +254,7 @@ async function reviewApplication(
         extractAgencyName(app.message) ||
         `${app.first_name || 'Agency'} Agency`,
       ownerUserId: app.user_id,
-      bdUserId: resolvedBd,
+      bdUserId: resolvedBd || null,
       commissionPercent: 20,
     });
     const upd = await markReviewed(applicationId, adminUserId, 'approved');

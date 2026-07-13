@@ -383,17 +383,18 @@ async function createAgencyUnderBd({
   actorUserId,
   name,
   ownerUserId,
-  bdUserId,
+  bdUserId = null,
   commissionPercent = 20,
 }) {
-  if (!bdUserId) throw new Error('BD assignment is required for new agencies');
   const agency = await agencyService.createAgency({
     name,
     ownerUserId,
     commissionPercent,
   });
   await permissionService.syncUserRole(ownerUserId, 'agency');
-  await assignAgencyToBd(actorUserId, agency.id, bdUserId);
+  if (bdUserId) {
+    await assignAgencyToBd(actorUserId, agency.id, bdUserId);
+  }
   await ensureAgencyInviteCode(agency.id, actorUserId);
   return getAgencyDetail(agency.id);
 }
@@ -403,9 +404,6 @@ async function assignHostToAgency(actorUserId, hostUserId, agencyId) {
     agencyId,
   ]);
   if (!agency.rows[0]) throw new Error('Agency not found');
-  if (!agency.rows[0].bd_user_id) {
-    throw new Error('Agency must be assigned to a BD before hosts can join');
-  }
 
   const existing = await db.query(`SELECT agency_id FROM host_profiles WHERE user_id = $1`, [
     hostUserId,
@@ -841,7 +839,6 @@ async function getAgencyInviteForOwner(ownerUserId) {
 async function inviteHostToAgency(ownerUserId, userRef) {
   const agency = await getAgencyOwnedByUser(ownerUserId);
   if (!agency) throw new Error('Agency not found for this user');
-  if (!agency.bd_user_id) throw new Error('Agency must be assigned to a BD before inviting hosts');
 
   const invitee = await resolveUserRef(userRef);
   if (!invitee) throw new Error('User not found — use email or public User ID');
