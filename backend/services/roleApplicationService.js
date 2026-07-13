@@ -110,9 +110,16 @@ async function submitApplication(userId, { roleType, message, contactPhone, agen
 
 async function listPending({ limit = 50 } = {}) {
   const res = await db.query(
-    `SELECT a.*, u.email, u.first_name, u.last_name, u.phone, u.profile_pic, u.role AS current_role
+    `SELECT a.*,
+            u.email, u.first_name, u.last_name, u.phone, u.profile_pic, u.role AS current_role,
+            u.display_id,
+            bd.display_id AS target_bd_display_id,
+            bd.first_name AS target_bd_first_name,
+            bd.last_name AS target_bd_last_name,
+            bd.email AS target_bd_email
      FROM role_applications a
      JOIN users u ON u.id = a.user_id
+     LEFT JOIN users bd ON bd.id = a.target_bd_user_id
      WHERE a.status = 'pending'
      ORDER BY a.created_at ASC
      LIMIT $1`,
@@ -182,12 +189,20 @@ async function reviewApplication(
   if (!app) throw new Error('Application not found');
   if (app.status !== 'pending') throw new Error('Application already processed');
 
+  const hierarchyService = require('./hierarchyService');
+
   if (status === 'approved' && app.role_type === 'agency') {
-    const resolvedBd = bdUserId || app.target_bd_user_id;
-    if (!resolvedBd) {
-      throw new Error('bd_user_id required to approve an agency application');
+    let resolvedBd = bdUserId || app.target_bd_user_id;
+    if (resolvedBd) {
+      const bdUser = await hierarchyService.resolveUserRef(resolvedBd);
+      if (!bdUser) {
+        throw new Error('BD not found — use email or public User ID');
+      }
+      resolvedBd = bdUser.id;
     }
-    const hierarchyService = require('./hierarchyService');
+    if (!resolvedBd) {
+      throw new Error('Assign a BD (email or User ID) to approve an agency application');
+    }
     const agency = await hierarchyService.createAgencyUnderBd({
       actorUserId: adminUserId,
       name:
@@ -206,9 +221,14 @@ async function reviewApplication(
   }
 
   if (status === 'approved' && app.role_type === 'creator' && agencyId) {
+    const agency = await hierarchyService.resolveAgencyRef(agencyId, {
+      bdUserId: app.target_bd_user_id || null,
+    });
+    if (!agency) {
+      throw new Error('Agency not found — pick by name or number from the list');
+    }
     await permissionService.syncUserRole(app.user_id, 'creator');
-    const hierarchyService = require('./hierarchyService');
-    await hierarchyService.assignHostToAgency(adminUserId, app.user_id, agencyId);
+    await hierarchyService.assignHostToAgency(adminUserId, app.user_id, agency.id);
     const upd = await markReviewed(applicationId, adminUserId, 'approved');
     if (app.promo_code) await hierarchyService.bumpPromoUse(app.promo_code);
     await notify(app, 'approved', reason);

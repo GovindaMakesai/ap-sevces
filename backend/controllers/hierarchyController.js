@@ -23,13 +23,37 @@ function assertBdSelfOrStaff(req, bdUserId) {
 exports.assignBd = async (req, res) => {
   try {
     assertStaff(req);
-    const userId = req.body.user_id || req.body.userId;
-    if (!userId) return res.status(400).json({ success: false, message: 'user_id required' });
-    const data = await hierarchyService.assignBd(req.userId, userId, {
+    const raw =
+      req.body.user_id ||
+      req.body.userId ||
+      req.body.email ||
+      req.body.display_id ||
+      req.body.displayId ||
+      req.body.query;
+    if (!raw) {
+      return res.status(400).json({
+        success: false,
+        message: 'user_id, email, or display_id required',
+      });
+    }
+    const user = await hierarchyService.resolveUserRef(raw);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    const data = await hierarchyService.assignBd(req.userId, user.id, {
       displayName: req.body.display_name || req.body.displayName,
       notes: req.body.notes,
     });
-    res.json({ success: true, data, message: 'BD assigned' });
+    res.json({
+      success: true,
+      data: {
+        ...data,
+        email: user.email,
+        display_id: user.display_id,
+        promo_code: data.promo_code,
+      },
+      message: `BD assigned. Promo code: ${data.promo_code}`,
+    });
   } catch (e) {
     res.status(e.status || 400).json({ success: false, message: e.message });
   }

@@ -73,7 +73,8 @@ const getAllUsers = async (req, res) => {
 
         if (search) {
             countQuery += ` AND (email ILIKE $${countParamIndex} OR phone ILIKE $${countParamIndex} 
-                      OR first_name ILIKE $${countParamIndex} OR last_name ILIKE $${countParamIndex})`;
+                      OR first_name ILIKE $${countParamIndex} OR last_name ILIKE $${countParamIndex}
+                      OR CAST(display_id AS text) LIKE $${countParamIndex})`;
             countParams.push(`%${search}%`);
             countParamIndex++;
         }
@@ -83,7 +84,7 @@ const getAllUsers = async (req, res) => {
 
         // Get data
         let query = `
-            SELECT id, email, phone, first_name, last_name, role, 
+            SELECT id, email, phone, first_name, last_name, role, display_id,
                    is_active, is_verified, created_at, last_login
             FROM users WHERE 1=1
         `;
@@ -98,7 +99,8 @@ const getAllUsers = async (req, res) => {
 
         if (search) {
             query += ` AND (email ILIKE $${paramIndex} OR phone ILIKE $${paramIndex} 
-                      OR first_name ILIKE $${paramIndex} OR last_name ILIKE $${paramIndex})`;
+                      OR first_name ILIKE $${paramIndex} OR last_name ILIKE $${paramIndex}
+                      OR CAST(display_id AS text) LIKE $${paramIndex})`;
             params.push(`%${search}%`);
             paramIndex++;
         }

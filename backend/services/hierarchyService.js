@@ -44,7 +44,8 @@ async function assignBd(actorUserId, targetUserId, { displayName, notes } = {}) 
   );
   await ensureBdPromoCode(targetUserId, actorUserId);
   await audit(actorUserId, 'bd.assign', 'bd', targetUserId, { displayName: name });
-  return res.rows[0];
+  const promo = await ensureBdPromoCode(targetUserId, actorUserId);
+  return { ...res.rows[0], promo_code: promo.code, user_id: targetUserId };
 }
 
 function generatePromoCode(seed = '') {
@@ -260,13 +261,95 @@ async function listBds() {
             (SELECT COUNT(*)::int FROM agencies a WHERE a.bd_user_id = b.user_id AND a.status = 'active') AS agency_count,
             (SELECT COUNT(*)::int FROM host_profiles hp
                JOIN agencies a ON a.id = hp.agency_id
-              WHERE a.bd_user_id = b.user_id AND hp.status = 'active') AS host_count
+              WHERE a.bd_user_id = b.user_id AND hp.status = 'active') AS host_count,
+            (SELECT p.code FROM bd_promo_codes p
+              WHERE p.bd_user_id = b.user_id AND p.active = TRUE
+              ORDER BY p.created_at ASC LIMIT 1) AS promo_code
      FROM bd_profiles b
      JOIN users u ON u.id = b.user_id
      WHERE b.status = 'active'
      ORDER BY b.created_at DESC`
   );
+  // Ensure every BD has a promo code (backfill if missing)
+  for (const row of res.rows) {
+    if (!row.promo_code) {
+      const promo = await ensureBdPromoCode(row.user_id);
+      row.promo_code = promo.code;
+    }
+  }
   return res.rows;
+}
+
+/**
+ * Resolve a user by UUID, email, or public display_id.
+ * Used by admin “Make BD” so staff don’t need the raw UUID.
+ */
+async function resolveUserRef(raw) {
+  const q = String(raw || '').trim();
+  if (!q) return null;
+  // Never pass non-UUID into users.id — Postgres throws "invalid input syntax for type uuid"
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(q)) {
+    const r = await db.query(
+      `SELECT id, email, first_name, last_name, role, display_id FROM users WHERE id = $1`,
+      [q]
+    );
+    return r.rows[0] || null;
+  }
+  if (/^\d{4,12}$/.test(q)) {
+    const r = await db.query(
+      `SELECT id, email, first_name, last_name, role, display_id FROM users WHERE display_id = $1`,
+      [Number(q)]
+    );
+    return r.rows[0] || null;
+  }
+  if (q.includes('@')) {
+    const r = await db.query(
+      `SELECT id, email, first_name, last_name, role, display_id FROM users WHERE lower(email) = lower($1) LIMIT 1`,
+      [q]
+    );
+    return r.rows[0] || null;
+  }
+  const r = await db.query(
+    `SELECT id, email, first_name, last_name, role, display_id FROM users WHERE email ILIKE $1 LIMIT 1`,
+    [q]
+  );
+  return r.rows[0] || null;
+}
+
+/**
+ * Resolve an agency by UUID or display name (not internal UUID prompts for staff).
+ */
+async function resolveAgencyRef(raw, { bdUserId } = {}) {
+  const q = String(raw || '').trim();
+  if (!q) return null;
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(q)) {
+    const r = await db.query(
+      `SELECT * FROM agencies WHERE id = $1 AND status = 'active'`,
+      [q]
+    );
+    const row = r.rows[0] || null;
+    if (row && bdUserId && String(row.bd_user_id) !== String(bdUserId)) {
+      throw new Error('Agency does not belong to the application BD');
+    }
+    return row;
+  }
+  const params = [q];
+  let sql = `SELECT * FROM agencies WHERE status = 'active' AND name ILIKE $1`;
+  if (bdUserId) {
+    params.push(bdUserId);
+    sql += ` AND bd_user_id = $2`;
+  }
+  sql += ` ORDER BY created_at ASC LIMIT 5`;
+  const r = await db.query(sql, params);
+  if (!r.rows.length) return null;
+  if (r.rows.length > 1) {
+    const exact = r.rows.find((a) => String(a.name).toLowerCase() === q.toLowerCase());
+    if (exact) return exact;
+    throw new Error(
+      `Multiple agencies match "${q}": ${r.rows.map((a) => a.name).join(', ')} — use the exact name`
+    );
+  }
+  return r.rows[0];
 }
 
 async function assignAgencyToBd(actorUserId, agencyId, bdUserId) {
@@ -657,6 +740,8 @@ module.exports = {
   ensureBdPromoCode,
   getBdPromoCodes,
   resolvePromoCode,
+  resolveUserRef,
+  resolveAgencyRef,
   listPendingForBd,
   bdReviewApplication,
   bumpPromoUse,

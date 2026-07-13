@@ -1935,26 +1935,31 @@
                                 <button class="btn-outline" onclick="loadBdHierarchy()"><i class="fas fa-sync-alt"></i> Refresh</button>
                             </div>
                         </div>
-                        <div class="filter-bar" style="margin-bottom:16px">
+                        <div class="filter-bar" style="margin-bottom:16px;align-items:stretch">
                             <div class="search-box" style="flex:1">
                                 <i class="fas fa-user-plus"></i>
-                                <input type="text" id="bdAssignUserId" placeholder="User UUID to assign as BD">
+                                <input type="text" id="bdAssignUserId" placeholder="Email or User ID — make any user a BD">
                             </div>
-                            <button class="btn-primary" onclick="assignBdFromAdmin()"><i class="fas fa-check"></i> Assign BD</button>
+                            <button class="btn-primary" onclick="assignBdFromAdmin()"><i class="fas fa-check"></i> Make BD</button>
                         </div>
+                        <p style="color:var(--gray-500);margin:-8px 0 16px;font-size:13px">
+                            Assigning BD auto-creates their <strong>promo code</strong>. Hosts &amp; Agencies use that code to apply; BD accepts/rejects in BD Center.
+                        </p>
+                        <div id="bdAssignResult" class="admin-cards-view" style="margin-bottom:16px"></div>
                         <div class="table-container">
                             <table>
                                 <thead>
                                     <tr>
                                         <th>BD</th>
                                         <th>Email</th>
+                                        <th>Promo code</th>
                                         <th>Agencies</th>
                                         <th>Hosts</th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody id="bdListTable">
-                                    <tr><td colspan="5" class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Loading…</td></tr>
+                                    <tr><td colspan="6" class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Loading…</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -2502,7 +2507,11 @@
                 return;
             }
 
-            tbody.innerHTML = users.map(user => `
+            tbody.innerHTML = users.map(user => {
+                const roleChip =
+                    window.formatRoleBadgeHtml?.(user, { withEmoji: true }) ||
+                    `<span class="status-badge">${user.role || 'customer'}</span>`;
+                return `
                 <tr>
                     <td>
                         <div style="display: flex; align-items: center; gap: var(--spacing-sm);">
@@ -2512,20 +2521,22 @@
                     </td>
                     <td>${user.email || ''}</td>
                     <td>${user.phone || ''}</td>
-                    <td><span class="status-badge">${user.role || 'customer'}</span></td>
+                    <td>${roleChip}</td>
                     <td>${new Date(user.created_at).toLocaleDateString()}</td>
                     <td><span class="status-badge ${user.is_active ? 'active' : 'inactive'}">${user.is_active ? 'Active' : 'Inactive'}</span></td>
                     <td>
                         <div class="action-buttons">
-                            <button class="icon-btn" onclick="viewUserDetails('${user.id}')"><i class="fas fa-eye"></i></button>
-                            <button class="icon-btn" onclick="editUser('${user.id}')"><i class="fas fa-edit"></i></button>
+                            <button class="icon-btn" onclick="viewUserDetails('${user.id}')" title="View"><i class="fas fa-eye"></i></button>
+                            <button class="icon-btn" onclick="editUser('${user.id}')" title="Edit"><i class="fas fa-edit"></i></button>
+                            ${String(user.role || '').toLowerCase() !== 'bdm' ? `<button class="icon-btn approve" onclick="makeUserBd('${user.id}', '${(user.email || '').replace(/'/g, "\\'")}')" title="Make BD"><i class="fas fa-sitemap"></i></button>` : ''}
                             <button class="icon-btn ${user.is_active ? 'delete' : 'approve'}" onclick="toggleUserStatus('${user.id}', ${!user.is_active})">
                                 <i class="fas fa-${user.is_active ? 'ban' : 'check-circle'}"></i>
                             </button>
                         </div>
                     </td>
                 </tr>
-            `).join('');
+            `;
+            }).join('');
         }
 
         // ==================== WORKERS MANAGEMENT ====================
@@ -2880,13 +2891,17 @@
                     cards.innerHTML = rows.map((a) => {
                         const name = `${a.first_name || ''} ${a.last_name || ''}`.trim() || a.email || 'User';
                         const initials = adminUserInitials(a.first_name, a.last_name, a.email);
+                        const publicId = a.display_id || '—';
+                        const bdLabel = a.target_bd_display_id
+                            ? `${a.target_bd_first_name || ''} ${a.target_bd_last_name || ''}`.trim() + ` · ID ${a.target_bd_display_id}`
+                            : (a.promo_code ? `via ${a.promo_code}` : '—');
                         return `<article class="admin-approval-card is-pending">
                             <span class="admin-approval-type role">${a.role_label || a.role_type}</span>
                             <div class="admin-approval-card-head">
                                 <div class="admin-approval-card-avatar">${initials}</div>
                                 <div class="admin-approval-card-user">
                                     <strong>${name}</strong>
-                                    <small>ID: ${a.user_id}</small>
+                                    <small>User ID: ${publicId}</small>
                                     <small>${a.email || ''}</small>
                                 </div>
                             </div>
@@ -2894,6 +2909,7 @@
                                 <div><span>Role requested</span><strong>${a.role_label}</strong></div>
                                 <div><span>Phone</span><strong>${a.contact_phone || a.phone || '—'}</strong></div>
                                 <div><span>BD promo</span><strong>${a.promo_code || '—'}</strong></div>
+                                <div><span>Target BD</span><strong>${bdLabel}</strong></div>
                                 <div class="full"><span>Message</span><strong>${a.message || '—'}</strong></div>
                                 <div class="full"><span>Submitted</span><strong>${new Date(a.created_at).toLocaleString()}</strong></div>
                             </div>
@@ -2908,7 +2924,7 @@
                     tbody.innerHTML = rows.map((a) => {
                         const name = `${a.first_name || ''} ${a.last_name || ''}`.trim() || a.email || 'User';
                         return `<tr>
-                            <td><strong>${name}</strong><br><small>ID: ${a.user_id}</small></td>
+                            <td><strong>${name}</strong><br><small>User ID: ${a.display_id || '—'}</small></td>
                             <td>${a.role_label}</td>
                             <td>${a.contact_phone || a.phone || '—'}</td>
                             <td>${(a.message || '—').slice(0, 80)}</td>
@@ -2933,21 +2949,56 @@
             const payload = { decision: 'approved' };
             try {
                 if (roleType === 'agency') {
-                    let bdUserId = row?.target_bd_user_id || '';
-                    if (!bdUserId) {
-                        bdUserId = prompt('Assign to BD — enter BD user UUID:');
-                        if (!bdUserId) return;
+                    // Promo already pinned the BD — do not ask for UUID
+                    if (!row?.target_bd_user_id) {
+                        const bdsRes = await API.get('/admin/bd');
+                        const bds = bdsRes.data || [];
+                        if (!bds.length) {
+                            Toast.show('Create a BD first (BD & Hierarchy section)', 'error');
+                            return;
+                        }
+                        if (bds.length === 1) {
+                            payload.bd_user_id = bds[0].user_id;
+                        } else {
+                            const names = bds.map((b, i) => {
+                                const n = `${b.first_name || ''} ${b.last_name || ''}`.trim() || b.email || 'BD';
+                                return `${i + 1}. ${n} · User ID ${b.display_id || '—'} · ${b.promo_code || ''}`;
+                            }).join('\n');
+                            const pick = prompt(`Assign Agency to BD number:\n${names}`, '1');
+                            if (pick == null) return;
+                            const idx = Math.max(0, (parseInt(pick, 10) || 1) - 1);
+                            if (!bds[idx]) {
+                                Toast.show('Invalid BD selection', 'error');
+                                return;
+                            }
+                            payload.bd_user_id = bds[idx].user_id;
+                        }
                     }
-                    payload.bd_user_id = String(bdUserId).trim();
                     const agencyName = prompt('Agency display name (optional):', row.agency_name || '') || undefined;
                     if (agencyName) payload.agency_name = agencyName;
                 } else if (roleType === 'creator') {
-                    const agencyId = prompt('Assign Host to Agency — enter Agency UUID:');
-                    if (!agencyId || !agencyId.trim()) {
-                        Toast.show('Agency UUID required', 'error');
+                    const agenciesRes = await API.get('/admin/agencies');
+                    let agencies = agenciesRes.data || [];
+                    if (row?.target_bd_user_id) {
+                        agencies = agencies.filter((a) => String(a.bd_user_id) === String(row.target_bd_user_id));
+                    }
+                    if (!agencies.length) {
+                        Toast.show('No agencies for this BD yet — approve an Agency under them first', 'error');
                         return;
                     }
-                    payload.agency_id = agencyId.trim();
+                    if (agencies.length === 1) {
+                        payload.agency_id = agencies[0].id;
+                    } else {
+                        const names = agencies.map((a, i) => `${i + 1}. ${a.name}`).join('\n');
+                        const pick = prompt(`Assign Host to agency number:\n${names}`, '1');
+                        if (pick == null) return;
+                        const idx = Math.max(0, (parseInt(pick, 10) || 1) - 1);
+                        if (!agencies[idx]) {
+                            Toast.show('Invalid agency selection', 'error');
+                            return;
+                        }
+                        payload.agency_id = agencies[idx].id;
+                    }
                 }
                 const promoNote = row?.promo_code ? ` (promo ${row.promo_code})` : '';
                 if (!confirm(`Approve this ${row?.role_label || roleType} application${promoNote}?`)) return;
@@ -2973,18 +3024,22 @@
 
         async function loadBdHierarchy() {
             const tbody = document.getElementById('bdListTable');
-            if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Loading…</td></tr>';
+            if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Loading…</td></tr>';
             try {
                 const response = await API.get('/admin/bd');
-                const rows = response.data || [];
+                const rows = Array.isArray(response.data) ? response.data : (response.data?.data || []);
                 if (!rows.length) {
-                    if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No BDs yet — assign a user above</td></tr>';
+                    if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No BDs yet — make a user BD above</td></tr>';
                 } else if (tbody) {
                     tbody.innerHTML = rows.map((b) => {
                         const name = b.display_name || `${b.first_name || ''} ${b.last_name || ''}`.trim() || 'BD';
+                        const code = b.promo_code || '—';
                         return `<tr>
-                            <td><strong>${name}</strong><br><small>${b.user_id}</small></td>
+                            <td><strong>${name}</strong><br><small>ID ${b.display_id || '—'}</small></td>
                             <td>${b.email || '—'}</td>
+                            <td><code style="font-weight:800;letter-spacing:0.04em">${code}</code>
+                              ${code !== '—' ? `<button type="button" class="icon-btn" title="Copy code" onclick="navigator.clipboard.writeText('${code}').then(()=>Toast.show('Copied '+ '${code}','success'))"><i class="fas fa-copy"></i></button>` : ''}
+                            </td>
                             <td>${b.agency_count ?? 0}</td>
                             <td>${b.host_count ?? 0}</td>
                             <td>
@@ -2994,25 +3049,91 @@
                     }).join('');
                 }
             } catch (e) {
-                if (tbody) tbody.innerHTML = `<tr><td colspan="5" class="empty-state">${e.message || 'Failed'}</td></tr>`;
+                if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="empty-state">${e.message || 'Failed'}</td></tr>`;
             }
             loadCommissionRules();
         }
 
-        async function assignBdFromAdmin() {
-            const userId = document.getElementById('bdAssignUserId')?.value?.trim();
-            if (!userId) {
-                Toast.show('Enter a user UUID', 'error');
+        function isUuidLike(value) {
+            return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || '').trim());
+        }
+
+        /** Resolve email / public User ID → internal UUID (live API still requires UUID for assign). */
+        async function resolveAdminUserRef(query) {
+            const q = String(query || '').trim();
+            if (!q) return null;
+            if (isUuidLike(q)) return { id: q };
+
+            try {
+                const res = await API.get(`/search?q=${encodeURIComponent(q)}&type=users&limit=10`);
+                const users = res?.data?.users || [];
+                if (users.length) {
+                    const lower = q.toLowerCase();
+                    const exactEmail = users.find((u) => String(u.email || '').toLowerCase() === lower);
+                    const exactId = users.find((u) => String(u.display_id) === q);
+                    return exactEmail || exactId || users[0];
+                }
+            } catch (_e) { /* fall through */ }
+
+            try {
+                const res = await API.get(`/admin/users?search=${encodeURIComponent(q)}&limit=10`);
+                const users = res?.data || [];
+                if (users.length) {
+                    const lower = q.toLowerCase();
+                    const exactEmail = users.find((u) => String(u.email || '').toLowerCase() === lower);
+                    const exactId = users.find((u) => String(u.display_id) === q);
+                    return exactEmail || exactId || users[0];
+                }
+            } catch (_e) { /* fall through */ }
+
+            return null;
+        }
+
+        async function assignBdFromAdmin(prefill) {
+            const input = document.getElementById('bdAssignUserId');
+            const query = (prefill || input?.value || '').trim();
+            if (!query) {
+                Toast.show('Enter email or User ID', 'error');
                 return;
             }
+            if (input && prefill) input.value = query;
             try {
-                await API.post('/admin/bd/assign', { user_id: userId });
-                Toast.show('BD assigned', 'success');
-                document.getElementById('bdAssignUserId').value = '';
+                const user = await resolveAdminUserRef(query);
+                if (!user?.id) {
+                    Toast.show('User not found — use email or public User ID', 'error');
+                    return;
+                }
+                const res = await API.post('/admin/bd/assign', { user_id: user.id });
+                const body = res?.data || res || {};
+                const data = body.data || body;
+                const code = data.promo_code || '—';
+                Toast.show(body.message || res.message || `BD assigned · code ${code}`, 'success');
+                const mount = document.getElementById('bdAssignResult');
+                if (mount) {
+                    mount.innerHTML = `<article class="admin-approval-card">
+                        <h3>BD created — flow ready</h3>
+                        <div class="admin-approval-kv">
+                            <div><span>Email</span><strong>${data.email || user.email || query}</strong></div>
+                            <div><span>User ID</span><strong>${data.display_id || user.display_id || '—'}</strong></div>
+                            <div><span>Promo code</span><strong style="letter-spacing:0.06em">${code}</strong></div>
+                        </div>
+                        <p style="margin:10px 0 0;font-size:13px;color:var(--gray-500)">
+                            Share this code for Agency/Host applications. BD opens <code>/bd-center.html</code> to Accept/Reject.
+                        </p>
+                    </article>`;
+                }
+                if (input) input.value = '';
                 loadBdHierarchy();
             } catch (e) {
                 Toast.show(e.message || 'Failed', 'error');
             }
+        }
+
+        async function makeUserBd(userId, email) {
+            if (!confirm(`Make ${email || userId} a BD?\n\nA promo code will be generated automatically.`)) return;
+            await assignBdFromAdmin(email || userId);
+            // Jump to BD section so admin sees the code
+            document.querySelector('[data-section="bd-hierarchy"]')?.click();
         }
 
         async function removeBdFromAdmin(userId) {
