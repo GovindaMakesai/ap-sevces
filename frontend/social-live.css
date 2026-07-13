@@ -3774,7 +3774,38 @@ html.ap-expo-app .ap-chip {
   text-overflow: ellipsis;
 }
 
-/* Filter picker — Instagram / Snapchat horizontal rail */
+.ap-tap-for-sound {
+  position: fixed;
+  left: 50%;
+  bottom: calc(110px + env(safe-area-inset-bottom, 0));
+  transform: translateX(-50%) translateY(12px);
+  z-index: 70;
+  border: none;
+  border-radius: 999px;
+  padding: 12px 18px;
+  font-size: 14px;
+  font-weight: 800;
+  color: #111;
+  background: #fff;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.35);
+  display: none;
+  align-items: center;
+  gap: 8px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.ap-tap-for-sound.is-visible {
+  display: inline-flex;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(-50%) translateY(0);
+  animation: apTapSoundPulse 1.6s ease-in-out infinite;
+}
+@keyframes apTapSoundPulse {
+  0%, 100% { box-shadow: 0 8px 28px rgba(0,0,0,0.35); }
+  50% { box-shadow: 0 8px 28px rgba(255, 200, 80, 0.55); }
+}
 .ap-filter-sheet {
   position: fixed;
   inset: 0;

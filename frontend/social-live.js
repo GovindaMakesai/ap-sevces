@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260713-cam-fix';
+  window.__AP_LIVE_BUILD = '20260713-audio-fix';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -77,6 +77,8 @@
   let chatTab = 'all';
   let followed = false;
   let soundOn = true;
+  let audioUnlocked = false;
+  let audioUnlockBound = false;
   let partyMusicPlayingId = '';
   let partyMusicCustomTracks = [];
   const PARTY_MUSIC_STORAGE_KEY = 'ap_party_music_tracks';
@@ -902,7 +904,10 @@
     if (!isPartyRoomPage() && !isLiveRoomPage()) return;
     if (isHost()) {
       if (!publishSucceeded) await resumeHostBroadcastIfNeeded();
-      else await applyLocalMicMuteState();
+      else {
+        await ensureHostAudioPublishing();
+        await applyLocalMicMuteState();
+      }
       syncMicButtonUi();
       return;
     }
@@ -2735,6 +2740,13 @@
           if (isHost() && broadcastMode !== 'audio' && publishSucceeded) {
             await ensureHostVideoPublishing();
           }
+          if (isHost() && publishSucceeded) {
+            await ensureHostAudioPublishing();
+          }
+          if (!isHost()) {
+            await resubscribeAllRemoteMedia();
+            await ensureRemoteAudioPlaying();
+          }
         }
       } catch (e) {
         liveDebugLog(`media recover failed: ${e?.message || e}`);
@@ -2774,21 +2786,30 @@
 
       for (const user of remotes) {
         if (user.hasVideo && !hasPlayingRemoteVideo()) unhealthy = true;
-        if (user.hasAudio && soundOn && user.audioTrack) {
-          try {
-            // If track exists but play was lost, replay.
-            user.audioTrack.play?.();
-          } catch (_e) {
+        if (user.hasAudio && soundOn) {
+          if (!user.audioTrack) {
             unhealthy = true;
+          } else {
+            try {
+              const p = user.audioTrack.play?.();
+              if (p && typeof p.then === 'function') {
+                p.catch(() => {
+                  showTapForSoundHint();
+                });
+              }
+            } catch (_e) {
+              unhealthy = true;
+              showTapForSoundHint();
+            }
           }
         }
       }
 
       if (isHost() && publishSucceeded) {
-        const audio = getLocalAudioTrack?.();
+        const audioOk = isLocalMicHealthy();
         const videoOk =
-          broadcastMode === 'audio' ? true : isLocalCameraHealthy();
-        if (!audio || !videoOk) unhealthy = true;
+          broadcastMode === 'audio' || isPartyRoomPage() ? true : isLocalCameraHealthy();
+        if (!audioOk || !videoOk) unhealthy = true;
       }
 
       if (unhealthy) {
@@ -3335,10 +3356,12 @@
         });
         syncLiveUiState();
         if (!host) {
+          bindAudioUnlockGestures();
           for (const remoteUser of agoraClient.remoteUsers) {
             if (remoteUser.hasVideo) await playRemoteMedia(remoteUser, 'video');
             if (remoteUser.hasAudio) await playRemoteMedia(remoteUser, 'audio');
           }
+          await ensureRemoteAudioPlaying();
         }
       } catch (joinErr) {
         const msg = joinErr?.message || String(joinErr);
@@ -3455,6 +3478,10 @@
           applyVideoFilter();
           ensureHostVideoVisible();
           setLiveStreamVisible(true);
+          // Verify mic stayed published (some devices drop audio after camera start)
+          setTimeout(() => {
+            ensureHostAudioPublishing().catch((e) => liveDebugLog(`post-live mic check: ${e?.message || e}`));
+          }, 1200);
         }
         onRoomReady();
         syncLiveUiState();
@@ -4093,6 +4120,7 @@
       ensureHostVideoVisible();
       setLiveStreamVisible(true);
       liveDebugLog('host camera republished OK');
+      await ensureHostAudioPublishing();
     } catch (e) {
       liveDebugLog(`host camera republish failed: ${e?.message || e}`);
     }
@@ -6527,17 +6555,26 @@
       const bg = document.getElementById('liveBg');
       if (bg) bg.style.display = 'none';
       setLiveStreamVisible(true);
+      // Video often unlocks first; retry audio right after so voice isn't stuck silent.
+      setTimeout(() => ensureRemoteAudioPlaying().catch(() => {}), 200);
     }
     if (mediaType === 'audio') {
       if (soundOn && user.audioTrack) {
         try {
-          user.audioTrack.play();
+          user.audioTrack.setVolume?.(100);
+        } catch (_e) {}
+        try {
+          const p = user.audioTrack.play();
+          if (p && typeof p.then === 'function') {
+            await p.catch((err) => {
+              liveDebugLog(`audio play blocked: ${err?.message || err}`);
+              showTapForSoundHint();
+            });
+          }
+          audioUnlocked = true;
+          hideTapForSoundHint();
         } catch (_e) {
-          setTimeout(() => {
-            try {
-              user.audioTrack?.play();
-            } catch (_e2) {}
-          }, 300);
+          showTapForSoundHint();
         }
       } else {
         user.audioTrack?.stop();
@@ -6546,6 +6583,138 @@
     remoteUsers.set(user.uid, user);
     updateLiveDebug({ remoteUsersCount: remoteUsers.size });
     syncLiveUiState();
+  }
+
+  function isLocalMicHealthy() {
+    const track = getLocalAudioTrack?.();
+    if (!track) return false;
+    try {
+      const mst = track.getMediaStreamTrack?.();
+      if (mst && mst.readyState === 'ended') return false;
+      if (mst && mst.muted && !micMuted) return false;
+    } catch (_e) {}
+    try {
+      const published = agoraClient?.localTracks || [];
+      if (published.length) {
+        return published.some((t) => {
+          const type = t.getTrackType?.() || t.trackMediaType;
+          return type === 'audio';
+        });
+      }
+    } catch (_e) {}
+    return true;
+  }
+
+  async function ensureHostAudioPublishing() {
+    if (!isHost() || !agoraClient || !publishSucceeded || !liveDebugState.agoraJoined) return;
+    if (isLocalMicHealthy()) {
+      await applyLocalMicMuteState();
+      return;
+    }
+    liveDebugLog('host mic missing/unhealthy — republishing audio');
+    const AgoraRTC = window.AgoraRTC || (await loadAgoraScript());
+    // Drop dead audio tracks
+    localTracks = localTracks.filter((t) => {
+      const type = t.getTrackType?.() || t.trackMediaType;
+      if (type !== 'audio') return true;
+      try {
+        return t.getMediaStreamTrack?.()?.readyState !== 'ended';
+      } catch (_e) {
+        return false;
+      }
+    });
+    try {
+      const staleAudio = (agoraClient.localTracks || []).filter((t) => {
+        const type = t.getTrackType?.() || t.trackMediaType;
+        return type === 'audio';
+      });
+      if (staleAudio.length) {
+        try {
+          await agoraClient.unpublish(staleAudio);
+        } catch (_e) {}
+        staleAudio.forEach((t) => {
+          try {
+            t.stop?.();
+            t.close?.();
+          } catch (_e) {}
+        });
+      }
+      const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+      await agoraClient.publish(audioTrack);
+      const video = getLocalVideoTrack() || rawCameraTrack;
+      localTracks = video ? [audioTrack, video] : [audioTrack];
+      micMuted = false;
+      await applyLocalMicMuteState();
+      syncMicButtonUi();
+      liveDebugLog('host mic republished OK');
+    } catch (e) {
+      liveDebugLog(`host mic republish failed: ${e?.message || e}`);
+    }
+  }
+
+  async function ensureRemoteAudioPlaying() {
+    if (isHost() || !soundOn || !agoraClient) return;
+    const remotes = agoraClient.remoteUsers || [];
+    for (const user of remotes) {
+      try {
+        if (user.hasAudio && !user.audioTrack) {
+          await playRemoteMedia(user, 'audio');
+        } else if (user.audioTrack) {
+          user.audioTrack.setVolume?.(100);
+          const p = user.audioTrack.play?.();
+          if (p && typeof p.then === 'function') await p.catch(() => showTapForSoundHint());
+          else audioUnlocked = true;
+        }
+      } catch (_e) {
+        showTapForSoundHint();
+      }
+    }
+  }
+
+  function showTapForSoundHint() {
+    if (isHost() || !soundOn) return;
+    let el = document.getElementById('apTapForSound');
+    if (!el) {
+      document.body.insertAdjacentHTML(
+        'beforeend',
+        `<button type="button" id="apTapForSound" class="ap-tap-for-sound" aria-label="Enable sound">
+          <i class="fas fa-volume-up"></i> Tap for sound
+        </button>`
+      );
+      el = document.getElementById('apTapForSound');
+      el?.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        audioUnlocked = true;
+        soundOn = true;
+        await ensureRemoteAudioPlaying();
+        hideTapForSoundHint();
+        toast('Sound on', 'success');
+        const btn = document.getElementById('partyBtnSound');
+        if (btn) {
+          const ico = btn.querySelector('i');
+          if (ico) ico.className = 'fas fa-volume-up';
+          btn.classList.remove('is-muted');
+        }
+      });
+    }
+    if (el) el.classList.add('is-visible');
+  }
+
+  function hideTapForSoundHint() {
+    document.getElementById('apTapForSound')?.classList.remove('is-visible');
+  }
+
+  function bindAudioUnlockGestures() {
+    if (audioUnlockBound || isHost()) return;
+    audioUnlockBound = true;
+    const unlock = () => {
+      if (audioUnlocked && !document.getElementById('apTapForSound')?.classList.contains('is-visible')) return;
+      ensureRemoteAudioPlaying().catch(() => {});
+    };
+    document.addEventListener('pointerdown', unlock, { passive: true });
+    document.addEventListener('touchstart', unlock, { passive: true });
+    document.addEventListener('click', unlock, { passive: true });
   }
 
   function ensureHostVideoVisible() {
@@ -7384,14 +7553,19 @@
       link.addEventListener('click', clearMessageBadge);
     });
 
-    document.getElementById('partyBtnSound')?.addEventListener('click', () => {
+    document.getElementById('partyBtnSound')?.addEventListener('click', async () => {
       soundOn = !soundOn;
-      remoteUsers.forEach((user) => {
-        if (user.audioTrack) {
-          if (soundOn) user.audioTrack.play();
-          else user.audioTrack.stop();
-        }
-      });
+      audioUnlocked = soundOn;
+      if (soundOn) {
+        await ensureRemoteAudioPlaying();
+        hideTapForSoundHint();
+      } else {
+        remoteUsers.forEach((user) => {
+          try {
+            user.audioTrack?.stop();
+          } catch (_e) {}
+        });
+      }
       toast(soundOn ? 'Sound on' : 'Sound muted');
       const btn = document.getElementById('partyBtnSound');
       if (btn) {
