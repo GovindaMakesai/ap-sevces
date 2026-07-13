@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260713-gift-host';
+  window.__AP_LIVE_BUILD = '20260713-host-back';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -229,7 +229,7 @@
     if (rawSaved === 'natural' && !localStorage.getItem('ap_live_beauty_filter_picked')) {
       localStorage.setItem('ap_live_beauty_filter', 'none');
     }
-  } catch (_e) {}
+  } catch (_e) { }
   try {
     const urlFilter = new URLSearchParams(location.search).get('filter');
     const savedFilter = urlFilter || localStorage.getItem('ap_live_beauty_filter');
@@ -253,7 +253,7 @@
       try {
         localStorage.setItem('ap_live_beauty_filter', videoFilterId);
         localStorage.setItem('ap_live_beauty_filter_picked', '1');
-      } catch (_e) {}
+      } catch (_e) { }
     }
   } catch (_e) {
     videoFilterId = 'none';
@@ -574,7 +574,7 @@
     try {
       sessionStorage.setItem('ap_live_join_meta', JSON.stringify(meta));
       persistDurableLiveSession({ joinMeta: meta });
-    } catch (_e) {}
+    } catch (_e) { }
   }
 
   const LIVE_SESSION_KEY = 'ap_live_active_session';
@@ -595,7 +595,7 @@
     try {
       localStorage.setItem(LIVE_SESSION_KEY, JSON.stringify(payload));
       sessionStorage.setItem('ap_live_pip_session', JSON.stringify(payload));
-    } catch (_e) {}
+    } catch (_e) { }
   }
 
   function readDurableLiveSession() {
@@ -609,7 +609,7 @@
         return null;
       }
       return data;
-    } catch (_e) {}
+    } catch (_e) { }
     return null;
   }
 
@@ -618,7 +618,7 @@
       localStorage.removeItem(LIVE_SESSION_KEY);
       sessionStorage.removeItem('ap_live_pip_session');
       sessionStorage.removeItem('ap_live_join_meta');
-    } catch (_e) {}
+    } catch (_e) { }
   }
 
   function restoreChannelFromDurableSession() {
@@ -647,7 +647,7 @@
       if (durable?.channel && urlCh && durable.channel === urlCh) {
         return durable.joinMeta || { channel: durable.channel, isHost: false };
       }
-    } catch (_e) {}
+    } catch (_e) { }
     return null;
   }
 
@@ -675,7 +675,7 @@
   async function sendRoomInviteToUser(userId, text) {
     const uid = String(userId || '').trim();
     if (!uid || !text) throw new Error('Missing invite target');
-    if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken().catch(() => {});
+    if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken().catch(() => { });
     const api = window.API;
     if (!api?.post) throw new Error('Chat API unavailable');
     // Ensure conversation exists, then send (works for new + existing chats)
@@ -694,7 +694,7 @@
     }
     if (lastJoinMeta?.isHost && publishSucceeded) {
       await applyLocalMicMuteState();
-      await ensureHostVideoPublishing().catch(() => {});
+      await ensureHostVideoPublishing().catch(() => { });
       ensureHostVideoVisible();
       syncLiveUiState();
       hideApLoader();
@@ -708,7 +708,7 @@
       try {
         const page = document.body.dataset.livePage;
         await startAgora(page === 'party-room' ? 'party' : 'live');
-      } catch (_e) {}
+      } catch (_e) { }
       return;
     }
     await resubscribeAllRemoteMedia();
@@ -716,7 +716,7 @@
       if (user.audioTrack && soundOn) {
         try {
           user.audioTrack.play();
-        } catch (_e) {}
+        } catch (_e) { }
       }
       if (user.videoTrack) {
         try {
@@ -725,7 +725,7 @@
             user.videoTrack.play(container);
             setLiveStreamVisible(true);
           }
-        } catch (_e) {}
+        } catch (_e) { }
       }
     });
     await ensureMicPublishing();
@@ -765,20 +765,20 @@
         try {
           user.audioTrack?.stop?.();
           user.videoTrack?.stop?.();
-        } catch (_e) {}
+        } catch (_e) { }
       });
       return;
     }
     localTracks.forEach((t) => {
       try {
         t.setEnabled?.(false);
-      } catch (_e) {}
+      } catch (_e) { }
     });
     remoteUsers.forEach((user) => {
       try {
         user.audioTrack?.stop?.();
         user.videoTrack?.stop?.();
-      } catch (_e) {}
+      } catch (_e) { }
     });
   }
 
@@ -919,11 +919,14 @@
 
   function isHost() {
     const me = currentUser();
-    if (roomJoinCompleted && me?.id && roomState?.hostId) {
+    if (me?.id && roomState?.hostId) {
       return String(roomState.hostId) === String(me.id);
     }
-    if (roomJoinCompleted) return false;
-    return clientClaimsHost();
+    /* Until room state has hostId, keep starter-host UI so controls don't vanish */
+    if (!roomState?.hostId) {
+      return clientClaimsHost();
+    }
+    return false;
   }
 
   /** Host controls / host-only chrome — never trust URL ?host=1 alone */
@@ -931,9 +934,9 @@
     const me = currentUser();
     return Boolean(
       roomJoinCompleted &&
-        me?.id &&
-        roomState?.hostId &&
-        String(roomState.hostId) === String(me.id)
+      me?.id &&
+      roomState?.hostId &&
+      String(roomState.hostId) === String(me.id)
     );
   }
 
@@ -1030,11 +1033,11 @@
     for (const t of localTracks) {
       try {
         if (agoraClient) await agoraClient.unpublish(t);
-      } catch (_e) {}
+      } catch (_e) { }
       try {
         t.stop?.();
         t.close?.();
-      } catch (_e) {}
+      } catch (_e) { }
     }
     localTracks = [];
     updateLiveDebug({ hostPublishing: false, publishSucceeded: false });
@@ -1430,17 +1433,19 @@
   }
 
   function syncHostBarUi() {
-    const hosting = isConfirmedRoomHost();
+    /* Host chrome (bottom tools + host bar): real host after join, or starting host before join */
+    const hosting = isHost();
     document.body.classList.toggle('ap-is-host', hosting);
     document.body.classList.toggle('ap-can-moderate', canModerateRoom() && !hosting);
     const liveHostBar = document.getElementById('liveHostBar');
     if (liveHostBar) {
-      /* Strict host-only — viewers must never see this control */
       if (hosting) {
         liveHostBar.hidden = false;
         liveHostBar.removeAttribute('hidden');
         liveHostBar.setAttribute('aria-hidden', 'false');
         liveHostBar.style.removeProperty('display');
+        liveHostBar.style.removeProperty('visibility');
+        liveHostBar.style.removeProperty('pointer-events');
       } else {
         liveHostBar.hidden = true;
         liveHostBar.setAttribute('hidden', '');
@@ -1490,7 +1495,7 @@
       const params = new URLSearchParams(location.search);
       params.set('mode', mode === 'audio' ? 'audio' : 'video');
       history.replaceState(null, '', location.pathname + '?' + params.toString());
-    } catch (_e) {}
+    } catch (_e) { }
   }
 
   /** Exit voice-live chrome so camera preview is never covered by the audio stage. */
@@ -1682,7 +1687,7 @@
         3000,
         'Session refresh'
       );
-    } catch (_e) {}
+    } catch (_e) { }
   }
 
   function paintLiveTickerStatus(text, ok) {
@@ -1713,7 +1718,7 @@
       try {
         const custom = localStorage.getItem('ap_streamer_cover_' + uid);
         if (custom) return custom;
-      } catch (_e) {}
+      } catch (_e) { }
     }
     return themeCover('live', hostName || 'Streamer');
   }
@@ -1907,7 +1912,7 @@
       const prev = JSON.parse(localStorage.getItem('ap_live_forensics') || '[]');
       prev.push(entry);
       localStorage.setItem('ap_live_forensics', JSON.stringify(prev.slice(-200)));
-    } catch (_e) {}
+    } catch (_e) { }
     console.log('[live-forensic]', name, detail || '');
     liveDebugLog(`${name} ${detail ? JSON.stringify(detail) : ''}`);
   }
@@ -1919,16 +1924,16 @@
       }
       return Boolean(
         liveDebugState.socketConnected &&
-          liveDebugState.roomJoined &&
-          liveDebugState.agoraJoined &&
-          publishSucceeded
+        liveDebugState.roomJoined &&
+        liveDebugState.agoraJoined &&
+        publishSucceeded
       );
     }
     return Boolean(
       liveDebugState.socketConnected &&
-        liveDebugState.roomJoined &&
-        liveDebugState.agoraJoined &&
-        remoteUsers.size > 0
+      liveDebugState.roomJoined &&
+      liveDebugState.agoraJoined &&
+      remoteUsers.size > 0
     );
   }
 
@@ -1949,7 +1954,7 @@
   function endHostRoom(reason) {
     if (!isHost() || !liveSocket?.connected) return;
     forensicEvent('ROOM_END_REQUEST', { reason, channel: channelId() });
-    liveSocket.emit('live:end', { channel: channelId() }, () => {});
+    liveSocket.emit('live:end', { channel: channelId() }, () => { });
   }
 
   async function onHostBroadcastFailed(reason, msg) {
@@ -1961,13 +1966,13 @@
       try {
         t.stop?.();
         t.close?.();
-      } catch (_e) {}
+      } catch (_e) { }
     }
     localTracks = [];
     if (agoraClient) {
       try {
         await agoraClient.leave();
-      } catch (_e) {}
+      } catch (_e) { }
       agoraClient = null;
     }
     liveDebugState.agoraJoined = false;
@@ -2005,7 +2010,7 @@
           .then(() => {
             if (publishSucceeded) window.__apHostPublishAutoTries = 0;
           })
-          .catch(() => {});
+          .catch(() => { });
       }, 1500 * window.__apHostPublishAutoTries);
     }
   }
@@ -2096,7 +2101,7 @@
   function isLiveDebugEnabled() {
     try {
       if (localStorage.getItem('ap_live_debug') === '1') return true;
-    } catch (_e) {}
+    } catch (_e) { }
     const q = new URLSearchParams(window.location.search);
     if (q.get('debug') === '1' || q.get('live_debug') === '1') return true;
     if (window.__AP_LIVE_DEBUG__ === true) return true;
@@ -2329,316 +2334,316 @@
         reconnectionDelayMax: 10000,
       });
 
-    let socketAuthRetrying = false;
-    liveSocket.on('connect', () => {
-      liveDebugLog('Socket connected');
-      lastSocketIssue = '-';
-      updateLiveDebug({ socketConnected: true });
-      forensicEvent('SOCKET_CONNECTED', { channel: channelId() });
-      if (disconnectUiTimer) {
-        clearTimeout(disconnectUiTimer);
-        disconnectUiTimer = null;
-      }
-      if (sessionEstablished && roomJoinCompleted) {
-        hideApLoader();
-        setLiveStatus('', null);
-      }
-      if (roomJoinCompleted && lastJoinMeta) {
-        if (reconnectRejoinTimer) clearTimeout(reconnectRejoinTimer);
-        reconnectRejoinTimer = setTimeout(() => {
-          reconnectRejoinTimer = null;
-          rejoinLiveRoom();
-        }, 400);
-      }
-    });
-    liveSocket.on('disconnect', (reason) => {
-      liveDebugLog(`Socket disconnected: ${reason}`);
-      lastSocketIssue = `disconnect: ${reason || 'unknown'}`;
-      updateLiveDebug({ socketConnected: false, roomJoined: roomJoinCompleted });
-      refreshViewerDiagnostics();
-      if (!socketLeaveIntentional && lastJoinMeta && reason !== 'io client disconnect') {
-        if (disconnectUiTimer) clearTimeout(disconnectUiTimer);
+      let socketAuthRetrying = false;
+      liveSocket.on('connect', () => {
+        liveDebugLog('Socket connected');
+        lastSocketIssue = '-';
+        updateLiveDebug({ socketConnected: true });
+        forensicEvent('SOCKET_CONNECTED', { channel: channelId() });
+        if (disconnectUiTimer) {
+          clearTimeout(disconnectUiTimer);
+          disconnectUiTimer = null;
+        }
         if (sessionEstablished && roomJoinCompleted) {
-          disconnectUiTimer = setTimeout(() => {
-            disconnectUiTimer = null;
-            if (!liveSocket?.connected && !socketLeaveIntentional) {
-              setLiveStatus('Reconnecting…', null);
-            }
-          }, 2800);
-        } else {
-          setLiveStatus('Reconnecting…', null);
+          hideApLoader();
+          setLiveStatus('', null);
         }
-      }
-    });
-    liveSocket.on('connect_error', async (err) => {
-      const msg = err?.message || String(err);
-      liveDebugLog(`Socket connect_error: ${msg}`);
-      lastSocketIssue = `connect_error: ${msg}`;
-      if (/invalid token|authentication required|jwt expired|unauthorized/i.test(msg) && !socketAuthRetrying) {
-        socketAuthRetrying = true;
-        try {
-          localStorage.removeItem('token');
-          cachedWsToken = null;
-          if (window.Auth?.repairSession) await Auth.repairSession().catch(() => {});
-          const fresh = await resolveSocketAuthToken();
-          if (fresh && liveSocket) {
-            liveSocket.auth = { token: fresh };
-            liveDebugLog('Retrying socket with refreshed token');
-            liveSocket.connect();
-            return;
-          }
-          liveDebugLog('Session expired — sign in again');
-          toast('Session expired — please sign in again', 'error');
-        } finally {
-          socketAuthRetrying = false;
+        if (roomJoinCompleted && lastJoinMeta) {
+          if (reconnectRejoinTimer) clearTimeout(reconnectRejoinTimer);
+          reconnectRejoinTimer = setTimeout(() => {
+            reconnectRejoinTimer = null;
+            rejoinLiveRoom();
+          }, 400);
         }
-      } else if (!/invalid token/i.test(msg)) {
-        toast(`Socket error: ${msg}`, 'error');
-      }
-      updateLiveDebug({ socketConnected: false, roomJoined: roomJoinCompleted });
-      refreshViewerDiagnostics();
-    });
-
-    window.SocialFX?.init?.();
-
-    liveSocket.on('live:state', (state) => {
-      const prevSeatIds = new Set(
-        (roomState?.seats || [])
-          .filter((s) => s && !s.isHost && s.userId)
-          .map((s) => String(s.userId))
-      );
-      const prevViewers = roomState?.viewers || lastViewerCount;
-      roomState = mergeRoomState(state);
-      seedChatProfileCacheFromState(roomState);
-      hydrateGiftHistoryFromState(roomState);
-      if (state?.viewers != null && state.viewers !== prevViewers) {
-        window.SocialFX?.onViewerCountChange?.(state.viewers, prevViewers);
-      }
-      const nextSeatIds = (roomState?.seats || [])
-        .filter((s) => s && !s.isHost && s.userId)
-        .map((s) => String(s.userId));
-      const seatAdded = nextSeatIds.some((id) => !prevSeatIds.has(id));
-      if (renderRoomStateTimer) clearTimeout(renderRoomStateTimer);
-      renderRoomStateTimer = setTimeout(() => {
-        renderRoomStateTimer = null;
-        renderRoomState({ soft: sessionEstablished });
-        renderRoomGiftPanels();
-        // New on-seat guest — pull their mic (host + other viewers)
-        if (seatAdded && agoraClient && liveDebugState.agoraJoined) {
-          resubscribeAllRemoteMedia().catch(() => {});
-          ensureRemoteAudioPlaying().catch(() => {});
-          setTimeout(() => {
-            resubscribeAllRemoteMedia().catch(() => {});
-            ensureRemoteAudioPlaying().catch(() => {});
-          }, 800);
-        }
-      }, 80);
-    });
-
-    liveSocket.on('live:guest_mic_ready', (payload) => {
-      const uid = payload?.userId != null ? String(payload.userId) : '';
-      const me = currentUser();
-      if (uid && me && uid === String(me.id)) return;
-      liveDebugLog(`guest_mic_ready from ${uid || payload?.agoraUid || '?'}`);
-      resubscribeAllRemoteMedia().catch(() => {});
-      ensureRemoteAudioPlaying().catch(() => {});
-      setTimeout(() => ensureRemoteAudioPlaying().catch(() => {}), 600);
-    });
-
-    liveSocket.on('live:member_mute', (payload) => {
-      if (!payload?.userId || !roomState) return;
-      const uid = String(payload.userId);
-      const muted = payload.muted !== false;
-      if (roomState.seats) {
-        roomState.seats = roomState.seats.map((s) =>
-          String(s.userId) === uid ? { ...s, muted } : s
-        );
-      }
-      const me = currentUser();
-      if (me && String(me.id) === uid) {
-        micMuted = muted;
-        void applyLocalMicMuteState();
-      }
-      patchSeatMuteUi(uid, muted);
-      syncMicButtonUi();
-    });
-
-    liveSocket.on('live:chat', (msg) => {
-      rememberChatMessage(msg);
-      const em = extractEmojiReaction(msg?.text);
-      if (em && msg?.userId) spawnSeatEmojiReaction(msg.userId, em);
-      if (msg && /joined/i.test(msg.text || '') && msg.user) {
-        window.SocialFX?.showJoinBanner?.({ name: msg.user, avatar: avatarUrl(msg.user, getChatProfilePic(msg)) });
-      }
-      renderChatFeed();
-    });
-
-    liveSocket.on('live:gift', (gift) => {
-      if (gift) {
-        pushRoomGift(gift);
-        rememberChatMessage({
-          type: 'gift',
-          user: gift.from || gift.senderName || 'User',
-          userId: gift.fromUserId || gift.senderId || null,
-          text: `${gift.emoji || '🎁'} sent to ${gift.to || gift.recipientName || 'Host'} · ${formatGiftCount(gift.amount || gift.coins || 0)} coins`,
-          gift,
-        });
-        renderChatFeed();
-      }
-      showWinBanner(gift);
-      showGiftFlyBanner(gift);
-      const combo = window.SocialFX?.trackCombo?.(gift?.emoji || 'gift', gift?.qty || 1) || 1;
-      window.SocialFX?.playGift?.(gift, { combo });
-      onGiftTeamProgress(gift?.amount || gift?.coins || 100);
-      if (roomState) renderRoomState();
-      renderRoomGiftPanels();
-      /* Host points (stars) update after gift settlement */
-      if (isConfirmedRoomHost() || isHost()) {
-        refreshCoinDisplay().catch(() => {});
-        if (window.SocialWallet?.fetchBalance) SocialWallet.fetchBalance(true).catch(() => {});
-      }
-    });
-
-    liveSocket.on('pk:start', (snapshot) => {
-      beginPkBattle(snapshot);
-    });
-
-    liveSocket.on('pk:score', (snapshot) => {
-      if (!pkBattleActive && !document.body.classList.contains('is-pk-mode')) return;
-      applyPkTeamsFromSnapshot(snapshot);
-      pkTimerSec = pkSecsRemaining(snapshot);
-      updatePkBar();
-    });
-
-    liveSocket.on('pk:end', (snapshot) => {
-      endPkBattle(snapshot);
-    });
-
-    liveSocket.on('live:viewer_count', ({ viewers }) => {
-      const prev = lastViewerCount || roomState?.viewers || 0;
-      if (viewers !== prev) window.SocialFX?.onViewerCountChange?.(viewers, prev);
-      lastViewerCount = viewers;
-      if (roomState) roomState.viewers = viewers;
-      const el = document.getElementById('liveViewerCount');
-      if (el) el.textContent = String(viewers);
-      if (isHost() && isPartyRoomPage() && viewers !== getPartyAudienceMembers().length + 1) {
-        requestFreshRoomState();
-      } else {
-        renderTopGifters();
-        renderPartyAudienceBar();
-      }
-    });
-
-    liveSocket.on('live:seat_request', (req) => {
-      if (!canModerateRoom() || !req) return;
-      const id = String(req.userId || req.id || '');
-      if (!id || joinRequests.some((r) => String(r.id) === id)) return;
-      joinRequests.push({
-        id,
-        name: req.name || 'Guest',
-        userId: id,
       });
-      renderJoinRequests();
-      toast(`${req.name || 'Someone'} wants to join${isLiveRoomPage() ? ' the stream' : ' a seat'}`);
-    });
-
-    liveSocket.on('live:seat_response', async (res) => {
-      if (!res || isHost()) return;
-      const me = currentUser();
-      if (String(res.userId) !== String(me?.id)) return;
-      if (res.accepted) {
-        hasSpeakerSeat = true;
-        guestPublishAttempted = false;
-        publishSucceeded = false;
-        hideMicLinkModal();
-        toast(isLiveRoomPage() ? 'You joined the live — enabling mic…' : 'You got a seat — enabling mic…', 'success');
-        // Brief wait so publisher-token ACL sees the new speaker/seat row
-        await new Promise((r) => setTimeout(r, 250));
-        await publishGuestAudio();
-        if (!publishSucceeded) {
-          await new Promise((r) => setTimeout(r, 800));
-          await publishGuestAudio();
+      liveSocket.on('disconnect', (reason) => {
+        liveDebugLog(`Socket disconnected: ${reason}`);
+        lastSocketIssue = `disconnect: ${reason || 'unknown'}`;
+        updateLiveDebug({ socketConnected: false, roomJoined: roomJoinCompleted });
+        refreshViewerDiagnostics();
+        if (!socketLeaveIntentional && lastJoinMeta && reason !== 'io client disconnect') {
+          if (disconnectUiTimer) clearTimeout(disconnectUiTimer);
+          if (sessionEstablished && roomJoinCompleted) {
+            disconnectUiTimer = setTimeout(() => {
+              disconnectUiTimer = null;
+              if (!liveSocket?.connected && !socketLeaveIntentional) {
+                setLiveStatus('Reconnecting…', null);
+              }
+            }, 2800);
+          } else {
+            setLiveStatus('Reconnecting…', null);
+          }
         }
-        if (isPartyRoomPage()) renderPartySeats(roomState?.hostName);
-        else renderGuestRail();
-      } else {
-        showMicLinkModal('rejected');
-        toast(isLiveRoomPage() ? 'Join request declined' : 'Seat request declined');
-      }
-    });
+      });
+      liveSocket.on('connect_error', async (err) => {
+        const msg = err?.message || String(err);
+        liveDebugLog(`Socket connect_error: ${msg}`);
+        lastSocketIssue = `connect_error: ${msg}`;
+        if (/invalid token|authentication required|jwt expired|unauthorized/i.test(msg) && !socketAuthRetrying) {
+          socketAuthRetrying = true;
+          try {
+            localStorage.removeItem('token');
+            cachedWsToken = null;
+            if (window.Auth?.repairSession) await Auth.repairSession().catch(() => { });
+            const fresh = await resolveSocketAuthToken();
+            if (fresh && liveSocket) {
+              liveSocket.auth = { token: fresh };
+              liveDebugLog('Retrying socket with refreshed token');
+              liveSocket.connect();
+              return;
+            }
+            liveDebugLog('Session expired — sign in again');
+            toast('Session expired — please sign in again', 'error');
+          } finally {
+            socketAuthRetrying = false;
+          }
+        } else if (!/invalid token/i.test(msg)) {
+          toast(`Socket error: ${msg}`, 'error');
+        }
+        updateLiveDebug({ socketConnected: false, roomJoined: roomJoinCompleted });
+        refreshViewerDiagnostics();
+      });
 
-    liveSocket.on('live:ended', (payload) => {
-      const endedCh = String(payload?.channel || '').trim();
-      const myCh = channelId();
-      if (endedCh && endedCh !== myCh) return;
-      if (agoraModeSwitchInProgress) return;
-      if (hostEndingIntentionally) {
-        liveDebugLog('live:ended after host end — exiting');
-        setTimeout(exitRoom, 300);
-        return;
-      }
-      if (isHost() || lastJoinMeta?.isHost) {
-        if (hostEndedRecoverTimer) clearTimeout(hostEndedRecoverTimer);
-        liveDebugLog('live:ended while hosting — attempting to rejoin');
-        setLiveStatus('Reconnecting room…', null);
-        hostEndedRecoverTimer = setTimeout(() => {
-          hostEndedRecoverTimer = null;
-          if (!liveSocket?.connected || !lastJoinMeta || hostEndingIntentionally) return;
-          rejoinLiveRoom();
-        }, 400);
-        return;
-      }
-      toast('This live has ended');
-      setTimeout(exitRoom, 1200);
-    });
+      window.SocialFX?.init?.();
 
-    liveSocket.on('live:kicked', (payload) => {
-      const me = currentUser();
-      if (me && String(payload?.userId) === String(me.id)) {
-        toast('You were removed from this room', 'error');
-        setTimeout(exitRoom, 900);
-        return;
-      }
-      renderRoomState();
-    });
-
-    liveSocket.on('live:demoted', (payload) => {
-      const me = currentUser();
-      const uid = payload?.userId;
-      if (uid) clearLocalSeatState(uid);
-      if (me && String(uid) === String(me.id)) {
-        stopGuestMediaPublishing({ rejoinAsAudience: true }).catch(() => {});
-        toast(
-          isLiveRoomPage() ? 'Host removed you from live' : 'You were removed from the seat',
-          'warning'
+      liveSocket.on('live:state', (state) => {
+        const prevSeatIds = new Set(
+          (roomState?.seats || [])
+            .filter((s) => s && !s.isHost && s.userId)
+            .map((s) => String(s.userId))
         );
-      }
-      renderRoomState();
-    });
+        const prevViewers = roomState?.viewers || lastViewerCount;
+        roomState = mergeRoomState(state);
+        seedChatProfileCacheFromState(roomState);
+        hydrateGiftHistoryFromState(roomState);
+        if (state?.viewers != null && state.viewers !== prevViewers) {
+          window.SocialFX?.onViewerCountChange?.(state.viewers, prevViewers);
+        }
+        const nextSeatIds = (roomState?.seats || [])
+          .filter((s) => s && !s.isHost && s.userId)
+          .map((s) => String(s.userId));
+        const seatAdded = nextSeatIds.some((id) => !prevSeatIds.has(id));
+        if (renderRoomStateTimer) clearTimeout(renderRoomStateTimer);
+        renderRoomStateTimer = setTimeout(() => {
+          renderRoomStateTimer = null;
+          renderRoomState({ soft: sessionEstablished });
+          renderRoomGiftPanels();
+          // New on-seat guest — pull their mic (host + other viewers)
+          if (seatAdded && agoraClient && liveDebugState.agoraJoined) {
+            resubscribeAllRemoteMedia().catch(() => { });
+            ensureRemoteAudioPlaying().catch(() => { });
+            setTimeout(() => {
+              resubscribeAllRemoteMedia().catch(() => { });
+              ensureRemoteAudioPlaying().catch(() => { });
+            }, 800);
+          }
+        }, 80);
+      });
 
-    liveSocket.on('live:admin_changed', (payload) => {
-      const me = currentUser();
-      if (me && String(payload?.userId) === String(me.id)) {
-        toast(payload?.isAdmin ? 'You are now a room admin' : 'Admin access removed', 'info');
-      }
-      renderRoomState();
-    });
+      liveSocket.on('live:guest_mic_ready', (payload) => {
+        const uid = payload?.userId != null ? String(payload.userId) : '';
+        const me = currentUser();
+        if (uid && me && uid === String(me.id)) return;
+        liveDebugLog(`guest_mic_ready from ${uid || payload?.agoraUid || '?'}`);
+        resubscribeAllRemoteMedia().catch(() => { });
+        ensureRemoteAudioPlaying().catch(() => { });
+        setTimeout(() => ensureRemoteAudioPlaying().catch(() => { }), 600);
+      });
 
-    liveSocket.on('live:room_style', (payload) => {
-      if (!roomState) return;
-      roomState.roomStyle = payload || roomState.roomStyle;
-      applyRoomBackground(payload?.backgroundId || roomState.roomStyle?.backgroundId);
-    });
+      liveSocket.on('live:member_mute', (payload) => {
+        if (!payload?.userId || !roomState) return;
+        const uid = String(payload.userId);
+        const muted = payload.muted !== false;
+        if (roomState.seats) {
+          roomState.seats = roomState.seats.map((s) =>
+            String(s.userId) === uid ? { ...s, muted } : s
+          );
+        }
+        const me = currentUser();
+        if (me && String(me.id) === uid) {
+          micMuted = muted;
+          void applyLocalMicMuteState();
+        }
+        patchSeatMuteUi(uid, muted);
+        syncMicButtonUi();
+      });
 
-    liveSocket.on('live:room_lock', (payload) => {
-      if (roomState) roomState.isLocked = payload?.locked !== false;
-      toast(payload?.locked !== false ? 'Room is now locked' : 'Room unlocked', 'info');
-      renderRoomState();
-    });
+      liveSocket.on('live:chat', (msg) => {
+        rememberChatMessage(msg);
+        const em = extractEmojiReaction(msg?.text);
+        if (em && msg?.userId) spawnSeatEmojiReaction(msg.userId, em);
+        if (msg && /joined/i.test(msg.text || '') && msg.user) {
+          window.SocialFX?.showJoinBanner?.({ name: msg.user, avatar: avatarUrl(msg.user, getChatProfilePic(msg)) });
+        }
+        renderChatFeed();
+      });
 
-    liveSocket.on('live:seat_moved', () => {
-      renderRoomState();
-    });
+      liveSocket.on('live:gift', (gift) => {
+        if (gift) {
+          pushRoomGift(gift);
+          rememberChatMessage({
+            type: 'gift',
+            user: gift.from || gift.senderName || 'User',
+            userId: gift.fromUserId || gift.senderId || null,
+            text: `${gift.emoji || '🎁'} sent to ${gift.to || gift.recipientName || 'Host'} · ${formatGiftCount(gift.amount || gift.coins || 0)} coins`,
+            gift,
+          });
+          renderChatFeed();
+        }
+        showWinBanner(gift);
+        showGiftFlyBanner(gift);
+        const combo = window.SocialFX?.trackCombo?.(gift?.emoji || 'gift', gift?.qty || 1) || 1;
+        window.SocialFX?.playGift?.(gift, { combo });
+        onGiftTeamProgress(gift?.amount || gift?.coins || 100);
+        if (roomState) renderRoomState();
+        renderRoomGiftPanels();
+        /* Host points (stars) update after gift settlement */
+        if (isConfirmedRoomHost() || isHost()) {
+          refreshCoinDisplay().catch(() => { });
+          if (window.SocialWallet?.fetchBalance) SocialWallet.fetchBalance(true).catch(() => { });
+        }
+      });
+
+      liveSocket.on('pk:start', (snapshot) => {
+        beginPkBattle(snapshot);
+      });
+
+      liveSocket.on('pk:score', (snapshot) => {
+        if (!pkBattleActive && !document.body.classList.contains('is-pk-mode')) return;
+        applyPkTeamsFromSnapshot(snapshot);
+        pkTimerSec = pkSecsRemaining(snapshot);
+        updatePkBar();
+      });
+
+      liveSocket.on('pk:end', (snapshot) => {
+        endPkBattle(snapshot);
+      });
+
+      liveSocket.on('live:viewer_count', ({ viewers }) => {
+        const prev = lastViewerCount || roomState?.viewers || 0;
+        if (viewers !== prev) window.SocialFX?.onViewerCountChange?.(viewers, prev);
+        lastViewerCount = viewers;
+        if (roomState) roomState.viewers = viewers;
+        const el = document.getElementById('liveViewerCount');
+        if (el) el.textContent = String(viewers);
+        if (isHost() && isPartyRoomPage() && viewers !== getPartyAudienceMembers().length + 1) {
+          requestFreshRoomState();
+        } else {
+          renderTopGifters();
+          renderPartyAudienceBar();
+        }
+      });
+
+      liveSocket.on('live:seat_request', (req) => {
+        if (!canModerateRoom() || !req) return;
+        const id = String(req.userId || req.id || '');
+        if (!id || joinRequests.some((r) => String(r.id) === id)) return;
+        joinRequests.push({
+          id,
+          name: req.name || 'Guest',
+          userId: id,
+        });
+        renderJoinRequests();
+        toast(`${req.name || 'Someone'} wants to join${isLiveRoomPage() ? ' the stream' : ' a seat'}`);
+      });
+
+      liveSocket.on('live:seat_response', async (res) => {
+        if (!res || isHost()) return;
+        const me = currentUser();
+        if (String(res.userId) !== String(me?.id)) return;
+        if (res.accepted) {
+          hasSpeakerSeat = true;
+          guestPublishAttempted = false;
+          publishSucceeded = false;
+          hideMicLinkModal();
+          toast(isLiveRoomPage() ? 'You joined the live — enabling mic…' : 'You got a seat — enabling mic…', 'success');
+          // Brief wait so publisher-token ACL sees the new speaker/seat row
+          await new Promise((r) => setTimeout(r, 250));
+          await publishGuestAudio();
+          if (!publishSucceeded) {
+            await new Promise((r) => setTimeout(r, 800));
+            await publishGuestAudio();
+          }
+          if (isPartyRoomPage()) renderPartySeats(roomState?.hostName);
+          else renderGuestRail();
+        } else {
+          showMicLinkModal('rejected');
+          toast(isLiveRoomPage() ? 'Join request declined' : 'Seat request declined');
+        }
+      });
+
+      liveSocket.on('live:ended', (payload) => {
+        const endedCh = String(payload?.channel || '').trim();
+        const myCh = channelId();
+        if (endedCh && endedCh !== myCh) return;
+        if (agoraModeSwitchInProgress) return;
+        if (hostEndingIntentionally) {
+          liveDebugLog('live:ended after host end — exiting');
+          setTimeout(exitRoom, 300);
+          return;
+        }
+        if (isHost() || lastJoinMeta?.isHost) {
+          if (hostEndedRecoverTimer) clearTimeout(hostEndedRecoverTimer);
+          liveDebugLog('live:ended while hosting — attempting to rejoin');
+          setLiveStatus('Reconnecting room…', null);
+          hostEndedRecoverTimer = setTimeout(() => {
+            hostEndedRecoverTimer = null;
+            if (!liveSocket?.connected || !lastJoinMeta || hostEndingIntentionally) return;
+            rejoinLiveRoom();
+          }, 400);
+          return;
+        }
+        toast('This live has ended');
+        setTimeout(exitRoom, 1200);
+      });
+
+      liveSocket.on('live:kicked', (payload) => {
+        const me = currentUser();
+        if (me && String(payload?.userId) === String(me.id)) {
+          toast('You were removed from this room', 'error');
+          setTimeout(exitRoom, 900);
+          return;
+        }
+        renderRoomState();
+      });
+
+      liveSocket.on('live:demoted', (payload) => {
+        const me = currentUser();
+        const uid = payload?.userId;
+        if (uid) clearLocalSeatState(uid);
+        if (me && String(uid) === String(me.id)) {
+          stopGuestMediaPublishing({ rejoinAsAudience: true }).catch(() => { });
+          toast(
+            isLiveRoomPage() ? 'Host removed you from live' : 'You were removed from the seat',
+            'warning'
+          );
+        }
+        renderRoomState();
+      });
+
+      liveSocket.on('live:admin_changed', (payload) => {
+        const me = currentUser();
+        if (me && String(payload?.userId) === String(me.id)) {
+          toast(payload?.isAdmin ? 'You are now a room admin' : 'Admin access removed', 'info');
+        }
+        renderRoomState();
+      });
+
+      liveSocket.on('live:room_style', (payload) => {
+        if (!roomState) return;
+        roomState.roomStyle = payload || roomState.roomStyle;
+        applyRoomBackground(payload?.backgroundId || roomState.roomStyle?.backgroundId);
+      });
+
+      liveSocket.on('live:room_lock', (payload) => {
+        if (roomState) roomState.isLocked = payload?.locked !== false;
+        toast(payload?.locked !== false ? 'Room is now locked' : 'Room unlocked', 'info');
+        renderRoomState();
+      });
+
+      liveSocket.on('live:seat_moved', () => {
+        renderRoomState();
+      });
     }
 
     if (liveSocket && liveSocket.auth?.token !== token) {
@@ -2780,7 +2785,7 @@
     lastJoinMeta = null;
     try {
       sessionStorage.removeItem('ap_live_join_meta');
-    } catch (_e) {}
+    } catch (_e) { }
     if (liveSocket) {
       socketLeaveIntentional = true;
       if (isHost() && hostEndingIntentionally) {
@@ -2820,7 +2825,7 @@
     const userId = user?.id != null ? String(user.id) : null;
     const isActualHost = Boolean(
       (roomState?.hostId && user?.id && String(roomState.hostId) === String(user.id)) ||
-        (qs('host') === '1' && !hasSpeakerSeat && !roomState?.hostId)
+      (qs('host') === '1' && !hasSpeakerSeat && !roomState?.hostId)
     );
     // Publisher request must NOT imply host — seated guests need publisher tokens too.
     const wantsPublisher = Boolean(asPublisher) || isActualHost || hasSpeakerSeat;
@@ -2897,7 +2902,7 @@
       forensicEvent('TOKEN_REQUEST_FAILED', { channel, role, userId, mode: data.mode });
       throw new Error(
         data.message ||
-          'Agora token unavailable — server returned mock mode or empty token (check AGORA_APP_ID and AGORA_APP_CERTIFICATE)'
+        'Agora token unavailable — server returned mock mode or empty token (check AGORA_APP_ID and AGORA_APP_CERTIFICATE)'
       );
     }
     const tokenChannel = data.channel || channel;
@@ -2952,7 +2957,7 @@
       if (mediaType === 'video') {
         try {
           existing.videoTrack?.stop?.();
-        } catch (_e) {}
+        } catch (_e) { }
         const container = document.getElementById('liveRemoteHost');
         if (container && !existing.hasAudio) {
           // Keep last frame briefly; only clear if nothing else is published.
@@ -2960,7 +2965,7 @@
       } else if (mediaType === 'audio') {
         try {
           existing.audioTrack?.stop?.();
-        } catch (_e) {}
+        } catch (_e) { }
       }
       const stillHasVideo = mediaType === 'audio' ? Boolean(existing.hasVideo || existing.videoTrack) : false;
       const stillHasAudio = mediaType === 'video' ? Boolean(existing.hasAudio || existing.audioTrack) : false;
@@ -2984,13 +2989,13 @@
       syncLiveUiState();
     });
     client.on('token-privilege-will-expire', () => {
-      refreshAgoraTokenAndRenew().catch(() => {});
+      refreshAgoraTokenAndRenew().catch(() => { });
     });
     client.on('connection-state-change', (cur, prev, reason) => {
       liveDebugLog(`Agora connection ${prev} → ${cur} (${reason || ''})`);
       if (cur === 'CONNECTED' && prev && prev !== 'CONNECTED') {
-        resubscribeAllRemoteMedia().catch(() => {});
-        if (isHost() || hasSpeakerSeat) ensureMicPublishing().catch(() => {});
+        resubscribeAllRemoteMedia().catch(() => { });
+        if (isHost() || hasSpeakerSeat) ensureMicPublishing().catch(() => { });
       }
       if (cur === 'DISCONNECTED' || cur === 'FAILED') {
         scheduleMediaRecover('connection_' + cur);
@@ -3019,7 +3024,7 @@
       try {
         if (user.hasVideo) await playRemoteMedia(user, 'video');
         if (user.hasAudio) await playRemoteMedia(user, 'audio');
-      } catch (_e) {}
+      } catch (_e) { }
     }
   }
 
@@ -3155,7 +3160,7 @@
         if (liveDebugState.agoraJoined && client) {
           try {
             await client.leave();
-          } catch (_e) {}
+          } catch (_e) { }
           liveDebugState.agoraJoined = false;
         }
         bindAgoraClientHandlers(client, agoraChannel);
@@ -3201,7 +3206,7 @@
         partyVoiceSkipped = false;
         clearInterval(window.__apPartyAgoraRetryTimer);
         window.__apPartyAgoraRetryTimer = null;
-      } catch (_e) {}
+      } catch (_e) { }
     }, 5000);
   }
 
@@ -3234,7 +3239,7 @@
           ts: Date.now(),
         })
       );
-    } catch (_e) {}
+    } catch (_e) { }
   }
 
   function resolveEntryCoverUrl(name, profilePic, party) {
@@ -3420,7 +3425,7 @@
           name = name || room.hostName || 'Host';
           pic = room.hostProfilePic || room.host_profile_pic || null;
         }
-      } catch (_e) {}
+      } catch (_e) { }
     }
 
     paintApLoaderCover(name || 'Host', pic, party);
@@ -3457,7 +3462,7 @@
     document.body.classList.add('ap-room-active');
     try {
       sessionStorage.removeItem('ap_live_launch_cover');
-    } catch (_e) {}
+    } catch (_e) { }
   }
 
   function isLanDevHost() {
@@ -3644,7 +3649,7 @@
       if (agoraClient) {
         try {
           await agoraClient.leave();
-        } catch (_e) {}
+        } catch (_e) { }
         agoraClient = null;
         liveDebugState.agoraJoined = false;
       }
@@ -3779,19 +3784,19 @@
           if (localBox) {
             playLocalHostPreview(videoTrack);
           }
-      // Preview shows processed frames when beauty is published.
-      applyVideoFilter();
-      ensureHostVideoVisible();
-      setLiveStreamVisible(true);
-      // Verify mic stayed published (some devices drop audio after camera start)
-      setTimeout(() => {
-        ensureHostAudioPublishing().catch((e) => liveDebugLog(`post-live mic check: ${e?.message || e}`));
-      }, 1200);
-      setTimeout(() => {
-        if (videoFilterId && videoFilterId !== 'none') {
-          syncPublishedBeautyTrack().catch((e) => liveDebugLog(`post-live beauty: ${e?.message || e}`));
-        }
-      }, 700);
+          // Preview shows processed frames when beauty is published.
+          applyVideoFilter();
+          ensureHostVideoVisible();
+          setLiveStreamVisible(true);
+          // Verify mic stayed published (some devices drop audio after camera start)
+          setTimeout(() => {
+            ensureHostAudioPublishing().catch((e) => liveDebugLog(`post-live mic check: ${e?.message || e}`));
+          }, 1200);
+          setTimeout(() => {
+            if (videoFilterId && videoFilterId !== 'none') {
+              syncPublishedBeautyTrack().catch((e) => liveDebugLog(`post-live beauty: ${e?.message || e}`));
+            }
+          }, 700);
         }
         onRoomReady();
         syncLiveUiState();
@@ -3872,18 +3877,18 @@
       if (beautyPipeline?.customTrack) {
         try {
           await agoraClient.unpublish([beautyPipeline.customTrack]);
-        } catch (_e) {}
+        } catch (_e) { }
         stopBeautyPipeline();
       }
       const video = getLocalVideoTrack() || rawCameraTrack;
       if (video) {
         try {
           await agoraClient.unpublish([video]);
-        } catch (_e) {}
+        } catch (_e) { }
         try {
           video.stop?.();
           video.close?.();
-        } catch (_e) {}
+        } catch (_e) { }
       }
       localTracks = localTracks.filter((t) => {
         const type = t.getTrackType?.() || t.trackMediaType;
@@ -3900,12 +3905,12 @@
         try {
           if (typeof audio.setEnabled === 'function') await audio.setEnabled(true);
           if (typeof audio.setMuted === 'function') await audio.setMuted(false);
-        } catch (_e) {}
+        } catch (_e) { }
         const published = agoraClient.localTracks || [];
         if (!published.includes?.(audio)) {
           try {
             await agoraClient.publish(audio);
-          } catch (_e) {}
+          } catch (_e) { }
         }
       }
       micMuted = false;
@@ -3934,13 +3939,13 @@
       audio = await withTimeout(AgoraRTC.createMicrophoneAudioTrack(), 25000, 'Microphone access');
       try {
         await agoraClient.publish(audio);
-      } catch (_e) {}
+      } catch (_e) { }
       localTracks = [audio, ...localTracks.filter((t) => t !== audio)];
     } else {
       try {
         if (typeof audio.setEnabled === 'function') await audio.setEnabled(true);
         if (typeof audio.setMuted === 'function') await audio.setMuted(false);
-      } catch (_e) {}
+      } catch (_e) { }
     }
     micMuted = false;
 
@@ -3948,7 +3953,7 @@
     if (beautyPipeline?.customTrack) {
       try {
         await agoraClient.unpublish([beautyPipeline.customTrack]);
-      } catch (_e) {}
+      } catch (_e) { }
       stopBeautyPipeline();
     }
     const staleVideos = [
@@ -3959,11 +3964,11 @@
     for (const old of uniqueStale) {
       try {
         await agoraClient.unpublish([old]);
-      } catch (_e) {}
+      } catch (_e) { }
       try {
         old.stop?.();
         old.close?.();
-      } catch (_e) {}
+      } catch (_e) { }
     }
     localTracks = localTracks.filter((t) => (t.getTrackType?.() || t.trackMediaType) !== 'video');
     rawCameraTrack = null;
@@ -3980,7 +3985,7 @@
       try {
         video.stop?.();
         video.close?.();
-      } catch (_e) {}
+      } catch (_e) { }
       rawCameraTrack = null;
       throw pubErr;
     }
@@ -4038,17 +4043,17 @@
           for (const t of localTracks) {
             try {
               await agoraClient.unpublish(t);
-            } catch (_e) {}
+            } catch (_e) { }
             try {
               t.stop?.();
               t.close?.();
-            } catch (_e2) {}
+            } catch (_e2) { }
           }
-        } catch (_e) {}
+        } catch (_e) { }
         localTracks = [];
         try {
           await agoraClient.leave();
-        } catch (_e) {}
+        } catch (_e) { }
         agoraClient = null;
         liveDebugState.agoraJoined = false;
       }
@@ -4067,7 +4072,7 @@
       try {
         if (typeof audioTrack.setEnabled === 'function') await audioTrack.setEnabled(true);
         if (typeof audioTrack.setMuted === 'function') await audioTrack.setMuted(false);
-      } catch (_e) {}
+      } catch (_e) { }
       localTracks = [audioTrack];
       await agoraClient.publish([audioTrack]);
       publishSucceeded = true;
@@ -4086,9 +4091,9 @@
           liveDebugLog(`guest resubscribe: ${subErr?.message || subErr}`);
         }
       }
-      await ensureRemoteAudioPlaying().catch(() => {});
-      setTimeout(() => ensureRemoteAudioPlaying().catch(() => {}), 400);
-      setTimeout(() => ensureRemoteAudioPlaying().catch(() => {}), 1200);
+      await ensureRemoteAudioPlaying().catch(() => { });
+      setTimeout(() => ensureRemoteAudioPlaying().catch(() => { }), 400);
+      setTimeout(() => ensureRemoteAudioPlaying().catch(() => { }), 1200);
 
       // Tell host/viewers to pull our mic (covers missed user-published on some devices)
       try {
@@ -4097,7 +4102,7 @@
           userId: user.id,
           agoraUid: liveDebugState.agoraUid,
         });
-      } catch (_e) {}
+      } catch (_e) { }
 
       syncMicButtonUi();
       renderPartySeats(roomState?.hostName);
@@ -4125,25 +4130,25 @@
     if (window.APBeauty?.camera) {
       try {
         window.APBeauty.camera.stop?.();
-      } catch (_e) {}
+      } catch (_e) { }
     }
     if (!beautyPipeline) return;
     try {
       cancelAnimationFrame(beautyPipeline.raf);
-    } catch (_e) {}
+    } catch (_e) { }
     try {
       beautyPipeline.stream?.getTracks?.().forEach((t) => t.stop());
-    } catch (_e) {}
+    } catch (_e) { }
     try {
       beautyPipeline.customTrack?.stop?.();
       beautyPipeline.customTrack?.close?.();
-    } catch (_e) {}
+    } catch (_e) { }
     try {
       beautyPipeline.video?.remove?.();
       beautyPipeline.canvas?.remove?.();
       beautyPipeline.soft?.remove?.();
       beautyPipeline.mask?.remove?.();
-    } catch (_e) {}
+    } catch (_e) { }
     beautyPipeline = null;
   }
 
@@ -4456,7 +4461,7 @@
     video.style.cssText = 'position:fixed;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none';
     video.srcObject = new MediaStream([mediaTrack]);
     document.body.appendChild(video);
-    await video.play().catch(() => {});
+    await video.play().catch(() => { });
 
     const canvas = document.createElement('canvas');
     const w = video.videoWidth || mediaTrack.getSettings?.()?.width || 720;
@@ -4559,7 +4564,7 @@
           if (oldVideo) {
             try {
               await agoraClient.unpublish([oldVideo]);
-            } catch (_e) {}
+            } catch (_e) { }
           }
           if (!published.includes?.(custom)) {
             await agoraClient.publish(custom);
@@ -4574,17 +4579,17 @@
           liveDebugLog(`beauty engine failed, legacy canvas: ${e?.message || e}`);
           try {
             await APB.camera.stop?.();
-          } catch (_e) {}
+          } catch (_e) { }
           // fall through to legacy
         }
       } else if (APB?.camera?.getCustomTrack?.()) {
         // Engine turned off — drop custom track before legacy/raw path
         try {
           await agoraClient.unpublish([APB.camera.getCustomTrack()]);
-        } catch (_e) {}
+        } catch (_e) { }
         try {
           await APB.camera.stop?.();
-        } catch (_e) {}
+        } catch (_e) { }
       }
 
       const wantBeauty = Boolean(PUBLISH_CANVAS_BEAUTY && videoFilterId && videoFilterId !== 'none');
@@ -4609,7 +4614,7 @@
         if (beautyPipeline?.customTrack) {
           try {
             await agoraClient.unpublish([beautyPipeline.customTrack]);
-          } catch (_e) {}
+          } catch (_e) { }
           stopBeautyPipeline();
         }
         await restoreRawCamera();
@@ -4642,7 +4647,7 @@
         liveDebugLog('beauty canvas still black — keeping raw camera');
         try {
           await agoraClient.unpublish([custom]);
-        } catch (_e) {}
+        } catch (_e) { }
         stopBeautyPipeline();
         await restoreRawCamera();
         toast('Face effect not ready — try another look', 'warning');
@@ -4657,7 +4662,7 @@
         if (oldVideo && oldVideo !== custom) {
           try {
             await agoraClient.unpublish([oldVideo]);
-          } catch (_e) {}
+          } catch (_e) { }
         }
         await agoraClient.publish(custom);
         localTracks = audioTrack ? [audioTrack, custom] : [custom];
@@ -4670,7 +4675,7 @@
         liveDebugLog(`beauty publish failed: ${e?.message || e}`);
         try {
           await agoraClient.unpublish([custom]);
-        } catch (_e) {}
+        } catch (_e) { }
         stopBeautyPipeline();
         await restoreRawCamera();
         toast('Could not apply face effect — camera restored', 'warning');
@@ -4690,7 +4695,7 @@
       if (track.isPlaying === false && typeof track.isPlaying === 'boolean') {
         // still may be published; readyState is the real check
       }
-    } catch (_e) {}
+    } catch (_e) { }
     // Prefer Agora's published list when available
     try {
       const published = agoraClient?.localTracks || [];
@@ -4699,7 +4704,7 @@
         return type === 'video';
       });
       if (published.length && !hasPublishedVideo) return false;
-    } catch (_e) {}
+    } catch (_e) { }
     return true;
   }
 
@@ -4720,7 +4725,7 @@
     if (beautyPipeline?.customTrack) {
       try {
         await agoraClient.unpublish([beautyPipeline.customTrack]);
-      } catch (_e) {}
+      } catch (_e) { }
       stopBeautyPipeline();
     }
 
@@ -4766,7 +4771,7 @@
       if (stale.length) {
         try {
           await agoraClient.unpublish(stale);
-        } catch (_e) {}
+        } catch (_e) { }
       }
       const already = (agoraClient.localTracks || []).includes?.(cam);
       if (!already) await agoraClient.publish(cam);
@@ -4791,9 +4796,9 @@
   function isCanvasBeautyLive() {
     return Boolean(
       PUBLISH_CANVAS_BEAUTY &&
-        beautyPipeline?.customTrack &&
-        videoFilterId &&
-        videoFilterId !== 'none'
+      beautyPipeline?.customTrack &&
+      videoFilterId &&
+      videoFilterId !== 'none'
     );
   }
 
@@ -4814,7 +4819,7 @@
 
   function applyVideoFilter() {
     applyLocalPreviewCss();
-    applyAgoraBeautyEffect(rawCameraTrack || getLocalVideoTrack()).catch(() => {});
+    applyAgoraBeautyEffect(rawCameraTrack || getLocalVideoTrack()).catch(() => { });
     clearTimeout(window.__apBeautySyncTimer);
     window.__apBeautySyncTimer = setTimeout(() => {
       syncPublishedBeautyTrack().catch((e) => liveDebugLog(`beauty sync: ${e?.message || e}`));
@@ -4840,7 +4845,7 @@
         try {
           localStorage.setItem('ap_live_beauty_filter', videoFilterId);
           localStorage.setItem('ap_live_beauty_filter_picked', '1');
-        } catch (_e) {}
+        } catch (_e) { }
         rail.querySelectorAll('.ap-filter-chip').forEach((b) => b.classList.toggle('is-active', b === btn));
         applyVideoFilter();
         toast(VIDEO_FILTERS[videoFilterId]?.label || 'Original', 'success');
@@ -4916,7 +4921,7 @@
     try {
       const facing = track?.getMediaStreamTrack?.()?.getSettings?.()?.facingMode;
       if (facing === 'environment' || facing === 'user') return facing;
-    } catch (_e) {}
+    } catch (_e) { }
     return fallback === 'environment' ? 'environment' : 'user';
   }
 
@@ -4953,7 +4958,7 @@
     if (beautyPipeline?.customTrack) {
       try {
         await agoraClient.unpublish([beautyPipeline.customTrack]);
-      } catch (_e) {}
+      } catch (_e) { }
       stopBeautyPipeline();
     }
 
@@ -4968,18 +4973,18 @@
       try {
         newVideo.stop();
         newVideo.close();
-      } catch (_e) {}
+      } catch (_e) { }
       throw pubErr;
     }
 
     if (oldVideo && oldVideo !== newVideo) {
       try {
         await agoraClient.unpublish([oldVideo]);
-      } catch (_e) {}
+      } catch (_e) { }
       try {
         oldVideo.stop();
         oldVideo.close();
-      } catch (_e) {}
+      } catch (_e) { }
     }
 
     localTracks = audioTrack ? [audioTrack, newVideo] : [newVideo];
@@ -5136,20 +5141,20 @@
       try {
         if (typeof audio.setMuted === 'function') await audio.setMuted(micMuted);
         if (typeof audio.setEnabled === 'function') await audio.setEnabled(!micMuted);
-      } catch (_e) {}
+      } catch (_e) { }
     }
     const stream = window.__apLocalStream;
     if (stream?.getAudioTracks) {
       stream.getAudioTracks().forEach((t) => {
         try {
           t.enabled = !micMuted;
-        } catch (_e) {}
+        } catch (_e) { }
       });
     }
     localTracks.forEach((t) => {
       try {
         if (t.getTrackType?.() === 'video') t.setEnabled?.(true);
-      } catch (_e) {}
+      } catch (_e) { }
     });
   }
 
@@ -5168,7 +5173,7 @@
         try {
           if (typeof audio.setEnabled === 'function') await audio.setEnabled(true);
           if (typeof audio.setMuted === 'function') await audio.setMuted(false);
-        } catch (_e) {}
+        } catch (_e) { }
       }
     }
     await applyLocalMicMuteState();
@@ -5204,14 +5209,14 @@
       try {
         t.stop?.();
         t.close?.();
-      } catch (_e) {}
+      } catch (_e) { }
     }
     localTracks = [];
     if (rawCameraTrack) {
       try {
         rawCameraTrack.stop?.();
         rawCameraTrack.close?.();
-      } catch (_e) {}
+      } catch (_e) { }
       rawCameraTrack = null;
     }
     remoteUsers.clear();
@@ -5293,7 +5298,7 @@
     let unread = 0;
     try {
       unread = parseInt(localStorage.getItem('chat_unread') || '0', 10) || 0;
-    } catch (_e) {}
+    } catch (_e) { }
     document.querySelectorAll('.ap-tool-msg .ap-notify-dot, #apToolsNotifyDot').forEach((dot) => {
       if (unread > 0) {
         dot.hidden = false;
@@ -5920,7 +5925,7 @@
         const now = Date.now();
         if (!window.__apGuestPubRetryAt || now - window.__apGuestPubRetryAt > 2500) {
           window.__apGuestPubRetryAt = now;
-          publishGuestAudio().catch(() => {});
+          publishGuestAudio().catch(() => { });
         }
       }
     } else if (meId && hasSpeakerSeat) {
@@ -6100,10 +6105,8 @@
         .slice(0, 4)
         .map(
           (n, i) =>
-            `<span class="ap-top-gifter${i === 0 ? ' has-crown' : ''}"${
-              n.userId ? ` data-audience-id="${escapeHtml(String(n.userId))}" data-audience-name="${escapeAttr(n.name || 'Guest')}"` : ''
-            }><img src="${avatarUrl(n.name, n.profilePic)}" alt="${escapeHtml(n.name)}" data-name="${escapeHtml(n.name)}">${
-              n.gifts > 0 ? `<em>${formatGiftCount(n.gifts)}</em>` : ''
+            `<span class="ap-top-gifter${i === 0 ? ' has-crown' : ''}"${n.userId ? ` data-audience-id="${escapeHtml(String(n.userId))}" data-audience-name="${escapeAttr(n.name || 'Guest')}"` : ''
+            }><img src="${avatarUrl(n.name, n.profilePic)}" alt="${escapeHtml(n.name)}" data-name="${escapeHtml(n.name)}">${n.gifts > 0 ? `<em>${formatGiftCount(n.gifts)}</em>` : ''
             }</span>`
         )
         .join('');
@@ -6207,12 +6210,12 @@
   function syncLiveOverlayClass() {
     const open = Boolean(
       document.getElementById('partyToolsSheet')?.classList.contains('open') ||
-        document.getElementById('giftSheet')?.classList.contains('open') ||
-        document.getElementById('apMicLinkModal')?.classList.contains('open') ||
-        document.getElementById('apTopupSheet')?.classList.contains('open') ||
-        document.getElementById('partyRequestsSheet')?.classList.contains('open') ||
-        document.getElementById('partyMusicSheet')?.classList.contains('open') ||
-        document.getElementById('partyBgPickerSheet')?.classList.contains('open')
+      document.getElementById('giftSheet')?.classList.contains('open') ||
+      document.getElementById('apMicLinkModal')?.classList.contains('open') ||
+      document.getElementById('apTopupSheet')?.classList.contains('open') ||
+      document.getElementById('partyRequestsSheet')?.classList.contains('open') ||
+      document.getElementById('partyMusicSheet')?.classList.contains('open') ||
+      document.getElementById('partyBgPickerSheet')?.classList.contains('open')
     );
     document.body.classList.toggle('ap-live-overlay-open', open);
   }
@@ -6304,7 +6307,7 @@
   function savePartyMusicCustomTracks() {
     try {
       localStorage.setItem(PARTY_MUSIC_STORAGE_KEY, JSON.stringify(partyMusicCustomTracks.slice(0, 20)));
-    } catch (_e) {}
+    } catch (_e) { }
   }
 
   function getPartyMusicTracks() {
@@ -6367,9 +6370,9 @@
     if (!member) return false;
     return Boolean(
       member.isAdmin ||
-        member.isPlatformAdmin ||
-        member.role === 'admin' ||
-        isAdminUserId(member.userId)
+      member.isPlatformAdmin ||
+      member.role === 'admin' ||
+      isAdminUserId(member.userId)
     );
   }
 
@@ -6740,7 +6743,7 @@
         try {
           history.pushState({ apLiveRoom: 1 }, '');
           history.pushState({ apLiveRoom: 2 }, '');
-        } catch (_e) {}
+        } catch (_e) { }
         return;
       }
       if ((isPartyRoomPage() || isLiveRoomPage()) && window.LiveSession?.openBrowsePage?.(browseUrl)) {
@@ -6756,12 +6759,12 @@
     minimizingRoom = false;
     try {
       await stopAgora({ skipEndRoom: !isHost() || hostEndingIntentionally });
-    } catch (_e) {}
+    } catch (_e) { }
     leaveSocket();
     try {
       sessionStorage.removeItem('ap_live_pip_session');
       if (!window.__apLiveSessionExitInProgress) window.LiveSession?.forceCleanup?.();
-    } catch (_e) {}
+    } catch (_e) { }
     location.href = browseUrl;
   }
 
@@ -6784,7 +6787,7 @@
     try {
       history.pushState({ apLiveRoom: 1 }, '');
       history.pushState({ apLiveRoom: 2 }, '');
-    } catch (_e) {}
+    } catch (_e) { }
     window.addEventListener('popstate', () => {
       if (window.__apLeavingRoom) return;
       handleLiveRoomBack();
@@ -6977,7 +6980,7 @@
   function clearMessageBadge() {
     try {
       localStorage.setItem('chat_unread', '0');
-    } catch (_e) {}
+    } catch (_e) { }
     syncToolBadges();
   }
 
@@ -7353,7 +7356,7 @@
           setTimeout(() => {
             try {
               user.videoTrack?.play(container);
-            } catch (_e2) {}
+            } catch (_e2) { }
           }, 400);
         }
       }
@@ -7362,7 +7365,7 @@
       setLiveStreamVisible(true);
       updateModeBadge('video', false);
       // Video often unlocks first; retry audio right after so voice isn't stuck silent.
-      setTimeout(() => ensureRemoteAudioPlaying().catch(() => {}), 200);
+      setTimeout(() => ensureRemoteAudioPlaying().catch(() => { }), 200);
     }
     if (mediaType === 'audio') {
       // Hosts must always hear on-seat guests; soundOn only mutes for viewers.
@@ -7370,7 +7373,7 @@
       if (shouldPlay && user.audioTrack) {
         try {
           user.audioTrack.setVolume?.(100);
-        } catch (_e) {}
+        } catch (_e) { }
         try {
           const p = user.audioTrack.play();
           if (p && typeof p.then === 'function') {
@@ -7387,7 +7390,7 @@
       } else if (!shouldPlay) {
         try {
           user.audioTrack?.stop();
-        } catch (_e) {}
+        } catch (_e) { }
       }
     }
     remoteUsers.set(user.uid, user);
@@ -7402,7 +7405,7 @@
       const mst = track.getMediaStreamTrack?.();
       if (mst && mst.readyState === 'ended') return false;
       if (mst && mst.muted && !micMuted) return false;
-    } catch (_e) {}
+    } catch (_e) { }
     try {
       const published = agoraClient?.localTracks || [];
       if (published.length) {
@@ -7411,7 +7414,7 @@
           return type === 'audio';
         });
       }
-    } catch (_e) {}
+    } catch (_e) { }
     return true;
   }
 
@@ -7441,12 +7444,12 @@
       if (staleAudio.length) {
         try {
           await agoraClient.unpublish(staleAudio);
-        } catch (_e) {}
+        } catch (_e) { }
         staleAudio.forEach((t) => {
           try {
             t.stop?.();
             t.close?.();
-          } catch (_e) {}
+          } catch (_e) { }
         });
       }
       const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
@@ -7522,7 +7525,7 @@
     audioUnlockBound = true;
     const unlock = () => {
       if (audioUnlocked && !document.getElementById('apTapForSound')?.classList.contains('is-visible')) return;
-      ensureRemoteAudioPlaying().catch(() => {});
+      ensureRemoteAudioPlaying().catch(() => { });
     };
     document.addEventListener('pointerdown', unlock, { passive: true });
     document.addEventListener('touchstart', unlock, { passive: true });
@@ -7651,11 +7654,11 @@
       const rows = [...totals.values()].sort((a, b) => b.coins - a.coins).slice(0, 8);
       analyticsEl.innerHTML = rows.length
         ? rows
-            .map(
-              (r) =>
-                `<div class="party-gift-stat-row"><span>${escapeHtml(r.label)}</span><strong>${formatGiftCount(r.coins)} coins · ${r.count} gifts</strong></div>`
-            )
-            .join('')
+          .map(
+            (r) =>
+              `<div class="party-gift-stat-row"><span>${escapeHtml(r.label)}</span><strong>${formatGiftCount(r.coins)} coins · ${r.count} gifts</strong></div>`
+          )
+          .join('')
         : '<p class="party-requests-empty">No gifts sent in this room yet</p>';
     }
 
@@ -7663,11 +7666,11 @@
       const recent = roomGiftHistory.slice(-12).reverse();
       historyEl.innerHTML = recent.length
         ? recent
-            .map(
-              (g) =>
-                `<div class="party-gift-history-row"><img src="${avatarUrl(g.from)}" alt=""><span><strong>${escapeHtml(g.from)}</strong> → ${escapeHtml(g.to)} ${g.emoji || '🎁'} <em>${formatGiftCount(g.amount)}</em></span></div>`
-            )
-            .join('')
+          .map(
+            (g) =>
+              `<div class="party-gift-history-row"><img src="${avatarUrl(g.from)}" alt=""><span><strong>${escapeHtml(g.from)}</strong> → ${escapeHtml(g.to)} ${g.emoji || '🎁'} <em>${formatGiftCount(g.amount)}</em></span></div>`
+          )
+          .join('')
         : '<p class="party-requests-empty">Gift history will appear here as people send gifts</p>';
     }
   }
@@ -7685,7 +7688,7 @@
         try {
           e.dataTransfer.setData('text/plain', dragUserId || '');
           e.dataTransfer.effectAllowed = 'move';
-        } catch (_e) {}
+        } catch (_e) { }
       });
       seat.addEventListener('dragend', () => seat.classList.remove('is-dragging'));
     });
@@ -7739,15 +7742,15 @@
       return;
     }
     liveSocket.emit('live:seat_request', {
-        channel: channelId(),
-        userId: id,
-        name,
-      });
-      liveSocket.emit('live:chat', {
-        channel: channelId(),
-        type: 'system',
-        text: `${name} requested to join${isLiveRoomPage() ? ' the live' : ' a seat'}`,
-      });
+      channel: channelId(),
+      userId: id,
+      name,
+    });
+    liveSocket.emit('live:chat', {
+      channel: channelId(),
+      type: 'system',
+      text: `${name} requested to join${isLiveRoomPage() ? ' the live' : ' a seat'}`,
+    });
     micLinkPending = true;
     showMicLinkModal('waiting');
     toast(isLiveRoomPage() ? 'Request sent to host' : 'Request sent to host');
@@ -7962,7 +7965,7 @@
           toast(`Invite sent to ${name}`, 'success');
           try {
             localStorage.removeItem('ap_share_pending');
-          } catch (_e) {}
+          } catch (_e) { }
         } catch (e) {
           btn.disabled = false;
           if (statusEl) statusEl.innerHTML = '<i class="fas fa-paper-plane"></i> Retry';
@@ -7972,7 +7975,7 @@
               'ap_share_pending',
               JSON.stringify({ userId, name, text: inviteText, at: Date.now() })
             );
-          } catch (_e) {}
+          } catch (_e) { }
           toast(e?.message || 'Could not send invite — opening chat…', 'warning');
           if (userId) {
             setTimeout(() => {
@@ -8223,7 +8226,7 @@
             if (bal != null && window.SocialWallet) {
               try {
                 /* keep local cache in sync if server returned balance */
-              } catch (_e) {}
+              } catch (_e) { }
             }
             lastCharged = Number(res?.data?.gift?.amount || cost);
           }
@@ -8399,7 +8402,7 @@
     document.getElementById('partyMinimizeBtn')?.addEventListener('click', () => minimizeLiveRoom());
 
     document.getElementById('liveHostBarToggle')?.addEventListener('click', () => {
-      if (!isConfirmedRoomHost()) {
+      if (!isHost()) {
         syncHostBarUi();
         return;
       }
@@ -8434,7 +8437,7 @@
       }
       try {
         localStorage.setItem('ap_live_chat_hidden', on ? '1' : '0');
-      } catch (_e) {}
+      } catch (_e) { }
     }
     window.setLiveChatHidden = setLiveChatHidden;
 
@@ -8606,7 +8609,7 @@
         remoteUsers.forEach((user) => {
           try {
             user.audioTrack?.stop();
-          } catch (_e) {}
+          } catch (_e) { }
         });
       }
       toast(soundOn ? 'Sound on' : 'Sound muted');
@@ -8746,7 +8749,7 @@
     try {
       sessionStorage.removeItem('ap_live_pip_session');
       clearDurableLiveSession();
-    } catch (_e) {}
+    } catch (_e) { }
     await stopAgora({ skipEndRoom: hostEndingIntentionally });
     leaveSocket();
     const dest = '/explore.html?app=1';
@@ -8801,7 +8804,7 @@
       );
       document.getElementById('apRulesOk')?.addEventListener('click', () => {
         closeRulesModal();
-        try { localStorage.setItem('ap_party_rules_seen', '1'); } catch (_e) {}
+        try { localStorage.setItem('ap_party_rules_seen', '1'); } catch (_e) { }
       });
       document.querySelector('#apRulesModal .ap-rules-modal')?.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -8873,7 +8876,7 @@
         document.getElementById('apViewerOnboard')?.classList.remove('open');
         try {
           sessionStorage.setItem('ap_party_welcome_' + channelId(), '1');
-        } catch (_e) {}
+        } catch (_e) { }
       });
       document.getElementById('apViewerOnboard')?.addEventListener('click', (e) => {
         if (e.target.id === 'apViewerOnboard') e.target.classList.remove('open');
@@ -8951,7 +8954,7 @@
 
     document.getElementById('apProfileCopyId')?.addEventListener('click', () => {
       const id = activeProfileUser.userId;
-      if (id && navigator.clipboard) navigator.clipboard.writeText(id).catch(() => {});
+      if (id && navigator.clipboard) navigator.clipboard.writeText(id).catch(() => { });
       else toast('User ID unavailable', 'warning');
     });
 
@@ -9033,7 +9036,7 @@
         menu.remove();
       });
       menu.querySelector('[data-act="copy"]')?.addEventListener('click', () => {
-        if (navigator.clipboard) navigator.clipboard.writeText(name).catch(() => {});
+        if (navigator.clipboard) navigator.clipboard.writeText(name).catch(() => { });
         toast('Nickname copied', 'success');
         menu.remove();
       });
@@ -9050,7 +9053,7 @@
     const key = 'ap_party_welcome_' + channelId();
     try {
       if (sessionStorage.getItem(key) === '1') return;
-    } catch (_e) {}
+    } catch (_e) { }
     document.getElementById('apViewerOnboard')?.classList.add('open');
   }
 
@@ -9063,7 +9066,7 @@
         window.ReactNativeWebView.postMessage(raw);
         return true;
       }
-    } catch (_e) {}
+    } catch (_e) { }
     return false;
   }
 
@@ -9109,7 +9112,7 @@
     if (!roomJoinCompleted || !liveSocket?.connected) return;
     try {
       if (localStorage.getItem('ap_party_rules_seen') === '1') return;
-    } catch (_e) {}
+    } catch (_e) { }
     if (partyRulesTimer) clearTimeout(partyRulesTimer);
     partyRulesTimer = setTimeout(() => {
       partyRulesTimer = null;
@@ -9156,7 +9159,7 @@
   async function loadProfileEngagement(userId, name, img, nameEl) {
     if (!userId || !window.API?.get) return null;
     try {
-      if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken().catch(() => {});
+      if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken().catch(() => { });
       const res = await API.get('/social/creators/' + encodeURIComponent(userId) + '/engagement');
       const data = res?.data;
       if (!data) return null;
@@ -9209,18 +9212,18 @@
       userRole:
         seatHit?.userRole ||
         (resolvedId &&
-        roomState?.hostId &&
-        String(resolvedId) === String(roomState.hostId)
+          roomState?.hostId &&
+          String(resolvedId) === String(roomState.hostId)
           ? roomState.hostUserRole
           : null) ||
         null,
       isAdmin: Boolean(
         memberIsAdminMarked(seatHit) ||
-          isAdminUserId(resolvedId) ||
-          (resolvedId &&
-            roomState?.hostId &&
-            String(resolvedId) === String(roomState.hostId) &&
-            roomState.hostIsPlatformAdmin)
+        isAdminUserId(resolvedId) ||
+        (resolvedId &&
+          roomState?.hostId &&
+          String(resolvedId) === String(roomState.hostId) &&
+          roomState.hostIsPlatformAdmin)
       ),
     };
 
@@ -9270,7 +9273,7 @@
       document.getElementById('apProfileCopyId')?.addEventListener('click', () => {
         const full = idDisplay || activeProfileUser.displayId;
         if (!full) return;
-        if (navigator.clipboard) navigator.clipboard.writeText(full).catch(() => {});
+        if (navigator.clipboard) navigator.clipboard.writeText(full).catch(() => { });
         toast('User ID copied', 'success');
       });
     }
@@ -9386,7 +9389,7 @@
     try {
       sessionStorage.removeItem('ap_live_join_meta');
       localStorage.removeItem(LIVE_SESSION_KEY);
-    } catch (_e) {}
+    } catch (_e) { }
     lastJoinMeta = null;
     forensicEvent('CHANNEL_GENERATED', { channel: ch, reason: 'missing_channel_param' });
   }
@@ -9447,7 +9450,7 @@
     await Promise.race([
       profileRefresh,
       new Promise((r) => setTimeout(r, 2500)),
-    ]).catch(() => {});
+    ]).catch(() => { });
     initForensicLog();
     restoreChannelFromDurableSession();
     ensureHostChannelInUrl();
@@ -9504,7 +9507,7 @@
         if (!liveSocket?.connected && lastJoinMeta) {
           try {
             liveSocket?.connect?.();
-          } catch (_e) {}
+          } catch (_e) { }
         }
         if ((hasSpeakerSeat || isHost()) && (!publishSucceeded || !localTracks.length)) {
           ensureMicPublishing();
@@ -9706,7 +9709,7 @@
         '',
         '?channel=' + encodeURIComponent(item.channel) + '&feed=1&app=1'
       );
-    } catch (_e) {}
+    } catch (_e) { }
 
     feedSwitching = false;
   }
@@ -9796,7 +9799,7 @@
     await Promise.race([
       profileRefresh,
       new Promise((r) => setTimeout(r, 2500)),
-    ]).catch(() => {});
+    ]).catch(() => { });
 
     if (isFeedMode()) {
       await initLiveFeedViewer();
@@ -9914,7 +9917,7 @@
     };
     setPeriodDaysUi('activity', periodDaysLabel(userAnalyticsPeriod));
     try {
-      if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken().catch(() => {});
+      if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken().catch(() => { });
       const res = await API.get('/live/my-analytics?period=' + encodeURIComponent(period));
       const data = res?.data || {};
       const days = Number(data.periodDays) || periodDaysLabel(period);
@@ -9940,7 +9943,7 @@
     };
     setPeriodDaysUi('stats', periodDaysLabel(streamerStatsPeriod));
     try {
-      if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken().catch(() => {});
+      if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken().catch(() => { });
       const res = await API.get('/live/streamer-stats?period=' + encodeURIComponent(period));
       const data = res?.data || {};
       const days = Number(data.periodDays) || periodDaysLabel(period);
@@ -10218,7 +10221,7 @@
       map[String(rank)] = Date.now();
       try {
         localStorage.setItem(`ap_lucky_claims_${period}`, JSON.stringify(map));
-      } catch (_e) {}
+      } catch (_e) { }
     }
 
     function renderLuckyRankList() {
@@ -10292,7 +10295,7 @@
     try {
       const settings = await SocialWallet?.getWalletSettings?.();
       coinsPerInr = settings?.coins_per_inr || 10;
-    } catch (_e) {}
+    } catch (_e) { }
 
     const amountEl = document.getElementById('rechargeAmount');
     const coinsEl = document.getElementById('rechargeCoins');
@@ -10534,7 +10537,7 @@
             const coins = Number(bal?.coin_balance ?? bal?.coins ?? 0);
             balanceEl.innerHTML =
               '<i class="fas fa-coins"></i>' + coins.toLocaleString('en-IN') + ' <span style="font-size:14px;font-weight:600">coins</span>';
-          } catch (_e) {}
+          } catch (_e) { }
         }
       } catch (e) {
         const msg = window.SocialUI ? SocialUI.friendlyMessage(e.message) : e.message || 'Recharge submission failed';

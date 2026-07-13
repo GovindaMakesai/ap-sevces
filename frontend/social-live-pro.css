@@ -46,13 +46,11 @@ body[data-live-page='live-room'] .live-room::after {
 }
 
 body[data-live-page='live-room'] .live-overlay {
-  background: linear-gradient(
-    180deg,
-    rgba(7, 8, 12, 0.28) 0%,
-    transparent 16%,
-    transparent 72%,
-    rgba(7, 8, 12, 0.35) 100%
-  );
+  background: linear-gradient(180deg,
+      rgba(7, 8, 12, 0.28) 0%,
+      transparent 16%,
+      transparent 72%,
+      rgba(7, 8, 12, 0.35) 100%);
 }
 
 /* —— Loader: host cover only —— */
@@ -190,22 +188,32 @@ body[data-live-page='live-room'] .live-pulse-dot {
 }
 
 @keyframes live-pro-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 transparent; opacity: 1; }
-  50% { box-shadow: 0 0 0 6px transparent; opacity: 0.85; }
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+    opacity: 1;
+  }
+
+  50% {
+    box-shadow: 0 0 0 6px transparent;
+    opacity: 0.85;
+  }
 }
 
 /* —— Host controls (host-only; aligned with Users + Invite) —— */
-body[data-live-page='live-room'] .live-host-bar,
-body[data-live-page='live-room'] .live-host-bar[hidden],
 body[data-live-page='live-room']:not(.ap-is-host) .live-host-bar,
 body[data-live-page='live-room']:not(.ap-is-host) #liveHostBar,
 body[data-live-page='live-room']:not(.ap-is-host) .live-host-bar-toggle,
-body[data-live-page='live-room']:not(.ap-is-host) .live-host-bar-actions {
+body[data-live-page='live-room']:not(.ap-is-host) .live-host-bar-actions,
+body[data-live-page='live-room'] .live-host-bar[hidden],
+body[data-live-page='live-room'] #liveHostBar[hidden] {
   display: none !important;
   visibility: hidden !important;
   pointer-events: none !important;
 }
 
+body[data-live-page='live-room'].ap-is-host #liveHostBar:not([hidden]),
 body[data-live-page='live-room'].ap-is-host .live-host-bar:not([hidden]) {
   margin: 0 !important;
   padding: 0 !important;
@@ -216,9 +224,13 @@ body[data-live-page='live-room'].ap-is-host .live-host-bar:not([hidden]) {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   box-shadow: none;
+  display: inline-flex !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
 }
 
-body[data-live-page='live-room'].ap-is-host .live-host-bar.is-collapsed:not([hidden]) {
+body[data-live-page='live-room'].ap-is-host .live-host-bar.is-collapsed:not([hidden]),
+body[data-live-page='live-room'].ap-is-host #liveHostBar.is-collapsed:not([hidden]) {
   display: inline-flex !important;
   flex-direction: row !important;
   flex: 0 0 auto !important;
@@ -480,10 +492,21 @@ body[data-live-page='live-room'] .party-tools-grid .ico {
   box-shadow: var(--live-pro-shadow-inset);
 }
 
-body[data-live-page='live-room'] .party-tools-grid .ico.msg { color: #60a5fa; }
-body[data-live-page='live-room'] .party-tools-grid .ico.sound { color: #a78bfa; }
-body[data-live-page='live-room'] .party-tools-grid .ico.share { color: #34d399; }
-body[data-live-page='live-room'] .party-tools-grid .ico.report { color: #f87171; }
+body[data-live-page='live-room'] .party-tools-grid .ico.msg {
+  color: #60a5fa;
+}
+
+body[data-live-page='live-room'] .party-tools-grid .ico.sound {
+  color: #a78bfa;
+}
+
+body[data-live-page='live-room'] .party-tools-grid .ico.share {
+  color: #34d399;
+}
+
+body[data-live-page='live-room'] .party-tools-grid .ico.report {
+  color: #f87171;
+}
 
 /* —— Gift sheet (live) —— */
 body[data-live-page='live-room'] .gift-sheet-panel {
@@ -519,8 +542,15 @@ body[data-live-page='live-room'] .party-win-banner.is-flash {
 }
 
 @keyframes live-pro-banner-in {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* —— Swipe hint —— */
@@ -594,8 +624,15 @@ body[data-live-page='live-room'] .ap-activity-item {
 }
 
 @keyframes live-pro-slide-in {
-  from { opacity: 0; transform: translate3d(-12px, 0, -8px) rotateY(-6deg); }
-  to { opacity: 1; transform: translate3d(0, 0, 0) rotateY(0); }
+  from {
+    opacity: 0;
+    transform: translate3d(-12px, 0, -8px) rotateY(-6deg);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) rotateY(0);
+  }
 }
 
 body[data-live-page='live-room'] .ap-entry-banner {
@@ -622,10 +659,25 @@ body[data-live-page='live-room'] .ap-entry-banner.vip .ap-entry-text {
 }
 
 @keyframes live-pro-entry {
-  0% { opacity: 0; transform: translate3d(-100%, 0, -20px) rotateY(-12deg); }
-  14% { opacity: 1; transform: translate3d(0, 0, 0) rotateY(0); }
-  80% { opacity: 1; transform: translate3d(0, 0, 0); }
-  100% { opacity: 0; transform: translate3d(-8px, 0, 0); }
+  0% {
+    opacity: 0;
+    transform: translate3d(-100%, 0, -20px) rotateY(-12deg);
+  }
+
+  14% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) rotateY(0);
+  }
+
+  80% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(-8px, 0, 0);
+  }
 }
 
 body[data-live-page='live-room'] .ap-float-gift {
@@ -634,9 +686,20 @@ body[data-live-page='live-room'] .ap-float-gift {
 }
 
 @keyframes live-pro-float-gift {
-  0% { opacity: 0; transform: translate3d(0, 0, 0) scale(0.5) rotateX(20deg); }
-  20% { opacity: 1; transform: translate3d(0, -40px, 20px) scale(1) rotateX(0deg); }
-  100% { opacity: 0; transform: translate3d(var(--dx2, 20px), -180px, 40px) scale(0.85) rotateX(-10deg); }
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(0.5) rotateX(20deg);
+  }
+
+  20% {
+    opacity: 1;
+    transform: translate3d(0, -40px, 20px) scale(1) rotateX(0deg);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--dx2, 20px), -180px, 40px) scale(0.85) rotateX(-10deg);
+  }
 }
 
 body[data-live-page='live-room'] .ap-premium-gift {
@@ -649,8 +712,15 @@ body[data-live-page='live-room'] .ap-premium-gift .ap-premium-emoji {
 }
 
 @keyframes live-pro-premium-pop {
-  0% { opacity: 0; transform: perspective(800px) scale(0.4) rotateX(25deg) translateZ(-80px); }
-  100% { opacity: 1; transform: perspective(800px) scale(1) rotateX(0deg) translateZ(0); }
+  0% {
+    opacity: 0;
+    transform: perspective(800px) scale(0.4) rotateX(25deg) translateZ(-80px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: perspective(800px) scale(1) rotateX(0deg) translateZ(0);
+  }
 }
 
 body[data-live-page='live-room'] .ap-combo-badge {

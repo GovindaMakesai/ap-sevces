@@ -1,31 +1,38 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#07080c">
   <title>Live - AP Services</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-live.css?v=20260713-host-only">
+  <link rel="stylesheet" href="social-live.css?v=20260713-host-back">
   <link rel="stylesheet" href="social-live-session.css?v=20260713-live-ux">
   <link rel="stylesheet" href="social-live-ref-ui.css?v=20260628-hotfix">
   <link rel="stylesheet" href="social-fx.css">
-  <link rel="stylesheet" href="social-live-pro.css?v=20260713-host-only">
+  <link rel="stylesheet" href="social-live-pro.css?v=20260713-host-back">
   <link rel="stylesheet" href="beauty/ui/beauty-sheet.css?v=20260713-beauty-engine">
   <style id="ap-immersive-critical">
-    /* Host controls: hidden until confirmed host (body.ap-is-host) */
-    #liveHostBar,
-    #liveHostBar[hidden],
+    /* Host controls: viewers never see; hosts must be able to show */
     body:not(.ap-is-host) #liveHostBar,
     body:not(.ap-is-host) .live-host-bar,
     body:not(.ap-is-host) .live-host-bar-toggle,
-    body:not(.ap-is-host) .live-host-bar-actions {
+    body:not(.ap-is-host) .live-host-bar-actions,
+    #liveHostBar[hidden] {
       display: none !important;
       visibility: hidden !important;
       pointer-events: none !important;
     }
+    body.ap-is-host #liveHostBar:not([hidden]) {
+      display: inline-flex !important;
+      visibility: visible !important;
+      pointer-events: auto !important;
+    }
+
     html.ap-live-immersive .social-bridge-header,
     html.ap-live-immersive #ap-bridge-header,
     html.ap-live-immersive .social-bottom-nav,
@@ -36,10 +43,21 @@
     body[data-live-page] #ap-bridge-header,
     body[data-live-page] .social-bottom-nav,
     body[data-live-page] #social-bottom-nav-mount,
-    body[data-live-page] .navbar { display: none !important; height: 0 !important; visibility: hidden !important; pointer-events: none !important; }
+    body[data-live-page] .navbar {
+      display: none !important;
+      height: 0 !important;
+      visibility: hidden !important;
+      pointer-events: none !important;
+    }
+
     html.ap-live-immersive body,
     html.ap-live-immersive.social-bridge-mode body,
-    body[data-live-page] { padding: 0 !important; margin: 0 !important; background: #000 !important; overflow: hidden !important; }
+    body[data-live-page] {
+      padding: 0 !important;
+      margin: 0 !important;
+      background: #000 !important;
+      overflow: hidden !important;
+    }
   </style>
   <script>
     document.documentElement.classList.add('ap-live-immersive');
@@ -61,13 +79,14 @@
           if (window.ReactNativeWebView) {
             window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'screen_capture', enable: true }));
           }
-        } catch (_e) {}
+        } catch (_e) { }
       }
       enable();
       document.addEventListener('DOMContentLoaded', enable);
     })();
   </script>
 </head>
+
 <body class="live-dark ap-live-immersive" data-live-page="live-room">
   <div id="apLiveLoader" class="ap-live-loader" aria-live="polite">
     <div class="ap-live-loader-cover" id="apLiveLoaderCover" aria-hidden="true"></div>
@@ -121,7 +140,7 @@
       <header class="party-header">
         <div class="party-host">
           <img id="liveHostAvatar" alt="Host">
-            <div class="party-host-meta">
+          <div class="party-host-meta">
             <div class="name" id="liveHostName">Streamer</div>
             <div class="sub">
               <span class="live-pulse-dot"></span>
@@ -135,8 +154,10 @@
           <div class="party-viewers" id="partyViewerAvatars">
             <span class="party-viewer-count" id="liveViewerCount">0</span>
           </div>
-          <button type="button" class="party-minimize-btn" id="liveMinimizeBtn" aria-label="Minimize live"><i class="fas fa-compress"></i></button>
-          <button type="button" class="party-close" id="liveClose" aria-label="Leave"><i class="fas fa-times"></i></button>
+          <button type="button" class="party-minimize-btn" id="liveMinimizeBtn" aria-label="Minimize live"><i
+              class="fas fa-compress"></i></button>
+          <button type="button" class="party-close" id="liveClose" aria-label="Leave"><i
+              class="fas fa-times"></i></button>
         </div>
       </header>
 
@@ -145,7 +166,8 @@
       </div>
 
       <div class="party-live-actions" id="partyLiveActions">
-        <button type="button" class="party-users-btn" id="partyBtnUsersAll" aria-label="People in room"><i class="fas fa-users"></i></button>
+        <button type="button" class="party-users-btn" id="partyBtnUsersAll" aria-label="People in room"><i
+            class="fas fa-users"></i></button>
         <button type="button" class="party-event-pill" id="partyInvitePill">
           <span class="pill-title"><i class="fas fa-user-plus"></i> Invite friends</span>
           <span class="pill-sub">Tap to share</span>
@@ -155,12 +177,18 @@
             <i class="fas fa-sliders-h"></i> Host controls
           </button>
           <div class="live-host-bar-actions" id="liveHostBarActions">
-            <button type="button" class="party-host-action mod-tool" id="partyBtnRequests"><i class="fas fa-users"></i> Guests <span id="partyReqCount" class="party-req-badge" hidden>0</span></button>
-            <button type="button" class="party-host-action host-only-tool" id="liveBtnModeVideo" data-mode="video"><i class="fas fa-video"></i> Video</button>
-            <button type="button" class="party-host-action host-only-tool" id="liveBtnModeAudio" data-mode="audio"><i class="fas fa-microphone"></i> Audio only</button>
-            <button type="button" class="party-host-action host-only-tool" id="liveBtnHostMute"><i class="fas fa-microphone"></i> Mic</button>
-            <button type="button" class="party-host-action host-only-tool" id="liveBtnFlipCam" title="Flip camera"><i class="fas fa-sync-alt"></i> Flip</button>
-            <button type="button" class="party-host-action host-only-tool" id="liveBtnFilters" title="Filters"><i class="fas fa-magic"></i> Filters</button>
+            <button type="button" class="party-host-action mod-tool" id="partyBtnRequests"><i class="fas fa-users"></i>
+              Guests <span id="partyReqCount" class="party-req-badge" hidden>0</span></button>
+            <button type="button" class="party-host-action host-only-tool" id="liveBtnModeVideo" data-mode="video"><i
+                class="fas fa-video"></i> Video</button>
+            <button type="button" class="party-host-action host-only-tool" id="liveBtnModeAudio" data-mode="audio"><i
+                class="fas fa-microphone"></i> Audio only</button>
+            <button type="button" class="party-host-action host-only-tool" id="liveBtnHostMute"><i
+                class="fas fa-microphone"></i> Mic</button>
+            <button type="button" class="party-host-action host-only-tool" id="liveBtnFlipCam" title="Flip camera"><i
+                class="fas fa-sync-alt"></i> Flip</button>
+            <button type="button" class="party-host-action host-only-tool" id="liveBtnFilters" title="Filters"><i
+                class="fas fa-magic"></i> Filters</button>
           </div>
         </div>
       </div>
@@ -171,18 +199,19 @@
 
       <div class="party-chat-row" id="partyChatRow">
         <div class="party-chat-controls">
-          <button type="button" id="liveBtnHideChat" class="party-chat-hide-btn party-chat-hide-btn--solo" aria-label="Hide chat" title="Hide chat">
+          <button type="button" id="liveBtnHideChat" class="party-chat-hide-btn party-chat-hide-btn--solo"
+            aria-label="Hide chat" title="Hide chat">
             <i class="fas fa-eye-slash" aria-hidden="true"></i>
             <span>Hide</span>
           </button>
         </div>
         <div class="party-chat-zone live-chat-tall">
-        <div class="ap-room-status-strip" id="apRoomStatusStrip" aria-live="polite">
-          <span class="live-status-badge" id="liveStatusBadge" style="display:none">Connecting…</span>
+          <div class="ap-room-status-strip" id="apRoomStatusStrip" aria-live="polite">
+            <span class="live-status-badge" id="liveStatusBadge" style="display:none">Connecting…</span>
+          </div>
+          <div class="live-chat-ticker" id="liveTicker" aria-live="polite"></div>
+          <div class="party-chat-feed" id="partyChatFeed"></div>
         </div>
-        <div class="live-chat-ticker" id="liveTicker" aria-live="polite"></div>
-        <div class="party-chat-feed" id="partyChatFeed"></div>
-      </div>
       </div>
       <button type="button" class="live-show-chat-fab" id="liveBtnShowChat" hidden aria-label="Show chat">
         <i class="fas fa-comments" aria-hidden="true"></i>
@@ -195,16 +224,24 @@
   <footer class="party-bottom-bar ap-bottom-ref" id="partyBottomBar">
     <div class="live-chat-compose ap-compose-inline" id="liveChatCompose">
       <span class="ap-char-count is-empty" id="apCharCount" aria-hidden="true"></span>
-      <button type="button" class="ap-chat-emoji-btn" id="apChatEmojiBtn" aria-label="Emoji"><i class="far fa-smile"></i></button>
-      <input type="text" id="liveChatInput" placeholder="Say something…" maxlength="280" autocomplete="off" enterkeyhint="send">
-      <button type="button" id="liveChatSend" class="ap-chat-send-btn" aria-label="Send"><i class="fas fa-paper-plane"></i></button>
+      <button type="button" class="ap-chat-emoji-btn" id="apChatEmojiBtn" aria-label="Emoji"><i
+          class="far fa-smile"></i></button>
+      <input type="text" id="liveChatInput" placeholder="Say something…" maxlength="280" autocomplete="off"
+        enterkeyhint="send">
+      <button type="button" id="liveChatSend" class="ap-chat-send-btn" aria-label="Send"><i
+          class="fas fa-paper-plane"></i></button>
     </div>
-    <button type="button" class="party-btn-follow ap-btn-follow-hidden" id="liveBtnFollow" aria-hidden="true">Follow +</button>
-    <button type="button" class="party-btn-join-seat ap-btn-follow-hidden" id="partyBtnJoinSeat" style="display:none">Join live</button>
+    <button type="button" class="party-btn-follow ap-btn-follow-hidden" id="liveBtnFollow" aria-hidden="true">Follow
+      +</button>
+    <button type="button" class="party-btn-join-seat ap-btn-follow-hidden" id="partyBtnJoinSeat"
+      style="display:none">Join live</button>
     <div class="party-bottom-actions">
-      <button type="button" id="partyBtnTools" class="ap-btn-grid" aria-label="Tools"><i class="fas fa-th"></i><span class="ap-notify-dot" id="apToolsNotifyDot" hidden></span></button>
-      <button type="button" id="liveBtnMic" class="ap-btn-mic-ring" aria-label="Request mic"><i class="fas fa-microphone"></i></button>
-      <button type="button" id="liveBtnGift" class="party-btn-gift ap-btn-gift-hero" aria-label="Gifts"><span class="ap-gift-glow"></span><i class="fas fa-gift"></i></button>
+      <button type="button" id="partyBtnTools" class="ap-btn-grid" aria-label="Tools"><i class="fas fa-th"></i><span
+          class="ap-notify-dot" id="apToolsNotifyDot" hidden></span></button>
+      <button type="button" id="liveBtnMic" class="ap-btn-mic-ring" aria-label="Request mic"><i
+          class="fas fa-microphone"></i></button>
+      <button type="button" id="liveBtnGift" class="party-btn-gift ap-btn-gift-hero" aria-label="Gifts"><span
+          class="ap-gift-glow"></span><i class="fas fa-gift"></i></button>
     </div>
   </footer>
 
@@ -214,7 +251,8 @@
         <h3>People in live</h3>
         <button type="button" id="partyRequestsClose"><i class="fas fa-times"></i></button>
       </div>
-      <p class="party-requests-hint">Viewers watching the stream. Accept mic requests to let guests join on camera (up to 4 guests).</p>
+      <p class="party-requests-hint">Viewers watching the stream. Accept mic requests to let guests join on camera (up
+        to 4 guests).</p>
       <div id="partyRequestsList" class="party-requests-list"></div>
       <h4 class="party-requests-subtitle">In room (online)</h4>
       <div id="partyAvailableList" class="party-requests-list"></div>
@@ -229,16 +267,24 @@
     <div class="party-tools-panel party-tools-panel-ref">
       <h3 class="party-tools-title">Basic Tools</h3>
       <div class="party-tools-grid party-tools-grid-4">
-        <a href="/chat.html?app=1" class="ap-tool-msg"><span class="ico msg"><i class="fas fa-envelope"></i><span class="ap-notify-dot"></span></span>Message</a>
-        <button type="button" id="partyBtnSound"><span class="ico sound"><i class="fas fa-volume-up"></i></span>Sound</button>
-        <button type="button" id="partyBtnMusic"><span class="ico music"><i class="fas fa-music"></i></span>Music</button>
-        <button type="button" id="partyBtnShare"><span class="ico share"><i class="fas fa-share"></i></span>Share</button>
-        <button type="button" id="partyBtnReport" class="ap-tool-end"><span class="ico report"><i class="fas fa-exclamation-circle"></i></span>Report</button>
+        <a href="/chat.html?app=1" class="ap-tool-msg"><span class="ico msg"><i class="fas fa-envelope"></i><span
+              class="ap-notify-dot"></span></span>Message</a>
+        <button type="button" id="partyBtnSound"><span class="ico sound"><i
+              class="fas fa-volume-up"></i></span>Sound</button>
+        <button type="button" id="partyBtnMusic"><span class="ico music"><i
+              class="fas fa-music"></i></span>Music</button>
+        <button type="button" id="partyBtnShare"><span class="ico share"><i
+              class="fas fa-share"></i></span>Share</button>
+        <button type="button" id="partyBtnReport" class="ap-tool-end"><span class="ico report"><i
+              class="fas fa-exclamation-circle"></i></span>Report</button>
       </div>
       <div class="party-tools-grid party-tools-grid-4 party-tools-row2">
-        <button type="button" id="partyBtnEffects"><span class="ico effects"><i class="fas fa-sliders-h"></i></span>Effect&amp;Msg</button>
-        <button type="button" id="partyBtnMinimize"><span class="ico minimize"><i class="fas fa-compress"></i></span>Minimize</button>
-        <button type="button" id="partyBtnBackground" class="host-only-tool"><span class="ico bg"><i class="fas fa-image"></i></span>Background</button>
+        <button type="button" id="partyBtnEffects"><span class="ico effects"><i
+              class="fas fa-sliders-h"></i></span>Effect&amp;Msg</button>
+        <button type="button" id="partyBtnMinimize"><span class="ico minimize"><i
+              class="fas fa-compress"></i></span>Minimize</button>
+        <button type="button" id="partyBtnBackground" class="host-only-tool"><span class="ico bg"><i
+              class="fas fa-image"></i></span>Background</button>
       </div>
       <h3 class="party-tools-title party-tools-title--features">Features Centre</h3>
       <div class="party-tools-grid party-tools-grid-4">
@@ -248,11 +294,15 @@
         <a href="/vip.html?app=1"><span class="ico vip"><i class="fas fa-gem"></i></span>VIP</a>
       </div>
       <div class="party-tools-grid party-tools-grid-4 party-tools-row2">
-        <button type="button" id="partyBtnGiftTools"><span class="ico gallery"><i class="fas fa-gift"></i></span>Gift Gallery</button>
-        <button type="button" id="partyBtnGiftCollection"><span class="ico collection"><i class="fas fa-star"></i></span>Gift Collection</button>
-        <button type="button" id="partyBtnGiftWish"><span class="ico wish"><i class="fas fa-star"></i></span>Gift wish</button>
+        <button type="button" id="partyBtnGiftTools"><span class="ico gallery"><i class="fas fa-gift"></i></span>Gift
+          Gallery</button>
+        <button type="button" id="partyBtnGiftCollection"><span class="ico collection"><i
+              class="fas fa-star"></i></span>Gift Collection</button>
+        <button type="button" id="partyBtnGiftWish"><span class="ico wish"><i class="fas fa-star"></i></span>Gift
+          wish</button>
       </div>
-      <button type="button" id="partyToolsClose" class="ap-tool-close-fab" aria-label="Close tools"><i class="fas fa-times"></i></button>
+      <button type="button" id="partyToolsClose" class="ap-tool-close-fab" aria-label="Close tools"><i
+          class="fas fa-times"></i></button>
     </div>
   </div>
 
@@ -281,8 +331,9 @@
   <script src="social-shell.js?v=20260713-live-ux"></script>
   <script src="live-session-provider.js?v=20260624-android-back"></script>
   <script type="module" src="beauty/index.js?v=20260713-beauty-engine"></script>
-  <script src="social-live.js?v=20260713-gift-host"></script>
+  <script src="social-live.js?v=20260713-host-back"></script>
   <script src="social-live-interactions.js"></script>
   <script src="social-nav.js?v=20260624-android-back"></script>
 </body>
+
 </html>
