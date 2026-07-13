@@ -1935,6 +1935,27 @@ function formatUserDisplayId(userOrId, displayId) {
 }
 window.formatUserDisplayId = formatUserDisplayId;
 
+function isPlatformAdminUser(userOrRole) {
+  if (!userOrRole) return false;
+  if (typeof userOrRole === 'object') {
+    if (userOrRole.is_admin === true || userOrRole.isAdmin === true || userOrRole.isPlatformAdmin === true) {
+      return true;
+    }
+    userOrRole = userOrRole.role;
+  }
+  return ['admin', 'super_admin', 'founder', 'ceo'].includes(String(userOrRole || '').toLowerCase());
+}
+window.isPlatformAdminUser = isPlatformAdminUser;
+
+/** HTML for a special admin ID chip (safe to inject after escaping the id). */
+function formatAdminIdHtml(displayId, { isAdmin = false } = {}) {
+  const id = formatUserDisplayId(null, displayId) || String(displayId || '').replace(/[^\d]/g, '');
+  if (!id) return 'ID: —';
+  if (!isAdmin) return `ID: ${id}`;
+  return `<span class="ap-admin-id"><span class="ap-admin-id-tag">ADMIN</span><span class="ap-admin-id-num">${id}</span></span>`;
+}
+window.formatAdminIdHtml = formatAdminIdHtml;
+
 console.log('Γ£à App.js initialized');
 
 /** Prevent blank screens when session restore or profile paint stalls (native WebView). */

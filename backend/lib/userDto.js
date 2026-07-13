@@ -6,12 +6,15 @@ const { formatDisplayId } = require('./displayId');
 function publicUser(user, { self = false } = {}) {
   if (!user) return null;
   const displayId = formatDisplayId(user.display_id);
+  const role = String(user.role || '').toLowerCase();
+  const isAdmin = ['admin', 'super_admin', 'founder', 'ceo'].includes(role);
   const base = {
     first_name: user.first_name,
     last_name: user.last_name,
     profile_pic: user.profile_pic || null,
     is_verified: Boolean(user.is_verified),
     display_id: displayId,
+    is_admin: isAdmin,
   };
   if (self) {
     return {

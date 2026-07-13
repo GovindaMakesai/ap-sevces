@@ -1485,6 +1485,20 @@
       img.src = avatarUrl(hostName, null);
     };
     if (img.src !== url) img.src = url;
+    const wrap = img.closest('.party-host-avatar, .live-host-avatar, .ap-host-avatar-wrap') || img.parentElement;
+    const admin = Boolean(roomState?.hostIsPlatformAdmin);
+    if (wrap) {
+      wrap.classList.toggle('ap-admin-frame', admin);
+      let tag = wrap.querySelector('.ap-admin-avatar-tag');
+      if (admin && !tag) {
+        tag = document.createElement('span');
+        tag.className = 'ap-admin-avatar-tag';
+        tag.textContent = 'ADMIN';
+        wrap.appendChild(tag);
+      } else if (tag) {
+        tag.hidden = !admin;
+      }
+    }
   }
 
   async function refreshLiveUserProfile() {
@@ -5061,8 +5075,9 @@
           const badge = window.SocialFX
             ? SocialFX.levelBadgeHtml(lvlInfo.level, { isVip: lvlInfo.isVip, isFan: lvlInfo.isFan })
             : `<span class="lvl">${msg.lvl || 1}</span>`;
-          const adminBadge = uid && isAdminUserId(uid) ? '<span class="party-chat-admin-badge">Admin</span>' : '';
-          div.innerHTML = `<button type="button" class="party-chat-avatar-btn" data-chat-user="${escapeAttr(msg.user || 'User')}" data-chat-uid="${escapeHtml(String(uid))}"><img src="${escapeAttr(avatarSrc)}" alt="" data-name="${escapeAttr(msg.user || 'User')}" data-avatar-src="${escapeAttr(pic || '')}" loading="lazy" decoding="async" fetchpriority="low"></button>${badge}${adminBadge}<button type="button" class="party-chat-user-btn" data-chat-user="${escapeAttr(msg.user || 'User')}" data-chat-uid="${escapeHtml(String(uid))}"><span class="user">${escapeHtml(msg.user)}</span></button> <span class="party-chat-text">${escapeHtml(msg.text)}</span>`;
+          const admin = uid && isAdminUserId(uid);
+          const adminBadge = admin ? '<span class="party-chat-admin-badge">Admin</span>' : '';
+          div.innerHTML = `<button type="button" class="party-chat-avatar-btn${adminAvatarFrameClass(admin)}" data-chat-user="${escapeAttr(msg.user || 'User')}" data-chat-uid="${escapeHtml(String(uid))}"><img src="${escapeAttr(avatarSrc)}" alt="" data-name="${escapeAttr(msg.user || 'User')}" data-avatar-src="${escapeAttr(pic || '')}" loading="lazy" decoding="async" fetchpriority="low">${adminAvatarTagHtml(admin)}</button>${badge}${adminBadge}<button type="button" class="party-chat-user-btn" data-chat-user="${escapeAttr(msg.user || 'User')}" data-chat-uid="${escapeHtml(String(uid))}"><span class="user${admin ? ' is-admin-name' : ''}">${escapeHtml(msg.user)}</span></button> <span class="party-chat-text">${escapeHtml(msg.text)}</span>`;
           const img = div.querySelector('.party-chat-avatar-btn img');
           if (img) {
             img.onerror = () => {
@@ -5117,19 +5132,19 @@
         ? '<span class="mic-live"><i class="fas fa-microphone"></i></span>'
         : '';
     const crown = s.host ? '<span class="seat-crown">👑</span>' : '';
+    const admin = memberIsAdminMarked(s) || isAdminUserId(s.userId);
     const adminBadge =
-      !s.host && (s.isAdmin || s.role === 'admin' || isAdminUserId(s.userId))
-        ? '<span class="seat-admin-badge">Admin</span>'
-        : '';
+      !s.host && admin ? '<span class="seat-admin-badge">Admin</span>' : '';
     const waveBars = s.speaking
       ? '<div class="seat-wave-bars"><span></span><span></span><span></span><span></span></div>'
       : '';
     return `
-      <button type="button" class="party-seat${hostCls}${speaking}${mutedCls} ${tierCls}" data-seat="${seatNum}" data-user="${escapeHtml(s.name)}" data-user-id="${escapeHtml(String(s.userId || ''))}">
-        <div class="seat-avatar">
+      <button type="button" class="party-seat${hostCls}${speaking}${mutedCls} ${tierCls}${admin ? ' is-admin-user' : ''}" data-seat="${seatNum}" data-user="${escapeHtml(s.name)}" data-user-id="${escapeHtml(String(s.userId || ''))}">
+        <div class="seat-avatar${adminAvatarFrameClass(admin)}">
           <span class="seat-num">${seatNum}</span>
           ${crown}
           ${adminBadge}
+          ${adminAvatarTagHtml(admin)}
           <img src="${avatarUrl(s.name, s.profilePic || liveProfilePic(s.userId, s.host ? resolveHostProfilePic() : null))}" alt="" data-name="${escapeAttr(s.name || 'User')}" loading="eager" decoding="async">
           ${mic}
           ${waveBars}
@@ -5554,11 +5569,15 @@
       .map((s) => {
         const uid = String(s.userId || '');
         const canRemove = canModerateRoom() && uid && !isRoomHostUserId(uid);
+        const admin = memberIsAdminMarked(s) || isAdminUserId(uid);
         return `
-      <button type="button" class="ap-guest-seat" data-guest="${escapeHtml(s.name)}" data-guest-id="${escapeHtml(uid)}">
+      <button type="button" class="ap-guest-seat${admin ? ' is-admin-user' : ''}" data-guest="${escapeHtml(s.name)}" data-guest-id="${escapeHtml(uid)}">
         ${canRemove ? `<span class="ap-guest-remove" data-remove-guest="${escapeHtml(uid)}" title="Remove guest" aria-label="Remove guest">×</span>` : ''}
         <span class="ap-guest-gift">${formatGiftCount(s.gifts || 0)}</span>
-        <img src="${avatarUrl(s.name, s.profilePic || liveProfilePic(s.userId, null))}" alt="" data-name="${escapeAttr(s.name || 'Guest')}" loading="lazy">
+        <span class="ap-guest-avatar${adminAvatarFrameClass(admin)}">
+          ${adminAvatarTagHtml(admin)}
+          <img src="${avatarUrl(s.name, s.profilePic || liveProfilePic(s.userId, null))}" alt="" data-name="${escapeAttr(s.name || 'Guest')}" loading="lazy">
+        </span>
         <span class="ap-guest-name">${escapeHtml(String(s.name).slice(0, 8))}</span>
       </button>`;
       })
@@ -5737,11 +5756,47 @@
   function isAdminUserId(userId) {
     const uid = String(userId || '');
     if (!uid) return false;
+    if (roomState?.hostId && uid === String(roomState.hostId) && roomState.hostIsPlatformAdmin) {
+      return true;
+    }
     return (roomState?.onlineMembers || []).some(
-      (m) => String(m.userId) === uid && (m.isAdmin || m.role === 'admin')
+      (m) =>
+        String(m.userId) === uid &&
+        (m.isAdmin || m.isPlatformAdmin || m.role === 'admin')
     ) || (roomState?.seats || []).some(
-      (s) => String(s.userId) === uid && (s.isAdmin || s.role === 'admin')
+      (s) =>
+        String(s.userId) === uid &&
+        (s.isAdmin || s.isPlatformAdmin || s.role === 'admin')
     );
+  }
+
+  function isPlatformAdminUserId(userId) {
+    const uid = String(userId || '');
+    if (!uid) return false;
+    if (roomState?.hostId && uid === String(roomState.hostId) && roomState.hostIsPlatformAdmin) {
+      return true;
+    }
+    return (roomState?.onlineMembers || []).some(
+      (m) => String(m.userId) === uid && m.isPlatformAdmin
+    ) || (roomState?.seats || []).some((s) => String(s.userId) === uid && s.isPlatformAdmin);
+  }
+
+  function memberIsAdminMarked(member) {
+    if (!member) return false;
+    return Boolean(
+      member.isAdmin ||
+        member.isPlatformAdmin ||
+        member.role === 'admin' ||
+        isAdminUserId(member.userId)
+    );
+  }
+
+  function adminAvatarFrameClass(isAdmin) {
+    return isAdmin ? ' ap-admin-frame' : '';
+  }
+
+  function adminAvatarTagHtml(isAdmin) {
+    return isAdmin ? '<span class="ap-admin-avatar-tag" title="Admin">ADMIN</span>' : '';
   }
 
   function ensureRoomBackgroundPicker() {
@@ -7997,8 +8052,9 @@
         'beforeend',
         `<div class="ap-modal-overlay align-bottom" id="apProfileSheet">
           <div class="ap-profile-sheet-panel">
-            <div class="ap-profile-avatar-wrap">
+            <div class="ap-profile-avatar-wrap" id="apProfileAvatarWrap">
               <img id="apProfileAvatar" src="" alt="">
+              <span class="ap-admin-avatar-tag" id="apProfileAdminTag" hidden>ADMIN</span>
               <span class="ap-profile-po-badge">PO</span>
             </div>
             <div class="ap-profile-head">
@@ -8312,13 +8368,27 @@
       name: n,
       userId: resolvedId ? String(resolvedId) : '',
       displayId: resolvedDisplayId ? String(resolvedDisplayId) : '',
+      isAdmin: Boolean(
+        memberIsAdminMarked(seatHit) ||
+          isAdminUserId(resolvedId) ||
+          (resolvedId &&
+            roomState?.hostId &&
+            String(resolvedId) === String(roomState.hostId) &&
+            roomState.hostIsPlatformAdmin)
+      ),
     };
 
     const sheet = document.getElementById('apProfileSheet');
     if (sheet) {
       if (activeProfileUser.userId) sheet.dataset.userId = activeProfileUser.userId;
       else delete sheet.dataset.userId;
+      sheet.classList.toggle('is-admin-profile', activeProfileUser.isAdmin);
     }
+
+    const avatarWrap = document.getElementById('apProfileAvatarWrap');
+    const adminTag = document.getElementById('apProfileAdminTag');
+    if (avatarWrap) avatarWrap.classList.toggle('ap-admin-frame', activeProfileUser.isAdmin);
+    if (adminTag) adminTag.hidden = !activeProfileUser.isAdmin;
 
     const img = document.getElementById('apProfileAvatar');
     const nm = document.getElementById('apProfileName');
@@ -8329,13 +8399,20 @@
       img.src = avatarUrl(n, initialPic);
       img.dataset.userId = resolvedId || '';
     }
-    if (nm) nm.textContent = n;
+    if (nm) {
+      nm.textContent = n;
+      nm.classList.toggle('is-admin-name', activeProfileUser.isAdmin);
+    }
     const idDisplay =
       window.formatUserDisplayId?.(null, activeProfileUser.displayId) ||
       activeProfileUser.displayId ||
       '';
     if (idEl) {
-      idEl.innerHTML = `ID: ${idDisplay || '—'} <button type="button" id="apProfileCopyId" aria-label="Copy ID"><i class="far fa-copy"></i></button>`;
+      const idHtml =
+        window.formatAdminIdHtml?.(idDisplay, { isAdmin: activeProfileUser.isAdmin }) ||
+        `ID: ${idDisplay || '—'}`;
+      idEl.innerHTML = `${idHtml} <button type="button" id="apProfileCopyId" aria-label="Copy ID"><i class="far fa-copy"></i></button>`;
+      idEl.classList.toggle('is-admin-id', activeProfileUser.isAdmin);
       document.getElementById('apProfileCopyId')?.addEventListener('click', () => {
         const full = idDisplay || activeProfileUser.displayId;
         if (!full) return;

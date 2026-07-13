@@ -219,13 +219,17 @@ async function getMemberProfilePic(userId) {
 async function getActiveMembers(liveRoomId) {
   const res = await db.query(
     `SELECT m.user_id, m.display_name, m.role, m.is_muted, m.gift_count, m.joined_at, m.seat_index,
-            m.last_seen_at, u.profile_pic, u.display_id
+            m.last_seen_at, u.profile_pic, u.display_id, u.role AS user_role
      FROM live_room_members m
      LEFT JOIN users u ON u.id = m.user_id
      WHERE m.live_room_id = $1 AND m.left_at IS NULL ORDER BY m.joined_at ASC`,
     [liveRoomId]
   );
   return res.rows;
+}
+
+function isPlatformAdminRole(role) {
+  return ['admin', 'super_admin', 'founder', 'ceo'].includes(String(role || '').toLowerCase());
 }
 
 async function getRecentEvents(liveRoomId, limit = 40) {
@@ -345,7 +349,8 @@ async function buildSnapshot(channel) {
       muted: m.is_muted,
       gifts: Number(m.gift_count),
       isHost: m.role === 'host',
-      isAdmin: m.role === 'admin',
+      isAdmin: m.role === 'admin' || isPlatformAdminRole(m.user_role),
+      isPlatformAdmin: isPlatformAdminRole(m.user_role),
       seatIndex: m.seat_index,
       agoraUid: uidFromUserId(m.user_id),
       role: m.role === 'viewer' && m.seat_index != null ? 'speaker' : m.role,
@@ -360,19 +365,23 @@ async function buildSnapshot(channel) {
     muted: m.is_muted,
     seatIndex: m.seat_index,
     isOnline: true,
+    isAdmin: m.role === 'admin' || isPlatformAdminRole(m.user_role),
+    isPlatformAdmin: isPlatformAdminRole(m.user_role),
     agoraUid: uidFromUserId(m.user_id),
   }));
 
   let hostProfilePic = null;
   let hostDisplayId = null;
+  let hostIsPlatformAdmin = false;
   if (room.host_user_id) {
     const hostPicRes = await db.query(
-      `SELECT profile_pic, display_id FROM users WHERE id = $1`,
+      `SELECT profile_pic, display_id, role FROM users WHERE id = $1`,
       [room.host_user_id]
     );
     hostProfilePic = hostPicRes.rows[0]?.profile_pic || null;
     hostDisplayId =
       hostPicRes.rows[0]?.display_id != null ? String(hostPicRes.rows[0].display_id) : null;
+    hostIsPlatformAdmin = isPlatformAdminRole(hostPicRes.rows[0]?.role);
   }
 
   return {
@@ -383,6 +392,7 @@ async function buildSnapshot(channel) {
     hostName: room.host_display_name,
     hostDisplayId,
     hostProfilePic,
+    hostIsPlatformAdmin,
     viewers: room.viewer_count,
     pkStatus: room.pk_status,
     messages,

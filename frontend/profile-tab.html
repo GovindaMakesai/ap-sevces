@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#c9a227">
   <title>Me - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-theme.css?v=20260628-profile-fix">
+  <link rel="stylesheet" href="social-theme.css?v=20260713-admin-badge">
   <link rel="stylesheet" href="social-features.css">
   <style>
     html:not(.profile-ready) .social-profile-hero,
@@ -32,17 +32,18 @@
 <body class="social-profile-page">
   <div class="profile-loading-bar" id="profileLoadingBar"></div>
   <div class="social-profile-hero">
-    <div class="social-profile-avatar-wrap">
+    <div class="social-profile-avatar-wrap" id="profileAvatarWrap">
       <button type="button" class="social-profile-avatar-btn" id="profileAvatarBtn" aria-label="Change profile picture">
         <img id="profileAvatar" alt="Profile" data-profile-avatar="1" decoding="async">
         <span class="social-profile-avatar-edit" aria-hidden="true"><i class="fas fa-camera"></i></span>
       </button>
+      <span class="ap-admin-avatar-tag" id="profileAdminTag" hidden>ADMIN</span>
       <input type="file" id="profileAvatarInput" class="rc-file-input-hidden" accept="image/jpeg,image/png,image/webp,image/*" tabindex="-1" aria-hidden="true">
     </div>
     <h2 id="profileName">&nbsp;</h2>
     <p id="profileRole">&nbsp;</p>
     <div class="social-profile-uid" id="profileUidRow" style="display:none">
-      <span>ID: <strong id="profileUserId">—</strong></span>
+      <span id="profileUidLabel">ID: <strong id="profileUserId">—</strong></span>
       <button type="button" class="social-copy-id-btn" id="profileCopyId" aria-label="Copy user ID"><i class="fas fa-copy"></i></button>
     </div>
     <div class="social-profile-stats" id="profileStats" style="display:none">
@@ -132,7 +133,7 @@
   <div id="social-bottom-nav-mount"></div>
 
   <script src="ap-config.js"></script>
-  <script src="app.js?v=20260713-display-id"></script>
+  <script src="app.js?v=20260713-admin-badge"></script>
   <script src="social-wallet.js"></script>
   <script src="social-ui.js?v=20260624-profile-url-fix"></script>
   <script src="social-interactions.js?v=20260624-profile-url-fix"></script>
@@ -190,6 +191,34 @@
         } else {
           fallback();
         }
+        const isAdmin = window.isPlatformAdminUser?.(user) || user.is_admin === true;
+        document.getElementById('profileAvatarWrap')?.classList.toggle('ap-admin-frame', isAdmin);
+        const tag = document.getElementById('profileAdminTag');
+        if (tag) tag.hidden = !isAdmin;
+        document.getElementById('profileName')?.classList.toggle('is-admin-name', isAdmin);
+      }
+
+      function paintAdminIdRow(user) {
+        const uidRow = document.getElementById('profileUidRow');
+        const uidLabel = document.getElementById('profileUidLabel');
+        const uidEl = document.getElementById('profileUserId');
+        const publicId = window.formatUserDisplayId?.(user) || '';
+        const isAdmin = window.isPlatformAdminUser?.(user) || user?.is_admin === true;
+        if (uidLabel) {
+          if (isAdmin && publicId) {
+            uidLabel.innerHTML =
+              window.formatAdminIdHtml?.(publicId, { isAdmin: true }) ||
+              `<span class="ap-admin-id"><span class="ap-admin-id-tag">ADMIN</span><span class="ap-admin-id-num">${publicId}</span></span>`;
+          } else {
+            uidLabel.innerHTML = `ID: <strong id="profileUserId">${publicId || '—'}</strong>`;
+          }
+        } else if (uidEl) {
+          uidEl.textContent = publicId || '—';
+        }
+        if (uidRow) {
+          uidRow.style.display = 'flex';
+          uidRow.classList.toggle('is-admin-id', isAdmin);
+        }
       }
 
       function paintProfileHeader(user) {
@@ -210,6 +239,7 @@
         document.getElementById('profileRole').textContent =
           roleLabel + (user.email ? ' · ' + user.email.split('@')[0] : '');
         paintProfileAvatar(user);
+        paintAdminIdRow(user);
       }
 
       function applyUserUpdate(updated) {
@@ -342,13 +372,7 @@
         paintProfileHeader(user);
         document.getElementById('editProfileBtn').style.display = 'flex';
         document.getElementById('editProfileMenuLink').style.display = 'flex';
-        const uidRow = document.getElementById('profileUidRow');
-        const uidEl = document.getElementById('profileUserId');
-        const publicId = window.formatUserDisplayId?.(user) || '';
-        if (uidEl) {
-          uidEl.textContent = publicId || '…';
-          if (uidRow) uidRow.style.display = 'flex';
-        }
+        paintAdminIdRow(user);
         // Force a fresh /auth/me so display_id is never stuck on old localStorage UUID era
         (async () => {
           try {
@@ -359,8 +383,8 @@
               localStorage.setItem('user', JSON.stringify(fresh));
               if (window.AppState) AppState.user = fresh;
               user = fresh;
-              const id = window.formatUserDisplayId?.(fresh) || '';
-              if (uidEl) uidEl.textContent = id || '—';
+              paintAdminIdRow(fresh);
+              paintProfileAvatar(fresh);
             }
           } catch (_e) {}
         })();
