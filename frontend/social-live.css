@@ -46,11 +46,12 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  max-width: 40%;
-  min-width: 0;
+  min-width: 128px;
+  max-width: min(58vw, calc(100vw - 132px));
+  flex: 1 1 auto;
   flex-shrink: 1;
   position: relative;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .party-host > img {
@@ -65,7 +66,7 @@
   flex-shrink: 0;
 }
 
-.party-host { flex: 1 1 auto; min-width: 0; max-width: calc(100vw - 120px); }
+.party-host { flex: 1 1 auto; min-width: 128px; max-width: min(58vw, calc(100vw - 132px)); }
 .party-host-meta { min-width: 0; flex: 1; overflow: hidden; }
 .party-host-meta .name {
   font-size: 13px;
@@ -73,7 +74,7 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: min(42vw, 160px);
+  max-width: 100%;
   line-height: 1.25;
 }
 .party-host-meta .sub {
@@ -2332,8 +2333,22 @@ body.live-feed-mode .live-feed-rail { display: flex; }
   width: 64px; height: 64px; border-radius: 50%;
   border: 3px solid #a855f7; object-fit: cover;
 }
-.ap-profile-head .info { flex: 1; min-width: 0; }
-.ap-profile-head .info h3 { margin: 0; font-size: 17px; color: #111; }
+.ap-profile-head .info { flex: 1; min-width: 0; overflow: hidden; }
+.ap-profile-head .info h3 {
+  margin: 0;
+  font-size: 17px;
+  color: #111;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.ap-profile-id-row {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
 .ap-profile-badges { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
 .ap-profile-badges span {
   font-size: 10px; font-weight: 700; padding: 2px 8px;
@@ -2396,7 +2411,15 @@ body.live-feed-mode .live-feed-rail { display: flex; }
   border: 2px solid transparent; object-fit: cover;
 }
 .gift-recipient.is-active img { border-color: #fbbf24; }
-.gift-recipient span { display: block; font-size: 9px; margin-top: 2px; max-width: 48px; overflow: hidden; text-overflow: ellipsis; }
+.gift-recipient span {
+  display: block;
+  font-size: 9px;
+  margin-top: 2px;
+  max-width: 48px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .gift-qty-row {
   display: flex; align-items: center; justify-content: space-between;
   margin-top: 12px; gap: 8px;
@@ -2831,9 +2854,11 @@ body[data-live-page="party-room"] .ap-guest-rail:not(:empty) {
   color: #fff;
   margin-top: 2px;
   text-shadow: 0 1px 3px rgba(0,0,0,0.8);
-  max-width: 52px;
+  max-width: 64px;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+  word-break: normal;
 }
 
 @keyframes ap-emoji-float-up {
@@ -2853,11 +2878,13 @@ body[data-live-page="party-room"] .ap-guest-rail:not(:empty) {
   filter: drop-shadow(0 2px 4px rgba(0,0,0,0.45));
 }
 .seat-avatar,
-.ap-guest-seat,
-.party-host {
+.ap-guest-seat {
   overflow: visible;
 }
 .seat-avatar {
+  overflow: hidden;
+}
+.party-host {
   overflow: hidden;
 }
 
@@ -3991,7 +4018,7 @@ html.ap-expo-app .ap-chip {
   display: flex;
   align-items: flex-start;
   gap: 6px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 .party-chat-avatar-btn,
 .party-chat-user-btn {
@@ -4001,6 +4028,7 @@ html.ap-expo-app .ap-chip {
   cursor: pointer;
   touch-action: manipulation;
   flex-shrink: 0;
+  max-width: 42%;
 }
 .party-chat-avatar-btn {
   width: 22px;
@@ -4023,13 +4051,20 @@ html.ap-expo-app .ap-chip {
   background: rgba(255, 255, 255, 0.12);
 }
 .party-chat-text {
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
+  overflow-wrap: anywhere;
   word-break: break-word;
 }
 .party-chat-user-btn .user {
   font-weight: 700;
   color: #fbbf24;
+  display: inline-block;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
 }
 .party-gift-analytics,
 .party-gift-history {
@@ -4074,6 +4109,7 @@ html.ap-expo-app .ap-chip {
   justify-content: center;
   gap: 4px;
   min-height: 64px;
+  min-width: 0;
   border: 1px solid #e5e7eb;
   border-radius: 14px;
   background: #f9fafb;
@@ -4082,6 +4118,15 @@ html.ap-expo-app .ap-chip {
   font-weight: 700;
   cursor: pointer;
   touch-action: manipulation;
+  overflow: hidden;
+  padding: 8px 4px;
+}
+.ap-profile-action-btn span {
+  display: block;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .ap-profile-action-btn i { font-size: 16px; color: #7c3aed; }
 .ap-profile-action-btn--primary {
@@ -4256,3 +4301,32 @@ html.ap-expo-app .ap-chip {
   color: #fde68a;
 }
 .party-bg-tile.is-premium { border-color: rgba(251, 191, 36, 0.55); }
+
+/* Prevent name/detail letter-stacking when flex/grid cells shrink */
+.party-host-meta .name,
+.party-host-meta .sub,
+.live-room-id-line,
+#liveRoomId,
+#partyRoomId,
+.seat-name,
+.ap-guest-name,
+.ap-profile-head .info h3,
+.ap-profile-id-row,
+.party-chat-user-btn .user,
+.party-req-row .info strong,
+.gift-recipient span,
+.party-event-pill .pill-title,
+.ap-profile-action-btn span,
+.party-gift-history-row span,
+.party-gift-stat-row span {
+  white-space: nowrap !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: normal !important;
+  overflow-wrap: normal !important;
+}
+.party-chat-text {
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
