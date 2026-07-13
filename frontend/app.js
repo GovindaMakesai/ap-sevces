@@ -862,21 +862,28 @@ const Auth = {
             localStorage.removeItem('token');
             AppState.token = null;
         }
-        if (!localStorage.getItem('user')) return null;
+        if (!localStorage.getItem('user') && !localStorage.getItem('ap_refresh_token')) {
+            return null;
+        }
         if (this._ensuringToken) return this._ensuringToken;
 
         this._ensuringToken = (async () => {
             try {
-                let ok = await this.tryRefresh();
-                if (ok) return localStorage.getItem('token');
-
+                // Native: ask the shell to re-inject tokens first (user can exist without token).
                 if (isNativeAppContext()) {
                     await this.requestNativeSession();
-                    ok = await this.tryRefresh();
-                    if (ok) return localStorage.getItem('token');
+                    const afterInject = localStorage.getItem('token');
+                    if (afterInject && isAccessTokenUsable(afterInject)) return afterInject;
                 }
 
-                if (!isNativeAppContext()) {
+                let ok = await this.tryRefresh();
+                if (ok) {
+                    const t = localStorage.getItem('token');
+                    if (t && isAccessTokenUsable(t)) return t;
+                }
+
+                // Cookie / httpOnly session — works in WebView when refresh cookie is present.
+                try {
                     const res = await fetch(joinApiUrl('/auth/ws-token'), {
                         method: 'GET',
                         credentials: 'include',
@@ -884,8 +891,20 @@ const Auth = {
                     const data = await res.json().catch(() => ({}));
                     if (res.ok && data.success && data.data?.accessToken) {
                         storeSessionTokens(data.data);
+                        if (data.data.user) {
+                            AppState.user = data.data.user;
+                            localStorage.setItem('user', JSON.stringify(data.data.user));
+                        }
                         return data.data.accessToken;
                     }
+                } catch (_e) {
+                    /* ignore */
+                }
+
+                if (isNativeAppContext()) {
+                    await this.requestNativeSession();
+                    ok = await this.tryRefresh();
+                    if (ok) return localStorage.getItem('token');
                 }
             } catch (_e) {
                 /* ignore */
@@ -918,9 +937,11 @@ const Auth = {
                     body: JSON.stringify(body),
                 });
                 const data = await res.json().catch(() => ({}));
-                if (res.ok && data.success && data.data?.user) {
-                    AppState.user = data.data.user;
-                    localStorage.setItem('user', JSON.stringify(data.data.user));
+                if (res.ok && data.success && data.data?.accessToken) {
+                    if (data.data.user) {
+                        AppState.user = data.data.user;
+                        localStorage.setItem('user', JSON.stringify(data.data.user));
+                    }
                     storeSessionTokens(data.data);
                     return true;
                 }

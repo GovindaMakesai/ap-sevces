@@ -8,7 +8,7 @@
     { id: 'video', href: '/video.html', icon: 'fa-video' },
     { id: 'rankings', href: '/rankings.html', icon: 'fa-trophy' },
     { id: 'explore', href: '/explore.html', icon: 'planet', center: true },
-    { id: 'chat', href: '/chat.html?_cb=20260713c', icon: 'fa-comment-dots', badge: true },
+    { id: 'chat', href: '/chat.html?_cb=20260713d', icon: 'fa-comment-dots', badge: true },
     { id: 'profile', href: '/profile-tab.html', icon: 'fa-user' },
   ];
 

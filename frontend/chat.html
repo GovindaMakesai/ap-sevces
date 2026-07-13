@@ -9,7 +9,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <script src="/ap-native-boot.js"></script>
     <link rel="stylesheet" href="/social-theme.css?v=20260626-discover-chat">
-    <link rel="stylesheet" href="/social-chat.css?v=20260713-msg-fix2">
+    <link rel="stylesheet" href="/social-chat.css?v=20260713-token-fix">
     
     <!-- Font Awesome 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -1472,14 +1472,14 @@
     <div id="toast" class="toast"></div>
 
     <!-- Socket.io loaded async after chat boot (sync CDN was blocking Messages on slow networks) -->
-    <script src="app.js?v=20260713-msg-fix2"></script>
+    <script src="app.js?v=20260713-token-fix"></script>
     <script src="auth-guard.js"></script>
     <script src="social-ui.js?v=20260702-follow-fix"></script>
     <script src="social-interactions.js?v=20260628-perf"></script>
     <script src="social-wallet.js"></script>
     <script src="live-emoji-data.js"></script>
     <script src="social-fx.js"></script>
-    <script src="social-shell.js?v=20260713-msg-fix2"></script>
+    <script src="social-shell.js?v=20260713-token-fix"></script>
     <script src="social-nav.js"></script>
     
     <script>
@@ -1532,12 +1532,12 @@
 
         async function bootChatPage() {
             try {
-                const bustKey = 'chat_cb_20260713c';
+                const bustKey = 'chat_cb_20260713d';
                 if (!sessionStorage.getItem(bustKey)) {
                     sessionStorage.setItem(bustKey, '1');
                     const u = new URL(location.href);
-                    if (u.searchParams.get('_cb') !== '20260713c') {
-                        u.searchParams.set('_cb', '20260713c');
+                    if (u.searchParams.get('_cb') !== '20260713d') {
+                        u.searchParams.set('_cb', '20260713d');
                         location.replace(u.toString());
                         return;
                     }
@@ -1584,37 +1584,64 @@
             }
 
             const waitForSession = async () => {
-                if (Auth.hasSession?.() || Auth.checkAuth?.() || getChatToken()) return true;
+                const hasUsableToken = () => {
+                    const t = getChatToken();
+                    if (!t) return false;
+                    if (typeof Auth?.isAccessTokenUsable === 'function') return Auth.isAccessTokenUsable(t);
+                    return true;
+                };
+                if (hasUsableToken()) return true;
+
+                paintListStatus('Loading messages…', 'Restoring login…');
+
                 if (typeof isNativeAppContext === 'function' && isNativeAppContext()) {
                     await new Promise((resolve) => {
                         let done = false;
                         const finish = () => { if (!done) { done = true; resolve(); } };
                         window.addEventListener('ap-session-injected', finish, { once: true });
-                        setTimeout(finish, 6000);
+                        try {
+                            if (window.ReactNativeWebView) {
+                                window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'request_session' }));
+                            }
+                        } catch (_e) { /* ignore */ }
+                        setTimeout(finish, 5000);
                     });
-                    await Promise.race([
-                        Promise.resolve(Auth.ensureAccessToken?.()).catch(() => {}),
-                        new Promise((r) => setTimeout(r, 4000)),
-                    ]);
-                    await Promise.race([
-                        Promise.resolve(Auth.repairSession?.()).catch(() => {}),
-                        new Promise((r) => setTimeout(r, 3000)),
-                    ]);
-                    await ensureChatUser();
-                } else {
-                    await ensureChatUser();
-                    await Promise.race([
-                        Promise.resolve(Auth.ensureAccessToken?.()).catch(() => {}),
-                        new Promise((r) => setTimeout(r, 4000)),
-                    ]);
+                    if (hasUsableToken()) return true;
                 }
-                return Boolean(Auth.hasSession?.() || Auth.checkAuth?.() || getChatToken());
+
+                await Promise.race([
+                    Promise.resolve(Auth.ensureAccessToken?.()).catch(() => {}),
+                    new Promise((r) => setTimeout(r, 6000)),
+                ]);
+                if (hasUsableToken()) return true;
+
+                await Promise.race([
+                    Promise.resolve(Auth.tryRefresh?.()).catch(() => {}),
+                    new Promise((r) => setTimeout(r, 4000)),
+                ]);
+                if (hasUsableToken()) return true;
+
+                await ensureChatUser();
+                return hasUsableToken();
             };
 
             const hasSession = await waitForSession();
             if (!hasSession) {
+                const hasUserOnly = Boolean(localStorage.getItem('user'));
                 if (typeof isNativeAppContext === 'function' && isNativeAppContext()) {
-                    window.location.replace('/app-auth.html?app=1&redirect=' + encodeURIComponent(location.pathname + location.search));
+                    paintListStatus(
+                        hasUserOnly ? 'Session expired' : 'Please sign in',
+                        hasUserOnly ? 'Tap to sign in again' : '',
+                        true
+                    );
+                    if (window.Toast?.show) {
+                        Toast.show(hasUserOnly ? 'Please sign in again to load messages' : 'Please login to use chat', 'warning');
+                    }
+                    setTimeout(() => {
+                        window.location.replace(
+                            '/app-auth.html?app=1&redirect=' + encodeURIComponent(location.pathname + location.search)
+                        );
+                    }, 900);
                     return;
                 }
                 paintListStatus('Please sign in to view messages', '', true);
@@ -2734,11 +2761,32 @@
                 if (typeof Auth?.ensureAccessToken === 'function') {
                     await Promise.race([
                         Auth.ensureAccessToken(),
-                        new Promise((r) => setTimeout(r, 2500)),
+                        new Promise((r) => setTimeout(r, 6000)),
                     ]).catch(() => {});
                 }
                 if (!getChatToken()) {
-                    throw Object.assign(new Error('No auth token — sign in again'), { status: 401 });
+                    if (typeof isNativeAppContext === 'function' && isNativeAppContext() && window.ReactNativeWebView) {
+                        paintChatLoading('Restoring login…');
+                        await new Promise((resolve) => {
+                            let done = false;
+                            const finish = () => { if (!done) { done = true; resolve(); } };
+                            window.addEventListener('ap-session-injected', finish, { once: true });
+                            try {
+                                window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'request_session' }));
+                            } catch (_e) { finish(); }
+                            setTimeout(finish, 5000);
+                        });
+                        await Promise.race([
+                            Promise.resolve(Auth.ensureAccessToken?.()).catch(() => {}),
+                            new Promise((r) => setTimeout(r, 4000)),
+                        ]);
+                    }
+                }
+                if (!getChatToken()) {
+                    throw Object.assign(new Error('No auth token — session expired, sign in again'), {
+                        status: 401,
+                        response: { status: 401, data: { message: 'Authentication required' } },
+                    });
                 }
                 paintChatLoading('Fetching chats…');
                 if (window.API?.clearGetCache) {

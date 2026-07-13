@@ -843,9 +843,49 @@ export default function App() {
         }
         if (data.type === 'request_session') {
           const sess = nativeSessionRef.current;
-          if (!sess?.user) return;
+          if (sess?.user) {
+            (async () => {
+              const fresh = await refreshNativeSession(sess);
+              nativeSessionRef.current = fresh;
+              const inject =
+                buildSessionInjectScript(fresh.user, fresh.accessToken, fresh.refreshToken) +
+                `try{window.dispatchEvent(new CustomEvent('ap-session-injected'));window.dispatchEvent(new CustomEvent('ap-session-restored'));}catch(e){};true;`;
+              webViewRef.current?.injectJavaScript(inject);
+            })();
+            return;
+          }
+          // App process lost in-memory session but WebView still has user — rebuild from WebView storage.
+          webViewRef.current?.injectJavaScript(`
+            (function(){
+              try {
+                var u = null;
+                try { u = JSON.parse(localStorage.getItem('user') || 'null'); } catch (_e) {}
+                window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
+                  type: 'session_snapshot',
+                  user: u,
+                  accessToken: localStorage.getItem('token') || null,
+                  refreshToken: localStorage.getItem('ap_refresh_token') || null
+                }));
+              } catch (e) {}
+              true;
+            })();
+          `);
+          return;
+        }
+        if (data.type === 'session_snapshot') {
+          if (!data.user) {
+            webViewRef.current?.injectJavaScript(
+              `try{window.dispatchEvent(new CustomEvent('ap-session-injected'));}catch(e){};true;`
+            );
+            return;
+          }
           (async () => {
-            const fresh = await refreshNativeSession(sess);
+            const seed = {
+              user: data.user,
+              accessToken: data.accessToken || null,
+              refreshToken: data.refreshToken || null,
+            };
+            const fresh = await refreshNativeSession(seed);
             nativeSessionRef.current = fresh;
             const inject =
               buildSessionInjectScript(fresh.user, fresh.accessToken, fresh.refreshToken) +
