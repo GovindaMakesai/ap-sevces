@@ -17,17 +17,20 @@ function sessionSecondsFromRow(row) {
   return Math.max(broadcast, elapsed);
 }
 
+function periodDays(period) {
+  if (period === 'week') return 7;
+  if (period === 'month') return 30;
+  const n = parseInt(period, 10);
+  if (Number.isFinite(n) && n >= 1 && n <= 90) return n;
+  return 1;
+}
+
 function periodStart(period) {
   const now = new Date();
-  if (period === 'week') {
+  const days = periodDays(period);
+  if (days > 1) {
     const d = new Date(now);
-    d.setDate(d.getDate() - 6);
-    d.setHours(0, 0, 0, 0);
-    return d;
-  }
-  if (period === 'month') {
-    const d = new Date(now);
-    d.setDate(d.getDate() - 29);
+    d.setDate(d.getDate() - (days - 1));
     d.setHours(0, 0, 0, 0);
     return d;
   }
@@ -196,6 +199,7 @@ async function getStreamerStats(userId, period = 'today') {
 
   return {
     period,
+    periodDays: periodDays(period),
     liveSeconds,
     partySeconds,
     totalSeconds,
@@ -219,6 +223,8 @@ async function getStreamerStats(userId, period = 'today') {
 module.exports = {
   HEARTBEAT_SECONDS,
   formatDuration,
+  periodDays,
+  periodStart,
   recordSessionEnd,
   accumulateHostHeartbeat,
   getStreamerStats,

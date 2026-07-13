@@ -1228,16 +1228,22 @@ body[data-live-page='live-room'] .live-room {
 .streamer-card h2 a { font-size: 12px; color: #ea580c; font-weight: 600; text-decoration: none; }
 
 .streamer-pills {
-  display: flex; gap: 8px; margin-bottom: 16px;
+  display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px;
 }
 .streamer-pills button {
-  flex: 1; border: none; padding: 8px; border-radius: 999px;
-  font-size: 12px; font-weight: 600; cursor: pointer;
+  flex: 1 1 auto; min-width: 88px; border: none; padding: 8px 10px; border-radius: 999px;
+  font-size: 11px; font-weight: 600; cursor: pointer;
   background: #f3f4f6; color: #6b7280;
 }
 .streamer-pills button.active {
   background: #ffedd5; color: #ea580c;
 }
+.streamer-period-days {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: #6b7280;
+}
+.streamer-period-days strong { color: #111827; }
 
 .streamer-metrics {
   display: grid; grid-template-columns: 1fr 1fr; gap: 16px;

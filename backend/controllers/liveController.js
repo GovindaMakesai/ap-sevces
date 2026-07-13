@@ -130,8 +130,12 @@ exports.confirmIdentityStep = async (req, res) => {
 exports.streamerStats = async (req, res) => {
   try {
     const periodRaw = String(req.query.period || 'today').toLowerCase();
-    const period =
-      periodRaw === 'week' || periodRaw === 'weekly' ? 'week' : periodRaw === 'month' || periodRaw === 'monthly' ? 'month' : 'today';
+    const daysQ = parseInt(req.query.days, 10);
+    let period = 'today';
+    if (Number.isFinite(daysQ) && daysQ >= 1 && daysQ <= 90) period = String(daysQ);
+    else if (periodRaw === 'week' || periodRaw === 'weekly') period = 'week';
+    else if (periodRaw === 'month' || periodRaw === 'monthly') period = 'month';
+    else if (/^\d+$/.test(periodRaw) && Number(periodRaw) >= 1 && Number(periodRaw) <= 90) period = periodRaw;
     const data = await getStreamerStats(req.userId, period);
     res.json({ success: true, data });
   } catch (error) {
@@ -143,8 +147,12 @@ exports.streamerStats = async (req, res) => {
 exports.myAnalytics = async (req, res) => {
   try {
     const periodRaw = String(req.query.period || 'today').toLowerCase();
-    const period =
-      periodRaw === 'week' || periodRaw === 'weekly' ? 'week' : periodRaw === 'month' || periodRaw === 'monthly' ? 'month' : 'today';
+    const daysQ = parseInt(req.query.days, 10);
+    let period = 'today';
+    if (Number.isFinite(daysQ) && daysQ >= 1 && daysQ <= 90) period = String(daysQ);
+    else if (periodRaw === 'week' || periodRaw === 'weekly') period = 'week';
+    else if (periodRaw === 'month' || periodRaw === 'monthly') period = 'month';
+    else if (/^\d+$/.test(periodRaw) && Number(periodRaw) >= 1 && Number(periodRaw) <= 90) period = periodRaw;
     const data = await getUserAnalytics(req.userId, period);
     res.json({ success: true, data });
   } catch (error) {

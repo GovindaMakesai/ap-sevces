@@ -1,24 +1,5 @@
 const db = require('../config/database');
-const { getStreamerStats, formatDuration, HEARTBEAT_SECONDS } = require('./liveHostStatsService');
-
-function periodStart(period) {
-  const now = new Date();
-  if (period === 'week') {
-    const d = new Date(now);
-    d.setDate(d.getDate() - 6);
-    d.setHours(0, 0, 0, 0);
-    return d;
-  }
-  if (period === 'month') {
-    const d = new Date(now);
-    d.setDate(d.getDate() - 29);
-    d.setHours(0, 0, 0, 0);
-    return d;
-  }
-  const d = new Date(now);
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
+const { getStreamerStats, formatDuration, HEARTBEAT_SECONDS, periodStart, periodDays } = require('./liveHostStatsService');
 
 async function upsertDailyStats(userId, statDate, patch) {
   const liveWatch = Number(patch.live_watch_seconds) || 0;
@@ -155,6 +136,7 @@ async function getUserAnalytics(userId, period = 'today') {
 
   return {
     period,
+    periodDays: periodDays(period),
     liveWatchSeconds,
     partyWatchSeconds,
     liveHostSeconds,

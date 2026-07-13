@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260712-cam-mirror-v3';
+  window.__AP_LIVE_BUILD = '20260713-media-health';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -325,6 +325,7 @@
     }
     if (lastJoinMeta?.isHost && publishSucceeded) {
       await applyLocalMicMuteState();
+      ensureHostVideoVisible();
       syncLiveUiState();
       hideApLoader();
       return;
@@ -340,10 +341,20 @@
       } catch (_e) {}
       return;
     }
+    await resubscribeAllRemoteMedia();
     remoteUsers.forEach((user) => {
       if (user.audioTrack && soundOn) {
         try {
           user.audioTrack.play();
+        } catch (_e) {}
+      }
+      if (user.videoTrack) {
+        try {
+          const container = document.getElementById('liveRemoteHost');
+          if (container) {
+            user.videoTrack.play(container);
+            setLiveStreamVisible(true);
+          }
         } catch (_e) {}
       }
     });
@@ -1440,6 +1451,23 @@
     hideApLoader();
     if (isParty && !sessionEstablished) onRoomReady();
     refreshViewerDiagnostics();
+
+    // Auto-recover intermittent publish/join failures (not permission/billing blocks).
+    const skipAuto =
+      reason === 'media_blocked' ||
+      /permission|NotAllowed|billing|CAN_NOT_GET_GATEWAY|suspended|quota/i.test(String(msg || '') + reason);
+    if (!skipAuto && !window.__apHostPublishAutoTries) window.__apHostPublishAutoTries = 0;
+    if (!skipAuto && window.__apHostPublishAutoTries < 3) {
+      window.__apHostPublishAutoTries += 1;
+      setTimeout(() => {
+        if (socketLeaveIntentional) return;
+        resumeHostBroadcastIfNeeded()
+          .then(() => {
+            if (publishSucceeded) window.__apHostPublishAutoTries = 0;
+          })
+          .catch(() => {});
+      }, 1500 * window.__apHostPublishAutoTries);
+    }
   }
 
   function ensureViewerDiagnostics() {
@@ -2323,21 +2351,57 @@
       forensicEvent('REMOTE_USER_PUBLISHED', { uid: user.uid, mediaType, channel: agoraChannel });
       await playRemoteMedia(user, mediaType);
     });
-    client.on('user-unpublished', (user) => {
-      liveDebugLog(`user-unpublished uid=${user.uid}`);
-      remoteUsers.delete(user.uid);
+    client.on('user-unpublished', (user, mediaType) => {
+      liveDebugLog(`user-unpublished uid=${user.uid} media=${mediaType || 'all'}`);
+      const existing = remoteUsers.get(user.uid) || user;
+      if (mediaType === 'video') {
+        try {
+          existing.videoTrack?.stop?.();
+        } catch (_e) {}
+        const container = document.getElementById('liveRemoteHost');
+        if (container && !existing.hasAudio) {
+          // Keep last frame briefly; only clear if nothing else is published.
+        }
+      } else if (mediaType === 'audio') {
+        try {
+          existing.audioTrack?.stop?.();
+        } catch (_e) {}
+      }
+      const stillHasVideo = mediaType === 'audio' ? Boolean(existing.hasVideo || existing.videoTrack) : false;
+      const stillHasAudio = mediaType === 'video' ? Boolean(existing.hasAudio || existing.audioTrack) : false;
+      if (!mediaType || (!stillHasVideo && !stillHasAudio && !existing.hasVideo && !existing.hasAudio)) {
+        remoteUsers.delete(user.uid);
+      } else {
+        remoteUsers.set(user.uid, existing);
+      }
       updateLiveDebug({ remoteUsersCount: remoteUsers.size });
       const container = document.getElementById('liveRemoteHost');
-      if (container && remoteUsers.size === 0) {
-        container.innerHTML = '';
-        setLiveStreamVisible(false);
-        if (!isHost()) applyLiveBackground(broadcastMode === 'audio' ? 'audio' : 'live', roomState?.hostName);
+      if (container && remoteUsers.size === 0 && mediaType !== 'audio') {
+        // Don't wipe on audio-only unpublish; camera flip briefly unpublishes video.
+        if (mediaType === 'video') {
+          // Leave container — health watchdog / republish will restore.
+        } else {
+          container.innerHTML = '';
+          setLiveStreamVisible(false);
+          if (!isHost()) applyLiveBackground(broadcastMode === 'audio' ? 'audio' : 'live', roomState?.hostName);
+        }
       }
       syncLiveUiState();
     });
     client.on('token-privilege-will-expire', () => {
       refreshAgoraTokenAndRenew().catch(() => {});
     });
+    client.on('connection-state-change', (cur, prev, reason) => {
+      liveDebugLog(`Agora connection ${prev} → ${cur} (${reason || ''})`);
+      if (cur === 'CONNECTED' && prev && prev !== 'CONNECTED') {
+        resubscribeAllRemoteMedia().catch(() => {});
+        if (isHost() || hasSpeakerSeat) ensureMicPublishing().catch(() => {});
+      }
+      if (cur === 'DISCONNECTED' || cur === 'FAILED') {
+        scheduleMediaRecover('connection_' + cur);
+      }
+    });
+    startMediaHealthWatchdog();
   }
 
   async function refreshAgoraTokenAndRenew() {
@@ -2347,6 +2411,107 @@
     if (!cred?.token) return;
     await agoraClient.renewToken(cred.token);
     liveDebugLog('Agora token renewed');
+  }
+
+  let __mediaRecoverTimer = null;
+  let __mediaRecoverBusy = false;
+  let __mediaBadStreak = 0;
+
+  async function resubscribeAllRemoteMedia() {
+    if (!agoraClient || !liveDebugState.agoraJoined) return;
+    const remotes = agoraClient.remoteUsers || [];
+    for (const user of remotes) {
+      try {
+        if (user.hasVideo) await playRemoteMedia(user, 'video');
+        if (user.hasAudio) await playRemoteMedia(user, 'audio');
+      } catch (_e) {}
+    }
+  }
+
+  function scheduleMediaRecover(reason) {
+    if (__mediaRecoverTimer) return;
+    __mediaRecoverTimer = setTimeout(async () => {
+      __mediaRecoverTimer = null;
+      if (__mediaRecoverBusy || socketLeaveIntentional) return;
+      __mediaRecoverBusy = true;
+      try {
+        liveDebugLog(`media recover: ${reason}`);
+        if (!agoraClient || !liveDebugState.agoraJoined) {
+          const page = document.body.dataset.livePage;
+          await startAgora(page === 'party-room' ? 'party' : 'live');
+        } else {
+          await resubscribeAllRemoteMedia();
+          if ((isHost() || hasSpeakerSeat) && !publishSucceeded) {
+            await ensureMicPublishing();
+          }
+          if (isHost() && broadcastMode !== 'audio' && publishSucceeded && !getLocalVideoTrack()) {
+            await resumeHostBroadcastIfNeeded();
+          }
+        }
+      } catch (e) {
+        liveDebugLog(`media recover failed: ${e?.message || e}`);
+      } finally {
+        __mediaRecoverBusy = false;
+      }
+    }, 1200);
+  }
+
+  function hasPlayingRemoteVideo() {
+    const container = document.getElementById('liveRemoteHost');
+    const vid = container?.querySelector?.('video');
+    if (!vid) return false;
+    return !vid.paused && vid.readyState >= 2 && vid.videoWidth > 0;
+  }
+
+  function startMediaHealthWatchdog() {
+    if (window.__apMediaHealthWatch) return;
+    window.__apMediaHealthWatch = setInterval(() => {
+      if (socketLeaveIntentional || !roomJoinCompleted) return;
+      if (document.visibilityState !== 'visible') return;
+      if (!agoraClient || !liveDebugState.agoraJoined) {
+        __mediaBadStreak += 1;
+        if (__mediaBadStreak >= 2) scheduleMediaRecover('not_joined');
+        return;
+      }
+
+      const remotes = agoraClient.remoteUsers || [];
+      const expectRemoteAv = !isHost() || remotes.length > 0;
+      let unhealthy = false;
+
+      if (!isHost() && remotes.length === 0) {
+        // Host may briefly have no remotes during camera flip — wait a bit.
+        __mediaBadStreak += 1;
+        if (__mediaBadStreak >= 3) unhealthy = true;
+      }
+
+      for (const user of remotes) {
+        if (user.hasVideo && !hasPlayingRemoteVideo()) unhealthy = true;
+        if (user.hasAudio && soundOn && user.audioTrack) {
+          try {
+            // If track exists but play was lost, replay.
+            user.audioTrack.play?.();
+          } catch (_e) {
+            unhealthy = true;
+          }
+        }
+      }
+
+      if (isHost() && publishSucceeded) {
+        const audio = getLocalAudioTrack?.();
+        const video = broadcastMode === 'audio' ? true : getLocalVideoTrack?.();
+        if (!audio || (broadcastMode !== 'audio' && !video)) unhealthy = true;
+      }
+
+      if (unhealthy) {
+        __mediaBadStreak += 1;
+        if (__mediaBadStreak >= 2) {
+          __mediaBadStreak = 0;
+          scheduleMediaRecover('health_watchdog');
+        }
+      } else {
+        __mediaBadStreak = 0;
+      }
+    }, 4000);
   }
 
   async function joinAgoraWithRetry(client, channel, asPublisher, maxAttempts = 3) {
@@ -3213,6 +3378,21 @@
     const oldVideo = getLocalVideoTrack();
     const audioTrack = localTracks.find((t) => (t.getTrackType?.() || t.trackMediaType) === 'audio');
     if (!agoraClient || !publishSucceeded) return null;
+
+    // Create + publish new first so viewers keep a stream during camera flip.
+    const newVideo = await AgoraRTC.createCameraVideoTrack({
+      facingMode: nextFacing,
+    });
+    try {
+      await agoraClient.publish(newVideo);
+    } catch (pubErr) {
+      try {
+        newVideo.stop();
+        newVideo.close();
+      } catch (_e) {}
+      throw pubErr;
+    }
+
     if (oldVideo) {
       try {
         await agoraClient.unpublish([oldVideo]);
@@ -3222,11 +3402,8 @@
         oldVideo.close();
       } catch (_e) {}
     }
-    const newVideo = await AgoraRTC.createCameraVideoTrack({
-      facingMode: nextFacing,
-    });
+
     localTracks = audioTrack ? [audioTrack, newVideo] : [newVideo];
-    await agoraClient.publish(newVideo);
     cameraFacing = detectCameraFacing(newVideo, nextFacing);
     playLocalHostPreview(newVideo);
     return newVideo;
@@ -5431,20 +5608,38 @@
 
   async function playRemoteMedia(user, mediaType) {
     if (!user || !agoraClient) return;
-    try {
-      await agoraClient.subscribe(user, mediaType);
-    } catch (subErr) {
-      const msg = subErr?.message || String(subErr);
-      liveDebugLog(`subscribe FAILED uid=${user.uid} media=${mediaType}: ${msg}`);
+    let subscribed = false;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        await agoraClient.subscribe(user, mediaType);
+        subscribed = true;
+        break;
+      } catch (subErr) {
+        const msg = subErr?.message || String(subErr);
+        liveDebugLog(`subscribe FAILED uid=${user.uid} media=${mediaType} attempt=${attempt}: ${msg}`);
+        if (attempt < 3) await new Promise((r) => setTimeout(r, 400 * attempt));
+      }
+    }
+    if (!subscribed) {
+      scheduleMediaRecover('subscribe_failed');
       return;
     }
     if (mediaType === 'video') {
       const container = document.getElementById('liveRemoteHost');
       const root = document.getElementById('liveRoomRoot');
       if (root) root.classList.remove('is-audio-mode');
-      if (container) {
+      if (container && user.videoTrack) {
         container.innerHTML = '';
-        user.videoTrack.play(container);
+        try {
+          user.videoTrack.play(container);
+        } catch (playErr) {
+          liveDebugLog(`video play failed: ${playErr?.message || playErr}`);
+          setTimeout(() => {
+            try {
+              user.videoTrack?.play(container);
+            } catch (_e2) {}
+          }, 400);
+        }
       }
       const bg = document.getElementById('liveBg');
       if (bg) bg.style.display = 'none';
@@ -7511,6 +7706,30 @@
   let streamerStatsPeriod = 'today';
   let userAnalyticsPeriod = 'today';
 
+  function periodDaysLabel(period) {
+    if (period === 'week') return 7;
+    if (period === 'month') return 30;
+    const n = parseInt(period, 10);
+    if (Number.isFinite(n) && n >= 1) return n;
+    return 1;
+  }
+
+  function setPeriodDaysUi(kind, days) {
+    const n = Math.max(1, Number(days) || 1);
+    const dayWord = n === 1 ? 'day' : 'days';
+    if (kind === 'stats') {
+      const el = document.getElementById('streamerPeriodDays');
+      if (el) el.textContent = String(n);
+      const label = document.getElementById('streamerPeriodDaysLabel');
+      if (label) label.innerHTML = `Showing <strong>${n}</strong> ${dayWord}`;
+    } else {
+      const el = document.getElementById('activityPeriodDays');
+      if (el) el.textContent = String(n);
+      const label = document.getElementById('activityPeriodDaysLabel');
+      if (label) label.innerHTML = `Showing <strong>${n}</strong> ${dayWord}`;
+    }
+  }
+
   function formatActivityDuration(totalSeconds) {
     const sec = Math.max(0, Math.floor(Number(totalSeconds) || 0));
     const h = Math.floor(sec / 3600);
@@ -7525,10 +7744,13 @@
       const el = document.getElementById(id);
       if (el) el.textContent = val;
     };
+    setPeriodDaysUi('activity', periodDaysLabel(userAnalyticsPeriod));
     try {
       if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken().catch(() => {});
       const res = await API.get('/live/my-analytics?period=' + encodeURIComponent(period));
       const data = res?.data || {};
+      const days = Number(data.periodDays) || periodDaysLabel(period);
+      setPeriodDaysUi('activity', days);
       setText('activityWatchTime', data.totalWatchFormatted || formatActivityDuration(data.totalWatchSeconds));
       setText('activityHostTime', data.totalHostFormatted || formatActivityDuration(data.totalHostSeconds));
       setText('activityGiftsSent', String(data.giftsSentCoins || 0));
@@ -7546,10 +7768,13 @@
       const el = document.getElementById(id);
       if (el) el.textContent = val;
     };
+    setPeriodDaysUi('stats', periodDaysLabel(streamerStatsPeriod));
     try {
       if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken().catch(() => {});
       const res = await API.get('/live/streamer-stats?period=' + encodeURIComponent(period));
       const data = res?.data || {};
+      const days = Number(data.periodDays) || periodDaysLabel(period);
+      setPeriodDaysUi('stats', days);
       const hours = data.totalFormatted || '00:00:00';
       const points = Number(data.giftCoins || 0);
       const followers = Number(data.newFollowers || 0);
@@ -7580,12 +7805,19 @@
       uidEl.textContent = 'ID:' + (String(user.id || user.email || '').slice(0, 12) || '76471242');
     }
 
-    document.querySelectorAll('.streamer-pills button').forEach((btn, idx) => {
+    document.querySelectorAll('[data-stats-period]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        document.querySelectorAll('.streamer-pills button').forEach((b) => b.classList.remove('active'));
+        document.querySelectorAll('[data-stats-period]').forEach((b) => b.classList.remove('active'));
         btn.classList.add('active');
-        const periods = ['today', 'week', 'month'];
-        loadStreamerStats(periods[idx] || 'today');
+        loadStreamerStats(btn.dataset.statsPeriod || 'today');
+      });
+    });
+
+    document.querySelectorAll('[data-activity-period]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-activity-period]').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        loadUserAnalytics(btn.dataset.activityPeriod || 'today');
       });
     });
 
@@ -7607,14 +7839,6 @@
         }
       });
     }
-
-    document.querySelectorAll('[data-activity-period]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('[data-activity-period]').forEach((b) => b.classList.remove('active'));
-        btn.classList.add('active');
-        loadUserAnalytics(btn.dataset.activityPeriod || 'today');
-      });
-    });
 
     document.getElementById('streamerStartLive')?.addEventListener('click', () => {
       if (window.SocialShell?.openBroadcastPicker) SocialShell.openBroadcastPicker('live');

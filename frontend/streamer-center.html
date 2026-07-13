@@ -18,12 +18,16 @@
 
   <section class="streamer-card">
     <h2>Live Stream Data <a href="/rankings.html?app=1">More data &gt;</a></h2>
-    <div class="streamer-pills">
-      <button type="button" class="active">Today</button>
-      <button type="button">This week</button>
-      <button type="button">This month</button>
+    <div class="streamer-pills" id="streamerStatsPills">
+      <button type="button" class="active" data-stats-period="today">Today · 1 day</button>
+      <button type="button" data-stats-period="week">This week · 7 days</button>
+      <button type="button" data-stats-period="month">This month · 30 days</button>
+      <button type="button" data-stats-period="14">14 days</button>
+      <button type="button" data-stats-period="90">90 days</button>
     </div>
+    <p class="streamer-period-days" id="streamerPeriodDaysLabel">Showing <strong>1</strong> day</p>
     <div class="streamer-metrics" id="streamerPeriodMetrics">
+      <div class="metric"><div class="val" id="streamerPeriodDays">1</div><div class="lbl">Number of days</div></div>
       <div class="metric"><div class="val" id="streamerLiveHours">00:00:00</div><div class="lbl">Hours of Live Streaming</div></div>
       <div class="metric"><div class="val" id="streamerWonPoints">0</div><div class="lbl">Won points</div></div>
       <div class="metric"><div class="val" id="streamerNewFollowers">0</div><div class="lbl">New followers</div></div>
@@ -33,12 +37,16 @@
 
   <section class="streamer-card">
     <h2>Your activity <span style="font-size:11px;font-weight:600;color:#9ca3af">watch + host + gifts</span></h2>
-    <div class="streamer-pills streamer-activity-pills">
-      <button type="button" class="active" data-activity-period="today">Today</button>
-      <button type="button" data-activity-period="week">This week</button>
-      <button type="button" data-activity-period="month">This month</button>
+    <div class="streamer-pills streamer-activity-pills" id="streamerActivityPills">
+      <button type="button" class="active" data-activity-period="today">Today · 1 day</button>
+      <button type="button" data-activity-period="week">This week · 7 days</button>
+      <button type="button" data-activity-period="month">This month · 30 days</button>
+      <button type="button" data-activity-period="14">14 days</button>
+      <button type="button" data-activity-period="90">90 days</button>
     </div>
+    <p class="streamer-period-days" id="activityPeriodDaysLabel">Showing <strong>1</strong> day</p>
     <div class="streamer-metrics" id="userActivityMetrics">
+      <div class="metric"><div class="val" id="activityPeriodDays">1</div><div class="lbl">Number of days</div></div>
       <div class="metric"><div class="val" id="activityWatchTime">00:00:00</div><div class="lbl">Watching live &amp; party</div></div>
       <div class="metric"><div class="val" id="activityHostTime">00:00:00</div><div class="lbl">Hosting time</div></div>
       <div class="metric"><div class="val" id="activityGiftsSent">0</div><div class="lbl">Gifts sent (coins)</div></div>
@@ -127,7 +135,7 @@
   <script src="auth-guard.js"></script>
   <script src="social-shell.js"></script>
   <script src="social-nav.js"></script>
-  <script src="social-live.js?v=20260628-analytics-mic"></script>
+  <script src="social-live.js?v=20260713-media-health"></script>
   <script>
     (function () {
       const user = window.Auth?.getUser?.() || null;
@@ -177,21 +185,6 @@
 
       document.getElementById('streamerStartParty')?.addEventListener('click', () => SocialShell?.goStartParty?.());
       document.getElementById('streamerStartLive')?.addEventListener('click', () => SocialShell?.goStartLive?.('video'));
-
-      const periodMap = ['today', 'week', 'month'];
-      document.querySelectorAll('.streamer-pills button').forEach((btn, idx) => {
-        btn.addEventListener('click', () => {
-          document.querySelectorAll('.streamer-pills button').forEach((b) => b.classList.remove('active'));
-          btn.classList.add('active');
-          const period = periodMap[idx] || 'today';
-          if (window.SocialLive?.loadStreamerStats) {
-            SocialLive.loadStreamerStats(period);
-          }
-          if (window.SocialLive?.loadUserAnalytics) {
-            SocialLive.loadUserAnalytics(period);
-          }
-        });
-      });
 
       (async function loadVerifyStatus() {
         const statusEl = document.getElementById('streamerVerifyStatus');
