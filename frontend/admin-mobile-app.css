@@ -118,7 +118,7 @@ html.ap-expo-app .dashboard-sidebar--mobile .sidebar-nav {
     width: 100% !important;
     max-width: 100% !important;
     min-width: 0 !important;
-    max-height: min(55vh, 420px) !important;
+    max-height: min(75vh, 640px) !important;
     gap: 4px !important;
     margin: 0 !important;
     padding: 4px 0 !important;

@@ -1150,7 +1150,7 @@
                 width: 100%;
                 max-width: 100%;
                 min-width: 0;
-                overflow: hidden;
+                overflow: visible;
                 box-sizing: border-box;
             }
 
@@ -1363,10 +1363,10 @@
             }
         }
     </style>
-    <link rel="stylesheet" href="dashboard-mobile.css">
-    <link rel="stylesheet" href="admin-mobile-app.css">
-    <link rel="stylesheet" href="admin-mobile-cards.css">
-    <link rel="stylesheet" href="admin-shared.css">
+    <link rel="stylesheet" href="dashboard-mobile.css?v=20260714-withdrawals">
+    <link rel="stylesheet" href="admin-mobile-app.css?v=20260714-withdrawals">
+    <link rel="stylesheet" href="admin-mobile-cards.css?v=20260714-withdrawals">
+    <link rel="stylesheet" href="admin-shared.css?v=20260714-withdrawals">
     <script>
       if (window.ReactNativeWebView) document.documentElement.classList.add('ap-expo-app');
     </script>
@@ -1437,16 +1437,16 @@
                             <i class="fas fa-coins"></i> Payment Approvals
                             <span class="badge warning" id="rechargesBadge">0</span>
                         </button>
+                        <button class="nav-item" data-section="withdrawals">
+                            <i class="fas fa-money-bill-wave"></i> Withdrawals
+                            <span class="badge warning" id="withdrawalsBadge">0</span>
+                        </button>
                         <button class="nav-item" data-section="role-applications">
                             <i class="fas fa-user-tag"></i> Role Applications
                             <span class="badge warning" id="roleAppsBadge">0</span>
                         </button>
                         <button class="nav-item" data-section="bd-hierarchy">
                             <i class="fas fa-sitemap"></i> BD &amp; Hierarchy
-                        </button>
-                        <button class="nav-item" data-section="withdrawals">
-                            <i class="fas fa-money-bill-wave"></i> Withdrawals
-                            <span class="badge warning" id="withdrawalsBadge">0</span>
                         </button>
                         <button class="nav-item" data-section="reviews">
                             <i class="fas fa-star"></i> Reviews
@@ -1553,28 +1553,28 @@
                         <!-- Quick Actions -->
                         <h3 style="margin-bottom: var(--spacing-md);">Quick Actions</h3>
                         <div class="quick-actions">
+                            <div class="action-card" onclick="document.querySelector('[data-section=withdrawals]')?.click()">
+                                <div class="action-icon"><i class="fas fa-money-bill-wave"></i></div>
+                                <h4>Withdrawals</h4>
+                                <p id="pendingWithdrawalsCount">0 pending</p>
+                            </div>
+
+                            <div class="action-card" onclick="document.querySelector('[data-section=recharges]')?.click()">
+                                <div class="action-icon"><i class="fas fa-coins"></i></div>
+                                <h4>Payment Approvals</h4>
+                                <p id="pendingRechargesCount">0 pending</p>
+                            </div>
+                            
                             <div class="action-card" onclick="switchSection('workers')">
                                 <div class="action-icon"><i class="fas fa-user-check"></i></div>
                                 <h4>Verify Workers</h4>
                                 <p id="pendingWorkersCount">0 pending</p>
                             </div>
                             
-                            <div class="action-card" onclick="window.location.href='/admin-services.html'">
-                                <div class="action-icon"><i class="fas fa-plus-circle"></i></div>
-                                <h4>Add Service</h4>
-                                <p>Create new service</p>
-                            </div>
-                            
                             <div class="action-card" onclick="showAnnouncementModal()">
                                 <div class="action-icon"><i class="fas fa-bullhorn"></i></div>
                                 <h4>Announcement</h4>
                                 <p>Send to all users</p>
-                            </div>
-                            
-                            <div class="action-card" onclick="exportData()">
-                                <div class="action-icon"><i class="fas fa-file-export"></i></div>
-                                <h4>Export Data</h4>
-                                <p>Download reports</p>
                             </div>
                         </div>
 
@@ -1983,16 +1983,16 @@
                         </div>
                     </div>
 
-                    <!-- Coin Withdrawals (QR payout) -->
+                    <!-- Points Withdrawals (QR payout) -->
                     <div class="dashboard-section" id="withdrawals-section">
                         <div class="section-header">
-                            <h2><i class="fas fa-money-bill-wave"></i> Coin Withdrawal Requests</h2>
+                            <h2><i class="fas fa-money-bill-wave"></i> Points Withdrawal Requests</h2>
                             <button class="btn-outline" onclick="loadWithdrawals()">
                                 <i class="fas fa-sync-alt"></i> Refresh
                             </button>
                         </div>
                         <p style="color:var(--gray-500);margin-bottom:16px;font-size:14px">
-                            Users upload their UPI/bank QR. After you pay externally, click <strong>Approve &amp; Pay</strong>. The user must confirm receipt to complete.
+                            Users withdraw earned <strong>points</strong> (not NR coins) via UPI/bank QR. After you pay externally, click <strong>Approve &amp; Pay</strong>. The user must confirm receipt to complete.
                         </p>
                         <div class="admin-cards-view" id="withdrawalsCards"></div>
                         <div class="table-container admin-table-view">
@@ -2000,7 +2000,7 @@
                                 <thead>
                                     <tr>
                                         <th>User</th>
-                                        <th>Coins</th>
+                                        <th>Points</th>
                                         <th>INR (est.)</th>
                                         <th>QR Code</th>
                                         <th>Order #</th>
@@ -2812,6 +2812,8 @@
                 const rows = response.data || [];
                 const badge = document.getElementById('rechargesBadge');
                 if (badge) badge.textContent = rows.length;
+                const pendingLabel = document.getElementById('pendingRechargesCount');
+                if (pendingLabel) pendingLabel.textContent = rows.length + ' pending';
                 renderRechargeCards(rows);
                 if (!rows.length) {
                     if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No pending payment approvals</td></tr>';
@@ -3222,6 +3224,8 @@
                 const rows = response.data || [];
                 const badge = document.getElementById('withdrawalsBadge');
                 if (badge) badge.textContent = rows.length;
+                const pendingLabel = document.getElementById('pendingWithdrawalsCount');
+                if (pendingLabel) pendingLabel.textContent = rows.length + ' pending';
                 if (!rows.length) {
                     if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No pending withdrawal requests</td></tr>';
                     if (cards) cards.innerHTML = '<p class="empty-state">No pending withdrawals</p>';
