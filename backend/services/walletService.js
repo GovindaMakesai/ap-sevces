@@ -33,7 +33,7 @@ function pointsToWithdrawalUsd(points, settings) {
 }
 
 function pointsToWithdrawalInr(points, settings) {
-  const inrPerUsd = Number(settings.inr_per_usd || 92);
+  const inrPerUsd = Number(settings.inr_per_usd || 94);
   return pointsToWithdrawalUsd(points, settings) * inrPerUsd;
 }
 
