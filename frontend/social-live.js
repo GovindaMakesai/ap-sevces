@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
@@ -1796,24 +1796,38 @@
   async function getCoins(forceFresh = false) {
     if (window.SocialWallet) {
       const b = await SocialWallet.fetchBalance(forceFresh);
-      return b.coin_balance || 0;
+      return SocialWallet.getGiftableCoins
+        ? SocialWallet.getGiftableCoins(b)
+        : (b.giftable_coins ?? b.coin_balance ?? 0);
+    }
+    return 0;
+  }
+
+  async function getWalletCoins(forceFresh = false) {
+    if (window.SocialWallet) {
+      const b = await SocialWallet.fetchBalance(forceFresh);
+      return Number(b.coin_balance || 0);
     }
     return 0;
   }
 
   async function refreshCoinDisplay() {
     const bal = await getCoins();
-    const els = [
-      document.getElementById('giftCoinsBal'),
-      document.getElementById('apTopupBal'),
-      document.getElementById('apSurpriseCoins'),
-    ].filter(Boolean);
-    els.forEach((el) => {
+    const walletBal = await getWalletCoins();
+    const giftEls = [document.getElementById('giftCoinsBal')].filter(Boolean);
+    giftEls.forEach((el) => {
       if (lastCoinBalance !== null && window.SocialFX?.animateBalance) {
         SocialFX.animateBalance(el, lastCoinBalance, bal);
       } else {
         el.textContent = String(bal);
       }
+    });
+    const walletEls = [
+      document.getElementById('apTopupBal'),
+      document.getElementById('apSurpriseCoins'),
+    ].filter(Boolean);
+    walletEls.forEach((el) => {
+      el.textContent = String(walletBal);
     });
     lastCoinBalance = bal;
     const lvlEl = document.getElementById('giftUserLvl');
@@ -8230,7 +8244,9 @@
               break;
             }
             sent += 1;
-            const bal = res?.data?.balance?.coin_balance;
+            const bal = res?.data?.balance?.giftable_coins
+              ?? res?.data?.balance?.coin_balance
+              ?? res?.data?.sender_balance?.giftable_coins;
             if (bal != null && window.SocialWallet) {
               try {
                 /* keep local cache in sync if server returned balance */

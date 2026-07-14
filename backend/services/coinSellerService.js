@@ -266,15 +266,21 @@ async function getDashboard(userId) {
   );
   const lowBalanceUsd = Number(profile.inventory_coins) / (level.coinsPerUsd || 9100);
   const sellableCoins = Number(profile.inventory_coins) + Number(wallet.coin_balance);
+  const giftCoins = Number(profile.gift_inventory_coins || 0);
 
   return {
-    profile,
+    profile: {
+      ...profile,
+      inventory_coins: Number(profile.inventory_coins || 0),
+      gift_inventory_coins: giftCoins,
+    },
     user,
     wallet: {
       coin_balance: Number(wallet.coin_balance),
       star_balance: Number(wallet.star_balance),
     },
     sellable_coins: sellableCoins,
+    gift_coins: giftCoins,
     level,
     levels: SELLER_LEVELS,
     rechargePackages: RECHARGE_PACKAGES,
@@ -444,7 +450,9 @@ async function transferCoins(sellerId, { recipientId, coins, transferType = 'use
       seller_balance: {
         coin_balance: walletAfter,
         inventory_coins: invAfter,
+        gift_inventory_coins: Number(seller.gift_inventory_coins || 0),
         sellable_coins: sellableAfter,
+        gift_coins: Number(seller.gift_inventory_coins || 0),
       },
     };
   } catch (e) {
@@ -482,9 +490,12 @@ async function exchangeBeans(sellerId, beansAmount) {
       [sellerId, beans]
     );
 
+    /* Beans exchange fills gift stock (for sending gifts), not sell stock */
     await client.query(
       `UPDATE coin_seller_profiles
-       SET inventory_coins = inventory_coins + $2, beans_exchanged = beans_exchanged + $3, updated_at = CURRENT_TIMESTAMP
+       SET gift_inventory_coins = gift_inventory_coins + $2,
+           beans_exchanged = beans_exchanged + $3,
+           updated_at = CURRENT_TIMESTAMP
        WHERE user_id = $1`,
       [sellerId, coinsOut, beans]
     );
@@ -493,14 +504,130 @@ async function exchangeBeans(sellerId, beansAmount) {
     await auditLogService.log(sellerId, 'coin_seller.beans_exchange', {
       entity_type: 'coin_seller_profile',
       entity_id: sellerId,
-      metadata: { beans, coinsOut, level: level.slug },
+      metadata: { beans, coinsOut, level: level.slug, destination: 'gift_inventory' },
     });
-    return { beans, coinsOut, level: level.slug };
+    return {
+      beans,
+      coinsOut,
+      level: level.slug,
+      destination: 'gift_inventory',
+      gift_inventory_coins: Number(profile.gift_inventory_coins || 0) + coinsOut,
+    };
   } catch (e) {
     await db.safeRollback(client);
     throw e;
   } finally {
     client.release();
+  }
+}
+
+/**
+ * Debit gift spend for a user: coin sellers use gift_inventory first, then wallet.
+ * Non-sellers debit wallet only (unchanged).
+ */
+async function debitGiftSpend(userId, amount, meta = {}, client) {
+  const amt = parseInt(amount, 10);
+  if (!amt || amt <= 0) throw new Error('Gift amount must be positive');
+
+  const run = async (c) => {
+    const profileRes = await c.query(
+      `SELECT gift_inventory_coins FROM coin_seller_profiles WHERE user_id = $1 FOR UPDATE`,
+      [userId]
+    );
+    const profile = profileRes.rows[0];
+    let fromGift = 0;
+    let fromWallet = amt;
+
+    if (profile) {
+      const giftAvail = Number(profile.gift_inventory_coins || 0);
+      fromGift = Math.min(amt, giftAvail);
+      fromWallet = amt - fromGift;
+      if (fromGift > 0) {
+        await c.query(
+          `UPDATE coin_seller_profiles
+           SET gift_inventory_coins = gift_inventory_coins - $2, updated_at = CURRENT_TIMESTAMP
+           WHERE user_id = $1`,
+          [userId, fromGift]
+        );
+      }
+    }
+
+    if (fromWallet > 0) {
+      const wallet = await walletService.getOrCreateWallet(userId, c);
+      const walletAvail = Number(wallet.coin_balance || 0);
+      if (walletAvail < fromWallet) {
+        const giftAvail = profile ? Number(profile.gift_inventory_coins || 0) : 0;
+        const err = new Error(
+          `Insufficient giftable coins (have ${(giftAvail + walletAvail).toLocaleString()}, need ${amt.toLocaleString()})`
+        );
+        err.code = 'INSUFFICIENT_BALANCE';
+        throw err;
+      }
+    }
+
+    let walletResult = null;
+    if (fromWallet > 0) {
+      walletResult = await walletService.debitCoins(
+        userId,
+        fromWallet,
+        {
+          ...meta,
+          metadata: {
+            ...(meta.metadata || {}),
+            from_gift_inventory: fromGift,
+            from_wallet: fromWallet,
+          },
+        },
+        c
+      );
+    } else if (fromGift > 0) {
+      await c.query(
+        `INSERT INTO wallet_transactions (user_id, type, amount, currency_type, reference_type, reference_id, status, metadata)
+         VALUES ($1, $2, $3, 'coin', $4, $5, 'completed', $6)`,
+        [
+          userId,
+          meta.type || 'gift_sent',
+          (-fromGift).toString(),
+          meta.reference_type || 'gift',
+          meta.reference_id || null,
+          JSON.stringify({
+            ...(meta.metadata || {}),
+            from_gift_inventory: fromGift,
+            from_wallet: 0,
+            source: 'gift_inventory',
+          }),
+        ]
+      );
+    }
+
+    const walletBal = walletResult
+      ? Number(walletResult.balance)
+      : Number((await walletService.getOrCreateWallet(userId, c)).coin_balance);
+    const giftAfter = profile
+      ? Number(profile.gift_inventory_coins || 0) - fromGift
+      : 0;
+
+    return {
+      balance: walletBal,
+      gift_inventory_coins: Math.max(0, giftAfter),
+      from_gift_inventory: fromGift,
+      from_wallet: fromWallet,
+      coin_balance: walletBal,
+    };
+  };
+
+  if (client) return run(client);
+  const c = await db.pool.connect();
+  try {
+    await c.query('BEGIN');
+    const result = await run(c);
+    await c.query('COMMIT');
+    return result;
+  } catch (e) {
+    await db.safeRollback(c);
+    throw e;
+  } finally {
+    c.release();
   }
 }
 
@@ -711,6 +838,7 @@ module.exports = {
   lookupRecipient,
   transferCoins,
   exchangeBeans,
+  debitGiftSpend,
   applyRecharge,
   createPendingSellerRecharge,
   listSellerRecharges,

@@ -8,7 +8,7 @@
   <script src="/ap-native-boot.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-theme.css">
-  <link rel="stylesheet" href="coin-seller.css?v=20260626cs-api-fix">
+  <link rel="stylesheet" href="coin-seller.css?v=20260714-dual-coins">
   <link rel="stylesheet" href="mobile-app.css">
 </head>
 <body class="cs-page">
@@ -42,7 +42,7 @@
 
   <div id="csHelp" class="cs-notice" style="background:#fff8e1;border-color:#f5b800;margin:0 12px 12px" hidden>
     <i class="fas fa-lightbulb" style="color:#f5b800"></i>
-    <span><strong>How selling works:</strong> Find buyer User ID → Transfer coins (min 1,000). Collect payment outside the app (UPI/bank). Optional: top-up wholesale stock via Top-up.</span>
+    <span><strong>Two coin types:</strong> <em>Sell coins</em> (Top-up stock) — transfer to users. <em>Gift coins</em> (bean exchange) — send gifts in live/chat. They do not mix.</span>
   </div>
 
   <div id="csLoading" class="cs-loading"><i class="fas fa-spinner fa-spin"></i> Loading…</div>
@@ -67,14 +67,21 @@
     <div class="cs-balance-card">
       <div class="cs-balance-row">
         <div>
-          <div style="font-size:13px;color:#8a6914;font-weight:600">Available to sell</div>
+          <div style="font-size:13px;color:#8a6914;font-weight:600">Sell coins (give to users)</div>
           <strong><span id="csBalance">0</span> <i class="fas fa-coins" style="color:#f5b800"></i></strong>
-          <div style="font-size:11px;color:#a67c00;margin-top:4px" id="csBalanceBreakdown">Stock + wallet (Profile wallet is separate)</div>
+          <div style="font-size:11px;color:#a67c00;margin-top:4px" id="csBalanceBreakdown">Sell stock + wallet</div>
         </div>
         <button type="button" class="cs-detail-btn" id="csDetailBtn">Detail ›</button>
       </div>
+      <div class="cs-balance-row" style="margin-top:12px;padding-top:12px;border-top:1px dashed rgba(201,162,39,.35)">
+        <div>
+          <div style="font-size:13px;color:#8a6914;font-weight:600">Gift coins (send gifts)</div>
+          <strong><span id="csGiftBalance">0</span> <i class="fas fa-gift" style="color:#e11d48"></i></strong>
+          <div style="font-size:11px;color:#a67c00;margin-top:4px">From bean exchange · used only for gifts</div>
+        </div>
+      </div>
       <div class="cs-pay-methods">
-        <span>Collect via UPI / bank (outside app)</span>
+        <span>Sell stock → transfer users · Gift stock → live/chat gifts</span>
       </div>
     </div>
 
@@ -149,12 +156,13 @@
         <h3>Balance details</h3>
         <button type="button" data-close="balanceModal">&times;</button>
       </div>
-      <div class="cs-detail-row"><span>Seller stock</span><strong id="detailStock">0</strong></div>
-      <div class="cs-detail-row"><span>Wallet coins</span><strong id="detailWallet">0</strong></div>
+      <div class="cs-detail-row"><span>Sell stock (give users)</span><strong id="detailStock">0</strong></div>
+      <div class="cs-detail-row"><span>Gift stock (send gifts)</span><strong id="detailGiftStock">0</strong></div>
+      <div class="cs-detail-row"><span>Wallet NR coins</span><strong id="detailWallet">0</strong></div>
       <div class="cs-detail-row"><span>Total sellable</span><strong id="detailTotal">0</strong></div>
-      <div class="cs-detail-row"><span>Beans (stars)</span><strong id="detailBeans">0</strong></div>
-      <p style="font-size:12px;color:#888;margin-top:12px">Transfers use seller stock first, then wallet coins. Top-up adds wholesale stock after admin verifies UPI payment.</p>
-      <button type="button" class="cs-submit" id="detailTopupBtn">Top-up seller stock</button>
+      <div class="cs-detail-row"><span>Beans / points</span><strong id="detailBeans">0</strong></div>
+      <p style="font-size:12px;color:#888;margin-top:12px">Sell stock + wallet = transfers to users. Gift stock = live/chat gifts. Top-up credits sell stock; bean exchange credits gift stock.</p>
+      <button type="button" class="cs-submit" id="detailTopupBtn">Top-up sell stock</button>
     </div>
   </div>
 
@@ -183,15 +191,15 @@
   <div class="cs-modal" id="exchangeModal">
     <div class="cs-modal-panel">
       <div class="cs-modal-head">
-        <h3>Exchange beans → stock</h3>
+        <h3>Exchange beans → gift coins</h3>
         <button type="button" data-close="exchangeModal">&times;</button>
       </div>
       <p style="font-size:13px">Beans available: <strong id="exBeansAvail">0</strong></p>
-      <p style="font-size:13px;color:#ff8c00" id="exRate">Exchange Rate: 100,000 beans → coins</p>
+      <p style="font-size:13px;color:#ff8c00" id="exRate">Exchange Rate: 100,000 beans → gift coins</p>
       <div class="cs-field">
         <label>Beans amount (multiple of 100,000)</label>
         <input type="number" id="exAmount" min="100000" step="100000" placeholder="100000" inputmode="numeric">
-        <p style="font-size:13px;margin-top:6px">You receive: <strong id="exPreview">0</strong> coins in seller stock</p>
+        <p style="font-size:13px;margin-top:6px">You receive: <strong id="exPreview">0</strong> <strong>gift coins</strong> (for sending gifts)</p>
       </div>
       <table class="cs-level-table" id="exLevelTable">
         <thead>
@@ -391,9 +399,12 @@
           window.formatUserDisplayId?.(d.user) || d.user?.display_id || '—';
         document.getElementById('csBalance').textContent = fmt(d.sellable_coins);
         const inv = Number(d.profile?.inventory_coins || 0);
+        const giftInv = Number(d.profile?.gift_inventory_coins ?? d.gift_coins ?? 0);
         const wal = Number(d.wallet?.coin_balance || 0);
         document.getElementById('csBalanceBreakdown').textContent =
-          `Stock ${fmt(inv)} + wallet ${fmt(wal)} · Profile NR coins are separate`;
+          `Sell stock ${fmt(inv)} + wallet ${fmt(wal)}`;
+        const giftEl = document.getElementById('csGiftBalance');
+        if (giftEl) giftEl.textContent = fmt(giftInv);
 
         const pending = d.pendingRecharges || {};
         const pendingEl = document.getElementById('csPendingNotice');
@@ -429,6 +440,8 @@
         document.getElementById('csStatSold').textContent = fmt(d.stats?.coinsSold);
         document.getElementById('xferBalanceHint').textContent = 'Available to sell: ' + fmt(d.sellable_coins);
         document.getElementById('detailStock').textContent = fmt(inv);
+        const detailGift = document.getElementById('detailGiftStock');
+        if (detailGift) detailGift.textContent = fmt(giftInv);
         document.getElementById('detailWallet').textContent = fmt(wal);
         document.getElementById('detailTotal').textContent = fmt(d.sellable_coins);
         document.getElementById('detailBeans').textContent = fmt(d.wallet?.star_balance);
@@ -448,7 +461,7 @@
         document.getElementById('exBeansAvail').textContent = fmt(d.wallet?.star_balance);
         const rate = d.level?.beansPer10k || 9500;
         document.getElementById('exRate').textContent =
-          `Rate: 100,000 beans → ${fmt(Math.floor((100000 / 10000) * rate))} coins in stock`;
+          `Rate: 100,000 beans → ${fmt(Math.floor((100000 / 10000) * rate))} gift coins`;
         updateXferSubmitState();
 
         const msg = localStorage.getItem('cs_seller_message_' + (d.user?.id || ''));
@@ -647,10 +660,15 @@
           if (res?.data?.seller_balance) {
             if (!dash) dash = {};
             dash.sellable_coins = res.data.seller_balance.sellable_coins;
+            dash.gift_coins = res.data.seller_balance.gift_coins
+              ?? res.data.seller_balance.gift_inventory_coins;
             if (!dash.wallet) dash.wallet = {};
             dash.wallet.coin_balance = res.data.seller_balance.coin_balance;
             if (!dash.profile) dash.profile = {};
             dash.profile.inventory_coins = res.data.seller_balance.inventory_coins;
+            dash.profile.gift_inventory_coins =
+              res.data.seller_balance.gift_inventory_coins
+              ?? dash.profile.gift_inventory_coins;
           }
           if (window.SocialWallet?.invalidateBalance) SocialWallet.invalidateBalance();
           toast(`Sent ${fmt(coins)} coins to ${name}`, 'success');
@@ -686,7 +704,7 @@
         try {
           await Auth.ensureAccessToken?.();
           const res = await API.post('/social/coin-seller/exchange', { beans });
-          toast(`Added ${fmt(res.data?.coinsOut)} coins to seller stock`, 'success');
+          toast(`Added ${fmt(res.data?.coinsOut)} gift coins`, 'success');
           closeModal('exchangeModal');
           document.getElementById('exAmount').value = '';
           await loadDashboard();

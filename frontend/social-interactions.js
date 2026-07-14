@@ -1426,7 +1426,10 @@
         try {
           const bal = await SocialWallet.fetchBalance(true);
           const coinCost = 10;
-          if ((bal.coin_balance || 0) < coinCost) {
+          const giftBal = SocialWallet.getGiftableCoins
+            ? SocialWallet.getGiftableCoins(bal)
+            : Number(bal.giftable_coins ?? bal.coin_balance || 0);
+          if (giftBal < coinCost) {
             toast('Not enough coins — opening recharge', 'warning');
             setTimeout(() => (location.href = '/coins-recharge.html?app=1'), 500);
             updateReelUI(item);

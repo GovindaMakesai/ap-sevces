@@ -94,7 +94,8 @@ async function sendGift({ senderId, receiverId, liveRoomId, giftType, coinAmount
   try {
     await client.query('BEGIN');
 
-    const debitResult = await walletService.debitCoins(
+    const coinSellerService = require('./coinSellerService');
+    const debitResult = await coinSellerService.debitGiftSpend(
       senderId,
       Number(amount),
       {
@@ -212,13 +213,22 @@ async function sendGift({ senderId, receiverId, liveRoomId, giftType, coinAmount
     await leaderboardService.ingestGiftLeaderboards(giftRow);
     await charityService.allocateFromGift(Number(amount), giftRow.id);
 
+    const coinBal = Number(debitResult.balance);
+    const giftInv = Number(debitResult.gift_inventory_coins || 0);
     return {
       gift: giftRow,
       platform_fee: Number(platformShare),
       creator_amount: Number(hostShare),
       settlement,
       sender_balance: {
-        coin_balance: Number(debitResult.balance),
+        coin_balance: coinBal,
+        gift_inventory_coins: giftInv,
+        giftable_coins: coinBal + giftInv,
+      },
+      balance: {
+        coin_balance: coinBal,
+        gift_inventory_coins: giftInv,
+        giftable_coins: coinBal + giftInv,
       },
     };
   } catch (e) {

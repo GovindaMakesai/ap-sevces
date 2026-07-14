@@ -1476,7 +1476,7 @@
     <script src="auth-guard.js"></script>
     <script src="social-ui.js?v=20260702-follow-fix"></script>
     <script src="social-interactions.js?v=20260628-perf"></script>
-    <script src="social-wallet.js"></script>
+    <script src="social-wallet.js?v=20260714-dual-coins"></script>
     <script src="live-emoji-data.js"></script>
     <script src="social-fx.js"></script>
     <script src="social-shell.js?v=20260713-token-fix"></script>
@@ -4212,7 +4212,10 @@
             try {
                 if (window.SocialWallet) {
                     const b = await SocialWallet.fetchBalance(true);
-                    document.getElementById('chatGiftBalance').textContent = (b.coin_balance || 0).toLocaleString();
+                    const giftBal = SocialWallet.getGiftableCoins
+                      ? SocialWallet.getGiftableCoins(b)
+                      : (b.giftable_coins ?? b.coin_balance ?? 0);
+                    document.getElementById('chatGiftBalance').textContent = giftBal.toLocaleString();
                 }
             } catch (_e) {
                 document.getElementById('chatGiftBalance').textContent = '0';
@@ -4249,7 +4252,10 @@
             try {
                 if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken();
                 const balance = await SocialWallet?.fetchBalance?.(true);
-                if (balance && Number(balance.coin_balance || 0) < coinCost) {
+                const giftBal = SocialWallet?.getGiftableCoins
+                  ? SocialWallet.getGiftableCoins(balance)
+                  : Number(balance?.giftable_coins ?? balance?.coin_balance || 0);
+                if (balance && giftBal < coinCost) {
                     Toast.show('Not enough coins — recharge first', 'warning');
                     setTimeout(() => {
                         window.location.href = '/coins-recharge.html?app=1';

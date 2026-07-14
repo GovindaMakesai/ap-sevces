@@ -30,6 +30,10 @@ async function ensureSocialProductionSchema() {
   if (fs.existsSync(xferPath)) {
     await db.query(fs.readFileSync(xferPath, 'utf8'));
   }
+  const giftInvPath = path.join(__dirname, '../../database/migrations/016_coin_seller_gift_inventory.sql');
+  if (fs.existsSync(giftInvPath)) {
+    await db.query(fs.readFileSync(giftInvPath, 'utf8'));
+  }
   const searchIdxPath = path.join(__dirname, '../../database/migrations/008_search_indexes.sql');
   if (fs.existsSync(searchIdxPath)) {
     await db.query(fs.readFileSync(searchIdxPath, 'utf8'));

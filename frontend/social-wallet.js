@@ -2,8 +2,42 @@
  * Backend wallet client — balances always from DB, never localStorage.
  */
 (function () {
-  let cached = { coin_balance: 0, star_balance: 0 };
+  let cached = {
+    coin_balance: 0,
+    star_balance: 0,
+    gift_inventory_coins: 0,
+    sell_inventory_coins: 0,
+    giftable_coins: 0,
+    sellable_coins: 0,
+  };
   let lastFetch = 0;
+
+  function normalizeBalance(data, prev) {
+    const base = prev || cached;
+    const coin_balance = Number(data.coin_balance ?? base.coin_balance) || 0;
+    const gift_inventory_coins = Number(data.gift_inventory_coins ?? base.gift_inventory_coins) || 0;
+    const sell_inventory_coins = Number(
+      data.sell_inventory_coins ?? data.inventory_coins ?? base.sell_inventory_coins
+    ) || 0;
+    const giftable_coins =
+      data.giftable_coins != null
+        ? Number(data.giftable_coins) || 0
+        : coin_balance + gift_inventory_coins;
+    const sellable_coins =
+      data.sellable_coins != null
+        ? Number(data.sellable_coins) || 0
+        : sell_inventory_coins + coin_balance;
+    return {
+      coin_balance,
+      star_balance: Number(data.star_balance ?? base.star_balance) || 0,
+      gift_inventory_coins,
+      sell_inventory_coins,
+      inventory_coins: sell_inventory_coins,
+      giftable_coins,
+      sellable_coins,
+      settings: data.settings ?? base.settings,
+    };
+  }
 
   function resolveUploadUrl(path) {
     if (!path) return '';
@@ -25,11 +59,7 @@
     try {
       const res = await API.get('/wallet/balance');
       const data = res.data || {};
-      cached = {
-        coin_balance: data.coin_balance ?? cached.coin_balance,
-        star_balance: data.star_balance ?? cached.star_balance,
-        settings: data.settings,
-      };
+      cached = normalizeBalance(data, cached);
       lastFetch = Date.now();
       document.dispatchEvent(new CustomEvent('wallet:balance', { detail: cached }));
       return cached;
@@ -72,15 +102,26 @@
     return Number(b.coin_balance) || 0;
   }
 
+  /** Coins available to send gifts (wallet + seller gift stock). */
+  function getGiftableCoins(bal) {
+    const b = bal || cached;
+    if (b.giftable_coins != null) return Number(b.giftable_coins) || 0;
+    return (Number(b.coin_balance) || 0) + (Number(b.gift_inventory_coins) || 0);
+  }
+
+  /** Coins sellers can transfer to users (sell stock + wallet). */
+  function getSellableCoins(bal) {
+    const b = bal || cached;
+    if (b.sellable_coins != null) return Number(b.sellable_coins) || 0;
+    return (Number(b.sell_inventory_coins || b.inventory_coins) || 0) + (Number(b.coin_balance) || 0);
+  }
+
   async function sendGift(payload) {
     const res = await API.post('/wallet/gifts', payload);
     const inner = res?.data || res;
-    const balance = inner?.balance;
+    const balance = inner?.balance || inner?.sender_balance;
     if (balance && typeof balance === 'object') {
-      cached = {
-        coin_balance: balance.coin_balance ?? cached.coin_balance,
-        star_balance: balance.star_balance ?? cached.star_balance,
-      };
+      cached = normalizeBalance(balance, cached);
       lastFetch = Date.now();
       document.dispatchEvent(new CustomEvent('wallet:balance', { detail: cached }));
     } else {
@@ -146,6 +187,8 @@
     getCachedBalance,
     getPointsBalance,
     getCoinsBalance,
+    getGiftableCoins,
+    getSellableCoins,
     getWalletSettings,
     sendGift,
     submitRecharge,

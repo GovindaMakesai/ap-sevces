@@ -6,7 +6,32 @@ exports.getBalance = async (req, res) => {
   try {
     const balance = await walletService.getBalance(req.userId);
     const settings = await walletService.getWalletSettings();
-    res.json({ success: true, data: { ...balance, settings } });
+    let gift_inventory_coins = 0;
+    let sell_inventory_coins = 0;
+    try {
+      const coinSellerService = require('../services/coinSellerService');
+      const profile = await coinSellerService.getProfile(req.userId);
+      if (profile) {
+        gift_inventory_coins = Number(profile.gift_inventory_coins || 0);
+        sell_inventory_coins = Number(profile.inventory_coins || 0);
+      }
+    } catch (_e) {
+      /* ignore */
+    }
+    const giftable =
+      Number(balance.coin_balance || 0) + gift_inventory_coins;
+    res.json({
+      success: true,
+      data: {
+        ...balance,
+        settings,
+        gift_inventory_coins,
+        sell_inventory_coins,
+        inventory_coins: sell_inventory_coins,
+        giftable_coins: giftable,
+        sellable_coins: sell_inventory_coins + Number(balance.coin_balance || 0),
+      },
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -224,7 +249,27 @@ exports.sendGift = async (req, res) => {
       qty: parseInt(req.body?.qty || req.body?.quantity || 1, 10) || 1,
     });
 
-    const balance = await walletService.getBalance(req.userId);
+    const walletBal = await walletService.getBalance(req.userId);
+    let gift_inventory_coins = Number(result.sender_balance?.gift_inventory_coins || 0);
+    let sell_inventory_coins = 0;
+    try {
+      const coinSellerService = require('../services/coinSellerService');
+      const profile = await coinSellerService.getProfile(req.userId);
+      if (profile) {
+        gift_inventory_coins = Number(profile.gift_inventory_coins || 0);
+        sell_inventory_coins = Number(profile.inventory_coins || 0);
+      }
+    } catch (_e) {
+      /* ignore */
+    }
+    const balance = {
+      ...walletBal,
+      gift_inventory_coins,
+      sell_inventory_coins,
+      inventory_coins: sell_inventory_coins,
+      giftable_coins: Number(walletBal.coin_balance || 0) + gift_inventory_coins,
+      sellable_coins: sell_inventory_coins + Number(walletBal.coin_balance || 0),
+    };
     res.json({ success: true, data: { ...result, balance } });
   } catch (err) {
     const code = err.code === 'INSUFFICIENT_BALANCE' ? 400 : 500;
