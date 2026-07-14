@@ -4186,13 +4186,11 @@
                 }
                 Toast.show(`${coins.toLocaleString('en-IN')} coins sent to ${conv.name}`, 'success');
                 try {
-                    await axiosClient.post('/send', {
-                        receiverId: conv.otherUserId,
-                        text: `💰 Sent ${coins.toLocaleString('en-IN')} coins`,
-                    });
+                    /* Receipt message is created server-side on transfer */
                     await loadMessages(currentChatId);
+                    await loadConversations();
                 } catch (msgErr) {
-                    console.warn('Chat coin receipt message failed', msgErr);
+                    console.warn('Chat coin receipt refresh failed', msgErr);
                 }
             } catch (e) {
                 Toast.show(e?.message || 'Transfer failed', 'error');

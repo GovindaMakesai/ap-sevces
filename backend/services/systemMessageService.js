@@ -101,6 +101,63 @@ async function notifyRechargeRejected(userId, { reason } = {}) {
   return sendSystemChatMessage(userId, text);
 }
 
+/**
+ * After a coin seller sells/transfers coins — notify the buyer in chat + inbox.
+ */
+async function notifyCoinsReceivedFromSeller(recipientUserId, coins, { sellerId, sellerName } = {}) {
+  const n = Number(coins).toLocaleString('en-IN');
+  const from = String(sellerName || 'a coin seller').trim() || 'a coin seller';
+  const seller = String(sellerId || '').trim();
+  const recipient = String(recipientUserId || '').trim();
+  if (!recipient || !coins) return null;
+
+  /* 1) Chat thread with the seller — buyer sees the transfer in Messages */
+  if (seller && seller !== recipient) {
+    try {
+      const chatBody = `💰 Sent you ${n} coins`;
+      const { conversation, message, receiverUserId } = await chatService.sendBetweenUsers(
+        seller,
+        recipient,
+        chatBody,
+        { skipAdminNotify: false }
+      );
+      const normalized = normalizeOutgoingChatMessage(message, conversation.id);
+      if (socketIo) {
+        socketIo.to(`conversation:${conversation.id}`).emit('receive_message', normalized);
+        socketIo.to(`user:${receiverUserId}`).emit('receive_message', normalized);
+        socketIo.to(`user:${seller}`).emit('receive_message', normalized);
+      }
+    } catch (err) {
+      console.error('notifyCoinsReceivedFromSeller chat:', err.message);
+    }
+  }
+
+  /* 2) Official AP Services confirmation */
+  const official =
+    `✅ Coins received!\n\nYou received ${n} NR coins from ${from}. Open Profile → Coins to see your balance.`;
+  await sendSystemChatMessage(recipient, official);
+
+  /* 3) In-app notification bell */
+  try {
+    const Notification = require('../models/Notification');
+    await Notification.create({
+      user_id: recipient,
+      type: 'coins_received',
+      title: 'Coins received',
+      message: `You received ${n} NR coins from ${from}.`,
+      data: {
+        coins: Number(coins),
+        seller_id: seller || null,
+        deep_link: '/store.html?app=1',
+      },
+    });
+  } catch (_e) {
+    /* non-fatal */
+  }
+
+  return true;
+}
+
 function isOfficialRole(role) {
   return OFFICIAL_ROLES.has(String(role || ''));
 }
@@ -110,6 +167,7 @@ module.exports = {
   getNotifierUserId,
   sendSystemChatMessage,
   notifyCoinsCredited,
+  notifyCoinsReceivedFromSeller,
   notifyWithdrawalSubmitted,
   notifyWithdrawalPaid,
   notifyWithdrawalCompleted,

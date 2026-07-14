@@ -453,6 +453,28 @@ async function transferCoins(sellerId, { recipientId, coins, transferType = 'use
       })
       .catch(() => {});
 
+    /* Notify buyer: chat + AP Services message + notification */
+    try {
+      const sellerUser = await db.query(
+        `SELECT first_name, last_name, display_id FROM users WHERE id = $1`,
+        [sellerId]
+      );
+      const s = sellerUser.rows[0];
+      const sellerName =
+        `${s?.first_name || ''} ${s?.last_name || ''}`.trim() ||
+        s?.display_id ||
+        'Coin seller';
+      const systemMessageService = require('./systemMessageService');
+      void systemMessageService
+        .notifyCoinsReceivedFromSeller(recipient.id, amount, {
+          sellerId,
+          sellerName,
+        })
+        .catch((err) => console.error('notifyCoinsReceivedFromSeller:', err.message));
+    } catch (notifyErr) {
+      console.error('transfer notify setup:', notifyErr.message);
+    }
+
     return {
       transfer: xfer.rows[0],
       recipient,
