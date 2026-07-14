@@ -128,6 +128,22 @@ exports.requestWithdraw = async (req, res) => {
   }
 };
 
+/** Points → NR coins for any user (not coin-seller inventory). */
+exports.exchangePoints = async (req, res) => {
+  try {
+    const points = parseInt(req.body.points || req.body.amount, 10);
+    const data = await walletService.exchangePointsToCoins(req.userId, points);
+    res.json({
+      success: true,
+      message: `Exchanged ${data.points.toLocaleString()} points for ${data.coinsOut.toLocaleString()} coins`,
+      data,
+    });
+  } catch (err) {
+    const code = err.code === 'INSUFFICIENT_BALANCE' ? 400 : 400;
+    res.status(code).json({ success: false, message: err.message });
+  }
+};
+
 exports.getWithdrawal = async (req, res) => {
   try {
     const row = await transactionService.getWithdrawalById(req.params.id, req.userId);

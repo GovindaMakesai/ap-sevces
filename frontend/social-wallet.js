@@ -51,6 +51,8 @@
         withdrawal_service_fee_pct: 8,
         coins_per_inr: 10,
         inr_per_usd: 94,
+        exchange_points_block: 100000,
+        exchange_coins_per_10k_points: 7000,
       };
     }
   }
@@ -132,6 +134,12 @@
     return res;
   }
 
+  async function exchangePointsToCoins(points) {
+    const res = await API.post('/wallet/exchange-points', { points: Number(points) });
+    await fetchBalance(true);
+    return res;
+  }
+
   window.SocialWallet = {
     fetchBalance,
     invalidateBalance,
@@ -147,6 +155,7 @@
     getWithdrawals,
     getWithdrawal,
     confirmWithdrawal,
+    exchangePointsToCoins,
     resolveUploadUrl,
   };
 

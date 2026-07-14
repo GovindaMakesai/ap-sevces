@@ -14,6 +14,8 @@ const db = require('../config/database');
     withdrawal_points_per_usd: 10000,
     min_withdrawal_coins: 100000,
     withdrawal_service_fee_pct: 8,
+    exchange_points_block: 100000,
+    exchange_coins_per_10k_points: 7000,
     inr_per_usd: 94,
     coins_per_inr: Number(prev.coins_per_inr) || 10,
   };

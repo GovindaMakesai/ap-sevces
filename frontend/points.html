@@ -50,16 +50,17 @@
   </div>
 
   <p class="wd-flow-help" style="margin-top:0">
-    <strong>How to withdraw</strong>
+    <strong>How to withdraw or exchange</strong>
     <ol>
-      <li>Tap <strong>Withdraw now</strong></li>
-      <li>Enter amount (minimum shown on next screen)</li>
-      <li>Upload your UPI/bank QR photo</li>
-      <li>Tap green <strong>Submit withdrawal request</strong> at the bottom</li>
+      <li>Tap <strong>Withdraw / Exchange</strong></li>
+      <li>Choose <strong>Cash withdraw</strong> (QR payout) or <strong>Exchange to coins</strong></li>
+      <li>Enter amount (multiples of 100,000 for exchange)</li>
+      <li>For cash: upload QR and submit · For exchange: coins land instantly in your wallet</li>
     </ol>
   </p>
 
-  <button type="button" class="wd-btn-primary wd-btn-pink" id="withdrawNowBtn">Withdraw now</button>
+  <button type="button" class="wd-btn-primary wd-btn-pink" id="withdrawNowBtn">Withdraw / Exchange</button>
+  <button type="button" class="wd-btn-primary" id="exchangeNowBtn" style="margin-top:10px;background:linear-gradient(135deg,#6366f1,#4f46e5)">Exchange points → coins</button>
   <a href="/coins-recharge.html?app=1" class="wd-btn-primary" style="display:block;text-align:center;text-decoration:none;margin-top:10px;background:linear-gradient(135deg,#ff8c42,#f59e0b)">Top up coins</a>
 
   <script src="app.js"></script>
@@ -85,6 +86,9 @@
       document.getElementById('pointsUnconfirmed').textContent = String(unconfirmed);
       document.getElementById('withdrawNowBtn').onclick = () => {
         location.href = '/withdraw.html?app=1';
+      };
+      document.getElementById('exchangeNowBtn').onclick = () => {
+        location.href = '/withdraw.html?app=1&mode=exchange';
       };
     });
   </script>

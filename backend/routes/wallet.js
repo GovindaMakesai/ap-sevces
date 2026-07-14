@@ -19,6 +19,7 @@ router.post(
   privateUpload.single('qr_image'),
   walletController.requestWithdraw
 );
+router.post('/exchange-points', requirePermission('wallet.withdraw'), walletController.exchangePoints);
 router.post('/withdrawals/:id/confirm', requirePermission('wallet.withdraw'), walletController.confirmWithdrawal);
 router.post('/recharge', requirePermission('wallet.recharge'), privateUpload.single('payment_proof'), walletController.submitRecharge);
 router.post('/gifts', requirePermission('wallet.gift'), walletController.sendGift);

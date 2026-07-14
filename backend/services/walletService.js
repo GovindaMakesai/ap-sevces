@@ -12,6 +12,10 @@ const DEFAULT_SETTINGS = {
   coins_per_inr: 10,
   /** USD→INR for withdrawal payout estimates (locked rate). */
   inr_per_usd: 94,
+  /** User exchange: points → NR coins (anyone with wallet.withdraw). */
+  exchange_points_block: 100000,
+  /** Coins credited per 10,000 points (Zero seller rate = 70%). */
+  exchange_coins_per_10k_points: 7000,
 };
 
 function resolveWithdrawalPointsPerUsd(settings) {
@@ -72,11 +76,16 @@ function formatMinWithdrawalMessage(settings) {
 async function getWalletSettings() {
   const res = await db.query(`SELECT value FROM platform_settings WHERE key = 'wallet' LIMIT 1`);
   const merged = { ...DEFAULT_SETTINGS, ...(res.rows[0]?.value || {}) };
+  const block = Number(merged.exchange_points_block);
+  const coinsPer10k = Number(merged.exchange_coins_per_10k_points);
   return {
     ...merged,
     withdrawal_points_per_usd: resolveWithdrawalPointsPerUsd(merged),
     withdrawal_service_fee_pct: resolveWithdrawalServiceFeePct(merged),
     min_withdrawal_coins: resolveMinWithdrawalCoins(merged),
+    exchange_points_block: Number.isFinite(block) && block > 0 ? block : 100000,
+    exchange_coins_per_10k_points:
+      Number.isFinite(coinsPer10k) && coinsPer10k > 0 ? coinsPer10k : 7000,
   };
 }
 
@@ -347,6 +356,61 @@ async function reserveWithdrawal(userId, amount, { qr_image_url, qr_asset_id, me
   }
 }
 
+/**
+ * Normal-user exchange: points (stars) → spendable NR coin_balance.
+ * Same block size as seller beans exchange; rate uses Zero-level conversion (not seller inventory).
+ */
+async function exchangePointsToCoins(userId, pointsAmount) {
+  const settings = await getWalletSettings();
+  const block = Number(settings.exchange_points_block) || 100000;
+  const coinsPer10k = Number(settings.exchange_coins_per_10k_points) || 7000;
+  const points = parseInt(pointsAmount, 10);
+  if (!points || points < block || points % block !== 0) {
+    throw new Error(`Amount must be a multiple of ${block.toLocaleString('en-US')} points`);
+  }
+  const coinsOut = Math.floor((points / 10000) * coinsPer10k);
+  if (coinsOut <= 0) throw new Error('Exchange amount too small');
+
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+    await debitStars(
+      userId,
+      points,
+      {
+        type: 'points_exchange',
+        reference_type: 'points_exchange',
+        metadata: { points, coinsOut, coinsPer10k },
+      },
+      client
+    );
+    const credited = await creditCoins(
+      userId,
+      coinsOut,
+      {
+        type: 'points_exchange',
+        reference_type: 'points_exchange',
+        metadata: { points, coinsOut, coinsPer10k },
+      },
+      client
+    );
+    await client.query('COMMIT');
+    const bal = await getBalance(userId);
+    return {
+      points,
+      coinsOut,
+      rate: { block, coinsPer10k },
+      balance: bal,
+      coin_balance: credited.balance,
+    };
+  } catch (e) {
+    await db.safeRollback(client);
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
 module.exports = {
   getWalletSettings,
   getOrCreateWallet,
@@ -356,6 +420,7 @@ module.exports = {
   creditStars,
   debitStars,
   reserveWithdrawal,
+  exchangePointsToCoins,
   resolveMinWithdrawalCoins,
   resolveWithdrawalPointsPerUsd,
   resolveWithdrawalServiceFeePct,

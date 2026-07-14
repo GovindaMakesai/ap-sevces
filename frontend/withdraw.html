@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#5b67f6">
   <title>Withdraw - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-withdraw.css?v=20260714-fee8">
+  <link rel="stylesheet" href="social-withdraw.css?v=20260714-exchange">
   <link rel="stylesheet" href="mobile-app.css">
 </head>
 <body class="withdraw-app">
@@ -15,14 +15,23 @@
       <div class="wd-header-side wd-header-side--start">
         <a href="/points.html?app=1" class="wd-header-back" aria-label="Back"><i class="fas fa-arrow-left"></i></a>
       </div>
-      <h1>Withdraw</h1>
+      <h1>Withdraw / Exchange</h1>
       <div class="wd-header-side">
         <a href="/withdraw-notices.html?app=1" class="wd-header-link">History</a>
       </div>
     </header>
 
-    <div class="wd-flow-help">
-      <strong>3 steps to send your request</strong>
+    <div class="wd-mode-tabs" role="tablist" aria-label="Choose action">
+      <button type="button" class="wd-mode-tab is-active" id="modeCashBtn" data-mode="cash" role="tab" aria-selected="true">
+        <i class="fas fa-money-bill-wave"></i> Cash withdraw
+      </button>
+      <button type="button" class="wd-mode-tab" id="modeExchangeBtn" data-mode="exchange" role="tab" aria-selected="false">
+        <i class="fas fa-sync-alt"></i> Exchange to coins
+      </button>
+    </div>
+
+    <div class="wd-flow-help" id="cashHelp">
+      <strong>3 steps to send your cash request</strong>
       <ol>
         <li>Enter how many <strong>points</strong> to withdraw (min <strong>100,000</strong> = $10)</li>
         <li>Upload your <strong>UPI/bank QR</strong> photo (where admin sends money)</li>
@@ -30,7 +39,16 @@
       </ol>
     </div>
 
-    <div class="wd-steps" aria-label="Withdrawal steps">
+    <div class="wd-flow-help" id="exchangeHelp" hidden>
+      <strong>Exchange points → NR coins</strong>
+      <ol>
+        <li>Enter points in multiples of <strong>100,000</strong></li>
+        <li>You instantly get NR coins in your wallet (70% rate)</li>
+        <li>Use coins for gifts, live, and top-ups — no admin approval needed</li>
+      </ol>
+    </div>
+
+    <div class="wd-steps" id="cashSteps" aria-label="Withdrawal steps">
       <div class="wd-step active" id="stepAmount"><i class="fas fa-coins"></i>1. Amount</div>
       <div class="wd-step" id="stepQr"><i class="fas fa-qrcode"></i>2. Upload QR</div>
       <div class="wd-step" id="stepSubmit"><i class="fas fa-paper-plane"></i>3. Submit</div>
@@ -38,18 +56,18 @@
 
     <div class="wd-alert-banner" id="withdrawInfoBanner">
       <i class="fas fa-shield-alt"></i>
-      <span>Upload your UPI/bank QR — admin will pay to this code after review</span>
+      <span id="infoBannerText">Upload your UPI/bank QR — admin will pay to this code after review</span>
     </div>
 
     <div class="wd-zero-balance" id="zeroBalanceBanner" hidden>
-      <strong>Not enough points.</strong> Withdrawals use earned points (from gifts, live, bookings), not NR coins. Earn points on your Profile → Points, then return here.
+      <strong>Not enough points.</strong> Withdrawals and exchange use earned points (from gifts, live, bookings), not NR coins.
     </div>
 
     <div class="wd-gradient-card" id="balanceCard">
       <div class="top">
         <div>
           <div class="amount-lg" id="withdrawableDisplay">0</div>
-          <div class="amount-label">Withdrawable (points)</div>
+          <div class="amount-label">Available points</div>
         </div>
         <a href="/withdraw-notices.html?app=1" class="record-btn">Record</a>
       </div>
@@ -61,12 +79,13 @@
 
     <div class="wd-card">
       <h3>Amount</h3>
-      <input type="number" class="wd-amount-input" id="withdrawAmount" placeholder="100000" min="100000" step="1" inputmode="numeric">
-      <p class="wd-hint">Withdrawable amount: <strong id="withdrawableHint">0</strong> points</p>
+      <input type="number" class="wd-amount-input" id="withdrawAmount" placeholder="100000" min="100000" step="100000" inputmode="numeric">
+      <p class="wd-hint">Available: <strong id="withdrawableHint">0</strong> points</p>
       <p class="wd-hint" id="payoutEstimate">Payout estimate: —</p>
+      <p class="wd-hint" id="exchangeEstimate" hidden>You receive: — NR coins</p>
     </div>
 
-    <div class="wd-card wd-card-qr">
+    <div class="wd-card wd-card-qr" id="cashQrCard">
       <h3>Payment QR code</h3>
       <p class="wd-qr-sub">Upload a clear photo of your UPI or bank receive QR code</p>
       <div class="wd-qr-upload" id="qrUploadZone" role="button" tabindex="0" aria-label="Upload payment QR code">
@@ -89,8 +108,8 @@
       </button>
     </div>
 
-    <div class="wd-card">
-      <h3>Withdrawal rules</h3>
+    <div class="wd-card" id="cashRulesCard">
+      <h3>Cash withdrawal rules</h3>
       <table class="wd-rules-table">
         <tr><td>Minimum withdrawal</td><td id="ruleMin">100,000 points ($10)</td></tr>
         <tr><td>Exchange ratio</td><td id="ruleRate">100,000 points = $10</td></tr>
@@ -99,9 +118,22 @@
       </table>
     </div>
 
+    <div class="wd-card" id="exchangeRulesCard" hidden>
+      <h3>Exchange rules</h3>
+      <table class="wd-rules-table">
+        <tr><td>Minimum / block</td><td id="ruleExBlock">100,000 points</td></tr>
+        <tr><td>Rate</td><td id="ruleExRate">100,000 points → 70,000 NR coins</td></tr>
+        <tr><td>Destination</td><td>Your wallet coin balance (instant)</td></tr>
+        <tr><td>Note</td><td>Coin sellers still exchange to stock via Seller Center</td></tr>
+      </table>
+    </div>
+
     <footer class="wd-footer">
       <button type="button" class="wd-btn-primary" id="submitWithdraw" disabled>
         <i class="fas fa-paper-plane"></i> Submit withdrawal request
+      </button>
+      <button type="button" class="wd-btn-primary" id="submitExchange" hidden disabled>
+        <i class="fas fa-sync-alt"></i> Exchange to coins
       </button>
       <p class="wd-submit-hint" id="submitHint">Step 1: enter amount · Step 2: upload QR · Step 3: tap the button above</p>
     </footer>
@@ -116,13 +148,19 @@
   <script>
     let selectedFile = null;
     let minCoins = 100000;
+    let exchangeBlock = 100000;
+    let coinsPer10k = 7000;
+    let currentMode = 'cash';
     let walletSettings = {
       min_withdrawal_usd: 10,
       min_withdrawal_coins: 100000,
       withdrawal_points_per_usd: 10000,
       withdrawal_service_fee_pct: 8,
       inr_per_usd: 94,
+      exchange_points_block: 100000,
+      exchange_coins_per_10k_points: 7000,
     };
+    let withdrawable = 0;
 
     function ptsPerUsd() {
       return Number(walletSettings.withdrawal_points_per_usd) || 10000;
@@ -147,6 +185,12 @@
       return { grossUsd, feeUsd, netUsd, grossInr, feeInr, netInr, feePct };
     }
 
+    function estimateExchange(points) {
+      const pts = Number(points) || 0;
+      if (!pts) return 0;
+      return Math.floor((pts / 10000) * coinsPer10k);
+    }
+
     function formatMinLabel(settings, coins) {
       const usd = settings.min_withdrawal_usd;
       const n = Number(coins).toLocaleString();
@@ -159,25 +203,46 @@
     }
 
     function updatePayoutEstimate() {
-      const el = document.getElementById('payoutEstimate');
-      if (!el) return;
       const amt = parseInt(document.getElementById('withdrawAmount').value, 10);
-      const est = estimatePayout(amt);
-      if (!est || !amt) {
-        el.textContent = 'Payout estimate: enter points to see $ / ₹ after 8% fee';
+      const cashEl = document.getElementById('payoutEstimate');
+      const exEl = document.getElementById('exchangeEstimate');
+      if (currentMode === 'exchange') {
+        if (cashEl) cashEl.hidden = true;
+        if (exEl) {
+          exEl.hidden = false;
+          const coins = estimateExchange(amt);
+          if (!amt) exEl.textContent = 'You receive: enter points (multiples of 100,000)';
+          else if (amt % exchangeBlock !== 0) exEl.textContent = `Amount must be a multiple of ${Number(exchangeBlock).toLocaleString()}`;
+          else exEl.textContent = `You receive: ${Number(coins).toLocaleString()} NR coins instantly`;
+        }
         return;
       }
-      el.textContent =
+      if (exEl) exEl.hidden = true;
+      if (!cashEl) return;
+      cashEl.hidden = false;
+      const est = estimatePayout(amt);
+      if (!est || !amt) {
+        cashEl.textContent = 'Payout estimate: enter points to see $ / ₹ after 8% fee';
+        return;
+      }
+      cashEl.textContent =
         `Gross $${est.grossUsd.toFixed(2)} · ${est.feePct}% fee −$${est.feeUsd.toFixed(2)} · ` +
         `You receive $${est.netUsd.toFixed(2)} · ≈₹${est.netInr.toFixed(2)} ` +
         `(${Number(amt).toLocaleString()} points deducted)`;
     }
 
-    let withdrawable = 0;
+    function amountValidForMode(amt) {
+      if (!amt || amt > withdrawable) return false;
+      if (currentMode === 'exchange') {
+        return amt >= exchangeBlock && amt % exchangeBlock === 0;
+      }
+      return amt >= minCoins;
+    }
 
     function updateSteps() {
+      if (currentMode === 'exchange') return;
       const amt = parseInt(document.getElementById('withdrawAmount').value, 10);
-      const amountOk = amt >= minCoins && amt <= withdrawable;
+      const amountOk = amountValidForMode(amt);
       const qrOk = Boolean(selectedFile);
       const ready = amountOk && qrOk;
 
@@ -207,33 +272,81 @@
 
     function updateSubmitState() {
       const amt = parseInt(document.getElementById('withdrawAmount').value, 10);
-      const ready = selectedFile && amt >= minCoins && amt <= withdrawable;
-      const btn = document.getElementById('submitWithdraw');
-      const btnInline = document.getElementById('submitWithdrawInline');
-      btn.disabled = !ready;
-      if (btnInline) {
-        btnInline.disabled = !ready;
-        btnInline.hidden = !selectedFile;
-        btnInline.classList.toggle('is-ready', ready);
+      const amountOk = amountValidForMode(amt);
+      const cashBtn = document.getElementById('submitWithdraw');
+      const cashInline = document.getElementById('submitWithdrawInline');
+      const exBtn = document.getElementById('submitExchange');
+      const hint = document.getElementById('submitHint');
+
+      if (currentMode === 'exchange') {
+        if (cashBtn) cashBtn.hidden = true;
+        if (cashInline) cashInline.hidden = true;
+        if (exBtn) {
+          exBtn.hidden = false;
+          exBtn.disabled = !amountOk;
+          exBtn.classList.toggle('is-ready', amountOk);
+        }
+        if (hint) {
+          if (amountOk) {
+            hint.textContent = `Ready — exchange ${Number(amt).toLocaleString()} points → ${Number(estimateExchange(amt)).toLocaleString()} coins`;
+            hint.className = 'wd-submit-hint is-ready';
+          } else {
+            hint.className = 'wd-submit-hint';
+            const missing = [];
+            if (withdrawable < exchangeBlock) missing.push(`need at least ${Number(exchangeBlock).toLocaleString()} points`);
+            else if (!amt) missing.push('enter points amount');
+            else if (amt > withdrawable) missing.push('amount exceeds balance');
+            else if (amt % exchangeBlock !== 0) missing.push(`use multiples of ${Number(exchangeBlock).toLocaleString()}`);
+            hint.textContent = missing.length ? 'Still needed: ' + missing.join(' · ') : 'Enter points to exchange';
+          }
+        }
+        return;
       }
-      btn.classList.toggle('is-ready', ready);
+
+      if (exBtn) exBtn.hidden = true;
+      if (cashBtn) cashBtn.hidden = false;
+      const ready = amountOk && Boolean(selectedFile);
+      if (cashBtn) {
+        cashBtn.disabled = !ready;
+        cashBtn.classList.toggle('is-ready', ready);
+      }
+      if (cashInline) {
+        cashInline.disabled = !ready;
+        cashInline.hidden = !selectedFile;
+        cashInline.classList.toggle('is-ready', ready);
+      }
       document.getElementById('qrSuccessBanner').hidden = !selectedFile;
       updateSteps();
     }
 
-    function clearQrPreview() {
-      selectedFile = null;
-      const zone = document.getElementById('qrUploadZone');
-      const preview = document.getElementById('qrPreview');
-      const wrap = document.getElementById('qrPreviewWrap');
-      const placeholder = document.getElementById('qrPlaceholder');
-      const input = document.getElementById('qrFile');
-      if (preview?.src?.startsWith('blob:')) URL.revokeObjectURL(preview.src);
-      if (preview) preview.removeAttribute('src');
-      if (wrap) wrap.hidden = true;
-      if (placeholder) placeholder.hidden = false;
-      if (zone) zone.classList.remove('has-file');
-      if (input) input.value = '';
+    function setMode(mode) {
+      currentMode = mode === 'exchange' ? 'exchange' : 'cash';
+      document.getElementById('modeCashBtn')?.classList.toggle('is-active', currentMode === 'cash');
+      document.getElementById('modeExchangeBtn')?.classList.toggle('is-active', currentMode === 'exchange');
+      document.getElementById('modeCashBtn')?.setAttribute('aria-selected', currentMode === 'cash' ? 'true' : 'false');
+      document.getElementById('modeExchangeBtn')?.setAttribute('aria-selected', currentMode === 'exchange' ? 'true' : 'false');
+
+      const isEx = currentMode === 'exchange';
+      document.getElementById('cashHelp').hidden = isEx;
+      document.getElementById('exchangeHelp').hidden = !isEx;
+      document.getElementById('cashSteps').hidden = isEx;
+      document.getElementById('cashQrCard').hidden = isEx;
+      document.getElementById('cashRulesCard').hidden = isEx;
+      document.getElementById('exchangeRulesCard').hidden = !isEx;
+      document.getElementById('infoBannerText').textContent = isEx
+        ? 'Exchange converts points to NR coins in your wallet instantly (70% rate)'
+        : 'Upload your UPI/bank QR — admin will pay to this code after review';
+
+      const minLabel = isEx ? exchangeBlock : minCoins;
+      document.getElementById('minCoins').textContent = Number(minLabel).toLocaleString();
+      const input = document.getElementById('withdrawAmount');
+      input.min = String(minLabel);
+      input.step = String(isEx ? exchangeBlock : 1);
+      input.placeholder = String(minLabel);
+      if (!input.value || Number(input.value) < minLabel) {
+        input.value = withdrawable >= minLabel ? String(minLabel) : '';
+      }
+      updatePayoutEstimate();
       updateSubmitState();
     }
 
@@ -264,6 +377,8 @@
       const settings = await SocialWallet.getWalletSettings().catch(() => ({}));
       walletSettings = { ...walletSettings, ...settings };
       minCoins = settings.min_withdrawal_coins || 100000;
+      exchangeBlock = settings.exchange_points_block || 100000;
+      coinsPer10k = settings.exchange_coins_per_10k_points || 7000;
       const ratePts = Number(settings.withdrawal_points_per_usd) || 10000;
       document.getElementById('minCoins').textContent = Number(minCoins).toLocaleString();
       document.getElementById('ruleMin').textContent = formatMinLabel(settings, minCoins);
@@ -274,6 +389,9 @@
       const feePct = Number(settings.withdrawal_service_fee_pct);
       document.getElementById('ruleFee').textContent =
         `${Number.isFinite(feePct) ? feePct : 8}% deducted from cash payout`;
+      document.getElementById('ruleExBlock').textContent = `${Number(exchangeBlock).toLocaleString()} points (multiples)`;
+      document.getElementById('ruleExRate').textContent =
+        `${Number(exchangeBlock).toLocaleString()} points → ${Number(estimateExchange(exchangeBlock)).toLocaleString()} NR coins (${coinsPer10k.toLocaleString()} per 10k)`;
 
       const bal = await SocialWallet.fetchBalance(true);
       withdrawable = bal.star_balance || 0;
@@ -283,13 +401,16 @@
       document.getElementById('withdrawableHint').textContent = fmt(withdrawable);
       document.getElementById('withdrawAmount').value = withdrawable >= minCoins ? minCoins : '';
       const zeroBanner = document.getElementById('zeroBalanceBanner');
-      if (withdrawable < minCoins && zeroBanner) zeroBanner.hidden = false;
-      updatePayoutEstimate();
-      updateSteps();
+      if (withdrawable < Math.min(minCoins, exchangeBlock) && zeroBanner) zeroBanner.hidden = false;
+
+      const params = new URLSearchParams(location.search);
+      setMode(params.get('mode') === 'exchange' ? 'exchange' : 'cash');
+
+      document.getElementById('modeCashBtn')?.addEventListener('click', () => setMode('cash'));
+      document.getElementById('modeExchangeBtn')?.addEventListener('click', () => setMode('exchange'));
 
       const zone = document.getElementById('qrUploadZone');
       const input = document.getElementById('qrFile');
-
       const openPicker = () => input.click();
       zone.addEventListener('click', (e) => {
         if (e.target.closest('#qrChangeBtn')) return;
@@ -305,7 +426,6 @@
         e.stopPropagation();
         openPicker();
       });
-
       input.addEventListener('change', () => {
         const file = input.files?.[0];
         if (file) applyQrFile(file);
@@ -356,8 +476,31 @@
         }
       }
 
+      async function doSubmitExchange() {
+        const amount = parseInt(document.getElementById('withdrawAmount').value, 10);
+        if (!amountValidForMode(amount)) {
+          SocialUI?.toast?.(`Enter multiples of ${Number(exchangeBlock).toLocaleString()} points`) || alert('Invalid amount');
+          return;
+        }
+        const btn = document.getElementById('submitExchange');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Exchanging…';
+        try {
+          const res = await SocialWallet.exchangePointsToCoins(amount);
+          const coins = res.data?.coinsOut ?? estimateExchange(amount);
+          SocialUI?.toast?.(res.message || `Added ${Number(coins).toLocaleString()} coins`) || alert('Exchange complete');
+          location.href = '/points.html?app=1';
+        } catch (e) {
+          SocialUI?.toast?.(e.message) || alert(e.message || 'Exchange failed');
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fas fa-sync-alt"></i> Exchange to coins';
+          updateSubmitState();
+        }
+      }
+
       document.getElementById('submitWithdraw').addEventListener('click', doSubmitWithdraw);
       document.getElementById('submitWithdrawInline')?.addEventListener('click', doSubmitWithdraw);
+      document.getElementById('submitExchange')?.addEventListener('click', doSubmitExchange);
     });
   </script>
 </body>
