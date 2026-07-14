@@ -9,7 +9,7 @@ const DEFAULT_SETTINGS = {
   /** Recharge: coins credited per ₹1 spent. Must not drive withdrawal FX. */
   coins_per_inr: 10,
   /** USD→INR for withdrawal payout estimates (locked rate). */
-  inr_per_usd: 92,
+  inr_per_usd: 94,
 };
 
 function resolveWithdrawalPointsPerUsd(settings) {

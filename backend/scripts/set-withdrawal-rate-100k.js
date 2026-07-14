@@ -13,7 +13,7 @@ const db = require('../config/database');
     min_withdrawal_usd: 10,
     withdrawal_points_per_usd: 10000,
     min_withdrawal_coins: 100000,
-    inr_per_usd: 92,
+    inr_per_usd: 94,
     coins_per_inr: Number(prev.coins_per_inr) || 10,
   };
   await db.query(
