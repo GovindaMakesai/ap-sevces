@@ -698,6 +698,17 @@ async function createPendingSellerRecharge(
     entity_id: res.rows[0].id,
     metadata: { packageCoins: pkg.coins, usd: pkg.usd, paymentChannel },
   });
+  try {
+    await require('./adminNotificationService').notifyAllAdmins({
+      type: 'seller_recharge',
+      title: 'New seller stock top-up pending',
+      message: `${Number(pkg.coins).toLocaleString()} sell-stock coins ($${pkg.usd}) awaiting approval.`,
+      data: { recharge_id: res.rows[0].id, seller_id: sellerId },
+      excludeUserIds: [sellerId],
+    });
+  } catch (_e) {
+    /* non-fatal */
+  }
   return res.rows[0];
 }
 

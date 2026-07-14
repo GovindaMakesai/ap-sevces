@@ -219,7 +219,9 @@ exports.getMessages = async (req, res) => {
             });
         }
 
-        const allowed = await chatService.userParticipates(conversation, currentUserId);
+        const participates = await chatService.userParticipates(conversation, currentUserId);
+        const isAdminViewer = require('../services/adminNotificationService').isAdminRole(req.userRole);
+        const allowed = participates || isAdminViewer;
         if (!allowed) {
             return res.status(403).json({
                 success: false,
@@ -228,12 +230,16 @@ exports.getMessages = async (req, res) => {
         }
 
         const messages = await chatService.listMessages(conversationId);
-        await chatService.markConversationRead(conversationId, currentUserId);
-        const meta = await enrichConversation(conversation, currentUserId);
+        if (participates) {
+            await chatService.markConversationRead(conversationId, currentUserId);
+        }
+        const meta = participates
+            ? await enrichConversation(conversation, currentUserId)
+            : await enrichConversation(conversation, conversation.user_high);
         const quota = await chatService.getFemaleMessageQuota(currentUserId);
 
         const io = req.app.get('io');
-        if (io) {
+        if (io && participates) {
             const otherId = chatService.otherParticipantId(conversation, currentUserId);
             if (otherId) {
                 io.to(`user:${otherId}`).emit('messages_read', {
@@ -245,10 +251,11 @@ exports.getMessages = async (req, res) => {
         }
 
         const me = currentUserId;
-        const otherReadAt =
-            String(conversation.user_low) === me
+        const otherReadAt = participates
+            ? (String(conversation.user_low) === me
                 ? conversation.user_high_last_read_at
-                : conversation.user_low_last_read_at;
+                : conversation.user_low_last_read_at)
+            : null;
 
         res.json({
             success: true,

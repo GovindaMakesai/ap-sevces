@@ -124,6 +124,17 @@ async function submitApplication(userId, { roleType, message, contactPhone, agen
   if (role === 'creator' && targetAgencyId) {
     await notifyAgencyOfHostApp(created);
   }
+  try {
+    await require('./adminNotificationService').notifyAllAdmins({
+      type: 'role_application',
+      title: `New ${ROLE_LABELS[role] || role} application`,
+      message: 'Open Admin → Role Applications to review.',
+      data: { application_id: created.id, role_type: role, user_id: userId },
+      excludeUserIds: [userId],
+    });
+  } catch (_e) {
+    /* non-fatal */
+  }
   return created;
 }
 

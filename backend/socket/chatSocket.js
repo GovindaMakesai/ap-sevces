@@ -1,6 +1,17 @@
 const jwt = require('jsonwebtoken');
 const chatService = require('../services/chatService');
 const { normalizeOutgoingChatMessage } = require('../utils/chatMessageFormat');
+const db = require('../config/database');
+const { isAdminRole } = require('../services/adminNotificationService');
+
+async function isSocketUserAdmin(userId) {
+    try {
+        const res = await db.query(`SELECT role FROM users WHERE id = $1`, [userId]);
+        return isAdminRole(res.rows[0]?.role);
+    } catch (_e) {
+        return false;
+    }
+}
 
 function registerChatSocket(io) {
     io.use((socket, next) => {
@@ -28,7 +39,9 @@ function registerChatSocket(io) {
             try {
                 const conversation = await chatService.getConversationById(conversationId);
                 if (!conversation) return;
-                const ok = await chatService.userParticipates(conversation, socket.userId);
+                const ok =
+                    (await chatService.userParticipates(conversation, socket.userId)) ||
+                    (await isSocketUserAdmin(socket.userId));
                 if (!ok) return;
                 socket.join(`conversation:${conversationId}`);
             } catch (error) {

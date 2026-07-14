@@ -191,7 +191,7 @@ async function appendMessage(conversationId, senderId, receiverId, text) {
     return msg.rows[0];
 }
 
-async function sendBetweenUsers(senderUserId, receiverRawId, text) {
+async function sendBetweenUsers(senderUserId, receiverRawId, text, options = {}) {
     const receiverUserId = await resolveToUserId(receiverRawId);
     if (!receiverUserId) {
         const err = new Error('Receiver not found');
@@ -224,6 +224,21 @@ async function sendBetweenUsers(senderUserId, receiverRawId, text) {
         created_at: row.created_at
     };
     const updatedQuota = await getFemaleMessageQuota(senderUserId);
+
+    if (!options.skipAdminNotify) {
+        try {
+            const adminNotificationService = require('./adminNotificationService');
+            void adminNotificationService.notifyAdminsOfChatMessage({
+                conversationId: conv.id,
+                senderId: String(senderUserId),
+                receiverId: receiverUserId,
+                text: row.body,
+            });
+        } catch (_e) {
+            /* non-fatal */
+        }
+    }
+
     return { conversation: conv, message, receiverUserId, quota: updatedQuota };
 }
 

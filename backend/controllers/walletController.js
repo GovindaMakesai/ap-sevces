@@ -119,19 +119,13 @@ exports.requestWithdraw = async (req, res) => {
     });
 
     try {
-      const Notification = require('../models/Notification');
-      const adminRows = await require('../config/database').query(
-        `SELECT id FROM users WHERE role IN ('admin', 'super_admin', 'founder', 'ceo') AND is_active = TRUE LIMIT 20`
-      );
-      for (const admin of adminRows.rows) {
-        await Notification.create({
-          user_id: admin.id,
-          type: 'withdrawal',
-          title: 'New withdrawal request',
-          message: `User requested withdrawal of ${amount.toLocaleString()} points — review in Admin → Withdrawals.`,
-          data: { withdrawal_id: withdrawal.id },
-        });
-      }
+      await require('../services/adminNotificationService').notifyAllAdmins({
+        type: 'withdrawal',
+        title: 'New withdrawal request',
+        message: `User requested withdrawal of ${amount.toLocaleString()} points — review in Admin → Withdrawals.`,
+        data: { withdrawal_id: withdrawal.id },
+        excludeUserIds: [req.userId],
+      });
     } catch (_notifyErr) {
       /* non-fatal */
     }

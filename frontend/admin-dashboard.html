@@ -1441,6 +1441,10 @@
                             <i class="fas fa-money-bill-wave"></i> Withdrawals
                             <span class="badge warning" id="withdrawalsBadge">0</span>
                         </button>
+                        <button class="nav-item" data-section="notifications">
+                            <i class="fas fa-bell"></i> Notifications
+                            <span class="badge warning" id="notificationsBadge">0</span>
+                        </button>
                         <button class="nav-item" data-section="role-applications">
                             <i class="fas fa-user-tag"></i> Role Applications
                             <span class="badge warning" id="roleAppsBadge">0</span>
@@ -2020,6 +2024,25 @@
                         </div>
                     </div>
 
+                    <!-- Admin notifications (chat + platform events) -->
+                    <div class="dashboard-section" id="notifications-section">
+                        <div class="section-header">
+                            <h2><i class="fas fa-bell"></i> Admin Notifications</h2>
+                            <div class="header-actions">
+                                <button class="btn-outline" onclick="markAllAdminNotificationsRead()">
+                                    <i class="fas fa-check-double"></i> Mark all read
+                                </button>
+                                <button class="btn-outline" onclick="loadAdminNotifications()">
+                                    <i class="fas fa-sync-alt"></i> Refresh
+                                </button>
+                            </div>
+                        </div>
+                        <p style="color:var(--gray-500);margin-bottom:16px;font-size:14px">
+                            All admins receive chat messages and platform alerts (withdrawals, recharges, role apps, seller top-ups).
+                        </p>
+                        <div id="adminNotificationsList" style="display:flex;flex-direction:column;gap:10px"></div>
+                    </div>
+
                     <!-- Reviews Section -->
                     <div class="dashboard-section" id="reviews-section">
                         <div class="section-header">
@@ -2426,6 +2449,7 @@
                 loadRecharges(),
                 loadRoleApplications(),
                 loadWithdrawals(),
+                loadAdminNotifications(),
                 loadReviews(),
                 initializeCharts()
             ]);
@@ -3214,6 +3238,68 @@
             return base + (path.startsWith('/') ? path : '/' + path);
         }
 
+        async function loadAdminNotifications() {
+            const list = document.getElementById('adminNotificationsList');
+            const badge = document.getElementById('notificationsBadge');
+            if (list) list.innerHTML = '<p class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Loading…</p>';
+            try {
+                const [feed, countRes] = await Promise.all([
+                    API.get('/notifications?limit=50&page=1'),
+                    API.get('/notifications/unread-count'),
+                ]);
+                const rows = Array.isArray(feed?.data)
+                    ? feed.data
+                    : (feed?.data?.notifications || feed?.notifications || []);
+                const unread = Number(
+                    countRes?.unreadCount ??
+                    countRes?.data?.unreadCount ??
+                    feed?.unreadCount ??
+                    0
+                );
+                if (badge) badge.textContent = String(unread);
+                if (!list) return;
+                if (!rows.length) {
+                    list.innerHTML = '<p class="empty-state">No notifications yet</p>';
+                    return;
+                }
+                list.innerHTML = rows.map((n) => {
+                    const data = typeof n.data === 'string' ? (() => { try { return JSON.parse(n.data); } catch (_e) { return {}; } })() : (n.data || {});
+                    const when = n.created_at ? new Date(n.created_at).toLocaleString() : '';
+                    const unreadCls = n.is_read ? '' : 'background:#eff6ff;border-color:#93c5fd';
+                    const link = data.deep_link || (data.conversation_id
+                        ? `/chat.html?app=1&conversation=${encodeURIComponent(data.conversation_id)}`
+                        : (n.type === 'withdrawal' ? '#withdrawals'
+                            : n.type === 'recharge' || n.type === 'seller_recharge' ? '#recharges'
+                            : n.type === 'role_application' ? '#role-applications' : ''));
+                    const openAttr = link
+                        ? (link.startsWith('#')
+                            ? `onclick="switchSection('${link.slice(1)}')"`
+                            : `onclick="window.open('${link}','_blank')"`)
+                        : '';
+                    return `<article style="border:1px solid #e5e7eb;border-radius:12px;padding:12px 14px;${unreadCls}" ${openAttr}>
+                        <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
+                            <strong style="font-size:14px">${String(n.title || n.type || 'Alert').replace(/</g,'&lt;')}</strong>
+                            <small style="color:#6b7280;white-space:nowrap">${when}</small>
+                        </div>
+                        <p style="margin:6px 0 0;font-size:13px;color:#374151">${String(n.message || '').replace(/</g,'&lt;')}</p>
+                        <small style="color:#9ca3af;text-transform:uppercase;letter-spacing:.04em">${String(n.type || '')}</small>
+                    </article>`;
+                }).join('');
+            } catch (e) {
+                if (list) list.innerHTML = `<p class="empty-state">${e.message || 'Failed to load notifications'}</p>`;
+            }
+        }
+
+        async function markAllAdminNotificationsRead() {
+            try {
+                await API.put('/notifications/read-all');
+                Toast.show('All notifications marked as read', 'success');
+                await loadAdminNotifications();
+            } catch (e) {
+                Toast.show(e.message || 'Failed', 'error');
+            }
+        }
+
         async function loadWithdrawals() {
             const tbody = document.getElementById('withdrawalsTable');
             const cards = document.getElementById('withdrawalsCards');
@@ -3621,6 +3707,7 @@
             if (section === 'role-applications') loadRoleApplications();
             if (section === 'bd-hierarchy') loadBdHierarchy();
             if (section === 'withdrawals') loadWithdrawals();
+            if (section === 'notifications') loadAdminNotifications();
             if (section === 'reviews') loadReviews();
         }
 

@@ -1,4 +1,4 @@
-﻿// backend/server.js ΓÇö AP Services production entry
+// backend/server.js ΓÇö AP Services production entry
 
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
@@ -205,6 +205,7 @@ const io = new Server(server, {
 });
 app.set('io', io);
 require('./services/systemMessageService').setSocketIo(io);
+require('./services/adminNotificationService').setSocketIo(io);
 
 async function attachSocketRedisAdapter() {
   if (!redis.isEnabled()) return;

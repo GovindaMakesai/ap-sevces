@@ -86,6 +86,17 @@ async function createRechargeRequest(userId, { amount_inr, payment_method, trans
      VALUES ($1, $2, $3, $4, 'pending', $5) RETURNING *`,
     [userId, amount_inr, payment_method || 'qr_manual', utr, payment_proof_asset_id || null]
   );
+  try {
+    await require('./adminNotificationService').notifyAllAdmins({
+      type: 'recharge',
+      title: 'New coin recharge pending',
+      message: `₹${Number(amount_inr).toLocaleString('en-IN')} recharge submitted — review Payment Approvals.`,
+      data: { recharge_id: res.rows[0].id, user_id: userId },
+      excludeUserIds: [userId],
+    });
+  } catch (_e) {
+    /* non-fatal */
+  }
   return res.rows[0];
 }
 

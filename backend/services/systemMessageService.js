@@ -41,7 +41,8 @@ async function sendSystemChatMessage(recipientUserId, text) {
     const { conversation, message, receiverUserId } = await chatService.sendBetweenUsers(
       senderId,
       recipient,
-      body
+      body,
+      { skipAdminNotify: true }
     );
     const normalized = normalizeOutgoingChatMessage(message, conversation.id);
 
