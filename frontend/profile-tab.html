@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#c9a227">
   <title>Me - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-theme.css?v=20260714-gift-coins">
+  <link rel="stylesheet" href="social-theme.css?v=20260714-no-gift-normal">
   <link rel="stylesheet" href="social-features.css">
   <style>
     html:not(.profile-ready) .social-profile-hero,
@@ -22,13 +22,18 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
       max-width: 360px;
     }
-    #profileStats .social-stat-gift-coins {
+    /* Gift coins: sellers only — never show for normal users */
+    #statGiftCoinsLink {
+      display: none !important;
+    }
+    #statGiftCoinsLink.is-seller-visible {
+      display: flex !important;
       grid-column: 1 / -1;
       background: linear-gradient(135deg, #fff1f2, #ffe4e6);
       color: #9f1239;
     }
-    #profileStats .social-stat-gift-coins strong { color: #e11d48; }
-    #profileStats .social-stat-gift-coins span { color: #be123c; }
+    #statGiftCoinsLink.is-seller-visible strong { color: #e11d48; }
+    #statGiftCoinsLink.is-seller-visible span { color: #be123c; }
   </style>
   <script>
     (function () {
@@ -74,7 +79,7 @@
         <strong id="statPoints">0</strong>
         <span>Points</span>
       </a>
-      <a href="/coin-seller-center.html?app=1" class="social-stat-pill social-stat-gift-coins" id="statGiftCoinsLink" hidden>
+      <a href="/coin-seller-center.html?app=1" class="social-stat-pill social-stat-gift-coins" id="statGiftCoinsLink" style="display:none" aria-hidden="true">
         <strong id="statGiftCoins">0</strong>
         <span>Gift coins</span>
       </a>
@@ -152,7 +157,7 @@
 
   <script src="ap-config.js"></script>
   <script src="app.js?v=20260713-hierarchy"></script>
-  <script src="social-wallet.js?v=20260714-gift-only"></script>
+  <script src="social-wallet.js?v=20260714-gift-seller-only"></script>
   <script src="social-ui.js?v=20260624-profile-url-fix"></script>
   <script src="social-interactions.js?v=20260624-profile-url-fix"></script>
   <script src="social-shell.js?v=20260624-profile-url-fix"></script>
@@ -475,10 +480,11 @@
             const giftLink = document.getElementById('statGiftCoinsLink');
             if (coins) coins.textContent = (b.coin_balance || 0).toLocaleString();
             if (pts) pts.textContent = (b.star_balance || 0).toLocaleString();
-            const sellerRoles = ['coin_seller', 'admin', 'super_admin', 'founder', 'ceo'];
-            const showGiftCoins = !!(b.is_coin_seller || user.role === 'coin_seller');
+            /* Gift coins pill: coin_seller role only — never for normal users */
+            const showGiftCoins = String(user.role || '') === 'coin_seller';
             if (giftLink) {
-              giftLink.hidden = !showGiftCoins;
+              giftLink.classList.toggle('is-seller-visible', showGiftCoins);
+              giftLink.setAttribute('aria-hidden', showGiftCoins ? 'false' : 'true');
               if (showGiftCoins) {
                 giftLink.href = '/coin-seller-center.html?app=1';
                 if (giftEl) {
@@ -489,6 +495,7 @@
               }
             }
             const balance = Number(b.coin_balance || 0);
+            const sellerRoles = ['coin_seller', 'admin', 'super_admin', 'founder', 'ceo'];
             const isSeller = sellerRoles.includes(user.role) || b.is_coin_seller || balance >= 100000;
             const roleApply = document.getElementById('roleApplyLink');
             if (roleApply) {

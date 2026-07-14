@@ -562,10 +562,17 @@ async function debitGiftSpend(userId, amount, meta = {}, client) {
   if (!amt || amt <= 0) throw new Error('Gift amount must be positive');
 
   const run = async (c) => {
-    const profileRes = await c.query(
-      `SELECT gift_inventory_coins FROM coin_seller_profiles WHERE user_id = $1 FOR UPDATE`,
-      [userId]
-    );
+    const roleRes = await c.query(`SELECT role FROM users WHERE id = $1`, [userId]);
+    const role = roleRes.rows[0]?.role;
+    const sellerRoles = new Set(['coin_seller', 'admin', 'super_admin', 'founder', 'ceo']);
+    const treatAsSeller = sellerRoles.has(String(role || ''));
+
+    const profileRes = treatAsSeller
+      ? await c.query(
+          `SELECT gift_inventory_coins FROM coin_seller_profiles WHERE user_id = $1 FOR UPDATE`,
+          [userId]
+        )
+      : { rows: [] };
     const profile = profileRes.rows[0];
 
     if (profile) {

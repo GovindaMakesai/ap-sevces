@@ -10,12 +10,25 @@ exports.getBalance = async (req, res) => {
     let sell_inventory_coins = 0;
     let is_coin_seller = false;
     try {
+      const userRes = await require('../config/database').query(
+        `SELECT role FROM users WHERE id = $1`,
+        [req.userId]
+      );
+      const role = userRes.rows[0]?.role;
       const coinSellerService = require('../services/coinSellerService');
       const profile = await coinSellerService.getProfile(req.userId);
-      if (profile) {
+      /* UI flag: real coin_seller role only (not every leftover profile row) */
+      if (profile && role === 'coin_seller') {
         is_coin_seller = true;
         gift_inventory_coins = Number(profile.gift_inventory_coins || 0);
         sell_inventory_coins = Number(profile.inventory_coins || 0);
+      } else if (profile) {
+        /* Admins / privileged may still have inventory — expose stocks without seller UI flag */
+        gift_inventory_coins = Number(profile.gift_inventory_coins || 0);
+        sell_inventory_coins = Number(profile.inventory_coins || 0);
+        if (['admin', 'super_admin', 'founder', 'ceo'].includes(role) && profile.is_active) {
+          is_coin_seller = true;
+        }
       }
     } catch (_e) {
       /* ignore */
