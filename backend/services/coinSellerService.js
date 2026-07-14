@@ -202,21 +202,30 @@ async function ensureSellerAccess(userId) {
   const userRes = await db.query('SELECT role, first_name, last_name FROM users WHERE id = $1', [userId]);
   const user = userRes.rows[0];
   const privileged = ['coin_seller', 'admin', 'super_admin', 'founder', 'ceo'].includes(user?.role);
-  if (privileged || balance >= 100000) {
-    let profile = await getProfile(userId);
-    const name = `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || 'Coin Seller';
-    if (!profile) {
-      profile = await upsertProfile(userId, { displayName: name, inventoryCoins: 0, isActive: true });
-    } else if (privileged && !profile.is_active) {
-      profile = await upsertProfile(userId, { displayName: profile.display_name || name, isActive: true });
-    }
-    if (!privileged && balance >= 100000) {
-      const { syncUserRole } = require('./permissionService');
-      await syncUserRole(userId, 'coin_seller');
-    }
-    return profile;
+
+  let profile = await getProfile(userId);
+  const hasActiveProfile = !!(profile && profile.is_active);
+  const sellable = Number(profile?.inventory_coins || 0) + balance;
+  const allowed = privileged || balance >= 100000 || hasActiveProfile || sellable >= 100000;
+  if (!allowed) return null;
+
+  const name = `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || 'Coin Seller';
+  if (!profile) {
+    profile = await upsertProfile(userId, { displayName: name, inventoryCoins: 0, isActive: true });
+  } else if (!profile.is_active) {
+    profile = await upsertProfile(userId, { displayName: profile.display_name || name, isActive: true });
   }
-  return null;
+
+  if (!privileged && (balance >= 100000 || sellable >= 100000)) {
+    try {
+      const { syncUserRole } = require('./permissionService');
+      const promoteable = !user?.role || ['customer', 'worker', 'user'].includes(String(user.role));
+      if (promoteable) await syncUserRole(userId, 'coin_seller');
+    } catch (_e) {
+      /* ignore */
+    }
+  }
+  return profile;
 }
 
 async function getDashboard(userId) {

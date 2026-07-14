@@ -9,7 +9,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <script src="/ap-native-boot.js"></script>
     <link rel="stylesheet" href="/social-theme.css?v=20260626-discover-chat">
-    <link rel="stylesheet" href="/social-chat.css?v=20260713-invite-join">
+    <link rel="stylesheet" href="/social-chat.css?v=20260714-exchange-btn">
     
     <!-- Font Awesome 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -1324,8 +1324,8 @@
                                 <button type="button" class="chat-action-btn" id="chatHeaderGiftBtn" title="Send gift">
                                     <i class="fas fa-gift"></i>
                                 </button>
-                                <button type="button" class="chat-action-btn" id="chatHeaderSellBtn" title="Send coins" hidden>
-                                    <i class="fas fa-coins"></i>
+                                <button type="button" class="chat-action-btn" id="chatHeaderSellBtn" title="Exchange / send coins" hidden>
+                                    <i class="fas fa-exchange-alt"></i>
                                 </button>
                                 <div class="chat-header-more-wrap" id="chatHeaderMoreWrap" hidden>
                                     <button type="button" class="chat-action-btn" id="chatHeaderMoreBtn" title="More options" aria-label="More options">
@@ -1333,6 +1333,7 @@
                                     </button>
                                     <div class="chat-header-more-menu" id="chatHeaderMoreMenu">
                                         <button type="button" data-act="follow" id="chatMenuFollow">Follow</button>
+                                        <button type="button" data-act="exchange" id="chatMenuExchange" hidden>Exchange coins</button>
                                         <button type="button" data-act="block" id="chatMenuBlock">Block</button>
                                     </div>
                                 </div>
@@ -1681,16 +1682,41 @@
                 console.warn('chat extras skipped', extraErr);
             }
             const sellerRoles = ['coin_seller', 'admin', 'super_admin', 'founder', 'ceo'];
-            const u = Auth.getUser?.();
-            const showSellerTools = async () => {
+            async function showSellerTools() {
                 const sellBtn = document.getElementById('chatHeaderSellBtn');
-                if (!sellBtn) return;
-                if (u && sellerRoles.includes(u.role)) { sellBtn.hidden = false; return; }
+                const menuExchange = document.getElementById('chatMenuExchange');
+                if (!sellBtn && !menuExchange) return;
+                const setVisible = (on) => {
+                    if (sellBtn) sellBtn.hidden = !on;
+                    if (menuExchange) menuExchange.hidden = !on;
+                };
+                const u = Auth.getUser?.() || {};
+                if (sellerRoles.includes(u.role)) {
+                    setVisible(true);
+                    return;
+                }
                 try {
-                    const bal = await SocialWallet?.fetchBalance?.();
-                    if (Number(bal?.coin_balance || 0) >= 100000) sellBtn.hidden = false;
+                    const bal = await SocialWallet?.fetchBalance?.(true);
+                    const sellable = Number(
+                        bal?.sellable_coins ??
+                        ((Number(bal?.sell_inventory_coins || bal?.inventory_coins || 0) +
+                          Number(bal?.coin_balance || 0)))
+                    );
+                    if (sellable >= 1000 || Number(bal?.coin_balance || 0) >= 100000) {
+                        setVisible(true);
+                        return;
+                    }
                 } catch (_e) {}
-            };
+                try {
+                    const dash = await (API.getFresh || API.get)('/social/coin-seller/dashboard');
+                    if (dash?.success || dash?.data?.sellable_coins != null) {
+                        setVisible(true);
+                        return;
+                    }
+                } catch (_e) {}
+                setVisible(false);
+            }
+            window.__apShowSellerTools = showSellerTools;
             showSellerTools();
             try { setupMessageActions(); } catch (_e) { /* ignore */ }
             document.getElementById('messageInput')?.addEventListener('blur', () => {
@@ -3078,6 +3104,7 @@
 
                 await loadMessages(currentChatId);
                 updateChatSocialBar();
+                window.__apShowSellerTools?.();
                 useChatStore.setState((state) => ({
                     conversations: state.conversations.map((c) =>
                         String(c.id) === String(currentChatId) ? { ...c, unread: 0 } : c
@@ -3567,6 +3594,14 @@
                     await SocialInteractions.toggleFollow(currentChatPeer.otherUserId, currentChatPeer.name);
                     updateChatSocialBar();
                     closeChatHeaderMoreMenu();
+                });
+            }
+            const exchangeBtn = document.getElementById('chatMenuExchange');
+            if (exchangeBtn && !exchangeBtn.dataset.bound) {
+                exchangeBtn.dataset.bound = '1';
+                exchangeBtn.addEventListener('click', () => {
+                    closeChatHeaderMoreMenu();
+                    openChatCoinSheet();
                 });
             }
             if (blockBtn && !blockBtn.dataset.bound) {
@@ -4394,14 +4429,14 @@
     <div class="chat-gift-sheet" id="chatCoinSheet" hidden>
         <div class="chat-gift-panel">
             <div class="chat-gift-head">
-                <h3>Send coins</h3>
+                <h3>Exchange coins</h3>
                 <button type="button" id="chatCoinClose" aria-label="Close">&times;</button>
             </div>
             <p class="chat-coin-meta">To: <strong id="chatCoinRecipient">—</strong></p>
             <p class="chat-coin-meta">Available to sell: <strong id="chatCoinInventory">—</strong> coins</p>
             <label class="chat-coin-label" for="chatCoinAmount">Amount (min 1,000)</label>
             <input type="number" id="chatCoinAmount" class="chat-coin-input" min="1000" step="1000" placeholder="1000">
-            <button type="button" class="chat-gift-send" id="chatCoinSend">Send coins</button>
+            <button type="button" class="chat-gift-send" id="chatCoinSend">Send to user</button>
         </div>
     </div>
     <div id="social-bottom-nav-mount"></div>

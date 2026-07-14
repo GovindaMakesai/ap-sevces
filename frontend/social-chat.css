@@ -750,6 +750,13 @@ html.ap-expo-app .chat-actions {
   align-items: center;
   gap: 2px;
   flex-shrink: 0;
+  max-width: 48%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+html.ap-expo-app #chatHeaderSellBtn:not([hidden]) {
+  color: #ea580c;
 }
 
 html.ap-expo-app .chat-action-btn {
