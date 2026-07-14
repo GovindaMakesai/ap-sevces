@@ -1533,12 +1533,12 @@
 
         async function bootChatPage() {
             try {
-                const bustKey = 'chat_cb_20260713d';
+                const bustKey = 'chat_cb_20260714e';
                 if (!sessionStorage.getItem(bustKey)) {
                     sessionStorage.setItem(bustKey, '1');
                     const u = new URL(location.href);
-                    if (u.searchParams.get('_cb') !== '20260713d') {
-                        u.searchParams.set('_cb', '20260713d');
+                    if (u.searchParams.get('_cb') !== '20260714e') {
+                        u.searchParams.set('_cb', '20260714e');
                         location.replace(u.toString());
                         return;
                     }
@@ -4289,7 +4289,7 @@
                 const balance = await SocialWallet?.fetchBalance?.(true);
                 const giftBal = SocialWallet?.getGiftableCoins
                   ? SocialWallet.getGiftableCoins(balance)
-                  : Number(balance?.giftable_coins ?? balance?.coin_balance || 0);
+                  : Number(balance?.giftable_coins ?? balance?.coin_balance ?? 0);
                 if (balance && giftBal < coinCost) {
                     const isSeller = balance.is_coin_seller;
                     Toast.show(

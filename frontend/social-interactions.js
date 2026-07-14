@@ -1428,7 +1428,7 @@
           const coinCost = 10;
           const giftBal = SocialWallet.getGiftableCoins
             ? SocialWallet.getGiftableCoins(bal)
-            : Number(bal.giftable_coins ?? bal.coin_balance || 0);
+            : Number(bal.giftable_coins ?? bal.coin_balance ?? 0);
           if (giftBal < coinCost) {
             toast('Not enough coins — opening recharge', 'warning');
             setTimeout(() => (location.href = '/coins-recharge.html?app=1'), 500);
