@@ -203,7 +203,9 @@ async function sendBetweenUsers(senderUserId, receiverRawId, text, options = {})
         err.status = 400;
         throw err;
     }
-    const quota = await getFemaleMessageQuota(senderUserId);
+    const quota = options.skipQuota
+      ? { limited: false, remaining: 999 }
+      : await getFemaleMessageQuota(senderUserId);
     if (quota.limited && quota.remaining <= 0) {
         const err = new Error(
             `Message limit reached (${quota.limit} messages). Upgrade your account or contact support to continue chatting.`

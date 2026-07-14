@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#5b67f6">
   <title>Withdraw - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-withdraw.css?v=20260714-exchange">
+  <link rel="stylesheet" href="social-withdraw.css?v=20260714-exchange-v2">
   <link rel="stylesheet" href="mobile-app.css">
 </head>
 <body class="withdraw-app">
@@ -20,6 +20,11 @@
         <a href="/withdraw-notices.html?app=1" class="wd-header-link">History</a>
       </div>
     </header>
+
+    <div class="wd-exchange-shortcut" role="group" aria-label="Choose action">
+      <button type="button" id="shortcutCashBtn" class="is-active">Cash withdraw</button>
+      <button type="button" id="shortcutExchangeBtn">Exchange → coins</button>
+    </div>
 
     <div class="wd-mode-tabs" role="tablist" aria-label="Choose action">
       <button type="button" class="wd-mode-tab is-active" id="modeCashBtn" data-mode="cash" role="tab" aria-selected="true">
@@ -142,7 +147,7 @@
   <input type="file" id="qrFile" accept="image/jpeg,image/png,image/webp" tabindex="-1" aria-hidden="true">
 
   <script src="app.js"></script>
-  <script src="social-wallet.js"></script>
+  <script src="social-wallet.js?v=20260714-exchange-v2"></script>
   <script src="auth-guard.js"></script>
   <script src="social-ui.js"></script>
   <script>
@@ -323,6 +328,8 @@
       currentMode = mode === 'exchange' ? 'exchange' : 'cash';
       document.getElementById('modeCashBtn')?.classList.toggle('is-active', currentMode === 'cash');
       document.getElementById('modeExchangeBtn')?.classList.toggle('is-active', currentMode === 'exchange');
+      document.getElementById('shortcutCashBtn')?.classList.toggle('is-active', currentMode === 'cash');
+      document.getElementById('shortcutExchangeBtn')?.classList.toggle('is-active', currentMode === 'exchange');
       document.getElementById('modeCashBtn')?.setAttribute('aria-selected', currentMode === 'cash' ? 'true' : 'false');
       document.getElementById('modeExchangeBtn')?.setAttribute('aria-selected', currentMode === 'exchange' ? 'true' : 'false');
 
@@ -408,6 +415,8 @@
 
       document.getElementById('modeCashBtn')?.addEventListener('click', () => setMode('cash'));
       document.getElementById('modeExchangeBtn')?.addEventListener('click', () => setMode('exchange'));
+      document.getElementById('shortcutCashBtn')?.addEventListener('click', () => setMode('cash'));
+      document.getElementById('shortcutExchangeBtn')?.addEventListener('click', () => setMode('exchange'));
 
       const zone = document.getElementById('qrUploadZone');
       const input = document.getElementById('qrFile');
@@ -486,7 +495,9 @@
         btn.disabled = true;
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Exchanging…';
         try {
-          const res = await SocialWallet.exchangePointsToCoins(amount);
+          const res = await (SocialWallet.exchangePointsToCoins
+            ? SocialWallet.exchangePointsToCoins(amount)
+            : API.post('/wallet/exchange-points', { points: amount }));
           const coins = res.data?.coinsOut ?? estimateExchange(amount);
           SocialUI?.toast?.(res.message || `Added ${Number(coins).toLocaleString()} coins`) || alert('Exchange complete');
           location.href = '/points.html?app=1';

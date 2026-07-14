@@ -625,8 +625,31 @@ body.withdraw-app button {
 body.withdraw-app .social-bottom-nav,
 body.withdraw-app .social-bridge-header,
 body.withdraw-app .navbar,
-body.withdraw-app .footer {
+body.withdraw-app .footer:not(.wd-footer) {
   display: none !important;
+}
+
+/* Never hide withdraw exchange UI in the app shell */
+html.social-app body.withdraw-app .wd-mode-tabs,
+body.withdraw-app .wd-mode-tabs {
+  display: grid !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  position: relative !important;
+  z-index: 5;
+}
+
+html.social-app body.withdraw-app footer.wd-footer,
+body.withdraw-app footer.wd-footer {
+  display: flex !important;
+  visibility: visible !important;
+}
+
+html.social-app body.withdraw-app .wd-mode-tab,
+body.withdraw-app .wd-mode-tab {
+  display: inline-flex !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
 }
 
 /* Detail / notice pages */
@@ -757,33 +780,65 @@ body.withdraw-app .footer {
 }
 
 .wd-mode-tabs {
-  display: grid;
+  display: grid !important;
   grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin: 0 0 14px;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 4px;
+  background: #e5e7eb;
+  border-radius: 14px;
 }
 
 .wd-mode-tab {
-  border: 1px solid #e5e7eb;
-  background: #fff;
+  border: none;
+  background: transparent;
   color: #4b5563;
-  border-radius: 12px;
-  min-height: 44px;
-  padding: 10px 8px;
-  font-size: 13px;
-  font-weight: 700;
-  display: inline-flex;
+  border-radius: 10px;
+  min-height: 52px;
+  padding: 12px 10px;
+  font-size: 14px;
+  font-weight: 800;
+  display: inline-flex !important;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 8px;
   cursor: pointer;
 }
 
 .wd-mode-tab.is-active {
+  background: #fff;
+  color: #4f46e5;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.wd-mode-tab[data-mode="exchange"].is-active {
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.35);
+}
+
+.wd-exchange-shortcut {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+
+.wd-exchange-shortcut button {
+  flex: 1;
+  min-height: 44px;
+  border-radius: 12px;
+  border: 1px solid #c7d2fe;
+  background: #eef2ff;
+  color: #3730a3;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.wd-exchange-shortcut button.is-active {
   background: linear-gradient(135deg, #6366f1, #4f46e5);
   border-color: transparent;
   color: #fff;
-  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
 }
 
 .wd-card-flush {

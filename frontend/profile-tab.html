@@ -22,6 +22,18 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
       max-width: 360px;
     }
+    #profileWalletActions .social-profile-actions-row {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+    #profileWalletActions .social-wallet-btn {
+      min-width: 0;
+      padding: 10px 6px;
+    }
+    #profileWalletActions .social-wallet-btn-label {
+      font-size: 11px;
+    }
     /* Gift coins: sellers only — never show for normal users */
     #statGiftCoinsLink {
       display: none !important;
@@ -93,6 +105,10 @@
         <a href="/withdraw.html?app=1" class="social-wallet-btn social-wallet-btn-withdraw">
           <span class="social-wallet-btn-icon" aria-hidden="true"><i class="fas fa-wallet"></i></span>
           <span class="social-wallet-btn-label">Withdraw</span>
+        </a>
+        <a href="/withdraw.html?app=1&mode=exchange" class="social-wallet-btn" id="profileExchangeBtn" style="background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff">
+          <span class="social-wallet-btn-icon" aria-hidden="true"><i class="fas fa-sync-alt"></i></span>
+          <span class="social-wallet-btn-label">Exchange</span>
         </a>
       </div>
       <button type="button" class="social-profile-edit-row" id="editProfileBtn" style="display:none">

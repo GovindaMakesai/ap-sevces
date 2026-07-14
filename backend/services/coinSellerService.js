@@ -369,12 +369,29 @@ async function transferCoins(sellerId, { recipientId, coins, transferType = 'use
       [sellerId]
     );
     let seller = sellerRes.rows[0];
-    if (!seller) throw new Error('Seller profile not found');
-    if (!seller.is_active) {
-      const roleRes = await client.query(`SELECT role FROM users WHERE id = $1`, [sellerId]);
-      const privileged = ['coin_seller', 'admin', 'super_admin', 'founder', 'ceo'].includes(
-        roleRes.rows[0]?.role
+    const roleRes = await client.query(`SELECT role, first_name, last_name FROM users WHERE id = $1`, [sellerId]);
+    const sellerUser = roleRes.rows[0];
+    const privileged = ['coin_seller', 'admin', 'super_admin', 'founder', 'ceo'].includes(
+      sellerUser?.role
+    );
+    if (!seller) {
+      if (!privileged) throw new Error('Seller profile not found');
+      const displayName =
+        `${sellerUser?.first_name || ''} ${sellerUser?.last_name || ''}`.trim() || 'Coin Seller';
+      await client.query(
+        `INSERT INTO coin_seller_profiles (user_id, display_name, inventory_coins, gift_inventory_coins, is_active)
+         VALUES ($1, $2, 0, 0, TRUE)
+         ON CONFLICT (user_id) DO UPDATE SET is_active = TRUE, updated_at = CURRENT_TIMESTAMP`,
+        [sellerId, displayName]
       );
+      const again = await client.query(
+        `SELECT * FROM coin_seller_profiles WHERE user_id = $1 FOR UPDATE`,
+        [sellerId]
+      );
+      seller = again.rows[0];
+      if (!seller) throw new Error('Seller profile not found');
+    }
+    if (!seller.is_active) {
       if (!privileged) throw new Error('Seller profile not active');
       await client.query(
         `UPDATE coin_seller_profiles SET is_active = TRUE, updated_at = CURRENT_TIMESTAMP WHERE user_id = $1`,
@@ -384,11 +401,14 @@ async function transferCoins(sellerId, { recipientId, coins, transferType = 'use
     }
 
     const wallet = await walletService.getOrCreateWallet(sellerId, client);
+    /* Sell coins = inventory first (own pool). Wallet only fills the gap — never gift stock. */
     const inventoryAvail = Number(seller.inventory_coins || 0);
     const walletAvail = Number(wallet?.coin_balance || 0);
     const totalAvail = inventoryAvail + walletAvail;
     if (totalAvail < amount) {
-      throw new Error(`Insufficient sellable balance (have ${totalAvail.toLocaleString()}, need ${amount.toLocaleString()})`);
+      throw new Error(
+        `Insufficient sell coins (have ${totalAvail.toLocaleString()}, need ${amount.toLocaleString()}). Top-up sell stock to send. Gift coins cannot be sold.`
+      );
     }
 
     let fromInventory = Math.min(amount, inventoryAvail);
