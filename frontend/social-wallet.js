@@ -9,6 +9,7 @@
     sell_inventory_coins: 0,
     giftable_coins: 0,
     sellable_coins: 0,
+    is_coin_seller: false,
   };
   let lastFetch = 0;
 
@@ -19,10 +20,13 @@
     const sell_inventory_coins = Number(
       data.sell_inventory_coins ?? data.inventory_coins ?? base.sell_inventory_coins
     ) || 0;
+    const is_coin_seller = !!(data.is_coin_seller ?? base.is_coin_seller);
     const giftable_coins =
       data.giftable_coins != null
         ? Number(data.giftable_coins) || 0
-        : coin_balance + gift_inventory_coins;
+        : is_coin_seller
+          ? gift_inventory_coins
+          : coin_balance;
     const sellable_coins =
       data.sellable_coins != null
         ? Number(data.sellable_coins) || 0
@@ -35,6 +39,7 @@
       inventory_coins: sell_inventory_coins,
       giftable_coins,
       sellable_coins,
+      is_coin_seller,
       settings: data.settings ?? base.settings,
     };
   }
@@ -102,11 +107,12 @@
     return Number(b.coin_balance) || 0;
   }
 
-  /** Coins available to send gifts (wallet + seller gift stock). */
+  /** Coins available to send gifts (seller gift stock only, or wallet for normal users). */
   function getGiftableCoins(bal) {
     const b = bal || cached;
     if (b.giftable_coins != null) return Number(b.giftable_coins) || 0;
-    return (Number(b.coin_balance) || 0) + (Number(b.gift_inventory_coins) || 0);
+    if (b.is_coin_seller) return Number(b.gift_inventory_coins) || 0;
+    return Number(b.coin_balance) || 0;
   }
 
   /** Coins sellers can transfer to users (sell stock + wallet). */

@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#c9a227">
   <title>Me - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-theme.css?v=20260713-hierarchy">
+  <link rel="stylesheet" href="social-theme.css?v=20260714-gift-coins">
   <link rel="stylesheet" href="social-features.css">
   <style>
     html:not(.profile-ready) .social-profile-hero,
@@ -18,6 +18,17 @@
       background-size: 200% 100%; animation: profile-load 1s linear infinite;
     }
     @keyframes profile-load { to { background-position: 200% 0; } }
+    #profileStats {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      max-width: 360px;
+    }
+    #profileStats .social-stat-gift-coins {
+      grid-column: 1 / -1;
+      background: linear-gradient(135deg, #fff1f2, #ffe4e6);
+      color: #9f1239;
+    }
+    #profileStats .social-stat-gift-coins strong { color: #e11d48; }
+    #profileStats .social-stat-gift-coins span { color: #be123c; }
   </style>
   <script>
     (function () {
@@ -62,6 +73,10 @@
       <a href="/points.html?app=1" class="social-stat-pill social-stat-points">
         <strong id="statPoints">0</strong>
         <span>Points</span>
+      </a>
+      <a href="/coin-seller-center.html?app=1" class="social-stat-pill social-stat-gift-coins" id="statGiftCoinsLink">
+        <strong id="statGiftCoins">0</strong>
+        <span>Gift coins</span>
       </a>
     </div>
     <div class="social-profile-actions" id="profileWalletActions">
@@ -137,7 +152,7 @@
 
   <script src="ap-config.js"></script>
   <script src="app.js?v=20260713-hierarchy"></script>
-  <script src="social-wallet.js"></script>
+  <script src="social-wallet.js?v=20260714-gift-only"></script>
   <script src="social-ui.js?v=20260624-profile-url-fix"></script>
   <script src="social-interactions.js?v=20260624-profile-url-fix"></script>
   <script src="social-shell.js?v=20260624-profile-url-fix"></script>
@@ -456,11 +471,25 @@
           const paintWallet = (b) => {
             const coins = document.getElementById('statCoins');
             const pts = document.getElementById('statPoints');
+            const giftEl = document.getElementById('statGiftCoins');
+            const giftLink = document.getElementById('statGiftCoinsLink');
             if (coins) coins.textContent = (b.coin_balance || 0).toLocaleString();
             if (pts) pts.textContent = (b.star_balance || 0).toLocaleString();
+            const giftBal = b.is_coin_seller
+              ? Number(b.gift_inventory_coins || b.giftable_coins || 0)
+              : Number(b.coin_balance || 0);
+            if (giftEl) giftEl.textContent = giftBal.toLocaleString();
+            if (giftLink) {
+              giftLink.href = b.is_coin_seller
+                ? '/coin-seller-center.html?app=1'
+                : '/store.html?app=1';
+              giftLink.querySelector('span').textContent = b.is_coin_seller
+                ? 'Gift coins'
+                : 'Gift coins';
+            }
             const balance = Number(b.coin_balance || 0);
             const sellerRoles = ['coin_seller', 'admin', 'super_admin', 'founder', 'ceo'];
-            const isSeller = sellerRoles.includes(user.role) || balance >= 100000;
+            const isSeller = sellerRoles.includes(user.role) || b.is_coin_seller || balance >= 100000;
             const roleApply = document.getElementById('roleApplyLink');
             if (roleApply) {
               if (isSeller && user.role === 'coin_seller') roleApply.style.display = 'none';

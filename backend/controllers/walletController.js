@@ -8,23 +8,28 @@ exports.getBalance = async (req, res) => {
     const settings = await walletService.getWalletSettings();
     let gift_inventory_coins = 0;
     let sell_inventory_coins = 0;
+    let is_coin_seller = false;
     try {
       const coinSellerService = require('../services/coinSellerService');
       const profile = await coinSellerService.getProfile(req.userId);
       if (profile) {
+        is_coin_seller = true;
         gift_inventory_coins = Number(profile.gift_inventory_coins || 0);
         sell_inventory_coins = Number(profile.inventory_coins || 0);
       }
     } catch (_e) {
       /* ignore */
     }
-    const giftable =
-      Number(balance.coin_balance || 0) + gift_inventory_coins;
+    /* Sellers gift only from gift stock; normal users gift from wallet coins */
+    const giftable = is_coin_seller
+      ? gift_inventory_coins
+      : Number(balance.coin_balance || 0);
     res.json({
       success: true,
       data: {
         ...balance,
         settings,
+        is_coin_seller,
         gift_inventory_coins,
         sell_inventory_coins,
         inventory_coins: sell_inventory_coins,
@@ -246,10 +251,12 @@ exports.sendGift = async (req, res) => {
     const walletBal = await walletService.getBalance(req.userId);
     let gift_inventory_coins = Number(result.sender_balance?.gift_inventory_coins || 0);
     let sell_inventory_coins = 0;
+    let is_coin_seller = false;
     try {
       const coinSellerService = require('../services/coinSellerService');
       const profile = await coinSellerService.getProfile(req.userId);
       if (profile) {
+        is_coin_seller = true;
         gift_inventory_coins = Number(profile.gift_inventory_coins || 0);
         sell_inventory_coins = Number(profile.inventory_coins || 0);
       }
@@ -258,10 +265,13 @@ exports.sendGift = async (req, res) => {
     }
     const balance = {
       ...walletBal,
+      is_coin_seller,
       gift_inventory_coins,
       sell_inventory_coins,
       inventory_coins: sell_inventory_coins,
-      giftable_coins: Number(walletBal.coin_balance || 0) + gift_inventory_coins,
+      giftable_coins: is_coin_seller
+        ? gift_inventory_coins
+        : Number(walletBal.coin_balance || 0),
       sellable_coins: sell_inventory_coins + Number(walletBal.coin_balance || 0),
     };
     res.json({ success: true, data: { ...result, balance } });

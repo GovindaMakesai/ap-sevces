@@ -215,6 +215,8 @@ async function sendGift({ senderId, receiverId, liveRoomId, giftType, coinAmount
 
     const coinBal = Number(debitResult.balance);
     const giftInv = Number(debitResult.gift_inventory_coins || 0);
+    const sellerGiftOnly = Number(debitResult.from_wallet || 0) === 0;
+    const giftable = sellerGiftOnly ? giftInv : coinBal;
     return {
       gift: giftRow,
       platform_fee: Number(platformShare),
@@ -223,12 +225,14 @@ async function sendGift({ senderId, receiverId, liveRoomId, giftType, coinAmount
       sender_balance: {
         coin_balance: coinBal,
         gift_inventory_coins: giftInv,
-        giftable_coins: coinBal + giftInv,
+        giftable_coins: giftable,
+        is_coin_seller: sellerGiftOnly,
       },
       balance: {
         coin_balance: coinBal,
         gift_inventory_coins: giftInv,
-        giftable_coins: coinBal + giftInv,
+        giftable_coins: giftable,
+        is_coin_seller: sellerGiftOnly,
       },
     };
   } catch (e) {

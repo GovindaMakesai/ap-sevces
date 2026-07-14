@@ -8121,8 +8121,14 @@
     const totalCost = sendAll ? cost * recipients.length : cost;
     const balance = await getCoins(true);
     if (balance < totalCost) {
-      toast('Not enough coins — recharge first', 'warning');
-      openTopupSheet();
+      const cached = SocialWallet?.getCachedBalance?.() || {};
+      if (cached.is_coin_seller) {
+        toast('Not enough gift coins — exchange beans in Seller Center', 'warning');
+        setTimeout(() => { location.href = '/coin-seller-center.html?app=1'; }, 700);
+      } else {
+        toast('Not enough coins — recharge first', 'warning');
+        openTopupSheet();
+      }
       return;
     }
     const to = sheet.dataset.to || roomState?.hostName || 'Host';
@@ -8190,8 +8196,14 @@
       } catch (e) {
         const msg = window.SocialUI?.friendlyMessage(e.message) || e.message || reason || 'Gift failed';
         if (/insufficient/i.test(msg)) {
-          toast('Not enough coins — recharge first', 'warning');
-          openTopupSheet();
+          const cached = SocialWallet?.getCachedBalance?.() || {};
+          if (cached.is_coin_seller) {
+            toast('Not enough gift coins — open Seller Center to exchange', 'warning');
+            setTimeout(() => { location.href = '/coin-seller-center.html?app=1'; }, 700);
+          } else {
+            toast('Not enough coins — recharge first', 'warning');
+            openTopupSheet();
+          }
         } else {
           toast(msg, 'error');
         }
@@ -9354,7 +9366,7 @@
             <span>Still need <strong id="giftLitNeed">26</strong> to light up 🎺</span>
             <button type="button" id="giftGalleryBtn">Gallery</button>
           </div>
-          <button type="button" class="gift-balance-btn" id="giftBalanceBtn">🪙 <span id="giftCoinsBal">0</span> &gt;</button>
+          <button type="button" class="gift-balance-btn" id="giftBalanceBtn">🎁 <span id="giftCoinsBal">0</span> gift &gt;</button>
           <div class="gift-grid" id="giftGrid"></div>
           <div class="gift-qty-row">
             <div class="gift-qty-btns">
@@ -9369,7 +9381,7 @@
       </div>`
     );
     const balBtn = document.getElementById('giftBalanceBtn');
-    if (balBtn) balBtn.innerHTML = `${COIN_EMOJI} <span id="giftCoinsBal">0</span> &gt;`;
+    if (balBtn) balBtn.innerHTML = `🎁 <span id="giftCoinsBal">0</span> gift &gt;`;
     document.getElementById('giftSendAll')?.addEventListener('change', (e) => {
       const row = document.getElementById('giftRecipients');
       const meId = String(currentUser()?.id || '');

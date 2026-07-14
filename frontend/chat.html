@@ -1477,7 +1477,7 @@
     <script src="auth-guard.js"></script>
     <script src="social-ui.js?v=20260702-follow-fix"></script>
     <script src="social-interactions.js?v=20260628-perf"></script>
-    <script src="social-wallet.js?v=20260714-dual-coins"></script>
+    <script src="social-wallet.js?v=20260714-gift-only"></script>
     <script src="live-emoji-data.js"></script>
     <script src="social-fx.js"></script>
     <script src="social-shell.js?v=20260713-token-fix"></script>
@@ -4291,9 +4291,17 @@
                   ? SocialWallet.getGiftableCoins(balance)
                   : Number(balance?.giftable_coins ?? balance?.coin_balance || 0);
                 if (balance && giftBal < coinCost) {
-                    Toast.show('Not enough coins — recharge first', 'warning');
+                    const isSeller = balance.is_coin_seller;
+                    Toast.show(
+                      isSeller
+                        ? 'Not enough gift coins — exchange beans in Seller Center'
+                        : 'Not enough coins — recharge first',
+                      'warning'
+                    );
                     setTimeout(() => {
-                        window.location.href = '/coins-recharge.html?app=1';
+                        window.location.href = isSeller
+                          ? '/coin-seller-center.html?app=1'
+                          : '/coins-recharge.html?app=1';
                     }, 600);
                     return;
                 }
@@ -4422,7 +4430,7 @@
                 <button type="button" id="chatGiftClose" aria-label="Close">&times;</button>
             </div>
             <div class="chat-gift-grid" id="chatGiftGrid"></div>
-            <p class="chat-gift-balance">Balance: <span id="chatGiftBalance">0</span> coins</p>
+            <p class="chat-gift-balance">Gift coins: <span id="chatGiftBalance">0</span></p>
             <button type="button" class="chat-gift-send" id="chatGiftSend">Send Gift</button>
         </div>
     </div>

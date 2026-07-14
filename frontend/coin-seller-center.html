@@ -8,7 +8,7 @@
   <script src="/ap-native-boot.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-theme.css">
-  <link rel="stylesheet" href="coin-seller.css?v=20260714-dual-coins">
+  <link rel="stylesheet" href="coin-seller.css?v=20260714-gift-only">
   <link rel="stylesheet" href="mobile-app.css">
 </head>
 <body class="cs-page">
@@ -40,9 +40,10 @@
     <a href="/roles-guide.html?app=1" class="cs-guide-link">How Coin Seller works →</a>
   </div>
 
-  <div id="csHelp" class="cs-notice" style="background:#fff8e1;border-color:#f5b800;margin:0 12px 12px" hidden>
+  <div id="csHelp" class="cs-notice" style="background:#fff8e1;border-color:#f5b800;margin:0 12px 12px">
     <i class="fas fa-lightbulb" style="color:#f5b800"></i>
-    <span><strong>Two coin types:</strong> <em>Sell coins</em> (Top-up stock) — transfer to users. <em>Gift coins</em> (bean exchange) — send gifts in live/chat. They do not mix.</span>
+    <span><strong>Important:</strong> <em>Sell coins</em> are <strong>only for selling / transferring to users</strong> — not for gifts.
+      <em>Gift coins</em> (from bean exchange) are <strong>only for live/chat gifts</strong>. They never mix.</span>
   </div>
 
   <div id="csLoading" class="cs-loading"><i class="fas fa-spinner fa-spin"></i> Loading…</div>
@@ -67,22 +68,31 @@
     <div class="cs-balance-card">
       <div class="cs-balance-row">
         <div>
-          <div style="font-size:13px;color:#8a6914;font-weight:600">Sell coins (give to users)</div>
+          <div style="font-size:13px;color:#8a6914;font-weight:600">Sell coins (sale only — not gifts)</div>
           <strong><span id="csBalance">0</span> <i class="fas fa-coins" style="color:#f5b800"></i></strong>
-          <div style="font-size:11px;color:#a67c00;margin-top:4px" id="csBalanceBreakdown">Sell stock + wallet</div>
+          <div style="font-size:11px;color:#a67c00;margin-top:4px" id="csBalanceBreakdown">Sell stock + wallet · transfer to users only</div>
         </div>
         <button type="button" class="cs-detail-btn" id="csDetailBtn">Detail ›</button>
       </div>
       <div class="cs-balance-row" style="margin-top:12px;padding-top:12px;border-top:1px dashed rgba(201,162,39,.35)">
         <div>
-          <div style="font-size:13px;color:#8a6914;font-weight:600">Gift coins (send gifts)</div>
+          <div style="font-size:13px;color:#8a6914;font-weight:600">Gift coins (gifts only — not for sale)</div>
           <strong><span id="csGiftBalance">0</span> <i class="fas fa-gift" style="color:#e11d48"></i></strong>
-          <div style="font-size:11px;color:#a67c00;margin-top:4px">From bean exchange · used only for gifts</div>
+          <div style="font-size:11px;color:#a67c00;margin-top:4px">Bean exchange · live &amp; chat gifts only</div>
         </div>
       </div>
       <div class="cs-pay-methods">
-        <span>Sell stock → transfer users · Gift stock → live/chat gifts</span>
+        <span>Sell coins → sell/transfer users only · Gift coins → gifts only</span>
       </div>
+    </div>
+
+    <div class="cs-notice" style="background:#fef2f2;border:1px solid #fecaca;margin:0 12px 12px;border-radius:12px;padding:12px;display:flex;gap:10px;align-items:flex-start">
+      <i class="fas fa-ban" style="color:#e11d48;margin-top:2px"></i>
+      <span style="font-size:13px;color:#9f1239;line-height:1.45">
+        <strong>Sell coins cannot be used for gifts.</strong>
+        To send gifts on live/chat, exchange beans into <strong>Gift coins</strong> first.
+        Top-up only adds sell stock for transferring to buyers.
+      </span>
     </div>
 
     <div class="cs-quick-grid">
@@ -121,7 +131,7 @@
         <h3>Sell / Transfer coins</h3>
         <button type="button" data-close="transferModal">&times;</button>
       </div>
-      <p style="font-size:12px;color:#666;margin:0 0 12px">Search the buyer by 7-digit User ID (from their Profile tab) or registered phone number.</p>
+      <p style="font-size:12px;color:#666;margin:0 0 12px">Uses <strong>sell coins only</strong> (not gift coins). Search buyer by 7-digit User ID or phone.</p>
       <div class="cs-field">
         <label>Buyer account</label>
         <div class="cs-search-row">

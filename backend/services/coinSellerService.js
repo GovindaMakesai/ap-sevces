@@ -531,8 +531,9 @@ async function exchangeBeans(sellerId, beansAmount) {
 }
 
 /**
- * Debit gift spend for a user: coin sellers use gift_inventory first, then wallet.
- * Non-sellers debit wallet only (unchanged).
+ * Debit gift spend:
+ * - Coin sellers: gift_inventory_coins ONLY (never sell stock / wallet)
+ * - Normal users: wallet coin_balance only
  */
 async function debitGiftSpend(userId, amount, meta = {}, client) {
   const amt = parseInt(amount, 10);
@@ -544,84 +545,68 @@ async function debitGiftSpend(userId, amount, meta = {}, client) {
       [userId]
     );
     const profile = profileRes.rows[0];
-    let fromGift = 0;
-    let fromWallet = amt;
 
     if (profile) {
       const giftAvail = Number(profile.gift_inventory_coins || 0);
-      fromGift = Math.min(amt, giftAvail);
-      fromWallet = amt - fromGift;
-      if (fromGift > 0) {
-        await c.query(
-          `UPDATE coin_seller_profiles
-           SET gift_inventory_coins = gift_inventory_coins - $2, updated_at = CURRENT_TIMESTAMP
-           WHERE user_id = $1`,
-          [userId, fromGift]
-        );
-      }
-    }
-
-    if (fromWallet > 0) {
-      const wallet = await walletService.getOrCreateWallet(userId, c);
-      const walletAvail = Number(wallet.coin_balance || 0);
-      if (walletAvail < fromWallet) {
-        const giftAvail = profile ? Number(profile.gift_inventory_coins || 0) : 0;
+      if (giftAvail < amt) {
         const err = new Error(
-          `Insufficient giftable coins (have ${(giftAvail + walletAvail).toLocaleString()}, need ${amt.toLocaleString()})`
+          `Insufficient gift coins (have ${giftAvail.toLocaleString()}, need ${amt.toLocaleString()}). Exchange beans → gift coins in Seller Center. Sell coins cannot be used for gifts.`
         );
         err.code = 'INSUFFICIENT_BALANCE';
         throw err;
       }
-    }
-
-    let walletResult = null;
-    if (fromWallet > 0) {
-      walletResult = await walletService.debitCoins(
-        userId,
-        fromWallet,
-        {
-          ...meta,
-          metadata: {
-            ...(meta.metadata || {}),
-            from_gift_inventory: fromGift,
-            from_wallet: fromWallet,
-          },
-        },
-        c
+      await c.query(
+        `UPDATE coin_seller_profiles
+         SET gift_inventory_coins = gift_inventory_coins - $2, updated_at = CURRENT_TIMESTAMP
+         WHERE user_id = $1`,
+        [userId, amt]
       );
-    } else if (fromGift > 0) {
       await c.query(
         `INSERT INTO wallet_transactions (user_id, type, amount, currency_type, reference_type, reference_id, status, metadata)
          VALUES ($1, $2, $3, 'coin', $4, $5, 'completed', $6)`,
         [
           userId,
           meta.type || 'gift_sent',
-          (-fromGift).toString(),
+          (-amt).toString(),
           meta.reference_type || 'gift',
           meta.reference_id || null,
           JSON.stringify({
             ...(meta.metadata || {}),
-            from_gift_inventory: fromGift,
+            from_gift_inventory: amt,
             from_wallet: 0,
             source: 'gift_inventory',
           }),
         ]
       );
+      const wallet = await walletService.getOrCreateWallet(userId, c);
+      return {
+        balance: Number(wallet.coin_balance),
+        gift_inventory_coins: giftAvail - amt,
+        from_gift_inventory: amt,
+        from_wallet: 0,
+        coin_balance: Number(wallet.coin_balance),
+      };
     }
 
-    const walletBal = walletResult
-      ? Number(walletResult.balance)
-      : Number((await walletService.getOrCreateWallet(userId, c)).coin_balance);
-    const giftAfter = profile
-      ? Number(profile.gift_inventory_coins || 0) - fromGift
-      : 0;
-
+    const walletResult = await walletService.debitCoins(
+      userId,
+      amt,
+      {
+        ...meta,
+        metadata: {
+          ...(meta.metadata || {}),
+          from_gift_inventory: 0,
+          from_wallet: amt,
+        },
+      },
+      c
+    );
     return {
-      balance: walletBal,
-      gift_inventory_coins: Math.max(0, giftAfter),
-      from_gift_inventory: fromGift,
-      from_wallet: fromWallet,
-      coin_balance: walletBal,
+      balance: Number(walletResult.balance),
+      gift_inventory_coins: 0,
+      from_gift_inventory: 0,
+      from_wallet: amt,
+      coin_balance: Number(walletResult.balance),
     };
   };
 
