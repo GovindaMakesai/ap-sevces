@@ -48,6 +48,7 @@
         min_withdrawal_usd: 10,
         min_withdrawal_coins: 100000,
         withdrawal_points_per_usd: 10000,
+        withdrawal_service_fee_pct: 8,
         coins_per_inr: 10,
         inr_per_usd: 94,
       };

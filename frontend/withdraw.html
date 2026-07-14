@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#5b67f6">
   <title>Withdraw - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-withdraw.css?v=20260714-usd94">
+  <link rel="stylesheet" href="social-withdraw.css?v=20260714-fee8">
   <link rel="stylesheet" href="mobile-app.css">
 </head>
 <body class="withdraw-app">
@@ -94,6 +94,7 @@
       <table class="wd-rules-table">
         <tr><td>Minimum withdrawal</td><td id="ruleMin">100,000 points ($10)</td></tr>
         <tr><td>Exchange ratio</td><td id="ruleRate">100,000 points = $10</td></tr>
+        <tr><td>Service fee</td><td id="ruleFee">8% deducted from payout</td></tr>
         <tr><td>Processing</td><td>Admin review → pay → you confirm receipt</td></tr>
       </table>
     </div>
@@ -119,6 +120,7 @@
       min_withdrawal_usd: 10,
       min_withdrawal_coins: 100000,
       withdrawal_points_per_usd: 10000,
+      withdrawal_service_fee_pct: 8,
       inr_per_usd: 94,
     };
 
@@ -126,12 +128,23 @@
       return Number(walletSettings.withdrawal_points_per_usd) || 10000;
     }
 
+    function serviceFeePct() {
+      const pct = Number(walletSettings.withdrawal_service_fee_pct);
+      return Number.isFinite(pct) && pct >= 0 ? pct : 8;
+    }
+
     function estimatePayout(points) {
       const pts = Number(points) || 0;
       if (!pts) return null;
-      const usd = pts / ptsPerUsd();
-      const inr = usd * (Number(walletSettings.inr_per_usd) || 94);
-      return { usd, inr };
+      const grossUsd = pts / ptsPerUsd();
+      const feePct = serviceFeePct();
+      const feeUsd = grossUsd * (feePct / 100);
+      const netUsd = grossUsd - feeUsd;
+      const inrPerUsd = Number(walletSettings.inr_per_usd) || 94;
+      const grossInr = grossUsd * inrPerUsd;
+      const feeInr = grossInr * (feePct / 100);
+      const netInr = grossInr - feeInr;
+      return { grossUsd, feeUsd, netUsd, grossInr, feeInr, netInr, feePct };
     }
 
     function formatMinLabel(settings, coins) {
@@ -139,8 +152,8 @@
       const n = Number(coins).toLocaleString();
       if (usd != null && Number(usd) > 0) {
         const est = estimatePayout(coins);
-        const inr = est ? Math.round(est.inr) : 0;
-        return `${n} pts · $${usd} · ≈₹${inr.toLocaleString()}`;
+        const netInr = est ? Math.round(est.netInr) : 0;
+        return `${n} pts · $${usd} gross · you get ≈₹${netInr.toLocaleString()} after ${serviceFeePct()}% fee`;
       }
       return `${n} points`;
     }
@@ -151,10 +164,13 @@
       const amt = parseInt(document.getElementById('withdrawAmount').value, 10);
       const est = estimatePayout(amt);
       if (!est || !amt) {
-        el.textContent = 'Payout estimate: enter points to see $ / ₹';
+        el.textContent = 'Payout estimate: enter points to see $ / ₹ after 8% fee';
         return;
       }
-      el.textContent = `Payout estimate: $${est.usd.toFixed(2)} · ≈₹${est.inr.toFixed(2)} (you pay ${Number(amt).toLocaleString()} points)`;
+      el.textContent =
+        `Gross $${est.grossUsd.toFixed(2)} · ${est.feePct}% fee −$${est.feeUsd.toFixed(2)} · ` +
+        `You receive $${est.netUsd.toFixed(2)} · ≈₹${est.netInr.toFixed(2)} ` +
+        `(${Number(amt).toLocaleString()} points deducted)`;
     }
 
     let withdrawable = 0;
@@ -255,6 +271,9 @@
       document.getElementById('withdrawAmount').min = String(minCoins);
       document.getElementById('ruleRate').textContent =
         `${Number(ratePts * 10).toLocaleString()} points = $10 · ${ratePts.toLocaleString()} pts / $1`;
+      const feePct = Number(settings.withdrawal_service_fee_pct);
+      document.getElementById('ruleFee').textContent =
+        `${Number.isFinite(feePct) ? feePct : 8}% deducted from cash payout`;
 
       const bal = await SocialWallet.fetchBalance(true);
       withdrawable = bal.star_balance || 0;

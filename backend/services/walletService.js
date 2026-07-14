@@ -5,6 +5,8 @@ const DEFAULT_SETTINGS = {
   /** 100,000 points = $10 (authoritative withdrawal FX; not used for coin recharge). */
   withdrawal_points_per_usd: 10000,
   min_withdrawal_coins: 100000,
+  /** Service fee deducted from cash payout (points still fully deducted). */
+  withdrawal_service_fee_pct: 8,
   gift_platform_fee_pct: 20,
   /** Recharge: coins credited per ₹1 spent. Must not drive withdrawal FX. */
   coins_per_inr: 10,
@@ -18,6 +20,12 @@ function resolveWithdrawalPointsPerUsd(settings) {
   return 10000;
 }
 
+function resolveWithdrawalServiceFeePct(settings) {
+  const pct = Number(settings.withdrawal_service_fee_pct);
+  if (Number.isFinite(pct) && pct >= 0 && pct < 100) return pct;
+  return 8;
+}
+
 function resolveMinWithdrawalCoins(settings) {
   const usd = Number(settings.min_withdrawal_usd);
   const ptsPerUsd = resolveWithdrawalPointsPerUsd(settings);
@@ -28,13 +36,28 @@ function resolveMinWithdrawalCoins(settings) {
   return Number.isFinite(fallback) && fallback > 0 ? fallback : 100000;
 }
 
-function pointsToWithdrawalUsd(points, settings) {
+function pointsToWithdrawalUsdGross(points, settings) {
   return Number(points) / resolveWithdrawalPointsPerUsd(settings);
 }
 
-function pointsToWithdrawalInr(points, settings) {
+function applyWithdrawalServiceFee(amount, settings) {
+  const pct = resolveWithdrawalServiceFeePct(settings);
+  return Number(amount) * (1 - pct / 100);
+}
+
+/** Net USD payout after 8% (or configured) service fee. */
+function pointsToWithdrawalUsd(points, settings) {
+  return applyWithdrawalServiceFee(pointsToWithdrawalUsdGross(points, settings), settings);
+}
+
+function pointsToWithdrawalInrGross(points, settings) {
   const inrPerUsd = Number(settings.inr_per_usd || 94);
-  return pointsToWithdrawalUsd(points, settings) * inrPerUsd;
+  return pointsToWithdrawalUsdGross(points, settings) * inrPerUsd;
+}
+
+/** Net INR payout after service fee. */
+function pointsToWithdrawalInr(points, settings) {
+  return applyWithdrawalServiceFee(pointsToWithdrawalInrGross(points, settings), settings);
 }
 
 function formatMinWithdrawalMessage(settings) {
@@ -52,6 +75,7 @@ async function getWalletSettings() {
   return {
     ...merged,
     withdrawal_points_per_usd: resolveWithdrawalPointsPerUsd(merged),
+    withdrawal_service_fee_pct: resolveWithdrawalServiceFeePct(merged),
     min_withdrawal_coins: resolveMinWithdrawalCoins(merged),
   };
 }
@@ -334,6 +358,10 @@ module.exports = {
   reserveWithdrawal,
   resolveMinWithdrawalCoins,
   resolveWithdrawalPointsPerUsd,
+  resolveWithdrawalServiceFeePct,
+  applyWithdrawalServiceFee,
+  pointsToWithdrawalUsdGross,
+  pointsToWithdrawalInrGross,
   pointsToWithdrawalUsd,
   pointsToWithdrawalInr,
   formatMinWithdrawalMessage,
