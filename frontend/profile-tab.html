@@ -157,7 +157,7 @@
 
   <script src="ap-config.js"></script>
   <script src="app.js?v=20260713-hierarchy"></script>
-  <script src="social-wallet.js?v=20260714-gift-seller-only"></script>
+  <script src="social-wallet.js?v=20260714-seller-gift-show"></script>
   <script src="social-ui.js?v=20260624-profile-url-fix"></script>
   <script src="social-interactions.js?v=20260624-profile-url-fix"></script>
   <script src="social-shell.js?v=20260624-profile-url-fix"></script>
@@ -480,11 +480,14 @@
             const giftLink = document.getElementById('statGiftCoinsLink');
             if (coins) coins.textContent = (b.coin_balance || 0).toLocaleString();
             if (pts) pts.textContent = (b.star_balance || 0).toLocaleString();
-            /* Gift coins pill: coin_seller role only — never for normal users */
-            const showGiftCoins = String(user.role || '') === 'coin_seller';
+            /* Gift coins: coin_seller role always; never for normal customers */
+            const liveRole = String(Auth.getUser?.()?.role || user.role || '');
+            const showGiftCoins =
+              liveRole === 'coin_seller' || !!b.is_coin_seller;
             if (giftLink) {
               giftLink.classList.toggle('is-seller-visible', showGiftCoins);
               giftLink.setAttribute('aria-hidden', showGiftCoins ? 'false' : 'true');
+              giftLink.style.display = showGiftCoins ? '' : 'none';
               if (showGiftCoins) {
                 giftLink.href = '/coin-seller-center.html?app=1';
                 if (giftEl) {
