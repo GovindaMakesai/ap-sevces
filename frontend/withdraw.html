@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#5b67f6">
   <title>Withdraw - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-withdraw.css?v=20260625wd-flow2">
+  <link rel="stylesheet" href="social-withdraw.css?v=20260714-wd100k">
   <link rel="stylesheet" href="mobile-app.css">
 </head>
 <body class="withdraw-app">
@@ -24,7 +24,7 @@
     <div class="wd-flow-help">
       <strong>3 steps to send your request</strong>
       <ol>
-        <li>Enter how many <strong>points</strong> to withdraw</li>
+        <li>Enter how many <strong>points</strong> to withdraw (min <strong>100,000</strong> = $10)</li>
         <li>Upload your <strong>UPI/bank QR</strong> photo (where admin sends money)</li>
         <li>Tap <strong>Submit withdrawal request</strong> — the green button at the bottom</li>
       </ol>
@@ -55,14 +55,15 @@
       </div>
       <div class="cols">
         <div><strong id="totalCoins">0</strong><span>Total points</span></div>
-        <div><strong id="minCoins">8,300</strong><span>Minimum</span></div>
+        <div><strong id="minCoins">100,000</strong><span>Minimum</span></div>
       </div>
     </div>
 
     <div class="wd-card">
       <h3>Amount</h3>
-      <input type="number" class="wd-amount-input" id="withdrawAmount" placeholder="8300" min="1" inputmode="numeric">
+      <input type="number" class="wd-amount-input" id="withdrawAmount" placeholder="100000" min="100000" step="1" inputmode="numeric">
       <p class="wd-hint">Withdrawable amount: <strong id="withdrawableHint">0</strong> points</p>
+      <p class="wd-hint" id="payoutEstimate">Payout estimate: —</p>
     </div>
 
     <div class="wd-card wd-card-qr">
@@ -91,8 +92,8 @@
     <div class="wd-card">
       <h3>Withdrawal rules</h3>
       <table class="wd-rules-table">
-        <tr><td>Minimum withdrawal</td><td id="ruleMin">8,300 points ($10)</td></tr>
-        <tr><td>Exchange ratio</td><td id="ruleRate">10 points = ₹1</td></tr>
+        <tr><td>Minimum withdrawal</td><td id="ruleMin">100,000 points ($10)</td></tr>
+        <tr><td>Exchange ratio</td><td id="ruleRate">100,000 points = $10</td></tr>
         <tr><td>Processing</td><td>Admin review → pay → you confirm receipt</td></tr>
       </table>
     </div>
@@ -113,18 +114,49 @@
   <script src="social-ui.js"></script>
   <script>
     let selectedFile = null;
-    let minCoins = 8300;
+    let minCoins = 100000;
+    let walletSettings = {
+      min_withdrawal_usd: 10,
+      min_withdrawal_coins: 100000,
+      withdrawal_points_per_usd: 10000,
+      inr_per_usd: 83,
+    };
+
+    function ptsPerUsd() {
+      return Number(walletSettings.withdrawal_points_per_usd) || 10000;
+    }
+
+    function estimatePayout(points) {
+      const pts = Number(points) || 0;
+      if (!pts) return null;
+      const usd = pts / ptsPerUsd();
+      const inr = usd * (Number(walletSettings.inr_per_usd) || 83);
+      return { usd, inr };
+    }
 
     function formatMinLabel(settings, coins) {
       const usd = settings.min_withdrawal_usd;
-      const rate = settings.coins_per_inr || 10;
       const n = Number(coins).toLocaleString();
       if (usd != null && Number(usd) > 0) {
-        const inr = Math.round(Number(coins) / rate);
-        return `${n} pts · $${usd} · ₹${inr.toLocaleString()}`;
+        const est = estimatePayout(coins);
+        const inr = est ? Math.round(est.inr) : 0;
+        return `${n} pts · $${usd} · ≈₹${inr.toLocaleString()}`;
       }
       return `${n} points`;
     }
+
+    function updatePayoutEstimate() {
+      const el = document.getElementById('payoutEstimate');
+      if (!el) return;
+      const amt = parseInt(document.getElementById('withdrawAmount').value, 10);
+      const est = estimatePayout(amt);
+      if (!est || !amt) {
+        el.textContent = 'Payout estimate: enter points to see $ / ₹';
+        return;
+      }
+      el.textContent = `Payout estimate: $${est.usd.toFixed(2)} · ≈₹${est.inr.toFixed(2)} (you pay ${Number(amt).toLocaleString()} points)`;
+    }
+
     let withdrawable = 0;
 
     function updateSteps() {
@@ -214,12 +246,15 @@
       }
 
       const settings = await SocialWallet.getWalletSettings().catch(() => ({}));
-      minCoins = settings.min_withdrawal_coins || 8300;
-      const rate = settings.coins_per_inr || 10;
+      walletSettings = { ...walletSettings, ...settings };
+      minCoins = settings.min_withdrawal_coins || 100000;
+      const ratePts = Number(settings.withdrawal_points_per_usd) || 10000;
       document.getElementById('minCoins').textContent = Number(minCoins).toLocaleString();
       document.getElementById('ruleMin').textContent = formatMinLabel(settings, minCoins);
       document.getElementById('withdrawAmount').placeholder = String(minCoins);
-      document.getElementById('ruleRate').textContent = `${rate} points = ₹1`;
+      document.getElementById('withdrawAmount').min = String(minCoins);
+      document.getElementById('ruleRate').textContent =
+        `${Number(ratePts * 10).toLocaleString()} points = $10 · ${ratePts.toLocaleString()} pts / $1`;
 
       const bal = await SocialWallet.fetchBalance(true);
       withdrawable = bal.star_balance || 0;
@@ -230,6 +265,7 @@
       document.getElementById('withdrawAmount').value = withdrawable >= minCoins ? minCoins : '';
       const zeroBanner = document.getElementById('zeroBalanceBanner');
       if (withdrawable < minCoins && zeroBanner) zeroBanner.hidden = false;
+      updatePayoutEstimate();
       updateSteps();
 
       const zone = document.getElementById('qrUploadZone');
@@ -256,7 +292,10 @@
         if (file) applyQrFile(file);
       });
 
-      document.getElementById('withdrawAmount').addEventListener('input', updateSubmitState);
+      document.getElementById('withdrawAmount').addEventListener('input', () => {
+        updatePayoutEstimate();
+        updateSubmitState();
+      });
 
       async function doSubmitWithdraw() {
         const amount = parseInt(document.getElementById('withdrawAmount').value, 10);

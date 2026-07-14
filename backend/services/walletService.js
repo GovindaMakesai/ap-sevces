@@ -2,20 +2,38 @@ const db = require('../config/database');
 
 const DEFAULT_SETTINGS = {
   min_withdrawal_usd: 10,
-  min_withdrawal_coins: 8300,
+  /** 100,000 points = $10 (authoritative withdrawal FX; not used for coin recharge). */
+  withdrawal_points_per_usd: 10000,
+  min_withdrawal_coins: 100000,
   gift_platform_fee_pct: 20,
+  /** Recharge: coins credited per ₹1 spent. Must not drive withdrawal FX. */
   coins_per_inr: 10,
   inr_per_usd: 83,
 };
 
+function resolveWithdrawalPointsPerUsd(settings) {
+  const pts = Number(settings.withdrawal_points_per_usd);
+  if (Number.isFinite(pts) && pts > 0) return pts;
+  return 10000;
+}
+
 function resolveMinWithdrawalCoins(settings) {
   const usd = Number(settings.min_withdrawal_usd);
+  const ptsPerUsd = resolveWithdrawalPointsPerUsd(settings);
   if (Number.isFinite(usd) && usd > 0) {
-    const inrPerUsd = Number(settings.inr_per_usd || 83);
-    const coinsPerInr = Number(settings.coins_per_inr || 10);
-    return Math.ceil(usd * inrPerUsd * coinsPerInr);
+    return Math.ceil(usd * ptsPerUsd);
   }
-  return Number(settings.min_withdrawal_coins || 500);
+  const fallback = Number(settings.min_withdrawal_coins);
+  return Number.isFinite(fallback) && fallback > 0 ? fallback : 100000;
+}
+
+function pointsToWithdrawalUsd(points, settings) {
+  return Number(points) / resolveWithdrawalPointsPerUsd(settings);
+}
+
+function pointsToWithdrawalInr(points, settings) {
+  const inrPerUsd = Number(settings.inr_per_usd || 83);
+  return pointsToWithdrawalUsd(points, settings) * inrPerUsd;
 }
 
 function formatMinWithdrawalMessage(settings) {
@@ -32,6 +50,7 @@ async function getWalletSettings() {
   const merged = { ...DEFAULT_SETTINGS, ...(res.rows[0]?.value || {}) };
   return {
     ...merged,
+    withdrawal_points_per_usd: resolveWithdrawalPointsPerUsd(merged),
     min_withdrawal_coins: resolveMinWithdrawalCoins(merged),
   };
 }
@@ -281,7 +300,7 @@ async function reserveWithdrawal(userId, amount, { qr_image_url, qr_asset_id, me
     throw new Error('Payment QR code image is required');
   }
 
-  const amountInr = Number(amt) / Number(settings.coins_per_inr || 10);
+  const amountInr = Math.round(pointsToWithdrawalInr(Number(amt), settings) * 100) / 100;
   const orderNumber = generateOrderNumber();
 
   const client = await db.pool.connect();
@@ -312,4 +331,9 @@ module.exports = {
   creditStars,
   debitStars,
   reserveWithdrawal,
+  resolveMinWithdrawalCoins,
+  resolveWithdrawalPointsPerUsd,
+  pointsToWithdrawalUsd,
+  pointsToWithdrawalInr,
+  formatMinWithdrawalMessage,
 };
