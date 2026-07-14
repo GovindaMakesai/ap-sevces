@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#5b67f6">
   <title>Withdraw - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-withdraw.css?v=20260714-usd9619">
+  <link rel="stylesheet" href="social-withdraw.css?v=20260714-usd92">
   <link rel="stylesheet" href="mobile-app.css">
 </head>
 <body class="withdraw-app">
@@ -119,7 +119,7 @@
       min_withdrawal_usd: 10,
       min_withdrawal_coins: 100000,
       withdrawal_points_per_usd: 10000,
-      inr_per_usd: 96.19,
+      inr_per_usd: 92,
     };
 
     function ptsPerUsd() {
@@ -130,7 +130,7 @@
       const pts = Number(points) || 0;
       if (!pts) return null;
       const usd = pts / ptsPerUsd();
-      const inr = usd * (Number(walletSettings.inr_per_usd) || 96.19);
+      const inr = usd * (Number(walletSettings.inr_per_usd) || 92);
       return { usd, inr };
     }
 

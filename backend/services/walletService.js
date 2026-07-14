@@ -8,8 +8,8 @@ const DEFAULT_SETTINGS = {
   gift_platform_fee_pct: 20,
   /** Recharge: coins credited per ₹1 spent. Must not drive withdrawal FX. */
   coins_per_inr: 10,
-  /** USD→INR for withdrawal payout estimates (market rate). */
-  inr_per_usd: 96.19,
+  /** USD→INR for withdrawal payout estimates (locked rate). */
+  inr_per_usd: 92,
 };
 
 function resolveWithdrawalPointsPerUsd(settings) {
@@ -33,7 +33,7 @@ function pointsToWithdrawalUsd(points, settings) {
 }
 
 function pointsToWithdrawalInr(points, settings) {
-  const inrPerUsd = Number(settings.inr_per_usd || 96.19);
+  const inrPerUsd = Number(settings.inr_per_usd || 92);
   return pointsToWithdrawalUsd(points, settings) * inrPerUsd;
 }
 

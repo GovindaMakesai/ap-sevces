@@ -49,7 +49,7 @@
         min_withdrawal_coins: 100000,
         withdrawal_points_per_usd: 10000,
         coins_per_inr: 10,
-        inr_per_usd: 96.19,
+        inr_per_usd: 92,
       };
     }
   }
