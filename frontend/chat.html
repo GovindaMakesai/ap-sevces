@@ -9,7 +9,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <script src="/ap-native-boot.js"></script>
     <link rel="stylesheet" href="/social-theme.css?v=20260626-discover-chat">
-    <link rel="stylesheet" href="/social-chat.css?v=20260714-exchange-btn">
+    <link rel="stylesheet" href="/social-chat.css?v=20260714-chat-layout">
     
     <!-- Font Awesome 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -2643,7 +2643,7 @@
                     </div>
                     <div class="chat-info">
                         <h4>
-                            ${safeName}
+                            <span class="chat-name-text">${safeName}</span>
                             ${!isOfficial ? window.formatRoleBadgeHtml?.(chat.category, { withEmoji: false }) || '' : ''}
                             ${isOfficial ? '<span class="ap-msg-official">Official</span>' : ''}
                             ${chat.bookingId ? '<i class="fas fa-calendar-check" title="Has booking"></i>' : ''}
@@ -3091,7 +3091,8 @@
                 if (nameEl) {
                     const roleBadge = window.formatRoleBadgeHtml?.(chat.category, { withEmoji: false }) || '';
                     nameEl.innerHTML =
-                        escapeHtml(chat.name || 'User') + (roleBadge ? ' ' + roleBadge : '');
+                        `<span class="chat-name-text">${escapeHtml(chat.name || 'User')}</span>` +
+                        (roleBadge ? ' ' + roleBadge : '');
                 }
                 paintChatHeaderAvatar(chat);
                 currentChatPeer = {

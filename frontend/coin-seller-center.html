@@ -8,7 +8,9 @@
   <script src="/ap-native-boot.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-theme.css">
-  <link rel="stylesheet" href="coin-seller.css?v=20260714-gift-only">
+  <link rel="stylesheet" href="coin-seller.css?v=20260714-coins-align">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
   <link rel="stylesheet" href="mobile-app.css">
 </head>
 <body class="cs-page">
@@ -42,8 +44,8 @@
 
   <div id="csHelp" class="cs-notice" style="background:#fff8e1;border-color:#f5b800;margin:0 12px 12px">
     <i class="fas fa-lightbulb" style="color:#f5b800"></i>
-    <span><strong>Important:</strong> <em>Sell coins</em> are <strong>only for selling / transferring to users</strong> — not for gifts.
-      <em>Gift coins</em> (from bean exchange) are <strong>only for live/chat gifts</strong>. They never mix.</span>
+    <span><strong>Important:</strong> <em>Coins</em> (seller stock + wallet) are normal coins for selling / transferring to users.
+      Exchange coins into <em>Gift coins</em> to send live/chat gifts. Gift coins are never for sale.</span>
   </div>
 
   <div id="csLoading" class="cs-loading"><i class="fas fa-spinner fa-spin"></i> Loading…</div>
@@ -68,30 +70,30 @@
     <div class="cs-balance-card">
       <div class="cs-balance-row">
         <div>
-          <div style="font-size:13px;color:#8a6914;font-weight:600">Sell coins (sale only — not gifts)</div>
+          <div style="font-size:13px;color:#8a6914;font-weight:600">Coins (same as profile Coins)</div>
           <strong><span id="csBalance">0</span> <i class="fas fa-coins" style="color:#f5b800"></i></strong>
-          <div style="font-size:11px;color:#a67c00;margin-top:4px" id="csBalanceBreakdown">Sell stock + wallet · transfer to users only</div>
+          <div style="font-size:11px;color:#a67c00;margin-top:4px" id="csBalanceBreakdown">Seller stock + wallet · transfer to users only</div>
         </div>
         <button type="button" class="cs-detail-btn" id="csDetailBtn">Detail ›</button>
       </div>
       <div class="cs-balance-row" style="margin-top:12px;padding-top:12px;border-top:1px dashed rgba(201,162,39,.35)">
         <div>
-          <div style="font-size:13px;color:#8a6914;font-weight:600">Gift coins (gifts only — not for sale)</div>
+          <div style="font-size:13px;color:#8a6914;font-weight:600">Gift coins (same as profile Gift coins)</div>
           <strong><span id="csGiftBalance">0</span> <i class="fas fa-gift" style="color:#e11d48"></i></strong>
-          <div style="font-size:11px;color:#a67c00;margin-top:4px">Bean exchange · live &amp; chat gifts only</div>
+          <div style="font-size:11px;color:#a67c00;margin-top:4px">For live &amp; chat gifts only — not for selling</div>
         </div>
       </div>
       <div class="cs-pay-methods">
-        <span>Sell coins → sell/transfer users only · Gift coins → gifts only</span>
+        <span>Coins → sell/transfer users · Gift coins → gifts only · totals match your profile</span>
       </div>
     </div>
 
     <div class="cs-notice" style="background:#fef2f2;border:1px solid #fecaca;margin:0 12px 12px;border-radius:12px;padding:12px;display:flex;gap:10px;align-items:flex-start">
       <i class="fas fa-ban" style="color:#e11d48;margin-top:2px"></i>
       <span style="font-size:13px;color:#9f1239;line-height:1.45">
-        <strong>Sell coins cannot be used for gifts.</strong>
-        To send gifts on live/chat, exchange beans into <strong>Gift coins</strong> first.
-        Top-up only adds sell stock for transferring to buyers.
+        <strong>Coins cannot be used for gifts.</strong>
+        To send gifts on live/chat, exchange coins into <strong>Gift coins</strong> first.
+        Top-up adds seller stock (counts toward your Coins total).
       </span>
     </div>
 
@@ -107,7 +109,7 @@
     <div class="cs-stats">
       <div class="cs-date-range" id="csDateRange">Last 30 days</div>
       <div class="cs-stat-row">
-        <div><strong id="csStatBeans">0</strong><span>Exchange (Beans)</span></div>
+        <div><strong id="csStatBeans">0</strong><span>Exchanged (sell→gift)</span></div>
         <div><strong id="csStatRecharge">$0</strong><span>Recharge</span></div>
         <div><strong id="csStatSold">0</strong><span>Coins Sold</span></div>
       </div>
@@ -131,7 +133,7 @@
         <h3>Sell / Transfer coins</h3>
         <button type="button" data-close="transferModal">&times;</button>
       </div>
-      <p style="font-size:12px;color:#666;margin:0 0 12px">Uses <strong>sell coins only</strong> (not gift coins). Search buyer by 7-digit User ID or phone.</p>
+      <p style="font-size:12px;color:#666;margin:0 0 12px">Uses <strong>sell coins only</strong> (not gift coins). Search buyer by 7-digit User ID or phone — you can also enter <strong>your own ID</strong> to move sell stock into your wallet.</p>
       <div class="cs-field">
         <label>Buyer account</label>
         <div class="cs-search-row">
@@ -166,12 +168,12 @@
         <h3>Balance details</h3>
         <button type="button" data-close="balanceModal">&times;</button>
       </div>
-      <div class="cs-detail-row"><span>Sell stock (give users)</span><strong id="detailStock">0</strong></div>
-      <div class="cs-detail-row"><span>Gift stock (send gifts)</span><strong id="detailGiftStock">0</strong></div>
-      <div class="cs-detail-row"><span>Wallet NR coins</span><strong id="detailWallet">0</strong></div>
+      <div class="cs-detail-row"><span>Seller stock (part of Coins)</span><strong id="detailStock">0</strong></div>
+      <div class="cs-detail-row"><span>Gift coins (gifts only)</span><strong id="detailGiftStock">0</strong></div>
+      <div class="cs-detail-row"><span>Wallet coins (part of Coins)</span><strong id="detailWallet">0</strong></div>
       <div class="cs-detail-row"><span>Total sellable</span><strong id="detailTotal">0</strong></div>
-      <div class="cs-detail-row"><span>Beans / points</span><strong id="detailBeans">0</strong></div>
-      <p style="font-size:12px;color:#888;margin-top:12px">Sell stock + wallet = transfers to users. Gift stock = live/chat gifts. Top-up credits sell stock; bean exchange credits gift stock.</p>
+      <div class="cs-detail-row"><span>Exchanged to gift</span><strong id="detailBeans">0</strong></div>
+      <p style="font-size:12px;color:#888;margin-top:12px">Profile <strong>Coins</strong> = seller stock + wallet (this total). Profile <strong>Gift coins</strong> = gift stock for live/chat only. Top-up credits seller stock; Exchange moves coins → gift coins (1:1).</p>
       <button type="button" class="cs-submit" id="detailTopupBtn">Top-up sell stock</button>
     </div>
   </div>
@@ -201,22 +203,21 @@
   <div class="cs-modal" id="exchangeModal">
     <div class="cs-modal-panel">
       <div class="cs-modal-head">
-        <h3>Exchange beans → gift coins</h3>
+        <h3>Exchange coins → gift coins</h3>
         <button type="button" data-close="exchangeModal">&times;</button>
       </div>
-      <p style="font-size:13px">Beans available: <strong id="exBeansAvail">0</strong></p>
-      <p style="font-size:13px;color:#ff8c00" id="exRate">Exchange Rate: 100,000 beans → gift coins</p>
+      <p style="font-size:13px">Coins available: <strong id="exBeansAvail">0</strong></p>
+      <p style="font-size:12px;color:#666;margin:4px 0 0" id="exAvailBreakdown">Stock 0 + wallet 0</p>
+      <p style="font-size:13px;color:#ff8c00" id="exRate">Rate: 1 coin → 1 gift coin</p>
       <div class="cs-field">
-        <label>Beans amount (multiple of 100,000)</label>
-        <input type="number" id="exAmount" min="100000" step="100000" placeholder="100000" inputmode="numeric">
+        <label>Coins amount (any amount)</label>
+        <input type="number" id="exAmount" min="1" step="1" placeholder="Enter amount" inputmode="numeric">
         <p style="font-size:13px;margin-top:6px">You receive: <strong id="exPreview">0</strong> <strong>gift coins</strong> (for sending gifts)</p>
       </div>
-      <table class="cs-level-table" id="exLevelTable">
-        <thead>
-          <tr><th>Level</th><th>Min Recharge</th><th>10k Beans →</th></tr>
-        </thead>
-        <tbody></tbody>
-      </table>
+      <p style="font-size:12px;color:#666;margin:0 0 12px;line-height:1.45">
+        Uses <strong>seller stock first</strong>, then wallet coins. No minimum — exchange any amount at <strong>1:1</strong>.
+        Gift coins are only for live/chat gifts.
+      </p>
       <button type="button" class="cs-submit" id="exSubmitBtn">Exchange</button>
     </div>
   </div>
@@ -352,6 +353,8 @@
         const btn = document.getElementById('xferSubmitBtn');
         const coins = parseInt(document.getElementById('xferAmount').value, 10) || 0;
         const sellable = Number(dash?.sellable_coins ?? 0);
+        const inv = Number(dash?.profile?.inventory_coins || 0);
+        const isSelf = xferRecipient && String(xferRecipient.id) === String(dash?.user?.id);
         if (!xferRecipient) {
           btn.disabled = true;
           btn.textContent = 'Select buyer to transfer';
@@ -360,6 +363,16 @@
         if (coins < 1000) {
           btn.disabled = true;
           btn.textContent = 'Minimum 1,000 coins';
+          return;
+        }
+        if (isSelf) {
+          if (inv < coins) {
+            btn.disabled = true;
+            btn.textContent = `Need ${fmt(coins)} sell stock (have ${fmt(inv)})`;
+            return;
+          }
+          btn.disabled = false;
+          btn.textContent = `Move ${fmt(coins)} to my wallet`;
           return;
         }
         if (sellable < coins) {
@@ -412,7 +425,7 @@
         const giftInv = Number(d.profile?.gift_inventory_coins ?? d.gift_coins ?? 0);
         const wal = Number(d.wallet?.coin_balance || 0);
         document.getElementById('csBalanceBreakdown').textContent =
-          `Sell stock ${fmt(inv)} + wallet ${fmt(wal)}`;
+          `Stock ${fmt(inv)} + wallet ${fmt(wal)} (= profile Coins)`;
         const giftEl = document.getElementById('csGiftBalance');
         if (giftEl) giftEl.textContent = fmt(giftInv);
 
@@ -454,7 +467,7 @@
         if (detailGift) detailGift.textContent = fmt(giftInv);
         document.getElementById('detailWallet').textContent = fmt(wal);
         document.getElementById('detailTotal').textContent = fmt(d.sellable_coins);
-        document.getElementById('detailBeans').textContent = fmt(d.wallet?.star_balance);
+        document.getElementById('detailBeans').textContent = fmt(d.stats?.beansExchanged);
 
         const notice = document.getElementById('csNotice');
         if (d.lowBalanceWarning) {
@@ -467,11 +480,13 @@
 
         allTransfers = d.recentTransfers || [];
         renderActiveTab();
-        renderLevelTable(d.levels || []);
-        document.getElementById('exBeansAvail').textContent = fmt(d.wallet?.star_balance);
-        const rate = d.level?.beansPer10k || 9500;
-        document.getElementById('exRate').textContent =
-          `Rate: 100,000 beans → ${fmt(Math.floor((100000 / 10000) * rate))} gift coins`;
+        document.getElementById('exBeansAvail').textContent = fmt(d.sellable_coins);
+        const exBreak = document.getElementById('exAvailBreakdown');
+        if (exBreak) exBreak.textContent = `Stock ${fmt(inv)} + wallet ${fmt(wal)}`;
+        document.getElementById('exRate').textContent = 'Rate: 1 coin → 1 gift coin';
+        const exPreview = document.getElementById('exPreview');
+        const exAmt = parseInt(document.getElementById('exAmount')?.value, 10) || 0;
+        if (exPreview) exPreview.textContent = fmt(exAmt);
         updateXferSubmitState();
 
         const msg = localStorage.getItem('cs_seller_message_' + (d.user?.id || ''));
@@ -542,10 +557,8 @@
         bindTransferClicks();
       }
 
-      function renderLevelTable(levels) {
-        document.querySelector('#exLevelTable tbody').innerHTML = levels
-          .map((l) => `<tr><td>${l.label}</td><td>≥$${l.minRechargeUsd}</td><td>${fmt(l.beansPer10k)}</td></tr>`)
-          .join('');
+      function renderLevelTable(_levels) {
+        /* Level bean rates removed — sell→gift is 1:1 */
       }
 
       const qf = document.getElementById('xferQuickFill');
@@ -645,16 +658,25 @@
         } catch (_e) { /* use cached dash */ }
 
         const sellable = Number(dash?.sellable_coins ?? 0);
-        if (sellable < coins) return toast(`Insufficient balance (have ${fmt(sellable)})`, 'error');
         const inv = Number(dash?.profile?.inventory_coins || 0);
-        const wal = Number(dash?.wallet?.coin_balance || 0);
-        const fromStock = Math.min(coins, inv);
-        const fromWallet = coins - fromStock;
+        const isSelf = String(xferRecipient.id) === String(dash?.user?.id);
+        if (isSelf) {
+          if (inv < coins) return toast(`Need ${fmt(coins)} sell stock (have ${fmt(inv)}). Top-up first.`, 'error');
+        } else if (sellable < coins) {
+          return toast(`Insufficient balance (have ${fmt(sellable)})`, 'error');
+        }
+        const fromStock = isSelf ? coins : Math.min(coins, inv);
+        const fromWallet = isSelf ? 0 : coins - fromStock;
         const name = `${xferRecipient.first_name || ''} ${xferRecipient.last_name || ''}`.trim() || 'buyer';
-        const deductMsg = fromWallet > 0
-          ? `${fmt(fromStock)} from seller stock + ${fmt(fromWallet)} from wallet`
-          : `${fmt(coins)} from seller stock`;
-        if (!window.confirm(`Send ${fmt(coins)} coins to ${name}?\n\nDeducted: ${deductMsg}\n\nBuyer receives coins in their wallet immediately.`)) {
+        const deductMsg = isSelf
+          ? `${fmt(coins)} from sell stock → your wallet`
+          : fromWallet > 0
+            ? `${fmt(fromStock)} from seller stock + ${fmt(fromWallet)} from wallet`
+            : `${fmt(coins)} from seller stock`;
+        const confirmMsg = isSelf
+          ? `Move ${fmt(coins)} coins to your own wallet?\n\n${deductMsg}\n\nSell stock decreases; your wallet coins increase.`
+          : `Send ${fmt(coins)} coins to ${name}?\n\nDeducted: ${deductMsg}\n\nBuyer receives coins in their wallet immediately.`;
+        if (!window.confirm(confirmMsg)) {
           updateXferSubmitState();
           return;
         }
@@ -681,7 +703,12 @@
               ?? dash.profile.gift_inventory_coins;
           }
           if (window.SocialWallet?.invalidateBalance) SocialWallet.invalidateBalance();
-          toast(`Sent ${fmt(coins)} coins to ${name}`, 'success');
+          toast(
+            isSelf
+              ? `Moved ${fmt(coins)} coins from sell stock to your wallet`
+              : `Sent ${fmt(coins)} coins to ${name}`,
+            'success'
+          );
           closeModal('transferModal');
           resetTransferModal();
           await loadDashboard();
@@ -694,29 +721,39 @@
       });
 
       document.getElementById('exAmount')?.addEventListener('input', (e) => {
-        const beans = parseInt(e.target.value, 10) || 0;
-        const rate = dash?.level?.beansPer10k || 9500;
-        document.getElementById('exPreview').textContent = fmt(Math.floor((beans / 10000) * rate));
+        const coins = parseInt(e.target.value, 10) || 0;
+        document.getElementById('exPreview').textContent = fmt(coins);
       });
 
       document.getElementById('exSubmitBtn').addEventListener('click', async () => {
-        const beans = parseInt(document.getElementById('exAmount').value, 10);
-        const avail = Number(dash?.wallet?.star_balance || 0);
-        if (!beans || beans < 100000 || beans % 100000 !== 0) {
-          return toast('Enter beans in multiples of 100,000', 'warning');
+        const coins = parseInt(document.getElementById('exAmount').value, 10);
+        const sellable = Number(dash?.sellable_coins ?? 0);
+        const inv = Number(dash?.profile?.inventory_coins || 0);
+        const wal = Number(dash?.wallet?.coin_balance || 0);
+        if (!coins || coins < 1) {
+          return toast('Enter a valid amount to exchange', 'warning');
         }
-        if (avail < beans) {
-          return toast(`Insufficient beans (you have ${fmt(avail)})`, 'error');
+        if (sellable < coins) {
+          return toast(`Insufficient sell coins (you have ${fmt(sellable)})`, 'error');
+        }
+        const fromStock = Math.min(coins, inv);
+        const fromWallet = coins - fromStock;
+        const deductMsg = fromWallet > 0
+          ? `${fmt(fromStock)} from sell stock + ${fmt(fromWallet)} from wallet`
+          : `${fmt(coins)} from sell stock`;
+        if (!window.confirm(`Exchange ${fmt(coins)} sell coins → ${fmt(coins)} gift coins?\n\nDeducted: ${deductMsg}`)) {
+          return;
         }
         const btn = document.getElementById('exSubmitBtn');
         btn.disabled = true;
         btn.textContent = 'Exchanging…';
         try {
           await Auth.ensureAccessToken?.();
-          const res = await API.post('/social/coin-seller/exchange', { beans });
+          const res = await API.post('/social/coin-seller/exchange', { coins });
           toast(`Added ${fmt(res.data?.coinsOut)} gift coins`, 'success');
           closeModal('exchangeModal');
           document.getElementById('exAmount').value = '';
+          document.getElementById('exPreview').textContent = '0';
           await loadDashboard();
         } catch (e) {
           toast(e?.message || 'Exchange failed', 'error');

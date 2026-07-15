@@ -34,6 +34,18 @@ async function ensureSocialProductionSchema() {
   if (fs.existsSync(giftInvPath)) {
     await db.query(fs.readFileSync(giftInvPath, 'utf8'));
   }
+  const chatModPath = path.join(__dirname, '../../database/migrations/017_live_chat_moderation.sql');
+  if (fs.existsSync(chatModPath)) {
+    await db.query(fs.readFileSync(chatModPath, 'utf8'));
+  }
+  const banExpPath = path.join(__dirname, '../../database/migrations/018_live_room_ban_expires.sql');
+  if (fs.existsSync(banExpPath)) {
+    await db.query(fs.readFileSync(banExpPath, 'utf8'));
+  }
+  const chatLockPath = path.join(__dirname, '../../database/migrations/019_live_chat_lock.sql');
+  if (fs.existsSync(chatLockPath)) {
+    await db.query(fs.readFileSync(chatLockPath, 'utf8'));
+  }
   const searchIdxPath = path.join(__dirname, '../../database/migrations/008_search_indexes.sql');
   if (fs.existsSync(searchIdxPath)) {
     await db.query(fs.readFileSync(searchIdxPath, 'utf8'));

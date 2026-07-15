@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#c9a227">
   <title>Me - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-theme.css?v=20260714-no-gift-normal">
+  <link rel="stylesheet" href="social-theme.css?v=20260715-badges-live">
   <link rel="stylesheet" href="social-features.css">
   <style>
     html:not(.profile-ready) .social-profile-hero,
@@ -19,20 +19,76 @@
     }
     @keyframes profile-load { to { background-position: 200% 0; } }
     #profileStats {
+      display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      max-width: 360px;
+      gap: 8px;
+      width: 100%;
+      max-width: min(360px, 100%);
+      margin-left: auto;
+      margin-right: auto;
+      box-sizing: border-box;
+      padding: 0 4px;
+    }
+    #profileStats .social-stat-pill {
+      min-width: 0;
+      overflow: hidden;
+      padding: 10px 6px;
+    }
+    #profileStats .social-stat-pill strong {
+      font-size: clamp(11px, 3.4vw, 15px);
+      line-height: 1.15;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    #profileStats .social-stat-pill span {
+      font-size: 10px;
+      letter-spacing: 0.02em;
+    }
+    /* Sellers: follow row, then wallet row of 3 equal cards */
+    #profileStats.has-gift-coins {
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      max-width: min(420px, 100%);
+      gap: 8px;
+    }
+    #profileStats.has-gift-coins > :nth-child(1),
+    #profileStats.has-gift-coins > :nth-child(2) {
+      grid-column: span 3;
+    }
+    #profileStats.has-gift-coins > :nth-child(3),
+    #profileStats.has-gift-coins > :nth-child(4),
+    #profileStats.has-gift-coins > :nth-child(5) {
+      grid-column: span 2;
+    }
+    #profileStats.has-gift-coins > :nth-child(3) strong,
+    #profileStats.has-gift-coins > :nth-child(4) strong,
+    #profileStats.has-gift-coins > :nth-child(5) strong {
+      font-size: clamp(10px, 2.8vw, 13px);
     }
     #profileWalletActions .social-profile-actions-row {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: 1fr 1fr;
       gap: 8px;
     }
     #profileWalletActions .social-wallet-btn {
       min-width: 0;
-      padding: 10px 6px;
+      min-height: 44px;
+      padding: 8px 10px;
+      flex-direction: row;
+      gap: 8px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(107, 79, 16, 0.12);
+    }
+    #profileWalletActions .social-wallet-btn-icon {
+      width: 26px;
+      height: 26px;
+      font-size: 12px;
+      flex-shrink: 0;
     }
     #profileWalletActions .social-wallet-btn-label {
-      font-size: 11px;
+      font-size: 12px;
+      font-weight: 700;
     }
     /* Gift coins: sellers only — never show for normal users */
     #statGiftCoinsLink {
@@ -40,12 +96,58 @@
     }
     #statGiftCoinsLink.is-seller-visible {
       display: flex !important;
-      grid-column: 1 / -1;
       background: linear-gradient(135deg, #fff1f2, #ffe4e6);
       color: #9f1239;
     }
+    /* Role badges — always visible under name (Host / Creator, Seller, etc.) */
+    #profileRole {
+      display: flex !important;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: center;
+      align-items: center;
+      margin: 8px 0 0;
+      min-height: 22px;
+    }
+    #profileRole[hidden] { display: flex !important; }
+    #profileRole .ap-role-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      line-height: 1.4;
+    }
+    #profileRole .ap-role-badge--host {
+      color: #14532d;
+      background: linear-gradient(135deg, #bbf7d0, #4ade80);
+    }
+    #profileRole .ap-role-badge--seller {
+      color: #9a3412;
+      background: linear-gradient(135deg, #fed7aa, #fb923c);
+    }
+    #profileRole .ap-role-badge--agency {
+      color: #713f12;
+      background: linear-gradient(135deg, #fde68a, #fbbf24);
+    }
+    #profileRole .ap-role-badge--bd {
+      color: #1e3a8a;
+      background: linear-gradient(135deg, #bfdbfe, #60a5fa);
+    }
+    #profileRole .ap-role-badge--admin {
+      color: #1c1917;
+      background: linear-gradient(135deg, #fde68a, #f59e0b 55%, #d97706);
+    }
+    #profileRole .ap-role-badge--customer,
+    #profileRole .ap-role-badge--pro {
+      color: #374151;
+      background: #f3f4f6;
+    }
     #statGiftCoinsLink.is-seller-visible strong { color: #e11d48; }
-    #statGiftCoinsLink.is-seller-visible span { color: #be123c; }
+    #statGiftCoinsLink.is-seller-visible span { color: #be123c; font-size: 11px; }
   </style>
   <script>
     (function () {
@@ -69,7 +171,7 @@
       <input type="file" id="profileAvatarInput" class="rc-file-input-hidden" accept="image/jpeg,image/png,image/webp,image/*" tabindex="-1" aria-hidden="true">
     </div>
     <h2 id="profileName">&nbsp;</h2>
-    <p id="profileRole">&nbsp;</p>
+    <p id="profileRole" aria-live="polite">&nbsp;</p>
     <div class="social-profile-uid" id="profileUidRow" style="display:none">
       <span id="profileUidLabel">ID: <strong id="profileUserId">—</strong></span>
       <button type="button" class="social-copy-id-btn" id="profileCopyId" aria-label="Copy user ID"><i class="fas fa-copy"></i></button>
@@ -102,13 +204,9 @@
           <span class="social-wallet-btn-icon" aria-hidden="true"><i class="fas fa-plus"></i></span>
           <span class="social-wallet-btn-label">Top Up</span>
         </a>
-        <a href="/withdraw.html?app=1" class="social-wallet-btn social-wallet-btn-withdraw">
+        <a href="/withdraw.html?app=1" class="social-wallet-btn social-wallet-btn-withdraw" id="profileWithdrawBtn">
           <span class="social-wallet-btn-icon" aria-hidden="true"><i class="fas fa-wallet"></i></span>
-          <span class="social-wallet-btn-label">Withdraw</span>
-        </a>
-        <a href="/withdraw.html?app=1&mode=exchange" class="social-wallet-btn" id="profileExchangeBtn" style="background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff">
-          <span class="social-wallet-btn-icon" aria-hidden="true"><i class="fas fa-sync-alt"></i></span>
-          <span class="social-wallet-btn-label">Exchange</span>
+          <span class="social-wallet-btn-label">Withdraw / Exchange</span>
         </a>
       </div>
       <button type="button" class="social-profile-edit-row" id="editProfileBtn" style="display:none">
@@ -148,6 +246,7 @@
   <nav class="social-menu-list">
     <a href="#" class="social-menu-item" id="adminDashLink" style="display:none"><i class="fas fa-shield-alt"></i><span>Admin Dashboard</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/admin-dashboard.html#notifications" class="social-menu-item" id="adminNotifLink" style="display:none"><i class="fas fa-bell"></i><span>Admin Notifications</span><i class="fas fa-chevron-right chevron"></i></a>
+    <a href="/referral.html?app=1" class="social-menu-item" id="inviteFriendsLink"><i class="fas fa-user-friends"></i><span>Invite Friends & Rewards</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/role-apply.html?app=1" class="social-menu-item" id="roleApplyLink"><i class="fas fa-user-plus"></i><span>Apply for Host / Agency / Seller</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/coin-seller-center.html?app=1" class="social-menu-item" id="coinSellerLink"><i class="fas fa-coins"></i><span>Coin Seller Center</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/streamer-center.html?app=1" class="social-menu-item" id="hostCenterLink"><i class="fas fa-video"></i><span>Host / Streamer Center</span><i class="fas fa-chevron-right chevron"></i></a>
@@ -172,11 +271,12 @@
   <div id="social-bottom-nav-mount"></div>
 
   <script src="ap-config.js"></script>
-  <script src="app.js?v=20260713-hierarchy"></script>
-  <script src="social-wallet.js?v=20260714-seller-gift-show"></script>
+  <script src="app.js?v=20260715-badges-live"></script>
+  <script src="social-wallet.js?v=20260714-coins-align"></script>
   <script src="social-ui.js?v=20260624-profile-url-fix"></script>
   <script src="social-interactions.js?v=20260624-profile-url-fix"></script>
   <script src="social-shell.js?v=20260624-profile-url-fix"></script>
+  <script src="referral-hook.js?v=20260715-referral"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
       Auth.checkAuth();
@@ -260,28 +360,45 @@
         }
       }
 
+      function buildProfileBadgesHtml(user) {
+        if (!user) return '';
+        if (typeof window.formatProfileRoleBadgesHtml === 'function') {
+          return window.formatProfileRoleBadgesHtml(user, { withEmoji: true }) || '';
+        }
+        const role = String(user.role || '').toLowerCase();
+        const chips = [];
+        const add = (cls, label, emoji) => {
+          chips.push(
+            `<span class="ap-role-badge ${cls}" title="${label}">${emoji ? emoji + ' ' : ''}${label}</span>`
+          );
+        };
+        if (window.isPlatformAdminUser?.(user) || ['admin', 'super_admin', 'founder', 'ceo'].includes(role)) {
+          add('ap-role-badge--admin', 'ADMIN', '');
+        }
+        if (role === 'creator' || role === 'host') add('ap-role-badge--host', 'Host / Creator', '🟩');
+        if (role === 'coin_seller' || role === 'seller' || user.is_coin_seller) {
+          add('ap-role-badge--seller', 'Coin Seller', '🪙');
+        }
+        if (role === 'agency') add('ap-role-badge--agency', 'Agency', '🟨');
+        if (role === 'bdm' || role === 'bd') add('ap-role-badge--bd', 'Business Development', '🟦');
+        if (!chips.length) {
+          if (role === 'worker') add('ap-role-badge--pro', 'Professional', '');
+          else add('ap-role-badge--customer', 'Customer', '');
+        }
+        return chips.join(' ');
+      }
+
       function paintProfileHeader(user) {
         if (!user) return;
         const name = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email || 'User';
         document.getElementById('profileName').textContent = name;
-        const roleLabels = {
-          worker: 'Professional',
-          admin: 'Administrator',
-          super_admin: 'Super Administrator',
-          coin_seller: 'Coin Seller',
-          creator: 'Host / Creator',
-          agency: 'Agency',
-          bdm: 'Business Development (BD)',
-          founder: 'Founder',
-          ceo: 'CEO',
-        };
-        const roleLabel = roleLabels[user.role] || 'Customer';
         const roleEl = document.getElementById('profileRole');
-        const badgeHtml = window.formatRoleBadgeHtml?.(user, { withEmoji: true }) || '';
-        roleEl.innerHTML =
-          (badgeHtml ? badgeHtml + ' ' : '') +
-          roleLabel +
-          (user.email ? ' · ' + user.email.split('@')[0] : '');
+        if (roleEl) {
+          roleEl.innerHTML = buildProfileBadgesHtml(user) || '<span class="ap-role-badge ap-role-badge--customer">Customer</span>';
+          roleEl.hidden = false;
+          roleEl.removeAttribute('hidden');
+          roleEl.style.display = 'flex';
+        }
         paintProfileAvatar(user);
         paintAdminIdRow(user);
       }
@@ -488,34 +605,71 @@
         statsEl.style.display = 'grid';
         const walletActs = document.getElementById('profileWalletActions');
         if (walletActs) walletActs.classList.add('is-visible');
+        /* Show gift coins shell immediately for coin_seller role (balance fills in next) */
+        if (['coin_seller', 'admin', 'super_admin', 'founder', 'ceo'].includes(String(user.role || ''))) {
+          const giftLinkEarly = document.getElementById('statGiftCoinsLink');
+          if (giftLinkEarly) {
+            giftLinkEarly.classList.add('is-seller-visible');
+            giftLinkEarly.setAttribute('aria-hidden', 'false');
+            giftLinkEarly.style.removeProperty('display');
+            giftLinkEarly.href = '/coin-seller-center.html?app=1';
+            statsEl.classList.add('has-gift-coins');
+          }
+        }
         if (window.SocialWallet) {
+          const fmtStat = (n) => {
+            const v = Math.max(0, Math.floor(Number(n) || 0));
+            if (v >= 10000000) return (v / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+            if (v >= 1000000) return (v / 1000000).toFixed(2).replace(/\.?0+$/, '') + 'M';
+            if (v >= 100000) return (v / 1000).toFixed(0) + 'K';
+            try {
+              return v.toLocaleString();
+            } catch (_e) {
+              return String(v);
+            }
+          };
           const paintWallet = (b) => {
             const coins = document.getElementById('statCoins');
             const pts = document.getElementById('statPoints');
             const giftEl = document.getElementById('statGiftCoins');
             const giftLink = document.getElementById('statGiftCoinsLink');
-            if (coins) coins.textContent = (b.coin_balance || 0).toLocaleString();
-            if (pts) pts.textContent = (b.star_balance || 0).toLocaleString();
-            /* Gift coins: coin_seller role always; never for normal customers */
             const liveRole = String(Auth.getUser?.()?.role || user.role || '');
-            const showGiftCoins =
-              liveRole === 'coin_seller' || !!b.is_coin_seller;
+            const sellerRoles = ['coin_seller', 'admin', 'super_admin', 'founder', 'ceo'];
+            const showGiftCoins = sellerRoles.includes(liveRole) || !!b.is_coin_seller;
+            const sellStock = Number(b.sell_inventory_coins ?? b.inventory_coins ?? 0);
+            const walletCoins = Number(b.coin_balance || 0);
+            const sellable = Number(
+              b.sellable_coins != null ? b.sellable_coins : sellStock + walletCoins
+            );
+            if (coins) {
+              /* Sellers: Coins matches seller dashboard (stock + wallet). Gift coins stay separate. */
+              const coinsVal = showGiftCoins ? sellable : walletCoins;
+              coins.textContent = fmtStat(coinsVal);
+              coins.title = showGiftCoins
+                ? `${coinsVal.toLocaleString()} coins (seller stock ${sellStock.toLocaleString()} + wallet ${walletCoins.toLocaleString()})`
+                : `${walletCoins.toLocaleString()} coins`;
+            }
+            if (pts) {
+              pts.textContent = fmtStat(b.star_balance);
+              pts.title = Number(b.star_balance || 0).toLocaleString() + ' points';
+            }
             if (giftLink) {
               giftLink.classList.toggle('is-seller-visible', showGiftCoins);
               giftLink.setAttribute('aria-hidden', showGiftCoins ? 'false' : 'true');
-              giftLink.style.display = showGiftCoins ? '' : 'none';
+              giftLink.style.removeProperty('display');
+              if (!showGiftCoins) giftLink.style.display = 'none';
+              statsEl.classList.toggle('has-gift-coins', showGiftCoins);
               if (showGiftCoins) {
                 giftLink.href = '/coin-seller-center.html?app=1';
                 if (giftEl) {
-                  giftEl.textContent = Number(
-                    b.gift_inventory_coins ?? b.giftable_coins ?? 0
-                  ).toLocaleString();
+                  const g = Number(b.gift_inventory_coins ?? b.giftable_coins ?? 0);
+                  giftEl.textContent = fmtStat(g);
+                  giftEl.title = g.toLocaleString() + ' gift coins (for sending gifts only)';
                 }
               }
             }
             const balance = Number(b.coin_balance || 0);
-            const sellerRoles = ['coin_seller', 'admin', 'super_admin', 'founder', 'ceo'];
-            const isSeller = sellerRoles.includes(user.role) || b.is_coin_seller || balance >= 100000;
+            const isSeller = sellerRoles.includes(liveRole) || b.is_coin_seller || balance >= 100000;
             const roleApply = document.getElementById('roleApplyLink');
             if (roleApply) {
               if (isSeller && user.role === 'coin_seller') roleApply.style.display = 'none';
@@ -528,6 +682,11 @@
             if (coinSellerLink && isSeller) {
               coinSellerLink.style.display = 'flex';
               coinSellerLink.querySelector('span').textContent = 'Coin Seller Dashboard';
+            }
+            /* Refresh role chips after wallet (coin seller flag may arrive here). */
+            if (b.is_coin_seller != null && user) {
+              user = { ...user, is_coin_seller: !!b.is_coin_seller };
+              paintProfileHeader(user);
             }
           };
           SocialWallet.fetchBalance().then(paintWallet);
@@ -573,7 +732,13 @@
         logout.onclick = (e) => { e.preventDefault(); Auth.logout(); };
       } else {
         document.getElementById('profileName').textContent = 'Guest';
-        document.getElementById('profileRole').textContent = 'Sign in to continue';
+        const roleEl = document.getElementById('profileRole');
+        if (roleEl) {
+          roleEl.innerHTML = '<span class="ap-role-badge ap-role-badge--customer">Sign in to continue</span>';
+          roleEl.hidden = false;
+          roleEl.removeAttribute('hidden');
+          roleEl.style.display = 'flex';
+        }
         document.getElementById('profileAvatar').src = SocialShell.avatarFallback('Guest');
         document.querySelector('.social-profile-avatar-edit')?.style.setProperty('display', 'none');
         btn.textContent = 'Sign In';

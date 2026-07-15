@@ -82,54 +82,12 @@ async function notifyAllAdmins({
   return { notified };
 }
 
-async function notifyAdminsOfChatMessage({
-  conversationId,
-  senderId,
-  receiverId,
-  text,
-} = {}) {
-  const sender = String(senderId || '');
-  const receiver = String(receiverId || '');
-  if (!conversationId || !sender) return { notified: 0 };
-
-  let senderName = 'User';
-  let senderRole = '';
-  try {
-    const u = await db.query(
-      `SELECT first_name, last_name, role, display_id FROM users WHERE id = $1`,
-      [sender]
-    );
-    const row = u.rows[0];
-    if (row) {
-      senderRole = row.role || '';
-      senderName =
-        `${row.first_name || ''} ${row.last_name || ''}`.trim() ||
-        row.display_id ||
-        'User';
-    }
-  } catch (_e) {
-    /* ignore */
-  }
-
-  const preview = String(text || '')
-    .replace(/^__IMG__:.*/i, '📷 Photo')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 160);
-
-  return notifyAllAdmins({
-    type: 'chat_message',
-    title: `Message from ${senderName}`,
-    message: preview || '(empty)',
-    data: {
-      conversation_id: String(conversationId),
-      sender_id: sender,
-      receiver_id: receiver,
-      sender_role: senderRole,
-      deep_link: `/chat.html?app=1&conversation=${encodeURIComponent(String(conversationId))}`,
-    },
-    excludeUserIds: [sender, receiver],
-  });
+/**
+ * Disabled: personal chat must not appear in admin notifications.
+ * Kept as a no-op so older callers do not break.
+ */
+async function notifyAdminsOfChatMessage(_payload = {}) {
+  return { notified: 0, skipped: true, reason: 'personal_chat_excluded' };
 }
 
 module.exports = {

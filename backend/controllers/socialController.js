@@ -325,7 +325,10 @@ async function coinSellerTransfer(req, res) {
 async function coinSellerExchange(req, res) {
   try {
     if (!(await requireCoinSeller(req, res))) return;
-    const data = await coinSellerService.exchangeBeans(uid(req), req.body.beans);
+    const data = await coinSellerService.exchangeSellerCoins(
+      uid(req),
+      req.body.coins ?? req.body.beans ?? req.body.amount
+    );
     res.json({ success: true, data, message: 'Exchange completed' });
   } catch (e) {
     res.status(400).json({ success: false, message: e.message });

@@ -238,9 +238,6 @@ const register = async (req, res) => {
             experience,
             hourly_rate: rawHourly,
             skills,
-            firebase_id_token,
-            otp: rawOtp,
-            otp_mode,
             gender: rawGender
         } = req.body;
 
@@ -248,7 +245,6 @@ const register = async (req, res) => {
         const phone = typeof rawPhone === 'string' ? rawPhone.trim() : '';
         const first_name = typeof rawFirst === 'string' ? rawFirst.trim() : '';
         const last_name = typeof rawLast === 'string' ? rawLast.trim() : '';
-        const otp = typeof rawOtp === 'string' ? rawOtp.trim() : '';
         const adminRequest = isAdminRequest(req);
 
         if (!email || !phone || !password || !first_name || !last_name) {
@@ -259,42 +255,12 @@ const register = async (req, res) => {
         }
 
         const normalizedPhone = normalizeIndianPhone(phone);
-        const hasFirebaseToken = typeof firebase_id_token === 'string' && firebase_id_token.trim().length > 0;
-        const isProduction = process.env.NODE_ENV === 'production';
-        const isTestPhone = !isProduction && isAllowedTestPhone(normalizedPhone);
-        const isFallbackMode = !isProduction && otp_mode === 'fallback';
-
-        if (isProduction && (otp_mode === 'fallback' || isAllowedTestPhone(normalizedPhone))) {
+        /* Phone SMS OTP skipped until a working provider is configured */
+        if (!normalizedPhone) {
             return res.status(400).json({
                 success: false,
-                message: 'Phone verification via Firebase is required'
+                message: 'Enter a valid 10-digit Indian mobile number'
             });
-        }
-
-        if (!adminRequest) {
-            if (isTestPhone) {
-                const expectedOtp = TEST_PHONE_OTP_MAP[normalizedPhone];
-                if (!otp || otp !== expectedOtp) {
-                    return res.status(400).json({
-                        success: false,
-                        message: 'Invalid test OTP for this test number'
-                    });
-                }
-            } else if (isFallbackMode) {
-                if (!otp || otp !== UNIVERSAL_FALLBACK_OTP) {
-                    return res.status(400).json({
-                        success: false,
-                        message: 'Invalid fallback OTP'
-                    });
-                }
-            } else if (!hasFirebaseToken) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Phone verification is required. Complete SMS verification with Firebase before registering.'
-                });
-            } else {
-                await verifyFirebasePhoneToken(firebase_id_token.trim(), phone);
-            }
         }
 
         const requestedRole = adminRequest

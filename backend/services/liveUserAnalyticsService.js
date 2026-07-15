@@ -134,9 +134,39 @@ async function getUserAnalytics(userId, period = 'today') {
   const totalHostSeconds = liveHostSeconds + partyHostSeconds;
   const totalSeconds = totalWatchSeconds + totalHostSeconds;
 
+  // Per-day gifts / points (reuse host daily when present; fill full period grid)
+  const days = periodDays(period);
+  const giftDailyMap = new Map();
+  for (let i = 0; i < days; i++) {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() - (days - 1 - i));
+    const key = d.toISOString().slice(0, 10);
+    giftDailyMap.set(key, {
+      date: key,
+      pointsWon: 0,
+      giftsSentCoins: 0,
+      giftsSentCount: 0,
+      giftsReceivedCoins: 0,
+      giftsReceivedCount: 0,
+    });
+  }
+  for (const row of hostStats.daily || []) {
+    const key = String(row.date || '').slice(0, 10);
+    if (!giftDailyMap.has(key)) continue;
+    giftDailyMap.set(key, {
+      date: key,
+      pointsWon: Number(row.pointsWon || 0),
+      giftsSentCoins: Number(row.giftsSentCoins || 0),
+      giftsSentCount: Number(row.giftsSentCount || 0),
+      giftsReceivedCoins: Number(row.giftsReceivedCoins || 0),
+      giftsReceivedCount: Number(row.giftsReceivedCount || 0),
+    });
+  }
+
   return {
     period,
-    periodDays: periodDays(period),
+    periodDays: days,
     liveWatchSeconds,
     partyWatchSeconds,
     liveHostSeconds,
@@ -152,6 +182,10 @@ async function getUserAnalytics(userId, period = 'today') {
     giftsReceivedCoins: Number(giftsRecvRes.rows[0]?.coins || daily.gifts_received_coins || 0),
     giftsReceivedCount: Number(giftsRecvRes.rows[0]?.count || 0),
     roomsJoined: Math.max(Number(daily.rooms_joined) || 0, Number(sessionsRes.rows[0]?.sessions) || 0),
+    daily: [...giftDailyMap.values()].sort((a, b) => (a.date < b.date ? 1 : -1)),
+    totalPoints: Number(hostStats.totalPoints) || 0,
+    totalCoins: Number(hostStats.totalCoins) || 0,
+    lifetimePointsEarned: Number(hostStats.lifetimePointsEarned) || 0,
     host: {
       giftCoins: Number(hostStats.giftCoins) || 0,
       newFollowers: Number(hostStats.newFollowers) || 0,

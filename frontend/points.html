@@ -7,7 +7,7 @@
   <title>Points - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-theme.css">
-  <link rel="stylesheet" href="social-withdraw.css?v=20260714-exchange-v3">
+  <link rel="stylesheet" href="social-withdraw.css?v=20260714-wd-tabs">
   <link rel="stylesheet" href="mobile-app.css">
 </head>
 <body class="withdraw-app">
@@ -52,16 +52,20 @@
   <p class="wd-flow-help" style="margin-top:0">
     <strong>How to withdraw or exchange</strong>
     <ol>
-      <li>Tap <strong>Withdraw / Exchange</strong></li>
-      <li>Choose <strong>Cash withdraw</strong> (QR payout) or <strong>Exchange to coins</strong></li>
-      <li>Enter amount (multiples of 100,000 for exchange)</li>
-      <li>For cash: upload QR and submit · For exchange: coins land instantly in your wallet</li>
+      <li>Tap <strong>Withdraw / Exchange</strong> below</li>
+      <li>Choose <strong>Cash withdraw</strong> or <strong>Exchange to coins</strong></li>
+      <li>Enter amount · for cash upload QR · submit</li>
     </ol>
   </p>
 
-  <button type="button" class="wd-btn-primary wd-btn-pink" id="withdrawNowBtn">Withdraw / Exchange</button>
-  <button type="button" class="wd-btn-primary" id="exchangeNowBtn" style="margin-top:10px;background:linear-gradient(135deg,#6366f1,#4f46e5)">Exchange points → coins</button>
-  <a href="/coins-recharge.html?app=1" class="wd-btn-primary" style="display:block;text-align:center;text-decoration:none;margin-top:10px;background:linear-gradient(135deg,#ff8c42,#f59e0b)">Top up coins</a>
+  <div class="wd-points-actions">
+    <button type="button" class="wd-btn-primary wd-btn-pink wd-btn-compact" id="withdrawNowBtn">
+      <i class="fas fa-wallet"></i> Withdraw / Exchange
+    </button>
+    <a href="/coins-recharge.html?app=1" class="wd-btn-secondary wd-btn-compact">
+      <i class="fas fa-plus"></i> Top up coins
+    </a>
+  </div>
 
   <script src="app.js"></script>
   <script src="social-wallet.js"></script>
@@ -86,9 +90,6 @@
       document.getElementById('pointsUnconfirmed').textContent = String(unconfirmed);
       document.getElementById('withdrawNowBtn').onclick = () => {
         location.href = '/withdraw.html?app=1';
-      };
-      document.getElementById('exchangeNowBtn').onclick = () => {
-        location.href = '/withdraw.html?app=1&mode=exchange';
       };
     });
   </script>

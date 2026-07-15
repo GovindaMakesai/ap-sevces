@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#5b67f6">
   <title>Withdraw - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-withdraw.css?v=20260714-exchange-v2">
+  <link rel="stylesheet" href="social-withdraw.css?v=20260714-wd-tabs">
   <link rel="stylesheet" href="mobile-app.css">
 </head>
 <body class="withdraw-app">
@@ -20,11 +20,6 @@
         <a href="/withdraw-notices.html?app=1" class="wd-header-link">History</a>
       </div>
     </header>
-
-    <div class="wd-exchange-shortcut" role="group" aria-label="Choose action">
-      <button type="button" id="shortcutCashBtn" class="is-active">Cash withdraw</button>
-      <button type="button" id="shortcutExchangeBtn">Exchange → coins</button>
-    </div>
 
     <div class="wd-mode-tabs" role="tablist" aria-label="Choose action">
       <button type="button" class="wd-mode-tab is-active" id="modeCashBtn" data-mode="cash" role="tab" aria-selected="true">
@@ -108,8 +103,8 @@
         <i class="fas fa-check-circle"></i>
         <span>QR uploaded! Now tap the green button below to send your request to admin.</span>
       </div>
-      <button type="button" class="wd-btn-primary wd-btn-inline-submit" id="submitWithdrawInline" hidden disabled>
-        <i class="fas fa-paper-plane"></i> Submit withdrawal request
+      <button type="button" class="wd-btn-primary wd-btn-inline-submit" id="submitWithdrawInline" hidden disabled style="display:none">
+        <i class="fas fa-paper-plane"></i> Submit withdrawal
       </button>
     </div>
 
@@ -135,12 +130,12 @@
 
     <footer class="wd-footer">
       <button type="button" class="wd-btn-primary" id="submitWithdraw" disabled>
-        <i class="fas fa-paper-plane"></i> Submit withdrawal request
+        <i class="fas fa-paper-plane"></i> Submit withdrawal
       </button>
-      <button type="button" class="wd-btn-primary" id="submitExchange" hidden disabled>
+      <button type="button" class="wd-btn-primary" id="submitExchange" hidden disabled style="display:none">
         <i class="fas fa-sync-alt"></i> Exchange to coins
       </button>
-      <p class="wd-submit-hint" id="submitHint">Step 1: enter amount · Step 2: upload QR · Step 3: tap the button above</p>
+      <p class="wd-submit-hint" id="submitHint">Enter amount · upload QR · submit</p>
     </footer>
   </div>
 
@@ -275,6 +270,20 @@
       }
     }
 
+    function setFooterMode(isExchange) {
+      const cashBtn = document.getElementById('submitWithdraw');
+      const cashInline = document.getElementById('submitWithdrawInline');
+      const exBtn = document.getElementById('submitExchange');
+      if (isExchange) {
+        if (cashBtn) { cashBtn.hidden = true; cashBtn.style.display = 'none'; }
+        if (cashInline) { cashInline.hidden = true; cashInline.style.display = 'none'; }
+        if (exBtn) { exBtn.hidden = false; exBtn.style.display = ''; }
+      } else {
+        if (exBtn) { exBtn.hidden = true; exBtn.style.display = 'none'; }
+        if (cashBtn) { cashBtn.hidden = false; cashBtn.style.display = ''; }
+      }
+    }
+
     function updateSubmitState() {
       const amt = parseInt(document.getElementById('withdrawAmount').value, 10);
       const amountOk = amountValidForMode(amt);
@@ -284,32 +293,29 @@
       const hint = document.getElementById('submitHint');
 
       if (currentMode === 'exchange') {
-        if (cashBtn) cashBtn.hidden = true;
-        if (cashInline) cashInline.hidden = true;
+        setFooterMode(true);
         if (exBtn) {
-          exBtn.hidden = false;
           exBtn.disabled = !amountOk;
           exBtn.classList.toggle('is-ready', amountOk);
         }
         if (hint) {
           if (amountOk) {
-            hint.textContent = `Ready — exchange ${Number(amt).toLocaleString()} points → ${Number(estimateExchange(amt)).toLocaleString()} coins`;
+            hint.textContent = `Ready — ${Number(amt).toLocaleString()} pts → ${Number(estimateExchange(amt)).toLocaleString()} coins`;
             hint.className = 'wd-submit-hint is-ready';
           } else {
             hint.className = 'wd-submit-hint';
             const missing = [];
-            if (withdrawable < exchangeBlock) missing.push(`need at least ${Number(exchangeBlock).toLocaleString()} points`);
-            else if (!amt) missing.push('enter points amount');
-            else if (amt > withdrawable) missing.push('amount exceeds balance');
-            else if (amt % exchangeBlock !== 0) missing.push(`use multiples of ${Number(exchangeBlock).toLocaleString()}`);
-            hint.textContent = missing.length ? 'Still needed: ' + missing.join(' · ') : 'Enter points to exchange';
+            if (withdrawable < exchangeBlock) missing.push(`need ${Number(exchangeBlock).toLocaleString()}+ points`);
+            else if (!amt) missing.push('enter points');
+            else if (amt > withdrawable) missing.push('amount too high');
+            else if (amt % exchangeBlock !== 0) missing.push(`multiples of ${Number(exchangeBlock).toLocaleString()}`);
+            hint.textContent = missing.length ? missing.join(' · ') : 'Enter points to exchange';
           }
         }
         return;
       }
 
-      if (exBtn) exBtn.hidden = true;
-      if (cashBtn) cashBtn.hidden = false;
+      setFooterMode(false);
       const ready = amountOk && Boolean(selectedFile);
       if (cashBtn) {
         cashBtn.disabled = !ready;
@@ -318,6 +324,7 @@
       if (cashInline) {
         cashInline.disabled = !ready;
         cashInline.hidden = !selectedFile;
+        cashInline.style.display = selectedFile ? '' : 'none';
         cashInline.classList.toggle('is-ready', ready);
       }
       document.getElementById('qrSuccessBanner').hidden = !selectedFile;
@@ -328,8 +335,6 @@
       currentMode = mode === 'exchange' ? 'exchange' : 'cash';
       document.getElementById('modeCashBtn')?.classList.toggle('is-active', currentMode === 'cash');
       document.getElementById('modeExchangeBtn')?.classList.toggle('is-active', currentMode === 'exchange');
-      document.getElementById('shortcutCashBtn')?.classList.toggle('is-active', currentMode === 'cash');
-      document.getElementById('shortcutExchangeBtn')?.classList.toggle('is-active', currentMode === 'exchange');
       document.getElementById('modeCashBtn')?.setAttribute('aria-selected', currentMode === 'cash' ? 'true' : 'false');
       document.getElementById('modeExchangeBtn')?.setAttribute('aria-selected', currentMode === 'exchange' ? 'true' : 'false');
 
@@ -341,8 +346,8 @@
       document.getElementById('cashRulesCard').hidden = isEx;
       document.getElementById('exchangeRulesCard').hidden = !isEx;
       document.getElementById('infoBannerText').textContent = isEx
-        ? 'Exchange converts points to NR coins in your wallet instantly (70% rate)'
-        : 'Upload your UPI/bank QR — admin will pay to this code after review';
+        ? 'Exchange converts points to NR coins instantly (70% rate)'
+        : 'Upload your UPI/bank QR — admin pays after review';
 
       const minLabel = isEx ? exchangeBlock : minCoins;
       document.getElementById('minCoins').textContent = Number(minLabel).toLocaleString();
@@ -353,6 +358,7 @@
       if (!input.value || Number(input.value) < minLabel) {
         input.value = withdrawable >= minLabel ? String(minLabel) : '';
       }
+      setFooterMode(isEx);
       updatePayoutEstimate();
       updateSubmitState();
     }
@@ -415,8 +421,6 @@
 
       document.getElementById('modeCashBtn')?.addEventListener('click', () => setMode('cash'));
       document.getElementById('modeExchangeBtn')?.addEventListener('click', () => setMode('exchange'));
-      document.getElementById('shortcutCashBtn')?.addEventListener('click', () => setMode('cash'));
-      document.getElementById('shortcutExchangeBtn')?.addEventListener('click', () => setMode('exchange'));
 
       const zone = document.getElementById('qrUploadZone');
       const input = document.getElementById('qrFile');

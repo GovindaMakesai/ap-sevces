@@ -8,7 +8,7 @@ const EMAIL = process.argv[2];
 const TARGET = parseInt(process.argv[3], 10);
 
 async function main() {
-  if (!EMAIL || !TARGET || TARGET < 0) {
+  if (!EMAIL || !Number.isFinite(TARGET) || TARGET < 0) {
     console.error('Usage: node backend/scripts/set-user-coins.js <email> <amount>');
     process.exit(1);
   }

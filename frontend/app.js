@@ -197,22 +197,22 @@ function scheduleProactiveSessionRefresh() {
     if (window.__apSessionRefreshScheduled) return;
     window.__apSessionRefreshScheduled = true;
     const tick = async () => {
-      if (!localStorage.getItem('user')) return;
-      const token = localStorage.getItem('token');
-      const refresh = localStorage.getItem('ap_refresh_token');
-      if (!refresh && !token) return;
-      const payload = parseJwtPayload(token);
-      const exp = payload?.exp ? payload.exp * 1000 : 0;
-      const soon = exp && exp - Date.now() < 5 * 60 * 1000;
-      if (!token || !isAccessTokenUsable(token) || soon) {
-        try {
-          await Auth.tryRefresh();
-        } catch (_e) {}
-      }
+        if (!localStorage.getItem('user')) return;
+        const token = localStorage.getItem('token');
+        const refresh = localStorage.getItem('ap_refresh_token');
+        if (!refresh && !token) return;
+        const payload = parseJwtPayload(token);
+        const exp = payload?.exp ? payload.exp * 1000 : 0;
+        const soon = exp && exp - Date.now() < 5 * 60 * 1000;
+        if (!token || !isAccessTokenUsable(token) || soon) {
+            try {
+                await Auth.tryRefresh();
+            } catch (_e) { }
+        }
     };
     setInterval(tick, 2 * 60 * 1000);
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') tick();
+        if (document.visibilityState === 'visible') tick();
     });
     setTimeout(tick, 3000);
 }
@@ -234,18 +234,18 @@ const API_GET_CACHE_MS = 5000;
 const API_GET_CACHE_LONG_MS = 15000;
 
 function apiGetCacheTtl(endpoint) {
-  const p = String(endpoint || '');
-  if (p.includes('/social/following') ||
-    p.includes('/social/followers') ||
-    p.includes('/live/rooms') ||
-    p.includes('/live/streamer-stats') ||
-    p.includes('/social/creators') ||
-    p.includes('/messages/conversations') ||
-    p.includes('/auth/me')
-  ) {
-    return API_GET_CACHE_LONG_MS;
-  }
-  return API_GET_CACHE_MS;
+    const p = String(endpoint || '');
+    if (p.includes('/social/following') ||
+        p.includes('/social/followers') ||
+        p.includes('/live/rooms') ||
+        p.includes('/live/streamer-stats') ||
+        p.includes('/social/creators') ||
+        p.includes('/messages/conversations') ||
+        p.includes('/auth/me')
+    ) {
+        return API_GET_CACHE_LONG_MS;
+    }
+    return API_GET_CACHE_MS;
 }
 
 function apiBaseUrl() {
@@ -306,7 +306,7 @@ const API = {
         })();
         if (method === 'GET') {
             _apiInflight.set(cacheKey, run);
-            run.then((data) => _apiGetCache.set(cacheKey, { at: Date.now(), data })).catch(() => {});
+            run.then((data) => _apiGetCache.set(cacheKey, { at: Date.now(), data })).catch(() => { });
         }
         return run;
     },
@@ -450,9 +450,9 @@ const API = {
         console.log('Γ£à API Success:', data);
         return data;
     },
-    
-    get(endpoint) { 
-        return this.request(endpoint, { method: 'GET' }); 
+
+    get(endpoint) {
+        return this.request(endpoint, { method: 'GET' });
     },
 
     /** GET bypassing the short-lived in-memory cache (balances, approvals). */
@@ -460,7 +460,7 @@ const API = {
         const sep = endpoint.includes('?') ? '&' : '?';
         return this.request(`${endpoint}${sep}_=${Date.now()}`, { method: 'GET' });
     },
-    
+
     post(endpoint, body) {
         this.clearGetCache('/social/follow');
         this.clearGetCache('/social/following');
@@ -477,12 +477,12 @@ const API = {
             timeout,
         });
     },
-    
-    put(endpoint, body) { 
-        return this.request(endpoint, { 
-            method: 'PUT', 
-            body: body 
-        }); 
+
+    put(endpoint, body) {
+        return this.request(endpoint, {
+            method: 'PUT',
+            body: body
+        });
     },
 
     patch(endpoint, body) {
@@ -491,13 +491,13 @@ const API = {
             body: body
         });
     },
-    
+
     delete(endpoint) {
         this.clearGetCache('/social/follow');
         this.clearGetCache('/social/following');
         return this.request(endpoint, { method: 'DELETE' });
     },
-    
+
     // Special method for file uploads
     upload(endpoint, formData, method = 'POST') {
         return this.request(endpoint, {
@@ -520,14 +520,14 @@ const ServicesAPI = {
         try {
             let url = '/services';
             const params = new URLSearchParams();
-            
+
             if (category) params.append('category', category);
             if (search) params.append('search', search);
-            
+
             if (params.toString()) {
                 url += '?' + params.toString();
             }
-            
+
             console.log('≡ƒöì Fetching services:', url);
             const response = await API.get(url);
             return response;
@@ -536,7 +536,7 @@ const ServicesAPI = {
             throw error;
         }
     },
-    
+
     async getById(id) {
         try {
             const response = await API.get(`/services/${id}`);
@@ -546,7 +546,7 @@ const ServicesAPI = {
             throw error;
         }
     },
-    
+
     async getPopular(limit = 6) {
         try {
             const response = await API.get(`/services/popular?limit=${limit}`);
@@ -570,7 +570,7 @@ const AdminAPI = {
             throw error;
         }
     },
-    
+
     // Create service with image upload
     async createService(formData) {
         try {
@@ -581,7 +581,7 @@ const AdminAPI = {
             throw error;
         }
     },
-    
+
     // Update service with image upload
     async updateService(serviceId, formData) {
         try {
@@ -592,7 +592,7 @@ const AdminAPI = {
             throw error;
         }
     },
-    
+
     // Delete service
     async deleteService(serviceId) {
         try {
@@ -603,7 +603,7 @@ const AdminAPI = {
             throw error;
         }
     },
-    
+
     // Get dashboard stats
     async getDashboardStats() {
         try {
@@ -614,7 +614,7 @@ const AdminAPI = {
             throw error;
         }
     },
-    
+
     // Get all users
     async getUsers(params = {}) {
         try {
@@ -627,7 +627,7 @@ const AdminAPI = {
             throw error;
         }
     },
-    
+
     // Get all workers
     async getWorkers(params = {}) {
         try {
@@ -640,7 +640,7 @@ const AdminAPI = {
             throw error;
         }
     },
-    
+
     // Approve worker
     async approveWorker(workerId, status) {
         try {
@@ -651,7 +651,7 @@ const AdminAPI = {
             throw error;
         }
     },
-    
+
     // Get all bookings
     async getBookings(params = {}) {
         try {
@@ -664,7 +664,7 @@ const AdminAPI = {
             throw error;
         }
     },
-    
+
     // Get analytics
     async getAnalytics(period = 'month') {
         try {
@@ -683,12 +683,12 @@ const Auth = {
         try {
             console.log('≡ƒöÉ Login attempt:', email);
             const response = await API.post('/auth/login', { email, password });
-            
+
             if (response.success) {
                 AppState.user = response.data.user;
                 storeSessionTokens(response.data);
                 localStorage.setItem('user', JSON.stringify(response.data.user));
-                
+
                 Toast.show(`Welcome back, ${response.data.user.first_name}!`, 'success');
 
                 if (window.ReactNativeWebView) {
@@ -707,7 +707,7 @@ const Auth = {
                     && !options.redirectUrl.startsWith('//')
                     ? options.redirectUrl
                     : null;
-                
+
                 const go = () => {
                     if (safeRedirect) {
                         window.location.replace(safeRedirect);
@@ -723,8 +723,8 @@ const Auth = {
                             u.role === 'admin'
                                 ? '/admin-dashboard.html?app=1'
                                 : u.role === 'worker'
-                                  ? '/worker-dashboard.html?app=1'
-                                  : '/explore.html?app=1';
+                                    ? '/worker-dashboard.html?app=1'
+                                    : '/explore.html?app=1';
                         window.location.replace(dest);
                         return;
                     }
@@ -748,7 +748,7 @@ const Auth = {
             throw error;
         }
     },
-    
+
     async register(userData) {
         try {
             console.log('≡ƒô¥ Registration attempt:', userData.email);
@@ -759,7 +759,7 @@ const Auth = {
             throw error;
         }
     },
-    
+
     async logout() {
         try {
             await API.post('/auth/logout', {});
@@ -779,7 +779,7 @@ const Auth = {
         const dest = isNativeAppContext() ? '/app-auth.html?app=1' : '/';
         setTimeout(() => window.location.replace(dest), 600);
     },
-    
+
     checkAuth() {
         const user = localStorage.getItem('user');
         if (user) {
@@ -828,7 +828,7 @@ const Auth = {
         const existing = localStorage.getItem('token');
         if (existing && isAccessTokenUsable(existing)) {
             if (!localStorage.getItem('user') && typeof this.refreshSession === 'function') {
-                await this.refreshSession().catch(() => {});
+                await this.refreshSession().catch(() => { });
             }
             return true;
         }
@@ -854,7 +854,7 @@ const Auth = {
         const existing = localStorage.getItem('token');
         if (existing && isAccessTokenUsable(existing)) {
             if (!localStorage.getItem('user') && typeof this.refreshSession === 'function') {
-                await this.refreshSession().catch(() => {});
+                await this.refreshSession().catch(() => { });
             }
             return existing;
         }
@@ -918,7 +918,7 @@ const Auth = {
             this._ensuringToken = null;
         }
     },
-    
+
     getUser() { return AppState.user; },
     getToken() { return AppState.token || localStorage.getItem('token'); },
     isAccessTokenUsable,
@@ -963,66 +963,66 @@ const Auth = {
         if (this._refreshingSession) return this._refreshingSession;
 
         this._refreshingSession = (async () => {
-        const cached = localStorage.getItem('user');
-        if (cached) {
+            const cached = localStorage.getItem('user');
+            if (cached) {
+                try {
+                    AppState.user = JSON.parse(cached);
+                } catch (_e) {
+                    /* ignore */
+                }
+            }
+
+            await this.ensureAccessToken();
+
             try {
-                AppState.user = JSON.parse(cached);
-            } catch (_e) {
-                /* ignore */
-            }
-        }
-
-        await this.ensureAccessToken();
-
-        try {
-            const res = await API.get('/auth/me');
-            if (res.success && res.data && res.data.user) {
-                AppState.user = res.data.user;
-                localStorage.setItem('user', JSON.stringify(res.data.user));
-                document.dispatchEvent(new CustomEvent('user:profile-updated', { detail: res.data.user }));
-                if (res.data.accessToken) {
-                    localStorage.setItem('token', res.data.accessToken);
+                const res = await API.get('/auth/me');
+                if (res.success && res.data && res.data.user) {
+                    AppState.user = res.data.user;
+                    localStorage.setItem('user', JSON.stringify(res.data.user));
+                    document.dispatchEvent(new CustomEvent('user:profile-updated', { detail: res.data.user }));
+                    if (res.data.accessToken) {
+                        localStorage.setItem('token', res.data.accessToken);
+                    }
+                    this._lastSessionRefresh = Date.now();
+                    return true;
                 }
-                this._lastSessionRefresh = Date.now();
-                return true;
-            }
-        } catch (e) {
-            console.warn('Session refresh failed:', e);
-            if (e.status === 401) {
-                let ok = await this.tryRefresh();
-                if (!ok && isNativeAppContext()) {
-                    await this.requestNativeSession();
-                    ok = await this.tryRefresh();
-                }
-                if (ok) {
-                    try {
-                        const res2 = await API.get('/auth/me');
-                        if (res2.success && res2.data?.user) {
-                            AppState.user = res2.data.user;
-                            localStorage.setItem('user', JSON.stringify(res2.data.user));
-                            if (res2.data.accessToken) {
-                                localStorage.setItem('token', res2.data.accessToken);
+            } catch (e) {
+                console.warn('Session refresh failed:', e);
+                if (e.status === 401) {
+                    let ok = await this.tryRefresh();
+                    if (!ok && isNativeAppContext()) {
+                        await this.requestNativeSession();
+                        ok = await this.tryRefresh();
+                    }
+                    if (ok) {
+                        try {
+                            const res2 = await API.get('/auth/me');
+                            if (res2.success && res2.data?.user) {
+                                AppState.user = res2.data.user;
+                                localStorage.setItem('user', JSON.stringify(res2.data.user));
+                                if (res2.data.accessToken) {
+                                    localStorage.setItem('token', res2.data.accessToken);
+                                }
+                                this._lastSessionRefresh = Date.now();
+                                return true;
                             }
-                            this._lastSessionRefresh = Date.now();
-                            return true;
-                        }
-                    } catch (_e2) { /* fall through */ }
-                }
-                if (isNativeAppContext() && localStorage.getItem('user')) {
+                        } catch (_e2) { /* fall through */ }
+                    }
+                    if (isNativeAppContext() && localStorage.getItem('user')) {
+                        return false;
+                    }
+                    this.tokenInvalidCleanup();
                     return false;
                 }
-                this.tokenInvalidCleanup();
-                return false;
+                // Network/CORS blip — keep cached session in native app
+                if (isNativeAppContext() && (localStorage.getItem('user') || localStorage.getItem('token'))) {
+                    this._lastSessionRefresh = Date.now();
+                    return true;
+                }
+                return Boolean(AppState.user || localStorage.getItem('user'));
             }
-            // Network/CORS blip — keep cached session in native app
-            if (isNativeAppContext() && (localStorage.getItem('user') || localStorage.getItem('token'))) {
-                this._lastSessionRefresh = Date.now();
-                return true;
-            }
+            this._lastSessionRefresh = Date.now();
             return Boolean(AppState.user || localStorage.getItem('user'));
-        }
-        this._lastSessionRefresh = Date.now();
-        return Boolean(AppState.user || localStorage.getItem('user'));
         })();
 
         try {
@@ -1038,17 +1038,17 @@ const Auth = {
         clearSessionTokens();
         localStorage.removeItem('user');
     },
-    
+
     // Check if current user is admin
     isAdmin() {
         return this.getUser()?.role === 'admin';
     },
-    
+
     // Check if current user is worker
     isWorker() {
         return this.getUser()?.role === 'worker';
     },
-    
+
     // Check if current user is customer
     isCustomer() {
         return this.getUser()?.role === 'customer';
@@ -1069,7 +1069,7 @@ const WorkerAPI = {
             throw error;
         }
     },
-    
+
     async getBookings(status = null) {
         try {
             let url = '/bookings/worker';
@@ -1081,7 +1081,7 @@ const WorkerAPI = {
             throw error;
         }
     },
-    
+
     async updateAvailability(isAvailable) {
         try {
             const response = await API.put('/workers/availability', { is_available: isAvailable });
@@ -1104,7 +1104,7 @@ const BookingsAPI = {
             throw error;
         }
     },
-    
+
     async getCustomerBookings(status = null) {
         try {
             let url = '/bookings/customer';
@@ -1116,7 +1116,7 @@ const BookingsAPI = {
             throw error;
         }
     },
-    
+
     async getById(bookingId) {
         try {
             const response = await API.get(`/bookings/${bookingId}`);
@@ -1126,7 +1126,7 @@ const BookingsAPI = {
             throw error;
         }
     },
-    
+
     async updateStatus(bookingId, status, reason = null) {
         try {
             const response = await API.put(`/bookings/${bookingId}/status`, { status, reason });
@@ -1136,7 +1136,7 @@ const BookingsAPI = {
             throw error;
         }
     },
-    
+
     async checkAvailability(workerId, date, time, duration) {
         try {
             const response = await API.post('/bookings/check-availability', {
@@ -1164,7 +1164,7 @@ const ReviewsAPI = {
             throw error;
         }
     },
-    
+
     async getWorkerReviews(workerId, page = 1, limit = 10) {
         try {
             const response = await API.get(`/reviews/worker/${workerId}?page=${page}&limit=${limit}`);
@@ -1174,7 +1174,7 @@ const ReviewsAPI = {
             throw error;
         }
     },
-    
+
     async getRecent(limit = 6) {
         try {
             const response = await API.get(`/reviews/recent?limit=${limit}`);
@@ -1194,15 +1194,15 @@ const Toast = {
             console.warn('Toast element not found');
             return;
         }
-        
+
         toast.className = `toast ${type} show`;
         toast.innerHTML = `<i class="fas ${this.getIcon(type)}"></i> ${message}`;
-        
+
         setTimeout(() => {
             toast.classList.remove('show');
         }, duration);
     },
-    
+
     getIcon(type) {
         const icons = {
             success: 'fa-check-circle',
@@ -1333,19 +1333,19 @@ const UI = {
             : UI.standardNavLoggedOutHtml();
         UI.initMobileNav();
     },
-    
+
     showLoader(container) {
         const loader = document.createElement('div');
         loader.className = 'loader';
         loader.innerHTML = '<div class="spinner"></div>';
         container.appendChild(loader);
     },
-    
+
     hideLoader(container) {
         const loader = container.querySelector('.loader');
         if (loader) loader.remove();
     },
-    
+
     formatCurrency(amount) {
         return new Intl.NumberFormat('en-IN', {
             style: 'currency',
@@ -1353,7 +1353,7 @@ const UI = {
             minimumFractionDigits: 0
         }).format(amount);
     },
-    
+
     formatDate(dateString) {
         return new Date(dateString).toLocaleDateString('en-IN', {
             day: 'numeric',
@@ -1598,7 +1598,7 @@ const LocationService = {
                 reject(new Error('Geolocation not supported'));
                 return;
             }
-            
+
             navigator.geolocation.getCurrentPosition(resolve, reject, {
                 enableHighAccuracy: true,
                 timeout: 5000,
@@ -1606,28 +1606,28 @@ const LocationService = {
             });
         });
     },
-    
+
     async detectLocation() {
         try {
             Toast.show('Detecting your location...', 'info');
             const position = await this.getCurrentLocation();
             const { latitude, longitude } = position.coords;
-            
+
             // Get city from coordinates (using OpenStreetMap)
             const response = await fetch(
                 `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=en`
             );
             const data = await response.json();
-            
-            const city = data.address?.city || 
-                        data.address?.town || 
-                        data.address?.village || 
-                        'Mumbai';
-            
+
+            const city = data.address?.city ||
+                data.address?.town ||
+                data.address?.village ||
+                'Mumbai';
+
             AppState.currentLocation = { latitude, longitude };
             AppState.selectedCity = city;
             localStorage.setItem('selectedCity', city);
-            
+
             Toast.show(`Location detected: ${city}`, 'success');
             return { latitude, longitude, city };
         } catch (error) {
@@ -1687,8 +1687,8 @@ const PWA = {
             const regs = await navigator.serviceWorker.getRegistrations();
             await Promise.all(regs.map((r) => r.unregister()));
             if (window.caches) {
-              const keys = await caches.keys();
-              await Promise.all(keys.map((k) => caches.delete(k)));
+                const keys = await caches.keys();
+                await Promise.all(keys.map((k) => caches.delete(k)));
             }
         } catch (_e) {
             /* ignore */
@@ -1886,8 +1886,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     Auth.checkAuth();
     if (Auth.hasSession()) {
         if (!(isNativeAppContext() && onAuthScreen)) {
-            Auth.ensureAccessToken().catch(() => {});
-            Auth.refreshSession().catch(() => {});
+            Auth.ensureAccessToken().catch(() => { });
+            Auth.refreshSession().catch(() => { });
         }
         scheduleProactiveSessionRefresh();
     }
@@ -1940,81 +1940,128 @@ window.CONFIG = CONFIG;
 
 /** Public 7-digit user ID for display/copy. Never returns a UUID. */
 function formatUserDisplayId(userOrId, displayId) {
-  if (displayId != null && String(displayId).trim()) {
-    const n = String(displayId).replace(/\D/g, '');
-    if (n.length >= 6 && n.length <= 8) return n;
-  }
-  if (userOrId && typeof userOrId === 'object') {
-    if (userOrId.display_id != null) return formatUserDisplayId(null, userOrId.display_id);
-    if (userOrId.displayId != null) return formatUserDisplayId(null, userOrId.displayId);
-    userOrId = userOrId.id;
-  }
-  const raw = String(userOrId || '').trim();
-  if (/^\d{6,8}$/.test(raw)) return raw;
-  // Never show internal UUID as "User ID"
-  return '';
+    if (displayId != null && String(displayId).trim()) {
+        const n = String(displayId).replace(/\D/g, '');
+        if (n.length >= 6 && n.length <= 8) return n;
+    }
+    if (userOrId && typeof userOrId === 'object') {
+        if (userOrId.display_id != null) return formatUserDisplayId(null, userOrId.display_id);
+        if (userOrId.displayId != null) return formatUserDisplayId(null, userOrId.displayId);
+        userOrId = userOrId.id;
+    }
+    const raw = String(userOrId || '').trim();
+    if (/^\d{6,8}$/.test(raw)) return raw;
+    // Never show internal UUID as "User ID"
+    return '';
 }
 window.formatUserDisplayId = formatUserDisplayId;
 
 function isPlatformAdminUser(userOrRole) {
-  if (!userOrRole) return false;
-  if (typeof userOrRole === 'object') {
-    if (userOrRole.is_admin === true || userOrRole.isAdmin === true || userOrRole.isPlatformAdmin === true) {
-      return true;
+    if (!userOrRole) return false;
+    if (typeof userOrRole === 'object') {
+        if (userOrRole.is_admin === true || userOrRole.isAdmin === true || userOrRole.isPlatformAdmin === true) {
+            return true;
+        }
+        userOrRole = userOrRole.role;
     }
-    userOrRole = userOrRole.role;
-  }
-  return ['admin', 'super_admin', 'founder', 'ceo'].includes(String(userOrRole || '').toLowerCase());
+    return ['admin', 'super_admin', 'founder', 'ceo'].includes(String(userOrRole || '').toLowerCase());
 }
 window.isPlatformAdminUser = isPlatformAdminUser;
 
 /** HTML for a special admin ID chip (safe to inject after escaping the id). */
 function formatAdminIdHtml(displayId, { isAdmin = false } = {}) {
-  const id = formatUserDisplayId(null, displayId) || String(displayId || '').replace(/[^\d]/g, '');
-  if (!id) return 'ID: —';
-  if (!isAdmin) return `ID: ${id}`;
-  return `<span class="ap-admin-id"><span class="ap-admin-id-tag">ADMIN</span><span class="ap-admin-id-num">${id}</span></span>`;
+    const id = formatUserDisplayId(null, displayId) || String(displayId || '').replace(/[^\d]/g, '');
+    if (!id) return 'ID: —';
+    if (!isAdmin) return `ID: ${id}`;
+    return `<span class="ap-admin-id"><span class="ap-admin-id-tag">ADMIN</span><span class="ap-admin-id-num">${id}</span></span>`;
 }
 window.formatAdminIdHtml = formatAdminIdHtml;
 
-/** Normalize hierarchy role for badges: bd | agency | host | admin | null */
+/** Normalize hierarchy role for badges: bd | agency | host | seller | admin | null */
 function hierarchyRoleFromUser(userOrRole) {
-  if (!userOrRole) return null;
-  if (typeof userOrRole === 'object') {
-    if (window.isPlatformAdminUser?.(userOrRole)) return 'admin';
-    const r = String(userOrRole.role || userOrRole.badge || '').toLowerCase();
+    if (!userOrRole) return null;
+    if (typeof userOrRole === 'object') {
+        if (window.isPlatformAdminUser?.(userOrRole)) return 'admin';
+        const r = String(userOrRole.role || userOrRole.badge || '').toLowerCase();
+        if (r === 'bdm' || r === 'bd') return 'bd';
+        if (r === 'agency') return 'agency';
+        if (r === 'creator' || r === 'host') return 'host';
+        if (r === 'coin_seller' || r === 'seller') return 'seller';
+        if (['admin', 'super_admin', 'founder', 'ceo'].includes(r)) return 'admin';
+        if (userOrRole.is_coin_seller === true) return 'seller';
+        return null;
+    }
+    const r = String(userOrRole).toLowerCase();
     if (r === 'bdm' || r === 'bd') return 'bd';
     if (r === 'agency') return 'agency';
     if (r === 'creator' || r === 'host') return 'host';
+    if (r === 'coin_seller' || r === 'seller') return 'seller';
     if (['admin', 'super_admin', 'founder', 'ceo'].includes(r)) return 'admin';
     return null;
-  }
-  const r = String(userOrRole).toLowerCase();
-  if (r === 'bdm' || r === 'bd') return 'bd';
-  if (r === 'agency') return 'agency';
-  if (r === 'creator' || r === 'host') return 'host';
-  if (['admin', 'super_admin', 'founder', 'ceo'].includes(r)) return 'admin';
-  return null;
 }
 window.hierarchyRoleFromUser = hierarchyRoleFromUser;
 
 const HIERARCHY_BADGE_META = {
-  admin: { label: 'ADMIN', className: 'ap-role-badge ap-role-badge--admin', emoji: '' },
-  bd: { label: 'BD', className: 'ap-role-badge ap-role-badge--bd', emoji: '🟦' },
-  agency: { label: 'Agency', className: 'ap-role-badge ap-role-badge--agency', emoji: '🟨' },
-  host: { label: 'Host', className: 'ap-role-badge ap-role-badge--host', emoji: '🟩' },
+    admin: { label: 'ADMIN', className: 'ap-role-badge ap-role-badge--admin', emoji: '' },
+    bd: { label: 'BD', className: 'ap-role-badge ap-role-badge--bd', emoji: '🟦' },
+    agency: { label: 'Agency', className: 'ap-role-badge ap-role-badge--agency', emoji: '🟨' },
+    host: { label: 'Host', className: 'ap-role-badge ap-role-badge--host', emoji: '🟩' },
+    seller: { label: 'Coin Seller', className: 'ap-role-badge ap-role-badge--seller', emoji: '🪙' },
 };
 
-/** Compact role chip beside usernames (BD / Agency / Host / Admin). */
+/** Compact role chip beside usernames (BD / Agency / Host / Seller / Admin). */
 function formatRoleBadgeHtml(userOrRole, { withEmoji = true } = {}) {
-  const key = hierarchyRoleFromUser(userOrRole);
-  if (!key || !HIERARCHY_BADGE_META[key]) return '';
-  const meta = HIERARCHY_BADGE_META[key];
-  const emoji = withEmoji && meta.emoji ? `${meta.emoji} ` : '';
-  return `<span class="${meta.className}" title="${meta.label}">${emoji}${meta.label}</span>`;
+    const key = hierarchyRoleFromUser(userOrRole);
+    if (!key || !HIERARCHY_BADGE_META[key]) return '';
+    const meta = HIERARCHY_BADGE_META[key];
+    const emoji = withEmoji && meta.emoji ? `${meta.emoji} ` : '';
+    return `<span class="${meta.className}" title="${meta.label}">${emoji}${meta.label}</span>`;
 }
 window.formatRoleBadgeHtml = formatRoleBadgeHtml;
 window.HIERARCHY_BADGE_META = HIERARCHY_BADGE_META;
+
+/** Profile page: show all matching role chips (Host, Seller, Agency, etc.). */
+function formatProfileRoleBadgesHtml(user, { withEmoji = true } = {}) {
+    if (!user) return '';
+    const keys = [];
+    const push = (k) => {
+        if (k && HIERARCHY_BADGE_META[k] && !keys.includes(k)) keys.push(k);
+    };
+    if (window.isPlatformAdminUser?.(user)) push('admin');
+    const r = String(user.role || '').toLowerCase();
+    if (r === 'bdm' || r === 'bd') push('bd');
+    if (r === 'agency') push('agency');
+    if (r === 'creator' || r === 'host') push('host');
+    if (r === 'coin_seller' || r === 'seller' || user.is_coin_seller === true) push('seller');
+    if (['admin', 'super_admin', 'founder', 'ceo'].includes(r)) push('admin');
+    /* Hosts who can also sell — wallet flag */
+    try {
+        const bal = window.SocialWallet?.getCachedBalance?.();
+        if (bal?.is_coin_seller) push('seller');
+    } catch (_e) {}
+    if (!keys.length) {
+        if (r === 'worker') {
+            return '<span class="ap-role-badge ap-role-badge--pro">Professional</span>';
+        }
+        return '<span class="ap-role-badge ap-role-badge--customer">Customer</span>';
+    }
+    const profileLabels = {
+        host: 'Host / Creator',
+        seller: 'Coin Seller',
+        bd: 'Business Development',
+        agency: 'Agency',
+        admin: 'ADMIN',
+    };
+    return keys
+        .map((k) => {
+            const meta = HIERARCHY_BADGE_META[k];
+            const label = profileLabels[k] || meta.label;
+            const emoji = withEmoji && meta.emoji ? `${meta.emoji} ` : '';
+            return `<span class="${meta.className}" title="${label}">${emoji}${label}</span>`;
+        })
+        .join(' ');
+}
+window.formatProfileRoleBadgesHtml = formatProfileRoleBadgesHtml;
 
 console.log('Γ£à App.js initialized');
 
@@ -2040,9 +2087,9 @@ console.log('Γ£à App.js initialized');
         clearStuckUiLocks();
     });
 })();
-console.log('≡ƒôª Available APIs:', { 
-    ServicesAPI, 
-    Auth, 
+console.log('≡ƒôª Available APIs:', {
+    ServicesAPI,
+    Auth,
     API,
     AdminAPI,
     WorkerAPI,

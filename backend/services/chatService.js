@@ -227,20 +227,6 @@ async function sendBetweenUsers(senderUserId, receiverRawId, text, options = {})
     };
     const updatedQuota = await getFemaleMessageQuota(senderUserId);
 
-    if (!options.skipAdminNotify) {
-        try {
-            const adminNotificationService = require('./adminNotificationService');
-            void adminNotificationService.notifyAdminsOfChatMessage({
-                conversationId: conv.id,
-                senderId: String(senderUserId),
-                receiverId: receiverUserId,
-                text: row.body,
-            });
-        } catch (_e) {
-            /* non-fatal */
-        }
-    }
-
     return { conversation: conv, message, receiverUserId, quota: updatedQuota };
 }
 

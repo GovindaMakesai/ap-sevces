@@ -1452,6 +1452,9 @@
                         <button class="nav-item" data-section="bd-hierarchy">
                             <i class="fas fa-sitemap"></i> BD &amp; Hierarchy
                         </button>
+                        <button class="nav-item" data-section="referrals">
+                            <i class="fas fa-user-friends"></i> Referrals
+                        </button>
                         <button class="nav-item" data-section="reviews">
                             <i class="fas fa-star"></i> Reviews
                         </button>
@@ -1987,6 +1990,22 @@
                         </div>
                     </div>
 
+                    <!-- Referrals / Host recruitment -->
+                    <div class="dashboard-section" id="referrals-section">
+                        <div class="section-header">
+                            <h2><i class="fas fa-user-friends"></i> Invite Friends &amp; Host Recruitment</h2>
+                            <button class="btn-outline" onclick="loadReferralAdmin()"><i class="fas fa-sync-alt"></i> Refresh</button>
+                        </div>
+                        <p style="color:var(--gray-500);margin-bottom:16px;font-size:14px">
+                            Isolated referral module — rewards, fraud holds, mission builder settings. Does not alter auth/live/wallet cores.
+                        </p>
+                        <div id="referralAdminCards" class="admin-cards-view" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px"></div>
+                        <div class="section-header"><h2><i class="fas fa-shield-alt"></i> Fraud queue</h2></div>
+                        <div id="referralFraudList" class="admin-cards-view"></div>
+                        <div class="section-header" style="margin-top:24px"><h2><i class="fas fa-sliders-h"></i> Settings (JSON values)</h2></div>
+                        <div id="referralSettingsList" class="admin-cards-view"></div>
+                    </div>
+
                     <!-- Points Withdrawals (QR payout) -->
                     <div class="dashboard-section" id="withdrawals-section">
                         <div class="section-header">
@@ -2024,7 +2043,7 @@
                         </div>
                     </div>
 
-                    <!-- Admin notifications (chat + platform events) -->
+                    <!-- Admin notifications (platform events only) -->
                     <div class="dashboard-section" id="notifications-section">
                         <div class="section-header">
                             <h2><i class="fas fa-bell"></i> Admin Notifications</h2>
@@ -2038,7 +2057,7 @@
                             </div>
                         </div>
                         <p style="color:var(--gray-500);margin-bottom:16px;font-size:14px">
-                            All admins receive chat messages and platform alerts (withdrawals, recharges, role apps, seller top-ups).
+                            Platform alerts only (withdrawals, recharges, role apps, seller top-ups). Personal chat messages are not shown.
                         </p>
                         <div id="adminNotificationsList" style="display:flex;flex-direction:column;gap:10px"></div>
                     </div>
@@ -3247,9 +3266,11 @@
                     API.get('/notifications?limit=50&page=1'),
                     API.get('/notifications/unread-count'),
                 ]);
-                const rows = Array.isArray(feed?.data)
+                const rowsRaw = Array.isArray(feed?.data)
                     ? feed.data
                     : (feed?.data?.notifications || feed?.notifications || []);
+                const PERSONAL_TYPES = new Set(['chat_message', 'message', 'direct_message', 'dm']);
+                const rows = rowsRaw.filter((n) => !PERSONAL_TYPES.has(String(n.type || '')));
                 const unread = Number(
                     countRes?.unreadCount ??
                     countRes?.data?.unreadCount ??
@@ -3706,6 +3727,7 @@
             if (section === 'recharges') loadRecharges();
             if (section === 'role-applications') loadRoleApplications();
             if (section === 'bd-hierarchy') loadBdHierarchy();
+            if (section === 'referrals') loadReferralAdmin();
             if (section === 'withdrawals') loadWithdrawals();
             if (section === 'notifications') loadAdminNotifications();
             if (section === 'reviews') loadReviews();
@@ -3875,6 +3897,77 @@
 
         window.exportData = function() {
             Toast.show('Preparing data export...', 'info');
+        };
+
+        // ==================== REFERRALS MODULE (isolated) ====================
+        window.loadReferralAdmin = async function() {
+            const cards = document.getElementById('referralAdminCards');
+            const fraudEl = document.getElementById('referralFraudList');
+            const setEl = document.getElementById('referralSettingsList');
+            if (cards) cards.innerHTML = '<div class="loading-spinner"><i class="fas fa-spinner fa-spin"></i></div>';
+            try {
+                const [overviewRes, settingsRes] = await Promise.all([
+                    API.get('/referral/admin/overview'),
+                    API.get('/referral/admin/settings'),
+                ]);
+                const o = overviewRes?.data?.overview || {};
+                const r = o.referrals || {};
+                const rw = o.rewards || {};
+                if (cards) {
+                    cards.innerHTML = [
+                        ['Total invites', r.total],
+                        ['Valid', r.valid],
+                        ['Pending', r.pending],
+                        ['Fraud hold', r.fraud_hold],
+                        ['Today', r.today],
+                        ['Paid coins', rw.paid_coins],
+                        ['Pending coins', rw.pending_coins],
+                        ['Clicks 24h', o.clicks_24h],
+                    ].map(([label, v]) => `<div class="stat-card" style="padding:14px;background:#fff;border-radius:12px;border:1px solid #e5e7eb"><div style="font-size:11px;color:#6b7280;text-transform:uppercase">${label}</div><div style="font-size:22px;font-weight:800;color:#111">${Number(v||0).toLocaleString()}</div></div>`).join('');
+                }
+                const fraud = overviewRes?.data?.fraud || [];
+                if (fraudEl) {
+                    fraudEl.innerHTML = fraud.length
+                        ? fraud.map((f) => `<div style="padding:12px;background:#fff;border:1px solid #e5e7eb;border-radius:12px;margin-bottom:8px"><strong>${f.category}</strong> · ${f.severity} · score ${f.score_delta}<div style="font-size:12px;color:#6b7280">${f.email || f.user_id || ''} · ${new Date(f.created_at).toLocaleString()}</div><button class="btn-outline" style="margin-top:8px" onclick="reviewReferralFraud('${f.id}', true)">Mark reviewed</button></div>`).join('')
+                        : '<p style="color:#6b7280">No open fraud logs</p>';
+                }
+                const settings = settingsRes?.data || [];
+                if (setEl) {
+                    setEl.innerHTML = `<div style="display:grid;gap:8px">${settings.map((s) => `<div style="display:flex;gap:8px;align-items:center;background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:8px 10px"><code style="min-width:220px">${s.key}</code><input class="filter-select" style="flex:1" data-ref-key="${s.key}" value='${typeof s.value === 'object' ? JSON.stringify(s.value) : String(s.value).replace(/'/g, '&#39;')}'><button class="btn-primary" onclick="saveReferralSetting('${s.key}')">Save</button></div>`).join('')}</div>`;
+                }
+            } catch (e) {
+                if (cards) cards.innerHTML = `<p style="color:#b91c1c">${e.message || 'Failed to load referral admin'}</p>`;
+            }
+        };
+
+        window.saveReferralSetting = async function(key) {
+            const input = document.querySelector(`[data-ref-key="${key}"]`);
+            if (!input) return;
+            let value = input.value;
+            try { value = JSON.parse(value); } catch (_e) { /* keep string */ }
+            try {
+                const res = await API.put('/referral/admin/settings', { settings: { [key]: value } });
+                if (res?.success) Toast.show('Setting saved', 'success');
+                else Toast.show(res?.message || 'Save failed', 'error');
+            } catch (e) {
+                Toast.show(e.message || 'Save failed', 'error');
+            }
+        };
+
+        window.reviewReferralFraud = async function(id, approve) {
+            try {
+                const res = await API.request(`/referral/admin/fraud/${id}/review`, {
+                    method: 'POST',
+                    body: JSON.stringify({ approve: !!approve }),
+                    headers: { 'Content-Type': 'application/json' },
+                });
+                if (res?.success) {
+                    Toast.show('Reviewed', 'success');
+                    loadReferralAdmin();
+                } else Toast.show(res?.message || 'Failed', 'error');
+            } catch (e) {
+                Toast.show(e.message || 'Failed', 'error');
+            }
         };
 
         // ==================== SETTINGS ====================

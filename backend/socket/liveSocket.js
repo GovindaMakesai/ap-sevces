@@ -3,6 +3,7 @@ const giftService = require('../services/giftService');
 const liveRoomService = require('../services/liveRoomService');
 const partyActivityService = require('../services/partyActivityService');
 const permissionService = require('../services/permissionService');
+const db = require('../config/database');
 
 const RATE_WINDOW_MS = 10_000;
 const MAX_CHAT_PER_WINDOW = 20;
@@ -64,6 +65,7 @@ function registerLiveSocket(io) {
 
   io.on('connection', (socket) => {
     let currentChannel = null;
+    if (socket.userId) socket.join(`user:${socket.userId}`);
 
     socket.on('live:join', async (payload, ack) => {
       const answeredRef = { answered: false };
@@ -90,9 +92,16 @@ function registerLiveSocket(io) {
         const clientWantsHost = Boolean(payload?.isHost);
 
         const existingRoom = await liveRoomService.findByChannel(channel);
-        if (existingRoom && (await liveRoomService.isUserBanned(existingRoom.id, socket.userId))) {
-          safeAck(ack, answeredRef, { ok: false, message: 'You are banned from this room' });
-          return;
+        if (existingRoom) {
+          const ban = await liveRoomService.getActiveBan(existingRoom.id, socket.userId);
+          if (ban) {
+            const info = liveRoomService.banBlockPayload(ban);
+            safeAck(ack, answeredRef, {
+              ok: false,
+              ...info,
+            });
+            return;
+          }
         }
 
         let isHost = false;
@@ -253,34 +262,103 @@ function registerLiveSocket(io) {
           if (ack) ack({ ok: false, message: 'Cannot remove the room host' });
           return;
         }
-        await liveRoomService.kickMember({
+        const rawDuration =
+          payload?.durationHours !== undefined
+            ? payload.durationHours
+            : payload?.duration_hours !== undefined
+              ? payload.duration_hours
+              : 2;
+        const kickResult = await liveRoomService.kickMember({
           channel,
           userId: targetUserId,
           bannedBy: socket.userId,
           reason: payload?.reason || 'kicked_by_host',
+          durationHours: rawDuration,
         });
-        io.to(`live:${channel}`).emit('live:kicked', { userId: targetUserId, channel });
+        const banInfo =
+          kickResult.ban ||
+          liveRoomService.banBlockPayload({
+            reason: payload?.reason || 'kicked_by_host',
+            expires_at: kickResult.expiresAt,
+          });
+        const kickPayload = {
+          userId: targetUserId,
+          channel,
+          expiresAt: banInfo?.expiresAt || kickResult.expiresAt || null,
+          remainingHours: banInfo?.remainingHours ?? null,
+          permanent: Boolean(banInfo?.permanent),
+          message: banInfo?.message || 'You were blocked from this live',
+          reason: payload?.reason || 'kicked_by_host',
+        };
+        io.to(`live:${channel}`).emit('live:kicked', kickPayload);
+
+        /* Force-leave every socket for that user so they cannot linger in the room */
+        try {
+          const sockets = await io.fetchSockets();
+          for (const s of sockets) {
+            if (String(s.userId) !== targetUserId) continue;
+            s.leave(`live:${channel}`);
+            if (s.data?.liveChannel === channel) s.data.liveChannel = null;
+            s.emit('live:kicked', kickPayload);
+          }
+        } catch (forceErr) {
+          console.warn('live:kick force leave', forceErr.message);
+          io.to(`user:${targetUserId}`).emit('live:kicked', kickPayload);
+        }
+
         const state = await liveRoomService.buildSnapshot(channel);
         io.to(`live:${channel}`).emit('live:state', state);
-        if (ack) ack({ ok: true });
+        if (ack) {
+          ack({
+            ok: true,
+            expiresAt: kickPayload.expiresAt,
+            remainingHours: kickPayload.remainingHours,
+            permanent: kickPayload.permanent,
+            message: kickPayload.message,
+          });
+        }
       } catch (err) {
         if (ack) ack({ ok: false, message: err.message });
       }
     });
 
-    socket.on('live:chat', async (payload) => {
+    socket.on('live:chat', async (payload, ack) => {
       try {
-        if (!rateLimit(socket, 'chat', MAX_CHAT_PER_WINDOW)) return;
+        if (!rateLimit(socket, 'chat', MAX_CHAT_PER_WINDOW)) {
+          if (ack) ack({ ok: false, message: 'Sending too fast — slow down' });
+          return;
+        }
 
         const channel = sanitizeChannel(payload?.channel || currentChannel);
         const room = await liveRoomService.findByChannel(channel);
-        if (!room) return;
+        if (!room) {
+          if (ack) ack({ ok: false, message: 'Room not found' });
+          return;
+        }
+
+        if (await liveRoomService.isUserBanned(room.id, socket.userId)) {
+          if (ack) ack({ ok: false, message: 'You are blocked from this room' });
+          return;
+        }
+
+        if (await liveRoomService.isMemberChatMuted(room.id, socket.userId)) {
+          if (ack) ack({ ok: false, message: 'You are muted from chat by the host' });
+          return;
+        }
+
+        if (room.is_chat_locked && !(await isRoomModerator(socket, channel))) {
+          if (ack) ack({ ok: false, message: 'Host muted all chat in this live' });
+          return;
+        }
 
         const text = String(payload?.text || '')
           .replace(/<[^>]*>/g, '')
           .trim()
           .slice(0, 280);
-        if (!text) return;
+        if (!text) {
+          if (ack) ack({ ok: false, message: 'Empty message' });
+          return;
+        }
 
         const displayName = socket.data.liveDisplayName || 'User';
         const profilePic = await liveRoomService.getMemberProfilePic(socket.userId);
@@ -304,40 +382,225 @@ function registerLiveSocket(io) {
         };
 
         io.to(`live:${channel}`).emit('live:chat', msg);
+        if (ack) ack({ ok: true, id: msg.id });
       } catch (err) {
         console.error('live:chat', err.message);
+        if (ack) ack({ ok: false, message: err.message || 'Could not send' });
+      }
+    });
+
+    socket.on('live:chat_delete', async (payload, ack) => {
+      try {
+        const channel = sanitizeChannel(payload?.channel || currentChannel);
+        if (!(await isRoomModerator(socket, channel))) {
+          if (ack) ack({ ok: false, message: 'Only host or admin can remove messages' });
+          return;
+        }
+        const room = await liveRoomService.findByChannel(channel);
+        if (!room) {
+          if (ack) ack({ ok: false, message: 'Room not found' });
+          return;
+        }
+        const deleted = await liveRoomService.softDeleteChatEvent({
+          liveRoomId: room.id,
+          messageId: payload?.messageId || payload?.id,
+          deletedBy: socket.userId,
+        });
+        io.to(`live:${channel}`).emit('live:chat_deleted', {
+          channel,
+          id: deleted.id,
+          userId: deleted.userId,
+          by: socket.userId,
+          at: Date.now(),
+        });
+        if (ack) ack({ ok: true, id: deleted.id });
+      } catch (err) {
+        if (ack) ack({ ok: false, message: err.message || 'Could not remove message' });
+      }
+    });
+
+    socket.on('live:chat_mute', async (payload, ack) => {
+      try {
+        const channel = sanitizeChannel(payload?.channel || currentChannel);
+        if (!(await isRoomModerator(socket, channel))) {
+          if (ack) ack({ ok: false, message: 'Only host or admin can mute chat' });
+          return;
+        }
+        const targetUserId = String(payload?.userId || '');
+        if (!targetUserId) {
+          if (ack) ack({ ok: false, message: 'userId required' });
+          return;
+        }
+        const room = await liveRoomService.findByChannel(channel);
+        if (!room) {
+          if (ack) ack({ ok: false, message: 'Room not found' });
+          return;
+        }
+        if (String(room.host_user_id) === targetUserId) {
+          if (ack) ack({ ok: false, message: 'Cannot mute the host from chat' });
+          return;
+        }
+        const muted = payload?.muted !== false;
+        await liveRoomService.setMemberChatMuted(room.id, targetUserId, muted);
+        io.to(`live:${channel}`).emit('live:member_chat_mute', {
+          channel,
+          userId: targetUserId,
+          muted,
+          at: Date.now(),
+        });
+        if (ack) ack({ ok: true, muted });
+      } catch (err) {
+        if (ack) ack({ ok: false, message: err.message || 'Could not mute chat' });
+      }
+    });
+
+    socket.on('live:chat_lock', async (payload, ack) => {
+      try {
+        const channel = sanitizeChannel(payload?.channel || currentChannel);
+        if (!(await isRoomModerator(socket, channel))) {
+          if (ack) ack({ ok: false, message: 'Only host or admin can mute all chat' });
+          return;
+        }
+        const locked = payload?.locked !== false;
+        await liveRoomService.setRoomChatLocked({ channel, locked });
+        io.to(`live:${channel}`).emit('live:chat_lock', {
+          channel,
+          locked,
+          by: socket.userId,
+          at: Date.now(),
+        });
+        const state = await liveRoomService.buildSnapshot(channel);
+        io.to(`live:${channel}`).emit('live:state', state);
+        if (ack) ack({ ok: true, locked });
+      } catch (err) {
+        if (ack) ack({ ok: false, message: err.message || 'Could not update chat lock' });
+      }
+    });
+
+    socket.on('live:chat_mute_all', async (payload, ack) => {
+      try {
+        const channel = sanitizeChannel(payload?.channel || currentChannel);
+        if (!(await isRoomModerator(socket, channel))) {
+          if (ack) ack({ ok: false, message: 'Only host or admin can mute everyone' });
+          return;
+        }
+        const room = await liveRoomService.findByChannel(channel);
+        if (!room) {
+          if (ack) ack({ ok: false, message: 'Room not found' });
+          return;
+        }
+        const muted = payload?.muted !== false;
+        await liveRoomService.muteAllMembersChat({
+          liveRoomId: room.id,
+          muted,
+          excludeUserIds: [socket.userId, room.host_user_id],
+        });
+        io.to(`live:${channel}`).emit('live:chat_mute_all', {
+          channel,
+          muted,
+          by: socket.userId,
+          at: Date.now(),
+        });
+        const state = await liveRoomService.buildSnapshot(channel);
+        io.to(`live:${channel}`).emit('live:state', state);
+        if (ack) ack({ ok: true, muted });
+      } catch (err) {
+        if (ack) ack({ ok: false, message: err.message || 'Could not mute everyone' });
+      }
+    });
+
+    socket.on('live:chat_clear', async (payload, ack) => {
+      try {
+        const channel = sanitizeChannel(payload?.channel || currentChannel);
+        if (!(await isRoomModerator(socket, channel))) {
+          if (ack) ack({ ok: false, message: 'Only host or admin can clear chat' });
+          return;
+        }
+        const room = await liveRoomService.findByChannel(channel);
+        if (!room) {
+          if (ack) ack({ ok: false, message: 'Room not found' });
+          return;
+        }
+        const result = await liveRoomService.clearRoomChat({
+          liveRoomId: room.id,
+          clearedBy: socket.userId,
+        });
+        io.to(`live:${channel}`).emit('live:chat_cleared', {
+          channel,
+          cleared: result.cleared,
+          by: socket.userId,
+          at: Date.now(),
+        });
+        if (ack) ack({ ok: true, cleared: result.cleared });
+      } catch (err) {
+        if (ack) ack({ ok: false, message: err.message || 'Could not clear chat' });
       }
     });
 
     socket.on('live:gift', async (payload, ack) => {
+      const answeredRef = { answered: false };
+      const giftTimer = setTimeout(() => {
+        safeAck(ack, answeredRef, { ok: false, message: 'Gift timed out' });
+      }, 12000);
       try {
         if (!rateLimit(socket, 'gift', MAX_GIFT_PER_WINDOW)) {
-          if (ack) ack({ ok: false, message: 'Too many gifts \u2014 slow down' });
+          clearTimeout(giftTimer);
+          safeAck(ack, answeredRef, { ok: false, message: 'Too many gifts \u2014 slow down' });
           return;
         }
 
         const channel = sanitizeChannel(payload?.channel || currentChannel);
         const room = await liveRoomService.findByChannel(channel);
         if (!room) {
-          if (ack) ack({ ok: false, message: 'Room not found' });
+          clearTimeout(giftTimer);
+          safeAck(ack, answeredRef, { ok: false, message: 'Room not found' });
           return;
         }
 
         const canGift = await permissionService.userHasPermission(socket.userId, 'wallet.gift');
         if (!canGift) {
-          if (ack) ack({ ok: false, message: 'No permission to send gifts' });
+          clearTimeout(giftTimer);
+          safeAck(ack, answeredRef, { ok: false, message: 'No permission to send gifts' });
           return;
         }
 
         const coinAmount = parseInt(payload?.amount, 10);
         if (!coinAmount || coinAmount <= 0) {
-          if (ack) ack({ ok: false, message: 'Invalid gift amount' });
+          clearTimeout(giftTimer);
+          safeAck(ack, answeredRef, { ok: false, message: 'Invalid gift amount' });
           return;
         }
 
-        const receiverId = String(payload?.toUserId || room.host_user_id || '');
+        let receiverId = String(payload?.toUserId || '').trim();
+        const senderId = String(socket.userId);
+        const hostId = String(room.host_user_id || '');
+
+        /* Never trust empty / self / garbage ids — viewers gift host by default */
+        if (!receiverId || receiverId === senderId || receiverId === 'null' || receiverId === 'undefined') {
+          receiverId = hostId;
+        }
+
+        /* If target is not host, they must still be in this room (seat / member) */
+        if (receiverId && receiverId !== hostId) {
+          const inRoom = await db.query(
+            `SELECT 1 FROM live_room_members
+             WHERE live_room_id = $1 AND user_id = $2 AND left_at IS NULL
+             LIMIT 1`,
+            [room.id, receiverId]
+          ).catch(() => ({ rows: [] }));
+          if (!inRoom.rows?.length) {
+            receiverId = hostId;
+          }
+        }
+
         if (!receiverId) {
-          if (ack) ack({ ok: false, message: 'Receiver not found' });
+          clearTimeout(giftTimer);
+          safeAck(ack, answeredRef, { ok: false, message: 'Receiver not found' });
+          return;
+        }
+        if (receiverId === senderId) {
+          clearTimeout(giftTimer);
+          safeAck(ack, answeredRef, { ok: false, message: 'Pick someone else — you cannot gift yourself' });
           return;
         }
 
@@ -364,30 +627,35 @@ function registerLiveSocket(io) {
           at: Date.now(),
         };
 
+        /* Ack immediately so Send never stays stuck on buildSnapshot / PK follow-up */
+        clearTimeout(giftTimer);
+        safeAck(ack, answeredRef, {
+          ok: true,
+          data: {
+            gift,
+            balance: result.sender_balance || null,
+            platform_fee: result.platform_fee,
+            creator_amount: result.creator_amount,
+          },
+        });
+
+        /* Room broadcast only — sender is already in live:{channel}; a second
+           socket.emit made gift banners/chat appear 2–3× for the sender. */
         io.to(`live:${channel}`).emit('live:gift', gift);
-        /* Also emit to sender socket in case they left the room channel briefly */
-        socket.emit('live:gift', gift);
-        const state = await liveRoomService.buildSnapshot(channel);
-        io.to(`live:${channel}`).emit('live:state', state);
 
-        const pkBattleService = require('../services/pkBattleService');
-        const battle = await pkBattleService.getActiveBattleByChannel(channel);
-        if (battle?.status === 'active') {
-          const pkSnapshot = await pkBattleService.getBattleSnapshot(battle.id);
-          io.to(`live:${channel}`).emit('pk:score', pkSnapshot);
-        }
+        try {
+          const state = await liveRoomService.buildSnapshot(channel);
+          io.to(`live:${channel}`).emit('live:state', state);
+        } catch (_snapErr) {}
 
-        if (ack) {
-          ack({
-            ok: true,
-            data: {
-              gift,
-              balance: result.sender_balance || null,
-              platform_fee: result.platform_fee,
-              creator_amount: result.creator_amount,
-            },
-          });
-        }
+        try {
+          const pkBattleService = require('../services/pkBattleService');
+          const battle = await pkBattleService.getActiveBattleByChannel(channel);
+          if (battle?.status === 'active') {
+            const pkSnapshot = await pkBattleService.getBattleSnapshot(battle.id);
+            io.to(`live:${channel}`).emit('pk:score', pkSnapshot);
+          }
+        } catch (_pkErr) {}
 
         try {
           await partyActivityService.recordActivity(socket.userId, 'send_gift', {
@@ -400,13 +668,17 @@ function registerLiveSocket(io) {
           });
         } catch (_actErr) {}
       } catch (err) {
+        clearTimeout(giftTimer);
         console.error('live:gift', err.message);
-        if (ack) {
-          ack({
-            ok: false,
-            message: err.code === 'INSUFFICIENT_BALANCE' ? 'Insufficient coins' : err.message,
-          });
-        }
+        safeAck(ack, answeredRef, {
+          ok: false,
+          message:
+            err.code === 'INSUFFICIENT_BALANCE'
+              ? err.message && /gift coin/i.test(err.message)
+                ? err.message
+                : 'Insufficient coins'
+              : err.message || 'Gift failed',
+        });
       }
     });
 
@@ -427,13 +699,34 @@ function registerLiveSocket(io) {
     });
 
     socket.on('live:seat_request', async (payload) => {
-      const channel = sanitizeChannel(payload?.channel || currentChannel);
-      if (!channel || (await isRoomHost(socket, channel))) return;
-      io.to(`live:${channel}`).emit('live:seat_request', {
-        userId: socket.userId,
-        name: String(payload?.name || socket.data.liveDisplayName || 'Guest').slice(0, 32),
-        at: Date.now(),
-      });
+      try {
+        const channel = sanitizeChannel(payload?.channel || currentChannel);
+        if (!channel || (await isRoomHost(socket, channel))) return;
+        const displayName = String(
+          payload?.name || socket.data.liveDisplayName || 'Guest'
+        )
+          .trim()
+          .slice(0, 32);
+        /* Keep membership alive so host accept does not fail with "not in room" */
+        try {
+          await liveRoomService.ensureMemberInRoom({
+            channel,
+            userId: socket.userId,
+            displayName,
+          });
+          await liveRoomService.touchHeartbeat(channel, socket.userId);
+        } catch (ensErr) {
+          console.warn('live:seat_request ensure member', ensErr.message);
+        }
+        await liveRoomService.addSeatRequest(channel, socket.userId, displayName);
+        io.to(`live:${channel}`).emit('live:seat_request', {
+          userId: socket.userId,
+          name: displayName || 'Guest',
+          at: Date.now(),
+        });
+      } catch (err) {
+        console.error('live:seat_request', err.message);
+      }
     });
 
     socket.on('live:seat_response', async (payload, ack) => {
@@ -461,11 +754,15 @@ function registerLiveSocket(io) {
           io.to(`live:${channel}`).emit('live:state', state);
         }
 
-        io.to(`live:${channel}`).emit('live:seat_response', {
+        await liveRoomService.removeSeatRequest(channel, userId);
+
+        const seatPayload = {
           userId,
           accepted,
           at: Date.now(),
-        });
+        };
+        io.to(`live:${channel}`).emit('live:seat_response', seatPayload);
+        io.to(`user:${userId}`).emit('live:seat_response', seatPayload);
         if (ack) ack({ ok: true });
       } catch (err) {
         console.error('live:seat_response', err.message);
@@ -635,6 +932,7 @@ function registerLiveSocket(io) {
       const channel = currentChannel;
       const wasHost = Boolean(socket.data.isHost);
       currentChannel = null;
+      socket.data.liveChannel = null;
       socket.leave(`live:${channel}`);
 
       try {
@@ -683,6 +981,7 @@ function registerLiveSocket(io) {
       const channel = currentChannel;
       const wasHost = Boolean(socket.data.isHost);
       currentChannel = null;
+      socket.data.liveChannel = null;
       socket.leave(`live:${channel}`);
 
       if (wasHost) {
@@ -690,22 +989,49 @@ function registerLiveSocket(io) {
         return;
       }
 
-      // Viewer drop: grace period before DB leave (mobile background / brief network loss).
-      if (!wasHost) {
-        const userId = socket.userId;
-        const displayName = socket.data.liveDisplayName || 'User';
-        setTimeout(async () => {
+      const userId = socket.userId;
+      // On-seat guests stay in the room across socket blips / Agora republish reconnects.
+      // Intentional live:leave demotes them; pruneStaleMembers cleans true abandonments.
+      try {
+        if (await liveRoomService.isMemberOnStage(channel, userId)) return;
+      } catch (_e) { }
+
+      // Audience drop: grace period before DB leave (mobile background / brief network loss).
+      // Reconnect creates a new socket — never wipe if another socket is already back in-room.
+      setTimeout(async () => {
+        try {
+          if (socket.connected) return;
           try {
-            if (socket.connected) return;
-            const updated = await liveRoomService.leaveRoom({ channel, userId });
-            if (updated) {
-              io.to(`live:${channel}`).emit('live:viewer_count', { viewers: updated.viewer_count });
-              const state = await liveRoomService.buildSnapshot(channel);
-              if (state) io.to(`live:${channel}`).emit('live:state', state);
+            if (await liveRoomService.isMemberOnStage(channel, userId)) return;
+          } catch (_e0) { }
+          let stillInRoom = false;
+          try {
+            const socketsInRoom = await io.in(`live:${channel}`).fetchSockets();
+            stillInRoom = socketsInRoom.some((s) => String(s.userId) === String(userId));
+          } catch (_e) {
+            stillInRoom = false;
+          }
+          if (stillInRoom) return;
+          try {
+            const userSockets = await io.in(`user:${userId}`).fetchSockets();
+            if (
+              userSockets.some(
+                (s) => s.connected && String(s.data?.liveChannel || '') === String(channel)
+              )
+            ) {
+              return;
             }
-          } catch (_e) {}
-        }, 45000);
-      }
+          } catch (_e2) { }
+          if (await liveRoomService.isMemberRecentlySeen(channel, userId, 30)) return;
+
+          const updated = await liveRoomService.leaveRoom({ channel, userId });
+          if (updated) {
+            io.to(`live:${channel}`).emit('live:viewer_count', { viewers: updated.viewer_count });
+            const state = await liveRoomService.buildSnapshot(channel);
+            if (state) io.to(`live:${channel}`).emit('live:state', state);
+          }
+        } catch (_e) {}
+      }, 45000);
     });
   });
 }

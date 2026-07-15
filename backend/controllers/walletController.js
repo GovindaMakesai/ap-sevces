@@ -17,18 +17,17 @@ exports.getBalance = async (req, res) => {
       const role = userRes.rows[0]?.role;
       const coinSellerService = require('../services/coinSellerService');
       const profile = await coinSellerService.getProfile(req.userId);
-      if (role === 'coin_seller') {
-        is_coin_seller = true;
-        if (profile) {
-          gift_inventory_coins = Number(profile.gift_inventory_coins || 0);
-          sell_inventory_coins = Number(profile.inventory_coins || 0);
-        }
-      } else if (profile) {
+      if (profile) {
         gift_inventory_coins = Number(profile.gift_inventory_coins || 0);
         sell_inventory_coins = Number(profile.inventory_coins || 0);
-        if (['admin', 'super_admin', 'founder', 'ceo'].includes(role) && profile.is_active) {
-          is_coin_seller = true;
-        }
+      }
+      /* Coin sellers (role or active seller profile) gift from gift stock */
+      if (
+        role === 'coin_seller' ||
+        (profile && profile.is_active) ||
+        (['admin', 'super_admin', 'founder', 'ceo'].includes(role) && profile?.is_active)
+      ) {
+        is_coin_seller = true;
       }
     } catch (_e) {
       /* ignore */

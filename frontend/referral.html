@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#07061a">
+  <title>Invite Friends - AP Services</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="social-theme.css">
+  <link rel="stylesheet" href="referral.css?v=20260715-referral">
+</head>
+<body class="ref-page" data-page="referral">
+  <div class="ref-particles" id="refParticles" aria-hidden="true"></div>
+  <div class="ref-shell">
+    <div class="ref-top">
+      <a class="ref-back" href="/profile-tab.html?app=1" aria-label="Back"><i class="fas fa-arrow-left"></i></a>
+      <div>
+        <h1>Invite Friends</h1>
+        <p>Earn rewards · Recruit hosts · Climb the board</p>
+      </div>
+    </div>
+
+    <section class="ref-hero">
+      <h2>Your invite pass</h2>
+      <p class="sub">Share your code. Friends register, verify, and you both unlock rewards. Fraud-protected · server-validated.</p>
+      <div class="ref-code-row">
+        <div class="ref-code"><span id="refCode">……</span></div>
+        <button type="button" class="ref-btn" id="refCopyBtn">Copy</button>
+      </div>
+      <div class="ref-share-grid">
+        <a id="refShareWa" target="_blank" rel="noopener"><i class="fab fa-whatsapp" style="color:#25d366"></i>WhatsApp</a>
+        <a id="refShareTg" target="_blank" rel="noopener"><i class="fab fa-telegram" style="color:#2aabee"></i>Telegram</a>
+        <a id="refShareFb" target="_blank" rel="noopener"><i class="fab fa-facebook" style="color:#1877f2"></i>Facebook</a>
+        <button type="button" id="refRegenBtn"><i class="fas fa-sync"></i>Refresh</button>
+        <a id="refShareSms"><i class="fas fa-sms"></i>SMS</a>
+        <button type="button" id="refClaimBtn"><i class="fas fa-gift"></i>Claim</button>
+      </div>
+      <p id="refLink" style="margin:12px 0 0;font-size:11px;color:var(--ref-muted);word-break:break-all"></p>
+    </section>
+
+    <div class="ref-stats">
+      <div class="ref-stat"><strong id="statTotal">0</strong><span>Total invites</span></div>
+      <div class="ref-stat"><strong id="statPending">0</strong><span>Pending</span></div>
+      <div class="ref-stat"><strong id="statValid">0</strong><span>Valid</span></div>
+      <div class="ref-stat"><strong id="statRewards">0</strong><span>Total rewards</span></div>
+      <div class="ref-stat"><strong id="statToday">0</strong><span>Today</span></div>
+      <div class="ref-stat"><strong id="statLifetime">0</strong><span>Lifetime</span></div>
+    </div>
+
+    <div class="ref-tabs" role="tablist">
+      <button type="button" class="active" data-tab="invite">Invite</button>
+      <button type="button" data-tab="missions">Missions</button>
+      <button type="button" data-tab="host">Host</button>
+      <button type="button" data-tab="history">History</button>
+      <button type="button" data-tab="rank">Rank</button>
+      <button type="button" data-tab="apply">Enter code</button>
+    </div>
+
+    <div class="ref-panel active" id="panel-invite">
+      <div class="ref-card">
+        <h3>QR code</h3>
+        <div class="ref-qr-wrap" id="refQr"></div>
+        <p style="text-align:center;font-size:12px;color:var(--ref-muted);margin:0">Friends scan to install &amp; register with your code.</p>
+      </div>
+      <div class="ref-card">
+        <h3>How it works</h3>
+        <ol style="margin:0;padding-left:18px;color:var(--ref-muted);font-size:13px;line-height:1.6">
+          <li>Share your link or code</li>
+          <li>Friend installs &amp; registers</li>
+          <li>Phone + face verification unlocks rewards</li>
+          <li>Host missions pay extra when they go live</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="ref-panel" id="panel-missions">
+      <div class="ref-card">
+        <h3>Host missions</h3>
+        <div id="missionList" class="ref-empty">Loading…</div>
+      </div>
+    </div>
+
+    <div class="ref-panel" id="panel-host">
+      <div class="ref-card">
+        <h3>Broadcast progress</h3>
+        <div class="ref-stats" style="margin:0">
+          <div class="ref-stat"><strong id="hostTodayMin">0</strong><span>Today (min counted)</span></div>
+          <div class="ref-stat"><strong id="hostWeekHrs">0</strong><span>Week (hrs)</span></div>
+          <div class="ref-stat"><strong id="hostMonthHrs">0</strong><span>Month (hrs)</span></div>
+          <div class="ref-stat"><strong id="hostCap">3</strong><span>Daily cap (hrs)</span></div>
+        </div>
+      </div>
+      <div class="ref-card">
+        <h3>Income breakdown</h3>
+        <div class="ref-list-item"><div class="meta"><strong>Gift income</strong></div><span id="hostGift">0</span></div>
+        <div class="ref-list-item"><div class="meta"><strong>Mission rewards</strong></div><span id="hostMission">0</span></div>
+        <div class="ref-list-item"><div class="meta"><strong>Referral rewards</strong></div><span id="hostReferral">0</span></div>
+      </div>
+    </div>
+
+    <div class="ref-panel" id="panel-history">
+      <div class="ref-card">
+        <h3>Invite history</h3>
+        <div id="historyList" class="ref-empty">Loading…</div>
+      </div>
+    </div>
+
+    <div class="ref-panel" id="panel-rank">
+      <div class="ref-card">
+        <h3>Weekly invite rank</h3>
+        <div id="rankList" class="ref-empty">Loading…</div>
+      </div>
+    </div>
+
+    <div class="ref-panel" id="panel-apply">
+      <div class="ref-card">
+        <h3>Have an invite code?</h3>
+        <p style="font-size:13px;color:var(--ref-muted);margin:0 0 10px">Enter a friend’s code once. Your account binds permanently.</p>
+        <div class="ref-apply">
+          <input id="refApplyInput" maxlength="24" placeholder="Enter code" autocomplete="off">
+          <button type="button" class="ref-btn" id="refApplyBtn">Apply</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="refToast" class="ref-toast" role="status"></div>
+
+  <script src="ap-config.js"></script>
+  <script src="app.js"></script>
+  <script src="social-wallet.js"></script>
+  <script src="social-ui.js"></script>
+  <script src="social-shell.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script>
+    /* Normalize QRCode lib API (qrcodejs uses constructor, not toCanvas) */
+    window.QRCode = window.QRCode || null;
+  </script>
+  <script src="referral.js?v=20260715-referral"></script>
+  <script>
+    SocialShell?.initPage?.({ activeNav: 'profile' });
+  </script>
+</body>
+</html>

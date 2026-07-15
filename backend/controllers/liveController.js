@@ -33,6 +33,15 @@ exports.agoraToken = async (req, res) => {
     const channel = agoraTokenService.sanitizeChannel(req.body?.channel || req.query?.channel);
     const wantsPublisher = req.body?.role === 'host' || req.body?.role === 'publisher';
 
+    const ban = await liveRoomService.getActiveBanByChannel(channel, req.userId);
+    if (ban) {
+      const info = liveRoomService.banBlockPayload(ban);
+      return res.status(403).json({
+        success: false,
+        ...info,
+      });
+    }
+
     if (wantsPublisher) {
       const canPublish = await liveRoomService.canPublishInRoom(channel, req.userId);
       if (!canPublish) {

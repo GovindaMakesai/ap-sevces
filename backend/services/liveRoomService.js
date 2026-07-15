@@ -11,6 +11,72 @@ const {
   recordRoomJoin,
   flushMemberSessionStats,
 } = require('./liveUserAnalyticsService');
+const redis = require('../lib/redis');
+
+const SEAT_REQUEST_TTL_SEC = 900;
+
+function seatRequestStoreKey(channel) {
+  return `live:seatreq:${String(channel || '').slice(0, 64)}`;
+}
+
+async function readSeatRequestMap(channel) {
+  const raw = await redis.get(seatRequestStoreKey(channel));
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw);
+  } catch (_e) {
+    return {};
+  }
+}
+
+async function addSeatRequest(channel, userId, name) {
+  if (!channel || !userId) return;
+  const map = await readSeatRequestMap(channel);
+  map[String(userId)] = {
+    name: String(name || 'Guest').slice(0, 32),
+    at: Date.now(),
+  };
+  await redis.set(seatRequestStoreKey(channel), JSON.stringify(map), SEAT_REQUEST_TTL_SEC);
+}
+
+async function removeSeatRequest(channel, userId) {
+  if (!channel || !userId) return;
+  const map = await readSeatRequestMap(channel);
+  delete map[String(userId)];
+  await redis.set(seatRequestStoreKey(channel), JSON.stringify(map), SEAT_REQUEST_TTL_SEC);
+}
+
+async function clearSeatRequests(channel) {
+  if (!channel) return;
+  await redis.del(seatRequestStoreKey(channel));
+}
+
+async function listSeatRequests(channel) {
+  const map = await readSeatRequestMap(channel);
+  const room = await findByChannel(channel);
+  if (!room) return [];
+  const members = await getActiveMembers(room.id);
+  const onStage = new Set(
+    members
+      .filter(
+        (m) =>
+          m.role === 'host' ||
+          m.role === 'speaker' ||
+          m.role === 'admin' ||
+          m.seat_index != null
+      )
+      .map((m) => String(m.user_id))
+  );
+  return Object.entries(map)
+    .filter(([uid]) => !onStage.has(uid))
+    .map(([uid, v]) => ({
+      userId: uid,
+      id: uid,
+      name: v?.name || 'Guest',
+      at: v?.at || 0,
+    }))
+    .sort((a, b) => (a.at || 0) - (b.at || 0));
+}
 
 /** In-memory hot cache — DB is source of truth. */
 const roomCache = new Map();
@@ -113,6 +179,10 @@ async function joinRoom({ channel, userId, displayName, asHost = false }) {
   }
   if (room.status === 'ended' && !asHost) {
     throw new Error('This live has ended');
+  }
+
+  if (!asHost) {
+    await assertUserNotBanned(room.id, userId);
   }
 
   const client = await db.pool.connect();
@@ -218,7 +288,7 @@ async function getMemberProfilePic(userId) {
 
 async function getActiveMembers(liveRoomId) {
   const res = await db.query(
-    `SELECT m.user_id, m.display_name, m.role, m.is_muted, m.gift_count, m.joined_at, m.seat_index,
+    `SELECT m.user_id, m.display_name, m.role, m.is_muted, m.is_chat_muted, m.gift_count, m.joined_at, m.seat_index,
             m.last_seen_at, u.profile_pic, u.display_id, u.role AS user_role
      FROM live_room_members m
      LEFT JOIN users u ON u.id = m.user_id
@@ -246,12 +316,14 @@ async function getRecentChatFeed(liveRoomId) {
   const chats = await db.query(
     `SELECT id, event_type, payload, user_id, created_at FROM live_room_events
      WHERE live_room_id = $1 AND event_type IN ('chat', 'gift')
+       AND COALESCE((payload->>'deleted')::boolean, false) = false
      ORDER BY created_at DESC LIMIT 80`,
     [liveRoomId]
   );
   const system = await db.query(
     `SELECT id, event_type, payload, user_id, created_at FROM live_room_events
      WHERE live_room_id = $1 AND event_type IN ('join', 'leave', 'seat_join')
+       AND COALESCE((payload->>'deleted')::boolean, false) = false
      ORDER BY created_at DESC LIMIT 25`,
     [liveRoomId]
   );
@@ -280,6 +352,8 @@ async function buildSnapshot(channel) {
           id: `evt-${eventId}`,
           type: 'system',
           text: `${p.display_name || 'Someone'} joined`,
+          user: p.display_name || 'Someone',
+          userId: e.user_id || null,
           at: e.created_at,
         };
       }
@@ -288,6 +362,8 @@ async function buildSnapshot(channel) {
           id: `evt-${eventId}`,
           type: 'system',
           text: `${p.display_name || 'Someone'} left`,
+          user: p.display_name || 'Someone',
+          userId: e.user_id || null,
           at: e.created_at,
         };
       }
@@ -296,6 +372,8 @@ async function buildSnapshot(channel) {
           id: `evt-${eventId}`,
           type: 'system',
           text: `${p.display_name || 'Someone'} joined a seat`,
+          user: p.display_name || 'Someone',
+          userId: e.user_id || null,
           at: e.created_at,
         };
       }
@@ -368,6 +446,7 @@ async function buildSnapshot(channel) {
       name: m.display_name,
       profilePic: m.profile_pic || null,
       muted: m.is_muted,
+      chatMuted: Boolean(m.is_chat_muted),
       gifts: Number(m.gift_count),
       isHost: m.role === 'host',
       isAdmin: m.role === 'admin' || isPlatformAdminRole(m.user_role),
@@ -386,6 +465,7 @@ async function buildSnapshot(channel) {
     userRole: m.user_role || null,
     profilePic: m.profile_pic || null,
     muted: m.is_muted,
+    chatMuted: Boolean(m.is_chat_muted),
     seatIndex: m.seat_index,
     isOnline: true,
     isAdmin: m.role === 'admin' || isPlatformAdminRole(m.user_role),
@@ -409,6 +489,8 @@ async function buildSnapshot(channel) {
     hostUserRole = hostPicRes.rows[0]?.role || null;
   }
 
+  const seatRequests = await listSeatRequests(channel);
+
   return {
     channel: room.channel,
     type: room.room_type,
@@ -425,7 +507,9 @@ async function buildSnapshot(channel) {
     gifts,
     seats,
     onlineMembers,
+    seatRequests,
     isLocked: Boolean(room.is_locked),
+    chatLocked: Boolean(room.is_chat_locked),
     updatedAt: room.updated_at,
     roomStyle: getRoomStyle(room.channel),
   };
@@ -447,9 +531,152 @@ async function setMemberMuted(liveRoomId, userId, muted) {
   );
 }
 
+async function setMemberChatMuted(liveRoomId, userId, muted) {
+  await db.query(
+    `UPDATE live_room_members SET is_chat_muted = $3
+     WHERE live_room_id = $1 AND user_id = $2 AND left_at IS NULL`,
+    [liveRoomId, userId, Boolean(muted)]
+  );
+}
+
+async function isMemberChatMuted(liveRoomId, userId) {
+  const res = await db.query(
+    `SELECT is_chat_muted FROM live_room_members
+     WHERE live_room_id = $1 AND user_id = $2 AND left_at IS NULL LIMIT 1`,
+    [liveRoomId, userId]
+  );
+  return Boolean(res.rows[0]?.is_chat_muted);
+}
+
+function parseChatEventId(messageId) {
+  const raw = String(messageId || '').trim();
+  if (!raw) return null;
+  const m = raw.match(/^evt-(.+)$/i);
+  return m ? m[1] : raw;
+}
+
+async function softDeleteChatEvent({ liveRoomId, messageId, deletedBy }) {
+  const eventId = parseChatEventId(messageId);
+  if (!eventId) throw new Error('Invalid message id');
+  const res = await db.query(
+    `UPDATE live_room_events
+     SET payload = COALESCE(payload, '{}'::jsonb) || $3::jsonb
+     WHERE id = $1::uuid AND live_room_id = $2 AND event_type = 'chat'
+       AND COALESCE((payload->>'deleted')::boolean, false) = false
+     RETURNING id, user_id, payload`,
+    [
+      eventId,
+      liveRoomId,
+      JSON.stringify({
+        deleted: true,
+        deleted_by: deletedBy || null,
+        deleted_at: new Date().toISOString(),
+      }),
+    ]
+  );
+  if (!res.rows[0]) throw new Error('Message not found or already removed');
+  return {
+    id: `evt-${res.rows[0].id}`,
+    userId: res.rows[0].user_id,
+  };
+}
+
+async function setRoomChatLocked({ channel, locked }) {
+  const room = await findByChannel(channel);
+  if (!room) throw new Error('Room not found');
+  await db.query(
+    `UPDATE live_rooms SET is_chat_locked = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+    [room.id, Boolean(locked)]
+  );
+  invalidateRoomCache(channel);
+  return { ...room, is_chat_locked: Boolean(locked) };
+}
+
+async function clearRoomChat({ liveRoomId, clearedBy }) {
+  const meta = JSON.stringify({
+    deleted: true,
+    cleared: true,
+    deleted_by: clearedBy || null,
+    deleted_at: new Date().toISOString(),
+  });
+  const res = await db.query(
+    `UPDATE live_room_events
+     SET payload = COALESCE(payload, '{}'::jsonb) || $2::jsonb
+     WHERE live_room_id = $1
+       AND event_type IN ('chat', 'gift', 'join', 'leave', 'seat_join')
+       AND COALESCE((payload->>'deleted')::boolean, false) = false
+     RETURNING id`,
+    [liveRoomId, meta]
+  );
+  return { cleared: res.rowCount || 0 };
+}
+
+async function muteAllMembersChat({ liveRoomId, muted, excludeUserIds = [] }) {
+  const exclude = (excludeUserIds || []).filter(Boolean).map(String);
+  if (exclude.length) {
+    await db.query(
+      `UPDATE live_room_members
+       SET is_chat_muted = $2
+       WHERE live_room_id = $1
+         AND left_at IS NULL
+         AND role != 'host'
+         AND NOT (user_id::text = ANY($3::text[]))`,
+      [liveRoomId, Boolean(muted), exclude]
+    );
+  } else {
+    await db.query(
+      `UPDATE live_room_members
+       SET is_chat_muted = $2
+       WHERE live_room_id = $1 AND left_at IS NULL AND role != 'host'`,
+      [liveRoomId, Boolean(muted)]
+    );
+  }
+}
+
 function maxSpeakersForRoom(room) {
   if (!room) return 14;
   return room.room_type === 'live' ? 4 : 14;
+}
+
+async function ensureMemberInRoom({ channel, userId, displayName }) {
+  const room = await findByChannel(channel);
+  if (!room) throw new Error('Room not found');
+  if (room.status === 'ended') throw new Error('This live has ended');
+
+  await assertUserNotBanned(room.id, userId);
+
+  const existing = await db.query(
+    `SELECT role, seat_index, left_at FROM live_room_members
+     WHERE live_room_id = $1 AND user_id = $2 LIMIT 1`,
+    [room.id, userId]
+  );
+  const row = existing.rows[0];
+  if (row && row.left_at == null) {
+    return row;
+  }
+
+  const name = String(displayName || 'Guest').slice(0, 32);
+  if (row) {
+    /* Re-admit viewers who were pruned / briefly disconnected but are still watching */
+    await db.query(
+      `UPDATE live_room_members SET
+         left_at = NULL,
+         display_name = COALESCE(NULLIF(display_name, ''), $3),
+         last_seen_at = CURRENT_TIMESTAMP,
+         joined_at = CURRENT_TIMESTAMP
+       WHERE live_room_id = $1 AND user_id = $2`,
+      [room.id, userId, name]
+    );
+  } else {
+    await joinRoom({ channel, userId, displayName: name, asHost: false });
+  }
+  invalidateRoomCache(channel);
+  const again = await db.query(
+    `SELECT role, seat_index, left_at FROM live_room_members
+     WHERE live_room_id = $1 AND user_id = $2 AND left_at IS NULL LIMIT 1`,
+    [room.id, userId]
+  );
+  return again.rows[0] || null;
 }
 
 async function promoteToSpeaker({ channel, userId, displayName, seatIndex = null }) {
@@ -457,23 +684,37 @@ async function promoteToSpeaker({ channel, userId, displayName, seatIndex = null
   if (!room) throw new Error('Room not found');
 
   const maxSpeakers = maxSpeakersForRoom(room);
-  const countRes = await db.query(
-    `SELECT COUNT(*)::int AS n FROM live_room_members
-     WHERE live_room_id = $1 AND left_at IS NULL AND role = 'speaker'`,
-    [room.id]
-  );
-  if ((countRes.rows[0]?.n || 0) >= maxSpeakers) {
-    const label = room.room_type === 'live' ? 'Live stage is full — max 5 on stream' : 'Party room is full — maximum 15 people on stage';
-    throw new Error(label);
-  }
+  await ensureMemberInRoom({ channel, userId, displayName });
 
   const memberRes = await db.query(
     `SELECT display_name, role, seat_index FROM live_room_members
      WHERE live_room_id = $1 AND user_id = $2 AND left_at IS NULL`,
     [room.id, userId]
   );
-  if (!memberRes.rows[0]) throw new Error('User is not in this room');
+  if (!memberRes.rows[0]) throw new Error('User is not in this room — they must join the live first');
   if (memberRes.rows[0].role === 'host') throw new Error('Host is already on stage');
+
+  const alreadyOnStage =
+    memberRes.rows[0].role === 'speaker' ||
+    memberRes.rows[0].role === 'admin' ||
+    memberRes.rows[0].seat_index != null;
+
+  if (!alreadyOnStage) {
+    const countRes = await db.query(
+      `SELECT COUNT(*)::int AS n FROM live_room_members
+       WHERE live_room_id = $1 AND left_at IS NULL
+         AND (role = 'speaker' OR (seat_index IS NOT NULL AND role <> 'host'))
+         AND user_id <> $2`,
+      [room.id, userId]
+    );
+    if ((countRes.rows[0]?.n || 0) >= maxSpeakers) {
+      const label =
+        room.room_type === 'live'
+          ? 'Live stage is full — max 5 on stream (host + 4 guests)'
+          : 'Party room is full — maximum 15 people on stage';
+      throw new Error(label);
+    }
+  }
 
   const name = String(displayName || memberRes.rows[0]?.display_name || 'Guest').slice(0, 32);
   const preferredSeat =
@@ -481,7 +722,7 @@ async function promoteToSpeaker({ channel, userId, displayName, seatIndex = null
       ? Math.max(1, Math.min(15, parseInt(seatIndex, 10) || 1))
       : null;
 
-  await db.query(
+  const updated = await db.query(
     `UPDATE live_room_members SET
        role = CASE WHEN role = 'admin' THEN 'admin' ELSE 'speaker' END,
        display_name = COALESCE(NULLIF(display_name, ''), $3),
@@ -493,18 +734,24 @@ async function promoteToSpeaker({ channel, userId, displayName, seatIndex = null
            FROM live_room_members
            WHERE live_room_id = $1 AND left_at IS NULL AND role IN ('speaker', 'admin', 'host')
          )
-       )
-     WHERE live_room_id = $1 AND user_id = $2 AND left_at IS NULL AND role IN ('viewer', 'admin', 'speaker')`,
+       ),
+       last_seen_at = CURRENT_TIMESTAMP
+     WHERE live_room_id = $1 AND user_id = $2 AND left_at IS NULL AND role IN ('viewer', 'admin', 'speaker')
+     RETURNING user_id, role, seat_index`,
     [room.id, userId, name, preferredSeat]
   );
 
+  if (!updated.rows[0]) {
+    throw new Error('Could not place guest on seat — ask them to rejoin the room');
+  }
+
   await db.query(
     `INSERT INTO live_room_events (live_room_id, user_id, event_type, payload) VALUES ($1, $2, 'seat_join', $3)`,
-    [room.id, userId, JSON.stringify({ display_name: name })]
+    [room.id, userId, JSON.stringify({ display_name: name, seat_index: updated.rows[0].seat_index })]
   );
 
   invalidateRoomCache(channel);
-  return room;
+  return { room, member: updated.rows[0] };
 }
 
 async function endRoom(channel, reason = 'host_ended') {
@@ -528,6 +775,7 @@ async function endRoom(channel, reason = 'host_ended') {
   ).rows[0];
   if (endedRow) await recordSessionEnd(endedRow);
   roomCache.delete(channel);
+  await clearSeatRequests(channel);
   return { ...room, status: 'ended', ended_at: endedRow?.ended_at };
 }
 
@@ -632,6 +880,36 @@ async function listActiveRooms({ roomType, limit = 30, sort = 'trending' } = {})
   }
 }
 
+async function isMemberRecentlySeen(channel, userId, withinSeconds = 90) {
+  const room = await findByChannel(channel);
+  if (!room || !userId) return false;
+  const sec = Math.max(15, Math.min(600, Number(withinSeconds) || 90));
+  const res = await db.query(
+    `SELECT 1 FROM live_room_members
+     WHERE live_room_id = $1 AND user_id = $2 AND left_at IS NULL
+       AND last_seen_at > CURRENT_TIMESTAMP - ($3 || ' seconds')::interval
+     LIMIT 1`,
+    [room.id, userId, String(sec)]
+  );
+  return Boolean(res.rows[0]);
+}
+
+async function isMemberOnStage(channel, userId) {
+  const room = await findByChannel(channel);
+  if (!room || !userId) return false;
+  const res = await db.query(
+    `SELECT 1 FROM live_room_members
+     WHERE live_room_id = $1 AND user_id = $2 AND left_at IS NULL
+       AND (
+         role IN ('speaker', 'admin', 'host')
+         OR seat_index IS NOT NULL
+       )
+     LIMIT 1`,
+    [room.id, userId]
+  );
+  return Boolean(res.rows[0]);
+}
+
 async function touchHeartbeat(channel, userId) {
   const room = await findByChannel(channel);
   if (!room || room.status !== 'active') return;
@@ -662,15 +940,26 @@ async function touchHeartbeat(channel, userId) {
 }
 
 async function pruneStaleMembers(staleSeconds = 90) {
+  const viewerStale = Math.max(45, Number(staleSeconds) || 90);
+  const stageStale = Math.max(viewerStale * 2, 180);
   const res = await db.query(
-    `UPDATE live_room_members m SET left_at = CURRENT_TIMESTAMP
-     FROM live_rooms r
-     WHERE m.live_room_id = r.id AND m.left_at IS NULL AND r.status = 'active'
-       AND m.role = 'viewer'
-       AND m.seat_index IS NULL
-       AND m.last_seen_at < CURRENT_TIMESTAMP - ($1 || ' seconds')::interval
-     RETURNING r.channel, m.user_id`,
-    [staleSeconds]
+    `SELECT r.channel, m.user_id
+     FROM live_room_members m
+     JOIN live_rooms r ON r.id = m.live_room_id
+     WHERE m.left_at IS NULL AND r.status = 'active'
+       AND m.role <> 'host'
+       AND (
+         (
+           m.role = 'viewer'
+           AND m.seat_index IS NULL
+           AND m.last_seen_at < CURRENT_TIMESTAMP - ($1 || ' seconds')::interval
+         )
+         OR (
+           (m.role IN ('speaker', 'admin') OR m.seat_index IS NOT NULL)
+           AND m.last_seen_at < CURRENT_TIMESTAMP - ($2 || ' seconds')::interval
+         )
+       )`,
+    [String(viewerStale), String(stageStale)]
   );
   for (const row of res.rows) {
     const updated = await leaveRoom({ channel: row.channel, userId: row.user_id });
@@ -680,26 +969,106 @@ async function pruneStaleMembers(staleSeconds = 90) {
 }
 
 async function isUserBanned(liveRoomId, userId) {
-  const res = await db.query(
-    `SELECT 1 FROM live_room_bans WHERE live_room_id = $1 AND user_id = $2`,
-    [liveRoomId, userId]
-  );
-  return res.rows.length > 0;
+  const ban = await getActiveBan(liveRoomId, userId);
+  return Boolean(ban);
 }
 
-async function kickMember({ channel, userId, bannedBy, reason }) {
+async function getActiveBan(liveRoomId, userId) {
+  if (!liveRoomId || !userId) return null;
+  const res = await db.query(
+    `SELECT reason, expires_at, created_at FROM live_room_bans
+     WHERE live_room_id = $1 AND user_id = $2
+       AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
+     LIMIT 1`,
+    [liveRoomId, userId]
+  );
+  return res.rows[0] || null;
+}
+
+async function getActiveBanByChannel(channel, userId) {
+  const room = await findByChannel(channel);
+  if (!room) return null;
+  return getActiveBan(room.id, userId);
+}
+
+function banBlockPayload(ban) {
+  if (!ban) return null;
+  const expiresAt = ban.expires_at || null;
+  let remainingHours = null;
+  if (expiresAt) {
+    remainingHours = Math.max(1, Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 3600000));
+  }
+  const until = expiresAt
+    ? new Date(expiresAt).toLocaleString()
+    : null;
+  const message = expiresAt
+    ? `You can't enter this live for ${remainingHours} more hour${remainingHours === 1 ? '' : 's'} (until ${until}).`
+    : 'You are blocked from this live permanently and cannot rejoin.';
+  return {
+    banned: true,
+    expiresAt,
+    remainingHours,
+    permanent: !expiresAt,
+    message,
+    reason: ban.reason || null,
+  };
+}
+
+async function assertUserNotBanned(liveRoomId, userId) {
+  const ban = await getActiveBan(liveRoomId, userId);
+  if (!ban) return null;
+  const info = banBlockPayload(ban);
+  const err = new Error(info.message);
+  err.code = 'ROOM_BANNED';
+  err.ban = info;
+  throw err;
+}
+
+/**
+ * Kick + ban from this room.
+ * @param {object} opts
+ * @param {number|null} [opts.durationHours] - hours until ban lifts; omit/null = permanent for room
+ */
+async function kickMember({ channel, userId, bannedBy, reason, durationHours }) {
   const room = await findByChannel(channel);
   if (!room) throw new Error('Room not found');
   if (String(room.host_user_id) === String(userId)) {
     throw new Error('Cannot remove the room host');
   }
+
+  let hours = durationHours === undefined || durationHours === '' ? null : Number(durationHours);
+  if (hours === 0) {
+    hours = null; /* permanent for this room */
+  } else if (hours != null) {
+    if (!Number.isFinite(hours) || hours < 2) {
+      throw new Error('Ban duration must be at least 2 hours (or 0 for permanent)');
+    }
+    hours = Math.min(Math.floor(hours), 24 * 365);
+  }
+
+  const expiresAt =
+    hours == null
+      ? null
+      : new Date(Date.now() + hours * 60 * 60 * 1000);
+
   await db.query(
-    `INSERT INTO live_room_bans (live_room_id, user_id, banned_by, reason)
-     VALUES ($1, $2, $3, $4) ON CONFLICT (live_room_id, user_id) DO NOTHING`,
-    [room.id, userId, bannedBy || null, reason || null]
+    `INSERT INTO live_room_bans (live_room_id, user_id, banned_by, reason, expires_at)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (live_room_id, user_id) DO UPDATE SET
+       banned_by = EXCLUDED.banned_by,
+       reason = EXCLUDED.reason,
+       expires_at = EXCLUDED.expires_at,
+       created_at = CURRENT_TIMESTAMP`,
+    [room.id, userId, bannedBy || null, reason || null, expiresAt]
   );
   await leaveRoom({ channel, userId });
-  return room;
+  const ban = { reason: reason || null, expires_at: expiresAt };
+  return {
+    room,
+    expiresAt,
+    durationHours: hours,
+    ban: banBlockPayload(ban),
+  };
 }
 
 async function canPublishInRoom(channel, userId) {
@@ -875,15 +1244,32 @@ module.exports = {
   buildSnapshot,
   logChatEvent,
   setMemberMuted,
+  setMemberChatMuted,
+  isMemberChatMuted,
+  softDeleteChatEvent,
+  setRoomChatLocked,
+  clearRoomChat,
+  muteAllMembersChat,
   promoteToSpeaker,
+  ensureMemberInRoom,
+  addSeatRequest,
+  removeSeatRequest,
+  listSeatRequests,
+  clearSeatRequests,
   endRoom,
   endIdleRooms,
   endOrphanRooms,
   recoverActiveRooms,
   listActiveRooms,
   touchHeartbeat,
+  isMemberRecentlySeen,
+  isMemberOnStage,
   pruneStaleMembers,
   isUserBanned,
+  getActiveBan,
+  getActiveBanByChannel,
+  banBlockPayload,
+  assertUserNotBanned,
   kickMember,
   canPublishInRoom,
   maxSpeakersForRoom,

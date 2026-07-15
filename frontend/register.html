@@ -1049,7 +1049,7 @@
                     </div>
                     <div class="progress-step" id="step3">
                         3
-                        <span class="progress-label">Verification</span>
+                        <span class="progress-label">Confirm</span>
                     </div>
                 </div>
 
@@ -1253,36 +1253,16 @@
                         </div>
                     </div>
 
-                    <!-- Step 3: Verification -->
+                    <!-- Step 3: Confirm (OTP disabled until SMS provider is ready) -->
                     <div class="form-step" id="step3Content">
                         <div class="form-group">
                             <label class="form-label">
-                                <i class="fas fa-mobile-alt"></i> Verify Phone Number
+                                <i class="fas fa-check-circle"></i> Ready to create your account
                             </label>
                             <p style="color: var(--gray-600); margin-bottom: var(--spacing-md); line-height: 1.5;">
-                                Enter the 6-digit OTP sent to your phone number:
-                                <span id="displayPhone">+91 …</span>
+                                Confirm your details. Phone on file:
+                                <strong id="displayPhone">+91 …</strong>
                             </p>
-                            
-                            <div class="otp-container" id="otpContainer">
-                                <input type="text" class="otp-input" maxlength="1" pattern="[0-9]" inputmode="numeric">
-                                <input type="text" class="otp-input" maxlength="1" pattern="[0-9]" inputmode="numeric">
-                                <input type="text" class="otp-input" maxlength="1" pattern="[0-9]" inputmode="numeric">
-                                <input type="text" class="otp-input" maxlength="1" pattern="[0-9]" inputmode="numeric">
-                                <input type="text" class="otp-input" maxlength="1" pattern="[0-9]" inputmode="numeric">
-                                <input type="text" class="otp-input" maxlength="1" pattern="[0-9]" inputmode="numeric">
-                            </div>
-
-                            <div class="timer" id="otpTimer">
-                                Time remaining: <span id="timer">02:00</span>
-                            </div>
-
-                            <div style="text-align: center; margin-top: var(--spacing-sm);">
-                                <button type="button" class="resend-btn" id="resendOtp" disabled>
-                                    Resend OTP
-                                </button>
-                            </div>
-                            <div class="error-message" id="otpError"></div>
                         </div>
 
                         <!-- Terms and Conditions -->
@@ -1402,11 +1382,6 @@
     <!-- Toast Container -->
     <div id="toast" class="toast"></div>
 
-    <div id="recaptcha-container" style="display:none;"></div>
-
-    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
-
     <!-- Load the real app.js with API calls -->
     <script src="app.js"></script>
     <script src="auth-guard.js"></script>
@@ -1432,64 +1407,16 @@
             const nextBtn = document.getElementById('nextBtn');
             const submitBtn = document.getElementById('submitBtn');
             const form = document.getElementById('registerForm');
+
+            /* Soft referral capture — does not change Auth.register core */
+            try {
+              const refParam = new URLSearchParams(location.search).get('ref') || new URLSearchParams(location.search).get('code');
+              if (refParam) localStorage.setItem('ap_pending_ref', String(refParam).trim().toUpperCase());
+            } catch (_e) {}
             
             let currentStep = 1;
             let userType = 'customer';
-            let otpTimer;
-            let timeLeft = 120; // 2 minutes in seconds
             let selectedSkills = [];
-            let otpSentPhone = '';
-            let confirmationResult = null;
-            let firebaseIdToken = '';
-            let usingFallbackOtp = false;
-            const universalFallbackOtp = '111111';
-            const testOtpByPhone = {
-                '7988819180': '123456',
-                '9896699933': '654321'
-            };
-
-            const firebaseConfig = {
-                apiKey: "AIzaSyCE7Xk1PXuIFNdTU-x37AqFUooJzu7vdj8",
-                authDomain: "muqaddas-technology.firebaseapp.com",
-                databaseURL: "https://muqaddas-technology-default-rtdb.asia-southeast1.firebasedatabase.app",
-                projectId: "muqaddas-technology",
-                storageBucket: "muqaddas-technology.firebasestorage.app",
-                messagingSenderId: "312265965405",
-                appId: "1:312265965405:web:2dcab49d02bf65f13272b4",
-                measurementId: "G-BCC8Z6KT79"
-            };
-
-            firebase.initializeApp(firebaseConfig);
-            const firebaseAuth = firebase.auth();
-            window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
-                size: 'invisible'
-            });
-            window.recaptchaVerifier.render();
-
-            function getFirebaseErrorMessage(error) {
-                const code = error?.code || '';
-                console.error('[OTP_DEBUG][FIREBASE]', {
-                    code,
-                    message: error?.message || '',
-                    domain: window.location.hostname,
-                    href: window.location.href
-                });
-                if (code === 'auth/invalid-phone-number') return 'Invalid phone number format.';
-                if (code === 'auth/too-many-requests') return 'Too many OTP requests. Please try again later.';
-                if (code === 'auth/quota-exceeded') return 'Firebase SMS quota exceeded. Add billing or wait for quota reset.';
-                if (code === 'auth/captcha-check-failed') return 'reCAPTCHA failed. Please retry.';
-                if (code === 'auth/app-not-authorized') return 'This domain is not authorized in Firebase Authentication settings.';
-                if (code === 'auth/billing-not-enabled') return 'Firebase Phone SMS requires the Blaze plan with billing enabled in Firebase Console.';
-                return error?.message || 'Failed to send OTP via Firebase';
-            }
-
-            function isTestPhone(phone) {
-                return Boolean(testOtpByPhone[String(phone || '').trim()]);
-            }
-
-            function getTestOtp(phone) {
-                return testOtpByPhone[String(phone || '').trim()] || '';
-            }
 
             // ==================== USER TYPE TOGGLE ====================
             customerTypeBtn.addEventListener('click', function() {
@@ -1636,7 +1563,9 @@
                 if (step === 3) {
                     nextBtn.style.display = 'none';
                     submitBtn.style.display = 'flex';
-                    startOtpTimer();
+                    const phoneEl = document.getElementById('phone');
+                    const display = document.getElementById('displayPhone');
+                    if (display && phoneEl) display.textContent = '+91 ' + (phoneEl.value || '').trim();
                 } else {
                     nextBtn.style.display = 'flex';
                     submitBtn.style.display = 'none';
@@ -1645,46 +1574,6 @@
 
             nextBtn.addEventListener('click', async function() {
                 if (await validateStep(currentStep)) {
-                    if (currentStep === 2) {
-                        nextBtn.disabled = true;
-                        nextBtn.classList.add('btn-loading');
-                        try {
-                            const phone = document.getElementById('phone').value.trim();
-                            // Set expected phone early so submit validation remains stable
-                            // even if OTP provider path changes (firebase/test/fallback).
-                            otpSentPhone = phone;
-                            console.log('[OTP_DEBUG][UI] send-otp-attempt', {
-                                phone,
-                                domain: window.location.hostname,
-                                href: window.location.href
-                            });
-                            if (isTestPhone(phone)) {
-                                confirmationResult = null;
-                                firebaseIdToken = '';
-                                usingFallbackOtp = false;
-                                console.log('[OTP_DEBUG][UI] test-otp-enabled', { phone });
-                                Toast.show(`Test mode: use OTP ${getTestOtp(phone)}`, 'info', 7000);
-                            } else {
-                                confirmationResult = await firebaseAuth.signInWithPhoneNumber(`+91${phone}`, window.recaptchaVerifier);
-                                firebaseIdToken = '';
-                                usingFallbackOtp = false;
-                                console.log('[OTP_DEBUG][UI] send-otp-success', {
-                                    phone,
-                                    hasConfirmationResult: Boolean(confirmationResult)
-                                });
-                                Toast.show('OTP sent to your phone number', 'success');
-                            }
-                        } catch (error) {
-                            confirmationResult = null;
-                            firebaseIdToken = '';
-                            usingFallbackOtp = true;
-                            const otpToUse = isTestPhone(phone) ? getTestOtp(phone) : universalFallbackOtp;
-                            Toast.show(`SMS unavailable. Use fallback OTP ${otpToUse}`, 'warning', 7000);
-                        } finally {
-                            nextBtn.disabled = false;
-                            nextBtn.classList.remove('btn-loading');
-                        }
-                    }
                     currentStep++;
                     showStep(currentStep);
                 }
@@ -1856,184 +1745,32 @@
                 document.getElementById(elementId).innerHTML = '';
             }
 
-            // ==================== OTP TIMER ====================
-            function startOtpTimer() {
-                const timerDisplay = document.getElementById('timer');
-                const resendBtn = document.getElementById('resendOtp');
-                timeLeft = 120;
-                
-                if (otpTimer) clearInterval(otpTimer);
-                
-                otpTimer = setInterval(() => {
-                    const minutes = Math.floor(timeLeft / 60);
-                    const seconds = timeLeft % 60;
-                    timerDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-                    
-                    if (timeLeft <= 0) {
-                        clearInterval(otpTimer);
-                        resendBtn.disabled = false;
-                        timerDisplay.textContent = '00:00';
-                    }
-                    timeLeft--;
-                }, 1000);
-            }
-
-            // ==================== OTP INPUT ====================
-            const otpInputs = document.querySelectorAll('.otp-input');
-
-            function getOtpString() {
-                return Array.from(otpInputs).map((input) => input.value).join('');
-            }
-
-            otpInputs.forEach((input, index) => {
-                input.addEventListener('input', function() {
-                    this.value = this.value.replace(/[^0-9]/g, '').slice(-1);
-                    if (this.value && index < otpInputs.length - 1) {
-                        otpInputs[index + 1].focus();
-                    }
-                });
-
-                input.addEventListener('keydown', function(e) {
-                    if (e.key === 'Backspace' && !this.value && index > 0) {
-                        otpInputs[index - 1].focus();
-                    }
-                });
-            });
-
-            document.getElementById('otpContainer').addEventListener('paste', function(e) {
-                e.preventDefault();
-                const text = (e.clipboardData || window.clipboardData).getData('text') || '';
-                const digits = text.replace(/\D/g, '').slice(0, otpInputs.length).split('');
-                otpInputs.forEach((input, i) => {
-                    input.value = digits[i] || '';
-                });
-                const lastFilled = Math.min(digits.length, otpInputs.length) - 1;
-                if (lastFilled >= 0) {
-                    otpInputs[Math.max(0, lastFilled)].focus();
-                }
-            });
-
-            // ==================== RESEND OTP ====================
-            document.getElementById('resendOtp').addEventListener('click', function() {
-                this.disabled = true;
-                startOtpTimer();
-                const phone = document.getElementById('phone').value.trim();
-                otpSentPhone = phone;
-                if (isTestPhone(phone)) {
-                    confirmationResult = null;
-                    firebaseIdToken = '';
-                    usingFallbackOtp = false;
-                    Toast.show(`Test mode: use OTP ${getTestOtp(phone)}`, 'info', 7000);
-                    return;
-                }
-                firebaseAuth.signInWithPhoneNumber(`+91${phone}`, window.recaptchaVerifier)
-                    .then((result) => {
-                        confirmationResult = result;
-                        firebaseIdToken = '';
-                        usingFallbackOtp = false;
-                        console.log('[OTP_DEBUG][UI] resend-otp-success', {
-                            phone,
-                            hasConfirmationResult: Boolean(confirmationResult)
-                        });
-                        Toast.show('OTP resent successfully', 'success');
-                    })
-                    .catch((error) => {
-                        confirmationResult = null;
-                        firebaseIdToken = '';
-                        usingFallbackOtp = true;
-                        const otpToUse = isTestPhone(phone) ? getTestOtp(phone) : universalFallbackOtp;
-                        Toast.show(`SMS unavailable. Use fallback OTP ${otpToUse}`, 'warning', 7000);
-                    });
-            });
-
             // ==================== FORM SUBMISSION - REAL BACKEND ====================
             form.addEventListener('submit', async function(e) {
                 e.preventDefault();
-                
-                const otp = getOtpString();
-                if (otp.length !== 6) {
-                    document.getElementById('otpError').innerHTML = '<i class="fas fa-exclamation-circle"></i> Please enter all 6 digits';
-                    return;
-                }
-                const phone = document.getElementById('phone').value.trim();
-                if (!otpSentPhone) {
-                    document.getElementById('otpError').innerHTML =
-                        '<i class="fas fa-exclamation-circle"></i> Please resend OTP and try again.';
-                    return;
-                }
-                if (!confirmationResult && !isTestPhone(phone) && !usingFallbackOtp) {
-                    document.getElementById('otpError').innerHTML =
-                        '<i class="fas fa-exclamation-circle"></i> Please send OTP again.';
-                    return;
-                }
-                try {
-                    console.log('[OTP_DEBUG][UI] otp-verify-attempt', {
-                        phone,
-                        otpLength: otp.length,
-                        otpSentPhone,
-                        hasConfirmationResult: Boolean(confirmationResult)
-                    });
-                    if (isTestPhone(phone)) {
-                        if (otp !== getTestOtp(phone)) {
-                            throw new Error('Invalid test OTP');
-                        }
-                        firebaseIdToken = '';
-                        usingFallbackOtp = false;
-                        console.log('[OTP_DEBUG][UI] otp-verify-success-test', { phone });
-                    } else if (usingFallbackOtp) {
-                        if (otp !== universalFallbackOtp) {
-                            throw new Error('Invalid fallback OTP');
-                        }
-                        firebaseIdToken = '';
-                        console.log('[OTP_DEBUG][UI] otp-verify-success-fallback', { phone });
-                    } else {
-                        const userCredential = await confirmationResult.confirm(otp);
-                        firebaseIdToken = await userCredential.user.getIdToken();
-                        console.log('[OTP_DEBUG][UI] otp-verify-success', {
-                            phone,
-                            tokenLength: firebaseIdToken ? firebaseIdToken.length : 0
-                        });
-                    }
-                    document.getElementById('otpError').innerHTML = '';
-                } catch (error) {
-                    console.error('[OTP_DEBUG][UI] otp-verify-failed', {
-                        code: error?.code || '',
-                        message: error?.message || ''
-                    });
-                    document.getElementById('otpError').innerHTML =
-                        `<i class="fas fa-exclamation-circle"></i> ${error.message || 'Invalid OTP'}`;
-                    return;
-                }
-                
-                // Check terms
+
                 if (!document.getElementById('terms').checked) {
                     Toast.show('Please accept terms and conditions', 'error');
                     return;
                 }
-                
-                // Show loading
+
                 submitBtn.classList.add('btn-loading');
                 submitBtn.disabled = true;
-                
+
                 try {
-                    // Prepare registration data
                     const registrationData = {
                         first_name: document.getElementById('firstName').value.trim(),
                         last_name: document.getElementById('lastName').value.trim(),
                         email: document.getElementById('email').value.trim(),
                         phone: document.getElementById('phone').value.trim(),
                         password: document.getElementById('password').value,
-                        user_type: userType,
-                        otp,
-                        firebase_id_token: firebaseIdToken,
-                        otp_mode: usingFallbackOtp ? 'fallback' : (isTestPhone(phone) ? 'test' : 'firebase')
+                        user_type: userType
                     };
-                    
-                    // Add optional fields if present
+
                     if (document.getElementById('city').value) {
                         registrationData.city = document.getElementById('city').value;
                     }
-                    
+
                     if (document.getElementById('address').value) {
                         registrationData.address = document.getElementById('address').value;
                     }
@@ -2043,14 +1780,9 @@
                         registrationData.hourly_rate = document.getElementById('hourlyRate').value;
                         registrationData.skills = [...selectedSkills];
                     }
-                    
-                    // Call the REAL Auth.register from app.js
+
                     const response = await Auth.register(registrationData);
-                    console.log('[OTP_DEBUG][UI] register-response', {
-                        success: Boolean(response && response.success),
-                        message: response?.message || null
-                    });
-                    
+
                     if (response && response.success) {
                         const role = response?.data?.user?.role || userType;
                         const roleMessage = role === 'worker'

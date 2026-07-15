@@ -86,7 +86,7 @@ async function resolveGiftAmount(giftType, coinAmount, qty = 1) {
 
 async function sendGift({ senderId, receiverId, liveRoomId, giftType, coinAmount, qty = 1 }) {
   const amount = BigInt(await resolveGiftAmount(giftType, coinAmount, qty));
-  if (senderId === receiverId) throw new Error('Cannot gift yourself');
+  if (String(senderId) === String(receiverId)) throw new Error('Cannot gift yourself');
 
   await fraudService.checkGiftAbuse(senderId, Number(amount));
 

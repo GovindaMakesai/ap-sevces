@@ -31,7 +31,13 @@ body.ap-live-session-minimized #apRoomStatusStrip,
 body.ap-live-session-minimized .party-tools-sheet,
 body.ap-live-session-minimized #apLiveLoader,
 body.ap-live-session-minimized .ap-live-pip-bar,
-body.ap-live-session-minimized #apLivePipBar {
+body.ap-live-session-minimized #apLivePipBar,
+body.ap-live-session-minimized .party-chat-row,
+body.ap-live-session-minimized #partyChatRow,
+body.ap-live-session-minimized .live-show-chat-fab,
+body.ap-live-session-minimized .live-overlay,
+body.ap-live-session-minimized .party-chat-feed,
+body.ap-live-session-minimized .live-chat-ticker {
   visibility: hidden !important;
   pointer-events: none !important;
   opacity: 0 !important;

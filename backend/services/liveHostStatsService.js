@@ -260,6 +260,58 @@ async function getStreamerStats(userId, period = 'today') {
     }
   }
 
+  // Per-day points (won) + gifts sent / received
+  for (const [key, row] of dailyMap.entries()) {
+    dailyMap.set(key, {
+      ...row,
+      pointsWon: 0,
+      giftsSentCoins: 0,
+      giftsSentCount: 0,
+      giftsReceivedCoins: 0,
+      giftsReceivedCount: 0,
+    });
+  }
+  try {
+    const [sentByDay, recvByDay] = await Promise.all([
+      db.query(
+        `SELECT created_at::date::text AS date,
+                COALESCE(SUM(coin_amount), 0)::bigint AS coins,
+                COUNT(*)::int AS count
+         FROM gift_transactions
+         WHERE sender_id = $1 AND created_at >= $2
+         GROUP BY created_at::date`,
+        [userId, since]
+      ),
+      db.query(
+        `SELECT created_at::date::text AS date,
+                COALESCE(SUM(creator_amount), 0)::bigint AS points,
+                COALESCE(SUM(coin_amount), 0)::bigint AS coins,
+                COUNT(*)::int AS count
+         FROM gift_transactions
+         WHERE receiver_id = $1 AND created_at >= $2
+         GROUP BY created_at::date`,
+        [userId, since]
+      ),
+    ]);
+    for (const row of sentByDay.rows) {
+      const key = String(row.date).slice(0, 10);
+      const cur = dailyMap.get(key);
+      if (!cur) continue;
+      cur.giftsSentCoins = Number(row.coins || 0);
+      cur.giftsSentCount = Number(row.count || 0);
+    }
+    for (const row of recvByDay.rows) {
+      const key = String(row.date).slice(0, 10);
+      const cur = dailyMap.get(key);
+      if (!cur) continue;
+      cur.pointsWon = Number(row.points || 0);
+      cur.giftsReceivedCoins = Number(row.points || row.coins || 0);
+      cur.giftsReceivedCount = Number(row.count || 0);
+    }
+  } catch (_e) {
+    /* gift daily optional */
+  }
+
   const daily = [...dailyMap.values()]
     .sort((a, b) => (a.date < b.date ? 1 : -1))
     .map((d) => ({
@@ -298,6 +350,28 @@ async function getStreamerStats(userId, period = 'today') {
     }
   } catch (_e) {}
 
+  let totalPoints = 0;
+  let totalCoins = 0;
+  let lifetimePointsEarned = 0;
+  try {
+    const walletRes = await db.query(
+      `SELECT COALESCE(star_balance, 0)::bigint AS points,
+              COALESCE(coin_balance, 0)::bigint AS coins
+       FROM wallets WHERE user_id = $1 LIMIT 1`,
+      [userId]
+    );
+    totalPoints = Number(walletRes.rows[0]?.points || 0);
+    totalCoins = Number(walletRes.rows[0]?.coins || 0);
+  } catch (_e) {}
+  try {
+    const lifeRes = await db.query(
+      `SELECT COALESCE(SUM(creator_amount), 0)::bigint AS points
+       FROM gift_transactions WHERE receiver_id = $1`,
+      [userId]
+    );
+    lifetimePointsEarned = Number(lifeRes.rows[0]?.points || 0);
+  } catch (_e) {}
+
   return {
     period,
     periodDays: days,
@@ -312,6 +386,9 @@ async function getStreamerStats(userId, period = 'today') {
     partyHoursLabel: formatHoursLabel(partySeconds),
     giftCoins: Number(giftsRes.rows[0]?.coins || 0),
     newFollowers: Number(followsRes.rows[0]?.c || 0),
+    totalPoints,
+    totalCoins,
+    lifetimePointsEarned,
     peakViewers,
     avgViewers,
     sessionCount,

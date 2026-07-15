@@ -25,6 +25,7 @@ const { ensureLiveUserAnalyticsSchema } = require('./config/ensureLiveUserAnalyt
 const { ensureBdHierarchySchema } = require('./config/ensureBdHierarchySchema');
 const { ensurePartyModerationSchema } = require('./config/ensurePartyModerationSchema');
 const { ensureWithdrawalQrSchema } = require('./config/ensureWithdrawalQrSchema');
+const referralModule = require('./modules/referral');
 const { applySecurityMiddleware, authLimiter, walletLimiter } = require('./middleware/security');
 const webhookRoutes = require('./routes/webhooks');
 const { registerChatSocket } = require('./socket/chatSocket');
@@ -173,6 +174,10 @@ app.use('/api/files', filesRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/v1', platformRoutes);
 app.use('/api', hierarchyRoutes);
+app.use('/api/referral', referralModule.routes);
+app.use('/api/host', referralModule.hostRoutes);
+app.use('/api/leaderboard', referralModule.leaderboardRoutes);
+app.use('/api/reward', referralModule.rewardRoutes);
 
 app.get('/api/health', async (_req, res) => {
   const health = { success: true, status: 'online', checks: {} };
@@ -241,6 +246,7 @@ async function startServer() {
   await ensureLiveUserAnalyticsSchema();
   await ensureBdHierarchySchema();
   await ensurePartyModerationSchema();
+  await referralModule.boot();
   const { ensureDisplayIdSchema } = require('./config/ensureDisplayIdSchema');
   await ensureDisplayIdSchema();
   await attachSocketRedisAdapter();
@@ -256,6 +262,9 @@ async function startServer() {
 async function shutdown(signal) {
   logger.info('Shutdown signal', { signal });
   stopScheduler();
+  try {
+    referralModule.shutdown();
+  } catch (_e) {}
   server.close(async () => {
     await redis.disconnect();
     await db.pool.end();

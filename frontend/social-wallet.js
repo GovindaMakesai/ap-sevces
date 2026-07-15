@@ -104,6 +104,17 @@
 
   function getCoinsBalance(bal) {
     const b = bal || cached;
+    /* Sellers: profile "Coins" = sellable pool (stock + wallet). Normal users: wallet only. */
+    if (b.is_coin_seller) {
+      if (b.sellable_coins != null) return Number(b.sellable_coins) || 0;
+      return (Number(b.sell_inventory_coins || b.inventory_coins) || 0) + (Number(b.coin_balance) || 0);
+    }
+    return Number(b.coin_balance) || 0;
+  }
+
+  /** Wallet NR coins only (excludes seller stock / gift stock). */
+  function getWalletCoins(bal) {
+    const b = bal || cached;
     return Number(b.coin_balance) || 0;
   }
 
@@ -193,6 +204,7 @@
     getCachedBalance,
     getPointsBalance,
     getCoinsBalance,
+    getWalletCoins,
     getGiftableCoins,
     getSellableCoins,
     getWalletSettings,

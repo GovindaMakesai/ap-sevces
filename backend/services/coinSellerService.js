@@ -39,7 +39,7 @@ async function upsertProfile(userId, { displayName, inventoryCoins, isActive = t
 async function createPendingOrder({ sellerId, buyerId, coins, amountInr, referenceCode }) {
   const amount = parseInt(coins, 10);
   if (!amount || amount <= 0) throw new Error('Invalid coin amount');
-  if (String(sellerId) === String(buyerId)) throw new Error('Cannot buy from yourself');
+  if (!buyerId) throw new Error('Buyer is required');
 
   const seller = await getProfile(sellerId);
   if (!seller || !seller.is_active) throw new Error('Seller not available');
@@ -354,10 +354,10 @@ async function transferCoins(sellerId, { recipientId, coins, transferType = 'use
   const amount = parseInt(coins, 10);
   if (!amount || amount < 1000) throw new Error('Minimum transfer is 1,000 coins');
   if (!recipientId) throw new Error('Recipient is required');
-  if (String(sellerId) === String(recipientId)) throw new Error('Cannot transfer to yourself');
 
   const recipient = await lookupRecipient(recipientId);
   if (!recipient) throw new Error('User not found');
+  const isSelfSale = String(sellerId) === String(recipient.id);
 
   const client = await db.pool.connect();
   try {
@@ -401,18 +401,31 @@ async function transferCoins(sellerId, { recipientId, coins, transferType = 'use
     }
 
     const wallet = await walletService.getOrCreateWallet(sellerId, client);
-    /* Sell coins = inventory first (own pool). Wallet only fills the gap — never gift stock. */
+    /* Sell coins = inventory first (own pool). Wallet only fills the gap — never gift stock.
+       Self-sale: move sell stock → personal wallet only (do not debit then re-credit wallet). */
     const inventoryAvail = Number(seller.inventory_coins || 0);
     const walletAvail = Number(wallet?.coin_balance || 0);
-    const totalAvail = inventoryAvail + walletAvail;
-    if (totalAvail < amount) {
-      throw new Error(
-        `Insufficient sell coins (have ${totalAvail.toLocaleString()}, need ${amount.toLocaleString()}). Top-up sell stock to send. Gift coins cannot be sold.`
-      );
-    }
+    let fromInventory = 0;
+    let fromWallet = 0;
 
-    let fromInventory = Math.min(amount, inventoryAvail);
-    let fromWallet = amount - fromInventory;
+    if (isSelfSale) {
+      if (inventoryAvail < amount) {
+        throw new Error(
+          `Insufficient sell stock to move to your wallet (have ${inventoryAvail.toLocaleString()}, need ${amount.toLocaleString()}). Top-up sell stock first.`
+        );
+      }
+      fromInventory = amount;
+      fromWallet = 0;
+    } else {
+      const totalAvail = inventoryAvail + walletAvail;
+      if (totalAvail < amount) {
+        throw new Error(
+          `Insufficient sell coins (have ${totalAvail.toLocaleString()}, need ${amount.toLocaleString()}). Top-up sell stock to send. Gift coins cannot be sold.`
+        );
+      }
+      fromInventory = Math.min(amount, inventoryAvail);
+      fromWallet = amount - fromInventory;
+    }
 
     if (fromInventory > 0) {
       await client.query(
@@ -430,7 +443,7 @@ async function transferCoins(sellerId, { recipientId, coins, transferType = 'use
         {
           type: 'coin_seller_sale',
           reference_type: 'coin_seller_transfer',
-          metadata: { recipientId: recipient.id, transferType },
+          metadata: { recipientId: recipient.id, transferType, selfSale: false },
         },
         client
       );
@@ -448,7 +461,7 @@ async function transferCoins(sellerId, { recipientId, coins, transferType = 'use
       {
         type: 'coin_seller_transfer',
         reference_type: 'coin_seller_transfer',
-        metadata: { sellerId, transferType, fromInventory, fromWallet },
+        metadata: { sellerId, transferType, fromInventory, fromWallet, selfSale: isSelfSale },
       },
       client
     );
@@ -460,8 +473,8 @@ async function transferCoins(sellerId, { recipientId, coins, transferType = 'use
     );
 
     const invAfter = inventoryAvail - fromInventory;
-    const walletAfter = walletAvail - fromWallet;
-    const sellableAfter = invAfter + walletAfter;
+    const walletAfter = isSelfSale ? walletAvail + amount : walletAvail - fromWallet;
+    const sellableAfter = invAfter + (isSelfSale ? walletAfter : walletAvail - fromWallet);
 
     await client.query('COMMIT');
 
@@ -469,42 +482,157 @@ async function transferCoins(sellerId, { recipientId, coins, transferType = 'use
       .log(sellerId, 'coin_seller.transfer', {
         entity_type: 'coin_seller_transfer',
         entity_id: xfer.rows[0].id,
-        metadata: { recipientId: recipient.id, coins: amount, fromInventory, fromWallet },
+        metadata: { recipientId: recipient.id, coins: amount, fromInventory, fromWallet, selfSale: isSelfSale },
       })
       .catch(() => {});
 
-    /* Notify buyer: chat + AP Services message + notification */
-    try {
-      const sellerUser = await db.query(
-        `SELECT first_name, last_name, display_id FROM users WHERE id = $1`,
-        [sellerId]
-      );
-      const s = sellerUser.rows[0];
-      const sellerName =
-        `${s?.first_name || ''} ${s?.last_name || ''}`.trim() ||
-        s?.display_id ||
-        'Coin seller';
-      const systemMessageService = require('./systemMessageService');
-      void systemMessageService
-        .notifyCoinsReceivedFromSeller(recipient.id, amount, {
-          sellerId,
-          sellerName,
-        })
-        .catch((err) => console.error('notifyCoinsReceivedFromSeller:', err.message));
-    } catch (notifyErr) {
-      console.error('transfer notify setup:', notifyErr.message);
+    /* Notify buyer: chat + AP Services message + notification (skip noise for self-sale) */
+    if (!isSelfSale) {
+      try {
+        const sellerUserNotify = await db.query(
+          `SELECT first_name, last_name, display_id FROM users WHERE id = $1`,
+          [sellerId]
+        );
+        const s = sellerUserNotify.rows[0];
+        const sellerName =
+          `${s?.first_name || ''} ${s?.last_name || ''}`.trim() ||
+          s?.display_id ||
+          'Coin seller';
+        const systemMessageService = require('./systemMessageService');
+        void systemMessageService
+          .notifyCoinsReceivedFromSeller(recipient.id, amount, {
+            sellerId,
+            sellerName,
+          })
+          .catch((err) => console.error('notifyCoinsReceivedFromSeller:', err.message));
+      } catch (notifyErr) {
+        console.error('transfer notify setup:', notifyErr.message);
+      }
     }
+
+    /* Re-read balances after commit for accurate response */
+    const balWallet = await walletService.getOrCreateWallet(sellerId);
+    const balProfile = await getProfile(sellerId);
+    const inventory_coins = Number(balProfile?.inventory_coins || invAfter);
+    const coin_balance = Number(balWallet?.coin_balance || walletAfter);
+    const gift_inventory_coins = Number(balProfile?.gift_inventory_coins || 0);
 
     return {
       transfer: xfer.rows[0],
       recipient,
+      selfSale: isSelfSale,
       seller_balance: {
-        coin_balance: walletAfter,
-        inventory_coins: invAfter,
-        gift_inventory_coins: Number(seller.gift_inventory_coins || 0),
-        sellable_coins: sellableAfter,
-        gift_coins: Number(seller.gift_inventory_coins || 0),
+        inventory_coins,
+        gift_inventory_coins,
+        gift_coins: gift_inventory_coins,
+        coin_balance,
+        sellable_coins: inventory_coins + coin_balance,
       },
+    };
+  } catch (e) {
+    try {
+      await client.query('ROLLBACK');
+    } catch (_r) {
+      await db.safeRollback?.(client);
+    }
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+async function exchangeSellerCoins(sellerId, coinsAmount) {
+  const amount = parseInt(coinsAmount, 10);
+  if (!amount || amount < 1) {
+    throw new Error('Enter a valid amount of sell coins to exchange');
+  }
+
+  const profile = await getProfile(sellerId);
+  if (!profile?.is_active) throw new Error('Seller profile not active');
+
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+    const sellerRes = await client.query(
+      `SELECT * FROM coin_seller_profiles WHERE user_id = $1 FOR UPDATE`,
+      [sellerId]
+    );
+    const seller = sellerRes.rows[0];
+    if (!seller) throw new Error('Seller profile not found');
+
+    const wallet = await walletService.getOrCreateWallet(sellerId, client);
+    const inventoryAvail = Number(seller.inventory_coins || 0);
+    const walletAvail = Number(wallet?.coin_balance || 0);
+    const totalAvail = inventoryAvail + walletAvail;
+
+    if (totalAvail < amount) {
+      throw new Error(
+        `Insufficient sell coins (have ${totalAvail.toLocaleString()}, need ${amount.toLocaleString()}). Top-up sell stock or add wallet coins first.`
+      );
+    }
+
+    const fromInventory = Math.min(amount, inventoryAvail);
+    const fromWallet = amount - fromInventory;
+
+    if (fromInventory > 0) {
+      await client.query(
+        `UPDATE coin_seller_profiles
+         SET inventory_coins = inventory_coins - $2, updated_at = CURRENT_TIMESTAMP
+         WHERE user_id = $1`,
+        [sellerId, fromInventory]
+      );
+    }
+
+    if (fromWallet > 0) {
+      await walletService.debitCoins(
+        sellerId,
+        fromWallet,
+        {
+          type: 'coin_seller_gift_exchange',
+          reference_type: 'coin_seller_exchange',
+          metadata: { giftCoinsOut: amount, fromInventory, fromWallet },
+        },
+        client
+      );
+    }
+
+    /* Sell coins → gift stock (1:1). Gift coins are for live/chat gifts only. */
+    await client.query(
+      `UPDATE coin_seller_profiles
+       SET gift_inventory_coins = gift_inventory_coins + $2,
+           beans_exchanged = beans_exchanged + $2,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE user_id = $1`,
+      [sellerId, amount]
+    );
+
+    await client.query('COMMIT');
+    await auditLogService.log(sellerId, 'coin_seller.sell_to_gift_exchange', {
+      entity_type: 'coin_seller_profile',
+      entity_id: sellerId,
+      metadata: {
+        sellCoinsIn: amount,
+        giftCoinsOut: amount,
+        fromInventory,
+        fromWallet,
+        destination: 'gift_inventory',
+      },
+    });
+
+    const balWallet = await walletService.getOrCreateWallet(sellerId);
+    const balProfile = await getProfile(sellerId);
+    return {
+      sellCoinsIn: amount,
+      coinsOut: amount,
+      beans: amount,
+      fromInventory,
+      fromWallet,
+      destination: 'gift_inventory',
+      inventory_coins: Number(balProfile?.inventory_coins || inventoryAvail - fromInventory),
+      gift_inventory_coins: Number(balProfile?.gift_inventory_coins || Number(seller.gift_inventory_coins || 0) + amount),
+      coin_balance: Number(balWallet?.coin_balance || walletAvail - fromWallet),
+      sellable_coins:
+        Number(balProfile?.inventory_coins || 0) + Number(balWallet?.coin_balance || 0),
     };
   } catch (e) {
     await db.safeRollback(client);
@@ -514,62 +642,9 @@ async function transferCoins(sellerId, { recipientId, coins, transferType = 'use
   }
 }
 
+/** @deprecated Use exchangeSellerCoins — kept for older clients sending `beans`. */
 async function exchangeBeans(sellerId, beansAmount) {
-  const beans = parseInt(beansAmount, 10);
-  if (!beans || beans < 100000 || beans % 100000 !== 0) {
-    throw new Error('Amount must be an integer multiple of 100,000 beans');
-  }
-
-  const profile = await getProfile(sellerId);
-  if (!profile?.is_active) throw new Error('Seller profile not active');
-  const level = resolveSellerLevel(profile.total_recharge_usd);
-  const coinsOut = Math.floor((beans / 10000) * level.beansPer10k);
-
-  const client = await db.pool.connect();
-  try {
-    await client.query('BEGIN');
-    const walletRes = await client.query(
-      `SELECT * FROM wallets WHERE user_id = $1 FOR UPDATE`,
-      [sellerId]
-    );
-    const wallet = walletRes.rows[0];
-    if (!wallet) throw new Error('Wallet not found');
-    if (Number(wallet.star_balance) < beans) throw new Error('Insufficient beans balance');
-
-    await client.query(
-      `UPDATE wallets SET star_balance = star_balance - $2, updated_at = CURRENT_TIMESTAMP WHERE user_id = $1`,
-      [sellerId, beans]
-    );
-
-    /* Beans exchange fills gift stock (for sending gifts), not sell stock */
-    await client.query(
-      `UPDATE coin_seller_profiles
-       SET gift_inventory_coins = gift_inventory_coins + $2,
-           beans_exchanged = beans_exchanged + $3,
-           updated_at = CURRENT_TIMESTAMP
-       WHERE user_id = $1`,
-      [sellerId, coinsOut, beans]
-    );
-
-    await client.query('COMMIT');
-    await auditLogService.log(sellerId, 'coin_seller.beans_exchange', {
-      entity_type: 'coin_seller_profile',
-      entity_id: sellerId,
-      metadata: { beans, coinsOut, level: level.slug, destination: 'gift_inventory' },
-    });
-    return {
-      beans,
-      coinsOut,
-      level: level.slug,
-      destination: 'gift_inventory',
-      gift_inventory_coins: Number(profile.gift_inventory_coins || 0) + coinsOut,
-    };
-  } catch (e) {
-    await db.safeRollback(client);
-    throw e;
-  } finally {
-    client.release();
-  }
+  return exchangeSellerCoins(sellerId, beansAmount);
 }
 
 /**
@@ -583,23 +658,23 @@ async function debitGiftSpend(userId, amount, meta = {}, client) {
 
   const run = async (c) => {
     const roleRes = await c.query(`SELECT role FROM users WHERE id = $1`, [userId]);
-    const role = roleRes.rows[0]?.role;
-    const sellerRoles = new Set(['coin_seller', 'admin', 'super_admin', 'founder', 'ceo']);
-    const treatAsSeller = sellerRoles.has(String(role || ''));
-
-    const profileRes = treatAsSeller
-      ? await c.query(
-          `SELECT gift_inventory_coins FROM coin_seller_profiles WHERE user_id = $1 FOR UPDATE`,
-          [userId]
-        )
-      : { rows: [] };
+    const role = String(roleRes.rows[0]?.role || '');
+    const profileRes = await c.query(
+      `SELECT gift_inventory_coins, is_active FROM coin_seller_profiles WHERE user_id = $1 FOR UPDATE`,
+      [userId]
+    );
     const profile = profileRes.rows[0];
+    /* Must match walletController.getBalance giftable rules */
+    const useGiftInventory =
+      role === 'coin_seller' ||
+      !!(profile && profile.is_active) ||
+      (['admin', 'super_admin', 'founder', 'ceo'].includes(role) && !!profile?.is_active);
 
-    if (profile) {
+    if (useGiftInventory && profile) {
       const giftAvail = Number(profile.gift_inventory_coins || 0);
       if (giftAvail < amt) {
         const err = new Error(
-          `Insufficient gift coins (have ${giftAvail.toLocaleString()}, need ${amt.toLocaleString()}). Exchange beans → gift coins in Seller Center. Sell coins cannot be used for gifts.`
+          `Insufficient gift coins (have ${giftAvail.toLocaleString()}, need ${amt.toLocaleString()}). Exchange sell coins → gift coins in Seller Center. Sell coins cannot be used for gifts.`
         );
         err.code = 'INSUFFICIENT_BALANCE';
         throw err;
@@ -891,6 +966,7 @@ module.exports = {
   listTransfers,
   lookupRecipient,
   transferCoins,
+  exchangeSellerCoins,
   exchangeBeans,
   debitGiftSpend,
   applyRecharge,

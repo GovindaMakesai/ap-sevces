@@ -547,14 +547,12 @@
     const id = agoraUidToUserId(userId);
     if (active) speakingUsers.add(String(id));
     else speakingUsers.delete(String(id));
-    document.querySelectorAll('.party-seat[data-user]').forEach((seat) => {
-      const name = seat.dataset.user || '';
-      const uid = seat.dataset.userId || name;
+    const applySpeaking = (seat, uid, name) => {
       const isActive = speakingUsers.has(String(uid)) || speakingUsers.has(name);
       seat.classList.toggle('is-speaking', isActive);
       let waves = seat.querySelector('.seat-wave-bars');
       if (isActive && !waves) {
-        const av = seat.querySelector('.seat-avatar');
+        const av = seat.querySelector('.seat-avatar, .ap-guest-avatar');
         if (av) {
           waves = document.createElement('div');
           waves.className = 'seat-wave-bars';
@@ -563,6 +561,12 @@
         }
       }
       if (!isActive && waves) waves.remove();
+    };
+    document.querySelectorAll('.party-seat[data-user]').forEach((seat) => {
+      applySpeaking(seat, seat.dataset.userId || '', seat.dataset.user || '');
+    });
+    document.querySelectorAll('.ap-guest-seat[data-guest-id]').forEach((seat) => {
+      applySpeaking(seat, seat.dataset.guestId || '', seat.dataset.guest || '');
     });
   }
 

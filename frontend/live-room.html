@@ -10,9 +10,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-live.css?v=20260713-host-left">
+  <link rel="stylesheet" href="social-live.css?v=20260715-live-ui">
   <link rel="stylesheet" href="social-live-session.css?v=20260713-live-ux">
-  <link rel="stylesheet" href="social-live-ref-ui.css?v=20260628-hotfix">
+  <link rel="stylesheet" href="social-live-ref-ui.css?v=20260714-admin-frame">
   <link rel="stylesheet" href="social-fx.css">
   <link rel="stylesheet" href="social-live-pro.css?v=20260713-host-left">
   <link rel="stylesheet" href="beauty/ui/beauty-sheet.css?v=20260713-beauty-engine">
@@ -183,6 +183,12 @@
                 class="fas fa-sync-alt"></i> Flip</button>
             <button type="button" class="party-host-action host-only-tool" id="liveBtnFilters" title="Filters"><i
                 class="fas fa-magic"></i> Filters</button>
+            <button type="button" class="party-host-action mod-tool" id="liveBtnMuteAllChat" title="Mute all chat">
+              <i class="fas fa-comment-slash"></i> Mute all chat
+            </button>
+            <button type="button" class="party-host-action mod-tool" id="liveBtnClearChat" title="Clear chat">
+              <i class="fas fa-eraser"></i> Clear chat
+            </button>
           </div>
         </div>
         <button type="button" class="party-users-btn" id="partyBtnUsersAll" aria-label="People in room"><i
@@ -233,8 +239,7 @@
     </div>
     <button type="button" class="party-btn-follow ap-btn-follow-hidden" id="liveBtnFollow" aria-hidden="true">Follow
       +</button>
-    <button type="button" class="party-btn-join-seat ap-btn-follow-hidden" id="partyBtnJoinSeat"
-      style="display:none">Join live</button>
+    <button type="button" class="party-btn-join-seat" id="partyBtnJoinSeat" hidden aria-hidden="true" style="display:none">Join live</button>
     <div class="party-bottom-actions">
       <button type="button" id="partyBtnTools" class="ap-btn-grid" aria-label="Tools"><i class="fas fa-th"></i><span
           class="ap-notify-dot" id="apToolsNotifyDot" hidden></span></button>
@@ -324,14 +329,14 @@
   <script src="app.js?v=20260713-hierarchy"></script>
   <script src="social-wallet.js?v=20260714-gift-only"></script>
   <script src="social-ui.js"></script>
-  <script src="social-interactions.js"></script>
+  <script src="social-interactions.js?v=20260714-invite-fix"></script>
   <script src="auth-guard.js"></script>
-  <script src="social-fx.js"></script>
+  <script src="social-fx.js?v=20260715-live-ui"></script>
   <script src="live-emoji-data.js"></script>
   <script src="social-shell.js?v=20260713-live-ux"></script>
   <script src="live-session-provider.js?v=20260624-android-back"></script>
   <script type="module" src="beauty/index.js?v=20260713-beauty-engine"></script>
-  <script src="social-live.js?v=20260714-gift-only"></script>
+  <script src="social-live.js?v=20260715-gift-dedupe"></script>
   <script src="social-live-interactions.js"></script>
   <script src="social-nav.js?v=20260624-android-back"></script>
 </body>

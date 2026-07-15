@@ -317,9 +317,19 @@
   function getFollowEntries() {
     try {
       const raw = JSON.parse(localStorage.getItem(FOLLOWS_KEY) || '[]');
-      return raw.map((item) =>
-        typeof item === 'string' ? { key: item, name: item.replace(/^@/, '') } : { key: item.key, name: item.name || item.key }
-      );
+      return raw.map((item) => {
+        if (typeof item === 'string') {
+          return { key: item, id: item, name: item.replace(/^@/, ''), photo: null };
+        }
+        const key = String(item.key || item.id || '').trim();
+        const id = String(item.id || item.key || '').trim();
+        return {
+          key: key || id,
+          id: id || key,
+          name: item.name || key || 'User',
+          photo: item.photo || item.profile_pic || item.profilePic || null,
+        };
+      });
     } catch (_e) {
       return [];
     }

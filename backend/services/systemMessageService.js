@@ -120,6 +120,7 @@ async function notifyCoinsReceivedFromSeller(recipientUserId, coins, { sellerId,
         recipient,
         chatBody,
         { skipAdminNotify: true, skipQuota: true }
+      );
       const normalized = normalizeOutgoingChatMessage(message, conversation.id);
       if (socketIo) {
         socketIo.to(`conversation:${conversation.id}`).emit('receive_message', normalized);

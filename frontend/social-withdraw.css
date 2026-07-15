@@ -49,16 +49,16 @@ body.withdraw-app input[type='file'] {
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  padding: calc(12px + env(safe-area-inset-top, 0)) 16px calc(100px + env(safe-area-inset-bottom, 0));
+  padding: calc(10px + env(safe-area-inset-top, 0)) 14px calc(88px + env(safe-area-inset-bottom, 0));
 }
 
 .wd-header-link {
   flex-shrink: 0;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   color: #5b67f6;
   text-decoration: none;
-  padding: 8px 12px;
+  padding: 6px 10px;
   border-radius: 999px;
   background: #fff;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
@@ -66,14 +66,14 @@ body.withdraw-app input[type='file'] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 76px;
-  max-width: 96px;
+  min-width: 64px;
+  max-width: 88px;
   line-height: 1.2;
   text-align: center;
 }
 
 .wd-header-side {
-  width: 76px;
+  width: 64px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -205,7 +205,7 @@ body.withdraw-app input[type='file'] {
 }
 
 .wd-header h1 {
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 600;
   color: #111827 !important;
   margin: 0;
@@ -214,21 +214,21 @@ body.withdraw-app input[type='file'] {
 }
 
 .wd-header-spacer {
-  width: 76px;
+  width: 64px;
   flex-shrink: 0;
 }
 
 .wd-alert-banner {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
+  gap: 6px;
   background: #ede9fe;
-  padding: 10px 14px;
-  border-radius: 12px;
-  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 11px;
   color: #5b21b6;
-  margin-bottom: 12px;
-  line-height: 1.4;
+  margin-bottom: 10px;
+  line-height: 1.35;
   flex-shrink: 0;
 }
 
@@ -239,10 +239,10 @@ body.withdraw-app input[type='file'] {
 
 .wd-gradient-card {
   background: linear-gradient(135deg, #a78bfa 0%, #6366f1 50%, #3b82f6 100%);
-  border-radius: 20px;
-  padding: 20px;
+  border-radius: 16px;
+  padding: 14px;
   color: #fff;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
   flex-shrink: 0;
 }
 
@@ -250,28 +250,28 @@ body.withdraw-app input[type='file'] {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 12px;
+  gap: 10px;
 }
 
 .wd-gradient-card .amount-lg {
-  font-size: 32px;
+  font-size: 24px;
   font-weight: 800;
   line-height: 1.1;
 }
 
 .wd-gradient-card .amount-label {
-  font-size: 13px;
+  font-size: 11px;
   opacity: 0.9;
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
 .wd-gradient-card .record-btn {
   background: rgba(255, 255, 255, 0.28);
   border: none;
   color: #fff;
-  padding: 6px 14px;
+  padding: 5px 10px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   cursor: pointer;
   text-decoration: none;
@@ -282,9 +282,9 @@ body.withdraw-app input[type='file'] {
 .wd-gradient-card .cols {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px 32px;
-  margin-top: 16px;
-  font-size: 13px;
+  gap: 12px 24px;
+  margin-top: 12px;
+  font-size: 11px;
   opacity: 0.95;
 }
 
@@ -474,26 +474,37 @@ body.withdraw-app input[type='file'] {
   bottom: 0;
   z-index: 20;
   margin-top: auto;
-  padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0));
-  background: linear-gradient(0deg, #f3f4f6 80%, rgba(243, 244, 246, 0));
+  padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0));
+  background: linear-gradient(0deg, #f3f4f6 85%, rgba(243, 244, 246, 0));
   max-width: 480px;
   margin-left: auto;
   margin-right: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .wd-btn-primary {
-  display: block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   width: 100%;
   border: none;
-  padding: 16px;
-  border-radius: 999px;
+  padding: 10px 14px;
+  border-radius: 12px;
   background: #5b67f6;
   color: #fff;
-  font-size: 16px;
+  font-size: 13px;
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 8px 24px rgba(91, 103, 246, 0.35);
+  box-shadow: 0 3px 10px rgba(91, 103, 246, 0.25);
   -webkit-tap-highlight-color: transparent;
+  line-height: 1.2;
+}
+
+.wd-btn-primary i {
+  font-size: 12px;
 }
 
 .wd-btn-primary:disabled {
@@ -504,13 +515,45 @@ body.withdraw-app input[type='file'] {
 
 .wd-btn-primary.is-ready {
   background: linear-gradient(135deg, #10b981, #059669);
-  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.4);
-  animation: wd-pulse-ready 2s ease-in-out infinite;
+  box-shadow: 0 3px 10px rgba(16, 185, 129, 0.3);
+  animation: none;
 }
 
-@keyframes wd-pulse-ready {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.02); }
+.wd-btn-compact {
+  padding: 11px 14px !important;
+  font-size: 13px !important;
+  border-radius: 12px !important;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.12) !important;
+}
+
+.wd-btn-secondary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 11px 14px;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  color: #374151;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  box-sizing: border-box;
+}
+
+.wd-points-actions {
+  display: grid;
+  gap: 8px;
+  margin: 8px 0 24px;
+}
+
+.wd-points-actions .wd-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
 .wd-btn-inline-submit {
@@ -521,28 +564,28 @@ body.withdraw-app input[type='file'] {
 .wd-flow-help {
   background: #fff;
   border: 1px solid #e5e7eb;
-  border-radius: 14px;
-  padding: 14px 16px;
-  margin-bottom: 12px;
-  font-size: 13px;
-  line-height: 1.5;
-  color: #374151;
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #4b5563;
 }
 
 .wd-flow-help strong {
   display: block;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   color: #111827;
-  font-size: 14px;
+  font-size: 12px;
 }
 
 .wd-flow-help ol {
   margin: 0;
-  padding-left: 20px;
+  padding-left: 18px;
 }
 
 .wd-flow-help li {
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .wd-flow-help li:last-child {
@@ -550,9 +593,9 @@ body.withdraw-app input[type='file'] {
 }
 
 .wd-submit-hint {
-  margin: 10px 0 0;
-  font-size: 13px;
-  line-height: 1.45;
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.35;
   text-align: center;
   color: #6b7280;
 }
@@ -564,8 +607,8 @@ body.withdraw-app input[type='file'] {
 
 .wd-steps {
   display: flex;
-  gap: 8px;
-  margin-bottom: 14px;
+  gap: 6px;
+  margin-bottom: 10px;
   flex-wrap: wrap;
 }
 
@@ -573,21 +616,21 @@ body.withdraw-app input[type='file'] {
   flex: 1 1 0;
   min-width: 0;
   background: #fff;
-  border-radius: 12px;
-  padding: 10px 6px;
+  border-radius: 10px;
+  padding: 7px 4px;
   text-align: center;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 600;
   color: #9ca3af;
   border: 1px solid #e5e7eb;
-  line-height: 1.35;
+  line-height: 1.3;
   word-break: break-word;
 }
 
 .wd-step i {
   display: block;
-  font-size: 16px;
-  margin-bottom: 4px;
+  font-size: 13px;
+  margin-bottom: 2px;
 }
 
 .wd-step.done {
@@ -642,7 +685,21 @@ body.withdraw-app .wd-mode-tabs {
 html.social-app body.withdraw-app footer.wd-footer,
 body.withdraw-app footer.wd-footer {
   display: flex !important;
+  flex-direction: column;
+  gap: 6px;
   visibility: visible !important;
+  padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0));
+}
+
+/* Critical: .wd-btn-primary { display:block } must not override [hidden] */
+body.withdraw-app .wd-btn-primary[hidden],
+body.withdraw-app .wd-btn-inline-submit[hidden],
+body.withdraw-app button[hidden],
+body.withdraw-app .wd-card[hidden],
+body.withdraw-app .wd-flow-help[hidden],
+body.withdraw-app .wd-steps[hidden],
+body.withdraw-app [hidden] {
+  display: none !important;
 }
 
 html.social-app body.withdraw-app .wd-mode-tab,
@@ -782,63 +839,49 @@ body.withdraw-app .wd-mode-tab {
 .wd-mode-tabs {
   display: grid !important;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin: 0 0 16px;
-  padding: 4px;
+  gap: 3px;
+  margin: 0 0 10px;
+  padding: 3px;
   background: #e5e7eb;
-  border-radius: 14px;
+  border-radius: 10px;
 }
 
 .wd-mode-tab {
   border: none;
   background: transparent;
   color: #4b5563;
-  border-radius: 10px;
-  min-height: 52px;
-  padding: 12px 10px;
-  font-size: 14px;
-  font-weight: 800;
+  border-radius: 8px;
+  min-height: 34px;
+  padding: 6px 6px;
+  font-size: 11px;
+  font-weight: 700;
   display: inline-flex !important;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 5px;
   cursor: pointer;
+  line-height: 1.15;
+}
+
+.wd-mode-tab i {
+  font-size: 11px;
 }
 
 .wd-mode-tab.is-active {
   background: #fff;
   color: #4f46e5;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
 }
 
 .wd-mode-tab[data-mode="exchange"].is-active {
   background: linear-gradient(135deg, #6366f1, #4f46e5);
   color: #fff;
-  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.35);
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.28);
 }
 
+/* Removed duplicate shortcut row — keep CSS inert if cached HTML remains */
 .wd-exchange-shortcut {
-  display: flex;
-  gap: 8px;
-  margin: 0 0 14px;
-}
-
-.wd-exchange-shortcut button {
-  flex: 1;
-  min-height: 44px;
-  border-radius: 12px;
-  border: 1px solid #c7d2fe;
-  background: #eef2ff;
-  color: #3730a3;
-  font-weight: 700;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.wd-exchange-shortcut button.is-active {
-  background: linear-gradient(135deg, #6366f1, #4f46e5);
-  border-color: transparent;
-  color: #fff;
+  display: none !important;
 }
 
 .wd-card-flush {

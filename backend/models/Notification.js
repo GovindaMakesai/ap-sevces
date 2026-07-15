@@ -17,7 +17,8 @@ class Notification {
     }
     
     // Get user's notifications
-    static async getUserNotifications(userId, limit = 20, offset = 0, unreadOnly = false) {
+    static async getUserNotifications(userId, limit = 20, offset = 0, unreadOnly = false, options = {}) {
+        const excludeTypes = Array.isArray(options.excludeTypes) ? options.excludeTypes.filter(Boolean) : [];
         let query = `
             SELECT * FROM notifications 
             WHERE user_id = $1
@@ -25,6 +26,12 @@ class Notification {
         const params = [userId];
         let paramIndex = 2;
         
+        if (excludeTypes.length) {
+            query += ` AND type <> ALL($${paramIndex}::text[])`;
+            params.push(excludeTypes);
+            paramIndex += 1;
+        }
+
         if (unreadOnly) {
             query += ` AND is_read = false`;
         }
@@ -37,12 +44,18 @@ class Notification {
     }
     
     // Get unread count
-    static async getUnreadCount(userId) {
-        const query = `
+    static async getUnreadCount(userId, options = {}) {
+        const excludeTypes = Array.isArray(options.excludeTypes) ? options.excludeTypes.filter(Boolean) : [];
+        let query = `
             SELECT COUNT(*) FROM notifications 
             WHERE user_id = $1 AND is_read = false
         `;
-        const result = await db.query(query, [userId]);
+        const params = [userId];
+        if (excludeTypes.length) {
+            query += ` AND type <> ALL($2::text[])`;
+            params.push(excludeTypes);
+        }
+        const result = await db.query(query, params);
         return parseInt(result.rows[0].count);
     }
     

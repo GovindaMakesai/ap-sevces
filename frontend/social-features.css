@@ -997,7 +997,8 @@
   padding: 12px 16px;
   border-radius: 14px;
   font-size: 13px;
-  z-index: 400;
+  /* Above gift sheet (13000) / live overlays so send failures are visible */
+  z-index: 20000;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.25s, transform 0.25s;

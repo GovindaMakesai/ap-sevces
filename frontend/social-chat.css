@@ -361,9 +361,26 @@ html.ap-expo-app .chat-item .chat-info h4 {
   font-weight: 700;
   color: var(--ap-msg-text);
   margin: 0 0 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
+}
+
+html.ap-expo-app .chat-item .chat-info h4 .chat-name-text {
+  min-width: 0;
+  overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html.ap-expo-app .chat-item .chat-info h4 .ap-role-badge,
+html.ap-expo-app .chat-item .chat-info h4 .ap-msg-official {
+  flex-shrink: 0;
+  font-size: 9px;
+  padding: 1px 6px;
 }
 
 html.ap-expo-app .chat-item .chat-info p {
@@ -735,10 +752,26 @@ html.ap-expo-app .chat-back-btn {
 html.ap-expo-app .chat-user-details h3 {
   font-size: 15px;
   font-weight: 700;
-  max-width: 58vw;
+  max-width: min(58vw, 220px);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
+}
+
+html.ap-expo-app .chat-user-details h3 .chat-name-text {
+  min-width: 0;
+  overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html.ap-expo-app .chat-user-details h3 .ap-role-badge {
+  flex-shrink: 0;
+  font-size: 9px;
+  padding: 1px 6px;
 }
 
 html.ap-expo-app .chat-user-status {

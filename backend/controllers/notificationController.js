@@ -1,6 +1,13 @@
 // backend/controllers/notificationController.js
 const Notification = require('../models/Notification');
 const User = require('../models/User');
+const { ADMIN_ROLES } = require('../middleware/permissions');
+
+const PERSONAL_CHAT_TYPES = ['chat_message', 'message', 'direct_message', 'dm'];
+
+function isAdminUser(req) {
+    return ADMIN_ROLES.has(String(req.userRole || req.user?.role || ''));
+}
 
 // @desc    Get unread notifications count
 // @route   GET /api/notifications/unread-count
@@ -8,8 +15,8 @@ const User = require('../models/User');
 exports.getUnreadCount = async (req, res) => {
     try {
         const userId = req.userId;
-        
-        const count = await Notification.getUnreadCount(userId);
+        const excludeTypes = isAdminUser(req) ? PERSONAL_CHAT_TYPES : [];
+        const count = await Notification.getUnreadCount(userId, { excludeTypes });
         
         res.json({
             success: true,
@@ -32,11 +39,12 @@ exports.getNotifications = async (req, res) => {
         const userId = req.userId;
         const { limit = 20, page = 1, unread_only = false } = req.query;
         const offset = (page - 1) * limit;
+        const excludeTypes = isAdminUser(req) ? PERSONAL_CHAT_TYPES : [];
         
         const notifications = await Notification.getUserNotifications(
-            userId, parseInt(limit), parseInt(offset), unread_only === 'true'
+            userId, parseInt(limit), parseInt(offset), unread_only === 'true', { excludeTypes }
         );
-        const unreadCount = await Notification.getUnreadCount(userId);
+        const unreadCount = await Notification.getUnreadCount(userId, { excludeTypes });
         
         res.json({
             success: true,

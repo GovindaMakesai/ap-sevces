@@ -6,9 +6,9 @@
   <meta name="theme-color" content="#1a0f3a">
   <title>Party Room - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-live.css?v=20260713-host-left">
+  <link rel="stylesheet" href="social-live.css?v=20260715-live-ui">
   <link rel="stylesheet" href="social-live-session.css?v=20260703-minimize-fix">
-  <link rel="stylesheet" href="social-live-ref-ui.css?v=20260628-hotfix">
+  <link rel="stylesheet" href="social-live-ref-ui.css?v=20260714-admin-frame">
   <link rel="stylesheet" href="social-fx.css">
   <style id="ap-immersive-critical">
     html.ap-live-immersive .social-bridge-header,
@@ -138,6 +138,8 @@
 
     <div class="party-host-bar" id="partyHostBar">
       <button type="button" class="party-host-action mod-tool" id="partyBtnRequests"><i class="fas fa-users"></i> Users <span id="partyReqCount" class="party-req-badge" hidden>0</span></button>
+      <button type="button" class="party-host-action mod-tool" id="partyBtnMuteAllChat"><i class="fas fa-comment-slash"></i> Mute all chat</button>
+      <button type="button" class="party-host-action mod-tool" id="partyBtnClearChat"><i class="fas fa-eraser"></i> Clear chat</button>
     </div>
 
     <div class="party-invite-row">
@@ -183,7 +185,7 @@
       <button type="button" id="liveChatSend" class="ap-chat-send-btn" aria-label="Send"><i class="fas fa-paper-plane"></i></button>
     </div>
     <button type="button" class="party-btn-follow ap-btn-follow-hidden" id="partyBtnFollow" aria-hidden="true">Follow +</button>
-    <button type="button" class="party-btn-join-seat ap-btn-follow-hidden" id="partyBtnJoinSeat" style="display:none">Request mic</button>
+    <button type="button" class="party-btn-join-seat" id="partyBtnJoinSeat" hidden aria-hidden="true" style="display:none">Request mic</button>
     <div class="party-bottom-actions">
       <button type="button" id="partyBtnTools" class="ap-btn-grid" aria-label="Tools"><i class="fas fa-th"></i><span class="ap-notify-dot" id="apToolsNotifyDot" hidden></span></button>
       <button type="button" id="liveBtnMic" class="ap-btn-mic-ring" aria-label="Request mic"><i class="fas fa-microphone"></i></button>
@@ -279,13 +281,13 @@
   <script src="app.js?v=20260713-hierarchy"></script>
   <script src="social-wallet.js?v=20260714-gift-only"></script>
   <script src="social-ui.js"></script>
-  <script src="social-interactions.js"></script>
+  <script src="social-interactions.js?v=20260714-invite-fix"></script>
   <script src="auth-guard.js"></script>
-  <script src="social-fx.js"></script>
+  <script src="social-fx.js?v=20260715-live-ui"></script>
   <script src="live-emoji-data.js"></script>
   <script src="social-shell.js?v=20260713-live-ux"></script>
   <script src="live-session-provider.js?v=20260624-android-back"></script>
-  <script src="social-live.js?v=20260714-gift-only"></script>
+  <script src="social-live.js?v=20260715-gift-dedupe"></script>
   <script src="social-nav.js?v=20260624-android-back"></script>
 </body>
 </html>

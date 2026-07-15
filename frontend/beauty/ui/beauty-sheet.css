@@ -1,0 +1,156 @@
+/* Earn4U Beauty Engine sheet */
+.ap-beauty-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+.ap-beauty-sheet.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+.ap-beauty-panel {
+  width: 100%;
+  max-width: 520px;
+  max-height: min(72vh, 640px);
+  overflow: auto;
+  background: linear-gradient(180deg, #1a1d27, #0f1117);
+  border-radius: 18px 18px 0 0;
+  padding: 14px 14px calc(16px + env(safe-area-inset-bottom, 0));
+  color: #f4f5f7;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.45);
+}
+.ap-beauty-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+.ap-beauty-head h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+}
+.ap-beauty-sub {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: rgba(244, 245, 247, 0.55);
+}
+.ap-beauty-close {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  cursor: pointer;
+}
+.ap-beauty-tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+}
+.ap-beauty-tab {
+  flex: 0 0 auto;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: transparent;
+  color: rgba(244, 245, 247, 0.65);
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ap-beauty-tab.is-on {
+  background: rgba(59, 130, 246, 0.25);
+  border-color: rgba(59, 130, 246, 0.45);
+  color: #bfdbfe;
+}
+.ap-beauty-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.ap-beauty-toolbar button,
+.ap-beauty-toggle {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ap-beauty-toolbar button.is-on {
+  background: rgba(251, 191, 36, 0.25);
+  border-color: rgba(251, 191, 36, 0.45);
+}
+.ap-beauty-fps {
+  margin-left: auto;
+  font-size: 11px;
+  color: rgba(244, 245, 247, 0.45);
+  font-variant-numeric: tabular-nums;
+}
+.ap-beauty-presets {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.ap-beauty-preset {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 12px;
+  padding: 10px 8px;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.ap-beauty-preset.is-active {
+  border-color: rgba(59, 130, 246, 0.55);
+  background: rgba(59, 130, 246, 0.18);
+}
+.ap-beauty-preset .swatch {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+}
+.ap-beauty-sliders {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ap-beauty-slider .lbl {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  margin-bottom: 4px;
+  color: rgba(244, 245, 247, 0.85);
+}
+.ap-beauty-slider input[type='range'] {
+  width: 100%;
+  accent-color: #3b82f6;
+}
+.ap-beauty-hint {
+  font-size: 11px;
+  color: rgba(244, 245, 247, 0.45);
+  margin-top: 12px;
+}

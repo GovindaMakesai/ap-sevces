@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#faf6ee">
   <title>Streamer Center - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-live.css?v=20260713-hours-split">
+  <link rel="stylesheet" href="social-live.css?v=20260714-points-friendly">
   <link rel="stylesheet" href="mobile-app.css">
 </head>
 <body data-live-page="streamer-center" class="streamer-page">
@@ -17,9 +17,28 @@
     <p class="streamer-agency" id="streamerAgency" hidden></p>
   </header>
 
+  <section class="streamer-card streamer-balance-card">
+    <h2>Your balance</h2>
+    <p class="streamer-hint">Points = what you earn from gifts (can withdraw / exchange). Coins = what you spend to send gifts.</p>
+    <div class="streamer-metrics streamer-metrics--split">
+      <div class="metric metric--points">
+        <div class="val" id="streamerTotalPoints">0 pts</div>
+        <div class="lbl">Total points (available now)</div>
+      </div>
+      <div class="metric metric--coins">
+        <div class="val" id="streamerTotalCoins">0 coins</div>
+        <div class="lbl">Total coins (wallet)</div>
+      </div>
+      <div class="metric metric--lifetime">
+        <div class="val" id="streamerLifetimePoints">0 pts</div>
+        <div class="lbl">All-time points earned</div>
+      </div>
+    </div>
+  </section>
+
   <section class="streamer-card">
     <h2>Hosting time</h2>
-    <p style="font-size:12px;color:#6b7280;margin:-4px 0 10px">Live and Party tracked separately · hours per day</p>
+    <p class="streamer-hint">Live and Party tracked separately · hours per day</p>
     <div class="streamer-pills" id="streamerStatsPills">
       <button type="button" class="active" data-stats-period="today">Today</button>
       <button type="button" data-stats-period="week">Week</button>
@@ -36,12 +55,15 @@
         <div class="val" id="streamerPartyOnlyHours">0h 0m</div>
         <div class="lbl">Party hours</div>
       </div>
-      <div class="metric"><div class="val" id="streamerWonPoints">0</div><div class="lbl">Won points</div></div>
+      <div class="metric metric--points">
+        <div class="val" id="streamerWonPoints">0 pts</div>
+        <div class="lbl">Points earned (this period)</div>
+      </div>
       <div class="metric"><div class="val" id="streamerNewFollowers">0</div><div class="lbl">New followers</div></div>
     </div>
 
     <div class="streamer-daily-hours">
-      <h3 class="streamer-daily-title streamer-daily-title--live">Live · per day</h3>
+      <h3 class="streamer-daily-title streamer-daily-title--live">Live · hours each day</h3>
       <div id="streamerDailyLiveList" class="streamer-daily-list"><p style="font-size:12px;color:#9ca3af">Loading…</p></div>
       <div class="streamer-daily-pager" id="streamerLivePager" hidden>
         <button type="button" data-page-dir="-1" data-page-kind="live">Prev</button>
@@ -51,7 +73,7 @@
     </div>
 
     <div class="streamer-daily-hours" style="margin-top:18px">
-      <h3 class="streamer-daily-title streamer-daily-title--party">Party · per day</h3>
+      <h3 class="streamer-daily-title streamer-daily-title--party">Party · hours each day</h3>
       <div id="streamerDailyPartyList" class="streamer-daily-list"><p style="font-size:12px;color:#9ca3af">Loading…</p></div>
       <div class="streamer-daily-pager" id="streamerPartyPager" hidden>
         <button type="button" data-page-dir="-1" data-page-kind="party">Prev</button>
@@ -59,10 +81,22 @@
         <button type="button" data-page-dir="1" data-page-kind="party">Next</button>
       </div>
     </div>
+
+    <div class="streamer-daily-hours" style="margin-top:18px">
+      <h3 class="streamer-daily-title streamer-daily-title--points">Points earned · each day</h3>
+      <p class="streamer-hint" style="margin-top:-4px">Your 90% share when viewers send you gifts</p>
+      <div id="streamerDailyPointsList" class="streamer-daily-list"><p style="font-size:12px;color:#9ca3af">Loading…</p></div>
+      <div class="streamer-daily-pager" id="streamerPointsPager" hidden>
+        <button type="button" data-page-dir="-1" data-page-kind="points">Prev</button>
+        <span id="streamerPointsPageLabel">1 / 1</span>
+        <button type="button" data-page-dir="1" data-page-kind="points">Next</button>
+      </div>
+    </div>
   </section>
 
   <section class="streamer-card">
-    <h2>Your activity <span style="font-size:11px;font-weight:600;color:#9ca3af">watch + host + gifts</span></h2>
+    <h2>Your activity</h2>
+    <p class="streamer-hint">Time you watched or hosted, plus gifts you sent or received</p>
     <div class="streamer-pills streamer-activity-pills" id="streamerActivityPills">
       <button type="button" class="active" data-activity-period="today">Today</button>
       <button type="button" data-activity-period="week">Week</button>
@@ -71,13 +105,35 @@
     </div>
     <p class="streamer-period-days" id="activityPeriodDaysLabel">Showing <strong>1</strong> day</p>
     <div class="streamer-metrics" id="userActivityMetrics">
-      <div class="metric"><div class="val" id="activityPeriodDays">1</div><div class="lbl">Number of days</div></div>
-      <div class="metric"><div class="val" id="activityWatchTime">00:00:00</div><div class="lbl">Watching live &amp; party</div></div>
-      <div class="metric"><div class="val" id="activityHostTime">00:00:00</div><div class="lbl">Hosting time</div></div>
-      <div class="metric"><div class="val" id="activityGiftsSent">0</div><div class="lbl">Gifts sent (coins)</div></div>
-      <div class="metric"><div class="val" id="activityGiftsRecv">0</div><div class="lbl">Gifts received (coins)</div></div>
+      <div class="metric"><div class="val" id="activityPeriodDays">1</div><div class="lbl">Days in this view</div></div>
+      <div class="metric"><div class="val" id="activityWatchTime">00:00:00</div><div class="lbl">Time watching others</div></div>
+      <div class="metric"><div class="val" id="activityHostTime">00:00:00</div><div class="lbl">Time hosting</div></div>
+      <div class="metric metric--coins"><div class="val" id="activityGiftsSent">0 coins</div><div class="lbl">Coins spent on gifts you sent</div></div>
+      <div class="metric metric--points"><div class="val" id="activityGiftsRecv">0 pts</div><div class="lbl">Points from gifts you received</div></div>
       <div class="metric"><div class="val" id="activityRoomsJoined">0</div><div class="lbl">Rooms joined</div></div>
-      <div class="metric"><div class="val" id="activityPartyWatch">00:00:00</div><div class="lbl">Party time (watch)</div></div>
+      <div class="metric"><div class="val" id="activityPartyWatch">00:00:00</div><div class="lbl">Party watch time</div></div>
+    </div>
+
+    <div class="streamer-daily-hours" style="margin-top:18px">
+      <h3 class="streamer-daily-title streamer-daily-title--sent">Gifts you sent · each day</h3>
+      <p class="streamer-hint" style="margin-top:-4px">Coins left your wallet when you gifted others</p>
+      <div id="streamerDailyGiftsSentList" class="streamer-daily-list"><p style="font-size:12px;color:#9ca3af">Loading…</p></div>
+      <div class="streamer-daily-pager" id="streamerGiftsSentPager" hidden>
+        <button type="button" data-page-dir="-1" data-page-kind="giftsSent">Prev</button>
+        <span id="streamerGiftsSentPageLabel">1 / 1</span>
+        <button type="button" data-page-dir="1" data-page-kind="giftsSent">Next</button>
+      </div>
+    </div>
+
+    <div class="streamer-daily-hours" style="margin-top:18px">
+      <h3 class="streamer-daily-title streamer-daily-title--recv">Gifts you received · each day</h3>
+      <p class="streamer-hint" style="margin-top:-4px">Points added for you (90% of gift value)</p>
+      <div id="streamerDailyGiftsRecvList" class="streamer-daily-list"><p style="font-size:12px;color:#9ca3af">Loading…</p></div>
+      <div class="streamer-daily-pager" id="streamerGiftsRecvPager" hidden>
+        <button type="button" data-page-dir="-1" data-page-kind="giftsRecv">Prev</button>
+        <span id="streamerGiftsRecvPageLabel">1 / 1</span>
+        <button type="button" data-page-dir="1" data-page-kind="giftsRecv">Next</button>
+      </div>
     </div>
   </section>
 
@@ -100,7 +156,7 @@
     </div>
     <div class="streamer-metrics" id="streamerLastMetrics">
       <div class="metric"><div class="val" id="streamerLastHours">00:00:00</div><div class="lbl">Hours of Live Streaming</div></div>
-      <div class="metric"><div class="val" id="streamerLastPoints">0</div><div class="lbl">Won points</div></div>
+      <div class="metric metric--points"><div class="val" id="streamerLastPoints">0 pts</div><div class="lbl">Points earned (this period)</div></div>
       <div class="metric"><div class="val" id="streamerLastFollowers">0</div><div class="lbl">New followers</div></div>
       <div class="metric"><div class="val" id="streamerLastAudiences">0</div><div class="lbl">Audiences</div></div>
     </div>
@@ -160,7 +216,7 @@
   <script src="auth-guard.js"></script>
   <script src="social-shell.js"></script>
   <script src="social-nav.js"></script>
-  <script src="social-live.js?v=20260713-hours-split"></script>
+  <script src="social-live.js?v=20260714-points-friendly"></script>
   <script>
     (async function () {
       let user = window.Auth?.getUser?.() || null;

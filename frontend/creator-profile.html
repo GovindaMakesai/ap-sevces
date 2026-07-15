@@ -201,7 +201,13 @@
             const idEl = document.getElementById('creatorDisplayId');
             if (idEl) idEl.textContent = publicDisplayId || '—';
             const displayName = e.displayName || name;
-            document.getElementById('creatorName').textContent = displayName;
+            const roleBadge = window.formatRoleBadgeHtml?.(e.role || e, { withEmoji: true }) || '';
+            const nameEl = document.getElementById('creatorName');
+            if (nameEl) {
+              nameEl.innerHTML =
+                (displayName || '').replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c])) +
+                (roleBadge ? ' ' + roleBadge : '');
+            }
             document.getElementById('creatorTitle').textContent = displayName;
             const avatarEl = hero.querySelector('.creator-avatar');
             if (avatarEl && e.profilePic) {
