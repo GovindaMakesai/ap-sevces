@@ -35,23 +35,27 @@
 
   async function api(path, opts = {}) {
     const clean = path.startsWith('/') ? path : '/' + path;
-    if (window.API?.get && window.API?.request) {
-      const method = (opts.method || 'GET').toUpperCase();
-      if (method === 'GET') return API().get(clean);
-      return API().request(clean, {
-        method,
+    try {
+      if (window.API?.get && window.API?.request) {
+        const method = (opts.method || 'GET').toUpperCase();
+        if (method === 'GET') return await API().get(clean);
+        return await API().request(clean, {
+          method,
+          body: opts.body != null ? JSON.stringify(opts.body) : undefined,
+          headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
+        });
+      }
+      const base = (window.CONFIG && window.CONFIG.API_URL) || window.AP_SERVICES_API_ROOT || '/api';
+      const res = await fetch(String(base).replace(/\/$/, '') + clean, {
+        method: opts.method || 'GET',
+        headers: { 'Content-Type': 'application/json', ...authHeaders(), ...(opts.headers || {}) },
         body: opts.body != null ? JSON.stringify(opts.body) : undefined,
-        headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
+        credentials: 'include',
       });
+      return await res.json();
+    } catch (e) {
+      return { success: false, message: e.message || 'Network error' };
     }
-    const base = (window.CONFIG && window.CONFIG.API_URL) || window.AP_SERVICES_API_ROOT || '/api';
-    const res = await fetch(String(base).replace(/\/$/, '') + clean, {
-      method: opts.method || 'GET',
-      headers: { 'Content-Type': 'application/json', ...authHeaders(), ...(opts.headers || {}) },
-      body: opts.body != null ? JSON.stringify(opts.body) : undefined,
-      credentials: 'include',
-    });
-    return res.json();
   }
 
   function money(n) {
@@ -67,21 +71,18 @@
     if (window.SocialUI?.avatarUrl) return SocialUI.avatarUrl(name || 'User', pic || null);
     if (pic) return pic;
     const n = encodeURIComponent(name || 'U');
-    return `https://ui-avatars.com/api/?name=${n}&background=312e81&color=fff`;
+    return `https://ui-avatars.com/api/?name=${n}&background=c9a227&color=fff`;
   }
 
   function spawnParticles() {
-    const root = document.getElementById('refParticles');
-    if (!root || root.dataset.ready) return;
-    root.dataset.ready = '1';
-    for (let i = 0; i < 28; i += 1) {
-      const s = document.createElement('span');
-      s.style.left = Math.random() * 100 + '%';
-      s.style.animationDuration = 8 + Math.random() * 12 + 's';
-      s.style.animationDelay = Math.random() * 8 + 's';
-      s.style.width = s.style.height = 2 + Math.random() * 4 + 'px';
-      root.appendChild(s);
-    }
+    /* disabled — dark particles broke cream theme readability */
+  }
+
+  function showBootError(msg) {
+    const el = document.getElementById('refBootError');
+    if (!el) return;
+    el.hidden = false;
+    el.textContent = msg;
   }
 
   function renderQr(text) {
@@ -378,21 +379,34 @@
     document.getElementById('refRegenBtn')?.addEventListener('click', () => generate().catch((e) => toast(e.message)));
 
     try {
-      if (!window.Auth?.getUser?.() && !localStorage.getItem('token') && !localStorage.getItem('user')) {
+      const hasSession =
+        Boolean(window.Auth?.getUser?.()) ||
+        Boolean(localStorage.getItem('token')) ||
+        Boolean(localStorage.getItem('access_token')) ||
+        Boolean(localStorage.getItem('user'));
+      if (!hasSession) {
         location.href = '/login.html?redirect=' + encodeURIComponent('/referral.html?app=1');
         return;
       }
+      document.getElementById('refCode').textContent = 'Loading…';
       await loadDashboard();
+      if (!state.dashboard?.invitation?.code) {
+        await generate();
+      }
       const pending = localStorage.getItem('ap_pending_ref');
       if (pending) {
         const input = document.getElementById('refApplyInput');
         if (input) input.value = pending;
       }
     } catch (e) {
+      showBootError(e.message || 'Could not load invites. Tap Refresh.');
       toast(e.message || 'Load failed');
       try {
         await generate();
-      } catch (_e2) {}
+      } catch (e2) {
+        showBootError(e2.message || 'Invite API unavailable — restart the server if this continues.');
+        document.getElementById('refCode').textContent = '———';
+      }
     }
   }
 
