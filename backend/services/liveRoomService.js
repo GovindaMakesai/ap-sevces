@@ -635,7 +635,122 @@ async function muteAllMembersChat({ liveRoomId, muted, excludeUserIds = [] }) {
 
 function maxSpeakersForRoom(room) {
   if (!room) return 14;
+  /* Live: host + 4 guests = 5 on stream. Party: host + 14 guests. */
   return room.room_type === 'live' ? 4 : 14;
+}
+
+async function countActiveStageGuests(liveRoomId, excludeUserId, client) {
+  const q = client || db;
+  const countRes = await q.query(
+    `SELECT COUNT(*)::int AS n FROM live_room_members
+     WHERE live_room_id = $1 AND left_at IS NULL
+       AND role <> 'host'
+       AND (
+         role = 'speaker'
+         OR role = 'admin'
+         OR seat_index IS NOT NULL
+       )
+       AND ($2::uuid IS NULL OR user_id <> $2::uuid)`,
+    [liveRoomId, excludeUserId || null]
+  );
+  return countRes.rows[0]?.n || 0;
+}
+
+async function promoteToSpeaker({ channel, userId, displayName, seatIndex = null }) {
+  const room = await findByChannel(channel);
+  if (!room) throw new Error('Room not found');
+
+  const maxSpeakers = maxSpeakersForRoom(room);
+  await ensureMemberInRoom({ channel, userId, displayName });
+
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+    /* Serialize seat promotions so live cannot exceed max 5 (host + 4 guests). */
+    await client.query(`SELECT id FROM live_rooms WHERE id = $1 FOR UPDATE`, [room.id]);
+
+    const memberRes = await client.query(
+      `SELECT display_name, role, seat_index FROM live_room_members
+       WHERE live_room_id = $1 AND user_id = $2 AND left_at IS NULL
+       FOR UPDATE`,
+      [room.id, userId]
+    );
+    if (!memberRes.rows[0]) {
+      throw new Error('User is not in this room — they must join the live first');
+    }
+    if (memberRes.rows[0].role === 'host') throw new Error('Host is already on stage');
+
+    const alreadyOnStage =
+      memberRes.rows[0].role === 'speaker' ||
+      memberRes.rows[0].role === 'admin' ||
+      memberRes.rows[0].seat_index != null;
+
+    if (!alreadyOnStage) {
+      const onStage = await countActiveStageGuests(room.id, userId, client);
+      if (onStage >= maxSpeakers) {
+        const label =
+          room.room_type === 'live'
+            ? 'Live stage is full — max 5 people (host + 4 guests)'
+            : 'Party room is full — maximum 15 people on stage';
+        throw new Error(label);
+      }
+    }
+
+    const name = String(displayName || memberRes.rows[0]?.display_name || 'Guest').slice(0, 32);
+    const preferredSeat =
+      seatIndex != null && seatIndex !== ''
+        ? Math.max(1, Math.min(15, parseInt(seatIndex, 10) || 1))
+        : null;
+
+    const updated = await client.query(
+      `UPDATE live_room_members SET
+         role = CASE WHEN role = 'admin' THEN 'admin' ELSE 'speaker' END,
+         display_name = COALESCE(NULLIF(display_name, ''), $3),
+         seat_index = COALESCE(
+           $4::int,
+           seat_index,
+           (
+             SELECT COALESCE(MAX(seat_index), 1) + 1
+             FROM live_room_members
+             WHERE live_room_id = $1 AND left_at IS NULL AND role IN ('speaker', 'admin', 'host')
+           )
+         ),
+         last_seen_at = CURRENT_TIMESTAMP
+       WHERE live_room_id = $1 AND user_id = $2 AND left_at IS NULL AND role IN ('viewer', 'admin', 'speaker')
+       RETURNING user_id, role, seat_index`,
+      [room.id, userId, name, preferredSeat]
+    );
+
+    if (!updated.rows[0]) {
+      throw new Error('Could not place guest on seat — ask them to rejoin the room');
+    }
+
+    /* Final guard after write (admins already on stage excluded from "new" path). */
+    if (!alreadyOnStage) {
+      const after = await countActiveStageGuests(room.id, null, client);
+      if (after > maxSpeakers) {
+        throw new Error(
+          room.room_type === 'live'
+            ? 'Live stage is full — max 5 people (host + 4 guests)'
+            : 'Party room is full — maximum 15 people on stage'
+        );
+      }
+    }
+
+    await client.query(
+      `INSERT INTO live_room_events (live_room_id, user_id, event_type, payload) VALUES ($1, $2, 'seat_join', $3)`,
+      [room.id, userId, JSON.stringify({ display_name: name, seat_index: updated.rows[0].seat_index })]
+    );
+
+    await client.query('COMMIT');
+    invalidateRoomCache(channel);
+    return { room, member: updated.rows[0] };
+  } catch (e) {
+    await db.safeRollback(client);
+    throw e;
+  } finally {
+    client.release();
+  }
 }
 
 async function ensureMemberInRoom({ channel, userId, displayName }) {
@@ -677,81 +792,6 @@ async function ensureMemberInRoom({ channel, userId, displayName }) {
     [room.id, userId]
   );
   return again.rows[0] || null;
-}
-
-async function promoteToSpeaker({ channel, userId, displayName, seatIndex = null }) {
-  const room = await findByChannel(channel);
-  if (!room) throw new Error('Room not found');
-
-  const maxSpeakers = maxSpeakersForRoom(room);
-  await ensureMemberInRoom({ channel, userId, displayName });
-
-  const memberRes = await db.query(
-    `SELECT display_name, role, seat_index FROM live_room_members
-     WHERE live_room_id = $1 AND user_id = $2 AND left_at IS NULL`,
-    [room.id, userId]
-  );
-  if (!memberRes.rows[0]) throw new Error('User is not in this room — they must join the live first');
-  if (memberRes.rows[0].role === 'host') throw new Error('Host is already on stage');
-
-  const alreadyOnStage =
-    memberRes.rows[0].role === 'speaker' ||
-    memberRes.rows[0].role === 'admin' ||
-    memberRes.rows[0].seat_index != null;
-
-  if (!alreadyOnStage) {
-    const countRes = await db.query(
-      `SELECT COUNT(*)::int AS n FROM live_room_members
-       WHERE live_room_id = $1 AND left_at IS NULL
-         AND (role = 'speaker' OR (seat_index IS NOT NULL AND role <> 'host'))
-         AND user_id <> $2`,
-      [room.id, userId]
-    );
-    if ((countRes.rows[0]?.n || 0) >= maxSpeakers) {
-      const label =
-        room.room_type === 'live'
-          ? 'Live stage is full — max 5 on stream (host + 4 guests)'
-          : 'Party room is full — maximum 15 people on stage';
-      throw new Error(label);
-    }
-  }
-
-  const name = String(displayName || memberRes.rows[0]?.display_name || 'Guest').slice(0, 32);
-  const preferredSeat =
-    seatIndex != null && seatIndex !== ''
-      ? Math.max(1, Math.min(15, parseInt(seatIndex, 10) || 1))
-      : null;
-
-  const updated = await db.query(
-    `UPDATE live_room_members SET
-       role = CASE WHEN role = 'admin' THEN 'admin' ELSE 'speaker' END,
-       display_name = COALESCE(NULLIF(display_name, ''), $3),
-       seat_index = COALESCE(
-         $4::int,
-         seat_index,
-         (
-           SELECT COALESCE(MAX(seat_index), 1) + 1
-           FROM live_room_members
-           WHERE live_room_id = $1 AND left_at IS NULL AND role IN ('speaker', 'admin', 'host')
-         )
-       ),
-       last_seen_at = CURRENT_TIMESTAMP
-     WHERE live_room_id = $1 AND user_id = $2 AND left_at IS NULL AND role IN ('viewer', 'admin', 'speaker')
-     RETURNING user_id, role, seat_index`,
-    [room.id, userId, name, preferredSeat]
-  );
-
-  if (!updated.rows[0]) {
-    throw new Error('Could not place guest on seat — ask them to rejoin the room');
-  }
-
-  await db.query(
-    `INSERT INTO live_room_events (live_room_id, user_id, event_type, payload) VALUES ($1, $2, 'seat_join', $3)`,
-    [room.id, userId, JSON.stringify({ display_name: name, seat_index: updated.rows[0].seat_index })]
-  );
-
-  invalidateRoomCache(channel);
-  return { room, member: updated.rows[0] };
 }
 
 async function endRoom(channel, reason = 'host_ended') {

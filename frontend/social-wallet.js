@@ -133,6 +133,26 @@
     return (Number(b.sell_inventory_coins || b.inventory_coins) || 0) + (Number(b.coin_balance) || 0);
   }
 
+  /**
+   * Ensure gift stock covers `needed`. Coin sellers auto-exchange sell coins → gift coins (1:1)
+   * so Send stays usable on live without leaving the room.
+   */
+  async function ensureGiftableCoins(needed) {
+    const need = Math.max(0, Math.floor(Number(needed) || 0));
+    let bal = await fetchBalance(true);
+    let gift = getGiftableCoins(bal);
+    if (gift >= need) return bal;
+    if (!bal.is_coin_seller || need <= 0) return bal;
+    const shortfall = need - gift;
+    const sellable = getSellableCoins(bal);
+    if (sellable < shortfall) return bal;
+    if (!window.API?.post) return bal;
+    await API.post('/social/coin-seller/exchange', { coins: shortfall });
+    invalidateBalance();
+    bal = await fetchBalance(true);
+    return bal;
+  }
+
   async function sendGift(payload) {
     const res = await API.post('/wallet/gifts', payload);
     const inner = res?.data || res;
@@ -207,6 +227,7 @@
     getWalletCoins,
     getGiftableCoins,
     getSellableCoins,
+    ensureGiftableCoins,
     getWalletSettings,
     sendGift,
     submitRecharge,

@@ -16,7 +16,9 @@
   const PARTY_MAX_SEATS = 15;
   const PARTY_HOST_SLOT = 1;
   const PARTY_MAX_GUESTS = PARTY_MAX_SEATS - 1;
-  const LIVE_MAX_GUESTS = 4;
+  const LIVE_MAX_GUESTS = 4; /* host + 4 guests = 5 on live stream */
+  const LIVE_MAX_ON_STAGE = LIVE_MAX_GUESTS + 1;
+
   const chatProfileCache = new Map();
 
   function giftSlugFor(item) {
@@ -7073,7 +7075,7 @@
       return;
     }
     if (isLiveRoomPage() && countStageGuests() >= LIVE_MAX_GUESTS) {
-      toast('Live stage is full — max 4 guests', 'warning');
+      toast(`Live stage is full — max ${LIVE_MAX_ON_STAGE} people (host + ${LIVE_MAX_GUESTS} guests)`, 'warning');
       return;
     }
     if (isPartyRoomPage() && isPartySeatsFull()) {
@@ -7334,7 +7336,7 @@
       return;
     }
     if (isLiveRoomPage() && countStageGuests() >= LIVE_MAX_GUESTS) {
-      toast('Live stage is full — max 4 guests', 'warning');
+      toast(`Live stage is full — max ${LIVE_MAX_ON_STAGE} people (host + ${LIVE_MAX_GUESTS} guests)`, 'warning');
       return;
     }
     if (isPartyRoomPage() && isPartySeatsFull()) {
@@ -8969,7 +8971,7 @@
     if (isStageFull()) {
       toast(
         isLiveRoomPage()
-          ? 'Live stage is full — max 5 people (host + 4 guests)'
+          ? `Live stage is full — max ${LIVE_MAX_ON_STAGE} people (host + ${LIVE_MAX_GUESTS} guests)`
           : 'Party is full — all 15 seats taken',
         'warning'
       );
@@ -9627,6 +9629,7 @@
     document.getElementById('apInAppShareSheet')?.classList.remove('open');
     document.getElementById('apEmojiPopover')?.classList.remove('is-open');
     document.getElementById('apMicLinkModal')?.classList.remove('open');
+    document.getElementById('apHostMicInviteModal')?.classList.remove('open');
     document.body.classList.remove('party-requests-open');
     document.getElementById('partyRequestsSheet')?.classList.remove('open');
     hideTapForSoundHint();
@@ -9763,6 +9766,13 @@
     let balance = 0;
     let balanceFresh = false;
     try {
+      /* Sellers: auto-convert sell coins → gift coins so Send stays usable in live */
+      if (window.SocialWallet?.ensureGiftableCoins) {
+        await Promise.race([
+          SocialWallet.ensureGiftableCoins(totalCost),
+          new Promise((_, rej) => setTimeout(() => rej(new Error('exchange timeout')), 8000)),
+        ]).catch(() => null);
+      }
       balance = await Promise.race([
         getCoins(true).then((n) => {
           balanceFresh = true;
@@ -9796,11 +9806,15 @@
     }
     if (balance < totalCost) {
       const cached = SocialWallet?.getCachedBalance?.() || {};
+      recoverStuckLiveUi({ forceGift: true });
       if (cached.is_coin_seller) {
-        const msg = 'Not enough gift coins — open Seller Center to exchange';
+        const sellable = SocialWallet?.getSellableCoins?.(cached) || 0;
+        const msg =
+          sellable > 0
+            ? 'Not enough gift coins — convert sell coins in Seller Center, then try again'
+            : 'Not enough gift coins — add stock or convert in Seller Center';
         setGiftSendError(msg);
         toast(msg, 'warning');
-        /* Stay in the live room — never auto-navigate away mid-stream */
       } else {
         const msg = 'Not enough coins — recharge first';
         setGiftSendError(msg);
@@ -10007,6 +10021,7 @@
     document.getElementById('giftSendBtn')?.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
+      recoverStuckLiveUi({ forceGift: false });
       sendSelectedGift();
     });
     document.getElementById('giftSurpriseBtn')?.addEventListener('click', (e) => {
@@ -10014,13 +10029,25 @@
       sheet.classList.remove('open');
       openSurpriseShop();
     });
-    document.getElementById('giftBalanceBtn')?.addEventListener('click', (e) => {
+    document.getElementById('giftBalanceBtn')?.addEventListener('click', async (e) => {
       e.stopPropagation();
       const cached = SocialWallet?.getCachedBalance?.() || {};
       if (cached.is_coin_seller) {
-        sheet.classList.remove('open');
-        closeLiveOverlays();
-        location.href = '/coin-seller-center.html?app=1';
+        /* Stay in live — convert sell→gift for a typical gift amount instead of navigating away */
+        const unit =
+          Number(
+            (GIFT_CATALOG[giftCategory] || GIFT_CATALOG.gift)?.[selectedGiftIdx]?.cost
+          ) || 10;
+        const need = Math.max(unit * giftQty, 100);
+        try {
+          toast('Converting sell coins → gift coins…', 'info');
+          await SocialWallet.ensureGiftableCoins?.(need);
+          await refreshCoinDisplay();
+          updateGiftMeta();
+          toast('Gift coins ready — tap Send', 'success');
+        } catch (err) {
+          toast(err?.message || 'Could not convert coins — open Seller Center from Me', 'warning');
+        }
         return;
       }
       openTopupSheet();
