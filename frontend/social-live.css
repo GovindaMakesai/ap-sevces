@@ -3067,21 +3067,46 @@ body[data-live-page='live-room'] .live-room {
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.1);
   color: #fff;
-  padding: 12px 6px;
+  padding: 10px 4px 8px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
+  min-height: 96px;
+  overflow: visible;
 }
 
 .gift-grid .g {
   font-size: 28px;
+  line-height: 1;
 }
 
-.gift-grid small {
+.gift-grid .gift-name {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  font-size: 10px;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.92;
+}
+
+.gift-grid small,
+.gift-grid .gift-coin-cost {
+  display: block;
+  width: 100%;
+  margin-top: 2px;
   color: #fbbf24;
-  font-weight: 700;
+  font-weight: 800;
+  font-size: 10px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
 }
 
 .gift-recharge-link {
@@ -5324,7 +5349,7 @@ body[data-live-page="party-room"] .ap-guest-rail:not(:empty) {
 .gift-grid button {
   background: rgba(255, 255, 255, 0.06) !important;
   border: 2px solid transparent;
-  min-height: 88px;
+  min-height: 96px;
 }
 
 .gift-grid button.is-selected {
@@ -5334,16 +5359,22 @@ body[data-live-page="party-room"] .ap-guest-rail:not(:empty) {
   box-shadow: 0 0 12px rgba(255, 255, 255, 0.25);
 }
 
-.gift-grid small {
+.gift-grid small,
+.gift-grid .gift-coin-cost {
   color: #fbbf24 !important;
 }
 
 .gift-send-btn {
   min-width: 100px;
-  padding: 12px 28px !important;
+  max-width: 58%;
+  padding: 12px 14px !important;
   background: #fbbf24 !important;
   color: #1a1000 !important;
-  font-size: 15px !important;
+  font-size: 13px !important;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   pointer-events: auto !important;
   touch-action: manipulation;
   z-index: 2;

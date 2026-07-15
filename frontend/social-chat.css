@@ -1021,6 +1021,11 @@ html.social-app .chat-gift-send {
   cursor: pointer;
   font-size: 11px;
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-height: 90px;
 }
 
 .chat-gift-item.is-selected {
@@ -1031,6 +1036,29 @@ html.social-app .chat-gift-send {
 .chat-gift-item .g {
   font-size: 24px;
   display: block;
+  line-height: 1;
+}
+
+.chat-gift-item .gift-name {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #333;
+}
+
+.chat-gift-item .gift-coin-cost,
+.chat-gift-item small {
+  display: block;
+  width: 100%;
+  margin-top: 2px;
+  color: #b45309;
+  font-weight: 800;
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .chat-gift-balance {

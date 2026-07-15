@@ -274,7 +274,7 @@
 
     pushActivity({
       type: 'gift',
-      html: `<strong>${escapeHtml(gift.from || 'User')}</strong> sent ${emoji} ${amount ? `· ${amount.toLocaleString()}🪙` : ''}`,
+      html: `<strong>${escapeHtml(gift.from || 'User')}</strong> sent ${emoji} ${amount ? `· ${amount.toLocaleString()} coins` : ''}`,
     });
 
     if (tier === 'premium') {

@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260715-seat-click';
+  window.__AP_LIVE_BUILD = '20260715-gift-coins';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -6037,12 +6037,17 @@
     });
   }
 
+  function formatGiftCoinPrice(n) {
+    const v = Math.max(0, Number(n) || 0);
+    return `${v.toLocaleString('en-IN')} coins`;
+  }
+
   function updateGiftMeta() {
     const items = GIFT_CATALOG[giftCategory] || GIFT_CATALOG.gift;
     const g = items[selectedGiftIdx] || items[0];
     const banner = document.getElementById('giftRtpBanner');
     if (banner && g) {
-      banner.innerHTML = `<span>【${escapeHtml(g.name)}】Creators receive <strong>90%</strong> · Platform 10% · ${Number(g.cost).toLocaleString()} coins each</span>`;
+      banner.innerHTML = `<span>【${escapeHtml(g.name)}】Creators receive <strong>90%</strong> · Platform 10% · ${formatGiftCoinPrice(g.cost)} each</span>`;
     }
     const me = currentUser();
     const bal = lastCoinBalance != null ? lastCoinBalance : 0;
@@ -6065,6 +6070,7 @@
       sendBtn.disabled = false;
       sendBtn.classList.toggle('is-disabled', bal < total);
       sendBtn.title = bal < total ? 'Not enough gift coins' : 'Send gift';
+      sendBtn.textContent = total > 0 ? `Send · ${formatGiftCoinPrice(total)}` : 'Send';
     }
   }
 
@@ -6903,7 +6909,11 @@
   function showGiftFlyBanner(gift) {
     const el = document.getElementById('apGiftFly');
     if (!el || !gift) return;
-    el.innerHTML = `<img src="${avatarUrl(gift.from)}" alt=""><span><strong>${escapeHtml(gift.from)}</strong> sent ${gift.emoji || '🎁'}</span>`;
+    const amount = Number(gift.amount || gift.coins || gift.cost || 0) || 0;
+    const qty = Math.max(1, Number(gift.qty || gift.quantity || 1) || 1);
+    const costLabel = amount > 0 ? ` · ${formatGiftCoinPrice(amount)}` : '';
+    const qtyLabel = qty > 1 ? ` ×${qty}` : '';
+    el.innerHTML = `<img src="${avatarUrl(gift.from)}" alt=""><span><strong>${escapeHtml(gift.from)}</strong> sent ${gift.emoji || '🎁'}${qtyLabel}${costLabel}</span>`;
     el.classList.add('is-visible');
     clearTimeout(el._hide);
     el._hide = setTimeout(() => el.classList.remove('is-visible'), 4500);
@@ -9628,12 +9638,13 @@
     grid.innerHTML = items
       .map((g, i) => {
         const tier = window.SocialFX?.getGiftTier?.(g) || 'small';
+        const cost = Number(g.cost) || 0;
         return `
-      <button type="button" data-gift-idx="${i}" data-gift="${g.emoji}" data-cost="${g.cost}" data-tier="${tier}" class="${i === selectedGiftIdx ? 'is-selected' : ''}">
+      <button type="button" data-gift-idx="${i}" data-gift="${g.emoji}" data-cost="${cost}" data-tier="${tier}" class="${i === selectedGiftIdx ? 'is-selected' : ''}">
         <span class="g">${g.emoji}</span>
-        <span>${g.name}</span>
-        ${g.tag ? `<span class="gift-tag">${g.tag}</span>` : ''}
-        <small>${g.cost} ${COIN_EMOJI}</small>
+        <span class="gift-name">${escapeHtml(g.name || 'Gift')}</span>
+        ${g.tag ? `<span class="gift-tag">${escapeHtml(g.tag)}</span>` : ''}
+        <span class="gift-coin-cost" aria-label="${formatGiftCoinPrice(cost)}">${formatGiftCoinPrice(cost)}</span>
       </button>`;
       })
       .join('');

@@ -371,8 +371,10 @@ body.ap-ref-ui .gift-grid button.is-selected {
   box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.4) !important;
 }
 
-body.ap-ref-ui .gift-grid small {
-  color: #d97706 !important;
+body.ap-ref-ui .gift-grid small,
+body.ap-ref-ui .gift-grid .gift-coin-cost {
+  color: #b45309 !important;
+  font-weight: 800 !important;
 }
 
 body.ap-ref-ui .gift-qty-btns button {

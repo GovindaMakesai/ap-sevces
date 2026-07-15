@@ -525,9 +525,10 @@ body[data-live-page='live-room'] .gift-grid button {
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
-body[data-live-page='live-room'] .gift-grid small {
-  color: #94a3b8;
-  font-weight: 600;
+body[data-live-page='live-room'] .gift-grid small,
+body[data-live-page='live-room'] .gift-grid .gift-coin-cost {
+  color: #fbbf24;
+  font-weight: 800;
 }
 
 body[data-live-page='live-room'] .gift-balance {
