@@ -3097,9 +3097,16 @@
           id,
           name: req.name || 'Guest',
           userId: id,
+          profilePic: req.profilePic || req.profile_pic || null,
         });
         renderJoinRequests();
         toast(`${req.name || 'Someone'} wants to join${isLiveRoomPage() ? ' the stream' : ' a seat'}`);
+        showHostMicInvitePopup({
+          id,
+          name: req.name || 'Guest',
+          userId: id,
+          profilePic: req.profilePic || req.profile_pic || null,
+        });
       });
 
       liveSocket.on('live:seat_response', async (res) => {
@@ -7012,11 +7019,149 @@
     syncLiveOverlayClass();
   }
 
+  function hideHostMicInvitePopup() {
+    const modal = document.getElementById('apHostMicInviteModal');
+    if (!modal) return;
+    modal.classList.remove('open');
+    modal.dataset.userId = '';
+    syncLiveOverlayClass();
+  }
+
+  function showHostMicInvitePopup(req) {
+    if (!canModerateRoom() || !req) return;
+    ensureHostMicInviteModal();
+    const modal = document.getElementById('apHostMicInviteModal');
+    if (!modal) return;
+    /* If another invite popup is already open, keep it — queue stays in joinRequests */
+    if (modal.classList.contains('open') && modal.dataset.userId) {
+      const showing = String(modal.dataset.userId);
+      if (showing && showing !== String(req.userId || req.id)) return;
+    }
+    const name = req.name || 'Guest';
+    const uid = String(req.userId || req.id || '');
+    const nameEl = document.getElementById('apHostMicInviteName');
+    const subEl = document.getElementById('apHostMicInviteSub');
+    const avEl = document.getElementById('apHostMicInviteAvatar');
+    if (nameEl) nameEl.textContent = name;
+    if (subEl) {
+      subEl.textContent = isLiveRoomPage()
+        ? 'wants to join your live on mic'
+        : 'wants to take a seat on mic';
+    }
+    if (avEl) {
+      avEl.src = avatarUrl(name, req.profilePic);
+      avEl.alt = name;
+    }
+    modal.dataset.userId = uid;
+    closeLiveOverlays('hostMic');
+    modal.classList.add('open');
+    syncLiveOverlayClass();
+  }
+
+  function presentNextHostMicInvite() {
+    if (!canModerateRoom()) return;
+    const modal = document.getElementById('apHostMicInviteModal');
+    if (modal?.classList.contains('open')) return;
+    const next = joinRequests[0];
+    if (next) showHostMicInvitePopup(next);
+  }
+
+  function acceptMicRequest(req, opts = {}) {
+    if (!req) {
+      toast('Request expired — ask them to request again', 'warning');
+      renderJoinRequests();
+      return;
+    }
+    if (isLiveRoomPage() && countStageGuests() >= LIVE_MAX_GUESTS) {
+      toast('Live stage is full — max 4 guests', 'warning');
+      return;
+    }
+    if (isPartyRoomPage() && isPartySeatsFull()) {
+      toast('Party is full — max 15 on stage (host + 14 guests)', 'warning');
+      return;
+    }
+    if (!liveSocket?.connected) {
+      toast('Not connected — try again', 'error');
+      return;
+    }
+    const btn = opts.btn || null;
+    if (btn) {
+      btn.disabled = true;
+      btn.dataset.busy = '1';
+      btn.textContent = '…';
+    }
+    const agreeBtn = document.getElementById('apHostMicInviteAgree');
+    const denyBtn = document.getElementById('apHostMicInviteDeny');
+    const modal = document.getElementById('apHostMicInviteModal');
+    const showingThis =
+      modal?.classList.contains('open') &&
+      String(modal.dataset.userId || '') === String(req.userId || req.id || '');
+    if (showingThis) {
+      if (agreeBtn) agreeBtn.disabled = true;
+      if (denyBtn) denyBtn.disabled = true;
+    }
+    emitSeatResponse(
+      {
+        channel: channelId(),
+        userId: req.userId || req.id,
+        name: req.name,
+        accepted: true,
+      },
+      (res) => {
+        if (btn) {
+          btn.disabled = false;
+          btn.dataset.busy = '0';
+          btn.textContent = 'Accept';
+        }
+        if (agreeBtn) agreeBtn.disabled = false;
+        if (denyBtn) denyBtn.disabled = false;
+        if (res?.ok) {
+          joinRequests = joinRequests.filter((x) => String(x.id) !== String(req.id));
+          renderJoinRequests();
+          if (showingThis) {
+            hideHostMicInvitePopup();
+            presentNextHostMicInvite();
+          }
+          toast(isLiveRoomPage() ? 'Guest joined live' : 'Guest accepted', 'success');
+        } else {
+          toast(res?.message || 'Could not accept guest', 'error');
+        }
+      }
+    );
+  }
+
+  function denyMicRequest(req) {
+    if (!req) {
+      hideHostMicInvitePopup();
+      presentNextHostMicInvite();
+      return;
+    }
+    const reqId = String(req.id || req.userId || '');
+    joinRequests = joinRequests.filter((x) => String(x.id) !== reqId);
+    renderJoinRequests();
+    if (liveSocket) {
+      emitSeatResponse({
+        channel: channelId(),
+        userId: req.userId || req.id,
+        accepted: false,
+      });
+    }
+    const modal = document.getElementById('apHostMicInviteModal');
+    const showingThis =
+      modal?.classList.contains('open') && String(modal.dataset.userId || '') === reqId;
+    if (showingThis) {
+      hideHostMicInvitePopup();
+      presentNextHostMicInvite();
+    }
+    toast('Mic request declined');
+  }
+
   function syncLiveOverlayClass() {
     const open = Boolean(
       document.getElementById('partyToolsSheet')?.classList.contains('open') ||
       document.getElementById('giftSheet')?.classList.contains('open') ||
       document.getElementById('apMicLinkModal')?.classList.contains('open') ||
+      document.getElementById('apHostMicInviteModal')?.classList.contains('open') ||
       document.getElementById('apTopupSheet')?.classList.contains('open') ||
       document.getElementById('partyRequestsSheet')?.classList.contains('open') ||
       document.getElementById('partyMusicSheet')?.classList.contains('open') ||
@@ -7053,7 +7198,7 @@
     }
 
     const openSel =
-      '#giftSheet.open, #partyToolsSheet.open, #apMicLinkModal.open, #apTopupSheet.open, ' +
+      '#giftSheet.open, #partyToolsSheet.open, #apMicLinkModal.open, #apHostMicInviteModal.open, #apTopupSheet.open, ' +
       '#partyRequestsSheet.open, #partyMusicSheet.open, #partyBgPickerSheet.open, ' +
       '#apInAppShareSheet.open, #apSurpriseShop.open, #apFilterSheet.open, #apProfileSheet.open, ' +
       '#apInRoomWebPanel.open, #apSeatSheet.open';
@@ -7174,59 +7319,12 @@
   function handleSeatAcceptClick(btn) {
     if (btn.disabled || btn.dataset.busy === '1') return;
     const req = joinRequests.find((x) => String(x.id) === String(btn.dataset.accept));
-    if (!req) {
-      toast('Request expired — ask them to request again', 'warning');
-      renderJoinRequests();
-      return;
-    }
-    if (isLiveRoomPage() && countStageGuests() >= LIVE_MAX_GUESTS) {
-      toast('Live stage is full — max 4 guests', 'warning');
-      return;
-    }
-    if (isPartyRoomPage() && isPartySeatsFull()) {
-      toast('Party is full — max 15 on stage (host + 14 guests)', 'warning');
-      return;
-    }
-    if (!liveSocket?.connected) {
-      toast('Not connected — try again', 'error');
-      return;
-    }
-    btn.disabled = true;
-    btn.dataset.busy = '1';
-    btn.textContent = '…';
-    emitSeatResponse(
-      {
-        channel: channelId(),
-        userId: req.userId || req.id,
-        name: req.name,
-        accepted: true,
-      },
-      (res) => {
-        btn.disabled = false;
-        btn.dataset.busy = '0';
-        btn.textContent = 'Accept';
-        if (res?.ok) {
-          joinRequests = joinRequests.filter((x) => String(x.id) !== String(req.id));
-          renderJoinRequests();
-          toast(isLiveRoomPage() ? 'Guest joined live' : 'Guest accepted', 'success');
-        } else {
-          toast(res?.message || 'Could not accept guest', 'error');
-        }
-      }
-    );
+    acceptMicRequest(req, { btn });
   }
 
   function handleSeatDenyClick(btn) {
     const req = joinRequests.find((x) => String(x.id) === String(btn.dataset.deny));
-    joinRequests = joinRequests.filter((x) => String(x.id) !== String(btn.dataset.deny));
-    renderJoinRequests();
-    if (req && liveSocket) {
-      emitSeatResponse({
-        channel: channelId(),
-        userId: req.userId || req.id,
-        accepted: false,
-      });
-    }
+    denyMicRequest(req);
   }
 
   function handleSeatInviteClick(btn) {
@@ -7616,6 +7714,7 @@
     if (except !== 'tools') document.getElementById('partyToolsSheet')?.classList.remove('open');
     if (except !== 'gift') document.getElementById('giftSheet')?.classList.remove('open');
     if (except !== 'mic') document.getElementById('apMicLinkModal')?.classList.remove('open');
+    if (except !== 'hostMic') document.getElementById('apHostMicInviteModal')?.classList.remove('open');
     if (except !== 'requests') closePartyRequestsSheet();
     if (except !== 'music') closePartyMusicSheet();
     if (except !== 'chat') closeChatPanelOnly();
@@ -7944,6 +8043,7 @@
       'apRoomStatusStrip',
       'partyToolsSheet',
       'apMicLinkModal',
+      'apHostMicInviteModal',
       'giftSheet',
       'partyRequestsSheet',
     ].forEach((id) => {
@@ -7963,6 +8063,49 @@
     document.getElementById('apMicLinkConfirm')?.addEventListener('click', hideMicLinkModal);
     document.getElementById('apMicLinkModal')?.addEventListener('click', (e) => {
       if (e.target.id === 'apMicLinkModal') hideMicLinkModal();
+    });
+  }
+
+  function ensureHostMicInviteModal() {
+    if (document.getElementById('apHostMicInviteModal')) return;
+    if (!(isPartyRoomPage() || isLiveRoomPage())) return;
+    document.body.insertAdjacentHTML(
+      'beforeend',
+      `<div class="ap-modal-overlay ap-host-mic-invite-overlay" id="apHostMicInviteModal" role="dialog" aria-modal="true" aria-labelledby="apHostMicInviteName">
+        <div class="ap-miclink-modal ap-host-mic-invite">
+          <div class="ap-miclink-head">Mic request</div>
+          <div class="ap-miclink-body ap-host-mic-invite-body">
+            <img id="apHostMicInviteAvatar" class="ap-host-mic-invite-avatar" src="" alt="">
+            <p><strong id="apHostMicInviteName">Guest</strong><br><span id="apHostMicInviteSub">wants to join on mic</span></p>
+            <div class="ap-host-mic-invite-actions">
+              <button type="button" class="ap-host-mic-deny" id="apHostMicInviteDeny">Decline</button>
+              <button type="button" class="ap-miclink-primary ap-host-mic-agree" id="apHostMicInviteAgree">Agree</button>
+            </div>
+          </div>
+        </div>
+      </div>`
+    );
+    bindHostMicInviteModal();
+  }
+
+  function bindHostMicInviteModal() {
+    if (window.__apHostMicInviteBound) return;
+    window.__apHostMicInviteBound = true;
+    document.getElementById('apHostMicInviteAgree')?.addEventListener('click', () => {
+      const modal = document.getElementById('apHostMicInviteModal');
+      const uid = modal?.dataset.userId;
+      const req = joinRequests.find((x) => String(x.id) === String(uid));
+      acceptMicRequest(req || (uid ? { id: uid, userId: uid, name: document.getElementById('apHostMicInviteName')?.textContent || 'Guest' } : null));
+    });
+    document.getElementById('apHostMicInviteDeny')?.addEventListener('click', () => {
+      const modal = document.getElementById('apHostMicInviteModal');
+      const uid = modal?.dataset.userId;
+      const req = joinRequests.find((x) => String(x.id) === String(uid));
+      denyMicRequest(req || (uid ? { id: uid, userId: uid } : null));
+    });
+    document.getElementById('apHostMicInviteModal')?.addEventListener('click', (e) => {
+      /* Backdrop tap does not auto-decline — host must choose Agree/Decline */
+      if (e.target.id === 'apHostMicInviteModal') e.stopPropagation();
     });
   }
 
@@ -7995,7 +8138,10 @@
     syncBottomBarForRole();
     syncHostBarUi();
     injectGiftSheet();
-    if (isPartyRoomPage()) bindMicLinkModal();
+    if (isPartyRoomPage() || isLiveRoomPage()) {
+      bindMicLinkModal();
+      ensureHostMicInviteModal();
+    }
     ensureLiveDebugPanel();
     const activeRegion = document.querySelector('.ap-region-tabs button.active');
     chatRegionFilter = activeRegion?.dataset.region || 'room';
@@ -8086,6 +8232,7 @@
       );
       bindMicLinkModal();
     }
+    ensureHostMicInviteModal();
     if (!document.getElementById('apTopupSheet')) {
       document.body.insertAdjacentHTML(
         'beforeend',
@@ -11259,7 +11406,7 @@
     /* Only block on real open sheets — never on a stale body class alone */
     return Boolean(
       document.querySelector(
-        '#apProfileSheet.open, #apGiftSheet.open, #giftSheet.open, #apTopupSheet.open, #apSeatSheet.open, .ap-gift-sheet.open, .gift-sheet.open, .party-tools-sheet.open, .party-requests-sheet.open, .party-music-sheet.open, #partyBgPickerSheet.open, #apInAppShareSheet.open, #apEmojiPopover.is-open, #apMicLinkModal.open, #apSurpriseShop.open, #apFilterSheet.open'
+        '#apProfileSheet.open, #apGiftSheet.open, #giftSheet.open, #apTopupSheet.open, #apSeatSheet.open, .ap-gift-sheet.open, .gift-sheet.open, .party-tools-sheet.open, .party-requests-sheet.open, .party-music-sheet.open, #partyBgPickerSheet.open, #apInAppShareSheet.open, #apEmojiPopover.is-open, #apMicLinkModal.open, #apHostMicInviteModal.open, #apSurpriseShop.open, #apFilterSheet.open'
       )
     );
   }

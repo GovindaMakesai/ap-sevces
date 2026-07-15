@@ -5367,6 +5367,54 @@ body.ap-live-overlay-open .party-chat-row {
   color: #1a1a1a;
 }
 
+.ap-host-mic-invite-overlay {
+  z-index: 12500;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.ap-host-mic-invite-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.ap-host-mic-invite-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid #e5a356;
+  margin: 4px 0 10px;
+  background: #f3f4f6;
+}
+
+.ap-host-mic-invite-actions {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.ap-host-mic-invite-actions .ap-host-mic-deny {
+  flex: 1;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #374151;
+  font-weight: 800;
+  font-size: 14px;
+  padding: 12px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.ap-host-mic-invite-actions .ap-host-mic-agree {
+  flex: 1.2;
+  margin: 0;
+}
+
 /* Top-up sheet */
 .ap-topup-sheet {
   position: fixed;
