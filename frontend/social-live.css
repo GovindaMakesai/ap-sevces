@@ -317,7 +317,7 @@
 }
 
 .party-win-banner {
-  display: none;
+  display: none !important;
 }
 
 .party-room-body {
@@ -487,12 +487,6 @@
   display: none !important;
 }
 
-#apProfileName.is-admin-name,
-.party-chat-msg .user.is-admin-name,
-#profileName.is-admin-name {
-  color: #b45309;
-}
-
 .seat-crown {
   position: absolute;
   top: -6px;
@@ -577,9 +571,21 @@
   background: transparent;
   position: relative;
   z-index: 28;
-  pointer-events: auto;
+  /* Row shell must not form a full-width tap shield over gift/tools */
+  pointer-events: none;
   transition: transform 0.28s ease, opacity 0.28s ease, max-height 0.28s ease, min-height 0.28s ease;
   will-change: transform, opacity;
+}
+
+.party-chat-swipe-handle,
+.party-chat-controls,
+.party-chat-zone,
+.party-chat-feed,
+.party-chat-msg,
+.party-chat-hide-btn,
+.party-chat-tabs,
+.party-chat-tabs button {
+  pointer-events: auto;
 }
 
 .party-chat-swipe-handle {
@@ -866,7 +872,8 @@
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 8500;
+  /* Must sit above #apFxRoot (9000) and guest chrome so gift/tools stay tappable */
+  z-index: 12500;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -878,6 +885,8 @@
   pointer-events: auto !important;
   overflow: visible;
   transition: bottom 0.2s ease;
+  isolation: isolate;
+  touch-action: manipulation;
 }
 
 #partyBottomBar .party-btn-gift,
@@ -885,7 +894,28 @@
 #partyBtnGift,
 .party-btn-gift.ap-btn-gift-hero {
   position: relative;
-  z-index: 8600 !important;
+  z-index: 12600 !important;
+  pointer-events: auto !important;
+  touch-action: manipulation;
+}
+
+.party-bottom-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  position: relative;
+  z-index: 12610 !important;
+  pointer-events: auto !important;
+  flex-shrink: 0;
+  touch-action: manipulation;
+}
+
+#partyBtnTools,
+#liveBtnMic,
+#partyBtnGift,
+#liveBtnGift {
+  position: relative;
+  z-index: 12620 !important;
   pointer-events: auto !important;
   touch-action: manipulation;
 }
@@ -2166,13 +2196,34 @@ body[data-live-page='live-room'] .live-room {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  pointer-events: auto;
+  /* Empty overlay pads (incl. above bottom bar) must not steal gift/tools taps */
+  pointer-events: none;
   background: linear-gradient(180deg, rgba(0, 0, 0, 0.28) 0%, transparent 14%, transparent 78%, rgba(0, 0, 0, 0.3) 100%);
   padding-bottom: calc(var(--ap-bottom-bar-h) + env(safe-area-inset-bottom, 0));
 }
 
-.live-room .live-overlay>* {
+.live-room .live-overlay > * {
   pointer-events: auto;
+}
+
+.live-room .live-overlay > .live-spacer,
+.live-room .live-overlay > .party-chat-row {
+  pointer-events: none !important;
+}
+
+.live-room .live-overlay .party-chat-controls,
+.live-room .live-overlay .party-chat-zone,
+.live-room .live-overlay .party-chat-feed,
+.live-room .live-overlay .party-chat-msg,
+.live-room .live-overlay .party-chat-hide-btn,
+.live-room .live-overlay .party-chat-tabs,
+.live-room .live-overlay .party-chat-tabs button,
+.live-room .live-overlay .party-chat-swipe-handle {
+  pointer-events: auto !important;
+}
+
+.live-room .live-spacer {
+  pointer-events: none !important;
 }
 
 .live-room .party-header {
@@ -5697,9 +5748,10 @@ body[data-live-page="party-room"] .ap-guest-rail:not(:empty) {
   color: #fff !important;
 }
 
-/* Mic link modal */
+/* Mic link modal — never demote bottom bar under FX layer */
 body.ap-live-overlay-open:not(.party-requests-open) .party-bottom-bar {
-  z-index: 70;
+  z-index: 12500 !important;
+  pointer-events: auto !important;
 }
 
 body.ap-live-overlay-open .party-chat-row {
@@ -6153,12 +6205,17 @@ body[data-live-page="live-room"] .ap-guest-rail {
 body[data-live-page="live-room"].ap-has-live-guests .ap-guest-rail {
   display: flex !important;
   right: 10px;
-  bottom: calc(var(--ap-bottom-bar-h, 58px) + 72px + env(safe-area-inset-bottom, 0px));
+  /* Keep clear of gift/tools/mic — rail used to grow into the action hit zone */
+  bottom: calc(var(--ap-bottom-bar-h, 58px) + 96px + env(safe-area-inset-bottom, 0px));
   z-index: 45;
-  /* Rail itself doesn't swallow gift taps — only seat chips do */
   pointer-events: none !important;
-  max-height: 42vh;
-  overflow: visible;
+  max-height: min(36vh, 280px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  flex-direction: column-reverse;
+  gap: 10px;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 body[data-live-page="live-room"].ap-has-live-guests .ap-guest-rail .ap-guest-seat,
@@ -7175,21 +7232,6 @@ html.ap-expo-app .ap-chip {
   margin-top: 2px;
 }
 
-.party-chat-avatar-btn.ap-admin-frame {
-  overflow: visible !important;
-  width: 22px;
-  height: 22px;
-  box-shadow:
-    0 0 0 1.5px #fbbf24,
-    0 0 0 3px rgba(251, 191, 36, 0.28);
-}
-
-.party-chat-avatar-btn.ap-admin-frame::before {
-  inset: -2px;
-  animation: none;
-  opacity: 0.85;
-}
-
 .party-chat-avatar-btn img {
   width: 22px;
   height: 22px;
@@ -7496,25 +7538,14 @@ html.ap-expo-app .ap-chip {
   z-index: 3;
 }
 
-/* Admin avatar gold frame + corner tag (static hollow ring — no spinning fan) */
+/* Admin gold frame / corner tag removed — looked noisy on seats & chat */
 .ap-admin-frame,
 .seat-avatar.ap-admin-frame,
 .ap-guest-avatar.ap-admin-frame,
 .party-chat-avatar-btn.ap-admin-frame,
 .ap-profile-avatar-wrap.ap-admin-frame,
 .social-profile-avatar-wrap.ap-admin-frame {
-  position: relative;
-  border-radius: 50%;
-  overflow: visible !important;
-  box-shadow:
-    0 0 0 2px #fbbf24,
-    0 0 0 4px rgba(251, 191, 36, 0.35),
-    0 0 14px rgba(251, 191, 36, 0.55);
-}
-
-.party-seat.is-admin-user,
-.ap-guest-seat.is-admin-user {
-  overflow: visible;
+  box-shadow: none !important;
 }
 
 .ap-admin-frame::before,
@@ -7523,30 +7554,20 @@ html.ap-expo-app .ap-chip {
 .party-chat-avatar-btn.ap-admin-frame::before,
 .ap-profile-avatar-wrap.ap-admin-frame::before,
 .social-profile-avatar-wrap.ap-admin-frame::before {
-  content: '';
-  position: absolute;
-  inset: -4px;
-  border-radius: 50%;
-  background: conic-gradient(from 120deg, #fef3c7, #f59e0b, #b45309, #fbbf24, #fef3c7);
-  z-index: 0;
-  opacity: 0.95;
-  pointer-events: none;
-  animation: none;
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), #000 calc(100% - 3px));
-  mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), #000 calc(100% - 3px));
+  content: none !important;
+  display: none !important;
 }
 
-.ap-admin-frame>img,
-.seat-avatar.ap-admin-frame>img,
-.ap-guest-avatar.ap-admin-frame>img,
-.party-chat-avatar-btn.ap-admin-frame>img,
-.ap-profile-avatar-wrap.ap-admin-frame>img,
-.social-profile-avatar-wrap.ap-admin-frame .social-profile-avatar-btn {
-  position: relative;
-  z-index: 1;
+.ap-admin-avatar-tag {
+  display: none !important;
 }
 
-/* Account info sheet avatar sizing (fixes oversize img + spinning ring glitch) */
+.party-seat.is-admin-user,
+.ap-guest-seat.is-admin-user {
+  overflow: visible;
+}
+
+/* Account info sheet avatar sizing */
 .ap-profile-avatar-wrap {
   position: relative;
   width: 72px;
@@ -7572,52 +7593,7 @@ html.ap-expo-app .ap-chip {
 
 .ap-profile-avatar-wrap.ap-admin-frame > img {
   border-color: #fff !important;
-  box-shadow:
-    0 0 0 2px #f59e0b,
-    0 0 0 5px rgba(251, 191, 36, 0.35),
-    0 8px 24px rgba(245, 158, 11, 0.28);
-}
-
-.ap-profile-avatar-wrap.ap-admin-frame::before {
-  inset: -5px;
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3.5px));
-  mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3.5px));
-}
-
-.ap-profile-avatar-wrap.ap-admin-frame .ap-profile-po-badge {
-  display: none;
-}
-
-.ap-admin-avatar-tag {
-  position: absolute;
-  left: 50%;
-  bottom: -2px;
-  transform: translateX(-50%);
-  z-index: 4;
-  padding: 1px 6px;
-  border-radius: 999px;
-  font-size: 8px;
-  font-weight: 900;
-  letter-spacing: 0.06em;
-  color: #1c1917;
-  background: linear-gradient(135deg, #fde68a, #f59e0b);
-  border: 1px solid rgba(255, 255, 255, 0.55);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
-  white-space: nowrap;
-  line-height: 1.35;
-  pointer-events: none;
-}
-
-.party-chat-avatar-btn {
-  position: relative;
-  display: inline-flex;
-  overflow: visible;
-}
-
-.party-chat-avatar-btn.ap-admin-frame .ap-admin-avatar-tag {
-  font-size: 7px;
-  padding: 0 4px;
-  bottom: -3px;
+  box-shadow: 0 0 0 2px #a855f7, 0 8px 24px rgba(168, 85, 247, 0.28);
 }
 
 .ap-guest-avatar {
@@ -7741,17 +7717,6 @@ html.ap-expo-app .ap-chip {
   align-items: center;
   gap: 6px;
   min-width: 0;
-}
-
-.is-admin-profile .ap-profile-sheet-panel {
-  box-shadow: 0 -8px 40px rgba(245, 158, 11, 0.18);
-}
-
-.is-admin-profile .ap-profile-hero-row {
-  padding: 10px 12px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, rgba(254, 243, 199, 0.55), rgba(255, 255, 255, 0.9));
-  border: 1px solid rgba(245, 158, 11, 0.22);
 }
 
 .party-chat-msg--gift {

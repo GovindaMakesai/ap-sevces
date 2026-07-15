@@ -13,7 +13,7 @@
 #apFxRoot {
   position: fixed;
   inset: 0;
-  pointer-events: none;
+  pointer-events: none !important;
   z-index: 9000;
   overflow: hidden;
 }
@@ -21,7 +21,7 @@
 #apFxConfetti {
   position: fixed;
   inset: 0;
-  pointer-events: none;
+  pointer-events: none !important;
   z-index: 9100;
 }
 

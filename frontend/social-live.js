@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260715-admin-persist';
+  window.__AP_LIVE_BUILD = '20260715-remove-seat';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -1509,16 +1509,42 @@
     const canKick = uid && !isRoomHostUserId(uid);
     menu.innerHTML = `
       <button type="button" data-cmod="delete"><i class="fas fa-trash"></i><span>Remove message</span></button>
-      ${canKick ? '<button type="button" data-cmod="block"><i class="fas fa-ban"></i><span>Kick out from live…</span></button>' : ''}
+      ${canKick ? '<button type="button" data-cmod="warn"><i class="fas fa-exclamation-triangle"></i><span>Warn for abuse</span></button>' : ''}
+      ${canKick ? '<button type="button" data-cmod="mutechat"><i class="fas fa-comment-slash"></i><span>Mute chat</span></button>' : ''}
+      ${canKick ? '<button type="button" data-cmod="block"><i class="fas fa-ban"></i><span>Kick / ban from live…</span></button>' : ''}
       <button type="button" data-cmod="cancel"><i class="fas fa-times"></i><span>Cancel</span></button>`;
     document.body.appendChild(menu);
     const rect = (anchorEl || document.body).getBoundingClientRect?.() || { left: 40, top: 120, width: 200 };
     menu.style.left = `${Math.min(window.innerWidth - 220, Math.max(12, rect.left))}px`;
-    menu.style.top = `${Math.min(window.innerHeight - 200, Math.max(12, rect.bottom + 6))}px`;
+    menu.style.top = `${Math.min(window.innerHeight - 220, Math.max(12, rect.bottom + 6))}px`;
     const close = () => menu.remove();
     menu.querySelector('[data-cmod="delete"]')?.addEventListener('click', () => {
       close();
       if (window.confirm('Remove this message for everyone?')) deleteChatMessage(msg.id);
+    });
+    menu.querySelector('[data-cmod="warn"]')?.addEventListener('click', () => {
+      close();
+      if (!uid || !liveSocket?.connected) return;
+      liveSocket.emit(
+        'live:chat_warn',
+        { channel: channelId(), userId: uid, name },
+        (res) => {
+          if (res?.ok) {
+            toast(
+              res.action === 'ban'
+                ? `${name} banned for abusive chat`
+                : res.action === 'mute'
+                  ? `${name} muted (strike ${res.strikes}/3)`
+                  : `Warned ${name} (strike ${res.strikes}/3)`,
+              res.action === 'ban' ? 'error' : 'warning'
+            );
+          } else toast(res?.message || 'Could not warn', 'error');
+        }
+      );
+    });
+    menu.querySelector('[data-cmod="mutechat"]')?.addEventListener('click', () => {
+      close();
+      muteUserChat(uid, true);
     });
     menu.querySelector('[data-cmod="block"]')?.addEventListener('click', async () => {
       close();
@@ -1602,18 +1628,18 @@
     panel.appendChild(menu);
     const isTargetHost = isRoomHostUserId(userId);
     const memberHit =
-      (roomState?.onlineMembers || []).find((m) => String(m.userId) === String(userId)) ||
       (roomState?.seats || []).find((s) => String(s.userId) === String(userId)) ||
+      (roomState?.onlineMembers || []).find((m) => String(m.userId) === String(userId)) ||
       { userId, name };
     const isAdminMember = Boolean(memberHit.isAdmin || memberHit.role === 'admin');
-    const onStage = memberIsOnStage(memberHit);
+    const onStage = memberIsOnStage(userId) || memberIsOnStage(memberHit);
     const canKick = !isTargetHost;
     menu.innerHTML = `
       <button type="button" data-mod="mute"><i class="fas fa-microphone-slash"></i><span>Mute mic</span></button>
       <button type="button" data-mod="unmute"><i class="fas fa-microphone"></i><span>Unmute mic</span></button>
-      ${!onStage && (isPartyRoomPage() || isLiveRoomPage()) ? `<button type="button" data-mod="addseat"><i class="fas fa-plus"></i><span>${isLiveRoomPage() ? 'Add to live' : 'Add to seat'}</span></button>` : ''}
+      ${!onStage && isPartyRoomPage() ? '<button type="button" data-mod="addseat"><i class="fas fa-plus"></i><span>Add to seat</span></button>' : ''}
       ${isPartyRoomPage() && onStage ? '<button type="button" data-mod="move"><i class="fas fa-exchange-alt"></i><span>Move to seat…</span></button>' : ''}
-      ${canKick && onStage ? '<button type="button" data-mod="demote"><i class="fas fa-user-minus"></i><span>Remove from the seat</span></button>' : ''}
+      ${canKick ? '<button type="button" data-mod="demote"><i class="fas fa-user-minus"></i><span>Remove from the seat</span></button>' : ''}
       ${canKick ? '<button type="button" data-mod="kick2"><i class="fas fa-ban"></i><span>Kick out · 2 hours</span></button>' : ''}
       ${canKick ? '<button type="button" data-mod="kick24"><i class="fas fa-ban"></i><span>Kick out · 24 hours</span></button>' : ''}
       ${isHost() && canKick ? `<button type="button" data-mod="admin"><i class="fas fa-user-shield"></i><span>${isAdminMember ? 'Revoke admin' : 'Make admin'}</span></button>` : ''}`;
@@ -1792,13 +1818,13 @@
     list.innerHTML = available
       .map((m) => {
         const role = memberListRoleLabel(m);
-        const onSeat = memberIsOnStage(m);
+        const onSeat = memberIsOnStage(m.userId) || memberIsOnStage(m);
         let actionBtn = '';
         if (mod && !isRoomHostUserId(m.userId)) {
           if (onSeat) {
             actionBtn = `<button type="button" class="deny" data-remove-seat="${escapeHtml(String(m.userId))}">Remove from seat</button>`;
-          } else {
-            actionBtn = `<button type="button" class="accept" data-invite-seat="${escapeHtml(String(m.userId))}">${isLiveRoomPage() ? 'Add' : 'To seat'}</button>`;
+          } else if (isPartyRoomPage()) {
+            actionBtn = `<button type="button" class="accept" data-invite-seat="${escapeHtml(String(m.userId))}">To seat</button>`;
           }
         }
         return `
@@ -2161,18 +2187,9 @@
     };
     if (img.src !== url) img.src = url;
     const wrap = img.closest('.party-host-avatar, .live-host-avatar, .ap-host-avatar-wrap') || img.parentElement;
-    const admin = Boolean(roomState?.hostIsPlatformAdmin);
     if (wrap) {
-      wrap.classList.toggle('ap-admin-frame', admin);
-      let tag = wrap.querySelector('.ap-admin-avatar-tag');
-      if (admin && !tag) {
-        tag = document.createElement('span');
-        tag.className = 'ap-admin-avatar-tag';
-        tag.textContent = 'ADMIN';
-        wrap.appendChild(tag);
-      } else if (tag) {
-        tag.hidden = !admin;
-      }
+      wrap.classList.remove('ap-admin-frame');
+      wrap.querySelectorAll('.ap-admin-avatar-tag').forEach((t) => t.remove());
     }
   }
 
@@ -3087,7 +3104,37 @@
         const me = currentUser();
         if (me && String(me.id) === uid) {
           syncChatMuteUi();
-          toast(muted ? 'Host muted you from chat' : 'You can chat again', muted ? 'warning' : 'success');
+          const why =
+            payload?.reason === 'abusive_language'
+              ? 'You were muted for abusive language'
+              : muted
+                ? 'Host muted you from chat'
+                : 'You can chat again';
+          toast(why, muted ? 'warning' : 'success');
+        }
+      });
+
+      liveSocket.on('live:chat_warning', (payload) => {
+        toast(payload?.message || 'Chat warning — keep it respectful', 'warning');
+        if (payload?.action === 'mute') syncChatMuteUi();
+      });
+
+      liveSocket.on('live:mod_alert', (payload) => {
+        if (!canModerateRoom() && !isHost() && !clientClaimsHost()) return;
+        const who = payload?.user || 'Someone';
+        const strikes = payload?.strikes != null ? ` · strike ${payload.strikes}/3` : '';
+        if (payload?.type === 'abuse') {
+          const act =
+            payload.action === 'ban'
+              ? 'auto-banned'
+              : payload.action === 'mute'
+                ? 'auto-muted'
+                : 'warned (message blocked)';
+          toast(`Chat filter: ${who} ${act}${strikes}`, 'warning');
+          return;
+        }
+        if (payload?.type === 'warn' && payload?.byHost) {
+          toast(`Warned ${who}${strikes}`, 'info');
         }
       });
 
@@ -3110,10 +3157,9 @@
           renderRoomGiftPanels();
           return;
         }
-        showWinBanner(gift);
-        showGiftFlyBanner(gift);
+        /* One chat line only — skip WIN banner / fly banner (duplicate "sent to" notices) */
         const combo = window.SocialFX?.trackCombo?.(gift?.emoji || 'gift', gift?.qty || 1) || 1;
-        window.SocialFX?.playGift?.(gift, { combo });
+        window.SocialFX?.playGift?.(gift, { combo, skipActivity: true });
         onGiftTeamProgress(gift?.amount || gift?.coins || 100);
         if (roomState) renderRoomState();
         renderRoomGiftPanels();
@@ -3175,7 +3221,6 @@
           joinRequests.push(entry);
         }
         renderJoinRequests();
-        toast(`${entry.name} wants to join${isLiveRoomPage() ? ' the stream' : ' a seat'}`);
         pushMicInviteToChat(entry);
         renderMicRequestActionBar();
       });
@@ -6437,6 +6482,13 @@
     if (!msg) return;
     const text = String(msg.text || '');
     if (msg.type === 'system' && /watching|viewer count|people are watching/i.test(text)) return;
+    /* Seat/mic requests already show as Agree/Decline — drop duplicate system lines */
+    if (
+      msg.type === 'system' &&
+      /requested to join|requested mic|wants to join (on mic|the (live|stream)|a seat)/i.test(text)
+    ) {
+      return;
+    }
     const me = currentUser();
     const isMine =
       (me?.id && msg.userId && String(msg.userId) === String(me.id)) ||
@@ -6485,9 +6537,15 @@
     const feed = document.getElementById('partyChatFeed');
     if (!feed) return;
     feed.innerHTML = '';
-    chatMessages
-      .filter((m) => applyChatFilters(m))
-      .forEach((msg) => {
+    const filtered = chatMessages.filter((m) => applyChatFilters(m));
+    /* Pending mic requests always render last (bottom / latest) */
+    const pendingMic = filtered.filter(
+      (m) => m.type === 'mic_invite' && (m.inviteStatus || 'pending') === 'pending'
+    );
+    const rest = filtered.filter(
+      (m) => !(m.type === 'mic_invite' && (m.inviteStatus || 'pending') === 'pending')
+    );
+    [...rest, ...pendingMic].forEach((msg) => {
         const div = document.createElement('div');
         if (msg.type === 'system') {
           const isJoin = /\bjoined\b/i.test(msg.text || '');
@@ -7215,14 +7273,19 @@
     const uid = String(req.userId || req.id || '');
     if (!uid) return;
     const name = req.name || 'Guest';
-    const pending = chatMessages.find(
+    const pendingIdx = chatMessages.findIndex(
       (m) => m.type === 'mic_invite' && String(m.inviteUserId) === uid && m.inviteStatus === 'pending'
     );
-    if (pending) {
+    if (pendingIdx >= 0) {
+      const pending = chatMessages[pendingIdx];
       pending.inviteName = name;
       pending.profilePic = req.profilePic || pending.profilePic || null;
       pending.user = name;
-      if (!opts.quiet) renderChatFeed();
+      pending.at = new Date().toISOString();
+      /* Always keep pending mic cards at the bottom (latest), not stuck at the top */
+      chatMessages.splice(pendingIdx, 1);
+      chatMessages.push(pending);
+      renderChatFeed();
       scrollChatToLatestMicInvite(uid);
       return;
     }
@@ -7239,6 +7302,14 @@
       at: new Date().toISOString(),
       scope: 'room',
     });
+    /* Ensure brand-new invite sits at the end even if rememberChatMessage updated in place */
+    const newIdx = chatMessages.findIndex(
+      (m) => m.type === 'mic_invite' && String(m.inviteUserId) === uid && m.inviteStatus === 'pending'
+    );
+    if (newIdx >= 0 && newIdx !== chatMessages.length - 1) {
+      const card = chatMessages.splice(newIdx, 1)[0];
+      chatMessages.push(card);
+    }
     renderChatFeed();
     /* Keep chat visible so host can tap Agree/Decline */
     document.body.classList.remove('ap-chat-hidden');
@@ -7257,14 +7328,17 @@
     try {
       const feed = document.getElementById('partyChatFeed');
       if (!feed) return;
+      /* Stick to bottom so the latest request sits below older chat */
+      feed.scrollTop = feed.scrollHeight;
       const card =
         (uid && feed.querySelector(`.party-chat-mic-invite[data-mic-invite-uid="${CSS.escape(String(uid))}"]`)) ||
         feed.querySelector('.party-chat-mic-invite:not(.is-resolved)');
       if (card) {
-        card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-      } else {
-        feed.scrollTop = feed.scrollHeight;
+        card.scrollIntoView({ block: 'end', behavior: 'smooth' });
       }
+      requestAnimationFrame(() => {
+        feed.scrollTop = feed.scrollHeight;
+      });
     } catch (_e) {
       const feed = document.getElementById('partyChatFeed');
       if (feed) feed.scrollTop = feed.scrollHeight;
@@ -7546,7 +7620,7 @@
       bar.style.visibility = 'visible';
       bar.style.opacity = '1';
       bar.style.removeProperty('transform');
-      bar.style.removeProperty('z-index');
+      bar.style.zIndex = '12500';
     }
 
     [
@@ -7566,8 +7640,18 @@
       el.style.opacity = '1';
       el.removeAttribute('disabled');
       el.setAttribute('aria-disabled', 'false');
-      el.style.removeProperty('z-index');
+      if (id === 'liveBtnGift' || id === 'partyBtnGift' || id === 'partyBtnTools' || id === 'liveBtnMic') {
+        el.style.zIndex = '12620';
+      } else {
+        el.style.removeProperty('z-index');
+      }
     });
+
+    const actions = document.querySelector('#partyBottomBar .party-bottom-actions');
+    if (actions) {
+      actions.style.pointerEvents = 'auto';
+      actions.style.zIndex = '12610';
+    }
 
     const viewers = document.getElementById('partyViewerAvatars');
     if (viewers) {
@@ -7594,9 +7678,12 @@
     window.__apLiveChromeWatchdog = setInterval(() => {
       if (!document.body?.dataset?.livePage) return;
       const gift = document.getElementById('giftSheet');
+      const tools = document.getElementById('partyToolsSheet');
       const req = document.getElementById('partyRequestsSheet');
+      const bar = document.getElementById('partyBottomBar');
       const reqOpen = req?.classList.contains('open');
       const giftOpen = gift?.classList.contains('open');
+      const toolsOpen = tools?.classList.contains('open');
 
       /* Invisible-but-open gift sheet = permanent tap death for Joined / gift / Users */
       if (giftOpen) {
@@ -7613,13 +7700,26 @@
         } catch (_e) { /* ignore */ }
       }
 
+      if (toolsOpen) {
+        try {
+          const cs = getComputedStyle(tools);
+          if (cs.visibility === 'hidden' || tools.style.visibility === 'hidden' || cs.display === 'none') {
+            tools.classList.remove('open');
+            tools.style.pointerEvents = 'none';
+            tools.style.display = 'none';
+            unlockLiveChrome({ forceGift: true });
+            return;
+          }
+        } catch (_e2) { /* ignore */ }
+      }
+
+      /* Ghost body class after closing people list (common with large rooms) */
       if (document.body.classList.contains('party-requests-open') && !reqOpen) {
         unlockLiveChrome({ forceGift: true });
         return;
       }
-      if (document.body.classList.contains('ap-live-overlay-open') && !reqOpen && !giftOpen) {
+      if (document.body.classList.contains('ap-live-overlay-open') && !reqOpen && !giftOpen && !toolsOpen) {
         const othersOpen = [
-          'partyToolsSheet',
           'apMicLinkModal',
           'apTopupSheet',
           'partyMusicSheet',
@@ -7631,8 +7731,19 @@
           'apSeatSheet',
         ].some((id) => document.getElementById(id)?.classList.contains('open'));
         if (!othersOpen) unlockLiveChrome({ forceGift: true });
+        return;
       }
-    }, 1200);
+
+      /* Bottom actions blocked while sheets closed — force restore */
+      if (bar && !reqOpen && !giftOpen && !toolsOpen) {
+        const pe = (bar.style.pointerEvents || '').toLowerCase();
+        const hidden =
+          pe === 'none' ||
+          bar.style.visibility === 'hidden' ||
+          document.body.classList.contains('party-requests-open');
+        if (hidden) unlockLiveChrome({ forceGift: true });
+      }
+    }, 900);
   }
 
   function openPartyRequestsSheet() {
@@ -7950,12 +8061,13 @@
     );
   }
 
-  function adminAvatarFrameClass(isAdmin) {
-    return isAdmin ? ' ap-admin-frame' : '';
+  function adminAvatarFrameClass(_isAdmin) {
+    /* Gold admin ring looked cluttered in live UI — keep identity via role label only */
+    return '';
   }
 
-  function adminAvatarTagHtml(isAdmin) {
-    return isAdmin ? '<span class="ap-admin-avatar-tag" title="Admin">ADMIN</span>' : '';
+  function adminAvatarTagHtml(_isAdmin) {
+    return '';
   }
 
   function ensureRoomBackgroundPicker() {
@@ -8523,7 +8635,6 @@
   function pinFixedOverlaysToBody() {
     [
       'partyBottomBar',
-      'apRoomStatusStrip',
       'partyToolsSheet',
       'apMicLinkModal',
       'apHostMicInviteModal',
@@ -8535,6 +8646,9 @@
     });
     const requests = document.getElementById('partyRequestsSheet');
     if (requests) document.body.appendChild(requests);
+    /* Bottom bar always last among chrome so it paints above leftover sheets in DOM order */
+    const bar = document.getElementById('partyBottomBar');
+    if (bar) document.body.appendChild(bar);
   }
 
   function bindMicLinkModal() {
@@ -9277,13 +9391,12 @@
     setLiveStreamVisible(true);
   }
 
-  function showWinBanner(gift) {
+  function showWinBanner(_gift) {
+    /* Disabled — chat already shows "X sent to Y"; WIN flash was a duplicate notice */
     const el = document.getElementById('partyWinBanner');
     if (!el) return;
-    el.innerHTML = `WIN · <strong>${escapeHtml(gift.from)}</strong> sent ${gift.emoji} to ${escapeHtml(gift.to)} — <strong>${(gift.amount || 0).toLocaleString()}</strong> 🪙`;
-    el.classList.add('is-flash');
-    clearTimeout(el._flash);
-    el._flash = setTimeout(() => el.classList.remove('is-flash'), 4000);
+    el.innerHTML = '';
+    el.classList.remove('is-flash');
   }
 
   function renderJoinRequests() {
@@ -9434,11 +9547,7 @@
       userId: id,
       name,
     });
-    liveSocket.emit('live:chat', {
-      channel: channelId(),
-      type: 'system',
-      text: `${name} requested to join${isLiveRoomPage() ? ' the live' : ' a seat'}`,
-    });
+    /* No system chat line — host already gets Agree/Decline in chat via live:seat_request */
     micLinkPending = true;
     startMicRequestWatchdog();
     showMicLinkModal('waiting');
@@ -10164,9 +10273,7 @@
     pushRoomGift(giftEvt);
     if (isFresh) {
       const combo = window.SocialFX?.trackCombo?.(emoji, giftQty) || 1;
-      window.SocialFX?.playGift?.(giftEvt, { combo });
-      showWinBanner(giftEvt);
-      showGiftFlyBanner(giftEvt);
+      window.SocialFX?.playGift?.(giftEvt, { combo, skipActivity: true });
       onGiftTeamProgress(cost);
       const sendBtn = document.getElementById('giftSendBtn');
       const balEl = document.getElementById('giftCoinsBal');
@@ -10600,6 +10707,12 @@
         if (res?.ok === false) {
           chatMessages = chatMessages.filter((m) => m.id !== optimistic.id);
           renderChatFeed();
+          const code = String(res?.code || '');
+          if (code.startsWith('ABUSE_')) {
+            toast(res?.message || 'Message blocked — abusive language not allowed', 'warning');
+            if (res.action === 'mute') syncChatMuteUi?.();
+            return;
+          }
           toast(res?.message || 'Could not send comment', 'error');
         }
       }
@@ -11334,13 +11447,21 @@
   function setScreenCaptureProtection(enable) {
     const shouldBlock =
       Boolean(enable) && (isLiveRoomPage() || isPartyRoomPage());
-    if (screenCaptureEnabled === shouldBlock) return;
+    if (screenCaptureEnabled === shouldBlock) {
+      if (shouldBlock) postNativeMessage({ type: 'screen_capture', block: true, enable: true });
+      return;
+    }
     screenCaptureEnabled = shouldBlock;
-    postNativeMessage({ type: 'screen_capture', enable: shouldBlock });
+    postNativeMessage({
+      type: 'screen_capture',
+      block: shouldBlock,
+      enable: shouldBlock,
+    });
   }
 
   function releaseScreenCaptureProtection() {
-    setScreenCaptureProtection(false);
+    screenCaptureEnabled = false;
+    postNativeMessage({ type: 'screen_capture', block: false, enable: false });
   }
 
   function bindScreenCaptureProtection() {
@@ -11351,11 +11472,24 @@
     if (bindScreenCaptureLifecycle.bound) return;
     bindScreenCaptureLifecycle.bound = true;
     setScreenCaptureProtection(true);
+    if (!window.__apScreenCapturePulse) {
+      window.__apScreenCapturePulse = setInterval(() => {
+        if (!document.body?.dataset?.livePage) return;
+        if (document.hidden) return;
+        postNativeMessage({ type: 'screen_capture', block: true, enable: true });
+      }, 2000);
+    }
     window.addEventListener('pagehide', () => {
       if (window.__apLeavingRoom) releaseScreenCaptureProtection();
     });
     window.addEventListener('beforeunload', () => {
       if (window.__apLeavingRoom) releaseScreenCaptureProtection();
+    });
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && (isLiveRoomPage() || isPartyRoomPage())) {
+        screenCaptureEnabled = null;
+        setScreenCaptureProtection(true);
+      }
     });
   }
 
@@ -11497,8 +11631,8 @@
 
     const avatarWrap = document.getElementById('apProfileAvatarWrap');
     const adminTag = document.getElementById('apProfileAdminTag');
-    if (avatarWrap) avatarWrap.classList.toggle('ap-admin-frame', activeProfileUser.isAdmin);
-    if (adminTag) adminTag.hidden = !activeProfileUser.isAdmin;
+    if (avatarWrap) avatarWrap.classList.remove('ap-admin-frame');
+    if (adminTag) adminTag.hidden = true;
 
     const roleBadgeEl = document.getElementById('apProfileRoleBadge');
     if (roleBadgeEl) {

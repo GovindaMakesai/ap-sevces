@@ -392,6 +392,8 @@ body[data-live-page='live-room'] .party-bottom-bar {
   backdrop-filter: blur(20px) saturate(1.15);
   -webkit-backdrop-filter: blur(20px) saturate(1.15);
   gap: 10px;
+  z-index: 12500 !important;
+  pointer-events: auto !important;
 }
 
 body[data-live-page='live-room'] .ap-compose-inline {

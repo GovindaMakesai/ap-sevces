@@ -3,6 +3,7 @@ const giftService = require('../services/giftService');
 const liveRoomService = require('../services/liveRoomService');
 const partyActivityService = require('../services/partyActivityService');
 const permissionService = require('../services/permissionService');
+const chatModerationService = require('../services/chatModerationService');
 const db = require('../config/database');
 
 const RATE_WINDOW_MS = 10_000;
@@ -361,6 +362,86 @@ function registerLiveSocket(io) {
         }
 
         const displayName = socket.data.liveDisplayName || 'User';
+        const isMod = await isRoomModerator(socket, channel);
+
+        /* Auto-moderate abusive language (hosts/admins skipped) */
+        if (!isMod) {
+          const scan = chatModerationService.scanMessage(text);
+          if (scan.blocked) {
+            const strike = chatModerationService.recordStrike(channel, socket.userId);
+            const alert = {
+              type: 'abuse',
+              channel,
+              userId: String(socket.userId),
+              user: displayName,
+              strikes: strike.strikes,
+              action: strike.action,
+              at: Date.now(),
+            };
+            io.to(`live:${channel}`).emit('live:mod_alert', alert);
+            if (room.host_user_id) {
+              io.to(`user:${room.host_user_id}`).emit('live:mod_alert', alert);
+            }
+
+            if (strike.action === 'mute') {
+              try {
+                await liveRoomService.setMemberChatMuted(room.id, socket.userId, true);
+                io.to(`live:${channel}`).emit('live:member_chat_mute', {
+                  channel,
+                  userId: String(socket.userId),
+                  muted: true,
+                  reason: 'abusive_language',
+                  at: Date.now(),
+                });
+              } catch (_muteErr) { /* continue */ }
+            }
+
+            if (strike.action === 'ban') {
+              try {
+                const kickResult = await liveRoomService.kickMember({
+                  channel,
+                  userId: socket.userId,
+                  bannedBy: room.host_user_id || socket.userId,
+                  reason: 'abusive_chat',
+                  durationHours: strike.banHours || chatModerationService.BAN_HOURS,
+                });
+                const banInfo =
+                  kickResult.ban ||
+                  liveRoomService.banBlockPayload({
+                    reason: 'abusive_chat',
+                    expires_at: kickResult.expiresAt,
+                  });
+                const kickPayload = {
+                  userId: String(socket.userId),
+                  channel,
+                  expiresAt: banInfo?.expiresAt || kickResult.expiresAt || null,
+                  remainingHours: banInfo?.remainingHours ?? strike.banHours,
+                  permanent: Boolean(banInfo?.permanent),
+                  message: strike.message,
+                  reason: 'abusive_chat',
+                };
+                io.to(`live:${channel}`).emit('live:kicked', kickPayload);
+                socket.leave(`live:${channel}`);
+                socket.data.liveChannel = null;
+                socket.emit('live:kicked', kickPayload);
+                const state = await liveRoomService.buildSnapshot(channel);
+                if (state) io.to(`live:${channel}`).emit('live:state', state);
+              } catch (_banErr) { /* still reject message */ }
+            }
+
+            if (ack) {
+              ack({
+                ok: false,
+                code: `ABUSE_${String(strike.action || 'warn').toUpperCase()}`,
+                strikes: strike.strikes,
+                action: strike.action,
+                message: strike.userMessage || strike.message,
+              });
+            }
+            return;
+          }
+        }
+
         const profilePic = await liveRoomService.getMemberProfilePic(socket.userId);
         const eventId = await liveRoomService.logChatEvent(room.id, socket.userId, {
           user: displayName,
@@ -386,6 +467,106 @@ function registerLiveSocket(io) {
       } catch (err) {
         console.error('live:chat', err.message);
         if (ack) ack({ ok: false, message: err.message || 'Could not send' });
+      }
+    });
+
+    /** Host/admin: warn a user about chat (counts as a moderation strike) */
+    socket.on('live:chat_warn', async (payload, ack) => {
+      try {
+        const channel = sanitizeChannel(payload?.channel || currentChannel);
+        if (!(await isRoomModerator(socket, channel))) {
+          if (ack) ack({ ok: false, message: 'Only host or admin can warn' });
+          return;
+        }
+        const targetUserId = String(payload?.userId || '');
+        if (!targetUserId) {
+          if (ack) ack({ ok: false, message: 'userId required' });
+          return;
+        }
+        const room = await liveRoomService.findByChannel(channel);
+        if (!room) {
+          if (ack) ack({ ok: false, message: 'Room not found' });
+          return;
+        }
+        if (String(room.host_user_id) === targetUserId) {
+          if (ack) ack({ ok: false, message: 'Cannot warn the room host' });
+          return;
+        }
+        const strike = chatModerationService.recordStrike(channel, targetUserId);
+        const warnPayload = {
+          type: 'warn',
+          channel,
+          userId: targetUserId,
+          by: String(socket.userId),
+          strikes: strike.strikes,
+          action: strike.action,
+          message: strike.userMessage || strike.message,
+          at: Date.now(),
+        };
+        io.to(`user:${targetUserId}`).emit('live:chat_warning', warnPayload);
+        io.to(`live:${channel}`).emit('live:mod_alert', {
+          type: 'warn',
+          channel,
+          userId: targetUserId,
+          user: payload?.name || 'User',
+          strikes: strike.strikes,
+          action: strike.action,
+          byHost: true,
+          at: Date.now(),
+        });
+
+        if (strike.action === 'mute') {
+          await liveRoomService.setMemberChatMuted(room.id, targetUserId, true);
+          io.to(`live:${channel}`).emit('live:member_chat_mute', {
+            channel,
+            userId: targetUserId,
+            muted: true,
+            reason: 'host_warn',
+            at: Date.now(),
+          });
+        }
+        if (strike.action === 'ban') {
+          const kickResult = await liveRoomService.kickMember({
+            channel,
+            userId: targetUserId,
+            bannedBy: socket.userId,
+            reason: 'abusive_chat',
+            durationHours: strike.banHours || chatModerationService.BAN_HOURS,
+          });
+          const banInfo =
+            kickResult.ban ||
+            liveRoomService.banBlockPayload({
+              reason: 'abusive_chat',
+              expires_at: kickResult.expiresAt,
+            });
+          const kickPayload = {
+            userId: targetUserId,
+            channel,
+            expiresAt: banInfo?.expiresAt || kickResult.expiresAt || null,
+            remainingHours: banInfo?.remainingHours ?? strike.banHours,
+            permanent: Boolean(banInfo?.permanent),
+            message: strike.message,
+            reason: 'abusive_chat',
+          };
+          io.to(`live:${channel}`).emit('live:kicked', kickPayload);
+          try {
+            const sockets = await io.fetchSockets();
+            for (const s of sockets) {
+              if (String(s.userId) !== targetUserId) continue;
+              s.leave(`live:${channel}`);
+              if (s.data?.liveChannel === channel) s.data.liveChannel = null;
+              s.emit('live:kicked', kickPayload);
+            }
+          } catch (_e) {
+            io.to(`user:${targetUserId}`).emit('live:kicked', kickPayload);
+          }
+          const state = await liveRoomService.buildSnapshot(channel);
+          if (state) io.to(`live:${channel}`).emit('live:state', state);
+        }
+
+        if (ack) ack({ ok: true, strikes: strike.strikes, action: strike.action });
+      } catch (err) {
+        if (ack) ack({ ok: false, message: err.message || 'Could not warn user' });
       }
     });
 

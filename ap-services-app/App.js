@@ -29,6 +29,13 @@ const PRODUCTION_WEB = apiConfig.USE_HTTPS_DOMAIN
   : 'https://ap-sevces.vercel.app';
 const DEV_WEB_PORT = 5500;
 
+const LIVE_SECURE_KEY = 'ap-live-secure';
+
+function isLiveCaptureUrl(url) {
+  const u = String(url || '');
+  return /live-room\.html|party-room\.html|\/live-room(?:\?|$)|\/party-room(?:\?|$)/i.test(u);
+}
+
 /** Same LAN IP as the Expo QR code (e.g. 192.168.1.9). */
 function getExpoLanHost() {
   const raw =
@@ -460,20 +467,44 @@ export default function App() {
   /** WebView source is set once ΓÇö post-login navigation uses injectJavaScript only */
   const webSourceUriRef = useRef('');
 
-  const syncScreenCaptureForUrl = useCallback(async (url) => {
-    const isLiveRoom = /live-room\.html|party-room\.html/i.test(url || '');
-    if (screenCaptureBlockedRef.current === isLiveRoom) return;
-    screenCaptureBlockedRef.current = isLiveRoom;
+  const lockLiveScreenCapture = useCallback(async (force = false) => {
+    if (!force && screenCaptureBlockedRef.current) {
+      /* Still re-assert FLAG_SECURE — Android can drop it after overlays / resume */
+      try {
+        await ScreenCapture.preventScreenCaptureAsync(LIVE_SECURE_KEY);
+      } catch (_e) { /* ignore */ }
+      return;
+    }
+    screenCaptureBlockedRef.current = true;
     try {
-      if (isLiveRoom) {
-        await ScreenCapture.preventScreenCaptureAsync();
-      } else {
-        await ScreenCapture.allowScreenCaptureAsync();
-      }
+      await ScreenCapture.preventScreenCaptureAsync(LIVE_SECURE_KEY);
+      /* Also lock default key so accidental allow(default) alone cannot unlock */
+      await ScreenCapture.preventScreenCaptureAsync('default');
     } catch (err) {
-      console.warn('[screen-capture]', err?.message || err);
+      console.warn('[screen-capture] lock failed', err?.message || err);
     }
   }, []);
+
+  const unlockLiveScreenCapture = useCallback(async () => {
+    screenCaptureBlockedRef.current = false;
+    try {
+      await ScreenCapture.allowScreenCaptureAsync(LIVE_SECURE_KEY);
+      await ScreenCapture.allowScreenCaptureAsync('default');
+    } catch (err) {
+      console.warn('[screen-capture] unlock failed', err?.message || err);
+    }
+  }, []);
+
+  const syncScreenCaptureForUrl = useCallback(
+    async (url) => {
+      if (isLiveCaptureUrl(url)) {
+        await lockLiveScreenCapture(true);
+      } else {
+        await unlockLiveScreenCapture();
+      }
+    },
+    [lockLiveScreenCapture, unlockLiveScreenCapture]
+  );
 
   const isDevLocal = useMemo(() => isDevLocalBase(frontendBase), [frontendBase]);
   const frontendUrl = useMemo(() => buildFrontendUrl(frontendBase), [frontendBase]);
@@ -774,7 +805,40 @@ export default function App() {
 
   useEffect(() => {
     return () => {
-      ScreenCapture.allowScreenCaptureAsync().catch(() => {});
+      ScreenCapture.allowScreenCaptureAsync(LIVE_SECURE_KEY).catch(() => {});
+      ScreenCapture.allowScreenCaptureAsync('default').catch(() => {});
+    };
+  }, []);
+
+  /* Keep FLAG_SECURE sticky while on live/party */
+  useEffect(() => {
+    const id = setInterval(() => {
+      const url = webViewCurrentUrlRef.current || '';
+      if (!isLiveCaptureUrl(url)) return;
+      ScreenCapture.preventScreenCaptureAsync(LIVE_SECURE_KEY).catch(() => {});
+      ScreenCapture.preventScreenCaptureAsync('default').catch(() => {});
+      screenCaptureBlockedRef.current = true;
+    }, 2500);
+    return () => clearInterval(id);
+  }, []);
+
+  /* Warn if a screenshot somehow goes through (detection; lock should prevent on Android) */
+  useEffect(() => {
+    let sub;
+    try {
+      sub = ScreenCapture.addScreenshotListener(() => {
+        const url = webViewCurrentUrlRef.current || '';
+        if (!isLiveCaptureUrl(url)) return;
+        ScreenCapture.preventScreenCaptureAsync(LIVE_SECURE_KEY).catch(() => {});
+        if (Platform.OS === 'android' && ToastAndroid) {
+          ToastAndroid.show('Screenshots are disabled during live', ToastAndroid.SHORT);
+        }
+      });
+    } catch (_e) { /* older native builds */ }
+    return () => {
+      try {
+        sub?.remove?.();
+      } catch (_e2) { /* ignore */ }
     };
   }, []);
 
@@ -816,11 +880,16 @@ export default function App() {
         webViewRef.current.injectJavaScript(LIVE_APP_BACKGROUND_INJECT);
       } else if (nextState === 'active') {
         webViewRef.current.injectJavaScript(LIVE_APP_FOREGROUND_INJECT);
+        /* Re-lock screenshots on live/party after resume (Android may drop FLAG_SECURE) */
+        const url = webViewCurrentUrlRef.current || '';
+        if (isLiveCaptureUrl(url)) {
+          lockLiveScreenCapture(true);
+        }
       }
     };
     const sub = AppState.addEventListener('change', onAppStateChange);
     return () => sub.remove();
-  }, []);
+  }, [lockLiveScreenCapture]);
 
   useEffect(() => {
     requestAndroidMediaPermissions().catch(() => {});
@@ -943,12 +1012,13 @@ export default function App() {
         if (data.type === 'screen_capture') {
           (async () => {
             try {
-              const enable = Boolean(data.enable);
-              screenCaptureBlockedRef.current = enable;
-              if (enable) {
-                await ScreenCapture.preventScreenCaptureAsync();
+              /* Prefer explicit `block`; legacy `enable:true` also means block screenshots */
+              const block =
+                data.block !== undefined ? Boolean(data.block) : data.enable !== false && Boolean(data.enable);
+              if (block) {
+                await lockLiveScreenCapture(true);
               } else {
-                await ScreenCapture.allowScreenCaptureAsync();
+                await unlockLiveScreenCapture();
               }
             } catch (err) {
               console.warn('[screen-capture]', err?.message || err);
@@ -1019,7 +1089,7 @@ export default function App() {
         /* not our message */
       }
     },
-    [startOAuthInBrowser, frontendBase, clearNativeSession]
+    [startOAuthInBrowser, frontendBase, clearNativeSession, lockLiveScreenCapture, unlockLiveScreenCapture]
   );
 
   const onShouldStartLoadWithRequest = (request) => {

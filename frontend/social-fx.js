@@ -272,10 +272,13 @@
     const amount = Number(gift.amount || gift.cost) || 0;
     sessionGiftTotal += amount;
 
-    pushActivity({
-      type: 'gift',
-      html: `<strong>${escapeHtml(gift.from || 'User')}</strong> sent ${emoji} ${amount ? `· ${amount.toLocaleString()} coins` : ''}`,
-    });
+    /* Chat already shows "X sent to Y" — skip duplicate activity rail text */
+    if (!opts?.skipActivity) {
+      pushActivity({
+        type: 'gift',
+        html: `<strong>${escapeHtml(gift.from || 'User')}</strong> sent ${emoji} ${amount ? `· ${amount.toLocaleString()} coins` : ''}`,
+      });
+    }
 
     if (tier === 'premium') {
       playPremiumOverlay(gift);
