@@ -62,9 +62,10 @@
     if (!Auth.getToken?.() && !localStorage.getItem('token')) return cached;
     if (!force && Date.now() - lastFetch < 4000) return cached;
     try {
-      const res = await API.get('/wallet/balance');
-      const data = res.data || {};
-      cached = normalizeBalance(data, cached);
+      const getter = force && API.getFresh ? API.getFresh.bind(API) : API.get.bind(API);
+      const res = await getter('/wallet/balance');
+      const data = res?.data || res || {};
+      cached = normalizeBalance(data, force ? null : cached);
       lastFetch = Date.now();
       document.dispatchEvent(new CustomEvent('wallet:balance', { detail: cached }));
       return cached;

@@ -272,7 +272,7 @@
 
   <script src="ap-config.js"></script>
   <script src="app.js?v=20260715-badges-live"></script>
-  <script src="social-wallet.js?v=20260714-coins-align"></script>
+  <script src="social-wallet.js?v=20260715-wallet-fix"></script>
   <script src="social-ui.js?v=20260624-profile-url-fix"></script>
   <script src="social-interactions.js?v=20260624-profile-url-fix"></script>
   <script src="social-shell.js?v=20260624-profile-url-fix"></script>
@@ -534,20 +534,28 @@
         document.getElementById('editProfileBtn').style.display = 'flex';
         document.getElementById('editProfileMenuLink').style.display = 'flex';
         paintAdminIdRow(user);
-        // Force a fresh /auth/me so display_id is never stuck on old localStorage UUID era
+        // Force a fresh /auth/me, then wallet — avoid painting coins/points as 0 before token is ready
         (async () => {
           try {
             await Auth.ensureAccessToken?.();
             const meRes = await (API.getFresh || API.get)('/auth/me');
             const fresh = meRes?.data?.user || meRes?.data;
-            if (fresh) {
+            if (fresh && fresh.id) {
               localStorage.setItem('user', JSON.stringify(fresh));
               if (window.AppState) AppState.user = fresh;
               user = fresh;
+              paintProfileHeader(fresh);
               paintAdminIdRow(fresh);
               paintProfileAvatar(fresh);
             }
-          } catch (_e) {}
+          } catch (_e) { /* keep local user */ }
+          try {
+            if (window.SocialWallet?.invalidateBalance) SocialWallet.invalidateBalance();
+            if (window.SocialWallet?.fetchBalance) {
+              const bal = await SocialWallet.fetchBalance(true);
+              document.dispatchEvent(new CustomEvent('wallet:balance', { detail: bal || {} }));
+            }
+          } catch (_e2) { /* ignore */ }
         })();
         document.getElementById('profileCopyId')?.addEventListener('click', async () => {
           const copyVal =
@@ -689,7 +697,7 @@
               paintProfileHeader(user);
             }
           };
-          SocialWallet.fetchBalance().then(paintWallet);
+          SocialWallet.fetchBalance(true).then(paintWallet);
           document.addEventListener('wallet:balance', (e) => paintWallet(e.detail || {}));
         }
         if (window.SocialInteractions?.refreshFollowCache) {
