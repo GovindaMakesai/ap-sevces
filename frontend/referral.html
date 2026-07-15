@@ -7,7 +7,7 @@
   <title>Invite Friends - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-theme.css">
-  <link rel="stylesheet" href="referral.css?v=20260715-invite-visible">
+  <link rel="stylesheet" href="referral.css?v=20260715-share-safe">
 </head>
 <body class="ref-page" data-page="referral">
   <div class="ref-shell">
@@ -28,11 +28,11 @@
         <button type="button" class="ref-btn" id="refCopyBtn">Copy</button>
       </div>
       <div class="ref-share-grid">
-        <a id="refShareWa" target="_blank" rel="noopener"><i class="fab fa-whatsapp" style="color:#25d366"></i>WhatsApp</a>
-        <a id="refShareTg" target="_blank" rel="noopener"><i class="fab fa-telegram" style="color:#2aabee"></i>Telegram</a>
-        <a id="refShareFb" target="_blank" rel="noopener"><i class="fab fa-facebook" style="color:#1877f2"></i>Facebook</a>
+        <button type="button" id="refShareWa" data-share="whatsapp"><i class="fab fa-whatsapp" style="color:#25d366"></i>WhatsApp</button>
+        <button type="button" id="refShareTg" data-share="telegram"><i class="fab fa-telegram" style="color:#2aabee"></i>Telegram</button>
+        <button type="button" id="refShareFb" data-share="facebook"><i class="fab fa-facebook" style="color:#1877f2"></i>Facebook</button>
         <button type="button" id="refRegenBtn"><i class="fas fa-sync"></i>Refresh</button>
-        <a id="refShareSms"><i class="fas fa-sms"></i>SMS</a>
+        <button type="button" id="refShareSms" data-share="sms"><i class="fas fa-sms"></i>SMS</button>
         <button type="button" id="refClaimBtn"><i class="fas fa-gift"></i>Claim</button>
       </div>
       <p id="refLink" style="margin:12px 0 0;font-size:11px;color:var(--ref-muted);word-break:break-all"></p>
@@ -136,7 +136,7 @@
     /* Normalize QRCode lib API (qrcodejs uses constructor, not toCanvas) */
     window.QRCode = window.QRCode || null;
   </script>
-  <script src="referral.js?v=20260715-invite-visible"></script>
+  <script src="referral.js?v=20260715-share-safe"></script>
   <script>
     SocialShell?.initPage?.({ activeNav: 'profile' });
   </script>

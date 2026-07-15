@@ -150,17 +150,145 @@
     setText('statToday', money(r.today));
     setText('statLifetime', money(d.lifetimeEarnings));
 
-    const share = inv.shareTargets || {};
-    const map = {
-      refShareWa: share.whatsapp,
-      refShareTg: share.telegram,
-      refShareFb: share.facebook,
-      refShareSms: share.sms,
+  }
+
+  function buildShareBundle(inv) {
+    const code = inv?.code || '';
+    const link =
+      inv?.webLink ||
+      inv?.universalLink ||
+      (code
+        ? `${location.origin}/register.html?ref=${encodeURIComponent(code)}&app=1`
+        : '');
+    const shareText =
+      inv?.shareText ||
+      (code
+        ? `Join me on AP Services! Use my invite code ${code} and get rewards: ${link}`
+        : link);
+    const server = inv?.shareTargets || {};
+    return {
+      code,
+      link,
+      shareText,
+      targets: {
+        whatsapp: server.whatsapp || `https://wa.me/?text=${encodeURIComponent(shareText)}`,
+        telegram:
+          server.telegram ||
+          `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(shareText)}`,
+        facebook:
+          server.facebook ||
+          `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(link)}`,
+        sms: server.sms || `sms:?body=${encodeURIComponent(shareText)}`,
+      },
     };
-    Object.entries(map).forEach(([id, href]) => {
-      const a = document.getElementById(id);
-      if (a && href) a.href = href;
-    });
+  }
+
+  function isLikelyInAppWebView() {
+    const ua = navigator.userAgent || '';
+    return (
+      Boolean(window.ReactNativeWebView) ||
+      Boolean(window.Capacitor) ||
+      Boolean(window.cordova) ||
+      /; wv\)|WebView|Instagram|FBAN|FBAV|Line\//i.test(ua)
+    );
+  }
+
+  async function copyInviteText(text, okMsg) {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast(okMsg || 'Invite copied');
+      return true;
+    } catch (_e) {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.cssText = 'position:fixed;left:-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+        toast(okMsg || 'Invite copied');
+        return true;
+      } catch (_e2) {
+        window.prompt('Copy and share this invite:', text);
+        return false;
+      }
+    }
+  }
+
+  async function shareVia(channel) {
+    const inv = state.dashboard?.invitation || {};
+    const bundle = buildShareBundle(inv);
+    if (!bundle.code) return toast('Generate your invite code first');
+
+    api('/referral/share', { method: 'POST', body: { target: channel } }).catch(() => {});
+
+    const hints = {
+      whatsapp: 'Invite copied — open WhatsApp and paste',
+      telegram: 'Invite copied — open Telegram and paste',
+      facebook: 'Invite copied — paste in Facebook',
+      sms: 'Invite copied',
+    };
+    const url = bundle.targets[channel];
+
+    /*
+     * In-app WebViews navigate the CURRENT page to wa.me / t.me and go blank.
+     * Prefer the OS share sheet, otherwise copy — never leave this page.
+     */
+    if (isLikelyInAppWebView()) {
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: 'Join AP Services',
+            text: bundle.shareText,
+            url: bundle.link,
+          });
+          return;
+        } catch (e) {
+          if (e && (e.name === 'AbortError' || e.name === 'NotAllowedError')) return;
+        }
+      }
+      if (window.SocialUI?.shareLink) {
+        try {
+          const ok = await SocialUI.shareLink({
+            title: 'Join AP Services',
+            text: bundle.shareText,
+            url: bundle.link,
+          });
+          if (ok) return;
+        } catch (_e) {
+          /* fall through */
+        }
+      }
+      await copyInviteText(bundle.shareText, hints[channel] || 'Invite copied');
+      return;
+    }
+
+    if (channel === 'sms' && url && url.startsWith('sms:')) {
+      window.location.href = url;
+      return;
+    }
+
+    if (url) {
+      const popup = window.open(url, '_blank', 'noopener,noreferrer');
+      if (popup) return;
+    }
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Join AP Services',
+          text: bundle.shareText,
+          url: bundle.link,
+        });
+        return;
+      } catch (e) {
+        if (e && (e.name === 'AbortError' || e.name === 'NotAllowedError')) return;
+      }
+    }
+
+    await copyInviteText(bundle.shareText, hints[channel] || 'Invite copied');
   }
 
   function setText(id, v) {
@@ -377,6 +505,13 @@
     document.getElementById('refApplyBtn')?.addEventListener('click', applyCode);
     document.getElementById('refClaimBtn')?.addEventListener('click', claimRewards);
     document.getElementById('refRegenBtn')?.addEventListener('click', () => generate().catch((e) => toast(e.message)));
+    document.querySelectorAll('[data-share]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        shareVia(btn.getAttribute('data-share')).catch((err) => toast(err.message || 'Share failed'));
+      });
+    });
 
     try {
       const hasSession =
