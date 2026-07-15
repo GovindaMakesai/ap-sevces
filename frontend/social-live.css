@@ -221,13 +221,14 @@
   color: #fff;
 }
 
-/* Sticky host mic Agree/Decline — always visible even if chat scrolled away */
+/* Sticky mic Agree/Decline — below header / invite row so Joined + Users stay tappable */
 .ap-mic-request-bar {
   position: fixed;
   left: 10px;
   right: 10px;
-  bottom: calc(var(--ap-bottom-bar-h, 58px) + 10px + env(safe-area-inset-bottom, 0px));
-  z-index: 12600;
+  top: calc(env(safe-area-inset-top, 0px) + 118px);
+  bottom: auto;
+  z-index: 11800;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -237,10 +238,61 @@
   border: 1px solid rgba(251, 191, 36, 0.55);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
   pointer-events: auto !important;
+  max-width: 520px;
+  margin: 0 auto;
 }
 
 .ap-mic-request-bar[hidden] {
   display: none !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+}
+
+/* Keep primary chrome tappable above stray overlays */
+#partyLiveActions,
+.party-live-actions,
+#partyBtnUsersAll,
+#partyInvitePill,
+#partyViewerAvatars,
+#liveViewerCount,
+#partyBottomBar,
+#liveBtnGift,
+#partyBtnGift {
+  pointer-events: auto !important;
+}
+
+.party-header-right,
+#partyViewerAvatars,
+#liveViewerCount,
+#partyLiveActions,
+#partyBtnUsersAll,
+#partyInvitePill {
+  position: relative;
+  z-index: 12050 !important;
+  touch-action: manipulation;
+}
+
+#liveBtnGift,
+#partyBtnGift,
+.party-btn-gift.ap-btn-gift-hero {
+  position: relative;
+  z-index: 12600 !important;
+  pointer-events: auto !important;
+  touch-action: manipulation;
+}
+
+/* Closed sheets must never leave an invisible tap shield */
+.gift-sheet:not(.open),
+.party-tools-sheet:not(.open),
+.party-requests-sheet:not(.open),
+#partyRequestsSheet:not(.open),
+.party-music-sheet:not(.open),
+.ap-topup-sheet:not(.open),
+.ap-surprise-sheet:not(.open),
+.ap-modal-overlay:not(.open) {
+  display: none !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
 }
 
 .ap-mic-bar-main {

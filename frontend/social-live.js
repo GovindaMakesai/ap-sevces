@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260715-mic-glitch';
+  window.__AP_LIVE_BUILD = '20260715-tap-fix';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -7009,6 +7009,7 @@
         'click',
         (e) => {
           if (!isPartyRoomPage() && !isLiveRoomPage()) return;
+          unlockLiveChrome({ forceGift: true });
           if (e.target.closest('.ap-top-gifter[data-audience-id]')) {
             const chip = e.target.closest('[data-audience-id]');
             openProfileSheet(chip.dataset.audienceName || 'Guest', chip.dataset.audienceId || '');
@@ -7189,6 +7190,7 @@
     bar.id = 'apMicRequestBar';
     bar.className = 'ap-mic-request-bar';
     bar.hidden = true;
+    bar.style.display = 'none';
     document.body.appendChild(bar);
     bar.addEventListener('click', (e) => {
       const agree = e.target.closest('[data-mic-bar-agree]');
@@ -7218,6 +7220,7 @@
       }
       if (open) {
         e.preventDefault();
+        unlockLiveChrome({ forceGift: true });
         openPartyRequestsSheet();
       }
     });
@@ -7228,6 +7231,8 @@
     const bar = document.getElementById('apMicRequestBar');
     if (bar) {
       bar.hidden = true;
+      bar.style.display = 'none';
+      bar.style.pointerEvents = 'none';
       bar.innerHTML = '';
     }
   }
@@ -7245,6 +7250,8 @@
     const first = joinRequests[0];
     const extra = joinRequests.length > 1 ? ` +${joinRequests.length - 1}` : '';
     bar.hidden = false;
+    bar.style.display = 'flex';
+    bar.style.pointerEvents = 'auto';
     bar.innerHTML =
       `<button type="button" class="ap-mic-bar-main" data-mic-bar-open="1">` +
       `<i class="fas fa-microphone"></i>` +
@@ -7459,8 +7466,170 @@
   function syncBottomBarHeightVar() {
     const bar = document.getElementById('partyBottomBar');
     if (!bar) return;
-    const h = Math.ceil(bar.getBoundingClientRect().height || 58);
+    let h = Math.ceil(bar.getBoundingClientRect().height || 58);
+    /* Cap — a bloated height pushes sticky bars into the invite/joined hit zone */
+    if (!Number.isFinite(h) || h < 48) h = 58;
+    if (h > 120) h = 72;
     document.documentElement.style.setProperty('--ap-bottom-bar-h', `${h}px`);
+  }
+
+  /** Unlock Joined / gift / Users / Invite when invisible overlays trap taps */
+  function unlockLiveChrome(opts = {}) {
+    recoverStuckLiveUi({ forceGift: Boolean(opts.forceGift ?? true) });
+
+    const stuckOpenIds = [
+      'partyRequestsSheet',
+      'partyToolsSheet',
+      'giftSheet',
+      'apMicLinkModal',
+      'apHostMicInviteModal',
+      'apTopupSheet',
+      'partyMusicSheet',
+      'partyBgPickerSheet',
+      'apInAppShareSheet',
+      'apSurpriseShop',
+      'apFilterSheet',
+      'apInRoomWebPanel',
+      'apProfileSheet',
+      'apSeatSheet',
+    ];
+
+    stuckOpenIds.forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const isOpen = el.classList.contains('open');
+      if (!isOpen) {
+        /* Never use visibility:hidden — it leaks into the next open and makes an invisible full-screen tap shield */
+        el.style.pointerEvents = 'none';
+        el.style.removeProperty('visibility');
+        el.style.display = 'none';
+      } else {
+        el.style.pointerEvents = 'auto';
+        el.style.removeProperty('visibility');
+        el.style.removeProperty('display');
+        /* Ghost "open but invisible" sheets trap every tap — force-close them */
+        try {
+          if (el.style.visibility === 'hidden' || getComputedStyle(el).visibility === 'hidden') {
+            el.classList.remove('open');
+            el.style.pointerEvents = 'none';
+            el.style.display = 'none';
+            el.style.removeProperty('visibility');
+          }
+        } catch (_e) { /* ignore */ }
+      }
+    });
+
+    if (!document.getElementById('partyRequestsSheet')?.classList.contains('open')) {
+      document.body.classList.remove('party-requests-open');
+    }
+    const anyOpen = stuckOpenIds.some((id) => document.getElementById(id)?.classList.contains('open'));
+    if (!anyOpen) {
+      document.body.classList.remove('ap-live-overlay-open', 'ap-sheet-open', 'party-requests-open');
+    }
+
+    const bar = document.getElementById('partyBottomBar');
+    if (bar && !document.getElementById('partyRequestsSheet')?.classList.contains('open')) {
+      bar.style.pointerEvents = 'auto';
+      bar.style.visibility = 'visible';
+      bar.style.opacity = '1';
+      bar.style.removeProperty('transform');
+      bar.style.removeProperty('z-index');
+    }
+
+    [
+      'liveBtnGift',
+      'partyBtnGift',
+      'partyBtnUsersAll',
+      'partyInvitePill',
+      'liveViewerCount',
+      'partyBtnTools',
+      'liveBtnMic',
+      'partyBtnRequests',
+    ].forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.style.pointerEvents = 'auto';
+      el.style.visibility = 'visible';
+      el.style.opacity = '1';
+      el.removeAttribute('disabled');
+      el.setAttribute('aria-disabled', 'false');
+      el.style.removeProperty('z-index');
+    });
+
+    const viewers = document.getElementById('partyViewerAvatars');
+    if (viewers) {
+      viewers.style.pointerEvents = 'auto';
+      viewers.style.zIndex = '12050';
+    }
+    const liveActions = document.getElementById('partyLiveActions');
+    if (liveActions) {
+      liveActions.style.pointerEvents = 'auto';
+      liveActions.style.zIndex = '12050';
+    }
+    const headerRight = document.querySelector('.party-header-right');
+    if (headerRight) {
+      headerRight.style.pointerEvents = 'auto';
+      headerRight.style.zIndex = '12050';
+    }
+
+    /* Mic bar stays under invite / joined so it never steals those taps */
+    const micBar = document.getElementById('apMicRequestBar');
+    if (micBar) {
+      if (!joinRequests.length || (!canModerateRoom() && !isHost())) {
+        micBar.hidden = true;
+        micBar.style.display = 'none';
+        micBar.style.pointerEvents = 'none';
+      } else if (!micBar.hidden) {
+        micBar.style.display = 'flex';
+        micBar.style.pointerEvents = 'auto';
+      }
+    }
+
+    syncBottomBarHeightVar();
+  }
+
+  function startLiveChromeWatchdog() {
+    if (window.__apLiveChromeWatchdog) return;
+    window.__apLiveChromeWatchdog = setInterval(() => {
+      if (!document.body?.dataset?.livePage) return;
+      const gift = document.getElementById('giftSheet');
+      const req = document.getElementById('partyRequestsSheet');
+      const reqOpen = req?.classList.contains('open');
+      const giftOpen = gift?.classList.contains('open');
+
+      /* Invisible-but-open gift sheet = permanent tap death for Joined / gift / Users */
+      if (giftOpen) {
+        try {
+          const cs = getComputedStyle(gift);
+          if (cs.visibility === 'hidden' || gift.style.visibility === 'hidden') {
+            gift.classList.remove('open');
+            gift.style.removeProperty('visibility');
+            gift.style.display = 'none';
+            gift.style.pointerEvents = 'none';
+            unlockLiveChrome({ forceGift: true });
+            return;
+          }
+        } catch (_e) { /* ignore */ }
+      }
+
+      if (document.body.classList.contains('party-requests-open') && !reqOpen) {
+        unlockLiveChrome({ forceGift: true });
+        return;
+      }
+      if (document.body.classList.contains('ap-live-overlay-open') && !reqOpen && !giftOpen) {
+        const othersOpen = [
+          'partyToolsSheet',
+          'apMicLinkModal',
+          'apTopupSheet',
+          'partyMusicSheet',
+          'apInAppShareSheet',
+          'apSurpriseShop',
+          'apFilterSheet',
+          'apInRoomWebPanel',
+        ].some((id) => document.getElementById(id)?.classList.contains('open'));
+        if (!othersOpen) unlockLiveChrome({ forceGift: true });
+      }
+    }, 1200);
   }
 
   function openPartyRequestsSheet() {
@@ -7497,6 +7666,8 @@
       sheet.classList.add('open');
       sheet.style.zIndex = '13050';
       sheet.style.pointerEvents = 'auto';
+      sheet.style.visibility = 'visible';
+      sheet.style.removeProperty('display');
       if (sheet.parentElement !== document.body) document.body.appendChild(sheet);
     }
     syncLiveOverlayClass();
@@ -7504,8 +7675,15 @@
 
   function closePartyRequestsSheet() {
     document.body.classList.remove('party-requests-open');
-    document.getElementById('partyRequestsSheet')?.classList.remove('open');
+    const sheet = document.getElementById('partyRequestsSheet');
+    if (sheet) {
+      sheet.classList.remove('open');
+      sheet.style.pointerEvents = 'none';
+      sheet.style.visibility = 'hidden';
+      sheet.style.display = 'none';
+    }
     syncLiveOverlayClass();
+    unlockLiveChrome({ forceGift: true });
   }
 
   function handleSeatAcceptClick(btn) {
@@ -9839,7 +10017,8 @@
   }
 
   function openGiftSheet(targetName, targetUserId) {
-    recoverStuckLiveUi({ forceGift: true });
+    unlockLiveChrome({ forceGift: true });
+    hideMicRequestActionBar();
     injectGiftSheet();
     bindGiftSheet();
     pinFixedOverlaysToBody();
@@ -9904,6 +10083,11 @@
     refreshCoinDisplay().then(() => updateGiftMeta()).catch(() => updateGiftMeta());
     updateGiftMeta();
     sheet.style.zIndex = '13000';
+    sheet.style.removeProperty('pointer-events');
+    sheet.style.removeProperty('display');
+    sheet.style.removeProperty('visibility');
+    sheet.style.visibility = 'visible';
+    sheet.style.pointerEvents = 'auto';
     sheet.classList.add('open');
     if (sheet.parentElement !== document.body) document.body.appendChild(sheet);
     syncLiveOverlayClass();
@@ -10564,8 +10748,8 @@
     const openGiftFromBar = (e) => {
       e?.preventDefault?.();
       e?.stopPropagation?.();
-      /* Guests joining can leave invisible overlays / party-requests-open → gift dead */
-      recoverStuckLiveUi({ forceGift: true });
+      unlockLiveChrome({ forceGift: true });
+      hideMicRequestActionBar();
       document.body.classList.remove('party-requests-open', 'ap-sheet-open');
       document.getElementById('partyRequestsSheet')?.classList.remove('open');
       openGiftSheet();
@@ -10666,16 +10850,23 @@
 
     document.getElementById('partyBtnShare')?.addEventListener('click', () => openInAppShareSheet());
     document.getElementById('partyBtnJoinSeat')?.addEventListener('click', () => requestSeatJoin());
-    document.getElementById('partyInvitePill')?.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      openInAppShareSheet();
-    });
-    document.getElementById('partyBtnUsersAll')?.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      openPartyRequestsSheet();
-    });
+    const bindChromeTap = (id, action) => {
+      const el = document.getElementById(id);
+      if (!el || el.dataset.chromeTapBound === '1') return;
+      el.dataset.chromeTapBound = '1';
+      el.addEventListener(
+        'click',
+        (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          unlockLiveChrome({ forceGift: true });
+          action();
+        },
+        true
+      );
+    };
+    bindChromeTap('partyInvitePill', () => openInAppShareSheet());
+    bindChromeTap('partyBtnUsersAll', () => openPartyRequestsSheet());
     document.getElementById('apBtnChatBubble')?.addEventListener('click', () => focusChatCompose());
 
     document.getElementById('partyRuleBtn')?.addEventListener('click', openRulesModal);
@@ -12787,6 +12978,9 @@
       bindScreenCaptureLifecycle();
       scheduleHideAppChrome();
       prepareLiveUiShell();
+      startLiveChromeWatchdog();
+      setTimeout(() => unlockLiveChrome({ forceGift: true }), 800);
+      setTimeout(() => unlockLiveChrome({ forceGift: true }), 2500);
       /* Capture early taps so browser audio unlocks before Agora play(). */
       if (qs('host') !== '1') bindAudioUnlockGestures();
     }
