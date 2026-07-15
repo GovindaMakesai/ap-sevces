@@ -2515,10 +2515,10 @@
 
             tbody.innerHTML = activities.map(activity => `
                 <tr>
-                    <td>${activity.description || 'Activity'}</td>
-                    <td><span class="status-badge">${activity.type || 'info'}</span></td>
+                    <td>${activity.description || 'Activity'}${activity.actor_display_id ? ` <small>(ID ${activity.actor_display_id})</small>` : ''}</td>
+                    <td><span class="status-badge">${activity.action || activity.type || 'info'}</span></td>
                     <td>${new Date(activity.created_at).toLocaleString()}</td>
-                    <td><span class="status-badge ${activity.status || 'info'}">${activity.status || 'completed'}</span></td>
+                    <td><span class="status-badge ${activity.status || 'info'}">${activity.actor_name || activity.status || 'completed'}</span></td>
                 </tr>
             `).join('');
         }

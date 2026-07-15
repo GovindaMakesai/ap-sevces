@@ -60,10 +60,11 @@ async function computeEngagementLeaderboard(periodType, category, limit = 50, op
   let res;
 
   if (category === 'video') {
+    /* social_post_likes has composite PK (post_id, user_id) — no spl.id column */
     res = await db.query(
       `SELECT sp.user_id AS entity_id,
               (COUNT(DISTINCT sp.id) * 10
-               + COUNT(DISTINCT spl.id) * 2
+               + COUNT(spl.user_id) * 2
                + COUNT(DISTINCT spc.id) * 3)::bigint AS score,
               TRIM(CONCAT(u.first_name, ' ', u.last_name)) AS entity_label,
               u.profile_pic
@@ -199,11 +200,20 @@ async function getLeaderboard(periodType, category, limit = 50, opts = {}) {
   }
 
   if (!rows.length || forceLive) {
-    const computed = await computeEngagementLeaderboard(periodType, category, limit, opts);
-    if (computed.length) rows = computed;
+    try {
+      const computed = await computeEngagementLeaderboard(periodType, category, limit, opts);
+      if (computed.length) rows = computed;
+    } catch (err) {
+      console.error('[leaderboard] compute failed', category, err.message);
+      if (!rows.length) rows = [];
+    }
   }
 
-  rows = await enrichLeaderboardRows(rows);
+  try {
+    rows = await enrichLeaderboardRows(rows);
+  } catch (err) {
+    console.error('[leaderboard] enrich failed', err.message);
+  }
   try {
     await redis.set(cacheKey, JSON.stringify(rows), CACHE_TTL);
   } catch (e) {

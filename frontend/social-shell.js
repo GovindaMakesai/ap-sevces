@@ -716,45 +716,89 @@
     const path = `/live/rooms?type=${roomType}&limit=${limit}&sort=${sort}`;
     let lastError = null;
 
+    function parseRoomsPayload(res) {
+      if (Array.isArray(res?.data)) return res.data;
+      if (Array.isArray(res?.data?.data)) return res.data.data;
+      if (Array.isArray(res?.rooms)) return res.rooms;
+      if (Array.isArray(res)) return res;
+      return [];
+    }
+
+    async function publicRoomsFetch() {
+      const bases = [
+        window.AP_SERVICES_API_ROOT,
+        window.AP_CONFIG?.PRODUCTION_API_URL,
+        'https://api.apservices.in/api',
+      ].filter(Boolean);
+      let lastFail = null;
+      for (const base of bases) {
+        try {
+          const url = `${String(base).replace(/\/+$/, '')}${path}${path.includes('?') ? '&' : '?'}_=${Date.now()}`;
+          const r = await fetch(url, {
+            credentials: 'omit',
+            cache: 'no-store',
+            mode: 'cors',
+            headers: { Accept: 'application/json' },
+          });
+          const text = await r.text();
+          let res = null;
+          try {
+            res = text ? JSON.parse(text) : null;
+          } catch (_e) {
+            lastFail = new Error(`Invalid rooms response (${r.status})`);
+            continue;
+          }
+          if (!r.ok) {
+            lastFail = new Error(res?.message || `HTTP ${r.status}`);
+            continue;
+          }
+          return parseRoomsPayload(res);
+        } catch (e) {
+          lastFail = e;
+        }
+      }
+      if (lastFail) throw lastFail;
+      return [];
+    }
+
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         if (attempt > 0 && window.API?.clearGetCache) {
           API.clearGetCache('/live/rooms');
         }
-        let res = null;
-        if (window.API?.get) {
-          res = await API.get(path);
+        let rows = [];
+        if (window.API?.get && attempt === 0) {
+          try {
+            const res = await Promise.race([
+              API.get(path),
+              new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Rooms request timed out')), 12000)
+              ),
+            ]);
+            rows = parseRoomsPayload(res);
+          } catch (apiErr) {
+            /* Fall through to public fetch — /live/rooms is public */
+            lastError = apiErr;
+            rows = await publicRoomsFetch();
+          }
         } else {
-          const base = window.AP_SERVICES_API_ROOT || 'https://api.apservices.in/api';
-          const r = await fetch(`${base}${path}`, { credentials: 'include', cache: 'no-store' });
-          res = await r.json();
-          if (!r.ok) throw new Error(res?.message || `HTTP ${r.status}`);
+          rows = await publicRoomsFetch();
         }
-        let rows = Array.isArray(res?.data) ? res.data : [];
-        rows = await enrichRoomsWithHostPhotos(rows);
+        rows = await enrichRoomsWithHostPhotos(rows).catch(() => rows);
         const filtered = normalizeRoomRows(rows, party);
         const rooms = filtered.map((r) => mapRoomToCard(r, party));
         return { rooms, error: null };
       } catch (e) {
         lastError = e;
         console.warn(`SocialShell: active rooms API attempt ${attempt + 1}`, e);
-        await new Promise((r) => setTimeout(r, 350 * (attempt + 1)));
+        await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
       }
     }
 
-    // Last-chance direct fetch bypassing API cache/auth helpers
     try {
-      const base = window.AP_SERVICES_API_ROOT || 'https://api.apservices.in/api';
-      const r = await fetch(`${base}${path}&_=${Date.now()}`, {
-        credentials: 'omit',
-        cache: 'no-store',
-        mode: 'cors',
-      });
-      const res = await r.json();
-      if (r.ok && Array.isArray(res?.data)) {
-        const filtered = normalizeRoomRows(res.data, party);
-        return { rooms: filtered.map((row) => mapRoomToCard(row, party)), error: null };
-      }
+      const rows = await publicRoomsFetch();
+      const filtered = normalizeRoomRows(rows, party);
+      return { rooms: filtered.map((row) => mapRoomToCard(row, party)), error: null };
     } catch (e2) {
       lastError = e2;
     }
@@ -834,8 +878,8 @@
     try {
       const { rooms, error } = await fetchActiveRooms(limit || st.limit, opts);
       if (opts.loadToken != null && opts.loadToken !== window.__exploreGridToken) {
-        // Newer tab switch in progress — ignore stale result, but don't leave spinner if empty.
-        if (!rooms.length) return;
+        // Stale tab result — drop it; newer load owns the grid.
+        return;
       }
       grid.classList.remove('is-loading');
       if (!rooms.length) {

@@ -29,10 +29,29 @@
       font-weight: 800; font-size: 14px; cursor: pointer; width: 100%;
     }
     .lv-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    .lv-preview { width: 100%; max-height: 200px; object-fit: cover; border-radius: 12px; margin-top: 10px; display: none; }
+    .lv-btn.secondary {
+      background: #fff; color: #92400e; border: 1px solid rgba(201, 162, 39, 0.45);
+      margin-top: 8px;
+    }
+    .lv-cam-wrap {
+      position: relative; width: 100%; aspect-ratio: 3/4; max-height: 360px;
+      border-radius: 16px; overflow: hidden; background: #111; margin: 8px 0 12px;
+      display: none;
+    }
+    .lv-cam-wrap.is-open { display: block; }
+    #lvVideo {
+      width: 100%; height: 100%; object-fit: cover;
+      transform: scaleX(-1);
+    }
+    .lv-cam-guide {
+      pointer-events: none; position: absolute; inset: 12% 18%;
+      border: 2px dashed rgba(251, 191, 36, 0.85); border-radius: 50%;
+    }
+    .lv-preview { width: 100%; max-height: 220px; object-fit: cover; border-radius: 12px; margin-top: 10px; display: none; }
     .lv-status { margin-top: 16px; padding: 12px; border-radius: 12px; font-size: 13px; display: none; }
     .lv-status.ok { display: block; background: rgba(34, 197, 94, 0.12); color: #166534; }
     .lv-status.err { display: block; background: rgba(239, 68, 68, 0.12); color: #991b1b; }
+    .lv-cam-actions { display: grid; gap: 8px; }
   </style>
 </head>
 <body>
@@ -49,9 +68,18 @@
       </section>
       <section class="lv-step" id="lvStepFace">
         <h2><span>2</span> Face verification</h2>
-        <p>Take a clear selfie in good lighting. This photo is stored securely and used for live access only.</p>
+        <p>Open your front camera, center your face, then capture. Use gallery only if camera is unavailable.</p>
+        <div class="lv-cam-wrap" id="lvCamWrap">
+          <video id="lvVideo" playsinline muted autoplay></video>
+          <div class="lv-cam-guide" aria-hidden="true"></div>
+        </div>
+        <canvas id="lvCanvas" hidden></canvas>
+        <div class="lv-cam-actions">
+          <button type="button" class="lv-btn" id="lvFaceBtn" disabled>Open camera</button>
+          <button type="button" class="lv-btn" id="lvCaptureBtn" hidden disabled>Capture selfie</button>
+          <button type="button" class="lv-btn secondary" id="lvGalleryBtn" disabled>Use gallery / file</button>
+        </div>
         <input type="file" id="lvFaceInput" accept="image/*" capture="user" hidden>
-        <button type="button" class="lv-btn" id="lvFaceBtn" disabled>Take selfie</button>
         <img id="lvFacePreview" class="lv-preview" alt="Selfie preview">
       </section>
       <section class="lv-step" id="lvStepAccess">
@@ -63,8 +91,8 @@
     <div class="lv-status" id="lvStatus"></div>
   </div>
 
-  <script src="app.js?v=20260628-hotfix"></script>
-  <script src="social-shell.js"></script>
+  <script src="app.js?v=20260715-face-cam"></script>
+  <script src="social-shell.js?v=20260715-rooms-fix"></script>
   <script>
     (async function () {
       Auth.checkAuth();
@@ -76,10 +104,76 @@
       const redirect = new URLSearchParams(location.search).get('redirect') || '/streamer-center.html?app=1';
       const statusEl = document.getElementById('lvStatus');
       const api = window.API || window.Auth?.api;
+      let cameraStream = null;
 
       function setStatus(msg, ok) {
         statusEl.textContent = msg;
         statusEl.className = 'lv-status ' + (ok ? 'ok' : 'err');
+      }
+
+      function stopCamera() {
+        if (cameraStream) {
+          cameraStream.getTracks().forEach((t) => t.stop());
+          cameraStream = null;
+        }
+        const video = document.getElementById('lvVideo');
+        if (video) video.srcObject = null;
+        document.getElementById('lvCamWrap')?.classList.remove('is-open');
+        document.getElementById('lvCaptureBtn').hidden = true;
+        document.getElementById('lvCaptureBtn').disabled = true;
+        document.getElementById('lvFaceBtn').textContent = 'Open camera';
+      }
+
+      function requestNativeMediaPermissions() {
+        return new Promise((resolve) => {
+          if (!window.ReactNativeWebView) {
+            resolve({ ok: true, skipped: true });
+            return;
+          }
+          const finish = (detail) => {
+            clearTimeout(timer);
+            document.removeEventListener('ap-media-permissions', onEvt);
+            resolve(detail || { ok: false });
+          };
+          const onEvt = (e) => finish(e.detail);
+          const timer = setTimeout(() => finish({ ok: false, reason: 'timeout' }), 10000);
+          document.addEventListener('ap-media-permissions', onEvt);
+          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'request_media_permissions' }));
+        });
+      }
+
+      async function openCamera() {
+        if (!window.isSecureContext && location.protocol !== 'https:' && location.hostname !== 'localhost') {
+          throw new Error('Camera needs HTTPS. Use the production app build, not LAN HTTP.');
+        }
+        if (!navigator.mediaDevices?.getUserMedia) {
+          throw new Error('Camera is unavailable in this WebView. Allow Camera in app settings.');
+        }
+        await requestNativeMediaPermissions();
+        const constraints = [
+          { video: { facingMode: { ideal: 'user' }, width: { ideal: 720 }, height: { ideal: 960 } }, audio: false },
+          { video: { facingMode: 'user' }, audio: false },
+          { video: true, audio: false },
+        ];
+        let lastErr = null;
+        for (const c of constraints) {
+          try {
+            return await navigator.mediaDevices.getUserMedia(c);
+          } catch (e) {
+            lastErr = e;
+          }
+        }
+        throw lastErr || new Error('Could not open camera');
+      }
+
+      async function uploadBlob(blob) {
+        const fd = new FormData();
+        fd.append('photo', blob, 'selfie.jpg');
+        await API.upload('/live/verify/face', fd);
+        document.getElementById('lvStepFace').classList.add('done');
+        document.getElementById('lvContinueBtn').disabled = false;
+        setStatus('Face verification complete. You can go live with video.', true);
+        stopCamera();
       }
 
       async function refreshStatus() {
@@ -90,6 +184,7 @@
           if (d.identityVerified) {
             document.getElementById('lvStepIdentity').classList.add('done');
             document.getElementById('lvFaceBtn').disabled = false;
+            document.getElementById('lvGalleryBtn').disabled = false;
           }
           if (d.faceVerified) {
             document.getElementById('lvStepFace').classList.add('done');
@@ -108,13 +203,71 @@
           await api.post('/live/verify/identity');
           document.getElementById('lvStepIdentity').classList.add('done');
           document.getElementById('lvFaceBtn').disabled = false;
-          setStatus('Identity step complete. Now take your selfie.', true);
+          document.getElementById('lvGalleryBtn').disabled = false;
+          setStatus('Identity step complete. Open camera for your selfie.', true);
         } catch (e) {
           setStatus(e?.response?.data?.message || e.message || 'Identity step failed', false);
         }
       });
 
-      document.getElementById('lvFaceBtn').addEventListener('click', () => {
+      document.getElementById('lvFaceBtn').addEventListener('click', async () => {
+        const btn = document.getElementById('lvFaceBtn');
+        try {
+          btn.disabled = true;
+          btn.textContent = 'Opening camera…';
+          setStatus('Requesting camera permission…', true);
+          stopCamera();
+          cameraStream = await openCamera();
+          const video = document.getElementById('lvVideo');
+          video.srcObject = cameraStream;
+          await video.play().catch(() => {});
+          document.getElementById('lvCamWrap').classList.add('is-open');
+          document.getElementById('lvCaptureBtn').hidden = false;
+          document.getElementById('lvCaptureBtn').disabled = false;
+          btn.textContent = 'Restart camera';
+          setStatus('Center your face in the oval, then tap Capture selfie.', true);
+        } catch (e) {
+          const msg = e?.name === 'NotAllowedError'
+            ? 'Camera permission denied. Allow Camera in app settings, then try again.'
+            : (e?.message || 'Could not open camera');
+          setStatus(msg + ' You can still use Gallery / file.', false);
+          btn.textContent = 'Open camera';
+        } finally {
+          btn.disabled = false;
+        }
+      });
+
+      document.getElementById('lvCaptureBtn').addEventListener('click', async () => {
+        const video = document.getElementById('lvVideo');
+        const canvas = document.getElementById('lvCanvas');
+        const captBtn = document.getElementById('lvCaptureBtn');
+        if (!video?.videoWidth) {
+          setStatus('Camera is still starting — wait a second and try again.', false);
+          return;
+        }
+        try {
+          captBtn.disabled = true;
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          const ctx = canvas.getContext('2d');
+          /* Mirror to match preview */
+          ctx.translate(canvas.width, 0);
+          ctx.scale(-1, 1);
+          ctx.drawImage(video, 0, 0);
+          const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
+          if (!blob) throw new Error('Could not capture photo');
+          const preview = document.getElementById('lvFacePreview');
+          preview.src = URL.createObjectURL(blob);
+          preview.style.display = 'block';
+          setStatus('Uploading selfie…', true);
+          await uploadBlob(blob);
+        } catch (err) {
+          setStatus(err?.response?.data?.message || err.message || 'Face upload failed', false);
+          captBtn.disabled = false;
+        }
+      });
+
+      document.getElementById('lvGalleryBtn').addEventListener('click', () => {
         document.getElementById('lvFaceInput').click();
       });
 
@@ -124,22 +277,19 @@
         const preview = document.getElementById('lvFacePreview');
         preview.src = URL.createObjectURL(file);
         preview.style.display = 'block';
-        const fd = new FormData();
-        fd.append('photo', file);
         try {
-          await API.upload('/live/verify/face', fd);
-          document.getElementById('lvStepFace').classList.add('done');
-          document.getElementById('lvContinueBtn').disabled = false;
-          setStatus('Face verification complete. You can go live with video.', true);
+          await uploadBlob(file);
         } catch (err) {
           setStatus(err?.response?.data?.message || err.message || 'Face upload failed', false);
         }
       });
 
       document.getElementById('lvContinueBtn').addEventListener('click', () => {
+        stopCamera();
         location.href = redirect.includes('?') ? redirect + '&app=1' : redirect + '?app=1';
       });
 
+      window.addEventListener('pagehide', stopCamera);
       await refreshStatus();
     })();
   </script>

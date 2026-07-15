@@ -126,6 +126,26 @@ async function main() {
       2
     )
   );
+
+  try {
+    const auditLogService = require('../services/auditLogService');
+    await auditLogService.log(null, SELLER_INV ? 'admin.script.seller_inventory' : 'admin.script.wallet_coins', {
+      entity_type: 'user',
+      entity_id: user.id,
+      metadata: {
+        summary: `${ADD ? 'Added' : 'Set'} ${AMOUNT} ${SELLER_INV ? 'seller' : 'wallet'} coins for display_id ${DISPLAY_ID}`,
+        source: 'set-coins-by-display-id',
+        display_id: DISPLAY_ID,
+        amount: AMOUNT,
+        add: ADD,
+        seller_inventory: SELLER_INV,
+        run_by: process.env.USER || process.env.USERNAME || 'ops',
+      },
+    });
+  } catch (auditErr) {
+    console.warn('audit log skipped', auditErr.message);
+  }
+
   await db.pool.end();
 }
 

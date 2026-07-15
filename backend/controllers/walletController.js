@@ -1,6 +1,7 @@
 const walletService = require('../services/walletService');
 const transactionService = require('../services/transactionService');
 const giftService = require('../services/giftService');
+const auditLogService = require('../services/auditLogService');
 
 exports.getBalance = async (req, res) => {
   try {
@@ -328,6 +329,16 @@ exports.approvePaymentRequest = async (req, res) => {
     const message = isSeller
       ? `${coins.toLocaleString()} coins added to seller stock (Coin Seller Center — not Profile wallet)`
       : `${Number(result?.coins_credited || 0).toLocaleString()} coins added to user wallet`;
+    await auditLogService.logAdmin(req, 'admin.payment.approve', {
+      entity_type: req.params.source || 'payment',
+      entity_id: req.params.id,
+      metadata: {
+        summary: message,
+        source: req.params.source,
+        coins,
+        notes: req.body.notes || null,
+      },
+    });
     res.json({ success: true, data: result, message });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
@@ -342,6 +353,15 @@ exports.rejectPaymentRequest = async (req, res) => {
       req.userId,
       req.body.notes || req.body.reason
     );
+    await auditLogService.logAdmin(req, 'admin.payment.reject', {
+      entity_type: req.params.source || 'payment',
+      entity_id: req.params.id,
+      metadata: {
+        summary: `Rejected ${req.params.source} ${req.params.id}`,
+        source: req.params.source,
+        notes: req.body.notes || req.body.reason || null,
+      },
+    });
     res.json({ success: true, data: result, message: 'Payment rejected' });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
@@ -360,6 +380,11 @@ exports.listPendingWithdrawals = async (_req, res) => {
 exports.approveRecharge = async (req, res) => {
   try {
     const result = await transactionService.approveRecharge(req.params.id, req.userId, req.body.notes);
+    await auditLogService.logAdmin(req, 'admin.recharge.approve', {
+      entity_type: 'recharge',
+      entity_id: req.params.id,
+      metadata: { summary: `Approved recharge ${req.params.id}`, notes: req.body.notes || null },
+    });
     res.json({ success: true, data: result });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
@@ -369,6 +394,11 @@ exports.approveRecharge = async (req, res) => {
 exports.rejectRecharge = async (req, res) => {
   try {
     const row = await transactionService.rejectRecharge(req.params.id, req.userId, req.body.notes);
+    await auditLogService.logAdmin(req, 'admin.recharge.reject', {
+      entity_type: 'recharge',
+      entity_id: req.params.id,
+      metadata: { summary: `Rejected recharge ${req.params.id}`, notes: req.body.notes || null },
+    });
     res.json({ success: true, data: row });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
@@ -378,6 +408,11 @@ exports.rejectRecharge = async (req, res) => {
 exports.approveWithdrawal = async (req, res) => {
   try {
     const row = await transactionService.markWithdrawalPaid(req.params.id, req.userId, req.body.notes);
+    await auditLogService.logAdmin(req, 'admin.withdrawal.approve', {
+      entity_type: 'withdrawal',
+      entity_id: req.params.id,
+      metadata: { summary: `Marked withdrawal paid ${req.params.id}`, notes: req.body.notes || null },
+    });
     res.json({ success: true, message: 'Marked as paid — awaiting user confirmation', data: row });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });

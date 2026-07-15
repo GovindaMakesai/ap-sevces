@@ -1,6 +1,7 @@
 // backend/controllers/adminController.js
 const db = require('../config/database');
 const bcrypt = require('bcryptjs');
+const auditLogService = require('../services/auditLogService');
 
 // ==================== DASHBOARD STATS ====================
 const getDashboardStats = async (req, res) => {
@@ -22,26 +23,33 @@ const getDashboardStats = async (req, res) => {
                 (SELECT COALESCE(AVG(rating), 0) FROM reviews) as avg_rating
         `);
 
-        const recentActivity = await db.query(`
-            (SELECT 'user' as type, id, created_at, 
-             CONCAT(first_name, ' ', last_name, ' joined') as description 
-             FROM users ORDER BY created_at DESC LIMIT 5)
-            UNION ALL
-            (SELECT 'booking' as type, id, created_at, 
-             CONCAT('Booking #', booking_number) as description 
-             FROM bookings ORDER BY created_at DESC LIMIT 5)
-            UNION ALL
-            (SELECT 'review' as type, id, created_at, 
-             CONCAT('New ', rating, '-star review') as description 
-             FROM reviews ORDER BY created_at DESC LIMIT 5)
-            ORDER BY created_at DESC LIMIT 10
-        `);
+        let recentActivity = [];
+        try {
+            recentActivity = await auditLogService.listRecent({ limit: 15, actionPrefix: 'admin.' });
+        } catch (_e) {
+            recentActivity = [];
+        }
+        if (!recentActivity.length) {
+            const fallback = await db.query(`
+                (SELECT 'user' as type, id::text as id, created_at, 
+                 CONCAT(first_name, ' ', last_name, ' joined') as description,
+                 'info' as status
+                 FROM users ORDER BY created_at DESC LIMIT 5)
+                UNION ALL
+                (SELECT 'booking' as type, id::text as id, created_at, 
+                 CONCAT('Booking #', booking_number) as description,
+                 'info' as status
+                 FROM bookings ORDER BY created_at DESC LIMIT 5)
+                ORDER BY created_at DESC LIMIT 10
+            `);
+            recentActivity = fallback.rows;
+        }
 
         res.json({
             success: true,
             data: {
                 stats: stats.rows[0],
-                recentActivity: recentActivity.rows
+                recentActivity
             }
         });
     } catch (error) {
@@ -51,6 +59,20 @@ const getDashboardStats = async (req, res) => {
             message: 'Failed to get stats',
             error: error.message 
         });
+    }
+};
+
+const listAuditLogs = async (req, res) => {
+    try {
+        const rows = await auditLogService.listRecent({
+            limit: req.query.limit,
+            actionPrefix: req.query.prefix || 'admin.',
+            actorUserId: req.query.actor || undefined,
+        });
+        res.json({ success: true, data: rows });
+    } catch (error) {
+        console.error('❌ List audit logs error:', error);
+        res.status(500).json({ success: false, message: 'Failed to load admin activity' });
     }
 };
 
@@ -151,13 +173,25 @@ const updateUserStatus = async (req, res) => {
         const { is_active } = req.body;
         
         const result = await db.query(
-            'UPDATE users SET is_active = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING id, email, is_active',
+            'UPDATE users SET is_active = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING id, email, is_active, display_id, first_name, last_name',
             [is_active, userId]
         );
         
         if (result.rows.length === 0) {
             return res.status(404).json({ success: false, message: 'User not found' });
         }
+
+        const u = result.rows[0];
+        await auditLogService.logAdmin(req, is_active ? 'admin.user.activate' : 'admin.user.deactivate', {
+            entity_type: 'user',
+            entity_id: userId,
+            metadata: {
+                summary: `${is_active ? 'Activated' : 'Deactivated'} ${u.email || u.display_id}`,
+                target_email: u.email,
+                target_display_id: u.display_id,
+                is_active: Boolean(is_active),
+            },
+        });
         
         res.json({
             success: true,
@@ -270,6 +304,20 @@ const updateUserDetails = async (req, res) => {
             success: true,
             message: 'User updated successfully',
             data: result.rows[0]
+        });
+
+        await auditLogService.logAdmin(req, role !== undefined ? 'admin.user.role_or_update' : 'admin.user.update', {
+            entity_type: 'user',
+            entity_id: userId,
+            metadata: {
+                summary: role !== undefined
+                    ? `Updated user ${result.rows[0]?.email || userId} (role → ${role})`
+                    : `Updated user ${result.rows[0]?.email || userId}`,
+                target_email: result.rows[0]?.email,
+                role: role,
+                fields: fields.map((f) => f.split('=')[0].trim()).filter((f) => f !== 'updated_at'),
+                password_reset: password !== undefined && String(password).trim() !== '',
+            },
         });
     } catch (error) {
         console.error('❌ Update user details error:', error);
@@ -413,6 +461,15 @@ const approveWorker = async (req, res) => {
         }
 
         await db.query('COMMIT');
+        await auditLogService.logAdmin(req, status === 'approved' ? 'admin.worker.approve' : 'admin.worker.reject', {
+            entity_type: 'worker',
+            entity_id: workerId,
+            metadata: {
+                summary: `Worker ${status}`,
+                status,
+                service_ids: Array.isArray(service_ids) ? service_ids : [],
+            },
+        });
         res.json({
             success: true,
             message: `Worker ${status} successfully`,
@@ -927,6 +984,7 @@ const getAnalytics = async (req, res) => {
 // ==================== EXPORT ALL FUNCTIONS ====================
 module.exports = {
     getDashboardStats,
+    listAuditLogs,
     getAllUsers,
     getUserById,
     updateUserStatus,

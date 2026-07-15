@@ -5773,11 +5773,11 @@
         window.__apLocalStream.getTracks().forEach((t) => t.stop());
       }
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { exact: nextFacing } },
+        video: { facingMode: { ideal: nextFacing } },
         audio: false,
       }).catch(() =>
         navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: nextFacing } },
+          video: true,
           audio: false,
         })
       );

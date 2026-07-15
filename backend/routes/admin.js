@@ -20,6 +20,7 @@ router.use(authorizeRoles('admin'));
 // Dashboard
 router.get('/dashboard/stats', adminController.getDashboardStats);
 router.get('/analytics', adminController.getAnalytics);
+router.get('/audit-logs', adminController.listAuditLogs);
 
 // User Management
 router.get('/users', adminController.getAllUsers);

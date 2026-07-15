@@ -123,7 +123,8 @@ app.use(cors({
   origin(origin, callback) {
     if (isAllowedCorsOrigin(origin)) return callback(null, true);
     logger.warn('CORS blocked', { origin });
-    return callback(new Error('CORS not allowed'), false);
+    /* Never throw — throwing fails the whole request as 500 and breaks Live rooms in WebViews */
+    return callback(null, false);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
