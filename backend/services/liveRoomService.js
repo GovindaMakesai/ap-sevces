@@ -251,7 +251,11 @@ async function leaveRoom({ channel, userId }) {
   await db.query(
     `UPDATE live_room_members
      SET left_at = CURRENT_TIMESTAMP,
-         role = CASE WHEN role = 'host' THEN 'host' ELSE 'viewer' END,
+         role = CASE
+           WHEN role = 'host' THEN 'host'
+           WHEN role = 'admin' THEN 'admin'
+           ELSE 'viewer'
+         END,
          seat_index = CASE WHEN role = 'host' THEN seat_index ELSE NULL END
      WHERE live_room_id = $1 AND user_id = $2 AND left_at IS NULL`,
     [room.id, userId]
@@ -1100,6 +1104,13 @@ async function kickMember({ channel, userId, bannedBy, reason, durationHours }) 
        expires_at = EXCLUDED.expires_at,
        created_at = CURRENT_TIMESTAMP`,
     [room.id, userId, bannedBy || null, reason || null, expiresAt]
+  );
+  /* Host removing them from live also strips room-admin (explicit kick) */
+  await db.query(
+    `UPDATE live_room_members
+     SET role = CASE WHEN role = 'host' THEN 'host' ELSE 'viewer' END
+     WHERE live_room_id = $1 AND user_id = $2`,
+    [room.id, userId]
   );
   await leaveRoom({ channel, userId });
   const ban = { reason: reason || null, expires_at: expiresAt };

@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260715-gift0-clip';
+  window.__AP_LIVE_BUILD = '20260715-admin-persist';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -1113,11 +1113,66 @@
       (roomState?.seats || []).map((s) => String(s.userId || '')).filter(Boolean)
     );
     if (stickyStageGuests.has(uid)) seated.add(uid);
-    if (seated.has(uid) || m.role === 'speaker' || (m.seatIndex != null && m.role !== 'viewer')) {
-      return isLiveRoomPage() ? 'On mic' : 'On seat';
+    const isAdmin = Boolean(m.isAdmin || m.role === 'admin');
+    const onStage =
+      seated.has(uid) ||
+      m.role === 'speaker' ||
+      (m.seatIndex != null && m.role !== 'viewer');
+    if (onStage) {
+      const stage = isLiveRoomPage() ? 'On mic' : 'On seat';
+      return isAdmin ? `Admin · ${stage}` : stage;
     }
-    if (m.isAdmin || m.role === 'admin') return 'Admin';
+    if (isAdmin) return 'Admin';
     return 'In room';
+  }
+
+  function memberIsOnStage(m) {
+    if (!m?.userId) return false;
+    const uid = String(m.userId);
+    if (stickyStageGuests.has(uid)) return true;
+    if (m.seatIndex != null || m.seat_index != null) return true;
+    if (m.role === 'speaker') return true;
+    return (roomState?.seats || []).some((s) => String(s.userId || '') === uid);
+  }
+
+  function clearLocalSeatState(userId) {
+    const uid = String(userId || '');
+    if (!uid || !roomState) return;
+    forgetStickyStageGuest(uid);
+    if (Array.isArray(roomState.seats)) {
+      roomState.seats = roomState.seats.filter((s) => String(s?.userId) !== uid);
+    }
+    if (Array.isArray(roomState.onlineMembers)) {
+      roomState.onlineMembers = roomState.onlineMembers.map((m) => {
+        if (String(m?.userId) !== uid) return m;
+        const keepAdmin = Boolean(m.isAdmin || m.role === 'admin');
+        return {
+          ...m,
+          role: keepAdmin ? 'admin' : 'viewer',
+          isAdmin: keepAdmin,
+          seatIndex: null,
+          seat_index: null,
+        };
+      });
+    }
+  }
+
+  function demoteUserFromSeat(userId) {
+    if (!canModerateRoom() || !liveSocket?.connected || !userId) return;
+    if (isRoomHostUserId(userId)) {
+      toast('Cannot remove the room host', 'warning');
+      return;
+    }
+    liveSocket.emit('live:demote_speaker', { channel: channelId(), userId }, (res) => {
+      if (res?.ok) {
+        clearLocalSeatState(userId);
+        renderRoomState();
+        syncHostBarUi();
+        toast('Removed from the seat', 'success');
+      } else {
+        toast(res?.message || 'Could not remove guest', 'error');
+      }
+    });
   }
 
   function syncAgoraUidMap() {
@@ -1498,43 +1553,6 @@
     );
   }
 
-  function clearLocalSeatState(userId) {
-    const uid = String(userId || '');
-    if (!uid || !roomState) return;
-    forgetStickyStageGuest(uid);
-    if (Array.isArray(roomState.seats)) {
-      roomState.seats = roomState.seats.filter((s) => String(s?.userId) !== uid);
-    }
-    if (Array.isArray(roomState.onlineMembers)) {
-      roomState.onlineMembers = roomState.onlineMembers.map((m) => {
-        if (String(m?.userId) !== uid) return m;
-        return {
-          ...m,
-          role: m.role === 'admin' ? 'admin' : 'viewer',
-          seatIndex: null,
-          seat_index: null,
-        };
-      });
-    }
-  }
-
-  function demoteUserFromSeat(userId) {
-    if (!canModerateRoom() || !liveSocket?.connected || !userId) return;
-    if (isRoomHostUserId(userId)) {
-      toast('Cannot remove the room host', 'warning');
-      return;
-    }
-    liveSocket.emit('live:demote_speaker', { channel: channelId(), userId }, (res) => {
-      if (res?.ok) {
-        clearLocalSeatState(userId);
-        renderRoomState();
-        toast('Removed from the seat', 'success');
-      } else {
-        toast(res?.message || 'Could not remove guest', 'error');
-      }
-    });
-  }
-
   function toggleRoomLock() {
     if (!isHost() || !liveSocket?.connected) return;
     const locked = Boolean(roomState?.isLocked);
@@ -1572,16 +1590,19 @@
     menu.className = 'ap-profile-more-menu';
     panel.appendChild(menu);
     const isTargetHost = isRoomHostUserId(userId);
-    const isAdminMember = (roomState?.onlineMembers || roomState?.seats || []).some(
-      (m) => String(m.userId) === String(userId) && (m.isAdmin || m.role === 'admin')
-    );
+    const memberHit =
+      (roomState?.onlineMembers || []).find((m) => String(m.userId) === String(userId)) ||
+      (roomState?.seats || []).find((s) => String(s.userId) === String(userId)) ||
+      { userId, name };
+    const isAdminMember = Boolean(memberHit.isAdmin || memberHit.role === 'admin');
+    const onStage = memberIsOnStage(memberHit);
     const canKick = !isTargetHost;
     menu.innerHTML = `
       <button type="button" data-mod="mute"><i class="fas fa-microphone-slash"></i><span>Mute mic</span></button>
       <button type="button" data-mod="unmute"><i class="fas fa-microphone"></i><span>Unmute mic</span></button>
-      ${isPartyRoomPage() || isLiveRoomPage() ? `<button type="button" data-mod="addseat"><i class="fas fa-plus"></i><span>${isLiveRoomPage() ? 'Add to live' : 'Add to seat'}</span></button>` : ''}
-      ${isPartyRoomPage() ? '<button type="button" data-mod="move"><i class="fas fa-exchange-alt"></i><span>Move to seat…</span></button>' : ''}
-      ${canKick ? '<button type="button" data-mod="demote"><i class="fas fa-user-minus"></i><span>Remove from the seat</span></button>' : ''}
+      ${!onStage && (isPartyRoomPage() || isLiveRoomPage()) ? `<button type="button" data-mod="addseat"><i class="fas fa-plus"></i><span>${isLiveRoomPage() ? 'Add to live' : 'Add to seat'}</span></button>` : ''}
+      ${isPartyRoomPage() && onStage ? '<button type="button" data-mod="move"><i class="fas fa-exchange-alt"></i><span>Move to seat…</span></button>' : ''}
+      ${canKick && onStage ? '<button type="button" data-mod="demote"><i class="fas fa-user-minus"></i><span>Remove from the seat</span></button>' : ''}
       ${canKick ? '<button type="button" data-mod="kick2"><i class="fas fa-ban"></i><span>Kick out · 2 hours</span></button>' : ''}
       ${canKick ? '<button type="button" data-mod="kick24"><i class="fas fa-ban"></i><span>Kick out · 24 hours</span></button>' : ''}
       ${isHost() && canKick ? `<button type="button" data-mod="admin"><i class="fas fa-user-shield"></i><span>${isAdminMember ? 'Revoke admin' : 'Make admin'}</span></button>` : ''}`;
@@ -1760,11 +1781,11 @@
     list.innerHTML = available
       .map((m) => {
         const role = memberListRoleLabel(m);
-        const onSeat = role === 'On seat' || role === 'On mic';
+        const onSeat = memberIsOnStage(m);
         let actionBtn = '';
         if (mod && !isRoomHostUserId(m.userId)) {
           if (onSeat) {
-            actionBtn = `<button type="button" class="deny" data-remove-seat="${escapeHtml(String(m.userId))}">Remove</button>`;
+            actionBtn = `<button type="button" class="deny" data-remove-seat="${escapeHtml(String(m.userId))}">Remove from seat</button>`;
           } else {
             actionBtn = `<button type="button" class="accept" data-invite-seat="${escapeHtml(String(m.userId))}">${isLiveRoomPage() ? 'Add' : 'To seat'}</button>`;
           }
@@ -3245,12 +3266,19 @@
         if (uid) clearLocalSeatState(uid);
         if (me && String(uid) === String(me.id)) {
           stopGuestMediaPublishing({ rejoinAsAudience: true }).catch(() => { });
+          const stillAdmin = canModerateRoom();
           toast(
-            isLiveRoomPage() ? 'Host removed you from live' : 'You were removed from the seat',
+            stillAdmin
+              ? 'Removed from the seat — you are still a room admin'
+              : isLiveRoomPage()
+                ? 'Host removed you from live'
+                : 'You were removed from the seat',
             'warning'
           );
+          syncHostBarUi();
         }
         renderRoomState();
+        syncHostBarUi();
       });
 
       liveSocket.on('live:admin_changed', (payload) => {
