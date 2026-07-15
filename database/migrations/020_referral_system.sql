@@ -294,7 +294,7 @@ INSERT INTO referral_settings (key, value) VALUES
   ('require_phone', 'true'::jsonb),
   ('require_face', 'true'::jsonb),
   ('require_profile', 'true'::jsonb),
-  ('base_url', '"https://app.apservices.live"'::jsonb),
+  ('base_url', '"https://api.apservices.in"'::jsonb),
   ('deep_link_scheme', '"apservices"'::jsonb)
 ON CONFLICT (key) DO NOTHING;
 

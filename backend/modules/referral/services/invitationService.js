@@ -2,6 +2,13 @@ const crypto = require('crypto');
 const db = require('../../../config/database');
 const settings = require('./settingsService');
 
+/** Production app + frontend host (not the dead app.apservices.live placeholder). */
+const DEFAULT_BASE_URL = (
+  process.env.FRONTEND_URL ||
+  process.env.PUBLIC_HTTPS_URL ||
+  'https://api.apservices.in'
+).replace(/\/$/, '');
+
 function hashCodeMaterial(userId) {
   return crypto.createHash('sha256').update(String(userId) + ':' + Date.now()).digest('hex');
 }
@@ -10,6 +17,20 @@ function generateHumanCode(userId) {
   const raw = hashCodeMaterial(userId).slice(0, 10).toUpperCase();
   /* Crockford-ish: avoid ambiguous chars */
   return ('AP' + raw.replace(/[ILOU]/g, '')).slice(0, 10);
+}
+
+async function resolveBaseUrl() {
+  const fromSettings = await settings.getSetting('base_url', DEFAULT_BASE_URL);
+  let base = String(fromSettings || DEFAULT_BASE_URL).replace(/\/$/, '');
+  /* Dead / mistyped domain used in early seed — never ship invite links there. */
+  if (!base || /apservices\.live/i.test(base)) {
+    base = DEFAULT_BASE_URL;
+  }
+  return base;
+}
+
+function buildWebLink(baseUrl, code) {
+  return `${String(baseUrl).replace(/\/$/, '')}/register.html?ref=${encodeURIComponent(code)}&app=1`;
 }
 
 async function ensureUniqueCode(userId) {
@@ -36,11 +57,10 @@ async function getOrCreateInvitationLink(userId, { channel = 'default' } = {}) {
   }
 
   const code = await ensureUniqueCode(userId);
-  const baseUrl = (await settings.getSetting('base_url', 'https://app.apservices.live')) || 'https://app.apservices.live';
+  const baseUrl = await resolveBaseUrl();
   const scheme = (await settings.getSetting('deep_link_scheme', 'apservices')) || 'apservices';
-  const webLink = `${String(baseUrl).replace(/\/$/, '')}/register.html?ref=${encodeURIComponent(code)}&app=1`;
+  const webLink = buildWebLink(baseUrl, code);
   const deepLink = `${scheme}://invite?ref=${encodeURIComponent(code)}`;
-  const universalLink = webLink;
 
   const res = await db.query(
     `INSERT INTO invitation_links
@@ -51,7 +71,7 @@ async function getOrCreateInvitationLink(userId, { channel = 'default' } = {}) {
       userId,
       code,
       deepLink,
-      universalLink,
+      webLink,
       webLink,
       channel,
       JSON.stringify({ android_intent: `intent://invite?ref=${code}#Intent;scheme=${scheme};end` }),
@@ -60,16 +80,29 @@ async function getOrCreateInvitationLink(userId, { channel = 'default' } = {}) {
   return enrichLink(res.rows[0]);
 }
 
-function enrichLink(row) {
+async function enrichLink(row) {
   if (!row) return null;
-  const shareText = `Join me on AP Services! Use my invite code ${row.code} and get rewards: ${row.universal_link || row.qr_payload}`;
+  const baseUrl = await resolveBaseUrl();
+  const webLink = buildWebLink(baseUrl, row.code);
+  const stored = row.universal_link || row.qr_payload || '';
+  /* Persist rewrite if old rows still point at app.apservices.live */
+  if (stored && /apservices\.live/i.test(stored) && stored !== webLink) {
+    db.query(
+      `UPDATE invitation_links
+       SET universal_link = $1, qr_payload = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2`,
+      [webLink, row.id]
+    ).catch(() => {});
+  }
+
+  const shareText = `Join me on AP Services! Use my invite code ${row.code} and get rewards: ${webLink}`;
   return {
     id: row.id,
     code: row.code,
     deepLink: row.deep_link,
-    universalLink: row.universal_link,
-    webLink: row.qr_payload,
-    qrPayload: row.qr_payload || row.universal_link,
+    universalLink: webLink,
+    webLink,
+    qrPayload: webLink,
     channel: row.channel,
     clicks: row.clicks,
     installs: row.installs,
@@ -77,10 +110,10 @@ function enrichLink(row) {
     shareText,
     shareTargets: {
       whatsapp: `https://wa.me/?text=${encodeURIComponent(shareText)}`,
-      telegram: `https://t.me/share/url?url=${encodeURIComponent(row.universal_link || '')}&text=${encodeURIComponent(shareText)}`,
-      facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(row.universal_link || '')}`,
+      telegram: `https://t.me/share/url?url=${encodeURIComponent(webLink)}&text=${encodeURIComponent(shareText)}`,
+      facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(webLink)}`,
       sms: `sms:?body=${encodeURIComponent(shareText)}`,
-      copy: row.universal_link || row.qr_payload,
+      copy: webLink,
     },
     metadata: row.metadata || {},
     createdAt: row.created_at,
@@ -129,4 +162,6 @@ module.exports = {
   recordClick,
   findLinkByCode,
   generateHumanCode,
+  resolveBaseUrl,
+  DEFAULT_BASE_URL,
 };

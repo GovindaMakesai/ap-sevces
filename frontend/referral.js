@@ -138,8 +138,13 @@
     const codeEl = document.getElementById('refCode');
     const linkEl = document.getElementById('refLink');
     if (codeEl) codeEl.textContent = inv.code || '—';
-    if (linkEl) linkEl.textContent = inv.webLink || inv.universalLink || '';
-    renderQr(inv.qrPayload || inv.webLink || inv.universalLink);
+    const fixedLink = fixInviteHost(inv.webLink || inv.universalLink || '');
+    if (linkEl) linkEl.textContent = fixedLink;
+    if (inv.webLink) inv.webLink = fixedLink;
+    if (inv.universalLink) inv.universalLink = fixedLink;
+    if (inv.qrPayload) inv.qrPayload = fixInviteHost(inv.qrPayload);
+    if (inv.shareText) inv.shareText = fixInviteHost(inv.shareText);
+    renderQr(inv.qrPayload || fixedLink);
 
     const t = d.totals || {};
     const r = d.rewards || {};
@@ -152,14 +157,19 @@
 
   }
 
+  function fixInviteHost(url) {
+    return String(url || '').replace(/https?:\/\/[^/\s]*apservices\.live/gi, 'https://api.apservices.in');
+  }
+
   function buildShareBundle(inv) {
     const code = inv?.code || '';
-    const link =
+    const link = fixInviteHost(
       inv?.webLink ||
-      inv?.universalLink ||
-      (code
-        ? `${location.origin}/register.html?ref=${encodeURIComponent(code)}&app=1`
-        : '');
+        inv?.universalLink ||
+        (code
+          ? `${location.origin}/register.html?ref=${encodeURIComponent(code)}&app=1`
+          : '')
+    );
     const shareText =
       inv?.shareText ||
       (code

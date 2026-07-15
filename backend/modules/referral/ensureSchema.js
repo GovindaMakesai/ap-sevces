@@ -33,6 +33,27 @@ async function ensureReferralSchema() {
     await client.query('BEGIN');
     const sql = fs.readFileSync(migrationPath, 'utf8');
     await client.query(sql);
+    /* Fix early seed that used a non-resolving domain for invite links. */
+    await client.query(
+      `INSERT INTO referral_settings (key, value)
+       VALUES ('base_url', '"https://api.apservices.in"'::jsonb)
+       ON CONFLICT (key) DO UPDATE SET
+         value = CASE
+           WHEN referral_settings.value::text ILIKE '%apservices.live%'
+             THEN EXCLUDED.value
+           ELSE referral_settings.value
+         END,
+         updated_at = CURRENT_TIMESTAMP`
+    );
+    await client.query(
+      `UPDATE invitation_links
+       SET
+         universal_link = REGEXP_REPLACE(universal_link, 'https?://[^/]*apservices\\.live', 'https://api.apservices.in', 'i'),
+         qr_payload = REGEXP_REPLACE(qr_payload, 'https?://[^/]*apservices\\.live', 'https://api.apservices.in', 'i'),
+         updated_at = CURRENT_TIMESTAMP
+       WHERE universal_link ILIKE '%apservices.live%'
+          OR qr_payload ILIKE '%apservices.live%'`
+    );
     await client.query('COMMIT');
     console.log('✅ Referral / host recruitment schema ready');
   } catch (err) {
