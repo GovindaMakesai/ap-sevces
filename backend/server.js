@@ -173,12 +173,8 @@ app.use('/api/trust', trustRoutes);
 app.use('/api/files', filesRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/v1', platformRoutes);
-app.use('/api', hierarchyRoutes);
-app.use('/api/referral', referralModule.routes);
-app.use('/api/host', referralModule.hostRoutes);
-app.use('/api/leaderboard', referralModule.leaderboardRoutes);
-app.use('/api/reward', referralModule.rewardRoutes);
 
+/* Health must stay above catch-all /api mounts (hierarchy verifies every /api/*). */
 app.get('/api/health', async (_req, res) => {
   const health = { success: true, status: 'online', checks: {} };
   try {
@@ -191,6 +187,13 @@ app.get('/api/health', async (_req, res) => {
   health.checks.redis = { ok: redis.isEnabled(), mode: redis.isEnabled() ? 'redis' : 'memory' };
   res.status(health.success ? 200 : 503).json(health);
 });
+
+/* Specific /api/* modules before hierarchy catch-all (hierarchy uses verifyToken on all entries). */
+app.use('/api/referral', referralModule.routes);
+app.use('/api/host', referralModule.hostRoutes);
+app.use('/api/leaderboard', referralModule.leaderboardRoutes);
+app.use('/api/reward', referralModule.rewardRoutes);
+app.use('/api', hierarchyRoutes);
 
 app.get('/', (_req, res) => {
   res.json({ message: 'AP Services API is running', status: 'online', version: '2.0.0' });
