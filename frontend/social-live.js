@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260715-chat-mic-only';
+  window.__AP_LIVE_BUILD = '20260715-profile-close';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -7332,8 +7332,10 @@
     /* Closed overlays sometimes keep stray .open from race — force-clear ghosts */
     if (forceGift) {
       document.querySelectorAll('.ap-modal-overlay.open').forEach((el) => {
-        if (el.id === 'apHostMicInviteModal') return; /* keep mic Agree popup visible */
+        if (el.id === 'apHostMicInviteModal') return;
         if (el.id === 'giftSheet' || el.classList.contains('gift-sheet')) return;
+        /* Never auto-kill profile / seat sheets — user opened them on purpose */
+        if (el.id === 'apProfileSheet' || el.id === 'apSeatSheet') return;
         el.classList.remove('open');
       });
       document.getElementById('partyToolsSheet')?.classList.remove('open');
@@ -7521,6 +7523,8 @@
           'apSurpriseShop',
           'apFilterSheet',
           'apInRoomWebPanel',
+          'apProfileSheet',
+          'apSeatSheet',
         ].some((id) => document.getElementById(id)?.classList.contains('open'));
         if (!othersOpen) unlockLiveChrome({ forceGift: true });
       }
@@ -7659,17 +7663,35 @@
   function bindPartyRequestsSheet() {
     const sheet = document.getElementById('partyRequestsSheet');
     if (!sheet) return;
+
+    const closeBtn = document.getElementById('partyRequestsClose');
+    if (closeBtn && closeBtn.dataset.closeBound !== '1') {
+      closeBtn.dataset.closeBound = '1';
+      /* Capture so panel seat-action stopPropagation cannot block the X */
+      closeBtn.addEventListener(
+        'click',
+        (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          closePartyRequestsSheet();
+        },
+        true
+      );
+    }
+
     if (sheet.dataset.requestsBound !== '1') {
       sheet.dataset.requestsBound = '1';
-      document.getElementById('partyRequestsClose')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        closePartyRequestsSheet();
-      });
       sheet.addEventListener('click', (e) => {
+        if (e.target.closest('#partyRequestsClose')) {
+          e.preventDefault();
+          e.stopPropagation();
+          closePartyRequestsSheet();
+          return;
+        }
         if (!e.target.closest('.party-requests-panel')) closePartyRequestsSheet();
       });
     }
+
     /* Always (re)bind panel actions — sheet may be reparented */
     const panel = sheet.querySelector('.party-requests-panel');
     if (!panel || panel.dataset.seatActionsBound === '1') return;
@@ -7677,6 +7699,12 @@
     panel.addEventListener(
       'click',
       (e) => {
+        if (e.target.closest('#partyRequestsClose')) {
+          e.preventDefault();
+          e.stopPropagation();
+          closePartyRequestsSheet();
+          return;
+        }
         e.stopPropagation();
         const acceptBtn = e.target.closest('[data-accept]');
         if (acceptBtn && panel.contains(acceptBtn)) {
@@ -8345,26 +8373,31 @@
     const user = currentUser();
     const hostName = roomState?.hostName || displayName(user);
     const hostId = roomState?.hostId ? String(roomState.hostId) : '';
-    document.querySelectorAll('#partyHostAvatar, #liveHostAvatar, .ap-top-gifter img').forEach((img) => {
+    const openHostProfile = (e) => {
+      if (e?.target?.closest?.('#partyHostFollow, .party-follow-btn, #partyHostFollow')) return;
+      e?.preventDefault?.();
+      e?.stopPropagation?.();
+      openProfileSheet(hostName, hostId || roomState?.hostId || '');
+    };
+    document.querySelectorAll('#partyHostAvatar, #liveHostAvatar').forEach((img) => {
       if (!img.getAttribute('src')) img.src = avatarUrl(hostName);
       img.dataset.name = hostName;
-      if ((img.id === 'partyHostAvatar' || img.id === 'liveHostAvatar') && !img.dataset.profileBound) {
-        img.dataset.profileBound = '1';
-        img.style.cursor = 'pointer';
-        img.addEventListener('click', () => {
-          if (hostId && !isHost()) navigateToUserProfile(hostId, hostName);
-          else openProfileSheet(hostName, roomState?.hostId || '');
-        });
-      }
+      if (img.dataset.profileBound === '1') return;
+      img.dataset.profileBound = '1';
+      img.style.cursor = 'pointer';
+      img.style.pointerEvents = 'auto';
+      img.addEventListener('click', openHostProfile, true);
     });
     document.querySelectorAll('#partyHostName, #liveHostName').forEach((el) => {
-      if (el.dataset.profileBound) return;
+      if (el.dataset.profileBound === '1') return;
       el.dataset.profileBound = '1';
       el.style.cursor = 'pointer';
-      el.addEventListener('click', () => {
-        if (hostId && !isHost()) navigateToUserProfile(hostId, hostName);
-        else openProfileSheet(hostName, roomState?.hostId || '');
-      });
+      el.style.pointerEvents = 'auto';
+      el.addEventListener('click', openHostProfile, true);
+    });
+    document.querySelectorAll('.ap-top-gifter img').forEach((img) => {
+      if (!img.getAttribute('src')) img.src = avatarUrl(hostName);
+      img.dataset.name = hostName;
     });
   }
 
@@ -11420,7 +11453,16 @@
         .join('');
     }
     sheet?.querySelector('.ap-profile-more-menu')?.remove();
-    document.getElementById('apProfileSheet')?.classList.add('open');
+    const profileSheet = document.getElementById('apProfileSheet');
+    if (profileSheet) {
+      profileSheet.classList.add('open');
+      profileSheet.style.pointerEvents = 'auto';
+      profileSheet.style.removeProperty('display');
+      profileSheet.style.removeProperty('visibility');
+      profileSheet.style.zIndex = '14000';
+      if (profileSheet.parentElement !== document.body) document.body.appendChild(profileSheet);
+    }
+    syncLiveOverlayClass();
 
     if (resolvedId) {
       await loadProfileEngagement(resolvedId, n, img, nm);

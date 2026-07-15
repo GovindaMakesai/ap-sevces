@@ -166,13 +166,14 @@
   gap: 4px;
   flex-direction: row;
   flex-wrap: nowrap;
-  max-width: min(46vw, 200px);
-  overflow: hidden;
+  max-width: min(52vw, 240px);
+  overflow: visible;
 }
 
 .party-viewers .ap-top-gifter {
   margin-left: -6px;
-  flex-shrink: 0;
+  flex-shrink: 1;
+  min-width: 0;
 }
 
 .party-viewers .ap-top-gifter:first-child {
@@ -180,11 +181,11 @@
 }
 
 .party-viewer-count {
-  flex-shrink: 0;
+  flex-shrink: 0 !important;
   white-space: nowrap;
   font-size: 12px;
   font-weight: 700;
-  padding: 2px 8px;
+  padding: 4px 10px;
   background: rgba(0, 0, 0, 0.35);
   border-radius: 12px;
   border: none;
@@ -194,6 +195,8 @@
   touch-action: manipulation;
   position: relative;
   z-index: 40;
+  overflow: visible;
+  margin-left: 4px;
 }
 
 .party-viewers.is-clickable,
@@ -1620,12 +1623,13 @@ body.party-requests-open .live-host-bar {
   font-size: 16px;
 }
 
-.party-requests-head button {
+.party-requests-head button,
+#partyRequestsClose {
   border: none;
   background: rgba(255, 255, 255, 0.12);
   color: #fff;
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   cursor: pointer;
   display: flex;
@@ -1633,7 +1637,21 @@ body.party-requests-open .live-host-bar {
   justify-content: center;
   flex-shrink: 0;
   position: relative;
-  z-index: 2;
+  z-index: 20;
+  pointer-events: auto !important;
+  touch-action: manipulation;
+}
+
+.party-viewer-count.live-joined-count {
+  font-size: 11px;
+  padding: 5px 11px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.55);
+  white-space: nowrap;
+  color: #fff;
+  overflow: visible;
+  flex-shrink: 0 !important;
+  min-width: fit-content;
 }
 
 .party-requests-hint {
@@ -5181,7 +5199,7 @@ body[data-live-page="party-room"] .ap-guest-rail:not(:empty) {
 
 .party-viewer-count.live-joined-count {
   font-size: 11px;
-  padding: 4px 10px;
+  padding: 5px 11px;
   border-radius: 10px;
   background: rgba(0, 0, 0, 0.55);
   white-space: nowrap;
@@ -5190,6 +5208,9 @@ body[data-live-page="party-room"] .ap-guest-rail:not(:empty) {
   touch-action: manipulation;
   color: #fff;
   border: none;
+  overflow: visible;
+  flex-shrink: 0 !important;
+  min-width: fit-content;
 }
 
 .ap-bottom-ref {
