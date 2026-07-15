@@ -3104,7 +3104,7 @@
         });
         renderJoinRequests();
         toast(`${req.name || 'Someone'} wants to join${isLiveRoomPage() ? ' the stream' : ' a seat'}`);
-        showHostMicInvitePopup({
+        pushMicInviteToChat({
           id,
           name: req.name || 'Guest',
           userId: id,
@@ -5960,22 +5960,29 @@
   /* ---------- UI: chat / seats / gifts ---------- */
   function shouldShowMsg(msg, tab) {
     if (tab === 'all') return true;
-    if (tab === 'room') return msg.type === 'system';
-    if (tab === 'chat') return msg.type !== 'system';
+    if (msg.type === 'mic_invite') return canModerateRoom();
+    if (tab === 'room') return msg.type === 'system' || msg.type === 'mic_invite';
+    if (tab === 'chat') return msg.type !== 'system' && msg.type !== 'mic_invite';
     return true;
   }
 
   function applyChatFilters(msg) {
+    if (msg.type === 'mic_invite' && !canModerateRoom()) return false;
     if (!shouldShowMsg(msg, chatTab)) return false;
     if (chatTab === 'all') return true;
     if (chatRegionFilter === 'room') {
-      return msg.type === 'system' || msg.scope === 'room' || (!msg.scope && !msg.broadcast);
+      return (
+        msg.type === 'system' ||
+        msg.type === 'mic_invite' ||
+        msg.scope === 'room' ||
+        (!msg.scope && !msg.broadcast)
+      );
     }
     if (chatRegionFilter === 'region') {
-      return msg.type === 'system' || msg.scope === 'region';
+      return msg.type === 'system' || msg.type === 'mic_invite' || msg.scope === 'region';
     }
     if (chatRegionFilter === 'broadcast') {
-      return msg.type === 'system' || msg.broadcast || msg.scope === 'broadcast';
+      return msg.type === 'system' || msg.type === 'mic_invite' || msg.broadcast || msg.scope === 'broadcast';
     }
     return true;
   }
@@ -6394,6 +6401,52 @@
           } else {
             div.textContent = msg.text || '';
           }
+        } else if (msg.type === 'mic_invite') {
+          const uid = String(msg.inviteUserId || msg.userId || '');
+          const uname = msg.inviteName || msg.user || 'Guest';
+          const status = msg.inviteStatus || 'pending';
+          const pic = msg.profilePic || null;
+          div.className = 'party-chat-msg party-chat-mic-invite' + (status !== 'pending' ? ' is-resolved' : '');
+          div.dataset.micInviteUid = uid;
+          if (status === 'pending') {
+            div.innerHTML =
+              `<button type="button" class="party-chat-avatar-btn" data-chat-user="${escapeAttr(uname)}" data-chat-uid="${escapeHtml(uid)}">` +
+              `<img src="${escapeAttr(avatarUrl(uname, pic))}" alt="" loading="lazy"></button>` +
+              `<div class="party-chat-mic-body">` +
+              `<div class="party-chat-mic-text"><strong>${escapeHtml(uname)}</strong> wants to join on mic</div>` +
+              `<div class="party-chat-mic-actions">` +
+              `<button type="button" class="party-chat-mic-deny" data-mic-deny="${escapeHtml(uid)}">Decline</button>` +
+              `<button type="button" class="party-chat-mic-agree" data-mic-agree="${escapeHtml(uid)}">Agree</button>` +
+              `</div></div>`;
+          } else {
+            const label = status === 'accepted' ? 'Agreed' : 'Declined';
+            div.innerHTML =
+              `<span class="party-chat-mic-resolved">${label}: <strong>${escapeHtml(uname)}</strong> mic request</span>`;
+          }
+          div.querySelector('.party-chat-avatar-btn')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openProfileSheet(uname, uid);
+          });
+          div.querySelector('[data-mic-agree]')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const req = joinRequests.find((x) => String(x.id) === uid) || {
+              id: uid,
+              userId: uid,
+              name: uname,
+            };
+            acceptMicRequest(req, { btn: e.currentTarget });
+          });
+          div.querySelector('[data-mic-deny]')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const req = joinRequests.find((x) => String(x.id) === uid) || {
+              id: uid,
+              userId: uid,
+              name: uname,
+            };
+            denyMicRequest(req);
+          });
         } else if (msg.type === 'gift') {
           div.className = 'party-chat-msg party-chat-msg--gift is-tappable';
           const g = msg.gift || {};
@@ -7023,50 +7076,66 @@
   }
 
   function hideHostMicInvitePopup() {
-    const modal = document.getElementById('apHostMicInviteModal');
-    if (!modal) return;
-    modal.classList.remove('open');
-    modal.dataset.userId = '';
+    /* Popup retired — keep helper so old callers don't throw */
+    document.getElementById('apHostMicInviteModal')?.classList.remove('open');
     syncLiveOverlayClass();
+  }
+
+  function pushMicInviteToChat(req) {
+    if (!canModerateRoom() || !req) return;
+    const uid = String(req.userId || req.id || '');
+    if (!uid) return;
+    const name = req.name || 'Guest';
+    const pending = chatMessages.find(
+      (m) => m.type === 'mic_invite' && String(m.inviteUserId) === uid && m.inviteStatus === 'pending'
+    );
+    if (pending) {
+      renderChatFeed();
+      return;
+    }
+    rememberChatMessage({
+      id: `mic-invite-${uid}-${Date.now()}`,
+      type: 'mic_invite',
+      user: name,
+      userId: uid,
+      inviteUserId: uid,
+      inviteName: name,
+      profilePic: req.profilePic || null,
+      inviteStatus: 'pending',
+      text: `${name} requested mic`,
+      at: new Date().toISOString(),
+      scope: 'room',
+    });
+    renderChatFeed();
+    /* Keep chat visible so host can tap Agree/Decline */
+    document.body.classList.remove('ap-chat-hidden');
+    document.getElementById('partyChatRow')?.classList.remove('is-hidden');
+    document.getElementById('liveBtnShowChat')?.setAttribute('hidden', '');
+  }
+
+  function markMicInviteChatStatus(userId, status) {
+    const uid = String(userId || '');
+    let changed = false;
+    chatMessages.forEach((m) => {
+      if (m.type !== 'mic_invite') return;
+      if (String(m.inviteUserId || m.userId) !== uid) return;
+      if (m.inviteStatus === 'pending' || status === 'accepted' || status === 'declined') {
+        m.inviteStatus = status;
+        changed = true;
+      }
+    });
+    if (changed) renderChatFeed();
   }
 
   function showHostMicInvitePopup(req) {
-    if (!canModerateRoom() || !req) return;
-    ensureHostMicInviteModal();
-    const modal = document.getElementById('apHostMicInviteModal');
-    if (!modal) return;
-    /* If another invite popup is already open, keep it — queue stays in joinRequests */
-    if (modal.classList.contains('open') && modal.dataset.userId) {
-      const showing = String(modal.dataset.userId);
-      if (showing && showing !== String(req.userId || req.id)) return;
-    }
-    const name = req.name || 'Guest';
-    const uid = String(req.userId || req.id || '');
-    const nameEl = document.getElementById('apHostMicInviteName');
-    const subEl = document.getElementById('apHostMicInviteSub');
-    const avEl = document.getElementById('apHostMicInviteAvatar');
-    if (nameEl) nameEl.textContent = name;
-    if (subEl) {
-      subEl.textContent = isLiveRoomPage()
-        ? 'wants to join your live on mic'
-        : 'wants to take a seat on mic';
-    }
-    if (avEl) {
-      avEl.src = avatarUrl(name, req.profilePic);
-      avEl.alt = name;
-    }
-    modal.dataset.userId = uid;
-    closeLiveOverlays('hostMic');
-    modal.classList.add('open');
-    syncLiveOverlayClass();
+    /* Backward-compatible alias — show in chat, not a modal */
+    pushMicInviteToChat(req);
   }
 
   function presentNextHostMicInvite() {
-    if (!canModerateRoom()) return;
-    const modal = document.getElementById('apHostMicInviteModal');
-    if (modal?.classList.contains('open')) return;
+    /* Queue is visible in chat — nothing to present as a popup */
     const next = joinRequests[0];
-    if (next) showHostMicInvitePopup(next);
+    if (next) pushMicInviteToChat(next);
   }
 
   function acceptMicRequest(req, opts = {}) {
@@ -7093,16 +7162,7 @@
       btn.dataset.busy = '1';
       btn.textContent = '…';
     }
-    const agreeBtn = document.getElementById('apHostMicInviteAgree');
-    const denyBtn = document.getElementById('apHostMicInviteDeny');
-    const modal = document.getElementById('apHostMicInviteModal');
-    const showingThis =
-      modal?.classList.contains('open') &&
-      String(modal.dataset.userId || '') === String(req.userId || req.id || '');
-    if (showingThis) {
-      if (agreeBtn) agreeBtn.disabled = true;
-      if (denyBtn) denyBtn.disabled = true;
-    }
+    const uid = String(req.userId || req.id || '');
     emitSeatResponse(
       {
         channel: channelId(),
@@ -7114,17 +7174,13 @@
         if (btn) {
           btn.disabled = false;
           btn.dataset.busy = '0';
-          btn.textContent = 'Accept';
+          btn.textContent = 'Agree';
         }
-        if (agreeBtn) agreeBtn.disabled = false;
-        if (denyBtn) denyBtn.disabled = false;
         if (res?.ok) {
           joinRequests = joinRequests.filter((x) => String(x.id) !== String(req.id));
           renderJoinRequests();
-          if (showingThis) {
-            hideHostMicInvitePopup();
-            presentNextHostMicInvite();
-          }
+          markMicInviteChatStatus(uid, 'accepted');
+          hideHostMicInvitePopup();
           toast(isLiveRoomPage() ? 'Guest joined live' : 'Guest accepted', 'success');
         } else {
           toast(res?.message || 'Could not accept guest', 'error');
@@ -7136,7 +7192,6 @@
   function denyMicRequest(req) {
     if (!req) {
       hideHostMicInvitePopup();
-      presentNextHostMicInvite();
       return;
     }
     const reqId = String(req.id || req.userId || '');
@@ -7149,13 +7204,8 @@
         accepted: false,
       });
     }
-    const modal = document.getElementById('apHostMicInviteModal');
-    const showingThis =
-      modal?.classList.contains('open') && String(modal.dataset.userId || '') === reqId;
-    if (showingThis) {
-      hideHostMicInvitePopup();
-      presentNextHostMicInvite();
-    }
+    markMicInviteChatStatus(reqId, 'declined');
+    hideHostMicInvitePopup();
     toast('Mic request declined');
   }
 
@@ -8104,46 +8154,13 @@
   }
 
   function ensureHostMicInviteModal() {
-    if (document.getElementById('apHostMicInviteModal')) return;
-    if (!(isPartyRoomPage() || isLiveRoomPage())) return;
-    document.body.insertAdjacentHTML(
-      'beforeend',
-      `<div class="ap-modal-overlay ap-host-mic-invite-overlay" id="apHostMicInviteModal" role="dialog" aria-modal="true" aria-labelledby="apHostMicInviteName">
-        <div class="ap-miclink-modal ap-host-mic-invite">
-          <div class="ap-miclink-head">Mic request</div>
-          <div class="ap-miclink-body ap-host-mic-invite-body">
-            <img id="apHostMicInviteAvatar" class="ap-host-mic-invite-avatar" src="" alt="">
-            <p><strong id="apHostMicInviteName">Guest</strong><br><span id="apHostMicInviteSub">wants to join on mic</span></p>
-            <div class="ap-host-mic-invite-actions">
-              <button type="button" class="ap-host-mic-deny" id="apHostMicInviteDeny">Decline</button>
-              <button type="button" class="ap-miclink-primary ap-host-mic-agree" id="apHostMicInviteAgree">Agree</button>
-            </div>
-          </div>
-        </div>
-      </div>`
-    );
-    bindHostMicInviteModal();
+    /* Popup retired — mic Agree/Decline now lives in chat */
+    document.getElementById('apHostMicInviteModal')?.classList.remove('open');
+    document.getElementById('apHostMicInviteModal')?.remove();
   }
 
   function bindHostMicInviteModal() {
-    if (window.__apHostMicInviteBound) return;
-    window.__apHostMicInviteBound = true;
-    document.getElementById('apHostMicInviteAgree')?.addEventListener('click', () => {
-      const modal = document.getElementById('apHostMicInviteModal');
-      const uid = modal?.dataset.userId;
-      const req = joinRequests.find((x) => String(x.id) === String(uid));
-      acceptMicRequest(req || (uid ? { id: uid, userId: uid, name: document.getElementById('apHostMicInviteName')?.textContent || 'Guest' } : null));
-    });
-    document.getElementById('apHostMicInviteDeny')?.addEventListener('click', () => {
-      const modal = document.getElementById('apHostMicInviteModal');
-      const uid = modal?.dataset.userId;
-      const req = joinRequests.find((x) => String(x.id) === String(uid));
-      denyMicRequest(req || (uid ? { id: uid, userId: uid } : null));
-    });
-    document.getElementById('apHostMicInviteModal')?.addEventListener('click', (e) => {
-      /* Backdrop tap does not auto-decline — host must choose Agree/Decline */
-      if (e.target.id === 'apHostMicInviteModal') e.stopPropagation();
-    });
+    /* no-op — chat actions handle Agree/Decline */
   }
 
   function updateCharCount() {

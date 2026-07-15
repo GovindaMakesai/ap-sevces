@@ -654,6 +654,72 @@
   color: #fde68a;
 }
 
+.party-chat-msg.party-chat-mic-invite {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  margin: 4px 0;
+  border-radius: 12px;
+  background: rgba(201, 162, 39, 0.2);
+  border: 1px solid rgba(251, 191, 36, 0.5);
+  max-width: 94%;
+}
+
+.party-chat-mic-invite .party-chat-avatar-btn {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+}
+
+.party-chat-mic-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.party-chat-mic-text {
+  font-size: 12px;
+  color: #fff;
+  line-height: 1.35;
+  margin-bottom: 6px;
+}
+
+.party-chat-mic-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.party-chat-mic-actions button {
+  border: none;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 6px 12px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.party-chat-mic-deny {
+  background: rgba(255, 255, 255, 0.14);
+  color: #e5e7eb;
+}
+
+.party-chat-mic-agree {
+  background: linear-gradient(90deg, #f59e0b, #ea580c);
+  color: #fff;
+}
+
+.party-chat-mic-invite.is-resolved {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+  opacity: 0.88;
+}
+
+.party-chat-mic-resolved {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.82);
+}
+
 .live-chat-compose {
   flex-shrink: 0;
   display: none;
