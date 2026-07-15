@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260715-remove-seat';
+  window.__AP_LIVE_BUILD = '20260715-admin-seat';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -1105,6 +1105,10 @@
     return getPartyRoomMembers().filter((m) => m?.userId);
   }
 
+  function roomAdminLabel() {
+    return isLiveRoomPage() ? 'Live admin' : 'Room admin';
+  }
+
   function memberListRoleLabel(m) {
     const hostId = String(roomState?.hostId || '');
     const uid = String(m.userId || '');
@@ -1114,15 +1118,16 @@
     );
     if (stickyStageGuests.has(uid)) seated.add(uid);
     const isAdmin = Boolean(m.isAdmin || m.role === 'admin');
+    const adminLabel = roomAdminLabel();
     const onStage =
       seated.has(uid) ||
       m.role === 'speaker' ||
       (m.seatIndex != null && m.role !== 'viewer');
     if (onStage) {
       const stage = isLiveRoomPage() ? 'On mic' : 'On seat';
-      return isAdmin ? `Admin · ${stage}` : stage;
+      return isAdmin ? `${adminLabel} · ${stage}` : stage;
     }
-    if (isAdmin) return 'Admin';
+    if (isAdmin) return adminLabel;
     return 'In room';
   }
 
@@ -1174,14 +1179,23 @@
       toast('Cannot remove the room host', 'warning');
       return;
     }
+    const memberHit =
+      (roomState?.seats || []).find((s) => String(s.userId) === String(userId)) ||
+      (roomState?.onlineMembers || []).find((m) => String(m.userId) === String(userId));
+    const stayAdmin = Boolean(memberHit?.isAdmin || memberHit?.role === 'admin');
     liveSocket.emit('live:demote_speaker', { channel: channelId(), userId }, (res) => {
       if (res?.ok) {
         clearLocalSeatState(userId);
         renderRoomState();
         syncHostBarUi();
-        toast('Removed from the seat', 'success');
+        toast(
+          stayAdmin
+            ? `Removed from the seat — still ${roomAdminLabel().toLowerCase()}`
+            : 'Removed from the seat',
+          'success'
+        );
       } else {
-        toast(res?.message || 'Could not remove guest', 'error');
+        toast(res?.message || 'Could not remove from seat', 'error');
       }
     });
   }
@@ -1568,14 +1582,28 @@
 
   function grantRoomAdmin(userId, grant) {
     if (!isHost() || !liveSocket?.connected || !userId) return;
+    const label = roomAdminLabel();
     liveSocket.emit(
       grant ? 'live:admin_grant' : 'live:admin_revoke',
       { channel: channelId(), userId },
       (res) => {
-        if (res?.ok) toast(grant ? 'Admin granted' : 'Admin revoked', 'success');
-        else toast(res?.message || 'Could not update admin', 'error');
+        if (res?.ok) toast(grant ? `${label} granted` : `${label} revoked`, 'success');
+        else toast(res?.message || `Could not update ${label.toLowerCase()}`, 'error');
       }
     );
+  }
+
+  async function blockProfileUser(userId, userName) {
+    const uid = String(userId || '').trim();
+    if (!uid) {
+      toast('User ID missing', 'warning');
+      return false;
+    }
+    if (window.SocialInteractions?.toggleBlock) {
+      return window.SocialInteractions.toggleBlock(uid, userName || 'User');
+    }
+    toast('Block is unavailable right now', 'error');
+    return false;
   }
 
   function moveUserSeat(userId, seatIndex) {
@@ -1615,7 +1643,30 @@
   async function openModerationMenu(name, userId, seatNum) {
     const me = currentUser()?.id;
     if (!userId || String(userId) === String(me)) {
-      openProfileSheet(name, userId);
+      await openProfileSheet(name, userId);
+      /* Room/live admins (and speakers) can leave their own seat without kicking themselves out */
+      if (
+        userId &&
+        String(userId) === String(me) &&
+        !isHost() &&
+        memberIsOnStage(userId) &&
+        canModerateRoom()
+      ) {
+        const panel = document.querySelector('#apProfileSheet .ap-profile-sheet-panel');
+        if (panel) {
+          panel.querySelector('.ap-profile-more-menu')?.remove();
+          const menu = document.createElement('div');
+          menu.className = 'ap-profile-more-menu';
+          menu.innerHTML =
+            '<button type="button" data-mod="demote"><i class="fas fa-user-minus"></i><span>Leave the seat</span></button>';
+          panel.appendChild(menu);
+          menu.querySelector('[data-mod="demote"]')?.addEventListener('click', () => {
+            demoteUserFromSeat(userId);
+            menu.remove();
+            document.getElementById('apProfileSheet')?.classList.remove('open');
+          });
+        }
+      }
       return;
     }
     // openProfileSheet is async and removes any prior mod menu — attach actions after it finishes.
@@ -1633,16 +1684,24 @@
       { userId, name };
     const isAdminMember = Boolean(memberHit.isAdmin || memberHit.role === 'admin');
     const onStage = memberIsOnStage(userId) || memberIsOnStage(memberHit);
+    /* Host + room/live admins can remove anyone except the host from the seat */
+    const canSeatMod = !isTargetHost;
     const canKick = !isTargetHost;
+    const adminLabel = roomAdminLabel();
+    const blocked = Boolean(userId && window.SocialInteractions?.isBlocked?.(userId));
+    const demoteLabel = isAdminMember
+      ? `Remove from the seat (keep ${adminLabel.toLowerCase()})`
+      : 'Remove from the seat';
     menu.innerHTML = `
       <button type="button" data-mod="mute"><i class="fas fa-microphone-slash"></i><span>Mute mic</span></button>
       <button type="button" data-mod="unmute"><i class="fas fa-microphone"></i><span>Unmute mic</span></button>
       ${!onStage && isPartyRoomPage() ? '<button type="button" data-mod="addseat"><i class="fas fa-plus"></i><span>Add to seat</span></button>' : ''}
       ${isPartyRoomPage() && onStage ? '<button type="button" data-mod="move"><i class="fas fa-exchange-alt"></i><span>Move to seat…</span></button>' : ''}
-      ${canKick ? '<button type="button" data-mod="demote"><i class="fas fa-user-minus"></i><span>Remove from the seat</span></button>' : ''}
+      ${canSeatMod && onStage ? `<button type="button" data-mod="demote"><i class="fas fa-user-minus"></i><span>${demoteLabel}</span></button>` : ''}
       ${canKick ? '<button type="button" data-mod="kick2"><i class="fas fa-ban"></i><span>Kick out · 2 hours</span></button>' : ''}
       ${canKick ? '<button type="button" data-mod="kick24"><i class="fas fa-ban"></i><span>Kick out · 24 hours</span></button>' : ''}
-      ${isHost() && canKick ? `<button type="button" data-mod="admin"><i class="fas fa-user-shield"></i><span>${isAdminMember ? 'Revoke admin' : 'Make admin'}</span></button>` : ''}`;
+      ${canKick ? `<button type="button" data-mod="block"><i class="fas fa-user-slash"></i><span>${blocked ? 'Unblock user' : 'Block user'}</span></button>` : ''}
+      ${isHost() && canKick ? `<button type="button" data-mod="admin"><i class="fas fa-user-shield"></i><span>${isAdminMember ? `Revoke ${adminLabel.toLowerCase()}` : `Make ${adminLabel.toLowerCase()}`}</span></button>` : ''}`;
     menu.querySelector('[data-mod="mute"]')?.addEventListener('click', () => {
       muteRemoteUser(userId, true);
       menu.remove();
@@ -1678,6 +1737,11 @@
     menu.querySelector('[data-mod="kick24"]')?.addEventListener('click', () => {
       if (isLiveRoomPage()) removeUserFromLiveOrSeat(userId, name, 24);
       else kickUserFromRoom(userId, 'blocked_by_host', 24);
+      menu.remove();
+      document.getElementById('apProfileSheet')?.classList.remove('open');
+    });
+    menu.querySelector('[data-mod="block"]')?.addEventListener('click', async () => {
+      await blockProfileUser(userId, name);
       menu.remove();
       document.getElementById('apProfileSheet')?.classList.remove('open');
     });
@@ -1819,10 +1883,14 @@
       .map((m) => {
         const role = memberListRoleLabel(m);
         const onSeat = memberIsOnStage(m.userId) || memberIsOnStage(m);
+        const isTargetAdmin = Boolean(m.isAdmin || m.role === 'admin');
         let actionBtn = '';
         if (mod && !isRoomHostUserId(m.userId)) {
           if (onSeat) {
-            actionBtn = `<button type="button" class="deny" data-remove-seat="${escapeHtml(String(m.userId))}">Remove from seat</button>`;
+            const label = isTargetAdmin
+              ? `Remove seat`
+              : 'Remove from seat';
+            actionBtn = `<button type="button" class="deny" data-remove-seat="${escapeHtml(String(m.userId))}">${label}</button>`;
           } else if (isPartyRoomPage()) {
             actionBtn = `<button type="button" class="accept" data-invite-seat="${escapeHtml(String(m.userId))}">To seat</button>`;
           }
@@ -3325,9 +3393,9 @@
           const stillAdmin = canModerateRoom();
           toast(
             stillAdmin
-              ? 'Removed from the seat — you are still a room admin'
+              ? `Removed from the seat — you are still a ${roomAdminLabel().toLowerCase()}`
               : isLiveRoomPage()
-                ? 'Host removed you from live'
+                ? 'Removed from the mic'
                 : 'You were removed from the seat',
             'warning'
           );
@@ -3363,7 +3431,7 @@
           );
         }
         if (me && uid === String(me.id)) {
-          toast(isAdmin ? 'You are now a room admin — you can manage seats, mute, and kick' : 'Admin access removed', 'info');
+          toast(isAdmin ? `You are now a ${roomAdminLabel().toLowerCase()} — you can manage seats, mute, and kick` : `${roomAdminLabel()} access removed`, 'info');
           syncHostBarUi();
           applyRoleUiAfterJoin();
         }
@@ -7196,6 +7264,8 @@
         const admin = memberIsAdminMarked(s) || isAdminUserId(uid);
         const muted = Boolean(s.muted);
         const speaking = s.speaking ? ' is-speaking' : '';
+        const canRemove =
+          canModerateRoom() && uid && !isRoomHostUserId(uid);
         return `
       <div class="ap-guest-wrap" data-guest-wrap="${escapeHtml(uid)}">
         <button type="button" class="ap-guest-seat${admin ? ' is-admin-user' : ''}${muted ? ' is-muted' : ' is-on-mic'}${speaking}" data-guest="${escapeHtml(s.name)}" data-guest-id="${escapeHtml(uid)}">
@@ -7207,6 +7277,7 @@
           </span>
           <span class="ap-guest-name">${escapeHtml(String(s.name).slice(0, 8))}</span>
         </button>
+        ${canRemove ? `<button type="button" class="ap-guest-remove" data-remove-seat="${escapeHtml(uid)}" aria-label="Remove from seat" title="Remove from seat"><i class="fas fa-times"></i></button>` : ''}
       </div>`;
       })
       .join('');
@@ -7236,6 +7307,15 @@
           return;
         }
         openProfileSheet(name, uid);
+      });
+    });
+    rail.querySelectorAll('[data-remove-seat]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const uid = btn.dataset.removeSeat;
+        if (!uid || !canModerateRoom()) return;
+        demoteUserFromSeat(uid);
       });
     });
     window.SocialUI?.bindAvatarFallbacks?.(rail);
@@ -7945,8 +8025,8 @@
           const uid = removeBtn.dataset.removeSeat;
           const member = getPartyMembersForList().find((m) => String(m.userId) === String(uid));
           const label = member?.name || 'this guest';
-          if (!window.confirm(`Remove ${label} from ${isLiveRoomPage() ? 'live' : 'the seat'}?`)) return;
-          removeUserFromLiveOrSeat(uid, label);
+          if (!window.confirm(`Remove ${label} from the seat?\n\nThey stay in the room${member?.isAdmin || member?.role === 'admin' ? ` as ${roomAdminLabel().toLowerCase()}` : ''}.`)) return;
+          demoteUserFromSeat(uid);
         }
       },
       true
@@ -10871,21 +10951,59 @@
 
     /* Click-only show/hide — do NOT hide chat on scroll/swipe (was closing while reading). */
 
-    document.getElementById('partyBtnTools')?.addEventListener('click', () => {
+    const openToolsFromBar = (e) => {
+      e?.preventDefault?.();
+      e?.stopPropagation?.();
+      unlockLiveChrome({ forceGift: true });
+      hideMicRequestActionBar();
+      document.body.classList.remove('party-requests-open', 'ap-sheet-open');
+      document.getElementById('partyRequestsSheet')?.classList.remove('open');
       const sheet = document.getElementById('partyToolsSheet');
       if (!sheet) return;
       closeLiveOverlays('tools');
       sheet.classList.add('open');
+      sheet.style.display = 'flex';
+      sheet.style.pointerEvents = 'auto';
+      sheet.style.visibility = 'visible';
+      sheet.style.zIndex = '13100';
       syncLiveOverlayClass();
       clearMessageBadge();
-    });
+    };
+    const toolsBtn = document.getElementById('partyBtnTools');
+    if (toolsBtn && toolsBtn.dataset.toolsOpenBound !== '1') {
+      toolsBtn.dataset.toolsOpenBound = '1';
+      toolsBtn.style.pointerEvents = 'auto';
+      toolsBtn.style.zIndex = '12620';
+      toolsBtn.addEventListener('click', openToolsFromBar, true);
+      toolsBtn.addEventListener(
+        'pointerup',
+        (e) => {
+          if (e.button != null && e.button !== 0) return;
+          if (toolsBtn.dataset._toolsPtr === '1') return;
+          toolsBtn.dataset._toolsPtr = '1';
+          setTimeout(() => {
+            toolsBtn.dataset._toolsPtr = '0';
+          }, 400);
+          if (document.getElementById('partyToolsSheet')?.classList.contains('open')) return;
+          openToolsFromBar(e);
+        },
+        true
+      );
+    }
     document.getElementById('partyToolsClose')?.addEventListener('click', () => {
-      document.getElementById('partyToolsSheet')?.classList.remove('open');
+      const sheet = document.getElementById('partyToolsSheet');
+      if (sheet) {
+        sheet.classList.remove('open');
+        sheet.style.pointerEvents = 'none';
+        sheet.style.display = 'none';
+      }
       closeLiveOverlays();
     });
     document.getElementById('partyToolsSheet')?.addEventListener('click', (e) => {
       if (e.target.id === 'partyToolsSheet') {
         e.target.classList.remove('open');
+        e.target.style.pointerEvents = 'none';
+        e.target.style.display = 'none';
         closeLiveOverlays();
       }
     });
@@ -11400,14 +11518,21 @@
       }
       menu = document.createElement('div');
       menu.className = 'ap-profile-more-menu';
+      const blocked = Boolean(uid && window.SocialInteractions?.isBlocked?.(uid));
       menu.innerHTML = `
         <button type="button" data-act="report">Report user</button>
+        ${uid && String(uid) !== String(currentUser()?.id || '') ? `<button type="button" data-act="block">${blocked ? 'Unblock user' : 'Block user'}</button>` : ''}
         <button type="button" data-act="copy">Copy nickname</button>
         ${uid ? '<button type="button" data-act="chat">Open chat</button>' : ''}`;
       panel.appendChild(menu);
       menu.querySelector('[data-act="report"]')?.addEventListener('click', () => {
         toast('Report submitted — our team will review', 'success');
         menu.remove();
+      });
+      menu.querySelector('[data-act="block"]')?.addEventListener('click', async () => {
+        await blockProfileUser(uid, name);
+        menu.remove();
+        document.getElementById('apProfileSheet')?.classList.remove('open');
       });
       menu.querySelector('[data-act="copy"]')?.addEventListener('click', () => {
         if (navigator.clipboard) navigator.clipboard.writeText(name).catch(() => { });
@@ -11612,6 +11737,10 @@
           ? roomState.hostUserRole
           : null) ||
         null,
+      isRoomAdmin: Boolean(
+        (seatHit?.role === 'admin' || seatHit?.isAdmin) &&
+          !isPlatformAdminUserId(resolvedId)
+      ),
       isAdmin: Boolean(
         memberIsAdminMarked(seatHit) ||
         isAdminUserId(resolvedId) ||
@@ -11636,7 +11765,10 @@
 
     const roleBadgeEl = document.getElementById('apProfileRoleBadge');
     if (roleBadgeEl) {
-      if (activeProfileUser.isAdmin) {
+      if (activeProfileUser.isRoomAdmin) {
+        const label = roomAdminLabel().toUpperCase();
+        roleBadgeEl.innerHTML = `<span class="ap-role-badge ap-role-badge--admin">${label}</span>`;
+      } else if (activeProfileUser.isAdmin && isPlatformAdminUserId(resolvedId)) {
         roleBadgeEl.innerHTML =
           window.formatRoleBadgeHtml?.('admin', { withEmoji: true }) ||
           '<span class="ap-role-badge ap-role-badge--admin">ADMIN</span>';

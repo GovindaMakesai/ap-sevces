@@ -236,7 +236,10 @@
 #liveViewerCount,
 #partyBottomBar,
 #liveBtnGift,
-#partyBtnGift {
+#partyBtnGift,
+#partyBtnTools,
+#liveBtnMic,
+#partyBottomBar .party-bottom-actions {
   pointer-events: auto !important;
 }
 
@@ -839,12 +842,18 @@
 
 .live-chat-compose.ap-compose-inline {
   display: flex !important;
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
 }
 
 .live-chat-compose input {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 0;
   border: none;
   border-radius: 20px;
   padding: 10px 14px;
@@ -906,6 +915,7 @@
   position: relative;
   z-index: 12610 !important;
   pointer-events: auto !important;
+  flex: 0 0 auto;
   flex-shrink: 0;
   touch-action: manipulation;
 }
@@ -913,11 +923,14 @@
 #partyBtnTools,
 #liveBtnMic,
 #partyBtnGift,
-#liveBtnGift {
+#liveBtnGift,
+#partyBottomBar .ap-btn-grid,
+#partyBottomBar .ap-btn-mic-ring {
   position: relative;
   z-index: 12620 !important;
   pointer-events: auto !important;
   touch-action: manipulation;
+  -webkit-tap-highlight-color: rgba(255, 255, 255, 0.2);
 }
 
 .party-bottom-bar>* {
@@ -2037,7 +2050,8 @@ body[data-live-page='live-room'] .live-room {
 .party-tools-sheet {
   position: fixed;
   inset: 0;
-  z-index: 1200;
+  /* Above bottom bar (12500) / FX (9000) so tools panel & dismiss work */
+  z-index: 13100;
   display: none;
   align-items: flex-end;
   justify-content: center;
@@ -2048,8 +2062,9 @@ body[data-live-page='live-room'] .live-room {
 }
 
 .party-tools-sheet.open {
-  display: flex;
-  pointer-events: auto;
+  display: flex !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
 }
 
 .party-tools-sheet .party-tools-panel {
@@ -6227,6 +6242,7 @@ body[data-live-page="live-room"].ap-has-live-guests .ap-guest-rail .ap-guest-wra
 .ap-guest-seat {
   overflow: visible !important;
   max-width: 72px;
+  position: relative;
 }
 
 .ap-guest-avatar,

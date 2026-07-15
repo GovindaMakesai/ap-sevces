@@ -201,11 +201,11 @@ body[data-live-page='live-room'] .live-pulse-dot {
   }
 }
 
-/* —— Host controls (host-only; aligned with Users + Invite) —— */
-body[data-live-page='live-room']:not(.ap-is-host) .live-host-bar,
-body[data-live-page='live-room']:not(.ap-is-host) #liveHostBar,
-body[data-live-page='live-room']:not(.ap-is-host) .live-host-bar-toggle,
-body[data-live-page='live-room']:not(.ap-is-host) .live-host-bar-actions,
+/* —— Host / room-admin controls (host-only video tools stay host-only) —— */
+body[data-live-page='live-room']:not(.ap-is-host):not(.ap-can-moderate) .live-host-bar,
+body[data-live-page='live-room']:not(.ap-is-host):not(.ap-can-moderate) #liveHostBar,
+body[data-live-page='live-room']:not(.ap-is-host):not(.ap-can-moderate) .live-host-bar-toggle,
+body[data-live-page='live-room']:not(.ap-is-host):not(.ap-can-moderate) .live-host-bar-actions,
 body[data-live-page='live-room'] .live-host-bar[hidden],
 body[data-live-page='live-room'] #liveHostBar[hidden] {
   display: none !important;
@@ -214,7 +214,9 @@ body[data-live-page='live-room'] #liveHostBar[hidden] {
 }
 
 body[data-live-page='live-room'].ap-is-host #liveHostBar:not([hidden]),
-body[data-live-page='live-room'].ap-is-host .live-host-bar:not([hidden]) {
+body[data-live-page='live-room'].ap-is-host .live-host-bar:not([hidden]),
+body[data-live-page='live-room'].ap-can-moderate #liveHostBar:not([hidden]),
+body[data-live-page='live-room'].ap-can-moderate .live-host-bar:not([hidden]) {
   margin: 0 !important;
   padding: 0 !important;
   gap: 6px;
@@ -230,7 +232,9 @@ body[data-live-page='live-room'].ap-is-host .live-host-bar:not([hidden]) {
 }
 
 body[data-live-page='live-room'].ap-is-host .live-host-bar.is-collapsed:not([hidden]),
-body[data-live-page='live-room'].ap-is-host #liveHostBar.is-collapsed:not([hidden]) {
+body[data-live-page='live-room'].ap-is-host #liveHostBar.is-collapsed:not([hidden]),
+body[data-live-page='live-room'].ap-can-moderate .live-host-bar.is-collapsed:not([hidden]),
+body[data-live-page='live-room'].ap-can-moderate #liveHostBar.is-collapsed:not([hidden]) {
   display: inline-flex !important;
   flex-direction: row !important;
   flex: 0 0 auto !important;
@@ -397,8 +401,12 @@ body[data-live-page='live-room'] .party-bottom-bar {
 }
 
 body[data-live-page='live-room'] .ap-compose-inline {
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
   padding: 4px 4px 4px 12px;
   border-radius: var(--live-pro-radius-pill);
   background: var(--live-pro-surface-elevated);
@@ -411,6 +419,22 @@ body[data-live-page='live-room'] .ap-compose-inline input {
   font-weight: 500;
   color: var(--live-pro-text);
   background: transparent;
+  min-width: 0;
+  width: 0;
+  flex: 1 1 auto;
+}
+
+body[data-live-page='live-room'] .party-bottom-actions {
+  flex: 0 0 auto;
+  position: relative;
+  z-index: 12610;
+  pointer-events: auto !important;
+}
+
+body[data-live-page='live-room'] #partyBtnTools {
+  pointer-events: auto !important;
+  position: relative;
+  z-index: 12620 !important;
 }
 
 body[data-live-page='live-room'] .ap-compose-inline input::placeholder {

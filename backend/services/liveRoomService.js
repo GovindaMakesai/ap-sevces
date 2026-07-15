@@ -1210,7 +1210,8 @@ async function demoteSpeaker({ channel, userId }) {
        AND user_id = $2
        AND left_at IS NULL
        AND role <> 'host'
-     RETURNING user_id`,
+       AND (seat_index IS NOT NULL OR role IN ('speaker', 'admin'))
+     RETURNING user_id, role`,
     [room.id, userId]
   );
   if (!res.rows[0]) throw new Error('User is not on a seat');
