@@ -190,21 +190,23 @@ const HARDWARE_BACK_INJECT = `(function(){
 
 const MINIMIZE_LIVE_INJECT = LIVE_MINIMIZE_INJECT;
 
-async function requestAndroidMediaPermissions() {
+async function requestAndroidMediaPermissions(opts = {}) {
   if (Platform.OS !== 'android') return { ok: true, platform: Platform.OS };
   try {
-    const results = await PermissionsAndroid.requestMultiple([
-      PermissionsAndroid.PERMISSIONS.CAMERA,
-      PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-    ]);
+    const wantMic = opts.microphone !== false;
+    const perms = [PermissionsAndroid.PERMISSIONS.CAMERA];
+    if (wantMic) perms.push(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
+    const results = await PermissionsAndroid.requestMultiple(perms);
     const camera = results[PermissionsAndroid.PERMISSIONS.CAMERA];
-    const microphone = results[PermissionsAndroid.PERMISSIONS.RECORD_AUDIO];
+    const microphone = wantMic
+      ? results[PermissionsAndroid.PERMISSIONS.RECORD_AUDIO]
+      : PermissionsAndroid.RESULTS.GRANTED;
     return {
       ok:
         camera === PermissionsAndroid.RESULTS.GRANTED &&
         microphone === PermissionsAndroid.RESULTS.GRANTED,
       camera,
-      microphone,
+      microphone: wantMic ? microphone : 'skipped',
     };
   } catch (err) {
     return { ok: false, error: err?.message || String(err) };
@@ -920,7 +922,9 @@ export default function App() {
         }
         if (data.type === 'request_media_permissions') {
           (async () => {
-            const result = await requestAndroidMediaPermissions();
+            const result = await requestAndroidMediaPermissions({
+              microphone: data.microphone !== false,
+            });
             webViewRef.current?.injectJavaScript(buildMediaPermissionResultScript(result));
           })();
           return;
