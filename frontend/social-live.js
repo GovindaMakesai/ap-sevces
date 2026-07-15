@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260715-gift-coins';
+  window.__AP_LIVE_BUILD = '20260715-mic-glitch';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -1029,7 +1029,10 @@
   }
 
   function syncJoinRequestsFromState() {
-    if (!canModerateRoom()) return;
+    if (!canModerateRoom()) {
+      hideMicRequestActionBar();
+      return;
+    }
     const seated = new Set(
       (roomState?.seats || [])
         .filter((s) => s && !s.isHost && s.userId)
@@ -1039,6 +1042,7 @@
       id: String(r.userId || r.id),
       userId: String(r.userId || r.id),
       name: r.name || 'Guest',
+      profilePic: r.profilePic || r.profile_pic || null,
     }));
     const merged = new Map();
     joinRequests.forEach((r) => {
@@ -1054,6 +1058,9 @@
       next.some((r, i) => String(r.id) !== String(joinRequests[i]?.id));
     joinRequests = next;
     if (changed) renderJoinRequests();
+    /* Always re-surface pending requests into chat + action bar (fixes missed socket events) */
+    joinRequests.forEach((r) => pushMicInviteToChat(r, { quiet: true }));
+    renderMicRequestActionBar();
   }
 
   function emitSeatResponse(payload, onDone) {
@@ -3083,7 +3090,9 @@
         lastViewerCount = viewers;
         if (roomState) roomState.viewers = viewers;
         const el = document.getElementById('liveViewerCount');
-        if (el) el.textContent = String(viewers);
+        if (el) {
+          el.textContent = isLiveRoomPage() ? `${viewers} joined` : String(viewers);
+        }
         if (isHost() && isPartyRoomPage() && viewers !== getPartyAudienceMembers().length + 1) {
           requestFreshRoomState();
         } else {
@@ -3093,23 +3102,27 @@
       });
 
       liveSocket.on('live:seat_request', (req) => {
-        if (!canModerateRoom() || !req) return;
+        if (!req) return;
+        /* Host may receive via user: room before canModerate is ready — still queue if host */
+        if (!canModerateRoom() && !isHost() && !clientClaimsHost()) return;
         const id = String(req.userId || req.id || '');
-        if (!id || joinRequests.some((r) => String(r.id) === id)) return;
-        joinRequests.push({
+        if (!id) return;
+        const entry = {
           id,
           name: req.name || 'Guest',
           userId: id,
           profilePic: req.profilePic || req.profile_pic || null,
-        });
+        };
+        const existingIdx = joinRequests.findIndex((r) => String(r.id) === id);
+        if (existingIdx >= 0) {
+          joinRequests[existingIdx] = { ...joinRequests[existingIdx], ...entry };
+        } else {
+          joinRequests.push(entry);
+        }
         renderJoinRequests();
-        toast(`${req.name || 'Someone'} wants to join${isLiveRoomPage() ? ' the stream' : ' a seat'}`);
-        pushMicInviteToChat({
-          id,
-          name: req.name || 'Guest',
-          userId: id,
-          profilePic: req.profilePic || req.profile_pic || null,
-        });
+        toast(`${entry.name} wants to join${isLiveRoomPage() ? ' the stream' : ' a seat'}`);
+        pushMicInviteToChat(entry);
+        renderMicRequestActionBar();
       });
 
       liveSocket.on('live:seat_response', async (res) => {
@@ -6829,7 +6842,10 @@
     }
 
     const vc = document.getElementById('liveViewerCount');
-    if (vc && roomState) vc.textContent = String(roomState.viewers || (isHost() ? 1 : 0));
+    if (vc && roomState) {
+      const n = roomState.viewers || (isHost() ? 1 : 0);
+      vc.textContent = isLiveRoomPage() ? `${n} joined` : String(n);
+    }
     renderTopGifters();
     const hearts = document.getElementById('partyHearts');
     if (hearts) hearts.textContent = String(roomState?.gifts?.length || 0);
@@ -6984,20 +7000,33 @@
         )
         .join('');
     }
-    html += `<span class="party-viewer-count${isLiveRoomPage() ? ' live-joined-count' : ''}" id="liveViewerCount" title="Tap to view everyone in room">${viewers}${isLiveRoomPage() ? ' joined' : ''}</span>`;
+    html += `<button type="button" class="party-viewer-count${isLiveRoomPage() ? ' live-joined-count' : ''}" id="liveViewerCount" title="Tap to view everyone in room">${viewers}${isLiveRoomPage() ? ' joined' : ''}</button>`;
     row.innerHTML = html;
     row.classList.toggle('is-clickable', isPartyRoomPage() || isLiveRoomPage());
     if (!row.dataset.audienceBound) {
       row.dataset.audienceBound = '1';
-      row.addEventListener('click', (e) => {
-        if (!isPartyRoomPage() && !isLiveRoomPage()) return;
-        if (e.target.closest('.ap-top-gifter[data-audience-id]')) {
-          const chip = e.target.closest('[data-audience-id]');
-          openProfileSheet(chip.dataset.audienceName || 'Guest', chip.dataset.audienceId || '');
-          return;
-        }
-        openPartyRequestsSheet();
-      });
+      row.addEventListener(
+        'click',
+        (e) => {
+          if (!isPartyRoomPage() && !isLiveRoomPage()) return;
+          if (e.target.closest('.ap-top-gifter[data-audience-id]')) {
+            const chip = e.target.closest('[data-audience-id]');
+            openProfileSheet(chip.dataset.audienceName || 'Guest', chip.dataset.audienceId || '');
+            return;
+          }
+          if (
+            e.target.closest('#liveViewerCount') ||
+            e.target.closest('.party-viewer-count') ||
+            e.target.closest('.live-joined-count') ||
+            e.currentTarget === row
+          ) {
+            e.preventDefault();
+            e.stopPropagation();
+            openPartyRequestsSheet();
+          }
+        },
+        true
+      );
     }
     window.SocialUI?.bindAvatarFallbacks?.(row);
   }
@@ -7091,8 +7120,9 @@
     syncLiveOverlayClass();
   }
 
-  function pushMicInviteToChat(req) {
-    if (!canModerateRoom() || !req) return;
+  function pushMicInviteToChat(req, opts = {}) {
+    if (!req) return;
+    if (!canModerateRoom() && !isHost() && !clientClaimsHost()) return;
     const uid = String(req.userId || req.id || '');
     if (!uid) return;
     const name = req.name || 'Guest';
@@ -7100,11 +7130,15 @@
       (m) => m.type === 'mic_invite' && String(m.inviteUserId) === uid && m.inviteStatus === 'pending'
     );
     if (pending) {
-      renderChatFeed();
+      pending.inviteName = name;
+      pending.profilePic = req.profilePic || pending.profilePic || null;
+      pending.user = name;
+      if (!opts.quiet) renderChatFeed();
+      scrollChatToLatestMicInvite(uid);
       return;
     }
     rememberChatMessage({
-      id: `mic-invite-${uid}-${Date.now()}`,
+      id: `mic-invite-${uid}`,
       type: 'mic_invite',
       user: name,
       userId: uid,
@@ -7121,6 +7155,119 @@
     document.body.classList.remove('ap-chat-hidden');
     document.getElementById('partyChatRow')?.classList.remove('is-hidden');
     document.getElementById('liveBtnShowChat')?.setAttribute('hidden', '');
+    if (chatTab === 'chat') {
+      chatTab = 'all';
+      document.querySelectorAll('[data-chat-tab]').forEach((b) => {
+        b.classList.toggle('active', b.dataset.chatTab === 'all');
+      });
+    }
+    scrollChatToLatestMicInvite(uid);
+  }
+
+  function scrollChatToLatestMicInvite(uid) {
+    try {
+      const feed = document.getElementById('partyChatFeed');
+      if (!feed) return;
+      const card =
+        (uid && feed.querySelector(`.party-chat-mic-invite[data-mic-invite-uid="${CSS.escape(String(uid))}"]`)) ||
+        feed.querySelector('.party-chat-mic-invite:not(.is-resolved)');
+      if (card) {
+        card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      } else {
+        feed.scrollTop = feed.scrollHeight;
+      }
+    } catch (_e) {
+      const feed = document.getElementById('partyChatFeed');
+      if (feed) feed.scrollTop = feed.scrollHeight;
+    }
+  }
+
+  function ensureMicRequestActionBar() {
+    let bar = document.getElementById('apMicRequestBar');
+    if (bar) return bar;
+    bar = document.createElement('div');
+    bar.id = 'apMicRequestBar';
+    bar.className = 'ap-mic-request-bar';
+    bar.hidden = true;
+    document.body.appendChild(bar);
+    bar.addEventListener('click', (e) => {
+      const agree = e.target.closest('[data-mic-bar-agree]');
+      const deny = e.target.closest('[data-mic-bar-deny]');
+      const open = e.target.closest('[data-mic-bar-open]');
+      if (agree) {
+        e.preventDefault();
+        const uid = agree.dataset.micBarAgree;
+        const req = joinRequests.find((x) => String(x.id) === String(uid)) || {
+          id: uid,
+          userId: uid,
+          name: agree.dataset.micBarName || 'Guest',
+        };
+        acceptMicRequest(req, { btn: agree });
+        return;
+      }
+      if (deny) {
+        e.preventDefault();
+        const uid = deny.dataset.micBarDeny;
+        const req = joinRequests.find((x) => String(x.id) === String(uid)) || {
+          id: uid,
+          userId: uid,
+          name: deny.dataset.micBarName || 'Guest',
+        };
+        denyMicRequest(req);
+        return;
+      }
+      if (open) {
+        e.preventDefault();
+        openPartyRequestsSheet();
+      }
+    });
+    return bar;
+  }
+
+  function hideMicRequestActionBar() {
+    const bar = document.getElementById('apMicRequestBar');
+    if (bar) {
+      bar.hidden = true;
+      bar.innerHTML = '';
+    }
+  }
+
+  function renderMicRequestActionBar() {
+    if (!canModerateRoom() && !isHost() && !clientClaimsHost()) {
+      hideMicRequestActionBar();
+      return;
+    }
+    const bar = ensureMicRequestActionBar();
+    if (!joinRequests.length) {
+      hideMicRequestActionBar();
+      return;
+    }
+    const first = joinRequests[0];
+    const extra = joinRequests.length > 1 ? ` +${joinRequests.length - 1}` : '';
+    bar.hidden = false;
+    bar.innerHTML =
+      `<button type="button" class="ap-mic-bar-main" data-mic-bar-open="1">` +
+      `<i class="fas fa-microphone"></i>` +
+      `<span><strong>${escapeHtml(first.name || 'Guest')}</strong> wants mic${escapeHtml(extra)}</span>` +
+      `</button>` +
+      `<button type="button" class="ap-mic-bar-deny" data-mic-bar-deny="${escapeHtml(String(first.id))}" data-mic-bar-name="${escapeAttr(first.name || 'Guest')}">Decline</button>` +
+      `<button type="button" class="ap-mic-bar-agree" data-mic-bar-agree="${escapeHtml(String(first.id))}" data-mic-bar-name="${escapeAttr(first.name || 'Guest')}">Agree</button>`;
+  }
+
+  function showHostMicInvitePopup(req) {
+    /* Backward-compatible alias — show in chat + sticky action bar */
+    pushMicInviteToChat(req);
+    renderMicRequestActionBar();
+  }
+
+  function presentNextHostMicInvite() {
+    const next = joinRequests[0];
+    if (next) {
+      pushMicInviteToChat(next);
+      renderMicRequestActionBar();
+    } else {
+      hideMicRequestActionBar();
+    }
   }
 
   function markMicInviteChatStatus(userId, status) {
@@ -7135,17 +7282,7 @@
       }
     });
     if (changed) renderChatFeed();
-  }
-
-  function showHostMicInvitePopup(req) {
-    /* Backward-compatible alias — show in chat, not a modal */
-    pushMicInviteToChat(req);
-  }
-
-  function presentNextHostMicInvite() {
-    /* Queue is visible in chat — nothing to present as a popup */
-    const next = joinRequests[0];
-    if (next) pushMicInviteToChat(next);
+    renderMicRequestActionBar();
   }
 
   function acceptMicRequest(req, opts = {}) {
@@ -7187,10 +7324,11 @@
           btn.textContent = 'Agree';
         }
         if (res?.ok) {
-          joinRequests = joinRequests.filter((x) => String(x.id) !== String(req.id));
+          joinRequests = joinRequests.filter((x) => String(x.id) !== String(req.id) && String(x.id) !== uid);
           renderJoinRequests();
           markMicInviteChatStatus(uid, 'accepted');
           hideHostMicInvitePopup();
+          renderMicRequestActionBar();
           toast(isLiveRoomPage() ? 'Guest joined live' : 'Guest accepted', 'success');
         } else {
           toast(res?.message || 'Could not accept guest', 'error');
@@ -7202,6 +7340,7 @@
   function denyMicRequest(req) {
     if (!req) {
       hideHostMicInvitePopup();
+      renderMicRequestActionBar();
       return;
     }
     const reqId = String(req.id || req.userId || '');
@@ -7216,6 +7355,7 @@
     }
     markMicInviteChatStatus(reqId, 'declined');
     hideHostMicInvitePopup();
+    renderMicRequestActionBar();
     toast('Mic request declined');
   }
 
@@ -7368,59 +7508,32 @@
     syncLiveOverlayClass();
   }
 
-  function bindPartyRequestsSheet() {
-    const sheet = document.getElementById('partyRequestsSheet');
-    if (!sheet || sheet.dataset.requestsBound === '1') return;
-    sheet.dataset.requestsBound = '1';
-    document.getElementById('partyRequestsClose')?.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      closePartyRequestsSheet();
-    });
-    sheet.addEventListener('click', (e) => {
-      if (!e.target.closest('.party-requests-panel')) closePartyRequestsSheet();
-    });
-    const panel = sheet.querySelector('.party-requests-panel');
-    panel?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const acceptBtn = e.target.closest('[data-accept]');
-      if (acceptBtn && panel.contains(acceptBtn)) {
-        e.preventDefault();
-        handleSeatAcceptClick(acceptBtn);
-        return;
-      }
-      const denyBtn = e.target.closest('[data-deny]');
-      if (denyBtn && panel.contains(denyBtn)) {
-        e.preventDefault();
-        handleSeatDenyClick(denyBtn);
-        return;
-      }
-      const inviteBtn = e.target.closest('[data-invite-seat]');
-      if (inviteBtn && panel.contains(inviteBtn)) {
-        e.preventDefault();
-        handleSeatInviteClick(inviteBtn);
-        return;
-      }
-      const removeBtn = e.target.closest('[data-remove-seat]');
-      if (removeBtn && panel.contains(removeBtn)) {
-        e.preventDefault();
-        const uid = removeBtn.dataset.removeSeat;
-        const member = getPartyMembersForList().find((m) => String(m.userId) === String(uid));
-        const label = member?.name || 'this guest';
-        if (!window.confirm(`Remove ${label} from ${isLiveRoomPage() ? 'live' : 'the seat'}?`)) return;
-        removeUserFromLiveOrSeat(uid, label);
-      }
-    });
-  }
-
   function handleSeatAcceptClick(btn) {
     if (btn.disabled || btn.dataset.busy === '1') return;
-    const req = joinRequests.find((x) => String(x.id) === String(btn.dataset.accept));
+    const id = String(btn.dataset.accept || '');
+    const req =
+      joinRequests.find((x) => String(x.id) === id) ||
+      (id
+        ? {
+            id,
+            userId: id,
+            name: btn.closest('.party-req-row')?.querySelector('strong')?.textContent || 'Guest',
+          }
+        : null);
     acceptMicRequest(req, { btn });
   }
 
   function handleSeatDenyClick(btn) {
-    const req = joinRequests.find((x) => String(x.id) === String(btn.dataset.deny));
+    const id = String(btn.dataset.deny || '');
+    const req =
+      joinRequests.find((x) => String(x.id) === id) ||
+      (id
+        ? {
+            id,
+            userId: id,
+            name: btn.closest('.party-req-row')?.querySelector('strong')?.textContent || 'Guest',
+          }
+        : null);
     denyMicRequest(req);
   }
 
@@ -7438,27 +7551,90 @@
       toast('Party is full — max 15 on stage', 'warning');
       return;
     }
+    const member = getPartyMembersForList().find((m) => String(m.userId) === String(uid));
     const pendingSeat = window.__apPendingSeatMove;
     const payload = {
       channel: channelId(),
       userId: uid,
+      name: member?.name || btn.dataset.inviteName || 'Guest',
       accepted: true,
     };
     if (pendingSeat) payload.seatIndex = pendingSeat;
     btn.disabled = true;
     btn.dataset.busy = '1';
+    const prevLabel = btn.textContent;
+    btn.textContent = '…';
     emitSeatResponse(payload, (res) => {
       btn.disabled = false;
       btn.dataset.busy = '0';
+      btn.textContent = prevLabel || (isLiveRoomPage() ? 'Add' : 'To seat');
       window.__apPendingSeatMove = null;
       if (res?.ok) {
         toast(isLiveRoomPage() ? 'Added to live' : 'Added to seat', 'success');
+        joinRequests = joinRequests.filter((x) => String(x.id) !== String(uid));
+        markMicInviteChatStatus(uid, 'accepted');
         renderAvailableUsers();
         renderJoinRequests();
+        renderMicRequestActionBar();
+        requestFreshRoomState?.();
       } else {
-        toast(res?.message || 'Could not add to seat', 'error');
+        toast(res?.message || 'Could not add — ask them to reopen the live, then try Add again', 'error');
       }
     });
+  }
+
+  function bindPartyRequestsSheet() {
+    const sheet = document.getElementById('partyRequestsSheet');
+    if (!sheet) return;
+    if (sheet.dataset.requestsBound !== '1') {
+      sheet.dataset.requestsBound = '1';
+      document.getElementById('partyRequestsClose')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        closePartyRequestsSheet();
+      });
+      sheet.addEventListener('click', (e) => {
+        if (!e.target.closest('.party-requests-panel')) closePartyRequestsSheet();
+      });
+    }
+    /* Always (re)bind panel actions — sheet may be reparented */
+    const panel = sheet.querySelector('.party-requests-panel');
+    if (!panel || panel.dataset.seatActionsBound === '1') return;
+    panel.dataset.seatActionsBound = '1';
+    panel.addEventListener(
+      'click',
+      (e) => {
+        e.stopPropagation();
+        const acceptBtn = e.target.closest('[data-accept]');
+        if (acceptBtn && panel.contains(acceptBtn)) {
+          e.preventDefault();
+          handleSeatAcceptClick(acceptBtn);
+          return;
+        }
+        const denyBtn = e.target.closest('[data-deny]');
+        if (denyBtn && panel.contains(denyBtn)) {
+          e.preventDefault();
+          handleSeatDenyClick(denyBtn);
+          return;
+        }
+        const inviteBtn = e.target.closest('[data-invite-seat]');
+        if (inviteBtn && panel.contains(inviteBtn)) {
+          e.preventDefault();
+          handleSeatInviteClick(inviteBtn);
+          return;
+        }
+        const removeBtn = e.target.closest('[data-remove-seat]');
+        if (removeBtn && panel.contains(removeBtn)) {
+          e.preventDefault();
+          const uid = removeBtn.dataset.removeSeat;
+          const member = getPartyMembersForList().find((m) => String(m.userId) === String(uid));
+          const label = member?.name || 'this guest';
+          if (!window.confirm(`Remove ${label} from ${isLiveRoomPage() ? 'live' : 'the seat'}?`)) return;
+          removeUserFromLiveOrSeat(uid, label);
+        }
+      },
+      true
+    );
   }
 
   function ensureInviteInline() {

@@ -187,6 +187,113 @@
   padding: 2px 8px;
   background: rgba(0, 0, 0, 0.35);
   border-radius: 12px;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  pointer-events: auto !important;
+  touch-action: manipulation;
+  position: relative;
+  z-index: 40;
+}
+
+.party-viewers.is-clickable,
+#partyViewerAvatars.is-clickable {
+  cursor: pointer;
+  pointer-events: auto !important;
+  position: relative;
+  z-index: 35;
+  touch-action: manipulation;
+}
+
+.party-header-right,
+.live-room .party-header-right {
+  pointer-events: auto !important;
+  position: relative;
+  z-index: 36;
+}
+
+.party-viewer-count.live-joined-count {
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.55);
+  white-space: nowrap;
+  color: #fff;
+}
+
+/* Sticky host mic Agree/Decline — always visible even if chat scrolled away */
+.ap-mic-request-bar {
+  position: fixed;
+  left: 10px;
+  right: 10px;
+  bottom: calc(var(--ap-bottom-bar-h, 58px) + 10px + env(safe-area-inset-bottom, 0px));
+  z-index: 12600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 14px;
+  background: rgba(18, 12, 8, 0.94);
+  border: 1px solid rgba(251, 191, 36, 0.55);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  pointer-events: auto !important;
+}
+
+.ap-mic-request-bar[hidden] {
+  display: none !important;
+}
+
+.ap-mic-bar-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  background: transparent;
+  color: #fff;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  padding: 0;
+}
+
+.ap-mic-bar-main strong {
+  color: #fde68a;
+}
+
+.ap-mic-bar-agree,
+.ap-mic-bar-deny {
+  border: none;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 8px 12px;
+  cursor: pointer;
+  touch-action: manipulation;
+  flex-shrink: 0;
+}
+
+.ap-mic-bar-agree {
+  background: linear-gradient(90deg, #f59e0b, #ea580c);
+  color: #fff;
+}
+
+.ap-mic-bar-deny {
+  background: rgba(255, 255, 255, 0.14);
+  color: #e5e7eb;
+}
+
+.party-chat-mic-invite {
+  pointer-events: auto !important;
+  position: relative;
+  z-index: 5;
+}
+
+.party-chat-mic-actions button {
+  pointer-events: auto !important;
+  position: relative;
+  z-index: 6;
 }
 
 .party-close {
@@ -3447,6 +3554,7 @@ body.ap-live-status-visible .party-room {
   padding: 4px 10px;
   background: rgba(0, 0, 0, 0.45);
   border-radius: 12px;
+  pointer-events: auto !important;
 }
 
 /* AP Services room entry — host cover (no branded preloader) */
@@ -5068,10 +5176,15 @@ body[data-live-page="party-room"] .ap-guest-rail:not(:empty) {
 
 .party-viewer-count.live-joined-count {
   font-size: 11px;
-  padding: 2px 8px;
+  padding: 4px 10px;
   border-radius: 10px;
-  background: rgba(0, 0, 0, 0.45);
+  background: rgba(0, 0, 0, 0.55);
   white-space: nowrap;
+  pointer-events: auto !important;
+  cursor: pointer;
+  touch-action: manipulation;
+  color: #fff;
+  border: none;
 }
 
 .ap-bottom-ref {

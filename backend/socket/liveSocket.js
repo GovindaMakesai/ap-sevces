@@ -719,11 +719,26 @@ function registerLiveSocket(io) {
           console.warn('live:seat_request ensure member', ensErr.message);
         }
         await liveRoomService.addSeatRequest(channel, socket.userId, displayName);
-        io.to(`live:${channel}`).emit('live:seat_request', {
+        let profilePic = null;
+        try {
+          profilePic = await liveRoomService.getMemberProfilePic(socket.userId);
+        } catch (_e) {
+          profilePic = null;
+        }
+        const payloadOut = {
           userId: socket.userId,
           name: displayName || 'Guest',
+          profilePic,
           at: Date.now(),
-        });
+        };
+        io.to(`live:${channel}`).emit('live:seat_request', payloadOut);
+        /* Also ping host personal room so Agree/Decline is not missed */
+        try {
+          const room = await liveRoomService.findByChannel(channel);
+          if (room?.host_user_id) {
+            io.to(`user:${room.host_user_id}`).emit('live:seat_request', payloadOut);
+          }
+        } catch (_e) { /* ignore */ }
       } catch (err) {
         console.error('live:seat_request', err.message);
       }
