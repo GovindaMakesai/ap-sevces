@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260715-mod-menu';
+  window.__AP_LIVE_BUILD = '20260715-chat-mic-only';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -7167,98 +7167,22 @@
     }
   }
 
-  function ensureMicRequestActionBar() {
-    let bar = document.getElementById('apMicRequestBar');
-    if (bar) return bar;
-    bar = document.createElement('div');
-    bar.id = 'apMicRequestBar';
-    bar.className = 'ap-mic-request-bar';
-    bar.hidden = true;
-    bar.style.display = 'none';
-    document.body.appendChild(bar);
-    bar.addEventListener('click', (e) => {
-      const agree = e.target.closest('[data-mic-bar-agree]');
-      const deny = e.target.closest('[data-mic-bar-deny]');
-      const open = e.target.closest('[data-mic-bar-open]');
-      if (agree) {
-        e.preventDefault();
-        const uid = agree.dataset.micBarAgree;
-        const req = joinRequests.find((x) => String(x.id) === String(uid)) || {
-          id: uid,
-          userId: uid,
-          name: agree.dataset.micBarName || 'Guest',
-        };
-        acceptMicRequest(req, { btn: agree });
-        return;
-      }
-      if (deny) {
-        e.preventDefault();
-        const uid = deny.dataset.micBarDeny;
-        const req = joinRequests.find((x) => String(x.id) === String(uid)) || {
-          id: uid,
-          userId: uid,
-          name: deny.dataset.micBarName || 'Guest',
-        };
-        denyMicRequest(req);
-        return;
-      }
-      if (open) {
-        e.preventDefault();
-        unlockLiveChrome({ forceGift: true });
-        openPartyRequestsSheet();
-      }
-    });
-    return bar;
-  }
-
+  /* Floating top Agree/Decline bar removed — only chat Agree/Decline stays */
   function hideMicRequestActionBar() {
-    const bar = document.getElementById('apMicRequestBar');
-    if (bar) {
-      bar.hidden = true;
-      bar.style.display = 'none';
-      bar.style.pointerEvents = 'none';
-      bar.innerHTML = '';
-    }
+    document.getElementById('apMicRequestBar')?.remove();
   }
 
   function renderMicRequestActionBar() {
-    if (!canModerateRoom() && !isHost() && !clientClaimsHost()) {
-      hideMicRequestActionBar();
-      return;
-    }
-    const bar = ensureMicRequestActionBar();
-    if (!joinRequests.length) {
-      hideMicRequestActionBar();
-      return;
-    }
-    const first = joinRequests[0];
-    const extra = joinRequests.length > 1 ? ` +${joinRequests.length - 1}` : '';
-    bar.hidden = false;
-    bar.style.display = 'flex';
-    bar.style.pointerEvents = 'auto';
-    bar.innerHTML =
-      `<button type="button" class="ap-mic-bar-main" data-mic-bar-open="1">` +
-      `<i class="fas fa-microphone"></i>` +
-      `<span><strong>${escapeHtml(first.name || 'Guest')}</strong> wants mic${escapeHtml(extra)}</span>` +
-      `</button>` +
-      `<button type="button" class="ap-mic-bar-deny" data-mic-bar-deny="${escapeHtml(String(first.id))}" data-mic-bar-name="${escapeAttr(first.name || 'Guest')}">Decline</button>` +
-      `<button type="button" class="ap-mic-bar-agree" data-mic-bar-agree="${escapeHtml(String(first.id))}" data-mic-bar-name="${escapeAttr(first.name || 'Guest')}">Agree</button>`;
+    hideMicRequestActionBar();
   }
 
   function showHostMicInvitePopup(req) {
-    /* Backward-compatible alias — show in chat + sticky action bar */
     pushMicInviteToChat(req);
-    renderMicRequestActionBar();
   }
 
   function presentNextHostMicInvite() {
     const next = joinRequests[0];
-    if (next) {
-      pushMicInviteToChat(next);
-      renderMicRequestActionBar();
-    } else {
-      hideMicRequestActionBar();
-    }
+    if (next) pushMicInviteToChat(next);
   }
 
   function markMicInviteChatStatus(userId, status) {
@@ -7273,7 +7197,6 @@
       }
     });
     if (changed) renderChatFeed();
-    renderMicRequestActionBar();
   }
 
   function acceptMicRequest(req, opts = {}) {
@@ -7556,19 +7479,7 @@
       headerRight.style.zIndex = '12050';
     }
 
-    /* Mic bar stays under invite / joined so it never steals those taps */
-    const micBar = document.getElementById('apMicRequestBar');
-    if (micBar) {
-      if (!joinRequests.length || (!canModerateRoom() && !isHost())) {
-        micBar.hidden = true;
-        micBar.style.display = 'none';
-        micBar.style.pointerEvents = 'none';
-      } else if (!micBar.hidden) {
-        micBar.style.display = 'flex';
-        micBar.style.pointerEvents = 'auto';
-      }
-    }
-
+    hideMicRequestActionBar();
     syncBottomBarHeightVar();
   }
 
