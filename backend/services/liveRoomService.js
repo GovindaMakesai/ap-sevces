@@ -1149,18 +1149,37 @@ async function isRoomModerator(channel, userId) {
   return String(member.rows[0]?.role || '') === 'admin';
 }
 
+async function listRoomAdminUserIds(roomId) {
+  if (!roomId) return [];
+  const res = await db.query(
+    `SELECT user_id FROM live_room_members
+     WHERE live_room_id = $1 AND left_at IS NULL AND role = 'admin'`,
+    [roomId]
+  );
+  return res.rows.map((r) => String(r.user_id));
+}
+
 async function setMemberAdmin({ channel, userId, isAdmin }) {
   const room = await findByChannel(channel);
   if (!room) throw new Error('Room not found');
   if (String(room.host_user_id) === String(userId)) {
     throw new Error('Cannot change host role');
   }
-  const role = isAdmin ? 'admin' : 'viewer';
-  await db.query(
-    `UPDATE live_room_members SET role = $3
-     WHERE live_room_id = $1 AND user_id = $2 AND left_at IS NULL AND role != 'host'`,
-    [room.id, userId, role]
-  );
+  if (isAdmin) {
+    await db.query(
+      `UPDATE live_room_members SET role = 'admin'
+       WHERE live_room_id = $1 AND user_id = $2 AND left_at IS NULL AND role != 'host'`,
+      [room.id, userId]
+    );
+  } else {
+    /* Keep speaker if they still have a seat */
+    await db.query(
+      `UPDATE live_room_members
+       SET role = CASE WHEN seat_index IS NOT NULL THEN 'speaker' ELSE 'viewer' END
+       WHERE live_room_id = $1 AND user_id = $2 AND left_at IS NULL AND role != 'host'`,
+      [room.id, userId]
+    );
+  }
   invalidateRoomCache(channel);
   return room;
 }
@@ -1315,6 +1334,7 @@ module.exports = {
   maxSpeakersForRoom,
   isRoomOwner,
   isRoomModerator,
+  listRoomAdminUserIds,
   setMemberAdmin,
   demoteSpeaker,
   moveMemberSeat,

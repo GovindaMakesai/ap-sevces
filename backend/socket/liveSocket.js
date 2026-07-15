@@ -732,11 +732,21 @@ function registerLiveSocket(io) {
           at: Date.now(),
         };
         io.to(`live:${channel}`).emit('live:seat_request', payloadOut);
-        /* Also ping host personal room so Agree/Decline is not missed */
+        /* Also ping host + room admins so Agree/Decline is not missed */
         try {
           const room = await liveRoomService.findByChannel(channel);
           if (room?.host_user_id) {
             io.to(`user:${room.host_user_id}`).emit('live:seat_request', payloadOut);
+          }
+          if (room?.id) {
+            const admins = await liveRoomService.listRoomAdminUserIds?.(room.id);
+            if (Array.isArray(admins)) {
+              admins.forEach((adminId) => {
+                if (adminId && String(adminId) !== String(room.host_user_id)) {
+                  io.to(`user:${adminId}`).emit('live:seat_request', payloadOut);
+                }
+              });
+            }
           }
         } catch (_e) { /* ignore */ }
       } catch (err) {

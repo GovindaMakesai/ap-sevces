@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260715-profile-close';
+  window.__AP_LIVE_BUILD = '20260715-admin-kick';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -1085,9 +1085,14 @@
     if (isHost()) return true;
     const meId = currentUser()?.id;
     if (!meId) return false;
-    const members = roomState?.onlineMembers || roomState?.seats || [];
+    const members = [
+      ...(Array.isArray(roomState?.onlineMembers) ? roomState.onlineMembers : []),
+      ...(Array.isArray(roomState?.seats) ? roomState.seats : []),
+    ];
     return members.some(
-      (m) => String(m.userId) === String(meId) && (m.isAdmin || m.role === 'admin')
+      (m) =>
+        String(m.userId) === String(meId) &&
+        (m.isAdmin || m.role === 'admin' || m.isPlatformAdmin)
     );
   }
 
@@ -1188,22 +1193,40 @@
   }
 
   function pickKickDurationHours() {
-    const choice = window.prompt(
-      'Block this user from the live room for how long?\n\n2 = 2 hours\n6 = 6 hours\n24 = 24 hours\n168 = 7 days\n0 = permanent (cannot rejoin this live)\n\nEnter hours (minimum 2, or 0 for permanent):',
-      '2'
-    );
-    if (choice == null) return null;
-    const n = parseInt(String(choice).trim(), 10);
-    if (!Number.isFinite(n) || n < 0) {
-      toast('Enter 0 (permanent) or at least 2 hours', 'warning');
-      return null;
-    }
-    if (n === 0) return 0; // permanent sentinel
-    if (n < 2) {
-      toast('Minimum ban is 2 hours (or 0 for permanent)', 'warning');
-      return null;
-    }
-    return n;
+    return new Promise((resolve) => {
+      document.getElementById('apKickDurationSheet')?.remove();
+      const sheet = document.createElement('div');
+      sheet.id = 'apKickDurationSheet';
+      sheet.className = 'ap-kick-duration-sheet open';
+      sheet.innerHTML = `
+        <div class="ap-kick-duration-panel" role="dialog" aria-label="Kick duration">
+          <h3>Kick out from live</h3>
+          <p>They cannot rejoin until the block expires.</p>
+          <button type="button" class="ap-kick-opt" data-h="2"><i class="fas fa-ban"></i><span>Kick out · 2 hours</span></button>
+          <button type="button" class="ap-kick-opt" data-h="24"><i class="fas fa-ban"></i><span>Kick out · 24 hours</span></button>
+          <button type="button" class="ap-kick-cancel" data-cancel="1">Cancel</button>
+        </div>`;
+      document.body.appendChild(sheet);
+      const done = (hours) => {
+        sheet.remove();
+        resolve(hours);
+      };
+      sheet.querySelectorAll('[data-h]').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          done(Number(btn.dataset.h));
+        });
+      });
+      sheet.querySelector('[data-cancel]')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        done(null);
+      });
+      sheet.addEventListener('click', (e) => {
+        if (e.target === sheet) done(null);
+      });
+    });
   }
 
   function formatBanDurationLabel(hours) {
@@ -1241,7 +1264,7 @@
     } catch (_e) { }
   }
 
-  function kickUserFromRoom(userId, reason, durationHours) {
+  async function kickUserFromRoom(userId, reason, durationHours) {
     if (!canModerateRoom() || !liveSocket?.connected || !userId) return;
     if (isRoomHostUserId(userId)) {
       toast('Cannot remove the room host', 'warning');
@@ -1249,7 +1272,7 @@
     }
     let hours = durationHours;
     if (hours === undefined) {
-      hours = pickKickDurationHours();
+      hours = await pickKickDurationHours();
       if (hours == null) return;
     }
     const payload = {
@@ -1260,32 +1283,35 @@
     };
     liveSocket.emit('live:kick', payload, (res) => {
       if (res?.ok) {
-        toast(`User blocked from this live ${formatBanDurationLabel(hours)}`, 'success');
+        toast(`User kicked out ${formatBanDurationLabel(hours)}`, 'success');
       } else {
         toast(res?.message || 'Could not remove user', 'error');
       }
     });
   }
 
-  /** Live “Remove” = timed ban (cannot rejoin). Party “Remove from seat” stays demote. */
-  function removeUserFromLiveOrSeat(userId, displayName) {
+  /** Live “Kick out” = timed ban (cannot rejoin). Party “Remove from seat” stays demote. */
+  async function removeUserFromLiveOrSeat(userId, displayName, durationHours) {
     if (!canModerateRoom() || !userId) return;
     if (isRoomHostUserId(userId)) {
       toast('Cannot remove the room host', 'warning');
       return;
     }
     if (isLiveRoomPage()) {
-      const hours = pickKickDurationHours();
-      if (hours == null) return;
+      let hours = durationHours;
+      if (hours === undefined) {
+        hours = await pickKickDurationHours();
+        if (hours == null) return;
+      }
       const label = displayName || 'this user';
       if (
         !window.confirm(
-          `Remove ${label} from this live and block rejoin ${formatBanDurationLabel(hours)}?\n\nThey will see a notification with how long they cannot enter.`
+          `Kick ${label} out of this live ${formatBanDurationLabel(hours)}?\n\nThey will see how long they cannot rejoin.`
         )
       ) {
         return;
       }
-      kickUserFromRoom(userId, 'removed_from_live', hours);
+      await kickUserFromRoom(userId, 'removed_from_live', hours);
       return;
     }
     demoteUserFromSeat(userId);
@@ -1417,7 +1443,7 @@
     const canKick = uid && !isRoomHostUserId(uid);
     menu.innerHTML = `
       <button type="button" data-cmod="delete"><i class="fas fa-trash"></i><span>Remove message</span></button>
-      ${canKick ? '<button type="button" data-cmod="block"><i class="fas fa-ban"></i><span>Block from room</span></button>' : ''}
+      ${canKick ? '<button type="button" data-cmod="block"><i class="fas fa-ban"></i><span>Kick out from live…</span></button>' : ''}
       <button type="button" data-cmod="cancel"><i class="fas fa-times"></i><span>Cancel</span></button>`;
     document.body.appendChild(menu);
     const rect = (anchorEl || document.body).getBoundingClientRect?.() || { left: 40, top: 120, width: 200 };
@@ -1428,11 +1454,11 @@
       close();
       if (window.confirm('Remove this message for everyone?')) deleteChatMessage(msg.id);
     });
-    menu.querySelector('[data-cmod="block"]')?.addEventListener('click', () => {
+    menu.querySelector('[data-cmod="block"]')?.addEventListener('click', async () => {
       close();
-      const hours = pickKickDurationHours();
+      const hours = await pickKickDurationHours();
       if (hours == null) return;
-      if (window.confirm(`Block ${name} from this live ${formatBanDurationLabel(hours)}?`)) {
+      if (window.confirm(`Kick ${name} out of this live ${formatBanDurationLabel(hours)}?`)) {
         kickUserFromRoom(uid, 'abusive_chat', hours);
       }
     });
@@ -1546,17 +1572,19 @@
     menu.className = 'ap-profile-more-menu';
     panel.appendChild(menu);
     const isTargetHost = isRoomHostUserId(userId);
-    const isAdminMember = (roomState?.onlineMembers || []).some(
+    const isAdminMember = (roomState?.onlineMembers || roomState?.seats || []).some(
       (m) => String(m.userId) === String(userId) && (m.isAdmin || m.role === 'admin')
     );
-    const kickLabel = isLiveRoomPage() ? 'Block from this live…' : 'Kick from room…';
+    const canKick = !isTargetHost;
     menu.innerHTML = `
       <button type="button" data-mod="mute"><i class="fas fa-microphone-slash"></i><span>Mute mic</span></button>
       <button type="button" data-mod="unmute"><i class="fas fa-microphone"></i><span>Unmute mic</span></button>
+      ${isPartyRoomPage() || isLiveRoomPage() ? `<button type="button" data-mod="addseat"><i class="fas fa-plus"></i><span>${isLiveRoomPage() ? 'Add to live' : 'Add to seat'}</span></button>` : ''}
       ${isPartyRoomPage() ? '<button type="button" data-mod="move"><i class="fas fa-exchange-alt"></i><span>Move to seat…</span></button>' : ''}
-      ${!isTargetHost ? '<button type="button" data-mod="demote"><i class="fas fa-user-minus"></i><span>Remove from the seat</span></button>' : ''}
-      ${!isTargetHost ? `<button type="button" data-mod="kick"><i class="fas fa-ban"></i><span>${kickLabel}</span></button>` : ''}
-      ${isHost() && !isTargetHost ? `<button type="button" data-mod="admin"><i class="fas fa-user-shield"></i><span>${isAdminMember ? 'Revoke admin' : 'Make admin'}</span></button>` : ''}`;
+      ${canKick ? '<button type="button" data-mod="demote"><i class="fas fa-user-minus"></i><span>Remove from the seat</span></button>' : ''}
+      ${canKick ? '<button type="button" data-mod="kick2"><i class="fas fa-ban"></i><span>Kick out · 2 hours</span></button>' : ''}
+      ${canKick ? '<button type="button" data-mod="kick24"><i class="fas fa-ban"></i><span>Kick out · 24 hours</span></button>' : ''}
+      ${isHost() && canKick ? `<button type="button" data-mod="admin"><i class="fas fa-user-shield"></i><span>${isAdminMember ? 'Revoke admin' : 'Make admin'}</span></button>` : ''}`;
     menu.querySelector('[data-mod="mute"]')?.addEventListener('click', () => {
       muteRemoteUser(userId, true);
       menu.remove();
@@ -1564,6 +1592,14 @@
     menu.querySelector('[data-mod="unmute"]')?.addEventListener('click', () => {
       muteRemoteUser(userId, false);
       menu.remove();
+    });
+    menu.querySelector('[data-mod="addseat"]')?.addEventListener('click', () => {
+      const btn = document.createElement('button');
+      btn.dataset.inviteSeat = String(userId);
+      btn.dataset.inviteName = name || 'Guest';
+      handleSeatInviteClick(btn);
+      menu.remove();
+      document.getElementById('apProfileSheet')?.classList.remove('open');
     });
     menu.querySelector('[data-mod="move"]')?.addEventListener('click', () => {
       const seat = window.prompt('Seat number (1–15):', String(seatNum || 3));
@@ -1575,19 +1611,15 @@
       menu.remove();
       document.getElementById('apProfileSheet')?.classList.remove('open');
     });
-    menu.querySelector('[data-mod="kick"]')?.addEventListener('click', () => {
-      if (isLiveRoomPage()) {
-        removeUserFromLiveOrSeat(userId, name);
-      } else {
-        const hours = pickKickDurationHours();
-        if (hours == null) {
-          menu.remove();
-          return;
-        }
-        if (window.confirm(`Block ${name} from this party ${formatBanDurationLabel(hours)}?`)) {
-          kickUserFromRoom(userId, 'blocked_by_host', hours);
-        }
-      }
+    menu.querySelector('[data-mod="kick2"]')?.addEventListener('click', () => {
+      if (isLiveRoomPage()) removeUserFromLiveOrSeat(userId, name, 2);
+      else kickUserFromRoom(userId, 'blocked_by_host', 2);
+      menu.remove();
+      document.getElementById('apProfileSheet')?.classList.remove('open');
+    });
+    menu.querySelector('[data-mod="kick24"]')?.addEventListener('click', () => {
+      if (isLiveRoomPage()) removeUserFromLiveOrSeat(userId, name, 24);
+      else kickUserFromRoom(userId, 'blocked_by_host', 24);
       menu.remove();
       document.getElementById('apProfileSheet')?.classList.remove('open');
     });
@@ -1774,19 +1806,26 @@
   }
 
   function syncHostBarUi() {
-    /* Host chrome (bottom tools + host bar): real host after join, or starting host before join */
+    /* Host + room-admin chrome (guests / mute chat / kick tools) */
     const hosting = isHost();
+    const moderating = canModerateRoom();
     document.body.classList.toggle('ap-is-host', hosting);
-    document.body.classList.toggle('ap-can-moderate', canModerateRoom() && !hosting);
+    document.body.classList.toggle('ap-can-moderate', moderating && !hosting);
     const liveHostBar = document.getElementById('liveHostBar');
     if (liveHostBar) {
-      if (hosting) {
+      if (moderating) {
         liveHostBar.hidden = false;
         liveHostBar.removeAttribute('hidden');
         liveHostBar.setAttribute('aria-hidden', 'false');
         liveHostBar.style.removeProperty('display');
         liveHostBar.style.removeProperty('visibility');
         liveHostBar.style.removeProperty('pointer-events');
+        const btn = document.getElementById('liveHostBarToggle');
+        if (btn && !hosting) {
+          btn.innerHTML = '<i class="fas fa-sliders-h"></i> Admin controls';
+        } else if (btn && hosting && btn.getAttribute('aria-expanded') !== 'true') {
+          btn.innerHTML = '<i class="fas fa-sliders-h"></i> Host controls';
+        }
       } else {
         liveHostBar.hidden = true;
         liveHostBar.setAttribute('hidden', '');
@@ -3216,10 +3255,36 @@
 
       liveSocket.on('live:admin_changed', (payload) => {
         const me = currentUser();
-        if (me && String(payload?.userId) === String(me.id)) {
-          toast(payload?.isAdmin ? 'You are now a room admin' : 'Admin access removed', 'info');
+        const uid = String(payload?.userId || '');
+        const isAdmin = Boolean(payload?.isAdmin);
+        if (roomState?.onlineMembers) {
+          let found = false;
+          roomState.onlineMembers = roomState.onlineMembers.map((m) => {
+            if (String(m.userId) !== uid) return m;
+            found = true;
+            return { ...m, isAdmin, role: isAdmin ? 'admin' : m.seatIndex != null ? 'speaker' : 'viewer' };
+          });
+          if (!found && uid) {
+            roomState.onlineMembers.push({
+              userId: uid,
+              name: 'Admin',
+              role: isAdmin ? 'admin' : 'viewer',
+              isAdmin,
+            });
+          }
+        }
+        if (roomState?.seats) {
+          roomState.seats = roomState.seats.map((s) =>
+            String(s.userId) === uid ? { ...s, isAdmin, role: isAdmin ? 'admin' : s.role } : s
+          );
+        }
+        if (me && uid === String(me.id)) {
+          toast(isAdmin ? 'You are now a room admin — you can manage seats, mute, and kick' : 'Admin access removed', 'info');
+          syncHostBarUi();
+          applyRoleUiAfterJoin();
         }
         renderRoomState();
+        syncHostBarUi();
       });
 
       liveSocket.on('live:room_style', (payload) => {

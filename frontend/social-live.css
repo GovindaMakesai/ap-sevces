@@ -1680,8 +1680,128 @@ body.party-requests-open .live-host-bar {
   font-size: 11px;
 }
 
+/* Host-only tools (video/audio mode/flip) stay host-only; room admins get the bar + mod tools */
 body:not(.ap-is-host) .host-only-tool {
   display: none !important;
+}
+
+body.ap-can-moderate .live-host-bar:not([hidden]),
+body.ap-can-moderate #liveHostBar:not([hidden]) {
+  display: inline-flex !important;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0 !important;
+  padding: 0 !important;
+  flex: 0 0 auto;
+  width: auto;
+  max-width: none;
+  position: relative;
+  z-index: 26;
+  pointer-events: auto !important;
+  visibility: visible !important;
+  touch-action: manipulation;
+  background: transparent;
+}
+
+body.ap-can-moderate .live-host-bar.is-collapsed:not([hidden]),
+body.ap-can-moderate #liveHostBar.is-collapsed:not([hidden]) {
+  display: inline-flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  align-self: center !important;
+  width: fit-content !important;
+  max-width: fit-content !important;
+  min-width: 0 !important;
+}
+
+body.ap-can-moderate .live-host-bar:not(.is-collapsed):not([hidden]),
+body.ap-can-moderate #liveHostBar:not(.is-collapsed):not([hidden]) {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  flex: 1 0 100%;
+  width: 100% !important;
+  max-width: 100% !important;
+  margin-top: 4px !important;
+}
+
+body.ap-can-moderate .party-live-actions .live-host-bar,
+body.ap-can-moderate .party-live-actions #liveHostBar {
+  order: 1;
+  margin-right: auto;
+  align-self: center;
+}
+
+.ap-kick-duration-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 15000;
+  background: rgba(0, 0, 0, 0.55);
+  display: none;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 16px;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0));
+}
+
+.ap-kick-duration-sheet.open {
+  display: flex;
+}
+
+.ap-kick-duration-panel {
+  width: 100%;
+  max-width: 420px;
+  background: #111827;
+  border-radius: 16px;
+  padding: 16px;
+  color: #fff;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+}
+
+.ap-kick-duration-panel h3 {
+  margin: 0 0 6px;
+  font-size: 16px;
+}
+
+.ap-kick-duration-panel p {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+.ap-kick-opt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  border: none;
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 8px;
+  background: linear-gradient(90deg, #ef4444, #b91c1c);
+  color: #fff;
+  font-weight: 800;
+  font-size: 14px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.ap-kick-opt i {
+  width: 18px;
+  text-align: center;
+}
+
+.ap-kick-cancel {
+  width: 100%;
+  border: none;
+  border-radius: 12px;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #e5e7eb;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 #partyBtnLock.is-active .ico {
@@ -6718,11 +6838,15 @@ html.ap-expo-app .ap-chip {
 }
 
 .ap-profile-more-menu button[data-mod="kick"],
+.ap-profile-more-menu button[data-mod="kick2"],
+.ap-profile-more-menu button[data-mod="kick24"],
 .ap-profile-more-menu button[data-mod="demote"] {
   color: #b91c1c;
 }
 
 .ap-profile-more-menu button[data-mod="kick"] i,
+.ap-profile-more-menu button[data-mod="kick2"] i,
+.ap-profile-more-menu button[data-mod="kick24"] i,
 .ap-profile-more-menu button[data-mod="demote"] i {
   color: #ef4444;
 }
