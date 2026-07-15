@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260715-tap-fix';
+  window.__AP_LIVE_BUILD = '20260715-mod-menu';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -1416,10 +1416,9 @@
     const name = msg.user || 'User';
     const canKick = uid && !isRoomHostUserId(uid);
     menu.innerHTML = `
-      <button type="button" data-cmod="delete"><i class="fas fa-trash"></i> Remove message</button>
-      ${canKick ? '<button type="button" data-cmod="chatmute"><i class="fas fa-comment-slash"></i> Mute from chat</button>' : ''}
-      ${canKick ? '<button type="button" data-cmod="block"><i class="fas fa-ban"></i> Block from room</button>' : ''}
-      <button type="button" data-cmod="cancel">Cancel</button>`;
+      <button type="button" data-cmod="delete"><i class="fas fa-trash"></i><span>Remove message</span></button>
+      ${canKick ? '<button type="button" data-cmod="block"><i class="fas fa-ban"></i><span>Block from room</span></button>' : ''}
+      <button type="button" data-cmod="cancel"><i class="fas fa-times"></i><span>Cancel</span></button>`;
     document.body.appendChild(menu);
     const rect = (anchorEl || document.body).getBoundingClientRect?.() || { left: 40, top: 120, width: 200 };
     menu.style.left = `${Math.min(window.innerWidth - 220, Math.max(12, rect.left))}px`;
@@ -1428,10 +1427,6 @@
     menu.querySelector('[data-cmod="delete"]')?.addEventListener('click', () => {
       close();
       if (window.confirm('Remove this message for everyone?')) deleteChatMessage(msg.id);
-    });
-    menu.querySelector('[data-cmod="chatmute"]')?.addEventListener('click', () => {
-      close();
-      if (window.confirm(`Mute ${name} from chat?`)) muteUserChat(uid, true);
     });
     menu.querySelector('[data-cmod="block"]')?.addEventListener('click', () => {
       close();
@@ -1507,7 +1502,7 @@
       if (res?.ok) {
         clearLocalSeatState(userId);
         renderRoomState();
-        toast(isLiveRoomPage() ? 'Guest removed from live' : 'Removed from seat', 'success');
+        toast('Removed from the seat', 'success');
       } else {
         toast(res?.message || 'Could not remove guest', 'error');
       }
@@ -1554,31 +1549,20 @@
     const isAdminMember = (roomState?.onlineMembers || []).some(
       (m) => String(m.userId) === String(userId) && (m.isAdmin || m.role === 'admin')
     );
-    const removeLabel = isLiveRoomPage() ? 'Remove & block from live' : 'Remove from seat';
     const kickLabel = isLiveRoomPage() ? 'Block from this live…' : 'Kick from room…';
     menu.innerHTML = `
-      <button type="button" data-mod="mute">Mute mic</button>
-      <button type="button" data-mod="unmute">Unmute mic</button>
-      <button type="button" data-mod="chatmute">Mute from chat</button>
-      <button type="button" data-mod="chatunmute">Unmute chat</button>
-      ${isPartyRoomPage() ? '<button type="button" data-mod="move">Move to seat…</button>' : ''}
-      ${isLiveRoomPage() ? '<button type="button" data-mod="demote">Take off stage (can still watch)</button>' : `<button type="button" data-mod="demote">${removeLabel}</button>`}
-      ${!isTargetHost ? `<button type="button" data-mod="kick">${isLiveRoomPage() ? removeLabel : kickLabel}</button>` : ''}
-      ${isHost() && !isTargetHost ? `<button type="button" data-mod="admin">${isAdminMember ? 'Revoke admin' : 'Make admin'}</button>` : ''}`;
+      <button type="button" data-mod="mute"><i class="fas fa-microphone-slash"></i><span>Mute mic</span></button>
+      <button type="button" data-mod="unmute"><i class="fas fa-microphone"></i><span>Unmute mic</span></button>
+      ${isPartyRoomPage() ? '<button type="button" data-mod="move"><i class="fas fa-exchange-alt"></i><span>Move to seat…</span></button>' : ''}
+      ${!isTargetHost ? '<button type="button" data-mod="demote"><i class="fas fa-user-minus"></i><span>Remove from the seat</span></button>' : ''}
+      ${!isTargetHost ? `<button type="button" data-mod="kick"><i class="fas fa-ban"></i><span>${kickLabel}</span></button>` : ''}
+      ${isHost() && !isTargetHost ? `<button type="button" data-mod="admin"><i class="fas fa-user-shield"></i><span>${isAdminMember ? 'Revoke admin' : 'Make admin'}</span></button>` : ''}`;
     menu.querySelector('[data-mod="mute"]')?.addEventListener('click', () => {
       muteRemoteUser(userId, true);
       menu.remove();
     });
     menu.querySelector('[data-mod="unmute"]')?.addEventListener('click', () => {
       muteRemoteUser(userId, false);
-      menu.remove();
-    });
-    menu.querySelector('[data-mod="chatmute"]')?.addEventListener('click', () => {
-      muteUserChat(userId, true);
-      menu.remove();
-    });
-    menu.querySelector('[data-mod="chatunmute"]')?.addEventListener('click', () => {
-      muteUserChat(userId, false);
       menu.remove();
     });
     menu.querySelector('[data-mod="move"]')?.addEventListener('click', () => {

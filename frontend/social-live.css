@@ -1289,24 +1289,33 @@ body.ap-is-host #liveHostBar:not(.is-collapsed):not([hidden]) {
 .party-chat-mod-btn {
   border: none;
   background: transparent;
-  color: rgba(255, 255, 255, 0.55);
-  padding: 2px 6px;
+  color: rgba(255, 255, 255, 0.7);
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  padding: 0;
   margin-left: auto;
-  font-size: 12px;
+  flex-shrink: 0;
+  font-size: 13px;
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .party-chat-mod-btn:active,
 .party-chat-mod-btn:hover {
   color: #fff;
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.14);
 }
 
 .ap-chat-mod-menu {
   position: fixed;
   z-index: 14000;
-  min-width: 200px;
+  min-width: 212px;
   background: #111827;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 12px;
@@ -1322,17 +1331,29 @@ body.ap-is-host #liveHostBar:not(.is-collapsed):not([hidden]) {
   background: transparent;
   color: #f9fafb;
   text-align: left;
-  padding: 10px 12px;
+  padding: 11px 12px;
   border-radius: 8px;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
 }
 
 .ap-chat-mod-menu button i {
   width: 18px;
-  margin-right: 8px;
-  opacity: 0.85;
+  flex-shrink: 0;
+  text-align: center;
+  opacity: 0.9;
+  margin: 0;
+}
+
+.ap-chat-mod-menu button span {
+  flex: 1;
+  text-align: left;
+  line-height: 1.2;
 }
 
 .ap-chat-mod-menu button:active,
@@ -6712,19 +6733,45 @@ html.ap-expo-app .ap-chip {
 }
 
 .ap-profile-more-menu button {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   width: 100%;
   border: none;
   background: #fff;
-  padding: 12px 16px;
+  padding: 13px 16px;
   text-align: left;
   font-size: 14px;
+  font-weight: 600;
   color: #374151;
   cursor: pointer;
+  line-height: 1.2;
+}
+
+.ap-profile-more-menu button i {
+  width: 18px;
+  flex-shrink: 0;
+  text-align: center;
+  color: #6b7280;
+}
+
+.ap-profile-more-menu button span {
+  flex: 1;
+  text-align: left;
 }
 
 .ap-profile-more-menu button+button {
   border-top: 1px solid #f3f4f6;
+}
+
+.ap-profile-more-menu button[data-mod="kick"],
+.ap-profile-more-menu button[data-mod="demote"] {
+  color: #b91c1c;
+}
+
+.ap-profile-more-menu button[data-mod="kick"] i,
+.ap-profile-more-menu button[data-mod="demote"] i {
+  color: #ef4444;
 }
 
 .ap-live-viewer-diag span {
@@ -7069,11 +7116,13 @@ html.ap-expo-app .ap-chip {
 
 .party-chat-meta {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 3px 5px;
+  gap: 4px;
+  width: 100%;
   max-width: 100%;
   line-height: 1.25;
+  min-height: 22px;
 }
 
 .party-chat-meta .lvl,
@@ -7086,8 +7135,11 @@ html.ap-expo-app .ap-chip {
 }
 
 .party-chat-user-btn {
-  max-width: min(140px, 46vw);
+  flex: 1 1 auto;
+  max-width: none;
   min-width: 0;
+  text-align: left;
+  overflow: hidden;
 }
 
 .party-chat-text {
@@ -7109,7 +7161,6 @@ html.ap-expo-app .ap-chip {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  vertical-align: bottom;
 }
 
 .party-gift-analytics,
