@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260715-admin-kick';
+  window.__AP_LIVE_BUILD = '20260715-gift0-clip';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -6646,7 +6646,7 @@
           ${waveBars}
         </div>
         <span class="seat-name">${escapeHtml(s.name)}</span>
-        <span class="seat-gifts">🎁 ${formatGiftCount(s.gifts || 0)}</span>
+        ${Number(s.gifts) > 0 ? `<span class="seat-gifts">🎁 ${formatGiftCount(s.gifts)}</span>` : ''}
       </button>`;
   }
 
@@ -7102,7 +7102,7 @@
         return `
       <div class="ap-guest-wrap" data-guest-wrap="${escapeHtml(uid)}">
         <button type="button" class="ap-guest-seat${admin ? ' is-admin-user' : ''}${muted ? ' is-muted' : ' is-on-mic'}${speaking}" data-guest="${escapeHtml(s.name)}" data-guest-id="${escapeHtml(uid)}">
-          <span class="ap-guest-gift">${formatGiftCount(s.gifts || 0)}</span>
+          ${Number(s.gifts) > 0 ? `<span class="ap-guest-gift">${formatGiftCount(s.gifts)}</span>` : ''}
           <span class="ap-guest-avatar${adminAvatarFrameClass(admin)}">
             ${adminAvatarTagHtml(admin)}
             <span class="ap-guest-video" id="apGuestVideo-${escapeHtml(uid)}" hidden></span>
