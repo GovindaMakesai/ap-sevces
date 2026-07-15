@@ -703,7 +703,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 70;
+  z-index: 8500;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -715,6 +715,16 @@
   pointer-events: auto !important;
   overflow: visible;
   transition: bottom 0.2s ease;
+}
+
+#partyBottomBar .party-btn-gift,
+#liveBtnGift,
+#partyBtnGift,
+.party-btn-gift.ap-btn-gift-hero {
+  position: relative;
+  z-index: 8600 !important;
+  pointer-events: auto !important;
+  touch-action: manipulation;
 }
 
 .party-bottom-bar>* {
@@ -1384,6 +1394,18 @@ body.party-requests-open #partyBottomBar {
   pointer-events: none !important;
   transform: translateY(100%);
   z-index: 1 !important;
+}
+
+/* Ghost overlay catch — closed sheets must never steal gift taps */
+.ap-modal-overlay:not(.open),
+.gift-sheet:not(.open),
+.party-tools-sheet:not(.open),
+.party-requests-sheet:not(.open),
+.party-music-sheet:not(.open),
+.ap-topup-sheet:not(.open),
+.ap-surprise-sheet:not(.open) {
+  pointer-events: none !important;
+  visibility: hidden;
 }
 
 body.party-requests-open .party-host-bar,
@@ -5369,9 +5391,17 @@ body.ap-live-overlay-open .party-chat-row {
 
 .ap-host-mic-invite-overlay {
   z-index: 12500;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.55);
+  padding-top: max(12vh, calc(env(safe-area-inset-top, 0px) + 72px));
+  /* Let taps reach gift / bottom bar — only the dialog itself captures clicks */
+  background: transparent;
+  pointer-events: none !important;
+}
+
+.ap-host-mic-invite-overlay.open .ap-host-mic-invite {
+  pointer-events: auto !important;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
 }
 
 .ap-host-mic-invite-body {
@@ -5751,9 +5781,36 @@ body[data-live-page="live-room"] .ap-guest-rail {
 body[data-live-page="live-room"].ap-has-live-guests .ap-guest-rail {
   display: flex !important;
   right: 10px;
-  bottom: 38%;
+  bottom: calc(var(--ap-bottom-bar-h, 58px) + 72px + env(safe-area-inset-bottom, 0px));
   z-index: 45;
+  /* Rail itself doesn't swallow gift taps — only seat chips do */
+  pointer-events: none !important;
+  max-height: 42vh;
+  overflow: visible;
+}
+
+body[data-live-page="live-room"].ap-has-live-guests .ap-guest-rail .ap-guest-seat,
+body[data-live-page="live-room"].ap-has-live-guests .ap-guest-rail .ap-guest-wrap {
   pointer-events: auto !important;
+}
+
+.ap-guest-wrap,
+.ap-guest-seat,
+.ap-guest-avatar,
+.ap-guest-video {
+  overflow: hidden !important;
+  max-width: 72px;
+}
+
+.ap-guest-video video,
+.ap-guest-video > div,
+.ap-guest-video canvas {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: cover !important;
+  pointer-events: none !important;
 }
 
 .ap-guest-seat.is-speaking .ap-guest-avatar {

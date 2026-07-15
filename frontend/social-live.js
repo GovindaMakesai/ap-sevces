@@ -2901,7 +2901,8 @@
         if (renderRoomStateTimer) clearTimeout(renderRoomStateTimer);
         renderRoomStateTimer = setTimeout(() => {
           renderRoomStateTimer = null;
-          recoverStuckLiveUi();
+          /* Seat changes sometimes leave sheets/overlays blocking the gift icon */
+          recoverStuckLiveUi({ forceGift: true });
           renderRoomState({ soft: sessionEstablished });
           renderRoomGiftPanels();
           refreshOpenGiftRecipients();
@@ -7204,21 +7205,55 @@
       '#partyRequestsSheet.open, #partyMusicSheet.open, #partyBgPickerSheet.open, ' +
       '#apInAppShareSheet.open, #apSurpriseShop.open, #apFilterSheet.open, #apProfileSheet.open, ' +
       '#apInRoomWebPanel.open, #apSeatSheet.open';
-    const anyOpen = document.querySelector(openSel);
-    if (!anyOpen) {
+
+    /* Requests sheet closed but body class left on → gift icon dead */
+    const reqSheet = document.getElementById('partyRequestsSheet');
+    if (
+      document.body.classList.contains('party-requests-open') &&
+      !reqSheet?.classList.contains('open')
+    ) {
+      document.body.classList.remove('party-requests-open');
+    }
+
+    /* Closed overlays sometimes keep stray .open from race — force-clear ghosts */
+    if (forceGift) {
+      document.querySelectorAll('.ap-modal-overlay.open').forEach((el) => {
+        if (el.id === 'apHostMicInviteModal') return; /* keep mic Agree popup visible */
+        if (el.id === 'giftSheet' || el.classList.contains('gift-sheet')) return;
+        el.classList.remove('open');
+      });
+      document.getElementById('partyToolsSheet')?.classList.remove('open');
+      document.getElementById('apMicLinkModal')?.classList.remove('open');
+      document.getElementById('partyMusicSheet')?.classList.remove('open');
+      document.getElementById('apInAppShareSheet')?.classList.remove('open');
+      document.getElementById('apTopupSheet')?.classList.remove('open');
+      document.getElementById('apSurpriseShop')?.classList.remove('open');
+      document.getElementById('apFilterSheet')?.classList.remove('open');
+      document.getElementById('apEmojiPopover')?.classList.remove('is-open');
+    }
+
+    if (!document.querySelector(openSel)) {
       document.body.classList.remove('ap-live-overlay-open', 'party-requests-open', 'ap-sheet-open');
-      /* Mic-link sometimes keeps .open after accept — force-clear if waiting UI is gone */
       document.getElementById('apMicLinkModal')?.classList.remove('open');
     } else {
       syncLiveOverlayClass();
     }
 
-    if (
-      document.body.classList.contains('party-requests-open') &&
-      !document.getElementById('partyRequestsSheet')?.classList.contains('open')
-    ) {
-      document.body.classList.remove('party-requests-open');
+    /* Always keep gift / bottom bar interactive unless requests sheet is truly open */
+    const bar = document.getElementById('partyBottomBar');
+    if (bar && !reqSheet?.classList.contains('open')) {
+      bar.style.pointerEvents = 'auto';
+      bar.style.visibility = 'visible';
+      bar.style.opacity = '1';
+      bar.style.removeProperty('transform');
     }
+    ['liveBtnGift', 'partyBtnGift'].forEach((id) => {
+      const giftBtn = document.getElementById(id);
+      if (!giftBtn) return;
+      giftBtn.style.pointerEvents = 'auto';
+      giftBtn.removeAttribute('disabled');
+      giftBtn.setAttribute('aria-disabled', 'false');
+    });
   }
 
   function syncBottomBarHeightVar() {
@@ -10325,15 +10360,33 @@
     const openGiftFromBar = (e) => {
       e?.preventDefault?.();
       e?.stopPropagation?.();
+      /* Guests joining can leave invisible overlays / party-requests-open → gift dead */
       recoverStuckLiveUi({ forceGift: true });
+      document.body.classList.remove('party-requests-open', 'ap-sheet-open');
+      document.getElementById('partyRequestsSheet')?.classList.remove('open');
       openGiftSheet();
     };
     ['partyBtnGift', 'liveBtnGift'].forEach((id) => {
       const btn = document.getElementById(id);
       if (!btn || btn.dataset.giftOpenBound === '1') return;
       btn.dataset.giftOpenBound = '1';
-      /* click only — pointerup opens the sheet under the finger and accidental-sends */
-      btn.addEventListener('click', openGiftFromBar);
+      /* Capture phase so guest/video layers can't steal the tap */
+      btn.addEventListener('click', openGiftFromBar, true);
+      btn.addEventListener(
+        'pointerup',
+        (e) => {
+          if (e.button != null && e.button !== 0) return;
+          /* Don't open twice with click — only salvage when click never fires */
+          if (btn.dataset._giftPtr === '1') return;
+          btn.dataset._giftPtr = '1';
+          setTimeout(() => {
+            btn.dataset._giftPtr = '0';
+          }, 400);
+          if (document.getElementById('giftSheet')?.classList.contains('open')) return;
+          openGiftFromBar(e);
+        },
+        true
+      );
     });
 
     const toggleFollow = async () => {
