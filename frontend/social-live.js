@@ -1126,13 +1126,24 @@
     return 'In room';
   }
 
-  function memberIsOnStage(m) {
-    if (!m?.userId) return false;
-    const uid = String(m.userId);
+  function memberIsOnStage(mOrId) {
+    const uid =
+      typeof mOrId === 'object' && mOrId
+        ? String(mOrId.userId || mOrId.id || '')
+        : String(mOrId || '');
+    if (!uid) return false;
+    if (isRoomHostUserId(uid)) return true;
     if (stickyStageGuests.has(uid)) return true;
-    if (m.seatIndex != null || m.seat_index != null) return true;
-    if (m.role === 'speaker') return true;
-    return (roomState?.seats || []).some((s) => String(s.userId || '') === uid);
+    if ((roomState?.seats || []).some((s) => String(s.userId || '') === uid)) return true;
+    if (typeof mOrId === 'object' && mOrId) {
+      if (mOrId.seatIndex != null || mOrId.seat_index != null) return true;
+      if (mOrId.role === 'speaker') return true;
+    }
+    try {
+      if (document.querySelector(`.ap-guest-seat[data-guest-id="${CSS.escape(uid)}"]`)) return true;
+      if (document.querySelector(`.party-seat[data-user-id="${CSS.escape(uid)}"]:not(.is-empty)`)) return true;
+    } catch (_e) { /* ignore */ }
+    return false;
   }
 
   function clearLocalSeatState(userId) {
