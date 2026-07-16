@@ -1992,7 +1992,7 @@
   }
 
   function syncHostBarUi() {
-    /* Host + room-admin chrome (guests / mute chat / kick tools) */
+    /* Host + room-admin chrome — same Host controls UI (not a separate Admin look) */
     const hosting = isHost();
     const moderating = canModerateRoom();
     document.body.classList.toggle('ap-is-host', hosting);
@@ -2007,9 +2007,7 @@
         liveHostBar.style.removeProperty('visibility');
         liveHostBar.style.removeProperty('pointer-events');
         const btn = document.getElementById('liveHostBarToggle');
-        if (btn && !hosting) {
-          btn.innerHTML = '<i class="fas fa-sliders-h"></i> Admin controls';
-        } else if (btn && hosting && btn.getAttribute('aria-expanded') !== 'true') {
+        if (btn && btn.getAttribute('aria-expanded') !== 'true') {
           btn.innerHTML = '<i class="fas fa-sliders-h"></i> Host controls';
         }
       } else {
@@ -11776,7 +11774,8 @@
     document.getElementById('partyMinimizeBtn')?.addEventListener('click', () => minimizeLiveRoom());
 
     document.getElementById('liveHostBarToggle')?.addEventListener('click', () => {
-      if (!isHost()) {
+      /* Host and room admins use the same expand/collapse Host controls UI */
+      if (!canModerateRoom()) {
         syncHostBarUi();
         return;
       }
