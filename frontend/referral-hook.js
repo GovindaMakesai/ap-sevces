@@ -57,5 +57,42 @@
     setTimeout(tryApplyPendingReferral, 400);
   });
 
+  async function tryRevalidateReferral() {
+    if (!window.API?.request) return;
+    const user =
+      window.Auth?.getUser?.() ||
+      (() => {
+        try {
+          return JSON.parse(localStorage.getItem('user') || 'null');
+        } catch (_e) {
+          return null;
+        }
+      })();
+    if (!user?.id) return;
+
+    /* Throttle to avoid spamming on repeated profile updates. */
+    const key = 'ap_ref_revalidate_attempted_at';
+    const last = Number(sessionStorage.getItem(key) || '0');
+    if (Date.now() - last < 60000) return;
+    sessionStorage.setItem(key, String(Date.now()));
+
+    try {
+      await API.request('/referral/revalidate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+    } catch (_e) {
+      /* Non-blocking */
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(tryRevalidateReferral, 1200);
+  });
+  document.addEventListener('user:profile-updated', () => {
+    setTimeout(tryRevalidateReferral, 600);
+  });
+
   window.APReferralHook = { tryApplyPendingReferral, captureRefFromUrl };
 })();

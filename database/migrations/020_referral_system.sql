@@ -280,9 +280,9 @@ CREATE TABLE IF NOT EXISTS host_statistics (
 INSERT INTO referral_settings (key, value) VALUES
   ('returning_user_inactive_days', '30'::jsonb),
   ('returning_user_options', '[30,60,90,180]'::jsonb),
-  ('invite_signup_reward_coins', '500'::jsonb),
+  ('invite_signup_reward_coins', '1000'::jsonb),
   ('invitee_signup_reward_coins', '200'::jsonb),
-  ('invite_host_convert_reward_coins', '5000'::jsonb),
+  ('invite_host_convert_reward_coins', '9500'::jsonb),
   ('max_reward_per_day', '100000'::jsonb),
   ('referral_expiry_days', '30'::jsonb),
   ('fraud_score_hold_threshold', '70'::jsonb),

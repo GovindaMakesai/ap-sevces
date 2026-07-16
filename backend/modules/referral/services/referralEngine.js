@@ -198,6 +198,36 @@ async function grantValidationRewards(referral) {
     });
   }
 
+  /* Expected behavior: when invitee passes face/profile validation,
+     inviter should get the full “invite bonus” (base + conversion bonus)
+     right away (not only when the invitee later becomes a host role). */
+  const existingHostConvert = await db.query(
+    `SELECT 1 FROM referral_rewards
+     WHERE referral_id = $1 AND beneficiary_id = $2 AND reward_type = 'host_convert'
+     AND status = 'paid' LIMIT 1`,
+    [referral.id, referral.inviter_id]
+  );
+  if (!existingHostConvert.rows.length) {
+    const coins = Number(await settings.getSetting('invite_host_convert_reward_coins', 5000)) || 0;
+    if (coins > 0) {
+      await rewardEngine.createReward({
+        beneficiaryId: referral.inviter_id,
+        beneficiaryRole: 'inviter',
+        referralId: referral.id,
+        rewardType: 'host_convert',
+        coins,
+        metadata: { invitee_id: referral.invitee_id },
+      });
+      await logEvent({
+        referralId: referral.id,
+        inviterId: referral.inviter_id,
+        inviteeId: referral.invitee_id,
+        eventType: 'referral_face_verified_bonus',
+        payload: { coins },
+      });
+    }
+  }
+
   await db.query(
     `UPDATE referrals SET status = 'rewarded', rewarded_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
      WHERE id = $1 AND status = 'valid'`,
@@ -222,7 +252,11 @@ async function grantValidationRewards(referral) {
 
 async function revalidateReferral(inviteeId) {
   const res = await db.query(
-    `SELECT * FROM referrals WHERE invitee_id = $1 AND status IN ('pending', 'validating', 'fraud_hold')`,
+    `SELECT * FROM referrals
+     WHERE invitee_id = $1
+       AND status IN ('pending', 'validating', 'fraud_hold', 'rewarded')
+     ORDER BY applied_at DESC
+     LIMIT 1`,
     [inviteeId]
   );
   const referral = res.rows[0];
@@ -237,8 +271,52 @@ async function revalidateReferral(inviteeId) {
   if (!validation.passed) {
     return { referral, validation, upgraded: false };
   }
+
   if (Number(referral.fraud_score) >= Number(await settings.getSetting('fraud_score_hold_threshold', 70))) {
     return { referral, validation, upgraded: false, held: true };
+  }
+
+  /* If we already rewarded this invite, top up missing base/conversion amounts. */
+  if (String(referral.status) === 'rewarded') {
+    const expectedInviterCoins = Number(await settings.getSetting('invite_signup_reward_coins', 500)) || 0;
+    const currentValidatedCoinsRes = await db.query(
+      `SELECT COALESCE(SUM(coins) FILTER (WHERE reward_type = 'validated' AND beneficiary_id = $2 AND status = 'paid'), 0)::bigint AS c
+       FROM referral_rewards WHERE referral_id = $1`,
+      [referral.id, referral.inviter_id]
+    );
+    const currentValidatedCoins = Number(currentValidatedCoinsRes.rows[0]?.c || 0);
+    const deltaBase = expectedInviterCoins > currentValidatedCoins ? expectedInviterCoins - currentValidatedCoins : 0;
+    if (deltaBase > 0) {
+      await rewardEngine.createReward({
+        beneficiaryId: referral.inviter_id,
+        beneficiaryRole: 'inviter',
+        referralId: referral.id,
+        rewardType: 'bonus',
+        coins: deltaBase,
+        metadata: { invitee_id: referral.invitee_id, kind: 'base_topup' },
+      });
+    }
+
+    const expectedHostConvertCoins = Number(await settings.getSetting('invite_host_convert_reward_coins', 5000)) || 0;
+    if (expectedHostConvertCoins > 0) {
+      const existingHostConvert = await db.query(
+        `SELECT 1 FROM referral_rewards
+         WHERE referral_id = $1 AND beneficiary_id = $2 AND reward_type = 'host_convert' AND status = 'paid' LIMIT 1`,
+        [referral.id, referral.inviter_id]
+      );
+      if (!existingHostConvert.rows.length) {
+        await rewardEngine.createReward({
+          beneficiaryId: referral.inviter_id,
+          beneficiaryRole: 'inviter',
+          referralId: referral.id,
+          rewardType: 'host_convert',
+          coins: expectedHostConvertCoins,
+          metadata: { invitee_id: referral.invitee_id },
+        });
+      }
+    }
+
+    return { referral, validation, upgraded: false, toppedUp: deltaBase > 0 };
   }
 
   const updated = await db.query(

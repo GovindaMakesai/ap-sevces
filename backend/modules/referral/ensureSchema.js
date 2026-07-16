@@ -54,6 +54,19 @@ async function ensureReferralSchema() {
        WHERE universal_link ILIKE '%apservices.live%'
           OR qr_payload ILIKE '%apservices.live%'`
     );
+
+    /* Keep referral reward settings aligned with current product expectations.
+       Only overwrite when still on the legacy defaults, so custom admin values are preserved. */
+    await client.query(
+      `UPDATE referral_settings
+       SET value = '1000'::jsonb, updated_at = CURRENT_TIMESTAMP
+       WHERE key = 'invite_signup_reward_coins' AND value = '500'::jsonb`
+    );
+    await client.query(
+      `UPDATE referral_settings
+       SET value = '9500'::jsonb, updated_at = CURRENT_TIMESTAMP
+       WHERE key = 'invite_host_convert_reward_coins' AND value = '5000'::jsonb`
+    );
     await client.query('COMMIT');
     console.log('✅ Referral / host recruitment schema ready');
   } catch (err) {
