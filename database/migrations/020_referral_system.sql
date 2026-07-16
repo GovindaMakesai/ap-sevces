@@ -307,6 +307,6 @@ VALUES
   ('broadcast_12h', 'Broadcast 12 Hours', 'Stream for 12 counted hours', 'broadcast_hours', 12, 'hours', 30000, 0, 'lifetime', 40, '{"daily_cap_hours":3}'::jsonb),
   ('earn_20_usd', 'Host earns $20', 'Reach $20 equivalent host earnings', 'host_earnings_usd', 20, 'usd', 10000, 20, 'lifetime', 50, '{}'::jsonb),
   ('earn_50_usd', 'Host earns $50', 'Reach $50 equivalent host earnings', 'host_earnings_usd', 50, 'usd', 20000, 50, 'lifetime', 60, '{}'::jsonb),
-  ('earn_100_usd', 'Host earns $100', 'Reach $100 equivalent host earnings', 'host_earnings_usd', 100, 'usd', 40000, 100, 'lifetime', 70, '{}'::jsonb),
-  ('earn_200_usd', 'Host earns $200', 'Reach $200 equivalent host earnings', 'host_earnings_usd', 200, 'usd', 80000, 200, 'lifetime', 80, '{}'::jsonb)
+  ('earn_100_usd', 'Host earns $100', 'Reach $100 equivalent host earnings', 'host_earnings_usd', 100, 'usd', 20000, 100, 'lifetime', 70, '{}'::jsonb),
+  ('earn_200_usd', 'Host earns $200', 'Reach $200 equivalent host earnings', 'host_earnings_usd', 200, 'usd', 30000, 200, 'lifetime', 80, '{}'::jsonb)
 ON CONFLICT (slug) DO NOTHING;

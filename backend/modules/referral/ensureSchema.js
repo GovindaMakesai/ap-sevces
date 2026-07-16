@@ -85,6 +85,21 @@ async function ensureReferralSchema() {
          value = '"manual"'::jsonb,
          updated_at = CURRENT_TIMESTAMP`
     );
+    /* Base invite only: inviter gets 1,000 + 9,500 = 10,500. No invitee signup bonus. */
+    await client.query(
+      `INSERT INTO referral_settings (key, value, updated_at)
+       VALUES ('invitee_signup_reward_coins', '0'::jsonb, CURRENT_TIMESTAMP)
+       ON CONFLICT (key) DO UPDATE SET
+         value = '0'::jsonb,
+         updated_at = CURRENT_TIMESTAMP`
+    );
+    /* Sync canonical invite-host tasks (guide table only) */
+    try {
+      const missionEngine = require('./services/missionEngine');
+      await missionEngine.ensureCanonicalMissions();
+    } catch (missionErr) {
+      console.warn('⚠️  ensureCanonicalMissions:', missionErr.message);
+    }
     /* Collapse already-created duplicate pending/approved invite rewards (fixes 3×10500 claims) */
     await client.query(
       `UPDATE referral_rewards r

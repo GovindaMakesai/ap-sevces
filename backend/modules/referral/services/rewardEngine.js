@@ -22,18 +22,35 @@ async function createReward({
   const amount = Number(coins) || Number(stars) || 0;
   if (amount <= 0) return null;
 
-  /* Hard dedupe: one active row per referral + beneficiary + reward_type */
+  /* Hard dedupe: one active row per referral + beneficiary + reward_type
+     (+ mission_slug for task rewards so each invite task can pay once) */
   if (referralId && rewardType) {
-    const existing = await q.query(
-      `SELECT * FROM referral_rewards
-       WHERE referral_id = $1
-         AND beneficiary_id = $2
-         AND reward_type = $3
-         AND status = ANY($4::text[])
-       ORDER BY created_at ASC
-       LIMIT 1`,
-      [referralId, beneficiaryId, rewardType, ACTIVE_REWARD_STATUSES]
-    );
+    const missionSlug = metadata?.mission_slug || metadata?.missionSlug || null;
+    let existing;
+    if (rewardType === 'mission' && missionSlug) {
+      existing = await q.query(
+        `SELECT * FROM referral_rewards
+         WHERE referral_id = $1
+           AND beneficiary_id = $2
+           AND reward_type = $3
+           AND status = ANY($4::text[])
+           AND metadata->>'mission_slug' = $5
+         ORDER BY created_at ASC
+         LIMIT 1`,
+        [referralId, beneficiaryId, rewardType, ACTIVE_REWARD_STATUSES, String(missionSlug)]
+      );
+    } else {
+      existing = await q.query(
+        `SELECT * FROM referral_rewards
+         WHERE referral_id = $1
+           AND beneficiary_id = $2
+           AND reward_type = $3
+           AND status = ANY($4::text[])
+         ORDER BY created_at ASC
+         LIMIT 1`,
+        [referralId, beneficiaryId, rewardType, ACTIVE_REWARD_STATUSES]
+      );
+    }
     if (existing.rows[0]) return existing.rows[0];
   }
 
@@ -223,6 +240,10 @@ async function collapseDuplicatePending(userId) {
            AND older.reward_type = r.reward_type
            AND older.status = ANY($2::text[])
            AND older.created_at < r.created_at
+           AND (
+             r.reward_type <> 'mission'
+             OR COALESCE(older.metadata->>'mission_slug','') = COALESCE(r.metadata->>'mission_slug','')
+           )
        )`,
     [userId, ACTIVE_REWARD_STATUSES]
   );

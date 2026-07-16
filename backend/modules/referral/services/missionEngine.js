@@ -1,6 +1,117 @@
 const db = require('../../../config/database');
 const settings = require('./settingsService');
-const walletService = require('../../../services/walletService');
+const rewardEngine = require('./rewardEngine');
+
+/** Only these invite-host tasks count toward extra rewards after the 10,500 base. */
+const ALLOWED_MISSION_SLUGS = [
+  'broadcast_1h',
+  'broadcast_5h',
+  'broadcast_8h',
+  'broadcast_12h',
+  'earn_20_usd',
+  'earn_50_usd',
+  'earn_100_usd',
+  'earn_200_usd',
+];
+
+const CANONICAL_MISSIONS = [
+  {
+    slug: 'broadcast_1h',
+    title: 'Invited host broadcasts 1 hour within 7 days',
+    description: 'Invited host to broadcast for 1 hour within 7 days',
+    mission_type: 'broadcast_hours',
+    target_value: 1,
+    target_unit: 'hours',
+    reward_coins: 10000,
+    period: 'lifetime',
+    sort_order: 10,
+    config: { window_days: 7, daily_cap_hours: 3, pay_to: 'inviter' },
+  },
+  {
+    slug: 'broadcast_5h',
+    title: 'Invited host broadcasts 5 hours within 7 days',
+    description: 'Invited host to broadcast for 5 hours within 7 days',
+    mission_type: 'broadcast_hours',
+    target_value: 5,
+    target_unit: 'hours',
+    reward_coins: 10000,
+    period: 'lifetime',
+    sort_order: 20,
+    config: { window_days: 7, daily_cap_hours: 3, pay_to: 'inviter' },
+  },
+  {
+    slug: 'broadcast_8h',
+    title: 'Invited host broadcasts 8 hours within 7 days',
+    description: 'Invited host to broadcast for 8 hours within 7 days',
+    mission_type: 'broadcast_hours',
+    target_value: 8,
+    target_unit: 'hours',
+    reward_coins: 10000,
+    period: 'lifetime',
+    sort_order: 30,
+    config: { window_days: 7, daily_cap_hours: 3, pay_to: 'inviter' },
+  },
+  {
+    slug: 'broadcast_12h',
+    title: 'Invited host broadcasts 12 hours within 7 days',
+    description: 'Invited host to broadcast for 12 hours within 7 days',
+    mission_type: 'broadcast_hours',
+    target_value: 12,
+    target_unit: 'hours',
+    reward_coins: 30000,
+    period: 'lifetime',
+    sort_order: 40,
+    config: { window_days: 7, daily_cap_hours: 3, pay_to: 'inviter' },
+  },
+  {
+    slug: 'earn_20_usd',
+    title: "Invited host income reaches $20 within 30 days",
+    description: "Invited host income reached $20 within 30 days (Doesn't include platform rewards)",
+    mission_type: 'host_earnings_usd',
+    target_value: 20,
+    target_unit: 'usd',
+    reward_coins: 10000,
+    period: 'lifetime',
+    sort_order: 50,
+    config: { window_days: 30, pay_to: 'inviter', exclude_platform_rewards: true },
+  },
+  {
+    slug: 'earn_50_usd',
+    title: "Invited host income reaches $50 within 30 days",
+    description: "Invited host's income reached $50 within 30 days (Doesn't include platform rewards)",
+    mission_type: 'host_earnings_usd',
+    target_value: 50,
+    target_unit: 'usd',
+    reward_coins: 20000,
+    period: 'lifetime',
+    sort_order: 60,
+    config: { window_days: 30, pay_to: 'inviter', exclude_platform_rewards: true },
+  },
+  {
+    slug: 'earn_100_usd',
+    title: "Invited host earnings reach $100 within 30 days",
+    description: "Invited host's earnings reached $100 within 30 days (Doesn't include platform rewards)",
+    mission_type: 'host_earnings_usd',
+    target_value: 100,
+    target_unit: 'usd',
+    reward_coins: 20000,
+    period: 'lifetime',
+    sort_order: 70,
+    config: { window_days: 30, pay_to: 'inviter', exclude_platform_rewards: true },
+  },
+  {
+    slug: 'earn_200_usd',
+    title: "Invited host earnings reach $200 within 30 days",
+    description: "Invited host's earnings reached $200 within 30 days (Doesn't include platform rewards)",
+    mission_type: 'host_earnings_usd',
+    target_value: 200,
+    target_unit: 'usd',
+    reward_coins: 30000,
+    period: 'lifetime',
+    sort_order: 80,
+    config: { window_days: 30, pay_to: 'inviter', exclude_platform_rewards: true },
+  },
+];
 
 function periodKey(period, d = new Date()) {
   if (period === 'daily') return d.toISOString().slice(0, 10);
@@ -16,19 +127,125 @@ function periodKey(period, d = new Date()) {
   return 'lifetime';
 }
 
+function missionConfig(mission) {
+  const raw = mission?.config;
+  if (!raw) return {};
+  if (typeof raw === 'object') return raw;
+  try {
+    return JSON.parse(raw);
+  } catch (_e) {
+    return {};
+  }
+}
+
+async function ensureCanonicalMissions() {
+  for (const m of CANONICAL_MISSIONS) {
+    await db.query(
+      `INSERT INTO host_missions
+         (slug, title, description, mission_type, target_value, target_unit, reward_coins,
+          reward_stars, reward_usd_equiv, period, sort_order, active, config,
+          requires_face_verified, requires_host_role)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,0,$8,'lifetime',$9,TRUE,$10::jsonb,TRUE,FALSE)
+       ON CONFLICT (slug) DO UPDATE SET
+         title = EXCLUDED.title,
+         description = EXCLUDED.description,
+         mission_type = EXCLUDED.mission_type,
+         target_value = EXCLUDED.target_value,
+         target_unit = EXCLUDED.target_unit,
+         reward_coins = EXCLUDED.reward_coins,
+         reward_usd_equiv = EXCLUDED.reward_usd_equiv,
+         period = 'lifetime',
+         sort_order = EXCLUDED.sort_order,
+         active = TRUE,
+         config = EXCLUDED.config,
+         requires_face_verified = TRUE,
+         requires_host_role = FALSE,
+         updated_at = CURRENT_TIMESTAMP`,
+      [
+        m.slug,
+        m.title,
+        m.description,
+        m.mission_type,
+        m.target_value,
+        m.target_unit,
+        m.reward_coins,
+        m.target_value,
+        m.sort_order,
+        JSON.stringify(m.config || {}),
+      ]
+    );
+  }
+  /* Disable any other missions — only the guide tasks count */
+  await db.query(
+    `UPDATE host_missions
+     SET active = FALSE, updated_at = CURRENT_TIMESTAMP
+     WHERE slug <> ALL($1::text[])`,
+    [ALLOWED_MISSION_SLUGS]
+  );
+}
+
 async function listActiveMissions() {
+  await ensureCanonicalMissions().catch(() => {});
   const res = await db.query(
     `SELECT * FROM host_missions
      WHERE active = TRUE
+       AND slug = ANY($1::text[])
        AND (starts_at IS NULL OR starts_at <= CURRENT_TIMESTAMP)
        AND (ends_at IS NULL OR ends_at >= CURRENT_TIMESTAMP)
-     ORDER BY sort_order ASC, created_at ASC`
+     ORDER BY sort_order ASC, created_at ASC`,
+    [ALLOWED_MISSION_SLUGS]
   );
   return res.rows;
 }
 
-async function getOrCreateProgress(userId, mission) {
-  const key = periodKey(mission.period);
+async function getReferralForInvitee(inviteeId) {
+  const res = await db.query(
+    `SELECT * FROM referrals
+     WHERE invitee_id = $1
+       AND status IN ('valid', 'rewarded')
+     ORDER BY COALESCE(validated_at, applied_at) DESC NULLS LAST
+     LIMIT 1`,
+    [inviteeId]
+  );
+  return res.rows[0] || null;
+}
+
+function windowBounds(referral, windowDays) {
+  const start = new Date(referral.validated_at || referral.applied_at || referral.created_at || Date.now());
+  const end = new Date(start.getTime() + Number(windowDays || 7) * 86400000);
+  return { start, end };
+}
+
+async function computeBroadcastHoursInWindow(userId, start, end) {
+  const res = await db.query(
+    `SELECT COALESCE(SUM(counted_seconds),0)::bigint AS sec
+     FROM broadcast_summary
+     WHERE user_id = $1
+       AND day >= $2::date
+       AND day <= $3::date`,
+    [userId, start.toISOString().slice(0, 10), end.toISOString().slice(0, 10)]
+  );
+  return Number(res.rows[0]?.sec || 0) / 3600;
+}
+
+async function computeHostEarningsUsdInWindow(userId, start, end) {
+  /* Host income = creator share of gifts only (excludes platform fee / platform rewards) */
+  const gifted = await db
+    .query(
+      `SELECT COALESCE(SUM(creator_amount), 0)::float AS c
+       FROM gift_transactions
+       WHERE receiver_id = $1
+         AND created_at >= $2
+         AND created_at <= $3`,
+      [userId, start.toISOString(), end.toISOString()]
+    )
+    .catch(() => ({ rows: [{ c: 0 }] }));
+  /* 10,000 gift coins ≈ $1 (same FX used elsewhere in referral module) */
+  return Number(gifted.rows[0]?.c || 0) / 10000;
+}
+
+async function getOrCreateProgress(userId, mission, periodKeyValue) {
+  const key = periodKeyValue || periodKey(mission.period);
   const existing = await db.query(
     `SELECT * FROM mission_progress WHERE mission_id = $1 AND user_id = $2 AND period_key = $3`,
     [mission.id, userId, key]
@@ -42,29 +259,26 @@ async function getOrCreateProgress(userId, mission) {
   return res.rows[0];
 }
 
-async function computeBroadcastHours(userId) {
-  const res = await db.query(
-    `SELECT COALESCE(SUM(counted_seconds),0)::bigint AS sec
-     FROM broadcast_summary WHERE user_id = $1`,
-    [userId]
-  );
-  return Number(res.rows[0]?.sec || 0) / 3600;
-}
-
-async function computeHostEarningsUsd(userId) {
-  /* Approximate using stars / gift receipt in wallet meta — safe aggregate */
-  const stars = await db.query(
-    `SELECT COALESCE(star_balance,0)::bigint AS s FROM wallets WHERE user_id = $1`,
-    [userId]
-  ).catch(() => ({ rows: [{ s: 0 }] }));
-  const ptsPerUsd = 10000;
-  const gifted = await db.query(
-    `SELECT COALESCE(SUM(coin_amount),0)::bigint AS c FROM gift_transactions WHERE receiver_id = $1`,
-    [userId]
-  ).catch(() => ({ rows: [{ c: 0 }] }));
-  const giftUsd = Number(gifted.rows[0]?.c || 0) / 10000;
-  const starUsd = Number(stars.rows[0]?.s || 0) / ptsPerUsd;
-  return giftUsd + starUsd;
+/**
+ * When invitee completes a task, create a pending POINTS reward for the inviter (Receive).
+ */
+async function grantInviterMissionReward({ referral, mission, inviteeId }) {
+  const coins = Number(mission.reward_coins || 0);
+  if (coins <= 0 || !referral?.inviter_id) return null;
+  return rewardEngine.createReward({
+    beneficiaryId: referral.inviter_id,
+    beneficiaryRole: 'inviter',
+    referralId: referral.id,
+    rewardType: 'mission',
+    coins,
+    metadata: {
+      mission_slug: mission.slug,
+      mission_id: mission.id,
+      invitee_id: inviteeId,
+      credit_as: 'points',
+      pay_to: 'inviter',
+    },
+  });
 }
 
 async function syncUserMissions(userId) {
@@ -74,18 +288,15 @@ async function syncUserMissions(userId) {
     [userId]
   );
   const user = faceOk.rows[0] || {};
-  const isHost = ['creator', 'host', 'worker', 'admin', 'super_admin'].includes(
-    String(user.role || '').toLowerCase()
-  );
   const faceVerified = Boolean(user.face_verified_at || user.identity_verified_at);
-
-  const hours = await computeBroadcastHours(userId);
-  const earningsUsd = await computeHostEarningsUsd(userId);
+  const referral = await getReferralForInvitee(userId);
   const out = [];
 
   for (const mission of missions) {
-    if (mission.requires_host_role && !isHost) {
-      out.push({ mission, progress: null, locked: true, reason: 'host_role_required' });
+    if (!ALLOWED_MISSION_SLUGS.includes(String(mission.slug))) continue;
+
+    if (!referral) {
+      out.push({ mission, progress: null, locked: true, reason: 'no_valid_invite' });
       continue;
     }
     if (mission.requires_face_verified && !faceVerified) {
@@ -93,13 +304,31 @@ async function syncUserMissions(userId) {
       continue;
     }
 
-    let progress = await getOrCreateProgress(userId, mission);
+    const cfg = missionConfig(mission);
+    const windowDays = Number(cfg.window_days || (mission.mission_type === 'broadcast_hours' ? 7 : 30));
+    const { start, end } = windowBounds(referral, windowDays);
+    const now = new Date();
+    const expired = now > end;
+
+    const pKey = `invite_${referral.id}`;
+    let progress = await getOrCreateProgress(userId, mission, pKey);
+    if (['claimed'].includes(String(progress.status))) {
+      out.push({ mission, progress, locked: false, percent: 100, windowTo: 'inviter' });
+      continue;
+    }
+
     let value = Number(progress.progress_value || 0);
-    if (mission.mission_type === 'broadcast_hours') value = hours;
-    if (mission.mission_type === 'host_earnings_usd') value = earningsUsd;
+    if (!expired || progress.status === 'completed') {
+      if (mission.mission_type === 'broadcast_hours') {
+        value = await computeBroadcastHoursInWindow(userId, start, end);
+      } else if (mission.mission_type === 'host_earnings_usd') {
+        value = await computeHostEarningsUsdInWindow(userId, start, end);
+      }
+    }
 
     const target = Number(mission.target_value);
     let status = progress.status;
+
     if (status === 'in_progress' && value >= target) {
       status = 'completed';
       await db.query(
@@ -109,98 +338,91 @@ async function syncUserMissions(userId) {
         [progress.id, value]
       );
       progress = { ...progress, progress_value: value, status, completed_at: new Date() };
-    } else if (status === 'in_progress') {
+      /* Create pending inviter points reward (manual Receive) — never auto-add coins */
+      await grantInviterMissionReward({ referral, mission, inviteeId: userId });
       await db.query(
-        `UPDATE mission_progress SET progress_value = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
-        [progress.id, value]
+        `UPDATE mission_progress SET status = 'claimed', claimed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1`,
+        [progress.id]
       );
-      progress = { ...progress, progress_value: value };
+      progress = { ...progress, status: 'claimed', claimed_at: new Date() };
+    } else if (status === 'in_progress') {
+      if (expired) {
+        await db.query(
+          `UPDATE mission_progress SET progress_value = $2, status = 'expired', updated_at = CURRENT_TIMESTAMP
+           WHERE id = $1`,
+          [progress.id, value]
+        );
+        progress = { ...progress, progress_value: value, status: 'expired' };
+      } else {
+        await db.query(
+          `UPDATE mission_progress SET progress_value = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+          [progress.id, value]
+        );
+        progress = { ...progress, progress_value: value };
+      }
     }
+
     out.push({
       mission,
       progress,
       locked: false,
       percent: Math.min(100, Math.round((Number(progress.progress_value) / target) * 100)),
+      window: { start, end, windowDays },
+      rewardTo: 'inviter',
     });
   }
   return out;
 }
 
+/**
+ * Invitee "claim" is no longer used to credit coins.
+ * Completing a task already queues points for the inviter (Receive).
+ */
 async function claimMission(userId, missionId) {
+  await syncUserMissions(userId);
   const missionRes = await db.query(`SELECT * FROM host_missions WHERE id = $1 AND active = TRUE`, [
     missionId,
   ]);
   const mission = missionRes.rows[0];
   if (!mission) throw Object.assign(new Error('Mission not found'), { status: 404 });
+  if (!ALLOWED_MISSION_SLUGS.includes(String(mission.slug))) {
+    throw Object.assign(new Error('This task is not part of the invite rewards'), { status: 400 });
+  }
 
-  await syncUserMissions(userId);
-  const key = periodKey(mission.period);
+  const referral = await getReferralForInvitee(userId);
+  if (!referral) {
+    throw Object.assign(new Error('No valid invite on this account'), { status: 400 });
+  }
+
   const prog = await db.query(
-    `SELECT * FROM mission_progress WHERE mission_id = $1 AND user_id = $2 AND period_key = $3 FOR UPDATE`,
-    [mission.id, userId, key]
-  ).catch(async () =>
-    db.query(
-      `SELECT * FROM mission_progress WHERE mission_id = $1 AND user_id = $2 AND period_key = $3`,
-      [mission.id, userId, key]
-    )
+    `SELECT * FROM mission_progress
+     WHERE mission_id = $1 AND user_id = $2 AND period_key = $3`,
+    [mission.id, userId, `invite_${referral.id}`]
   );
   const progress = prog.rows[0];
-  if (!progress || progress.status !== 'completed') {
+  if (!progress || !['completed', 'claimed'].includes(String(progress.status))) {
     throw Object.assign(new Error('Mission not completed yet'), { status: 400 });
   }
 
-  const client = await db.pool.connect();
-  try {
-    await client.query('BEGIN');
-    const coins = Number(mission.reward_coins || 0);
-    let walletTx = null;
-    if (coins > 0) {
-      const credited = await walletService.creditCoins(
-        userId,
-        coins,
-        {
-          type: 'mission_reward',
-          reference_type: 'host_mission',
-          reference_id: mission.id,
-          metadata: { slug: mission.slug, module: 'referral' },
-        },
-        client
-      );
-      walletTx = credited?.transaction?.id || null;
-    }
-
-    await client.query(
-      `INSERT INTO mission_rewards
-         (mission_id, progress_id, user_id, coins, stars, status, paid_at, wallet_tx_id)
-       VALUES ($1,$2,$3,$4,$5,'paid',CURRENT_TIMESTAMP,$6)`,
-      [mission.id, progress.id, userId, coins, Number(mission.reward_stars || 0), walletTx]
-    );
-    await client.query(
-      `INSERT INTO reward_transactions (user_id, source, source_id, coins, stars, wallet_reference, note)
-       VALUES ($1,'mission',$2,$3,$4,$5,$6)`,
-      [userId, mission.id, coins, Number(mission.reward_stars || 0), walletTx, mission.slug]
-    );
-    await client.query(
+  const reward = await grantInviterMissionReward({ referral, mission, inviteeId: userId });
+  if (progress.status !== 'claimed') {
+    await db.query(
       `UPDATE mission_progress SET status = 'claimed', claimed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
        WHERE id = $1`,
       [progress.id]
     );
-    await client.query(
-      `INSERT INTO host_statistics (user_id, mission_reward_coins, updated_at)
-       VALUES ($1,$2,CURRENT_TIMESTAMP)
-       ON CONFLICT (user_id) DO UPDATE SET
-         mission_reward_coins = host_statistics.mission_reward_coins + EXCLUDED.mission_reward_coins,
-         updated_at = CURRENT_TIMESTAMP`,
-      [userId, coins]
-    );
-    await client.query('COMMIT');
-    return { ok: true, coins, mission };
-  } catch (e) {
-    await client.query('ROLLBACK');
-    throw e;
-  } finally {
-    client.release();
   }
+
+  return {
+    ok: true,
+    coins: 0,
+    points: Number(mission.reward_coins || 0),
+    pay_to: 'inviter',
+    message: 'Reward queued for your inviter — they can tap Receive to get points',
+    reward,
+    mission,
+  };
 }
 
 async function adminUpsertMission(payload, adminId) {
@@ -276,5 +498,8 @@ module.exports = {
   claimMission,
   adminUpsertMission,
   periodKey,
-  computeBroadcastHours,
+  computeBroadcastHours: async (userId) => computeBroadcastHoursInWindow(userId, new Date(0), new Date()),
+  ensureCanonicalMissions,
+  ALLOWED_MISSION_SLUGS,
+  CANONICAL_MISSIONS,
 };
