@@ -235,13 +235,27 @@ function buildMediaPermissionResultScript(result) {
 }
 
 function loadErrorHint(isDevLocal, frontendBase) {
-  if (isDevLocal) {
+  if (__DEV__ && isDevLocal) {
     return 'Same Wi-Fi as PC? Run: cd ap-services-app → npm run start:lan. Live camera/mic needs npm start (HTTPS).';
   }
-  if (IS_STANDALONE_APP) {
-    return `Open ${frontendBase} in Chrome on this phone. If Chrome fails too, switch Wi-Fi or mobile data.`;
+  if (__DEV__) {
+    return 'Stop Expo (Ctrl+C), then run: cd ap-services-app → npm start';
   }
-  return 'Stop Expo (Ctrl+C), then run: cd ap-services-app → npm start';
+  return 'Check your internet connection, then reload the app.';
+}
+
+function shouldShowLoadErrorHint(loadError) {
+  if (!loadError) return false;
+  return !/deactivat/i.test(String(loadError));
+}
+
+function redirectDeactivatedInWebView(message) {
+  const msg = JSON.stringify(message || 'Your account has been deactivated');
+  return (
+    buildClearSessionScript() +
+    `try{sessionStorage.setItem('ap_account_deactivated',${msg});}catch(e){};` +
+    `window.location.replace('/app-auth.html?app=1&error=account_deactivated');true;`
+  );
 }
 
 function buildAppShellBootstrap(frontendBase) {
@@ -665,7 +679,14 @@ export default function App() {
         setTimeout(tryGo, 500);
       } catch (err) {
         console.warn('[ap-services-app] Login exchange failed', err);
-        setLoadError(err.message || 'Sign in failed. Try Google again.');
+        const msg = err.message || 'Sign in failed. Try Google again.';
+        if (/deactivat/i.test(msg)) {
+          setLoadError('');
+          clearNativeSession();
+          webViewRef.current?.injectJavaScript(redirectDeactivatedInWebView(msg));
+        } else {
+          setLoadError(msg);
+        }
       } finally {
         if (processingCredRef.current === credKey) processingCredRef.current = '';
       }
@@ -922,9 +943,13 @@ export default function App() {
     (event) => {
       try {
         const data = JSON.parse(event.nativeEvent.data);
-        if (data.type === 'logout') {
+        if (data.type === 'logout' || data.type === 'account_deactivated') {
           clearNativeSession();
+          setLoadError('');
           webViewRef.current?.injectJavaScript(buildClearSessionScript());
+          if (data.type === 'account_deactivated') {
+            webViewRef.current?.injectJavaScript(redirectDeactivatedInWebView(data.message));
+          }
           return;
         }
         if (data.type === 'request_session') {
@@ -1161,7 +1186,9 @@ export default function App() {
       {loadError ? (
         <View style={styles.errorBar}>
           <Text style={styles.errorText}>{loadError}</Text>
-          <Text style={styles.errorHint}>{loadErrorHint(isDevLocal, frontendBase)}</Text>
+          {shouldShowLoadErrorHint(loadError) ? (
+            <Text style={styles.errorHint}>{loadErrorHint(isDevLocal, frontendBase)}</Text>
+          ) : null}
         </View>
       ) : null}
       <WebView
@@ -1209,6 +1236,9 @@ export default function App() {
           syncScreenCaptureForUrl(url);
           if (url.includes('explore.html') || url.includes('dashboard')) {
             oauthCompleteRef.current = true;
+            setLoadError('');
+          }
+          if (url.includes('app-auth.html') || url.includes('account_deactivated')) {
             setLoadError('');
           }
           if (handleOAuthUrl(url)) {

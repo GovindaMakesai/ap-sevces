@@ -253,7 +253,15 @@ function forceLogoutDeactivated(message = ACCOUNT_DEACTIVATED_MSG) {
     const dest = isNativeAppContext()
         ? '/app-auth.html?app=1&error=account_deactivated'
         : '/login.html?error=account_deactivated';
-    if (typeof Toast !== 'undefined') Toast.show(message, 'error');
+    if (window.ReactNativeWebView) {
+        try {
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'account_deactivated',
+                message,
+            }));
+        } catch (_e) { /* ignore */ }
+    }
+    if (typeof Toast !== 'undefined' && !isNativeAppContext()) Toast.show(message, 'error');
     window.location.replace(dest);
 }
 

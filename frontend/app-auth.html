@@ -21,6 +21,8 @@
       <h1>Welcome</h1>
       <p class="auth-gate-sub">Sign up or sign in with Google, Facebook, or GitHub.</p>
 
+      <div id="alertContainer"></div>
+
       <div class="auth-social-login">
         <button type="button" class="auth-oauth-btn google" id="googleLogin">
           <i class="fab fa-google"></i> Continue with Google
@@ -51,9 +53,9 @@
   </div>
 
   <script src="ap-config.js"></script>
-  <script src="app.js?v=20260716-deactivated-account"></script>
-  <script src="auth-guard.js?v=20260716-deactivated-account"></script>
-  <script src="auth-oauth.js?v=20260716-deactivated-account"></script>
+  <script src="app.js?v=20260716-deauth-msg"></script>
+  <script src="auth-guard.js?v=20260716-deauth-msg"></script>
+  <script src="auth-oauth.js?v=20260716-deauth-msg"></script>
   <script src="referral-hook.js?v=20260716-invite-connect"></script>
   <script>
     document.addEventListener('DOMContentLoaded', () => {
