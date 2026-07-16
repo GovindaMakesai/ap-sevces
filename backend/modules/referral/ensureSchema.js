@@ -60,20 +60,48 @@ async function ensureReferralSchema() {
     await client.query(
       `UPDATE referral_settings
        SET value = '1000'::jsonb, updated_at = CURRENT_TIMESTAMP
-       WHERE key = 'invite_signup_reward_coins' AND value = '500'::jsonb`
+       WHERE key = 'invite_signup_reward_coins' AND value IN ('500'::jsonb, '1000'::jsonb)`
+    );
+    await client.query(
+      `INSERT INTO referral_settings (key, value, updated_at)
+       VALUES ('invite_signup_reward_coins', '1000'::jsonb, CURRENT_TIMESTAMP)
+       ON CONFLICT (key) DO NOTHING`
     );
     await client.query(
       `UPDATE referral_settings
        SET value = '9500'::jsonb, updated_at = CURRENT_TIMESTAMP
-       WHERE key = 'invite_host_convert_reward_coins' AND value = '5000'::jsonb`
+       WHERE key = 'invite_host_convert_reward_coins' AND value IN ('5000'::jsonb, '9500'::jsonb)`
     );
-    /* Invite rewards stay pending until the user taps Receive / Claim */
+    await client.query(
+      `INSERT INTO referral_settings (key, value, updated_at)
+       VALUES ('invite_host_convert_reward_coins', '9500'::jsonb, CURRENT_TIMESTAMP)
+       ON CONFLICT (key) DO NOTHING`
+    );
+    /* Invite rewards stay pending until the user taps Receive / Claim — credit as points, not coins */
     await client.query(
       `INSERT INTO referral_settings (key, value, updated_at)
        VALUES ('approval_mode', '"manual"'::jsonb, CURRENT_TIMESTAMP)
        ON CONFLICT (key) DO UPDATE SET
          value = '"manual"'::jsonb,
          updated_at = CURRENT_TIMESTAMP`
+    );
+    /* Collapse already-created duplicate pending/approved invite rewards (fixes 3×10500 claims) */
+    await client.query(
+      `UPDATE referral_rewards r
+       SET status = 'rejected',
+           updated_at = CURRENT_TIMESTAMP,
+           metadata = COALESCE(r.metadata, '{}'::jsonb) || '{"rejected_reason":"duplicate_collapsed_on_boot"}'::jsonb
+       WHERE r.status IN ('pending', 'approved', 'scheduled')
+         AND r.referral_id IS NOT NULL
+         AND r.reward_type IN ('validated', 'host_convert', 'bonus', 'signup')
+         AND EXISTS (
+           SELECT 1 FROM referral_rewards older
+           WHERE older.referral_id = r.referral_id
+             AND older.beneficiary_id = r.beneficiary_id
+             AND older.reward_type = r.reward_type
+             AND older.status IN ('pending', 'scheduled', 'approved', 'paid')
+             AND older.created_at < r.created_at
+         )`
     );
     await client.query('COMMIT');
     console.log('✅ Referral / host recruitment schema ready');

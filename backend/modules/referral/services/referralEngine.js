@@ -180,8 +180,10 @@ async function applyReferralCode(inviteeId, code, meta = {}) {
 }
 
 async function grantValidationRewards(referral) {
-  const inviterCoins = Number(await settings.getSetting('invite_signup_reward_coins', 500)) || 0;
+  const inviterCoins = Number(await settings.getSetting('invite_signup_reward_coins', 1000)) || 0;
   const inviteeCoins = Number(await settings.getSetting('invitee_signup_reward_coins', 200)) || 0;
+  const hostConvertCoins =
+    Number(await settings.getSetting('invite_host_convert_reward_coins', 9500)) || 0;
 
   if (inviterCoins > 0) {
     await rewardEngine.createReward({
@@ -204,34 +206,24 @@ async function grantValidationRewards(referral) {
     });
   }
 
-  /* Expected behavior: when invitee passes face/profile validation,
-     inviter should get the full “invite bonus” (base + conversion bonus)
-     right away (not only when the invitee later becomes a host role). */
-  const existingHostConvert = await db.query(
-    `SELECT 1 FROM referral_rewards
-     WHERE referral_id = $1 AND beneficiary_id = $2 AND reward_type = 'host_convert'
-     AND status = 'paid' LIMIT 1`,
-    [referral.id, referral.inviter_id]
-  );
-  if (!existingHostConvert.rows.length) {
-    const coins = Number(await settings.getSetting('invite_host_convert_reward_coins', 5000)) || 0;
-    if (coins > 0) {
-      await rewardEngine.createReward({
-        beneficiaryId: referral.inviter_id,
-        beneficiaryRole: 'inviter',
-        referralId: referral.id,
-        rewardType: 'host_convert',
-        coins,
-        metadata: { invitee_id: referral.invitee_id },
-      });
-      await logEvent({
-        referralId: referral.id,
-        inviterId: referral.inviter_id,
-        inviteeId: referral.invitee_id,
-        eventType: 'referral_face_verified_bonus',
-        payload: { coins },
-      });
-    }
+  /* Face/profile validation unlocks the conversion bonus (1,000 + 9,500 = 10,500 total).
+     createReward dedupes — never create a second host_convert for the same invite. */
+  if (hostConvertCoins > 0) {
+    await rewardEngine.createReward({
+      beneficiaryId: referral.inviter_id,
+      beneficiaryRole: 'inviter',
+      referralId: referral.id,
+      rewardType: 'host_convert',
+      coins: hostConvertCoins,
+      metadata: { invitee_id: referral.invitee_id },
+    });
+    await logEvent({
+      referralId: referral.id,
+      inviterId: referral.inviter_id,
+      inviteeId: referral.invitee_id,
+      eventType: 'referral_face_verified_bonus',
+      payload: { coins: hostConvertCoins, credit_as: 'points' },
+    });
   }
 
   await db.query(
@@ -252,7 +244,13 @@ async function grantValidationRewards(referral) {
     inviterId: referral.inviter_id,
     inviteeId: referral.invitee_id,
     eventType: 'referral_rewarded',
-    payload: { inviterCoins, inviteeCoins },
+    payload: {
+      inviterCoins,
+      inviteeCoins,
+      hostConvertCoins,
+      totalInviter: inviterCoins + hostConvertCoins,
+      credit_as: 'points',
+    },
   });
 }
 
@@ -282,47 +280,34 @@ async function revalidateReferral(inviteeId) {
     return { referral, validation, upgraded: false, held: true };
   }
 
-  /* If we already rewarded this invite, top up missing base/conversion amounts. */
+  /* Already rewarded: only fill missing types (createReward is idempotent). Never top-up with bonus duplicates. */
   if (String(referral.status) === 'rewarded') {
-    const expectedInviterCoins = Number(await settings.getSetting('invite_signup_reward_coins', 500)) || 0;
-    const currentValidatedCoinsRes = await db.query(
-      `SELECT COALESCE(SUM(coins) FILTER (WHERE reward_type = 'validated' AND beneficiary_id = $2 AND status = 'paid'), 0)::bigint AS c
-       FROM referral_rewards WHERE referral_id = $1`,
-      [referral.id, referral.inviter_id]
-    );
-    const currentValidatedCoins = Number(currentValidatedCoinsRes.rows[0]?.c || 0);
-    const deltaBase = expectedInviterCoins > currentValidatedCoins ? expectedInviterCoins - currentValidatedCoins : 0;
-    if (deltaBase > 0) {
+    const expectedInviterCoins = Number(await settings.getSetting('invite_signup_reward_coins', 1000)) || 0;
+    const expectedHostConvertCoins =
+      Number(await settings.getSetting('invite_host_convert_reward_coins', 9500)) || 0;
+
+    if (expectedInviterCoins > 0) {
       await rewardEngine.createReward({
         beneficiaryId: referral.inviter_id,
         beneficiaryRole: 'inviter',
         referralId: referral.id,
-        rewardType: 'bonus',
-        coins: deltaBase,
-        metadata: { invitee_id: referral.invitee_id, kind: 'base_topup' },
+        rewardType: 'validated',
+        coins: expectedInviterCoins,
+        metadata: { invitee_id: referral.invitee_id },
       });
     }
-
-    const expectedHostConvertCoins = Number(await settings.getSetting('invite_host_convert_reward_coins', 5000)) || 0;
     if (expectedHostConvertCoins > 0) {
-      const existingHostConvert = await db.query(
-        `SELECT 1 FROM referral_rewards
-         WHERE referral_id = $1 AND beneficiary_id = $2 AND reward_type = 'host_convert' AND status = 'paid' LIMIT 1`,
-        [referral.id, referral.inviter_id]
-      );
-      if (!existingHostConvert.rows.length) {
-        await rewardEngine.createReward({
-          beneficiaryId: referral.inviter_id,
-          beneficiaryRole: 'inviter',
-          referralId: referral.id,
-          rewardType: 'host_convert',
-          coins: expectedHostConvertCoins,
-          metadata: { invitee_id: referral.invitee_id },
-        });
-      }
+      await rewardEngine.createReward({
+        beneficiaryId: referral.inviter_id,
+        beneficiaryRole: 'inviter',
+        referralId: referral.id,
+        rewardType: 'host_convert',
+        coins: expectedHostConvertCoins,
+        metadata: { invitee_id: referral.invitee_id },
+      });
     }
-
-    return { referral, validation, upgraded: false, toppedUp: deltaBase > 0 };
+    await rewardEngine.collapseDuplicatePending?.(referral.inviter_id);
+    return { referral, validation, upgraded: false };
   }
 
   const updated = await db.query(
@@ -342,16 +327,10 @@ async function onInviteeBecameHost(inviteeId) {
   const referral = res.rows[0];
   if (!referral) return null;
 
-  const already = await db.query(
-    `SELECT 1 FROM referral_rewards
-     WHERE referral_id = $1 AND reward_type = 'host_convert' LIMIT 1`,
-    [referral.id]
-  );
-  if (already.rows.length) return { skipped: true };
-
-  const coins = Number(await settings.getSetting('invite_host_convert_reward_coins', 5000)) || 0;
+  const coins = Number(await settings.getSetting('invite_host_convert_reward_coins', 9500)) || 0;
   if (coins <= 0) return null;
 
+  /* Idempotent — createReward returns existing row if already present */
   const reward = await rewardEngine.createReward({
     beneficiaryId: referral.inviter_id,
     beneficiaryRole: 'inviter',
@@ -365,7 +344,7 @@ async function onInviteeBecameHost(inviteeId) {
     inviterId: referral.inviter_id,
     inviteeId,
     eventType: 'invitee_became_host',
-    payload: { coins },
+    payload: { coins, credit_as: 'points' },
   });
   return reward;
 }

@@ -2,6 +2,12 @@ const db = require('../../../config/database');
 const walletService = require('../../../services/walletService');
 const settings = require('./settingsService');
 
+const ACTIVE_REWARD_STATUSES = ['pending', 'scheduled', 'approved', 'paid'];
+
+/**
+ * Invite rewards credit POINTS (star_balance), never spendable NR coins.
+ * Amounts are still stored on referral_rewards.coins for UI totals.
+ */
 async function createReward({
   beneficiaryId,
   beneficiaryRole = 'inviter',
@@ -13,6 +19,24 @@ async function createReward({
   client = null,
 }) {
   const q = client || db;
+  const amount = Number(coins) || Number(stars) || 0;
+  if (amount <= 0) return null;
+
+  /* Hard dedupe: one active row per referral + beneficiary + reward_type */
+  if (referralId && rewardType) {
+    const existing = await q.query(
+      `SELECT * FROM referral_rewards
+       WHERE referral_id = $1
+         AND beneficiary_id = $2
+         AND reward_type = $3
+         AND status = ANY($4::text[])
+       ORDER BY created_at ASC
+       LIMIT 1`,
+      [referralId, beneficiaryId, rewardType, ACTIVE_REWARD_STATUSES]
+    );
+    if (existing.rows[0]) return existing.rows[0];
+  }
+
   const mode = String(await settings.getSetting('approval_mode', 'manual') || 'manual');
   const delayHours = Number(await settings.getSetting('reward_delay_hours', 0)) || 0;
   let status = 'pending';
@@ -27,7 +51,6 @@ async function createReward({
     status = 'approved';
     approvalMode = 'auto';
   } else {
-    /* Default: pending until the user claims manually (Receive / Claim) */
     status = 'pending';
     approvalMode = 'manual';
   }
@@ -43,12 +66,12 @@ async function createReward({
       beneficiaryId,
       beneficiaryRole,
       rewardType,
-      Number(coins) || 0,
-      Number(stars) || 0,
+      amount,
+      0,
       status,
       approvalMode,
       scheduledFor,
-      JSON.stringify(metadata),
+      JSON.stringify({ ...metadata, credit_as: 'points' }),
     ]
   );
   const reward = res.rows[0];
@@ -70,7 +93,6 @@ async function payReward(rewardId, { client = null, force = false } = {}) {
     if (reward.status === 'rejected' || reward.status === 'held') {
       throw new Error(`Reward is ${reward.status}`);
     }
-    /* Pending rewards are only paid when the user claims (force=true) */
     if (!force && reward.status === 'pending') {
       throw new Error('Reward requires claim');
     }
@@ -81,12 +103,13 @@ async function payReward(rewardId, { client = null, force = false } = {}) {
       throw new Error('Reward not due yet');
     }
 
-    const coins = Number(reward.coins || 0);
+    const amount = Number(reward.coins || reward.stars || 0);
     let walletTx = null;
-    if (coins > 0) {
-      const credited = await walletService.creditCoins(
+    if (amount > 0) {
+      /* Points only — never add invite rewards to spendable coin_balance */
+      const credited = await walletService.creditStars(
         reward.beneficiary_id,
-        coins,
+        amount,
         {
           type: 'referral_reward',
           reference_type: 'referral_reward',
@@ -95,6 +118,7 @@ async function payReward(rewardId, { client = null, force = false } = {}) {
             reward_type: reward.reward_type,
             referral_id: reward.referral_id,
             source: 'modules/referral',
+            credit_as: 'points',
           },
         },
         c
@@ -104,12 +128,11 @@ async function payReward(rewardId, { client = null, force = false } = {}) {
 
     await c.query(
       `INSERT INTO reward_transactions (user_id, source, source_id, coins, stars, wallet_reference, note)
-       VALUES ($1, 'referral', $2, $3, $4, $5, $6)`,
+       VALUES ($1, 'referral', $2, 0, $3, $4, $5)`,
       [
         reward.beneficiary_id,
         reward.id,
-        coins,
-        Number(reward.stars || 0),
+        amount,
         walletTx,
         reward.reward_type,
       ]
@@ -121,12 +144,13 @@ async function payReward(rewardId, { client = null, force = false } = {}) {
        ON CONFLICT (user_id) DO UPDATE SET
          referral_reward_coins = host_statistics.referral_reward_coins + EXCLUDED.referral_reward_coins,
          updated_at = CURRENT_TIMESTAMP`,
-      [reward.beneficiary_id, coins]
+      [reward.beneficiary_id, amount]
     );
 
     const paid = await c.query(
       `UPDATE referral_rewards SET status = 'paid', paid_at = CURRENT_TIMESTAMP,
-         wallet_tx_id = $2, updated_at = CURRENT_TIMESTAMP
+         wallet_tx_id = $2, updated_at = CURRENT_TIMESTAMP,
+         metadata = COALESCE(metadata, '{}'::jsonb) || '{"credit_as":"points"}'::jsonb
        WHERE id = $1 RETURNING *`,
       [rewardId, walletTx]
     );
@@ -179,7 +203,34 @@ async function rejectReward(rewardId, adminId, reason) {
   return res.rows[0];
 }
 
+/**
+ * Reject duplicate pending/approved/scheduled rows so one invite cannot pay 3×.
+ * Keeps the oldest row per (referral_id, reward_type).
+ */
+async function collapseDuplicatePending(userId) {
+  await db.query(
+    `UPDATE referral_rewards r
+     SET status = 'rejected',
+         updated_at = CURRENT_TIMESTAMP,
+         metadata = COALESCE(r.metadata, '{}'::jsonb) || '{"rejected_reason":"duplicate_collapsed"}'::jsonb
+     WHERE r.beneficiary_id = $1
+       AND r.status IN ('pending', 'approved', 'scheduled')
+       AND r.referral_id IS NOT NULL
+       AND EXISTS (
+         SELECT 1 FROM referral_rewards older
+         WHERE older.referral_id = r.referral_id
+           AND older.beneficiary_id = r.beneficiary_id
+           AND older.reward_type = r.reward_type
+           AND older.status = ANY($2::text[])
+           AND older.created_at < r.created_at
+       )`,
+    [userId, ACTIVE_REWARD_STATUSES]
+  );
+}
+
 async function claimPendingForUser(userId) {
+  await collapseDuplicatePending(userId);
+
   const pending = await db.query(
     `SELECT id FROM referral_rewards
      WHERE beneficiary_id = $1
@@ -206,4 +257,6 @@ module.exports = {
   approveReward,
   rejectReward,
   claimPendingForUser,
+  collapseDuplicatePending,
+  ACTIVE_REWARD_STATUSES,
 };

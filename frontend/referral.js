@@ -191,7 +191,7 @@
     const rewarded = history.find((r) => String(r.status) === 'rewarded' && (r.reward_coins_paid || 0) > 0);
     if (rewarded) {
       const name = `${rewarded.first_name || ''} ${rewarded.last_name || ''}`.trim() || 'A friend';
-      text.textContent = `Congratulations! ${name} connected — you earned ${money(rewarded.reward_coins_paid)} coins`;
+      text.textContent = `Congratulations! ${name} connected — you earned ${money(rewarded.reward_coins_paid)} points`;
       wrap.hidden = false;
       return;
     }
@@ -394,9 +394,9 @@
         const pending = Number(r.reward_coins_pending || 0);
         const rewardLine =
           paid > 0
-            ? `+${money(paid)} coins earned`
+            ? `+${money(paid)} points received`
             : pending > 0
-              ? `+${money(pending)} coins pending`
+              ? `+${money(pending)} points to receive`
               : '';
         const hostTag = r.is_host ? ' · Host' : '';
         const when = formatDate(r.applied_at || r.created_at);
@@ -441,7 +441,7 @@
               return `<div class="ref-list-item">
                 <strong style="width:28px;text-align:center;color:#ff6a2b">#${r.rank}</strong>
                 <img src="${avatar(name, r.profile_pic)}" alt="">
-                <div class="meta"><strong>${escapeHtml(name)}</strong><span>${money(r.valid_invites)} valid · ${money(r.reward_coins)} coins</span></div>
+                <div class="meta"><strong>${escapeHtml(name)}</strong><span>${money(r.valid_invites)} valid · ${money(r.reward_coins)} points</span></div>
               </div>`;
             })
             .join('')
@@ -508,7 +508,7 @@
       return;
     }
     const n = (res.data?.paid || []).length;
-    toast(n ? `Claimed ${n} reward(s)` : 'No pending rewards');
+    toast(n ? `Claimed ${n} reward(s) as points` : 'No pending rewards');
     await loadDashboard();
   }
 
