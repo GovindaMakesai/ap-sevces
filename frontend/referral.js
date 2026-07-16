@@ -4,11 +4,10 @@
   const API = () => window.API;
   const state = {
     dashboard: null,
-    missions: [],
     history: [],
     leaderboard: [],
-    hostProgress: null,
-    tab: 'invite',
+    tab: 'rewards',
+    showAllHistory: false,
   };
 
   function toast(msg) {
@@ -71,11 +70,7 @@
     if (window.SocialUI?.avatarUrl) return SocialUI.avatarUrl(name || 'User', pic || null);
     if (pic) return pic;
     const n = encodeURIComponent(name || 'U');
-    return `https://ui-avatars.com/api/?name=${n}&background=c9a227&color=fff`;
-  }
-
-  function spawnParticles() {
-    /* disabled — dark particles broke cream theme readability */
+    return `https://ui-avatars.com/api/?name=${n}&background=ff7a3d&color=fff`;
   }
 
   function showBootError(msg) {
@@ -85,50 +80,82 @@
     el.textContent = msg;
   }
 
-  function renderQr(text) {
-    const host = document.getElementById('refQr');
-    if (!host || !text) return;
-    host.innerHTML = '';
-    if (typeof window.QRCode === 'function') {
-      try {
-        // qrcodejs constructor API
-        // eslint-disable-next-line no-new
-        new window.QRCode(host, {
-          text: String(text),
-          width: 200,
-          height: 200,
-          colorDark: '#111827',
-          colorLight: '#ffffff',
-          correctLevel: window.QRCode.CorrectLevel?.M,
-        });
-        return;
-      } catch (_e) {
-        /* fall through */
-      }
-    }
-    fallbackQr(host, text);
+  function setText(id, v) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = v;
   }
 
-  function fallbackQr(host, text) {
-    const img = document.createElement('img');
-    img.alt = 'Referral QR';
-    img.src =
-      'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(text);
-    host.appendChild(img);
+  function escapeHtml(s) {
+    return String(s || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function fixInviteHost(url) {
+    return String(url || '').replace(/https?:\/\/[^/\s]*apservices\.live/gi, 'https://api.apservices.in');
+  }
+
+  function currentDisplayId() {
+    const user = window.Auth?.getUser?.() || (() => {
+      try {
+        return JSON.parse(localStorage.getItem('user') || 'null');
+      } catch (_e) {
+        return null;
+      }
+    })();
+    if (window.formatUserDisplayId) return formatUserDisplayId(user) || '—';
+    return String(user?.display_id || user?.displayId || '—');
   }
 
   function setTab(tab) {
     state.tab = tab;
-    document.querySelectorAll('.ref-tabs button').forEach((b) => {
-      b.classList.toggle('active', b.dataset.tab === tab);
+    document.querySelectorAll('.ref-seg button').forEach((b) => {
+      const on = b.dataset.tab === tab;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
     });
     document.querySelectorAll('.ref-panel').forEach((p) => {
       p.classList.toggle('active', p.id === 'panel-' + tab);
     });
-    if (tab === 'missions') loadMissions();
-    if (tab === 'history') loadHistory();
     if (tab === 'rank') loadLeaderboard();
-    if (tab === 'host') loadHostProgress();
+  }
+
+  function openGuide() {
+    const ov = document.getElementById('refGuideOverlay');
+    if (!ov) return;
+    ov.hidden = false;
+    document.body.classList.add('ref-guide-open');
+  }
+
+  function closeGuide() {
+    const ov = document.getElementById('refGuideOverlay');
+    if (!ov) return;
+    ov.hidden = true;
+    document.body.classList.remove('ref-guide-open');
+  }
+
+  function withinLastDays(iso, days) {
+    if (!iso) return false;
+    const t = new Date(iso).getTime();
+    if (!Number.isFinite(t)) return false;
+    return Date.now() - t <= days * 24 * 60 * 60 * 1000;
+  }
+
+  function renderTicker() {
+    const wrap = document.getElementById('refTicker');
+    const text = document.getElementById('refTickerText');
+    if (!wrap || !text) return;
+    const activity = state.dashboard?.activity || [];
+    const claimEvt = activity.find((a) => /claim|reward|paid/i.test(String(a.event_type || '')));
+    if (claimEvt) {
+      text.textContent =
+        'Congratulations! Reward update — keep inviting friends to earn more.';
+      wrap.hidden = false;
+      return;
+    }
+    wrap.hidden = true;
   }
 
   function renderDashboard() {
@@ -136,33 +163,32 @@
     if (!d) return;
     const inv = d.invitation || {};
     const codeEl = document.getElementById('refCode');
-    const linkEl = document.getElementById('refLink');
     if (codeEl) codeEl.textContent = inv.code || '—';
+
     const fixedLink = fixInviteHost(inv.webLink || inv.universalLink || '');
-    if (linkEl) linkEl.textContent = fixedLink;
     if (inv.webLink) inv.webLink = fixedLink;
     if (inv.universalLink) inv.universalLink = fixedLink;
     if (inv.qrPayload) inv.qrPayload = fixInviteHost(inv.qrPayload);
     if (inv.shareText) inv.shareText = fixInviteHost(inv.shareText);
-    renderQr(inv.qrPayload || fixedLink);
+
+    setText('refMyId', currentDisplayId());
 
     const t = d.totals || {};
     const r = d.rewards || {};
-    setText('statTotal', money(t.total));
-    setText('statPending', money(t.pending));
-    setText('statValid', money(t.valid));
-    setText('statRewards', money(r.total));
-    setText('statToday', money(r.today));
-    setText('statLifetime', money(d.lifetimeEarnings));
+    setText('statClaimed', money(r.total || d.lifetimeEarnings || 0));
+    setText('statInvitees', money(t.total || 0));
+    setText('statAvailable', money(r.pending || 0));
 
-  }
+    const receive = document.getElementById('refReceiveBtn');
+    if (receive) receive.disabled = !(Number(r.pending) > 0);
 
-  function fixInviteHost(url) {
-    return String(url || '').replace(/https?:\/\/[^/\s]*apservices\.live/gi, 'https://api.apservices.in');
+    renderTicker();
+    renderWeekHistory();
   }
 
   function buildShareBundle(inv) {
     const code = inv?.code || '';
+    const myId = currentDisplayId();
     const link = fixInviteHost(
       inv?.webLink ||
         inv?.universalLink ||
@@ -173,7 +199,7 @@
     const shareText =
       inv?.shareText ||
       (code
-        ? `Join me on AP Services! Use my invite code ${code} and get rewards: ${link}`
+        ? `Join me on AP Services! Use my invite code ${code} (ID ${myId}) and get rewards: ${link}`
         : link);
     const server = inv?.shareTargets || {};
     return {
@@ -227,63 +253,12 @@
     }
   }
 
-  async function shareVia(channel) {
+  async function inviteNow() {
     const inv = state.dashboard?.invitation || {};
     const bundle = buildShareBundle(inv);
     if (!bundle.code) return toast('Generate your invite code first');
 
-    api('/referral/share', { method: 'POST', body: { target: channel } }).catch(() => {});
-
-    const hints = {
-      whatsapp: 'Invite copied — open WhatsApp and paste',
-      telegram: 'Invite copied — open Telegram and paste',
-      facebook: 'Invite copied — paste in Facebook',
-      sms: 'Invite copied',
-    };
-    const url = bundle.targets[channel];
-
-    /*
-     * In-app WebViews navigate the CURRENT page to wa.me / t.me and go blank.
-     * Prefer the OS share sheet, otherwise copy — never leave this page.
-     */
-    if (isLikelyInAppWebView()) {
-      if (navigator.share) {
-        try {
-          await navigator.share({
-            title: 'Join AP Services',
-            text: bundle.shareText,
-            url: bundle.link,
-          });
-          return;
-        } catch (e) {
-          if (e && (e.name === 'AbortError' || e.name === 'NotAllowedError')) return;
-        }
-      }
-      if (window.SocialUI?.shareLink) {
-        try {
-          const ok = await SocialUI.shareLink({
-            title: 'Join AP Services',
-            text: bundle.shareText,
-            url: bundle.link,
-          });
-          if (ok) return;
-        } catch (_e) {
-          /* fall through */
-        }
-      }
-      await copyInviteText(bundle.shareText, hints[channel] || 'Invite copied');
-      return;
-    }
-
-    if (channel === 'sms' && url && url.startsWith('sms:')) {
-      window.location.href = url;
-      return;
-    }
-
-    if (url) {
-      const popup = window.open(url, '_blank', 'noopener,noreferrer');
-      if (popup) return;
-    }
+    api('/referral/share', { method: 'POST', body: { target: 'invite_now' } }).catch(() => {});
 
     if (navigator.share) {
       try {
@@ -298,97 +273,56 @@
       }
     }
 
-    await copyInviteText(bundle.shareText, hints[channel] || 'Invite copied');
+    if (window.SocialUI?.shareLink) {
+      try {
+        const ok = await SocialUI.shareLink({
+          title: 'Join AP Services',
+          text: bundle.shareText,
+          url: bundle.link,
+        });
+        if (ok) return;
+      } catch (_e) { /* fall through */ }
+    }
+
+    await copyInviteText(bundle.shareText, 'Invite link copied — share it with friends');
   }
 
-  function setText(id, v) {
-    const el = document.getElementById(id);
-    if (el) el.textContent = v;
+  async function copyMyId() {
+    const id = document.getElementById('refMyId')?.textContent || currentDisplayId();
+    const code = document.getElementById('refCode')?.textContent || '';
+    const text = code && code !== '—' ? `${id} (code ${code})` : String(id);
+    try {
+      await navigator.clipboard.writeText(String(id).replace(/[^\d]/g, '') || text);
+      toast('ID copied');
+      api('/referral/share', { method: 'POST', body: { target: 'copy_id' } }).catch(() => {});
+    } catch (_e) {
+      await copyInviteText(text, 'ID copied');
+    }
   }
 
   async function loadDashboard() {
     const res = await api('/referral/dashboard');
     if (!res?.success) throw new Error(res?.message || 'Failed to load dashboard');
     state.dashboard = res.data;
+    state.history = res.data?.history || [];
     renderDashboard();
   }
 
-  async function loadMissions() {
-    const res = await api('/referral/missions');
-    if (!res?.success) return;
-    state.missions = res.data || [];
-    const root = document.getElementById('missionList');
-    if (!root) return;
-    if (!state.missions.length) {
-      root.innerHTML = '<div class="ref-empty">No missions yet</div>';
-      return;
-    }
-    root.innerHTML = state.missions
-      .map((row) => {
-        const m = row.mission || {};
-        const p = row.progress || {};
-        const locked = row.locked;
-        const pct = row.percent || 0;
-        const status = locked ? 'locked' : p.status || 'in_progress';
-        const pill =
-          status === 'claimed'
-            ? '<span class="ref-pill ok">Claimed</span>'
-            : status === 'completed'
-              ? '<span class="ref-pill ok">Ready</span>'
-              : locked
-                ? '<span class="ref-pill lock">Locked</span>'
-                : '<span class="ref-pill warn">In progress</span>';
-        const claim =
-          status === 'completed'
-            ? `<button type="button" class="ref-btn" data-claim="${m.id}">Claim ${money(m.reward_coins)} coins</button>`
-            : '';
-        return `<div class="ref-mission">
-          <div class="ref-mission-top">
-            <div><strong>${escapeHtml(m.title)}</strong><div style="font-size:11px;color:var(--ref-muted);margin-top:2px">${escapeHtml(m.description || '')}</div></div>
-            <em>+${money(m.reward_coins)}</em>
-          </div>
-          <div class="ref-bar"><i style="width:${pct}%"></i></div>
-          <div class="ref-mission-meta"><span>${money(p.progress_value || 0)} / ${money(m.target_value)} ${escapeHtml(m.target_unit || '')}</span>${pill}</div>
-          ${claim}
-        </div>`;
-      })
-      .join('');
-    root.querySelectorAll('[data-claim]').forEach((btn) => {
-      btn.addEventListener('click', () => claimMission(btn.dataset.claim, btn));
-    });
-  }
-
-  async function claimMission(id, btn) {
-    if (btn) {
-      btn.disabled = true;
-      btn.textContent = 'Claiming…';
-    }
-    try {
-      const res = await api(`/referral/missions/${id}/claim`, { method: 'POST', body: {} });
-      if (!res?.success) throw new Error(res?.message || 'Claim failed');
-      toast(`+${money(res.data?.coins)} coins claimed`);
-      await loadMissions();
-      await loadDashboard();
-    } catch (e) {
-      toast(e.message || 'Claim failed');
-      if (btn) {
-        btn.disabled = false;
-        btn.textContent = 'Claim';
-      }
-    }
-  }
-
-  async function loadHistory() {
-    const res = await api('/referral/history');
-    if (!res?.success) return;
-    state.history = res.data || [];
+  function renderWeekHistory() {
     const root = document.getElementById('historyList');
     if (!root) return;
-    if (!state.history.length) {
-      root.innerHTML = '<div class="ref-empty">No invites yet — share your code!</div>';
+    const all = state.history || [];
+    const week = all.filter((r) => withinLastDays(r.applied_at || r.created_at, 7));
+    const rows = state.showAllHistory ? all : week;
+    setText('statWeekCount', String(week.length));
+
+    if (!rows.length) {
+      root.innerHTML =
+        '<div class="ref-empty-illu" aria-hidden="true">📭</div><p class="ref-empty">No more data</p>';
       return;
     }
-    root.innerHTML = state.history
+
+    root.innerHTML = rows
       .map((r) => {
         const name = `${r.first_name || ''} ${r.last_name || ''}`.trim() || 'Friend';
         const status = r.status || 'pending';
@@ -401,42 +335,60 @@
       .join('');
   }
 
-  async function loadLeaderboard() {
-    const res = await api('/leaderboard/referral?period=weekly');
+  async function loadHistoryFull() {
+    const res = await api('/referral/history');
     if (!res?.success) return;
-    state.leaderboard = res.data || [];
+    state.history = res.data || [];
+    renderWeekHistory();
+  }
+
+  async function loadLeaderboard() {
     const root = document.getElementById('rankList');
     if (!root) return;
+    root.innerHTML = '<div class="ref-empty">Loading…</div>';
+    const res = await api('/leaderboard/income?period=weekly');
+    if (!res?.success) {
+      // fallback to referral rank
+      const alt = await api('/leaderboard/referral?period=weekly');
+      if (!alt?.success) {
+        root.innerHTML = '<div class="ref-empty">Leaderboard is warming up</div>';
+        return;
+      }
+      state.leaderboard = alt.data || [];
+      root.innerHTML = (state.leaderboard.length
+        ? state.leaderboard
+            .map((r) => {
+              const name = `${r.first_name || ''} ${r.last_name || ''}`.trim() || 'Host';
+              return `<div class="ref-list-item">
+                <strong style="width:28px;text-align:center;color:#ff6a2b">#${r.rank}</strong>
+                <img src="${avatar(name, r.profile_pic)}" alt="">
+                <div class="meta"><strong>${escapeHtml(name)}</strong><span>${money(r.valid_invites)} valid · ${money(r.reward_coins)} coins</span></div>
+              </div>`;
+            })
+            .join('')
+        : '<div class="ref-empty">Leaderboard is warming up</div>');
+      return;
+    }
+    state.leaderboard = res.data || [];
     if (!state.leaderboard.length) {
       root.innerHTML = '<div class="ref-empty">Leaderboard is warming up</div>';
       return;
     }
     root.innerHTML = state.leaderboard
-      .map((r) => {
+      .map((r, i) => {
         const name = `${r.first_name || ''} ${r.last_name || ''}`.trim() || 'Host';
+        const income =
+          Number(r.host_income_coins || 0) ||
+          Number(r.gift_income_coins || 0) +
+            Number(r.mission_reward_coins || 0) +
+            Number(r.referral_reward_coins || 0);
         return `<div class="ref-list-item">
-          <strong style="width:28px;text-align:center;color:var(--ref-gold)">#${r.rank}</strong>
+          <strong style="width:28px;text-align:center;color:#ff6a2b">#${r.rank || i + 1}</strong>
           <img src="${avatar(name, r.profile_pic)}" alt="">
-          <div class="meta"><strong>${escapeHtml(name)}</strong><span>${money(r.valid_invites)} valid · ${money(r.reward_coins)} coins</span></div>
+          <div class="meta"><strong>${escapeHtml(name)}</strong><span>${money(income)} income coins</span></div>
         </div>`;
       })
       .join('');
-  }
-
-  async function loadHostProgress() {
-    const res = await api('/host/progress');
-    if (!res?.success) return;
-    state.hostProgress = res.data;
-    const s = res.data?.stats || {};
-    const today = s.today || {};
-    setText('hostTodayMin', Math.floor(Number(today.counted_seconds || 0) / 60));
-    setText('hostWeekHrs', (Number(s.weekly_counted_seconds || 0) / 3600).toFixed(1));
-    setText('hostMonthHrs', (Number(s.monthly_counted_seconds || 0) / 3600).toFixed(1));
-    setText('hostCap', s.dailyCapHours || 3);
-    const host = s.host || {};
-    setText('hostGift', money(host.gift_income_coins));
-    setText('hostMission', money(host.mission_reward_coins));
-    setText('hostReferral', money(host.referral_reward_coins));
   }
 
   async function generate() {
@@ -446,19 +398,6 @@
     state.dashboard.invitation = res.data;
     renderDashboard();
     toast('Invite ready');
-  }
-
-  async function copyCode() {
-    const code = document.getElementById('refCode')?.textContent || '';
-    const link = state.dashboard?.invitation?.webLink || '';
-    const text = link || code;
-    try {
-      await navigator.clipboard.writeText(text);
-      toast('Copied!');
-      await api('/referral/share', { method: 'POST', body: { target: 'copy' } }).catch(() => {});
-    } catch (_e) {
-      toast(text);
-    }
   }
 
   async function applyCode() {
@@ -480,19 +419,17 @@
   }
 
   async function claimRewards() {
+    const btn = document.getElementById('refReceiveBtn');
+    if (btn) btn.disabled = true;
     const res = await api('/reward/claim', { method: 'POST', body: {} });
-    if (!res?.success) return toast(res?.message || 'Nothing to claim');
+    if (!res?.success) {
+      toast(res?.message || 'Nothing to claim');
+      if (btn) btn.disabled = !(Number(state.dashboard?.rewards?.pending) > 0);
+      return;
+    }
     const n = (res.data?.paid || []).length;
     toast(n ? `Claimed ${n} reward(s)` : 'No pending rewards');
     await loadDashboard();
-  }
-
-  function escapeHtml(s) {
-    return String(s || '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
   }
 
   function ensureDeviceFp() {
@@ -502,25 +439,38 @@
   }
 
   async function boot() {
-    spawnParticles();
     ensureDeviceFp();
     const params = new URLSearchParams(location.search);
     const ref = params.get('ref') || params.get('code');
     if (ref) localStorage.setItem('ap_pending_ref', ref);
 
-    document.querySelectorAll('.ref-tabs button').forEach((b) => {
+    document.querySelectorAll('.ref-seg button').forEach((b) => {
       b.addEventListener('click', () => setTab(b.dataset.tab));
     });
-    document.getElementById('refCopyBtn')?.addEventListener('click', copyCode);
+    document.getElementById('refInviteNow')?.addEventListener('click', () => {
+      inviteNow().catch((e) => toast(e.message || 'Share failed'));
+    });
+    document.getElementById('refCopyIdBtn')?.addEventListener('click', () => {
+      copyMyId().catch(() => toast('Could not copy'));
+    });
+    document.getElementById('refReceiveBtn')?.addEventListener('click', () => {
+      claimRewards().catch((e) => toast(e.message || 'Claim failed'));
+    });
     document.getElementById('refApplyBtn')?.addEventListener('click', applyCode);
-    document.getElementById('refClaimBtn')?.addEventListener('click', claimRewards);
-    document.getElementById('refRegenBtn')?.addEventListener('click', () => generate().catch((e) => toast(e.message)));
-    document.querySelectorAll('[data-share]').forEach((btn) => {
-      btn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        shareVia(btn.getAttribute('data-share')).catch((err) => toast(err.message || 'Share failed'));
-      });
+    document.getElementById('refHelpBtn')?.addEventListener('click', openGuide);
+    document.getElementById('refGuideClose')?.addEventListener('click', closeGuide);
+    document.getElementById('refGuideOverlay')?.addEventListener('click', (e) => {
+      if (e.target?.id === 'refGuideOverlay') closeGuide();
+    });
+    document.getElementById('refHistoryMore')?.addEventListener('click', async () => {
+      state.showAllHistory = !state.showAllHistory;
+      const btn = document.getElementById('refHistoryMore');
+      if (btn) btn.textContent = state.showAllHistory ? 'Less <' : 'More >';
+      if (state.showAllHistory && !(state.history?.length > 5)) {
+        await loadHistoryFull();
+      } else {
+        renderWeekHistory();
+      }
     });
 
     try {
@@ -533,28 +483,30 @@
         location.href = '/login.html?redirect=' + encodeURIComponent('/referral.html?app=1');
         return;
       }
-      document.getElementById('refCode').textContent = 'Loading…';
+      setText('refCode', 'Loading…');
+      setText('refMyId', currentDisplayId());
       await loadDashboard();
       if (!state.dashboard?.invitation?.code) {
         await generate();
       }
+      await loadHistoryFull();
       const pending = localStorage.getItem('ap_pending_ref');
       if (pending) {
         const input = document.getElementById('refApplyInput');
         if (input) input.value = pending;
       }
     } catch (e) {
-      showBootError(e.message || 'Could not load invites. Tap Refresh.');
+      showBootError(e.message || 'Could not load invites.');
       toast(e.message || 'Load failed');
       try {
         await generate();
       } catch (e2) {
         showBootError(e2.message || 'Invite API unavailable — restart the server if this continues.');
-        document.getElementById('refCode').textContent = '———';
+        setText('refCode', '———');
       }
     }
   }
 
   document.addEventListener('DOMContentLoaded', boot);
-  window.ReferralUI = { setTab, loadDashboard, applyCode };
+  window.ReferralUI = { setTab, loadDashboard, applyCode, openGuide, closeGuide };
 })();

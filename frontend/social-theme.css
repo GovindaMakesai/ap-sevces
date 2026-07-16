@@ -2861,9 +2861,36 @@ html.social-app .social-profile-page .social-wallet-btn:active {
   font-size: 18px;
 }
 
-.social-menu-item span {
+.social-menu-item > span {
   flex: 1;
   font-weight: 600;
+}
+
+.social-menu-item-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  font-weight: 600;
+}
+
+.social-menu-item-title {
+  color: inherit;
+  font-weight: 700;
+  flex: 0 1 auto !important;
+}
+
+.social-menu-item-reward {
+  flex: 0 0 auto !important;
+  font-size: 12px;
+  font-weight: 700 !important;
+  color: #ff6a2b !important;
+}
+
+.social-menu-item--invite i.fa-envelope {
+  color: #ff7a3d;
 }
 
 .social-menu-item .chevron {
