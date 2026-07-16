@@ -34,6 +34,15 @@
       background: #fff; color: #92400e; border: 1px solid rgba(201, 162, 39, 0.45);
       margin-top: 8px;
     }
+    .lv-btn.lv-pulse {
+      animation: lvPulse 1.2s ease-in-out 3;
+      border-color: #c9a227;
+      box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.35);
+    }
+    @keyframes lvPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.02); }
+    }
     .lv-cam-wrap {
       position: relative; width: 100%; aspect-ratio: 3/4; max-height: 360px;
       border-radius: 16px; overflow: hidden; background: #111; margin: 8px 0 12px;
@@ -70,7 +79,7 @@
       </section>
       <section class="lv-step" id="lvStepFace">
         <h2><span>2</span> Face verification</h2>
-        <p>Open your front camera, center your face, then capture. If camera fails, use Take photo or Gallery.</p>
+        <p>Open your front camera, center your face, then capture. If in-app camera fails on your phone, use <strong>Take photo</strong> or <strong>Gallery</strong> — that also completes verification.</p>
         <div class="lv-cam-wrap" id="lvCamWrap">
           <video id="lvVideo" playsinline webkit-playsinline muted autoplay></video>
           <div class="lv-cam-guide" aria-hidden="true"></div>
@@ -97,7 +106,7 @@
     <div class="lv-status" id="lvStatus"></div>
   </div>
 
-  <script src="app.js?v=20260715-face-cam2"></script>
+  <script src="app.js?v=20260716-face-cam3"></script>
   <script src="social-shell.js?v=20260715-rooms-fix"></script>
   <script>
     (async function () {
@@ -113,6 +122,9 @@
       let cameraStream = null;
       let openingCamera = false;
       let identityDone = false;
+      let faceDone = false;
+      /** Don't kill the stream while the OS permission sheet is up (WebView goes "hidden") */
+      let suppressStopOnHideUntil = 0;
 
       function setStatus(msg, ok) {
         statusEl.textContent = msg;
@@ -167,10 +179,12 @@
             resolve(detail || { ok: false });
           };
           const onEvt = (e) => finish(e.detail);
-          /* Face verify only needs camera — don't wait long if native is slow */
-          const timer = setTimeout(() => finish({ ok: false, reason: 'timeout' }), 4500);
+          /* Give user time to tap Allow on the system dialog */
+          const timer = setTimeout(() => finish({ ok: true, reason: 'timeout_continue' }), 12000);
           document.addEventListener('ap-media-permissions', onEvt);
           try {
+            /* Keep WebView from tearing down the stream while the dialog is open */
+            suppressStopOnHideUntil = Date.now() + 15000;
             window.ReactNativeWebView.postMessage(
               JSON.stringify({ type: 'request_media_permissions', microphone: false })
             );
@@ -180,26 +194,47 @@
         });
       }
 
+      async function listFrontCameraId(media) {
+        try {
+          if (!media?.enumerateDevices) return null;
+          const devices = await media.enumerateDevices();
+          const cams = (devices || []).filter((d) => d.kind === 'videoinput');
+          const front = cams.find((d) => /front|user|face/i.test(String(d.label || '')));
+          return (front || cams[0] || null)?.deviceId || null;
+        } catch (_e) {
+          return null;
+        }
+      }
+
       async function openCamera() {
         if (!window.isSecureContext && location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
           throw new Error('Camera needs HTTPS. Open this page in the AP Services app (or https).');
         }
         const media = ensureMediaDevices();
         if (!media?.getUserMedia) {
-          throw new Error('Camera API unavailable in this browser. Use Take photo or Gallery below.');
+          throw new Error('In-app camera unavailable. Use “Take photo” or Gallery below.');
         }
 
         const perm = await requestNativeMediaPermissions();
-        if (perm && perm.ok === false && perm.camera === 'denied') {
-          throw Object.assign(new Error('Camera permission denied'), { name: 'NotAllowedError' });
+        if (perm && perm.ok === false && (perm.camera === 'denied' || perm.camera === 'never_ask_again')) {
+          throw Object.assign(
+            new Error('Camera permission denied. Allow Camera in phone Settings → Apps → AP Services, or use Take photo / Gallery.'),
+            { name: 'NotAllowedError' }
+          );
         }
 
+        suppressStopOnHideUntil = Date.now() + 8000;
+        const deviceId = await listFrontCameraId(media);
         const constraints = [
+          deviceId ? { video: { deviceId: { exact: deviceId } }, audio: false } : null,
+          deviceId ? { video: { deviceId: { ideal: deviceId } }, audio: false } : null,
           { video: { facingMode: { ideal: 'user' }, width: { ideal: 640 }, height: { ideal: 800 } }, audio: false },
           { video: { facingMode: 'user' }, audio: false },
           { video: { facingMode: { ideal: 'environment' } }, audio: false },
+          { video: { width: { ideal: 640 }, height: { ideal: 480 } }, audio: false },
           { video: true, audio: false },
-        ];
+        ].filter(Boolean);
+
         let lastErr = null;
         for (const c of constraints) {
           try {
@@ -226,6 +261,7 @@
         const fd = new FormData();
         fd.append('photo', blob, 'selfie.jpg');
         await API.upload('/live/verify/face', fd);
+        faceDone = true;
         document.getElementById('lvStepFace').classList.add('done');
         document.getElementById('lvContinueBtn').disabled = false;
         setStatus('Face verification complete. You can go live with video.', true);
@@ -242,6 +278,7 @@
             document.getElementById('lvStepIdentity').classList.add('done');
           }
           if (d.faceVerified) {
+            faceDone = true;
             document.getElementById('lvStepFace').classList.add('done');
             document.getElementById('lvContinueBtn').disabled = false;
           }
@@ -254,43 +291,59 @@
       }
 
       async function startCameraPreview() {
-        if (openingCamera) return;
+        if (openingCamera || faceDone) return;
         openingCamera = true;
         const btn = document.getElementById('lvFaceBtn');
         try {
           btn.disabled = true;
           btn.textContent = 'Opening camera…';
-          setStatus('Requesting camera permission…', true);
-          /* Stop previous stream only after a short settle — avoids race on some Androids */
+          setStatus('Requesting camera permission… Allow Camera if asked.', true);
+          suppressStopOnHideUntil = Date.now() + 20000;
           if (cameraStream) {
             stopCamera();
-            await new Promise((r) => setTimeout(r, 200));
+            await new Promise((r) => setTimeout(r, 250));
           }
           cameraStream = await openCamera();
           const video = document.getElementById('lvVideo');
           video.setAttribute('playsinline', '');
           video.setAttribute('webkit-playsinline', '');
+          video.setAttribute('autoplay', '');
           video.muted = true;
+          video.playsInline = true;
           video.srcObject = cameraStream;
           try {
             await video.play();
           } catch (_e) {
-            /* Autoplay may need another gesture — still show frames once playing */
+            /* Some WebViews need a second play after tracks are live */
+            await new Promise((r) => setTimeout(r, 200));
+            try { await video.play(); } catch (_e2) {}
           }
-          /* Wait briefly for first frame */
-          await new Promise((r) => setTimeout(r, 350));
+          /* Wait for first frame — avoid blank black box */
+          const readyAt = Date.now();
+          while (!video.videoWidth && Date.now() - readyAt < 2500) {
+            await new Promise((r) => setTimeout(r, 100));
+          }
           document.getElementById('lvCamWrap').classList.add('is-open');
           document.getElementById('lvCaptureBtn').hidden = false;
           document.getElementById('lvCaptureBtn').disabled = false;
           btn.textContent = 'Restart camera';
-          setStatus('Center your face in the oval, then tap Capture selfie.', true);
+          if (video.videoWidth) {
+            setStatus('Center your face in the oval, then tap Capture selfie.', true);
+          } else {
+            setStatus('Camera opened. If preview is black, tap Restart — or use Take photo below.', true);
+          }
         } catch (e) {
-          const msg = e?.name === 'NotAllowedError'
-            ? 'Camera permission denied. Allow Camera in app settings, or use Take photo / Gallery below.'
-            : (e?.message || 'Could not open camera');
+          const denied = e?.name === 'NotAllowedError' || /permission|denied|NotAllowed/i.test(String(e?.message || ''));
+          const msg = denied
+            ? 'Camera blocked. Allow Camera in phone Settings → Apps → AP Services, then retry — or tap Take photo / Gallery.'
+            : (e?.message || 'Could not open in-app camera. Use Take photo or Gallery below.');
           setStatus(msg, false);
           btn.textContent = 'Open camera';
           document.getElementById('lvCamWrap')?.classList.remove('is-open');
+          /* Auto-offer native camera as next step so users are not stuck */
+          try {
+            document.getElementById('lvNativeCamBtn')?.classList.add('lv-pulse');
+          } catch (_e3) {}
         } finally {
           btn.disabled = false;
           openingCamera = false;
@@ -302,8 +355,9 @@
           await api.post('/live/verify/identity');
           identityDone = true;
           document.getElementById('lvStepIdentity').classList.add('done');
-          setStatus('Identity step complete. Opening camera…', true);
-          await startCameraPreview();
+          setStatus('Identity done. Tap Open camera — or Take photo / Gallery if camera fails.', true);
+          /* Do NOT auto-open camera here: OS permission dialog hides the WebView and
+             used to kill the stream immediately. Let the user tap Open camera. */
         } catch (e) {
           setStatus(e?.response?.data?.message || e.message || 'Identity step failed', false);
         }
@@ -318,7 +372,7 @@
         const canvas = document.getElementById('lvCanvas');
         const captBtn = document.getElementById('lvCaptureBtn');
         if (!video?.videoWidth) {
-          setStatus('Camera is still starting — wait a second and try again.', false);
+          setStatus('Camera is still starting — wait a second and try again, or use Take photo.', false);
           return;
         }
         try {
@@ -375,14 +429,24 @@
       });
 
       window.addEventListener('pagehide', stopCamera);
-      window.addEventListener('visibilitychange', () => {
-        if (document.hidden) stopCamera();
+      /* Critical: do NOT stop on every visibilitychange — Android permission dialog
+         marks the page hidden and was killing the camera right after open. */
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) return;
+        if (openingCamera || Date.now() < suppressStopOnHideUntil) return;
+        /* Only stop if user left for a while (app switch), not a brief permission sheet */
+        const leftAt = Date.now();
+        setTimeout(() => {
+          if (!document.hidden) return;
+          if (Date.now() < suppressStopOnHideUntil) return;
+          if (Date.now() - leftAt < 2500) return;
+          stopCamera();
+        }, 2800);
       });
 
       await refreshStatus();
-      /* If identity already done and face not, auto-offer camera once */
-      if (identityDone && !document.getElementById('lvStepFace').classList.contains('done')) {
-        setStatus('Tap Open camera to continue face verification (or use Take photo / Gallery).', true);
+      if (identityDone && !faceDone) {
+        setStatus('Tap Open camera to continue — if it fails, use Take photo or Gallery (same verification).', true);
       }
     })();
   </script>

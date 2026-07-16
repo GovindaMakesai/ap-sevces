@@ -213,10 +213,14 @@ async function requestAndroidMediaPermissions(opts = {}) {
     const microphone = wantMic
       ? results[PermissionsAndroid.PERMISSIONS.RECORD_AUDIO]
       : PermissionsAndroid.RESULTS.GRANTED;
+    const cameraOk =
+      camera === PermissionsAndroid.RESULTS.GRANTED ||
+      camera === PermissionsAndroid.RESULTS.LIMITED;
+    const micOk = wantMic
+      ? microphone === PermissionsAndroid.RESULTS.GRANTED
+      : true;
     return {
-      ok:
-        camera === PermissionsAndroid.RESULTS.GRANTED &&
-        microphone === PermissionsAndroid.RESULTS.GRANTED,
+      ok: cameraOk && micOk,
       camera,
       microphone: wantMic ? microphone : 'skipped',
     };
