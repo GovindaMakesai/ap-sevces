@@ -4133,9 +4133,9 @@ body.ap-room-active .ap-live-loader {
 .party-live-actions {
   display: flex;
   flex-direction: row;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: flex-end;
   gap: 8px;
   padding: 0 10px 8px;
   flex-shrink: 0;
@@ -4145,8 +4145,18 @@ body.ap-room-active .ap-live-loader {
 }
 
 .party-live-actions .party-users-btn {
-  margin-right: 0;
-  margin-left: auto;
+  margin: 0;
+  flex-shrink: 0;
+  order: 1;
+  position: relative;
+  z-index: 81;
+  pointer-events: auto !important;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.party-live-actions .party-event-pill {
+  margin: 0;
   flex-shrink: 0;
   order: 2;
   position: relative;
@@ -4156,23 +4166,18 @@ body.ap-room-active .ap-live-loader {
   -webkit-tap-highlight-color: transparent;
 }
 
-.party-live-actions .party-event-pill {
-  margin-left: 0;
-  flex-shrink: 0;
-  order: 3;
-  position: relative;
-  z-index: 81;
-  pointer-events: auto !important;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
+/* Keep people + Invite friends pinned to the right for everyone (host bar removed) */
+body.ap-is-host .party-live-actions,
+body.ap-can-moderate .party-live-actions {
+  justify-content: flex-end;
 }
 
-body.ap-is-host .party-live-actions .party-users-btn {
+body.ap-is-host .party-live-actions .party-users-btn,
+body.ap-can-moderate .party-live-actions .party-users-btn,
+body.ap-is-host .party-live-actions .party-event-pill,
+body.ap-can-moderate .party-live-actions .party-event-pill {
   margin-left: 0;
-}
-
-body.ap-is-host .party-live-actions .party-event-pill {
-  margin-left: 0;
+  margin-right: 0;
 }
 
 .party-host-bar,
