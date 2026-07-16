@@ -308,8 +308,17 @@ html.auth-native.auth-guest body {
   line-height: 1.45;
 }
 
+.auth-social-login,
+.social-login,
+button.auth-oauth-btn,
+button.social-btn.google,
+button.social-btn.facebook,
+button.social-btn.github {
+  display: none !important;
+}
+
 .auth-social-login {
-  display: flex;
+  display: none !important;
   flex-direction: column;
   gap: 10px;
   margin-bottom: 16px;
