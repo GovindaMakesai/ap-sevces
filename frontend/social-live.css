@@ -249,7 +249,15 @@ html.ap-secure-live .party-room-stage {
   color: #fff;
 }
 
-/* Keep primary chrome tappable above stray overlays (busy rooms) */
+#apGiftHitPad {
+  position: fixed !important;
+  z-index: 14950 !important;
+  pointer-events: auto !important;
+  touch-action: manipulation !important;
+  border: 0 !important;
+  background: transparent !important;
+  -webkit-tap-highlight-color: transparent;
+}
 #partyLiveActions,
 .party-live-actions,
 #partyBtnUsersAll,

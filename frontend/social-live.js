@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260716-gift-tap';
+  window.__AP_LIVE_BUILD = '20260716-gift-hit';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -7830,14 +7830,9 @@
         },
       },
       {
-        match: (el) => el?.closest?.('#liveBtnGift, #partyBtnGift, .ap-btn-gift-hero, .party-btn-gift'),
+        match: (el) => el?.closest?.('#liveBtnGift, #partyBtnGift, .ap-btn-gift-hero, .party-btn-gift, #apGiftHitPad'),
         run: () => {
-          unlockLiveChrome({ forceGift: true });
-          hideMicRequestActionBar();
-          document.body.classList.remove('party-requests-open', 'ap-sheet-open');
-          document.getElementById('partyRequestsSheet')?.classList.remove('open');
-          if (document.getElementById('giftSheet')?.classList.contains('open')) return;
-          openGiftSheet();
+          openGiftSheetReliable();
         },
       },
     ];
@@ -7960,6 +7955,7 @@
   function startLiveChromeWatchdog() {
     if (window.__apLiveChromeWatchdog) return;
     installChromeHitSalvage();
+    installGiftHitPad();
     window.__apLiveChromeWatchdog = setInterval(() => {
       if (!document.body?.dataset?.livePage) return;
       const gift = document.getElementById('giftSheet');
@@ -10486,6 +10482,172 @@
     updateGiftMeta();
   }
 
+  function isSheetReallyOpen(el) {
+    if (!el?.classList?.contains('open')) return false;
+    try {
+      const cs = getComputedStyle(el);
+      const rect = el.getBoundingClientRect();
+      if (
+        cs.visibility === 'hidden' ||
+        cs.display === 'none' ||
+        cs.opacity === '0' ||
+        el.style.visibility === 'hidden' ||
+        rect.height < 8
+      ) {
+        el.classList.remove('open', 'is-open', 'show');
+        el.style.pointerEvents = 'none';
+        el.style.display = 'none';
+        el.style.removeProperty('visibility');
+        return false;
+      }
+    } catch (_e) { /* ignore */ }
+    return true;
+  }
+
+  function openGiftSheetReliable(e) {
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+    if (typeof e?.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+    const now = Date.now();
+    if (now < (Number(window.__apGiftOpenBusyUntil) || 0)) return;
+    window.__apGiftOpenBusyUntil = now + 500;
+    unlockLiveChrome({ forceGift: true });
+    hideMicRequestActionBar();
+    document.body.classList.remove('party-requests-open', 'ap-sheet-open');
+    document.getElementById('partyRequestsSheet')?.classList.remove('open');
+    const sheet = document.getElementById('giftSheet');
+    if (isSheetReallyOpen(sheet)) return;
+    if (sheet) {
+      sheet.classList.remove('open');
+      sheet.style.display = 'none';
+      sheet.style.pointerEvents = 'none';
+    }
+    window.__apGiftOpenGuardUntil = Date.now() + 900;
+    openGiftSheet();
+  }
+
+  /**
+   * Floating hit pad + coordinate hit-test so gift stays tappable even when
+   * chat/FX/ghost sheets sit above the real button (busy rooms).
+   */
+  function installGiftHitPad() {
+    if (window.__apGiftHitPadInstalled) return;
+    window.__apGiftHitPadInstalled = true;
+    let lastOpenAt = 0;
+
+    function giftBtn() {
+      return document.getElementById('liveBtnGift') || document.getElementById('partyBtnGift');
+    }
+
+    function ensurePad() {
+      let pad = document.getElementById('apGiftHitPad');
+      if (!pad) {
+        pad = document.createElement('button');
+        pad.type = 'button';
+        pad.id = 'apGiftHitPad';
+        pad.setAttribute('aria-label', 'Open gifts');
+        pad.style.cssText =
+          'position:fixed;z-index:14950;border:0;padding:0;margin:0;background:transparent;' +
+          'pointer-events:auto;touch-action:manipulation;-webkit-tap-highlight-color:transparent;';
+        document.body.appendChild(pad);
+        const fire = (ev) => {
+          if (Date.now() - lastOpenAt < 450) return;
+          lastOpenAt = Date.now();
+          openGiftSheetReliable(ev);
+        };
+        pad.addEventListener('pointerup', fire, true);
+        pad.addEventListener('click', fire, true);
+      }
+      return pad;
+    }
+
+    function syncPad() {
+      const btn = giftBtn();
+      const pad = ensurePad();
+      if (!btn || !document.body?.dataset?.livePage) {
+        pad.style.display = 'none';
+        return;
+      }
+      /* Hide pad while a real gift sheet is open so panel taps work */
+      if (isSheetReallyOpen(document.getElementById('giftSheet'))) {
+        pad.style.display = 'none';
+        return;
+      }
+      if (isSheetReallyOpen(document.getElementById('partyToolsSheet'))) {
+        pad.style.display = 'none';
+        return;
+      }
+      if (isSheetReallyOpen(document.getElementById('partyRequestsSheet'))) {
+        pad.style.display = 'none';
+        return;
+      }
+      const r = btn.getBoundingClientRect();
+      if (r.width < 8 || r.height < 8) {
+        pad.style.display = 'none';
+        return;
+      }
+      const padSize = Math.max(r.width, r.height, 48) + 12;
+      pad.style.display = 'block';
+      pad.style.width = `${padSize}px`;
+      pad.style.height = `${padSize}px`;
+      pad.style.left = `${r.left + r.width / 2 - padSize / 2}px`;
+      pad.style.top = `${r.top + r.height / 2 - padSize / 2}px`;
+      pad.style.borderRadius = '50%';
+    }
+
+    function pointHitsGift(x, y) {
+      const btn = giftBtn();
+      if (!btn) return false;
+      const r = btn.getBoundingClientRect();
+      const pad = 10;
+      return (
+        x >= r.left - pad &&
+        x <= r.right + pad &&
+        y >= r.top - pad &&
+        y <= r.bottom + pad
+      );
+    }
+
+    document.addEventListener(
+      'pointerup',
+      (e) => {
+        if (e.button != null && e.button !== 0) return;
+        if (!document.body?.dataset?.livePage) return;
+        if (isSheetReallyOpen(document.getElementById('giftSheet'))) return;
+        const x = e.clientX;
+        const y = e.clientY;
+        if (x == null || y == null) return;
+        const t = e.target;
+        if (
+          t?.closest?.(
+            '#liveBtnGift, #partyBtnGift, .ap-btn-gift-hero, #apGiftHitPad, .party-btn-gift'
+          ) ||
+          pointHitsGift(x, y)
+        ) {
+          if (Date.now() - lastOpenAt < 450) return;
+          lastOpenAt = Date.now();
+          openGiftSheetReliable(e);
+        }
+      },
+      true
+    );
+
+    syncPad();
+    window.addEventListener('resize', syncPad);
+    window.addEventListener('scroll', syncPad, true);
+    setInterval(syncPad, 600);
+    /* Keep chrome unlocked so pad stays useful */
+    setInterval(() => {
+      if (!document.body?.dataset?.livePage) return;
+      if (isSheetReallyOpen(document.getElementById('giftSheet'))) return;
+      const btn = giftBtn();
+      if (btn) {
+        btn.style.pointerEvents = 'auto';
+        btn.style.zIndex = '14250';
+      }
+    }, 1200);
+  }
+
   function openGiftSheet(targetName, targetUserId) {
     unlockLiveChrome({ forceGift: true });
     hideMicRequestActionBar();
@@ -11326,16 +11488,7 @@
     });
 
     const openGiftFromBar = (e) => {
-      e?.preventDefault?.();
-      e?.stopPropagation?.();
-      if (typeof e?.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
-      unlockLiveChrome({ forceGift: true });
-      hideMicRequestActionBar();
-      document.body.classList.remove('party-requests-open', 'ap-sheet-open');
-      document.getElementById('partyRequestsSheet')?.classList.remove('open');
-      const sheet = document.getElementById('giftSheet');
-      if (sheet?.classList.contains('open')) return;
-      openGiftSheet();
+      openGiftSheetReliable(e);
     };
     ['partyBtnGift', 'liveBtnGift'].forEach((id) => {
       const btn = document.getElementById(id);
@@ -11343,9 +11496,10 @@
       btn.dataset.giftOpenBound = '1';
       btn.style.pointerEvents = 'auto';
       btn.style.zIndex = '14250';
-      /* Click only — pointerup opened sheet then synthetic click closed it */
       btn.addEventListener('click', openGiftFromBar, true);
+      btn.addEventListener('pointerup', openGiftFromBar, true);
     });
+    installGiftHitPad();
 
     const toggleFollow = async () => {
       const hostName = roomState?.hostName || 'Host';
