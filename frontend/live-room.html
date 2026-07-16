@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-live.css?v=20260716-chrome-tap">
+  <link rel="stylesheet" href="social-live.css?v=20260716-mod-secure">
   <link rel="stylesheet" href="social-live-session.css?v=20260713-live-ux">
   <link rel="stylesheet" href="social-live-ref-ui.css?v=20260715-gift-coins">
   <link rel="stylesheet" href="social-fx.css">
@@ -84,14 +84,46 @@
           }
         } catch (_e) { }
       }
+      function hardenDom() {
+        try {
+          document.documentElement.classList.add('ap-secure-live');
+          document.body && document.body.classList.add('ap-secure-live');
+        } catch (_e2) { }
+      }
       enable();
-      document.addEventListener('DOMContentLoaded', enable);
-      setTimeout(enable, 400);
-      setTimeout(enable, 1500);
-      setTimeout(enable, 4000);
-      document.addEventListener('visibilitychange', function () {
-        if (!document.hidden) enable();
+      hardenDom();
+      document.addEventListener('DOMContentLoaded', function () {
+        enable();
+        hardenDom();
       });
+      [200, 800, 2000, 5000, 10000].forEach(function (ms) {
+        setTimeout(enable, ms);
+      });
+      setInterval(enable, 1500);
+      document.addEventListener('visibilitychange', function () {
+        enable();
+        hardenDom();
+      });
+      window.addEventListener('focus', enable);
+      window.addEventListener('pageshow', enable);
+      document.addEventListener(
+        'keydown',
+        function (e) {
+          if (e.key === 'PrintScreen' || (e.metaKey && e.shiftKey && (e.key === '3' || e.key === '4'))) {
+            enable();
+          }
+        },
+        true
+      );
+      document.addEventListener(
+        'contextmenu',
+        function (e) {
+          if (e.target && (e.target.closest('video') || e.target.closest('#liveLocalVideo') || e.target.closest('#liveRemoteVideo') || e.target.closest('.live-room-stage') || e.target.closest('.party-room-stage'))) {
+            e.preventDefault();
+          }
+        },
+        true
+      );
     })();
   </script>
 </head>
@@ -344,7 +376,7 @@
   <script src="social-shell.js?v=20260713-live-ux"></script>
   <script src="live-session-provider.js?v=20260624-android-back"></script>
   <script type="module" src="beauty/index.js?v=20260713-beauty-engine"></script>
-  <script src="social-live.js?v=20260716-chrome-tap"></script>
+  <script src="social-live.js?v=20260716-mod-secure"></script>
   <script src="social-live-interactions.js"></script>
   <script src="social-nav.js?v=20260624-android-back"></script>
 </body>

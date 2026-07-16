@@ -364,82 +364,95 @@ function registerLiveSocket(io) {
         const displayName = socket.data.liveDisplayName || 'User';
         const isMod = await isRoomModerator(socket, channel);
 
-        /* Auto-moderate abusive language (hosts/admins skipped) */
-        if (!isMod) {
-          const scan = chatModerationService.scanMessage(text);
-          if (scan.blocked) {
-            const strike = chatModerationService.recordStrike(channel, socket.userId);
-            const alert = {
-              type: 'abuse',
-              channel,
-              userId: String(socket.userId),
-              user: displayName,
-              strikes: strike.strikes,
-              action: strike.action,
-              at: Date.now(),
-            };
-            io.to(`live:${channel}`).emit('live:mod_alert', alert);
-            if (room.host_user_id) {
-              io.to(`user:${room.host_user_id}`).emit('live:mod_alert', alert);
-            }
-
-            if (strike.action === 'mute') {
-              try {
-                await liveRoomService.setMemberChatMuted(room.id, socket.userId, true);
-                io.to(`live:${channel}`).emit('live:member_chat_mute', {
-                  channel,
-                  userId: String(socket.userId),
-                  muted: true,
-                  reason: 'abusive_language',
-                  at: Date.now(),
-                });
-              } catch (_muteErr) { /* continue */ }
-            }
-
-            if (strike.action === 'ban') {
-              try {
-                const kickResult = await liveRoomService.kickMember({
-                  channel,
-                  userId: socket.userId,
-                  bannedBy: room.host_user_id || socket.userId,
-                  reason: 'abusive_chat',
-                  durationHours: strike.banHours || chatModerationService.BAN_HOURS,
-                });
-                const banInfo =
-                  kickResult.ban ||
-                  liveRoomService.banBlockPayload({
-                    reason: 'abusive_chat',
-                    expires_at: kickResult.expiresAt,
-                  });
-                const kickPayload = {
-                  userId: String(socket.userId),
-                  channel,
-                  expiresAt: banInfo?.expiresAt || kickResult.expiresAt || null,
-                  remainingHours: banInfo?.remainingHours ?? strike.banHours,
-                  permanent: Boolean(banInfo?.permanent),
-                  message: strike.message,
-                  reason: 'abusive_chat',
-                };
-                io.to(`live:${channel}`).emit('live:kicked', kickPayload);
-                socket.leave(`live:${channel}`);
-                socket.data.liveChannel = null;
-                socket.emit('live:kicked', kickPayload);
-                const state = await liveRoomService.buildSnapshot(channel);
-                if (state) io.to(`live:${channel}`).emit('live:state', state);
-              } catch (_banErr) { /* still reject message */ }
-            }
-
+        /* Auto-moderate abusive / sexual language — applies to everyone including hosts */
+        const scan = chatModerationService.scanMessage(text);
+        if (scan.blocked) {
+          /* Hosts/admins: block the message only (never mute/kick themselves out of their room) */
+          if (isMod) {
             if (ack) {
               ack({
                 ok: false,
-                code: `ABUSE_${String(strike.action || 'warn').toUpperCase()}`,
-                strikes: strike.strikes,
-                action: strike.action,
-                message: strike.userMessage || strike.message,
+                code: 'ABUSE_WARN',
+                strikes: 0,
+                action: 'warn',
+                message:
+                  'This message was blocked. Sexual / abusive language is not allowed in live chat — including for hosts.',
               });
             }
             return;
           }
+
+          const strike = chatModerationService.recordStrike(channel, socket.userId);
+          const alert = {
+            type: 'abuse',
+            channel,
+            userId: String(socket.userId),
+            user: displayName,
+            strikes: strike.strikes,
+            action: strike.action,
+            at: Date.now(),
+          };
+          io.to(`live:${channel}`).emit('live:mod_alert', alert);
+          if (room.host_user_id) {
+            io.to(`user:${room.host_user_id}`).emit('live:mod_alert', alert);
+          }
+
+          if (strike.action === 'mute') {
+            try {
+              await liveRoomService.setMemberChatMuted(room.id, socket.userId, true);
+              io.to(`live:${channel}`).emit('live:member_chat_mute', {
+                channel,
+                userId: String(socket.userId),
+                muted: true,
+                reason: 'abusive_language',
+                at: Date.now(),
+              });
+            } catch (_muteErr) { /* continue */ }
+          }
+
+          if (strike.action === 'ban') {
+            try {
+              const kickResult = await liveRoomService.kickMember({
+                channel,
+                userId: socket.userId,
+                bannedBy: room.host_user_id || socket.userId,
+                reason: 'abusive_chat',
+                durationHours: strike.banHours || chatModerationService.BAN_HOURS,
+              });
+              const banInfo =
+                kickResult.ban ||
+                liveRoomService.banBlockPayload({
+                  reason: 'abusive_chat',
+                  expires_at: kickResult.expiresAt,
+                });
+              const kickPayload = {
+                userId: String(socket.userId),
+                channel,
+                expiresAt: banInfo?.expiresAt || kickResult.expiresAt || null,
+                remainingHours: banInfo?.remainingHours ?? strike.banHours,
+                permanent: Boolean(banInfo?.permanent),
+                message: strike.message,
+                reason: 'abusive_chat',
+              };
+              io.to(`live:${channel}`).emit('live:kicked', kickPayload);
+              socket.leave(`live:${channel}`);
+              socket.data.liveChannel = null;
+              socket.emit('live:kicked', kickPayload);
+              const state = await liveRoomService.buildSnapshot(channel);
+              if (state) io.to(`live:${channel}`).emit('live:state', state);
+            } catch (_banErr) { /* still reject message */ }
+          }
+
+          if (ack) {
+            ack({
+              ok: false,
+              code: `ABUSE_${String(strike.action || 'warn').toUpperCase()}`,
+              strikes: strike.strikes,
+              action: strike.action,
+              message: strike.userMessage || strike.message,
+            });
+          }
+          return;
         }
 
         const profilePic = await liveRoomService.getMemberProfilePic(socket.userId);

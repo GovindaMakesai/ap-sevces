@@ -38,6 +38,34 @@ const BLOCKED_TERMS = [
   'faggot',
   'pedo',
   'paedophile',
+  /* Explicit sexual terms — blocked for everyone including hosts */
+  'sex',
+  'sexy',
+  'sexual',
+  'sexually',
+  'sexx',
+  'sexxy',
+  'sext',
+  'sexting',
+  'porn',
+  'porno',
+  'pornography',
+  'xxx',
+  'nsfw',
+  'nude',
+  'nudes',
+  'naked',
+  'boobs',
+  'tits',
+  'pussy',
+  'penis',
+  'vagina',
+  'cock',
+  'dick',
+  'blowjob',
+  'handjob',
+  'orgasm',
+  'onlyfans',
   'chutiya',
   'chutia',
   'chutya',
@@ -73,6 +101,23 @@ const BLOCKED_TERMS = [
 
 /* Short tokens that need strict word-boundary only (too common otherwise) */
 const STRICT_SHORT = new Set(['bc', 'mc']);
+
+/** Always blocked even when spaced/obfuscated (s e x, s.e.x, sexx) */
+const COLLAPSED_MUST_BLOCK = [
+  'sex',
+  'sexy',
+  'sexual',
+  'sext',
+  'porn',
+  'porno',
+  'xxx',
+  'nude',
+  'nudes',
+  'nsfw',
+  'onlyfans',
+  'blowjob',
+  'handjob',
+];
 
 function normalizeText(raw) {
   return String(raw || '')
@@ -110,6 +155,12 @@ function findBlockedTerm(text) {
   const norm = normalizeText(text);
   if (!norm) return null;
   const spaced = ` ${norm} `;
+  const collapsed = norm.replace(/\s+/g, '');
+
+  for (const term of COLLAPSED_MUST_BLOCK) {
+    if (collapsed.includes(term)) return term;
+  }
+
   for (const term of BLOCKED_TERMS) {
     if (STRICT_SHORT.has(term)) {
       const re = new RegExp(`(?:^|\\s)${term}(?:$|\\s)`, 'i');

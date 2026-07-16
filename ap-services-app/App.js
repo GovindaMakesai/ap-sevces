@@ -33,7 +33,12 @@ const LIVE_SECURE_KEY = 'ap-live-secure';
 
 function isLiveCaptureUrl(url) {
   const u = String(url || '');
-  return /live-room\.html|party-room\.html|\/live-room(?:\?|$)|\/party-room(?:\?|$)/i.test(u);
+  if (/live-room\.html|party-room\.html|\/live-room(?:\?|#|$)|\/party-room(?:\?|#|$)/i.test(u)) {
+    return true;
+  }
+  /* Hash / query routes used by some shells */
+  if (/[?#].*(?:live-room|party-room)/i.test(u)) return true;
+  return false;
 }
 
 /** Same LAN IP as the Expo QR code (e.g. 192.168.1.9). */
@@ -468,24 +473,27 @@ export default function App() {
   const webSourceUriRef = useRef('');
 
   const lockLiveScreenCapture = useCallback(async (force = false) => {
-    if (!force && screenCaptureBlockedRef.current) {
-      /* Still re-assert FLAG_SECURE — Android can drop it after overlays / resume */
-      try {
-        await ScreenCapture.preventScreenCaptureAsync(LIVE_SECURE_KEY);
-      } catch (_e) { /* ignore */ }
-      return;
-    }
     screenCaptureBlockedRef.current = true;
     try {
+      /* Always re-assert both keys — Android can drop FLAG_SECURE after overlays / resume */
       await ScreenCapture.preventScreenCaptureAsync(LIVE_SECURE_KEY);
-      /* Also lock default key so accidental allow(default) alone cannot unlock */
       await ScreenCapture.preventScreenCaptureAsync('default');
+      if (force) {
+        /* Toggle unique key so Expo re-applies even if it thought we were already locked */
+        const bump = `ap-live-secure-bump-${Date.now() % 100000}`;
+        await ScreenCapture.preventScreenCaptureAsync(bump);
+      }
     } catch (err) {
       console.warn('[screen-capture] lock failed', err?.message || err);
     }
   }, []);
 
   const unlockLiveScreenCapture = useCallback(async () => {
+    /* Never unlock while WebView is still on a live/party URL */
+    if (isLiveCaptureUrl(webViewCurrentUrlRef.current)) {
+      await lockLiveScreenCapture(true);
+      return;
+    }
     screenCaptureBlockedRef.current = false;
     try {
       await ScreenCapture.allowScreenCaptureAsync(LIVE_SECURE_KEY);
@@ -493,7 +501,7 @@ export default function App() {
     } catch (err) {
       console.warn('[screen-capture] unlock failed', err?.message || err);
     }
-  }, []);
+  }, [lockLiveScreenCapture]);
 
   const syncScreenCaptureForUrl = useCallback(
     async (url) => {
@@ -810,7 +818,7 @@ export default function App() {
     };
   }, []);
 
-  /* Keep FLAG_SECURE sticky while on live/party */
+  /* Keep FLAG_SECURE sticky while on live/party — re-assert often (Android drops it) */
   useEffect(() => {
     const id = setInterval(() => {
       const url = webViewCurrentUrlRef.current || '';
@@ -818,7 +826,7 @@ export default function App() {
       ScreenCapture.preventScreenCaptureAsync(LIVE_SECURE_KEY).catch(() => {});
       ScreenCapture.preventScreenCaptureAsync('default').catch(() => {});
       screenCaptureBlockedRef.current = true;
-    }, 2500);
+    }, 1200);
     return () => clearInterval(id);
   }, []);
 
@@ -829,10 +837,13 @@ export default function App() {
       sub = ScreenCapture.addScreenshotListener(() => {
         const url = webViewCurrentUrlRef.current || '';
         if (!isLiveCaptureUrl(url)) return;
-        ScreenCapture.preventScreenCaptureAsync(LIVE_SECURE_KEY).catch(() => {});
+        lockLiveScreenCapture(true);
         if (Platform.OS === 'android' && ToastAndroid) {
           ToastAndroid.show('Screenshots are disabled during live', ToastAndroid.SHORT);
         }
+        webViewRef.current?.injectJavaScript(
+          `(function(){try{if(window.SocialLiveToast){window.SocialLiveToast('Screenshots are disabled in live rooms','warning');}else if(window.apToast){window.apToast('Screenshots are disabled in live rooms');}}catch(e){}true;})();`
+        );
       });
     } catch (_e) { /* older native builds */ }
     return () => {
@@ -840,7 +851,7 @@ export default function App() {
         sub?.remove?.();
       } catch (_e2) { /* ignore */ }
     };
-  }, []);
+  }, [lockLiveScreenCapture]);
 
   useEffect(() => {
     if (Platform.OS !== 'android') return undefined;
@@ -1015,7 +1026,7 @@ export default function App() {
               /* Prefer explicit `block`; legacy `enable:true` also means block screenshots */
               const block =
                 data.block !== undefined ? Boolean(data.block) : data.enable !== false && Boolean(data.enable);
-              if (block) {
+              if (block || isLiveCaptureUrl(webViewCurrentUrlRef.current)) {
                 await lockLiveScreenCapture(true);
               } else {
                 await unlockLiveScreenCapture();

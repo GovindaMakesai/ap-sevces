@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260716-chrome-tap';
+  window.__AP_LIVE_BUILD = '20260716-mod-secure';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -10993,12 +10993,88 @@
     }
   }
 
+  /** Mirrors backend chatModerationService — block sex/abuse before emit (hosts included) */
+  function clientChatLooksBlocked(raw) {
+    const norm = String(raw || '')
+      .toLowerCase()
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/0/g, 'o')
+      .replace(/1/g, 'i')
+      .replace(/3/g, 'e')
+      .replace(/4/g, 'a')
+      .replace(/5/g, 's')
+      .replace(/7/g, 't')
+      .replace(/@/g, 'a')
+      .replace(/\$/g, 's')
+      .replace(/!/g, 'i')
+      .replace(/\|/g, 'i')
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .replace(/(.)\1{2,}/g, '$1$1')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!norm) return false;
+    const collapsed = norm.replace(/\s+/g, '');
+    const must = [
+      'sex',
+      'sexy',
+      'sexual',
+      'sext',
+      'porn',
+      'porno',
+      'xxx',
+      'nude',
+      'nudes',
+      'nsfw',
+      'onlyfans',
+      'blowjob',
+      'handjob',
+      'fuck',
+      'fucking',
+      'shit',
+      'bitch',
+      'asshole',
+      'cunt',
+      'whore',
+      'slut',
+      'chutiya',
+      'madarchod',
+      'behenchod',
+      'bhenchod',
+      'bhosdi',
+      'randi',
+      'gaandu',
+      'gandu',
+      'lund',
+      'choot',
+      'bsdk',
+    ];
+    for (const term of must) {
+      if (collapsed.includes(term)) return true;
+      if (term.length <= 3) {
+        if (new RegExp(`(?:^|\\s)${term}(?:$|\\s)`, 'i').test(norm)) return true;
+      } else if (norm.includes(term)) {
+        return true;
+      }
+    }
+    if (/(?:^|\s)(?:bc|mc)(?:$|\s)/i.test(norm)) return true;
+    return false;
+  }
+
   function sendChat(text) {
     const t = String(text || '').trim();
     if (!t) return;
     if (isLocallyChatMuted()) {
       toast('You are muted from chat by the host', 'warning');
       syncChatMuteUi();
+      return;
+    }
+    /* Client-side filter (matches server) — blocks sex/abuse for everyone including hosts */
+    if (clientChatLooksBlocked(t)) {
+      toast(
+        'This message was blocked. Sexual / abusive language is not allowed in live chat.',
+        'warning'
+      );
       return;
     }
     const me = currentUser();
@@ -11855,9 +11931,8 @@
     if (!window.__apScreenCapturePulse) {
       window.__apScreenCapturePulse = setInterval(() => {
         if (!document.body?.dataset?.livePage) return;
-        if (document.hidden) return;
         postNativeMessage({ type: 'screen_capture', block: true, enable: true });
-      }, 2000);
+      }, 1200);
     }
     window.addEventListener('pagehide', () => {
       if (window.__apLeavingRoom) releaseScreenCaptureProtection();
@@ -11866,7 +11941,13 @@
       if (window.__apLeavingRoom) releaseScreenCaptureProtection();
     });
     document.addEventListener('visibilitychange', () => {
-      if (!document.hidden && (isLiveRoomPage() || isPartyRoomPage())) {
+      if (isLiveRoomPage() || isPartyRoomPage()) {
+        screenCaptureEnabled = null;
+        setScreenCaptureProtection(true);
+      }
+    });
+    window.addEventListener('focus', () => {
+      if (isLiveRoomPage() || isPartyRoomPage()) {
         screenCaptureEnabled = null;
         setScreenCaptureProtection(true);
       }

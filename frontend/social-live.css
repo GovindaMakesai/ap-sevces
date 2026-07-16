@@ -3,6 +3,28 @@
   --ap-bottom-bar-h: 58px;
 }
 
+/* Deter casual capture in browser; native app uses FLAG_SECURE */
+html.ap-secure-live,
+body.ap-secure-live {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+html.ap-secure-live video,
+body.ap-secure-live video,
+html.ap-secure-live canvas,
+body.ap-secure-live canvas,
+html.ap-secure-live #liveLocalVideo,
+html.ap-secure-live #liveRemoteVideo,
+html.ap-secure-live .live-room-stage,
+html.ap-secure-live .party-room-stage {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  pointer-events: auto;
+}
+
 .live-dark {
   background: #0a0618;
   color: #fff;
