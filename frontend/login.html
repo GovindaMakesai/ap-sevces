@@ -10,10 +10,10 @@
     
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="social-theme.css">
-    <link rel="stylesheet" href="social-auth.css?v=20260716-email-only">
-    <link rel="stylesheet" href="auth-native-overrides.css">
-    <script src="native-session-restore.js"></script>
-    <script src="social-auth-init.js"></script>
+  <link rel="stylesheet" href="social-auth.css?v=20260716-oauth-only">
+  <link rel="stylesheet" href="auth-native-overrides.css">
+  <script src="native-session-restore.js"></script>
+  <script src="social-auth-init.js"></script>
     <script>
       if (!window.ReactNativeWebView && !/app=1|source=expo-app/.test(location.search)) {
         var l = document.createElement('link');
@@ -635,63 +635,27 @@
                 <div class="auth-header">
                     <a href="/app-auth.html?app=1" class="auth-logo" data-auth-nav>AP<span>Services</span></a>
                     <h1>Welcome Back</h1>
-                    <p>Don't have an account? <a href="/register.html?app=1" id="signupLink" data-auth-nav>Sign up</a></p>
+                    <p>Sign in with Google, Facebook, or GitHub</p>
                     <p style="margin-top:8px;font-size:13px"><a href="/app-auth.html?app=1" style="color:#a67c1a" data-auth-nav>← Back to welcome</a></p>
                 </div>
 
                 <!-- Alert Container for Messages -->
                 <div id="alertContainer"></div>
 
-                <!-- Login Form -->
-                <form id="loginForm" class="login-form" novalidate>
-                    <div class="form-group">
-                        <div class="input-group">
-                            <i class="fas fa-envelope input-icon"></i>
-                            <input 
-                                type="email" 
-                                class="form-control" 
-                                id="email" 
-                                name="email"
-                                placeholder="Email"
-                                aria-label="Email"
-                                required
-                                autocomplete="email"
-                            >
-                        </div>
-                        <div class="error-message" id="emailError"></div>
-                    </div>
-
-                    <div class="form-group">
-                        <div class="input-group">
-                            <i class="fas fa-lock input-icon"></i>
-                            <input 
-                                type="password" 
-                                class="form-control" 
-                                id="password" 
-                                name="password"
-                                placeholder="Password"
-                                aria-label="Password"
-                                required
-                                autocomplete="current-password"
-                            >
-                            <i class="fas fa-eye password-toggle" id="togglePassword"></i>
-                        </div>
-                        <div class="error-message" id="passwordError"></div>
-                    </div>
-
-                    <div class="form-options">
-                        <label class="remember-me">
-                            <input type="checkbox" id="rememberMe" checked>
-                            <label for="rememberMe">Remember me</label>
-                        </label>
-                        <a href="/forgot-password.html" class="forgot-password">Forgot password?</a>
-                    </div>
-
-                    <button type="submit" class="login-btn" id="loginBtn">
-                        <i class="fas fa-envelope"></i>
-                        Sign In with Email
+                <div class="social-login">
+                    <button type="button" class="social-btn google" id="googleLogin">
+                        <i class="fab fa-google"></i>
+                        Continue with Google
                     </button>
-                </form>
+                    <button type="button" class="social-btn facebook" id="facebookLogin">
+                        <i class="fab fa-facebook-f"></i>
+                        Continue with Facebook
+                    </button>
+                    <button type="button" class="social-btn github" id="githubLogin">
+                        <i class="fab fa-github"></i>
+                        Continue with GitHub
+                    </button>
+                </div>
             </div>
         </div>
     </section>
@@ -753,6 +717,7 @@
     <script src="ap-config.js"></script>
     <script src="app.js"></script>
     <script src="auth-guard.js"></script>
+    <script src="auth-oauth.js"></script>
     <script>
 document.addEventListener('DOMContentLoaded', function() {
     if (window.AppAuth) {
@@ -762,110 +727,9 @@ document.addEventListener('DOMContentLoaded', function() {
       });
       AppAuth.bindAuthNavLinks?.();
     }
-    // DOM Elements
-    const loginForm = document.getElementById('loginForm');
-    const emailInput = document.getElementById('email');
-    const passwordInput = document.getElementById('password');
-    const togglePassword = document.getElementById('togglePassword');
-    const alertContainer = document.getElementById('alertContainer');
-    const loginBtn = document.getElementById('loginBtn');
-    
-    // Email validation regex
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    
-    // Password toggle
-    togglePassword.addEventListener('click', function() {
-        const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
-        passwordInput.setAttribute('type', type);
-        this.classList.toggle('fa-eye');
-        this.classList.toggle('fa-eye-slash');
-    });
-    
-    // Remember me - load saved email
-    const savedEmail = localStorage.getItem('savedEmail');
-    if (savedEmail) {
-        emailInput.value = savedEmail;
-        document.getElementById('rememberMe').checked = true;
-    }
-    
-    // Check URL parameters for messages
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('registered') === 'success') {
-        const registeredRole = (urlParams.get('role') || '').toLowerCase();
-        if (registeredRole === 'worker') {
-            showAlert('Professional registration successful! Please login.', 'success');
-        } else if (registeredRole === 'customer') {
-            showAlert('Customer registration successful! Please login.', 'success');
-        } else {
-            showAlert('Registration successful! Please login.', 'success');
-        }
-    } else if (urlParams.get('reset') === 'success') {
-        showAlert('Password reset successful! Please login.', 'success');
-    }
-    
-    // Show alert function
-    function showAlert(message, type) {
-        alertContainer.innerHTML = `
-            <div class="alert alert-${type}">
-                <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i>
-                ${message}
-            </div>
-        `;
-        setTimeout(() => alertContainer.innerHTML = '', 5000);
-    }
-    
-    // ========== SINGLE FORM SUBMISSION ==========
-    loginForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        
-        const email = emailInput.value.trim();
-        const password = passwordInput.value;
-        const rememberMe = document.getElementById('rememberMe').checked;
-        
-        // Simple validation
-        if (!email || !password) {
-            showAlert('Please enter both email and password', 'error');
-            return;
-        }
-
-        if (!emailRegex.test(email)) {
-            showAlert('Please enter a valid email address', 'error');
-            return;
-        }
-        
-        loginBtn.disabled = true;
-        loginBtn.classList.add('btn-loading');
-        const loginBtnDefaultHtml = loginBtn.innerHTML;
-        loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing in...';
-        
-        try {
-            const next = new URLSearchParams(window.location.search).get('redirect');
-            await Auth.login(email, password, { redirectUrl: next || undefined });
-            
-            if (rememberMe) {
-                localStorage.setItem('savedEmail', email);
-            } else {
-                localStorage.removeItem('savedEmail');
-            }
-            
-        } catch (error) {
-            console.error('Login failed:', error);
-            showAlert(error.message || 'Login failed', 'error');
-        } finally {
-            loginBtn.disabled = false;
-            loginBtn.classList.remove('btn-loading');
-            loginBtn.innerHTML = loginBtnDefaultHtml;
-        }
-    });
-    
+    if (window.AuthOAuth) AuthOAuth.bindOAuthButtons();
 });
-
-// Forgot password
-document.querySelector('.forgot-password')?.addEventListener('click', function(e) {
-    e.preventDefault();
-    window.location.href = '/forgot-password.html';
-});
-</script>
+    </script>
    
 </body>
 </html>
