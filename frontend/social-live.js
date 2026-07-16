@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260715-admin-seat';
+  window.__AP_LIVE_BUILD = '20260716-chrome-tap';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -7217,28 +7217,47 @@
     html += `<button type="button" class="party-viewer-count${isLiveRoomPage() ? ' live-joined-count' : ''}" id="liveViewerCount" title="Tap to view everyone in room">${viewers}${isLiveRoomPage() ? ' joined' : ''}</button>`;
     row.innerHTML = html;
     row.classList.toggle('is-clickable', isPartyRoomPage() || isLiveRoomPage());
+    const joinedBtn = document.getElementById('liveViewerCount');
+    if (joinedBtn) {
+      joinedBtn.style.pointerEvents = 'auto';
+      joinedBtn.style.zIndex = '14100';
+      joinedBtn.style.position = 'relative';
+    }
+    row.style.pointerEvents = 'auto';
+    row.style.zIndex = '14100';
     if (!row.dataset.audienceBound) {
       row.dataset.audienceBound = '1';
+      const openJoined = (e) => {
+        if (!isPartyRoomPage() && !isLiveRoomPage()) return;
+        unlockLiveChrome({ forceGift: true });
+        if (e.target.closest('.ap-top-gifter[data-audience-id]')) {
+          const chip = e.target.closest('[data-audience-id]');
+          openProfileSheet(chip.dataset.audienceName || 'Guest', chip.dataset.audienceId || '');
+          return;
+        }
+        if (
+          e.target.closest('#liveViewerCount') ||
+          e.target.closest('.party-viewer-count') ||
+          e.target.closest('.live-joined-count') ||
+          e.currentTarget === row
+        ) {
+          e.preventDefault();
+          e.stopPropagation();
+          openPartyRequestsSheet();
+        }
+      };
+      row.addEventListener('click', openJoined, true);
       row.addEventListener(
-        'click',
+        'pointerup',
         (e) => {
-          if (!isPartyRoomPage() && !isLiveRoomPage()) return;
-          unlockLiveChrome({ forceGift: true });
-          if (e.target.closest('.ap-top-gifter[data-audience-id]')) {
-            const chip = e.target.closest('[data-audience-id]');
-            openProfileSheet(chip.dataset.audienceName || 'Guest', chip.dataset.audienceId || '');
-            return;
-          }
-          if (
-            e.target.closest('#liveViewerCount') ||
-            e.target.closest('.party-viewer-count') ||
-            e.target.closest('.live-joined-count') ||
-            e.currentTarget === row
-          ) {
-            e.preventDefault();
-            e.stopPropagation();
-            openPartyRequestsSheet();
-          }
+          if (e.button != null && e.button !== 0) return;
+          if (row.dataset._joinedPtr === '1') return;
+          row.dataset._joinedPtr = '1';
+          setTimeout(() => {
+            row.dataset._joinedPtr = '0';
+          }, 400);
+          if (document.getElementById('partyRequestsSheet')?.classList.contains('open')) return;
+          openJoined(e);
         },
         true
       );
@@ -7640,7 +7659,7 @@
     document.documentElement.style.setProperty('--ap-bottom-bar-h', `${h}px`);
   }
 
-  /** Unlock Joined / gift / Users / Invite when invisible overlays trap taps */
+  /** Unlock Joined / gift / Tools / Users when invisible overlays trap taps */
   function unlockLiveChrome(opts = {}) {
     recoverStuckLiveUi({ forceGift: Boolean(opts.forceGift ?? true) });
 
@@ -7659,6 +7678,7 @@
       'apInRoomWebPanel',
       'apProfileSheet',
       'apSeatSheet',
+      'apKickDurationSheet',
     ];
 
     stuckOpenIds.forEach((id) => {
@@ -7670,20 +7690,31 @@
         el.style.pointerEvents = 'none';
         el.style.removeProperty('visibility');
         el.style.display = 'none';
-      } else {
-        el.style.pointerEvents = 'auto';
-        el.style.removeProperty('visibility');
-        el.style.removeProperty('display');
-        /* Ghost "open but invisible" sheets trap every tap — force-close them */
-        try {
-          if (el.style.visibility === 'hidden' || getComputedStyle(el).visibility === 'hidden') {
-            el.classList.remove('open');
-            el.style.pointerEvents = 'none';
-            el.style.display = 'none';
-            el.style.removeProperty('visibility');
-          }
-        } catch (_e) { /* ignore */ }
+        return;
       }
+      /* Ghost "open but invisible / off-screen" sheets trap every tap — force-close them */
+      try {
+        const cs = getComputedStyle(el);
+        const rect = el.getBoundingClientRect();
+        const ghost =
+          cs.visibility === 'hidden' ||
+          el.style.visibility === 'hidden' ||
+          cs.display === 'none' ||
+          cs.opacity === '0' ||
+          (rect.width < 8 && rect.height < 8) ||
+          (rect.bottom <= 0 || rect.top >= window.innerHeight);
+        if (ghost) {
+          el.classList.remove('open', 'is-open', 'show');
+          el.style.pointerEvents = 'none';
+          el.style.display = 'none';
+          el.style.removeProperty('visibility');
+          el.style.removeProperty('opacity');
+          return;
+        }
+      } catch (_e) { /* ignore */ }
+      el.style.pointerEvents = 'auto';
+      el.style.removeProperty('visibility');
+      el.style.removeProperty('display');
     });
 
     if (!document.getElementById('partyRequestsSheet')?.classList.contains('open')) {
@@ -7700,7 +7731,7 @@
       bar.style.visibility = 'visible';
       bar.style.opacity = '1';
       bar.style.removeProperty('transform');
-      bar.style.zIndex = '12500';
+      bar.style.zIndex = '14000';
     }
 
     [
@@ -7720,41 +7751,221 @@
       el.style.opacity = '1';
       el.removeAttribute('disabled');
       el.setAttribute('aria-disabled', 'false');
-      if (id === 'liveBtnGift' || id === 'partyBtnGift' || id === 'partyBtnTools' || id === 'liveBtnMic') {
-        el.style.zIndex = '12620';
-      } else {
-        el.style.removeProperty('z-index');
+      if (
+        id === 'liveBtnGift' ||
+        id === 'partyBtnGift' ||
+        id === 'partyBtnTools' ||
+        id === 'liveBtnMic' ||
+        id === 'liveViewerCount' ||
+        id === 'partyBtnUsersAll'
+      ) {
+        el.style.zIndex = '14100';
       }
     });
 
     const actions = document.querySelector('#partyBottomBar .party-bottom-actions');
     if (actions) {
       actions.style.pointerEvents = 'auto';
-      actions.style.zIndex = '12610';
+      actions.style.zIndex = '14050';
     }
 
     const viewers = document.getElementById('partyViewerAvatars');
     if (viewers) {
       viewers.style.pointerEvents = 'auto';
-      viewers.style.zIndex = '12050';
+      viewers.style.zIndex = '14100';
     }
     const liveActions = document.getElementById('partyLiveActions');
     if (liveActions) {
       liveActions.style.pointerEvents = 'auto';
-      liveActions.style.zIndex = '12050';
+      liveActions.style.zIndex = '14050';
     }
     const headerRight = document.querySelector('.party-header-right');
     if (headerRight) {
       headerRight.style.pointerEvents = 'auto';
-      headerRight.style.zIndex = '12050';
+      headerRight.style.zIndex = '14100';
+    }
+    const header = document.querySelector('.party-header, .live-room .party-header');
+    if (header) {
+      header.style.pointerEvents = 'none';
+      header.style.zIndex = '14100';
+      Array.from(header.children).forEach((ch) => {
+        ch.style.pointerEvents = 'auto';
+      });
+    }
+
+    /* FX layer must never steal taps */
+    const fx = document.getElementById('apFxRoot');
+    if (fx) {
+      fx.style.pointerEvents = 'none';
+      fx.querySelectorAll('*').forEach((n) => {
+        if (n.style) n.style.pointerEvents = 'none';
+      });
     }
 
     hideMicRequestActionBar();
     syncBottomBarHeightVar();
   }
 
+  /**
+   * When rooms get busy, gift FX / chat / ghost sheets sit above Joined / Gift / Tools
+   * and swallow taps. Salvage by routing the gesture to chrome under the finger.
+   */
+  function installChromeHitSalvage() {
+    if (window.__apChromeHitSalvage) return;
+    window.__apChromeHitSalvage = true;
+    let lockUntil = 0;
+
+    const CHROME = [
+      {
+        match: (el) =>
+          el?.closest?.(
+            '#liveViewerCount, .live-joined-count, .party-viewer-count, #partyBtnUsersAll, #partyViewerAvatars.is-clickable'
+          ),
+        run: () => {
+          unlockLiveChrome({ forceGift: true });
+          openPartyRequestsSheet();
+        },
+      },
+      {
+        match: (el) => el?.closest?.('#partyBtnTools, .ap-btn-grid'),
+        run: () => {
+          unlockLiveChrome({ forceGift: true });
+          const sheet = document.getElementById('partyToolsSheet');
+          if (!sheet || sheet.classList.contains('open')) return;
+          closeLiveOverlays('tools');
+          sheet.classList.add('open');
+          sheet.style.display = 'flex';
+          sheet.style.pointerEvents = 'auto';
+          sheet.style.visibility = 'visible';
+          sheet.style.zIndex = '15000';
+          syncLiveOverlayClass();
+        },
+      },
+      {
+        match: (el) => el?.closest?.('#liveBtnGift, #partyBtnGift, .ap-btn-gift-hero, .party-btn-gift'),
+        run: () => {
+          unlockLiveChrome({ forceGift: true });
+          hideMicRequestActionBar();
+          document.body.classList.remove('party-requests-open', 'ap-sheet-open');
+          document.getElementById('partyRequestsSheet')?.classList.remove('open');
+          openGiftSheet();
+        },
+      },
+    ];
+
+    function isPassThroughLayer(el) {
+      if (!el || el === document.body || el === document.documentElement) return true;
+      if (
+        el.closest?.(
+          '#partyBottomBar, #partyBtnTools, #liveBtnGift, #partyBtnGift, #liveBtnMic, #liveViewerCount, #partyBtnUsersAll, #partyViewerAvatars, #partyInvitePill, .party-header-right, .party-bottom-actions, .ap-btn-grid, .ap-btn-gift-hero'
+        )
+      ) {
+        return false;
+      }
+      const id = el.id || '';
+      const cls = typeof el.className === 'string' ? el.className : '';
+      if (
+        id === 'apFxRoot' ||
+        id === 'liveLocalVideo' ||
+        id === 'liveRemoteVideo' ||
+        cls.includes('ap-fx') ||
+        cls.includes('live-spacer') ||
+        cls.includes('live-overlay') ||
+        cls.includes('party-chat-row') ||
+        cls.includes('party-chat-zone') ||
+        cls.includes('party-chat-feed') ||
+        cls.includes('ap-guest-rail') ||
+        cls.includes('live-room-stage') ||
+        cls.includes('party-room-stage')
+      ) {
+        return true;
+      }
+      try {
+        if (getComputedStyle(el).pointerEvents === 'none') return true;
+      } catch (_e) { /* ignore */ }
+      /* Stuck full-screen sheets that aren't meant to be interactive */
+      if (
+        (el.classList?.contains('gift-sheet') ||
+          el.classList?.contains('party-tools-sheet') ||
+          el.classList?.contains('party-requests-sheet') ||
+          el.classList?.contains('ap-modal-overlay')) &&
+        el.classList.contains('open')
+      ) {
+        try {
+          const cs = getComputedStyle(el);
+          if (cs.opacity === '0' || cs.visibility === 'hidden') return true;
+        } catch (_e2) { /* ignore */ }
+      }
+      return false;
+    }
+
+    function resolveChrome(x, y) {
+      let stack = [];
+      try {
+        stack = document.elementsFromPoint(x, y) || [];
+      } catch (_e) {
+        return null;
+      }
+      for (const node of stack) {
+        for (const spec of CHROME) {
+          const hit = spec.match(node);
+          if (hit) {
+            const blockers = [];
+            for (const above of stack) {
+              if (above === hit || hit.contains?.(above)) break;
+              if (!isPassThroughLayer(above)) blockers.push(above);
+            }
+            return { hit, spec, blocked: blockers.length > 0, blockers };
+          }
+        }
+      }
+      return null;
+    }
+
+    const onPointer = (e) => {
+      if (e.button != null && e.button !== 0) return;
+      if (Date.now() < lockUntil) return;
+      const x = e.clientX ?? e.touches?.[0]?.clientX;
+      const y = e.clientY ?? e.touches?.[0]?.clientY;
+      if (x == null || y == null) return;
+      const found = resolveChrome(x, y);
+      if (!found) return;
+      /* Always clear stuck chrome state when user aims at Joined / Gift / Tools */
+      unlockLiveChrome({ forceGift: true });
+      if (!found.blocked) return;
+      /* Chrome is under a non-pass-through layer — salvage the tap */
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+      lockUntil = Date.now() + 450;
+      /* Close ghost sheets that were blocking */
+      found.blockers.forEach((b) => {
+        const sheet = b.closest?.(
+          '.gift-sheet, .party-tools-sheet, .party-requests-sheet, .ap-modal-overlay, .party-music-sheet'
+        );
+        if (sheet && sheet.classList.contains('open')) {
+          try {
+            const cs = getComputedStyle(sheet);
+            if (cs.opacity === '0' || cs.visibility === 'hidden' || sheet.style.pointerEvents === 'none') {
+              sheet.classList.remove('open');
+              sheet.style.display = 'none';
+              sheet.style.pointerEvents = 'none';
+            }
+          } catch (_e) { /* ignore */ }
+        }
+      });
+      try {
+        found.spec.run();
+      } catch (_e2) { /* ignore */ }
+    };
+
+    document.addEventListener('pointerdown', onPointer, true);
+    document.addEventListener('click', onPointer, true);
+  }
+
   function startLiveChromeWatchdog() {
     if (window.__apLiveChromeWatchdog) return;
+    installChromeHitSalvage();
     window.__apLiveChromeWatchdog = setInterval(() => {
       if (!document.body?.dataset?.livePage) return;
       const gift = document.getElementById('giftSheet');
@@ -7769,7 +7980,13 @@
       if (giftOpen) {
         try {
           const cs = getComputedStyle(gift);
-          if (cs.visibility === 'hidden' || gift.style.visibility === 'hidden') {
+          const rect = gift.getBoundingClientRect();
+          if (
+            cs.visibility === 'hidden' ||
+            gift.style.visibility === 'hidden' ||
+            cs.opacity === '0' ||
+            rect.height < 8
+          ) {
             gift.classList.remove('open');
             gift.style.removeProperty('visibility');
             gift.style.display = 'none';
@@ -7791,6 +8008,21 @@
             return;
           }
         } catch (_e2) { /* ignore */ }
+      }
+
+      if (reqOpen) {
+        try {
+          const cs = getComputedStyle(req);
+          const rect = req.getBoundingClientRect();
+          if (cs.visibility === 'hidden' || cs.opacity === '0' || rect.height < 8) {
+            req.classList.remove('open');
+            req.style.display = 'none';
+            req.style.pointerEvents = 'none';
+            document.body.classList.remove('party-requests-open');
+            unlockLiveChrome({ forceGift: true });
+            return;
+          }
+        } catch (_e3) { /* ignore */ }
       }
 
       /* Ghost body class after closing people list (common with large rooms) */
@@ -7823,7 +8055,30 @@
           document.body.classList.contains('party-requests-open');
         if (hidden) unlockLiveChrome({ forceGift: true });
       }
-    }, 900);
+
+      /* Probe Joined / Gift / Tools centers — if covered by a non-chrome layer, unlock */
+      ['liveViewerCount', 'partyBtnTools', 'liveBtnGift', 'partyBtnGift', 'partyBtnUsersAll'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        try {
+          const r = el.getBoundingClientRect();
+          if (r.width < 4 || r.height < 4) return;
+          const x = r.left + r.width / 2;
+          const y = r.top + r.height / 2;
+          const top = document.elementFromPoint(x, y);
+          if (!top) return;
+          if (el === top || el.contains(top) || top.closest?.(`#${id}`)) return;
+          if (
+            top.closest?.(
+              '#partyBottomBar, #partyViewerAvatars, .party-header-right, #partyLiveActions, .party-bottom-actions'
+            )
+          ) {
+            return;
+          }
+          unlockLiveChrome({ forceGift: true });
+        } catch (_e4) { /* ignore */ }
+      });
+    }, 700);
   }
 
   function openPartyRequestsSheet() {
@@ -7858,7 +8113,7 @@
     const sheet = document.getElementById('partyRequestsSheet');
     if (sheet) {
       sheet.classList.add('open');
-      sheet.style.zIndex = '13050';
+      sheet.style.zIndex = '15050';
       sheet.style.pointerEvents = 'auto';
       sheet.style.visibility = 'visible';
       sheet.style.removeProperty('display');
@@ -10303,7 +10558,7 @@
     renderGiftGrid();
     refreshCoinDisplay().then(() => updateGiftMeta()).catch(() => updateGiftMeta());
     updateGiftMeta();
-    sheet.style.zIndex = '13000';
+    sheet.style.zIndex = '15000';
     sheet.style.removeProperty('pointer-events');
     sheet.style.removeProperty('display');
     sheet.style.removeProperty('visibility');
@@ -10965,7 +11220,7 @@
       sheet.style.display = 'flex';
       sheet.style.pointerEvents = 'auto';
       sheet.style.visibility = 'visible';
-      sheet.style.zIndex = '13100';
+      sheet.style.zIndex = '15000';
       syncLiveOverlayClass();
       clearMessageBadge();
     };
@@ -10973,7 +11228,7 @@
     if (toolsBtn && toolsBtn.dataset.toolsOpenBound !== '1') {
       toolsBtn.dataset.toolsOpenBound = '1';
       toolsBtn.style.pointerEvents = 'auto';
-      toolsBtn.style.zIndex = '12620';
+      toolsBtn.style.zIndex = '14100';
       toolsBtn.addEventListener('click', openToolsFromBar, true);
       toolsBtn.addEventListener(
         'pointerup',

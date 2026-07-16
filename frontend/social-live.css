@@ -227,40 +227,66 @@
   color: #fff;
 }
 
-/* Keep primary chrome tappable above stray overlays */
+/* Keep primary chrome tappable above stray overlays (busy rooms) */
 #partyLiveActions,
 .party-live-actions,
 #partyBtnUsersAll,
 #partyInvitePill,
 #partyViewerAvatars,
 #liveViewerCount,
+.party-viewer-count,
+.live-joined-count,
 #partyBottomBar,
 #liveBtnGift,
 #partyBtnGift,
 #partyBtnTools,
 #liveBtnMic,
-#partyBottomBar .party-bottom-actions {
+#partyBottomBar .party-bottom-actions,
+.party-header-right {
+  pointer-events: auto !important;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: rgba(255, 255, 255, 0.15);
+}
+
+.party-header,
+.live-room .party-header {
+  position: relative;
+  z-index: 14100 !important;
+  pointer-events: none !important;
+}
+
+.party-header > *,
+.live-room .party-header > * {
   pointer-events: auto !important;
 }
 
 .party-header-right,
 #partyViewerAvatars,
 #liveViewerCount,
+.party-viewer-count.live-joined-count,
 #partyLiveActions,
 #partyBtnUsersAll,
 #partyInvitePill {
   position: relative;
-  z-index: 12050 !important;
+  z-index: 14100 !important;
   touch-action: manipulation;
 }
 
 #liveBtnGift,
 #partyBtnGift,
-.party-btn-gift.ap-btn-gift-hero {
+.party-btn-gift.ap-btn-gift-hero,
+#partyBtnTools,
+#liveBtnMic,
+.ap-btn-grid {
   position: relative;
-  z-index: 12600 !important;
+  z-index: 14100 !important;
   pointer-events: auto !important;
   touch-action: manipulation;
+}
+
+.party-bottom-bar,
+#partyBottomBar {
+  z-index: 14000 !important;
 }
 
 /* Closed sheets must never leave an invisible tap shield */
@@ -881,8 +907,8 @@
   left: 0;
   right: 0;
   bottom: 0;
-  /* Must sit above #apFxRoot (9000) and guest chrome so gift/tools stay tappable */
-  z-index: 12500;
+  /* Above FX (9000) and guest chrome so gift/tools/joined stay tappable in busy rooms */
+  z-index: 14000;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -903,7 +929,7 @@
 #partyBtnGift,
 .party-btn-gift.ap-btn-gift-hero {
   position: relative;
-  z-index: 12600 !important;
+  z-index: 14100 !important;
   pointer-events: auto !important;
   touch-action: manipulation;
 }
@@ -913,7 +939,7 @@
   gap: 12px;
   align-items: center;
   position: relative;
-  z-index: 12610 !important;
+  z-index: 14050 !important;
   pointer-events: auto !important;
   flex: 0 0 auto;
   flex-shrink: 0;
@@ -927,7 +953,7 @@
 #partyBottomBar .ap-btn-grid,
 #partyBottomBar .ap-btn-mic-ring {
   position: relative;
-  z-index: 12620 !important;
+  z-index: 14100 !important;
   pointer-events: auto !important;
   touch-action: manipulation;
   -webkit-tap-highlight-color: rgba(255, 255, 255, 0.2);
@@ -981,7 +1007,7 @@
 #partyRequestsSheet.open {
   display: flex !important;
   pointer-events: auto !important;
-  z-index: 13050 !important;
+  z-index: 15050 !important;
 }
 
 .party-requests-sheet.open .party-requests-panel,
@@ -1611,7 +1637,7 @@ body.ap-is-host #partyViewerAvatars.is-clickable,
 .party-requests-sheet.open {
   display: flex;
   pointer-events: auto;
-  z-index: 12000;
+  z-index: 15050;
 }
 
 body.party-requests-open .party-bottom-bar,
@@ -2050,8 +2076,8 @@ body[data-live-page='live-room'] .live-room {
 .party-tools-sheet {
   position: fixed;
   inset: 0;
-  /* Above bottom bar (12500) / FX (9000) so tools panel & dismiss work */
-  z-index: 13100;
+  /* Above bottom bar (14000) / FX so tools panel & dismiss work */
+  z-index: 15000;
   display: none;
   align-items: flex-end;
   justify-content: center;
@@ -3319,7 +3345,7 @@ body[data-live-page='live-room'] .live-room {
 .gift-sheet {
   position: fixed;
   inset: 0;
-  z-index: 13000;
+  z-index: 15000;
   background: rgba(0, 0, 0, 0.55);
   display: none;
   flex-direction: column;
@@ -5765,7 +5791,7 @@ body[data-live-page="party-room"] .ap-guest-rail:not(:empty) {
 
 /* Mic link modal — never demote bottom bar under FX layer */
 body.ap-live-overlay-open:not(.party-requests-open) .party-bottom-bar {
-  z-index: 12500 !important;
+  z-index: 14000 !important;
   pointer-events: auto !important;
 }
 
