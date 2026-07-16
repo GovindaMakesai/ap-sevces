@@ -17,21 +17,7 @@
     <div class="auth-gate-card">
       <a href="/app-auth.html" class="auth-logo">AP<span>Services</span></a>
       <h1>Welcome</h1>
-      <p class="auth-gate-sub">Sign up or sign in to book pros, go live, and more.</p>
-
-      <div class="auth-social-login">
-        <button type="button" class="auth-oauth-btn google" id="googleLogin">
-          <i class="fab fa-google"></i> Continue with Google
-        </button>
-        <button type="button" class="auth-oauth-btn facebook" id="facebookLogin">
-          <i class="fab fa-facebook-f"></i> Continue with Facebook
-        </button>
-        <button type="button" class="auth-oauth-btn github" id="githubLogin">
-          <i class="fab fa-github"></i> Continue with GitHub
-        </button>
-      </div>
-
-      <div class="auth-divider"><span>OR</span></div>
+      <p class="auth-gate-sub">Sign up or sign in with email to book pros, go live, and more.</p>
 
       <a href="/register.html?app=1" class="auth-gate-btn auth-gate-btn--primary" data-auth-nav>
         <i class="fas fa-user-plus"></i> Sign Up with Email
@@ -60,11 +46,5 @@
   <script src="ap-config.js"></script>
   <script src="app.js"></script>
   <script src="auth-guard.js"></script>
-  <script src="auth-oauth.js"></script>
-  <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      if (window.AuthOAuth) AuthOAuth.bindOAuthButtons();
-    });
-  </script>
 </body>
 </html>

@@ -636,31 +636,11 @@
                     <a href="/app-auth.html?app=1" class="auth-logo" data-auth-nav>AP<span>Services</span></a>
                     <h1>Welcome Back</h1>
                     <p>Don't have an account? <a href="/register.html?app=1" id="signupLink" data-auth-nav>Sign up</a></p>
-                    <p style="margin-top:8px;font-size:13px"><a href="/app-auth.html?app=1" style="color:#a67c1a" data-auth-nav>← All sign-in options</a></p>
+                    <p style="margin-top:8px;font-size:13px"><a href="/app-auth.html?app=1" style="color:#a67c1a" data-auth-nav>← Back to welcome</a></p>
                 </div>
 
                 <!-- Alert Container for Messages -->
                 <div id="alertContainer"></div>
-
-                <!-- Social Login Buttons -->
-                <div class="social-login">
-                    <button class="social-btn google" id="googleLogin">
-                        <i class="fab fa-google"></i>
-                        Continue with Google
-                    </button>
-                    <button class="social-btn facebook" id="facebookLogin">
-                        <i class="fab fa-facebook-f"></i>
-                        Continue with Facebook
-                    </button>
-                    <button class="social-btn github" id="githubLogin">
-                        <i class="fab fa-github"></i>
-                        Continue with GitHub
-                    </button>
-                </div>
-
-                <div class="divider">
-                    <span>OR</span>
-                </div>
 
                 <!-- Login Form -->
                 <form id="loginForm" class="login-form" novalidate>
@@ -813,7 +793,6 @@
     <script src="ap-config.js"></script>
     <script src="app.js"></script>
     <script src="auth-guard.js"></script>
-    <script src="auth-oauth.js"></script>
     <script>
 document.addEventListener('DOMContentLoaded', function() {
     if (window.AppAuth) {
@@ -823,7 +802,6 @@ document.addEventListener('DOMContentLoaded', function() {
       });
       AppAuth.bindAuthNavLinks?.();
     }
-    if (window.AuthOAuth) AuthOAuth.bindOAuthButtons();
     // DOM Elements
     const loginForm = document.getElementById('loginForm');
     const emailInput = document.getElementById('email');
