@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260716-no-hostbar';
+  window.__AP_LIVE_BUILD = '20260716-admin-joined';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -1532,6 +1532,19 @@
         ? '<i class="fas fa-comments"></i> Unmute all chat'
         : '<i class="fas fa-comment-slash"></i> Mute all chat';
     }
+    const toolsMute = document.getElementById('partyToolsMuteAllChat');
+    if (toolsMute) {
+      toolsMute.classList.toggle('is-active', locked);
+      const label = toolsMute.querySelector('span:last-child') || toolsMute;
+      if (toolsMute.querySelector('.ico')) {
+        toolsMute.innerHTML = locked
+          ? '<span class="ico"><i class="fas fa-comments"></i></span>Unmute chat'
+          : '<span class="ico"><i class="fas fa-comment-slash"></i></span>Mute all chat';
+      } else if (label) {
+        label.textContent = locked ? 'Unmute chat' : 'Mute all chat';
+      }
+    }
+    if (document.getElementById('partyJoinedModBar')) syncJoinedModToolbar();
   }
 
   function setRoomChatLocked(locked) {
@@ -1739,23 +1752,28 @@
     const demoteLabel = isAdminMember
       ? `Remove from the seat (keep ${adminLabel.toLowerCase()})`
       : 'Remove from the seat';
+    /* Host: Make admin ↔ Remove admin. Live/room admins can Remove admin (not grant). */
     const canMakeAdmin = isHost() && canKick && !isAdminMember;
     const canRemoveAdmin =
       canKick &&
       isAdminMember &&
       (isHost() || canModerateRoom()) &&
       String(userId) !== String(currentUser()?.id || '');
+    const chatLocked = Boolean(roomState?.chatLocked);
     menu.innerHTML = `
+      ${canMakeAdmin ? `<button type="button" data-mod="admin-grant"><i class="fas fa-user-shield"></i><span>Make admin</span></button>` : ''}
+      ${canRemoveAdmin ? `<button type="button" data-mod="admin-revoke"><i class="fas fa-user-slash"></i><span>Remove admin</span></button>` : ''}
       <button type="button" data-mod="mute"><i class="fas fa-microphone-slash"></i><span>Mute mic</span></button>
       <button type="button" data-mod="unmute"><i class="fas fa-microphone"></i><span>Unmute mic</span></button>
       ${!onStage && isPartyRoomPage() ? '<button type="button" data-mod="addseat"><i class="fas fa-plus"></i><span>Add to seat</span></button>' : ''}
+      ${!onStage && isLiveRoomPage() ? '<button type="button" data-mod="addseat"><i class="fas fa-plus"></i><span>Add to live</span></button>' : ''}
       ${isPartyRoomPage() && onStage ? '<button type="button" data-mod="move"><i class="fas fa-exchange-alt"></i><span>Move to seat…</span></button>' : ''}
       ${canSeatMod && onStage ? `<button type="button" data-mod="demote"><i class="fas fa-user-minus"></i><span>${demoteLabel}</span></button>` : ''}
       ${canKick ? '<button type="button" data-mod="kick2"><i class="fas fa-ban"></i><span>Kick out · 2 hours</span></button>' : ''}
       ${canKick ? '<button type="button" data-mod="kick24"><i class="fas fa-ban"></i><span>Kick out · 24 hours</span></button>' : ''}
       ${canKick ? `<button type="button" data-mod="block"><i class="fas fa-user-slash"></i><span>${blocked ? 'Unblock user' : 'Block user'}</span></button>` : ''}
-      ${canMakeAdmin ? `<button type="button" data-mod="admin-grant"><i class="fas fa-user-shield"></i><span>Make ${adminLabel.toLowerCase()}</span></button>` : ''}
-      ${canRemoveAdmin ? `<button type="button" data-mod="admin-revoke"><i class="fas fa-user-slash"></i><span>Remove from ${adminLabel.toLowerCase()}</span></button>` : ''}`;
+      <button type="button" data-mod="mute-all-chat"><i class="fas fa-comment-slash"></i><span>${chatLocked ? 'Unmute all chat' : 'Mute all chat'}</span></button>
+      <button type="button" data-mod="clear-chat"><i class="fas fa-eraser"></i><span>Clear all chat</span></button>`;
     menu.querySelector('[data-mod="mute"]')?.addEventListener('click', () => {
       muteRemoteUser(userId, true);
       menu.remove();
@@ -1802,12 +1820,68 @@
     menu.querySelector('[data-mod="admin-grant"]')?.addEventListener('click', () => {
       grantRoomAdmin(userId, true);
       menu.remove();
+      document.getElementById('apProfileSheet')?.classList.remove('open');
     });
     menu.querySelector('[data-mod="admin-revoke"]')?.addEventListener('click', () => {
-      if (window.confirm(`Remove ${name} from ${adminLabel.toLowerCase()}?`)) {
+      if (window.confirm(`Remove admin from ${name}?`)) {
         grantRoomAdmin(userId, false);
       }
       menu.remove();
+      document.getElementById('apProfileSheet')?.classList.remove('open');
+    });
+    menu.querySelector('[data-mod="mute-all-chat"]')?.addEventListener('click', () => {
+      setRoomChatLocked(!Boolean(roomState?.chatLocked));
+      menu.remove();
+    });
+    menu.querySelector('[data-mod="clear-chat"]')?.addEventListener('click', () => {
+      clearLiveChat();
+      menu.remove();
+    });
+  }
+
+  function ensureJoinedModToolbar() {
+    const panel = document.querySelector('#partyRequestsSheet .party-requests-panel');
+    if (!panel) return null;
+    let bar = document.getElementById('partyJoinedModBar');
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'partyJoinedModBar';
+      bar.className = 'party-joined-mod-bar';
+      const hint = panel.querySelector('.party-requests-hint');
+      if (hint) hint.insertAdjacentElement('afterend', bar);
+      else panel.insertBefore(bar, panel.firstChild?.nextSibling || null);
+    }
+    return bar;
+  }
+
+  function syncJoinedModToolbar() {
+    const bar = ensureJoinedModToolbar();
+    if (!bar) return;
+    const mod = canModerateRoom();
+    if (!mod) {
+      bar.hidden = true;
+      bar.setAttribute('hidden', '');
+      bar.innerHTML = '';
+      return;
+    }
+    bar.hidden = false;
+    bar.removeAttribute('hidden');
+    const locked = Boolean(roomState?.chatLocked);
+    bar.innerHTML = `
+      <button type="button" class="party-joined-mod-btn" data-joined-mod="mute-chat">
+        <i class="fas ${locked ? 'fa-comments' : 'fa-comment-slash'}"></i>
+        <span>${locked ? 'Unmute chat' : 'Mute all chat'}</span>
+      </button>
+      <button type="button" class="party-joined-mod-btn" data-joined-mod="clear-chat">
+        <i class="fas fa-eraser"></i>
+        <span>Clear all chat</span>
+      </button>`;
+    bar.querySelector('[data-joined-mod="mute-chat"]')?.addEventListener('click', () => {
+      setRoomChatLocked(!Boolean(roomState?.chatLocked));
+      syncJoinedModToolbar();
+    });
+    bar.querySelector('[data-joined-mod="clear-chat"]')?.addEventListener('click', () => {
+      clearLiveChat();
     });
   }
 
@@ -1939,24 +2013,41 @@
       return;
     }
     const mod = canModerateRoom();
+    const hosting = isHost();
     list.innerHTML = available
       .map((m) => {
         const role = memberListRoleLabel(m);
         const onSeat = memberIsOnStage(m.userId) || memberIsOnStage(m);
         const isTargetAdmin = Boolean(m.isAdmin || m.role === 'admin');
+        const uid = String(m.userId || '');
+        const isSelf = uid && uid === String(currentUser()?.id || '');
         let actionBtn = '';
-        if (mod && !isRoomHostUserId(m.userId)) {
-          if (onSeat) {
-            const label = isTargetAdmin
-              ? `Remove seat`
-              : 'Remove from seat';
-            actionBtn = `<button type="button" class="deny" data-remove-seat="${escapeHtml(String(m.userId))}">${label}</button>`;
-          } else {
-            actionBtn = `<button type="button" class="accept" data-invite-seat="${escapeHtml(String(m.userId))}">${isLiveRoomPage() ? 'Add to live' : 'To seat'}</button>`;
+        if (mod && !isRoomHostUserId(m.userId) && !isSelf) {
+          const bits = [];
+          if (hosting) {
+            bits.push(
+              isTargetAdmin
+                ? `<button type="button" class="deny party-admin-toggle" data-admin-revoke="${escapeHtml(uid)}">Remove admin</button>`
+                : `<button type="button" class="accept party-admin-toggle" data-admin-grant="${escapeHtml(uid)}">Make admin</button>`
+            );
+          } else if (isTargetAdmin && canModerateRoom()) {
+            bits.push(
+              `<button type="button" class="deny party-admin-toggle" data-admin-revoke="${escapeHtml(uid)}">Remove admin</button>`
+            );
           }
+          if (onSeat) {
+            bits.push(
+              `<button type="button" class="deny" data-remove-seat="${escapeHtml(uid)}">${isTargetAdmin ? 'Remove seat' : 'Remove from seat'}</button>`
+            );
+          } else {
+            bits.push(
+              `<button type="button" class="accept" data-invite-seat="${escapeHtml(uid)}">${isLiveRoomPage() ? 'Add to live' : 'To seat'}</button>`
+            );
+          }
+          actionBtn = `<div class="party-req-actions">${bits.join('')}</div>`;
         }
         return `
-      <div class="party-req-row" data-user-id="${escapeHtml(String(m.userId))}">
+      <div class="party-req-row" data-user-id="${escapeHtml(uid)}">
         <img src="${avatarUrl(m.name, m.profilePic)}" alt="">
         <div class="info"><strong>${escapeHtml(m.name || 'Guest')}</strong><br><small class="party-online-dot">● ${escapeHtml(role)}</small></div>
         ${actionBtn}
@@ -1964,12 +2055,31 @@
       })
       .join('');
     /* Accept / Add / Remove clicks: delegated in bindPartyRequestsSheet */
+    list.querySelectorAll('[data-admin-grant]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const uid = btn.getAttribute('data-admin-grant');
+        if (uid) grantRoomAdmin(uid, true);
+      });
+    });
+    list.querySelectorAll('[data-admin-revoke]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const uid = btn.getAttribute('data-admin-revoke');
+        const member = available.find((m) => String(m.userId) === String(uid));
+        if (uid && window.confirm(`Remove admin from ${member?.name || 'this user'}?`)) {
+          grantRoomAdmin(uid, false);
+        }
+      });
+    });
     list.querySelectorAll('.party-req-row[data-user-id]').forEach((row) => {
       row.addEventListener('click', (e) => {
         if (e.target.closest('button')) return;
         const uid = row.dataset.userId;
         const member = available.find((m) => String(m.userId) === String(uid));
-        if (mod && uid && !isRoomHostUserId(uid)) {
+        if (mod && uid && !isRoomHostUserId(uid) && String(uid) !== String(currentUser()?.id || '')) {
           openModerationMenu(member?.name || 'Guest', uid);
           return;
         }
@@ -3500,6 +3610,8 @@
         }
         renderRoomState();
         syncHostBarUi();
+        renderAvailableUsers();
+        syncJoinedModToolbar();
       });
 
       liveSocket.on('live:room_style', (payload) => {
@@ -8306,14 +8418,15 @@
     if (hint) {
       if (canModerateRoom()) {
         hint.textContent = isLiveRoomPage()
-          ? 'Accept mic requests to add guests. Tap a guest or use Remove to take them off live.'
-          : 'Accept mic requests and invite listeners to seats. Tap a seated guest to remove them.';
+          ? 'Make/remove admin, clear chat, and manage guests here. Tap a guest for more options.'
+          : 'Make/remove admin, clear chat, and manage seats here. Tap a guest for more options.';
       } else {
         hint.textContent = isLiveRoomPage()
           ? 'Everyone currently in this live. Tap a name to view their profile.'
           : 'Everyone currently in this party room. Tap a name to view their profile.';
       }
     }
+    syncJoinedModToolbar();
     document.body.classList.add('party-requests-open');
     const sheet = document.getElementById('partyRequestsSheet');
     if (sheet) {

@@ -6972,6 +6972,65 @@ html.ap-expo-app .ap-chip {
   color: #b91c1c;
 }
 
+.ap-profile-more-menu button[data-mod="admin-grant"] {
+  color: #b45309;
+  background: #fffbeb;
+}
+
+.ap-profile-more-menu button[data-mod="admin-grant"] i {
+  color: #d97706;
+}
+
+.ap-profile-more-menu button[data-mod="admin-revoke"],
+.ap-profile-more-menu button[data-mod="clear-chat"] {
+  color: #b91c1c;
+}
+
+.party-joined-mod-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 12px 10px;
+}
+
+.party-joined-mod-bar[hidden] {
+  display: none !important;
+}
+
+.party-joined-mod-btn {
+  flex: 1 1 calc(50% - 4px);
+  min-width: 120px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: none;
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(251, 191, 36, 0.18);
+  color: #fef3c7;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.party-joined-mod-btn i {
+  color: #fbbf24;
+}
+
+.party-req-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.party-req-actions .party-admin-toggle {
+  white-space: nowrap;
+}
+
 .ap-profile-more-menu button[data-mod="kick"] i,
 .ap-profile-more-menu button[data-mod="kick2"] i,
 .ap-profile-more-menu button[data-mod="kick24"] i,
