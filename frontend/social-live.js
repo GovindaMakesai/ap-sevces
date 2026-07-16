@@ -1537,7 +1537,6 @@
     const canKick = uid && !isRoomHostUserId(uid);
     menu.innerHTML = `
       <button type="button" data-cmod="delete"><i class="fas fa-trash"></i><span>Remove message</span></button>
-      ${canKick ? '<button type="button" data-cmod="warn"><i class="fas fa-exclamation-triangle"></i><span>Warn for abuse</span></button>' : ''}
       ${canKick ? '<button type="button" data-cmod="mutechat"><i class="fas fa-comment-slash"></i><span>Mute chat</span></button>' : ''}
       ${canKick ? '<button type="button" data-cmod="block"><i class="fas fa-ban"></i><span>Kick / ban from live…</span></button>' : ''}
       <button type="button" data-cmod="cancel"><i class="fas fa-times"></i><span>Cancel</span></button>`;
@@ -1549,26 +1548,6 @@
     menu.querySelector('[data-cmod="delete"]')?.addEventListener('click', () => {
       close();
       if (window.confirm('Remove this message for everyone?')) deleteChatMessage(msg.id);
-    });
-    menu.querySelector('[data-cmod="warn"]')?.addEventListener('click', () => {
-      close();
-      if (!uid || !liveSocket?.connected) return;
-      liveSocket.emit(
-        'live:chat_warn',
-        { channel: channelId(), userId: uid, name },
-        (res) => {
-          if (res?.ok) {
-            toast(
-              res.action === 'ban'
-                ? `${name} banned for abusive chat`
-                : res.action === 'mute'
-                  ? `${name} muted (strike ${res.strikes}/3)`
-                  : `Warned ${name} (strike ${res.strikes}/3)`,
-              res.action === 'ban' ? 'error' : 'warning'
-            );
-          } else toast(res?.message || 'Could not warn', 'error');
-        }
-      );
     });
     menu.querySelector('[data-cmod="mutechat"]')?.addEventListener('click', () => {
       close();
@@ -3202,11 +3181,6 @@
         }
       });
 
-      liveSocket.on('live:chat_warning', (payload) => {
-        toast(payload?.message || 'Chat warning — keep it respectful', 'warning');
-        if (payload?.action === 'mute') syncChatMuteUi();
-      });
-
       liveSocket.on('live:mod_alert', (payload) => {
         if (!canModerateRoom() && !isHost() && !clientClaimsHost()) return;
         const who = payload?.user || 'Someone';
@@ -3220,9 +3194,6 @@
                 : 'warned (message blocked)';
           toast(`Chat filter: ${who} ${act}${strikes}`, 'warning');
           return;
-        }
-        if (payload?.type === 'warn' && payload?.byHost) {
-          toast(`Warned ${who}${strikes}`, 'info');
         }
       });
 
