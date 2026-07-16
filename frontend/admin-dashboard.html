@@ -807,36 +807,63 @@
         /* ==================== PAGINATION ==================== */
         .pagination {
             display: flex;
+            flex-wrap: wrap;
+            align-items: center;
             justify-content: center;
-            gap: var(--spacing-xs);
+            gap: 8px;
             margin-top: var(--spacing-xl);
+            padding: 14px 12px;
+            background: linear-gradient(180deg, #fffdf8, #faf6ee);
+            border: 1px solid rgba(201, 162, 39, 0.2);
+            border-radius: 14px;
         }
 
         .page-btn {
-            width: 40px;
+            min-width: 40px;
             height: 40px;
-            border: 1px solid var(--gray-300);
-            border-radius: var(--radius-md);
-            background: white;
-            color: var(--gray-700);
+            padding: 0 10px;
+            border: 1px solid #e8d4a8;
+            border-radius: 10px;
+            background: #fff;
+            color: #6b4f10;
+            font-weight: 700;
             cursor: pointer;
             transition: all var(--transition-fast);
         }
 
         .page-btn:hover:not(:disabled) {
-            background: var(--primary-50);
-            border-color: var(--primary-400);
+            background: #fdf8eb;
+            border-color: #c9a227;
+            color: #3d2e08;
         }
 
         .page-btn.active {
-            background: var(--primary-600);
-            color: white;
-            border-color: var(--primary-600);
+            background: linear-gradient(135deg, #e8c56a, #c9a227);
+            color: #3d2e08;
+            border-color: #c9a227;
+            box-shadow: 0 4px 12px rgba(201, 162, 39, 0.25);
         }
 
         .page-btn:disabled {
-            opacity: 0.5;
+            opacity: 0.45;
             cursor: not-allowed;
+        }
+
+        .pagination .page-info {
+            flex: 1 1 100%;
+            text-align: center;
+            padding-top: 4px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: #7c6a45;
+        }
+
+        @media (min-width: 640px) {
+            .pagination .page-info {
+                flex: 0 1 auto;
+                padding-top: 0;
+                margin-left: 8px;
+            }
         }
 
         /* ==================== MODAL ==================== */
@@ -1650,11 +1677,12 @@
                         </div>
 
                         <!-- Users Table -->
-                        <div class="table-container">
+                        <div class="table-container admin-table-view">
                             <table>
                                 <thead>
                                     <tr>
                                         <th>User</th>
+                                        <th>ID</th>
                                         <th>Email</th>
                                         <th>Phone</th>
                                         <th>Role</th>
@@ -1665,13 +1693,14 @@
                                 </thead>
                                 <tbody id="usersTable">
                                     <tr>
-                                        <td colspan="7" class="loading-spinner">
+                                        <td colspan="8" class="loading-spinner">
                                             <i class="fas fa-spinner fa-spin"></i> Loading users...
                                         </td>
                                     </tr>
                                 </tbody>
                             </table>
                         </div>
+                        <div class="admin-cards-view" id="usersCards"></div>
 
                         <!-- Pagination -->
                         <div class="pagination" id="usersPagination"></div>
@@ -2530,27 +2559,31 @@
 
         async function loadUsers(page = 1) {
             try {
+                currentUserPage = page;
                 const role = document.getElementById('userRoleFilter')?.value || 'all';
                 const status = document.getElementById('userStatusFilter')?.value || 'all';
                 const search = document.getElementById('userSearch')?.value || '';
 
-                const response = await API.get(`/admin/users?page=${page}&limit=10&role=${role}&status=${status}&search=${search}`);
+                const response = await API.get(`/admin/users?page=${page}&limit=10&role=${encodeURIComponent(role)}&status=${encodeURIComponent(status)}&search=${encodeURIComponent(search)}`);
                 
                 if (response.success) {
                     displayUsers(response.data);
-                    updatePagination(response.pagination, 'users', (p) => loadUsers(p));
+                    displayUsersCards(response.data);
+                    updatePagination(response.pagination, 'users', loadUsers);
                 }
             } catch (error) {
                 console.error('Failed to load users:', error);
                 const tbody = document.getElementById('usersTable');
-                if (tbody) tbody.innerHTML = `<tr><td colspan="7" class="empty-state">${error.message || 'Failed to load users'}</td></tr>`;
+                if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="empty-state">${error.message || 'Failed to load users'}</td></tr>`;
+                const cards = document.getElementById('usersCards');
+                if (cards) cards.innerHTML = `<p class="empty-state">${error.message || 'Failed to load users'}</p>`;
             }
         }
 
         function displayUsers(users) {
             const tbody = document.getElementById('usersTable');
             if (!users || users.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No users found</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No users found</td></tr>';
                 return;
             }
 
@@ -2558,6 +2591,7 @@
                 const roleChip =
                     window.formatRoleBadgeHtml?.(user, { withEmoji: true }) ||
                     `<span class="status-badge">${user.role || 'customer'}</span>`;
+                const displayId = user.display_id != null ? String(user.display_id) : '—';
                 return `
                 <tr>
                     <td>
@@ -2566,6 +2600,7 @@
                             <span>${user.first_name || ''} ${user.last_name || ''}</span>
                         </div>
                     </td>
+                    <td>${displayId}</td>
                     <td>${user.email || ''}</td>
                     <td>${user.phone || ''}</td>
                     <td>${roleChip}</td>
@@ -2586,6 +2621,43 @@
             }).join('');
         }
 
+        function displayUsersCards(users) {
+            const el = document.getElementById('usersCards');
+            if (!el) return;
+            if (!users || users.length === 0) {
+                el.innerHTML = '<p class="empty-state">No users found</p>';
+                return;
+            }
+            el.innerHTML = users.map((user) => {
+                const name = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email || 'User';
+                const initials = adminUserInitials(user.first_name, user.last_name, user.email);
+                const displayId = user.display_id != null ? String(user.display_id) : '—';
+                const roleChip =
+                    window.formatRoleBadgeHtml?.(user, { withEmoji: true }) ||
+                    `<span class="status-badge">${user.role || 'customer'}</span>`;
+                return `<article class="admin-approval-card">
+                    <div class="admin-approval-card-head">
+                        <div class="admin-approval-card-avatar">${initials}</div>
+                        <div class="admin-approval-card-user">
+                            <strong>${name}</strong>
+                            <small>ID ${displayId}</small>
+                            <small>${user.email || user.phone || ''}</small>
+                        </div>
+                    </div>
+                    <div class="admin-approval-kv">
+                        <div><span>Role</span><strong>${roleChip}</strong></div>
+                        <div><span>Status</span><strong class="${user.is_active ? 'status-active' : 'status-pending'}">${user.is_active ? 'Active' : 'Inactive'}</strong></div>
+                        <div><span>Joined</span><strong>${new Date(user.created_at).toLocaleDateString()}</strong></div>
+                        <div><span>Verified</span><strong>${user.is_verified ? 'Yes' : 'No'}</strong></div>
+                    </div>
+                    <div class="admin-approval-actions">
+                        <button type="button" class="btn-primary" onclick="viewUserDetails('${user.id}')"><i class="fas fa-user"></i> View</button>
+                        <button type="button" class="btn-outline" onclick="editUser('${user.id}')"><i class="fas fa-edit"></i> Edit</button>
+                    </div>
+                </article>`;
+            }).join('');
+        }
+
         // ==================== WORKERS MANAGEMENT ====================
         let currentWorkerPage = 1;
         let currentWorkerTab = 'pending';
@@ -2600,7 +2672,7 @@
                 
                 if (response.success) {
                     displayWorkers(response.data);
-                    updatePagination(response.pagination, 'workers', (p) => loadWorkers(p, status));
+                    updatePagination(response.pagination, 'workers', (p) => loadWorkers(p, currentWorkerTab));
                 }
             } catch (error) {
                 console.error('Failed to load workers:', error);
@@ -2693,7 +2765,7 @@
                 
                 if (response.success) {
                     displayBookings(response.data);
-                    updatePagination(response.pagination, 'bookings', (p) => loadBookings(p));
+                    updatePagination(response.pagination, 'bookings', loadBookings);
                 }
             } catch (error) {
                 console.error('Failed to load bookings:', error);
@@ -3731,14 +3803,15 @@
             if (section === 'withdrawals') loadWithdrawals();
             if (section === 'notifications') loadAdminNotifications();
             if (section === 'reviews') loadReviews();
+            if (section === 'users') loadUsers(currentUserPage || 1);
         }
 
         // ==================== FILTERS ====================
         function setupFilters() {
             // User filters
-            document.getElementById('userSearch')?.addEventListener('input', debounce(() => loadUsers(), 500));
-            document.getElementById('userRoleFilter')?.addEventListener('change', () => loadUsers());
-            document.getElementById('userStatusFilter')?.addEventListener('change', () => loadUsers());
+            document.getElementById('userSearch')?.addEventListener('input', debounce(() => loadUsers(1), 500));
+            document.getElementById('userRoleFilter')?.addEventListener('change', () => loadUsers(1));
+            document.getElementById('userStatusFilter')?.addEventListener('change', () => loadUsers(1));
 
             // Worker filters
             document.getElementById('workerSearch')?.addEventListener('input', debounce(() => loadWorkers(), 500));
@@ -3777,23 +3850,41 @@
 
             if (!pagination || pagination.pages <= 1) {
                 container.innerHTML = '';
+                container._pageLoader = null;
                 return;
             }
 
-            let html = '';
-            html += `<button class="page-btn" onclick="${callback.name}(${pagination.page - 1})" ${pagination.page === 1 ? 'disabled' : ''}><i class="fas fa-chevron-left"></i></button>`;
+            const page = Number(pagination.page) || 1;
+            const pages = Number(pagination.pages) || 1;
+            container._pageLoader = callback;
 
-            for (let i = 1; i <= pagination.pages; i++) {
-                if (i === 1 || i === pagination.pages || (i >= pagination.page - 2 && i <= pagination.page + 2)) {
-                    html += `<button class="page-btn ${i === pagination.page ? 'active' : ''}" onclick="${callback.name}(${i})">${i}</button>`;
-                } else if (i === pagination.page - 3 || i === pagination.page + 3) {
-                    html += `<span class="page-btn disabled">...</span>`;
+            let html = '';
+            html += `<button type="button" class="page-btn" data-page="${page - 1}" aria-label="Previous page"${page <= 1 ? ' disabled' : ''}><i class="fas fa-chevron-left"></i></button>`;
+
+            for (let i = 1; i <= pages; i++) {
+                if (i === 1 || i === pages || (i >= page - 2 && i <= page + 2)) {
+                    html += `<button type="button" class="page-btn${i === page ? ' active' : ''}" data-page="${i}">${i}</button>`;
+                } else if (i === page - 3 || i === page + 3) {
+                    html += `<span class="page-btn disabled">…</span>`;
                 }
             }
 
-            html += `<button class="page-btn" onclick="${callback.name}(${pagination.page + 1})" ${pagination.page === pagination.pages ? 'disabled' : ''}><i class="fas fa-chevron-right"></i></button>`;
+            html += `<button type="button" class="page-btn" data-page="${page + 1}" aria-label="Next page"${page >= pages ? ' disabled' : ''}><i class="fas fa-chevron-right"></i></button>`;
+            html += `<span class="page-info">Page ${page} of ${pages} · ${Number(pagination.total || 0).toLocaleString()} total</span>`;
 
             container.innerHTML = html;
+
+            if (!container.dataset.paginationBound) {
+                container.dataset.paginationBound = '1';
+                container.addEventListener('click', (event) => {
+                    const btn = event.target.closest('[data-page]');
+                    if (!btn || btn.disabled) return;
+                    const nextPage = parseInt(btn.dataset.page, 10);
+                    if (!Number.isFinite(nextPage) || nextPage < 1) return;
+                    const loader = container._pageLoader;
+                    if (typeof loader === 'function') loader(nextPage);
+                });
+            }
         }
 
         // ==================== CHARTS ====================
@@ -4020,17 +4111,18 @@
             Auth.logout();
         };
 
-        // Handle URL hash
-        if (window.location.hash) {
-            const section = window.location.hash.substring(1);
-            switchSection(section);
+        // Handle URL hash / query section
+        const bootParams = new URLSearchParams(window.location.search);
+        const bootSection = bootParams.get('section') || (window.location.hash ? window.location.hash.substring(1) : '');
+        if (bootSection) {
+            switchSection(bootSection);
             document.querySelectorAll('.nav-item').forEach(item => {
-                if (item.dataset.section === section) {
-                    item.classList.add('active');
-                } else {
-                    item.classList.remove('active');
-                }
+                item.classList.toggle('active', item.dataset.section === bootSection);
             });
+        }
+        const bootEditUser = bootParams.get('edit');
+        if (bootEditUser) {
+            setTimeout(() => window.editUser?.(bootEditUser), 300);
         }
     </script>
 </body>

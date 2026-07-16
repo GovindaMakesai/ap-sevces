@@ -1,110 +1,396 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="social-app">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin User Details | AP Services</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="admin-mobile-app.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#c9a227">
+    <title>User Details - AP Services</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="social-theme.css">
+    <link rel="stylesheet" href="admin-mobile-cards.css">
     <style>
-        body { background: #f8fafc; }
-        .page { padding: 2rem 0; }
-        .card {
-            background: #fff;
-            border: 1px solid #e5e7eb;
-            border-radius: 0.75rem;
-            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.08);
-            padding: 1.25rem;
+        body.au-page {
+            margin: 0;
+            min-height: 100dvh;
+            background: var(--cream-bg, #faf6ee);
+            color: #1f2937;
+            font-family: var(--font-social, system-ui, sans-serif);
         }
-        .head {
+
+        .au-topbar {
+            position: sticky;
+            top: 0;
+            z-index: 20;
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            margin-bottom: 1rem;
-            gap: 1rem;
+            gap: 12px;
+            padding: calc(10px + env(safe-area-inset-top, 0px)) 14px 10px;
+            background: linear-gradient(180deg, #fffdf8 0%, #faf6ee 100%);
+            border-bottom: 1px solid rgba(201, 162, 39, 0.18);
         }
-        .title { font-size: 1.25rem; font-weight: 700; }
-        .grid {
+
+        .au-back {
+            width: 40px;
+            height: 40px;
+            border: none;
+            border-radius: 12px;
+            background: #fff;
+            color: #6b4f10;
+            box-shadow: var(--shadow-card, 0 4px 16px rgba(107, 79, 16, 0.08));
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+        }
+
+        .au-topbar h1 {
+            margin: 0;
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: #3d2e08;
+        }
+
+        .au-shell {
+            padding: 14px 14px calc(24px + env(safe-area-inset-bottom, 0px));
+            max-width: 720px;
+            margin: 0 auto;
+        }
+
+        .au-hero {
+            background: linear-gradient(145deg, #fffdf8, #f8edd4);
+            border: 1px solid rgba(201, 162, 39, 0.22);
+            border-radius: 18px;
+            padding: 18px;
+            box-shadow: var(--shadow-card);
+            text-align: center;
+            margin-bottom: 14px;
+        }
+
+        .au-avatar {
+            width: 84px;
+            height: 84px;
+            border-radius: 50%;
+            margin: 0 auto 12px;
+            background: linear-gradient(135deg, #e8c56a, #c9a227);
+            color: #3d2e08;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.6rem;
+            font-weight: 800;
+            overflow: hidden;
+            border: 3px solid #fff;
+            box-shadow: 0 8px 20px rgba(107, 79, 16, 0.15);
+        }
+
+        .au-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .au-name {
+            margin: 0;
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: #3d2e08;
+        }
+
+        .au-sub {
+            margin: 6px 0 0;
+            color: #7c6a45;
+            font-size: 0.9rem;
+        }
+
+        .au-badges {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .au-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 999px;
+            font-size: 0.78rem;
+            font-weight: 700;
+            background: #fff;
+            border: 1px solid rgba(201, 162, 39, 0.25);
+            color: #6b4f10;
+        }
+
+        .au-pill.ok { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+        .au-pill.warn { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
+        .au-pill.off { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+
+        .au-stats {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 0.75rem;
+            gap: 10px;
+            margin-bottom: 14px;
         }
-        .item {
-            border: 1px solid #e5e7eb;
-            border-radius: 0.6rem;
-            padding: 0.75rem;
-            background: #f9fafb;
+
+        .au-stat {
+            background: #fff;
+            border: 1px solid #efe4c8;
+            border-radius: 14px;
+            padding: 14px;
+            text-align: center;
         }
-        .item-label { color: #6b7280; font-size: 0.85rem; }
-        .item-value { color: #111827; font-weight: 600; margin-top: 0.2rem; }
-        @media (max-width: 768px) {
-            .grid { grid-template-columns: 1fr; }
-            .head { flex-direction: column; align-items: stretch; }
-            .head .btn-outline { width: 100%; text-align: center; justify-content: center; }
+
+        .au-stat strong {
+            display: block;
+            font-size: 1.15rem;
+            color: #3d2e08;
         }
+
+        .au-stat span {
+            display: block;
+            margin-top: 4px;
+            font-size: 0.75rem;
+            color: #9ca3af;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            font-weight: 700;
+        }
+
+        .au-card {
+            background: #fff;
+            border: 1px solid #efe4c8;
+            border-radius: 16px;
+            padding: 14px;
+            margin-bottom: 12px;
+            box-shadow: 0 2px 10px rgba(107, 79, 16, 0.05);
+        }
+
+        .au-card h2 {
+            margin: 0 0 12px;
+            font-size: 0.92rem;
+            color: #6b4f10;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .au-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 10px 0;
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .au-row:last-child { border-bottom: none; padding-bottom: 0; }
+
+        .au-row label {
+            font-size: 0.82rem;
+            color: #9ca3af;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+
+        .au-row div,
+        .au-row a {
+            font-size: 0.92rem;
+            font-weight: 600;
+            color: #111827;
+            text-align: right;
+            word-break: break-word;
+        }
+
+        .au-row a { color: #1d4ed8; text-decoration: none; }
+
+        .au-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 8px;
+        }
+
+        .au-btn {
+            min-height: 46px;
+            border-radius: 12px;
+            border: none;
+            font-size: 0.92rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .au-btn.primary {
+            background: linear-gradient(135deg, #e8c56a, #c9a227);
+            color: #3d2e08;
+        }
+
+        .au-btn.secondary {
+            background: #fff;
+            color: #6b4f10;
+            border: 1px solid #e8d4a8;
+        }
+
+        .au-btn.danger {
+            background: #fff;
+            color: #dc2626;
+            border: 1px solid #fecaca;
+        }
+
+        .au-loading, .au-error {
+            text-align: center;
+            padding: 48px 16px;
+            color: #7c6a45;
+        }
+
+        .au-error { color: #b91c1c; }
     </style>
 </head>
-<body>
-    <nav class="navbar">
-        <div class="container">
-            <div class="nav-content">
-                <a href="/" class="logo">AP<span>Services</span></a>
-                <div class="nav-links"></div>
-                <button type="button" class="mobile-menu-btn" aria-label="Open menu"><i class="fas fa-bars"></i></button>
-            </div>
-        </div>
-    </nav>
+<body class="au-page">
+    <header class="au-topbar">
+        <a class="au-back" href="/admin-dashboard.html?section=users" aria-label="Back"><i class="fas fa-arrow-left"></i></a>
+        <h1>User profile</h1>
+    </header>
 
-    <section class="page">
-        <div class="container">
-            <div class="card">
-                <div class="head">
-                    <h1 class="title"><i class="fas fa-user"></i> User Details</h1>
-                    <a class="btn-outline" href="/admin-dashboard.html"><i class="fas fa-arrow-left"></i> Back to Dashboard</a>
-                </div>
-                <div id="content">Loading user details...</div>
-            </div>
-        </div>
-    </section>
+    <main class="au-shell" id="content">
+        <div class="au-loading"><i class="fas fa-spinner fa-spin"></i> Loading user…</div>
+    </main>
 
-    <div id="toast" class="toast"></div>
     <script src="app.js"></script>
     <script>
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function isAdminRole(role) {
+            return ['admin', 'super_admin', 'founder', 'ceo'].includes(String(role || '').toLowerCase());
+        }
+
+        function initials(user) {
+            const name = `${user.first_name || ''} ${user.last_name || ''}`.trim();
+            if (name) return name.slice(0, 2).toUpperCase();
+            return (user.email || 'U').slice(0, 2).toUpperCase();
+        }
+
+        function formatCoins(n) {
+            return Number(n || 0).toLocaleString();
+        }
+
+        function formatDate(value) {
+            if (!value) return '—';
+            try { return new Date(value).toLocaleString(); } catch (_e) { return '—'; }
+        }
+
+        function avatarHtml(user) {
+            const pic = user.profile_pic;
+            if (pic) return `<img src="${escapeHtml(pic)}" alt="">`;
+            return escapeHtml(initials(user));
+        }
+
+        function roleBadge(user) {
+            return window.formatRoleBadgeHtml?.(user, { withEmoji: true }) ||
+                `<span class="au-pill">${escapeHtml(user.role || 'customer')}</span>`;
+        }
+
+        function renderUser(user) {
+            const displayId = user.display_id != null
+                ? (window.formatUserDisplayId?.(user) || String(user.display_id))
+                : '—';
+            const name = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email || 'User';
+
+            document.getElementById('content').innerHTML = `
+                <section class="au-hero">
+                    <div class="au-avatar">${avatarHtml(user)}</div>
+                    <h2 class="au-name">${escapeHtml(name)}</h2>
+                    <p class="au-sub">ID ${escapeHtml(displayId)}</p>
+                    <div class="au-badges">
+                        ${roleBadge(user)}
+                        <span class="au-pill ${user.is_active ? 'ok' : 'off'}">${user.is_active ? 'Active' : 'Inactive'}</span>
+                        <span class="au-pill ${user.is_verified ? 'ok' : 'warn'}">${user.is_verified ? 'Verified' : 'Unverified'}</span>
+                    </div>
+                </section>
+
+                <section class="au-stats">
+                    <div class="au-stat"><strong>${formatCoins(user.coin_balance)}</strong><span>Coins</span></div>
+                    <div class="au-stat"><strong>${formatCoins(user.star_balance)}</strong><span>Stars</span></div>
+                </section>
+
+                <section class="au-card">
+                    <h2>Contact</h2>
+                    <div class="au-row"><label>Email</label><div>${escapeHtml(user.email || '—')}</div></div>
+                    <div class="au-row"><label>Phone</label><div>${escapeHtml(user.phone || '—')}</div></div>
+                    <div class="au-row"><label>Gender</label><div>${escapeHtml(user.gender || '—')}</div></div>
+                </section>
+
+                <section class="au-card">
+                    <h2>Account</h2>
+                    <div class="au-row"><label>User ID</label><div>${escapeHtml(displayId)}</div></div>
+                    <div class="au-row"><label>Internal UUID</label><div style="font-size:0.75rem">${escapeHtml(user.id)}</div></div>
+                    <div class="au-row"><label>Joined</label><div>${escapeHtml(formatDate(user.created_at))}</div></div>
+                    <div class="au-row"><label>Last login</label><div>${escapeHtml(formatDate(user.last_login))}</div></div>
+                    <div class="au-row"><label>Updated</label><div>${escapeHtml(formatDate(user.updated_at))}</div></div>
+                </section>
+
+                <section class="au-actions">
+                    <button type="button" class="au-btn primary" id="auEditBtn"><i class="fas fa-edit"></i> Edit user</button>
+                    <button type="button" class="au-btn secondary" id="auToggleBtn">
+                        <i class="fas fa-${user.is_active ? 'ban' : 'check-circle'}"></i>
+                        ${user.is_active ? 'Deactivate' : 'Activate'}
+                    </button>
+                </section>
+            `;
+
+            document.getElementById('auEditBtn')?.addEventListener('click', () => {
+                window.location.href = `/admin-dashboard.html?section=users&edit=${encodeURIComponent(user.id)}`;
+            });
+
+            document.getElementById('auToggleBtn')?.addEventListener('click', async () => {
+                const activate = !user.is_active;
+                const label = activate ? 'activate' : 'deactivate';
+                if (!confirm(`Are you sure you want to ${label} this user?`)) return;
+                try {
+                    const res = await API.put(`/admin/users/${user.id}/status`, { is_active: activate });
+                    if (!res.success) throw new Error(res.message || 'Update failed');
+                    user.is_active = activate;
+                    renderUser(user);
+                    window.Toast?.show?.(`User ${activate ? 'activated' : 'deactivated'}`, 'success');
+                } catch (error) {
+                    window.Toast?.show?.(error.message || 'Failed to update user', 'error');
+                }
+            });
+        }
+
         document.addEventListener('DOMContentLoaded', async () => {
             if (!Auth.checkAuth()) {
                 window.location.href = '/login.html';
                 return;
             }
             const me = Auth.getUser();
-            if (me?.role !== 'admin') {
+            if (!isAdminRole(me?.role)) {
                 window.location.href = '/';
                 return;
             }
 
             const userId = new URLSearchParams(window.location.search).get('id');
             if (!userId) {
-                document.getElementById('content').innerHTML = '<p>Missing user id.</p>';
+                document.getElementById('content').innerHTML = '<div class="au-error">Missing user id.</div>';
                 return;
             }
 
             try {
                 const res = await API.get(`/admin/users/${userId}`);
-                if (!res.success) throw new Error('Failed to fetch user');
-                const user = res.data;
-                document.getElementById('content').innerHTML = `
-                    <div class="grid">
-                        <div class="item"><div class="item-label">Full Name</div><div class="item-value">${user.first_name || ''} ${user.last_name || ''}</div></div>
-                        <div class="item"><div class="item-label">Email</div><div class="item-value">${user.email || '-'}</div></div>
-                        <div class="item"><div class="item-label">Phone</div><div class="item-value">${user.phone || '-'}</div></div>
-                        <div class="item"><div class="item-label">Role</div><div class="item-value">${user.role || '-'}</div></div>
-                        <div class="item"><div class="item-label">Active</div><div class="item-value">${user.is_active ? 'Yes' : 'No'}</div></div>
-                        <div class="item"><div class="item-label">Verified</div><div class="item-value">${user.is_verified ? 'Yes' : 'No'}</div></div>
-                        <div class="item"><div class="item-label">Created</div><div class="item-value">${user.created_at ? new Date(user.created_at).toLocaleString() : '-'}</div></div>
-                    </div>
-                `;
+                if (!res.success || !res.data) throw new Error(res.message || 'Failed to fetch user');
+                renderUser(res.data);
             } catch (error) {
-                document.getElementById('content').innerHTML = '<p>Failed to load user details.</p>';
+                document.getElementById('content').innerHTML =
+                    `<div class="au-error">${escapeHtml(error.message || 'Failed to load user details.')}</div>`;
             }
         });
     </script>

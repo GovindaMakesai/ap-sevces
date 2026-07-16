@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const db = require('../../../config/database');
+const { allocateDisplayId } = require('../../../lib/displayId');
 const settings = require('./settingsService');
 
 /** Production app + frontend host (not the dead app.apservices.live placeholder). */
@@ -33,6 +34,26 @@ function buildWebLink(baseUrl, code) {
   return `${String(baseUrl).replace(/\/$/, '')}/register.html?ref=${encodeURIComponent(code)}&app=1`;
 }
 
+async function ensureUserDisplayId(userId) {
+  const res = await db.query(`SELECT display_id FROM users WHERE id = $1`, [userId]);
+  if (res.rows[0]?.display_id != null) {
+    return String(res.rows[0].display_id);
+  }
+  const displayId = await allocateDisplayId();
+  const upd = await db.query(
+    `UPDATE users SET display_id = $1 WHERE id = $2 AND display_id IS NULL RETURNING display_id`,
+    [displayId, userId]
+  );
+  if (upd.rows[0]?.display_id != null) {
+    return String(upd.rows[0].display_id);
+  }
+  const again = await db.query(`SELECT display_id FROM users WHERE id = $1`, [userId]);
+  if (again.rows[0]?.display_id != null) {
+    return String(again.rows[0].display_id);
+  }
+  throw Object.assign(new Error('User display ID not ready'), { status: 400 });
+}
+
 async function ensureUniqueCode(userId) {
   for (let i = 0; i < 8; i += 1) {
     const code = generateHumanCode(userId) + (i ? String(i) : '');
@@ -45,7 +66,36 @@ async function ensureUniqueCode(userId) {
   return ('AP' + crypto.randomBytes(4).toString('hex')).toUpperCase();
 }
 
+async function resolveInviteCode(userId) {
+  return ensureUserDisplayId(userId);
+}
+
+async function syncLinkCode(row, code) {
+  if (!row || String(row.code) === String(code)) return row;
+  const baseUrl = await resolveBaseUrl();
+  const scheme = (await settings.getSetting('deep_link_scheme', 'apservices')) || 'apservices';
+  const webLink = buildWebLink(baseUrl, code);
+  const deepLink = `${scheme}://invite?ref=${encodeURIComponent(code)}`;
+  const res = await db.query(
+    `UPDATE invitation_links
+     SET code = $1, deep_link = $2, universal_link = $3, qr_payload = $3,
+         metadata = COALESCE(metadata, '{}'::jsonb) || $4::jsonb,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = $5
+     RETURNING *`,
+    [
+      code,
+      deepLink,
+      webLink,
+      JSON.stringify({ android_intent: `intent://invite?ref=${code}#Intent;scheme=${scheme};end` }),
+      row.id,
+    ]
+  );
+  return res.rows[0] || { ...row, code, deep_link: deepLink, universal_link: webLink, qr_payload: webLink };
+}
+
 async function getOrCreateInvitationLink(userId, { channel = 'default' } = {}) {
+  const code = await resolveInviteCode(userId);
   const existing = await db.query(
     `SELECT * FROM invitation_links
      WHERE inviter_id = $1 AND channel = $2 AND active = TRUE
@@ -53,10 +103,9 @@ async function getOrCreateInvitationLink(userId, { channel = 'default' } = {}) {
     [userId, channel]
   );
   if (existing.rows[0]) {
-    return enrichLink(existing.rows[0]);
+    const synced = await syncLinkCode(existing.rows[0], code);
+    return enrichLink(synced);
   }
-
-  const code = await ensureUniqueCode(userId);
   const baseUrl = await resolveBaseUrl();
   const scheme = (await settings.getSetting('deep_link_scheme', 'apservices')) || 'apservices';
   const webLink = buildWebLink(baseUrl, code);
@@ -82,8 +131,12 @@ async function getOrCreateInvitationLink(userId, { channel = 'default' } = {}) {
 
 async function enrichLink(row) {
   if (!row) return null;
+  const displayId = await ensureUserDisplayId(row.inviter_id);
+  if (String(row.code) !== String(displayId)) {
+    row = await syncLinkCode(row, displayId);
+  }
   const baseUrl = await resolveBaseUrl();
-  const webLink = buildWebLink(baseUrl, row.code);
+  const webLink = buildWebLink(baseUrl, displayId);
   const stored = row.universal_link || row.qr_payload || '';
   /* Persist rewrite if old rows still point at app.apservices.live */
   if (stored && /apservices\.live/i.test(stored) && stored !== webLink) {
@@ -95,10 +148,11 @@ async function enrichLink(row) {
     ).catch(() => {});
   }
 
-  const shareText = `Join me on AP Services! Use my invite code ${row.code} and get rewards: ${webLink}`;
+  const shareMessage = `Join me on AP Services! Use my ID ${displayId} when you register`;
+  const shareText = `${shareMessage}: ${webLink}`;
   return {
     id: row.id,
-    code: row.code,
+    code: displayId,
     deepLink: row.deep_link,
     universalLink: webLink,
     webLink,
@@ -107,10 +161,11 @@ async function enrichLink(row) {
     clicks: row.clicks,
     installs: row.installs,
     conversions: row.conversions,
+    shareMessage,
     shareText,
     shareTargets: {
       whatsapp: `https://wa.me/?text=${encodeURIComponent(shareText)}`,
-      telegram: `https://t.me/share/url?url=${encodeURIComponent(webLink)}&text=${encodeURIComponent(shareText)}`,
+      telegram: `https://t.me/share/url?url=${encodeURIComponent(webLink)}&text=${encodeURIComponent(shareMessage)}`,
       facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(webLink)}`,
       sms: `sms:?body=${encodeURIComponent(shareText)}`,
       copy: webLink,

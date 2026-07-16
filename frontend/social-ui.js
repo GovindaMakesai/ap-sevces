@@ -357,18 +357,21 @@
 
   /** Native share sheet when available; clipboard only as last resort */
   async function shareLink(opts) {
-    const url = String(opts?.url || location.href);
+    const hasUrl = opts && Object.prototype.hasOwnProperty.call(opts, 'url');
+    const url = hasUrl ? String(opts.url || '') : String(opts?.url || location.href);
     const title = opts?.title || 'AP Services';
     const text = opts?.text || 'Join me on AP Services';
+    const textOnly = hasUrl && !opts.url;
 
     async function copyLink() {
+      const payload = textOnly ? text : url;
       if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(url);
-        toast('Link copied', 'success');
+        await navigator.clipboard.writeText(payload);
+        toast(textOnly ? 'Invite copied' : 'Link copied', 'success');
         return true;
       }
       const ta = document.createElement('textarea');
-      ta.value = url;
+      ta.value = payload;
       ta.setAttribute('readonly', '');
       ta.style.position = 'fixed';
       ta.style.left = '-9999px';
@@ -377,19 +380,21 @@
       const ok = document.execCommand('copy');
       ta.remove();
       if (ok) {
-        toast('Link copied', 'success');
+        toast(textOnly ? 'Invite copied' : 'Link copied', 'success');
         return true;
       }
-      window.prompt('Copy this link:', url);
+      window.prompt(textOnly ? 'Copy and share this invite:' : 'Copy this link:', payload);
       return true;
     }
 
     if (navigator.share) {
-      const payloads = [
-        { title, text, url },
-        { title, url },
-        { url },
-      ];
+      const payloads = textOnly
+        ? [{ title, text }, { text }]
+        : [
+            { title, text, url },
+            { title, url },
+            { url },
+          ];
       for (const payload of payloads) {
         try {
           if (navigator.canShare && !navigator.canShare(payload)) continue;
@@ -404,7 +409,9 @@
     if (isNativeWebView() && window.ReactNativeWebView?.postMessage) {
       try {
         window.ReactNativeWebView.postMessage(
-          JSON.stringify({ type: 'share', title, text, url })
+          JSON.stringify(
+            textOnly ? { type: 'share', title, text } : { type: 'share', title, text, url }
+          )
         );
         return true;
       } catch (_e) {}

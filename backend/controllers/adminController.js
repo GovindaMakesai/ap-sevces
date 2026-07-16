@@ -79,7 +79,9 @@ const listAuditLogs = async (req, res) => {
 // ==================== USER MANAGEMENT ====================
 const getAllUsers = async (req, res) => {
     try {
-        const { role, search, page = 1, limit = 20 } = req.query;
+        const { role, search, status } = req.query;
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
         const offset = (page - 1) * limit;
 
         // Get total count
@@ -93,6 +95,14 @@ const getAllUsers = async (req, res) => {
             countParamIndex++;
         }
 
+        if (status && status !== 'all') {
+            if (status === 'active') {
+                countQuery += ` AND is_active = TRUE`;
+            } else if (status === 'inactive') {
+                countQuery += ` AND is_active = FALSE`;
+            }
+        }
+
         if (search) {
             countQuery += ` AND (email ILIKE $${countParamIndex} OR phone ILIKE $${countParamIndex} 
                       OR first_name ILIKE $${countParamIndex} OR last_name ILIKE $${countParamIndex}
@@ -102,11 +112,11 @@ const getAllUsers = async (req, res) => {
         }
 
         const countResult = await db.query(countQuery, countParams);
-        const total = parseInt(countResult.rows[0].total);
+        const total = parseInt(countResult.rows[0].total, 10) || 0;
 
         // Get data
         let query = `
-            SELECT id, email, phone, first_name, last_name, role, display_id,
+            SELECT id, email, phone, first_name, last_name, role, display_id, profile_pic,
                    is_active, is_verified, created_at, last_login
             FROM users WHERE 1=1
         `;
@@ -117,6 +127,14 @@ const getAllUsers = async (req, res) => {
             query += ` AND role = $${paramIndex}`;
             params.push(role);
             paramIndex++;
+        }
+
+        if (status && status !== 'all') {
+            if (status === 'active') {
+                query += ` AND is_active = TRUE`;
+            } else if (status === 'inactive') {
+                query += ` AND is_active = FALSE`;
+            }
         }
 
         if (search) {
@@ -136,10 +154,10 @@ const getAllUsers = async (req, res) => {
             success: true,
             data: result.rows,
             pagination: {
-                page: parseInt(page),
-                limit: parseInt(limit),
+                page,
+                limit,
                 total,
-                pages: Math.ceil(total / limit)
+                pages: Math.max(1, Math.ceil(total / limit))
             }
         });
     } catch (error) {
@@ -152,7 +170,13 @@ const getUserById = async (req, res) => {
     try {
         const { userId } = req.params;
         const result = await db.query(
-            'SELECT id, email, phone, first_name, last_name, role, is_active, is_verified, created_at FROM users WHERE id = $1',
+            `SELECT u.id, u.email, u.phone, u.first_name, u.last_name, u.role, u.display_id,
+                    u.profile_pic, u.gender, u.is_active, u.is_verified, u.created_at, u.last_login, u.updated_at,
+                    COALESCE(w.coin_balance, 0)::bigint AS coin_balance,
+                    COALESCE(w.star_balance, 0)::bigint AS star_balance
+             FROM users u
+             LEFT JOIN wallets w ON w.user_id = u.id
+             WHERE u.id = $1`,
             [userId]
         );
         

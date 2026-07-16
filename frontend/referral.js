@@ -209,16 +209,18 @@
     const d = state.dashboard;
     if (!d) return;
     const inv = d.invitation || {};
-    const codeEl = document.getElementById('refCode');
-    if (codeEl) codeEl.textContent = inv.code || '—';
+    const myId = currentDisplayId();
+    setText('refMyId', myId);
 
-    const fixedLink = fixInviteHost(inv.webLink || inv.universalLink || '');
-    if (inv.webLink) inv.webLink = fixedLink;
-    if (inv.universalLink) inv.universalLink = fixedLink;
-    if (inv.qrPayload) inv.qrPayload = fixInviteHost(inv.qrPayload);
-    if (inv.shareText) inv.shareText = fixInviteHost(inv.shareText);
-
-    setText('refMyId', currentDisplayId());
+    const bundle = buildShareBundle(inv);
+    if (bundle.link) {
+      inv.code = bundle.code;
+      inv.webLink = bundle.link;
+      inv.universalLink = bundle.link;
+      inv.qrPayload = bundle.link;
+      inv.shareMessage = bundle.shareMessage;
+      inv.shareText = bundle.shareText;
+    }
 
     const t = d.totals || {};
     const r = d.rewards || {};
@@ -235,35 +237,46 @@
     renderWeekHistory();
   }
 
+  function inviteLinkOrigin(inv) {
+    const candidate = fixInviteHost(inv?.webLink || inv?.universalLink || '');
+    if (candidate) {
+      try {
+        return new URL(candidate).origin;
+      } catch (_e) {
+        /* fall through */
+      }
+    }
+    return location.origin;
+  }
+
+  function dedupeShareText(message, link) {
+    const cleanLink = String(link || '').trim();
+    let text = String(message || '').trim();
+    if (!cleanLink) return text;
+    const escaped = cleanLink.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    text = text.replace(new RegExp(escaped, 'gi'), '').replace(/https?:\/\/\S+/gi, '').replace(/\s+/g, ' ').trim();
+    return text ? `${text}: ${cleanLink}` : cleanLink;
+  }
+
   function buildShareBundle(inv) {
-    const code = inv?.code || '';
-    const myId = currentDisplayId();
-    const link = fixInviteHost(
-      inv?.webLink ||
-        inv?.universalLink ||
-        (code
-          ? `${location.origin}/register.html?ref=${encodeURIComponent(code)}&app=1`
-          : '')
-    );
-    const shareText =
-      inv?.shareText ||
-      (code
-        ? `Join me on AP Services! Use my invite code ${code} or enter Inviter ID ${myId} when you register: ${link}`
-        : link);
-    const server = inv?.shareTargets || {};
+    const code = String(currentDisplayId()).replace(/[^\d]/g, '');
+    if (!code || code === '—') {
+      return { code: '', link: '', shareMessage: '', shareText: '', targets: {} };
+    }
+    const origin = inviteLinkOrigin(inv);
+    const link = `${origin}/register.html?ref=${encodeURIComponent(code)}&app=1`;
+    const shareMessage = `Join me on AP Services! Use my ID ${code} when you register`;
+    const shareText = dedupeShareText(shareMessage, link);
     return {
       code,
       link,
+      shareMessage,
       shareText,
       targets: {
-        whatsapp: server.whatsapp || `https://wa.me/?text=${encodeURIComponent(shareText)}`,
-        telegram:
-          server.telegram ||
-          `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(shareText)}`,
-        facebook:
-          server.facebook ||
-          `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(link)}`,
-        sms: server.sms || `sms:?body=${encodeURIComponent(shareText)}`,
+        whatsapp: `https://wa.me/?text=${encodeURIComponent(shareText)}`,
+        telegram: `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(shareMessage)}`,
+        facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(link)}`,
+        sms: `sms:?body=${encodeURIComponent(shareText)}`,
       },
     };
   }
@@ -305,43 +318,40 @@
   async function inviteNow() {
     const inv = state.dashboard?.invitation || {};
     const bundle = buildShareBundle(inv);
-    if (!bundle.code) return toast('Generate your invite code first');
+    if (!bundle.code || bundle.code === '—') return toast('Your invite ID is not ready yet');
 
     api('/referral/share', { method: 'POST', body: { target: 'invite_now' } }).catch(() => {});
 
+    if (window.ReactNativeWebView?.postMessage) {
+      try {
+        window.ReactNativeWebView.postMessage(
+          JSON.stringify({
+            type: 'share',
+            title: 'Join AP Services',
+            text: bundle.shareText,
+          })
+        );
+        return;
+      } catch (_e) { /* fall through */ }
+    }
+
     if (navigator.share) {
       try {
-        await navigator.share({
-          title: 'Join AP Services',
-          text: bundle.shareText,
-          url: bundle.link,
-        });
+        await navigator.share({ text: bundle.shareText });
         return;
       } catch (e) {
         if (e && (e.name === 'AbortError' || e.name === 'NotAllowedError')) return;
       }
     }
 
-    if (window.SocialUI?.shareLink) {
-      try {
-        const ok = await SocialUI.shareLink({
-          title: 'Join AP Services',
-          text: bundle.shareText,
-          url: bundle.link,
-        });
-        if (ok) return;
-      } catch (_e) { /* fall through */ }
-    }
-
-    await copyInviteText(bundle.shareText, 'Invite link copied — share it with friends');
+    await copyInviteText(bundle.shareText, 'Invite copied — share it with friends');
   }
 
   async function copyMyId() {
     const id = document.getElementById('refMyId')?.textContent || currentDisplayId();
-    const code = document.getElementById('refCode')?.textContent || '';
-    const text = code && code !== '—' ? `${id} (code ${code})` : String(id);
+    const text = String(id).replace(/[^\d]/g, '') || String(id);
     try {
-      await navigator.clipboard.writeText(String(id).replace(/[^\d]/g, '') || text);
+      await navigator.clipboard.writeText(text);
       toast('ID copied');
       api('/referral/share', { method: 'POST', body: { target: 'copy_id' } }).catch(() => {});
     } catch (_e) {
@@ -555,7 +565,6 @@
         location.href = '/login.html?redirect=' + encodeURIComponent('/referral.html?app=1');
         return;
       }
-      setText('refCode', 'Loading…');
       setText('refMyId', currentDisplayId());
       await loadDashboard();
       if (!state.dashboard?.invitation?.code) {
@@ -574,7 +583,7 @@
         await generate();
       } catch (e2) {
         showBootError(e2.message || 'Invite API unavailable — restart the server if this continues.');
-        setText('refCode', '———');
+        setText('refMyId', '———');
       }
     }
   }

@@ -1014,12 +1014,18 @@ export default function App() {
           return;
         }
         if (data.type === 'share') {
-          const url = String(data.url || '');
+          const url = String(data.url || '').trim();
           const title = String(data.title || 'AP Services');
-          const text = String(data.text || 'Join me on AP Services');
+          let text = String(data.text || 'Join me on AP Services').trim();
+          if (url && text.includes(url)) {
+            Share.share({ title, message: text }).catch(() => {});
+            return;
+          }
           Share.share(
             Platform.OS === 'ios'
-              ? { title, message: text, url }
+              ? url
+                ? { title, message: text, url }
+                : { title, message: text }
               : { title, message: url ? `${text}\n${url}` : text }
           ).catch(() => {});
           return;

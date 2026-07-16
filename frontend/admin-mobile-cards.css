@@ -191,6 +191,10 @@
   color: #b45309;
 }
 
+.status-active {
+  color: #059669;
+}
+
 @media (max-width: 768px) {
   .admin-table-view {
     display: none !important;

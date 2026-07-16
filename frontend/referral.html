@@ -7,7 +7,7 @@
   <title>Invite - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-theme.css">
-  <link rel="stylesheet" href="referral.css?v=20260716-invite-connect">
+  <link rel="stylesheet" href="referral.css?v=20260716-invite-id">
 </head>
 <body class="ref-page" data-page="referral">
   <div class="ref-shell">
@@ -53,7 +53,7 @@
         <span>My ID: <strong id="refMyId">—</strong></span>
         <button type="button" class="ref-copy-id" id="refCopyIdBtn" aria-label="Copy ID"><i class="fas fa-copy"></i></button>
       </div>
-      <p class="ref-code-hint">Invite code: <strong id="refCode">……</strong></p>
+      <p class="ref-code-hint">Friends can use this ID or your shared link when signing up</p>
     </section>
 
     <section class="ref-promo-banner" aria-label="Invite Friends promo">
@@ -95,9 +95,9 @@
       </div>
 
       <details class="ref-extra">
-        <summary>Enter a friend’s invite code</summary>
+        <summary>Enter a friend’s invite ID</summary>
         <div class="ref-apply">
-          <input id="refApplyInput" maxlength="24" placeholder="Enter code" autocomplete="off">
+          <input id="refApplyInput" maxlength="24" placeholder="Enter ID" autocomplete="off">
           <button type="button" class="ref-btn-mini" id="refApplyBtn">Apply</button>
         </div>
       </details>
@@ -150,7 +150,7 @@
   <script src="social-wallet.js"></script>
   <script src="social-ui.js"></script>
   <script src="social-shell.js"></script>
-  <script src="referral.js?v=20260716-invite-connect"></script>
+  <script src="referral.js?v=20260716-invite-push"></script>
   <script>
     SocialShell?.initPage?.({ activeNav: 'profile' });
   </script>
