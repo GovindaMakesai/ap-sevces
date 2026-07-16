@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260716-gift-hit';
+  window.__AP_LIVE_BUILD = '20260716-joined-hit';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -7220,17 +7220,17 @@
     const joinedBtn = document.getElementById('liveViewerCount');
     if (joinedBtn) {
       joinedBtn.style.pointerEvents = 'auto';
-      joinedBtn.style.zIndex = '14100';
+      joinedBtn.style.zIndex = '14900';
       joinedBtn.style.position = 'relative';
     }
     row.style.pointerEvents = 'auto';
-    row.style.zIndex = '14100';
+    row.style.zIndex = '14900';
     if (!row.dataset.audienceBound) {
       row.dataset.audienceBound = '1';
       const openJoined = (e) => {
         if (!isPartyRoomPage() && !isLiveRoomPage()) return;
-        unlockLiveChrome({ forceGift: true });
         if (e.target.closest('.ap-top-gifter[data-audience-id]')) {
+          unlockLiveChrome({ forceGift: true });
           const chip = e.target.closest('[data-audience-id]');
           openProfileSheet(chip.dataset.audienceName || 'Guest', chip.dataset.audienceId || '');
           return;
@@ -7239,15 +7239,14 @@
           e.target.closest('#liveViewerCount') ||
           e.target.closest('.party-viewer-count') ||
           e.target.closest('.live-joined-count') ||
+          e.target.closest('#apJoinedHitPad') ||
           e.currentTarget === row
         ) {
-          e.preventDefault();
-          e.stopPropagation();
-          openPartyRequestsSheet();
+          openJoinedSheetReliable(e);
         }
       };
       row.addEventListener('click', openJoined, true);
-      /* No pointerup opener — same open-then-close flicker as gift/tools */
+      row.addEventListener('pointerup', openJoined, true);
     }
     window.SocialUI?.bindAvatarFallbacks?.(row);
   }
@@ -7809,8 +7808,7 @@
             '#liveViewerCount, .live-joined-count, .party-viewer-count, #partyBtnUsersAll, #partyViewerAvatars.is-clickable'
           ),
         run: () => {
-          unlockLiveChrome({ forceGift: true });
-          openPartyRequestsSheet();
+          openJoinedSheetReliable();
         },
       },
       {
@@ -7956,6 +7954,7 @@
     if (window.__apLiveChromeWatchdog) return;
     installChromeHitSalvage();
     installGiftHitPad();
+    installJoinedHitPad();
     window.__apLiveChromeWatchdog = setInterval(() => {
       if (!document.body?.dataset?.livePage) return;
       const gift = document.getElementById('giftSheet');
@@ -8109,7 +8108,30 @@
       sheet.style.removeProperty('display');
       if (sheet.parentElement !== document.body) document.body.appendChild(sheet);
     }
+    /* Same finger that opened often lands on the backdrop and used to close instantly */
+    window.__apJoinedOpenGuardUntil = Date.now() + 900;
     syncLiveOverlayClass();
+  }
+
+  function openJoinedSheetReliable(e) {
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+    if (typeof e?.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+    if (!isPartyRoomPage() && !isLiveRoomPage()) return;
+    const now = Date.now();
+    if (now < (Number(window.__apJoinedOpenBusyUntil) || 0)) return;
+    window.__apJoinedOpenBusyUntil = now + 500;
+    unlockLiveChrome({ forceGift: true });
+    const sheet = document.getElementById('partyRequestsSheet');
+    if (isSheetReallyOpen(sheet)) return;
+    if (sheet) {
+      sheet.classList.remove('open');
+      sheet.style.display = 'none';
+      sheet.style.pointerEvents = 'none';
+    }
+    document.getElementById('giftSheet')?.classList.remove('open');
+    document.getElementById('partyToolsSheet')?.classList.remove('open');
+    openPartyRequestsSheet();
   }
 
   function closePartyRequestsSheet() {
@@ -8228,7 +8250,10 @@
           closePartyRequestsSheet();
           return;
         }
-        if (!e.target.closest('.party-requests-panel')) closePartyRequestsSheet();
+        if (!e.target.closest('.party-requests-panel')) {
+          if (Date.now() < (Number(window.__apJoinedOpenGuardUntil) || 0)) return;
+          closePartyRequestsSheet();
+        }
       });
     }
 
@@ -10648,6 +10673,131 @@
     }, 1200);
   }
 
+  function installJoinedHitPad() {
+    if (window.__apJoinedHitPadInstalled) return;
+    window.__apJoinedHitPadInstalled = true;
+    let lastOpenAt = 0;
+
+    function joinedBtn() {
+      return document.getElementById('liveViewerCount');
+    }
+
+    function ensurePad() {
+      let pad = document.getElementById('apJoinedHitPad');
+      if (!pad) {
+        pad = document.createElement('button');
+        pad.type = 'button';
+        pad.id = 'apJoinedHitPad';
+        pad.setAttribute('aria-label', 'People joined');
+        pad.style.cssText =
+          'position:fixed;z-index:14950;border:0;padding:0;margin:0;background:transparent;' +
+          'pointer-events:auto;touch-action:manipulation;-webkit-tap-highlight-color:transparent;';
+        document.body.appendChild(pad);
+        const fire = (ev) => {
+          if (Date.now() - lastOpenAt < 450) return;
+          lastOpenAt = Date.now();
+          openJoinedSheetReliable(ev);
+        };
+        pad.addEventListener('pointerup', fire, true);
+        pad.addEventListener('click', fire, true);
+      }
+      return pad;
+    }
+
+    function syncPad() {
+      const btn = joinedBtn();
+      const pad = ensurePad();
+      if (!btn || !document.body?.dataset?.livePage) {
+        pad.style.display = 'none';
+        return;
+      }
+      if (isSheetReallyOpen(document.getElementById('partyRequestsSheet'))) {
+        pad.style.display = 'none';
+        return;
+      }
+      if (isSheetReallyOpen(document.getElementById('giftSheet'))) {
+        pad.style.display = 'none';
+        return;
+      }
+      if (isSheetReallyOpen(document.getElementById('partyToolsSheet'))) {
+        pad.style.display = 'none';
+        return;
+      }
+      const r = btn.getBoundingClientRect();
+      if (r.width < 8 || r.height < 8) {
+        pad.style.display = 'none';
+        return;
+      }
+      /* Cover the joined count pill generously — hosts need this for seat control */
+      const w = Math.max(r.width + 20, 72);
+      const h = Math.max(r.height + 16, 40);
+      pad.style.display = 'block';
+      pad.style.width = `${w}px`;
+      pad.style.height = `${h}px`;
+      pad.style.left = `${r.left + r.width / 2 - w / 2}px`;
+      pad.style.top = `${r.top + r.height / 2 - h / 2}px`;
+      pad.style.borderRadius = '999px';
+    }
+
+    function pointHitsJoined(x, y) {
+      const btn = joinedBtn();
+      if (!btn) return false;
+      const r = btn.getBoundingClientRect();
+      const pad = 14;
+      return (
+        x >= r.left - pad &&
+        x <= r.right + pad &&
+        y >= r.top - pad &&
+        y <= r.bottom + pad
+      );
+    }
+
+    document.addEventListener(
+      'pointerup',
+      (e) => {
+        if (e.button != null && e.button !== 0) return;
+        if (!document.body?.dataset?.livePage) return;
+        if (isSheetReallyOpen(document.getElementById('partyRequestsSheet'))) return;
+        const x = e.clientX;
+        const y = e.clientY;
+        if (x == null || y == null) return;
+        const t = e.target;
+        if (
+          t?.closest?.(
+            '#liveViewerCount, .live-joined-count, .party-viewer-count, #apJoinedHitPad, #partyBtnUsersAll'
+          ) ||
+          pointHitsJoined(x, y)
+        ) {
+          /* Don't steal taps meant for top gifter profile chips */
+          if (t?.closest?.('.ap-top-gifter[data-audience-id]')) return;
+          if (Date.now() - lastOpenAt < 450) return;
+          lastOpenAt = Date.now();
+          openJoinedSheetReliable(e);
+        }
+      },
+      true
+    );
+
+    syncPad();
+    window.addEventListener('resize', syncPad);
+    window.addEventListener('scroll', syncPad, true);
+    setInterval(syncPad, 600);
+    setInterval(() => {
+      if (!document.body?.dataset?.livePage) return;
+      if (isSheetReallyOpen(document.getElementById('partyRequestsSheet'))) return;
+      const btn = joinedBtn();
+      if (btn) {
+        btn.style.pointerEvents = 'auto';
+        btn.style.zIndex = '14900';
+      }
+      const row = document.getElementById('partyViewerAvatars');
+      if (row) {
+        row.style.pointerEvents = 'auto';
+        row.style.zIndex = '14900';
+      }
+    }, 1200);
+  }
+
   function openGiftSheet(targetName, targetUserId) {
     unlockLiveChrome({ forceGift: true });
     hideMicRequestActionBar();
@@ -11590,7 +11740,7 @@
       );
     };
     bindChromeTap('partyInvitePill', () => openInAppShareSheet());
-    bindChromeTap('partyBtnUsersAll', () => openPartyRequestsSheet());
+    bindChromeTap('partyBtnUsersAll', () => openJoinedSheetReliable());
     document.getElementById('apBtnChatBubble')?.addEventListener('click', () => focusChatCompose());
 
     document.getElementById('partyRuleBtn')?.addEventListener('click', openRulesModal);
