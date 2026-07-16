@@ -1159,11 +1159,20 @@ async function isRoomModerator(channel, userId) {
   if (!room) return false;
   if (String(room.host_user_id) === String(userId)) return true;
   const member = await db.query(
-    `SELECT role FROM live_room_members
-     WHERE live_room_id = $1 AND user_id = $2 AND left_at IS NULL LIMIT 1`,
+    `SELECT m.role, u.role AS user_role
+     FROM live_room_members m
+     LEFT JOIN users u ON u.id = m.user_id
+     WHERE m.live_room_id = $1 AND m.user_id = $2 AND m.left_at IS NULL LIMIT 1`,
     [room.id, userId]
   );
-  return String(member.rows[0]?.role || '') === 'admin';
+  const row = member.rows[0];
+  if (!row) {
+    /* Platform admins may moderate even if member row is missing briefly */
+    const userRes = await db.query(`SELECT role FROM users WHERE id = $1`, [userId]);
+    return isPlatformAdminRole(userRes.rows[0]?.role);
+  }
+  if (String(row.role || '') === 'admin') return true;
+  return isPlatformAdminRole(row.user_role);
 }
 
 async function listRoomAdminUserIds(roomId) {

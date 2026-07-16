@@ -13,7 +13,7 @@ async function createReward({
   client = null,
 }) {
   const q = client || db;
-  const mode = String(await settings.getSetting('approval_mode', 'auto') || 'auto');
+  const mode = String(await settings.getSetting('approval_mode', 'manual') || 'manual');
   const delayHours = Number(await settings.getSetting('reward_delay_hours', 0)) || 0;
   let status = 'pending';
   let scheduledFor = null;
@@ -23,12 +23,13 @@ async function createReward({
     status = 'scheduled';
     approvalMode = 'delayed';
     scheduledFor = new Date(Date.now() + delayHours * 3600 * 1000);
-  } else if (mode === 'manual') {
-    status = 'pending';
-    approvalMode = 'manual';
-  } else {
+  } else if (mode === 'auto') {
     status = 'approved';
     approvalMode = 'auto';
+  } else {
+    /* Default: pending until the user claims manually (Receive / Claim) */
+    status = 'pending';
+    approvalMode = 'manual';
   }
 
   const res = await q.query(
@@ -66,14 +67,18 @@ async function payReward(rewardId, { client = null, force = false } = {}) {
     const reward = res.rows[0];
     if (!reward) throw new Error('Reward not found');
     if (reward.status === 'paid') return reward;
-    if (!force && !['approved', 'scheduled'].includes(reward.status) && reward.approval_mode === 'manual') {
-      throw new Error('Reward requires approval');
+    if (reward.status === 'rejected' || reward.status === 'held') {
+      throw new Error(`Reward is ${reward.status}`);
+    }
+    /* Pending rewards are only paid when the user claims (force=true) */
+    if (!force && reward.status === 'pending') {
+      throw new Error('Reward requires claim');
+    }
+    if (!force && !['approved', 'scheduled'].includes(reward.status)) {
+      throw new Error('Reward not payable');
     }
     if (reward.status === 'scheduled' && reward.scheduled_for && new Date(reward.scheduled_for) > new Date()) {
       throw new Error('Reward not due yet');
-    }
-    if (reward.status === 'rejected' || reward.status === 'held') {
-      throw new Error(`Reward is ${reward.status}`);
     }
 
     const coins = Number(reward.coins || 0);
@@ -177,15 +182,16 @@ async function rejectReward(rewardId, adminId, reason) {
 async function claimPendingForUser(userId) {
   const pending = await db.query(
     `SELECT id FROM referral_rewards
-     WHERE beneficiary_id = $1 AND status IN ('approved', 'scheduled')
+     WHERE beneficiary_id = $1
+       AND status IN ('pending', 'approved', 'scheduled')
        AND (scheduled_for IS NULL OR scheduled_for <= CURRENT_TIMESTAMP)
-     ORDER BY created_at ASC LIMIT 20`,
+     ORDER BY created_at ASC LIMIT 50`,
     [userId]
   );
   const paid = [];
   for (const row of pending.rows) {
     try {
-      paid.push(await payReward(row.id));
+      paid.push(await payReward(row.id, { force: true }));
     } catch (_e) {
       /* skip individual failures */
     }

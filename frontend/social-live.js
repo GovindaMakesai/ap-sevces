@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260716-cam-hours';
+  window.__AP_LIVE_BUILD = '20260716-tools-agree';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -1088,7 +1088,7 @@
   }
 
   function canModerateRoom() {
-    if (isHost()) return true;
+    if (isHost() || clientClaimsHost()) return true;
     const meId = currentUser()?.id;
     if (!meId) return false;
     const memberUid = (m) =>
@@ -1103,11 +1103,18 @@
       ...(Array.isArray(roomState?.onlineMembers) ? roomState.onlineMembers : []),
       ...(Array.isArray(roomState?.seats) ? roomState.seats : []),
     ];
-    return members.some(
-      (m) =>
-        memberUid(m) === String(meId) &&
-        (m.isAdmin || m.role === 'admin' || m.isPlatformAdmin)
-    );
+    if (
+      members.some(
+        (m) =>
+          memberUid(m) === String(meId) &&
+          (m.isAdmin || m.role === 'admin' || m.isPlatformAdmin)
+      )
+    ) {
+      return true;
+    }
+    /* Platform account admins can always moderate live rooms */
+    const role = String(currentUser()?.role || '').toLowerCase();
+    return ['admin', 'super_admin', 'founder', 'ceo'].includes(role);
   }
 
   function isRoomHostUserId(userId) {
@@ -7544,43 +7551,48 @@
   }
 
   function bindMicInviteChatActions() {
+    if (window.__apMicInviteDocBound) {
+      const feed = document.getElementById('partyChatFeed');
+      if (feed) feed.dataset.micInviteBound = '1';
+      return;
+    }
+    window.__apMicInviteDocBound = true;
+    const handleMicInviteTap = (e) => {
+      const agreeBtn = e.target?.closest?.('[data-mic-agree]');
+      const denyBtn = e.target?.closest?.('[data-mic-deny]');
+      if (!agreeBtn && !denyBtn) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+      if (Date.now() < (Number(window.__apMicInviteLockUntil) || 0)) return;
+      window.__apMicInviteLockUntil = Date.now() + 500;
+      if (!canModerateRoom() && !isHost() && !clientClaimsHost()) {
+        toast('Only host or admin can respond to join requests', 'warning');
+        return;
+      }
+      const uid = String(
+        agreeBtn?.getAttribute('data-mic-agree') || denyBtn?.getAttribute('data-mic-deny') || ''
+      ).trim();
+      if (!uid) return;
+      const card =
+        agreeBtn?.closest('.party-chat-mic-invite') ||
+        denyBtn?.closest('.party-chat-mic-invite');
+      if (card?.classList.contains('is-resolved')) return;
+      const uname =
+        card?.querySelector('.party-chat-mic-text strong')?.textContent?.trim() || 'Guest';
+      const req =
+        joinRequests.find((x) => String(x.id) === uid || String(x.userId) === uid) || {
+          id: uid,
+          userId: uid,
+          name: uname,
+        };
+      if (agreeBtn) acceptMicRequest(req, { btn: agreeBtn });
+      else denyMicRequest(req);
+    };
+    /* Document capture — survives chat re-renders and ghost overlay blocks */
+    document.addEventListener('click', handleMicInviteTap, true);
     const feed = document.getElementById('partyChatFeed');
-    if (!feed || feed.dataset.micInviteBound === '1') return;
-    feed.dataset.micInviteBound = '1';
-    feed.addEventListener(
-      'click',
-      (e) => {
-        const agreeBtn = e.target.closest?.('[data-mic-agree]');
-        const denyBtn = e.target.closest?.('[data-mic-deny]');
-        if (!agreeBtn && !denyBtn) return;
-        e.preventDefault();
-        e.stopPropagation();
-        if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
-        if (!canModerateRoom() && !isHost() && !clientClaimsHost()) {
-          toast('Only host or admin can respond to join requests', 'warning');
-          return;
-        }
-        const uid = String(
-          agreeBtn?.getAttribute('data-mic-agree') || denyBtn?.getAttribute('data-mic-deny') || ''
-        ).trim();
-        if (!uid) return;
-        const card =
-          agreeBtn?.closest('.party-chat-mic-invite') ||
-          denyBtn?.closest('.party-chat-mic-invite');
-        if (card?.classList.contains('is-resolved')) return;
-        const uname =
-          card?.querySelector('.party-chat-mic-text strong')?.textContent?.trim() || 'Guest';
-        const req =
-          joinRequests.find((x) => String(x.id) === uid || String(x.userId) === uid) || {
-            id: uid,
-            userId: uid,
-            name: uname,
-          };
-        if (agreeBtn) acceptMicRequest(req, { btn: agreeBtn });
-        else denyMicRequest(req);
-      },
-      true
-    );
+    if (feed) feed.dataset.micInviteBound = '1';
   }
 
   function acceptMicRequest(req, opts = {}) {
@@ -7721,7 +7733,9 @@
       document.body.classList.remove('party-requests-open');
     }
 
-    /* Closed overlays sometimes keep stray .open from race — force-clear ghosts */
+    /* Closed overlays sometimes keep stray .open from race — force-clear ghosts.
+       Never kill tools/gift/requests that are actually open+visible (watchdog used to
+       close Basic Tools instantly because the sheet covered the Tools button). */
     if (forceGift) {
       document.querySelectorAll('.ap-modal-overlay.open').forEach((el) => {
         if (el.id === 'apHostMicInviteModal') return;
@@ -7730,7 +7744,14 @@
         if (el.id === 'apProfileSheet' || el.id === 'apSeatSheet') return;
         el.classList.remove('open');
       });
-      document.getElementById('partyToolsSheet')?.classList.remove('open');
+      ['partyToolsSheet', 'giftSheet', 'partyRequestsSheet'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el?.classList.contains('open')) return;
+        if (isSheetReallyOpen(el)) return;
+        el.classList.remove('open');
+        el.style.pointerEvents = 'none';
+        el.style.display = 'none';
+      });
       document.getElementById('apMicLinkModal')?.classList.remove('open');
       document.getElementById('partyMusicSheet')?.classList.remove('open');
       document.getElementById('apInAppShareSheet')?.classList.remove('open');
@@ -7947,6 +7968,16 @@
         },
       },
       {
+        match: (el) => el?.closest?.('[data-mic-agree], [data-mic-deny], .party-chat-mic-actions'),
+        run: (hit) => {
+          const agree = hit?.closest?.('[data-mic-agree]') || hit?.querySelector?.('[data-mic-agree]');
+          const deny = hit?.closest?.('[data-mic-deny]') || hit?.querySelector?.('[data-mic-deny]');
+          const btn = agree || deny;
+          if (!btn) return;
+          btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+        },
+      },
+      {
         match: (el) => el?.closest?.('#liveBtnGift, #partyBtnGift, .ap-btn-gift-hero, .party-btn-gift, #apGiftHitPad'),
         run: () => {
           openGiftSheetReliable();
@@ -8058,7 +8089,7 @@
         }
       });
       try {
-        found.spec.run();
+        found.spec.run(found.hit);
       } catch (_e2) { /* ignore */ }
     };
 
@@ -8160,6 +8191,10 @@
         if (hidden) unlockLiveChrome({ forceGift: true });
       }
 
+      /* Do not probe chrome while a real sheet is open — sheet covers Tools/Gift and
+         unlocking would instantly close Basic Tools (open → close flicker). */
+      if (reqOpen || giftOpen || toolsOpen) return;
+
       /* Probe Joined / Gift / Tools centers — if covered by a non-chrome layer, unlock */
       ['liveViewerCount', 'partyBtnTools', 'liveBtnGift', 'partyBtnGift', 'partyBtnUsersAll'].forEach((id) => {
         const el = document.getElementById(id);
@@ -8174,7 +8209,7 @@
           if (el === top || el.contains(top) || top.closest?.(`#${id}`)) return;
           if (
             top.closest?.(
-              '#partyBottomBar, #partyViewerAvatars, .party-header-right, #partyLiveActions, .party-bottom-actions'
+              '#partyBottomBar, #partyViewerAvatars, .party-header-right, #partyLiveActions, .party-bottom-actions, #partyToolsSheet, #giftSheet, #partyRequestsSheet'
             )
           ) {
             return;
@@ -10674,27 +10709,39 @@
     if (typeof e?.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
     const now = Date.now();
     if (now < (Number(window.__apToolsOpenBusyUntil) || 0)) return;
-    window.__apToolsOpenBusyUntil = now + 500;
+    window.__apToolsOpenBusyUntil = now + 700;
     const sheet = document.getElementById('partyToolsSheet');
     if (isSheetReallyOpen(sheet)) return;
-    unlockLiveChrome({ forceGift: true });
+    /* Soft unlock only — forceGift used to close tools in the same tick we open them */
     hideMicRequestActionBar();
     document.body.classList.remove('party-requests-open', 'ap-sheet-open');
-    document.getElementById('partyRequestsSheet')?.classList.remove('open');
+    const req = document.getElementById('partyRequestsSheet');
+    if (req) {
+      req.classList.remove('open');
+      req.style.display = 'none';
+      req.style.pointerEvents = 'none';
+    }
+    const gift = document.getElementById('giftSheet');
+    if (gift) {
+      gift.classList.remove('open');
+      gift.style.display = 'none';
+      gift.style.pointerEvents = 'none';
+    }
     closeLiveOverlays('tools');
-    window.__apToolsOpenGuardUntil = Date.now() + 900;
+    window.__apToolsOpenGuardUntil = Date.now() + 1200;
     const openNow = () => {
       if (!sheet) return;
       sheet.classList.add('open');
       sheet.style.display = 'flex';
       sheet.style.pointerEvents = 'auto';
       sheet.style.visibility = 'visible';
+      sheet.style.opacity = '1';
       sheet.style.zIndex = '15000';
       if (sheet.parentElement !== document.body) document.body.appendChild(sheet);
       syncLiveOverlayClass();
       clearMessageBadge();
     };
-    /* Defer one frame so the opening tap cannot hit the backdrop and close instantly */
+    /* Defer so the opening tap cannot hit the backdrop and close instantly */
     requestAnimationFrame(() => requestAnimationFrame(openNow));
   }
 

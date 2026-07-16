@@ -347,13 +347,15 @@ html.ap-secure-live .party-room-stage {
 .party-chat-mic-invite {
   pointer-events: auto !important;
   position: relative;
-  z-index: 5;
+  z-index: 40;
 }
 
 .party-chat-mic-actions button {
   pointer-events: auto !important;
   position: relative;
-  z-index: 6;
+  z-index: 41;
+  min-height: 36px;
+  touch-action: manipulation;
 }
 
 .party-close {
@@ -860,6 +862,9 @@ html.ap-secure-live .party-room-stage {
 .party-chat-mic-actions {
   display: flex;
   gap: 6px;
+  position: relative;
+  z-index: 41;
+  pointer-events: auto !important;
 }
 
 .party-chat-mic-actions button {

@@ -67,6 +67,14 @@ async function ensureReferralSchema() {
        SET value = '9500'::jsonb, updated_at = CURRENT_TIMESTAMP
        WHERE key = 'invite_host_convert_reward_coins' AND value = '5000'::jsonb`
     );
+    /* Invite rewards stay pending until the user taps Receive / Claim */
+    await client.query(
+      `INSERT INTO referral_settings (key, value, updated_at)
+       VALUES ('approval_mode', '"manual"'::jsonb, CURRENT_TIMESTAMP)
+       ON CONFLICT (key) DO UPDATE SET
+         value = '"manual"'::jsonb,
+         updated_at = CURRENT_TIMESTAMP`
+    );
     await client.query('COMMIT');
     console.log('✅ Referral / host recruitment schema ready');
   } catch (err) {
