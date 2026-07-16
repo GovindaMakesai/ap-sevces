@@ -458,7 +458,7 @@ async function buildSnapshot(channel) {
       chatMuted: Boolean(m.is_chat_muted),
       gifts: Number(m.gift_count),
       isHost: m.role === 'host',
-      isAdmin: m.role === 'admin' || isPlatformAdminRole(m.user_role),
+      isAdmin: m.role === 'admin',
       isPlatformAdmin: isPlatformAdminRole(m.user_role),
       userRole: m.user_role || null,
       seatIndex: m.seat_index,
@@ -477,7 +477,7 @@ async function buildSnapshot(channel) {
     chatMuted: Boolean(m.is_chat_muted),
     seatIndex: m.seat_index,
     isOnline: true,
-    isAdmin: m.role === 'admin' || isPlatformAdminRole(m.user_role),
+    isAdmin: m.role === 'admin',
     isPlatformAdmin: isPlatformAdminRole(m.user_role),
     agoraUid: uidFromUserId(m.user_id),
   }));

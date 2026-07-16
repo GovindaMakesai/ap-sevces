@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260716-admin-joined';
+  window.__AP_LIVE_BUILD = '20260716-make-admin';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -1010,10 +1010,30 @@
     return qs('host') === '1';
   }
 
-  function isHost() {
+  function sameLiveUserId(a, b) {
+    if (a == null || b == null || a === '' || b === '') return false;
+    return String(a) === String(b);
+  }
+
+  function currentUserIds() {
     const me = currentUser();
-    if (me?.id && roomState?.hostId) {
-      return String(roomState.hostId) === String(me.id);
+    if (!me) return { id: '', displayId: '' };
+    return {
+      id: me.id != null ? String(me.id) : '',
+      displayId:
+        me.display_id != null
+          ? String(me.display_id)
+          : me.displayId != null
+            ? String(me.displayId)
+            : '',
+    };
+  }
+
+  function isHost() {
+    const { id: meId, displayId: meDisplay } = currentUserIds();
+    if (roomState?.hostId && meId && sameLiveUserId(roomState.hostId, meId)) return true;
+    if (roomState?.hostDisplayId && meDisplay && sameLiveUserId(roomState.hostDisplayId, meDisplay)) {
+      return true;
     }
     /* Until room state has hostId, keep starter-host UI so controls don't vanish */
     if (!roomState?.hostId) {
@@ -1022,15 +1042,28 @@
     return false;
   }
 
+  /** Host-only power: grant room/live admin */
+  function canGrantRoomAdmin() {
+    return isHost() || isConfirmedRoomHost();
+  }
+
+  /** Room/live admin only — not platform account admin */
+  function isRoomAdminMember(m) {
+    if (!m) return false;
+    if (String(m.role || '') === 'admin') return true;
+    if (m.isAdmin && !m.isPlatformAdmin && String(m.role || '') !== 'host') return true;
+    return false;
+  }
+
   /** Host controls / host-only chrome — never trust URL ?host=1 alone */
   function isConfirmedRoomHost() {
-    const me = currentUser();
-    return Boolean(
-      roomJoinCompleted &&
-      me?.id &&
-      roomState?.hostId &&
-      String(roomState.hostId) === String(me.id)
-    );
+    const { id: meId, displayId: meDisplay } = currentUserIds();
+    if (!roomJoinCompleted) return false;
+    if (roomState?.hostId && meId && sameLiveUserId(roomState.hostId, meId)) return true;
+    if (roomState?.hostDisplayId && meDisplay && sameLiveUserId(roomState.hostDisplayId, meDisplay)) {
+      return true;
+    }
+    return false;
   }
 
   function isLiveRoomPage() {
@@ -1176,7 +1209,7 @@
       (roomState?.seats || []).map((s) => String(s.userId || '')).filter(Boolean)
     );
     if (stickyStageGuests.has(uid)) seated.add(uid);
-    const isAdmin = Boolean(m.isAdmin || m.role === 'admin');
+    const isAdmin = isRoomAdminMember(m);
     const adminLabel = roomAdminLabel();
     const onStage =
       seated.has(uid) ||
@@ -1634,11 +1667,11 @@
   function grantRoomAdmin(userId, grant) {
     if (!liveSocket?.connected || !userId) return;
     if (grant) {
-      if (!isHost()) {
+      if (!canGrantRoomAdmin()) {
         toast('Only the host can make someone a room admin', 'warning');
         return;
       }
-    } else if (!isHost() && !canModerateRoom()) {
+    } else if (!canGrantRoomAdmin() && !canModerateRoom()) {
       toast('Only host or room admin can remove admin', 'warning');
       return;
     }
@@ -1647,8 +1680,27 @@
       grant ? 'live:admin_grant' : 'live:admin_revoke',
       { channel: channelId(), userId },
       (res) => {
-        if (res?.ok) toast(grant ? `${label} granted` : `Removed from ${label.toLowerCase()}`, 'success');
-        else toast(res?.message || `Could not update ${label.toLowerCase()}`, 'error');
+        if (res?.ok) {
+          toast(grant ? `${label} granted` : `Removed from ${label.toLowerCase()}`, 'success');
+          /* Optimistic UI so Make ↔ Remove toggles immediately */
+          const uid = String(userId);
+          if (roomState?.onlineMembers) {
+            roomState.onlineMembers = roomState.onlineMembers.map((m) =>
+              String(m.userId) === uid
+                ? { ...m, isAdmin: Boolean(grant), role: grant ? 'admin' : m.seatIndex != null ? 'speaker' : 'viewer' }
+                : m
+            );
+          }
+          if (roomState?.seats) {
+            roomState.seats = roomState.seats.map((s) =>
+              String(s.userId) === uid
+                ? { ...s, isAdmin: Boolean(grant), role: grant ? 'admin' : s.role === 'admin' ? 'speaker' : s.role }
+                : s
+            );
+          }
+          renderAvailableUsers();
+          renderRoomState();
+        } else toast(res?.message || `Could not update ${label.toLowerCase()}`, 'error');
       }
     );
   }
@@ -1742,7 +1794,7 @@
       (roomState?.seats || []).find((s) => String(s.userId) === String(userId)) ||
       (roomState?.onlineMembers || []).find((m) => String(m.userId) === String(userId)) ||
       { userId, name };
-    const isAdminMember = Boolean(memberHit.isAdmin || memberHit.role === 'admin');
+    const isAdminMember = isRoomAdminMember(memberHit);
     const onStage = memberIsOnStage(userId) || memberIsOnStage(memberHit);
     /* Host + room/live admins can remove anyone except the host from the seat */
     const canSeatMod = !isTargetHost;
@@ -1753,11 +1805,11 @@
       ? `Remove from the seat (keep ${adminLabel.toLowerCase()})`
       : 'Remove from the seat';
     /* Host: Make admin ↔ Remove admin. Live/room admins can Remove admin (not grant). */
-    const canMakeAdmin = isHost() && canKick && !isAdminMember;
+    const canMakeAdmin = canGrantRoomAdmin() && canKick && !isAdminMember;
     const canRemoveAdmin =
       canKick &&
       isAdminMember &&
-      (isHost() || canModerateRoom()) &&
+      (canGrantRoomAdmin() || canModerateRoom()) &&
       String(userId) !== String(currentUser()?.id || '');
     const chatLocked = Boolean(roomState?.chatLocked);
     menu.innerHTML = `
@@ -2013,12 +2065,12 @@
       return;
     }
     const mod = canModerateRoom();
-    const hosting = isHost();
+    const hosting = canGrantRoomAdmin();
     list.innerHTML = available
       .map((m) => {
         const role = memberListRoleLabel(m);
         const onSeat = memberIsOnStage(m.userId) || memberIsOnStage(m);
-        const isTargetAdmin = Boolean(m.isAdmin || m.role === 'admin');
+        const isTargetAdmin = isRoomAdminMember(m);
         const uid = String(m.userId || '');
         const isSelf = uid && uid === String(currentUser()?.id || '');
         let actionBtn = '';
@@ -2030,7 +2082,7 @@
                 ? `<button type="button" class="deny party-admin-toggle" data-admin-revoke="${escapeHtml(uid)}">Remove admin</button>`
                 : `<button type="button" class="accept party-admin-toggle" data-admin-grant="${escapeHtml(uid)}">Make admin</button>`
             );
-          } else if (isTargetAdmin && canModerateRoom()) {
+          } else if (isTargetAdmin) {
             bits.push(
               `<button type="button" class="deny party-admin-toggle" data-admin-revoke="${escapeHtml(uid)}">Remove admin</button>`
             );
@@ -8619,6 +8671,25 @@
           handleSeatInviteClick(inviteBtn);
           return;
         }
+        const grantAdminBtn = e.target.closest('[data-admin-grant]');
+        if (grantAdminBtn && panel.contains(grantAdminBtn)) {
+          e.preventDefault();
+          e.stopPropagation();
+          const uid = grantAdminBtn.getAttribute('data-admin-grant');
+          if (uid) grantRoomAdmin(uid, true);
+          return;
+        }
+        const revokeAdminBtn = e.target.closest('[data-admin-revoke]');
+        if (revokeAdminBtn && panel.contains(revokeAdminBtn)) {
+          e.preventDefault();
+          e.stopPropagation();
+          const uid = revokeAdminBtn.getAttribute('data-admin-revoke');
+          const member = getPartyMembersForList().find((m) => String(m.userId) === String(uid));
+          if (uid && window.confirm(`Remove admin from ${member?.name || 'this user'}?`)) {
+            grantRoomAdmin(uid, false);
+          }
+          return;
+        }
         const removeBtn = e.target.closest('[data-remove-seat]');
         if (removeBtn && panel.contains(removeBtn)) {
           e.preventDefault();
@@ -12833,6 +12904,7 @@
         .join('');
     }
     sheet?.querySelector('.ap-profile-more-menu')?.remove();
+    syncProfileAdminToggleBtn();
     const profileSheet = document.getElementById('apProfileSheet');
     if (profileSheet) {
       profileSheet.classList.add('open');
@@ -12853,6 +12925,66 @@
       friendBtn.innerHTML = following
         ? '<i class="fas fa-user-check"></i><span>Following</span>'
         : '<i class="fas fa-user-plus"></i><span>Add friend</span>';
+    }
+    syncProfileAdminToggleBtn();
+  }
+
+  function syncProfileAdminToggleBtn() {
+    const actions = document.querySelector('#apProfileSheet .ap-profile-actions');
+    if (!actions) return;
+    let btn = document.getElementById('apProfileAdminToggle');
+    const uid = String(activeProfileUser?.userId || '');
+    const meId = String(currentUser()?.id || '');
+    const canShow =
+      uid &&
+      meId &&
+      uid !== meId &&
+      !isRoomHostUserId(uid) &&
+      (canGrantRoomAdmin() || canModerateRoom());
+    if (!canShow) {
+      btn?.remove();
+      return;
+    }
+    const memberHit =
+      (roomState?.seats || []).find((s) => String(s.userId) === uid) ||
+      (roomState?.onlineMembers || []).find((m) => String(m.userId) === uid) ||
+      null;
+    const isAdminMember = isRoomAdminMember(memberHit);
+    const canMake = canGrantRoomAdmin() && !isAdminMember;
+    const canRemove = isAdminMember && (canGrantRoomAdmin() || canModerateRoom());
+    if (!canMake && !canRemove) {
+      btn?.remove();
+      return;
+    }
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.type = 'button';
+      btn.id = 'apProfileAdminToggle';
+      btn.className = 'ap-profile-action-btn ap-profile-admin-toggle';
+      actions.appendChild(btn);
+      btn.addEventListener('click', () => {
+        const id = String(activeProfileUser?.userId || '');
+        if (!id) return;
+        const hit =
+          (roomState?.seats || []).find((s) => String(s.userId) === id) ||
+          (roomState?.onlineMembers || []).find((m) => String(m.userId) === id);
+        const nowAdmin = isRoomAdminMember(hit);
+        if (nowAdmin) {
+          if (window.confirm(`Remove admin from ${activeProfileUser?.name || 'this user'}?`)) {
+            grantRoomAdmin(id, false);
+          }
+        } else if (canGrantRoomAdmin()) {
+          grantRoomAdmin(id, true);
+        }
+        setTimeout(() => syncProfileAdminToggleBtn(), 300);
+      });
+    }
+    if (canMake) {
+      btn.classList.remove('is-revoke');
+      btn.innerHTML = '<i class="fas fa-user-shield"></i><span>Make admin</span>';
+    } else {
+      btn.classList.add('is-revoke');
+      btn.innerHTML = '<i class="fas fa-user-slash"></i><span>Remove admin</span>';
     }
   }
 
