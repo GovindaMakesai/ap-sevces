@@ -1562,8 +1562,8 @@
             try { ensureChatPaneNotBlank(); } catch (_e) { /* ignore */ }
 
             try {
-                if (typeof isNativeAppContext === 'function' && isNativeAppContext()) {
-                    document.documentElement.classList.add('social-app', 'ap-expo-app');
+            if (typeof isNativeAppContext === 'function' && isNativeAppContext()) {
+                document.documentElement.classList.add('social-app', 'ap-expo-app');
                     if (window.SocialShell?.initPage) SocialShell.initPage({ activeNav: 'chat' });
                     else if (window.SocialShell?.ensureBottomNav) SocialShell.ensureBottomNav('chat');
                 }
@@ -1653,7 +1653,7 @@
 
             // Load list first; realtime socket is optional and must not block
             try {
-                await loadConversations();
+            await loadConversations();
             } catch (err) {
                 console.error('chat init failed', err);
                 paintChatLoadError(err, { stage: 'bootChatPage' });
@@ -3039,18 +3039,18 @@
                     emitTypingState(false);
                 }
                 currentChatId = chatKey(chatId);
-                useChatStore.setState({ activeConversationId: currentChatId });
-                const socket = socketService.get();
-                if (socket) {
-                    socket.emit('join_conversation', { conversationId: currentChatId });
-                }
-
-                document.querySelectorAll('.chat-item').forEach(item => {
-                    item.classList.remove('active');
-                });
+            useChatStore.setState({ activeConversationId: currentChatId });
+            const socket = socketService.get();
+            if (socket) {
+                socket.emit('join_conversation', { conversationId: currentChatId });
+            }
+            
+            document.querySelectorAll('.chat-item').forEach(item => {
+                item.classList.remove('active');
+            });
                 const activeNode = sourceElement || document.querySelector(`.chat-item[data-chat-id="${safeChatIdForSelector(currentChatId)}"]`);
-                if (activeNode) activeNode.classList.add('active');
-
+            if (activeNode) activeNode.classList.add('active');
+            
                 const messagesContainer = document.getElementById('messagesContainer');
                 if (messagesContainer) {
                     messagesContainer.innerHTML = '<div class="chat-messages-loading" style="padding:24px;text-align:center;color:var(--gray-500)"><i class="fas fa-spinner fa-spin"></i> Loading messages…</div>';
@@ -3081,7 +3081,7 @@
                 const activeChat = document.getElementById('activeChat');
                 if (emptyChat) emptyChat.style.display = 'none';
                 if (activeChat) activeChat.hidden = false;
-                document.body.classList.add('chat-active');
+            document.body.classList.add('chat-active');
                 const messageInput = document.getElementById('messageInput');
                 const sendBtn = document.getElementById('sendBtn');
                 if (messageInput) messageInput.disabled = false;
@@ -3103,15 +3103,15 @@
                 };
                 updatePeerPresence(chat.otherUserId);
 
-                await loadMessages(currentChatId);
+            await loadMessages(currentChatId);
                 updateChatSocialBar();
                 window.__apShowSellerTools?.();
-                useChatStore.setState((state) => ({
-                    conversations: state.conversations.map((c) =>
-                        String(c.id) === String(currentChatId) ? { ...c, unread: 0 } : c
-                    ),
-                }));
-                loadChatList();
+            useChatStore.setState((state) => ({
+                conversations: state.conversations.map((c) =>
+                    String(c.id) === String(currentChatId) ? { ...c, unread: 0 } : c
+                ),
+            }));
+            loadChatList();
             } catch (err) {
                 console.error('loadChat error:', err);
                 resetChatPaneToList('Could not open this chat');

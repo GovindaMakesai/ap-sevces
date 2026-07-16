@@ -1,4 +1,4 @@
-﻿// frontend/app.js
+// frontend/app.js
 // AP Services Frontend - Complete Working Version with FormData Support
 
 // ==================== CONFIGURATION ====================

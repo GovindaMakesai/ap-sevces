@@ -51,7 +51,13 @@ async function buildValidationSnapshot(inviteeId) {
     otp_or_verified: Boolean(user.is_verified) || Boolean(user.phone) || !requirePhone,
     face: Boolean(user.face_verified_at) || Boolean(user.identity_verified_at) || !requireFace,
     profile:
-      Boolean(user.profile_pic && user.first_name) || !requireProfile,
+      /*
+       * If the invitee finished face/auth verification, don't block inviter rewards
+       * on missing profile_pic/first_name.
+       */
+      Boolean(user.profile_pic && user.first_name) ||
+        Boolean(user.face_verified_at || user.identity_verified_at) ||
+        !requireProfile,
     host: ['creator', 'host', 'worker'].includes(String(user.role || '').toLowerCase()),
   };
   const required = ['registered', 'phone', 'otp_or_verified', 'face', 'profile'];

@@ -38,6 +38,19 @@ async function markIdentityVerified(userId) {
         `UPDATE users SET identity_verified_at = COALESCE(identity_verified_at, CURRENT_TIMESTAMP) WHERE id = $1`,
         [String(userId)]
     );
+
+    /* If user already used an invite link, start referral validation rewards now. */
+    try {
+        const referralEngine = require('../modules/referral/services/referralEngine');
+        await referralEngine.revalidateReferral(userId);
+        const roleRes = await db.query(`SELECT role FROM users WHERE id = $1`, [String(userId)]);
+        const role = String(roleRes.rows[0]?.role || '').toLowerCase();
+        if (['creator', 'host', 'worker'].includes(role)) {
+            await referralEngine.onInviteeBecameHost(userId);
+        }
+    } catch (_e) {
+        /* optional module at runtime */
+    }
 }
 
 async function submitFaceVerification(userId, file) {

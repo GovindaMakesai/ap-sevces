@@ -1891,8 +1891,8 @@
               ? `Remove seat`
               : 'Remove from seat';
             actionBtn = `<button type="button" class="deny" data-remove-seat="${escapeHtml(String(m.userId))}">${label}</button>`;
-          } else if (isPartyRoomPage()) {
-            actionBtn = `<button type="button" class="accept" data-invite-seat="${escapeHtml(String(m.userId))}">To seat</button>`;
+          } else {
+            actionBtn = `<button type="button" class="accept" data-invite-seat="${escapeHtml(String(m.userId))}">${isLiveRoomPage() ? 'Add to live' : 'To seat'}</button>`;
           }
         }
         return `
@@ -2177,6 +2177,7 @@
       }
     }
     if (!merged.hostProfilePic && prev.hostProfilePic) merged.hostProfilePic = prev.hostProfilePic;
+    if (!merged.hostId && prev.hostId) merged.hostId = prev.hostId;
     if (!merged.hostName && prev.hostName) merged.hostName = prev.hostName;
     if (!merged.hostUserRole && prev.hostUserRole) merged.hostUserRole = prev.hostUserRole;
     syncStickyStageGuestsFromState(merged);
@@ -8764,6 +8765,7 @@
     if (except !== 'gift') document.getElementById('giftSheet')?.classList.remove('open');
     if (except !== 'mic') document.getElementById('apMicLinkModal')?.classList.remove('open');
     if (except !== 'hostMic') document.getElementById('apHostMicInviteModal')?.classList.remove('open');
+    if (except !== 'share') document.getElementById('apInAppShareSheet')?.classList.remove('open');
     if (except !== 'requests') closePartyRequestsSheet();
     if (except !== 'music') closePartyMusicSheet();
     if (except !== 'chat') closeChatPanelOnly();
@@ -10114,7 +10116,7 @@
     /* On-stage guests only (valid user ids) — not every lurker */
     (roomState?.seats || []).forEach((s) => {
       if (!s) return;
-      const uid = s.userId != null ? String(s.userId) : '';
+      const uid = (s.userId ?? s.user_id ?? s.id ?? s.uid) != null ? String(s.userId ?? s.user_id ?? s.id ?? s.uid) : '';
       if (!uid || uid === meId) return;
       if (s.isHost || (hostId && uid === hostId)) return;
       push(s.name || 'Guest', uid, 'seat');
@@ -10122,7 +10124,7 @@
 
     (roomState?.onlineMembers || []).forEach((m) => {
       if (!m) return;
-      const uid = m.userId != null ? String(m.userId) : '';
+      const uid = (m.userId ?? m.user_id ?? m.id ?? m.uid) != null ? String(m.userId ?? m.user_id ?? m.id ?? m.uid) : '';
       if (!uid || uid === meId) return;
       if (hostId && uid === hostId) return;
       const onStage = memberIsOnMic(m);
@@ -10224,6 +10226,16 @@
     openInAppShareSheet();
   }
 
+  function closeInAppShareSheet() {
+    const sheet = document.getElementById('apInAppShareSheet');
+    if (!sheet) return;
+    sheet.classList.remove('open');
+    sheet.style.pointerEvents = 'none';
+    sheet.style.display = 'none';
+    sheet.style.removeProperty('visibility');
+    syncLiveOverlayClass();
+  }
+
   function ensureInAppShareSheet() {
     if (document.getElementById('apInAppShareSheet')) return;
     document.body.insertAdjacentHTML(
@@ -10240,10 +10252,12 @@
       </div>`
     );
     document.getElementById('apInAppShareSheet')?.addEventListener('click', (e) => {
-      if (e.target.id === 'apInAppShareSheet') e.target.classList.remove('open');
+      if (e.target.id !== 'apInAppShareSheet') return;
+      if (Date.now() < (Number(window.__apShareOpenGuardUntil) || 0)) return;
+      closeInAppShareSheet();
     });
     document.getElementById('apShareCancel')?.addEventListener('click', () => {
-      document.getElementById('apInAppShareSheet')?.classList.remove('open');
+      closeInAppShareSheet();
     });
   }
 
@@ -10252,7 +10266,16 @@
     const sheet = document.getElementById('apInAppShareSheet');
     const list = document.getElementById('apShareUserList');
     if (!sheet || !list) return;
+    unlockLiveChrome({ forceGift: true });
+    closeLiveOverlays('share');
+    window.__apShareOpenGuardUntil = Date.now() + 900;
+    sheet.style.display = 'flex';
+    sheet.style.pointerEvents = 'auto';
+    sheet.style.visibility = 'visible';
+    sheet.style.zIndex = '15000';
     sheet.classList.add('open');
+    if (sheet.parentElement !== document.body) document.body.appendChild(sheet);
+    syncLiveOverlayClass();
 
     const hostName = roomState?.hostName || displayName(currentUser()) || 'Host';
     const page = document.body.dataset.livePage === 'party-room' ? 'party' : 'live';
@@ -11734,6 +11757,7 @@
         sheet.style.pointerEvents = 'none';
         sheet.style.display = 'none';
       }
+      syncLiveOverlayClass();
       closeLiveOverlays();
     });
     document.getElementById('partyToolsSheet')?.addEventListener('click', (e) => {
@@ -11743,6 +11767,7 @@
       e.target.classList.remove('open');
       e.target.style.pointerEvents = 'none';
       e.target.style.display = 'none';
+      syncLiveOverlayClass();
       closeLiveOverlays();
     });
 
@@ -11831,7 +11856,20 @@
       e.stopPropagation();
     });
 
-    document.getElementById('partyBtnShare')?.addEventListener('click', () => openInAppShareSheet());
+    const openShareFromBar = (e) => {
+      e?.preventDefault?.();
+      e?.stopPropagation?.();
+      if (typeof e?.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+      const now = Date.now();
+      if (now < (Number(window.__apShareOpenBusyUntil) || 0)) return;
+      window.__apShareOpenBusyUntil = now + 500;
+      openInAppShareSheet();
+    };
+    const shareBtn = document.getElementById('partyBtnShare');
+    if (shareBtn && shareBtn.dataset.shareOpenBound !== '1') {
+      shareBtn.dataset.shareOpenBound = '1';
+      shareBtn.addEventListener('click', openShareFromBar, true);
+    }
     document.getElementById('partyBtnJoinSeat')?.addEventListener('click', () => requestSeatJoin());
     const bindChromeTap = (id, action) => {
       const el = document.getElementById(id);
