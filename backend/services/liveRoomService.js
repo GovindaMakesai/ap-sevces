@@ -644,20 +644,20 @@ async function muteAllMembersChat({ liveRoomId, muted, excludeUserIds = [] }) {
 
 function maxSpeakersForRoom(room) {
   if (!room) return 14;
-  /* Live: host + 4 guests = 5 on stream. Party: host + 14 guests. */
-  return room.room_type === 'live' ? 4 : 14;
+  /* Live: host + 5 guests = 6 on stream. Party: host + 14 guests. */
+  return room.room_type === 'live' ? 5 : 14;
 }
 
 async function countActiveStageGuests(liveRoomId, excludeUserId, client) {
   const q = client || db;
+  /* Only count people actually on a seat — room admins off-seat must not fill guest slots */
   const countRes = await q.query(
     `SELECT COUNT(*)::int AS n FROM live_room_members
      WHERE live_room_id = $1 AND left_at IS NULL
        AND role <> 'host'
        AND (
-         role = 'speaker'
-         OR role = 'admin'
-         OR seat_index IS NOT NULL
+         seat_index IS NOT NULL
+         OR role = 'speaker'
        )
        AND ($2::uuid IS NULL OR user_id <> $2::uuid)`,
     [liveRoomId, excludeUserId || null]
@@ -675,7 +675,7 @@ async function promoteToSpeaker({ channel, userId, displayName, seatIndex = null
   const client = await db.pool.connect();
   try {
     await client.query('BEGIN');
-    /* Serialize seat promotions so live cannot exceed max 5 (host + 4 guests). */
+    /* Serialize seat promotions so live cannot exceed max 6 (host + 5 guests). */
     await client.query(`SELECT id FROM live_rooms WHERE id = $1 FOR UPDATE`, [room.id]);
 
     const memberRes = await client.query(
@@ -690,16 +690,14 @@ async function promoteToSpeaker({ channel, userId, displayName, seatIndex = null
     if (memberRes.rows[0].role === 'host') throw new Error('Host is already on stage');
 
     const alreadyOnStage =
-      memberRes.rows[0].role === 'speaker' ||
-      memberRes.rows[0].role === 'admin' ||
-      memberRes.rows[0].seat_index != null;
+      memberRes.rows[0].seat_index != null || memberRes.rows[0].role === 'speaker';
 
     if (!alreadyOnStage) {
       const onStage = await countActiveStageGuests(room.id, userId, client);
       if (onStage >= maxSpeakers) {
         const label =
           room.room_type === 'live'
-            ? 'Live stage is full — max 5 people (host + 4 guests)'
+            ? 'Live stage is full — max 6 people (host + 5 guests)'
             : 'Party room is full — maximum 15 people on stage';
         throw new Error(label);
       }
@@ -740,7 +738,7 @@ async function promoteToSpeaker({ channel, userId, displayName, seatIndex = null
       if (after > maxSpeakers) {
         throw new Error(
           room.room_type === 'live'
-            ? 'Live stage is full — max 5 people (host + 4 guests)'
+            ? 'Live stage is full — max 6 people (host + 5 guests)'
             : 'Party room is full — maximum 15 people on stage'
         );
       }

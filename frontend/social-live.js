@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260716-make-admin';
+  window.__AP_LIVE_BUILD = '20260716-seats5-leave';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -16,7 +16,7 @@
   const PARTY_MAX_SEATS = 15;
   const PARTY_HOST_SLOT = 1;
   const PARTY_MAX_GUESTS = PARTY_MAX_SEATS - 1;
-  const LIVE_MAX_GUESTS = 4; /* host + 4 guests = 5 on live stream */
+  const LIVE_MAX_GUESTS = 5; /* host + 5 guests = 6 on live stream */
   const LIVE_MAX_ON_STAGE = LIVE_MAX_GUESTS + 1;
 
   const chatProfileCache = new Map();
@@ -1266,7 +1266,11 @@
   }
 
   function demoteUserFromSeat(userId) {
-    if (!canModerateRoom() || !liveSocket?.connected || !userId) return;
+    if (!liveSocket?.connected || !userId) return;
+    const meId = String(currentUser()?.id || '');
+    const targetId = String(userId);
+    const selfLeave = meId && targetId === meId;
+    if (!selfLeave && !canModerateRoom()) return;
     if (isRoomHostUserId(userId)) {
       toast('Cannot remove the room host', 'warning');
       return;
@@ -1274,22 +1278,40 @@
     const memberHit =
       (roomState?.seats || []).find((s) => String(s.userId) === String(userId)) ||
       (roomState?.onlineMembers || []).find((m) => String(m.userId) === String(userId));
-    const stayAdmin = Boolean(memberHit?.isAdmin || memberHit?.role === 'admin');
+    const stayAdmin = isRoomAdminMember(memberHit);
     liveSocket.emit('live:demote_speaker', { channel: channelId(), userId }, (res) => {
       if (res?.ok) {
         clearLocalSeatState(userId);
+        if (selfLeave) {
+          hasSpeakerSeat = false;
+          forgetStickyStageGuest(targetId);
+        }
         renderRoomState();
         syncHostBarUi();
         toast(
-          stayAdmin
-            ? `Removed from the seat — still ${roomAdminLabel().toLowerCase()}`
-            : 'Removed from the seat',
+          selfLeave
+            ? stayAdmin
+              ? `Left the seat — you are still a ${roomAdminLabel().toLowerCase()}`
+              : 'Left the seat'
+            : stayAdmin
+              ? `Removed from the seat — still ${roomAdminLabel().toLowerCase()}`
+              : 'Removed from the seat',
           'success'
         );
       } else {
-        toast(res?.message || 'Could not remove from seat', 'error');
+        toast(res?.message || (selfLeave ? 'Could not leave the seat' : 'Could not remove from seat'), 'error');
       }
     });
+  }
+
+  function leaveOwnSeat() {
+    const meId = currentUser()?.id;
+    if (!meId || isHost()) return;
+    if (!memberIsOnStage(meId) && !hasSpeakerSeat) {
+      toast('You are not on a seat', 'info');
+      return;
+    }
+    demoteUserFromSeat(meId);
   }
 
   function syncAgoraUidMap() {
@@ -1756,14 +1778,8 @@
     const me = currentUser()?.id;
     if (!userId || String(userId) === String(me)) {
       await openProfileSheet(name, userId);
-      /* Room/live admins (and speakers) can leave their own seat without kicking themselves out */
-      if (
-        userId &&
-        String(userId) === String(me) &&
-        !isHost() &&
-        memberIsOnStage(userId) &&
-        canModerateRoom()
-      ) {
+      /* Anyone on a seat (incl. room/live admin) can leave their own seat */
+      if (userId && String(userId) === String(me) && !isHost() && (memberIsOnStage(userId) || hasSpeakerSeat)) {
         const panel = document.querySelector('#apProfileSheet .ap-profile-sheet-panel');
         if (panel) {
           panel.querySelector('.ap-profile-more-menu')?.remove();
@@ -1773,7 +1789,7 @@
             '<button type="button" data-mod="demote"><i class="fas fa-user-minus"></i><span>Leave the seat</span></button>';
           panel.appendChild(menu);
           menu.querySelector('[data-mod="demote"]')?.addEventListener('click', () => {
-            demoteUserFromSeat(userId);
+            leaveOwnSeat();
             menu.remove();
             document.getElementById('apProfileSheet')?.classList.remove('open');
           });
@@ -2074,7 +2090,9 @@
         const uid = String(m.userId || '');
         const isSelf = uid && uid === String(currentUser()?.id || '');
         let actionBtn = '';
-        if (mod && !isRoomHostUserId(m.userId) && !isSelf) {
+        if (isSelf && !isHost() && onSeat) {
+          actionBtn = `<div class="party-req-actions"><button type="button" class="deny" data-leave-own-seat="1">Leave seat</button></div>`;
+        } else if (mod && !isRoomHostUserId(m.userId) && !isSelf) {
           const bits = [];
           if (hosting) {
             bits.push(
@@ -2107,6 +2125,13 @@
       })
       .join('');
     /* Accept / Add / Remove clicks: delegated in bindPartyRequestsSheet */
+    list.querySelectorAll('[data-leave-own-seat]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        leaveOwnSeat();
+      });
+    });
     list.querySelectorAll('[data-admin-grant]').forEach((btn) => {
       btn.addEventListener('click', (e) => {
         e.preventDefault();
@@ -7588,7 +7613,11 @@
         const muted = Boolean(s.muted);
         const speaking = s.speaking ? ' is-speaking' : '';
         const canRemove =
-          canModerateRoom() && uid && !isRoomHostUserId(uid);
+          uid &&
+          !isRoomHostUserId(uid) &&
+          (canModerateRoom() || String(uid) === String(currentUser()?.id || ''));
+        const removeLabel =
+          String(uid) === String(currentUser()?.id || '') ? 'Leave the seat' : 'Remove from seat';
         return `
       <div class="ap-guest-wrap" data-guest-wrap="${escapeHtml(uid)}">
         <button type="button" class="ap-guest-seat${admin ? ' is-admin-user' : ''}${muted ? ' is-muted' : ' is-on-mic'}${speaking}" data-guest="${escapeHtml(s.name)}" data-guest-id="${escapeHtml(uid)}">
@@ -7600,7 +7629,7 @@
           </span>
           <span class="ap-guest-name">${escapeHtml(String(s.name).slice(0, 8))}</span>
         </button>
-        ${canRemove ? `<button type="button" class="ap-guest-remove" data-remove-seat="${escapeHtml(uid)}" aria-label="Remove from seat" title="Remove from seat"><i class="fas fa-times"></i></button>` : ''}
+        ${canRemove ? `<button type="button" class="ap-guest-remove" data-remove-seat="${escapeHtml(uid)}" aria-label="${removeLabel}" title="${removeLabel}"><i class="fas fa-times"></i></button>` : ''}
       </div>`;
       })
       .join('');
@@ -7637,7 +7666,12 @@
         e.preventDefault();
         e.stopPropagation();
         const uid = btn.dataset.removeSeat;
-        if (!uid || !canModerateRoom()) return;
+        if (!uid) return;
+        if (String(uid) === String(currentUser()?.id || '')) {
+          leaveOwnSeat();
+          return;
+        }
+        if (!canModerateRoom()) return;
         demoteUserFromSeat(uid);
       });
     });
@@ -12581,7 +12615,12 @@
     document.getElementById('apProfileMore')?.addEventListener('click', () => {
       const name = activeProfileUser.name || 'User';
       const uid = activeProfileUser.userId;
-      if (canModerateRoom() && uid && !isRoomHostUserId(uid) && String(uid) !== String(currentUser()?.id || '')) {
+      const meId = String(currentUser()?.id || '');
+      if (uid && String(uid) === meId && !isHost() && (memberIsOnStage(uid) || hasSpeakerSeat)) {
+        openModerationMenu(name, uid);
+        return;
+      }
+      if (canModerateRoom() && uid && !isRoomHostUserId(uid) && String(uid) !== meId) {
         openModerationMenu(name, uid);
         return;
       }
@@ -12905,6 +12944,7 @@
     }
     sheet?.querySelector('.ap-profile-more-menu')?.remove();
     syncProfileAdminToggleBtn();
+    syncProfileLeaveSeatBtn();
     const profileSheet = document.getElementById('apProfileSheet');
     if (profileSheet) {
       profileSheet.classList.add('open');
@@ -12927,6 +12967,37 @@
         : '<i class="fas fa-user-plus"></i><span>Add friend</span>';
     }
     syncProfileAdminToggleBtn();
+    syncProfileLeaveSeatBtn();
+  }
+
+  function syncProfileLeaveSeatBtn() {
+    const actions = document.querySelector('#apProfileSheet .ap-profile-actions');
+    if (!actions) return;
+    let btn = document.getElementById('apProfileLeaveSeat');
+    const uid = String(activeProfileUser?.userId || '');
+    const meId = String(currentUser()?.id || '');
+    const canShow =
+      uid &&
+      meId &&
+      uid === meId &&
+      !isHost() &&
+      (memberIsOnStage(uid) || hasSpeakerSeat);
+    if (!canShow) {
+      btn?.remove();
+      return;
+    }
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.type = 'button';
+      btn.id = 'apProfileLeaveSeat';
+      btn.className = 'ap-profile-action-btn ap-profile-leave-seat';
+      actions.appendChild(btn);
+      btn.addEventListener('click', () => {
+        leaveOwnSeat();
+        document.getElementById('apProfileSheet')?.classList.remove('open');
+      });
+    }
+    btn.innerHTML = '<i class="fas fa-user-minus"></i><span>Leave seat</span>';
   }
 
   function syncProfileAdminToggleBtn() {

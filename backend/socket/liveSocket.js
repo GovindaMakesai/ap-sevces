@@ -1019,13 +1019,14 @@ function registerLiveSocket(io) {
     socket.on('live:demote_speaker', async (payload, ack) => {
       try {
         const channel = sanitizeChannel(payload?.channel || currentChannel);
-        if (!(await isRoomModerator(socket, channel))) {
-          if (ack) ack({ ok: false, message: 'Only host or admin can remove from seat' });
-          return;
-        }
         const userId = String(payload?.userId || '');
         if (!userId) {
           if (ack) ack({ ok: false, message: 'userId required' });
+          return;
+        }
+        const selfLeave = String(socket.userId) === userId;
+        if (!selfLeave && !(await isRoomModerator(socket, channel))) {
+          if (ack) ack({ ok: false, message: 'Only host or admin can remove from seat' });
           return;
         }
         const room = await liveRoomService.findByChannel(channel);

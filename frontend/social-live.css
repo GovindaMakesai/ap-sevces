@@ -6956,6 +6956,13 @@ html.ap-expo-app .ap-chip {
   color: #fff !important;
 }
 
+.ap-profile-leave-seat {
+  background: rgba(239, 68, 68, 0.9) !important;
+  color: #fff !important;
+  border: none !important;
+  font-weight: 800 !important;
+}
+
 .ap-profile-more-menu button {
   display: flex;
   align-items: center;
