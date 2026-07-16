@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260716-mod-secure';
+  window.__AP_LIVE_BUILD = '20260716-gift-tap';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -7247,20 +7247,7 @@
         }
       };
       row.addEventListener('click', openJoined, true);
-      row.addEventListener(
-        'pointerup',
-        (e) => {
-          if (e.button != null && e.button !== 0) return;
-          if (row.dataset._joinedPtr === '1') return;
-          row.dataset._joinedPtr = '1';
-          setTimeout(() => {
-            row.dataset._joinedPtr = '0';
-          }, 400);
-          if (document.getElementById('partyRequestsSheet')?.classList.contains('open')) return;
-          openJoined(e);
-        },
-        true
-      );
+      /* No pointerup opener — same open-then-close flicker as gift/tools */
     }
     window.SocialUI?.bindAvatarFallbacks?.(row);
   }
@@ -7833,6 +7820,7 @@
           const sheet = document.getElementById('partyToolsSheet');
           if (!sheet || sheet.classList.contains('open')) return;
           closeLiveOverlays('tools');
+          window.__apToolsOpenGuardUntil = Date.now() + 700;
           sheet.classList.add('open');
           sheet.style.display = 'flex';
           sheet.style.pointerEvents = 'auto';
@@ -7848,6 +7836,7 @@
           hideMicRequestActionBar();
           document.body.classList.remove('party-requests-open', 'ap-sheet-open');
           document.getElementById('partyRequestsSheet')?.classList.remove('open');
+          if (document.getElementById('giftSheet')?.classList.contains('open')) return;
           openGiftSheet();
         },
       },
@@ -7933,7 +7922,12 @@
       /* Always clear stuck chrome state when user aims at Joined / Gift / Tools */
       unlockLiveChrome({ forceGift: true });
       if (!found.blocked) return;
-      /* Chrome is under a non-pass-through layer — salvage the tap */
+      /*
+       * Only salvage on click — never on pointerdown.
+       * Opening a full-screen sheet on pointerdown makes the synthetic click
+       * hit the backdrop and instantly close (gift/tools "flicker").
+       */
+      if (e.type !== 'click') return;
       e.preventDefault();
       e.stopPropagation();
       if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
@@ -10567,8 +10561,8 @@
     sheet.classList.add('open');
     if (sheet.parentElement !== document.body) document.body.appendChild(sheet);
     syncLiveOverlayClass();
-    /* Block accidental Send from the same finger tap that opened the sheet */
-    window.__apGiftOpenGuardUntil = Date.now() + 650;
+    /* Block accidental backdrop-close / Send from the same finger tap that opened the sheet */
+    window.__apGiftOpenGuardUntil = Date.now() + 750;
     if (!recipients.length && isHost()) {
       toast('Invite or accept a guest on stage, then pick them above Send', 'info');
     }
@@ -10910,10 +10904,11 @@
       closeLiveOverlays();
     });
     sheet.addEventListener('click', (e) => {
-      if (e.target === sheet) {
-        sheet.classList.remove('open');
-        closeLiveOverlays();
-      }
+      if (e.target !== sheet) return;
+      /* Same finger that opened gift often lands on the full-screen backdrop */
+      if (Date.now() < (Number(window.__apGiftOpenGuardUntil) || 0)) return;
+      sheet.classList.remove('open');
+      closeLiveOverlays();
     });
     document.getElementById('giftSendBtn')?.addEventListener('click', (e) => {
       e.preventDefault();
@@ -11285,13 +11280,16 @@
     const openToolsFromBar = (e) => {
       e?.preventDefault?.();
       e?.stopPropagation?.();
+      if (typeof e?.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
       unlockLiveChrome({ forceGift: true });
       hideMicRequestActionBar();
       document.body.classList.remove('party-requests-open', 'ap-sheet-open');
       document.getElementById('partyRequestsSheet')?.classList.remove('open');
       const sheet = document.getElementById('partyToolsSheet');
       if (!sheet) return;
+      if (sheet.classList.contains('open')) return;
       closeLiveOverlays('tools');
+      window.__apToolsOpenGuardUntil = Date.now() + 700;
       sheet.classList.add('open');
       sheet.style.display = 'flex';
       sheet.style.pointerEvents = 'auto';
@@ -11304,22 +11302,9 @@
     if (toolsBtn && toolsBtn.dataset.toolsOpenBound !== '1') {
       toolsBtn.dataset.toolsOpenBound = '1';
       toolsBtn.style.pointerEvents = 'auto';
-      toolsBtn.style.zIndex = '14100';
+      toolsBtn.style.zIndex = '14250';
+      /* Click only — pointerup + click caused open-then-instant-close flicker */
       toolsBtn.addEventListener('click', openToolsFromBar, true);
-      toolsBtn.addEventListener(
-        'pointerup',
-        (e) => {
-          if (e.button != null && e.button !== 0) return;
-          if (toolsBtn.dataset._toolsPtr === '1') return;
-          toolsBtn.dataset._toolsPtr = '1';
-          setTimeout(() => {
-            toolsBtn.dataset._toolsPtr = '0';
-          }, 400);
-          if (document.getElementById('partyToolsSheet')?.classList.contains('open')) return;
-          openToolsFromBar(e);
-        },
-        true
-      );
     }
     document.getElementById('partyToolsClose')?.addEventListener('click', () => {
       const sheet = document.getElementById('partyToolsSheet');
@@ -11331,44 +11316,35 @@
       closeLiveOverlays();
     });
     document.getElementById('partyToolsSheet')?.addEventListener('click', (e) => {
-      if (e.target.id === 'partyToolsSheet') {
-        e.target.classList.remove('open');
-        e.target.style.pointerEvents = 'none';
-        e.target.style.display = 'none';
-        closeLiveOverlays();
-      }
+      if (e.target.id !== 'partyToolsSheet') return;
+      /* Ignore the same tap that opened the sheet (lands on backdrop) */
+      if (Date.now() < (Number(window.__apToolsOpenGuardUntil) || 0)) return;
+      e.target.classList.remove('open');
+      e.target.style.pointerEvents = 'none';
+      e.target.style.display = 'none';
+      closeLiveOverlays();
     });
 
     const openGiftFromBar = (e) => {
       e?.preventDefault?.();
       e?.stopPropagation?.();
+      if (typeof e?.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
       unlockLiveChrome({ forceGift: true });
       hideMicRequestActionBar();
       document.body.classList.remove('party-requests-open', 'ap-sheet-open');
       document.getElementById('partyRequestsSheet')?.classList.remove('open');
+      const sheet = document.getElementById('giftSheet');
+      if (sheet?.classList.contains('open')) return;
       openGiftSheet();
     };
     ['partyBtnGift', 'liveBtnGift'].forEach((id) => {
       const btn = document.getElementById(id);
       if (!btn || btn.dataset.giftOpenBound === '1') return;
       btn.dataset.giftOpenBound = '1';
-      /* Capture phase so guest/video layers can't steal the tap */
+      btn.style.pointerEvents = 'auto';
+      btn.style.zIndex = '14250';
+      /* Click only — pointerup opened sheet then synthetic click closed it */
       btn.addEventListener('click', openGiftFromBar, true);
-      btn.addEventListener(
-        'pointerup',
-        (e) => {
-          if (e.button != null && e.button !== 0) return;
-          /* Don't open twice with click — only salvage when click never fires */
-          if (btn.dataset._giftPtr === '1') return;
-          btn.dataset._giftPtr = '1';
-          setTimeout(() => {
-            btn.dataset._giftPtr = '0';
-          }, 400);
-          if (document.getElementById('giftSheet')?.classList.contains('open')) return;
-          openGiftFromBar(e);
-        },
-        true
-      );
     });
 
     const toggleFollow = async () => {
