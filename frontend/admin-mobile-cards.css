@@ -8,6 +8,10 @@
   margin-bottom: 16px;
 }
 
+.admin-cards-view--always {
+  display: flex !important;
+}
+
 .admin-approval-card {
   background: #fff;
   border: 1px solid var(--gray-200, #e5e7eb);

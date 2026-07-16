@@ -1676,31 +1676,10 @@
                             </select>
                         </div>
 
-                        <!-- Users Table -->
-                        <div class="table-container admin-table-view">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>User</th>
-                                        <th>ID</th>
-                                        <th>Email</th>
-                                        <th>Phone</th>
-                                        <th>Role</th>
-                                        <th>Joined</th>
-                                        <th>Status</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="usersTable">
-                                    <tr>
-                                        <td colspan="8" class="loading-spinner">
-                                            <i class="fas fa-spinner fa-spin"></i> Loading users...
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                        <!-- Users list (cards) -->
+                        <div class="admin-cards-view admin-cards-view--always" id="usersCards">
+                            <p class="empty-state"><i class="fas fa-spinner fa-spin"></i> Loading users...</p>
                         </div>
-                        <div class="admin-cards-view" id="usersCards"></div>
 
                         <!-- Pagination -->
                         <div class="pagination" id="usersPagination"></div>
@@ -2567,58 +2546,14 @@
                 const response = await API.get(`/admin/users?page=${page}&limit=10&role=${encodeURIComponent(role)}&status=${encodeURIComponent(status)}&search=${encodeURIComponent(search)}`);
                 
                 if (response.success) {
-                    displayUsers(response.data);
                     displayUsersCards(response.data);
                     updatePagination(response.pagination, 'users', loadUsers);
                 }
             } catch (error) {
                 console.error('Failed to load users:', error);
-                const tbody = document.getElementById('usersTable');
-                if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="empty-state">${error.message || 'Failed to load users'}</td></tr>`;
                 const cards = document.getElementById('usersCards');
                 if (cards) cards.innerHTML = `<p class="empty-state">${error.message || 'Failed to load users'}</p>`;
             }
-        }
-
-        function displayUsers(users) {
-            const tbody = document.getElementById('usersTable');
-            if (!users || users.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No users found</td></tr>';
-                return;
-            }
-
-            tbody.innerHTML = users.map(user => {
-                const roleChip =
-                    window.formatRoleBadgeHtml?.(user, { withEmoji: true }) ||
-                    `<span class="status-badge">${user.role || 'customer'}</span>`;
-                const displayId = user.display_id != null ? String(user.display_id) : '—';
-                return `
-                <tr>
-                    <td>
-                        <div style="display: flex; align-items: center; gap: var(--spacing-sm);">
-                            <div class="avatar-circle">${user.first_name?.[0] || 'U'}${user.last_name?.[0] || ''}</div>
-                            <span>${user.first_name || ''} ${user.last_name || ''}</span>
-                        </div>
-                    </td>
-                    <td>${displayId}</td>
-                    <td>${user.email || ''}</td>
-                    <td>${user.phone || ''}</td>
-                    <td>${roleChip}</td>
-                    <td>${new Date(user.created_at).toLocaleDateString()}</td>
-                    <td><span class="status-badge ${user.is_active ? 'active' : 'inactive'}">${user.is_active ? 'Active' : 'Inactive'}</span></td>
-                    <td>
-                        <div class="action-buttons">
-                            <button class="icon-btn" onclick="viewUserDetails('${user.id}')" title="View"><i class="fas fa-eye"></i></button>
-                            <button class="icon-btn" onclick="editUser('${user.id}')" title="Edit"><i class="fas fa-edit"></i></button>
-                            ${String(user.role || '').toLowerCase() !== 'bdm' ? `<button class="icon-btn approve" onclick="makeUserBd('${user.id}', '${(user.email || '').replace(/'/g, "\\'")}')" title="Make BD"><i class="fas fa-sitemap"></i></button>` : ''}
-                            <button class="icon-btn ${user.is_active ? 'delete' : 'approve'}" onclick="toggleUserStatus('${user.id}', ${!user.is_active})">
-                                <i class="fas fa-${user.is_active ? 'ban' : 'check-circle'}"></i>
-                            </button>
-                        </div>
-                    </td>
-                </tr>
-            `;
-            }).join('');
         }
 
         function displayUsersCards(users) {
@@ -2653,6 +2588,12 @@
                     <div class="admin-approval-actions">
                         <button type="button" class="btn-primary" onclick="viewUserDetails('${user.id}')"><i class="fas fa-user"></i> View</button>
                         <button type="button" class="btn-outline" onclick="editUser('${user.id}')"><i class="fas fa-edit"></i> Edit</button>
+                    </div>
+                    <div class="admin-approval-actions" style="margin-top:8px">
+                        ${String(user.role || '').toLowerCase() !== 'bdm' ? `<button type="button" class="btn-outline" onclick="makeUserBd('${user.id}', '${(user.email || '').replace(/'/g, "\\'")}')"><i class="fas fa-sitemap"></i> Make BD</button>` : ''}
+                        <button type="button" class="${user.is_active ? 'btn-reject' : 'btn-approve'}" onclick="toggleUserStatus('${user.id}', ${!user.is_active})">
+                            <i class="fas fa-${user.is_active ? 'ban' : 'check-circle'}"></i> ${user.is_active ? 'Deactivate' : 'Activate'}
+                        </button>
                     </div>
                 </article>`;
             }).join('');
