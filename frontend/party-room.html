@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#1a0f3a">
   <title>Party Room - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-live.css?v=20260716-gift-dedupe">
+  <link rel="stylesheet" href="social-live.css?v=20260716-no-hostbar">
   <link rel="stylesheet" href="social-live-session.css?v=20260703-minimize-fix">
   <link rel="stylesheet" href="social-live-ref-ui.css?v=20260715-gift-coins">
   <link rel="stylesheet" href="social-fx.css">
@@ -141,7 +141,7 @@
         <span class="party-rank-badge party-rank-crown" aria-hidden="true"><i class="fas fa-crown"></i></span>
       </div>
       <div class="party-header-right">
-        <button type="button" class="party-users-btn" id="partyBtnUsersAll" aria-label="People in room"><i class="fas fa-users"></i></button>
+        <button type="button" class="party-users-btn" id="partyBtnUsersAll" aria-label="People in room"><i class="fas fa-users"></i><span id="partyReqCountFloat" class="party-req-badge" hidden>0</span></button>
         <div class="party-viewers" id="partyViewerAvatars">
           <span class="party-viewer-count" id="liveViewerCount">1</span>
         </div>
@@ -176,10 +176,11 @@
 
     <div class="party-win-banner" id="partyWinBanner"></div>
 
-    <div class="party-host-bar" id="partyHostBar">
-      <button type="button" class="party-host-action mod-tool" id="partyBtnRequests"><i class="fas fa-users"></i> Users <span id="partyReqCount" class="party-req-badge" hidden>0</span></button>
-      <button type="button" class="party-host-action mod-tool" id="partyBtnMuteAllChat"><i class="fas fa-comment-slash"></i> Mute all chat</button>
-      <button type="button" class="party-host-action mod-tool" id="partyBtnClearChat"><i class="fas fa-eraser"></i> Clear chat</button>
+    <!-- Host bar removed from layout — manage via people icon + Basic Tools -->
+    <div class="party-host-bar" id="partyHostBar" hidden aria-hidden="true" style="display:none!important">
+      <button type="button" class="party-host-action mod-tool" id="partyBtnRequests" hidden><i class="fas fa-users"></i> Users <span id="partyReqCount" class="party-req-badge" hidden>0</span></button>
+      <button type="button" class="party-host-action mod-tool" id="partyBtnMuteAllChat" hidden><i class="fas fa-comment-slash"></i> Mute all chat</button>
+      <button type="button" class="party-host-action mod-tool" id="partyBtnClearChat" hidden><i class="fas fa-eraser"></i> Clear chat</button>
     </div>
 
     <div class="party-invite-row">
@@ -329,7 +330,7 @@
   <script src="live-emoji-data.js"></script>
   <script src="social-shell.js?v=20260716-emoji-uri2"></script>
   <script src="live-session-provider.js?v=20260624-android-back"></script>
-  <script src="social-live.js?v=20260716-host-controls"></script>
+  <script src="social-live.js?v=20260716-no-hostbar"></script>
   <script src="social-nav.js?v=20260624-android-back"></script>
 </body>
 </html>

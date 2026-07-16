@@ -1116,7 +1116,21 @@ html.ap-secure-live .party-room-stage {
   background: transparent;
 }
 
-/* Live host / room-admin controls (hidden from regular viewers) */
+/* Host / admin control bars permanently removed from live UI */
+#liveHostBar,
+.live-host-bar,
+#partyHostBar,
+.party-host-bar {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  height: 0 !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Live host controls: host-only (never viewers) — kept for legacy selectors; bars stay hidden */
 body:not(.ap-is-host):not(.ap-can-moderate) .live-host-bar,
 body:not(.ap-is-host):not(.ap-can-moderate) #liveHostBar,
 body:not(.ap-is-host):not(.ap-can-moderate) .live-host-bar-toggle,
@@ -1147,55 +1161,24 @@ body:not(.ap-is-host):not(.ap-can-moderate) .party-host-bar {
   display: none !important;
 }
 
+/* Party/live host bars stay hidden (tools → Basic Tools + people sheet) */
 body.ap-is-host .party-host-bar,
-body.ap-can-moderate .party-host-bar {
-  display: flex !important;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 6px;
-}
-
-/* Host-only: sit in the Users + Invite row */
+body.ap-can-moderate .party-host-bar,
+body.ap-is-host .live-host-bar,
+body.ap-is-host #liveHostBar,
 body.ap-is-host .live-host-bar:not([hidden]),
-body.ap-is-host #liveHostBar:not([hidden]) {
-  display: inline-flex !important;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-  margin: 0 !important;
-  padding: 0 !important;
-  flex: 0 0 auto;
-  width: auto;
-  max-width: none;
-  position: relative;
-  z-index: 26;
-  pointer-events: auto !important;
-  visibility: visible !important;
-  touch-action: manipulation;
-  background: transparent;
-}
-
+body.ap-is-host #liveHostBar:not([hidden]),
 body.ap-is-host .live-host-bar.is-collapsed:not([hidden]),
-body.ap-is-host #liveHostBar.is-collapsed:not([hidden]) {
-  display: inline-flex !important;
-  flex-direction: row !important;
-  align-items: center !important;
-  justify-content: flex-start !important;
-  align-self: center !important;
-  width: fit-content !important;
-  max-width: fit-content !important;
-  min-width: 0 !important;
-}
-
+body.ap-is-host #liveHostBar.is-collapsed:not([hidden]),
 body.ap-is-host .live-host-bar:not(.is-collapsed):not([hidden]),
 body.ap-is-host #liveHostBar:not(.is-collapsed):not([hidden]) {
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: stretch !important;
-  flex: 1 0 100%;
-  width: 100% !important;
-  max-width: 100% !important;
-  margin-top: 4px !important;
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  height: 0 !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
 .live-host-bar-toggle {
@@ -1806,35 +1789,23 @@ body:not(.ap-is-host) .host-only-tool {
   display: none !important;
 }
 
+body.ap-can-moderate .live-host-bar,
+body.ap-can-moderate #liveHostBar,
 body.ap-can-moderate .live-host-bar:not([hidden]),
-body.ap-can-moderate #liveHostBar:not([hidden]) {
-  display: inline-flex !important;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
+body.ap-can-moderate #liveHostBar:not([hidden]),
+body.ap-can-moderate .live-host-bar.is-collapsed:not([hidden]),
+body.ap-can-moderate #liveHostBar.is-collapsed:not([hidden]),
+body.ap-can-moderate .live-host-bar:not(.is-collapsed):not([hidden]),
+body.ap-can-moderate #liveHostBar:not(.is-collapsed):not([hidden]),
+body.ap-can-moderate .party-live-actions .live-host-bar,
+body.ap-can-moderate .party-live-actions #liveHostBar {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  height: 0 !important;
+  overflow: hidden !important;
   margin: 0 !important;
   padding: 0 !important;
-  flex: 0 0 auto;
-  width: auto;
-  max-width: none;
-  position: relative;
-  z-index: 26;
-  pointer-events: auto !important;
-  visibility: visible !important;
-  touch-action: manipulation;
-  background: transparent;
-}
-
-/* Room admins must see Clear chat / Mute all (actions were still hidden by host-only rule) */
-body.ap-can-moderate .live-host-bar:not([hidden]) .live-host-bar-toggle,
-body.ap-can-moderate #liveHostBar:not([hidden]) .live-host-bar-toggle,
-body.ap-can-moderate .live-host-bar:not([hidden]) .live-host-bar-actions,
-body.ap-can-moderate #liveHostBar:not([hidden]) .live-host-bar-actions,
-body.ap-can-moderate .live-host-bar:not([hidden]) .mod-tool,
-body.ap-can-moderate #liveHostBar:not([hidden]) .mod-tool {
-  display: flex !important;
-  visibility: visible !important;
-  pointer-events: auto !important;
 }
 
 body.ap-is-host .mod-only-tool,
@@ -1844,36 +1815,6 @@ body.ap-can-moderate .mod-only-tool {
 
 body:not(.ap-is-host):not(.ap-can-moderate) .mod-only-tool {
   display: none !important;
-}
-
-body.ap-can-moderate .live-host-bar.is-collapsed:not([hidden]),
-body.ap-can-moderate #liveHostBar.is-collapsed:not([hidden]) {
-  display: inline-flex !important;
-  flex-direction: row !important;
-  align-items: center !important;
-  justify-content: flex-start !important;
-  align-self: center !important;
-  width: fit-content !important;
-  max-width: fit-content !important;
-  min-width: 0 !important;
-}
-
-body.ap-can-moderate .live-host-bar:not(.is-collapsed):not([hidden]),
-body.ap-can-moderate #liveHostBar:not(.is-collapsed):not([hidden]) {
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: stretch !important;
-  flex: 1 0 100%;
-  width: 100% !important;
-  max-width: 100% !important;
-  margin-top: 4px !important;
-}
-
-body.ap-can-moderate .party-live-actions .live-host-bar,
-body.ap-can-moderate .party-live-actions #liveHostBar {
-  order: 1;
-  margin-right: auto;
-  align-self: center;
 }
 
 .ap-kick-duration-sheet {
@@ -4207,14 +4148,6 @@ body.ap-room-active .ap-live-loader {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Host: Host controls left, Users + Invite pushed right */
-body.ap-is-host .party-live-actions .live-host-bar,
-body.ap-is-host .party-live-actions #liveHostBar {
-  order: 1;
-  margin-right: auto;
-  align-self: center;
-}
-
 body.ap-is-host .party-live-actions .party-users-btn {
   margin-left: 0;
 }
@@ -4229,6 +4162,11 @@ body.ap-is-host .party-live-actions .party-event-pill {
   flex-wrap: nowrap;
   align-items: center;
   gap: 8px;
+}
+
+.party-host-bar,
+#partyHostBar {
+  display: none !important;
 }
 
 .party-meta-row {
@@ -7307,6 +7245,27 @@ html.ap-expo-app .ap-chip {
   margin-right: 6px;
   cursor: pointer;
   touch-action: manipulation;
+  position: relative;
+}
+
+.party-users-btn .party-req-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  margin: 0;
+  min-width: 16px;
+  height: 16px;
+  line-height: 16px;
+  padding: 0 4px;
+  font-size: 9px;
+  font-weight: 800;
+  color: #fff;
+  text-align: center;
+  pointer-events: none;
+}
+
+.party-users-btn .party-req-badge[hidden] {
+  display: none !important;
 }
 
 .party-viewers.is-clickable,

@@ -10,28 +10,25 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-live.css?v=20260716-gift-dedupe">
+  <link rel="stylesheet" href="social-live.css?v=20260716-no-hostbar">
   <link rel="stylesheet" href="social-live-session.css?v=20260713-live-ux">
   <link rel="stylesheet" href="social-live-ref-ui.css?v=20260715-gift-coins">
   <link rel="stylesheet" href="social-fx.css">
-  <link rel="stylesheet" href="social-live-pro.css?v=20260716-chrome-tap">
+  <link rel="stylesheet" href="social-live-pro.css?v=20260716-no-hostbar">
   <link rel="stylesheet" href="beauty/ui/beauty-sheet.css?v=20260713-beauty-engine">
   <style id="ap-immersive-critical">
-    /* Host + room/live admin controls; viewers never see */
-    body:not(.ap-is-host):not(.ap-can-moderate) #liveHostBar,
-    body:not(.ap-is-host):not(.ap-can-moderate) .live-host-bar,
-    body:not(.ap-is-host):not(.ap-can-moderate) .live-host-bar-toggle,
-    body:not(.ap-is-host):not(.ap-can-moderate) .live-host-bar-actions,
-    #liveHostBar[hidden] {
+    /* Host controls bar removed — permanently hidden for everyone */
+    #liveHostBar,
+    .live-host-bar,
+    .live-host-bar-toggle,
+    .live-host-bar-actions,
+    body.ap-is-host #liveHostBar,
+    body.ap-can-moderate #liveHostBar {
       display: none !important;
       visibility: hidden !important;
       pointer-events: none !important;
-    }
-    body.ap-is-host #liveHostBar:not([hidden]),
-    body.ap-can-moderate #liveHostBar:not([hidden]) {
-      display: inline-flex !important;
-      visibility: visible !important;
-      pointer-events: auto !important;
+      height: 0 !important;
+      overflow: hidden !important;
     }
 
     html.ap-live-immersive .social-bridge-header,
@@ -207,33 +204,34 @@
       </div>
 
       <div class="party-live-actions" id="partyLiveActions">
-        <div class="live-host-bar is-collapsed" id="liveHostBar" hidden aria-hidden="true">
-          <button type="button" class="live-host-bar-toggle" id="liveHostBarToggle" aria-expanded="false">
+        <!-- Host controls bar removed — tools live in Basic Tools + people sheet -->
+        <div class="live-host-bar is-collapsed" id="liveHostBar" hidden aria-hidden="true" style="display:none!important">
+          <button type="button" class="live-host-bar-toggle" id="liveHostBarToggle" aria-expanded="false" hidden>
             <i class="fas fa-sliders-h"></i> Host controls
           </button>
-          <div class="live-host-bar-actions" id="liveHostBarActions">
-            <button type="button" class="party-host-action mod-tool" id="partyBtnRequests"><i class="fas fa-users"></i>
+          <div class="live-host-bar-actions" id="liveHostBarActions" hidden>
+            <button type="button" class="party-host-action mod-tool" id="partyBtnRequests" hidden><i class="fas fa-users"></i>
               Guests <span id="partyReqCount" class="party-req-badge" hidden>0</span></button>
-            <button type="button" class="party-host-action host-only-tool" id="liveBtnModeVideo" data-mode="video"><i
+            <button type="button" class="party-host-action host-only-tool" id="liveBtnModeVideo" data-mode="video" hidden><i
                 class="fas fa-video"></i> Video</button>
-            <button type="button" class="party-host-action host-only-tool" id="liveBtnModeAudio" data-mode="audio"><i
+            <button type="button" class="party-host-action host-only-tool" id="liveBtnModeAudio" data-mode="audio" hidden><i
                 class="fas fa-microphone"></i> Audio only</button>
-            <button type="button" class="party-host-action host-only-tool" id="liveBtnHostMute"><i
+            <button type="button" class="party-host-action host-only-tool" id="liveBtnHostMute" hidden><i
                 class="fas fa-microphone"></i> Mic</button>
-            <button type="button" class="party-host-action host-only-tool" id="liveBtnFlipCam" title="Flip camera"><i
+            <button type="button" class="party-host-action host-only-tool" id="liveBtnFlipCam" title="Flip camera" hidden><i
                 class="fas fa-sync-alt"></i> Flip</button>
-            <button type="button" class="party-host-action host-only-tool" id="liveBtnFilters" title="Filters"><i
+            <button type="button" class="party-host-action host-only-tool" id="liveBtnFilters" title="Filters" hidden><i
                 class="fas fa-magic"></i> Filters</button>
-            <button type="button" class="party-host-action mod-tool" id="liveBtnMuteAllChat" title="Mute all chat">
+            <button type="button" class="party-host-action mod-tool" id="liveBtnMuteAllChat" title="Mute all chat" hidden>
               <i class="fas fa-comment-slash"></i> Mute all chat
             </button>
-            <button type="button" class="party-host-action mod-tool" id="liveBtnClearChat" title="Clear chat">
+            <button type="button" class="party-host-action mod-tool" id="liveBtnClearChat" title="Clear chat" hidden>
               <i class="fas fa-eraser"></i> Clear chat
             </button>
           </div>
         </div>
         <button type="button" class="party-users-btn" id="partyBtnUsersAll" aria-label="People in room"><i
-            class="fas fa-users"></i></button>
+            class="fas fa-users"></i><span id="partyReqCountFloat" class="party-req-badge" hidden>0</span></button>
         <button type="button" class="party-event-pill" id="partyInvitePill">
           <span class="pill-title"><i class="fas fa-user-plus"></i> Invite friends</span>
           <span class="pill-sub">Tap to share</span>
@@ -330,6 +328,14 @@
               class="fas fa-compress"></i></span>Minimize</button>
         <button type="button" id="partyBtnBackground" class="host-only-tool"><span class="ico bg"><i
               class="fas fa-image"></i></span>Background</button>
+        <button type="button" id="partyToolsFlipCam" class="host-only-tool"><span class="ico"><i
+              class="fas fa-sync-alt"></i></span>Flip cam</button>
+        <button type="button" id="partyToolsFilters" class="host-only-tool"><span class="ico"><i
+              class="fas fa-magic"></i></span>Filters</button>
+        <button type="button" id="partyToolsModeVideo" class="host-only-tool" data-mode="video"><span class="ico"><i
+              class="fas fa-video"></i></span>Video</button>
+        <button type="button" id="partyToolsModeAudio" class="host-only-tool" data-mode="audio"><span class="ico"><i
+              class="fas fa-microphone"></i></span>Audio</button>
         <button type="button" id="partyToolsMuteAllChat" class="mod-only-tool"><span class="ico"><i
               class="fas fa-comment-slash"></i></span>Mute all chat</button>
         <button type="button" id="partyToolsClearChat" class="mod-only-tool"><span class="ico"><i
@@ -380,7 +386,7 @@
   <script src="social-shell.js?v=20260716-emoji-uri2"></script>
   <script src="live-session-provider.js?v=20260624-android-back"></script>
   <script type="module" src="beauty/index.js?v=20260713-beauty-engine"></script>
-  <script src="social-live.js?v=20260716-host-controls"></script>
+  <script src="social-live.js?v=20260716-no-hostbar"></script>
   <script src="social-live-interactions.js"></script>
   <script src="social-nav.js?v=20260624-android-back"></script>
 </body>

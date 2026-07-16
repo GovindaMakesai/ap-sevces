@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260716-tools-agree';
+  window.__AP_LIVE_BUILD = '20260716-no-hostbar';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -1992,36 +1992,26 @@
   }
 
   function syncHostBarUi() {
-    /* Host + room-admin chrome — same Host controls UI (not a separate Admin look) */
+    /* Host/admin control bars removed from live UI — keep chrome clean.
+       Moderation stays via people sheet + Basic Tools. */
     const hosting = isHost();
     const moderating = canModerateRoom();
     document.body.classList.toggle('ap-is-host', hosting);
     document.body.classList.toggle('ap-can-moderate', moderating && !hosting);
     const liveHostBar = document.getElementById('liveHostBar');
     if (liveHostBar) {
-      if (moderating) {
-        liveHostBar.hidden = false;
-        liveHostBar.removeAttribute('hidden');
-        liveHostBar.setAttribute('aria-hidden', 'false');
-        liveHostBar.style.removeProperty('display');
-        liveHostBar.style.removeProperty('visibility');
-        liveHostBar.style.removeProperty('pointer-events');
-        const btn = document.getElementById('liveHostBarToggle');
-        if (btn && btn.getAttribute('aria-expanded') !== 'true') {
-          btn.innerHTML = '<i class="fas fa-sliders-h"></i> Host controls';
-        }
-      } else {
-        liveHostBar.hidden = true;
-        liveHostBar.setAttribute('hidden', '');
-        liveHostBar.setAttribute('aria-hidden', 'true');
-        liveHostBar.style.setProperty('display', 'none', 'important');
-        liveHostBar.classList.add('is-collapsed');
-        const btn = document.getElementById('liveHostBarToggle');
-        if (btn) {
-          btn.setAttribute('aria-expanded', 'false');
-          btn.innerHTML = '<i class="fas fa-sliders-h"></i> Host controls';
-        }
-      }
+      liveHostBar.hidden = true;
+      liveHostBar.setAttribute('hidden', '');
+      liveHostBar.setAttribute('aria-hidden', 'true');
+      liveHostBar.style.setProperty('display', 'none', 'important');
+      liveHostBar.classList.add('is-collapsed');
+    }
+    const partyHostBar = document.getElementById('partyHostBar');
+    if (partyHostBar) {
+      partyHostBar.hidden = true;
+      partyHostBar.setAttribute('hidden', '');
+      partyHostBar.setAttribute('aria-hidden', 'true');
+      partyHostBar.style.setProperty('display', 'none', 'important');
     }
   }
 
@@ -8538,15 +8528,10 @@
     if (isLiveRoomPage()) {
       const target = document.getElementById('partyLiveActions');
       if (!target) return;
-      const hostBar = document.getElementById('liveHostBar');
       const usersBtn = document.getElementById('partyBtnUsersAll');
-      /* Order: Host controls (left) → Users → Invite (right) */
-      if (hostBar && hostBar.parentElement === target && target.firstElementChild !== hostBar) {
-        target.insertBefore(hostBar, target.firstElementChild);
-      }
-      if (usersBtn && usersBtn.parentElement === target) {
-        if (hostBar && hostBar.parentElement === target) target.insertBefore(usersBtn, hostBar.nextSibling);
-        else target.insertBefore(usersBtn, target.firstElementChild);
+      /* Order: Users → Invite (host controls bar removed) */
+      if (usersBtn && usersBtn.parentElement === target && target.firstElementChild !== usersBtn) {
+        target.insertBefore(usersBtn, target.firstElementChild);
       }
       if (pill.parentElement !== target || target.lastElementChild !== pill) {
         target.appendChild(pill);
@@ -9987,8 +9972,21 @@
   function renderJoinRequests() {
     const list = document.getElementById('partyRequestsList');
     const badge = document.getElementById('partyReqCount');
+    const badgeFloat = document.getElementById('partyReqCountFloat');
     const mod = canModerateRoom();
-    if (badge) badge.textContent = String(mod ? joinRequests.length : getPartyMembersForList().length);
+    const countStr = String(mod ? joinRequests.length : getPartyMembersForList().length);
+    if (badge) badge.textContent = countStr;
+    if (badgeFloat) {
+      const n = mod ? joinRequests.length : 0;
+      badgeFloat.textContent = String(n);
+      if (n > 0) {
+        badgeFloat.hidden = false;
+        badgeFloat.removeAttribute('hidden');
+      } else {
+        badgeFloat.hidden = true;
+        badgeFloat.setAttribute('hidden', '');
+      }
+    }
     if (!list) return;
     if (!mod) {
       list.innerHTML = '<p class="party-requests-empty">Mic requests are reviewed by the host or room admin</p>';
@@ -10185,6 +10183,14 @@
 
     document.getElementById('liveBtnFlipCam')?.addEventListener('click', () => switchCameraFacing());
     document.getElementById('liveBtnFilters')?.addEventListener('click', () => openVideoFilterSheet());
+    document.getElementById('partyToolsFlipCam')?.addEventListener('click', () => {
+      switchCameraFacing();
+      document.getElementById('partyToolsSheet')?.classList.remove('open');
+    });
+    document.getElementById('partyToolsFilters')?.addEventListener('click', () => {
+      openVideoFilterSheet();
+      document.getElementById('partyToolsSheet')?.classList.remove('open');
+    });
 
     const setMode = async (mode) => {
       const next = mode === 'audio' ? 'audio' : 'video';
@@ -10205,6 +10211,14 @@
     };
     document.getElementById('liveBtnModeVideo')?.addEventListener('click', () => setMode('video'));
     document.getElementById('liveBtnModeAudio')?.addEventListener('click', () => setMode('audio'));
+    document.getElementById('partyToolsModeVideo')?.addEventListener('click', () => {
+      setMode('video');
+      document.getElementById('partyToolsSheet')?.classList.remove('open');
+    });
+    document.getElementById('partyToolsModeAudio')?.addEventListener('click', () => {
+      setMode('audio');
+      document.getElementById('partyToolsSheet')?.classList.remove('open');
+    });
     if (isHost() && pageType === 'live') {
       document.getElementById('liveBtnModeVideo')?.classList.toggle('is-active', broadcastMode === 'video');
       document.getElementById('liveBtnModeAudio')?.classList.toggle('is-active', broadcastMode === 'audio');
@@ -11772,25 +11786,6 @@
     document.getElementById('liveClose')?.addEventListener('click', () => endRoomOrExit());
     document.getElementById('liveMinimizeBtn')?.addEventListener('click', () => minimizeLiveRoom());
     document.getElementById('partyMinimizeBtn')?.addEventListener('click', () => minimizeLiveRoom());
-
-    document.getElementById('liveHostBarToggle')?.addEventListener('click', () => {
-      /* Host and room admins use the same expand/collapse Host controls UI */
-      if (!canModerateRoom()) {
-        syncHostBarUi();
-        return;
-      }
-      const bar = document.getElementById('liveHostBar');
-      if (!bar) return;
-      bar.classList.toggle('is-collapsed');
-      const collapsed = bar.classList.contains('is-collapsed');
-      const btn = document.getElementById('liveHostBarToggle');
-      if (btn) {
-        btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
-        btn.innerHTML = collapsed
-          ? '<i class="fas fa-sliders-h"></i> Host controls'
-          : '<i class="fas fa-chevron-up"></i> Hide controls';
-      }
-    });
 
     function setLiveChatHidden(hidden) {
       const on = Boolean(hidden);

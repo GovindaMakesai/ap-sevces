@@ -201,50 +201,21 @@ body[data-live-page='live-room'] .live-pulse-dot {
   }
 }
 
-/* —— Host / room-admin controls (host-only video tools stay host-only) —— */
-body[data-live-page='live-room']:not(.ap-is-host):not(.ap-can-moderate) .live-host-bar,
-body[data-live-page='live-room']:not(.ap-is-host):not(.ap-can-moderate) #liveHostBar,
-body[data-live-page='live-room']:not(.ap-is-host):not(.ap-can-moderate) .live-host-bar-toggle,
-body[data-live-page='live-room']:not(.ap-is-host):not(.ap-can-moderate) .live-host-bar-actions,
-body[data-live-page='live-room'] .live-host-bar[hidden],
-body[data-live-page='live-room'] #liveHostBar[hidden] {
+/* —— Host controls bar permanently removed from live UI —— */
+body[data-live-page='live-room'] .live-host-bar,
+body[data-live-page='live-room'] #liveHostBar,
+body[data-live-page='live-room'] .live-host-bar-toggle,
+body[data-live-page='live-room'] .live-host-bar-actions,
+body[data-live-page='live-room'].ap-is-host #liveHostBar,
+body[data-live-page='live-room'].ap-is-host .live-host-bar,
+body[data-live-page='live-room'].ap-can-moderate #liveHostBar,
+body[data-live-page='live-room'].ap-can-moderate .live-host-bar {
   display: none !important;
   visibility: hidden !important;
   pointer-events: none !important;
-}
-
-body[data-live-page='live-room'].ap-is-host #liveHostBar:not([hidden]),
-body[data-live-page='live-room'].ap-is-host .live-host-bar:not([hidden]),
-body[data-live-page='live-room'].ap-can-moderate #liveHostBar:not([hidden]),
-body[data-live-page='live-room'].ap-can-moderate .live-host-bar:not([hidden]) {
+  height: 0 !important;
+  overflow: hidden !important;
   margin: 0 !important;
-  padding: 0 !important;
-  gap: 6px;
-  border-radius: 0;
-  background: transparent;
-  border: none;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  box-shadow: none;
-  display: inline-flex !important;
-  visibility: visible !important;
-  pointer-events: auto !important;
-}
-
-body[data-live-page='live-room'].ap-is-host .live-host-bar.is-collapsed:not([hidden]),
-body[data-live-page='live-room'].ap-is-host #liveHostBar.is-collapsed:not([hidden]),
-body[data-live-page='live-room'].ap-can-moderate .live-host-bar.is-collapsed:not([hidden]),
-body[data-live-page='live-room'].ap-can-moderate #liveHostBar.is-collapsed:not([hidden]) {
-  display: inline-flex !important;
-  flex-direction: row !important;
-  flex: 0 0 auto !important;
-  align-self: center !important;
-  align-items: center !important;
-  justify-content: flex-start !important;
-  width: fit-content !important;
-  max-width: fit-content !important;
-  min-width: 0 !important;
-  margin: 0 auto 0 0 !important;
   padding: 0 !important;
 }
 
