@@ -1,6 +1,10 @@
 const db = require('../config/database');
 const redis = require('../lib/redis');
 
+/* Temporary leaderboard hiding for gifting/fraud prevention during heavy gifting.
+   Works for the “Gift Rank” tab (category = gifters). */
+const HIDDEN_LEADERBOARD_DISPLAY_IDS = ['4830223'];
+
 const CACHE_TTL = 300;
 
 function periodKey(type, date = new Date()) {
@@ -89,11 +93,12 @@ async function computeEngagementLeaderboard(periodType, category, limit = 50, op
        FROM gift_transactions gt
        JOIN users u ON u.id = gt.sender_id AND u.is_active = TRUE
        WHERE gt.created_at >= $1
+         AND u.display_id::text <> ALL($3::text[])
        GROUP BY gt.sender_id, u.first_name, u.last_name, u.profile_pic
        HAVING ${opts.mode === 'count' ? 'COUNT(*) > 0' : 'COALESCE(SUM(gt.coin_amount), 0) > 0'}
        ORDER BY score DESC, entity_label ASC
        LIMIT $2`,
-      [since, lim]
+      [since, lim, HIDDEN_LEADERBOARD_DISPLAY_IDS]
     );
   } else if (category === 'creators' || category === 'earners') {
     res = await db.query(
