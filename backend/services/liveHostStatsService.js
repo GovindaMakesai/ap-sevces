@@ -1,20 +1,46 @@
 const db = require('../config/database');
 
-const HEARTBEAT_SECONDS = 25;
+  /** Must match client live:heartbeat interval (~15s) to avoid inflated hours. */
+  const HEARTBEAT_SECONDS = 15;
 
+/**
+ * Wall-clock session length. Ignore inflated broadcast_seconds (older heartbeats
+ * credited 25s every 15s). Stale "active" rooms stop shortly after last heartbeat.
+ */
 function sessionSecondsFromRow(row) {
-  if (!row) return 0;
-  const broadcast = Number(row.broadcast_seconds) || 0;
-  let elapsed = 0;
-  const endTs = row.ended_at || (row.status === 'ended' ? row.updated_at : null);
-  if (row.started_at && endTs) {
-    const ms = new Date(endTs).getTime() - new Date(row.started_at).getTime();
-    elapsed = Math.max(0, Math.floor(ms / 1000));
-  } else if (row.started_at && row.status === 'active') {
-    const ms = Date.now() - new Date(row.started_at).getTime();
-    elapsed = Math.max(0, Math.floor(ms / 1000));
+  if (!row?.started_at) return Math.max(0, Number(row?.broadcast_seconds) || 0);
+  const start = new Date(row.started_at).getTime();
+  if (!Number.isFinite(start)) return Math.max(0, Number(row.broadcast_seconds) || 0);
+
+  let endMs;
+  if (row.ended_at) {
+    endMs = new Date(row.ended_at).getTime();
+  } else if (row.status === 'ended' && row.updated_at) {
+    endMs = new Date(row.updated_at).getTime();
+  } else if (row.status === 'active') {
+    const updated = row.updated_at ? new Date(row.updated_at).getTime() : start;
+    const STALE_MS = 90 * 1000;
+    const now = Date.now();
+    endMs = now - updated > STALE_MS ? updated + STALE_MS : now;
+  } else if (row.updated_at) {
+    endMs = new Date(row.updated_at).getTime();
+  } else {
+    return Math.max(0, Number(row.broadcast_seconds) || 0);
   }
-  return Math.max(broadcast, elapsed);
+  if (!Number.isFinite(endMs) || endMs < start) return 0;
+  return Math.floor((endMs - start) / 1000);
+}
+
+/** Clip session seconds so time before `since` is not counted in the period. */
+function sessionSecondsInPeriod(row, since) {
+  const sec = sessionSecondsFromRow(row);
+  if (sec < 1 || !row?.started_at || !since) return sec;
+  const start = new Date(row.started_at).getTime();
+  const sinceMs = new Date(since).getTime();
+  if (!Number.isFinite(start) || !Number.isFinite(sinceMs) || start >= sinceMs) return sec;
+  const end = start + sec * 1000;
+  if (end <= sinceMs) return 0;
+  return Math.floor((end - sinceMs) / 1000);
 }
 
 function periodDays(period) {
@@ -142,7 +168,10 @@ async function getStreamerStats(userId, period = 'today') {
      WHERE host_user_id = $1
        AND (
          (status = 'ended' AND COALESCE(ended_at, updated_at) >= $2)
-         OR status = 'active'
+         OR (
+           status = 'active'
+           AND COALESCE(updated_at, started_at) >= ($2::timestamptz - INTERVAL '2 hours')
+         )
        )`,
     [userId, since]
   );
@@ -153,7 +182,8 @@ async function getStreamerStats(userId, period = 'today') {
   let sessionCount = 0;
 
   for (const row of roomsRes.rows) {
-    const sec = sessionSecondsFromRow(row);
+    const sec = sessionSecondsInPeriod(row, since);
+    if (sec < 1) continue;
     if (String(row.room_type) === 'party') partySeconds += sec;
     else liveSeconds += sec;
     peakViewers = Math.max(peakViewers, Number(row.peak_viewer_count || row.viewer_count || 0));

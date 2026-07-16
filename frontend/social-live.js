@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260716-joined-hit';
+  window.__AP_LIVE_BUILD = '20260716-cam-hours';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -5859,6 +5859,49 @@
     return fallback === 'environment' ? 'environment' : 'user';
   }
 
+  function classifyCameraLabel(label) {
+    const s = String(label || '').toLowerCase();
+    if (/back|rear|environment|world|trailing/i.test(s)) return 'environment';
+    if (/front|user|face|selfie|facing/i.test(s)) return 'user';
+    return null;
+  }
+
+  async function pickCameraDeviceId(AgoraRTC, nextFacing, currentId) {
+    if (!AgoraRTC?.getCameras) return null;
+    let cameras = [];
+    try {
+      cameras = await AgoraRTC.getCameras();
+    } catch (_e) {
+      return null;
+    }
+    if (!cameras?.length) return null;
+    const envCam = cameras.find((c) => classifyCameraLabel(c.label) === 'environment');
+    const userCam = cameras.find((c) => classifyCameraLabel(c.label) === 'user');
+    const preferred =
+      (nextFacing === 'environment' ? envCam : userCam) ||
+      cameras.find((c) => c.deviceId && c.deviceId !== currentId) ||
+      null;
+    return preferred?.deviceId || null;
+  }
+
+  async function waitForLocalVideoFrames(track, timeoutMs = 2800) {
+    if (!track) return false;
+    const started = Date.now();
+    while (Date.now() - started < timeoutMs) {
+      try {
+        const mst = track.getMediaStreamTrack?.();
+        if (mst && mst.readyState === 'ended') return false;
+        const settings = mst?.getSettings?.() || {};
+        if ((settings.width || 0) > 0 && (settings.height || 0) > 0) return true;
+        const box = document.getElementById('liveLocalHost');
+        const vid = box?.querySelector?.('video');
+        if (vid && vid.readyState >= 2 && vid.videoWidth > 0) return true;
+      } catch (_e) { }
+      await new Promise((r) => setTimeout(r, 80));
+    }
+    return false;
+  }
+
   function applyHostPreviewMirror(localBox, facing) {
     if (!localBox) return;
     const wantMirror = facing === 'user';
@@ -5880,6 +5923,7 @@
     applyHostPreviewMirror(localBox, cameraFacing);
     requestAnimationFrame(() => applyHostPreviewMirror(localBox, cameraFacing));
     setTimeout(() => applyHostPreviewMirror(localBox, cameraFacing), 50);
+    setTimeout(() => applyHostPreviewMirror(localBox, cameraFacing), 200);
   }
 
   async function replaceHostCameraTrack(nextFacing) {
@@ -5895,11 +5939,45 @@
       } catch (_e) { }
       stopBeautyPipeline();
     }
+    try {
+      const APB = window.APBeauty;
+      if (APB?.camera?.getCustomTrack?.()) {
+        try {
+          await agoraClient.unpublish([APB.camera.getCustomTrack()]);
+        } catch (_e) { }
+        try {
+          await APB.camera.stop?.();
+        } catch (_e) { }
+      }
+    } catch (_e) { }
 
-    // Create + publish new first so viewers keep a stream during camera flip.
-    const newVideo = await AgoraRTC.createCameraVideoTrack({
-      facingMode: nextFacing,
-    });
+    const currentId = oldVideo?.getMediaStreamTrack?.()?.getSettings?.()?.deviceId;
+    const cameraId = await pickCameraDeviceId(AgoraRTC, nextFacing, currentId);
+
+    // Mobile WebViews often only allow one camera open — release old first.
+    if (oldVideo) {
+      try {
+        await agoraClient.unpublish([oldVideo]);
+      } catch (_e) { }
+      try {
+        oldVideo.stop();
+        oldVideo.close();
+      } catch (_e) { }
+      await new Promise((r) => setTimeout(r, 120));
+    }
+
+    const createOpts = cameraId
+      ? { cameraId, facingMode: nextFacing }
+      : { facingMode: nextFacing };
+    let newVideo;
+    try {
+      newVideo = await AgoraRTC.createCameraVideoTrack(createOpts);
+    } catch (firstErr) {
+      liveDebugLog(`camera create failed (${nextFacing}): ${firstErr?.message || firstErr}`);
+      newVideo = await AgoraRTC.createCameraVideoTrack({
+        facingMode: { exact: nextFacing },
+      }).catch(() => AgoraRTC.createCameraVideoTrack({ facingMode: nextFacing }));
+    }
     rawCameraTrack = newVideo;
     try {
       await agoraClient.publish(newVideo);
@@ -5911,19 +5989,22 @@
       throw pubErr;
     }
 
-    if (oldVideo && oldVideo !== newVideo) {
-      try {
-        await agoraClient.unpublish([oldVideo]);
-      } catch (_e) { }
-      try {
-        oldVideo.stop();
-        oldVideo.close();
-      } catch (_e) { }
-    }
-
     localTracks = audioTrack ? [audioTrack, newVideo] : [newVideo];
     cameraFacing = detectCameraFacing(newVideo, nextFacing);
+    if (cameraId) {
+      try {
+        const cams = await AgoraRTC.getCameras();
+        const cam = cams.find((c) => c.deviceId === cameraId);
+        const byLabel = classifyCameraLabel(cam?.label);
+        if (byLabel) cameraFacing = byLabel;
+      } catch (_e) { }
+    }
     playLocalHostPreview(newVideo);
+    ensureHostVideoVisible();
+    const framesOk = await waitForLocalVideoFrames(newVideo, 2800);
+    if (!framesOk) {
+      liveDebugLog('camera frames not ready after flip');
+    }
     applyVideoFilter();
     return newVideo;
   }
@@ -5936,12 +6017,43 @@
     const nextFacing = cameraFacing === 'user' ? 'environment' : 'user';
     try {
       const AgoraRTC = window.AgoraRTC || (await loadAgoraScript());
+      const videoTrack = getLocalVideoTrack();
 
-      // Recreate track (not switchCamera) so mirror state cannot stick from front → back.
+      // Prefer setDevice when beauty is off — less black-screen prone on front cam.
+      const beautyOn = Boolean(
+        beautyPipeline?.customTrack ||
+        (window.APBeauty?.camera?.getCustomTrack?.()) ||
+        (videoFilterId && videoFilterId !== 'none')
+      );
+      if (!beautyOn && videoTrack?.setDevice && AgoraRTC?.getCameras) {
+        const currentId = videoTrack.getMediaStreamTrack?.()?.getSettings?.()?.deviceId;
+        const deviceId = await pickCameraDeviceId(AgoraRTC, nextFacing, currentId);
+        if (deviceId && deviceId !== currentId) {
+          try {
+            await videoTrack.setDevice(deviceId);
+            rawCameraTrack = videoTrack;
+            cameraFacing = detectCameraFacing(videoTrack, nextFacing);
+            try {
+              const cams = await AgoraRTC.getCameras();
+              const cam = cams.find((c) => c.deviceId === deviceId);
+              const byLabel = classifyCameraLabel(cam?.label);
+              if (byLabel) cameraFacing = byLabel;
+            } catch (_e) { }
+            playLocalHostPreview(videoTrack);
+            ensureHostVideoVisible();
+            await waitForLocalVideoFrames(videoTrack, 2000);
+            toast(cameraFacing === 'user' ? 'Front camera' : 'Back camera', 'success');
+            return;
+          } catch (setErr) {
+            liveDebugLog(`setDevice flip failed: ${setErr?.message || setErr}`);
+          }
+        }
+      }
+
+      // Full recreate (needed when beauty custom track is published).
       if (agoraClient && publishSucceeded) {
         try {
           await replaceHostCameraTrack(nextFacing);
-          applyVideoFilter();
           toast(cameraFacing === 'user' ? 'Front camera' : 'Back camera', 'success');
           return;
         } catch (recreateErr) {
@@ -5949,7 +6061,6 @@
         }
       }
 
-      const videoTrack = getLocalVideoTrack();
       if (typeof videoTrack?.switchCamera === 'function') {
         await videoTrack.switchCamera();
         cameraFacing = detectCameraFacing(videoTrack, nextFacing);
@@ -5963,10 +6074,8 @@
         const cameras = await AgoraRTC.getCameras();
         if (cameras.length >= 2) {
           const currentId = videoTrack.getMediaStreamTrack?.()?.getSettings?.()?.deviceId;
-          const envCam = cameras.find((c) => /back|rear|environment/i.test(c.label || ''));
-          const userCam = cameras.find((c) => /front|user|face/i.test(c.label || ''));
-          const pick =
-            (nextFacing === 'environment' ? envCam : userCam) ||
+          const deviceId = await pickCameraDeviceId(AgoraRTC, nextFacing, currentId);
+          const pick = cameras.find((c) => c.deviceId === deviceId) ||
             cameras.find((c) => c.deviceId && c.deviceId !== currentId) ||
             cameras[0];
           await videoTrack.setDevice(pick.deviceId);

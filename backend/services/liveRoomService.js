@@ -957,7 +957,13 @@ async function isMemberOnStage(channel, userId) {
 async function touchHeartbeat(channel, userId) {
   const room = await findByChannel(channel);
   if (!room || room.status !== 'active') return;
-  await accumulateMemberWatchTime(room, userId, HEARTBEAT_SECONDS);
+  // Credit real gap since last room update (capped), not a fixed overestimate.
+  let addSec = HEARTBEAT_SECONDS;
+  if (room.updated_at) {
+    const gap = Math.floor((Date.now() - new Date(room.updated_at).getTime()) / 1000);
+    if (Number.isFinite(gap) && gap > 0) addSec = Math.min(60, Math.max(1, gap));
+  }
+  await accumulateMemberWatchTime(room, userId, addSec);
   await db.query(
     `UPDATE live_room_members SET last_seen_at = CURRENT_TIMESTAMP
      WHERE live_room_id = $1 AND user_id = $2 AND left_at IS NULL`,
@@ -965,7 +971,7 @@ async function touchHeartbeat(channel, userId) {
   );
   const isHost = String(room.host_user_id) === String(userId);
   if (isHost) {
-    await accumulateHostHeartbeat(room, userId, HEARTBEAT_SECONDS);
+    await accumulateHostHeartbeat(room, userId, addSec);
     const countRes = await db.query(
       `SELECT COUNT(*)::int AS c FROM live_room_members WHERE live_room_id = $1 AND left_at IS NULL`,
       [room.id]
