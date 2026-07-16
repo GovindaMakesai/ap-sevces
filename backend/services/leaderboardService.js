@@ -58,6 +58,22 @@ async function enrichLeaderboardRows(rows) {
   });
 }
 
+async function filterHiddenLeaderboardRows(rows) {
+  if (!rows.length || !HIDDEN_LEADERBOARD_DISPLAY_IDS.length) return rows;
+  const ids = [...new Set(rows.map((r) => String(r.entity_id)).filter(Boolean))];
+  if (!ids.length) return rows;
+  const users = await db.query(
+    `SELECT id, display_id FROM users WHERE id = ANY($1::uuid[])`,
+    [ids]
+  );
+  const hiddenIds = new Set(
+    users.rows
+      .filter((u) => HIDDEN_LEADERBOARD_DISPLAY_IDS.includes(String(u.display_id || '')))
+      .map((u) => String(u.id))
+  );
+  return rows.filter((r) => !hiddenIds.has(String(r.entity_id)));
+}
+
 async function computeEngagementLeaderboard(periodType, category, limit = 50, opts = {}) {
   const since = periodSince(periodType);
   const lim = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 100);
@@ -215,6 +231,7 @@ async function getLeaderboard(periodType, category, limit = 50, opts = {}) {
   }
 
   try {
+    rows = await filterHiddenLeaderboardRows(rows);
     rows = await enrichLeaderboardRows(rows);
   } catch (err) {
     console.error('[leaderboard] enrich failed', err.message);
