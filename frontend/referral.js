@@ -143,15 +143,62 @@
     return Date.now() - t <= days * 24 * 60 * 60 * 1000;
   }
 
+  function formatDate(iso) {
+    if (!iso) return '';
+    try {
+      const d = new Date(iso);
+      return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    } catch (_e) {
+      return '';
+    }
+  }
+
+  function statusPillClass(status) {
+    const s = String(status || '').toLowerCase();
+    if (s === 'valid' || s === 'rewarded') return 'ok';
+    if (s === 'fraud_hold' || s === 'invalid') return 'warn';
+    return '';
+  }
+
+  function renderMyInviter() {
+    const inv = state.dashboard?.myInviter;
+    const banner = document.getElementById('refInviterBanner');
+    if (!banner) return;
+    if (!inv) {
+      banner.hidden = true;
+      return;
+    }
+    const name = inv.name || 'Inviter';
+    const img = document.getElementById('refInviterAvatar');
+    const nameEl = document.getElementById('refInviterName');
+    const statusEl = document.getElementById('refInviterStatus');
+    if (img) img.src = avatar(name, inv.profile_pic);
+    if (nameEl) {
+      nameEl.textContent = `${name} · ID ${inv.display_id || '—'}`;
+    }
+    if (statusEl) {
+      statusEl.textContent = inv.status_label || 'Connected';
+      statusEl.className = `ref-pill ${statusPillClass(inv.status)}`;
+    }
+    banner.hidden = false;
+  }
+
   function renderTicker() {
     const wrap = document.getElementById('refTicker');
     const text = document.getElementById('refTickerText');
     if (!wrap || !text) return;
-    const activity = state.dashboard?.activity || [];
-    const claimEvt = activity.find((a) => /claim|reward|paid/i.test(String(a.event_type || '')));
-    if (claimEvt) {
-      text.textContent =
-        'Congratulations! Reward update — keep inviting friends to earn more.';
+    const history = state.history || [];
+    const rewarded = history.find((r) => String(r.status) === 'rewarded' && (r.reward_coins_paid || 0) > 0);
+    if (rewarded) {
+      const name = `${rewarded.first_name || ''} ${rewarded.last_name || ''}`.trim() || 'A friend';
+      text.textContent = `Congratulations! ${name} connected — you earned ${money(rewarded.reward_coins_paid)} coins`;
+      wrap.hidden = false;
+      return;
+    }
+    const recent = history.find((r) => ['valid', 'rewarded'].includes(String(r.status)));
+    if (recent) {
+      const name = `${recent.first_name || ''} ${recent.last_name || ''}`.trim() || 'A friend';
+      text.textContent = `${name} joined through your invite — rewards unlock after verification`;
       wrap.hidden = false;
       return;
     }
@@ -178,10 +225,12 @@
     setText('statClaimed', money(r.total || d.lifetimeEarnings || 0));
     setText('statInvitees', money(t.total || 0));
     setText('statAvailable', money(r.pending || 0));
+    setText('statWeekCount', String(d.weekInviteCount ?? 0));
 
     const receive = document.getElementById('refReceiveBtn');
     if (receive) receive.disabled = !(Number(r.pending) > 0);
 
+    renderMyInviter();
     renderTicker();
     renderWeekHistory();
   }
@@ -199,7 +248,7 @@
     const shareText =
       inv?.shareText ||
       (code
-        ? `Join me on AP Services! Use my invite code ${code} (ID ${myId}) and get rewards: ${link}`
+        ? `Join me on AP Services! Use my invite code ${code} or enter Inviter ID ${myId} when you register: ${link}`
         : link);
     const server = inv?.shareTargets || {};
     return {
@@ -314,11 +363,15 @@
     const all = state.history || [];
     const week = all.filter((r) => withinLastDays(r.applied_at || r.created_at, 7));
     const rows = state.showAllHistory ? all : week;
-    setText('statWeekCount', String(week.length));
+    if (state.dashboard?.weekInviteCount != null) {
+      setText('statWeekCount', String(state.dashboard.weekInviteCount));
+    } else {
+      setText('statWeekCount', String(week.length));
+    }
 
     if (!rows.length) {
       root.innerHTML =
-        '<div class="ref-empty-illu" aria-hidden="true">📭</div><p class="ref-empty">No more data</p>';
+        '<div class="ref-empty-illu" aria-hidden="true">📭</div><p class="ref-empty">No invites yet — tap Invite Now to share your link</p>';
       return;
     }
 
@@ -326,10 +379,26 @@
       .map((r) => {
         const name = `${r.first_name || ''} ${r.last_name || ''}`.trim() || 'Friend';
         const status = r.status || 'pending';
+        const label = r.status_label || status;
+        const paid = Number(r.reward_coins_paid || 0);
+        const pending = Number(r.reward_coins_pending || 0);
+        const rewardLine =
+          paid > 0
+            ? `+${money(paid)} coins earned`
+            : pending > 0
+              ? `+${money(pending)} coins pending`
+              : '';
+        const hostTag = r.is_host ? ' · Host' : '';
+        const when = formatDate(r.applied_at || r.created_at);
         return `<div class="ref-list-item">
           <img src="${avatar(name, r.profile_pic)}" alt="">
-          <div class="meta"><strong>${escapeHtml(name)}</strong><span>ID ${escapeHtml(String(r.display_id || '—'))} · ${escapeHtml(r.invitee_type || 'new')}</span></div>
-          <span class="ref-pill ${status === 'valid' || status === 'rewarded' ? 'ok' : status === 'fraud_hold' ? 'warn' : ''}">${escapeHtml(status)}</span>
+          <div class="meta">
+            <strong>${escapeHtml(name)}</strong>
+            <span>ID ${escapeHtml(String(r.display_id || '—'))}${hostTag} · ${escapeHtml(r.invitee_type || 'new')}</span>
+            ${rewardLine ? `<span class="ref-invitee-reward">${escapeHtml(rewardLine)}</span>` : ''}
+            ${when ? `<span class="ref-invitee-date">Joined ${escapeHtml(when)}</span>` : ''}
+          </div>
+          <span class="ref-pill ${statusPillClass(status)}">${escapeHtml(label)}</span>
         </div>`;
       })
       .join('');
@@ -413,9 +482,10 @@
       },
     });
     if (!res?.success) return toast(res?.message || 'Could not apply code');
-    toast(res.data?.alreadyBound ? 'Already linked' : 'Invite applied!');
+    toast(res.data?.alreadyBound ? 'Already connected to your inviter' : 'Connected to your inviter!');
     localStorage.removeItem('ap_pending_ref');
     await loadDashboard();
+    await loadHistoryFull();
   }
 
   async function claimRewards() {
@@ -466,11 +536,13 @@
       state.showAllHistory = !state.showAllHistory;
       const btn = document.getElementById('refHistoryMore');
       if (btn) btn.textContent = state.showAllHistory ? 'Less <' : 'More >';
-      if (state.showAllHistory && !(state.history?.length > 5)) {
-        await loadHistoryFull();
-      } else {
-        renderWeekHistory();
-      }
+      if (state.showAllHistory) await loadHistoryFull();
+      renderWeekHistory();
+    });
+
+    document.addEventListener('referral:connected', () => {
+      loadDashboard().catch(() => {});
+      loadHistoryFull().catch(() => {});
     });
 
     try {

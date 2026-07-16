@@ -7,7 +7,7 @@
   <title>Invite - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-theme.css">
-  <link rel="stylesheet" href="referral.css?v=20260716-invite-ui">
+  <link rel="stylesheet" href="referral.css?v=20260716-invite-connect">
 </head>
 <body class="ref-page" data-page="referral">
   <div class="ref-shell">
@@ -24,6 +24,15 @@
     <div class="ref-ticker" id="refTicker" hidden>
       <span id="refTickerText"></span>
     </div>
+
+    <section class="ref-inviter-banner" id="refInviterBanner" hidden>
+      <img id="refInviterAvatar" src="" alt="" width="40" height="40">
+      <div class="ref-inviter-meta">
+        <span class="ref-inviter-kicker">You were invited by</span>
+        <strong id="refInviterName">—</strong>
+        <span id="refInviterStatus" class="ref-pill ok">Connected</span>
+      </div>
+    </section>
 
     <section class="ref-hero-card">
       <div class="ref-hero-art" aria-hidden="true">
@@ -141,7 +150,7 @@
   <script src="social-wallet.js"></script>
   <script src="social-ui.js"></script>
   <script src="social-shell.js"></script>
-  <script src="referral.js?v=20260716-invite-ui"></script>
+  <script src="referral.js?v=20260716-invite-connect"></script>
   <script>
     SocialShell?.initPage?.({ activeNav: 'profile' });
   </script>

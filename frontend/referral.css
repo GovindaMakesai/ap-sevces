@@ -621,3 +621,54 @@ body.ref-page {
 .ref-guide-reward--hot { color: #ff6a2b !important; }
 
 body.ref-guide-open { overflow: hidden; }
+
+.ref-inviter-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 4px 14px rgba(120, 60, 20, 0.08);
+}
+
+.ref-inviter-banner img {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #ffb07a;
+}
+
+.ref-inviter-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.ref-inviter-kicker {
+  display: block;
+  font-size: 11px;
+  color: var(--ref-muted);
+  margin-bottom: 2px;
+}
+
+.ref-inviter-meta strong {
+  display: block;
+  font-size: 14px;
+  color: var(--ref-ink);
+  margin-bottom: 4px;
+}
+
+.ref-invitee-reward {
+  display: block;
+  font-size: 11px;
+  color: #ff6a2b;
+  font-weight: 700;
+  margin-top: 2px;
+}
+
+.ref-invitee-date {
+  font-size: 10px;
+  color: #b0a090;
+}

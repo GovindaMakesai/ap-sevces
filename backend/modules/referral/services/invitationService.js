@@ -157,10 +157,32 @@ async function findLinkByCode(code) {
   return enrichLink(res.rows[0]);
 }
 
+/** Accept invite code or inviter numeric display ID (as in registration “Inviter ID”). */
+async function findLinkByCodeOrDisplayId(input) {
+  const raw = String(input || '').trim();
+  if (!raw) return null;
+  const byCode = await findLinkByCode(raw);
+  if (byCode) return byCode;
+
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length < 4) return null;
+  const userRes = await db.query(
+    `SELECT id FROM users
+     WHERE display_id::text = $1
+        OR REPLACE(display_id::text, ' ', '') = $1
+     LIMIT 1`,
+    [digits]
+  );
+  const inviterId = userRes.rows[0]?.id;
+  if (!inviterId) return null;
+  return getOrCreateInvitationLink(inviterId);
+}
+
 module.exports = {
   getOrCreateInvitationLink,
   recordClick,
   findLinkByCode,
+  findLinkByCodeOrDisplayId,
   generateHumanCode,
   resolveBaseUrl,
   DEFAULT_BASE_URL,

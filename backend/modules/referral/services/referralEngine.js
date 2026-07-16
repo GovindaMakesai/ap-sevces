@@ -63,20 +63,22 @@ async function buildValidationSnapshot(inviteeId) {
  * Permanently bind invitee → inviter. Idempotent.
  */
 async function applyReferralCode(inviteeId, code, meta = {}) {
-  const clean = String(code || '')
-    .trim()
+  const raw = String(code || '').trim();
+  const clean = raw
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, '')
     .slice(0, 24);
-  if (!clean) throw Object.assign(new Error('Referral code required'), { status: 400 });
+  if (!clean && !raw) throw Object.assign(new Error('Referral code required'), { status: 400 });
 
   const existing = await db.query(`SELECT * FROM referrals WHERE invitee_id = $1`, [inviteeId]);
   if (existing.rows[0]) {
     return { referral: existing.rows[0], alreadyBound: true };
   }
 
-  const link = await invitationService.findLinkByCode(clean);
-  if (!link) throw Object.assign(new Error('Invalid referral code'), { status: 404 });
+  const link =
+    (await invitationService.findLinkByCodeOrDisplayId(clean)) ||
+    (await invitationService.findLinkByCodeOrDisplayId(raw));
+  if (!link) throw Object.assign(new Error('Invalid referral code or inviter ID'), { status: 404 });
 
   const inviterId = (
     await db.query(`SELECT inviter_id FROM invitation_links WHERE id = $1`, [link.id])
@@ -284,6 +286,65 @@ async function onInviteeBecameHost(inviteeId) {
   return reward;
 }
 
+function statusLabel(status) {
+  const s = String(status || '').toLowerCase();
+  if (s === 'rewarded') return 'Connected · rewarded';
+  if (s === 'valid') return 'Connected';
+  if (s === 'validating' || s === 'pending') return 'Verifying';
+  if (s === 'fraud_hold') return 'Under review';
+  if (s === 'invalid' || s === 'expired') return 'Invalid';
+  return status || 'Pending';
+}
+
+async function rewardTotalsForReferral(referralId, inviterId) {
+  const res = await db.query(
+    `SELECT
+       COALESCE(SUM(coins) FILTER (WHERE status = 'paid'), 0)::bigint AS paid,
+       COALESCE(SUM(coins) FILTER (WHERE status IN ('pending','scheduled','approved')), 0)::bigint AS pending
+     FROM referral_rewards
+     WHERE referral_id = $1 AND beneficiary_id = $2`,
+    [referralId, inviterId]
+  );
+  return {
+    paid: Number(res.rows[0]?.paid || 0),
+    pending: Number(res.rows[0]?.pending || 0),
+  };
+}
+
+async function enrichInviteeRow(row, inviterId) {
+  if (!row) return null;
+  const rewards = await rewardTotalsForReferral(row.id, inviterId);
+  const role = String(row.role || '').toLowerCase();
+  const isHost = ['creator', 'host', 'worker'].includes(role);
+  return {
+    ...row,
+    status_label: statusLabel(row.status),
+    reward_coins_paid: rewards.paid,
+    reward_coins_pending: rewards.pending,
+    is_host: isHost,
+    connected: ['valid', 'rewarded', 'validating', 'pending'].includes(String(row.status)),
+  };
+}
+
+async function getMyInviter(inviteeId) {
+  const res = await db.query(
+    `SELECT r.id, r.status, r.code, r.applied_at, r.validated_at, r.rewarded_at,
+            u.id AS inviter_user_id, u.first_name, u.last_name, u.display_id, u.profile_pic
+     FROM referrals r
+     JOIN users u ON u.id = r.inviter_id
+     WHERE r.invitee_id = $1
+     LIMIT 1`,
+    [inviteeId]
+  );
+  const row = res.rows[0];
+  if (!row) return null;
+  return {
+    ...row,
+    status_label: statusLabel(row.status),
+    name: `${row.first_name || ''} ${row.last_name || ''}`.trim() || 'Inviter',
+  };
+}
+
 async function getDashboard(userId) {
   const link = await invitationService.getOrCreateInvitationLink(userId);
   const counts = await db.query(
@@ -304,12 +365,17 @@ async function getDashboard(userId) {
     [userId]
   );
   const recent = await db.query(
-    `SELECT r.id, r.status, r.code, r.invitee_type, r.fraud_score, r.applied_at, r.validated_at,
-            u.first_name, u.last_name, u.display_id, u.profile_pic
+    `SELECT r.id, r.status, r.code, r.invitee_type, r.fraud_score, r.applied_at, r.validated_at, r.rewarded_at,
+            u.first_name, u.last_name, u.display_id, u.profile_pic, u.role
      FROM referrals r
      JOIN users u ON u.id = r.invitee_id
      WHERE r.inviter_id = $1
      ORDER BY r.applied_at DESC LIMIT 30`,
+    [userId]
+  );
+  const weekCountRes = await db.query(
+    `SELECT COUNT(*)::int AS c FROM referrals
+     WHERE inviter_id = $1 AND applied_at >= CURRENT_TIMESTAMP - INTERVAL '7 days'`,
     [userId]
   );
   const activity = await db.query(
@@ -318,6 +384,12 @@ async function getDashboard(userId) {
     [userId]
   );
   const stats = await db.query(`SELECT * FROM host_statistics WHERE user_id = $1`, [userId]);
+  const myInviter = await getMyInviter(userId);
+
+  const history = [];
+  for (const row of recent.rows) {
+    history.push(await enrichInviteeRow(row, userId));
+  }
 
   return {
     invitation: link,
@@ -328,7 +400,9 @@ async function getDashboard(userId) {
       pending: Number(rewards.rows[0]?.pending || 0),
     },
     lifetimeEarnings: Number(rewards.rows[0]?.total || 0),
-    history: recent.rows,
+    weekInviteCount: Number(weekCountRes.rows[0]?.c || 0),
+    myInviter,
+    history,
     activity: activity.rows,
     hostStatistics: stats.rows[0] || null,
   };
@@ -344,7 +418,11 @@ async function getHistory(userId, { limit = 50, offset = 0 } = {}) {
      LIMIT $2 OFFSET $3`,
     [userId, limit, offset]
   );
-  return res.rows;
+  const out = [];
+  for (const row of res.rows) {
+    out.push(await enrichInviteeRow(row, userId));
+  }
+  return out;
 }
 
 async function getReferralTree(userId, depth = 2) {

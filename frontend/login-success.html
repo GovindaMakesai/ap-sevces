@@ -18,6 +18,7 @@
 
   <script src="ap-config.js"></script>
   <script src="app.js"></script>
+  <script src="referral-hook.js?v=20260716-invite-connect"></script>
   <script>
     (async function completeOAuthLogin() {
       const statusText = document.getElementById('statusText');
@@ -74,6 +75,7 @@
             if (data.data.refreshToken) localStorage.setItem('ap_refresh_token', data.data.refreshToken);
           }
           if (window.AppState) AppState.user = data.data.user;
+          await window.APReferralHook?.tryApplyPendingReferral?.();
           enterApp(data.data.user);
           return;
         }
@@ -91,6 +93,7 @@
           const user = (await Auth.refreshSession()) ? Auth.getUser() : null;
           if (user) {
             localStorage.removeItem('token');
+            await window.APReferralHook?.tryApplyPendingReferral?.();
             enterApp(user);
             return;
           }
@@ -98,6 +101,7 @@
 
         const ok = await Auth.refreshSession();
         if (ok) {
+          await window.APReferralHook?.tryApplyPendingReferral?.();
           enterApp(Auth.getUser());
           return;
         }

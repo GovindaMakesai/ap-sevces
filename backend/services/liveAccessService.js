@@ -47,6 +47,16 @@ async function submitFaceVerification(userId, file) {
         `UPDATE users SET face_verified_at = CURRENT_TIMESTAMP WHERE id = $1`,
         [String(userId)]
     );
+    /* Unlock referral rewards when invitee finishes face auth */
+    try {
+        const referralEngine = require('../modules/referral/services/referralEngine');
+        await referralEngine.revalidateReferral(userId);
+        const roleRes = await db.query(`SELECT role FROM users WHERE id = $1`, [String(userId)]);
+        const role = String(roleRes.rows[0]?.role || '').toLowerCase();
+        if (['creator', 'host', 'worker'].includes(role)) {
+            await referralEngine.onInviteeBecameHost(userId);
+        }
+    } catch (_e) { /* referral module optional at runtime */ }
     return { faceVerified: true, photoUrl: rel };
 }
 
