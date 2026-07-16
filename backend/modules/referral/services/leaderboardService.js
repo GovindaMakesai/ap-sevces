@@ -1,4 +1,5 @@
 const db = require('../../../config/database');
+const HIDDEN_LEADERBOARD_EMAILS = new Set(['developer.govinda00@gmail.com']);
 
 async function referralLeaderboard({ period = 'weekly', limit = 50 } = {}) {
   let interval = '7 days';
@@ -32,9 +33,10 @@ async function incomeLeaderboard({ limit = 50 } = {}) {
             hs.referral_reward_coins, hs.lifetime_broadcast_seconds
      FROM host_statistics hs
      JOIN users u ON u.id = hs.user_id
+     WHERE lower(COALESCE(u.email, '')) <> ALL($2::text[])
      ORDER BY (hs.gift_income_coins + hs.mission_reward_coins + hs.referral_reward_coins) DESC
      LIMIT $1`,
-    [limit]
+    [limit, Array.from(HIDDEN_LEADERBOARD_EMAILS)]
   );
   return res.rows.map((row, i) => ({ rank: i + 1, ...row }));
 }
