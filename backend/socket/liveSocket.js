@@ -705,6 +705,9 @@ function registerLiveSocket(io) {
           return;
         }
 
+        const fromName = socket.data.liveDisplayName || socket.data.displayName || 'User';
+        const toName = String(payload?.to || room.host_display_name || 'Host').slice(0, 32);
+        const giftEmoji = payload?.emoji || '\u{1F381}';
         const result = await giftService.sendGift({
           senderId: socket.userId,
           receiverId,
@@ -712,16 +715,20 @@ function registerLiveSocket(io) {
           giftType: payload?.giftSlug || payload?.giftType || payload?.emoji || 'gift',
           coinAmount,
           qty: payload?.qty || 1,
+          emoji: giftEmoji,
+          fromName,
+          toName,
         });
 
         const charged = Number(result.gift?.coin_amount || coinAmount);
         const gift = {
           id: result.gift.id,
-          from: socket.data.liveDisplayName || socket.data.displayName || 'User',
+          gift_tx_id: result.gift.id,
+          from: fromName,
           fromUserId: socket.userId,
-          to: String(payload?.to || room.host_display_name || 'Host').slice(0, 32),
+          to: toName,
           toUserId: receiverId,
-          emoji: payload?.emoji || '\u{1F381}',
+          emoji: giftEmoji,
           amount: charged,
           coins: charged,
           qty: payload?.qty || 1,
@@ -935,11 +942,26 @@ function registerLiveSocket(io) {
     socket.on('live:admin_revoke', async (payload, ack) => {
       try {
         const channel = sanitizeChannel(payload?.channel || currentChannel);
-        if (!(await isRoomHost(socket, channel))) {
-          if (ack) ack({ ok: false, message: 'Only the room owner can revoke admin' });
+        const userId = String(payload?.userId || '');
+        if (!userId) {
+          if (ack) ack({ ok: false, message: 'userId required' });
           return;
         }
-        const userId = String(payload?.userId || '');
+        const asHost = await isRoomHost(socket, channel);
+        const asMod = await isRoomModerator(socket, channel);
+        if (!asHost && !asMod) {
+          if (ack) ack({ ok: false, message: 'Only host or room admin can remove admin' });
+          return;
+        }
+        if (await liveRoomService.isRoomOwner(channel, userId)) {
+          if (ack) ack({ ok: false, message: 'Cannot remove admin from the room owner' });
+          return;
+        }
+        /* Room admins may demote other admins; only the host can demote anyone including self-service via UI */
+        if (!asHost && String(userId) === String(socket.userId)) {
+          if (ack) ack({ ok: false, message: 'Ask the host to remove your admin role' });
+          return;
+        }
         await liveRoomService.setMemberAdmin({ channel, userId, isAdmin: false });
         const state = await liveRoomService.buildSnapshot(channel);
         io.to(`live:${channel}`).emit('live:state', state);

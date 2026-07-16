@@ -67,10 +67,18 @@
   }
 
   function avatar(name, pic) {
-    if (window.SocialUI?.avatarUrl) return SocialUI.avatarUrl(name || 'User', pic || null);
-    if (pic) return pic;
-    const n = encodeURIComponent(name || 'U');
-    return `https://ui-avatars.com/api/?name=${n}&background=ff7a3d&color=fff`;
+    try {
+      if (window.SocialUI?.avatarUrl) return SocialUI.avatarUrl(name || 'User', pic || null);
+      if (pic) return pic;
+      const safe = String(name || 'U')
+        .replace(/[\uD800-\uDFFF]/g, '')
+        .replace(/[^\w\s.-]/g, '')
+        .trim() || 'U';
+      const n = encodeURIComponent(safe.slice(0, 24));
+      return `https://ui-avatars.com/api/?name=${n}&background=ff7a3d&color=fff`;
+    } catch (_e) {
+      return 'https://ui-avatars.com/api/?name=U&background=ff7a3d&color=fff';
+    }
   }
 
   function showBootError(msg) {
@@ -508,7 +516,7 @@
       return;
     }
     const n = (res.data?.paid || []).length;
-    toast(n ? `Claimed ${n} reward(s) as points` : 'No pending rewards');
+    toast(n ? `Added ${n} invite reward(s) to your points` : 'No pending rewards');
     await loadDashboard();
   }
 
@@ -576,14 +584,29 @@
         const input = document.getElementById('refApplyInput');
         if (input) input.value = pending;
       }
+      const bootErr = document.getElementById('refBootError');
+      if (bootErr) {
+        bootErr.hidden = true;
+        bootErr.textContent = '';
+      }
     } catch (e) {
-      showBootError(e.message || 'Could not load invites.');
-      toast(e.message || 'Load failed');
+      const msg = String(e?.message || '');
+      const friendly = /uri malformed/i.test(msg)
+        ? 'Could not load some invite avatars — retrying…'
+        : msg || 'Could not load invites.';
+      showBootError(friendly);
+      console.warn('[referral] boot', e);
       try {
         await generate();
+        await loadDashboard().catch(() => {});
+        const bootErr = document.getElementById('refBootError');
+        if (bootErr) {
+          bootErr.hidden = true;
+          bootErr.textContent = '';
+        }
       } catch (e2) {
         showBootError(e2.message || 'Invite API unavailable — restart the server if this continues.');
-        setText('refMyId', '———');
+        setText('refMyId', currentDisplayId() || '———');
       }
     }
   }

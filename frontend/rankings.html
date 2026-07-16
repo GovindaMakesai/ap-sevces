@@ -125,7 +125,7 @@
 
     function avatarUrl(row) {
       if (row.pic) return row.pic;
-      return `https://ui-avatars.com/api/?name=${encodeURIComponent((row.n || 'U').slice(0, 2))}&background=c9a227&color=fff`;
+      return `https://ui-avatars.com/api/?name=${(window.SocialUI?.safeEncodeURIComponent || encodeURIComponent)(String(row.n || 'U').replace(/[\uD800-\uDFFF]/g, '').slice(0, 2) || 'U')}&background=c9a227&color=fff`;
     }
 
     async function refreshRanks() {

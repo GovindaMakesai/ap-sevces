@@ -212,9 +212,9 @@
 
   <div class="streamer-bottom-spacer"></div>
 
-  <script src="app.js?v=20260713-display-id"></script>
+  <script src="app.js?v=20260716-face-loop1"></script>
   <script src="auth-guard.js"></script>
-  <script src="social-shell.js"></script>
+  <script src="social-shell.js?v=20260716-face-loop1"></script>
   <script src="social-nav.js"></script>
   <script src="social-live.js?v=20260716-seat-overlay-fix"></script>
   <script>
@@ -325,13 +325,19 @@
         if (!statusEl) return;
         try {
           if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken().catch(() => {});
-          const res = await API.get('/live/access-status');
-          const data = res?.data || {};
-          if (data.canStreamVideo || data.faceVerified) {
+          const res = await (API.getFresh || API.get)('/live/access-status');
+          const data = res?.data?.data || res?.data || res || {};
+          if (data.canStreamVideo || (data.faceVerified && data.identityVerified)) {
             statusEl.innerHTML = '<i class="fas fa-check-circle" style="color:#16a34a"></i> Verified — you can start video live.';
-            if (btn) btn.textContent = 'Re-verify (optional)';
+            if (btn) {
+              btn.style.display = 'none';
+            }
+          } else if (data.faceVerified && !data.identityVerified) {
+            statusEl.textContent = 'Selfie saved — confirm identity to finish.';
+            if (btn) btn.textContent = 'Finish verification';
           } else if (data.identityVerified) {
             statusEl.textContent = 'Identity done — complete your selfie next.';
+            if (btn) btn.textContent = 'Complete selfie';
           } else {
             statusEl.textContent = 'Not verified yet — tap the button below.';
           }

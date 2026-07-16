@@ -56,8 +56,14 @@ async function markIdentityVerified(userId) {
 async function submitFaceVerification(userId, file) {
     if (!file?.filename) throw new Error('Face photo required');
     const rel = `/uploads/live-verify/${file.filename}`;
+    /* Face selfie unlocks video live: set both face + identity so go-live
+       never loops (canStreamVideo requires both flags). */
     await db.query(
-        `UPDATE users SET face_verified_at = CURRENT_TIMESTAMP WHERE id = $1`,
+        `UPDATE users SET
+           face_verified_at = COALESCE(face_verified_at, CURRENT_TIMESTAMP),
+           identity_verified_at = COALESCE(identity_verified_at, CURRENT_TIMESTAMP),
+           updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1`,
         [String(userId)]
     );
     /* Unlock referral rewards when invitee finishes face auth */
@@ -70,7 +76,13 @@ async function submitFaceVerification(userId, file) {
             await referralEngine.onInviteeBecameHost(userId);
         }
     } catch (_e) { /* referral module optional at runtime */ }
-    return { faceVerified: true, photoUrl: rel };
+    const access = await getLiveAccessStatus(userId);
+    return {
+        faceVerified: true,
+        identityVerified: Boolean(access.identityVerified),
+        canStreamVideo: Boolean(access.canStreamVideo),
+        photoUrl: rel,
+    };
 }
 
 function ensureUploadDir() {

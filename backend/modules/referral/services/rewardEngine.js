@@ -1,11 +1,11 @@
 const db = require('../../../config/database');
 const walletService = require('../../../services/walletService');
-const settings = require('./settingsService');
 
 const ACTIVE_REWARD_STATUSES = ['pending', 'scheduled', 'approved', 'paid'];
 
 /**
  * Invite rewards credit POINTS (star_balance), never spendable NR coins.
+ * Always stay pending until the user taps Receive (manual claim).
  * Amounts are still stored on referral_rewards.coins for UI totals.
  */
 async function createReward({
@@ -54,23 +54,10 @@ async function createReward({
     if (existing.rows[0]) return existing.rows[0];
   }
 
-  const mode = String(await settings.getSetting('approval_mode', 'manual') || 'manual');
-  const delayHours = Number(await settings.getSetting('reward_delay_hours', 0)) || 0;
-  let status = 'pending';
-  let scheduledFor = null;
-  let approvalMode = mode;
-
-  if (mode === 'delayed' || delayHours > 0) {
-    status = 'scheduled';
-    approvalMode = 'delayed';
-    scheduledFor = new Date(Date.now() + delayHours * 3600 * 1000);
-  } else if (mode === 'auto') {
-    status = 'approved';
-    approvalMode = 'auto';
-  } else {
-    status = 'pending';
-    approvalMode = 'manual';
-  }
+  /* Always pending until user taps Receive — never auto-credit wallet */
+  const status = 'pending';
+  const scheduledFor = null;
+  const approvalMode = 'manual';
 
   const res = await q.query(
     `INSERT INTO referral_rewards
@@ -91,11 +78,7 @@ async function createReward({
       JSON.stringify({ ...metadata, credit_as: 'points' }),
     ]
   );
-  const reward = res.rows[0];
-  if (status === 'approved') {
-    return payReward(reward.id, { client });
-  }
-  return reward;
+  return res.rows[0];
 }
 
 async function payReward(rewardId, { client = null, force = false } = {}) {
@@ -183,21 +166,20 @@ async function payReward(rewardId, { client = null, force = false } = {}) {
 }
 
 async function processDueScheduled(limit = 50) {
+  /* Do not auto-pay. Move due scheduled rows to pending so user must Receive → points. */
   const due = await db.query(
-    `SELECT id FROM referral_rewards
-     WHERE status = 'scheduled' AND scheduled_for <= CURRENT_TIMESTAMP
-     ORDER BY scheduled_for ASC LIMIT $1`,
+    `UPDATE referral_rewards
+     SET status = 'pending', approval_mode = 'manual', updated_at = CURRENT_TIMESTAMP
+     WHERE id IN (
+       SELECT id FROM referral_rewards
+       WHERE status = 'scheduled' AND scheduled_for <= CURRENT_TIMESTAMP
+       ORDER BY scheduled_for ASC
+       LIMIT $1
+     )
+     RETURNING id, status`,
     [limit]
   );
-  const results = [];
-  for (const row of due.rows) {
-    try {
-      results.push({ id: row.id, ok: true, reward: await payReward(row.id) });
-    } catch (e) {
-      results.push({ id: row.id, ok: false, error: e.message });
-    }
-  }
-  return results;
+  return due.rows.map((row) => ({ id: row.id, ok: true, reward: row }));
 }
 
 async function approveReward(rewardId, adminId) {

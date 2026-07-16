@@ -118,7 +118,7 @@
       }
       const params = new URLSearchParams(location.search);
       const userId = (params.get('userId') || params.get('id') || '').trim();
-      const name = decodeURIComponent(params.get('name') || 'User');
+      const name = (window.SocialUI?.safeDecodeURIComponent || ((v) => { try { return decodeURIComponent(v); } catch (_e) { return v; } }))(params.get('name') || 'User');
       document.getElementById('creatorTitle').textContent = name;
       document.getElementById('creatorName').textContent = name;
 

@@ -7,7 +7,7 @@
   <title>Invite - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-theme.css">
-  <link rel="stylesheet" href="referral.css?v=20260716-invite-id">
+  <link rel="stylesheet" href="referral.css?v=20260716-help-visible">
 </head>
 <body class="ref-page" data-page="referral">
   <div class="ref-shell">
@@ -16,8 +16,8 @@
     <header class="ref-topbar">
       <a class="ref-icon-btn" href="/profile-tab.html?app=1" aria-label="Back"><i class="fas fa-arrow-left"></i></a>
       <div class="ref-topbar-spacer"></div>
-      <button type="button" class="ref-icon-btn ref-icon-btn--light" id="refHelpBtn" aria-label="How to invite">
-        <i class="fas fa-question"></i>
+      <button type="button" class="ref-icon-btn ref-icon-btn--light" id="refHelpBtn" aria-label="How to invite" title="How to invite">
+        <i class="fas fa-circle-question" aria-hidden="true"></i>
       </button>
     </header>
 
@@ -80,8 +80,8 @@
           <span>Number of invitees</span>
         </div>
         <div class="ref-today-bar">
-          <span>Available for today <i class="ref-token" aria-hidden="true"></i> <b id="statAvailable">0</b></span>
-          <button type="button" class="ref-receive" id="refReceiveBtn" disabled>Receive</button>
+          <span>Pending points <i class="ref-token" aria-hidden="true"></i> <b id="statAvailable">0</b></span>
+          <button type="button" class="ref-receive" id="refReceiveBtn" disabled>Receive to Points</button>
         </div>
       </div>
 
@@ -146,11 +146,11 @@
   <div id="refToast" class="ref-toast" role="status"></div>
 
   <script src="ap-config.js"></script>
-  <script src="app.js"></script>
+  <script src="app.js?v=20260716-uri-patch"></script>
   <script src="social-wallet.js"></script>
-  <script src="social-ui.js"></script>
-  <script src="social-shell.js"></script>
-  <script src="referral.js?v=20260716-tasks-only"></script>
+  <script src="social-ui.js?v=20260716-emoji-uri3"></script>
+  <script src="social-shell.js?v=20260716-emoji-uri3"></script>
+  <script src="referral.js?v=20260716-emoji-uri3"></script>
   <script>
     SocialShell?.initPage?.({ activeNav: 'profile' });
   </script>

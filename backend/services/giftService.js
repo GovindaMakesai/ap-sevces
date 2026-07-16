@@ -84,7 +84,17 @@ async function resolveGiftAmount(giftType, coinAmount, qty = 1) {
   throw new Error(`Unknown gift type "${raw || giftType}". Try reloading the app.`);
 }
 
-async function sendGift({ senderId, receiverId, liveRoomId, giftType, coinAmount, qty = 1 }) {
+async function sendGift({
+  senderId,
+  receiverId,
+  liveRoomId,
+  giftType,
+  coinAmount,
+  qty = 1,
+  emoji = null,
+  fromName = null,
+  toName = null,
+}) {
   const amount = BigInt(await resolveGiftAmount(giftType, coinAmount, qty));
   if (String(senderId) === String(receiverId)) throw new Error('Cannot gift yourself');
 
@@ -120,7 +130,7 @@ async function sendGift({ senderId, receiverId, liveRoomId, giftType, coinAmount
         senderId,
         receiverId,
         liveRoomId || null,
-        giftType || 'gift',
+        String(giftType || 'gift').slice(0, 64),
         amount.toString(),
         '0',
         '0',
@@ -161,11 +171,14 @@ async function sendGift({ senderId, receiverId, liveRoomId, giftType, coinAmount
           liveRoomId,
           senderId,
           JSON.stringify({
+            gift_tx_id: gift.rows[0].id,
             fromUserId: senderId,
             toUserId: receiverId,
             receiver_id: receiverId,
             gift_type: giftType,
-            emoji: giftType,
+            emoji: emoji || giftType,
+            from: fromName || null,
+            to: toName || null,
             amount: Number(amount),
             coin_amount: Number(amount),
             qty: Math.max(1, Math.floor(Number(qty) || 1)),

@@ -148,14 +148,24 @@
 
   function avatarFallback(name) {
     if (window.SocialUI?.avatarUrl) return SocialUI.avatarUrl(name);
-    const initials = String(name || 'U')
-      .trim()
-      .split(/\s+/)
-      .slice(0, 2)
-      .map((p) => p[0]?.toUpperCase() || '')
-      .join('') || 'U';
+    const initials =
+      (window.SocialUI?.initials && SocialUI.initials(name)) ||
+      String(name || 'U')
+        .replace(/[\uD800-\uDFFF]/g, '')
+        .replace(/[^A-Za-z0-9\s]/g, ' ')
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((p) => p.charAt(0).toUpperCase())
+        .join('') ||
+      'U';
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="500"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#e8c56a"/><stop offset="100%" stop-color="#9a7218"/></linearGradient></defs><rect width="100%" height="100%" fill="url(#g)"/><text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" font-family="Arial" font-size="72" fill="#fff" opacity="0.92">${initials}</text></svg>`;
-    return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+    try {
+      return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+    } catch (_e) {
+      return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="500"><rect width="100%" height="100%" fill="#c9a227"/><text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" font-family="Arial" font-size="72" fill="#fff">U</text></svg>')}`;
+    }
   }
 
   function coverFallback(name, party) {
@@ -366,12 +376,18 @@
   }
 
   function hostInitials(name) {
-    return String(name || 'H')
-      .trim()
-      .split(/\s+/)
-      .slice(0, 2)
-      .map((p) => p[0]?.toUpperCase() || '')
-      .join('') || 'H';
+    if (window.SocialUI?.initials) return SocialUI.initials(name) || 'H';
+    return (
+      String(name || 'H')
+        .replace(/[\uD800-\uDFFF]/g, '')
+        .replace(/[^A-Za-z0-9\s]/g, ' ')
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((p) => p.charAt(0).toUpperCase())
+        .join('') || 'H'
+    );
   }
 
   function isPartyRoomRow(r) {
@@ -463,7 +479,14 @@
     const age = formatLiveAge(pro.startedAt || pro.updatedAt);
     const ch = encodeURIComponent(String(channel).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64));
     const hostQs = [];
-    if (name) hostQs.push('hostName=' + encodeURIComponent(name));
+    if (name) {
+      const enc = window.SocialUI?.safeEncodeURIComponent || encodeURIComponent;
+      try {
+        hostQs.push('hostName=' + enc(name));
+      } catch (_e) {
+        hostQs.push('hostName=Host');
+      }
+    }
     if (pro.hostProfilePic) hostQs.push('profilePic=' + encodeURIComponent(String(pro.hostProfilePic)));
     const extra = hostQs.length ? '&' + hostQs.join('&') : '';
     const href = party
@@ -1405,12 +1428,16 @@
     };
     if (mode === 'video' && !isParty && !opts?.skipVerify) {
       const api = window.API || window.Auth?.api;
-      if (api?.get) {
-        api
-          .get('/live/access-status')
+      const fetchStatus = api?.getFresh || api?.get;
+      if (typeof fetchStatus === 'function') {
+        fetchStatus
+          .call(api, '/live/access-status')
           .then((res) => {
-            const data = res?.data?.data || res?.data || {};
-            if (!data.canStreamVideo) {
+            const data = res?.data?.data || res?.data || res || {};
+            const ok =
+              data.canStreamVideo === true ||
+              (data.faceVerified === true && data.identityVerified === true);
+            if (!ok) {
               const ret = encodeURIComponent(
                 '/streamer-center.html?app=1&goLive=video'
               );

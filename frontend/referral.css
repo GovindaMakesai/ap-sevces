@@ -57,9 +57,28 @@ body.ref-page {
   backdrop-filter: blur(6px);
 }
 
-.ref-icon-btn--light {
-  background: rgba(255, 255, 255, 0.45);
-  border: 1.5px solid rgba(255, 255, 255, 0.7);
+/* Help "?" must stay readable on the peach hero (white-on-peach was invisible) */
+.ref-icon-btn--light,
+#refHelpBtn {
+  background: #ffffff !important;
+  border: 2px solid #ff6a2b !important;
+  color: #ff4d1a !important;
+  box-shadow: 0 3px 10px rgba(255, 77, 26, 0.28);
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.ref-icon-btn--light:active,
+#refHelpBtn:active {
+  transform: scale(0.96);
+  background: #fff4ea !important;
+}
+
+#refHelpBtn i {
+  color: #ff4d1a !important;
+  -webkit-text-stroke: 0;
+  font-weight: 900;
+  line-height: 1;
 }
 
 .ref-ticker {

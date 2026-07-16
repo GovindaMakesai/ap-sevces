@@ -23,5 +23,5 @@ Isolated enterprise module. **Does not modify** auth, live stream, or wallet cor
 
 ## Extending
 
-All rewards are paid through `walletService.creditCoins` with `type: 'referral_reward' | 'mission_reward'`.
+All rewards stay pending until the user taps Receive, then pay through `walletService.creditStars` (points only) with `type: 'referral_reward'`.
 Admin settings live in `referral_settings` (no hardcoding for mission amounts).

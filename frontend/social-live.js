@@ -100,17 +100,31 @@
   const recentGiftFxKeys = new Map();
   const RECENT_GIFT_FX_MS = 10000;
 
+  function normalizeGiftTxId(raw) {
+    const s = String(raw || '').trim();
+    if (!s) return '';
+    return s.replace(/^(gift-|evt-)/i, '');
+  }
+
   function giftFingerprint(giftOrMsg) {
     if (!giftOrMsg) return '';
     const g = giftOrMsg.gift || giftOrMsg;
-    if (g.id) return `id:${g.id}`;
-    if (giftOrMsg.id && String(giftOrMsg.id).startsWith('evt-')) return `id:${giftOrMsg.id}`;
-    const from = String(g.fromUserId || g.senderId || giftOrMsg.userId || g.from || giftOrMsg.user || '');
-    const to = String(g.toUserId || g.receiver_id || g.recipientId || g.to || '');
+    const txId = normalizeGiftTxId(
+      g.gift_tx_id ||
+        g.giftId ||
+        (String(g.id || '').length >= 8 && !/^\d+$/.test(String(g.id || '')) ? g.id : '') ||
+        (String(giftOrMsg.id || '').startsWith('gift-') ? giftOrMsg.id : '')
+    );
+    if (txId) return `id:${txId}`;
+    /* Soft key: user ids + amount — ignore emoji (🌹 vs rose) so socket/state merge */
+    const from = String(g.fromUserId || g.senderId || giftOrMsg.userId || '');
+    const to = String(g.toUserId || g.receiver_id || g.recipientId || '');
     const amt = Number(g.amount || g.coins || g.coin_amount || 0);
-    const emoji = String(g.emoji || g.gift_type || '');
     const qty = Number(g.qty || 1);
-    return `${from}|${to}|${amt}|${emoji}|${qty}`;
+    if (from && to && amt > 0) return `uid:${from}|${to}|${amt}|${qty}`;
+    const fromName = String(g.from || giftOrMsg.user || '');
+    const toName = String(g.to || '');
+    return `name:${fromName}|${toName}|${amt}|${qty}`;
   }
 
   function pruneRecentGiftFx(now = Date.now()) {
@@ -129,7 +143,8 @@
       ? giftFingerprint({
           ...gift,
           id: null,
-          gift: gift.gift ? { ...gift.gift, id: null } : undefined,
+          gift_tx_id: null,
+          gift: gift.gift ? { ...gift.gift, id: null, gift_tx_id: null } : undefined,
         })
       : key;
     if (recentGiftFxKeys.has(key) || (soft && recentGiftFxKeys.has(soft))) return false;
@@ -139,10 +154,21 @@
     return true;
   }
 
+  function giftHistorySoftKey(entry) {
+    const from = String(entry.fromUserId || '');
+    const to = String(entry.toUserId || '');
+    const amt = Number(entry.amount || 0);
+    const bucket = Math.floor(Number(entry.at || Date.now()) / 8000);
+    if (from && to && amt > 0) return `uid:${from}|${to}|${amt}|${bucket}`;
+    return `name:${entry.from || ''}|${entry.to || ''}|${amt}|${bucket}`;
+  }
+
   function pushRoomGift(gift) {
     if (!gift) return;
+    const txId = normalizeGiftTxId(gift.gift_tx_id || gift.giftId || gift.id);
     const entry = {
-      id: gift.id || null,
+      id: txId || gift.id || null,
+      gift_tx_id: txId || null,
       from: gift.from || gift.senderName || 'User',
       fromUserId: gift.fromUserId || gift.senderId || null,
       to: gift.to || gift.recipientName || gift.recipient || 'Host',
@@ -151,25 +177,37 @@
       amount: Number(gift.amount || gift.coins || gift.coin_amount || 0),
       at: gift.at ? new Date(gift.at).getTime() : Date.now(),
     };
-    const key = entry.id
-      ? `id:${entry.id}`
-      : `${entry.from}|${entry.to}|${entry.emoji}|${entry.amount}|${Math.floor(entry.at / 5000)}`;
-    if (roomGiftHistory.some((g) => (g.id && entry.id && g.id === entry.id) || g._key === key)) {
+    const soft = giftHistorySoftKey(entry);
+    const idKey = entry.id ? `id:${normalizeGiftTxId(entry.id)}` : '';
+    if (
+      roomGiftHistory.some((g) => {
+        if (idKey && g.id && `id:${normalizeGiftTxId(g.id)}` === idKey) return true;
+        if (g.gift_tx_id && entry.gift_tx_id && String(g.gift_tx_id) === String(entry.gift_tx_id)) return true;
+        if (g._soft === soft) return true;
+        return false;
+      })
+    ) {
       return;
     }
-    entry._key = key;
+    entry._key = idKey || soft;
+    entry._soft = soft;
     roomGiftHistory.push(entry);
     if (roomGiftHistory.length > 40) roomGiftHistory = roomGiftHistory.slice(-40);
   }
 
   function hydrateGiftHistoryFromState(state) {
     const gifts = state?.gifts || [];
-    gifts.forEach((g) => pushRoomGift(g));
+    /* Prefer gifts[] only — gift chat messages are the same sends (was doubling history) */
+    if (gifts.length) {
+      gifts.forEach((g) => pushRoomGift(g));
+      return;
+    }
     (state?.messages || [])
       .filter((m) => m?.type === 'gift')
       .forEach((m) => {
         pushRoomGift({
-          id: m.id,
+          id: m.gift?.gift_tx_id || m.gift?.id || m.id,
+          gift_tx_id: m.gift?.gift_tx_id || m.gift?.id,
           from: m.user || m.gift?.from,
           fromUserId: m.userId || m.gift?.fromUserId,
           to: m.gift?.to || m.gift?.recipientName || 'Host',
@@ -1581,13 +1619,22 @@
   }
 
   function grantRoomAdmin(userId, grant) {
-    if (!isHost() || !liveSocket?.connected || !userId) return;
+    if (!liveSocket?.connected || !userId) return;
+    if (grant) {
+      if (!isHost()) {
+        toast('Only the host can make someone a room admin', 'warning');
+        return;
+      }
+    } else if (!isHost() && !canModerateRoom()) {
+      toast('Only host or room admin can remove admin', 'warning');
+      return;
+    }
     const label = roomAdminLabel();
     liveSocket.emit(
       grant ? 'live:admin_grant' : 'live:admin_revoke',
       { channel: channelId(), userId },
       (res) => {
-        if (res?.ok) toast(grant ? `${label} granted` : `${label} revoked`, 'success');
+        if (res?.ok) toast(grant ? `${label} granted` : `Removed from ${label.toLowerCase()}`, 'success');
         else toast(res?.message || `Could not update ${label.toLowerCase()}`, 'error');
       }
     );
@@ -1692,6 +1739,12 @@
     const demoteLabel = isAdminMember
       ? `Remove from the seat (keep ${adminLabel.toLowerCase()})`
       : 'Remove from the seat';
+    const canMakeAdmin = isHost() && canKick && !isAdminMember;
+    const canRemoveAdmin =
+      canKick &&
+      isAdminMember &&
+      (isHost() || canModerateRoom()) &&
+      String(userId) !== String(currentUser()?.id || '');
     menu.innerHTML = `
       <button type="button" data-mod="mute"><i class="fas fa-microphone-slash"></i><span>Mute mic</span></button>
       <button type="button" data-mod="unmute"><i class="fas fa-microphone"></i><span>Unmute mic</span></button>
@@ -1701,7 +1754,8 @@
       ${canKick ? '<button type="button" data-mod="kick2"><i class="fas fa-ban"></i><span>Kick out · 2 hours</span></button>' : ''}
       ${canKick ? '<button type="button" data-mod="kick24"><i class="fas fa-ban"></i><span>Kick out · 24 hours</span></button>' : ''}
       ${canKick ? `<button type="button" data-mod="block"><i class="fas fa-user-slash"></i><span>${blocked ? 'Unblock user' : 'Block user'}</span></button>` : ''}
-      ${isHost() && canKick ? `<button type="button" data-mod="admin"><i class="fas fa-user-shield"></i><span>${isAdminMember ? `Revoke ${adminLabel.toLowerCase()}` : `Make ${adminLabel.toLowerCase()}`}</span></button>` : ''}`;
+      ${canMakeAdmin ? `<button type="button" data-mod="admin-grant"><i class="fas fa-user-shield"></i><span>Make ${adminLabel.toLowerCase()}</span></button>` : ''}
+      ${canRemoveAdmin ? `<button type="button" data-mod="admin-revoke"><i class="fas fa-user-slash"></i><span>Remove from ${adminLabel.toLowerCase()}</span></button>` : ''}`;
     menu.querySelector('[data-mod="mute"]')?.addEventListener('click', () => {
       muteRemoteUser(userId, true);
       menu.remove();
@@ -1745,8 +1799,14 @@
       menu.remove();
       document.getElementById('apProfileSheet')?.classList.remove('open');
     });
-    menu.querySelector('[data-mod="admin"]')?.addEventListener('click', () => {
-      grantRoomAdmin(userId, !isAdminMember);
+    menu.querySelector('[data-mod="admin-grant"]')?.addEventListener('click', () => {
+      grantRoomAdmin(userId, true);
+      menu.remove();
+    });
+    menu.querySelector('[data-mod="admin-revoke"]')?.addEventListener('click', () => {
+      if (window.confirm(`Remove ${name} from ${adminLabel.toLowerCase()}?`)) {
+        grantRoomAdmin(userId, false);
+      }
       menu.remove();
     });
   }
@@ -2058,16 +2118,28 @@
     const resolved = resolveMediaUrl(profilePic);
     if (window.SocialUI?.avatarUrl) return SocialUI.avatarUrl(name, resolved);
     if (resolved) return resolved;
-    const label = String(name || 'U')
-      .trim()
-      .split(/\s+/)
-      .map((w) => w[0])
-      .join('')
-      .slice(0, 2)
-      .toUpperCase() || 'U';
-    return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(
-      `<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#e8c56a"/><stop offset="100%" stop-color="#9a7218"/></linearGradient></defs><rect width="128" height="128" rx="64" fill="url(#g)"/><text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" font-family="Arial,sans-serif" font-size="48" font-weight="700" fill="#fff">${label}</text></svg>`
-    )}`;
+    const label =
+      (window.SocialUI?.initials && SocialUI.initials(name)) ||
+      String(name || 'U')
+        .replace(/[\uD800-\uDFFF]/g, '')
+        .replace(/[^A-Za-z0-9\s]/g, ' ')
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((w) => w.charAt(0))
+        .join('')
+        .slice(0, 2)
+        .toUpperCase() ||
+      'U';
+    try {
+      return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(
+        `<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#e8c56a"/><stop offset="100%" stop-color="#9a7218"/></linearGradient></defs><rect width="128" height="128" rx="64" fill="url(#g)"/><text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" font-family="Arial,sans-serif" font-size="48" font-weight="700" fill="#fff">${label}</text></svg>`
+      )}`;
+    } catch (_e) {
+      return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128"><rect width="128" height="128" rx="64" fill="#c9a227"/><text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" font-family="Arial,sans-serif" font-size="48" font-weight="700" fill="#fff">U</text></svg>'
+      )}`;
+    }
   }
 
   function liveProfilePic(userId, fallbackPic) {
@@ -3206,16 +3278,21 @@
 
       liveSocket.on('live:gift', (gift) => {
         if (!gift) return;
-        const isFresh = claimGiftPresentation(gift);
-        pushRoomGift(gift);
+        const normalized = {
+          ...gift,
+          id: gift.id || gift.gift_tx_id,
+          gift_tx_id: gift.gift_tx_id || gift.id,
+        };
+        const isFresh = claimGiftPresentation(normalized);
+        pushRoomGift(normalized);
         rememberChatMessage({
           type: 'gift',
-          id: gift.id ? `gift-${gift.id}` : undefined,
-          user: gift.from || gift.senderName || 'User',
-          userId: gift.fromUserId || gift.senderId || null,
-          text: `${gift.emoji || '🎁'} sent to ${gift.to || gift.recipientName || 'Host'} · ${formatGiftCount(gift.amount || gift.coins || 0)} coins`,
-          gift,
-          at: gift.at || Date.now(),
+          id: normalized.id ? `gift-${normalizeGiftTxId(normalized.id)}` : undefined,
+          user: normalized.from || normalized.senderName || 'User',
+          userId: normalized.fromUserId || normalized.senderId || null,
+          text: `${normalized.emoji || '🎁'} sent to ${normalized.to || normalized.recipientName || 'Host'} · ${formatGiftCount(normalized.amount || normalized.coins || 0)} coins`,
+          gift: normalized,
+          at: normalized.at || Date.now(),
         });
         renderChatFeed();
         if (!isFresh) {
@@ -3224,9 +3301,9 @@
           return;
         }
         /* One chat line only — skip WIN banner / fly banner (duplicate "sent to" notices) */
-        const combo = window.SocialFX?.trackCombo?.(gift?.emoji || 'gift', gift?.qty || 1) || 1;
-        window.SocialFX?.playGift?.(gift, { combo, skipActivity: true });
-        onGiftTeamProgress(gift?.amount || gift?.coins || 100);
+        const combo = window.SocialFX?.trackCombo?.(normalized?.emoji || 'gift', normalized?.qty || 1) || 1;
+        window.SocialFX?.playGift?.(normalized, { combo, skipActivity: true });
+        onGiftTeamProgress(normalized?.amount || normalized?.coins || 100);
         if (roomState) renderRoomState();
         renderRoomGiftPanels();
         /* Host points (stars) update after gift settlement */
@@ -6638,7 +6715,8 @@
       giftFingerprint({
         ...x,
         id: null,
-        gift: x.gift ? { ...x.gift, id: null } : undefined,
+        gift_tx_id: null,
+        gift: x.gift ? { ...x.gift, id: null, gift_tx_id: null } : undefined,
       });
     const soft = softOf(msg);
     return chatMessages.findIndex((m) => {
@@ -6646,10 +6724,10 @@
       const other = giftFingerprint(m);
       if (!other) return false;
       if (other === fp) return true;
-      /* Same send via live:gift (no evt id) vs live:state (evt-*) within a few seconds */
+      /* Same send via live:gift vs live:state (evt / User-Host) within a few seconds */
       if (!soft || softOf(m) !== soft) return false;
       const otherAt = m?.at ? new Date(m.at).getTime() : 0;
-      return Math.abs(msgAt - otherAt) < 8000 || !otherAt;
+      return Math.abs(msgAt - otherAt) < 12000 || !otherAt;
     });
   }
 
@@ -9079,7 +9157,13 @@
   }
 
   function navigateToUserProfile(userId, name) {
-    const n = encodeURIComponent(name || 'User');
+    const enc = window.SocialUI?.safeEncodeURIComponent || encodeURIComponent;
+    let n = 'User';
+    try {
+      n = enc(name || 'User');
+    } catch (_e) {
+      n = 'User';
+    }
     if (userId) {
       location.href = `/creator-profile.html?userId=${encodeURIComponent(userId)}&name=${n}&app=1`;
       return;
@@ -9944,15 +10028,7 @@
       prev.count += 1;
       totals.set(key, prev);
     });
-    (roomState?.gifts || []).forEach((g) => {
-      const key = String(g.toUserId || g.to || g.from || 'guest');
-      const label = g.to || g.from || 'Guest';
-      const prev = totals.get(key) || { label, coins: 0, count: 0 };
-      prev.coins += Number(g.amount || g.coins || 0);
-      prev.count += 1;
-      totals.set(key, prev);
-    });
-
+    /* Do not also sum roomState.gifts — those are the same sends already in roomGiftHistory */
     if (analyticsEl) {
       const rows = [...totals.values()].sort((a, b) => b.coins - a.coins).slice(0, 8);
       analyticsEl.innerHTML = rows.length
@@ -10100,6 +10176,14 @@
       setRoomChatLocked(!Boolean(roomState?.chatLocked));
     });
     document.getElementById('partyBtnClearChat')?.addEventListener('click', () => clearLiveChat());
+    document.getElementById('partyToolsMuteAllChat')?.addEventListener('click', () => {
+      setRoomChatLocked(!Boolean(roomState?.chatLocked));
+      document.getElementById('partyToolsSheet')?.classList.remove('open');
+    });
+    document.getElementById('partyToolsClearChat')?.addEventListener('click', () => {
+      clearLiveChat();
+      document.getElementById('partyToolsSheet')?.classList.remove('open');
+    });
 
     document.getElementById('liveBtnFlipCam')?.addEventListener('click', () => switchCameraFacing());
     document.getElementById('liveBtnFilters')?.addEventListener('click', () => openVideoFilterSheet());
@@ -11295,18 +11379,8 @@
     }, 7000);
 
     const finishOk = async (chargedAmount) => {
-      const amt = Number(chargedAmount || cost);
-      const giftEvt = {
-        from: displayName(currentUser()),
-        fromUserId: currentUser()?.id || null,
-        to,
-        toUserId: receiverId || null,
-        emoji: g.emoji,
-        amount: amt,
-        qty: giftQty,
-      };
-      /* Do not play FX here — live:gift owns the single banner/chat for the room. */
-      pushRoomGift(giftEvt);
+      /* Do not pushRoomGift / chat here — live:gift owns the single history + chat line. */
+      void chargedAmount;
       setGiftSendError('');
       toast('Gift sent!', 'success');
       sheet.classList.remove('open');

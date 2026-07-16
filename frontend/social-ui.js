@@ -132,14 +132,14 @@
           const profileHref =
             item.href ||
             (uid
-              ? '/creator-profile.html?userId=' + encodeURIComponent(uid) + '&name=' + encodeURIComponent(item.name || 'User') + '&app=1'
-              : '/creator-profile.html?name=' + encodeURIComponent(item.name || 'User') + '&app=1');
+              ? '/creator-profile.html?userId=' + encodeURIComponent(uid) + '&name=' + safeEncodeURIComponent(item.name || 'User') + '&app=1'
+              : '/creator-profile.html?name=' + safeEncodeURIComponent(item.name || 'User') + '&app=1');
           const following = uid && window.SocialInteractions?.isFollowing
             ? SocialInteractions.isFollowing(uid, item.name)
             : false;
           const followLabel = following ? 'Following' : 'Follow';
           const followBtn = uid
-            ? '<button type="button" class="social-follow-action' + (following ? ' is-on' : '') + '" data-follow-id="' + encodeURIComponent(uid) + '" data-follow-name="' + encodeURIComponent(item.name || 'User') + '">' + followLabel + '</button>'
+            ? '<button type="button" class="social-follow-action' + (following ? ' is-on' : '') + '" data-follow-id="' + encodeURIComponent(uid) + '" data-follow-name="' + safeEncodeURIComponent(item.name || 'User') + '">' + followLabel + '</button>'
             : '';
           const msgBtn = uid
             ? '<button type="button" class="social-follow-msg" data-msg-id="' + encodeURIComponent(uid) + '" aria-label="Message"><i class="fas fa-comment"></i></button>'
@@ -172,7 +172,7 @@
           e.preventDefault();
           e.stopPropagation();
           const id = String(btn.getAttribute('data-follow-id') || '').trim();
-          const name = decodeURIComponent(btn.getAttribute('data-follow-name') || 'User');
+          const name = safeDecodeURIComponent(btn.getAttribute('data-follow-name') || 'User');
           if (!id || !window.SocialInteractions?.toggleFollow) return;
           const now = await SocialInteractions.toggleFollow(id, name);
           btn.textContent = now ? 'Following' : 'Follow';
@@ -186,19 +186,85 @@
     sheet.classList.add('open');
   }
 
+  function firstGrapheme(str) {
+    const s = String(str || '').trim();
+    if (!s) return '';
+    try {
+      if (typeof Intl !== 'undefined' && Intl.Segmenter) {
+        const seg = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+        const first = seg.segment(s)[Symbol.iterator]().next().value;
+        return first?.segment || '';
+      }
+    } catch (_e) { /* fall through */ }
+    try {
+      return Array.from(s)[0] || '';
+    } catch (_e2) {
+      return s.charAt(0) || '';
+    }
+  }
+
+  /** First safe A–Z / 0–9 letter inside a token (skips leading emoji). */
+  function firstSafeLetter(part) {
+    const s = String(part || '');
+    try {
+      for (const g of Array.from(s)) {
+        const cp = g.codePointAt(0) || 0;
+        if (cp > 0xffff || (cp >= 0x2600 && cp <= 0x27bf)) continue;
+        if (g.length === 1 && /[A-Za-z0-9]/.test(g)) return g.toUpperCase();
+      }
+    } catch (_e) { /* ignore */ }
+    return '';
+  }
+
   function initials(name) {
-    return (
-      String(name || 'U')
-        .trim()
-        .split(/\s+/)
-        .slice(0, 2)
-        .map((p) => p[0]?.toUpperCase() || '')
-        .join('') || 'U'
-    );
+    const parts = String(name || 'U')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2);
+    const letters = parts.map(firstSafeLetter).filter(Boolean);
+    return (letters.join('') || 'U').slice(0, 2);
+  }
+
+  function safeEncodeURIComponent(value) {
+    const raw = String(value ?? '');
+    try {
+      return encodeURIComponent(raw);
+    } catch (_e) {
+      /* Strip lone surrogates / broken unicode that throw "URI malformed" */
+      const cleaned = raw.replace(/[\uD800-\uDFFF]/g, '').replace(/[^\x20-\x7E]/g, '');
+      try {
+        return encodeURIComponent(cleaned || 'User');
+      } catch (_e2) {
+        return 'User';
+      }
+    }
+  }
+
+  function safeDecodeURIComponent(value) {
+    const raw = String(value ?? '');
+    try {
+      return decodeURIComponent(raw);
+    } catch (_e) {
+      return raw;
+    }
   }
 
   function svgDataUrl(svg) {
-    return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
+    try {
+      return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
+    } catch (_e) {
+      /* Fallback without risky text if encode still fails */
+      return (
+        'data:image/svg+xml;charset=UTF-8,' +
+        encodeURIComponent(
+          '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256">' +
+            '<rect width="256" height="256" rx="128" fill="#c9a227"/>' +
+            '<text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" ' +
+            'font-family="Arial,sans-serif" font-size="96" font-weight="700" fill="#fff">U</text></svg>'
+        )
+      );
+    }
   }
 
   function avatarUrl(name, photoUrl) {
@@ -473,6 +539,8 @@
     avatarUrl,
     themeCover,
     initials,
+    safeEncodeURIComponent,
+    safeDecodeURIComponent,
     bindAvatarFallbacks,
     mentionSuggestions,
     attachMentionAutocomplete,

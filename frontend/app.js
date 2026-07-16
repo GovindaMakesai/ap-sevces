@@ -1,6 +1,33 @@
 // frontend/app.js
 // AP Services Frontend - Complete Working Version with FormData Support
 
+/* Prevent "URI malformed" crashes from emoji names (lone surrogates in encodeURIComponent) */
+(function patchUriCodecs() {
+  try {
+    const enc = window.encodeURIComponent.bind(window);
+    window.encodeURIComponent = function (value) {
+      try {
+        return enc(value);
+      } catch (_e) {
+        const cleaned = String(value ?? '').replace(/[\uD800-\uDFFF]/g, '');
+        try {
+          return enc(cleaned);
+        } catch (_e2) {
+          return enc('x');
+        }
+      }
+    };
+    const dec = window.decodeURIComponent.bind(window);
+    window.decodeURIComponent = function (value) {
+      try {
+        return dec(value);
+      } catch (_e) {
+        return String(value ?? '');
+      }
+    };
+  } catch (_e) { /* ignore */ }
+})();
+
 // ==================== CONFIGURATION ====================
 const AP = window.AP_CONFIG || {
     PRODUCTION_BACKEND_URL: 'https://api.apservices.in',

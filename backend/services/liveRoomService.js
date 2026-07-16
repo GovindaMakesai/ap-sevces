@@ -383,13 +383,16 @@ async function buildSnapshot(channel) {
       }
       if (e.event_type === 'gift') {
         const coins = Number(p.amount || p.coin_amount || p.coins || 0);
+        const txId = p.gift_tx_id || p.giftId || null;
         return {
-          id: `evt-${eventId}`,
+          id: txId ? `gift-${txId}` : `evt-${eventId}`,
           type: 'gift',
           user: p.from || p.senderName || 'User',
           userId: e.user_id || p.fromUserId || null,
           text: `${p.emoji || '🎁'} sent to ${p.to || p.recipientName || 'Host'}${coins ? ` · ${coins} coins` : ''}`,
           gift: {
+            id: txId || undefined,
+            gift_tx_id: txId || undefined,
             from: p.from || p.senderName || 'User',
             fromUserId: e.user_id || p.fromUserId || null,
             to: p.to || p.recipientName || 'Host',
@@ -418,8 +421,10 @@ async function buildSnapshot(channel) {
     .slice(-20)
     .map((e) => {
       const p = parsePayload(e.payload);
+      const txId = p.gift_tx_id || p.giftId || null;
       return {
-        id: e.id != null ? String(e.id) : undefined,
+        id: txId || (e.id != null ? String(e.id) : undefined),
+        gift_tx_id: txId || undefined,
         from: p.from || p.senderName || 'User',
         fromUserId: e.user_id || p.fromUserId || null,
         to: p.to || p.recipientName || 'Host',

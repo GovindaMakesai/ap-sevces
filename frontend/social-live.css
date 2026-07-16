@@ -1116,11 +1116,11 @@ html.ap-secure-live .party-room-stage {
   background: transparent;
 }
 
-/* Live host controls: host-only (never viewers) */
-body:not(.ap-is-host) .live-host-bar,
-body:not(.ap-is-host) #liveHostBar,
-body:not(.ap-is-host) .live-host-bar-toggle,
-body:not(.ap-is-host) .live-host-bar-actions,
+/* Live host / room-admin controls (hidden from regular viewers) */
+body:not(.ap-is-host):not(.ap-can-moderate) .live-host-bar,
+body:not(.ap-is-host):not(.ap-can-moderate) #liveHostBar,
+body:not(.ap-is-host):not(.ap-can-moderate) .live-host-bar-toggle,
+body:not(.ap-is-host):not(.ap-can-moderate) .live-host-bar-actions,
 .live-host-bar[hidden],
 #liveHostBar[hidden] {
   display: none !important;
@@ -1823,6 +1823,27 @@ body.ap-can-moderate #liveHostBar:not([hidden]) {
   visibility: visible !important;
   touch-action: manipulation;
   background: transparent;
+}
+
+/* Room admins must see Clear chat / Mute all (actions were still hidden by host-only rule) */
+body.ap-can-moderate .live-host-bar:not([hidden]) .live-host-bar-toggle,
+body.ap-can-moderate #liveHostBar:not([hidden]) .live-host-bar-toggle,
+body.ap-can-moderate .live-host-bar:not([hidden]) .live-host-bar-actions,
+body.ap-can-moderate #liveHostBar:not([hidden]) .live-host-bar-actions,
+body.ap-can-moderate .live-host-bar:not([hidden]) .mod-tool,
+body.ap-can-moderate #liveHostBar:not([hidden]) .mod-tool {
+  display: flex !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+}
+
+body.ap-is-host .mod-only-tool,
+body.ap-can-moderate .mod-only-tool {
+  display: flex !important;
+}
+
+body:not(.ap-is-host):not(.ap-can-moderate) .mod-only-tool {
+  display: none !important;
 }
 
 body.ap-can-moderate .live-host-bar.is-collapsed:not([hidden]),

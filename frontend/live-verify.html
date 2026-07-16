@@ -106,8 +106,8 @@
     <div class="lv-status" id="lvStatus"></div>
   </div>
 
-  <script src="app.js?v=20260716-face-cam3"></script>
-  <script src="social-shell.js?v=20260715-rooms-fix"></script>
+  <script src="app.js?v=20260716-face-loop1"></script>
+  <script src="social-shell.js?v=20260716-face-loop1"></script>
   <script>
     (async function () {
       Auth.checkAuth();
@@ -126,9 +126,39 @@
       /** Don't kill the stream while the OS permission sheet is up (WebView goes "hidden") */
       let suppressStopOnHideUntil = 0;
 
+      function goContinue() {
+        stopCamera();
+        let target = redirect || '/streamer-center.html?app=1';
+        try {
+          target = decodeURIComponent(target);
+        } catch (_e) {
+          /* keep raw — avoid "URI malformed" crash */
+        }
+        if (!target || target === 'undefined') target = '/streamer-center.html?app=1';
+        if (target.includes('app=1')) {
+          location.href = target;
+        } else {
+          location.href = target.includes('?') ? target + '&app=1' : target + '?app=1';
+        }
+      }
+
       function setStatus(msg, ok) {
         statusEl.textContent = msg;
         statusEl.className = 'lv-status ' + (ok ? 'ok' : 'err');
+      }
+
+      function markVerifiedUi() {
+        identityDone = true;
+        faceDone = true;
+        document.getElementById('lvStepIdentity')?.classList.add('done');
+        document.getElementById('lvStepFace')?.classList.add('done');
+        document.getElementById('lvStepAccess')?.classList.add('done');
+        const cont = document.getElementById('lvContinueBtn');
+        if (cont) cont.disabled = false;
+        ['lvIdentityBtn', 'lvFaceBtn', 'lvCaptureBtn', 'lvNativeCamBtn', 'lvGalleryBtn'].forEach((id) => {
+          const el = document.getElementById(id);
+          if (el) el.hidden = true;
+        });
       }
 
       function ensureMediaDevices() {
@@ -162,9 +192,13 @@
           video.srcObject = null;
         }
         document.getElementById('lvCamWrap')?.classList.remove('is-open');
-        document.getElementById('lvCaptureBtn').hidden = true;
-        document.getElementById('lvCaptureBtn').disabled = true;
-        document.getElementById('lvFaceBtn').textContent = 'Open camera';
+        const capt = document.getElementById('lvCaptureBtn');
+        if (capt) {
+          capt.hidden = true;
+          capt.disabled = true;
+        }
+        const faceBtn = document.getElementById('lvFaceBtn');
+        if (faceBtn && !faceDone) faceBtn.textContent = 'Open camera';
       }
 
       function requestNativeMediaPermissions() {
@@ -248,31 +282,50 @@
         throw lastErr || new Error('Could not open camera');
       }
 
-      async function uploadBlob(blob) {
-        if (!identityDone) {
-          try {
-            await api.post('/live/verify/identity');
-            identityDone = true;
-            document.getElementById('lvStepIdentity').classList.add('done');
-          } catch (_e) {
-            /* continue — server only needs the face photo for video access flags */
-          }
+      async function ensureIdentity() {
+        if (identityDone) return true;
+        try {
+          await api.post('/live/verify/identity');
+          identityDone = true;
+          document.getElementById('lvStepIdentity').classList.add('done');
+          try { API.clearGetCache?.('/live/access-status'); } catch (_e) {}
+          return true;
+        } catch (e) {
+          setStatus(e?.message || 'Identity step failed — tap Confirm identity', false);
+          return false;
         }
-        const fd = new FormData();
-        fd.append('photo', blob, 'selfie.jpg');
-        await API.upload('/live/verify/face', fd);
-        faceDone = true;
-        document.getElementById('lvStepFace').classList.add('done');
-        document.getElementById('lvContinueBtn').disabled = false;
-        setStatus('Face verification complete. You can go live with video.', true);
-        stopCamera();
       }
 
-      async function refreshStatus() {
-        if (!api?.get) return;
+      async function uploadBlob(blob) {
+        const idOk = await ensureIdentity();
+        if (!idOk) throw new Error('Confirm identity first, then upload selfie again.');
+        const fd = new FormData();
+        fd.append('photo', blob, 'selfie.jpg');
+        const up = await API.upload('/live/verify/face', fd);
+        try { API.clearGetCache?.('/live/access-status'); } catch (_e) {}
+        const payload = up?.data || up || {};
+        faceDone = true;
+        identityDone = true;
+        document.getElementById('lvStepFace').classList.add('done');
+        document.getElementById('lvStepIdentity').classList.add('done');
+        document.getElementById('lvContinueBtn').disabled = false;
+        stopCamera();
+        if (payload.canStreamVideo === false) {
+          /* Server should unlock both; re-check once */
+          await refreshStatus({ autoLeave: false });
+        } else {
+          markVerifiedUi();
+          setStatus('Verification complete. You can go live with video.', true);
+        }
+      }
+
+      async function refreshStatus(opts = {}) {
+        const autoLeave = opts.autoLeave !== false;
+        if (!api?.get && !api?.getFresh) return null;
         try {
-          const res = await api.get('/live/access-status');
-          const d = res?.data?.data || res?.data || {};
+          const fetchStatus = api.getFresh || api.get;
+          const res = await fetchStatus.call(api, '/live/access-status');
+          const d = res?.data?.data || res?.data || res || {};
           if (d.identityVerified) {
             identityDone = true;
             document.getElementById('lvStepIdentity').classList.add('done');
@@ -282,16 +335,29 @@
             document.getElementById('lvStepFace').classList.add('done');
             document.getElementById('lvContinueBtn').disabled = false;
           }
-          if (d.canStreamVideo) {
-            setStatus('You are verified for video live streaming.', true);
+          const unlocked =
+            d.canStreamVideo === true || (d.faceVerified === true && d.identityVerified === true);
+          if (unlocked) {
+            markVerifiedUi();
+            setStatus('You are already verified for video live streaming.', true);
+            if (autoLeave) {
+              setTimeout(goContinue, 600);
+            }
+          } else if (d.faceVerified && !d.identityVerified) {
+            setStatus('Selfie saved. Tap Confirm identity to finish — you will not need another selfie.', true);
           }
+          return d;
         } catch (e) {
           setStatus(e?.message || 'Could not load verification status', false);
+          return null;
         }
       }
 
       async function startCameraPreview() {
-        if (openingCamera || faceDone) return;
+        if (openingCamera || faceDone) {
+          if (faceDone) setStatus('Face already verified — tap Continue.', true);
+          return;
+        }
         openingCamera = true;
         const btn = document.getElementById('lvFaceBtn');
         try {
@@ -316,7 +382,7 @@
           } catch (_e) {
             /* Some WebViews need a second play after tracks are live */
             await new Promise((r) => setTimeout(r, 200));
-            try { await video.play(); } catch (_e2) {}
+            try { video.play(); } catch (_e2) {}
           }
           /* Wait for first frame — avoid blank black box */
           const readyAt = Date.now();
@@ -352,12 +418,15 @@
 
       document.getElementById('lvIdentityBtn').addEventListener('click', async () => {
         try {
-          await api.post('/live/verify/identity');
-          identityDone = true;
-          document.getElementById('lvStepIdentity').classList.add('done');
-          setStatus('Identity done. Tap Open camera — or Take photo / Gallery if camera fails.', true);
-          /* Do NOT auto-open camera here: OS permission dialog hides the WebView and
-             used to kill the stream immediately. Let the user tap Open camera. */
+          await ensureIdentity();
+          if (identityDone) {
+            setStatus(
+              faceDone
+                ? 'Identity done. Tap Continue — selfie is already verified.'
+                : 'Identity done. Tap Open camera — or Take photo / Gallery if camera fails.',
+              true
+            );
+          }
         } catch (e) {
           setStatus(e?.response?.data?.message || e.message || 'Identity step failed', false);
         }
@@ -424,8 +493,7 @@
       document.getElementById('lvCaptureInput').addEventListener('change', onPickedFile);
 
       document.getElementById('lvContinueBtn').addEventListener('click', () => {
-        stopCamera();
-        location.href = redirect.includes('?') ? redirect + '&app=1' : redirect + '?app=1';
+        goContinue();
       });
 
       window.addEventListener('pagehide', stopCamera);
@@ -444,9 +512,14 @@
         }, 2800);
       });
 
-      await refreshStatus();
+      const status = await refreshStatus({ autoLeave: true });
+      if (status?.canStreamVideo || (status?.faceVerified && status?.identityVerified)) {
+        return;
+      }
       if (identityDone && !faceDone) {
         setStatus('Tap Open camera to continue — if it fails, use Take photo or Gallery (same verification).', true);
+      } else if (faceDone && !identityDone) {
+        setStatus('Selfie already saved. Tap Confirm identity once — no need to retake the selfie.', true);
       }
     })();
   </script>
