@@ -91,7 +91,7 @@ async function rotateRefresh(refreshRaw, res, meta = {}) {
     [session.user_id]
   );
   const user = userRes.rows[0];
-  if (!user || user.is_active === false) throw new Error('Account inactive');
+  if (!user || user.is_active === false) throw new Error('Your account has been deactivated');
 
   const newRefreshRaw = crypto.randomBytes(48).toString('base64url');
   const newHash = hashToken(newRefreshRaw);
@@ -157,7 +157,7 @@ async function exchangeOAuthCode(code, res, meta = {}) {
     [rec.user_id]
   );
   const user = userRes.rows[0];
-  if (!user || user.is_active === false) throw new Error('Account inactive');
+  if (!user || user.is_active === false) throw new Error('Your account has been deactivated');
 
   return createSession(user, res, meta);
 }

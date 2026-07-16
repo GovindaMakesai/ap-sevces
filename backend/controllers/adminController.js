@@ -2,6 +2,9 @@
 const db = require('../config/database');
 const bcrypt = require('bcryptjs');
 const auditLogService = require('../services/auditLogService');
+const { revokeAllForUser } = require('../services/authTokenService');
+
+const ACCOUNT_DEACTIVATED_MSG = 'Your account has been deactivated';
 
 // ==================== DASHBOARD STATS ====================
 const getDashboardStats = async (req, res) => {
@@ -206,6 +209,18 @@ const updateUserStatus = async (req, res) => {
         }
 
         const u = result.rows[0];
+
+        if (is_active === false) {
+            await revokeAllForUser(userId);
+            const io = req.app.get('io');
+            if (io) {
+                io.to(`user:${userId}`).emit('user:session_revoked', {
+                    reason: 'account_deactivated',
+                    message: ACCOUNT_DEACTIVATED_MSG,
+                });
+            }
+        }
+
         await auditLogService.logAdmin(req, is_active ? 'admin.user.activate' : 'admin.user.deactivate', {
             entity_type: 'user',
             entity_id: userId,

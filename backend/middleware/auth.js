@@ -11,7 +11,7 @@ async function attachUserFromToken(req, token) {
   const user = userRes.rows[0];
   if (!user) return { error: { status: 401, message: 'User not found' } };
   if (user.deleted_at) return { error: { status: 403, message: 'Account deleted' } };
-  if (user.is_active === false) return { error: { status: 403, message: 'Account is deactivated' } };
+  if (user.is_active === false) return { error: { status: 403, message: 'Your account has been deactivated' } };
   req.userId = String(user.id);
   req.userRole = user.role;
   req.userFirstName = user.first_name;

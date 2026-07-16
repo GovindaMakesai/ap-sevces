@@ -227,6 +227,36 @@ function loginDestination(redirectAfter) {
     return '/login.html';
 }
 
+const ACCOUNT_DEACTIVATED_MSG = 'Your account has been deactivated';
+
+function isAccountDeactivatedMessage(message) {
+    const msg = String(message || '').toLowerCase();
+    return msg.includes('deactivat') || msg.includes('account inactive');
+}
+
+function isAccountDeactivatedError(error) {
+    if (!error) return false;
+    if (error.status === 403 && isAccountDeactivatedMessage(error.message)) return true;
+    return isAccountDeactivatedMessage(error.message);
+}
+
+function forceLogoutDeactivated(message = ACCOUNT_DEACTIVATED_MSG) {
+    if (window.__apDeactivatedLogout) return;
+    window.__apDeactivatedLogout = true;
+    AppState.token = null;
+    AppState.user = null;
+    clearSessionTokens();
+    localStorage.removeItem('user');
+    try {
+        sessionStorage.setItem('ap_account_deactivated', message);
+    } catch (_e) { /* ignore */ }
+    const dest = isNativeAppContext()
+        ? '/app-auth.html?app=1&error=account_deactivated'
+        : '/login.html?error=account_deactivated';
+    if (typeof Toast !== 'undefined') Toast.show(message, 'error');
+    window.location.replace(dest);
+}
+
 // ==================== API SERVICE WITH FORMDATA SUPPORT ====================
 const _apiInflight = new Map();
 const _apiGetCache = new Map();
@@ -407,6 +437,18 @@ const API = {
             if (refreshed) {
                 return this._fetchOnce(url, options, true, cacheKey, rateLimitRetry);
             }
+        }
+
+        if (
+            response.status === 403 &&
+            typeof data === 'object' &&
+            data !== null &&
+            isAccountDeactivatedMessage(data.message)
+        ) {
+            forceLogoutDeactivated(data.message || ACCOUNT_DEACTIVATED_MSG);
+            const err = new Error(data.message || ACCOUNT_DEACTIVATED_MSG);
+            err.status = 403;
+            throw err;
         }
 
         if (!response.ok) {
@@ -937,6 +979,13 @@ const Auth = {
                     body: JSON.stringify(body),
                 });
                 const data = await res.json().catch(() => ({}));
+                if (
+                    (res.status === 403 || isAccountDeactivatedMessage(data.message)) &&
+                    isAccountDeactivatedMessage(data.message)
+                ) {
+                    forceLogoutDeactivated(data.message || ACCOUNT_DEACTIVATED_MSG);
+                    return false;
+                }
                 if (res.ok && data.success && data.data?.accessToken) {
                     if (data.data.user) {
                         AppState.user = data.data.user;
@@ -988,6 +1037,10 @@ const Auth = {
                 }
             } catch (e) {
                 console.warn('Session refresh failed:', e);
+                if (isAccountDeactivatedError(e)) {
+                    forceLogoutDeactivated(e.message || ACCOUNT_DEACTIVATED_MSG);
+                    return false;
+                }
                 if (e.status === 401) {
                     let ok = await this.tryRefresh();
                     if (!ok && isNativeAppContext()) {
@@ -1056,6 +1109,9 @@ const Auth = {
 
     storeSessionTokens,
     scheduleProactiveSessionRefresh,
+    forceLogoutDeactivated,
+    isAccountDeactivatedError,
+    ACCOUNT_DEACTIVATED_MSG,
 };
 
 // ==================== WORKER API ====================

@@ -156,6 +156,20 @@
       );
       const res = await fetch(api + '/auth/me', { credentials: 'include' });
       const data = await res.json().catch(() => ({}));
+      if (res.status === 403) {
+        const msg = data.message || '';
+        if (msg.toLowerCase().includes('deactivat') || msg.toLowerCase().includes('inactive')) {
+          try {
+            localStorage.removeItem('user');
+            localStorage.removeItem('token');
+            localStorage.removeItem('ap_refresh_token');
+          } catch (_e) {}
+          markGuestUi();
+          const dest = '/app-auth.html?app=1&error=account_deactivated';
+          window.location.replace(dest);
+          return false;
+        }
+      }
       if (res.status === 401) {
         if (cachedUser || getUser()) return true;
         localStorage.removeItem('user');

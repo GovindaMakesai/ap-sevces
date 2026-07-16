@@ -54,6 +54,13 @@ function registerLiveSocket(io) {
 
       const jwt = require('jsonwebtoken');
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const userRes = await db.query(
+        `SELECT is_active FROM users WHERE id = $1`,
+        [decoded.userId]
+      );
+      if (!userRes.rows[0] || userRes.rows[0].is_active === false) {
+        return next(new Error('Your account has been deactivated'));
+      }
       socket.userId = String(decoded.userId);
       socket.userRole = decoded.role || null;
       socket.data.displayName =

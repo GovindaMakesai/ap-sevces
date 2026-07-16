@@ -182,7 +182,22 @@ const authMeta = (req) => ({
     ip: req.ip || req.connection?.remoteAddress,
 });
 
+const ACCOUNT_DEACTIVATED_MSG = 'Your account has been deactivated';
+
+function redirectDeactivatedAccount(res, appRedirect) {
+    const errParam = 'error=account_deactivated';
+    if (isNativeAppRedirect(appRedirect)) {
+        const base = String(appRedirect).trim();
+        const sep = base.includes('?') ? '&' : '?';
+        return res.redirect(`${base}${sep}${errParam}`);
+    }
+    return res.redirect(`${getFrontendBaseUrl()}/login.html?${errParam}`);
+}
+
 async function finishOAuthLogin(req, res, user, appRedirect) {
+    if (!user || user.is_active === false) {
+        return redirectDeactivatedAccount(res, appRedirect);
+    }
     const meta = authMeta(req);
     const { publicUser } = require('../lib/userDto');
     if (isNativeAppRedirect(appRedirect)) {
@@ -379,7 +394,7 @@ const login = async (req, res) => {
         if (!user.is_active) {
             return res.status(403).json({
                 success: false,
-                message: 'Your account has been deactivated'
+                message: ACCOUNT_DEACTIVATED_MSG
             });
         }
 
@@ -674,7 +689,9 @@ const refresh = async (req, res) => {
         return respondAuthedJson(res, user, 'Session refreshed', accessToken, refreshToken);
     } catch (error) {
         clearSessionCookies(res);
-        return res.status(401).json({ success: false, message: error.message || 'Refresh failed' });
+        const deactivated = /deactivat/i.test(error.message || '');
+        const status = deactivated ? 403 : 401;
+        return res.status(status).json({ success: false, message: error.message || 'Refresh failed' });
     }
 };
 
@@ -698,7 +715,9 @@ const exchangeCode = async (req, res) => {
         const { user, accessToken, refreshToken } = await exchangeOAuthCode(code, res, authMeta(req));
         return respondAuthedJson(res, user, 'OAuth exchange complete', accessToken, refreshToken);
     } catch (error) {
-        return res.status(400).json({ success: false, message: error.message });
+        const deactivated = /deactivat/i.test(error.message || '');
+        const status = deactivated ? 403 : 400;
+        return res.status(status).json({ success: false, message: error.message });
     }
 };
 

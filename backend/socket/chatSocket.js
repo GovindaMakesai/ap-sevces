@@ -14,12 +14,19 @@ async function isSocketUserAdmin(userId) {
 }
 
 function registerChatSocket(io) {
-    io.use((socket, next) => {
+    io.use(async (socket, next) => {
         try {
             const token = socket.handshake.auth?.token || socket.handshake.query?.token;
             if (!token) return next(new Error('Authentication required'));
 
             const decoded = jwt.verify(token, process.env.JWT_SECRET);
+            const userRes = await db.query(
+                `SELECT is_active FROM users WHERE id = $1`,
+                [decoded.userId]
+            );
+            if (!userRes.rows[0] || userRes.rows[0].is_active === false) {
+                return next(new Error('Your account has been deactivated'));
+            }
             socket.userId = String(decoded.userId);
             return next();
         } catch (error) {

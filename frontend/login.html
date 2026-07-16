@@ -715,9 +715,9 @@
     <!-- Toast Container -->
     <div id="toast" class="toast"></div>
     <script src="ap-config.js"></script>
-    <script src="app.js"></script>
-    <script src="auth-guard.js"></script>
-    <script src="auth-oauth.js"></script>
+    <script src="app.js?v=20260716-deactivated-account"></script>
+    <script src="auth-guard.js?v=20260716-deactivated-account"></script>
+    <script src="auth-oauth.js?v=20260716-deactivated-account"></script>
     <script>
 document.addEventListener('DOMContentLoaded', function() {
     if (window.AppAuth) {
@@ -728,6 +728,7 @@ document.addEventListener('DOMContentLoaded', function() {
       AppAuth.bindAuthNavLinks?.();
     }
     if (window.AuthOAuth) AuthOAuth.bindOAuthButtons();
+    AuthOAuth.showAuthPageErrors?.();
 });
     </script>
    

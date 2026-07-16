@@ -1068,6 +1068,12 @@
       onDone?.({ ok: false, message: 'Not connected' });
       return;
     }
+    const ch = String(payload?.channel || channelId() || '').trim();
+    if (!ch) {
+      onDone?.({ ok: false, message: 'Room channel not ready — try again' });
+      return;
+    }
+    if (!payload?.channel) payload = { ...payload, channel: ch };
     let done = false;
     const finish = (res) => {
       if (done) return;
@@ -1085,13 +1091,21 @@
     if (isHost()) return true;
     const meId = currentUser()?.id;
     if (!meId) return false;
+    const memberUid = (m) =>
+      String(
+        m?.userId ??
+          m?.user_id ??
+          m?.id ??
+          m?.uid ??
+          ''
+      );
     const members = [
       ...(Array.isArray(roomState?.onlineMembers) ? roomState.onlineMembers : []),
       ...(Array.isArray(roomState?.seats) ? roomState.seats : []),
     ];
     return members.some(
       (m) =>
-        String(m.userId) === String(meId) &&
+        memberUid(m) === String(meId) &&
         (m.isAdmin || m.role === 'admin' || m.isPlatformAdmin)
     );
   }
@@ -2977,6 +2991,11 @@
             reconnectRejoinTimer = null;
             rejoinLiveRoom();
           }, 400);
+        }
+      });
+      liveSocket.on('user:session_revoked', (payload) => {
+        if (payload?.reason === 'account_deactivated' && typeof Auth?.forceLogoutDeactivated === 'function') {
+          Auth.forceLogoutDeactivated(payload.message);
         }
       });
       liveSocket.on('disconnect', (reason) => {
@@ -6770,26 +6789,6 @@
             e.stopPropagation();
             openProfileSheet(uname, uid);
           });
-          div.querySelector('[data-mic-agree]')?.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            const req = joinRequests.find((x) => String(x.id) === uid) || {
-              id: uid,
-              userId: uid,
-              name: uname,
-            };
-            acceptMicRequest(req, { btn: e.currentTarget });
-          });
-          div.querySelector('[data-mic-deny]')?.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            const req = joinRequests.find((x) => String(x.id) === uid) || {
-              id: uid,
-              userId: uid,
-              name: uname,
-            };
-            denyMicRequest(req);
-          });
         } else if (msg.type === 'gift') {
           div.className = 'party-chat-msg party-chat-msg--gift is-tappable';
           const g = msg.gift || {};
@@ -6871,6 +6870,7 @@
         }
         feed.appendChild(div);
       });
+    bindMicInviteChatActions();
     window.SocialUI?.bindAvatarFallbacks?.(feed);
     feed.scrollTop = feed.scrollHeight;
   }
@@ -7572,10 +7572,54 @@
     if (changed) renderChatFeed();
   }
 
+  function bindMicInviteChatActions() {
+    const feed = document.getElementById('partyChatFeed');
+    if (!feed || feed.dataset.micInviteBound === '1') return;
+    feed.dataset.micInviteBound = '1';
+    feed.addEventListener(
+      'click',
+      (e) => {
+        const agreeBtn = e.target.closest?.('[data-mic-agree]');
+        const denyBtn = e.target.closest?.('[data-mic-deny]');
+        if (!agreeBtn && !denyBtn) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+        if (!canModerateRoom() && !isHost() && !clientClaimsHost()) {
+          toast('Only host or admin can respond to join requests', 'warning');
+          return;
+        }
+        const uid = String(
+          agreeBtn?.getAttribute('data-mic-agree') || denyBtn?.getAttribute('data-mic-deny') || ''
+        ).trim();
+        if (!uid) return;
+        const card =
+          agreeBtn?.closest('.party-chat-mic-invite') ||
+          denyBtn?.closest('.party-chat-mic-invite');
+        if (card?.classList.contains('is-resolved')) return;
+        const uname =
+          card?.querySelector('.party-chat-mic-text strong')?.textContent?.trim() || 'Guest';
+        const req =
+          joinRequests.find((x) => String(x.id) === uid || String(x.userId) === uid) || {
+            id: uid,
+            userId: uid,
+            name: uname,
+          };
+        if (agreeBtn) acceptMicRequest(req, { btn: agreeBtn });
+        else denyMicRequest(req);
+      },
+      true
+    );
+  }
+
   function acceptMicRequest(req, opts = {}) {
     if (!req) {
       toast('Request expired — ask them to request again', 'warning');
       renderJoinRequests();
+      return;
+    }
+    if (!canModerateRoom() && !isHost() && !clientClaimsHost()) {
+      toast('Only host or admin can accept join requests', 'warning');
       return;
     }
     if (isLiveRoomPage() && countStageGuests() >= LIVE_MAX_GUESTS) {
@@ -7628,6 +7672,10 @@
     if (!req) {
       hideHostMicInvitePopup();
       renderMicRequestActionBar();
+      return;
+    }
+    if (!canModerateRoom() && !isHost() && !clientClaimsHost()) {
+      toast('Only host or admin can decline join requests', 'warning');
       return;
     }
     const reqId = String(req.id || req.userId || '');
@@ -7924,17 +7972,7 @@
       {
         match: (el) => el?.closest?.('#partyBtnTools, .ap-btn-grid'),
         run: () => {
-          unlockLiveChrome({ forceGift: true });
-          const sheet = document.getElementById('partyToolsSheet');
-          if (!sheet || sheet.classList.contains('open')) return;
-          closeLiveOverlays('tools');
-          window.__apToolsOpenGuardUntil = Date.now() + 700;
-          sheet.classList.add('open');
-          sheet.style.display = 'flex';
-          sheet.style.pointerEvents = 'auto';
-          sheet.style.visibility = 'visible';
-          sheet.style.zIndex = '15000';
-          syncLiveOverlayClass();
+          openToolsSheetReliable();
         },
       },
       {
@@ -8015,26 +8053,23 @@
     }
 
     const onPointer = (e) => {
+      if (e.type !== 'click') return;
       if (e.button != null && e.button !== 0) return;
       if (Date.now() < lockUntil) return;
       const x = e.clientX ?? e.touches?.[0]?.clientX;
       const y = e.clientY ?? e.touches?.[0]?.clientY;
       if (x == null || y == null) return;
       const found = resolveChrome(x, y);
-      if (!found) return;
-      /* Always clear stuck chrome state when user aims at Joined / Gift / Tools */
-      unlockLiveChrome({ forceGift: true });
-      if (!found.blocked) return;
+      if (!found || !found.blocked) return;
       /*
-       * Only salvage on click — never on pointerdown.
-       * Opening a full-screen sheet on pointerdown makes the synthetic click
-       * hit the backdrop and instantly close (gift/tools "flicker").
+       * Only salvage on click when something is blocking chrome.
+       * Never unlock/open on pointerdown — that caused tools to flicker open/close.
        */
-      if (e.type !== 'click') return;
       e.preventDefault();
       e.stopPropagation();
       if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
       lockUntil = Date.now() + 450;
+      unlockLiveChrome({ forceGift: true });
       /* Close ghost sheets that were blocking */
       found.blockers.forEach((b) => {
         const sheet = b.closest?.(
@@ -8056,7 +8091,6 @@
       } catch (_e2) { /* ignore */ }
     };
 
-    document.addEventListener('pointerdown', onPointer, true);
     document.addEventListener('click', onPointer, true);
   }
 
@@ -8380,10 +8414,10 @@
           closePartyRequestsSheet();
           return;
         }
-        e.stopPropagation();
         const acceptBtn = e.target.closest('[data-accept]');
         if (acceptBtn && panel.contains(acceptBtn)) {
           e.preventDefault();
+          e.stopPropagation();
           handleSeatAcceptClick(acceptBtn);
           return;
         }
@@ -8396,12 +8430,14 @@
         const inviteBtn = e.target.closest('[data-invite-seat]');
         if (inviteBtn && panel.contains(inviteBtn)) {
           e.preventDefault();
+          e.stopPropagation();
           handleSeatInviteClick(inviteBtn);
           return;
         }
         const removeBtn = e.target.closest('[data-remove-seat]');
         if (removeBtn && panel.contains(removeBtn)) {
           e.preventDefault();
+          e.stopPropagation();
           const uid = removeBtn.dataset.removeSeat;
           const member = getPartyMembersForList().find((m) => String(m.userId) === String(uid));
           const label = member?.name || 'this guest';
@@ -10661,6 +10697,36 @@
     return true;
   }
 
+  function openToolsSheetReliable(e) {
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+    if (typeof e?.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+    const now = Date.now();
+    if (now < (Number(window.__apToolsOpenBusyUntil) || 0)) return;
+    window.__apToolsOpenBusyUntil = now + 500;
+    const sheet = document.getElementById('partyToolsSheet');
+    if (isSheetReallyOpen(sheet)) return;
+    unlockLiveChrome({ forceGift: true });
+    hideMicRequestActionBar();
+    document.body.classList.remove('party-requests-open', 'ap-sheet-open');
+    document.getElementById('partyRequestsSheet')?.classList.remove('open');
+    closeLiveOverlays('tools');
+    window.__apToolsOpenGuardUntil = Date.now() + 900;
+    const openNow = () => {
+      if (!sheet) return;
+      sheet.classList.add('open');
+      sheet.style.display = 'flex';
+      sheet.style.pointerEvents = 'auto';
+      sheet.style.visibility = 'visible';
+      sheet.style.zIndex = '15000';
+      if (sheet.parentElement !== document.body) document.body.appendChild(sheet);
+      syncLiveOverlayClass();
+      clearMessageBadge();
+    };
+    /* Defer one frame so the opening tap cannot hit the backdrop and close instantly */
+    requestAnimationFrame(() => requestAnimationFrame(openNow));
+  }
+
   function openGiftSheetReliable(e) {
     e?.preventDefault?.();
     e?.stopPropagation?.();
@@ -11722,25 +11788,7 @@
     /* Click-only show/hide — do NOT hide chat on scroll/swipe (was closing while reading). */
 
     const openToolsFromBar = (e) => {
-      e?.preventDefault?.();
-      e?.stopPropagation?.();
-      if (typeof e?.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
-      unlockLiveChrome({ forceGift: true });
-      hideMicRequestActionBar();
-      document.body.classList.remove('party-requests-open', 'ap-sheet-open');
-      document.getElementById('partyRequestsSheet')?.classList.remove('open');
-      const sheet = document.getElementById('partyToolsSheet');
-      if (!sheet) return;
-      if (sheet.classList.contains('open')) return;
-      closeLiveOverlays('tools');
-      window.__apToolsOpenGuardUntil = Date.now() + 700;
-      sheet.classList.add('open');
-      sheet.style.display = 'flex';
-      sheet.style.pointerEvents = 'auto';
-      sheet.style.visibility = 'visible';
-      sheet.style.zIndex = '15000';
-      syncLiveOverlayClass();
-      clearMessageBadge();
+      openToolsSheetReliable(e);
     };
     const toolsBtn = document.getElementById('partyBtnTools');
     if (toolsBtn && toolsBtn.dataset.toolsOpenBound !== '1') {

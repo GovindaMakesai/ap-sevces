@@ -88,9 +88,37 @@
     );
   }
 
+  function showAuthPageErrors() {
+    const params = new URLSearchParams(window.location.search);
+    let message = '';
+    if (params.get('error') === 'account_deactivated') {
+      message = 'Your account has been deactivated. Please contact support if you believe this is a mistake.';
+    }
+    try {
+      const stored = sessionStorage.getItem('ap_account_deactivated');
+      if (stored) {
+        sessionStorage.removeItem('ap_account_deactivated');
+        message = stored;
+      }
+    } catch (_e) { /* ignore */ }
+
+    if (!message) return;
+
+    const alertBox = document.getElementById('alertContainer');
+    if (alertBox) {
+      alertBox.innerHTML =
+        '<div class="alert-error" role="alert" style="margin-bottom:16px;padding:12px 14px;border-radius:10px;background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;">' +
+        message +
+        '</div>';
+    } else if (window.Toast && typeof Toast.show === 'function') {
+      Toast.show(message, 'error');
+    }
+  }
+
   window.AuthOAuth = {
     redirectToOAuth,
     bindOAuthButtons,
+    showAuthPageErrors,
     get AUTH_BASE_URL() {
       return getAuthOrigin();
     },

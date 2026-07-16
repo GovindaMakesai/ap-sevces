@@ -1473,7 +1473,7 @@
     <div id="toast" class="toast"></div>
 
     <!-- Socket.io loaded async after chat boot (sync CDN was blocking Messages on slow networks) -->
-    <script src="app.js?v=20260713-token-fix"></script>
+    <script src="app.js?v=20260716-deactivated-account"></script>
     <script src="auth-guard.js"></script>
     <script src="social-ui.js?v=20260702-follow-fix"></script>
     <script src="social-interactions.js?v=20260628-perf"></script>
@@ -2332,6 +2332,11 @@
                         });
                         socket.on('connect_error', (err) => {
                             console.warn('Chat socket:', err?.message || err);
+                        });
+                        socket.on('user:session_revoked', (payload) => {
+                            if (payload?.reason === 'account_deactivated' && typeof Auth?.forceLogoutDeactivated === 'function') {
+                                Auth.forceLogoutDeactivated(payload.message);
+                            }
                         });
                         document.addEventListener('visibilitychange', () => {
                             if (document.visibilityState === 'visible' && socket && !socket.connected) {
