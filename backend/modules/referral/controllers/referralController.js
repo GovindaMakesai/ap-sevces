@@ -195,6 +195,7 @@ exports.leaderboard = async (req, res) => {
     const data =
       type === 'income'
         ? await leaderboardService.incomeLeaderboard({
+            period,
             limit: Number(req.query.limit) || 50,
             viewerId: req.userId || null,
           })

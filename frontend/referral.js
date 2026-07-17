@@ -436,59 +436,36 @@
     if (window.SocialInteractions?.refreshBlockCache) {
       await SocialInteractions.refreshBlockCache().catch(() => {});
     }
-    const res = await api('/leaderboard/income?period=weekly');
+
+    /* Income Rank = invite points (referral rewards), not overall gift income */
+    let res = await api('/leaderboard/income?period=weekly');
     if (!res?.success) {
-      // fallback to referral rank
-      const alt = await api('/leaderboard/referral?period=weekly');
-      if (!alt?.success) {
-        root.innerHTML = '<div class="ref-empty">Leaderboard is warming up</div>';
-        return;
-      }
-      state.leaderboard = alt.data || [];
-      const visibleAlt = (state.leaderboard || []).filter((r) => {
-        const uid = String(r.user_id || r.id || '').trim();
-        return !uid || !window.SocialInteractions?.isBlocked?.(uid);
-      });
-      root.innerHTML = (visibleAlt.length
-        ? visibleAlt
-            .map((r) => {
-              const name = `${r.first_name || ''} ${r.last_name || ''}`.trim() || 'Host';
-              return `<div class="ref-list-item">
-                <strong style="width:28px;text-align:center;color:#ff6a2b">#${r.rank}</strong>
-                <img src="${avatar(name, r.profile_pic)}" alt="">
-                <div class="meta"><strong>${escapeHtml(name)}</strong><span>${money(r.valid_invites)} valid · ${money(r.reward_coins)} points</span></div>
-              </div>`;
-            })
-            .join('')
-        : '<div class="ref-empty">Leaderboard is warming up</div>');
+      res = await api('/leaderboard/referral?period=weekly');
+    }
+    if (!res?.success) {
+      root.innerHTML = '<div class="ref-empty">Leaderboard is warming up</div>';
       return;
     }
+
     state.leaderboard = res.data || [];
     const visible = (state.leaderboard || []).filter((r) => {
       const uid = String(r.user_id || r.id || '').trim();
       return !uid || !window.SocialInteractions?.isBlocked?.(uid);
     });
     if (!visible.length) {
-      root.innerHTML = '<div class="ref-empty">Leaderboard is warming up</div>';
+      root.innerHTML = '<div class="ref-empty">No invite income ranks yet</div>';
       return;
     }
+
     root.innerHTML = visible
       .map((r, i) => {
         const name = `${r.first_name || ''} ${r.last_name || ''}`.trim() || 'Host';
-        const income = (() => {
-          const host = Number(r.host_income_coins || 0);
-          if (host > 0) return host;
-          return (
-            Number(r.gift_income_coins || 0) +
-            Number(r.mission_reward_coins || 0) +
-            Number(r.referral_reward_coins || 0) +
-            Number(r.live_gift_coins || 0)
-          );
-        })();
+        const points = Number(r.reward_coins || r.host_income_coins || 0);
+        const invites = Number(r.valid_invites || 0);
         return `<div class="ref-list-item">
           <strong style="width:28px;text-align:center;color:#ff6a2b">#${r.rank || i + 1}</strong>
           <img src="${avatar(name, r.profile_pic)}" alt="">
-          <div class="meta"><strong>${escapeHtml(name)}</strong><span>${money(income)} income coins</span></div>
+          <div class="meta"><strong>${escapeHtml(name)}</strong><span>${money(points)} points · ${money(invites)} valid invites</span></div>
         </div>`;
       })
       .join('');
