@@ -736,6 +736,7 @@ html.ap-secure-live .party-room-stage {
   flex: 1;
   min-width: 0;
   min-height: 0;
+  max-width: 100%;
   overflow: hidden;
   pointer-events: auto;
   display: flex;
@@ -778,10 +779,14 @@ html.ap-secure-live .party-room-stage {
   flex-direction: column;
   gap: 6px;
   padding: 4px 12px 8px 0;
+  overflow-x: hidden;
   overflow-y: auto;
   flex: 1;
+  min-width: 0;
   min-height: 0;
   max-height: min(36vh, 280px);
+  width: 100%;
+  max-width: 100%;
   pointer-events: auto;
   -webkit-overflow-scrolling: touch;
   background: transparent;
@@ -791,7 +796,10 @@ html.ap-secure-live .party-room-stage {
 
 .party-chat-msg {
   align-self: flex-start;
-  max-width: 92%;
+  box-sizing: border-box;
+  width: auto;
+  max-width: min(92%, 100%);
+  min-width: 0;
   padding: 5px 9px;
   border-radius: 12px;
   background: rgba(0, 0, 0, 0.16);
@@ -803,6 +811,7 @@ html.ap-secure-live .party-room-stage {
   -webkit-backdrop-filter: blur(8px);
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
   box-shadow: none;
+  overflow: hidden;
 }
 
 .party-chat-msg .lvl {
@@ -1327,34 +1336,39 @@ body.ap-is-host #liveHostBar:not(.is-collapsed):not([hidden]) {
 
 .party-chat-mod-btn {
   border: none;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.7);
-  width: 28px;
-  height: 28px;
-  min-width: 28px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
   padding: 0;
   margin-left: auto;
   flex-shrink: 0;
-  font-size: 13px;
+  font-size: 14px;
   cursor: pointer;
-  border-radius: 8px;
+  border-radius: 10px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  position: relative;
+  z-index: 6;
+  pointer-events: auto !important;
 }
 
 .party-chat-mod-btn:active,
 .party-chat-mod-btn:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.14);
+  color: #111827;
+  background: #fbbf24;
 }
 
 .ap-chat-mod-menu {
   position: fixed;
-  z-index: 14000;
+  z-index: 16000;
   min-width: 212px;
+  max-width: min(280px, calc(100vw - 24px));
   background: #111827;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 12px;
@@ -1363,6 +1377,7 @@ body.ap-is-host #liveHostBar:not(.is-collapsed):not([hidden]) {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  pointer-events: auto !important;
 }
 
 .ap-chat-mod-menu button {
@@ -2286,6 +2301,7 @@ body[data-live-page='live-room'] .live-room {
 .live-room .live-overlay .party-chat-zone,
 .live-room .live-overlay .party-chat-feed,
 .live-room .live-overlay .party-chat-msg,
+.live-room .live-overlay .party-chat-mod-btn,
 .live-room .live-overlay .party-chat-hide-btn,
 .live-room .live-overlay .party-chat-tabs,
 .live-room .live-overlay .party-chat-tabs button,
@@ -7373,7 +7389,10 @@ html.ap-expo-app .ap-chip {
   align-items: flex-start;
   gap: 6px;
   flex-wrap: nowrap;
-  max-width: 96%;
+  max-width: min(96%, 100%);
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .party-chat-avatar-btn,
@@ -7413,10 +7432,12 @@ html.ap-expo-app .ap-chip {
 .party-chat-body {
   flex: 1 1 auto;
   min-width: 0;
+  max-width: 100%;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: stretch;
   gap: 2px;
+  overflow: hidden;
 }
 
 .party-chat-meta {
@@ -7427,7 +7448,8 @@ html.ap-expo-app .ap-chip {
   width: 100%;
   max-width: 100%;
   line-height: 1.25;
-  min-height: 22px;
+  min-height: 28px;
+  overflow: hidden;
 }
 
 .party-chat-meta .lvl,
@@ -7441,7 +7463,7 @@ html.ap-expo-app .ap-chip {
 
 .party-chat-user-btn {
   flex: 1 1 auto;
-  max-width: none;
+  max-width: calc(100% - 40px);
   min-width: 0;
   text-align: left;
   overflow: hidden;
@@ -7450,10 +7472,11 @@ html.ap-expo-app .ap-chip {
 .party-chat-text {
   flex: 0 0 auto;
   width: 100%;
+  max-width: 100%;
   min-width: 0;
   overflow-wrap: anywhere;
   word-break: break-word;
-  white-space: normal;
+  white-space: normal !important;
   display: block;
   line-height: 1.35;
 }

@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260717-av-voice-fix';
+  window.__AP_LIVE_BUILD = '20260717-chat-mod-wrap';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -1649,33 +1649,71 @@
   }
 
   function openChatMessageModMenu(msg, anchorEl) {
-    if (!canModerateRoom() || !msg || msg.type !== 'chat') return;
+    if (!canModerateRoom() || !msg) return;
+    /* Accept normal chat + messages missing type (older payloads); skip system/gift/mic invites */
+    const t = String(msg.type || 'chat');
+    if (t === 'system' || t === 'gift' || t === 'mic_invite') return;
+
     document.getElementById('apChatModMenu')?.remove();
     const menu = document.createElement('div');
     menu.id = 'apChatModMenu';
     menu.className = 'ap-chat-mod-menu';
-    const uid = msg.userId || '';
+    menu.setAttribute('role', 'menu');
+    const uid = String(msg.userId || '').trim();
     const name = msg.user || 'User';
     const canKick = uid && !isRoomHostUserId(uid);
+    const meId = String(currentUser()?.id || '');
+    const isSelf = uid && uid === meId;
+    const blocked = Boolean(uid && window.SocialInteractions?.isBlocked?.(uid));
     menu.innerHTML = `
       <button type="button" data-cmod="delete"><i class="fas fa-trash"></i><span>Remove message</span></button>
-      ${canKick ? '<button type="button" data-cmod="mutechat"><i class="fas fa-comment-slash"></i><span>Mute chat</span></button>' : ''}
-      ${canKick ? '<button type="button" data-cmod="block"><i class="fas fa-ban"></i><span>Kick / ban from live…</span></button>' : ''}
+      ${canKick && !isSelf ? '<button type="button" data-cmod="mutechat"><i class="fas fa-comment-slash"></i><span>Mute chat</span></button>' : ''}
+      ${canKick && !isSelf ? '<button type="button" data-cmod="kick"><i class="fas fa-ban"></i><span>Kick / ban from live…</span></button>' : ''}
+      ${canKick && !isSelf ? `<button type="button" data-cmod="block"><i class="fas fa-user-slash"></i><span>${blocked ? 'Unblock user' : 'Block user'}</span></button>` : ''}
+      ${canKick && !isSelf ? '<button type="button" data-cmod="profile"><i class="fas fa-user"></i><span>View profile / more</span></button>' : ''}
       <button type="button" data-cmod="cancel"><i class="fas fa-times"></i><span>Cancel</span></button>`;
     document.body.appendChild(menu);
-    const rect = (anchorEl || document.body).getBoundingClientRect?.() || { left: 40, top: 120, width: 200 };
-    menu.style.left = `${Math.min(window.innerWidth - 220, Math.max(12, rect.left))}px`;
-    menu.style.top = `${Math.min(window.innerHeight - 220, Math.max(12, rect.bottom + 6))}px`;
-    const close = () => menu.remove();
-    menu.querySelector('[data-cmod="delete"]')?.addEventListener('click', () => {
+
+    const placeMenu = () => {
+      const rect =
+        (anchorEl || document.body).getBoundingClientRect?.() ||
+        { left: 40, top: 120, bottom: 160, width: 40, height: 28 };
+      const mw = Math.min(260, window.innerWidth - 24);
+      menu.style.width = `${mw}px`;
+      let left = rect.right - mw;
+      if (left < 12) left = 12;
+      if (left + mw > window.innerWidth - 12) left = window.innerWidth - mw - 12;
+      let top = rect.bottom + 6;
+      const mh = menu.offsetHeight || 220;
+      if (top + mh > window.innerHeight - 12) {
+        top = Math.max(12, rect.top - mh - 6);
+      }
+      menu.style.left = `${left}px`;
+      menu.style.top = `${top}px`;
+    };
+    placeMenu();
+    requestAnimationFrame(placeMenu);
+
+    const close = () => {
+      menu.remove();
+      document.removeEventListener('pointerdown', onDoc, true);
+      document.removeEventListener('click', onDoc, true);
+    };
+    menu.querySelector('[data-cmod="delete"]')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       close();
       if (window.confirm('Remove this message for everyone?')) deleteChatMessage(msg.id);
     });
-    menu.querySelector('[data-cmod="mutechat"]')?.addEventListener('click', () => {
+    menu.querySelector('[data-cmod="mutechat"]')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       close();
       muteUserChat(uid, true);
     });
-    menu.querySelector('[data-cmod="block"]')?.addEventListener('click', async () => {
+    menu.querySelector('[data-cmod="kick"]')?.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       close();
       const hours = await pickKickDurationHours();
       if (hours == null) return;
@@ -1683,16 +1721,34 @@
         kickUserFromRoom(uid, 'abusive_chat', hours);
       }
     });
-    menu.querySelector('[data-cmod="cancel"]')?.addEventListener('click', close);
+    menu.querySelector('[data-cmod="block"]')?.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      close();
+      await blockProfileUser(uid, name);
+    });
+    menu.querySelector('[data-cmod="profile"]')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      close();
+      openModerationMenu(name, uid);
+    });
+    menu.querySelector('[data-cmod="cancel"]')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      close();
+    });
+
+    const onDoc = (e) => {
+      if (menu.contains(e.target)) return;
+      if (anchorEl && (anchorEl === e.target || anchorEl.contains?.(e.target))) return;
+      close();
+    };
+    /* Delay so the opening tap does not instantly dismiss the menu */
     setTimeout(() => {
-      const onDoc = (e) => {
-        if (!menu.contains(e.target)) {
-          close();
-          document.removeEventListener('click', onDoc, true);
-        }
-      };
+      document.addEventListener('pointerdown', onDoc, true);
       document.addEventListener('click', onDoc, true);
-    }, 0);
+    }, 120);
   }
 
   function grantRoomAdmin(userId, grant) {
@@ -7115,7 +7171,7 @@
             `<div class="party-chat-meta">${badge}${adminBadge}` +
             `<button type="button" class="party-chat-user-btn" data-chat-user="${escapeAttr(msg.user || 'User')}" data-chat-uid="${escapeHtml(String(uid))}">` +
             `<span class="user${admin ? ' is-admin-name' : ''}">${escapeHtml(msg.user)}</span></button>` +
-            `${canModerateRoom() ? '<button type="button" class="party-chat-mod-btn" aria-label="Moderate message"><i class="fas fa-ellipsis-v"></i></button>' : ''}` +
+            `${canModerateRoom() ? `<button type="button" class="party-chat-mod-btn" aria-label="Moderate message" data-msg-id="${escapeAttr(String(msg.id || ''))}"><i class="fas fa-ellipsis-v" aria-hidden="true"></i></button>` : ''}` +
             `</div>` +
             `<span class="party-chat-text">${escapeHtml(msg.text)}</span></div>`;
           const img = div.querySelector('.party-chat-avatar-btn img');
@@ -7127,19 +7183,24 @@
           }
           div.querySelectorAll('.party-chat-avatar-btn, .party-chat-user-btn').forEach((btn) => {
             btn.addEventListener('click', (e) => {
+              e.preventDefault();
               e.stopPropagation();
               openProfileSheet(btn.dataset.chatUser || 'User', btn.dataset.chatUid || '');
             });
           });
           const modBtn = div.querySelector('.party-chat-mod-btn');
           if (modBtn) {
-            modBtn.addEventListener('click', (e) => {
+            const openMod = (e) => {
+              e.preventDefault();
               e.stopPropagation();
-              openChatMessageModMenu(msg, modBtn);
-            });
+              if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+              openChatMessageModMenu({ ...msg, type: msg.type || 'chat' }, modBtn);
+            };
+            modBtn.addEventListener('pointerup', openMod);
+            modBtn.addEventListener('click', openMod);
             div.addEventListener('contextmenu', (e) => {
               e.preventDefault();
-              openChatMessageModMenu(msg, div);
+              openChatMessageModMenu({ ...msg, type: msg.type || 'chat' }, div);
             });
           }
         }
@@ -12371,10 +12432,16 @@
         renderChatFeed();
       }
     });
-    document.querySelector('.party-chat-zone')?.addEventListener('click', () => {
+    document.querySelector('.party-chat-zone')?.addEventListener('click', (e) => {
+      if (e.target.closest('.party-chat-mod-btn, .ap-chat-mod-menu, .party-chat-avatar-btn, .party-chat-user-btn')) {
+        return;
+      }
       document.getElementById('liveChatInput')?.focus();
     });
-    document.querySelector('.party-chat-feed')?.addEventListener('click', () => {
+    document.querySelector('.party-chat-feed')?.addEventListener('click', (e) => {
+      if (e.target.closest('.party-chat-mod-btn, .ap-chat-mod-menu, .party-chat-avatar-btn, .party-chat-user-btn')) {
+        return;
+      }
       document.getElementById('liveChatInput')?.focus();
     });
 
