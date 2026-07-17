@@ -1165,7 +1165,7 @@ async function agencyReviewHostApplication(ownerUserId, applicationId, { decisio
   throw new Error('This application type cannot be reviewed by Agency');
 }
 
-/** Invite a user to apply as Agency under this agency (NOT a Host invite). */
+/** Invite a user to become an Agency under this agency (direct Accept/Reject — not Apply form). */
 async function inviteAgencyToNetwork(ownerUserId, userRef) {
   const agency = await getAgencyOwnedByUser(ownerUserId);
   if (!agency) throw new Error('Agency not found for this user');
@@ -1178,29 +1178,51 @@ async function inviteAgencyToNetwork(ownerUserId, userRef) {
     throw new Error('This user is already an Agency');
   }
 
+  const pending = await db.query(
+    `SELECT id FROM agency_network_invites
+     WHERE agency_id = $1 AND invitee_user_id = $2 AND status = 'pending'
+     LIMIT 1`,
+    [agency.id, invitee.id]
+  );
+  if (pending.rows[0]) throw new Error('An Agency invite is already pending for this user');
+
   const inviteCode = await ensureAgencyInviteCode(agency.id, ownerUserId);
-  const applyPath = `/role-apply.html?role=agency&agency_code=${encodeURIComponent(inviteCode.code)}&app=1`;
+  const inviteRes = await db.query(
+    `INSERT INTO agency_network_invites
+       (agency_id, invited_by, invitee_user_id, status, invite_code, message_preview)
+     VALUES ($1, $2, $3, 'pending', $4, $5) RETURNING *`,
+    [
+      agency.id,
+      ownerUserId,
+      invitee.id,
+      inviteCode.code,
+      `${agency.name || 'Agency'} invited you to become an Agency`,
+    ]
+  );
+  const invite = inviteRes.rows[0];
+
   const payload = {
+    invite_id: invite.id,
     agency_id: agency.id,
     agency_name: agency.name || 'Agency',
     code: inviteCode.code,
-    apply_path: applyPath,
   };
   const messageBody =
     `${agency.name || 'An agency'} invited you to become an Agency on AP Services.\n` +
-    `Use Agency invite code ${inviteCode.code} when you apply.\n` +
-    `Open Apply → Agency (not Host).\n` +
+    `Tap Accept to join their network, or Reject to decline.\n` +
     `${AGENCY_NETWORK_INVITE_PREFIX}${JSON.stringify(payload)}`;
 
   const chatService = require('./chatService');
   const conv = await chatService.findOrCreateConversationByUserIds(ownerUserId, invitee.id);
   const row = await chatService.appendMessage(conv.id, String(ownerUserId), String(invitee.id), messageBody);
 
-  await audit(ownerUserId, 'agency.invite_agency', 'agency', agency.id, {
+  await audit(ownerUserId, 'agency.invite_agency', 'agency_network_invite', invite.id, {
     inviteeUserId: invitee.id,
+    agencyId: agency.id,
   });
 
   return {
+    invite,
     invitee: {
       id: invitee.id,
       email: invitee.email,
@@ -1209,7 +1231,6 @@ async function inviteAgencyToNetwork(ownerUserId, userRef) {
       last_name: invitee.last_name,
     },
     code: inviteCode.code,
-    apply_path: applyPath,
     conversation_id: conv?.id,
     message: {
       id: row.id,
@@ -1219,6 +1240,99 @@ async function inviteAgencyToNetwork(ownerUserId, userRef) {
       text: row.body,
       created_at: row.created_at,
     },
+  };
+}
+
+async function respondToAgencyNetworkInvite(inviteeUserId, inviteId, decision) {
+  const status = decision === 'accepted' || decision === 'approved' ? 'accepted' : 'rejected';
+  const invRes = await db.query(`SELECT * FROM agency_network_invites WHERE id = $1`, [inviteId]);
+  const invite = invRes.rows[0];
+  if (!invite) throw new Error('Invite not found');
+  if (String(invite.invitee_user_id) !== String(inviteeUserId)) {
+    throw new Error('This invite is not for you');
+  }
+  if (invite.status !== 'pending') throw new Error('Invite already processed');
+
+  const Notification = require('../models/Notification');
+
+  if (status === 'rejected') {
+    await db.query(
+      `UPDATE agency_network_invites
+       SET status = 'rejected', responded_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1`,
+      [inviteId]
+    );
+    await Notification.create({
+      user_id: invite.invited_by,
+      type: 'agency_network_invite',
+      title: 'Agency invite declined',
+      message: 'A user declined your Agency invitation.',
+      data: { invite_id: inviteId, status: 'rejected' },
+    });
+    return { status: 'rejected', invite_id: inviteId };
+  }
+
+  const parent = await db.query(`SELECT * FROM agencies WHERE id = $1 AND status = 'active'`, [
+    invite.agency_id,
+  ]);
+  if (!parent.rows[0]) throw new Error('Inviting agency not found');
+
+  const userRes = await db.query(
+    `SELECT id, first_name, last_name, role FROM users WHERE id = $1`,
+    [inviteeUserId]
+  );
+  const user = userRes.rows[0];
+  if (!user) throw new Error('User not found');
+  if (['agency', 'admin', 'super_admin'].includes(String(user.role || '').toLowerCase())) {
+    throw new Error('You already have an Agency');
+  }
+
+  const agencyName =
+    `${user.first_name || 'New'}`.trim().slice(0, 40) + ' Agency';
+  const created = await createAgencyUnderBd({
+    actorUserId: invite.invited_by,
+    name: agencyName,
+    ownerUserId: inviteeUserId,
+    bdUserId: parent.rows[0].bd_user_id || null,
+    parentAgencyId: invite.agency_id,
+    commissionPercent: 20,
+  });
+
+  await db.query(
+    `UPDATE agency_network_invites
+     SET status = 'accepted', responded_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+     WHERE id = $1`,
+    [inviteId]
+  );
+  if (invite.invite_code) await bumpAgencyInviteUse(invite.invite_code);
+
+  await db.query(
+    `UPDATE role_applications
+     SET status = 'approved', reviewed_by = $2, reviewed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+     WHERE user_id = $1 AND role_type = 'agency' AND status = 'pending'`,
+    [inviteeUserId, invite.invited_by]
+  );
+
+  await Notification.create({
+    user_id: invite.invited_by,
+    type: 'agency_network_invite',
+    title: 'Agency invite accepted',
+    message: 'A user accepted your Agency invitation and joined your network.',
+    data: { invite_id: inviteId, status: 'accepted', agency_id: created?.id || invite.agency_id },
+  });
+  await Notification.create({
+    user_id: inviteeUserId,
+    type: 'role_application',
+    title: 'You are now an Agency',
+    message: 'You joined the agency network. Open Agency Center to continue.',
+    data: { invite_id: inviteId, role_type: 'agency', status: 'approved' },
+  });
+
+  return {
+    status: 'accepted',
+    invite_id: inviteId,
+    agency_id: created?.id || null,
+    parent_agency_id: invite.agency_id,
   };
 }
 
@@ -1502,6 +1616,7 @@ module.exports = {
   getAgencyInviteForOwner,
   inviteHostToAgency,
   inviteAgencyToNetwork,
+  respondToAgencyNetworkInvite,
   respondToAgencyHostInvite,
   listPendingHostAppsForAgency,
   agencyReviewHostApplication,

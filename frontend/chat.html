@@ -2242,7 +2242,7 @@
             try {
                 const json = raw.slice(idx + AGENCY_NETWORK_INVITE_PREFIX.length).trim();
                 const data = JSON.parse(json);
-                if (!data?.code && !data?.apply_path) return null;
+                if (!data?.invite_id) return null;
                 return {
                     ...data,
                     visibleText: raw.slice(0, idx).trim(),
@@ -2386,10 +2386,7 @@
             const wrap = document.createElement('div');
             wrap.className = 'agency-host-invite-card agency-network-invite-card';
             wrap.style.cssText = 'min-width:200px;max-width:280px';
-            wrap.dataset.agencyCode = invite.code || '';
-            wrap.dataset.applyPath =
-                invite.apply_path ||
-                `/role-apply.html?role=agency&agency_code=${encodeURIComponent(invite.code || '')}&app=1`;
+            wrap.dataset.inviteId = invite.invite_id || '';
             const title = document.createElement('strong');
             title.textContent = 'Agency invitation';
             title.style.display = 'block';
@@ -2401,13 +2398,6 @@
                 invite.visibleText ||
                 `${invite.agency_name || 'An agency'} invited you to become an Agency.`;
             wrap.appendChild(desc);
-            if (invite.code) {
-                const codeLine = document.createElement('div');
-                codeLine.style.cssText = 'font-size:12px;margin-bottom:10px';
-                codeLine.innerHTML = 'Code: <strong></strong>';
-                codeLine.querySelector('strong').textContent = invite.code;
-                wrap.appendChild(codeLine);
-            }
             const isReceived = msg?.type !== 'sent';
             if (isReceived) {
                 const actions = document.createElement('div');
@@ -2427,12 +2417,12 @@
                 accept.addEventListener('click', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    respondAgencyNetworkInvite('accepted', wrap);
+                    respondAgencyNetworkInvite(invite.invite_id, 'accepted', wrap);
                 });
                 reject.addEventListener('click', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    respondAgencyNetworkInvite('rejected', wrap);
+                    respondAgencyNetworkInvite(invite.invite_id, 'rejected', wrap);
                 });
                 actions.appendChild(accept);
                 actions.appendChild(reject);
@@ -2446,18 +2436,25 @@
             return wrap;
         }
 
-        function respondAgencyNetworkInvite(decision, cardEl) {
-            if (decision === 'rejected') {
-                if (cardEl) {
-                    cardEl.innerHTML =
-                        '<strong>Agency invitation</strong><div style="font-size:13px;margin-top:8px;opacity:.85">You rejected this invite.</div>';
-                }
+        async function respondAgencyNetworkInvite(inviteId, decision, cardEl) {
+            if (!inviteId) {
+                alert('This invite is outdated. Ask them to send a new Agency invite.');
                 return;
             }
-            const path =
-                cardEl?.dataset?.applyPath ||
-                `/role-apply.html?role=agency&agency_code=${encodeURIComponent(cardEl?.dataset?.agencyCode || '')}&app=1`;
-            location.href = path;
+            try {
+                const res = await API.post(`/agency/network-invites/${inviteId}/respond`, { decision });
+                if (cardEl) {
+                    cardEl.innerHTML =
+                        decision === 'accepted'
+                            ? '<strong>Agency invitation</strong><div style="font-size:13px;margin-top:8px">Accepted — you are now an Agency. Open Agency Center.</div>'
+                            : '<strong>Agency invitation</strong><div style="font-size:13px;margin-top:8px;opacity:.85">You rejected this invite.</div>';
+                }
+                if (decision === 'accepted' && confirm((res.message || 'You are now an Agency') + '\n\nOpen Agency Center?')) {
+                    location.href = '/agency-center.html?app=1';
+                }
+            } catch (e) {
+                alert(e.message || 'Could not respond to invite');
+            }
         }
 
         async function respondAgencyHostInvite(inviteId, decision, cardEl) {
@@ -3507,14 +3504,13 @@
                           : '<div style="font-size:12px;opacity:.8">Waiting for their response…</div>'}
                       </div>`
                     : networkInvite
-                    ? `<div class="agency-host-invite-card agency-network-invite-card" data-agency-code="${escapeAttr(networkInvite.code || '')}" data-apply-path="${escapeAttr(networkInvite.apply_path || ('/role-apply.html?role=agency&agency_code=' + encodeURIComponent(networkInvite.code || '') + '&app=1'))}" style="min-width:200px">
+                    ? `<div class="agency-host-invite-card agency-network-invite-card" data-invite-id="${escapeAttr(networkInvite.invite_id)}" style="min-width:200px">
                         <strong>Agency invitation</strong>
                         <div style="font-size:13px;margin:6px 0 10px">${escapeHtml(networkInvite.visibleText || ((networkInvite.agency_name || 'Agency') + ' invited you to become an Agency.'))}</div>
-                        <div style="font-size:12px;margin-bottom:10px">Code: <strong>${escapeHtml(networkInvite.code || '')}</strong></div>
                         ${msg.type !== 'sent'
                           ? `<div style="display:flex;gap:8px;flex-wrap:wrap">
-                              <button type="button" class="agency-network-accept" style="border:none;border-radius:999px;padding:8px 14px;font-weight:700;background:#16a34a;color:#fff;cursor:pointer">Accept</button>
-                              <button type="button" class="agency-network-reject" style="border:none;border-radius:999px;padding:8px 14px;font-weight:700;background:#9ca3af;color:#fff;cursor:pointer">Reject</button>
+                              <button type="button" class="agency-network-accept" data-invite-id="${escapeAttr(networkInvite.invite_id)}" style="border:none;border-radius:999px;padding:8px 14px;font-weight:700;background:#16a34a;color:#fff;cursor:pointer">Accept</button>
+                              <button type="button" class="agency-network-reject" data-invite-id="${escapeAttr(networkInvite.invite_id)}" style="border:none;border-radius:999px;padding:8px 14px;font-weight:700;background:#9ca3af;color:#fff;cursor:pointer">Reject</button>
                             </div>`
                           : '<div style="font-size:12px;opacity:.8">Waiting for their response…</div>'}
                       </div>`
@@ -3571,8 +3567,10 @@
             const netReject = e.target.closest?.('.agency-network-reject');
             if (netAccept || netReject) {
                 e.preventDefault();
-                const card = e.target.closest('.agency-network-invite-card');
-                respondAgencyNetworkInvite(netAccept ? 'accepted' : 'rejected', card);
+                const btn = netAccept || netReject;
+                const inviteId = btn.getAttribute('data-invite-id') || btn.closest('.agency-network-invite-card')?.dataset?.inviteId;
+                const card = btn.closest('.agency-network-invite-card');
+                respondAgencyNetworkInvite(inviteId, netAccept ? 'accepted' : 'rejected', card);
                 return;
             }
             const accept = e.target.closest?.('.agency-invite-accept');

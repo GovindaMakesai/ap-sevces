@@ -597,6 +597,27 @@ exports.respondToAgencyHostInvite = async (req, res) => {
   }
 };
 
+exports.respondToAgencyNetworkInvite = async (req, res) => {
+  try {
+    const decision = req.body.decision || (req.body.accept ? 'accepted' : 'rejected');
+    const data = await hierarchyService.respondToAgencyNetworkInvite(
+      req.userId,
+      req.params.id,
+      decision
+    );
+    res.json({
+      success: true,
+      data,
+      message:
+        data.status === 'accepted'
+          ? 'You are now an Agency in their network'
+          : 'Agency invite declined',
+    });
+  } catch (e) {
+    res.status(e.status || 400).json({ success: false, message: e.message });
+  }
+};
+
 exports.agencyPendingHosts = async (req, res) => {
   try {
     const role = String(req.userRole || '').toLowerCase();
