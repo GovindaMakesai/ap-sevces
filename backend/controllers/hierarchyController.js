@@ -493,6 +493,92 @@ exports.inviteHostToAgency = async (req, res) => {
   }
 };
 
+exports.inviteAgencyToNetwork = async (req, res) => {
+  try {
+    const role = String(req.userRole || '').toLowerCase();
+    if (role !== 'agency' && !STAFF.has(role)) {
+      return res.status(403).json({ success: false, message: 'Agency access required' });
+    }
+    const userRef =
+      req.body.user_ref ||
+      req.body.user_id ||
+      req.body.display_id ||
+      req.body.email ||
+      req.body.query;
+    if (!userRef) {
+      return res.status(400).json({ success: false, message: 'Enter email or public User ID' });
+    }
+    const data = await hierarchyService.inviteAgencyToNetwork(req.userId, userRef);
+    res.json({
+      success: true,
+      data,
+      message: `Agency invite sent to ${data.invitee?.email || data.invitee?.display_id || 'user'}`,
+    });
+  } catch (e) {
+    res.status(e.status || 400).json({ success: false, message: e.message });
+  }
+};
+
+exports.requestHostAgencyChange = async (req, res) => {
+  try {
+    const code = req.body.agency_code || req.body.agencyCode || req.body.code || req.body.promo_code;
+    if (!code) {
+      return res.status(400).json({ success: false, message: 'Agency invite code required' });
+    }
+    const data = await hierarchyService.requestHostAgencyChange(
+      req.userId,
+      code,
+      req.body.note || null
+    );
+    res.status(201).json({
+      success: true,
+      data,
+      message: 'Request sent to your current agency. They have 3 days to Release or Reject.',
+    });
+  } catch (e) {
+    res.status(e.status || 400).json({ success: false, message: e.message });
+  }
+};
+
+exports.getHostAgencyChange = async (req, res) => {
+  try {
+    const data = await hierarchyService.getHostAgencyChangeStatus(req.userId);
+    res.json({ success: true, data });
+  } catch (e) {
+    res.status(e.status || 400).json({ success: false, message: e.message });
+  }
+};
+
+exports.listAgencyHostChangeRequests = async (req, res) => {
+  try {
+    const role = String(req.userRole || '').toLowerCase();
+    if (role !== 'agency' && !STAFF.has(role)) {
+      return res.status(403).json({ success: false, message: 'Agency access required' });
+    }
+    const data = await hierarchyService.listAgencyChangeRequestsForAgency(req.userId);
+    res.json({ success: true, data });
+  } catch (e) {
+    res.status(e.status || 400).json({ success: false, message: e.message });
+  }
+};
+
+exports.respondAgencyHostChangeRequest = async (req, res) => {
+  try {
+    const role = String(req.userRole || '').toLowerCase();
+    if (role !== 'agency' && !STAFF.has(role)) {
+      return res.status(403).json({ success: false, message: 'Agency access required' });
+    }
+    const decision = req.body.decision || req.body.action;
+    const data = await hierarchyService.agencyRespondHostChangeRequest(req.userId, req.params.id, {
+      decision,
+      reason: req.body.reason,
+    });
+    res.json({ success: true, data, message: `Request ${data.status}` });
+  } catch (e) {
+    res.status(e.status || 400).json({ success: false, message: e.message });
+  }
+};
+
 exports.respondToAgencyHostInvite = async (req, res) => {
   try {
     const decision = req.body.decision || (req.body.accept ? 'accepted' : 'rejected');

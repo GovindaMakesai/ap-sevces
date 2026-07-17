@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#e8f2ff">
+  <title>My Agency - AP Services</title>
+  <script src="/ap-native-boot.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="social-theme.css?v=20260717-host-agency">
+  <link rel="stylesheet" href="mobile-app.css">
+  <style>
+    body.ha-page {
+      margin: 0;
+      min-height: 100dvh;
+      background: linear-gradient(180deg, #dbeafe 0%, #eff6ff 40%, #f8fafc 100%);
+      font-family: system-ui, -apple-system, sans-serif;
+      color: #1e293b;
+      padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+    }
+    .ha-top {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 14px;
+    }
+    .ha-top a {
+      width: 36px; height: 36px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      color: #1e3a8a; text-decoration: none; background: rgba(255,255,255,.7);
+    }
+    .ha-hero {
+      text-align: center; padding: 8px 20px 6px;
+    }
+    .ha-hero h1 {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 34px; font-weight: 700;
+      color: #2563eb; letter-spacing: -0.02em;
+    }
+    .ha-hero p { margin: 6px 0 0; color: #64748b; font-size: 14px; }
+    .ha-card {
+      margin: 18px 16px;
+      background: #fff;
+      border-radius: 18px;
+      padding: 18px 16px 16px;
+      box-shadow: 0 10px 28px rgba(37, 99, 235, .12);
+      position: relative;
+      overflow: hidden;
+    }
+    .ha-card::before {
+      content: "";
+      position: absolute; left: -10px; bottom: -10px;
+      width: 70px; height: 70px; border-radius: 50%;
+      background: radial-gradient(circle, #fde68a, transparent 70%);
+      opacity: .7;
+    }
+    .ha-card .dear { font-weight: 800; margin: 0 0 10px; font-size: 15px; }
+    .ha-card .body { font-size: 13px; line-height: 1.55; color: #475569; margin: 0; }
+    .ha-card .regards {
+      margin-top: 16px; text-align: right; font-size: 12px; color: #64748b;
+    }
+    .ha-card .agency-row {
+      display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 8px;
+    }
+    .ha-card .agency-row img {
+      width: 36px; height: 36px; border-radius: 50%; object-fit: cover; background: #e2e8f0;
+    }
+    .ha-card .agency-row .meta { text-align: right; }
+    .ha-card .agency-row strong { display: block; font-size: 13px; color: #0f172a; }
+    .ha-card .agency-row small { color: #94a3b8; font-size: 11px; }
+    .ha-brand {
+      text-align: center; font-family: Georgia, serif; color: #1d4ed8;
+      font-size: 18px; font-weight: 700; margin: -4px 0 10px;
+    }
+    .ha-menu { padding: 8px 16px 24px; display: grid; gap: 10px; }
+    .ha-menu a, .ha-menu button {
+      display: flex; align-items: center; gap: 12px;
+      background: #fff; border: none; border-radius: 14px;
+      padding: 14px; text-decoration: none; color: #0f172a;
+      box-shadow: 0 2px 10px rgba(15, 23, 42, .05);
+      font: inherit; font-weight: 700; cursor: pointer; text-align: left; width: 100%;
+    }
+    .ha-menu .ico {
+      width: 40px; height: 40px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center; color: #fff; flex-shrink: 0;
+    }
+    .ha-menu .ico.change { background: linear-gradient(135deg, #fb923c, #f97316); }
+    .ha-menu .ico.become { background: linear-gradient(135deg, #4ade80, #22c55e); }
+    .ha-menu .label { flex: 1; }
+    .ha-menu .chev { color: #94a3b8; }
+    .ha-panel {
+      display: none; margin: 0 16px 24px; background: #fff; border-radius: 16px;
+      padding: 16px; box-shadow: 0 2px 10px rgba(15,23,42,.05);
+    }
+    .ha-panel.open { display: block; }
+    .ha-panel h3 { margin: 0 0 10px; font-size: 15px; }
+    .ha-panel p { margin: 0 0 12px; font-size: 13px; color: #64748b; line-height: 1.45; }
+    .ha-panel input {
+      width: 100%; box-sizing: border-box; border: 1px solid #e2e8f0;
+      border-radius: 12px; padding: 12px; font-size: 15px; text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    .ha-panel .submit {
+      width: 100%; border: none; border-radius: 12px; padding: 12px;
+      background: #2563eb; color: #fff; font-weight: 800; cursor: pointer;
+    }
+    .ha-status {
+      margin: 0 16px 12px; padding: 12px 14px; border-radius: 12px;
+      background: #fff7ed; color: #9a3412; font-size: 13px; line-height: 1.4;
+      display: none;
+    }
+    .ha-status.show { display: block; }
+  </style>
+</head>
+<body class="ha-page">
+  <div class="ha-top">
+    <a href="/streamer-center.html?app=1" aria-label="Back"><i class="fas fa-chevron-left"></i></a>
+  </div>
+  <div class="ha-hero">
+    <h1>Congratulations</h1>
+    <p>You have joined the Agency.</p>
+  </div>
+
+  <div class="ha-card">
+    <p class="dear">Dear <span id="haHostName">Host</span>,</p>
+    <p class="body">
+      Welcome to <strong id="haAgencyName">your agency</strong>!
+      We are happy to have you on board. Wishing you a successful partnership —
+      go live, grow your audience, and earn with AP Services.
+    </p>
+    <div class="regards">Best regards,</div>
+    <div class="agency-row">
+      <div class="meta">
+        <strong id="haOwnerName">Agency</strong>
+        <small>ID: <span id="haOwnerId">—</span></small>
+      </div>
+      <img id="haOwnerPic" src="" alt="" hidden>
+    </div>
+  </div>
+  <div class="ha-brand">AP Services</div>
+
+  <div class="ha-status" id="haChangeStatus"></div>
+
+  <nav class="ha-menu">
+    <button type="button" id="haChangeBtn">
+      <span class="ico change"><i class="fas fa-exchange-alt"></i></span>
+      <span class="label">Change Agency</span>
+      <i class="fas fa-chevron-right chev"></i>
+    </button>
+    <a href="/role-apply.html?role=agency&app=1">
+      <span class="ico become"><i class="fas fa-building"></i></span>
+      <span class="label">Become Agency</span>
+      <i class="fas fa-chevron-right chev"></i>
+    </a>
+  </nav>
+
+  <div class="ha-panel" id="haChangePanel">
+    <h3>Change Agency</h3>
+    <p>Enter the invite code of the agency you want to join. Your current agency must Release you first (they have 3 days). After release, the new agency can Accept.</p>
+    <input type="text" id="haNewAgencyCode" placeholder="Agency invite code" autocomplete="off">
+    <button type="button" class="submit" id="haSubmitChange">Send request</button>
+  </div>
+
+  <script src="ap-config.js"></script>
+  <script src="config.js"></script>
+  <script src="app.js?v=20260717-host-agency"></script>
+  <script src="auth-guard.js"></script>
+  <script>
+    (async function () {
+      Auth.checkAuth();
+      if (!Auth.hasSession?.()) {
+        location.href = '/login.html?redirect=' + encodeURIComponent('/host-agency.html?app=1');
+        return;
+      }
+      const user = Auth.getUser();
+      const hostName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Host';
+      document.getElementById('haHostName').textContent = hostName;
+
+      try {
+        const dash = await API.get('/host/dashboard');
+        const d = dash.data || {};
+        const agency = d.agency || {};
+        document.getElementById('haAgencyName').textContent = agency.name || 'your agency';
+        document.getElementById('haOwnerName').textContent = agency.owner_name || agency.name || 'Agency';
+        document.getElementById('haOwnerId').textContent = agency.owner_display_id || '—';
+      } catch (e) {
+        document.getElementById('haAgencyName').textContent = 'your agency';
+      }
+
+      async function refreshChangeStatus() {
+        const el = document.getElementById('haChangeStatus');
+        try {
+          const res = await API.get('/host/agency-change');
+          const active = res.data?.active;
+          if (!active) {
+            el.classList.remove('show');
+            el.textContent = '';
+            return;
+          }
+          el.classList.add('show');
+          if (active.status === 'pending_release') {
+            const exp = active.expires_at ? new Date(active.expires_at).toLocaleString() : '3 days';
+            el.textContent = `Waiting for ${active.from_agency_name || 'current agency'} to Release you (to join ${active.to_agency_name || 'new agency'}). Auto-rejects after ${exp}.`;
+          } else if (active.status === 'pending_accept') {
+            el.textContent = `Released! Waiting for ${active.to_agency_name || 'new agency'} to Accept.`;
+          }
+        } catch (_e) {
+          el.classList.remove('show');
+        }
+      }
+
+      document.getElementById('haChangeBtn')?.addEventListener('click', () => {
+        document.getElementById('haChangePanel')?.classList.toggle('open');
+      });
+
+      document.getElementById('haSubmitChange')?.addEventListener('click', async () => {
+        const code = document.getElementById('haNewAgencyCode')?.value.trim();
+        if (!code) return alert('Enter the new Agency invite code');
+        const btn = document.getElementById('haSubmitChange');
+        btn.disabled = true;
+        try {
+          const res = await API.post('/host/agency-change', { agency_code: code });
+          alert(res.message || 'Request sent');
+          document.getElementById('haChangePanel')?.classList.remove('open');
+          document.getElementById('haNewAgencyCode').value = '';
+          await refreshChangeStatus();
+        } catch (e) {
+          alert(e.message || 'Request failed');
+        } finally {
+          btn.disabled = false;
+        }
+      });
+
+      await refreshChangeStatus();
+    })();
+  </script>
+</body>
+</html>

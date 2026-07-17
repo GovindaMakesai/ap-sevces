@@ -445,12 +445,22 @@ async function transferHost(actorUserId, hostUserId, newAgencyId) {
   const host = await db.query(`SELECT * FROM host_profiles WHERE user_id = $1`, [hostUserId]);
   if (!host.rows[0]) throw new Error('Host profile not found');
   const oldAgencyId = host.rows[0].agency_id;
-  if (String(oldAgencyId) === String(newAgencyId)) return host.rows[0];
+  if (String(oldAgencyId) === String(newAgencyId)) {
+    await db.query(
+      `UPDATE host_profiles SET status = 'active', updated_at = CURRENT_TIMESTAMP WHERE user_id = $1`,
+      [hostUserId]
+    );
+    return host.rows[0];
+  }
 
-  await db.query(`DELETE FROM agency_members WHERE agency_id = $1 AND user_id = $2`, [
-    oldAgencyId,
-    hostUserId,
-  ]);
+  if (oldAgencyId) {
+    await db.query(`DELETE FROM agency_members WHERE agency_id = $1 AND user_id = $2`, [
+      oldAgencyId,
+      hostUserId,
+    ]);
+  }
+  /* Clear old profile so assignHostToAgency can attach to the new agency */
+  await db.query(`DELETE FROM host_profiles WHERE user_id = $1`, [hostUserId]);
   return assignHostToAgency(actorUserId, hostUserId, newAgencyId);
 }
 
@@ -775,6 +785,8 @@ async function getAgencyNode(agencyId) {
 }
 
 const AGENCY_HOST_INVITE_PREFIX = '__AGENCY_HOST_INVITE__:';
+const AGENCY_NETWORK_INVITE_PREFIX = '__AGENCY_NETWORK_INVITE__:';
+const CHANGE_REQUEST_TTL_DAYS = 3;
 
 function generateAgencyInviteCode(seed = '') {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -1153,6 +1165,309 @@ async function agencyReviewHostApplication(ownerUserId, applicationId, { decisio
   throw new Error('This application type cannot be reviewed by Agency');
 }
 
+/** Invite a user to apply as Agency under this agency (NOT a Host invite). */
+async function inviteAgencyToNetwork(ownerUserId, userRef) {
+  const agency = await getAgencyOwnedByUser(ownerUserId);
+  if (!agency) throw new Error('Agency not found for this user');
+
+  const invitee = await resolveUserRef(userRef);
+  if (!invitee) throw new Error('User not found — use email or public User ID');
+  if (String(invitee.id) === String(ownerUserId)) throw new Error('Cannot invite yourself');
+
+  if (['agency', 'admin', 'super_admin'].includes(String(invitee.role || '').toLowerCase())) {
+    throw new Error('This user is already an Agency');
+  }
+
+  const inviteCode = await ensureAgencyInviteCode(agency.id, ownerUserId);
+  const applyPath = `/role-apply.html?role=agency&agency_code=${encodeURIComponent(inviteCode.code)}&app=1`;
+  const payload = {
+    agency_id: agency.id,
+    agency_name: agency.name || 'Agency',
+    code: inviteCode.code,
+    apply_path: applyPath,
+  };
+  const messageBody =
+    `${agency.name || 'An agency'} invited you to become an Agency on AP Services.\n` +
+    `Use Agency invite code ${inviteCode.code} when you apply.\n` +
+    `Open Apply → Agency (not Host).\n` +
+    `${AGENCY_NETWORK_INVITE_PREFIX}${JSON.stringify(payload)}`;
+
+  const chatService = require('./chatService');
+  const conv = await chatService.findOrCreateConversationByUserIds(ownerUserId, invitee.id);
+  const row = await chatService.appendMessage(conv.id, String(ownerUserId), String(invitee.id), messageBody);
+
+  await audit(ownerUserId, 'agency.invite_agency', 'agency', agency.id, {
+    inviteeUserId: invitee.id,
+  });
+
+  return {
+    invitee: {
+      id: invitee.id,
+      email: invitee.email,
+      display_id: invitee.display_id,
+      first_name: invitee.first_name,
+      last_name: invitee.last_name,
+    },
+    code: inviteCode.code,
+    apply_path: applyPath,
+    conversation_id: conv?.id,
+    message: {
+      id: row.id,
+      conversation_id: row.conversation_id,
+      sender_id: row.sender_id,
+      receiver_id: row.receiver_id,
+      text: row.body,
+      created_at: row.created_at,
+    },
+  };
+}
+
+async function expireStaleAgencyChangeRequests() {
+  await db.query(
+    `UPDATE host_agency_change_requests
+     SET status = 'rejected',
+         rejection_reason = 'Auto-rejected: current agency did not release within 3 days',
+         updated_at = CURRENT_TIMESTAMP
+     WHERE status = 'pending_release'
+       AND expires_at IS NOT NULL
+       AND expires_at < CURRENT_TIMESTAMP`
+  );
+}
+
+async function requestHostAgencyChange(hostUserId, agencyCode, note = null) {
+  await expireStaleAgencyChangeRequests();
+
+  const profile = await getHostAgency(hostUserId);
+  if (!profile?.agency_id) {
+    throw new Error('You must belong to an agency before requesting a change');
+  }
+  if (profile.status === 'released') {
+    throw new Error('You are released — apply to the new agency with their invite code');
+  }
+
+  const invite = await resolveAgencyInviteCode(agencyCode);
+  if (!invite) throw new Error('Invalid Agency invite code');
+  if (String(invite.agency_id) === String(profile.agency_id)) {
+    throw new Error('You are already in this agency');
+  }
+
+  const pending = await db.query(
+    `SELECT id, status FROM host_agency_change_requests
+     WHERE host_user_id = $1 AND status IN ('pending_release', 'pending_accept')
+     LIMIT 1`,
+    [hostUserId]
+  );
+  if (pending.rows[0]) {
+    throw new Error('You already have a change request in progress');
+  }
+
+  const expiresAt = new Date(Date.now() + CHANGE_REQUEST_TTL_DAYS * 24 * 60 * 60 * 1000);
+  const res = await db.query(
+    `INSERT INTO host_agency_change_requests
+       (host_user_id, from_agency_id, to_agency_id, status, note, expires_at)
+     VALUES ($1, $2, $3, 'pending_release', $4, $5)
+     RETURNING *`,
+    [hostUserId, profile.agency_id, invite.agency_id, note || null, expiresAt]
+  );
+  const req = res.rows[0];
+
+  const fromAgency = await db.query(`SELECT owner_user_id, name FROM agencies WHERE id = $1`, [
+    profile.agency_id,
+  ]);
+  const toAgency = await db.query(`SELECT name FROM agencies WHERE id = $1`, [invite.agency_id]);
+  const Notification = require('../models/Notification');
+  if (fromAgency.rows[0]?.owner_user_id) {
+    await Notification.create({
+      user_id: fromAgency.rows[0].owner_user_id,
+      type: 'host_agency_change',
+      title: 'Host wants to change agency',
+      message: `A host requested release to join ${toAgency.rows[0]?.name || 'another agency'}. Open Agency Center to Release or Reject (auto-rejects in 3 days).`,
+      data: {
+        request_id: req.id,
+        host_user_id: hostUserId,
+        to_agency_id: invite.agency_id,
+        status: 'pending_release',
+      },
+    });
+  }
+
+  await audit(hostUserId, 'host.agency_change_request', 'host_agency_change', req.id, {
+    fromAgencyId: profile.agency_id,
+    toAgencyId: invite.agency_id,
+  });
+
+  return {
+    request: req,
+    from_agency_name: fromAgency.rows[0]?.name || null,
+    to_agency_name: toAgency.rows[0]?.name || invite.agency_name || null,
+    expires_at: expiresAt,
+  };
+}
+
+async function getHostAgencyChangeStatus(hostUserId) {
+  await expireStaleAgencyChangeRequests();
+  const res = await db.query(
+    `SELECT r.*,
+            fa.name AS from_agency_name,
+            ta.name AS to_agency_name
+     FROM host_agency_change_requests r
+     JOIN agencies fa ON fa.id = r.from_agency_id
+     JOIN agencies ta ON ta.id = r.to_agency_id
+     WHERE r.host_user_id = $1
+     ORDER BY r.created_at DESC
+     LIMIT 5`,
+    [hostUserId]
+  );
+  return { requests: res.rows, active: res.rows.find((r) => ['pending_release', 'pending_accept'].includes(r.status)) || null };
+}
+
+async function listAgencyChangeRequestsForAgency(ownerUserId) {
+  await expireStaleAgencyChangeRequests();
+  const agency = await getAgencyOwnedByUser(ownerUserId);
+  if (!agency) throw new Error('Agency not found for this user');
+
+  const outgoing = await db.query(
+    `SELECT r.*,
+            u.first_name, u.last_name, u.display_id, u.profile_pic, u.email,
+            ta.name AS to_agency_name
+     FROM host_agency_change_requests r
+     JOIN users u ON u.id = r.host_user_id
+     JOIN agencies ta ON ta.id = r.to_agency_id
+     WHERE r.from_agency_id = $1 AND r.status = 'pending_release'
+     ORDER BY r.created_at ASC`,
+    [agency.id]
+  );
+  const incoming = await db.query(
+    `SELECT r.*,
+            u.first_name, u.last_name, u.display_id, u.profile_pic, u.email,
+            fa.name AS from_agency_name
+     FROM host_agency_change_requests r
+     JOIN users u ON u.id = r.host_user_id
+     JOIN agencies fa ON fa.id = r.from_agency_id
+     WHERE r.to_agency_id = $1 AND r.status = 'pending_accept'
+     ORDER BY r.created_at ASC`,
+    [agency.id]
+  );
+  return {
+    agency,
+    release_requests: outgoing.rows,
+    accept_requests: incoming.rows,
+  };
+}
+
+async function agencyRespondHostChangeRequest(ownerUserId, requestId, { decision, reason } = {}) {
+  await expireStaleAgencyChangeRequests();
+  const agency = await getAgencyOwnedByUser(ownerUserId);
+  if (!agency) throw new Error('Agency not found for this user');
+
+  const reqRes = await db.query(`SELECT * FROM host_agency_change_requests WHERE id = $1`, [requestId]);
+  const req = reqRes.rows[0];
+  if (!req) throw new Error('Request not found');
+
+  const Notification = require('../models/Notification');
+  const action = String(decision || '').toLowerCase();
+
+  /* Current agency: release or reject */
+  if (req.status === 'pending_release' && String(req.from_agency_id) === String(agency.id)) {
+    if (action === 'rejected' || action === 'reject') {
+      await db.query(
+        `UPDATE host_agency_change_requests
+         SET status = 'rejected', rejected_by = $2, rejection_reason = $3,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1`,
+        [requestId, ownerUserId, reason || 'Rejected by current agency']
+      );
+      await Notification.create({
+        user_id: req.host_user_id,
+        type: 'host_agency_change',
+        title: 'Agency change rejected',
+        message: reason || 'Your current agency rejected the release request.',
+        data: { request_id: requestId, status: 'rejected' },
+      });
+      return { id: requestId, status: 'rejected' };
+    }
+    if (action === 'released' || action === 'release' || action === 'approved' || action === 'accepted') {
+      await db.query(
+        `UPDATE host_agency_change_requests
+         SET status = 'pending_accept', released_by = $2, released_at = CURRENT_TIMESTAMP,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1`,
+        [requestId, ownerUserId]
+      );
+      await db.query(
+        `UPDATE host_profiles
+         SET status = 'released', updated_at = CURRENT_TIMESTAMP
+         WHERE user_id = $1`,
+        [req.host_user_id]
+      );
+
+      const toAgency = await db.query(`SELECT owner_user_id, name FROM agencies WHERE id = $1`, [
+        req.to_agency_id,
+      ]);
+      if (toAgency.rows[0]?.owner_user_id) {
+        await Notification.create({
+          user_id: toAgency.rows[0].owner_user_id,
+          type: 'host_agency_change',
+          title: 'Host transfer ready to accept',
+          message: `A host was released and wants to join ${toAgency.rows[0].name || 'your agency'}. Open Agency Center to Accept or Reject.`,
+          data: { request_id: requestId, status: 'pending_accept', host_user_id: req.host_user_id },
+        });
+      }
+      await Notification.create({
+        user_id: req.host_user_id,
+        type: 'host_agency_change',
+        title: 'You were released',
+        message: 'Your agency released you. Waiting for the new agency to Accept.',
+        data: { request_id: requestId, status: 'pending_accept' },
+      });
+      return { id: requestId, status: 'pending_accept' };
+    }
+    throw new Error('Use release or reject');
+  }
+
+  /* Target agency: accept or reject */
+  if (req.status === 'pending_accept' && String(req.to_agency_id) === String(agency.id)) {
+    if (action === 'rejected' || action === 'reject') {
+      await db.query(
+        `UPDATE host_agency_change_requests
+         SET status = 'rejected', rejected_by = $2, rejection_reason = $3,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1`,
+        [requestId, ownerUserId, reason || 'Rejected by target agency']
+      );
+      await Notification.create({
+        user_id: req.host_user_id,
+        type: 'host_agency_change',
+        title: 'New agency declined',
+        message: reason || 'The agency you wanted to join declined. Contact support or request again.',
+        data: { request_id: requestId, status: 'rejected' },
+      });
+      return { id: requestId, status: 'rejected' };
+    }
+    if (action === 'accepted' || action === 'approved' || action === 'accept') {
+      await transferHost(ownerUserId, req.host_user_id, req.to_agency_id);
+      await db.query(
+        `UPDATE host_agency_change_requests
+         SET status = 'completed', accepted_by = $2, accepted_at = CURRENT_TIMESTAMP,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1`,
+        [requestId, ownerUserId]
+      );
+      await Notification.create({
+        user_id: req.host_user_id,
+        type: 'host_agency_change',
+        title: 'Agency change complete',
+        message: 'Welcome — you joined your new agency.',
+        data: { request_id: requestId, status: 'completed' },
+      });
+      return { id: requestId, status: 'completed' };
+    }
+    throw new Error('Use accept or reject');
+  }
+
+  throw new Error('This request is not actionable for your agency');
+}
+
 module.exports = {
   assignBd,
   removeBd,
@@ -1186,8 +1501,15 @@ module.exports = {
   bumpAgencyInviteUseByAgencyId,
   getAgencyInviteForOwner,
   inviteHostToAgency,
+  inviteAgencyToNetwork,
   respondToAgencyHostInvite,
   listPendingHostAppsForAgency,
   agencyReviewHostApplication,
+  requestHostAgencyChange,
+  getHostAgencyChangeStatus,
+  listAgencyChangeRequestsForAgency,
+  agencyRespondHostChangeRequest,
+  expireStaleAgencyChangeRequests,
   AGENCY_HOST_INVITE_PREFIX,
+  AGENCY_NETWORK_INVITE_PREFIX,
 };

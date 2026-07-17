@@ -340,6 +340,12 @@
         <span class="badge" id="agPendingBadge" hidden>0</span>
         <span class="arrow"><i class="fas fa-chevron-right"></i></span>
       </button>
+      <button type="button" class="ag-menu-item" data-panel="transfers">
+        <span class="ico app"><i class="fas fa-exchange-alt"></i></span>
+        <span class="label">Host Transfers</span>
+        <span class="badge" id="agTransferBadge" hidden>0</span>
+        <span class="arrow"><i class="fas fa-chevron-right"></i></span>
+      </button>
     </nav>
   </div>
 
@@ -370,6 +376,17 @@
     <div id="agPendingHosts"><p class="ag-empty">Loading…</p></div>
   </section>
 
+  <section class="ag-panel" id="panel-transfers">
+    <div class="ag-panel-head">
+      <button type="button" data-back aria-label="Back"><i class="fas fa-chevron-left"></i></button>
+      <h2>Host Transfers</h2>
+    </div>
+    <h3 style="margin:0 0 8px;font-size:13px;color:#6b7280">Release requests (hosts leaving you)</h3>
+    <div id="agReleaseRequests"><p class="ag-empty">Loading…</p></div>
+    <h3 style="margin:16px 0 8px;font-size:13px;color:#6b7280">Accept requests (hosts joining you)</h3>
+    <div id="agAcceptRequests"><p class="ag-empty">Loading…</p></div>
+  </section>
+
   <script src="ap-config.js"></script>
   <script src="config.js"></script>
   <script src="app.js?v=20260717-agency-flow"></script>
@@ -391,6 +408,7 @@
         hosts: document.getElementById('panel-hosts'),
         agencies: document.getElementById('panel-agencies'),
         applications: document.getElementById('panel-applications'),
+        transfers: document.getElementById('panel-transfers'),
       };
 
       function showHome() {
@@ -410,6 +428,7 @@
           hosts: 'Host List',
           agencies: 'Invite Agency List',
           applications: 'Host Application',
+          transfers: 'Host Transfers',
         }[key] || 'Agency Center';
         history.replaceState(null, '', location.pathname + location.search + '#' + key);
       }
@@ -616,6 +635,62 @@
       });
 
       await loadPendingHosts();
+
+      async function loadTransfers() {
+        const releaseMount = document.getElementById('agReleaseRequests');
+        const acceptMount = document.getElementById('agAcceptRequests');
+        const badge = document.getElementById('agTransferBadge');
+        try {
+          const res = await API.get('/agency/host-change-requests');
+          const release = res.data?.release_requests || [];
+          const accept = res.data?.accept_requests || [];
+          const total = release.length + accept.length;
+          if (badge) {
+            if (total) {
+              badge.hidden = false;
+              badge.textContent = String(total);
+            } else badge.hidden = true;
+          }
+          releaseMount.innerHTML = release.length
+            ? release.map((r) => personItem(r, `
+                <div class="actions">
+                  <button type="button" class="ok" data-change-id="${r.id}" data-change-action="release">Release</button>
+                  <button type="button" class="no" data-change-id="${r.id}" data-change-action="reject">Reject</button>
+                </div>
+                <div class="ag-note">Wants to join: ${String(r.to_agency_name || '—').replace(/</g, '&lt;')} · expires ${r.expires_at ? new Date(r.expires_at).toLocaleDateString() : '3 days'}</div>
+              `)).join('')
+            : '<p class="ag-empty">No release requests</p>';
+          acceptMount.innerHTML = accept.length
+            ? accept.map((r) => personItem(r, `
+                <div class="actions">
+                  <button type="button" class="ok" data-change-id="${r.id}" data-change-action="accept">Accept</button>
+                  <button type="button" class="no" data-change-id="${r.id}" data-change-action="reject">Reject</button>
+                </div>
+                <div class="ag-note">From: ${String(r.from_agency_name || '—').replace(/</g, '&lt;')}</div>
+              `)).join('')
+            : '<p class="ag-empty">No incoming transfer requests</p>';
+        } catch (e) {
+          if (releaseMount) releaseMount.innerHTML = `<p class="ag-empty" style="color:#c62828">${e.message || 'Failed'}</p>`;
+          if (acceptMount) acceptMount.innerHTML = '';
+        }
+      }
+
+      document.getElementById('panel-transfers')?.addEventListener('click', async (e) => {
+        const btn = e.target.closest('[data-change-id]');
+        if (!btn) return;
+        const id = btn.getAttribute('data-change-id');
+        const action = btn.getAttribute('data-change-action');
+        const reason = action === 'reject' ? (prompt('Reason (optional):') || undefined) : undefined;
+        try {
+          await API.post(`/agency/host-change-requests/${id}/respond`, { decision: action, reason });
+          await loadTransfers();
+          location.reload();
+        } catch (err) {
+          alert(err.message || 'Failed');
+        }
+      });
+
+      await loadTransfers();
 
       const hash = (location.hash || '').replace(/^#/, '');
       if (panels[hash]) showPanel(hash);

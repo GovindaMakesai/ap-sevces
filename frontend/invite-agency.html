@@ -79,7 +79,7 @@
     <button type="button" class="cs-submit" id="iaInviteBtn" style="background:linear-gradient(135deg,#60a5fa,#3b82f6)">
       Send invite message
     </button>
-    <p class="ia-hint" style="margin:10px 0 0">Sends a chat invite so they can apply as Agency under you.</p>
+    <p class="ia-hint" style="margin:10px 0 0">Sends an <strong>Agency</strong> invite (not Host). They apply with your Agency code.</p>
   </div>
 
   <script src="ap-config.js"></script>
@@ -146,13 +146,13 @@
       const btn = document.getElementById('iaInviteBtn');
       btn.disabled = true;
       try {
-        /* Reuse host invite channel for now — message includes agency apply link */
-        const res = await API.post('/agency/invite-host', {
-          user_ref: id,
-          message: 'You are invited to join as an Agency under our network. Open the apply link and choose Agency.',
-        });
-        alert(res.message || 'Invite sent. Ask them to apply as Agency with your code.');
+        const res = await API.post('/agency/invite-agency', { user_ref: id });
+        const peer = res.data?.invitee;
+        alert(res.message || 'Agency invite sent');
         document.getElementById('iaUserRef').value = '';
+        if (peer?.id && confirm('Open chat with this user?')) {
+          location.href = '/chat.html?id=' + encodeURIComponent(peer.id) + '&app=1';
+        }
       } catch (e) {
         alert(e.message || 'Invite failed — use Share link instead');
       } finally {

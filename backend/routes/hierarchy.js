@@ -18,14 +18,27 @@ router.post('/bd/applications/:id/review', authorizeRoles('bdm', 'admin'), hiera
 router.get('/agency/dashboard', authorizeRoles('agency', 'admin'), hierarchyController.agencyDashboard);
 router.get('/agency/invite-code', authorizeRoles('agency', 'admin'), hierarchyController.getAgencyInviteCode);
 router.post('/agency/invite-host', authorizeRoles('agency', 'admin'), hierarchyController.inviteHostToAgency);
+router.post('/agency/invite-agency', authorizeRoles('agency', 'admin'), hierarchyController.inviteAgencyToNetwork);
 router.get('/agency/host-applications', authorizeRoles('agency', 'admin'), hierarchyController.agencyPendingHosts);
 router.post(
   '/agency/host-applications/:id/review',
   authorizeRoles('agency', 'admin'),
   hierarchyController.agencyReviewHostApplication
 );
+router.get(
+  '/agency/host-change-requests',
+  authorizeRoles('agency', 'admin'),
+  hierarchyController.listAgencyHostChangeRequests
+);
+router.post(
+  '/agency/host-change-requests/:id/respond',
+  authorizeRoles('agency', 'admin'),
+  hierarchyController.respondAgencyHostChangeRequest
+);
 router.post('/host/invites/:id/respond', hierarchyController.respondToAgencyHostInvite);
 router.get('/host/dashboard', authorizeRoles('creator', 'agency', 'bdm', 'admin'), hierarchyController.hostDashboard);
+router.get('/host/agency-change', authorizeRoles('creator', 'agency', 'bdm', 'admin'), hierarchyController.getHostAgencyChange);
+router.post('/host/agency-change', authorizeRoles('creator', 'agency', 'bdm', 'admin'), hierarchyController.requestHostAgencyChange);
 
 // Hierarchy tree
 router.get('/hierarchy', authorizeRoles('bdm', 'admin'), hierarchyController.getHierarchy);

@@ -2210,11 +2210,47 @@
             if (!raw) return 'No messages yet';
             if (raw.startsWith('__IMG__:')) return '📷 Photo';
             if (raw.includes('__AGENCY_HOST_INVITE__:')) return 'Agency host invite';
+            if (raw.includes('__AGENCY_NETWORK_INVITE__:')) return 'Agency invite';
             if (parseRoomInvite(raw)) return '🎥 Live / party invite';
             return raw.length > 120 ? `${raw.slice(0, 117)}…` : raw;
         }
 
         const AGENCY_HOST_INVITE_PREFIX = '__AGENCY_HOST_INVITE__:';
+        const AGENCY_NETWORK_INVITE_PREFIX = '__AGENCY_NETWORK_INVITE__:';
+
+        function parseAgencyHostInvite(text) {
+            const raw = String(text || '');
+            const idx = raw.indexOf(AGENCY_HOST_INVITE_PREFIX);
+            if (idx < 0) return null;
+            try {
+                const json = raw.slice(idx + AGENCY_HOST_INVITE_PREFIX.length).trim();
+                const data = JSON.parse(json);
+                if (!data?.invite_id) return null;
+                return {
+                    ...data,
+                    visibleText: raw.slice(0, idx).trim(),
+                };
+            } catch (_e) {
+                return null;
+            }
+        }
+
+        function parseAgencyNetworkInvite(text) {
+            const raw = String(text || '');
+            const idx = raw.indexOf(AGENCY_NETWORK_INVITE_PREFIX);
+            if (idx < 0) return null;
+            try {
+                const json = raw.slice(idx + AGENCY_NETWORK_INVITE_PREFIX.length).trim();
+                const data = JSON.parse(json);
+                if (!data?.code && !data?.apply_path) return null;
+                return {
+                    ...data,
+                    visibleText: raw.slice(0, idx).trim(),
+                };
+            } catch (_e) {
+                return null;
+            }
+        }
 
         function parseRoomInvite(text) {
             const raw = String(text || '');
@@ -2301,23 +2337,6 @@
             wrap.appendChild(sub);
             wrap.appendChild(btn);
             return wrap;
-        }
-
-        function parseAgencyHostInvite(text) {
-            const raw = String(text || '');
-            const idx = raw.indexOf(AGENCY_HOST_INVITE_PREFIX);
-            if (idx < 0) return null;
-            try {
-                const json = raw.slice(idx + AGENCY_HOST_INVITE_PREFIX.length).trim();
-                const data = JSON.parse(json);
-                if (!data?.invite_id) return null;
-                return {
-                    ...data,
-                    visibleText: raw.slice(0, idx).trim(),
-                };
-            } catch (_e) {
-                return null;
-            }
         }
 
         function buildAgencyHostInviteCard(invite, msg) {
@@ -3393,7 +3412,8 @@
                 
                 const bodyText = String(msg.text || '').trim();
                 const agencyInvite = parseAgencyHostInvite(bodyText);
-                const roomInvite = !agencyInvite ? parseRoomInvite(bodyText) : null;
+                const networkInvite = !agencyInvite ? parseAgencyNetworkInvite(bodyText) : null;
+                const roomInvite = !agencyInvite && !networkInvite ? parseRoomInvite(bodyText) : null;
                 const bodyHtml = agencyInvite
                     ? `<div class="agency-host-invite-card" data-invite-id="${escapeAttr(agencyInvite.invite_id)}" style="min-width:200px">
                         <strong>Host invitation</strong>
@@ -3404,6 +3424,15 @@
                               <button type="button" class="agency-invite-reject" data-invite-id="${escapeAttr(agencyInvite.invite_id)}" style="border:none;border-radius:999px;padding:8px 14px;font-weight:700;background:#9ca3af;color:#fff;cursor:pointer">Reject</button>
                             </div>`
                           : '<div style="font-size:12px;opacity:.8">Waiting for their response…</div>'}
+                      </div>`
+                    : networkInvite
+                    ? `<div class="agency-host-invite-card" style="min-width:200px">
+                        <strong>Agency invitation</strong>
+                        <div style="font-size:13px;margin:6px 0 10px">${escapeHtml(networkInvite.visibleText || ((networkInvite.agency_name || 'Agency') + ' invited you to become an Agency.'))}</div>
+                        <div style="font-size:12px;margin-bottom:8px">Code: <strong>${escapeHtml(networkInvite.code || '')}</strong></div>
+                        ${msg.type !== 'sent'
+                          ? `<a href="${escapeAttr(networkInvite.apply_path || ('/role-apply.html?role=agency&agency_code=' + encodeURIComponent(networkInvite.code || '') + '&app=1'))}" style="display:inline-block;border:none;border-radius:999px;padding:8px 14px;font-weight:700;background:#2563eb;color:#fff;text-decoration:none">Apply as Agency</a>`
+                          : '<div style="font-size:12px;opacity:.8">Agency invite sent</div>'}
                       </div>`
                     : roomInvite
                     ? `<div class="room-invite-card">
