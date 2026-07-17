@@ -104,9 +104,21 @@
       const mode = TAB_MODE[tab] || '';
       const qs = new URLSearchParams({ period, category });
       if (mode) qs.set('mode', mode);
-      const res = await fetch(`${API_ROOT}/v1/leaderboards?${qs}`, { credentials: 'include' });
+      const token =
+        localStorage.getItem('token') ||
+        localStorage.getItem('access_token') ||
+        (window.Auth?.getToken?.() || '');
+      const headers = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
+      const res = await fetch(`${API_ROOT}/v1/leaderboards?${qs}`, {
+        credentials: 'include',
+        headers,
+      });
       const data = await res.json();
       if (!data.success || !Array.isArray(data.data)) return [];
+      if (window.SocialInteractions?.refreshBlockCache) {
+        await SocialInteractions.refreshBlockCache().catch(() => {});
+      }
       return data.data
         .map((row) => ({
           id: row.entity_id,
@@ -114,7 +126,11 @@
           s: formatScore(row.score, tab),
           pic: row.profile_pic || null,
         }))
-        .filter((row) => !row.id || !window.SocialInteractions?.isBlocked?.(row.id));
+        .filter((row) => {
+          const uid = String(row.id || '').trim();
+          if (!uid) return true;
+          return !window.SocialInteractions?.isBlocked?.(uid);
+        });
     }
 
     function formatScore(score, tab) {

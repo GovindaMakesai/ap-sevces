@@ -433,6 +433,9 @@
     const root = document.getElementById('rankList');
     if (!root) return;
     root.innerHTML = '<div class="ref-empty">Loading…</div>';
+    if (window.SocialInteractions?.refreshBlockCache) {
+      await SocialInteractions.refreshBlockCache().catch(() => {});
+    }
     const res = await api('/leaderboard/income?period=weekly');
     if (!res?.success) {
       // fallback to referral rank
@@ -442,8 +445,12 @@
         return;
       }
       state.leaderboard = alt.data || [];
-      root.innerHTML = (state.leaderboard.length
-        ? state.leaderboard
+      const visibleAlt = (state.leaderboard || []).filter((r) => {
+        const uid = String(r.user_id || r.id || '').trim();
+        return !uid || !window.SocialInteractions?.isBlocked?.(uid);
+      });
+      root.innerHTML = (visibleAlt.length
+        ? visibleAlt
             .map((r) => {
               const name = `${r.first_name || ''} ${r.last_name || ''}`.trim() || 'Host';
               return `<div class="ref-list-item">
@@ -457,18 +464,27 @@
       return;
     }
     state.leaderboard = res.data || [];
-    if (!state.leaderboard.length) {
+    const visible = (state.leaderboard || []).filter((r) => {
+      const uid = String(r.user_id || r.id || '').trim();
+      return !uid || !window.SocialInteractions?.isBlocked?.(uid);
+    });
+    if (!visible.length) {
       root.innerHTML = '<div class="ref-empty">Leaderboard is warming up</div>';
       return;
     }
-    root.innerHTML = state.leaderboard
+    root.innerHTML = visible
       .map((r, i) => {
         const name = `${r.first_name || ''} ${r.last_name || ''}`.trim() || 'Host';
-        const income =
-          Number(r.host_income_coins || 0) ||
-          Number(r.gift_income_coins || 0) +
+        const income = (() => {
+          const host = Number(r.host_income_coins || 0);
+          if (host > 0) return host;
+          return (
+            Number(r.gift_income_coins || 0) +
             Number(r.mission_reward_coins || 0) +
-            Number(r.referral_reward_coins || 0);
+            Number(r.referral_reward_coins || 0) +
+            Number(r.live_gift_coins || 0)
+          );
+        })();
         return `<div class="ref-list-item">
           <strong style="width:28px;text-align:center;color:#ff6a2b">#${r.rank || i + 1}</strong>
           <img src="${avatar(name, r.profile_pic)}" alt="">

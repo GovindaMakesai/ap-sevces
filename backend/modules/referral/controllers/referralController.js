@@ -189,13 +189,19 @@ exports.hostProgress = async (req, res) => {
 exports.leaderboard = async (req, res) => {
   try {
     const period = req.query.period || 'weekly';
-    const type = req.query.type || 'referral';
+    /* /api/leaderboard/income vs /api/leaderboard/referral — path decides type */
+    const pathHint = /income/i.test(String(req.path || req.baseUrl || '')) ? 'income' : 'referral';
+    const type = String(req.query.type || pathHint).toLowerCase() === 'income' ? 'income' : 'referral';
     const data =
       type === 'income'
-        ? await leaderboardService.incomeLeaderboard({ limit: Number(req.query.limit) || 50 })
+        ? await leaderboardService.incomeLeaderboard({
+            limit: Number(req.query.limit) || 50,
+            viewerId: req.userId || null,
+          })
         : await leaderboardService.referralLeaderboard({
             period,
             limit: Number(req.query.limit) || 50,
+            viewerId: req.userId || null,
           });
     return ok(res, data);
   } catch (e) {
