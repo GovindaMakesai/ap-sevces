@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260717-block-hide';
+  window.__AP_LIVE_BUILD = '20260717-block-seats';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -1214,10 +1214,52 @@
     return Boolean(window.SocialInteractions?.isBlocked?.(uid));
   }
 
+  /** Remove blocked people from seats / members / sticky so live:state cannot bring them back. */
+  function stripBlockedUsersFromRoomState(state) {
+    if (!state) return state;
+    const blocked = (uid) => isLiveUserBlocked(uid);
+    if (Array.isArray(state.seats)) {
+      state.seats = state.seats.filter((s) => {
+        const uid = String(s?.userId || '');
+        if (!uid || !blocked(uid)) return true;
+        forgetStickyStageGuest(uid);
+        return false;
+      });
+    }
+    if (Array.isArray(state.onlineMembers)) {
+      state.onlineMembers = state.onlineMembers.filter(
+        (m) => !blocked(String(m?.userId || m?.id || ''))
+      );
+    }
+    if (Array.isArray(state.messages)) {
+      state.messages = state.messages.filter(
+        (m) => !blocked(String(m?.userId || m?.fromUserId || m?.senderId || ''))
+      );
+    }
+    try {
+      for (const uid of [...stickyStageGuests.keys()]) {
+        if (blocked(uid)) stickyStageGuests.delete(uid);
+      }
+    } catch (_e) { /* ignore */ }
+    return state;
+  }
+
+  function purgeAllBlockedFromLiveUi() {
+    const ids = window.SocialInteractions?.getBlockedIds?.() || [];
+    ids.forEach((id) => purgeBlockedUserFromLive(id));
+    if (roomState) {
+      stripBlockedUsersFromRoomState(roomState);
+      try {
+        if (typeof renderRoomState === 'function') renderRoomState();
+      } catch (_e) { /* ignore */ }
+    }
+  }
+
   function purgeBlockedUserFromLive(userId) {
     const uid = String(userId || '').trim();
     if (!uid) return;
     chatMessages = (chatMessages || []).filter((m) => String(m.userId || '') !== uid);
+    forgetStickyStageGuest(uid);
     if (Array.isArray(roomState?.onlineMembers)) {
       roomState.onlineMembers = roomState.onlineMembers.filter((m) => String(m.userId || m.id || '') !== uid);
     }
@@ -1225,6 +1267,21 @@
       roomState.seats = roomState.seats.filter((s) => String(s.userId || '') !== uid);
     }
     try {
+      /* Stop their remote AV so you don't hear/see them after block */
+      const map = window.__apAgoraUidMap || {};
+      const agoraUid = Object.keys(map).find((k) => String(map[k]) === uid);
+      if (agoraUid != null && agoraClient) {
+        const remote = (agoraClient.remoteUsers || []).find((u) => String(u.uid) === String(agoraUid));
+        try {
+          remote?.audioTrack?.stop?.();
+        } catch (_e) { }
+        try {
+          remote?.videoTrack?.stop?.();
+        } catch (_e2) { }
+      }
+      document.querySelectorAll(`[data-guest-wrap="${CSS.escape(uid)}"], .party-seat[data-user-id="${CSS.escape(uid)}"]`).forEach((el) => {
+        el.remove();
+      });
       renderChatFeed();
       renderAvailableUsers();
       renderPartyAudienceBar();
@@ -2469,6 +2526,7 @@
   function rememberStickyStageGuest(g) {
     if (!g?.userId) return;
     const uid = String(g.userId);
+    if (isLiveUserBlocked(uid)) return;
     const hostId = String(roomState?.hostId || '');
     if (hostId && uid === hostId) return;
     stickyStageGuests.set(uid, {
@@ -2549,6 +2607,7 @@
     if (!merged.hostId && prev.hostId) merged.hostId = prev.hostId;
     if (!merged.hostName && prev.hostName) merged.hostName = prev.hostName;
     if (!merged.hostUserRole && prev.hostUserRole) merged.hostUserRole = prev.hostUserRole;
+    stripBlockedUsersFromRoomState(merged);
     syncStickyStageGuestsFromState(merged);
     return merged;
   }
@@ -2560,6 +2619,7 @@
     const pushGuest = (g) => {
       if (!g) return;
       const uid = g.userId != null ? String(g.userId) : '';
+      if (uid && isLiveUserBlocked(uid)) return;
       const key = uid || String(g.name || '');
       if (!key || (hostId && uid === hostId)) return;
       if (seen.has(key)) return;
@@ -10006,6 +10066,22 @@
 
   async function playRemoteMedia(user, mediaType) {
     if (!user || !agoraClient) return;
+    /* Never play AV for users you blocked (or who blocked you — mirrored in cache) */
+    try {
+      syncAgoraUidMap();
+      const map = window.__apAgoraUidMap || {};
+      const appUserId = map[String(user.uid)] || null;
+      if (appUserId && isLiveUserBlocked(appUserId)) {
+        liveDebugLog(`skip media for blocked uid=${appUserId} media=${mediaType}`);
+        try {
+          user.audioTrack?.stop?.();
+        } catch (_e) { }
+        try {
+          user.videoTrack?.stop?.();
+        } catch (_e2) { }
+        return;
+      }
+    } catch (_e3) { }
     let subscribed = false;
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
@@ -14749,7 +14825,9 @@
         if (uid) purgeBlockedUserFromLive(uid);
       });
       if (window.SocialInteractions?.refreshBlockCache) {
-        SocialInteractions.refreshBlockCache().catch(() => {});
+        SocialInteractions.refreshBlockCache()
+          .then(() => purgeAllBlockedFromLiveUi())
+          .catch(() => {});
       }
     }
     if (page === 'party-room') initPartyRoom();
