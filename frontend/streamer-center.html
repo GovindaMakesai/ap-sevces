@@ -17,7 +17,7 @@
     <p class="streamer-agency" id="streamerAgency" hidden></p>
   </header>
 
-  <section class="streamer-card" id="streamerAgencyCard">
+  <section class="streamer-card" id="streamerAgencyCard" style="display:none">
     <h2>My Agency</h2>
     <p class="streamer-hint" id="streamerAgencyHint">View your agency, change agency, or become an agency.</p>
     <div style="display:grid;gap:10px;margin-top:12px">
@@ -255,6 +255,12 @@
           (badge ? badge + ' ' : '') + (publicId ? 'ID:' + publicId : 'ID:—');
       }
 
+      const role = String(user?.role || '').toLowerCase();
+      const agencyCard = document.getElementById('streamerAgencyCard');
+      if (agencyCard) {
+        agencyCard.style.display = role === 'creator' ? '' : 'none';
+      }
+
       try {
         const dash = await API.get('/host/dashboard');
         const d = dash?.data || {};
@@ -263,7 +269,7 @@
           won.textContent = Number(d.monthStars || 0).toLocaleString();
         }
         const agencyEl = document.getElementById('streamerAgency');
-        if (agencyEl) {
+        if (agencyEl && role === 'creator') {
           const agency = d.agency || null;
           const name = agency?.name || d.profile?.agency_name || '';
           if (name) {
@@ -280,13 +286,17 @@
             agencyEl.innerHTML =
               `<i class="fas fa-building"></i> Not assigned to an agency · <a href="/role-apply.html?role=creator&app=1" style="color:inherit">Apply</a>`;
           }
+        } else if (agencyEl) {
+          agencyEl.hidden = true;
         }
       } catch (_e) {
         const agencyEl = document.getElementById('streamerAgency');
-        if (agencyEl) {
+        if (agencyEl && role === 'creator') {
           agencyEl.hidden = false;
           agencyEl.classList.add('unassigned');
           agencyEl.innerHTML = `<i class="fas fa-building"></i> Agency info unavailable`;
+        } else if (agencyEl) {
+          agencyEl.hidden = true;
         }
       }
 

@@ -255,31 +255,28 @@
       <i class="fas fa-chevron-right chevron"></i>
     </a>
     <a href="/role-apply.html?app=1" class="social-menu-item" id="roleApplyLink"><i class="fas fa-user-plus"></i><span>Apply for Host / Agency / Seller</span><i class="fas fa-chevron-right chevron"></i></a>
-    <a href="/coin-seller-center.html?app=1" class="social-menu-item" id="coinSellerLink"><i class="fas fa-coins"></i><span>Coin Seller Center</span><i class="fas fa-chevron-right chevron"></i></a>
+    <a href="/coin-seller-center.html?app=1" class="social-menu-item" id="coinSellerLink" style="display:none"><i class="fas fa-coins"></i><span>Coin Seller Center</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/streamer-center.html?app=1" class="social-menu-item" id="hostCenterLink"><i class="fas fa-video"></i><span>Host / Streamer Center</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/host-agency.html?app=1" class="social-menu-item" id="myAgencyLink" style="display:none"><i class="fas fa-handshake"></i><span>My Agency / Change Agency</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/live-verify.html?redirect=/streamer-center.html%3Fapp%3D1&amp;app=1" class="social-menu-item" id="liveVerifyLink"><i class="fas fa-id-card"></i><span>Live verification &amp; selfie</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="#" class="social-menu-item" id="bdCenterLink" style="display:none"><i class="fas fa-network-wired"></i><span>BD Center</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="#" class="social-menu-item" id="hierarchyLink" style="display:none"><i class="fas fa-sitemap"></i><span>Hierarchy</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="#" class="social-menu-item" id="agencyLink" style="display:none"><i class="fas fa-building"></i><span>Agency Center</span><i class="fas fa-chevron-right chevron"></i></a>
-    <a href="#" class="social-menu-item" id="dashLink"><i class="fas fa-th-large"></i><span>My Dashboard</span><i class="fas fa-chevron-right chevron"></i></a>
-    <a href="/customer-dashboard.html#bookings" class="social-menu-item"><i class="fas fa-calendar-check"></i><span>My Bookings</span><i class="fas fa-chevron-right chevron"></i></a>
+    <a href="#" class="social-menu-item" id="dashLink" style="display:none"><i class="fas fa-th-large"></i><span>My Dashboard</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="#" class="social-menu-item" id="editProfileMenuLink" style="display:none"><i class="fas fa-user-edit"></i><span>Edit Profile</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/store.html" class="social-menu-item"><i class="fas fa-store"></i><span>Store</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/vip.html" class="social-menu-item"><i class="fas fa-crown"></i><span>VIP Privileges</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/rankings.html" class="social-menu-item"><i class="fas fa-trophy"></i><span>Rankings</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/chat.html" class="social-menu-item"><i class="fas fa-comments"></i><span>Messages</span><i class="fas fa-chevron-right chevron"></i></a>
-    <a href="/services.html" class="social-menu-item"><i class="fas fa-tools"></i><span>Browse Services</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/become-a-pro.html" class="social-menu-item"><i class="fas fa-user-tie"></i><span>Become a Pro</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/help.html" class="social-menu-item"><i class="fas fa-question-circle"></i><span>Help</span><i class="fas fa-chevron-right chevron"></i></a>
-    <a href="/roles-guide.html?app=1" class="social-menu-item"><i class="fas fa-book"></i><span>Coin Seller &amp; Host Guide</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="#" class="social-menu-item" id="logoutBtn" style="display:none"><i class="fas fa-sign-out-alt"></i><span>Logout</span><i class="fas fa-chevron-right chevron"></i></a>
   </nav>
 
   <div id="social-bottom-nav-mount"></div>
 
   <script src="ap-config.js"></script>
-  <script src="app.js?v=20260715-badges-live"></script>
+  <script src="app.js?v=20260717-profile-menu"></script>
   <script src="social-wallet.js?v=20260715-wallet-fix"></script>
   <script src="social-ui.js?v=20260624-profile-url-fix"></script>
   <script src="social-interactions.js?v=20260624-profile-url-fix"></script>
@@ -591,23 +588,47 @@
             adminNotif.href = '/admin-dashboard.html?app=1#notifications';
           }
         }
+        const role = String(user.role || '').toLowerCase();
         const coinSellerLink = document.getElementById('coinSellerLink');
-        if (coinSellerLink) coinSellerLink.href = '/coin-seller-center.html?app=1';
+        if (coinSellerLink) {
+          coinSellerLink.href = '/coin-seller-center.html?app=1';
+          coinSellerLink.style.display = role === 'coin_seller' ? 'flex' : 'none';
+        }
         const hostCenterLink = document.getElementById('hostCenterLink');
-        if (hostCenterLink) hostCenterLink.href = '/streamer-center.html?app=1';
+        if (hostCenterLink) {
+          hostCenterLink.href = '/streamer-center.html?app=1';
+          /* Agency accounts use Agency Center, not Host tools */
+          hostCenterLink.style.display = role === 'agency' ? 'none' : 'flex';
+        }
+        const liveVerifyLink = document.getElementById('liveVerifyLink');
+        if (liveVerifyLink && role === 'agency') {
+          liveVerifyLink.style.display = 'none';
+        }
+        const roleApply = document.getElementById('roleApplyLink');
+        if (roleApply) {
+          const hideApply = ['agency', 'creator', 'coin_seller', 'bdm', 'admin', 'super_admin', 'founder', 'ceo'].includes(role);
+          roleApply.style.display = hideApply ? 'none' : 'flex';
+        }
         const myAgencyLink = document.getElementById('myAgencyLink');
-        if (myAgencyLink && ['creator', 'agency', 'admin', 'super_admin', 'founder', 'ceo'].includes(String(user.role || ''))) {
-          myAgencyLink.style.display = 'flex';
-          myAgencyLink.href = '/host-agency.html?app=1';
+        /* Hosts only — not agency / BD / admin accounts */
+        if (myAgencyLink) {
+          if (role === 'creator') {
+            myAgencyLink.style.display = 'flex';
+            myAgencyLink.href = '/host-agency.html?app=1';
+          } else {
+            myAgencyLink.style.display = 'none';
+          }
         }
         const agencyLink = document.getElementById('agencyLink');
-        if (['agency', 'admin', 'super_admin'].includes(user.role) && agencyLink) {
+        if (['agency', 'admin', 'super_admin'].includes(role) && agencyLink) {
           agencyLink.style.display = 'flex';
           agencyLink.href = '/agency-center.html?app=1';
         }
+        if (dash) dash.style.display = 'none';
+        if (btn) btn.style.display = 'none';
         const bdLink = document.getElementById('bdCenterLink');
         const hierLink = document.getElementById('hierarchyLink');
-        if (['bdm', 'admin', 'super_admin', 'founder', 'ceo'].includes(user.role)) {
+        if (['bdm', 'admin', 'super_admin', 'founder', 'ceo'].includes(role)) {
           if (bdLink) {
             bdLink.style.display = 'flex';
             bdLink.href = '/bd-center.html?app=1';
@@ -627,7 +648,7 @@
         const walletActs = document.getElementById('profileWalletActions');
         if (walletActs) walletActs.classList.add('is-visible');
         /* Show gift coins shell immediately for coin_seller role (balance fills in next) */
-        if (['coin_seller', 'admin', 'super_admin', 'founder', 'ceo'].includes(String(user.role || ''))) {
+        if (['coin_seller', 'admin', 'super_admin', 'founder', 'ceo'].includes(role)) {
           const giftLinkEarly = document.getElementById('statGiftCoinsLink');
           if (giftLinkEarly) {
             giftLinkEarly.classList.add('is-seller-visible');
@@ -654,8 +675,9 @@
             const pts = document.getElementById('statPoints');
             const giftEl = document.getElementById('statGiftCoins');
             const giftLink = document.getElementById('statGiftCoinsLink');
-            const liveRole = String(Auth.getUser?.()?.role || user.role || '');
+            const liveRole = String(Auth.getUser?.()?.role || user.role || '').toLowerCase();
             const sellerRoles = ['coin_seller', 'admin', 'super_admin', 'founder', 'ceo'];
+            const isCoinSeller = liveRole === 'coin_seller' || !!b.is_coin_seller;
             const showGiftCoins = sellerRoles.includes(liveRole) || !!b.is_coin_seller;
             const sellStock = Number(b.sell_inventory_coins ?? b.inventory_coins ?? 0);
             const walletCoins = Number(b.coin_balance || 0);
@@ -689,20 +711,16 @@
                 }
               }
             }
-            const balance = Number(b.coin_balance || 0);
-            const isSeller = sellerRoles.includes(liveRole) || b.is_coin_seller || balance >= 100000;
-            const roleApply = document.getElementById('roleApplyLink');
-            if (roleApply) {
-              if (isSeller && user.role === 'coin_seller') roleApply.style.display = 'none';
-              else if (isSeller) {
-                roleApply.querySelector('span').textContent = 'Coin Seller — open dashboard';
-                roleApply.href = '/coin-seller-center.html?app=1';
+            const coinSellerMenu = document.getElementById('coinSellerLink');
+            if (coinSellerMenu) {
+              coinSellerMenu.style.display = isCoinSeller ? 'flex' : 'none';
+              if (isCoinSeller) {
+                coinSellerMenu.querySelector('span').textContent = 'Coin Seller Center';
               }
             }
-            const coinSellerLink = document.getElementById('coinSellerLink');
-            if (coinSellerLink && isSeller) {
-              coinSellerLink.style.display = 'flex';
-              coinSellerLink.querySelector('span').textContent = 'Coin Seller Dashboard';
+            const applyLink = document.getElementById('roleApplyLink');
+            if (applyLink && (isCoinSeller || ['agency', 'creator', 'bdm', 'admin', 'super_admin', 'founder', 'ceo'].includes(liveRole))) {
+              applyLink.style.display = 'none';
             }
             /* Refresh role chips after wallet (coin seller flag may arrive here). */
             if (b.is_coin_seller != null && user) {
@@ -736,19 +754,9 @@
           const rows = await (SocialInteractions.fetchFollowersList?.(user.id) || Promise.resolve(SocialInteractions.getFollowersList(user.id)));
           SocialUI.openFollowSheet('followers', rows);
         });
-        btn.textContent = user.role === 'admin' ? 'Open Admin Dashboard' : 'Open Dashboard';
-        const isSocialApp = new URLSearchParams(location.search).get('app') === '1';
-        if (isSocialApp && ['coin_seller', 'creator', 'customer'].includes(user.role)) {
-          btn.style.display = 'none';
-          if (dash) dash.style.display = 'none';
-        } else {
-          btn.onclick = () => SocialShell.redirectToDashboard();
-          dash.onclick = (e) => { e.preventDefault(); SocialShell.redirectToDashboard(); };
-        }
-        if (user.role === 'admin') {
-          btn.style.display = '';
-          btn.onclick = () => SocialShell.redirectToDashboard();
-        }
+        /* Open Dashboard / My Dashboard removed from profile for social app */
+        if (btn) btn.style.display = 'none';
+        if (dash) dash.style.display = 'none';
         logout.style.display = 'flex';
         logout.onclick = (e) => { e.preventDefault(); Auth.logout(); };
       } else {
