@@ -787,8 +787,9 @@ html.ap-expo-app .chat-actions {
   display: flex;
   align-items: center;
   gap: 2px;
+  flex: 0 0 auto;
   flex-shrink: 0;
-  max-width: 48%;
+  max-width: none;
   overflow: visible;
   position: relative;
   z-index: 30;
@@ -851,13 +852,17 @@ html.ap-expo-app .messages-container {
   background: #f3f4f6;
   padding: 12px;
   display: block;
+  overflow-x: hidden !important;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 html.ap-expo-app .message-bubble {
   box-sizing: border-box;
-  width: fit-content;
-  max-width: min(82vw, 320px);
-  min-width: 0;
+  flex: 0 1 auto;
+  width: auto !important;
+  max-width: min(72vw, 280px) !important;
+  min-width: 0 !important;
   overflow: hidden;
 }
 
@@ -868,6 +873,7 @@ html.ap-expo-app .message-wrapper {
   display: flex;
   margin-bottom: 10px;
   box-sizing: border-box;
+  overflow: hidden;
 }
 
 html.ap-expo-app .message-bubble.sent,
@@ -883,33 +889,88 @@ html.ap-expo-app .message-wrapper.received .message-bubble {
   border: none;
 }
 
-/* Force long DM text to wrap inside the bubble (not stretch the thread) */
+/* Force long DM text to wrap inside the bubble (not stretch the thread).
+   Use vw — NOT % — so a long line cannot expand the parent and break max-width. */
+body.chat-active .messages-container,
 body.chat-active .messages-stack,
-body.chat-active .message-wrapper,
 html.ap-expo-app .messages-stack,
-html.ap-expo-app .message-wrapper {
-  max-width: 100%;
-  min-width: 0;
+html.ap-expo-app .messages-container {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  overflow-x: hidden !important;
+  box-sizing: border-box !important;
+}
+
+body.chat-active .message-wrapper,
+html.ap-expo-app .message-wrapper,
+.message-wrapper {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
 }
 
 body.chat-active .message-bubble,
 html.ap-expo-app .message-bubble,
-.message-bubble {
-  box-sizing: border-box;
-  width: fit-content;
-  max-width: min(82%, 320px) !important;
+.message-bubble,
+.message-bubble.sent,
+.message-bubble.received {
+  box-sizing: border-box !important;
+  flex: 0 1 auto !important;
+  width: auto !important;
+  max-width: min(72vw, 280px) !important;
   min-width: 0 !important;
-  overflow: hidden;
+  overflow: hidden !important;
 }
 
 body.chat-active .message-content,
 html.ap-expo-app .message-content,
 .message-content {
+  display: block !important;
+  width: 100% !important;
   max-width: 100% !important;
   min-width: 0 !important;
+  box-sizing: border-box !important;
   overflow-wrap: anywhere !important;
   word-break: break-word !important;
   white-space: pre-wrap !important;
+  hyphens: auto;
+}
+
+/* Keep header Gift / ⋮ / Profile on-screen even with long names */
+html.ap-expo-app .chat-header,
+body.chat-active .chat-header {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow: visible;
+}
+
+html.ap-expo-app .chat-user-info,
+body.chat-active .chat-user-info {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+
+html.ap-expo-app .chat-user-details h3 {
+  max-width: 100% !important;
+}
+
+html.ap-expo-app .chat-actions,
+body.chat-active .chat-actions {
+  display: flex !important;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto !important;
+  flex-shrink: 0 !important;
+  max-width: none !important;
+  overflow: visible !important;
+  position: relative;
+  z-index: 30;
 }
 
 .ap-msg-quick-row {
