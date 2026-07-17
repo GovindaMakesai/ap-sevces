@@ -49,6 +49,18 @@ exports.submitApplication = async (req, res) => {
       contactPhone: req.body.contact_phone || req.body.phone,
       agencyName: req.body.agency_name || req.body.agencyName || req.body.name,
       promoCode: req.body.promo_code || req.body.promoCode || req.body.code,
+      bdPromoCode:
+        req.body.bd_promo_code ||
+        req.body.bdPromoCode ||
+        req.body.bd_code ||
+        req.body.bdCode,
+      agencyInviteCode:
+        req.body.agency_invite_code ||
+        req.body.agencyInviteCode ||
+        req.body.agency_code ||
+        req.body.agencyCode ||
+        req.body.parent_agency_code ||
+        req.body.parentAgencyCode,
     });
     res.status(201).json({
       success: true,

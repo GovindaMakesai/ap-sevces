@@ -91,7 +91,7 @@
 
     function applyUrl() {
       if (!inviteMeta?.code) return location.origin + '/role-apply.html?role=agency&app=1';
-      return location.origin + '/role-apply.html?role=agency&promo=' +
+      return location.origin + '/role-apply.html?role=agency&agency_code=' +
         encodeURIComponent(inviteMeta.code) + '&app=1';
     }
 
@@ -103,7 +103,7 @@
         inviteMeta = res.data || {};
         if (codeEl) codeEl.textContent = inviteMeta.code || '—';
         if (hint) {
-          hint.textContent = 'Share this code with people applying as Agency under your network.';
+          hint.textContent = 'Share this Agency invite code. Applicants also need the matching BD promo code.';
         }
       } catch (e) {
         if (hint) hint.textContent = e.message || 'Could not load invite code';
@@ -124,7 +124,7 @@
     document.getElementById('iaShare')?.addEventListener('click', async () => {
       if (!inviteMeta?.code) await loadInviteCode();
       const url = applyUrl();
-      const text = `Join my agency network on AP Services as an Agency. Apply here: ${url}`;
+      const text = `Join my agency network on AP Services as an Agency. Use my Agency invite code ${inviteMeta?.code || ''} plus your BD promo code. Apply here: ${url}`;
       if (navigator.share) {
         try {
           await navigator.share({ title: 'Invite Agency', text, url });

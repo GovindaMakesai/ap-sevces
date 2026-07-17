@@ -169,6 +169,7 @@ async function bdReviewApplication(bdUserId, applicationId, { decision, reason, 
       name,
       ownerUserId: app.user_id,
       bdUserId,
+      parentAgencyId: app.target_agency_id || null,
       commissionPercent: 20,
     });
     await db.query(
@@ -178,6 +179,7 @@ async function bdReviewApplication(bdUserId, applicationId, { decision, reason, 
       [applicationId, bdUserId]
     );
     await bumpPromoUse(app.promo_code);
+    if (app.target_agency_id) await bumpAgencyInviteUseByAgencyId(app.target_agency_id);
     await audit(bdUserId, 'bd.approve_agency', 'application', applicationId, { agencyId: agency.id });
     const Notification = require('../models/Notification');
     await Notification.create({
@@ -384,16 +386,24 @@ async function createAgencyUnderBd({
   name,
   ownerUserId,
   bdUserId = null,
+  parentAgencyId = null,
   commissionPercent = 20,
 }) {
   const agency = await agencyService.createAgency({
     name,
     ownerUserId,
+    parentAgencyId: parentAgencyId || null,
     commissionPercent,
   });
   await permissionService.syncUserRole(ownerUserId, 'agency');
   if (bdUserId) {
     await assignAgencyToBd(actorUserId, agency.id, bdUserId);
+  } else if (parentAgencyId) {
+    /* Inherit BD from parent agency when not explicitly provided */
+    const parent = await db.query(`SELECT bd_user_id FROM agencies WHERE id = $1`, [parentAgencyId]);
+    if (parent.rows[0]?.bd_user_id) {
+      await assignAgencyToBd(actorUserId, agency.id, parent.rows[0].bd_user_id);
+    }
   }
   await ensureAgencyInviteCode(agency.id, actorUserId);
   return getAgencyDetail(agency.id);
@@ -828,6 +838,16 @@ async function bumpAgencyInviteUse(code) {
   );
 }
 
+async function bumpAgencyInviteUseByAgencyId(agencyId) {
+  if (!agencyId) return;
+  await db.query(
+    `UPDATE agency_invite_codes
+     SET use_count = use_count + 1, updated_at = CURRENT_TIMESTAMP
+     WHERE agency_id = $1 AND active = TRUE`,
+    [agencyId]
+  );
+}
+
 async function getAgencyOwnedByUser(ownerUserId) {
   const res = await db.query(
     `SELECT * FROM agencies WHERE owner_user_id = $1 AND status = 'active' ORDER BY created_at DESC LIMIT 1`,
@@ -1101,6 +1121,7 @@ module.exports = {
   ensureAgencyInviteCode,
   resolveAgencyInviteCode,
   bumpAgencyInviteUse,
+  bumpAgencyInviteUseByAgencyId,
   getAgencyInviteForOwner,
   inviteHostToAgency,
   respondToAgencyHostInvite,
