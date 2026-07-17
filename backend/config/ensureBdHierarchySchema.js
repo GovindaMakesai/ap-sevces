@@ -30,6 +30,7 @@ async function ensureBdHierarchySchema() {
     await runSqlFile(client, '010_bd_hierarchy.sql');
     await runSqlFile(client, '014_bd_promo_codes.sql');
     await runSqlFile(client, '016_agency_host_invites.sql');
+    await runSqlFile(client, '017_hierarchy_manage.sql');
     await client.query('COMMIT');
     console.log('✅ BD hierarchy + promo + agency invite schema ready');
   } catch (err) {

@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#f7f7fb">
+  <title>Invite Agency - AP Services</title>
+  <script src="/ap-native-boot.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="social-theme.css?v=20260717-agency-flow">
+  <link rel="stylesheet" href="coin-seller.css?v=20260717-agency-flow">
+  <link rel="stylesheet" href="mobile-app.css">
+  <style>
+    .ia-hero {
+      margin: 14px;
+      padding: 18px 16px;
+      border-radius: 20px;
+      color: #fff;
+      background: linear-gradient(145deg, #3b82f6, #6366f1 55%, #8b5cf6);
+      box-shadow: 0 10px 24px rgba(59, 130, 246, .25);
+    }
+    .ia-hero h2 { margin: 0 0 6px; font-size: 18px; font-weight: 800; }
+    .ia-hero p { margin: 0; font-size: 13px; line-height: 1.45; opacity: .95; }
+    .ia-actions {
+      display: flex; gap: 10px; padding: 0 14px 8px;
+    }
+    .ia-actions button {
+      flex: 1; border: none; border-radius: 14px; padding: 12px 10px;
+      font-weight: 800; font-size: 13px; cursor: pointer;
+      background: #fff; color: #1e3a8a;
+      box-shadow: 0 2px 8px rgba(0,0,0,.05);
+    }
+    .ia-actions button.primary {
+      background: linear-gradient(135deg, #60a5fa, #3b82f6);
+      color: #fff;
+    }
+    .ia-hint {
+      margin: 0 16px 16px; font-size: 12px; color: #8b8b9a; line-height: 1.4;
+    }
+    .ia-code {
+      margin: 0 14px 18px; padding: 14px; border-radius: 16px; background: #fff;
+      box-shadow: 0 2px 8px rgba(0,0,0,.04); text-align: center;
+    }
+    .ia-code .lbl { font-size: 12px; color: #8b8b9a; font-weight: 600; }
+    .ia-code code {
+      display: inline-block; margin-top: 8px; font-size: 22px; font-weight: 900;
+      letter-spacing: .08em; color: #1e3a8a;
+    }
+  </style>
+</head>
+<body class="cs-page">
+  <header class="cs-header">
+    <a href="/agency-center.html?app=1" aria-label="Back"><i class="fas fa-chevron-left"></i></a>
+    <h1>Invite Agency</h1>
+    <span style="width:36px"></span>
+  </header>
+
+  <div class="ia-hero">
+    <h2>Grow with sub-agencies</h2>
+    <p>Invite another agency under yours. They manage their own hosts while you earn Invite Agency Income.</p>
+  </div>
+
+  <div class="ia-code">
+    <div class="lbl">Your agency invite code</div>
+    <code id="iaCode">······</code>
+  </div>
+
+  <div class="ia-actions">
+    <button type="button" class="primary" id="iaShare"><i class="fas fa-paper-plane"></i> Share link</button>
+    <button type="button" id="iaCopy"><i class="fas fa-copy"></i> Copy code</button>
+  </div>
+  <p class="ia-hint" id="iaHint">Loading invite code…</p>
+
+  <div style="padding:0 14px 24px">
+    <div class="cs-field">
+      <label>User ID or email (optional)</label>
+      <input type="text" id="iaUserRef" placeholder="Public User ID or email">
+    </div>
+    <button type="button" class="cs-submit" id="iaInviteBtn" style="background:linear-gradient(135deg,#60a5fa,#3b82f6)">
+      Send invite message
+    </button>
+    <p class="ia-hint" style="margin:10px 0 0">Sends a chat invite so they can apply as Agency under you.</p>
+  </div>
+
+  <script src="ap-config.js"></script>
+  <script src="config.js"></script>
+  <script src="app.js?v=20260717-agency-flow"></script>
+  <script src="auth-guard.js"></script>
+  <script>
+    let inviteMeta = null;
+
+    function applyUrl() {
+      if (!inviteMeta?.code) return location.origin + '/role-apply.html?role=agency&app=1';
+      return location.origin + '/role-apply.html?role=agency&promo=' +
+        encodeURIComponent(inviteMeta.code) + '&app=1';
+    }
+
+    async function loadInviteCode() {
+      const hint = document.getElementById('iaHint');
+      const codeEl = document.getElementById('iaCode');
+      try {
+        const res = await API.get('/agency/invite-code');
+        inviteMeta = res.data || {};
+        if (codeEl) codeEl.textContent = inviteMeta.code || '—';
+        if (hint) {
+          hint.textContent = 'Share this code with people applying as Agency under your network.';
+        }
+      } catch (e) {
+        if (hint) hint.textContent = e.message || 'Could not load invite code';
+      }
+    }
+
+    document.getElementById('iaCopy')?.addEventListener('click', async () => {
+      if (!inviteMeta?.code) await loadInviteCode();
+      if (!inviteMeta?.code) return alert('Invite code unavailable');
+      try {
+        await navigator.clipboard?.writeText(inviteMeta.code);
+        alert('Invite code copied: ' + inviteMeta.code);
+      } catch (_e) {
+        prompt('Copy this code:', inviteMeta.code);
+      }
+    });
+
+    document.getElementById('iaShare')?.addEventListener('click', async () => {
+      if (!inviteMeta?.code) await loadInviteCode();
+      const url = applyUrl();
+      const text = `Join my agency network on AP Services as an Agency. Apply here: ${url}`;
+      if (navigator.share) {
+        try {
+          await navigator.share({ title: 'Invite Agency', text, url });
+          return;
+        } catch (_e) { /* fall through */ }
+      }
+      try {
+        await navigator.clipboard?.writeText(url);
+        alert('Invite link copied:\n' + url);
+      } catch (_e) {
+        prompt('Copy invite link:', url);
+      }
+    });
+
+    document.getElementById('iaInviteBtn')?.addEventListener('click', async () => {
+      const id = document.getElementById('iaUserRef').value.trim();
+      if (!id) return alert('Enter public User ID or email, or use Share link / Copy code');
+      if (!inviteMeta?.code) await loadInviteCode();
+      const btn = document.getElementById('iaInviteBtn');
+      btn.disabled = true;
+      try {
+        /* Reuse host invite channel for now — message includes agency apply link */
+        const res = await API.post('/agency/invite-host', {
+          user_ref: id,
+          message: 'You are invited to join as an Agency under our network. Open the apply link and choose Agency.',
+        });
+        alert(res.message || 'Invite sent. Ask them to apply as Agency with your code.');
+        document.getElementById('iaUserRef').value = '';
+      } catch (e) {
+        alert(e.message || 'Invite failed — use Share link instead');
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    (async function init() {
+      Auth.checkAuth();
+      if (!Auth.hasSession?.()) {
+        location.href = '/login.html?redirect=' + encodeURIComponent('/invite-agency.html?app=1');
+        return;
+      }
+      await loadInviteCode();
+    })();
+  </script>
+</body>
+</html>

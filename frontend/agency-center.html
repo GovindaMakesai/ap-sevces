@@ -2,79 +2,346 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#ff8c00">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#f7f7fb">
   <title>Agency Center - AP Services</title>
   <script src="/ap-native-boot.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-theme.css?v=20260713-hierarchy">
-  <link rel="stylesheet" href="coin-seller.css">
+  <link rel="stylesheet" href="social-theme.css?v=20260717-agency-flow">
+  <link rel="stylesheet" href="coin-seller.css?v=20260717-agency-flow">
+  <link rel="stylesheet" href="mobile-app.css">
   <style>
-    .ag-rewards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 12px; }
-    .ag-reward-card {
-      background: linear-gradient(135deg, #ff9800, #ff5722);
-      color: #fff; border-radius: 14px; padding: 14px; text-align: center;
+    :root {
+      --ag-purple: #7b2ff7;
+      --ag-pink: #f107a3;
+      --ag-card: #ffffff;
+      --ag-muted: #8b8b9a;
+      --ag-text: #1c1c28;
+      --ag-line: #eeeef3;
     }
-    .ag-reward-card strong { display: block; font-size: 22px; margin: 8px 0; }
-    .ag-mgmt { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; padding: 0 12px 12px; text-align: center; }
-    .ag-mgmt button { border: none; border-radius: 999px; padding: 6px 8px; font-size: 10px; font-weight: 700; color: #fff; cursor: pointer; }
-    .ag-mgmt .pink { background: #ec4899; } .ag-mgmt .grey { background: #9ca3af; }
-    .ag-host-list { padding: 0 12px 24px; }
-    .ag-host-item {
-      display: flex; align-items: center; gap: 10px; background: #fff; border-radius: 12px;
-      padding: 10px 12px; margin-bottom: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.05);
+    body.cs-page.ag-flow {
+      background: #f7f7fb;
+      padding-bottom: calc(28px + env(safe-area-inset-bottom, 0px));
     }
-    .ag-host-item .av {
-      width: 36px; height: 36px; border-radius: 50%; background: #fde68a;
-      display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 12px;
+    .ag-flow .cs-header {
+      background: #fff;
+      border-bottom: none;
+      box-shadow: 0 1px 0 rgba(0,0,0,.04);
     }
+    .ag-flow .cs-header h1 { font-size: 17px; font-weight: 800; }
+
+    .ag-hero {
+      background: #fff;
+      padding: 14px 16px 18px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    .ag-hero .av {
+      width: 58px; height: 58px; border-radius: 50%;
+      background: linear-gradient(135deg, #f3e8ff, #fce7f3);
+      color: var(--ag-purple);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 18px; flex-shrink: 0;
+      overflow: hidden;
+    }
+    .ag-hero .av img { width: 100%; height: 100%; object-fit: cover; }
+    .ag-hero .meta { flex: 1; min-width: 0; }
+    .ag-hero .name-row {
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    }
+    .ag-hero h2 {
+      margin: 0; font-size: 16px; font-weight: 800; color: var(--ag-text);
+      max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .ag-pill {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: linear-gradient(135deg, #8b5cf6, #a855f7);
+      color: #fff; font-size: 11px; font-weight: 700;
+      padding: 3px 9px; border-radius: 999px;
+    }
+    .ag-id-row, .ag-agency-row {
+      margin-top: 6px; font-size: 12px; color: var(--ag-muted);
+      display: flex; align-items: center; gap: 6px;
+    }
+    .ag-id-row button, .ag-agency-row button {
+      border: none; background: none; padding: 0; color: #a78bfa;
+      cursor: pointer; font-size: 12px;
+    }
+
+    .ag-income {
+      margin: 0 14px 16px;
+      border-radius: 22px;
+      padding: 18px 16px 14px;
+      color: #fff;
+      background:
+        radial-gradient(circle at 88% 18%, rgba(255,215,120,.35), transparent 28%),
+        linear-gradient(145deg, #6d28d9 0%, #9333ea 42%, #db2777 100%);
+      box-shadow: 0 12px 28px rgba(124, 58, 237, .28);
+      position: relative;
+      overflow: hidden;
+    }
+    .ag-income::after {
+      content: "";
+      position: absolute; right: -20px; bottom: -30px;
+      width: 140px; height: 140px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(255,210,90,.35), transparent 70%);
+      pointer-events: none;
+    }
+    .ag-income-label { font-size: 13px; opacity: .92; font-weight: 600; }
+    .ag-income-total {
+      display: flex; align-items: center; gap: 8px;
+      margin: 8px 0 10px; font-size: 34px; font-weight: 900; letter-spacing: -.02em;
+    }
+    .ag-income-total .bean {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: linear-gradient(145deg, #ffe566, #f5b800);
+      box-shadow: inset 0 -2px 0 rgba(0,0,0,.12);
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 14px; color: #8a5a00;
+    }
+    .ag-range {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(255,255,255,.18);
+      border: 1px solid rgba(255,255,255,.22);
+      border-radius: 999px; padding: 5px 12px;
+      font-size: 12px; font-weight: 600; cursor: pointer;
+      backdrop-filter: blur(6px);
+    }
+    .ag-income-rows { margin-top: 14px; display: grid; gap: 8px; position: relative; z-index: 1; }
+    .ag-income-row {
+      display: flex; align-items: center; gap: 10px;
+      background: rgba(0,0,0,.18);
+      border-radius: 14px; padding: 10px 12px;
+    }
+    .ag-income-row .ico {
+      width: 34px; height: 34px; border-radius: 10px;
+      background: rgba(255,255,255,.16);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px;
+    }
+    .ag-income-row .txt { flex: 1; min-width: 0; }
+    .ag-income-row .txt span { display: block; font-size: 12px; opacity: .9; }
+    .ag-income-row .txt strong { font-size: 18px; font-weight: 800; }
+    .ag-income-row .go {
+      width: 30px; height: 30px; border-radius: 50%;
+      border: none; background: rgba(255,255,255,.92); color: #7c3aed;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+    }
+
+    .ag-section { padding: 4px 14px 8px; }
+    .ag-section h3 {
+      margin: 0 0 10px; font-size: 16px; font-weight: 800; color: var(--ag-text);
+    }
+    .ag-invite-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+    }
+    .ag-invite-card {
+      border-radius: 18px; padding: 14px 12px 12px;
+      background: #fff; box-shadow: 0 2px 10px rgba(28,28,40,.04);
+    }
+    .ag-invite-card.pink { background: linear-gradient(180deg, #fff1f7, #ffe4ef); }
+    .ag-invite-card.blue { background: linear-gradient(180deg, #eef6ff, #e0efff); }
+    .ag-invite-card .lbl { font-size: 12px; color: #6b7280; font-weight: 600; }
+    .ag-invite-card .num {
+      margin: 8px 0 12px; font-size: 28px; font-weight: 900; color: var(--ag-text);
+    }
+    .ag-invite-card button {
+      width: 100%; border: none; border-radius: 999px;
+      padding: 9px 10px; font-size: 12px; font-weight: 800; cursor: pointer;
+    }
+    .ag-invite-card.pink button { background: #f9a8d4; color: #9d174d; }
+    .ag-invite-card.blue button { background: #93c5fd; color: #1e3a8a; }
+
+    .ag-menu { padding: 8px 14px 24px; display: grid; gap: 10px; }
+    .ag-menu-item {
+      display: flex; align-items: center; gap: 12px;
+      background: #fff; border-radius: 16px; padding: 14px 14px;
+      text-decoration: none; color: var(--ag-text);
+      box-shadow: 0 2px 10px rgba(28,28,40,.04);
+      border: none; width: 100%; cursor: pointer; text-align: left;
+      font: inherit;
+    }
+    .ag-menu-item .ico {
+      width: 40px; height: 40px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; color: #fff; flex-shrink: 0;
+    }
+    .ag-menu-item .ico.host { background: linear-gradient(135deg, #f472b6, #ec4899); }
+    .ag-menu-item .ico.agency { background: linear-gradient(135deg, #60a5fa, #3b82f6); }
+    .ag-menu-item .ico.app { background: linear-gradient(135deg, #a78bfa, #8b5cf6); }
+    .ag-menu-item .label { flex: 1; font-size: 15px; font-weight: 700; }
+    .ag-menu-item .badge {
+      min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px;
+      background: #ef4444; color: #fff; font-size: 11px; font-weight: 800;
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+    .ag-menu-item .arrow {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: #f3f4f6; color: #6b7280;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px;
+    }
+
+    .ag-panel { display: none; padding: 0 14px 28px; }
+    .ag-panel.active { display: block; }
+    .ag-home.active { display: block; }
+    .ag-home { display: none; }
+    .ag-panel-head {
+      display: flex; align-items: center; gap: 10px;
+      margin: 4px 0 14px;
+    }
+    .ag-panel-head button {
+      border: none; background: #fff; width: 36px; height: 36px; border-radius: 50%;
+      box-shadow: 0 1px 4px rgba(0,0,0,.06); cursor: pointer; color: var(--ag-text);
+    }
+    .ag-panel-head h2 { margin: 0; font-size: 16px; font-weight: 800; }
+
+    .ag-list-item {
+      display: flex; align-items: center; gap: 10px;
+      background: #fff; border-radius: 14px; padding: 12px;
+      margin-bottom: 8px; box-shadow: 0 1px 4px rgba(0,0,0,.04);
+    }
+    .ag-list-item .av {
+      width: 40px; height: 40px; border-radius: 50%;
+      background: #f3e8ff; color: #7c3aed;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 12px; flex-shrink: 0; overflow: hidden;
+    }
+    .ag-list-item .av img { width: 100%; height: 100%; object-fit: cover; }
+    .ag-list-item .meta { flex: 1; min-width: 0; }
+    .ag-list-item .meta strong { display: block; font-size: 14px; }
+    .ag-list-item .meta small { color: var(--ag-muted); font-size: 11px; }
+    .ag-list-item .actions { display: flex; gap: 6px; }
+    .ag-list-item .actions button {
+      border: none; border-radius: 999px; padding: 6px 12px;
+      font-size: 11px; font-weight: 700; color: #fff; cursor: pointer;
+    }
+    .ag-list-item .actions .ok { background: #16a34a; }
+    .ag-list-item .actions .no { background: #9ca3af; }
+    .ag-empty { color: var(--ag-muted); font-size: 13px; padding: 18px 4px; text-align: center; }
   </style>
 </head>
-<body class="cs-page">
+<body class="cs-page ag-flow">
   <header class="cs-header">
-    <a href="/profile-tab.html?app=1"><i class="fas fa-arrow-left"></i></a>
-    <h1>Agency Center</h1>
+    <a href="/profile-tab.html?app=1" aria-label="Back" id="agBackHome"><i class="fas fa-chevron-left"></i></a>
+    <h1 id="agTitle">Agency Center</h1>
     <span style="width:36px"></span>
   </header>
 
-  <div class="cs-profile">
-    <div class="cs-avatar" id="agAvatar">AG</div>
-    <div class="cs-profile-info">
-      <h2 id="agName">—</h2>
-      <span class="cs-badge">🟨 Agency</span>
-      <div class="cs-id">ID: <span id="agUserId">—</span></div>
-      <div class="cs-id" id="agAgencyName" style="margin-top:4px;color:#666"></div>
+  <div class="ag-home active" id="agHome">
+    <section class="ag-hero">
+      <div class="av" id="agAvatar">AG</div>
+      <div class="meta">
+        <div class="name-row">
+          <h2 id="agName">—</h2>
+          <span class="ag-pill"><i class="fas fa-sitemap"></i> Agency</span>
+        </div>
+        <div class="ag-id-row">
+          ID: <span id="agUserId">—</span>
+          <button type="button" id="agCopyId" aria-label="Copy ID"><i class="far fa-copy"></i></button>
+        </div>
+        <div class="ag-agency-row">
+          Agency name: <span id="agAgencyName">—</span>
+          <button type="button" id="agEditName" aria-label="Edit agency name"><i class="fas fa-pen"></i></button>
+        </div>
+      </div>
+    </section>
+
+    <section class="ag-income">
+      <div class="ag-income-label">Total Income</div>
+      <div class="ag-income-total">
+        <span class="bean"><i class="fas fa-coins"></i></span>
+        <span id="agTotalIncome">0</span>
+      </div>
+      <button type="button" class="ag-range" id="agDateRange">
+        <span id="agDateLabel">—</span>
+        <i class="fas fa-chevron-down" style="font-size:10px"></i>
+      </button>
+      <div class="ag-income-rows">
+        <div class="ag-income-row">
+          <div class="ico"><i class="fas fa-building"></i></div>
+          <div class="txt">
+            <span>My Agency Income</span>
+            <strong id="agMyIncome">0</strong>
+          </div>
+          <button type="button" class="go" data-panel="hosts" aria-label="Details"><i class="fas fa-chevron-right"></i></button>
+        </div>
+        <div class="ag-income-row">
+          <div class="ico"><i class="fas fa-hand-holding-dollar"></i></div>
+          <div class="txt">
+            <span>Invite Agency Income</span>
+            <strong id="agInviteIncome">0</strong>
+          </div>
+          <button type="button" class="go" data-panel="agencies" aria-label="Details"><i class="fas fa-chevron-right"></i></button>
+        </div>
+      </div>
+    </section>
+
+    <section class="ag-section">
+      <h3>Invitation</h3>
+      <div class="ag-invite-grid">
+        <div class="ag-invite-card pink">
+          <div class="lbl">Number of Hosts</div>
+          <div class="num" id="agHostCount">0</div>
+          <button type="button" onclick="location.href='/add-creator.html?app=1'">Invite Host</button>
+        </div>
+        <div class="ag-invite-card blue">
+          <div class="lbl">Number of Invite Agency</div>
+          <div class="num" id="agAgencyCount">0</div>
+          <button type="button" onclick="location.href='/invite-agency.html?app=1'">Invite Agency</button>
+        </div>
+      </div>
+    </section>
+
+    <nav class="ag-menu">
+      <button type="button" class="ag-menu-item" data-panel="hosts">
+        <span class="ico host"><i class="fas fa-microphone"></i></span>
+        <span class="label">Host List</span>
+        <span class="arrow"><i class="fas fa-chevron-right"></i></span>
+      </button>
+      <button type="button" class="ag-menu-item" data-panel="agencies">
+        <span class="ico agency"><i class="fas fa-project-diagram"></i></span>
+        <span class="label">Invite Agency List</span>
+        <span class="arrow"><i class="fas fa-chevron-right"></i></span>
+      </button>
+      <button type="button" class="ag-menu-item" data-panel="applications">
+        <span class="ico app"><i class="fas fa-award"></i></span>
+        <span class="label">Host Application</span>
+        <span class="badge" id="agPendingBadge" hidden>0</span>
+        <span class="arrow"><i class="fas fa-chevron-right"></i></span>
+      </button>
+    </nav>
+  </div>
+
+  <section class="ag-panel" id="panel-hosts">
+    <div class="ag-panel-head">
+      <button type="button" data-back aria-label="Back"><i class="fas fa-chevron-left"></i></button>
+      <h2>Host List</h2>
     </div>
-  </div>
+    <div id="agHosts"><p class="ag-empty">Loading…</p></div>
+  </section>
 
-  <div class="ag-rewards">
-    <div class="ag-reward-card"><span>Month revenue</span><strong id="agCommission">0</strong><span style="opacity:.85;font-size:11px">coins</span></div>
-    <div class="ag-reward-card"><span>Month gifts</span><strong id="agGifts">0</strong><span style="opacity:.85;font-size:11px">settled</span></div>
-  </div>
+  <section class="ag-panel" id="panel-agencies">
+    <div class="ag-panel-head">
+      <button type="button" data-back aria-label="Back"><i class="fas fa-chevron-left"></i></button>
+      <h2>Invite Agency List</h2>
+    </div>
+    <div id="agAgencies"><p class="ag-empty">Loading…</p></div>
+  </section>
 
-  <div class="ag-mgmt">
-    <div><strong id="agAllHosts">0</strong><div>All hosts</div><button class="pink" onclick="location.href='/add-creator.html?app=1'">+ Host</button></div>
-    <div><strong id="agActiveHosts">0</strong><div>Active hosts</div><button class="grey" onclick="document.getElementById('hostList').scrollIntoView({behavior:'smooth'})">Details</button></div>
-  </div>
-
-  <div class="cs-stats" style="margin-top:12px">
-    <div class="cs-date-range">Commission · Configurable gift split (default 20% agency)</div>
-    <p style="font-size:12px;color:#666;margin:12px 0 0">Manage hosts, track commissions, and grow your agency network.</p>
-  </div>
-
-  <div class="ag-host-list" id="pendingHostList" style="padding-top:8px">
-    <h3 style="padding:8px 12px;font-size:14px">Pending host requests</h3>
-    <div id="agPendingHosts" style="padding:0 12px 12px"><p style="color:#999;font-size:13px">Loading…</p></div>
-  </div>
-
-  <div class="ag-host-list" id="hostList">
-    <h3 style="padding:8px 0;font-size:14px">Hosts</h3>
-    <div id="agHosts"><p style="color:#999;font-size:13px">Loading…</p></div>
-  </div>
+  <section class="ag-panel" id="panel-applications">
+    <div class="ag-panel-head">
+      <button type="button" data-back aria-label="Back"><i class="fas fa-chevron-left"></i></button>
+      <h2>Host Application</h2>
+    </div>
+    <div id="agPendingHosts"><p class="ag-empty">Loading…</p></div>
+  </section>
 
   <script src="ap-config.js"></script>
   <script src="config.js"></script>
-  <script src="app.js?v=20260713-hierarchy"></script>
+  <script src="app.js?v=20260717-agency-flow"></script>
   <script src="auth-guard.js"></script>
   <script>
     (async function () {
@@ -86,71 +353,171 @@
         location.href = '/profile-tab.html?app=1';
         return;
       }
+
+      const home = document.getElementById('agHome');
+      const titleEl = document.getElementById('agTitle');
+      const panels = {
+        hosts: document.getElementById('panel-hosts'),
+        agencies: document.getElementById('panel-agencies'),
+        applications: document.getElementById('panel-applications'),
+      };
+
+      function showHome() {
+        home.classList.add('active');
+        Object.values(panels).forEach((p) => p.classList.remove('active'));
+        titleEl.textContent = 'Agency Center';
+        history.replaceState(null, '', location.pathname + location.search);
+      }
+
+      function showPanel(key) {
+        const panel = panels[key];
+        if (!panel) return;
+        home.classList.remove('active');
+        Object.values(panels).forEach((p) => p.classList.remove('active'));
+        panel.classList.add('active');
+        titleEl.textContent = {
+          hosts: 'Host List',
+          agencies: 'Invite Agency List',
+          applications: 'Host Application',
+        }[key] || 'Agency Center';
+        history.replaceState(null, '', location.pathname + location.search + '#' + key);
+      }
+
+      document.querySelectorAll('[data-panel]').forEach((el) => {
+        el.addEventListener('click', () => showPanel(el.getAttribute('data-panel')));
+      });
+      document.querySelectorAll('[data-back]').forEach((el) => {
+        el.addEventListener('click', showHome);
+      });
+      document.getElementById('agBackHome')?.addEventListener('click', (e) => {
+        if (!home.classList.contains('active')) {
+          e.preventDefault();
+          showHome();
+        }
+      });
+
       const name = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Agency';
-      document.getElementById('agAvatar').textContent = name.slice(0, 2).toUpperCase();
+      const av = document.getElementById('agAvatar');
+      if (user.profile_pic) {
+        av.innerHTML = `<img src="${user.profile_pic}" alt="">`;
+      } else {
+        av.textContent = name.slice(0, 2).toUpperCase();
+      }
       document.getElementById('agName').textContent = name;
-      document.getElementById('agUserId').textContent =
-        window.formatUserDisplayId?.(user) || user.display_id || '—';
+      const displayId = window.formatUserDisplayId?.(user) || user.display_id || '—';
+      document.getElementById('agUserId').textContent = displayId;
+
+      const now = new Date();
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      document.getElementById('agDateLabel').textContent = `${mm}/01 - ${mm}/${String(lastDay).padStart(2, '0')}`;
+      document.getElementById('agDateRange')?.addEventListener('click', () => {
+        alert('Showing current month income. More date ranges coming soon.');
+      });
+
+      document.getElementById('agCopyId')?.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard?.writeText(String(displayId));
+          alert('ID copied');
+        } catch (_e) {
+          prompt('Copy ID:', String(displayId));
+        }
+      });
+
+      document.getElementById('agEditName')?.addEventListener('click', () => {
+        const current = document.getElementById('agAgencyName').textContent || '';
+        const next = prompt('Agency name', current === '—' ? '' : current);
+        if (next == null) return;
+        const trimmed = String(next).trim().slice(0, 80);
+        if (!trimmed) return;
+        document.getElementById('agAgencyName').textContent = trimmed;
+        alert('Name updated on this screen. Server rename will sync in a later update.');
+      });
+
+      function personItem(h, extraHtml = '') {
+        const n = `${h.first_name || ''} ${h.last_name || ''}`.trim() || 'User';
+        const avHtml = h.profile_pic
+          ? `<img src="${h.profile_pic}" alt="">`
+          : n.slice(0, 2).toUpperCase();
+        return `<div class="ag-list-item">
+          <div class="av">${avHtml}</div>
+          <div class="meta">
+            <strong>${n}</strong>
+            <small>ID ${h.display_id || '—'}</small>
+          </div>
+          ${extraHtml}
+        </div>`;
+      }
 
       try {
         const res = await API.get('/agency/dashboard');
         const d = res.data || {};
         const agency = d.agency || {};
-        document.getElementById('agAgencyName').textContent = agency.name
-          ? `Agency: ${agency.name}`
-          : '';
-        document.getElementById('agCommission').textContent =
-          Number(d.monthRevenueCoins || 0).toLocaleString();
-        document.getElementById('agGifts').textContent = d.monthGifts ?? 0;
+        document.getElementById('agAgencyName').textContent = agency.name || '—';
+        const total = Number(d.monthRevenueCoins || d.myAgencyIncome || 0);
+        const myIncome = Number(d.myAgencyIncome != null ? d.myAgencyIncome : total);
+        const inviteIncome = Number(d.inviteAgencyIncome || 0);
+        document.getElementById('agTotalIncome').textContent = total.toLocaleString();
+        document.getElementById('agMyIncome').textContent = myIncome.toLocaleString();
+        document.getElementById('agInviteIncome').textContent = inviteIncome.toLocaleString();
+
         const hosts = d.hosts || [];
-        document.getElementById('agAllHosts').textContent = hosts.length;
-        document.getElementById('agActiveHosts').textContent = hosts.length;
-        const list = document.getElementById('agHosts');
-        if (!hosts.length) {
-          list.innerHTML = '<p style="color:#999;font-size:13px">No hosts assigned yet</p>';
-        } else {
-          list.innerHTML = hosts.map((h) => {
-            const n = `${h.first_name || ''} ${h.last_name || ''}`.trim() || 'Host';
-            return `<div class="ag-host-item">
-              <div class="av">${n.slice(0, 2).toUpperCase()}</div>
-              <div>
-                <strong>${n}</strong> ${window.formatRoleBadgeHtml?.('host') || ''}
-                <div style="font-size:11px;color:#999">ID ${h.display_id || '—'}</div>
-              </div>
-            </div>`;
-          }).join('');
-        }
+        const children = d.childAgencies || [];
+        document.getElementById('agHostCount').textContent = hosts.length;
+        document.getElementById('agAgencyCount').textContent = children.length;
+
+        const hostList = document.getElementById('agHosts');
+        hostList.innerHTML = hosts.length
+          ? hosts.map((h) => personItem(h)).join('')
+          : '<p class="ag-empty">No hosts yet. Tap Invite Host to grow your agency.</p>';
+
+        const agencyList = document.getElementById('agAgencies');
+        agencyList.innerHTML = children.length
+          ? children.map((a) => {
+              const n = a.name || `${a.first_name || ''} ${a.last_name || ''}`.trim() || 'Agency';
+              const avHtml = a.profile_pic
+                ? `<img src="${a.profile_pic}" alt="">`
+                : n.slice(0, 2).toUpperCase();
+              return `<div class="ag-list-item">
+                <div class="av">${avHtml}</div>
+                <div class="meta">
+                  <strong>${n}</strong>
+                  <small>Owner ID ${a.display_id || '—'} · ${a.status || 'active'}</small>
+                </div>
+              </div>`;
+            }).join('')
+          : '<p class="ag-empty">No invited agencies yet. Tap Invite Agency to add one.</p>';
       } catch (e) {
         document.getElementById('agHosts').innerHTML =
-          `<p style="color:#c62828;font-size:13px">${e.message || 'Failed to load dashboard'}</p>`;
+          `<p class="ag-empty" style="color:#c62828">${e.message || 'Failed to load dashboard'}</p>`;
       }
 
       async function loadPendingHosts() {
         const mount = document.getElementById('agPendingHosts');
-        if (!mount) return;
+        const badge = document.getElementById('agPendingBadge');
         try {
           const res = await API.get('/agency/host-applications');
           const apps = res.data?.applications || [];
+          if (badge) {
+            if (apps.length) {
+              badge.hidden = false;
+              badge.textContent = String(apps.length);
+            } else {
+              badge.hidden = true;
+            }
+          }
           if (!apps.length) {
-            mount.innerHTML = '<p style="color:#999;font-size:13px">No pending host applications</p>';
+            mount.innerHTML = '<p class="ag-empty">No pending host applications</p>';
             return;
           }
-          mount.innerHTML = apps.map((a) => {
-            const n = `${a.first_name || ''} ${a.last_name || ''}`.trim() || a.email || 'User';
-            return `<div class="ag-host-item" style="flex-wrap:wrap">
-              <div class="av">${n.slice(0, 2).toUpperCase()}</div>
-              <div style="flex:1;min-width:120px">
-                <strong>${n}</strong>
-                <div style="font-size:11px;color:#999">ID ${a.display_id || '—'} · ${a.promo_code || ''}</div>
-              </div>
-              <div style="display:flex;gap:6px">
-                <button type="button" class="pink" data-approve="${a.id}" style="border:none;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:700;color:#fff;background:#16a34a;cursor:pointer">Accept</button>
-                <button type="button" class="grey" data-reject="${a.id}" style="border:none;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:700;color:#fff;background:#9ca3af;cursor:pointer">Reject</button>
-              </div>
-            </div>`;
-          }).join('');
+          mount.innerHTML = apps.map((a) => personItem(a, `
+            <div class="actions">
+              <button type="button" class="ok" data-approve="${a.id}">Accept</button>
+              <button type="button" class="no" data-reject="${a.id}">Reject</button>
+            </div>
+          `)).join('');
         } catch (e) {
-          mount.innerHTML = `<p style="color:#c62828;font-size:13px">${e.message || 'Failed'}</p>`;
+          mount.innerHTML = `<p class="ag-empty" style="color:#c62828">${e.message || 'Failed'}</p>`;
         }
       }
 
@@ -171,6 +538,9 @@
       });
 
       await loadPendingHosts();
+
+      const hash = (location.hash || '').replace(/^#/, '');
+      if (panels[hash]) showPanel(hash);
     })();
   </script>
 </body>

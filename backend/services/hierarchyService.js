@@ -641,6 +641,15 @@ async function agencyDashboard(ownerUserId) {
      ORDER BY hp.assigned_at DESC`,
     [agencyId]
   );
+  const childAgencies = await db.query(
+    `SELECT a.id, a.name, a.status, a.level, a.created_at,
+            u.first_name, u.last_name, u.display_id, u.profile_pic
+     FROM agencies a
+     LEFT JOIN users u ON u.id = a.owner_user_id
+     WHERE a.parent_agency_id = $1
+     ORDER BY a.created_at DESC`,
+    [agencyId]
+  );
   const month = await db.query(
     `SELECT COUNT(*)::int AS gifts, COALESCE(SUM(amount),0)::bigint AS coins
      FROM commission_transactions
@@ -648,11 +657,16 @@ async function agencyDashboard(ownerUserId) {
        AND created_at >= date_trunc('month', CURRENT_TIMESTAMP)`,
     [ownerUserId]
   );
+  const myAgencyIncome = Number(month.rows[0]?.coins || 0);
+  const inviteAgencyIncome = 0;
   return {
     agency: agency.rows[0],
     hosts: hosts.rows,
+    childAgencies: childAgencies.rows,
     monthGifts: month.rows[0]?.gifts || 0,
-    monthRevenueCoins: Number(month.rows[0]?.coins || 0),
+    monthRevenueCoins: myAgencyIncome + inviteAgencyIncome,
+    myAgencyIncome,
+    inviteAgencyIncome,
   };
 }
 
