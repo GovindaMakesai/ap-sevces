@@ -207,7 +207,7 @@ async function notifyAgencyOfSubAgencyApp(app) {
       user_id: agency.owner_user_id,
       type: 'role_application',
       title: 'New Invite Agency application',
-      message: `Someone applied as an Agency under ${agency.name || 'your agency'}. Your BD will review the request.`,
+      message: `Someone applied as an Agency using your invite code. Open Agency Center → Invite Agency List to Accept or Reject.`,
       data: {
         application_id: app.id,
         role_type: 'agency',

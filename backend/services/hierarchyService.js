@@ -1037,6 +1037,17 @@ async function listPendingHostAppsForAgency(ownerUserId) {
      LIMIT 50`,
     [agency.id]
   );
+  const agencyApps = await db.query(
+    `SELECT a.*, u.email, u.first_name, u.last_name, u.phone, u.profile_pic, u.display_id
+     FROM role_applications a
+     JOIN users u ON u.id = a.user_id
+     WHERE a.status = 'pending'
+       AND a.role_type = 'agency'
+       AND a.target_agency_id = $1
+     ORDER BY a.created_at ASC
+     LIMIT 50`,
+    [agency.id]
+  );
   const invites = await db.query(
     `SELECT i.*, u.email, u.first_name, u.last_name, u.display_id, u.profile_pic
      FROM agency_host_invites i
@@ -1046,7 +1057,12 @@ async function listPendingHostAppsForAgency(ownerUserId) {
      LIMIT 50`,
     [agency.id]
   );
-  return { agency, applications: apps.rows, invites: invites.rows };
+  return {
+    agency,
+    applications: apps.rows,
+    agency_applications: agencyApps.rows,
+    invites: invites.rows,
+  };
 }
 
 async function agencyReviewHostApplication(ownerUserId, applicationId, { decision, reason } = {}) {
@@ -1057,38 +1073,84 @@ async function agencyReviewHostApplication(ownerUserId, applicationId, { decisio
   const app = appRes.rows[0];
   if (!app) throw new Error('Application not found');
   if (app.status !== 'pending') throw new Error('Application already processed');
-  if (app.role_type !== 'creator') throw new Error('Only Host applications can be reviewed here');
   if (String(app.target_agency_id) !== String(agency.id)) {
     throw new Error('This application is not for your agency');
   }
 
-  const status = decision === 'approved' || decision === 'accepted' ? 'approved' : 'rejected';
-  if (status === 'rejected') {
-    const roleApplicationService = require('./roleApplicationService');
-    return roleApplicationService.reviewApplication(applicationId, ownerUserId, {
-      decision: 'rejected',
-      reason: reason || 'Not approved by agency',
+  /* Host join requests */
+  if (app.role_type === 'creator') {
+    const status = decision === 'approved' || decision === 'accepted' ? 'approved' : 'rejected';
+    if (status === 'rejected') {
+      const roleApplicationService = require('./roleApplicationService');
+      return roleApplicationService.reviewApplication(applicationId, ownerUserId, {
+        decision: 'rejected',
+        reason: reason || 'Not approved by agency',
+      });
+    }
+
+    await assignHostToAgency(ownerUserId, app.user_id, agency.id);
+    await db.query(
+      `UPDATE role_applications
+       SET status = 'approved', reviewed_by = $2, reviewed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1`,
+      [applicationId, ownerUserId]
+    );
+    if (app.promo_code) await bumpAgencyInviteUse(app.promo_code);
+
+    const Notification = require('../models/Notification');
+    await Notification.create({
+      user_id: app.user_id,
+      type: 'role_application',
+      title: 'Host application approved',
+      message: 'Your Host application was approved by the agency. Open Streamer Center to continue.',
+      data: { application_id: applicationId, role_type: 'creator', status: 'approved' },
     });
+    return { ...app, status: 'approved', agency_id: agency.id };
   }
 
-  await assignHostToAgency(ownerUserId, app.user_id, agency.id);
-  await db.query(
-    `UPDATE role_applications
-     SET status = 'approved', reviewed_by = $2, reviewed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-     WHERE id = $1`,
-    [applicationId, ownerUserId]
-  );
-  if (app.promo_code) await bumpAgencyInviteUse(app.promo_code);
+  /* Agency invite / network join requests */
+  if (app.role_type === 'agency') {
+    const status = decision === 'approved' || decision === 'accepted' ? 'approved' : 'rejected';
+    if (status === 'rejected') {
+      const roleApplicationService = require('./roleApplicationService');
+      return roleApplicationService.reviewApplication(applicationId, ownerUserId, {
+        decision: 'rejected',
+        reason: reason || 'Not approved by agency',
+      });
+    }
 
-  const Notification = require('../models/Notification');
-  await Notification.create({
-    user_id: app.user_id,
-    type: 'role_application',
-    title: 'Host application approved',
-    message: 'Your Host application was approved by the agency. Open Streamer Center to continue.',
-    data: { application_id: applicationId, role_type: 'creator', status: 'approved' },
-  });
-  return { ...app, status: 'approved', agency_id: agency.id };
+    const name =
+      app.agency_name ||
+      `${app.first_name || 'Agency'} Agency`;
+    const created = await createAgencyUnderBd({
+      actorUserId: ownerUserId,
+      name,
+      ownerUserId: app.user_id,
+      bdUserId: app.target_bd_user_id || agency.bd_user_id || null,
+      parentAgencyId: agency.id,
+      commissionPercent: 20,
+    });
+    await db.query(
+      `UPDATE role_applications
+       SET status = 'approved', reviewed_by = $2, reviewed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1`,
+      [applicationId, ownerUserId]
+    );
+    if (app.promo_code && app.target_bd_user_id) await bumpPromoUse(app.promo_code);
+    await bumpAgencyInviteUseByAgencyId(agency.id);
+
+    const Notification = require('../models/Notification');
+    await Notification.create({
+      user_id: app.user_id,
+      type: 'role_application',
+      title: 'Agency application approved',
+      message: 'Your Agency application was approved. Open Agency Center to continue.',
+      data: { application_id: applicationId, role_type: 'agency', status: 'approved' },
+    });
+    return { ...app, status: 'approved', agency_id: created?.id || agency.id };
+  }
+
+  throw new Error('This application type cannot be reviewed by Agency');
 }
 
 module.exports = {

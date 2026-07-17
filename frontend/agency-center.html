@@ -304,6 +304,7 @@
       <button type="button" class="ag-menu-item" data-panel="agencies">
         <span class="ico agency"><i class="fas fa-project-diagram"></i></span>
         <span class="label">Invite Agency List</span>
+        <span class="badge" id="agAgencyPendingBadge" hidden>0</span>
         <span class="arrow"><i class="fas fa-chevron-right"></i></span>
       </button>
       <button type="button" class="ag-menu-item" data-panel="applications">
@@ -328,6 +329,9 @@
       <button type="button" data-back aria-label="Back"><i class="fas fa-chevron-left"></i></button>
       <h2>Invite Agency List</h2>
     </div>
+    <h3 style="margin:0 0 8px;font-size:13px;color:#6b7280">Pending applications</h3>
+    <div id="agPendingAgencies"><p class="ag-empty">Loading…</p></div>
+    <h3 style="margin:16px 0 8px;font-size:13px;color:#6b7280">Joined agencies</h3>
     <div id="agAgencies"><p class="ag-empty">Loading…</p></div>
   </section>
 
@@ -495,9 +499,12 @@
       async function loadPendingHosts() {
         const mount = document.getElementById('agPendingHosts');
         const badge = document.getElementById('agPendingBadge');
+        const agencyMount = document.getElementById('agPendingAgencies');
+        const agencyBadge = document.getElementById('agAgencyPendingBadge');
         try {
           const res = await API.get('/agency/host-applications');
           const apps = res.data?.applications || [];
+          const agencyApps = res.data?.agency_applications || [];
           if (badge) {
             if (apps.length) {
               badge.hidden = false;
@@ -506,19 +513,56 @@
               badge.hidden = true;
             }
           }
+          if (agencyBadge) {
+            if (agencyApps.length) {
+              agencyBadge.hidden = false;
+              agencyBadge.textContent = String(agencyApps.length);
+            } else {
+              agencyBadge.hidden = true;
+            }
+          }
           if (!apps.length) {
             mount.innerHTML = '<p class="ag-empty">No pending host applications</p>';
-            return;
+          } else {
+            mount.innerHTML = apps.map((a) => personItem(a, `
+              <div class="actions">
+                <button type="button" class="ok" data-approve="${a.id}">Accept</button>
+                <button type="button" class="no" data-reject="${a.id}">Reject</button>
+              </div>
+            `)).join('');
           }
-          mount.innerHTML = apps.map((a) => personItem(a, `
-            <div class="actions">
-              <button type="button" class="ok" data-approve="${a.id}">Accept</button>
-              <button type="button" class="no" data-reject="${a.id}">Reject</button>
-            </div>
-          `)).join('');
+          if (agencyMount) {
+            if (!agencyApps.length) {
+              agencyMount.innerHTML = '<p class="ag-empty">No pending agency applications</p>';
+            } else {
+              agencyMount.innerHTML = agencyApps.map((a) => {
+                const label = a.agency_name
+                  ? `${a.first_name || ''} ${a.last_name || ''}`.trim() || a.agency_name
+                  : null;
+                return personItem(
+                  { ...a, first_name: label || a.first_name, last_name: label ? '' : a.last_name },
+                  `<div class="actions">
+                    <button type="button" class="ok" data-approve="${a.id}">Accept</button>
+                    <button type="button" class="no" data-reject="${a.id}">Reject</button>
+                  </div>
+                  ${a.agency_name ? `<div style="width:100%;font-size:11px;color:#8b8b9a;margin-top:4px">Wants agency: ${a.agency_name}</div>` : ''}`
+                );
+              }).join('');
+            }
+          }
         } catch (e) {
-          mount.innerHTML = `<p class="ag-empty" style="color:#c62828">${e.message || 'Failed'}</p>`;
+          if (mount) mount.innerHTML = `<p class="ag-empty" style="color:#c62828">${e.message || 'Failed'}</p>`;
+          if (agencyMount) {
+            agencyMount.innerHTML = `<p class="ag-empty" style="color:#c62828">${e.message || 'Failed'}</p>`;
+          }
         }
+      }
+
+      async function reviewApplication(id, decision) {
+        const reason = decision === 'rejected' ? (prompt('Rejection reason (optional):') || undefined) : undefined;
+        await API.post(`/agency/host-applications/${id}/review`, { decision, reason });
+        await loadPendingHosts();
+        location.reload();
       }
 
       document.getElementById('agPendingHosts')?.addEventListener('click', async (e) => {
@@ -526,12 +570,20 @@
         const no = e.target.closest('[data-reject]');
         if (!ok && !no) return;
         const id = (ok || no).getAttribute(ok ? 'data-approve' : 'data-reject');
-        const decision = ok ? 'approved' : 'rejected';
-        const reason = decision === 'rejected' ? (prompt('Rejection reason (optional):') || undefined) : undefined;
         try {
-          await API.post(`/agency/host-applications/${id}/review`, { decision, reason });
-          await loadPendingHosts();
-          location.reload();
+          await reviewApplication(id, ok ? 'approved' : 'rejected');
+        } catch (err) {
+          alert(err.message || 'Failed');
+        }
+      });
+
+      document.getElementById('agPendingAgencies')?.addEventListener('click', async (e) => {
+        const ok = e.target.closest('[data-approve]');
+        const no = e.target.closest('[data-reject]');
+        if (!ok && !no) return;
+        const id = (ok || no).getAttribute(ok ? 'data-approve' : 'data-reject');
+        try {
+          await reviewApplication(id, ok ? 'approved' : 'rejected');
         } catch (err) {
           alert(err.message || 'Failed');
         }
