@@ -7113,23 +7113,26 @@ html.ap-expo-app .ap-chip {
 .ap-tap-for-sound {
   position: fixed;
   left: 50%;
-  bottom: calc(110px + env(safe-area-inset-bottom, 0));
+  bottom: calc(118px + env(safe-area-inset-bottom, 0));
   transform: translateX(-50%) translateY(12px);
-  z-index: 70;
+  /* Must sit above .party-bottom-bar (14000+) or phones never unlock audio */
+  z-index: 15200 !important;
   border: none;
   border-radius: 999px;
-  padding: 12px 18px;
-  font-size: 14px;
+  padding: 14px 22px;
+  font-size: 15px;
   font-weight: 800;
   color: #111;
   background: #fff;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
   display: none;
   align-items: center;
   gap: 8px;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.2s ease, transform 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 .ap-tap-for-sound.is-visible {

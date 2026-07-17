@@ -4148,8 +4148,10 @@
       liveDebugLog(`user-published uid=${user.uid} media=${mediaType}`);
       forensicEvent('REMOTE_USER_PUBLISHED', { uid: user.uid, mediaType, channel: agoraChannel });
       await playRemoteMedia(user, mediaType);
-      if (mediaType === 'audio' && !isHost()) {
+      if (mediaType === 'audio') {
+        /* Hosts also need guest voice; WebView autoplay blocks hosts too */
         kickstartRemoteAudio('user-published-audio');
+        if (!audioUnlocked) showTapForSoundHint();
       }
     });
     client.on('user-unpublished', (user, mediaType) => {
@@ -10195,6 +10197,22 @@
     }
   }
 
+  function isRemoteAudioTrackAudible(track) {
+    if (!track) return false;
+    try {
+      if (track.isPlaying === false) return false;
+      if (typeof track.getVolumeLevel === 'function') {
+        const lvl = Number(track.getVolumeLevel()) || 0;
+        /* Level can be 0 between speech — treat "playing" as enough once started */
+        if (track.isPlaying === true) return true;
+        return lvl > 0.001;
+      }
+      return track.isPlaying === true;
+    } catch (_e) {
+      return false;
+    }
+  }
+
   async function tryPlayRemoteAudioTrack(user) {
     if (!user?.audioTrack) return false;
     if (!soundOn && !isHost() && !hasSpeakerSeat) return false;
@@ -10209,9 +10227,15 @@
       const p = user.audioTrack.play?.();
       if (p && typeof p.then === 'function') await p;
       unmuteDomMediaElements();
-      /* Mark provisional unlock only — keep kickstart alive until user confirms or hint clears */
-      if (!audioUnlocked) audioUnlocked = true;
-      return true;
+      /*
+       * Do NOT mark audioUnlocked on play() alone — Android WebViews often resolve
+       * play() while still silent until a real user gesture. Keep retrying + hint.
+       */
+      if (isRemoteAudioTrackAudible(user.audioTrack)) {
+        audioUnlocked = true;
+        return true;
+      }
+      return Boolean(user.audioTrack);
     } catch (err) {
       liveDebugLog(`audio play blocked: ${err?.message || err}`);
       audioUnlocked = false;
@@ -10224,21 +10248,21 @@
     try {
       document.querySelectorAll('audio, video').forEach((el) => {
         try {
-          /* Keep local preview / remote host video muted if it's the preview box */
+          /* Keep local preview muted so host doesn't hear themselves */
           const isLocalPreview =
             el.closest?.('#liveLocalHost, #liveLocalVideo, .ap-local-preview');
           if (el.tagName === 'VIDEO' && isLocalPreview) {
             el.muted = true;
             return;
           }
-          if (el.tagName === 'AUDIO' || (el.tagName === 'VIDEO' && !isLocalPreview)) {
-            if (el.tagName === 'AUDIO') {
-              el.muted = false;
-              el.volume = 1;
-              const playP = el.play?.();
-              if (playP && typeof playP.catch === 'function') playP.catch(() => { });
-            }
-          }
+          /* Remote audio (and any remote video that carries sound) must be unmuted */
+          el.muted = false;
+          el.volume = 1;
+          try {
+            el.removeAttribute?.('muted');
+          } catch (_e2) { }
+          const playP = el.play?.();
+          if (playP && typeof playP.catch === 'function') playP.catch(() => { });
         } catch (_e) { }
       });
     } catch (_e) { }
@@ -10252,6 +10276,7 @@
     const remotes = agoraClient.remoteUsers || [];
     let anyOk = false;
     let attempted = false;
+    let anyAudible = false;
     for (const user of remotes) {
       try {
         if (user.hasAudio && !user.audioTrack) {
@@ -10262,13 +10287,20 @@
           attempted = true;
           if (await tryPlayRemoteAudioTrack(user)) anyOk = true;
         }
+        if (user.audioTrack && isRemoteAudioTrackAudible(user.audioTrack)) anyAudible = true;
       } catch (_e) {
         showTapForSoundHint();
       }
     }
+    if (anyAudible) {
+      audioUnlocked = true;
+      hideTapForSoundHint();
+      return true;
+    }
     if (attempted && !anyOk) showTapForSoundHint();
-    if (anyOk) hideTapForSoundHint();
-    return anyOk;
+    /* play() may "succeed" while still silent — keep the unlock CTA visible */
+    if (attempted && !anyAudible) showTapForSoundHint();
+    return anyOk && anyAudible;
   }
 
   /** Burst-retry remote audio right after join — browsers often block the first play(). */
@@ -10281,12 +10313,12 @@
       setTimeout(() => {
         if (seq !== __audioKickSeq || socketLeaveIntentional) return;
         const hintVisible = document.getElementById('apTapForSound')?.classList.contains('is-visible');
-        /* Keep retrying while hint is up, or for a short window after join even if play() resolved silently */
+        /* Only stop early once audio is confirmed audible (not just play() resolved) */
         if (audioUnlocked && !hintVisible && ms > 2800) return;
         unlockBrowserAudio()
           .then(() => ensureRemoteAudioPlaying())
           .then((ok) => {
-            if (!ok && ms >= 900) showTapForSoundHint();
+            if (!ok && ms >= 450) showTapForSoundHint();
           })
           .catch(() => showTapForSoundHint());
       }, ms);
@@ -10309,8 +10341,21 @@
         e.stopPropagation();
         soundOn = true;
         await unlockBrowserAudio();
-        const ok = await ensureRemoteAudioPlaying();
-        if (ok) {
+        /* User gesture: force play + unmute, then treat as unlocked even if level is 0 */
+        let anyPlayed = false;
+        for (const user of agoraClient?.remoteUsers || []) {
+          if (!user.audioTrack && user.hasAudio) {
+            try {
+              await playRemoteMedia(user, 'audio');
+            } catch (_e) { }
+          }
+          if (user.audioTrack) {
+            const played = await tryPlayRemoteAudioTrack(user);
+            if (played) anyPlayed = true;
+          }
+        }
+        unmuteDomMediaElements();
+        if (anyPlayed) {
           audioUnlocked = true;
           hideTapForSoundHint();
           toast('Sound on', 'success');
@@ -10340,7 +10385,9 @@
     const unlock = () => {
       unlockBrowserAudio().then(() => {
         const hintVisible = document.getElementById('apTapForSound')?.classList.contains('is-visible');
+        /* Always retry while CTA is up; also retry once if not yet confirmed audible */
         if (audioUnlocked && !hintVisible) return;
+        unmuteDomMediaElements();
         ensureRemoteAudioPlaying().catch(() => { });
       });
     };
