@@ -796,21 +796,21 @@ html.ap-secure-live .party-room-stage {
 .party-chat-msg {
   align-self: flex-start;
   box-sizing: border-box;
-  width: fit-content;
-  max-width: min(90%, 100%);
+  width: auto;
+  max-width: 96%;
   min-width: 0;
-  padding: 5px 9px;
-  border-radius: 12px;
+  padding: 7px 12px;
+  border-radius: 14px;
   background: rgba(0, 0, 0, 0.16);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  font-size: 11px;
-  line-height: 1.35;
+  font-size: 13px;
+  line-height: 1.4;
   color: #f8fafc;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
   box-shadow: none;
-  /* hidden forces long text to wrap inside max-width (visible lets it stretch right) */
+  /* hidden keeps long text wrapping inside the bubble */
   overflow: hidden;
 }
 
@@ -7387,10 +7387,10 @@ html.ap-expo-app .ap-chip {
 .party-chat-msg {
   display: flex;
   align-items: flex-start;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: nowrap;
-  width: fit-content;
-  max-width: min(90%, 100%);
+  width: auto;
+  max-width: 96%;
   min-width: 0;
   box-sizing: border-box;
   overflow: hidden;
@@ -7408,9 +7408,9 @@ html.ap-expo-app .ap-chip {
 }
 
 .party-chat-avatar-btn {
-  width: 22px;
-  height: 22px;
-  min-width: 22px;
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
   border-radius: 50%;
   overflow: hidden;
   display: inline-flex;
@@ -7420,10 +7420,10 @@ html.ap-expo-app .ap-chip {
 }
 
 .party-chat-avatar-btn img {
-  width: 22px;
-  height: 22px;
-  min-width: 22px;
-  min-height: 22px;
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  min-height: 26px;
   border-radius: 50%;
   object-fit: cover;
   vertical-align: middle;
@@ -7438,7 +7438,7 @@ html.ap-expo-app .ap-chip {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 2px;
+  gap: 3px;
   overflow: hidden;
 }
 
@@ -7446,11 +7446,11 @@ html.ap-expo-app .ap-chip {
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   width: 100%;
   max-width: 100%;
-  line-height: 1.25;
-  min-height: 28px;
+  line-height: 1.3;
+  min-height: 24px;
   overflow: hidden;
   position: relative;
   box-sizing: border-box;
@@ -7460,8 +7460,8 @@ html.ap-expo-app .ap-chip {
 .party-chat-meta .party-chat-admin-badge,
 .party-chat-meta .ap-role-badge {
   flex-shrink: 0;
-  font-size: 8px;
-  padding: 1px 4px;
+  font-size: 9px;
+  padding: 1px 5px;
   margin: 0;
 }
 
@@ -7478,6 +7478,7 @@ html.ap-expo-app .ap-chip {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 12px;
 }
 
 .party-chat-text {
@@ -7486,12 +7487,13 @@ html.ap-expo-app .ap-chip {
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   word-wrap: break-word;
   word-break: break-word;
   white-space: pre-wrap !important;
   display: block;
-  line-height: 1.35;
+  font-size: 13px;
+  line-height: 1.4;
 }
 
 .party-chat-user-btn .user {
@@ -8028,7 +8030,9 @@ html.ap-expo-app .ap-chip {
 .party-chat-text {
   white-space: pre-wrap !important;
   word-break: break-word !important;
-  overflow-wrap: anywhere !important;
+  overflow-wrap: break-word !important;
   max-width: 100% !important;
   min-width: 0 !important;
+  font-size: 13px;
+  line-height: 1.4;
 }
