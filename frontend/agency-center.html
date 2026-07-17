@@ -199,7 +199,8 @@
     .ag-panel-head h2 { margin: 0; font-size: 16px; font-weight: 800; }
 
     .ag-list-item {
-      display: flex; align-items: center; gap: 10px;
+      display: flex; align-items: flex-start; gap: 10px;
+      flex-wrap: wrap;
       background: #fff; border-radius: 14px; padding: 12px;
       margin-bottom: 8px; box-shadow: 0 1px 4px rgba(0,0,0,.04);
     }
@@ -210,16 +211,42 @@
       font-weight: 800; font-size: 12px; flex-shrink: 0; overflow: hidden;
     }
     .ag-list-item .av img { width: 100%; height: 100%; object-fit: cover; }
-    .ag-list-item .meta { flex: 1; min-width: 0; }
-    .ag-list-item .meta strong { display: block; font-size: 14px; }
+    .ag-list-item .meta {
+      flex: 1; min-width: 0;
+      padding-right: 4px;
+    }
+    .ag-list-item .meta strong {
+      display: block; font-size: 14px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      max-width: 100%;
+    }
     .ag-list-item .meta small { color: var(--ag-muted); font-size: 11px; }
-    .ag-list-item .actions { display: flex; gap: 6px; }
+    .ag-list-item .actions {
+      display: flex; gap: 8px; flex-shrink: 0;
+      margin-left: auto;
+      align-items: center;
+    }
     .ag-list-item .actions button {
-      border: none; border-radius: 999px; padding: 6px 12px;
-      font-size: 11px; font-weight: 700; color: #fff; cursor: pointer;
+      border: none; border-radius: 999px; padding: 8px 14px;
+      font-size: 12px; font-weight: 700; color: #fff; cursor: pointer;
+      white-space: nowrap;
     }
     .ag-list-item .actions .ok { background: #16a34a; }
     .ag-list-item .actions .no { background: #9ca3af; }
+    .ag-list-item .ag-note {
+      width: 100%;
+      font-size: 11px;
+      color: #8b8b9a;
+      margin: 2px 0 0 50px;
+    }
+    @media (max-width: 420px) {
+      .ag-list-item .actions {
+        width: 100%;
+        margin: 8px 0 0 50px;
+        justify-content: flex-start;
+      }
+      .ag-list-item .ag-note { margin-left: 50px; }
+    }
     .ag-empty { color: var(--ag-muted); font-size: 13px; padding: 18px 4px; text-align: center; }
   </style>
 </head>
@@ -536,17 +563,16 @@
               agencyMount.innerHTML = '<p class="ag-empty">No pending agency applications</p>';
             } else {
               agencyMount.innerHTML = agencyApps.map((a) => {
-                const label = a.agency_name
-                  ? `${a.first_name || ''} ${a.last_name || ''}`.trim() || a.agency_name
-                  : null;
-                return personItem(
-                  { ...a, first_name: label || a.first_name, last_name: label ? '' : a.last_name },
-                  `<div class="actions">
+                const note = a.agency_name
+                  ? `<div class="ag-note">Wants agency: ${String(a.agency_name).replace(/</g, '&lt;')}</div>`
+                  : '';
+                return personItem(a, `
+                  <div class="actions">
                     <button type="button" class="ok" data-approve="${a.id}">Accept</button>
                     <button type="button" class="no" data-reject="${a.id}">Reject</button>
                   </div>
-                  ${a.agency_name ? `<div style="width:100%;font-size:11px;color:#8b8b9a;margin-top:4px">Wants agency: ${a.agency_name}</div>` : ''}`
-                );
+                  ${note}
+                `);
               }).join('');
             }
           }
