@@ -777,6 +777,7 @@ html.ap-secure-live .party-room-stage {
 .party-chat-feed {
   display: flex;
   flex-direction: column;
+  justify-content: flex-end;
   gap: 6px;
   padding: 4px 12px 8px 0;
   overflow-x: hidden;
@@ -790,28 +791,31 @@ html.ap-secure-live .party-room-stage {
   pointer-events: auto;
   -webkit-overflow-scrolling: touch;
   background: transparent;
-  /* No CSS mask — WebKit masks break hit-testing on ⋮ / chat taps */
 }
 
 .party-chat-msg {
   align-self: flex-start;
+  /* NEVER shrink in the feed — overflow:hidden + flex-shrink crushed bubbles flat */
+  flex: 0 0 auto !important;
+  flex-shrink: 0 !important;
+  height: auto !important;
+  min-height: auto !important;
   box-sizing: border-box;
   width: auto;
-  max-width: 96%;
+  max-width: 92%;
   min-width: 0;
-  padding: 7px 12px;
-  border-radius: 14px;
+  padding: 5px 9px;
+  border-radius: 12px;
   background: rgba(0, 0, 0, 0.16);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  font-size: 13px;
-  line-height: 1.4;
+  font-size: 11px;
+  line-height: 1.35;
   color: #f8fafc;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
   box-shadow: none;
-  /* hidden keeps long text wrapping inside the bubble */
-  overflow: hidden;
+  overflow: visible;
 }
 
 .party-chat-msg .lvl {
@@ -7387,13 +7391,15 @@ html.ap-expo-app .ap-chip {
 .party-chat-msg {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: nowrap;
-  width: auto;
+  flex: 0 0 auto !important;
+  flex-shrink: 0 !important;
+  height: auto !important;
   max-width: 96%;
   min-width: 0;
   box-sizing: border-box;
-  overflow: hidden;
+  overflow: visible;
   position: relative;
 }
 
@@ -7408,9 +7414,9 @@ html.ap-expo-app .ap-chip {
 }
 
 .party-chat-avatar-btn {
-  width: 26px;
-  height: 26px;
-  min-width: 26px;
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
   border-radius: 50%;
   overflow: hidden;
   display: inline-flex;
@@ -7420,10 +7426,10 @@ html.ap-expo-app .ap-chip {
 }
 
 .party-chat-avatar-btn img {
-  width: 26px;
-  height: 26px;
-  min-width: 26px;
-  min-height: 26px;
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  min-height: 22px;
   border-radius: 50%;
   object-fit: cover;
   vertical-align: middle;
@@ -7437,21 +7443,21 @@ html.ap-expo-app .ap-chip {
   max-width: 100%;
   display: flex;
   flex-direction: column;
-  align-items: stretch;
-  gap: 3px;
-  overflow: hidden;
+  align-items: flex-start;
+  gap: 2px;
+  overflow: visible;
 }
 
 .party-chat-meta {
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   width: 100%;
   max-width: 100%;
-  line-height: 1.3;
-  min-height: 24px;
-  overflow: hidden;
+  line-height: 1.25;
+  min-height: 22px;
+  overflow: visible;
   position: relative;
   box-sizing: border-box;
 }
@@ -7460,14 +7466,14 @@ html.ap-expo-app .ap-chip {
 .party-chat-meta .party-chat-admin-badge,
 .party-chat-meta .ap-role-badge {
   flex-shrink: 0;
-  font-size: 9px;
-  padding: 1px 5px;
+  font-size: 8px;
+  padding: 1px 4px;
   margin: 0;
 }
 
 .party-chat-user-btn {
   flex: 1 1 auto;
-  max-width: calc(100% - 40px);
+  max-width: none;
   min-width: 0;
   text-align: left;
   overflow: hidden;
@@ -7478,7 +7484,6 @@ html.ap-expo-app .ap-chip {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
 }
 
 .party-chat-text {
@@ -7490,10 +7495,10 @@ html.ap-expo-app .ap-chip {
   overflow-wrap: break-word;
   word-wrap: break-word;
   word-break: break-word;
-  white-space: pre-wrap !important;
+  white-space: normal !important;
   display: block;
-  font-size: 13px;
-  line-height: 1.4;
+  font-size: 11px;
+  line-height: 1.35;
 }
 
 .party-chat-user-btn .user {
@@ -8028,11 +8033,23 @@ html.ap-expo-app .ap-chip {
 }
 
 .party-chat-text {
-  white-space: pre-wrap !important;
+  white-space: normal !important;
   word-break: break-word !important;
   overflow-wrap: break-word !important;
   max-width: 100% !important;
   min-width: 0 !important;
-  font-size: 13px;
-  line-height: 1.4;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+/* Hard stop: live chat bubbles must never be flex-squashed */
+.party-chat-feed > .party-chat-msg,
+.live-room .party-chat-msg,
+.party-room .party-chat-msg {
+  flex: 0 0 auto !important;
+  flex-shrink: 0 !important;
+  height: auto !important;
+  min-height: auto !important;
+  transform: none !important;
+  scale: none !important;
 }
