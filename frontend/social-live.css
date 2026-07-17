@@ -790,6 +790,8 @@ html.ap-secure-live .party-room-stage {
   max-width: 100%;
   pointer-events: auto;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
   background: transparent;
 }
 
@@ -2353,6 +2355,8 @@ body[data-live-page='live-room'] .live-room {
   max-height: min(38vh, 300px);
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
 }
 
 .live-room .live-chat-compose {

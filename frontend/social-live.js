@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260717-block-seats';
+  window.__AP_LIVE_BUILD = '20260717-chat-scroll-clear';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -220,6 +220,7 @@
       });
   }
   let chatMessages = [];
+  let chatClearedAt = 0;
   let hasSpeakerSeat = false;
   let pkScoreLeft = 0;
   let pkScoreRight = 0;
@@ -1724,8 +1725,10 @@
         toast(res?.message || 'Could not clear chat', 'error');
         return;
       }
+      chatClearedAt = Date.now();
       chatMessages = [];
       roomGiftHistory = [];
+      if (roomState?.messages) roomState.messages = [];
       renderChatFeed();
       toast('Chat cleared (messages, gifts & join notices)', 'success');
     });
@@ -2608,6 +2611,12 @@
     if (!merged.hostName && prev.hostName) merged.hostName = prev.hostName;
     if (!merged.hostUserRole && prev.hostUserRole) merged.hostUserRole = prev.hostUserRole;
     stripBlockedUsersFromRoomState(merged);
+    if (chatClearedAt && Array.isArray(merged.messages)) {
+      merged.messages = merged.messages.filter((m) => {
+        const ts = m.ts || m.timestamp || m.createdAt || m.created_at;
+        return ts && new Date(ts).getTime() >= chatClearedAt;
+      });
+    }
     syncStickyStageGuestsFromState(merged);
     return merged;
   }
@@ -3573,8 +3582,10 @@
       });
 
       liveSocket.on('live:chat_cleared', () => {
+        chatClearedAt = Date.now();
         chatMessages = [];
         roomGiftHistory = [];
+        if (roomState?.messages) roomState.messages = [];
         renderChatFeed();
       });
 
@@ -7342,10 +7353,24 @@
   }
 
   function renderChatFromState() {
-    (roomState?.messages || []).forEach((m) => {
-      const enriched = { ...m, profilePic: m.profilePic || getChatProfilePic(m) };
-      rememberChatMessage(enriched);
-    });
+    if (chatClearedAt) {
+      /* After a clear, ignore server-side messages that predate the clear.
+       * Only accept messages whose timestamp (or createdAt) is after the clear. */
+      const cutoff = chatClearedAt;
+      (roomState?.messages || []).forEach((m) => {
+        const ts = m.ts || m.timestamp || m.createdAt || m.created_at;
+        const msgTime = ts ? new Date(ts).getTime() : 0;
+        if (msgTime && msgTime < cutoff) return;
+        /* Messages without a timestamp that arrive after clear are new — accept them */
+        const enriched = { ...m, profilePic: m.profilePic || getChatProfilePic(m) };
+        rememberChatMessage(enriched);
+      });
+    } else {
+      (roomState?.messages || []).forEach((m) => {
+        const enriched = { ...m, profilePic: m.profilePic || getChatProfilePic(m) };
+        rememberChatMessage(enriched);
+      });
+    }
     renderChatFeed();
   }
 
