@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260717-force-deploy1';
+  window.__AP_LIVE_BUILD = '20260717-chat-dots-v2';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -1650,11 +1650,21 @@
 
   function openChatMessageModMenu(msg, anchorEl) {
     if (!canModerateRoom() || !msg) return;
-    /* Accept normal chat + messages missing type (older payloads); skip system/gift/mic invites */
     const t = String(msg.type || 'chat');
     if (t === 'system' || t === 'gift' || t === 'mic_invite') return;
 
-    document.getElementById('apChatModMenu')?.remove();
+    /* Debounce double-fire from pointerup+click on mobile WebViews */
+    const now = Date.now();
+    if (now < (Number(window.__apChatModOpenBusyUntil) || 0)) return;
+    window.__apChatModOpenBusyUntil = now + 400;
+
+    const existing = document.getElementById('apChatModMenu');
+    if (existing) {
+      existing.remove();
+      document.removeEventListener('pointerdown', window.__apChatModDocClose, true);
+      document.removeEventListener('click', window.__apChatModDocClose, true);
+    }
+
     const menu = document.createElement('div');
     menu.id = 'apChatModMenu';
     menu.className = 'ap-chat-mod-menu';
@@ -1677,16 +1687,16 @@
     const placeMenu = () => {
       const rect =
         (anchorEl || document.body).getBoundingClientRect?.() ||
-        { left: 40, top: 120, bottom: 160, width: 40, height: 28 };
+        { left: 40, top: 120, bottom: 160, right: 80, width: 40, height: 28 };
       const mw = Math.min(260, window.innerWidth - 24);
       menu.style.width = `${mw}px`;
-      let left = rect.right - mw;
+      let left = (rect.right || rect.left + 40) - mw;
       if (left < 12) left = 12;
       if (left + mw > window.innerWidth - 12) left = window.innerWidth - mw - 12;
-      let top = rect.bottom + 6;
+      let top = (rect.bottom || rect.top + 28) + 6;
       const mh = menu.offsetHeight || 220;
       if (top + mh > window.innerHeight - 12) {
-        top = Math.max(12, rect.top - mh - 6);
+        top = Math.max(12, (rect.top || 120) - mh - 6);
       }
       menu.style.left = `${left}px`;
       menu.style.top = `${top}px`;
@@ -1698,7 +1708,17 @@
       menu.remove();
       document.removeEventListener('pointerdown', onDoc, true);
       document.removeEventListener('click', onDoc, true);
+      if (window.__apChatModDocClose === onDoc) window.__apChatModDocClose = null;
     };
+
+    function onDoc(e) {
+      if (menu.contains(e.target)) return;
+      if (anchorEl && (anchorEl === e.target || anchorEl.contains?.(e.target))) return;
+      if (e.target?.closest?.('.party-chat-mod-btn')) return;
+      close();
+    }
+    window.__apChatModDocClose = onDoc;
+
     menu.querySelector('[data-cmod="delete"]')?.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -1739,16 +1759,59 @@
       close();
     });
 
-    const onDoc = (e) => {
-      if (menu.contains(e.target)) return;
-      if (anchorEl && (anchorEl === e.target || anchorEl.contains?.(e.target))) return;
-      close();
-    };
-    /* Delay so the opening tap does not instantly dismiss the menu */
+    /* Long enough that the same tap's synthetic click cannot close the menu */
     setTimeout(() => {
+      if (!document.getElementById('apChatModMenu')) return;
       document.addEventListener('pointerdown', onDoc, true);
       document.addEventListener('click', onDoc, true);
-    }, 120);
+    }, 350);
+  }
+
+  function resolveChatModMessage(btn) {
+    if (!btn) return null;
+    const row = btn.closest?.('.party-chat-msg');
+    const msgId = btn.getAttribute('data-msg-id') || '';
+    let msg = (msgId && chatMessages.find((m) => String(m.id) === String(msgId))) || null;
+    if (!msg && row) {
+      const uid =
+        row.querySelector('[data-chat-uid]')?.getAttribute('data-chat-uid') ||
+        row.querySelector('.party-chat-user-btn')?.getAttribute('data-chat-uid') ||
+        '';
+      const uname =
+        row.querySelector('[data-chat-user]')?.getAttribute('data-chat-user') ||
+        row.querySelector('.party-chat-user-btn')?.getAttribute('data-chat-user') ||
+        'User';
+      const text = row.querySelector('.party-chat-text')?.textContent || '';
+      msg = { id: msgId || `row-${Date.now()}`, type: 'chat', userId: uid, user: uname, text };
+    }
+    return msg;
+  }
+
+  function handleChatModBtn(btn) {
+    if (!btn || !canModerateRoom()) return false;
+    const msg = resolveChatModMessage(btn);
+    if (!msg) return false;
+    openChatMessageModMenu({ ...msg, type: msg.type || 'chat' }, btn);
+    return true;
+  }
+
+  /** Capture-phase: ⋮ works even when overlays/salvage steal bubble clicks */
+  function bindChatModDelegation() {
+    if (window.__apChatModDelegationBound) return;
+    window.__apChatModDelegationBound = true;
+    const handler = (e) => {
+      const btn = e.target?.closest?.('.party-chat-mod-btn');
+      if (!btn) return;
+      if (!canModerateRoom()) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+      handleChatModBtn(btn);
+    };
+    /* click + pointerup + touchend — WebViews differ; openChatMessageModMenu debounces */
+    document.addEventListener('pointerup', handler, true);
+    document.addEventListener('touchend', handler, true);
+    document.addEventListener('click', handler, true);
   }
 
   function grantRoomAdmin(userId, grant) {
@@ -7188,21 +7251,12 @@
               openProfileSheet(btn.dataset.chatUser || 'User', btn.dataset.chatUid || '');
             });
           });
-          const modBtn = div.querySelector('.party-chat-mod-btn');
-          if (modBtn) {
-            const openMod = (e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
-              openChatMessageModMenu({ ...msg, type: msg.type || 'chat' }, modBtn);
-            };
-            modBtn.addEventListener('pointerup', openMod);
-            modBtn.addEventListener('click', openMod);
-            div.addEventListener('contextmenu', (e) => {
-              e.preventDefault();
-              openChatMessageModMenu({ ...msg, type: msg.type || 'chat' }, div);
-            });
-          }
+          /* Mod menu: capture delegation in bindChatModDelegation — no per-row click (avoids double-fire) */
+          div.addEventListener('contextmenu', (e) => {
+            if (!canModerateRoom()) return;
+            e.preventDefault();
+            openChatMessageModMenu({ ...msg, type: msg.type || 'chat' }, div.querySelector('.party-chat-mod-btn') || div);
+          });
         }
         feed.appendChild(div);
       });
@@ -8345,6 +8399,13 @@
         },
       },
       {
+        match: (el) => el?.closest?.('.party-chat-mod-btn'),
+        run: (hit) => {
+          const btn = hit?.closest?.('.party-chat-mod-btn') || hit;
+          handleChatModBtn(btn);
+        },
+      },
+      {
         match: (el) => el?.closest?.('#liveBtnGift, #partyBtnGift, .ap-btn-gift-hero, .party-btn-gift, #apGiftHitPad'),
         run: () => {
           openGiftSheetReliable();
@@ -8356,7 +8417,7 @@
       if (!el || el === document.body || el === document.documentElement) return true;
       if (
         el.closest?.(
-          '#partyBottomBar, #partyBtnTools, #liveBtnGift, #partyBtnGift, #liveBtnMic, #liveViewerCount, #partyBtnUsersAll, #partyViewerAvatars, #partyInvitePill, .party-header-right, .party-bottom-actions, .ap-btn-grid, .ap-btn-gift-hero'
+          '#partyBottomBar, #partyBtnTools, #liveBtnGift, #partyBtnGift, #liveBtnMic, #liveViewerCount, #partyBtnUsersAll, #partyViewerAvatars, #partyInvitePill, .party-header-right, .party-bottom-actions, .ap-btn-grid, .ap-btn-gift-hero, .party-chat-mod-btn, .ap-chat-mod-menu'
         )
       ) {
         return false;
@@ -12446,6 +12507,7 @@
     });
 
     bindChatTabs();
+    bindChatModDelegation();
     bindGiftSheet();
     bindImmersiveToolLinks();
     bindEmojiPicker();
@@ -14635,6 +14697,7 @@
       scheduleHideAppChrome();
       prepareLiveUiShell();
       startLiveChromeWatchdog();
+      bindChatModDelegation();
       setTimeout(() => unlockLiveChrome({ forceGift: true }), 800);
       setTimeout(() => unlockLiveChrome({ forceGift: true }), 2500);
       /* Capture early taps so browser audio unlocks before Agora play(). */
