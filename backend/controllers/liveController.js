@@ -1,14 +1,20 @@
 const liveRoomService = require('../services/liveRoomService');
 const agoraTokenService = require('../services/agoraTokenService');
+const followService = require('../services/followService');
 
 exports.listActiveRooms = async (req, res) => {
   try {
     const roomType = req.query.type === 'party' ? 'party' : req.query.type === 'live' ? 'live' : null;
-    const rows = await liveRoomService.listActiveRooms({
+    let rows = await liveRoomService.listActiveRooms({
       roomType,
       limit: req.query.limit,
       sort: req.query.sort || 'trending',
     });
+    const viewerId = req.userId || req.user?.id;
+    if (viewerId) {
+      const hidden = await followService.getHiddenUserIdSet(viewerId);
+      rows = followService.filterOutHiddenUsers(rows, hidden, ['host_user_id']);
+    }
     const { publicLiveRoom } = require('../lib/userDto');
     res.json({
       success: true,

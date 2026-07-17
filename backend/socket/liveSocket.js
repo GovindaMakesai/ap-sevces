@@ -4,6 +4,7 @@ const liveRoomService = require('../services/liveRoomService');
 const partyActivityService = require('../services/partyActivityService');
 const permissionService = require('../services/permissionService');
 const chatModerationService = require('../services/chatModerationService');
+const followService = require('../services/followService');
 const db = require('../config/database');
 
 const RATE_WINDOW_MS = 10_000;
@@ -109,6 +110,24 @@ function registerLiveSocket(io) {
               ...info,
             });
             return;
+          }
+          /* Social block either way with host — cannot enter / see their live */
+          if (
+            existingRoom.host_user_id &&
+            String(existingRoom.host_user_id) !== String(socket.userId)
+          ) {
+            const blocked = await followService.areBlockedEitherWay(
+              socket.userId,
+              existingRoom.host_user_id
+            );
+            if (blocked) {
+              safeAck(ack, answeredRef, {
+                ok: false,
+                code: 'USER_BLOCKED',
+                message: 'You cannot join this live',
+              });
+              return;
+            }
           }
         }
 

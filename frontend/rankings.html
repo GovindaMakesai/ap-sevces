@@ -63,7 +63,7 @@
 
   <script src="app.js?v=20260702-follow-fix"></script>
   <script src="social-ui.js?v=20260702-follow-fix"></script>
-  <script src="social-interactions.js?v=20260702-follow-fix"></script>
+  <script src="social-interactions.js?v=20260717-block-hide"></script>
   <script src="social-shell.js"></script>
   <script src="social-nav.js"></script>
   <script src="social-fx.js"></script>
@@ -107,12 +107,14 @@
       const res = await fetch(`${API_ROOT}/v1/leaderboards?${qs}`, { credentials: 'include' });
       const data = await res.json();
       if (!data.success || !Array.isArray(data.data)) return [];
-      return data.data.map((row) => ({
-        id: row.entity_id,
-        n: row.entity_label || String(row.entity_id || '').slice(0, 8),
-        s: formatScore(row.score, tab),
-        pic: row.profile_pic || null,
-      }));
+      return data.data
+        .map((row) => ({
+          id: row.entity_id,
+          n: row.entity_label || String(row.entity_id || '').slice(0, 8),
+          s: formatScore(row.score, tab),
+          pic: row.profile_pic || null,
+        }))
+        .filter((row) => !row.id || !window.SocialInteractions?.isBlocked?.(row.id));
     }
 
     function formatScore(score, tab) {

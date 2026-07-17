@@ -463,6 +463,8 @@
   }
 
   function renderLiveCard(pro, index, opts) {
+    const hostUid = String(pro.hostId || pro.host_user_id || pro.userId || '').trim();
+    if (hostUid && window.SocialInteractions?.isBlocked?.(hostUid)) return '';
     const party =
       Boolean(opts && opts.party) ||
       Boolean(pro.party) ||

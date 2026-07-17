@@ -627,7 +627,9 @@
         if (window.SocialUI?.toast) SocialUI.toast(`Unblocked ${userName || 'user'}`, 'info');
         return false;
       }
-      if (!window.confirm(`Block ${userName || 'this user'}? They cannot follow you or message you.`)) {
+      if (!window.confirm(
+        `Block ${userName || 'this user'}? You will not see them in live chat, their streams, rankings, chats, or user lists.`
+      )) {
         return false;
       }
       await apiSocial('POST', `/social/block/${uid}`, {});
@@ -635,6 +637,11 @@
       blockIdCache.add(uid);
       followIdCache?.delete(uid);
       toggleFollowLocal(uid, userName);
+      try {
+        window.dispatchEvent(
+          new CustomEvent('ap-user-blocked', { detail: { userId: uid, userName, blocked: true } })
+        );
+      } catch (_e) { /* ignore */ }
       if (window.SocialUI?.toast) SocialUI.toast(`Blocked ${userName || 'user'}`, 'success');
       return true;
     } catch (e) {
@@ -646,8 +653,25 @@
 
   function isBlocked(userId) {
     const uid = String(userId || '').trim();
-    if (blockIdCache && isUuid(uid)) return blockIdCache.has(uid);
+    if (blockIdCache && uid) return blockIdCache.has(uid);
     return false;
+  }
+
+  function getBlockedIds() {
+    return blockIdCache ? [...blockIdCache] : [];
+  }
+
+  /** Filter an array of objects by user id fields */
+  function filterBlockedRows(rows, idKeys = ['id', 'userId', 'user_id', 'hostId', 'host_user_id', 'otherUserId', 'entity_id']) {
+    if (!Array.isArray(rows) || !blockIdCache || !blockIdCache.size) return rows || [];
+    return rows.filter((row) => {
+      if (!row) return false;
+      for (const key of idKeys) {
+        const v = row[key];
+        if (v != null && blockIdCache.has(String(v))) return false;
+      }
+      return true;
+    });
   }
 
   async function getFollowStats(userId) {
@@ -1791,6 +1815,8 @@
     friendBtnLabel,
     followBtnLabel,
     isBlocked,
+    getBlockedIds,
+    filterBlockedRows,
     isFollowing,
     refreshFollowCache,
     refreshBlockCache,

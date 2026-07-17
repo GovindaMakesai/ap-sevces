@@ -43,6 +43,49 @@ async function isBlocked(blockerId, blockedId) {
   return res.rows.length > 0;
 }
 
+/** True if either user blocked the other */
+async function areBlockedEitherWay(userA, userB) {
+  if (!userA || !userB || String(userA) === String(userB)) return false;
+  const res = await db.query(
+    `SELECT 1 FROM user_blocks
+     WHERE (blocker_id = $1 AND blocked_id = $2)
+        OR (blocker_id = $2 AND blocked_id = $1)
+     LIMIT 1`,
+    [userA, userB]
+  );
+  return res.rows.length > 0;
+}
+
+/**
+ * IDs the viewer should never see: people they blocked + people who blocked them.
+ */
+async function getHiddenUserIdSet(viewerId) {
+  const set = new Set();
+  if (!viewerId) return set;
+  const res = await db.query(
+    `SELECT blocked_id AS id FROM user_blocks WHERE blocker_id = $1
+     UNION
+     SELECT blocker_id AS id FROM user_blocks WHERE blocked_id = $1`,
+    [viewerId]
+  );
+  res.rows.forEach((r) => {
+    if (r.id) set.add(String(r.id));
+  });
+  return set;
+}
+
+function filterOutHiddenUsers(rows, hiddenSet, idKeys = ['id', 'user_id', 'userId', 'host_user_id', 'entity_id']) {
+  if (!hiddenSet || !hiddenSet.size || !Array.isArray(rows)) return rows || [];
+  return rows.filter((row) => {
+    if (!row) return false;
+    for (const key of idKeys) {
+      const v = row[key];
+      if (v != null && hiddenSet.has(String(v))) return false;
+    }
+    return true;
+  });
+}
+
 async function blockUser(blockerId, blockedId) {
   if (String(blockerId) === String(blockedId)) {
     throw new Error('Cannot block yourself');
@@ -93,6 +136,11 @@ async function getFollowers(userId, limit = 50) {
      FROM user_follows f
      JOIN users u ON u.id = f.follower_id
      WHERE f.following_id = $1
+       AND NOT EXISTS (
+         SELECT 1 FROM user_blocks b
+         WHERE (b.blocker_id = $1 AND b.blocked_id = u.id)
+            OR (b.blocker_id = u.id AND b.blocked_id = $1)
+       )
      ORDER BY f.created_at DESC
      LIMIT $2`,
     [userId, limit]
@@ -106,6 +154,11 @@ async function getFollowing(userId, limit = 50) {
      FROM user_follows f
      JOIN users u ON u.id = f.following_id
      WHERE f.follower_id = $1
+       AND NOT EXISTS (
+         SELECT 1 FROM user_blocks b
+         WHERE (b.blocker_id = $1 AND b.blocked_id = u.id)
+            OR (b.blocker_id = u.id AND b.blocked_id = $1)
+       )
      ORDER BY f.created_at DESC
      LIMIT $2`,
     [userId, limit]
@@ -140,6 +193,9 @@ module.exports = {
   unfollow,
   isFollowing,
   isBlocked,
+  areBlockedEitherWay,
+  getHiddenUserIdSet,
+  filterOutHiddenUsers,
   blockUser,
   unblockUser,
   getBlockedUsers,

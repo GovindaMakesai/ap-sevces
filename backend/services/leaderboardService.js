@@ -199,11 +199,13 @@ async function getLeaderboard(periodType, category, limit = 50, opts = {}) {
   const key = periodKey(periodType);
   const modeKey = opts.mode || 'default';
   const cacheKey = `lb:${periodType}:${key}:${category}:${modeKey}`;
-  try {
-    const cached = await redis.get(cacheKey);
-    if (cached) return JSON.parse(cached);
-  } catch (e) {
-    console.warn('[leaderboard] cache read skipped:', e.message);
+  if (!opts.viewerId) {
+    try {
+      const cached = await redis.get(cacheKey);
+      if (cached) return JSON.parse(cached);
+    } catch (e) {
+      console.warn('[leaderboard] cache read skipped:', e.message);
+    }
   }
 
   let rows = [];
@@ -233,13 +235,21 @@ async function getLeaderboard(periodType, category, limit = 50, opts = {}) {
   try {
     rows = await filterHiddenLeaderboardRows(rows);
     rows = await enrichLeaderboardRows(rows);
+    if (opts.viewerId) {
+      const followService = require('./followService');
+      const hidden = await followService.getHiddenUserIdSet(opts.viewerId);
+      rows = followService.filterOutHiddenUsers(rows, hidden, ['entity_id']);
+    }
   } catch (err) {
     console.error('[leaderboard] enrich failed', err.message);
   }
-  try {
-    await redis.set(cacheKey, JSON.stringify(rows), CACHE_TTL);
-  } catch (e) {
-    console.warn('[leaderboard] cache write skipped:', e.message);
+  /* Don't cache personalized (viewer-filtered) boards */
+  if (!opts.viewerId) {
+    try {
+      await redis.set(cacheKey, JSON.stringify(rows), CACHE_TTL);
+    } catch (e) {
+      console.warn('[leaderboard] cache write skipped:', e.message);
+    }
   }
   return rows;
 }

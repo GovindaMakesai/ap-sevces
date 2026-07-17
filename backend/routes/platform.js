@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const platformController = require('../controllers/platformController');
-const { verifyToken } = require('../middleware/auth');
+const { verifyToken, optionalAuth } = require('../middleware/auth');
 const { requirePermission } = require('../middleware/permissions');
 
-router.get('/leaderboards', platformController.getLeaderboard);
+router.get('/leaderboards', optionalAuth, platformController.getLeaderboard);
 router.get('/contests', platformController.listContests);
 
 router.use(verifyToken);

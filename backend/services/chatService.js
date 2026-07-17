@@ -1,6 +1,7 @@
 const db = require('../config/database');
 const User = require('../models/User');
 const Worker = require('../models/Worker');
+const followService = require('./followService');
 
 function normId(id) {
     return String(id || '').trim().toLowerCase();
@@ -57,7 +58,12 @@ async function listConversationsForUser(currentUserId) {
          ORDER BY last_message_at DESC NULLS LAST, updated_at DESC`,
         [uid]
     );
-    return result.rows;
+    const hidden = await followService.getHiddenUserIdSet(uid);
+    if (!hidden.size) return result.rows;
+    return result.rows.filter((row) => {
+      const other = otherParticipantId(row, uid);
+      return !other || !hidden.has(String(other));
+    });
 }
 
 async function getConversationById(conversationId) {
@@ -201,6 +207,12 @@ async function sendBetweenUsers(senderUserId, receiverRawId, text, options = {})
     if (receiverUserId === String(senderUserId)) {
         const err = new Error('Cannot message yourself');
         err.status = 400;
+        throw err;
+    }
+    if (await followService.areBlockedEitherWay(senderUserId, receiverUserId)) {
+        const err = new Error('You cannot message this user');
+        err.status = 403;
+        err.code = 'USER_BLOCKED';
         throw err;
     }
     const quota = options.skipQuota

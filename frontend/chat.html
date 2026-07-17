@@ -9,7 +9,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <script src="/ap-native-boot.js"></script>
     <link rel="stylesheet" href="/social-theme.css?v=20260626-discover-chat">
-    <link rel="stylesheet" href="/social-chat.css?v=20260717-dm-wrap3">
+    <link rel="stylesheet" href="/social-chat.css?v=20260717-block-hide">
     
     <!-- Font Awesome 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -1536,11 +1536,11 @@
     <script src="app.js?v=20260716-deactivated-account"></script>
     <script src="auth-guard.js"></script>
     <script src="social-ui.js?v=20260702-follow-fix"></script>
-    <script src="social-interactions.js?v=20260628-perf"></script>
+    <script src="social-interactions.js?v=20260717-block-hide"></script>
     <script src="social-wallet.js?v=20260714-gift-only"></script>
     <script src="live-emoji-data.js"></script>
     <script src="social-fx.js"></script>
-    <script src="social-shell.js?v=20260713-token-fix"></script>
+    <script src="social-shell.js?v=20260717-block-hide"></script>
     <script src="social-nav.js"></script>
     
     <script>
@@ -1645,6 +1645,18 @@
                     e.stopPropagation();
                     openChatListMenu();
                 });
+                window.addEventListener('ap-user-blocked', (ev) => {
+                    const uid = String(ev?.detail?.userId || '');
+                    try {
+                        if (uid && String(currentChatPeer?.otherUserId || '') === uid) {
+                            resetChatPaneToList?.();
+                        }
+                    } catch (_e) { /* ignore */ }
+                    loadChatList();
+                });
+                if (window.SocialInteractions?.refreshBlockCache) {
+                    SocialInteractions.refreshBlockCache().catch(() => {});
+                }
             } catch (uiErr) {
                 console.warn('chat UI bind skipped', uiErr);
             }
@@ -2695,7 +2707,23 @@
                 return;
             }
             const officialNames = ['system', 'security', 'income', 'follower', 'official'];
-            chatList.innerHTML = conversations.map((chat) => {
+            const visibleConversations = conversations.filter((chat) => {
+                const oid = String(chat.otherUserId || chat.other_user_id || '').trim();
+                if (!oid) return true;
+                return !window.SocialInteractions?.isBlocked?.(oid);
+            });
+            if (!visibleConversations.length) {
+                chatList.innerHTML = `
+                    <div class="ap-msg-empty">
+                        <i class="fas fa-comments"></i>
+                        <p>No messages yet</p>
+                        <small>Start a chat from a profile or booking</small>
+                    </div>`;
+                updateFilterBadges();
+                ensureChatPaneNotBlank();
+                return;
+            }
+            chatList.innerHTML = visibleConversations.map((chat) => {
                 const isOfficial = chat.isOfficial || officialNames.some((k) => String(chat.name || '').toLowerCase().includes(k));
                 const hasUnread = (chat.unread || 0) > 0;
                 const safeId = escapeHtml(String(chat.id));

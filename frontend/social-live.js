@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260717-live-chat-restore';
+  window.__AP_LIVE_BUILD = '20260717-block-hide';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -1203,7 +1203,33 @@
   }
 
   function getPartyMembersForList() {
-    return getPartyRoomMembers().filter((m) => m?.userId);
+    return getPartyRoomMembers()
+      .filter((m) => m?.userId)
+      .filter((m) => !window.SocialInteractions?.isBlocked?.(m.userId));
+  }
+
+  function isLiveUserBlocked(userId) {
+    const uid = String(userId || '').trim();
+    if (!uid) return false;
+    return Boolean(window.SocialInteractions?.isBlocked?.(uid));
+  }
+
+  function purgeBlockedUserFromLive(userId) {
+    const uid = String(userId || '').trim();
+    if (!uid) return;
+    chatMessages = (chatMessages || []).filter((m) => String(m.userId || '') !== uid);
+    if (Array.isArray(roomState?.onlineMembers)) {
+      roomState.onlineMembers = roomState.onlineMembers.filter((m) => String(m.userId || m.id || '') !== uid);
+    }
+    if (Array.isArray(roomState?.seats)) {
+      roomState.seats = roomState.seats.filter((s) => String(s.userId || '') !== uid);
+    }
+    try {
+      renderChatFeed();
+      renderAvailableUsers();
+      renderPartyAudienceBar();
+      if (typeof renderRoomState === 'function') renderRoomState();
+    } catch (_e) { /* ignore */ }
   }
 
   function roomAdminLabel() {
@@ -1815,7 +1841,20 @@
       return false;
     }
     if (window.SocialInteractions?.toggleBlock) {
-      return window.SocialInteractions.toggleBlock(uid, userName || 'User');
+      const blocked = await window.SocialInteractions.toggleBlock(uid, userName || 'User');
+      if (blocked) {
+        purgeBlockedUserFromLive(uid);
+        /* If you blocked the host of this room, leave */
+        if (isRoomHostUserId(uid) && !isHost()) {
+          toast('Leaving this live — host blocked', 'info');
+          setTimeout(() => {
+            try {
+              window.location.href = '/explore.html?app=1';
+            } catch (_e) { /* ignore */ }
+          }, 600);
+        }
+      }
+      return blocked;
     }
     toast('Block is unavailable right now', 'error');
     return false;
@@ -2042,8 +2081,10 @@
   }
 
   function getPartyRoomMembers() {
+    const hide = (list) =>
+      (list || []).filter((m) => m?.userId && !isLiveUserBlocked(m.userId || m.id));
     const online = roomState?.onlineMembers;
-    if (Array.isArray(online) && online.length) return online;
+    if (Array.isArray(online) && online.length) return hide(online);
     const hostId = String(roomState?.hostId || '');
     const fromSeats = (roomState?.seats || [])
       .filter((s) => s?.userId)
@@ -2055,8 +2096,8 @@
         muted: s.muted,
         seatIndex: s.seatIndex,
       }));
-    if (fromSeats.length) return fromSeats;
-    if (hostId && roomState?.hostName) {
+    if (fromSeats.length) return hide(fromSeats);
+    if (hostId && roomState?.hostName && !isLiveUserBlocked(hostId)) {
       return [{ userId: hostId, name: roomState.hostName, role: 'host', profilePic: roomState.hostProfilePic }];
     }
     return [];
@@ -6656,6 +6697,8 @@
   }
 
   function applyChatFilters(msg) {
+    const uid = String(msg?.userId || msg?.fromUserId || msg?.senderId || '').trim();
+    if (uid && isLiveUserBlocked(uid)) return false;
     if (msg.type === 'mic_invite' && !canModerateRoom()) return false;
     if (!shouldShowMsg(msg, chatTab)) return false;
     if (chatTab === 'all') return true;
@@ -13522,6 +13565,7 @@
         viewers: r.viewers || 0,
         mode: String(r.channel || '').includes('audio') ? 'audio' : 'video',
       }));
+      items = items.filter((it) => !it.hostId || !isLiveUserBlocked(it.hostId));
     } catch (_e) {
       console.warn('[live] feed API', _e);
     }
@@ -14653,6 +14697,13 @@
       setTimeout(() => unlockLiveChrome({ forceGift: true }), 2500);
       /* Capture early taps so browser audio unlocks before Agora play(). */
       bindAudioUnlockGestures();
+      window.addEventListener('ap-user-blocked', (ev) => {
+        const uid = ev?.detail?.userId;
+        if (uid) purgeBlockedUserFromLive(uid);
+      });
+      if (window.SocialInteractions?.refreshBlockCache) {
+        SocialInteractions.refreshBlockCache().catch(() => {});
+      }
     }
     if (page === 'party-room') initPartyRoom();
     if (page === 'live-room') initLiveRoom();

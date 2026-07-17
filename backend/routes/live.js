@@ -3,7 +3,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const router = express.Router();
-const { verifyToken } = require('../middleware/auth');
+const { verifyToken, optionalAuth } = require('../middleware/auth');
 const liveController = require('../controllers/liveController');
 const liveAccessService = require('../services/liveAccessService');
 
@@ -39,7 +39,7 @@ const partyMusicUpload = multer({
   },
 });
 
-router.get('/rooms', liveController.listActiveRooms);
+router.get('/rooms', optionalAuth, liveController.listActiveRooms);
 router.get('/agora/config', liveController.agoraConfig);
 router.post('/agora/token', verifyToken, liveController.agoraToken);
 router.get('/access-status', verifyToken, liveController.liveAccessStatus);
