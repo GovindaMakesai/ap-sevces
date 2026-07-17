@@ -1336,36 +1336,26 @@ body.ap-is-host #liveHostBar:not(.is-collapsed):not([hidden]) {
 
 .party-chat-mod-btn {
   border: none;
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.12);
   color: #fff;
-  width: 36px;
-  height: 36px;
-  min-width: 36px;
-  min-height: 36px;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
   padding: 0;
-  margin: 0;
+  margin-left: auto;
   flex-shrink: 0;
-  font-size: 15px;
+  font-size: 14px;
   cursor: pointer;
   border-radius: 10px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   touch-action: manipulation;
-  -webkit-tap-highlight-color: rgba(251, 191, 36, 0.35);
-  position: absolute;
-  top: 50%;
-  right: 0;
-  transform: translateY(-50%);
-  z-index: 40;
+  -webkit-tap-highlight-color: transparent;
+  position: relative;
+  z-index: 6;
   pointer-events: auto !important;
-}
-
-/* Extra invisible tap pad around ⋮ (phones / WebView) */
-.party-chat-mod-btn::after {
-  content: '';
-  position: absolute;
-  inset: -10px;
 }
 
 .party-chat-mod-btn:active,
@@ -7460,10 +7450,9 @@ html.ap-expo-app .ap-chip {
   width: 100%;
   max-width: 100%;
   line-height: 1.25;
-  min-height: 36px;
+  min-height: 28px;
   overflow: hidden;
   position: relative;
-  padding-right: 40px;
   box-sizing: border-box;
 }
 
@@ -7478,7 +7467,7 @@ html.ap-expo-app .ap-chip {
 
 .party-chat-user-btn {
   flex: 1 1 auto;
-  max-width: 100%;
+  max-width: calc(100% - 40px);
   min-width: 0;
   text-align: left;
   overflow: hidden;

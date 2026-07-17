@@ -9,7 +9,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <script src="/ap-native-boot.js"></script>
     <link rel="stylesheet" href="/social-theme.css?v=20260626-discover-chat">
-    <link rel="stylesheet" href="/social-chat.css?v=20260715-gift-coins">
+    <link rel="stylesheet" href="/social-chat.css?v=20260717-dm-dots1">
     
     <!-- Font Awesome 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -465,6 +465,7 @@
         .chat-header-more-wrap {
             position: relative;
             flex-shrink: 0;
+            z-index: 40;
         }
 
         .chat-header-more-menu {
@@ -477,8 +478,9 @@
             border-radius: 12px;
             box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
             padding: 6px 0;
-            z-index: 50;
+            z-index: 5000;
             display: none;
+            pointer-events: auto;
         }
 
         .chat-header-more-menu.open {
@@ -508,6 +510,51 @@
 
         .chat-header-more-menu button[data-act="block"].is-on {
             color: #991b1b;
+        }
+
+        .message-bubble {
+            max-width: 70%;
+            min-width: 100px;
+            position: relative;
+        }
+
+        .message-more-btn {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            width: 28px;
+            height: 28px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.08);
+            color: inherit;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            cursor: pointer;
+            z-index: 3;
+            pointer-events: auto;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            opacity: 0.85;
+        }
+
+        .message-wrapper.sent .message-more-btn {
+            background: rgba(255, 255, 255, 0.2);
+            color: #fff;
+        }
+
+        .message-wrapper.received .message-more-btn {
+            background: rgba(0, 0, 0, 0.06);
+            color: #6b7280;
+        }
+
+        .message-more-btn:active,
+        .message-more-btn:hover {
+            opacity: 1;
+            background: rgba(201, 162, 39, 0.35);
+            color: #5c4a1a;
         }
 
         /* ==================== MESSAGES AREA ==================== */
@@ -589,10 +636,11 @@
         .message-bubble {
             max-width: 70%;
             min-width: 100px;
+            position: relative;
         }
 
         .message-content {
-            padding: 0.75rem 1rem;
+            padding: 0.75rem 2rem 0.75rem 1rem;
             border-radius: var(--radius-lg);
             position: relative;
             word-wrap: break-word;
@@ -1579,7 +1627,12 @@
                 setupMsgQuickChips();
                 bindChatSocialActions();
                 setupChatListPullRefresh();
-                document.querySelector('.ap-msg-top-actions button[aria-label="More"]')?.addEventListener('click', () => openChatListMenu());
+                setupMessageActions();
+                document.querySelector('.ap-msg-top-actions button[aria-label="More"]')?.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    openChatListMenu();
+                });
             } catch (uiErr) {
                 console.warn('chat UI bind skipped', uiErr);
             }
@@ -3259,6 +3312,12 @@
                     content.appendChild(img);
                 }
                 bubble.appendChild(content);
+                const moreBtn = document.createElement('button');
+                moreBtn.type = 'button';
+                moreBtn.className = 'message-more-btn';
+                moreBtn.setAttribute('aria-label', 'Message options');
+                moreBtn.innerHTML = '<i class="fas fa-ellipsis-v" aria-hidden="true"></i>';
+                bubble.appendChild(moreBtn);
                 const timeRow = document.createElement('div');
                 timeRow.className = 'message-time';
                 timeRow.innerHTML = '<span>' + escapeHtml(msg.time || '') + '</span><span class="message-status">' + renderMessageStatusIcon(msg) + '</span>';
@@ -3332,6 +3391,7 @@
                                 ${bodyHtml}
                                 ${msg.image ? `<img src="${escapeAttr(msg.image)}" class="message-image" alt="Photo" loading="lazy" onclick='openImageModal(${JSON.stringify(msg.image)})'>` : ''}
                             </div>
+                            <button type="button" class="message-more-btn" aria-label="Message options"><i class="fas fa-ellipsis-v" aria-hidden="true"></i></button>
                             <div class="message-time">
                                 <span>${msg.time}</span>
                                 <span class="message-status">
@@ -3440,7 +3500,18 @@
                 });
                 sheet.classList.add('open');
             };
+            /* Visible ⋮ on each message */
+            container.addEventListener('click', (e) => {
+                const more = e.target.closest?.('.message-more-btn');
+                if (!more) return;
+                e.preventDefault();
+                e.stopPropagation();
+                const bubble = more.closest('.message-bubble');
+                if (!bubble) return;
+                openMsgMenu(bubble, bubble.closest('.message-wrapper'));
+            });
             container.addEventListener('touchstart', (e) => {
+                if (e.target.closest?.('.message-more-btn')) return;
                 const bubble = e.target.closest?.('.message-bubble');
                 if (!bubble) return;
                 const wrapper = bubble.closest('.message-wrapper');
@@ -3558,11 +3629,7 @@
             if (!moreWrap || !followBtn || !blockBtn) return;
 
             const peer = currentChatPeer;
-            const key = currentChatId ? chatKey(currentChatId) : '';
-            const msgs = key ? (useChatStore.getState().messages[key] || []) : [];
-            const hasTalked = msgs.length > 0;
-
-            if (!peer?.otherUserId || !hasTalked) {
+            if (!peer?.otherUserId) {
                 moreWrap.hidden = true;
                 closeChatHeaderMoreMenu();
                 return;
@@ -3580,21 +3647,28 @@
         }
 
         function bindChatSocialActions() {
+            if (window.__apChatSocialActionsBound) return;
+            window.__apChatSocialActionsBound = true;
             const moreBtn = document.getElementById('chatHeaderMoreBtn');
             const menu = document.getElementById('chatHeaderMoreMenu');
             const followBtn = document.getElementById('chatMenuFollow');
             const blockBtn = document.getElementById('chatMenuBlock');
-            if (moreBtn && !moreBtn.dataset.bound) {
-                moreBtn.dataset.bound = '1';
+            if (moreBtn) {
                 moreBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
                     e.stopPropagation();
-                    menu?.classList.toggle('open');
+                    if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+                    const willOpen = !menu?.classList.contains('open');
+                    closeChatHeaderMoreMenu();
+                    if (willOpen) menu?.classList.add('open');
                 });
             }
-            document.addEventListener('click', () => closeChatHeaderMoreMenu());
+            document.addEventListener('click', (e) => {
+                if (e.target.closest?.('#chatHeaderMoreWrap')) return;
+                closeChatHeaderMoreMenu();
+            });
             menu?.addEventListener('click', (e) => e.stopPropagation());
-            if (followBtn && !followBtn.dataset.bound) {
-                followBtn.dataset.bound = '1';
+            if (followBtn) {
                 followBtn.addEventListener('click', async () => {
                     if (!currentChatPeer?.otherUserId || !window.SocialInteractions?.toggleFollow) return;
                     await SocialInteractions.toggleFollow(currentChatPeer.otherUserId, currentChatPeer.name);
@@ -3603,15 +3677,13 @@
                 });
             }
             const exchangeBtn = document.getElementById('chatMenuExchange');
-            if (exchangeBtn && !exchangeBtn.dataset.bound) {
-                exchangeBtn.dataset.bound = '1';
+            if (exchangeBtn) {
                 exchangeBtn.addEventListener('click', () => {
                     closeChatHeaderMoreMenu();
                     openChatCoinSheet();
                 });
             }
-            if (blockBtn && !blockBtn.dataset.bound) {
-                blockBtn.dataset.bound = '1';
+            if (blockBtn) {
                 blockBtn.addEventListener('click', async () => {
                     if (!currentChatPeer?.otherUserId || !window.SocialInteractions?.toggleBlock) return;
                     await SocialInteractions.toggleBlock(currentChatPeer.otherUserId, currentChatPeer.name);

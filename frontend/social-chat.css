@@ -784,8 +784,9 @@ html.ap-expo-app .chat-actions {
   gap: 2px;
   flex-shrink: 0;
   max-width: 48%;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+  overflow: visible;
+  position: relative;
+  z-index: 30;
 }
 
 html.ap-expo-app #chatHeaderSellBtn:not([hidden]) {
@@ -793,12 +794,37 @@ html.ap-expo-app #chatHeaderSellBtn:not([hidden]) {
 }
 
 html.ap-expo-app .chat-action-btn {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
   border: none;
   background: transparent;
   color: var(--ap-msg-text);
   font-size: 17px;
+  pointer-events: auto !important;
+  touch-action: manipulation;
+  position: relative;
+  z-index: 2;
+}
+
+html.ap-expo-app .chat-header-more-wrap {
+  position: relative;
+  z-index: 40;
+  overflow: visible;
+}
+
+html.ap-expo-app .chat-header-more-menu {
+  z-index: 6000;
+}
+
+html.ap-expo-app .chat-header-more-menu.open {
+  display: block;
+}
+
+html.ap-expo-app .message-more-btn {
+  pointer-events: auto !important;
+  touch-action: manipulation;
 }
 
 html.ap-expo-app .chat-action-btn:active {
