@@ -48,14 +48,14 @@
         <small id="applyPromoHint" style="display:block;margin-top:6px;color:#888;font-size:12px"></small>
       </div>
       <div class="ap-field" id="bdCodeField" hidden>
-        <label for="applyBdCode">BD promo code <span style="color:#c62828">*</span></label>
-        <input type="text" id="applyBdCode" placeholder="Enter BD code" autocomplete="off" style="text-transform:uppercase">
-        <small style="display:block;margin-top:6px;color:#888;font-size:12px">Required. Get this from your BD.</small>
+        <label for="applyBdCode">BD promo code</label>
+        <input type="text" id="applyBdCode" placeholder="Enter BD code (optional)" autocomplete="off" style="text-transform:uppercase">
+        <small style="display:block;margin-top:6px;color:#888;font-size:12px">Optional. With a BD code, your BD reviews the request.</small>
       </div>
-      <div class="ap-field" id="parentAgencyCodeField" hidden>
-        <label for="applyParentAgencyCode">Parent Agency invite code <span style="color:#c62828">*</span></label>
-        <input type="text" id="applyParentAgencyCode" placeholder="Enter Agency invite code" autocomplete="off" style="text-transform:uppercase">
-        <small style="display:block;margin-top:6px;color:#888;font-size:12px">Required. Get this from the Agency inviting you (Invite Agency).</small>
+      <div class="ap-field" id="agencyInviteCodeField" hidden>
+        <label for="applyAgencyInviteCode">Agency invite code</label>
+        <input type="text" id="applyAgencyInviteCode" placeholder="Enter Agency invite code (optional)" autocomplete="off" style="text-transform:uppercase">
+        <small style="display:block;margin-top:6px;color:#888;font-size:12px">Optional. From the Agency inviting you into their network.</small>
       </div>
       <div class="ap-field">
         <label for="applyPhone">Contact phone</label>
@@ -105,14 +105,14 @@
         benefits: [
           'Manage multiple hosts under your agency',
           'Earn agency commission on host gifts (default 20%)',
-          'Invite hosts and sub-agencies from Agency Center',
-          'Sit under a BD and a parent Agency in the new hierarchy',
+          'Invite hosts and agencies from Agency Center',
+          'Grow under a BD and Agency network',
         ],
         requirements: [
           'Active account in good standing',
-          'BD promo code required',
-          'Parent Agency invite code required (from the Agency inviting you)',
-          'Both codes must belong to the same network',
+          'BD promo code optional — with a code your BD reviews',
+          'Agency invite code optional — join another Agency’s network',
+          'Without codes, Admin reviews',
           'Provide a clear agency name and contact phone',
         ],
         approvedLink: '/agency-center.html?app=1',
@@ -160,10 +160,10 @@
       if (agencyField) agencyField.hidden = selectedRole !== 'agency';
       const promoField = document.getElementById('promoCodeField');
       const bdField = document.getElementById('bdCodeField');
-      const parentAgencyField = document.getElementById('parentAgencyCodeField');
+      const agencyInviteField = document.getElementById('agencyInviteCodeField');
       if (promoField) promoField.hidden = selectedRole !== 'creator';
       if (bdField) bdField.hidden = selectedRole !== 'agency';
-      if (parentAgencyField) parentAgencyField.hidden = selectedRole !== 'agency';
+      if (agencyInviteField) agencyInviteField.hidden = selectedRole !== 'agency';
       const promoLabel = document.getElementById('applyPromoLabel');
       const promoHint = document.getElementById('applyPromoHint');
       const promoInput = document.getElementById('applyPromoCode');
@@ -256,20 +256,12 @@
           payload.promo_code = document.getElementById('applyPromoCode')?.value.trim() || undefined;
         } else if (selectedRole === 'agency') {
           const bdCode = document.getElementById('applyBdCode')?.value.trim();
-          const agencyCode = document.getElementById('applyParentAgencyCode')?.value.trim();
-          if (!bdCode) {
-            toast('BD promo code is required', 'error');
-            btn.disabled = false;
-            return;
+          const agencyCode = document.getElementById('applyAgencyInviteCode')?.value.trim();
+          if (bdCode) {
+            payload.bd_promo_code = bdCode;
+            payload.promo_code = bdCode;
           }
-          if (!agencyCode) {
-            toast('Parent Agency invite code is required', 'error');
-            btn.disabled = false;
-            return;
-          }
-          payload.bd_promo_code = bdCode;
-          payload.agency_invite_code = agencyCode;
-          payload.promo_code = bdCode;
+          if (agencyCode) payload.agency_invite_code = agencyCode;
         }
         await API.post('/social/role-applications', payload);
         toast('Application submitted! We will notify you when reviewed.', 'success');
@@ -301,16 +293,19 @@
         const agencyCode =
           params.get('agency_code') || params.get('agency') || params.get('parent_agency_code');
         if (selectedRole === 'agency') {
-          if (promo && document.getElementById('applyBdCode')) {
+          if (params.get('bd') || params.get('bd_code')) {
+            if (promo && document.getElementById('applyBdCode')) {
+              document.getElementById('applyBdCode').value = promo.toUpperCase();
+            }
+          }
+          if (agencyCode && document.getElementById('applyAgencyInviteCode')) {
+            document.getElementById('applyAgencyInviteCode').value = agencyCode.toUpperCase();
+          } else if (promo && !params.get('bd') && !params.get('bd_code') && document.getElementById('applyAgencyInviteCode')) {
+            /* Invite Agency share links use ?agency_code= or legacy ?promo= as Agency code */
+            document.getElementById('applyAgencyInviteCode').value = promo.toUpperCase();
+          }
+          if ((params.get('bd') || params.get('bd_code')) && promo && document.getElementById('applyBdCode')) {
             document.getElementById('applyBdCode').value = promo.toUpperCase();
-          }
-          if (agencyCode && document.getElementById('applyParentAgencyCode')) {
-            document.getElementById('applyParentAgencyCode').value = agencyCode.toUpperCase();
-          }
-          /* Legacy: ?promo= only on agency apply — treat as agency code if agency_code missing */
-          if (!agencyCode && promo && document.getElementById('applyParentAgencyCode') && !params.get('bd') && !params.get('bd_code')) {
-            document.getElementById('applyParentAgencyCode').value = promo.toUpperCase();
-            document.getElementById('applyBdCode').value = '';
           }
         } else if (promo && document.getElementById('applyPromoCode')) {
           document.getElementById('applyPromoCode').value = promo.toUpperCase();

@@ -79,37 +79,38 @@ async function submitApplication(
   if (role === 'agency') {
     const rawBd = String(bdPromoCode || promoCode || '').trim();
     const rawAgency = String(agencyInviteCode || '').trim();
-    if (!rawBd) {
-      throw new Error('BD promo code is required to apply as Agency');
-    }
-    if (!rawAgency) {
-      throw new Error('Parent Agency invite code is required to apply as Agency (get both codes from your network)');
+
+    if (rawBd) {
+      const promo = await hierarchyService.resolvePromoCode(rawBd);
+      if (!promo) {
+        throw new Error('Invalid BD promo code. Ask your BD for a valid one, or leave it blank.');
+      }
+      if (promo.scope !== 'both' && promo.scope !== 'agency') {
+        throw new Error('This BD promo code does not allow Agency applications');
+      }
+      targetBdUserId = promo.bd_user_id;
+      normalizedPromo = String(promo.code).toUpperCase();
     }
 
-    const promo = await hierarchyService.resolvePromoCode(rawBd);
-    if (!promo) {
-      throw new Error('Invalid BD promo code. Ask your BD for a valid one.');
+    if (rawAgency) {
+      const invite = await hierarchyService.resolveAgencyInviteCode(rawAgency);
+      if (!invite) {
+        throw new Error('Invalid Agency invite code. Ask the inviting Agency for their code, or leave it blank.');
+      }
+      if (String(invite.owner_user_id) === String(userId)) {
+        throw new Error('You cannot use your own Agency invite code');
+      }
+      if (targetBdUserId && invite.bd_user_id && String(invite.bd_user_id) !== String(targetBdUserId)) {
+        throw new Error(
+          'BD code and Agency code must belong to the same network. Use the BD who manages that Agency.'
+        );
+      }
+      targetAgencyId = invite.agency_id;
+      if (!targetBdUserId && invite.bd_user_id) {
+        targetBdUserId = invite.bd_user_id;
+      }
     }
-    if (promo.scope !== 'both' && promo.scope !== 'agency') {
-      throw new Error('This BD promo code does not allow Agency applications');
-    }
-
-    const invite = await hierarchyService.resolveAgencyInviteCode(rawAgency);
-    if (!invite) {
-      throw new Error('Invalid parent Agency invite code. Ask the inviting Agency for their code.');
-    }
-    if (String(invite.owner_user_id) === String(userId)) {
-      throw new Error('You cannot use your own Agency invite code');
-    }
-    if (invite.bd_user_id && String(invite.bd_user_id) !== String(promo.bd_user_id)) {
-      throw new Error(
-        'BD code and Agency code must belong to the same network. Use the BD who manages that Agency.'
-      );
-    }
-
-    targetBdUserId = promo.bd_user_id;
-    targetAgencyId = invite.agency_id;
-    normalizedPromo = String(promo.code).toUpperCase();
+    // Either or both codes optional — BD reviews when BD is set; otherwise Admin reviews
   } else if (role === 'creator') {
     const invite = await hierarchyService.resolveAgencyInviteCode(promoCode);
     if (!invite) {
@@ -123,7 +124,7 @@ async function submitApplication(
   const msgParts = [];
   if (agencyName) msgParts.push(`Agency name: ${agencyName}`);
   if (role === 'agency' && agencyInviteCode) {
-    msgParts.push(`Parent agency code: ${String(agencyInviteCode).trim().toUpperCase()}`);
+    msgParts.push(`Agency code: ${String(agencyInviteCode).trim().toUpperCase()}`);
   }
   if (message) msgParts.push(message);
   const fullMessage = msgParts.join('\n') || null;
@@ -206,12 +207,12 @@ async function notifyAgencyOfSubAgencyApp(app) {
       user_id: agency.owner_user_id,
       type: 'role_application',
       title: 'New Invite Agency application',
-      message: `Someone applied as a sub-agency under ${agency.name || 'your agency'}. Your BD will review the request.`,
+      message: `Someone applied as an Agency under ${agency.name || 'your agency'}. Your BD will review the request.`,
       data: {
         application_id: app.id,
         role_type: 'agency',
         status: 'pending',
-        parent_agency_id: app.target_agency_id,
+        agency_id: app.target_agency_id,
       },
     });
   } catch (_e) {
@@ -311,12 +312,6 @@ async function reviewApplication(
       }
       resolvedBd = bdUser.id;
     }
-    if (!resolvedBd) {
-      throw new Error('Agency approval requires a BD (from application BD code or assign one)');
-    }
-    if (!app.target_agency_id) {
-      throw new Error('Agency approval requires a parent Agency (from application Agency invite code)');
-    }
     const agency = await hierarchyService.createAgencyUnderBd({
       actorUserId: adminUserId,
       name:
@@ -325,12 +320,12 @@ async function reviewApplication(
         extractAgencyName(app.message) ||
         `${app.first_name || 'Agency'} Agency`,
       ownerUserId: app.user_id,
-      bdUserId: resolvedBd,
-      parentAgencyId: app.target_agency_id,
+      bdUserId: resolvedBd || null,
+      parentAgencyId: app.target_agency_id || null,
       commissionPercent: 20,
     });
     const upd = await markReviewed(applicationId, adminUserId, 'approved');
-    if (app.promo_code) await hierarchyService.bumpPromoUse(app.promo_code);
+    if (app.promo_code && app.target_bd_user_id) await hierarchyService.bumpPromoUse(app.promo_code);
     if (app.target_agency_id) await hierarchyService.bumpAgencyInviteUseByAgencyId(app.target_agency_id);
     await notify(app, 'approved', reason);
     return { ...upd, role_label: ROLE_LABELS.agency, agency };
