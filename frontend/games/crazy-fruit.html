@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Crazy Fruit</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      background: linear-gradient(180deg, #0c1445 0%, #1a0a3e 50%, #0a0620 100%);
+      color: #fff; font-family: system-ui, -apple-system, sans-serif;
+      display: flex; flex-direction: column; align-items: center;
+      padding: 12px 10px 24px; touch-action: manipulation;
+      overflow-x: hidden;
+    }
+
+    .title {
+      font-size: 1.5rem; font-weight: 900; text-align: center;
+      background: linear-gradient(180deg, #fde68a, #f59e0b);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      text-shadow: none; margin-bottom: 4px;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+    }
+
+    .hud {
+      display: flex; align-items: center; gap: 10px; margin: 6px 0;
+      font-weight: 800; font-size: 0.85rem;
+    }
+    .hud .coins {
+      background: linear-gradient(135deg, #fbbf24, #d97706);
+      color: #422006; padding: 6px 14px; border-radius: 999px;
+      display: flex; align-items: center; gap: 4px;
+    }
+    .hud .today-win {
+      background: rgba(255,255,255,0.08); padding: 6px 14px;
+      border-radius: 999px;
+    }
+
+    .machine {
+      width: 100%; max-width: 340px;
+      background: linear-gradient(180deg, #1e3a5f, #0f2341);
+      border: 3px solid #c89b3c; border-radius: 18px;
+      padding: 14px 10px; margin: 10px 0;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1);
+    }
+
+    .grid {
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+      gap: 6px; margin-bottom: 10px;
+    }
+    .cell {
+      aspect-ratio: 1; border-radius: 12px;
+      background: linear-gradient(145deg, #2a4a7a, #1a3058);
+      border: 2px solid rgba(255,255,255,0.08);
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; gap: 2px;
+      font-size: 1.6rem; position: relative;
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+      transition: transform 0.15s, border-color 0.2s;
+    }
+    .cell .mult {
+      font-size: 0.65rem; font-weight: 900; color: #c89b3c;
+    }
+    .cell.is-center {
+      background: linear-gradient(145deg, #1a3058, #0f1d3a);
+      border-color: #c89b3c;
+      font-size: 2rem; font-weight: 900; color: #fde68a;
+    }
+    .cell.is-lucky {
+      background: linear-gradient(145deg, #b91c1c, #991b1b);
+      border-color: #fbbf24;
+    }
+    .cell.is-super {
+      background: linear-gradient(145deg, #7c3aed, #4c1d95);
+      border-color: #fbbf24;
+    }
+    .cell.is-active {
+      border-color: #fbbf24 !important;
+      transform: scale(1.05);
+      box-shadow: 0 0 12px rgba(251,191,36,0.5);
+    }
+    .cell.is-win {
+      animation: cellPop 0.5s ease;
+      border-color: #fbbf24 !important;
+      box-shadow: 0 0 20px rgba(251,191,36,0.8);
+    }
+    @keyframes cellPop {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.15); }
+      100% { transform: scale(1.05); }
+    }
+
+    .dots {
+      display: flex; justify-content: center; gap: 4px; margin: 6px 0;
+    }
+    .dots span {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: rgba(255,255,255,0.2);
+    }
+    .dots span.on { background: #fbbf24; }
+
+    .chips {
+      display: flex; gap: 6px; justify-content: center;
+      flex-wrap: wrap; margin: 8px 0;
+      overflow-x: auto; -webkit-overflow-scrolling: touch;
+    }
+    .chip {
+      border: 3px solid transparent; border-radius: 50%;
+      width: 52px; height: 52px; font-weight: 900; font-size: 0.7rem;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+      flex-shrink: 0;
+    }
+    .chip.c100 { background: linear-gradient(145deg, #22c55e, #15803d); }
+    .chip.c1k { background: linear-gradient(145deg, #3b82f6, #1d4ed8); }
+    .chip.c10k { background: linear-gradient(145deg, #a855f7, #7c3aed); }
+    .chip.c50k { background: linear-gradient(145deg, #ef4444, #b91c1c); }
+    .chip.c100k { background: linear-gradient(145deg, #f59e0b, #d97706); }
+    .chip.active { border-color: #fde68a; box-shadow: 0 0 0 2px rgba(253,230,138,0.5); }
+
+    .result-strip {
+      display: flex; gap: 4px; align-items: center;
+      padding: 6px 10px; background: rgba(0,0,0,0.3);
+      border-radius: 10px; margin: 6px 0; overflow-x: auto;
+      max-width: 100%;
+    }
+    .result-strip .tag {
+      font-size: 0.6rem; font-weight: 800; color: #fbbf24;
+      background: rgba(251,191,36,0.15); padding: 2px 6px;
+      border-radius: 4px; flex-shrink: 0;
+    }
+    .result-strip .fruit { font-size: 1.1rem; flex-shrink: 0; }
+
+    .instruction {
+      font-size: 0.75rem; color: rgba(255,255,255,0.6);
+      text-align: center; margin: 4px 0;
+    }
+
+    .status {
+      text-align: center; font-weight: 800; font-size: 0.95rem;
+      min-height: 36px; margin-top: 6px;
+      color: #fde68a;
+    }
+  </style>
+</head>
+<body>
+  <div class="title">Crazy Fruit</div>
+
+  <div class="hud">
+    <div class="coins">$ <strong id="coins">0</strong></div>
+    <div class="today-win">TODAY'S WIN <strong id="todayWin">0</strong></div>
+  </div>
+
+  <div class="machine" id="machine">
+    <div class="grid" id="grid"></div>
+    <div class="dots" id="dots"></div>
+  </div>
+
+  <div class="instruction">Select Amount -> Choose Fruit</div>
+
+  <div class="chips" id="chips"></div>
+
+  <div class="result-strip">
+    <span class="tag">Result:</span>
+    <span id="resultTrail"></span>
+  </div>
+
+  <div class="status" id="status">Pick a bet, then tap a fruit!</div>
+
+<script>
+(function () {
+  var FRUITS = [
+    { emoji: '🍊', name: 'Orange' },
+    { emoji: '🍋', name: 'Lemon' },
+    { emoji: '🍇', name: 'Grape' },
+    { emoji: '🍒', name: 'Cherry' },
+    { emoji: '🍓', name: 'Strawberry' },
+    { emoji: '🥭', name: 'Mango' },
+    { emoji: '🍉', name: 'Watermelon' },
+    { emoji: '🍎', name: 'Apple' },
+  ];
+
+  /* Grid layout: 4x3 = 12 cells.
+     Row 0: 4 fruits (x5 each)
+     Row 1: Lucky | center-counter | center-counter | Super Lucky
+     Row 2: 4 fruits (x45, x25, x15, x10)  */
+  var CELLS = [
+    { type: 'fruit', fruit: 0, mult: 5 },
+    { type: 'fruit', fruit: 1, mult: 5 },
+    { type: 'fruit', fruit: 2, mult: 5 },
+    { type: 'fruit', fruit: 3, mult: 5 },
+    { type: 'lucky', mult: 0 },
+    { type: 'center' },
+    { type: 'center' },
+    { type: 'super', mult: 0 },
+    { type: 'fruit', fruit: 4, mult: 45 },
+    { type: 'fruit', fruit: 5, mult: 25 },
+    { type: 'fruit', fruit: 6, mult: 15 },
+    { type: 'fruit', fruit: 7, mult: 10 },
+  ];
+
+  /* Spin ring order (outer cells only, CW starting top-left) */
+  var RING = [0, 1, 2, 3, 7, 11, 10, 9, 8, 4];
+
+  var BET_AMOUNTS = [100, 1000, 10000, 50000, 100000];
+  var BET_LABELS = ['100', '1K', '10K', '50K', '100K'];
+  var BET_CLASSES = ['c100', 'c1k', 'c10k', 'c50k', 'c100k'];
+
+  var coins = 0;
+  var todayWin = 0;
+  var betIndex = 0;
+  var busy = false;
+  var counter = 0;
+  var results = [];
+  var cellEls = [];
+  var dotEls = [];
+
+  function post(o) {
+    try {
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage(o, '*');
+      }
+      if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+        window.ReactNativeWebView.postMessage(JSON.stringify(o));
+      }
+    } catch (e) {}
+  }
+
+  function currentBet() { return BET_AMOUNTS[betIndex]; }
+
+  function buildGrid() {
+    var grid = document.getElementById('grid');
+    grid.innerHTML = '';
+    cellEls = [];
+    CELLS.forEach(function (c, i) {
+      var el = document.createElement('button');
+      el.type = 'button';
+      el.className = 'cell';
+      el.dataset.idx = i;
+      if (c.type === 'center') {
+        el.className += ' is-center';
+        el.textContent = '00';
+        el.style.gridColumn = (i === 5) ? '2' : '3';
+      } else if (c.type === 'lucky') {
+        el.className += ' is-lucky';
+        el.innerHTML = '<span style="font-size:0.65rem;font-weight:900;color:#fde68a">Lucky</span>';
+      } else if (c.type === 'super') {
+        el.className += ' is-super';
+        el.innerHTML = '<span style="font-size:0.55rem;font-weight:900;color:#fde68a;text-align:center;line-height:1.2">Super<br>Lucky</span>';
+      } else {
+        el.innerHTML = FRUITS[c.fruit].emoji + '<span class="mult">x' + c.mult + '</span>';
+        el.addEventListener('click', function () { onFruitPick(i); });
+      }
+      grid.appendChild(el);
+      cellEls.push(el);
+    });
+  }
+
+  function buildDots() {
+    var wrap = document.getElementById('dots');
+    wrap.innerHTML = '';
+    dotEls = [];
+    for (var i = 0; i < RING.length; i++) {
+      var d = document.createElement('span');
+      dotEls.push(d);
+      wrap.appendChild(d);
+    }
+  }
+
+  function buildChips() {
+    var wrap = document.getElementById('chips');
+    wrap.innerHTML = '';
+    BET_AMOUNTS.forEach(function (amt, i) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'chip ' + BET_CLASSES[i] + (i === betIndex ? ' active' : '');
+      btn.textContent = BET_LABELS[i];
+      btn.addEventListener('click', function () {
+        if (busy) return;
+        betIndex = i;
+        document.querySelectorAll('.chip').forEach(function (c) { c.classList.remove('active'); });
+        btn.classList.add('active');
+      });
+      wrap.appendChild(btn);
+    });
+  }
+
+  function updateHud() {
+    document.getElementById('coins').textContent = coins.toLocaleString();
+    document.getElementById('todayWin').textContent = todayWin.toLocaleString();
+  }
+
+  function setCounter(n) {
+    counter = n;
+    cellEls.forEach(function (el, i) {
+      if (CELLS[i].type === 'center') {
+        el.textContent = String(counter).padStart(2, '0');
+      }
+    });
+  }
+
+  function clearActive() {
+    cellEls.forEach(function (el) {
+      el.classList.remove('is-active', 'is-win');
+    });
+    dotEls.forEach(function (d) { d.classList.remove('on'); });
+  }
+
+  function onFruitPick(cellIdx) {
+    if (busy) return;
+    var c = CELLS[cellIdx];
+    if (!c || c.type !== 'fruit') return;
+    var bet = currentBet();
+    if (coins < bet) {
+      document.getElementById('status').textContent = 'Not enough coins!';
+      post({ type: 'GAME_NEED_COINS', game: 'crazy-fruit', need: bet - coins });
+      return;
+    }
+
+    busy = true;
+    coins -= bet;
+    updateHud();
+    post({ type: 'GAME_BET', game: 'crazy-fruit', bet: bet, fruit: FRUITS[c.fruit].name });
+
+    /* Spin animation around the ring */
+    var totalSteps = 20 + Math.floor(Math.random() * 12);
+    /* Determine outcome: ~40% win */
+    var isWin = Math.random() < 0.4;
+    var isLucky = isWin && Math.random() < 0.08;
+    var isSuper = isWin && !isLucky && Math.random() < 0.03;
+    var targetRingIdx;
+
+    if (isLucky) {
+      targetRingIdx = RING.indexOf(4); /* Lucky cell */
+    } else if (isSuper) {
+      targetRingIdx = RING.indexOf(7); /* Super Lucky cell */
+    } else {
+      /* Land on the picked fruit if win, random other if loss */
+      var fruitRingPositions = [];
+      RING.forEach(function (ci, ri) {
+        if (CELLS[ci].type === 'fruit' && ci === cellIdx) fruitRingPositions.push(ri);
+      });
+      var otherPositions = [];
+      RING.forEach(function (ci, ri) {
+        if (ci !== cellIdx && CELLS[ci].type === 'fruit') otherPositions.push(ri);
+      });
+      if (isWin && fruitRingPositions.length) {
+        targetRingIdx = fruitRingPositions[0];
+      } else if (otherPositions.length) {
+        targetRingIdx = otherPositions[Math.floor(Math.random() * otherPositions.length)];
+      } else {
+        targetRingIdx = 0;
+      }
+    }
+
+    var finalStep = totalSteps;
+    var step = 0;
+    var interval = setInterval(function () {
+      clearActive();
+      var ringPos = step % RING.length;
+      cellEls[RING[ringPos]].classList.add('is-active');
+      if (ringPos < dotEls.length) dotEls[ringPos].classList.add('on');
+
+      step++;
+      if (step >= finalStep) {
+        clearInterval(interval);
+        /* Land on target */
+        clearActive();
+        var landRingPos = targetRingIdx;
+        var landCellIdx = RING[landRingPos];
+        cellEls[landCellIdx].classList.add('is-win');
+        if (landRingPos < dotEls.length) dotEls[landRingPos].classList.add('on');
+
+        var landedCell = CELLS[landCellIdx];
+        var mult = 0;
+        var payout = 0;
+        var resultEmoji = '';
+
+        if (landedCell.type === 'lucky') {
+          mult = [2, 3, 5, 8][Math.floor(Math.random() * 4)];
+          payout = bet * mult;
+          resultEmoji = '🍀';
+          document.getElementById('status').textContent = 'LUCKY! x' + mult + ' = +' + payout.toLocaleString();
+        } else if (landedCell.type === 'super') {
+          mult = [10, 15, 20, 50][Math.floor(Math.random() * 4)];
+          payout = bet * mult;
+          resultEmoji = '🌟';
+          document.getElementById('status').textContent = 'SUPER LUCKY! x' + mult + ' = +' + payout.toLocaleString();
+        } else if (landedCell.type === 'fruit' && landCellIdx === cellIdx) {
+          mult = landedCell.mult;
+          payout = bet * mult;
+          resultEmoji = FRUITS[landedCell.fruit].emoji;
+          document.getElementById('status').textContent = FRUITS[landedCell.fruit].name + ' x' + mult + '! +' + payout.toLocaleString();
+        } else {
+          resultEmoji = landedCell.type === 'fruit' ? FRUITS[landedCell.fruit].emoji : '❌';
+          document.getElementById('status').textContent = 'Miss! Try again.';
+        }
+
+        coins += payout;
+        if (payout > 0) todayWin += payout;
+        setCounter(counter + 1);
+        updateHud();
+
+        results.unshift(resultEmoji);
+        if (results.length > 12) results = results.slice(0, 12);
+        document.getElementById('resultTrail').innerHTML = results.map(function (r) {
+          return '<span class="fruit">' + r + '</span>';
+        }).join('');
+
+        post({
+          type: 'GAME_RESULT', game: 'crazy-fruit',
+          win: payout > 0, bet: bet, payout: payout, mult: mult,
+          coins: coins, todayWin: todayWin,
+        });
+
+        busy = false;
+      }
+    }, step < totalSteps - 5 ? 80 : 160);
+  }
+
+  /* Listen for coin balance from parent */
+  window.addEventListener('message', function (ev) {
+    var d = ev.data;
+    if (typeof d === 'string') {
+      try { d = JSON.parse(d); } catch (_e) { return; }
+    }
+    if (d && d.type === 'SET_COINS') {
+      coins = Number(d.coins) || 0;
+      updateHud();
+    }
+  });
+
+  buildGrid();
+  buildDots();
+  buildChips();
+  setCounter(0);
+  updateHud();
+  post({ type: 'GAME_READY', game: 'crazy-fruit' });
+})();
+</script>
+</body>
+</html>

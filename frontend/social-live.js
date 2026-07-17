@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260717-chat-scroll-v2';
+  window.__AP_LIVE_BUILD = '20260717-games';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -12447,6 +12447,91 @@
       syncLiveOverlayClass();
       closeLiveOverlays();
     });
+
+    /* --- Game overlay (iframe inside live) --- */
+    document.querySelectorAll('.ap-tool-game[data-game]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const url = btn.dataset.game;
+        if (!url) return;
+        openGameOverlay(url);
+        const sheet = document.getElementById('partyToolsSheet');
+        if (sheet) {
+          sheet.classList.remove('open');
+          sheet.style.pointerEvents = 'none';
+          sheet.style.display = 'none';
+        }
+        syncLiveOverlayClass();
+      });
+    });
+
+    function openGameOverlay(url) {
+      closeGameOverlay();
+      const wrap = document.createElement('div');
+      wrap.id = 'apGameOverlay';
+      wrap.className = 'ap-game-overlay';
+      wrap.innerHTML =
+        `<div class="ap-game-header">
+          <span class="ap-game-title">Game</span>
+          <button type="button" class="ap-game-close" id="apGameClose" aria-label="Close game"><i class="fas fa-times"></i></button>
+        </div>
+        <iframe id="apGameFrame" class="ap-game-frame" src="${url}" allow="autoplay" sandbox="allow-scripts allow-same-origin allow-popups" loading="eager"></iframe>`;
+      document.body.appendChild(wrap);
+      requestAnimationFrame(() => wrap.classList.add('is-open'));
+
+      wrap.querySelector('#apGameClose')?.addEventListener('click', closeGameOverlay);
+      wrap.addEventListener('click', (e) => {
+        if (e.target === wrap) closeGameOverlay();
+      });
+
+      /* Send coin balance to game iframe */
+      const frame = document.getElementById('apGameFrame');
+      if (frame) {
+        frame.addEventListener('load', () => {
+          try {
+            const user = currentUser();
+            const bal = Number(user?.coins || user?.coin_balance || 0);
+            frame.contentWindow?.postMessage({ type: 'SET_COINS', coins: bal }, '*');
+          } catch (_e) { }
+        });
+      }
+
+      /* Listen for game events */
+      window.__apGameMsgHandler = (ev) => {
+        let d = ev.data;
+        if (typeof d === 'string') {
+          try { d = JSON.parse(d); } catch (_e) { return; }
+        }
+        if (!d || !d.type) return;
+        if (d.type === 'GAME_RESULT' && d.win) {
+          const msg = `🎰 Won ${(d.payout || 0).toLocaleString()} coins in ${d.game || 'game'}!`;
+          toast(msg, 'success');
+          rememberChatMessage({
+            id: `game-${Date.now()}`,
+            type: 'system',
+            text: msg,
+            user: displayName(currentUser()) || 'Player',
+            userId: currentUser()?.id || '',
+          });
+          renderChatFeed();
+        }
+        if (d.type === 'GAME_NEED_COINS') {
+          toast('Not enough coins — recharge!', 'warning');
+        }
+      };
+      window.addEventListener('message', window.__apGameMsgHandler);
+    }
+
+    function closeGameOverlay() {
+      const el = document.getElementById('apGameOverlay');
+      if (el) {
+        el.classList.remove('is-open');
+        setTimeout(() => el.remove(), 250);
+      }
+      if (window.__apGameMsgHandler) {
+        window.removeEventListener('message', window.__apGameMsgHandler);
+        window.__apGameMsgHandler = null;
+      }
+    }
     document.getElementById('partyToolsSheet')?.addEventListener('click', (e) => {
       if (e.target.id !== 'partyToolsSheet') return;
       /* Ignore the same tap that opened the sheet (lands on backdrop) */
