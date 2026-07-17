@@ -257,6 +257,7 @@
     <a href="/role-apply.html?app=1" class="social-menu-item" id="roleApplyLink"><i class="fas fa-user-plus"></i><span>Apply for Host / Agency / Seller</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/coin-seller-center.html?app=1" class="social-menu-item" id="coinSellerLink"><i class="fas fa-coins"></i><span>Coin Seller Center</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/streamer-center.html?app=1" class="social-menu-item" id="hostCenterLink"><i class="fas fa-video"></i><span>Host / Streamer Center</span><i class="fas fa-chevron-right chevron"></i></a>
+    <a href="/host-agency.html?app=1" class="social-menu-item" id="myAgencyLink" style="display:none"><i class="fas fa-handshake"></i><span>My Agency / Change Agency</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/live-verify.html?redirect=/streamer-center.html%3Fapp%3D1&amp;app=1" class="social-menu-item" id="liveVerifyLink"><i class="fas fa-id-card"></i><span>Live verification &amp; selfie</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="#" class="social-menu-item" id="bdCenterLink" style="display:none"><i class="fas fa-network-wired"></i><span>BD Center</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="#" class="social-menu-item" id="hierarchyLink" style="display:none"><i class="fas fa-sitemap"></i><span>Hierarchy</span><i class="fas fa-chevron-right chevron"></i></a>
@@ -594,6 +595,11 @@
         if (coinSellerLink) coinSellerLink.href = '/coin-seller-center.html?app=1';
         const hostCenterLink = document.getElementById('hostCenterLink');
         if (hostCenterLink) hostCenterLink.href = '/streamer-center.html?app=1';
+        const myAgencyLink = document.getElementById('myAgencyLink');
+        if (myAgencyLink && ['creator', 'agency', 'admin', 'super_admin', 'founder', 'ceo'].includes(String(user.role || ''))) {
+          myAgencyLink.style.display = 'flex';
+          myAgencyLink.href = '/host-agency.html?app=1';
+        }
         const agencyLink = document.getElementById('agencyLink');
         if (['agency', 'admin', 'super_admin'].includes(user.role) && agencyLink) {
           agencyLink.style.display = 'flex';
