@@ -9,7 +9,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <script src="/ap-native-boot.js"></script>
     <link rel="stylesheet" href="/social-theme.css?v=20260626-discover-chat">
-    <link rel="stylesheet" href="/social-chat.css?v=20260717-dm-dots1">
+    <link rel="stylesheet" href="/social-chat.css?v=20260717-dm-wrap2">
     
     <!-- Font Awesome 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -513,9 +513,12 @@
         }
 
         .message-bubble {
-            max-width: 70%;
-            min-width: 100px;
+            max-width: min(70%, 320px);
+            min-width: 0;
+            width: fit-content;
             position: relative;
+            box-sizing: border-box;
+            overflow: hidden;
         }
 
         .message-more-btn {
@@ -1193,7 +1196,7 @@
             }
 
             .message-bubble {
-                max-width: 85%;
+                max-width: min(85%, 320px);
             }
 
             .chat-actions {
@@ -1225,7 +1228,7 @@
             }
 
             .message-bubble {
-                max-width: 90%;
+                max-width: min(90%, 300px);
             }
 
             .chat-input-wrapper {
