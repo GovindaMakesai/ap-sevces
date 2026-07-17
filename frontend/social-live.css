@@ -614,6 +614,8 @@ html.ap-secure-live .party-room-stage {
   text-align: left;
   cursor: pointer;
   pointer-events: auto;
+  /* pan-y so dragging on a name/gift still scrolls the chat feed */
+  touch-action: pan-y;
   -webkit-tap-highlight-color: rgba(251, 191, 36, 0.35);
 }
 
@@ -737,12 +739,17 @@ html.ap-secure-live .party-room-stage {
   min-width: 0;
   min-height: 0;
   max-width: 100%;
-  overflow: visible;
+  overflow: hidden;
   pointer-events: auto;
   display: flex;
   flex-direction: column;
   padding-top: 4px;
   touch-action: pan-y;
+}
+
+/* Taller chat panel on solo live (class is on the zone in live-room.html) */
+.party-chat-zone.live-chat-tall .party-chat-feed {
+  max-height: min(42vh, 340px);
 }
 
 .live-chat-ticker {
@@ -776,24 +783,35 @@ html.ap-secure-live .party-room-stage {
 }
 
 .party-chat-feed {
+  /* flex-end on the scroll container breaks pan-y scroll on iOS/Android WebViews */
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: 6px;
   padding: 4px 12px 8px 0;
   overflow-x: hidden;
-  overflow-y: auto;
-  flex: 1;
+  overflow-y: scroll;
+  flex: 1 1 auto;
   min-width: 0;
-  min-height: 0;
+  min-height: 72px;
+  height: min(36vh, 280px);
   max-height: min(36vh, 280px);
   width: 100%;
   max-width: 100%;
   pointer-events: auto;
   -webkit-overflow-scrolling: touch;
-  touch-action: pan-y;
+  touch-action: pan-y !important;
   overscroll-behavior: contain;
   background: transparent;
+  scrollbar-width: thin;
+}
+
+/* Keeps newest messages at the bottom when the feed is not full — without breaking scroll */
+.party-chat-feed::before {
+  content: '';
+  flex: 1 1 0;
+  min-height: 0;
+  pointer-events: none;
 }
 
 .party-chat-msg {
@@ -819,7 +837,7 @@ html.ap-secure-live .party-room-stage {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
   box-shadow: none;
   overflow: visible;
-  touch-action: pan-y;
+  touch-action: pan-y !important;
 }
 
 .party-chat-msg .lvl {
@@ -7420,7 +7438,7 @@ html.ap-expo-app .ap-chip {
   background: transparent;
   padding: 0;
   cursor: pointer;
-  touch-action: manipulation;
+  touch-action: pan-y;
   flex-shrink: 0;
 }
 

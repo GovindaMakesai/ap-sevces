@@ -7338,6 +7338,7 @@
     bindMicInviteChatActions();
     window.SocialUI?.bindAvatarFallbacks?.(feed);
     if (wasNearBottom) feed.scrollTop = feed.scrollHeight;
+    bindChatFeedScroll();
   }
 
   function escapeHtml(s) {
@@ -9581,6 +9582,32 @@
         if (document.activeElement === input) closeChatUi();
       }
     });
+
+    bindChatFeedScroll();
+  }
+
+  /** Keep vertical pan on the chat feed (WebView + live feed swipe steal otherwise). */
+  function bindChatFeedScroll() {
+    const feed = document.getElementById('partyChatFeed');
+    if (!feed || feed.dataset.scrollBound === '1') return;
+    feed.dataset.scrollBound = '1';
+    feed.style.touchAction = 'pan-y';
+    feed.style.webkitOverflowScrolling = 'touch';
+    feed.style.overflowY = 'scroll';
+
+    const stopParentSwipe = (e) => {
+      /* Let the feed scroll; don't let room/feed swipe steal the gesture */
+      e.stopPropagation();
+    };
+    feed.addEventListener('touchstart', stopParentSwipe, { passive: true, capture: true });
+    feed.addEventListener('touchmove', stopParentSwipe, { passive: true, capture: true });
+    feed.addEventListener(
+      'wheel',
+      (e) => {
+        e.stopPropagation();
+      },
+      { passive: true, capture: true }
+    );
   }
 
   function toggleChatPanel(forceOpen) {
