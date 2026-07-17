@@ -9,7 +9,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <script src="/ap-native-boot.js"></script>
     <link rel="stylesheet" href="/social-theme.css?v=20260626-discover-chat">
-    <link rel="stylesheet" href="/social-chat.css?v=20260717-block-hide">
+    <link rel="stylesheet" href="/social-chat.css?v=20260717-become-agency">
     
     <!-- Font Awesome 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -2211,12 +2211,14 @@
             if (raw.startsWith('__IMG__:')) return '📷 Photo';
             if (raw.includes('__AGENCY_HOST_INVITE__:')) return 'Agency host invite';
             if (raw.includes('__AGENCY_NETWORK_INVITE__:')) return 'Agency invite';
+            if (raw.includes('__BECOME_AGENCY_REQUEST__:')) return 'Become Agency request';
             if (parseRoomInvite(raw)) return '🎥 Live / party invite';
             return raw.length > 120 ? `${raw.slice(0, 117)}…` : raw;
         }
 
         const AGENCY_HOST_INVITE_PREFIX = '__AGENCY_HOST_INVITE__:';
         const AGENCY_NETWORK_INVITE_PREFIX = '__AGENCY_NETWORK_INVITE__:';
+        const BECOME_AGENCY_REQUEST_PREFIX = '__BECOME_AGENCY_REQUEST__:';
 
         function parseAgencyHostInvite(text) {
             const raw = String(text || '');
@@ -2245,6 +2247,26 @@
                 if (!data?.invite_id) return null;
                 return {
                     ...data,
+                    visibleText: raw.slice(0, idx).trim(),
+                };
+            } catch (_e) {
+                return null;
+            }
+        }
+
+        function parseBecomeAgencyRequest(text) {
+            const raw = String(text || '');
+            const idx = raw.indexOf(BECOME_AGENCY_REQUEST_PREFIX);
+            if (idx < 0) return null;
+            try {
+                const json = raw.slice(idx + BECOME_AGENCY_REQUEST_PREFIX.length).trim();
+                const data = JSON.parse(json);
+                const requestId = data?.request_id || data?.invite_id;
+                if (!requestId) return null;
+                return {
+                    ...data,
+                    request_id: requestId,
+                    invite_id: requestId,
                     visibleText: raw.slice(0, idx).trim(),
                 };
             } catch (_e) {
@@ -2436,6 +2458,60 @@
             return wrap;
         }
 
+        function buildBecomeAgencyRequestCard(invite, msg) {
+            const wrap = document.createElement('div');
+            wrap.className = 'agency-host-invite-card become-agency-request-card';
+            wrap.style.cssText = 'min-width:200px;max-width:280px';
+            wrap.dataset.requestId = invite.request_id || invite.invite_id || '';
+            const title = document.createElement('strong');
+            title.textContent = 'Become Agency request';
+            title.style.display = 'block';
+            title.style.marginBottom = '6px';
+            wrap.appendChild(title);
+            const desc = document.createElement('div');
+            desc.style.cssText = 'font-size:13px;line-height:1.4;margin-bottom:10px';
+            desc.textContent =
+                invite.visibleText ||
+                `${invite.host_name || 'A host'} wants to become an Agency under ${invite.agency_name || 'your agency'}.`;
+            wrap.appendChild(desc);
+            const isReceived = msg?.type !== 'sent';
+            if (isReceived) {
+                const actions = document.createElement('div');
+                actions.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap';
+                const accept = document.createElement('button');
+                accept.type = 'button';
+                accept.className = 'become-agency-accept';
+                accept.textContent = 'Accept';
+                accept.style.cssText =
+                    'border:none;border-radius:999px;padding:8px 14px;font-weight:700;background:#16a34a;color:#fff;cursor:pointer';
+                const reject = document.createElement('button');
+                reject.type = 'button';
+                reject.className = 'become-agency-reject';
+                reject.textContent = 'Reject';
+                reject.style.cssText =
+                    'border:none;border-radius:999px;padding:8px 14px;font-weight:700;background:#9ca3af;color:#fff;cursor:pointer';
+                accept.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    respondBecomeAgencyRequest(invite.request_id || invite.invite_id, 'accepted', wrap);
+                });
+                reject.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    respondBecomeAgencyRequest(invite.request_id || invite.invite_id, 'rejected', wrap);
+                });
+                actions.appendChild(accept);
+                actions.appendChild(reject);
+                wrap.appendChild(actions);
+            } else {
+                const note = document.createElement('div');
+                note.style.cssText = 'font-size:12px;opacity:.8';
+                note.textContent = 'Waiting for your agency to respond…';
+                wrap.appendChild(note);
+            }
+            return wrap;
+        }
+
         async function respondAgencyNetworkInvite(inviteId, decision, cardEl) {
             if (!inviteId) {
                 alert('This invite is outdated. Ask them to send a new Agency invite.');
@@ -2454,6 +2530,28 @@
                 }
             } catch (e) {
                 alert(e.message || 'Could not respond to invite');
+            }
+        }
+
+        async function respondBecomeAgencyRequest(requestId, decision, cardEl) {
+            if (!requestId) {
+                alert('This request is outdated. Ask the host to send a new Become Agency request.');
+                return;
+            }
+            try {
+                const res = await API.post(`/agency/become-agency-requests/${requestId}/respond`, {
+                    decision,
+                });
+                if (cardEl) {
+                    cardEl.innerHTML =
+                        decision === 'accepted'
+                            ? '<strong>Become Agency request</strong><div style="font-size:13px;margin-top:8px">Accepted — host is now an Agency under you.</div>'
+                            : '<strong>Become Agency request</strong><div style="font-size:13px;margin-top:8px;opacity:.85">You rejected this request.</div>';
+                }
+                if (window.Toast?.show) Toast.show(res.message || 'Done', 'success');
+            } catch (e) {
+                if (window.Toast?.show) Toast.show(e.message || 'Failed', 'error');
+                else alert(e.message || 'Could not respond to request');
             }
         }
 
@@ -3424,11 +3522,15 @@
                 content.className = 'message-content';
                 const agencyInvite = parseAgencyHostInvite(bodyText);
                 const networkInvite = !agencyInvite ? parseAgencyNetworkInvite(bodyText) : null;
-                const roomInvite = !agencyInvite && !networkInvite ? parseRoomInvite(bodyText) : null;
+                const becomeAgency = !agencyInvite && !networkInvite ? parseBecomeAgencyRequest(bodyText) : null;
+                const roomInvite =
+                    !agencyInvite && !networkInvite && !becomeAgency ? parseRoomInvite(bodyText) : null;
                 if (agencyInvite) {
                     content.appendChild(buildAgencyHostInviteCard(agencyInvite, msg));
                 } else if (networkInvite) {
                     content.appendChild(buildAgencyNetworkInviteCard(networkInvite, msg));
+                } else if (becomeAgency) {
+                    content.appendChild(buildBecomeAgencyRequestCard(becomeAgency, msg));
                 } else if (roomInvite) {
                     content.appendChild(buildRoomInviteCard(roomInvite));
                 } else if (bodyText) {
@@ -3491,7 +3593,9 @@
                 const bodyText = String(msg.text || '').trim();
                 const agencyInvite = parseAgencyHostInvite(bodyText);
                 const networkInvite = !agencyInvite ? parseAgencyNetworkInvite(bodyText) : null;
-                const roomInvite = !agencyInvite && !networkInvite ? parseRoomInvite(bodyText) : null;
+                const becomeAgency = !agencyInvite && !networkInvite ? parseBecomeAgencyRequest(bodyText) : null;
+                const roomInvite =
+                    !agencyInvite && !networkInvite && !becomeAgency ? parseRoomInvite(bodyText) : null;
                 const bodyHtml = agencyInvite
                     ? `<div class="agency-host-invite-card" data-invite-id="${escapeAttr(agencyInvite.invite_id)}" style="min-width:200px">
                         <strong>Host invitation</strong>
@@ -3513,6 +3617,17 @@
                               <button type="button" class="agency-network-reject" data-invite-id="${escapeAttr(networkInvite.invite_id)}" style="border:none;border-radius:999px;padding:8px 14px;font-weight:700;background:#9ca3af;color:#fff;cursor:pointer">Reject</button>
                             </div>`
                           : '<div style="font-size:12px;opacity:.8">Waiting for their response…</div>'}
+                      </div>`
+                    : becomeAgency
+                    ? `<div class="agency-host-invite-card become-agency-request-card" data-request-id="${escapeAttr(becomeAgency.request_id)}" style="min-width:200px">
+                        <strong>Become Agency request</strong>
+                        <div style="font-size:13px;margin:6px 0 10px">${escapeHtml(becomeAgency.visibleText || ((becomeAgency.host_name || 'A host') + ' wants to become an Agency under ' + (becomeAgency.agency_name || 'your agency') + '.'))}</div>
+                        ${msg.type !== 'sent'
+                          ? `<div style="display:flex;gap:8px;flex-wrap:wrap">
+                              <button type="button" class="become-agency-accept" data-request-id="${escapeAttr(becomeAgency.request_id)}" style="border:none;border-radius:999px;padding:8px 14px;font-weight:700;background:#16a34a;color:#fff;cursor:pointer">Accept</button>
+                              <button type="button" class="become-agency-reject" data-request-id="${escapeAttr(becomeAgency.request_id)}" style="border:none;border-radius:999px;padding:8px 14px;font-weight:700;background:#9ca3af;color:#fff;cursor:pointer">Reject</button>
+                            </div>`
+                          : '<div style="font-size:12px;opacity:.8">Waiting for your agency to respond…</div>'}
                       </div>`
                     : roomInvite
                     ? `<div class="room-invite-card">
@@ -3571,6 +3686,18 @@
                 const inviteId = btn.getAttribute('data-invite-id') || btn.closest('.agency-network-invite-card')?.dataset?.inviteId;
                 const card = btn.closest('.agency-network-invite-card');
                 respondAgencyNetworkInvite(inviteId, netAccept ? 'accepted' : 'rejected', card);
+                return;
+            }
+            const becomeAccept = e.target.closest?.('.become-agency-accept');
+            const becomeReject = e.target.closest?.('.become-agency-reject');
+            if (becomeAccept || becomeReject) {
+                e.preventDefault();
+                const btn = becomeAccept || becomeReject;
+                const requestId =
+                    btn.getAttribute('data-request-id') ||
+                    btn.closest('.become-agency-request-card')?.dataset?.requestId;
+                const card = btn.closest('.become-agency-request-card');
+                respondBecomeAgencyRequest(requestId, becomeAccept ? 'accepted' : 'rejected', card);
                 return;
             }
             const accept = e.target.closest?.('.agency-invite-accept');

@@ -37,6 +37,16 @@ router.post(
 );
 router.post('/host/invites/:id/respond', hierarchyController.respondToAgencyHostInvite);
 router.post('/agency/network-invites/:id/respond', hierarchyController.respondToAgencyNetworkInvite);
+router.post(
+  '/host/become-agency',
+  authorizeRoles('creator', 'agency', 'bdm', 'admin'),
+  hierarchyController.requestBecomeAgency
+);
+router.post(
+  '/agency/become-agency-requests/:id/respond',
+  authorizeRoles('agency', 'admin'),
+  hierarchyController.respondToBecomeAgencyRequest
+);
 router.get('/host/dashboard', authorizeRoles('creator', 'agency', 'bdm', 'admin'), hierarchyController.hostDashboard);
 router.get('/host/agency-change', authorizeRoles('creator', 'agency', 'bdm', 'admin'), hierarchyController.getHostAgencyChange);
 router.post('/host/agency-change', authorizeRoles('creator', 'agency', 'bdm', 'admin'), hierarchyController.requestHostAgencyChange);

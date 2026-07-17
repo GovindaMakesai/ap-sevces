@@ -618,6 +618,44 @@ exports.respondToAgencyNetworkInvite = async (req, res) => {
   }
 };
 
+exports.requestBecomeAgency = async (req, res) => {
+  try {
+    const data = await hierarchyService.requestBecomeAgency(req.userId);
+    res.status(201).json({
+      success: true,
+      data,
+      message: 'Request sent to your agency. They can Accept or Reject in chat.',
+    });
+  } catch (e) {
+    res.status(e.status || 400).json({ success: false, message: e.message });
+  }
+};
+
+exports.respondToBecomeAgencyRequest = async (req, res) => {
+  try {
+    const role = String(req.userRole || '').toLowerCase();
+    if (role !== 'agency' && !STAFF.has(role)) {
+      return res.status(403).json({ success: false, message: 'Agency access required' });
+    }
+    const decision = req.body.decision || (req.body.accept ? 'accepted' : 'rejected');
+    const data = await hierarchyService.respondToBecomeAgencyRequest(
+      req.userId,
+      req.params.id,
+      decision
+    );
+    res.json({
+      success: true,
+      data,
+      message:
+        data.status === 'accepted'
+          ? 'Host promoted to Agency under you'
+          : 'Become Agency request declined',
+    });
+  } catch (e) {
+    res.status(e.status || 400).json({ success: false, message: e.message });
+  }
+};
+
 exports.agencyPendingHosts = async (req, res) => {
   try {
     const role = String(req.userRole || '').toLowerCase();

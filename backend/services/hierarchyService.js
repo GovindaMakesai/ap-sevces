@@ -786,6 +786,7 @@ async function getAgencyNode(agencyId) {
 
 const AGENCY_HOST_INVITE_PREFIX = '__AGENCY_HOST_INVITE__:';
 const AGENCY_NETWORK_INVITE_PREFIX = '__AGENCY_NETWORK_INVITE__:';
+const BECOME_AGENCY_REQUEST_PREFIX = '__BECOME_AGENCY_REQUEST__:';
 const CHANGE_REQUEST_TTL_DAYS = 3;
 
 function generateAgencyInviteCode(seed = '') {
@@ -1243,6 +1244,231 @@ async function inviteAgencyToNetwork(ownerUserId, userRef) {
   };
 }
 
+/** Host asks their current agency (via chat) to promote them to Agency under that parent. */
+async function requestBecomeAgency(hostUserId) {
+  const profile = await getHostAgency(hostUserId);
+  if (!profile?.agency_id) {
+    throw new Error('You must belong to an agency before requesting to become an Agency');
+  }
+  if (!profile.owner_user_id) {
+    throw new Error('Your agency has no owner to review this request');
+  }
+  if (String(profile.owner_user_id) === String(hostUserId)) {
+    throw new Error('You already own this agency');
+  }
+
+  const userRes = await db.query(
+    `SELECT id, first_name, last_name, role, display_id, email FROM users WHERE id = $1`,
+    [hostUserId]
+  );
+  const user = userRes.rows[0];
+  if (!user) throw new Error('User not found');
+  if (['agency', 'admin', 'super_admin'].includes(String(user.role || '').toLowerCase())) {
+    throw new Error('You are already an Agency');
+  }
+
+  const pending = await db.query(
+    `SELECT id FROM host_become_agency_requests
+     WHERE host_user_id = $1 AND status = 'pending'
+     LIMIT 1`,
+    [hostUserId]
+  );
+  if (pending.rows[0]) {
+    throw new Error('You already have a pending Become Agency request');
+  }
+
+  const hostLabel =
+    `${user.first_name || ''} ${user.last_name || ''}`.trim() ||
+    user.email ||
+    `Host ${user.display_id || ''}`.trim();
+  const preview = `${hostLabel} requested to become an Agency under ${profile.agency_name || 'your agency'}`;
+
+  const reqRes = await db.query(
+    `INSERT INTO host_become_agency_requests
+       (host_user_id, agency_id, agency_owner_user_id, status, message_preview)
+     VALUES ($1, $2, $3, 'pending', $4)
+     RETURNING *`,
+    [hostUserId, profile.agency_id, profile.owner_user_id, preview]
+  );
+  const request = reqRes.rows[0];
+
+  const payload = {
+    request_id: request.id,
+    invite_id: request.id,
+    agency_id: profile.agency_id,
+    agency_name: profile.agency_name || 'Agency',
+    host_user_id: hostUserId,
+    host_name: hostLabel,
+    host_display_id: user.display_id || null,
+  };
+  const messageBody =
+    `${hostLabel} wants to become an Agency under ${profile.agency_name || 'your agency'}.\n` +
+    `Tap Accept to approve, or Reject to decline.\n` +
+    `${BECOME_AGENCY_REQUEST_PREFIX}${JSON.stringify(payload)}`;
+
+  const chatService = require('./chatService');
+  const conv = await chatService.findOrCreateConversationByUserIds(
+    hostUserId,
+    profile.owner_user_id
+  );
+  const row = await chatService.appendMessage(
+    conv.id,
+    String(hostUserId),
+    String(profile.owner_user_id),
+    messageBody
+  );
+
+  const Notification = require('../models/Notification');
+  await Notification.create({
+    user_id: profile.owner_user_id,
+    type: 'become_agency_request',
+    title: 'Become Agency request',
+    message: preview,
+    data: { request_id: request.id, host_user_id: hostUserId },
+  });
+
+  await audit(hostUserId, 'host.request_become_agency', 'host_become_agency_request', request.id, {
+    agencyId: profile.agency_id,
+    agencyOwnerId: profile.owner_user_id,
+  });
+
+  return {
+    request,
+    agency: {
+      id: profile.agency_id,
+      name: profile.agency_name,
+      owner_user_id: profile.owner_user_id,
+    },
+    conversation_id: conv?.id,
+    message: {
+      id: row.id,
+      conversation_id: row.conversation_id,
+      sender_id: row.sender_id,
+      receiver_id: row.receiver_id,
+      text: row.body,
+      created_at: row.created_at,
+    },
+  };
+}
+
+async function respondToBecomeAgencyRequest(agencyOwnerUserId, requestId, decision) {
+  const status = decision === 'accepted' || decision === 'approved' ? 'accepted' : 'rejected';
+  const reqRes = await db.query(`SELECT * FROM host_become_agency_requests WHERE id = $1`, [
+    requestId,
+  ]);
+  const request = reqRes.rows[0];
+  if (!request) throw new Error('Request not found');
+  if (String(request.agency_owner_user_id) !== String(agencyOwnerUserId)) {
+    throw new Error('Only the connected agency can respond to this request');
+  }
+  if (request.status !== 'pending') throw new Error('Request already processed');
+
+  const Notification = require('../models/Notification');
+
+  if (status === 'rejected') {
+    await db.query(
+      `UPDATE host_become_agency_requests
+       SET status = 'rejected', responded_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1`,
+      [requestId]
+    );
+    await Notification.create({
+      user_id: request.host_user_id,
+      type: 'become_agency_request',
+      title: 'Become Agency declined',
+      message: 'Your agency declined your request to become an Agency.',
+      data: { request_id: requestId, status: 'rejected' },
+    });
+    return { status: 'rejected', request_id: requestId };
+  }
+
+  const parent = await db.query(`SELECT * FROM agencies WHERE id = $1 AND status = 'active'`, [
+    request.agency_id,
+  ]);
+  if (!parent.rows[0]) throw new Error('Agency not found');
+  if (String(parent.rows[0].owner_user_id) !== String(agencyOwnerUserId)) {
+    throw new Error('Only the agency owner can approve this request');
+  }
+
+  const hostStill = await getHostAgency(request.host_user_id);
+  if (!hostStill || String(hostStill.agency_id) !== String(request.agency_id)) {
+    throw new Error('This host is no longer under your agency');
+  }
+
+  const userRes = await db.query(
+    `SELECT id, first_name, last_name, role FROM users WHERE id = $1`,
+    [request.host_user_id]
+  );
+  const user = userRes.rows[0];
+  if (!user) throw new Error('Host user not found');
+  if (['agency', 'admin', 'super_admin'].includes(String(user.role || '').toLowerCase())) {
+    throw new Error('This user is already an Agency');
+  }
+
+  const agencyName = `${user.first_name || 'New'}`.trim().slice(0, 40) + ' Agency';
+  const created = await createAgencyUnderBd({
+    actorUserId: agencyOwnerUserId,
+    name: agencyName,
+    ownerUserId: request.host_user_id,
+    bdUserId: parent.rows[0].bd_user_id || null,
+    parentAgencyId: request.agency_id,
+    commissionPercent: 20,
+  });
+
+  /* Host becomes child agency — remove host membership under parent */
+  await db.query(`DELETE FROM agency_members WHERE agency_id = $1 AND user_id = $2`, [
+    request.agency_id,
+    request.host_user_id,
+  ]);
+  await db.query(`DELETE FROM host_profiles WHERE user_id = $1`, [request.host_user_id]);
+
+  await db.query(
+    `UPDATE host_become_agency_requests
+     SET status = 'accepted', responded_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+     WHERE id = $1`,
+    [requestId]
+  );
+
+  await db.query(
+    `UPDATE role_applications
+     SET status = 'approved', reviewed_by = $2, reviewed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+     WHERE user_id = $1 AND role_type = 'agency' AND status = 'pending'`,
+    [request.host_user_id, agencyOwnerUserId]
+  );
+
+  await Notification.create({
+    user_id: request.host_user_id,
+    type: 'become_agency_request',
+    title: 'You are now an Agency',
+    message: 'Your agency approved your request. Open Agency Center to continue.',
+    data: {
+      request_id: requestId,
+      status: 'accepted',
+      agency_id: created?.id || null,
+      parent_agency_id: request.agency_id,
+    },
+  });
+  await Notification.create({
+    user_id: agencyOwnerUserId,
+    type: 'become_agency_request',
+    title: 'Become Agency approved',
+    message: 'A host under you is now an Agency in your network.',
+    data: { request_id: requestId, status: 'accepted', agency_id: created?.id || null },
+  });
+
+  await audit(agencyOwnerUserId, 'agency.approve_become_agency', 'host_become_agency_request', requestId, {
+    hostUserId: request.host_user_id,
+    newAgencyId: created?.id || null,
+  });
+
+  return {
+    status: 'accepted',
+    request_id: requestId,
+    agency_id: created?.id || null,
+    parent_agency_id: request.agency_id,
+  };
+}
+
 async function respondToAgencyNetworkInvite(inviteeUserId, inviteId, decision) {
   const status = decision === 'accepted' || decision === 'approved' ? 'accepted' : 'rejected';
   const invRes = await db.query(`SELECT * FROM agency_network_invites WHERE id = $1`, [inviteId]);
@@ -1617,6 +1843,8 @@ module.exports = {
   inviteHostToAgency,
   inviteAgencyToNetwork,
   respondToAgencyNetworkInvite,
+  requestBecomeAgency,
+  respondToBecomeAgencyRequest,
   respondToAgencyHostInvite,
   listPendingHostAppsForAgency,
   agencyReviewHostApplication,
@@ -1627,4 +1855,5 @@ module.exports = {
   expireStaleAgencyChangeRequests,
   AGENCY_HOST_INVITE_PREFIX,
   AGENCY_NETWORK_INVITE_PREFIX,
+  BECOME_AGENCY_REQUEST_PREFIX,
 };
