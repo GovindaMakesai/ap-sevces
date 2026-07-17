@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260717-chat-scroll-clear';
+  window.__AP_LIVE_BUILD = '20260717-chat-scroll-v2';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -2611,11 +2611,8 @@
     if (!merged.hostName && prev.hostName) merged.hostName = prev.hostName;
     if (!merged.hostUserRole && prev.hostUserRole) merged.hostUserRole = prev.hostUserRole;
     stripBlockedUsersFromRoomState(merged);
-    if (chatClearedAt && Array.isArray(merged.messages)) {
-      merged.messages = merged.messages.filter((m) => {
-        const ts = m.ts || m.timestamp || m.createdAt || m.created_at;
-        return ts && new Date(ts).getTime() >= chatClearedAt;
-      });
+    if (chatClearedAt && Date.now() - chatClearedAt < 30000) {
+      merged.messages = [];
     }
     syncStickyStageGuestsFromState(merged);
     return merged;
@@ -7196,6 +7193,8 @@
   function renderChatFeed() {
     const feed = document.getElementById('partyChatFeed');
     if (!feed) return;
+    /* Only auto-scroll if the user was already near the bottom (within 60 px) */
+    const wasNearBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 60;
     feed.innerHTML = '';
     const filtered = chatMessages.filter((m) => applyChatFilters(m));
     /* Pending mic requests always render last (bottom / latest) */
@@ -7338,7 +7337,7 @@
       });
     bindMicInviteChatActions();
     window.SocialUI?.bindAvatarFallbacks?.(feed);
-    feed.scrollTop = feed.scrollHeight;
+    if (wasNearBottom) feed.scrollTop = feed.scrollHeight;
   }
 
   function escapeHtml(s) {
@@ -7353,24 +7352,25 @@
   }
 
   function renderChatFromState() {
+    const msgs = roomState?.messages || [];
     if (chatClearedAt) {
-      /* After a clear, ignore server-side messages that predate the clear.
-       * Only accept messages whose timestamp (or createdAt) is after the clear. */
-      const cutoff = chatClearedAt;
-      (roomState?.messages || []).forEach((m) => {
-        const ts = m.ts || m.timestamp || m.createdAt || m.created_at;
-        const msgTime = ts ? new Date(ts).getTime() : 0;
-        if (msgTime && msgTime < cutoff) return;
-        /* Messages without a timestamp that arrive after clear are new — accept them */
-        const enriched = { ...m, profilePic: m.profilePic || getChatProfilePic(m) };
-        rememberChatMessage(enriched);
-      });
-    } else {
-      (roomState?.messages || []).forEach((m) => {
-        const enriched = { ...m, profilePic: m.profilePic || getChatProfilePic(m) };
-        rememberChatMessage(enriched);
-      });
+      /* After a clear, drop every message from the server state snapshot for 30 s.
+       * The server marks them deleted, but a state broadcast queued before the
+       * clear DB commit can still carry stale messages. After 30 s the server DB
+       * is consistent and we can trust incoming messages again. */
+      const age = Date.now() - chatClearedAt;
+      if (age < 30000) {
+        /* Completely ignore server messages — only real-time live:chat events pass */
+        renderChatFeed();
+        return;
+      }
+      /* 30 s passed — trust server again */
+      chatClearedAt = 0;
     }
+    msgs.forEach((m) => {
+      const enriched = { ...m, profilePic: m.profilePic || getChatProfilePic(m) };
+      rememberChatMessage(enriched);
+    });
     renderChatFeed();
   }
 
