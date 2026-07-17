@@ -311,7 +311,7 @@
           document.getElementById('applyPromoCode').value = promo.toUpperCase();
         }
         const user = Auth.getUser();
-        if (user?.phone) document.getElementById('applyPhone').value = user.phone;
+        /* Do not prefill phone — saved profile numbers are often wrong / not the applicant's */
         await loadStatus();
         await loadApplications();
       } catch (e) {
