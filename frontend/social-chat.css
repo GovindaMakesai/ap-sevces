@@ -684,11 +684,16 @@ body.chat-active #emptyChat {
 }
 
 html.ap-expo-app .message-content {
-  white-space: pre-wrap;
-  word-break: break-word;
+  white-space: pre-wrap !important;
+  overflow-wrap: anywhere !important;
+  word-wrap: break-word;
+  word-break: break-word !important;
   font-size: 15px;
   line-height: 1.45;
   -webkit-text-fill-color: currentColor;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 html.ap-expo-app .message-wrapper.received .message-content {
@@ -849,13 +854,20 @@ html.ap-expo-app .messages-container {
 }
 
 html.ap-expo-app .message-bubble {
+  box-sizing: border-box;
+  width: fit-content;
   max-width: min(82vw, 320px);
+  min-width: 0;
+  overflow: hidden;
 }
 
 html.ap-expo-app .message-wrapper {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   display: flex;
   margin-bottom: 10px;
+  box-sizing: border-box;
 }
 
 html.ap-expo-app .message-bubble.sent,
@@ -869,6 +881,35 @@ html.ap-expo-app .message-bubble.received,
 html.ap-expo-app .message-wrapper.received .message-bubble {
   background: transparent;
   border: none;
+}
+
+/* Force long DM text to wrap inside the bubble (not stretch the thread) */
+body.chat-active .messages-stack,
+body.chat-active .message-wrapper,
+html.ap-expo-app .messages-stack,
+html.ap-expo-app .message-wrapper {
+  max-width: 100%;
+  min-width: 0;
+}
+
+body.chat-active .message-bubble,
+html.ap-expo-app .message-bubble,
+.message-bubble {
+  box-sizing: border-box;
+  width: fit-content;
+  max-width: min(82%, 320px) !important;
+  min-width: 0 !important;
+  overflow: hidden;
+}
+
+body.chat-active .message-content,
+html.ap-expo-app .message-content,
+.message-content {
+  max-width: 100% !important;
+  min-width: 0 !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+  white-space: pre-wrap !important;
 }
 
 .ap-msg-quick-row {

@@ -634,16 +634,23 @@
         }
 
         .message-bubble {
-            max-width: 70%;
-            min-width: 100px;
+            max-width: min(70%, 320px);
+            min-width: 0;
+            width: fit-content;
             position: relative;
+            box-sizing: border-box;
+            overflow: hidden;
         }
 
         .message-content {
             padding: 0.75rem 2rem 0.75rem 1rem;
             border-radius: var(--radius-lg);
             position: relative;
+            max-width: 100%;
+            min-width: 0;
+            box-sizing: border-box;
             word-wrap: break-word;
+            overflow-wrap: anywhere;
             white-space: pre-wrap;
             word-break: break-word;
         }
