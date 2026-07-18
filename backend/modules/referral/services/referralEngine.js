@@ -333,10 +333,10 @@ async function getDashboard(userId) {
   const link = await invitationService.getOrCreateInvitationLink(userId);
   const counts = await db.query(
     `SELECT
-       COUNT(*)::int AS total,
-       COUNT(*) FILTER (WHERE status IN ('pending','validating'))::int AS pending,
-       COUNT(*) FILTER (WHERE status IN ('valid','rewarded'))::int AS valid,
-       COUNT(*) FILTER (WHERE status IN ('invalid','fraud_hold','expired'))::int AS invalid
+       COUNT(DISTINCT invitee_id)::int AS total,
+       COUNT(DISTINCT invitee_id) FILTER (WHERE status IN ('pending','validating'))::int AS pending,
+       COUNT(DISTINCT invitee_id) FILTER (WHERE status IN ('valid','rewarded'))::int AS valid,
+       COUNT(DISTINCT invitee_id) FILTER (WHERE status IN ('invalid','fraud_hold','expired'))::int AS invalid
      FROM referrals WHERE inviter_id = $1`,
     [userId]
   );
