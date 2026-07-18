@@ -501,8 +501,8 @@
   function onAppBackground() {
     if (!shouldKeepPlayback()) return;
     persistSession();
-    if (isVideoSession()) tryEnterPiP();
-    notifyNative('background', { pip: Boolean(document.pictureInPictureElement) });
+    /* Do not enter system PiP — it can bypass screenshot protection */
+    notifyNative('background', { pip: false });
   }
 
   function onAppForeground() {

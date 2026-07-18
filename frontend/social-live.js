@@ -1090,6 +1090,55 @@
     return document.body.dataset.livePage === 'party-room';
   }
 
+  /** Official Android/iOS shell — FLAG_SECURE only works here */
+  function isNativeApApp() {
+    try {
+      if (window.__AP_NATIVE_APP__ === true) return true;
+      if (window.ReactNativeWebView) return true;
+      if (document.documentElement.classList.contains('ap-expo-app')) return true;
+    } catch (_e) { }
+    return false;
+  }
+
+  const PLAY_STORE_LIVE_URL =
+    'https://play.google.com/store/apps/details?id=com.apservices.app';
+
+  /**
+   * Creator safety: browsers can always screenshot. Force audience to the app
+   * where Android FLAG_SECURE blacks out screenshots & screen recording.
+   */
+  function showLiveAppOnlySafetyGate() {
+    if (document.getElementById('apLiveAppOnlyGate')) return;
+    hideApLoader?.();
+    const gate = document.createElement('div');
+    gate.id = 'apLiveAppOnlyGate';
+    gate.className = 'ap-live-app-only-gate';
+    gate.innerHTML = `
+      <div class="ap-live-app-only-card">
+        <i class="fas fa-shield-alt" aria-hidden="true"></i>
+        <h1>Watch in the AP Services app</h1>
+        <p>For creator safety, live video cannot play in a browser. Screenshots and screen recording are blocked only inside the official app.</p>
+        <a class="ap-live-app-only-btn" href="${PLAY_STORE_LIVE_URL}" rel="noopener" target="_blank">Open Play Store</a>
+        <button type="button" class="ap-live-app-only-back" id="apLiveAppOnlyBack">Go back</button>
+      </div>`;
+    document.body.appendChild(gate);
+    document.getElementById('apLiveAppOnlyBack')?.addEventListener('click', () => {
+      location.href = '/explore.html?app=1';
+    });
+    try {
+      document.querySelectorAll('video, canvas').forEach((el) => {
+        el.remove();
+      });
+    } catch (_e) { }
+  }
+
+  function enforceLiveViewerAppOnly() {
+    if (isNativeApApp()) return true;
+    if (isConfirmedRoomHost() || (isHost() && clientClaimsHost())) return true;
+    showLiveAppOnlySafetyGate();
+    return false;
+  }
+
   function clearMicRequestState() {
     micLinkPending = false;
     if (micRequestWatchdog) {
@@ -10216,6 +10265,14 @@
       scheduleMediaRecover('subscribe_failed');
       return;
     }
+    /* Browser viewers must not receive playable video (screenshot risk) */
+    if (mediaType === 'video' && !isNativeApApp() && !isHost()) {
+      try {
+        user.videoTrack?.stop?.();
+      } catch (_e) { }
+      showLiveAppOnlySafetyGate();
+      return;
+    }
     if (mediaType === 'video') {
       const containerHost = document.getElementById('liveRemoteHost');
       const root = document.getElementById('liveRoomRoot');
@@ -14019,6 +14076,10 @@
 
   async function initPartyRoom() {
     bindScreenCaptureLifecycle();
+    if (!isNativeApApp() && !clientClaimsHost()) {
+      showLiveAppOnlySafetyGate();
+      return;
+    }
     if (partyRoomInitStarted) return;
     partyRoomInitStarted = true;
     bindMediaResumeOnVisibility();
@@ -14379,6 +14440,10 @@
 
   async function initLiveRoom() {
     bindScreenCaptureLifecycle();
+    if (!isNativeApApp() && !clientClaimsHost()) {
+      showLiveAppOnlySafetyGate();
+      return;
+    }
     bindMediaResumeOnVisibility();
     injectModals();
     injectGiftSheet();

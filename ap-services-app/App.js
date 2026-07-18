@@ -527,29 +527,16 @@ export default function App() {
   }, []);
 
   const unlockLiveScreenCapture = useCallback(async () => {
-    /* Never unlock while WebView is still on a live/party URL */
-    if (isLiveCaptureUrl(webViewCurrentUrlRef.current)) {
-      await lockLiveScreenCapture(true);
-      return;
-    }
-    screenCaptureBlockedRef.current = false;
-    try {
-      await ScreenCapture.allowScreenCaptureAsync(LIVE_SECURE_KEY);
-      await ScreenCapture.allowScreenCaptureAsync('default');
-    } catch (err) {
-      console.warn('[screen-capture] unlock failed', err?.message || err);
-    }
+    /* Safety: never allow screenshots/recording while the app is open.
+       Host streams must not be capturable from the Play Store app. */
+    await lockLiveScreenCapture(true);
   }, [lockLiveScreenCapture]);
 
   const syncScreenCaptureForUrl = useCallback(
-    async (url) => {
-      if (isLiveCaptureUrl(url)) {
-        await lockLiveScreenCapture(true);
-      } else {
-        await unlockLiveScreenCapture();
-      }
+    async (_url) => {
+      await lockLiveScreenCapture(true);
     },
-    [lockLiveScreenCapture, unlockLiveScreenCapture]
+    [lockLiveScreenCapture]
   );
 
   const isDevLocal = useMemo(() => isDevLocalBase(frontendBase), [frontendBase]);
@@ -857,41 +844,46 @@ export default function App() {
   );
 
   useEffect(() => {
-    return () => {
-      ScreenCapture.allowScreenCaptureAsync(LIVE_SECURE_KEY).catch(() => {});
-      ScreenCapture.allowScreenCaptureAsync('default').catch(() => {});
-    };
-  }, []);
+    lockLiveScreenCapture(true).catch(() => {});
+    /* App-wide FLAG_SECURE for creator safety — screenshots/recordings stay black */
+    const id = setInterval(() => {
+      ScreenCapture.preventScreenCaptureAsync(LIVE_SECURE_KEY).catch(() => {});
+      ScreenCapture.preventScreenCaptureAsync('default').catch(() => {});
+      screenCaptureBlockedRef.current = true;
+    }, 800);
+    return () => clearInterval(id);
+  }, [lockLiveScreenCapture]);
 
-  /* Keep FLAG_SECURE sticky on live/party — Android drops it after overlays/resume */
+  /* Extra pulse while on live/party */
   useEffect(() => {
     const id = setInterval(() => {
       const url = webViewCurrentUrlRef.current || '';
       if (!isLiveCaptureUrl(url)) return;
       ScreenCapture.preventScreenCaptureAsync(LIVE_SECURE_KEY).catch(() => {});
       ScreenCapture.preventScreenCaptureAsync('default').catch(() => {});
-      screenCaptureBlockedRef.current = true;
-    }, 800);
+      const bump = `ap-live-secure-bump-${Date.now() % 100000}`;
+      ScreenCapture.preventScreenCaptureAsync(bump).catch(() => {});
+    }, 1500);
     return () => clearInterval(id);
   }, []);
 
-  /* Screenshot attempt during live: re-lock + black out video (iOS still may save a frame) */
+  /* Screenshot attempt: re-lock + black out live video */
   useEffect(() => {
     let sub;
     try {
       sub = ScreenCapture.addScreenshotListener(() => {
-        const url = webViewCurrentUrlRef.current || '';
-        if (!isLiveCaptureUrl(url)) return;
         lockLiveScreenCapture(true);
+        const url = webViewCurrentUrlRef.current || '';
         if (Platform.OS === 'android' && ToastAndroid) {
-          ToastAndroid.show('Screenshots are blocked on live streams', ToastAndroid.SHORT);
+          ToastAndroid.show('Screenshots are blocked for safety', ToastAndroid.SHORT);
         }
-        webViewRef.current?.injectJavaScript(
-          `(function(){try{
-            if(window.SocialLive&&window.SocialLive.onScreenshotAttempt){window.SocialLive.onScreenshotAttempt();}
-            else if(window.SocialLiveToast){window.SocialLiveToast('Screenshots are blocked on live','warning');}
-          }catch(e){}true;})();`
-        );
+        if (isLiveCaptureUrl(url)) {
+          webViewRef.current?.injectJavaScript(
+            `(function(){try{
+              if(window.SocialLive&&window.SocialLive.onScreenshotAttempt){window.SocialLive.onScreenshotAttempt();}
+            }catch(e){}true;})();`
+          );
+        }
       });
     } catch (_e) { /* older native builds */ }
     return () => {
@@ -1091,13 +1083,8 @@ export default function App() {
         if (data.type === 'screen_capture') {
           (async () => {
             try {
-              const block =
-                data.block !== undefined ? Boolean(data.block) : data.enable !== false && Boolean(data.enable);
-              if (block || isLiveCaptureUrl(webViewCurrentUrlRef.current)) {
-                await lockLiveScreenCapture(true);
-              } else {
-                await unlockLiveScreenCapture();
-              }
+              /* Always block — never unlock (creator safety) */
+              await lockLiveScreenCapture(true);
             } catch (err) {
               console.warn('[screen-capture]', err?.message || err);
             }
@@ -1307,7 +1294,7 @@ export default function App() {
         sharedCookiesEnabled
         thirdPartyCookiesEnabled
         allowsInlineMediaPlayback
-        allowsPictureInPictureMediaPlayback
+        allowsPictureInPictureMediaPlayback={false}
         mediaPlaybackRequiresUserAction={false}
         originWhitelist={['*']}
         setSupportMultipleWindows={false}

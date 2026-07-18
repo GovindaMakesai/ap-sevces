@@ -3,7 +3,7 @@
     "name": "AP Services",
     "slug": "ap-services-app",
     "scheme": "apservices",
-    "version": "1.0.20",
+    "version": "1.0.21",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -22,7 +22,7 @@
     },
     "android": {
       "package": "com.apservices.app",
-      "versionCode": 29,
+      "versionCode": 30,
       "usesCleartextTraffic": true,
       "permissions": [
         "android.permission.CAMERA",
