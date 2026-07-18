@@ -201,34 +201,37 @@ function registerLiveSocket(io) {
         socket.data.liveDisplayName = displayName;
         socket.data.isHost = isHost;
 
-        let state = null;
-        try {
-          state = await liveRoomService.buildSnapshot(channel);
-        } catch (snapErr) {
-          console.error('live:join snapshot', snapErr.message);
-        }
-        if (!state) {
-          state = {
-            channel,
-            type: roomType,
-            hostId: isHost ? socket.userId : existingRoom?.host_user_id,
-            hostName: displayName,
-            viewers: 1,
-            messages: [],
-            gifts: [],
-            seats: [],
-          };
-        }
-        /* Joiner gets full state via ack; others only get count (avoid N× huge snapshots) */
-        io.to(`live:${channel}`).emit('live:viewer_count', { viewers: state?.viewers || 0 });
+        /* Ack immediately with lean state so clients start Agora without waiting on full snapshot */
+        const leanState = {
+          channel,
+          type: existingRoom?.room_type || roomType,
+          hostId: isHost ? String(socket.userId) : String(existingRoom?.host_user_id || ''),
+          hostName: existingRoom?.host_display_name || displayName,
+          hostProfilePic: existingRoom?.host_profile_pic || null,
+          viewers: Number(existingRoom?.viewer_count) || 1,
+          messages: [],
+          gifts: [],
+          seats: [],
+          broadcastMode: existingRoom?.broadcast_mode || 'video',
+        };
+        safeAck(ack, answeredRef, { ok: true, state: leanState, isHost });
+
         socket.to(`live:${channel}`).emit('live:member_joined', {
           userId: socket.userId,
           name: displayName,
-          viewers: state?.viewers || 0,
+          viewers: leanState.viewers,
           isHost,
         });
 
-        safeAck(ack, answeredRef, { ok: true, state, isHost });
+        try {
+          const state = await liveRoomService.buildSnapshot(channel);
+          if (state) {
+            io.to(`live:${channel}`).emit('live:viewer_count', { viewers: state.viewers || 0 });
+            socket.emit('live:state', state);
+          }
+        } catch (snapErr) {
+          console.error('live:join snapshot', snapErr.message);
+        }
 
         try {
           const roomRow = await liveRoomService.findByChannel(channel);

@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260718-no-black';
+  window.__AP_LIVE_BUILD = '20260718-fast-join';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -4163,7 +4163,26 @@
     loadAgoraScript().catch(() => {});
   } catch (_e) {}
 
+  let __agoraTokenInflight = new Map();
+
+  async function warmViewerAgoraPipeline() {
+    if (isHost()) return;
+    try {
+      await loadAgoraScript();
+      const ch = channelId();
+      if (ch) {
+        /* Prefetch audience token while socket joins */
+        fetchAgoraToken(ch, false).catch(() => {});
+      }
+    } catch (_e) { /* join path will retry */ }
+  }
+
   async function fetchAgoraToken(channel, asPublisher = false) {
+    const cacheKey = `${String(channel)}:${asPublisher ? '1' : '0'}:${hasSpeakerSeat ? '1' : '0'}`;
+    if (__agoraTokenInflight.has(cacheKey)) {
+      return __agoraTokenInflight.get(cacheKey);
+    }
+    const run = (async () => {
     const user = currentUser();
     const userId = user?.id != null ? String(user.id) : null;
     const isActualHost = Boolean(
@@ -4187,19 +4206,21 @@
       roomType,
     });
 
-    const payloads = [
-      { channel, role },
-      {
-        channel,
-        role,
-        isHost: isActualHost,
-        asHost: isActualHost,
-        roomType,
-        type: roomType,
-        hostId: roomState?.hostId,
-        seated: hasSpeakerSeat,
-      },
-    ];
+    const payloads = asPublisher
+      ? [
+          { channel, role },
+          {
+            channel,
+            role,
+            isHost: isActualHost,
+            asHost: isActualHost,
+            roomType,
+            type: roomType,
+            hostId: roomState?.hostId,
+            seated: hasSpeakerSeat,
+          },
+        ]
+      : [{ channel, role }];
 
     let data = null;
     let lastErr = null;
@@ -4213,7 +4234,6 @@
       }
       liveDebugLog(`Token request retry ${i + 1}/${payloads.length} failed: ${lastErr?.message || lastErr}`);
     }
-
     if (!data?.success) {
       forensicEvent('TOKEN_REQUEST_FAILED', {
         channel,
@@ -4261,6 +4281,13 @@
     liveDebugLog(`Token OK mode=${data.mode} uid=${data.uid} channel=${tokenChannel} role=${role}`);
     updateLiveDebug({ tokenReceived: true });
     return data;
+    })();
+    __agoraTokenInflight.set(cacheKey, run);
+    try {
+      return await run;
+    } finally {
+      __agoraTokenInflight.delete(cacheKey);
+    }
   }
 
   function agoraUidFromCred(cred) {
@@ -4368,22 +4395,67 @@
   async function resubscribeAllRemoteMedia() {
     if (!agoraClient || !liveDebugState.agoraJoined) return;
     const remotes = agoraClient.remoteUsers || [];
-    /* Audio first (parallel) so voice is not blocked behind video decode */
+    /* Video + audio in parallel — never block first frame behind audio subscribe */
     await Promise.all(
       remotes.map(async (user) => {
         try {
-          if (user.hasAudio) await playRemoteMedia(user, 'audio');
-        } catch (_e) { }
-      })
-    );
-    await Promise.all(
-      remotes.map(async (user) => {
-        try {
-          if (user.hasVideo) await playRemoteMedia(user, 'video');
+          const jobs = [];
+          if (user.hasVideo) jobs.push(playRemoteMedia(user, 'video'));
+          if (user.hasAudio) jobs.push(playRemoteMedia(user, 'audio'));
+          await Promise.all(jobs);
         } catch (_e) { }
       })
     );
     boostRemoteAudioVolumes();
+  }
+
+  async function joinAgoraWithRetry(client, channel, asPublisher, maxAttempts = 2) {
+    let lastErr;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      let cred;
+      try {
+        cred = await fetchAgoraToken(channel, asPublisher);
+      } catch (e) {
+        lastErr = e;
+        if (attempt >= maxAttempts) break;
+        await new Promise((r) => setTimeout(r, 250 * attempt));
+        continue;
+      }
+      const appId = String(cred?.appId || '').trim();
+      const token = cred?.token;
+      const agoraChannel = cred?.channel || channel;
+      const uid = agoraUidFromCred(cred);
+      if (!appId || !token) {
+        lastErr = new Error(cred?.message || 'Missing Agora appId or token');
+        if (attempt >= maxAttempts) break;
+        await new Promise((r) => setTimeout(r, 250 * attempt));
+        continue;
+      }
+      try {
+        bindAgoraClientHandlers(client, agoraChannel);
+        await withTimeout(
+          client.join(appId, agoraChannel, token, uid),
+          5000,
+          'Voice channel join'
+        );
+        auditChannel('agora', agoraChannel);
+        liveDebugLog(`Agora join OK channel=${agoraChannel} uid=${uid} attempt=${attempt}`);
+        updateLiveDebug({ agoraJoined: true, agoraUid: uid });
+        syncAgoraUidMap();
+        return { appId, token, channel: agoraChannel, uid };
+      } catch (e) {
+        lastErr = e;
+        liveDebugLog(`Agora join attempt ${attempt}/${maxAttempts} failed: ${e?.message || e}`);
+        if (attempt < maxAttempts) {
+          try {
+            await client.leave();
+          } catch (_leave) { }
+          liveDebugState.agoraJoined = false;
+          await new Promise((r) => setTimeout(r, 300 * attempt));
+        }
+      }
+    }
+    throw lastErr || new Error('Agora join failed');
   }
 
   function scheduleMediaRecover(reason) {
@@ -4580,57 +4652,6 @@
         __mediaBadStreak = 0;
       }
     }, 4000);
-  }
-
-  async function joinAgoraWithRetry(client, channel, asPublisher, maxAttempts = 3) {
-    let lastErr;
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      let cred;
-      try {
-        cred = await fetchAgoraToken(channel, asPublisher);
-      } catch (e) {
-        lastErr = e;
-        if (attempt >= maxAttempts) break;
-        await new Promise((r) => setTimeout(r, 700 * attempt));
-        continue;
-      }
-      const appId = String(cred?.appId || '').trim();
-      const token = cred?.token;
-      const agoraChannel = cred?.channel || channel;
-      const uid = agoraUidFromCred(cred);
-      if (!appId || !token) {
-        lastErr = new Error(cred?.message || 'Missing Agora appId or token');
-        if (attempt >= maxAttempts) break;
-        await new Promise((r) => setTimeout(r, 700 * attempt));
-        continue;
-      }
-      try {
-        if (liveDebugState.agoraJoined && client) {
-          try {
-            await client.leave();
-          } catch (_e) { }
-          liveDebugState.agoraJoined = false;
-        }
-        bindAgoraClientHandlers(client, agoraChannel);
-        await withTimeout(
-          client.join(appId, agoraChannel, token, uid),
-          12000,
-          'Voice channel join'
-        );
-        auditChannel('agora', agoraChannel);
-        liveDebugLog(`Agora join OK channel=${agoraChannel} uid=${uid} attempt=${attempt}`);
-        updateLiveDebug({ agoraJoined: true, agoraUid: uid });
-        syncAgoraUidMap();
-        return { appId, token, channel: agoraChannel, uid };
-      } catch (e) {
-        lastErr = e;
-        liveDebugLog(`Agora join attempt ${attempt}/${maxAttempts} failed: ${e?.message || e}`);
-        if (attempt < maxAttempts) {
-          await new Promise((r) => setTimeout(r, 900 * attempt));
-        }
-      }
-    }
-    throw lastErr || new Error('Agora join failed');
   }
 
   function schedulePartyAgoraRetry() {
@@ -5101,43 +5122,49 @@
 
     try {
       const AgoraRTC = await loadAgoraScript();
-      if (agoraClient) {
-        try {
-          await agoraClient.leave();
-        } catch (_e) { }
-        agoraClient = null;
-        liveDebugState.agoraJoined = false;
+      const alreadyOnChannel =
+        agoraClient &&
+        liveDebugState.agoraJoined &&
+        String(liveDebugState.channel || '') === String(ch);
+      if (!alreadyOnChannel) {
+        if (agoraClient) {
+          try {
+            await agoraClient.leave();
+          } catch (_e) { }
+          agoraClient = null;
+          liveDebugState.agoraJoined = false;
+        }
+        agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
       }
-      agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
 
       let joined;
       try {
         const asPublisher = host || hasSpeakerSeat;
-        joined = await joinAgoraWithRetry(agoraClient, ch, asPublisher, 3);
-        forensicEvent('AGORA_JOIN_SUCCESS', {
-          channel: joined.channel,
-          uid: joined.uid,
-          role: host ? 'host' : 'audience',
-        });
+        if (!alreadyOnChannel) {
+          joined = await joinAgoraWithRetry(agoraClient, ch, asPublisher, 2);
+          forensicEvent('AGORA_JOIN_SUCCESS', {
+            channel: joined.channel,
+            uid: joined.uid,
+            role: host ? 'host' : 'audience',
+          });
+        } else {
+          joined = { channel: ch, uid: liveDebugState.agoraUid };
+        }
         syncLiveUiState();
         bindAudioUnlockGestures();
-        await unlockBrowserAudio();
-        /* Subscribe audio before video so voice is instant */
+        unlockBrowserAudio().catch(() => {});
+        /* Video + audio together — video first priority for live viewers */
         await Promise.all(
           (agoraClient.remoteUsers || []).map(async (remoteUser) => {
             try {
-              if (remoteUser.hasAudio) await playRemoteMedia(remoteUser, 'audio');
+              const jobs = [];
+              if (remoteUser.hasVideo) jobs.push(playRemoteMedia(remoteUser, 'video'));
+              if (remoteUser.hasAudio) jobs.push(playRemoteMedia(remoteUser, 'audio'));
+              await Promise.all(jobs);
             } catch (_e) { }
           })
         );
-        await Promise.all(
-          (agoraClient.remoteUsers || []).map(async (remoteUser) => {
-            try {
-              if (remoteUser.hasVideo) await playRemoteMedia(remoteUser, 'video');
-            } catch (_e) { }
-          })
-        );
-        await ensureRemoteAudioPlaying().catch(() => { });
+        ensureRemoteAudioPlaying().catch(() => {});
         boostRemoteAudioVolumes();
         kickstartRemoteAudio(host ? 'host-joined' : 'viewer-joined');
       } catch (joinErr) {
@@ -10358,15 +10385,19 @@
       }
     } catch (_e3) { }
     let subscribed = false;
-    for (let attempt = 1; attempt <= 3; attempt++) {
+    for (let attempt = 1; attempt <= 2; attempt++) {
       try {
-        await agoraClient.subscribe(user, mediaType);
+        await withTimeout(
+          agoraClient.subscribe(user, mediaType),
+          3000,
+          `subscribe ${mediaType}`
+        );
         subscribed = true;
         break;
       } catch (subErr) {
         const msg = subErr?.message || String(subErr);
         liveDebugLog(`subscribe FAILED uid=${user.uid} media=${mediaType} attempt=${attempt}: ${msg}`);
-        if (attempt < 3) await new Promise((r) => setTimeout(r, 120 * attempt));
+        if (attempt < 2) await new Promise((r) => setTimeout(r, 100 * attempt));
       }
     }
     if (!subscribed) {
@@ -10904,7 +10935,7 @@
     const seq = ++__audioKickSeq;
     liveDebugLog(`audio kickstart (${reason})`);
     startSilentAudioWatchdog(45000);
-    const delays = [0, 50, 150, 350, 700, 1200, 2200, 4000, 7000, 12000, 18000, 28000];
+    const delays = [0, 80, 250, 700, 1500, 3000];
     delays.forEach((ms) => {
       setTimeout(() => {
         if (seq !== __audioKickSeq || socketLeaveIntentional) return;
@@ -14570,9 +14601,10 @@
       setTimeout(() => (location.href = '/app-auth.html?app=1'), 800);
       return;
     }
+    /* Viewers: don't block on slow profile — stream first */
     await Promise.race([
       profileRefresh,
-      new Promise((r) => setTimeout(r, 2500)),
+      new Promise((r) => setTimeout(r, isHost() || clientClaimsHost() ? 1500 : 350)),
     ]).catch(() => { });
 
     if (isFeedMode()) {
@@ -14593,6 +14625,9 @@
     auditChannel('url', channelId());
     if (isHost()) forceRevealRoomShell();
     setApLoaderStep(1);
+
+    /* Overlap Agora SDK warm with socket join — biggest TTFV win */
+    const warmAgora = !isHost() ? warmViewerAgoraPipeline() : Promise.resolve();
     const joinGuard = setTimeout(() => {
       forceRevealRoomShell();
       if (!roomJoinCompleted) {
@@ -14601,7 +14636,7 @@
         finalizeRoomEntry();
         setLiveStatus('Stream still connecting…', null);
       }
-    }, 12000);
+    }, 8000);
     try {
       await connectSocket('live');
     } catch (e) {
@@ -14635,7 +14670,9 @@
     updateModeBadge(broadcastMode, false);
 
     partyVoiceSkipped = false;
-    void startLiveVoiceAsync();
+    void Promise.resolve(warmAgora)
+      .catch(() => {})
+      .then(() => startLiveVoiceAsync());
     applyRoleUiAfterJoin();
     postWelcomeMessage();
     bindScreenCaptureProtection();
