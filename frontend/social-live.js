@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260718-fast-join';
+  window.__AP_LIVE_BUILD = '20260718-live-stability';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -3816,15 +3816,11 @@
             profilePic: me.profilePic || me.profile_pic || null,
           });
           toast(isLiveRoomPage() ? 'You joined the live — enabling mic…' : 'You got a seat — enabling mic…', 'success');
-          // Wait until publisher ACL is ready (not a fixed short sleep)
+          // Single publish path — avoid leave/rejoin thrash from duplicate callers
           await waitForPublisherAcl(channelId(), 12);
           await publishGuestAudio();
-          if (!publishSucceeded) {
-            await new Promise((r) => setTimeout(r, 600));
-            await publishGuestAudio();
-          }
-          if (!publishSucceeded) {
-            await new Promise((r) => setTimeout(r, 1200));
+          if (!publishSucceeded && !guestPublishInProgress) {
+            await new Promise((r) => setTimeout(r, 800));
             await publishGuestAudio();
           }
           if (isPartyRoomPage()) renderPartySeats(roomState?.hostName);
@@ -4435,7 +4431,7 @@
         bindAgoraClientHandlers(client, agoraChannel);
         await withTimeout(
           client.join(appId, agoraChannel, token, uid),
-          5000,
+          10000,
           'Voice channel join'
         );
         auditChannel('agora', agoraChannel);
@@ -4459,10 +4455,11 @@
   }
 
   function scheduleMediaRecover(reason) {
+    if (guestPublishInProgress || socketLeaveIntentional) return;
     if (__mediaRecoverTimer) return;
     __mediaRecoverTimer = setTimeout(async () => {
       __mediaRecoverTimer = null;
-      if (__mediaRecoverBusy || socketLeaveIntentional) return;
+      if (__mediaRecoverBusy || socketLeaveIntentional || guestPublishInProgress) return;
       __mediaRecoverBusy = true;
       try {
         liveDebugLog(`media recover: ${reason}`);
@@ -4527,7 +4524,7 @@
     return resolveEntryCoverUrl(name, pic, false);
   }
 
-  /** Host cover stays under video until first frame — kills black flash after loader */
+  /** Host cover stays above video until first frame — kills black flash after loader */
   function ensureStickyLivePoster() {
     if (isHost() || !isLiveRoomPage()) return;
     if (broadcastMode === 'audio') return;
@@ -4597,6 +4594,7 @@
     if (window.__apMediaHealthWatch) return;
     window.__apMediaHealthWatch = setInterval(() => {
       if (socketLeaveIntentional || !roomJoinCompleted) return;
+      if (guestPublishInProgress) return;
       if (document.visibilityState !== 'visible') return;
       if (!agoraClient || !liveDebugState.agoraJoined) {
         __mediaBadStreak += 1;
@@ -5063,7 +5061,7 @@
     syncLiveUiState();
     window.LiveSession?.onRoomActive?.();
     if (!isHost() && isLiveRoomPage()) {
-      revealLiveVideoWhenReady(40);
+      revealLiveVideoWhenReady(80);
     }
   }
 
@@ -5073,19 +5071,26 @@
   }
 
   async function startAgora(mode) {
+    if (guestPublishInProgress) {
+      liveDebugLog('startAgora skipped — guest publish in progress');
+      return;
+    }
     ensureLiveDebugPanel();
     ensureViewerDiagnostics();
     agoraMode = mode || 'live';
     const ch = channelId();
     const host = isHost();
     auditChannel('url', ch);
-    publishSucceeded = false;
+    /* Don't wipe a successful guest mic when recover re-enters startAgora */
+    if (!(hasSpeakerSeat && publishSucceeded && getLocalAudioTrack())) {
+      publishSucceeded = false;
+    }
     liveDebugLog(`${host ? 'HOST' : 'VIEWER'} startAgora mode=${mode} channel=${ch}`);
     updateLiveDebug({
       channel: ch,
       role: host ? 'host' : 'viewer',
-      hostPublishing: false,
-      publishSucceeded: false,
+      hostPublishing: Boolean(hasSpeakerSeat && publishSucceeded),
+      publishSucceeded: Boolean(publishSucceeded),
       agoraJoined: false,
     });
     if (sessionEstablished) {
@@ -5584,9 +5589,14 @@
     try {
       const AgoraRTC = await loadAgoraScript();
 
-      // Fresh client avoids sticky audience-join state after seat accept
-      if (agoraClient) {
+      const alreadyJoined = Boolean(agoraClient && liveDebugState.agoraJoined);
+      let upgradedInPlace = false;
+
+      /* Prefer keep current Agora session — leave/rejoin blacks out host + breaks UI */
+      if (alreadyJoined) {
         try {
+          await waitForPublisherAcl(ch, 8);
+          await refreshAgoraTokenAndRenew();
           for (const t of localTracks) {
             try {
               await agoraClient.unpublish(t);
@@ -5596,53 +5606,90 @@
               t.close?.();
             } catch (_e2) { }
           }
-        } catch (_e) { }
-        localTracks = [];
-        try {
-          await agoraClient.leave();
-        } catch (_e) { }
-        agoraClient = null;
-        liveDebugState.agoraJoined = false;
+          localTracks = [];
+          const audioTrack = await withTimeout(
+            AgoraRTC.createMicrophoneAudioTrack({
+              AEC: true,
+              ANS: true,
+              AGC: false,
+            }),
+            25000,
+            'Microphone access'
+          );
+          try {
+            if (typeof audioTrack.setEnabled === 'function') await audioTrack.setEnabled(true);
+            if (typeof audioTrack.setMuted === 'function') await audioTrack.setMuted(false);
+          } catch (_e) { }
+          localTracks = [audioTrack];
+          await agoraClient.publish([audioTrack]);
+          upgradedInPlace = true;
+          liveDebugLog('Guest mic published in-place (no leave)');
+        } catch (upgradeErr) {
+          liveDebugLog(`In-place guest publish failed, will rejoin: ${upgradeErr?.message || upgradeErr}`);
+          upgradedInPlace = false;
+        }
       }
-      agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
-      await joinAgoraWithRetry(agoraClient, ch, true, 3);
 
-      /* Restore host A/V BEFORE opening mic — leave/rejoin was killing remote voice */
-      bindAudioUnlockGestures();
-      await unlockBrowserAudio();
-      await Promise.all(
-        (agoraClient.remoteUsers || []).map(async (remoteUser) => {
+      if (!upgradedInPlace) {
+        if (agoraClient) {
           try {
-            if (remoteUser.hasAudio) await playRemoteMedia(remoteUser, 'audio');
+            for (const t of localTracks) {
+              try {
+                await agoraClient.unpublish(t);
+              } catch (_e) { }
+              try {
+                t.stop?.();
+                t.close?.();
+              } catch (_e2) { }
+            }
           } catch (_e) { }
-        })
-      );
-      await Promise.all(
-        (agoraClient.remoteUsers || []).map(async (remoteUser) => {
+          localTracks = [];
           try {
-            if (remoteUser.hasVideo) await playRemoteMedia(remoteUser, 'video');
+            await agoraClient.leave();
           } catch (_e) { }
-        })
-      );
-      await ensureRemoteAudioPlaying().catch(() => { });
-      boostRemoteAudioVolumes();
+          agoraClient = null;
+          liveDebugState.agoraJoined = false;
+        }
+        agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
+        await joinAgoraWithRetry(agoraClient, ch, true, 3);
 
-      // Guests are mic-only — never open camera on invite (privacy)
-      const audioTrack = await withTimeout(
-        AgoraRTC.createMicrophoneAudioTrack({
-          AEC: true,
-          ANS: true,
-          AGC: false,
-        }),
-        25000,
-        'Microphone access'
-      );
-      try {
-        if (typeof audioTrack.setEnabled === 'function') await audioTrack.setEnabled(true);
-        if (typeof audioTrack.setMuted === 'function') await audioTrack.setMuted(false);
-      } catch (_e) { }
-      localTracks = [audioTrack];
-      await agoraClient.publish([audioTrack]);
+        /* Restore host A/V BEFORE opening mic — leave/rejoin was killing remote voice */
+        bindAudioUnlockGestures();
+        await unlockBrowserAudio();
+        await Promise.all(
+          (agoraClient.remoteUsers || []).map(async (remoteUser) => {
+            try {
+              if (remoteUser.hasAudio) await playRemoteMedia(remoteUser, 'audio');
+            } catch (_e) { }
+          })
+        );
+        await Promise.all(
+          (agoraClient.remoteUsers || []).map(async (remoteUser) => {
+            try {
+              if (remoteUser.hasVideo) await playRemoteMedia(remoteUser, 'video');
+            } catch (_e) { }
+          })
+        );
+        await ensureRemoteAudioPlaying().catch(() => { });
+        boostRemoteAudioVolumes();
+
+        const audioTrack = await withTimeout(
+          AgoraRTC.createMicrophoneAudioTrack({
+            AEC: true,
+            ANS: true,
+            AGC: false,
+          }),
+          25000,
+          'Microphone access'
+        );
+        try {
+          if (typeof audioTrack.setEnabled === 'function') await audioTrack.setEnabled(true);
+          if (typeof audioTrack.setMuted === 'function') await audioTrack.setMuted(false);
+        } catch (_e) { }
+        localTracks = [audioTrack];
+        await agoraClient.publish([audioTrack]);
+      }
+
       publishSucceeded = true;
       partyVoiceSkipped = false;
       micMuted = false;
@@ -7845,10 +7892,13 @@
     if (meId && roomState?.seats?.some((s) => String(s.userId) === meId && !s.isHost)) {
       hasSpeakerSeat = true;
       if (micLinkPending) clearMicRequestState();
+      /* Seat accept handler owns the first publish — don't race leave/rejoin here */
+      const seatPromoteFresh = Date.now() - seatPromoteAt < 12000;
       if (
         !isHost() &&
         !publishSucceeded &&
         !guestPublishInProgress &&
+        !seatPromoteFresh &&
         (!guestPublishAttempted || !getLocalAudioTrack())
       ) {
         const now = Date.now();
@@ -10389,7 +10439,7 @@
       try {
         await withTimeout(
           agoraClient.subscribe(user, mediaType),
-          3000,
+          8000,
           `subscribe ${mediaType}`
         );
         subscribed = true;

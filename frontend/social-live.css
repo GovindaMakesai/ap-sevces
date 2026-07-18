@@ -1590,6 +1590,15 @@ body[data-live-page="live-room"] .live-fallback-video {
   z-index: 3;
 }
 
+/* Hide remote until first decoded frame — poster covers the black Agora canvas */
+body[data-live-page="live-room"] .live-room:not(.ap-has-video-stream):not(.is-audio-mode) .live-remote-video {
+  opacity: 0;
+  pointer-events: none;
+}
+body[data-live-page="live-room"] .live-room.ap-has-video-stream .live-remote-video {
+  opacity: 1;
+}
+
 .party-minimize-btn {
   width: 34px;
   height: 34px;
@@ -3957,11 +3966,11 @@ body.ap-live-status-visible .party-room {
   display: none !important;
 }
 
-/* Host cover under video until first frame — prevents black gap after loader */
+/* Host cover ABOVE video until first frame — prevents black gap after loader */
 .ap-live-sticky-poster {
   position: absolute;
   inset: 0;
-  z-index: 2;
+  z-index: 5;
   background: #0a0618 center/cover no-repeat;
   pointer-events: none;
   transition: opacity 0.28s ease;
