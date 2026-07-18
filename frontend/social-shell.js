@@ -899,9 +899,12 @@
     const grid = document.getElementById(gridId);
     if (!grid) return;
     const key = gridStateKey(gridId, opts);
-    if (!gridScrollState[key]) gridScrollState[key] = { limit: limit || 12, loading: false };
+    if (!gridScrollState[key]) gridScrollState[key] = { limit: limit || 12, loading: false, gen: 0 };
     const st = gridScrollState[key];
-    if (st.loading) return;
+    /* Append can wait; full reloads must supersede in-flight loads (tab switch / refresh).
+       Old bug: st.loading blocked the new load while the old one was discarded via loadToken → empty forever. */
+    if (st.loading && opts.append) return;
+    const myGen = (st.gen = (st.gen || 0) + 1);
     st.loading = true;
     if (!opts.append) {
       grid.classList.remove('is-empty', 'has-rooms');
@@ -911,47 +914,52 @@
     }
     try {
       const { rooms, error } = await fetchActiveRooms(limit || st.limit, opts);
+      if (myGen !== st.gen) return;
       if (opts.loadToken != null && opts.loadToken !== window.__exploreGridToken) {
         // Stale tab result — drop it; newer load owns the grid.
         return;
       }
-      grid.classList.remove('is-loading');
+      const liveGrid = document.getElementById(gridId) || grid;
+      liveGrid.classList.remove('is-loading');
       if (!rooms.length) {
         if (!opts.append) {
-          grid.classList.add('is-empty');
-          grid.classList.remove('has-rooms');
+          liveGrid.classList.add('is-empty');
+          liveGrid.classList.remove('has-rooms');
           const altHint = error ? '' : await emptyStateAltHint(Boolean(opts.party));
-          grid.innerHTML = renderEmptyLiveGrid(opts && opts.party, {
+          if (myGen !== st.gen) return;
+          liveGrid.innerHTML = renderEmptyLiveGrid(opts && opts.party, {
             error: Boolean(error),
             altHint,
           });
-          bindEmptyLiveGrid(grid, opts);
+          bindEmptyLiveGrid(liveGrid, opts);
           syncExploreFloatingActions(false, opts);
         }
         updateExploreTabCounts();
         return;
       }
-      grid.classList.remove('is-empty');
-      grid.classList.add('has-rooms');
-      grid.innerHTML =
+      liveGrid.classList.remove('is-empty');
+      liveGrid.classList.add('has-rooms');
+      liveGrid.innerHTML =
         renderExploreFeedHead(opts && opts.party, rooms.length) + renderExploreCardsHtml(rooms, opts);
-      bindLiveCards(grid);
-      if (window.SocialUI?.bindAvatarFallbacks) SocialUI.bindAvatarFallbacks(grid);
+      bindLiveCards(liveGrid);
+      if (window.SocialUI?.bindAvatarFallbacks) SocialUI.bindAvatarFallbacks(liveGrid);
       bindGridInfiniteScroll(gridId, limit || 12, opts);
       syncExploreFloatingActions(true, opts);
       updateExploreTabCounts();
     } catch (e) {
       console.warn('SocialShell: fillGrid', e);
-      grid.classList.remove('is-loading');
+      if (myGen !== st.gen) return;
+      const liveGrid = document.getElementById(gridId) || grid;
+      liveGrid.classList.remove('is-loading');
       if (!opts.append) {
-        grid.classList.add('is-empty');
-        grid.classList.remove('has-rooms');
-        grid.innerHTML = renderEmptyLiveGrid(opts && opts.party, { error: true });
-        bindEmptyLiveGrid(grid, opts);
+        liveGrid.classList.add('is-empty');
+        liveGrid.classList.remove('has-rooms');
+        liveGrid.innerHTML = renderEmptyLiveGrid(opts && opts.party, { error: true });
+        bindEmptyLiveGrid(liveGrid, opts);
         syncExploreFloatingActions(false, opts);
       }
     } finally {
-      st.loading = false;
+      if (myGen === st.gen) st.loading = false;
     }
   }
 

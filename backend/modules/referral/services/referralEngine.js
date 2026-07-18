@@ -336,18 +336,20 @@ async function getMyInviter(inviteeId) {
 async function getDashboard(userId) {
   const link = await invitationService.getOrCreateInvitationLink(userId);
 
-  /* Sync invitee stream missions so pending points appear after 2h live */
-  try {
-    const invitees = await db.query(
-      `SELECT invitee_id FROM referrals
-       WHERE inviter_id = $1 AND status IN ('valid', 'rewarded')
-       ORDER BY applied_at DESC LIMIT 40`,
-      [userId]
-    );
-    for (const row of invitees.rows) {
-      await missionEngine.syncUserMissions(row.invitee_id).catch(() => {});
-    }
-  } catch (_e) {}
+  /* Sync invitee missions in background — never block dashboard (was freezing the app). */
+  db.query(
+    `SELECT invitee_id FROM referrals
+     WHERE inviter_id = $1 AND status IN ('valid', 'rewarded')
+     ORDER BY applied_at DESC LIMIT 40`,
+    [userId]
+  )
+    .then((invitees) => {
+      const jobs = (invitees.rows || []).map((row) =>
+        missionEngine.syncUserMissions(row.invitee_id).catch(() => {})
+      );
+      return Promise.all(jobs);
+    })
+    .catch(() => {});
 
   const counts = await db.query(
     `SELECT

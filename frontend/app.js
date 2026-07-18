@@ -300,9 +300,12 @@ const API_GET_CACHE_LONG_MS = 15000;
 
 function apiGetCacheTtl(endpoint) {
     const p = String(endpoint || '');
+    /* Live rooms change quickly — short cache so empty/stale snapshots don't stick */
+    if (p.includes('/live/rooms')) {
+        return 2500;
+    }
     if (p.includes('/social/following') ||
         p.includes('/social/followers') ||
-        p.includes('/live/rooms') ||
         p.includes('/live/streamer-stats') ||
         p.includes('/social/creators') ||
         p.includes('/messages/conversations') ||
@@ -371,7 +374,17 @@ const API = {
         })();
         if (method === 'GET') {
             _apiInflight.set(cacheKey, run);
-            run.then((data) => _apiGetCache.set(cacheKey, { at: Date.now(), data })).catch(() => { });
+            run.then((data) => {
+                /* Never cache an empty live-room list — hosts reconnect after API restarts */
+                if (
+                    String(endpoint || '').includes('/live/rooms') &&
+                    Array.isArray(data?.data) &&
+                    data.data.length === 0
+                ) {
+                    return;
+                }
+                _apiGetCache.set(cacheKey, { at: Date.now(), data });
+            }).catch(() => { });
         }
         return run;
     },
@@ -397,7 +410,11 @@ const API = {
 
         if (typeof Auth !== 'undefined' && Auth.ensureAccessToken) {
             try {
-                await Auth.ensureAccessToken();
+                /* Hard cap — hung refresh must not freeze Live feed / whole WebView */
+                await Promise.race([
+                    Auth.ensureAccessToken(),
+                    new Promise((resolve) => setTimeout(resolve, 4500)),
+                ]);
             } catch (_e) {
                 /* Public endpoints (live rooms) must still load if refresh fails */
             }
@@ -1007,12 +1024,20 @@ const Auth = {
                 const body = {};
                 const refreshToken = localStorage.getItem('ap_refresh_token');
                 if (refreshToken) body.refreshToken = refreshToken;
-                const res = await fetch(joinApiUrl('/auth/refresh'), {
-                    method: 'POST',
-                    credentials: 'include',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body),
-                });
+                const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+                const abortTimer = ctrl ? setTimeout(() => ctrl.abort(), 8000) : null;
+                let res;
+                try {
+                    res = await fetch(joinApiUrl('/auth/refresh'), {
+                        method: 'POST',
+                        credentials: 'include',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body),
+                        signal: ctrl?.signal,
+                    });
+                } finally {
+                    if (abortTimer) clearTimeout(abortTimer);
+                }
                 const data = await res.json().catch(() => ({}));
                 if (
                     (res.status === 403 || isAccountDeactivatedMessage(data.message)) &&
