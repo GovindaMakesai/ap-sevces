@@ -712,6 +712,15 @@
                 JSON.stringify({ channel, name, image, ts: Date.now() })
               );
             }
+            /* Capture the tap gesture so live room can unmute without "Tap for sound" */
+            sessionStorage.setItem('ap_audio_gesture', String(Date.now()));
+            try {
+              const Ctx = window.AudioContext || window.webkitAudioContext;
+              if (Ctx) {
+                const ctx = window.__apLiveAudioCtx || (window.__apLiveAudioCtx = new Ctx());
+                if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+              }
+            } catch (_audioE) {}
           } catch (_e) {}
           window.location.href = href;
         }

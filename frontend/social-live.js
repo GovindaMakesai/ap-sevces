@@ -3530,8 +3530,10 @@
           renderGuestRail();
         }
         const pullGuestMic = () => {
-          resubscribeAllRemoteMedia().catch(() => { });
-          ensureRemoteAudioPlaying().catch(() => { });
+          resubscribeAllRemoteMedia()
+            .then(() => ensureRemoteAudioPlaying())
+            .then(() => boostRemoteAudioVolumes())
+            .catch(() => { });
           kickstartRemoteAudio('guest-mic-ready');
         };
         if (window.__apGiftSending) {
@@ -4236,9 +4238,8 @@
       forensicEvent('REMOTE_USER_PUBLISHED', { uid: user.uid, mediaType, channel: agoraChannel });
       await playRemoteMedia(user, mediaType);
       if (mediaType === 'audio') {
-        /* Hosts also need guest voice; WebView autoplay blocks hosts too */
         kickstartRemoteAudio('user-published-audio');
-        if (!audioUnlocked) showTapForSoundHint();
+        boostRemoteAudioVolumes();
       }
     });
     client.on('user-unpublished', (user, mediaType) => {
@@ -4310,12 +4311,22 @@
   async function resubscribeAllRemoteMedia() {
     if (!agoraClient || !liveDebugState.agoraJoined) return;
     const remotes = agoraClient.remoteUsers || [];
-    for (const user of remotes) {
-      try {
-        if (user.hasVideo) await playRemoteMedia(user, 'video');
-        if (user.hasAudio) await playRemoteMedia(user, 'audio');
-      } catch (_e) { }
-    }
+    /* Audio first (parallel) so voice is not blocked behind video decode */
+    await Promise.all(
+      remotes.map(async (user) => {
+        try {
+          if (user.hasAudio) await playRemoteMedia(user, 'audio');
+        } catch (_e) { }
+      })
+    );
+    await Promise.all(
+      remotes.map(async (user) => {
+        try {
+          if (user.hasVideo) await playRemoteMedia(user, 'video');
+        } catch (_e) { }
+      })
+    );
+    boostRemoteAudioVolumes();
   }
 
   function scheduleMediaRecover(reason) {
@@ -4387,18 +4398,9 @@
         if (user.hasAudio && (soundOn || isHost() || hasSpeakerSeat)) {
           if (!user.audioTrack) {
             unhealthy = true;
-          } else {
-            try {
-              const p = user.audioTrack.play?.();
-              if (p && typeof p.then === 'function') {
-                p.catch(() => {
-                  showTapForSoundHint();
-                });
-              }
-            } catch (_e) {
-              unhealthy = true;
-              showTapForSoundHint();
-            }
+          } else if (user.audioTrack.isPlaying === false) {
+            unhealthy = true;
+            tryPlayRemoteAudioTrack(user).catch(() => { });
           }
         }
       }
@@ -4964,13 +4966,23 @@
         syncLiveUiState();
         bindAudioUnlockGestures();
         await unlockBrowserAudio();
-        for (const remoteUser of agoraClient.remoteUsers || []) {
-          try {
-            if (remoteUser.hasVideo) await playRemoteMedia(remoteUser, 'video');
-            if (remoteUser.hasAudio) await playRemoteMedia(remoteUser, 'audio');
-          } catch (_e) { }
-        }
+        /* Subscribe audio before video so voice is instant */
+        await Promise.all(
+          (agoraClient.remoteUsers || []).map(async (remoteUser) => {
+            try {
+              if (remoteUser.hasAudio) await playRemoteMedia(remoteUser, 'audio');
+            } catch (_e) { }
+          })
+        );
+        await Promise.all(
+          (agoraClient.remoteUsers || []).map(async (remoteUser) => {
+            try {
+              if (remoteUser.hasVideo) await playRemoteMedia(remoteUser, 'video');
+            } catch (_e) { }
+          })
+        );
         await ensureRemoteAudioPlaying().catch(() => { });
+        boostRemoteAudioVolumes();
         kickstartRemoteAudio(host ? 'host-joined' : 'viewer-joined');
       } catch (joinErr) {
         const msg = joinErr?.message || String(joinErr);
@@ -5412,12 +5424,32 @@
       agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
       await joinAgoraWithRetry(agoraClient, ch, true, 3);
 
+      /* Restore host A/V BEFORE opening mic — leave/rejoin was killing remote voice */
+      bindAudioUnlockGestures();
+      await unlockBrowserAudio();
+      await Promise.all(
+        (agoraClient.remoteUsers || []).map(async (remoteUser) => {
+          try {
+            if (remoteUser.hasAudio) await playRemoteMedia(remoteUser, 'audio');
+          } catch (_e) { }
+        })
+      );
+      await Promise.all(
+        (agoraClient.remoteUsers || []).map(async (remoteUser) => {
+          try {
+            if (remoteUser.hasVideo) await playRemoteMedia(remoteUser, 'video');
+          } catch (_e) { }
+        })
+      );
+      await ensureRemoteAudioPlaying().catch(() => { });
+      boostRemoteAudioVolumes();
+
       // Guests are mic-only — never open camera on invite (privacy)
       const audioTrack = await withTimeout(
         AgoraRTC.createMicrophoneAudioTrack({
           AEC: true,
           ANS: true,
-          AGC: true,
+          AGC: false,
         }),
         25000,
         'Microphone access'
@@ -5440,26 +5472,18 @@
         profilePic: user.profilePic || user.profile_pic || null,
       });
 
-      // Rejoin drops remote subscriptions — restore host A/V aggressively
-      bindAudioUnlockGestures();
-      await unlockBrowserAudio();
+      /* AEC can duck remotes — force full volume again after publish */
       await resubscribeAllRemoteMedia().catch(() => { });
-      for (const remoteUser of agoraClient.remoteUsers || []) {
-        try {
-          if (remoteUser.hasVideo) await playRemoteMedia(remoteUser, 'video');
-          if (remoteUser.hasAudio) await playRemoteMedia(remoteUser, 'audio');
-        } catch (subErr) {
-          liveDebugLog(`guest resubscribe: ${subErr?.message || subErr}`);
-        }
-      }
       await ensureRemoteAudioPlaying().catch(() => { });
+      boostRemoteAudioVolumes();
       kickstartRemoteAudio('guest-publish');
-      const burst = [300, 800, 1600, 3200, 6000];
+      const burst = [200, 600, 1200, 2500, 5000];
       burst.forEach((ms) => {
         setTimeout(() => {
           if (socketLeaveIntentional || !hasSpeakerSeat) return;
           resubscribeAllRemoteMedia()
             .then(() => ensureRemoteAudioPlaying())
+            .then(() => boostRemoteAudioVolumes())
             .catch(() => { });
         }, ms);
       });
@@ -10180,7 +10204,7 @@
       } catch (subErr) {
         const msg = subErr?.message || String(subErr);
         liveDebugLog(`subscribe FAILED uid=${user.uid} media=${mediaType} attempt=${attempt}: ${msg}`);
-        if (attempt < 3) await new Promise((r) => setTimeout(r, 400 * attempt));
+        if (attempt < 3) await new Promise((r) => setTimeout(r, 120 * attempt));
       }
     }
     if (!subscribed) {
@@ -10241,9 +10265,10 @@
         revealLiveVideoWhenReady(24);
         updateModeBadge('video', false);
       }
-      // Video often unlocks first; retry audio right after so voice isn't stuck silent.
-      setTimeout(() => ensureRemoteAudioPlaying().catch(() => { }), 200);
-      setTimeout(() => ensureRemoteAudioPlaying().catch(() => { }), 800);
+      // Video often unlocks first; pull audio immediately so voice is not delayed.
+      ensureRemoteAudioPlaying().catch(() => { });
+      setTimeout(() => ensureRemoteAudioPlaying().catch(() => { }), 120);
+      setTimeout(() => ensureRemoteAudioPlaying().catch(() => { }), 400);
       kickstartRemoteAudio('remote-video');
     }
     if (mediaType === 'audio') {
@@ -10251,6 +10276,7 @@
       const shouldPlay = Boolean(soundOn || isHost() || hasSpeakerSeat);
       if (shouldPlay && user.audioTrack) {
         await tryPlayRemoteAudioTrack(user);
+        boostRemoteAudioVolumes();
       } else if (!shouldPlay) {
         try {
           user.audioTrack?.stop();
@@ -10356,25 +10382,50 @@
         src.connect(ctx.destination);
         src.start(0);
       } catch (_e) { }
-      return ctx.state === 'running';
+      return ctx.state === 'running' || ctx.state === 'suspended';
     } catch (_e) {
       return false;
     }
   }
 
+  function consumeEntryAudioGesture() {
+    try {
+      const raw = sessionStorage.getItem('ap_audio_gesture');
+      if (!raw) return false;
+      const ts = Number(raw) || 0;
+      sessionStorage.removeItem('ap_audio_gesture');
+      /* Gesture from feed tap within last 2 minutes */
+      return !ts || Date.now() - ts < 120000;
+    } catch (_e) {
+      return false;
+    }
+  }
+
+  function boostRemoteAudioVolumes() {
+    try {
+      for (const user of agoraClient?.remoteUsers || []) {
+        try {
+          user.audioTrack?.setVolume?.(100);
+          if (typeof user.audioTrack?.setMuted === 'function') {
+            user.audioTrack.setMuted(false).catch?.(() => {});
+          }
+        } catch (_e) { }
+      }
+    } catch (_e) { }
+    unmuteDomMediaElements();
+  }
+
   function isRemoteAudioTrackAudible(track) {
     if (!track) return false;
     try {
-      if (track.isPlaying === false) return false;
+      if (track.isPlaying === true) return true;
       if (typeof track.getVolumeLevel === 'function') {
         const lvl = Number(track.getVolumeLevel()) || 0;
-        /* Level can be 0 between speech — treat "playing" as enough once started */
-        if (track.isPlaying === true) return true;
-        return lvl > 0.001;
+        return lvl > 0.0001;
       }
-      return track.isPlaying === true;
+      return true;
     } catch (_e) {
-      return false;
+      return Boolean(track);
     }
   }
 
@@ -10383,7 +10434,6 @@
     if (!soundOn && !isHost() && !hasSpeakerSeat) return false;
     try {
       user.audioTrack.setVolume?.(100);
-      /* Prefer unmuted play; some WebViews start silenced until a gesture. */
       if (typeof user.audioTrack.setMuted === 'function') {
         try {
           await user.audioTrack.setMuted(false);
@@ -10392,19 +10442,13 @@
       const p = user.audioTrack.play?.();
       if (p && typeof p.then === 'function') await p;
       unmuteDomMediaElements();
-      /*
-       * Do NOT mark audioUnlocked on play() alone — Android WebViews often resolve
-       * play() while still silent until a real user gesture. Keep retrying + hint.
-       */
-      if (isRemoteAudioTrackAudible(user.audioTrack)) {
-        audioUnlocked = true;
-        return true;
-      }
-      return Boolean(user.audioTrack);
+      /* Treat successful play() as unlocked — volume level is often 0 between speech */
+      audioUnlocked = true;
+      hideTapForSoundHint();
+      return true;
     } catch (err) {
       liveDebugLog(`audio play blocked: ${err?.message || err}`);
-      audioUnlocked = false;
-      showTapForSoundHint();
+      /* Keep retrying silently — do not nag with Tap for sound */
       return false;
     }
   }
@@ -10413,14 +10457,12 @@
     try {
       document.querySelectorAll('audio, video').forEach((el) => {
         try {
-          /* Keep local preview muted so host doesn't hear themselves */
           const isLocalPreview =
             el.closest?.('#liveLocalHost, #liveLocalVideo, .ap-local-preview');
           if (el.tagName === 'VIDEO' && isLocalPreview) {
             el.muted = true;
             return;
           }
-          /* Remote audio (and any remote video that carries sound) must be unmuted */
           el.muted = false;
           el.volume = 1;
           try {
@@ -10434,131 +10476,90 @@
   }
 
   async function ensureRemoteAudioPlaying() {
-    // Hosts + on-seat guests must always hear the other side.
     if (!agoraClient) return false;
     if (!soundOn && !isHost() && !hasSpeakerSeat) return false;
     await unlockBrowserAudio();
     const remotes = agoraClient.remoteUsers || [];
     let anyOk = false;
-    let attempted = false;
-    let anyAudible = false;
-    for (const user of remotes) {
-      try {
-        if (user.hasAudio && !user.audioTrack) {
-          attempted = true;
-          await playRemoteMedia(user, 'audio');
-          if (user.audioTrack && (await tryPlayRemoteAudioTrack(user))) anyOk = true;
-        } else if (user.audioTrack) {
-          attempted = true;
-          if (await tryPlayRemoteAudioTrack(user)) anyOk = true;
-        }
-        if (user.audioTrack && isRemoteAudioTrackAudible(user.audioTrack)) anyAudible = true;
-      } catch (_e) {
-        showTapForSoundHint();
-      }
-    }
-    if (anyAudible) {
+    await Promise.all(
+      remotes.map(async (user) => {
+        try {
+          if (user.hasAudio && !user.audioTrack) {
+            await playRemoteMedia(user, 'audio');
+          }
+          if (user.audioTrack) {
+            const ok = await tryPlayRemoteAudioTrack(user);
+            if (ok) anyOk = true;
+          }
+        } catch (_e) { }
+      })
+    );
+    if (anyOk) {
       audioUnlocked = true;
       hideTapForSoundHint();
-      return true;
+      boostRemoteAudioVolumes();
     }
-    if (attempted && !anyOk) showTapForSoundHint();
-    /* play() may "succeed" while still silent — keep the unlock CTA visible */
-    if (attempted && !anyAudible) showTapForSoundHint();
-    return anyOk && anyAudible;
+    return anyOk;
   }
 
-  /** Burst-retry remote audio right after join — browsers often block the first play(). */
+  /** Burst-retry remote audio after join — no Tap-for-sound nag. */
   function kickstartRemoteAudio(reason) {
     if (!soundOn && !isHost() && !hasSpeakerSeat) return;
     const seq = ++__audioKickSeq;
     liveDebugLog(`audio kickstart (${reason})`);
-    const delays = [0, 80, 200, 450, 900, 1600, 2800, 5000, 9000, 15000, 25000];
+    const delays = [0, 50, 150, 350, 700, 1200, 2200, 4000, 7000, 12000];
     delays.forEach((ms) => {
       setTimeout(() => {
         if (seq !== __audioKickSeq || socketLeaveIntentional) return;
-        const hintVisible = document.getElementById('apTapForSound')?.classList.contains('is-visible');
-        /* Only stop early once audio is confirmed audible (not just play() resolved) */
-        if (audioUnlocked && !hintVisible && ms > 2800) return;
         unlockBrowserAudio()
           .then(() => ensureRemoteAudioPlaying())
           .then((ok) => {
-            if (!ok && ms >= 450) showTapForSoundHint();
+            if (ok) boostRemoteAudioVolumes();
           })
-          .catch(() => showTapForSoundHint());
+          .catch(() => { });
       }, ms);
     });
   }
 
   function showTapForSoundHint() {
-    if (!soundOn && !isHost() && !hasSpeakerSeat) return;
-    let el = document.getElementById('apTapForSound');
-    if (!el) {
-      document.body.insertAdjacentHTML(
-        'beforeend',
-        `<button type="button" id="apTapForSound" class="ap-tap-for-sound" aria-label="Enable sound">
-          <i class="fas fa-volume-up"></i> Tap for sound
-        </button>`
-      );
-      el = document.getElementById('apTapForSound');
-      el?.addEventListener('click', async (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        soundOn = true;
-        await unlockBrowserAudio();
-        /* User gesture: force play + unmute, then treat as unlocked even if level is 0 */
-        let anyPlayed = false;
-        for (const user of agoraClient?.remoteUsers || []) {
-          if (!user.audioTrack && user.hasAudio) {
-            try {
-              await playRemoteMedia(user, 'audio');
-            } catch (_e) { }
-          }
-          if (user.audioTrack) {
-            const played = await tryPlayRemoteAudioTrack(user);
-            if (played) anyPlayed = true;
-          }
-        }
-        unmuteDomMediaElements();
-        if (anyPlayed) {
-          audioUnlocked = true;
-          hideTapForSoundHint();
-          toast('Sound on', 'success');
-        } else {
-          audioUnlocked = false;
-          kickstartRemoteAudio('tap-for-sound');
-          toast('Trying to enable sound…', 'info');
-        }
-        const btn = document.getElementById('partyBtnSound');
-        if (btn) {
-          const ico = btn.querySelector('i');
-          if (ico) ico.className = 'fas fa-volume-up';
-          btn.classList.remove('is-muted');
-        }
-      });
-    }
-    if (el) el.classList.add('is-visible');
+    /* Removed — auto-unlock handles audio. Keep DOM clean if an old button exists. */
+    hideTapForSoundHint();
   }
 
   function hideTapForSoundHint() {
-    document.getElementById('apTapForSound')?.classList.remove('is-visible');
+    const el = document.getElementById('apTapForSound');
+    if (el) {
+      el.classList.remove('is-visible');
+      el.style.display = 'none';
+    }
   }
 
   function bindAudioUnlockGestures() {
     if (audioUnlockBound) return;
     audioUnlockBound = true;
     const unlock = () => {
-      unlockBrowserAudio().then(() => {
-        const hintVisible = document.getElementById('apTapForSound')?.classList.contains('is-visible');
-        /* Always retry while CTA is up; also retry once if not yet confirmed audible */
-        if (audioUnlocked && !hintVisible) return;
-        unmuteDomMediaElements();
-        ensureRemoteAudioPlaying().catch(() => { });
-      });
+      unlockBrowserAudio()
+        .then(() => ensureRemoteAudioPlaying())
+        .then((ok) => {
+          if (ok) {
+            audioUnlocked = true;
+            hideTapForSoundHint();
+            boostRemoteAudioVolumes();
+          }
+        })
+        .catch(() => { });
     };
     document.addEventListener('pointerdown', unlock, { passive: true });
     document.addEventListener('touchstart', unlock, { passive: true });
     document.addEventListener('click', unlock, { passive: true });
+    document.addEventListener('keydown', unlock, { passive: true });
+    /* First paint: if user entered from a feed tap, treat as unlocked */
+    if (consumeEntryAudioGesture()) {
+      audioUnlocked = true;
+      unlock();
+    } else {
+      unlockBrowserAudio().then(() => ensureRemoteAudioPlaying()).catch(() => { });
+    }
   }
 
   function ensureHostVideoVisible() {
