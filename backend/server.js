@@ -240,30 +240,39 @@ registerPkSocket(io);
 connectMongo();
 
 async function startServer() {
-  await ensureChatSchema();
-  await ensurePaymentSchema();
-  await ensureFoundationSchema();
-  await ensurePhase2Schema();
-  await ensureWithdrawalQrSchema();
-  await ensureSocialProductionSchema();
-  await ensureSecurityHardeningSchema();
-  await ensureProductionReadinessSchema();
-  await ensureRoleApplicationsSchema();
-  await ensurePaymentApprovalsSchema();
-  await ensureLiveHostStatsSchema();
-  await ensureLiveUserAnalyticsSchema();
-  await ensureBdHierarchySchema();
-  await ensurePartyModerationSchema();
+  const skipSchema =
+    process.env.SKIP_DB_SCHEMA_ENSURE === 'true' ||
+    (process.env.NODE_ENV === 'production' && process.env.FORCE_SCHEMA_ENSURE !== 'true');
+
+  if (skipSchema) {
+    logger.info('Skipping schema ensure on boot (set FORCE_SCHEMA_ENSURE=true to run)');
+  } else {
+    await ensureChatSchema();
+    await ensurePaymentSchema();
+    await ensureFoundationSchema();
+    await ensurePhase2Schema();
+    await ensureWithdrawalQrSchema();
+    await ensureSocialProductionSchema();
+    await ensureSecurityHardeningSchema();
+    await ensureProductionReadinessSchema();
+    await ensureRoleApplicationsSchema();
+    await ensurePaymentApprovalsSchema();
+    await ensureLiveHostStatsSchema();
+    await ensureLiveUserAnalyticsSchema();
+    await ensureBdHierarchySchema();
+    await ensurePartyModerationSchema();
+    const { ensureDisplayIdSchema } = require('./config/ensureDisplayIdSchema');
+    await ensureDisplayIdSchema();
+  }
+
   await referralModule.boot();
-  const { ensureDisplayIdSchema } = require('./config/ensureDisplayIdSchema');
-  await ensureDisplayIdSchema();
   await attachSocketRedisAdapter();
   await platformService.getOrCreateTreasuryUserId();
   await liveRoomService.recoverActiveRooms();
   startScheduler();
 
   server.listen(PORT, '0.0.0.0', () => {
-    logger.info('Server started', { port: PORT, redis: redis.isEnabled() });
+    logger.info('Server started', { port: PORT, redis: redis.isEnabled(), skipSchema });
   });
 }
 
