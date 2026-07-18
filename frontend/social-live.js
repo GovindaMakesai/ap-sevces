@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260718-speaker';
+  window.__AP_LIVE_BUILD = '20260718-no-black';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -2832,7 +2832,10 @@
         bg.style.display = 'none';
       } else {
         bg.style.display = 'block';
-        const cover = getStreamCoverUrl(name);
+        const cover =
+          resolveStickyPosterUrl() ||
+          getStreamCoverUrl(name) ||
+          themeCover('live', name);
         if (cover) {
           bg.style.backgroundImage = `url('${cover}')`;
           bg.style.backgroundSize = 'cover';
@@ -2840,7 +2843,7 @@
           bg.style.backgroundColor = '#0a0618';
         } else {
           bg.style.backgroundImage = 'none';
-          bg.style.background = '#000';
+          bg.style.background = '#0a0618';
         }
       }
     }
@@ -4423,7 +4426,99 @@
     const container = document.getElementById('liveRemoteHost');
     const vid = container?.querySelector?.('video');
     if (!vid) return false;
-    return !vid.paused && vid.readyState >= 2 && vid.videoWidth > 0;
+    /* Accept first decoded frame quickly — readyState>=2 was leaving a black gap */
+    if (vid.videoWidth > 0 && vid.readyState >= 1) return true;
+    return !vid.paused && vid.readyState >= 2;
+  }
+
+  function extractCssUrl(bgImage) {
+    const m = String(bgImage || '').match(/url\(["']?([^"')]+)["']?\)/i);
+    return m ? m[1] : '';
+  }
+
+  function resolveStickyPosterUrl() {
+    try {
+      const coverEl = document.getElementById('apLiveLoaderCover');
+      const fromLoader = extractCssUrl(coverEl?.style?.backgroundImage);
+      if (fromLoader) return fromLoader;
+    } catch (_e) { }
+    const launch = readLaunchCover(channelId());
+    if (launch?.image) {
+      return (
+        window.SocialShell?.getImageUrl?.(launch.image) ||
+        (String(launch.image).startsWith('http') ? launch.image : null) ||
+        launch.image
+      );
+    }
+    const name = roomState?.hostName || 'Host';
+    const pic = roomState?.hostProfilePic || null;
+    return resolveEntryCoverUrl(name, pic, false);
+  }
+
+  /** Host cover stays under video until first frame — kills black flash after loader */
+  function ensureStickyLivePoster() {
+    if (isHost() || !isLiveRoomPage()) return;
+    if (broadcastMode === 'audio') return;
+    if (hasPlayingRemoteVideo()) {
+      clearStickyLivePoster(true);
+      return;
+    }
+    const root = document.getElementById('liveRoomRoot');
+    if (!root) return;
+    let poster = document.getElementById('apLiveStickyPoster');
+    if (!poster) {
+      poster = document.createElement('div');
+      poster.id = 'apLiveStickyPoster';
+      poster.className = 'ap-live-sticky-poster';
+      poster.setAttribute('aria-hidden', 'true');
+      const remote = document.getElementById('liveRemoteHost');
+      if (remote) root.insertBefore(poster, remote);
+      else root.appendChild(poster);
+    }
+    const url = resolveStickyPosterUrl();
+    if (url) {
+      poster.style.backgroundImage = `url("${String(url).replace(/"/g, '\\"')}")`;
+    }
+    poster.classList.remove('is-gone');
+    const bg = document.getElementById('liveBg');
+    if (bg && url) {
+      bg.style.display = '';
+      bg.style.backgroundImage = `url("${String(url).replace(/"/g, '\\"')}")`;
+      bg.style.backgroundSize = 'cover';
+      bg.style.backgroundPosition = 'center';
+      bg.style.backgroundColor = '#0a0618';
+    }
+  }
+
+  function clearStickyLivePoster(immediate) {
+    const poster = document.getElementById('apLiveStickyPoster');
+    if (!poster) return;
+    poster.classList.add('is-gone');
+    const remove = () => {
+      try {
+        poster.remove();
+      } catch (_e) { }
+    };
+    if (immediate) remove();
+    else setTimeout(remove, 320);
+  }
+
+  function bindRemoteVideoReveal(container) {
+    const vid = container?.querySelector?.('video');
+    if (!vid || vid.dataset.apRevealBound === '1') return;
+    vid.dataset.apRevealBound = '1';
+    const kick = () => {
+      if (!hasPlayingRemoteVideo() && !(vid.videoWidth > 0)) return;
+      setLiveStreamVisible(true);
+      clearStickyLivePoster();
+      const bg = document.getElementById('liveBg');
+      if (bg) bg.style.display = 'none';
+      hideApLoader();
+    };
+    ['loadeddata', 'loadedmetadata', 'playing', 'canplay', 'resize'].forEach((ev) => {
+      vid.addEventListener(ev, kick, { passive: true });
+    });
+    requestAnimationFrame(kick);
   }
 
   function startMediaHealthWatchdog() {
@@ -4668,6 +4763,7 @@
   let apLoaderDismissed = false;
 
   function forceRevealRoomShell() {
+    ensureStickyLivePoster();
     apLoaderDismissed = true;
     document.body.classList.add('ap-room-active');
     const loader = document.getElementById('apLiveLoader');
@@ -4800,6 +4896,7 @@
   }
 
   function hideApLoader() {
+    ensureStickyLivePoster();
     apLoaderDismissed = true;
     if (apLoaderForceTimer) {
       clearTimeout(apLoaderForceTimer);
@@ -4939,9 +5036,14 @@
     sessionEstablished = true;
     document.body.classList.add('ap-room-active');
     setApLoaderStep(3);
+    /* Paint host cover before dismissing loader so viewers never see black */
+    ensureStickyLivePoster();
     hideApLoader();
     syncLiveUiState();
     window.LiveSession?.onRoomActive?.();
+    if (!isHost() && isLiveRoomPage()) {
+      revealLiveVideoWhenReady(40);
+    }
   }
 
   function finalizeRoomEntry() {
@@ -10210,25 +10312,31 @@
     if (backdrop) backdrop.style.opacity = on ? '0' : '';
     const bg = document.getElementById('liveBg');
     if (bg && !isHost()) {
-      if (on && hasFrames) bg.style.display = 'none';
-      else if (!hasFrames) bg.style.display = '';
+      if (on && hasFrames) {
+        bg.style.display = 'none';
+        clearStickyLivePoster();
+      } else if (!hasFrames) {
+        bg.style.display = '';
+        ensureStickyLivePoster();
+      }
     }
   }
 
-  function revealLiveVideoWhenReady(attemptsLeft = 20) {
+  function revealLiveVideoWhenReady(attemptsLeft = 40) {
     if (hasPlayingRemoteVideo()) {
       setLiveStreamVisible(true);
       const bg = document.getElementById('liveBg');
       if (bg) bg.style.display = 'none';
+      clearStickyLivePoster();
       hideApLoader();
       return;
     }
+    ensureStickyLivePoster();
     if (attemptsLeft <= 0) {
-      /* Keep poster visible rather than empty black; still try audio */
       ensureRemoteAudioPlaying().catch(() => { });
       return;
     }
-    setTimeout(() => revealLiveVideoWhenReady(attemptsLeft - 1), 250);
+    setTimeout(() => revealLiveVideoWhenReady(attemptsLeft - 1), 80);
   }
 
   async function playRemoteMedia(user, mediaType) {
@@ -10309,6 +10417,7 @@
       if (container && user.videoTrack) {
         if (container === containerHost) container.innerHTML = '';
         else container.innerHTML = '';
+        ensureStickyLivePoster();
         try {
           user.videoTrack.play(container);
         } catch (playErr) {
@@ -10316,15 +10425,20 @@
           setTimeout(() => {
             try {
               user.videoTrack?.play(container);
+              bindRemoteVideoReveal(container);
             } catch (_e2) { }
-          }, 400);
+          }, 200);
         }
+        bindRemoteVideoReveal(container);
       }
       if (!isGuestVideo) {
         const bg = document.getElementById('liveBg');
-        /* Keep backdrop until first decoded frame — prevents stuck black screen */
-        if (bg && !hasPlayingRemoteVideo()) bg.style.display = '';
-        revealLiveVideoWhenReady(24);
+        /* Keep host cover until first decoded frame — no black flash */
+        if (bg && !hasPlayingRemoteVideo()) {
+          bg.style.display = '';
+          ensureStickyLivePoster();
+        }
+        revealLiveVideoWhenReady(40);
         updateModeBadge('video', false);
       }
       // Video often unlocks first; pull audio immediately so voice is not delayed.

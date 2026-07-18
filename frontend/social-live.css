@@ -3957,6 +3957,23 @@ body.ap-live-status-visible .party-room {
   display: none !important;
 }
 
+/* Host cover under video until first frame — prevents black gap after loader */
+.ap-live-sticky-poster {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: #0a0618 center/cover no-repeat;
+  pointer-events: none;
+  transition: opacity 0.28s ease;
+}
+.ap-live-sticky-poster.is-gone {
+  opacity: 0;
+}
+.live-room.ap-has-video-stream .ap-live-sticky-poster {
+  opacity: 0;
+  pointer-events: none;
+}
+
 body.ap-room-active .ap-live-loader {
   display: none !important;
   visibility: hidden !important;
