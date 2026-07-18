@@ -56,6 +56,17 @@ async function getAgencyById(id) {
   return res.rows[0] || null;
 }
 
+async function updateAgencyName(agencyId, name) {
+  const trimmed = String(name || '').trim().slice(0, 80);
+  if (!trimmed) throw new Error('Agency name is required');
+  const res = await db.query(
+    `UPDATE agencies SET name = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *`,
+    [trimmed, agencyId]
+  );
+  if (!res.rows[0]) throw new Error('Agency not found');
+  return res.rows[0];
+}
+
 async function isMember(agencyId, userId) {
   const res = await db.query(
     `SELECT 1 FROM agency_members WHERE agency_id = $1 AND user_id = $2 LIMIT 1`,
@@ -142,6 +153,7 @@ module.exports = {
   createAgency,
   addMember,
   getAgencyById,
+  updateAgencyName,
   isMember,
   getUserAgencyChain,
   getAgencyAnalytics,

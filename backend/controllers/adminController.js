@@ -294,6 +294,15 @@ const updateUserDetails = async (req, res) => {
             } catch (roleErr) {
                 return res.status(400).json({ success: false, message: roleErr.message });
             }
+            if (role === 'agency') {
+                const hierarchyService = require('../services/hierarchyService');
+                await hierarchyService.ensureAgencyForOwner(userId, {
+                    name:
+                        `${first_name || ''} ${last_name || ''}`.trim()
+                            ? `${`${first_name || ''} ${last_name || ''}`.trim()} Agency`
+                            : undefined,
+                });
+            }
             if (role === 'coin_seller') {
                 const coinSellerService = require('../services/coinSellerService');
                 const existingUser = await db.query(

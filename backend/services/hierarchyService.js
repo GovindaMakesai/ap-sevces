@@ -648,12 +648,9 @@ async function bdDashboard(bdUserId) {
 }
 
 async function agencyDashboard(ownerUserId) {
-  const agency = await db.query(
-    `SELECT * FROM agencies WHERE owner_user_id = $1 AND status = 'active' ORDER BY created_at DESC LIMIT 1`,
-    [ownerUserId]
-  );
-  if (!agency.rows[0]) throw new Error('Agency not found for this user');
-  const agencyId = agency.rows[0].id;
+  const agency = await ensureAgencyForOwner(ownerUserId);
+  if (!agency) throw new Error('Agency not found for this user');
+  const agencyId = agency.id;
   const hosts = await db.query(
     `SELECT hp.user_id, u.first_name, u.last_name, u.display_id, u.profile_pic
      FROM host_profiles hp JOIN users u ON u.id = hp.user_id
@@ -680,7 +677,7 @@ async function agencyDashboard(ownerUserId) {
   const myAgencyIncome = Number(month.rows[0]?.coins || 0);
   const inviteAgencyIncome = 0;
   return {
-    agency: agency.rows[0],
+    agency,
     hosts: hosts.rows,
     childAgencies: childAgencies.rows,
     monthGifts: month.rows[0]?.gifts || 0,
@@ -869,8 +866,46 @@ async function getAgencyOwnedByUser(ownerUserId) {
   return res.rows[0] || null;
 }
 
+/**
+ * Users can have role=agency without an agencies row (e.g. admin role edit).
+ * Create a default owned agency so Agency Center / rename / invites work.
+ */
+async function ensureAgencyForOwner(ownerUserId, { name } = {}) {
+  const existing = await getAgencyOwnedByUser(ownerUserId);
+  if (existing) return existing;
+
+  const u = await db.query(
+    `SELECT id, first_name, last_name, role FROM users WHERE id = $1`,
+    [ownerUserId]
+  );
+  const user = u.rows[0];
+  if (!user) throw new Error('User not found');
+  const role = String(user.role || '').toLowerCase();
+  if (!['agency', 'admin', 'super_admin', 'founder', 'ceo'].includes(role)) {
+    throw new Error('Agency not found for this user');
+  }
+
+  const defaultName =
+    String(name || '').trim().slice(0, 80) ||
+    `${user.first_name || 'My'} Agency`.trim().slice(0, 80);
+  await createAgencyUnderBd({
+    actorUserId: ownerUserId,
+    name: defaultName,
+    ownerUserId,
+    bdUserId: null,
+    commissionPercent: 20,
+  });
+  return getAgencyOwnedByUser(ownerUserId);
+}
+
+async function renameOwnerAgency(ownerUserId, name) {
+  const agency = await ensureAgencyForOwner(ownerUserId);
+  if (!agency) throw new Error('Agency not found for this user');
+  return agencyService.updateAgencyName(agency.id, name);
+}
+
 async function getAgencyInviteForOwner(ownerUserId) {
-  const agency = await getAgencyOwnedByUser(ownerUserId);
+  const agency = await ensureAgencyForOwner(ownerUserId);
   if (!agency) throw new Error('Agency not found for this user');
   const invite = await ensureAgencyInviteCode(agency.id, ownerUserId);
   return {
@@ -884,7 +919,7 @@ async function getAgencyInviteForOwner(ownerUserId) {
 }
 
 async function inviteHostToAgency(ownerUserId, userRef) {
-  const agency = await getAgencyOwnedByUser(ownerUserId);
+  const agency = await ensureAgencyForOwner(ownerUserId);
   if (!agency) throw new Error('Agency not found for this user');
 
   const invitee = await resolveUserRef(userRef);
@@ -1037,7 +1072,7 @@ async function respondToAgencyHostInvite(inviteeUserId, inviteId, decision) {
 }
 
 async function listPendingHostAppsForAgency(ownerUserId) {
-  const agency = await getAgencyOwnedByUser(ownerUserId);
+  const agency = await ensureAgencyForOwner(ownerUserId);
   if (!agency) throw new Error('Agency not found for this user');
   const apps = await db.query(
     `SELECT a.*, u.email, u.first_name, u.last_name, u.phone, u.profile_pic, u.display_id
@@ -1079,7 +1114,7 @@ async function listPendingHostAppsForAgency(ownerUserId) {
 }
 
 async function agencyReviewHostApplication(ownerUserId, applicationId, { decision, reason } = {}) {
-  const agency = await getAgencyOwnedByUser(ownerUserId);
+  const agency = await ensureAgencyForOwner(ownerUserId);
   if (!agency) throw new Error('Agency not found for this user');
 
   const appRes = await db.query(`SELECT * FROM role_applications WHERE id = $1`, [applicationId]);
@@ -1168,7 +1203,7 @@ async function agencyReviewHostApplication(ownerUserId, applicationId, { decisio
 
 /** Invite a user to become an Agency under this agency (direct Accept/Reject — not Apply form). */
 async function inviteAgencyToNetwork(ownerUserId, userRef) {
-  const agency = await getAgencyOwnedByUser(ownerUserId);
+  const agency = await ensureAgencyForOwner(ownerUserId);
   if (!agency) throw new Error('Agency not found for this user');
 
   const invitee = await resolveUserRef(userRef);
@@ -1663,7 +1698,7 @@ async function getHostAgencyChangeStatus(hostUserId) {
 
 async function listAgencyChangeRequestsForAgency(ownerUserId) {
   await expireStaleAgencyChangeRequests();
-  const agency = await getAgencyOwnedByUser(ownerUserId);
+  const agency = await ensureAgencyForOwner(ownerUserId);
   if (!agency) throw new Error('Agency not found for this user');
 
   const outgoing = await db.query(
@@ -1697,7 +1732,7 @@ async function listAgencyChangeRequestsForAgency(ownerUserId) {
 
 async function agencyRespondHostChangeRequest(ownerUserId, requestId, { decision, reason } = {}) {
   await expireStaleAgencyChangeRequests();
-  const agency = await getAgencyOwnedByUser(ownerUserId);
+  const agency = await ensureAgencyForOwner(ownerUserId);
   if (!agency) throw new Error('Agency not found for this user');
 
   const reqRes = await db.query(`SELECT * FROM host_agency_change_requests WHERE id = $1`, [requestId]);
@@ -1836,6 +1871,8 @@ module.exports = {
   bdReviewApplication,
   bumpPromoUse,
   ensureAgencyInviteCode,
+  ensureAgencyForOwner,
+  renameOwnerAgency,
   resolveAgencyInviteCode,
   bumpAgencyInviteUse,
   bumpAgencyInviteUseByAgencyId,

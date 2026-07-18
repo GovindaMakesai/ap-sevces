@@ -1336,11 +1336,9 @@
                             </div>
                             <input type="file" id="avatarUpload" accept="image/*" style="display: none;">
                         </div>
-                        <div class="profile-name" id="sidebarName">John Doe</div>
-                        <div class="profile-email" id="sidebarEmail">john@example.com</div>
-                        <div class="profile-phone" id="sidebarPhone">
-                            <i class="fas fa-phone"></i> +91 98765 43210
-                        </div>
+                        <div class="profile-name" id="sidebarName"></div>
+                        <div class="profile-email" id="sidebarEmail"></div>
+                        <div class="profile-phone" id="sidebarPhone" style="display:none"></div>
                     </div>
 
                     <div class="sidebar-nav">
@@ -1467,36 +1465,31 @@
                         </div>
 
                         <form class="profile-form" id="profileForm">
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label class="form-label">First Name</label>
-                                    <input type="text" class="form-control" id="firstName" value="John">
-                                </div>
-                                <div class="form-group">
-                                    <label class="form-label">Last Name</label>
-                                    <input type="text" class="form-control" id="lastName" value="Doe">
-                                </div>
+                            <div class="form-group">
+                                <label class="form-label">Name</label>
+                                <input type="text" class="form-control" id="profileName" value="" autocomplete="name" required>
                             </div>
 
                             <div class="form-group">
                                 <label class="form-label">Email Address</label>
-                                <input type="email" class="form-control" id="profileEmail" value="john.doe@example.com" disabled>
+                                <input type="email" class="form-control" id="profileEmail" value="" disabled>
                                 <small style="color: var(--gray-500);">Email cannot be changed</small>
                             </div>
 
                             <div class="form-group">
                                 <label class="form-label">Phone Number</label>
-                                <input type="tel" class="form-control" id="profilePhone" value="9876543210">
+                                <input type="tel" class="form-control" id="profilePhone" value="" placeholder="Your mobile number">
                             </div>
 
                             <div class="form-group">
                                 <label class="form-label">Date of Birth</label>
-                                <input type="date" class="form-control" id="dob" value="1990-01-01">
+                                <input type="date" class="form-control" id="dob" value="">
                             </div>
 
                             <div class="form-group">
                                 <label class="form-label">Gender</label>
                                 <select class="form-control" id="gender">
+                                    <option value="">Select</option>
                                     <option value="male">Male</option>
                                     <option value="female">Female</option>
                                     <option value="other">Other</option>
@@ -1782,14 +1775,21 @@
             const user = Auth.getUser();
             
             if (user) {
-                document.getElementById('userName').textContent = user.first_name || 'User';
-                document.getElementById('sidebarName').textContent = `${user.first_name || ''} ${user.last_name || ''}`;
+                const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim();
+                document.getElementById('userName').textContent = fullName || 'User';
+                document.getElementById('sidebarName').textContent = fullName || 'User';
                 document.getElementById('sidebarEmail').textContent = user.email || '';
-                document.getElementById('sidebarPhone').innerHTML = `<i class="fas fa-phone"></i> ${user.phone || ''}`;
+                const phoneEl = document.getElementById('sidebarPhone');
+                if (user.phone) {
+                    phoneEl.style.display = '';
+                    phoneEl.innerHTML = `<i class="fas fa-phone"></i> ${user.phone}`;
+                } else {
+                    phoneEl.style.display = 'none';
+                    phoneEl.innerHTML = '';
+                }
                 
                 // Pre-fill profile form
-                document.getElementById('firstName').value = user.first_name || '';
-                document.getElementById('lastName').value = user.last_name || '';
+                document.getElementById('profileName').value = fullName;
                 document.getElementById('profileEmail').value = user.email || '';
                 document.getElementById('profilePhone').value = user.phone || '';
                 if (user.profile_pic) {
@@ -2164,10 +2164,12 @@
         form.addEventListener('submit', async function(e) {
             e.preventDefault();
             
+            const fullName = document.getElementById('profileName').value.trim();
+            const space = fullName.indexOf(' ');
             const profileData = {
-                first_name: document.getElementById('firstName').value,
-                last_name: document.getElementById('lastName').value,
-                phone: document.getElementById('profilePhone').value
+                first_name: space === -1 ? fullName : fullName.slice(0, space),
+                last_name: space === -1 ? '' : fullName.slice(space + 1).trim(),
+                phone: document.getElementById('profilePhone').value.trim()
             };
             
             try {
@@ -2176,8 +2178,16 @@
                     Toast.show('Profile updated successfully!', 'success');
                     
                     // Update sidebar
-                    document.getElementById('sidebarName').textContent = `${profileData.first_name} ${profileData.last_name}`;
-                    document.getElementById('sidebarPhone').innerHTML = `<i class="fas fa-phone"></i> +91 ${profileData.phone}`;
+                    const displayName = `${profileData.first_name} ${profileData.last_name}`.trim();
+                    document.getElementById('sidebarName').textContent = displayName;
+                    const phoneEl = document.getElementById('sidebarPhone');
+                    if (profileData.phone) {
+                        phoneEl.style.display = '';
+                        phoneEl.innerHTML = `<i class="fas fa-phone"></i> ${profileData.phone}`;
+                    } else {
+                        phoneEl.style.display = 'none';
+                        phoneEl.innerHTML = '';
+                    }
                     
                     // Update stored user
                     const user = Auth.getUser();

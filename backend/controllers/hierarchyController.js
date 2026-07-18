@@ -181,6 +181,26 @@ exports.agencyDashboard = async (req, res) => {
   }
 };
 
+exports.renameAgency = async (req, res) => {
+  try {
+    const role = String(req.userRole || '').toLowerCase();
+    let ownerId = req.userId;
+    if (STAFF.has(role) && (req.body.user_id || req.body.userId)) {
+      ownerId = req.body.user_id || req.body.userId;
+    } else if (role !== 'agency' && !STAFF.has(role)) {
+      return res.status(403).json({ success: false, message: 'Agency access required' });
+    }
+    const name = req.body.name || req.body.agency_name;
+    if (!name || !String(name).trim()) {
+      return res.status(400).json({ success: false, message: 'Agency name is required' });
+    }
+    const data = await hierarchyService.renameOwnerAgency(ownerId, name);
+    res.json({ success: true, data, message: 'Agency name updated' });
+  } catch (e) {
+    res.status(e.status || 400).json({ success: false, message: e.message });
+  }
+};
+
 exports.approveHost = async (req, res) => {
   try {
     assertStaff(req);

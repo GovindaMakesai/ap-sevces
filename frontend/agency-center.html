@@ -7,8 +7,8 @@
   <title>Agency Center - AP Services</title>
   <script src="/ap-native-boot.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-theme.css?v=20260717-agency-flow">
-  <link rel="stylesheet" href="coin-seller.css?v=20260717-agency-flow">
+  <link rel="stylesheet" href="social-theme.css?v=20260718-agency-rename">
+  <link rel="stylesheet" href="coin-seller.css?v=20260718-agency-rename">
   <link rel="stylesheet" href="mobile-app.css">
   <style>
     :root {
@@ -389,7 +389,7 @@
 
   <script src="ap-config.js"></script>
   <script src="config.js"></script>
-  <script src="app.js?v=20260717-agency-flow"></script>
+  <script src="app.js?v=20260718-agency-rename"></script>
   <script src="auth-guard.js"></script>
   <script>
     (async function () {
@@ -474,14 +474,20 @@
         }
       });
 
-      document.getElementById('agEditName')?.addEventListener('click', () => {
+      document.getElementById('agEditName')?.addEventListener('click', async () => {
         const current = document.getElementById('agAgencyName').textContent || '';
         const next = prompt('Agency name', current === '—' ? '' : current);
         if (next == null) return;
         const trimmed = String(next).trim().slice(0, 80);
         if (!trimmed) return;
-        document.getElementById('agAgencyName').textContent = trimmed;
-        alert('Name updated on this screen. Server rename will sync in a later update.');
+        try {
+          await Auth.ensureAccessToken?.();
+          const res = await API.patch('/agency/name', { name: trimmed });
+          const saved = res?.data?.name || trimmed;
+          document.getElementById('agAgencyName').textContent = saved;
+        } catch (err) {
+          alert(err?.message || 'Could not update agency name');
+        }
       });
 
       function personItem(h, extraHtml = '') {
