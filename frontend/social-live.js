@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260718-audio-sink';
+  window.__AP_LIVE_BUILD = '20260718-speaker';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -85,6 +85,7 @@
   let __audioSinkWatchTimer = null;
   let __audioSinkWatchUntil = 0;
   const __remoteAudioSinkEls = new Map();
+  const __remoteAudioGraph = new Map();
   let partyMusicPlayingId = '';
   let partyMusicCustomTracks = [];
   const PARTY_MUSIC_STORAGE_KEY = 'ap_party_music_tracks';
@@ -10409,6 +10410,72 @@
     return Boolean(soundOn || isHost() || hasSpeakerSeat);
   }
 
+  function isNativeAppWebView() {
+    try {
+      return Boolean(window.ReactNativeWebView) || /; wv\)/i.test(navigator.userAgent || '');
+    } catch (_e) {
+      return false;
+    }
+  }
+
+  function requestNativeSpeakerAudio() {
+    try {
+      window.ReactNativeWebView?.postMessage?.(
+        JSON.stringify({ type: 'force_speaker_audio', ts: Date.now() })
+      );
+    } catch (_e) { }
+  }
+
+  function disconnectRemoteAudioGraph(uid) {
+    const key = String(uid);
+    const node = __remoteAudioGraph.get(key);
+    if (!node) return;
+    try {
+      node.source?.disconnect?.();
+    } catch (_e) { }
+    try {
+      node.gain?.disconnect?.();
+    } catch (_e2) { }
+    __remoteAudioGraph.delete(key);
+  }
+
+  /**
+   * Route remote mic through AudioContext → STREAM_MUSIC/speaker.
+   * HTMLAudioElement + Agora play() often stay on Android earpiece after mic permission.
+   */
+  async function playRemoteAudioViaWebAudio(user) {
+    if (!user?.audioTrack || !shouldHearRemoteAudio()) return false;
+    try {
+      await unlockBrowserAudio();
+      const ctx = window.__apLiveAudioCtx;
+      if (!ctx) return false;
+      if (ctx.state === 'suspended') await ctx.resume();
+      const mst =
+        typeof user.audioTrack.getMediaStreamTrack === 'function'
+          ? user.audioTrack.getMediaStreamTrack()
+          : null;
+      if (!mst || mst.readyState === 'ended') return false;
+
+      /* One consumer only — drop HTML sink so Web Audio can own the track */
+      removeRemoteAudioSink(user.uid);
+      try {
+        user.audioTrack.stop?.();
+      } catch (_e) { }
+
+      disconnectRemoteAudioGraph(user.uid);
+      const source = ctx.createMediaStreamSource(new MediaStream([mst]));
+      const gain = ctx.createGain();
+      gain.gain.value = 1.6;
+      source.connect(gain);
+      gain.connect(ctx.destination);
+      __remoteAudioGraph.set(String(user.uid), { source, gain, trackId: mst.id });
+      return ctx.state === 'running';
+    } catch (err) {
+      liveDebugLog(`web-audio play failed uid=${user.uid}: ${err?.message || err}`);
+      return false;
+    }
+  }
+
   function getOrCreateRemoteAudioSink(uid) {
     const key = String(uid);
     let el = __remoteAudioSinkEls.get(key);
@@ -10434,6 +10501,7 @@
 
   function removeRemoteAudioSink(uid) {
     const key = String(uid);
+    disconnectRemoteAudioGraph(uid);
     const el = __remoteAudioSinkEls.get(key) || document.getElementById(`apRemoteAudioSink-${key}`);
     __remoteAudioSinkEls.delete(key);
     if (el) {
@@ -10458,6 +10526,7 @@
           ? user.audioTrack.getMediaStreamTrack()
           : null;
       if (!mst || mst.readyState === 'ended') return false;
+      disconnectRemoteAudioGraph(user.uid);
       const el = getOrCreateRemoteAudioSink(user.uid);
       el.muted = false;
       el.defaultMuted = false;
@@ -10521,6 +10590,11 @@
         if (p && typeof p.catch === 'function') p.catch(() => {});
       });
     } catch (_e2) { }
+    try {
+      __remoteAudioGraph.forEach((node) => {
+        if (node?.gain?.gain) node.gain.gain.value = 1.6;
+      });
+    } catch (_e3) { }
   }
 
   function isRemoteAudioTrackAudible(track) {
@@ -10540,6 +10614,7 @@
   async function tryPlayRemoteAudioTrack(user) {
     if (!user?.audioTrack) return false;
     if (!shouldHearRemoteAudio()) return false;
+    requestNativeSpeakerAudio();
     try {
       user.audioTrack.setVolume?.(100);
       if (typeof user.audioTrack.setMuted === 'function') {
@@ -10547,6 +10622,18 @@
           await user.audioTrack.setMuted(false);
         } catch (_e) { }
       }
+
+      /* Native app / Android WebView: Web Audio → speaker (avoids silent earpiece path) */
+      if (isNativeAppWebView()) {
+        const waOk = await playRemoteAudioViaWebAudio(user);
+        if (waOk) {
+          audioUnlocked = true;
+          hideTapForSoundHint();
+          unmuteDomMediaElements();
+          return true;
+        }
+      }
+
       const sink = getOrCreateRemoteAudioSink(user.uid);
       sink.muted = false;
       sink.defaultMuted = false;
@@ -10559,16 +10646,17 @@
         const p = user.audioTrack.play?.(sink);
         if (p && typeof p.then === 'function') await p;
         played = true;
-      } catch (_playEl) {
-        /* Fall through to MediaStream sink */
-      }
-      const sinkOk = await playRemoteAudioViaDomSink(user);
+      } catch (_playEl) { }
+      let sinkOk = await playRemoteAudioViaDomSink(user);
       if (!played && !sinkOk) {
         try {
           const p2 = user.audioTrack.play?.();
           if (p2 && typeof p2.then === 'function') await p2;
           played = true;
         } catch (_playDef) { }
+      }
+      if (!played && !sinkOk) {
+        sinkOk = await playRemoteAudioViaWebAudio(user);
       }
       unmuteDomMediaElements();
       if (played || sinkOk) {
@@ -10580,6 +10668,7 @@
     } catch (err) {
       liveDebugLog(`audio play blocked: ${err?.message || err}`);
       try {
+        if (await playRemoteAudioViaWebAudio(user)) return true;
         return await playRemoteAudioViaDomSink(user);
       } catch (_e2) {
         return false;
@@ -10640,6 +10729,7 @@
   /** Burst-retry remote audio after join — no Tap-for-sound nag. */
   function kickstartRemoteAudio(reason) {
     if (!shouldHearRemoteAudio()) return;
+    requestNativeSpeakerAudio();
     const seq = ++__audioKickSeq;
     liveDebugLog(`audio kickstart (${reason})`);
     startSilentAudioWatchdog(45000);
@@ -10647,6 +10737,7 @@
     delays.forEach((ms) => {
       setTimeout(() => {
         if (seq !== __audioKickSeq || socketLeaveIntentional) return;
+        requestNativeSpeakerAudio();
         unlockBrowserAudio()
           .then(() => ensureRemoteAudioPlaying())
           .then((ok) => {
@@ -10675,21 +10766,30 @@
       const remotes = (agoraClient.remoteUsers || []).filter((u) => u.hasAudio);
       if (!remotes.length) return;
 
+      requestNativeSpeakerAudio();
       unlockBrowserAudio().catch(() => {});
       unmuteDomMediaElements();
 
       let needsRemount = false;
       remotes.forEach((user) => {
-        const sink = __remoteAudioSinkEls.get(String(user.uid));
-        const sinkDead =
-          !sink ||
-          sink.paused ||
-          sink.muted ||
-          (sink.srcObject && sink.srcObject.getAudioTracks?.()[0]?.readyState === 'ended');
-        if (!user.audioTrack || user.audioTrack.isPlaying === false || sinkDead) {
+        const uid = String(user.uid);
+        const graphOk = __remoteAudioGraph.has(uid);
+        const sink = __remoteAudioSinkEls.get(uid);
+        const sinkOk =
+          sink &&
+          !sink.paused &&
+          !sink.muted &&
+          !(sink.srcObject && sink.srcObject.getAudioTracks?.()[0]?.readyState === 'ended');
+        if (!user.audioTrack) {
+          needsRemount = true;
+        } else if (!graphOk && !sinkOk && user.audioTrack.isPlaying === false) {
           needsRemount = true;
         }
-        playRemoteAudioViaDomSink(user).catch(() => {});
+        if (isNativeAppWebView()) {
+          playRemoteAudioViaWebAudio(user).catch(() => {});
+        } else if (!graphOk) {
+          playRemoteAudioViaDomSink(user).catch(() => {});
+        }
       });
 
       if (needsRemount) {
@@ -10709,6 +10809,7 @@
   }
 
   function forceRemoteAudio(reason) {
+    requestNativeSpeakerAudio();
     if (!soundOn && !isHost() && !hasSpeakerSeat) {
       soundOn = true;
       try {

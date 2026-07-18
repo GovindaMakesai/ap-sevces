@@ -14,11 +14,29 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import Constants from 'expo-constants';
+import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
 import { WebView } from 'react-native-webview';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import * as ScreenCapture from 'expo-screen-capture';
 import { getMobileDashboardInjectScript } from './injectedMobileFix';
+
+/** Live/party voice must use the loudspeaker — mic permission often routes Android to earpiece. */
+async function forceSpeakerAudioMode() {
+  try {
+    await Audio.setAudioModeAsync({
+      allowsRecordingIOS: true,
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: true,
+      shouldDuckOthers: true,
+      playThroughEarpieceAndroid: false,
+      interruptionModeIOS: InterruptionModeIOS.DuckOthers,
+      interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
+    });
+  } catch (err) {
+    console.warn('[audio-mode]', err?.message || err);
+  }
+}
 
 const apiConfig = require('./config/production-api');
 
@@ -917,6 +935,7 @@ export default function App() {
       if (nextState === 'background' || nextState === 'inactive') {
         webViewRef.current.injectJavaScript(LIVE_APP_BACKGROUND_INJECT);
       } else if (nextState === 'active') {
+        forceSpeakerAudioMode().catch(() => {});
         webViewRef.current.injectJavaScript(LIVE_APP_FOREGROUND_INJECT);
         /* Re-lock screenshots on live/party after resume (Android may drop FLAG_SECURE) */
         const url = webViewCurrentUrlRef.current || '';
@@ -930,7 +949,9 @@ export default function App() {
   }, [lockLiveScreenCapture]);
 
   useEffect(() => {
-    requestAndroidMediaPermissions().catch(() => {});
+    forceSpeakerAudioMode().catch(() => {});
+    /* Don't request mic on every launch — that pushes Android into earpiece/call audio mode. */
+    requestAndroidMediaPermissions({ microphone: false }).catch(() => {});
   }, []);
 
   const clearNativeSession = useCallback(() => {
@@ -1033,11 +1054,18 @@ export default function App() {
         }
         if (data.type === 'request_media_permissions') {
           (async () => {
+            await forceSpeakerAudioMode();
             const result = await requestAndroidMediaPermissions({
               microphone: data.microphone !== false,
             });
+            /* Keep loudspeaker after mic grant — otherwise live voice goes to earpiece. */
+            await forceSpeakerAudioMode();
             webViewRef.current?.injectJavaScript(buildMediaPermissionResultScript(result));
           })();
+          return;
+        }
+        if (data.type === 'force_speaker_audio') {
+          forceSpeakerAudioMode().catch(() => {});
           return;
         }
         if (data.type === 'share') {
@@ -1230,12 +1258,14 @@ export default function App() {
           const url = e?.nativeEvent?.url || '';
           injectMobileLayout(url);
           syncScreenCaptureForUrl(url);
+          if (isLiveCaptureUrl(url)) forceSpeakerAudioMode().catch(() => {});
         }}
         onNavigationStateChange={(nav) => {
           const url = nav?.url || '';
           if (url) webViewCurrentUrlRef.current = url;
           webViewCanGoBackRef.current = Boolean(nav?.canGoBack);
           syncScreenCaptureForUrl(url);
+          if (isLiveCaptureUrl(url)) forceSpeakerAudioMode().catch(() => {});
           if (url.includes('explore.html') || url.includes('dashboard')) {
             oauthCompleteRef.current = true;
             setLoadError('');
