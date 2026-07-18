@@ -13522,38 +13522,17 @@
     } catch (_e) { }
   }
 
-  function mountLiveSecurityWatermark() {
-    if (!(isLiveRoomPage() || isPartyRoomPage())) return;
-    const user = currentUser();
-    const uid = String(user?.id || user?.user_id || 'guest');
-    const name = displayName(user).slice(0, 18);
-    const label = `AP · ${uid} · ${name}`;
-    let wrap = document.getElementById('apLiveWatermark');
-    if (!wrap) {
-      wrap = document.createElement('div');
-      wrap.id = 'apLiveWatermark';
-      wrap.className = 'ap-live-watermark';
-      wrap.setAttribute('aria-hidden', 'true');
-      document.body.appendChild(wrap);
-    }
-    const tiles = Array.from({ length: 36 }, () => `<span>${escapeHtml(label)}</span>`).join('');
-    wrap.innerHTML = `<div class="ap-live-watermark-inner">${tiles}</div>`;
-    document.documentElement.classList.add('ap-secure-live');
-    document.body?.classList?.add?.('ap-secure-live');
-    setScreenCaptureProtection(true);
-  }
-
   function onScreenshotAttempt() {
     setScreenCaptureProtection(true);
     flashLiveCaptureShield();
-    mountLiveSecurityWatermark();
   }
 
   function bindScreenCaptureLifecycle() {
     if (bindScreenCaptureLifecycle.bound) return;
     bindScreenCaptureLifecycle.bound = true;
     setScreenCaptureProtection(true);
-    mountLiveSecurityWatermark();
+    document.documentElement.classList.add('ap-secure-live');
+    document.body?.classList?.add?.('ap-secure-live');
     if (!window.__apScreenCapturePulse) {
       window.__apScreenCapturePulse = setInterval(() => {
         if (!document.body?.dataset?.livePage) return;
@@ -13570,14 +13549,12 @@
       if (isLiveRoomPage() || isPartyRoomPage()) {
         screenCaptureEnabled = null;
         setScreenCaptureProtection(true);
-        mountLiveSecurityWatermark();
       }
     });
     window.addEventListener('focus', () => {
       if (isLiveRoomPage() || isPartyRoomPage()) {
         screenCaptureEnabled = null;
         setScreenCaptureProtection(true);
-        mountLiveSecurityWatermark();
       }
     });
   }

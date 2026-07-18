@@ -39,37 +39,6 @@ html.ap-secure-live .party-room-stage {
   opacity: 1;
 }
 
-/* Viewer identity watermark — makes leaked clips traceable */
-.ap-live-watermark {
-  position: fixed;
-  inset: 0;
-  z-index: 35;
-  pointer-events: none;
-  overflow: hidden;
-  opacity: 0.2;
-}
-.ap-live-watermark-inner {
-  position: absolute;
-  inset: -40%;
-  width: 180%;
-  height: 180%;
-  display: flex;
-  flex-wrap: wrap;
-  align-content: flex-start;
-  gap: 52px 72px;
-  transform: rotate(-28deg);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  color: #fff;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
-  font-family: ui-sans-serif, system-ui, sans-serif;
-}
-.ap-live-watermark-inner span {
-  white-space: nowrap;
-  flex: 0 0 auto;
-}
-
 .live-dark {
   background: #0a0618;
   color: #fff;
