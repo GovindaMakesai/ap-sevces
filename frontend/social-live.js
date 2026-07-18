@@ -4772,9 +4772,9 @@
     if (!vid || vid.dataset.apRevealBound === '1') return;
     vid.dataset.apRevealBound = '1';
     const kick = () => {
-      if (!hasPlayingRemoteVideo() && !(vid.videoWidth > 0)) return;
+      if (!hasPlayingRemoteVideo() && !(vid.videoWidth > 0) && vid.dataset.apPlaying !== '1') return;
       setLiveStreamVisible(true);
-      clearStickyLivePoster();
+      clearStickyLivePoster(true);
       const bg = document.getElementById('liveBg');
       if (bg) bg.style.display = 'none';
       hideApLoader();
