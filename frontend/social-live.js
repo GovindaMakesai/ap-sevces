@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260718-av-parallel';
+  window.__AP_LIVE_BUILD = '20260718-av-together';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -4502,11 +4502,20 @@
     client.on('user-published', async (user, mediaType) => {
       liveDebugLog(`user-published uid=${user.uid} media=${mediaType}`);
       forensicEvent('REMOTE_USER_PUBLISHED', { uid: user.uid, mediaType, channel: agoraChannel });
-      await playRemoteMedia(user, mediaType);
-      if (mediaType === 'audio') {
-        kickstartRemoteAudio('user-published-audio');
-        boostRemoteAudioVolumes();
-      }
+      /* Don't serialize A/V — play whichever arrives without waiting on the other */
+      void playRemoteMedia(user, mediaType)
+        .then(() => {
+          if (mediaType === 'audio') {
+            kickstartRemoteAudio('user-published-audio');
+            boostRemoteAudioVolumes();
+          }
+          if (mediaType === 'video') {
+            setLiveStreamVisible(true);
+            clearStickyLivePoster(true);
+            hideApLoader();
+          }
+        })
+        .catch((e) => liveDebugLog(`user-published play failed: ${e?.message || e}`));
     });
     client.on('user-unpublished', (user, mediaType) => {
       liveDebugLog(`user-unpublished uid=${user.uid} media=${mediaType || 'all'}`);
@@ -5449,55 +5458,75 @@
         } else {
           const root = document.getElementById('liveRoomRoot');
           if (root) root.classList.remove('is-audio-mode');
-          /* Publish mic first so viewers hear voice immediately — camera can lag behind */
+          /* Create mic + camera together, publish both at once — viewers get A/V at the same time */
           let audioTrack = null;
           let videoTrack = null;
-          try {
-            audioTrack = await withTimeout(
+          const mediaResults = await Promise.allSettled([
+            withTimeout(
               AgoraRTC.createMicrophoneAudioTrack({ AEC: true, ANS: true, AGC: true }),
               20000,
               'Microphone access'
-            );
+            ),
+            withTimeout(
+              AgoraRTC.createCameraVideoTrack({
+                facingMode: cameraFacing,
+                /* Slightly lighter first encode = faster first remote frame */
+                encoderConfig: '480p_1',
+              }),
+              25000,
+              'Camera access'
+            ),
+          ]);
+          if (mediaResults[0].status === 'fulfilled') {
+            audioTrack = mediaResults[0].value;
             try {
               if (typeof audioTrack.setEnabled === 'function') await audioTrack.setEnabled(true);
               if (typeof audioTrack.setMuted === 'function') await audioTrack.setMuted(false);
-            } catch (_e) { }
-            localTracks = [audioTrack];
-            await agoraClient.publish([audioTrack]);
-            publishSucceeded = true;
-            liveDebugLog('Publish OK live audio (first)');
-            updateLiveDebug({ hostPublishing: true, publishSucceeded: true });
-          } catch (audioErr) {
-            liveDebugLog(`Host audio first publish failed: ${audioErr?.message || audioErr}`);
+            } catch (_e) {}
+          } else {
+            liveDebugLog(`Host mic create failed: ${mediaResults[0].reason?.message || mediaResults[0].reason}`);
+          }
+          if (mediaResults[1].status === 'fulfilled') {
+            videoTrack = mediaResults[1].value;
+            rawCameraTrack = videoTrack;
+            const localBox = document.getElementById('liveLocalHost');
+            if (localBox) playLocalHostPreview(videoTrack);
+            ensureHostVideoVisible();
+            setLiveStreamVisible(true);
+          } else {
+            liveDebugLog(`Host camera create failed: ${mediaResults[1].reason?.message || mediaResults[1].reason}`);
+          }
+
+          const toPublish = [audioTrack, videoTrack].filter(Boolean);
+          if (!toPublish.length) {
+            await onHostBroadcastFailed('publish_failed', 'Could not open camera or microphone');
+            return;
           }
           try {
-            videoTrack = await withTimeout(
-              AgoraRTC.createCameraVideoTrack({ facingMode: cameraFacing }),
-              25000,
-              'Camera access'
-            );
-            rawCameraTrack = videoTrack;
-            await agoraClient.publish([videoTrack]);
-            localTracks = audioTrack ? [audioTrack, videoTrack] : [videoTrack];
+            /* Dual stream: viewers can take a low-res frame instantly then upgrade */
+            try {
+              await agoraClient.enableDualStream?.();
+            } catch (_dual) {}
+            await agoraClient.publish(toPublish);
+            localTracks = toPublish;
             publishSucceeded = true;
-            liveDebugLog('Publish OK live video');
-            forensicEvent('PUBLISH_SUCCESS', { channel: joined.channel, mode: 'video' });
+            liveDebugLog(`Publish OK live A/V together (a=${Boolean(audioTrack)} v=${Boolean(videoTrack)})`);
+            forensicEvent('PUBLISH_SUCCESS', {
+              channel: joined.channel,
+              mode: 'video',
+              parallel: true,
+            });
             updateLiveDebug({ hostPublishing: true, publishSucceeded: true });
-          } catch (vidErr) {
-            const msg = vidErr?.message || String(vidErr);
-            console.error('[live] video publish failed', vidErr);
-            if (!audioTrack) {
-              await onHostBroadcastFailed('publish_failed', `Publish failed: ${msg}`);
-              return;
-            }
+          } catch (pubErr) {
+            const msg = pubErr?.message || String(pubErr);
+            console.error('[live] publish failed', pubErr);
+            await onHostBroadcastFailed('publish_failed', `Publish failed: ${msg}`);
+            return;
+          }
+          if (!videoTrack && audioTrack) {
             toast('Camera failed — audio is still live', 'warning');
-            liveDebugLog(`video publish failed (audio kept): ${msg}`);
           }
           if (videoTrack) {
-            const localBox = document.getElementById('liveLocalHost');
-            if (localBox) {
-              playLocalHostPreview(videoTrack);
-            }
             applyVideoFilter();
             ensureHostVideoVisible();
             setLiveStreamVisible(true);
@@ -10581,9 +10610,15 @@
     let subscribed = false;
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
+        /* Prefer low-res video first for instant face, then upgrade */
+        if (mediaType === 'video' && typeof agoraClient.setRemoteVideoStreamType === 'function') {
+          try {
+            await agoraClient.setRemoteVideoStreamType(user.uid, 1);
+          } catch (_low) {}
+        }
         await withTimeout(
           agoraClient.subscribe(user, mediaType),
-          8000,
+          mediaType === 'video' ? 6000 : 8000,
           `subscribe ${mediaType}`
         );
         subscribed = true;
@@ -10591,7 +10626,7 @@
       } catch (subErr) {
         const msg = subErr?.message || String(subErr);
         liveDebugLog(`subscribe FAILED uid=${user.uid} media=${mediaType} attempt=${attempt}: ${msg}`);
-        if (attempt < 2) await new Promise((r) => setTimeout(r, 100 * attempt));
+        if (attempt < 2) await new Promise((r) => setTimeout(r, 50 * attempt));
       }
     }
     if (!subscribed) {
@@ -10666,6 +10701,12 @@
         const bgNow = document.getElementById('liveBg');
         if (bgNow) bgNow.style.display = 'none';
         hideApLoader();
+        /* After first paint, upgrade to high-quality stream */
+        setTimeout(() => {
+          try {
+            agoraClient?.setRemoteVideoStreamType?.(user.uid, 0);
+          } catch (_hi) {}
+        }, 1200);
       }
       if (!isGuestVideo) {
         revealLiveVideoWhenReady(60);
