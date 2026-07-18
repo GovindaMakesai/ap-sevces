@@ -433,17 +433,11 @@
     document.body.classList.toggle('explore-tab-party', party);
     document.body.classList.toggle('explore-tab-live', !party);
     if (!liveBtn || !partyBtn) return;
-    if (hasRooms) {
-      liveBtn.hidden = party;
-      partyBtn.hidden = !party;
-      liveBtn.style.display = party ? 'none' : '';
-      partyBtn.style.display = party ? '' : 'none';
-    } else {
-      liveBtn.hidden = true;
-      partyBtn.hidden = true;
-      liveBtn.style.display = 'none';
-      partyBtn.style.display = 'none';
-    }
+    /* Always keep Go Live / Party FAB available — empty feed must not block starting a stream */
+    liveBtn.hidden = party;
+    partyBtn.hidden = !party;
+    liveBtn.style.display = party ? 'none' : '';
+    partyBtn.style.display = party ? '' : 'none';
   }
 
   function renderExploreFeedHead(party, count) {

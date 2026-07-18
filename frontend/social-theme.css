@@ -403,9 +403,12 @@ body.explore-tab-party .social-explore-feed-count {
   padding: 0;
 }
 
-body.explore-empty-state .social-start-live,
-body.explore-empty-state .social-start-party {
-  display: none !important;
+body.explore-empty-state.explore-tab-live .social-start-live:not([hidden]) {
+  display: flex !important;
+}
+
+body.explore-empty-state.explore-tab-party .social-start-party:not([hidden]) {
+  display: flex !important;
 }
 
 body.explore-has-rooms.explore-tab-live .social-start-live:not([hidden]) {

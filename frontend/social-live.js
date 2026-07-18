@@ -450,7 +450,7 @@
       wash: { color: 'rgba(255,220,180,0.14)', mode: 'soft-light' },
       sparkle: 0.35,
       vignette: 0.18,
-      beauty: { lighteningLevel: 0.7, smoothnessLevel: 0.7, rednessLevel: 0.12 lighteningContrastLevel: 1 },
+      beauty: { lighteningLevel: 0.7, smoothnessLevel: 0.7, rednessLevel: 0.12, lighteningContrastLevel: 1 },
     },
     silk: {
       label: 'Silk',
@@ -535,7 +535,7 @@
       wash: { color: 'rgba(255,200,150,0.18)', mode: 'soft-light' },
       sparkle: 0.2,
       vignette: 0.14,
-      beauty: { lighteningLevel: 0.62, smoothnessLevel: 0.58, rednessLevel: 0.12 lighteningContrastLevel: 1 },
+      beauty: { lighteningLevel: 0.62, smoothnessLevel: 0.58, rednessLevel: 0.12, lighteningContrastLevel: 1 },
     },
     golden: {
       label: 'Golden',
@@ -620,7 +620,7 @@
       wash: { color: 'rgba(80,220,255,0.14)', mode: 'screen' },
       sparkle: 0.7,
       vignette: 0.3,
-      beauty: { lighteningLevel: 0.55, smoothnessLevel: 0.5, rednessLevel: 0.12 lighteningContrastLevel: 1 },
+      beauty: { lighteningLevel: 0.55, smoothnessLevel: 0.5, rednessLevel: 0.12, lighteningContrastLevel: 1 },
     },
     dusk: {
       label: 'Dusk',
