@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260718-parallel-agora';
+  window.__AP_LIVE_BUILD = '20260718-peerconnection-fix';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -957,14 +957,11 @@
     }
     const page = document.body.dataset.livePage;
     const mode = page === 'party-room' ? 'party' : 'live';
-    agoraStartInProgress = true;
     try {
       await startAgora(mode);
     } catch (e) {
       console.error('[live] resumeHostBroadcast failed', e);
       syncLiveUiState();
-    } finally {
-      agoraStartInProgress = false;
     }
   }
 
@@ -3085,13 +3082,9 @@
       } catch (_e) { }
     }
     localTracks = [];
-    if (agoraClient) {
-      try {
-        await agoraClient.leave();
-      } catch (_e) { }
-      agoraClient = null;
-    }
-    liveDebugState.agoraJoined = false;
+    await disposeAgoraClient(
+      isPeerConnectionLimitError(msg) ? 'peerconnection_limit' : 'host_broadcast_failed'
+    );
     updateModeBadge(broadcastMode, false);
     const isParty = document.body.dataset.livePage === 'party-room';
     if (isParty && reason === 'media_blocked' && isLanHttpInNativeWebView()) {
@@ -3107,18 +3100,26 @@
       refreshViewerDiagnostics();
       return;
     }
-    const retryHint = isParty ? ' Tap mic to retry voice.' : ' Tap mic to retry.';
+    const peerLimit = isPeerConnectionLimitError(msg);
+    const retryHint = peerLimit
+      ? ' Wait a moment, then tap mic to retry.'
+      : isParty
+        ? ' Tap mic to retry voice.'
+        : ' Tap mic to retry.';
     setLiveStatus((msg || 'Broadcast failed') + retryHint, false);
     hideApLoader();
     if (isParty && !sessionEstablished) onRoomReady();
     refreshViewerDiagnostics();
 
-    // Auto-recover intermittent publish/join failures (not permission/billing blocks).
+    // Auto-recover intermittent failures — never spam createClient on PeerConnection limit
     const skipAuto =
+      peerLimit ||
       reason === 'media_blocked' ||
-      /permission|NotAllowed|billing|CAN_NOT_GET_GATEWAY|suspended|quota/i.test(String(msg || '') + reason);
+      /permission|NotAllowed|billing|CAN_NOT_GET_GATEWAY|suspended|quota|PeerConnection/i.test(
+        String(msg || '') + reason
+      );
     if (!skipAuto && !window.__apHostPublishAutoTries) window.__apHostPublishAutoTries = 0;
-    if (!skipAuto && window.__apHostPublishAutoTries < 3) {
+    if (!skipAuto && window.__apHostPublishAutoTries < 1) {
       window.__apHostPublishAutoTries += 1;
       setTimeout(() => {
         if (socketLeaveIntentional) return;
@@ -3127,7 +3128,7 @@
             if (publishSucceeded) window.__apHostPublishAutoTries = 0;
           })
           .catch(() => { });
-      }, 1500 * window.__apHostPublishAutoTries);
+      }, 2500);
     }
   }
 
@@ -4133,6 +4134,109 @@
   let localTracks = [];
   let agoraMode = 'live';
   let agoraLoadPromise = null;
+  let __agoraLifecycleChain = Promise.resolve();
+
+  function isPeerConnectionLimitError(err) {
+    const msg = String(err?.message || err || '');
+    return /Cannot create so many PeerConnections|Failed to construct ['"]RTCPeerConnection['"]/i.test(
+      msg
+    );
+  }
+
+  function runAgoraLifecycle(fn) {
+    const next = __agoraLifecycleChain.then(fn, fn);
+    __agoraLifecycleChain = next.catch(() => {});
+    return next;
+  }
+
+  function clearAllRemoteAudioSinks() {
+    try {
+      __remoteAudioSinkEls.forEach((_el, uid) => {
+        try {
+          removeRemoteAudioSink(uid);
+        } catch (_e) {}
+      });
+      __remoteAudioSinkEls.clear();
+    } catch (_e2) {}
+  }
+
+  /**
+   * Fully tear down Agora client + tracks so WebView releases RTCPeerConnections.
+   * Leaving without this (or creating clients in parallel) hits "Cannot create so many PeerConnections".
+   */
+  async function disposeAgoraClient(reason = '') {
+    const client = agoraClient;
+    agoraClient = null;
+    liveDebugState.agoraJoined = false;
+    if (!client) {
+      clearAllRemoteAudioSinks();
+      return;
+    }
+    liveDebugLog(`dispose Agora (${reason})`);
+    try {
+      for (const t of localTracks) {
+        try {
+          await client.unpublish?.(t);
+        } catch (_e) {}
+        try {
+          t.stop?.();
+          t.close?.();
+        } catch (_e2) {}
+      }
+    } catch (_e3) {}
+    localTracks = [];
+    if (rawCameraTrack) {
+      try {
+        rawCameraTrack.stop?.();
+        rawCameraTrack.close?.();
+      } catch (_e4) {}
+      rawCameraTrack = null;
+    }
+    try {
+      const remotes = [...(client.remoteUsers || [])];
+      for (const u of remotes) {
+        try {
+          u.audioTrack?.stop?.();
+        } catch (_e5) {}
+        try {
+          u.videoTrack?.stop?.();
+        } catch (_e6) {}
+        try {
+          await client.unsubscribe?.(u);
+        } catch (_e7) {}
+      }
+    } catch (_e8) {}
+    remoteUsers.clear();
+    clearAllRemoteAudioSinks();
+    try {
+      client.__apHandlersBound = false;
+    } catch (_e9) {}
+    try {
+      await client.leave();
+    } catch (_e10) {}
+    /* Android WebView needs a beat before the next createClient */
+    await new Promise((r) => setTimeout(r, reason === 'peerconnection_limit' ? 900 : 400));
+  }
+
+  async function ensureAgoraClient() {
+    return runAgoraLifecycle(async () => {
+      if (agoraClient) return agoraClient;
+      const AgoraRTC = await loadAgoraScript();
+      try {
+        agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
+      } catch (e) {
+        if (isPeerConnectionLimitError(e)) {
+          liveDebugLog('createClient PeerConnection limit — force dispose + retry');
+          await disposeAgoraClient('peerconnection_limit');
+          await new Promise((r) => setTimeout(r, 700));
+          agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
+        } else {
+          throw e;
+        }
+      }
+      return agoraClient;
+    });
+  }
 
   function loadAgoraScript() {
     if (window.AgoraRTC) return Promise.resolve(window.AgoraRTC);
@@ -4220,13 +4324,9 @@
           String(liveDebugState.channel || '') === String(ch);
         if (!alreadyOnChannel) {
           if (agoraClient) {
-            try {
-              await agoraClient.leave();
-            } catch (_e) {}
-            agoraClient = null;
-            liveDebugState.agoraJoined = false;
+            await disposeAgoraClient('early_rejoin');
           }
-          agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
+          await ensureAgoraClient();
           updateLiveDebug({ channel: ch, role: 'viewer' });
           await joinAgoraWithRetry(agoraClient, ch, false, 2);
           forensicEvent('AGORA_EARLY_JOIN_SUCCESS', { channel: ch, mode });
@@ -4376,6 +4476,9 @@
 
   function friendlyAgoraError(msg) {
     const raw = String(msg || '');
+    if (/Cannot create so many PeerConnections|RTCPeerConnection/i.test(raw)) {
+      return 'Connection overload — wait 2 seconds, then tap mic once to retry.';
+    }
     if (/CAN_NOT_GET_GATEWAY/i.test(raw)) {
       return 'Live audio/video is blocked: Agora account suspended (unpaid balance). Open Agora Console → Billing, add a card or top up until Available Balance is $0 or positive, then start a new live.';
     }
@@ -4524,12 +4627,15 @@
       } catch (e) {
         lastErr = e;
         liveDebugLog(`Agora join attempt ${attempt}/${maxAttempts} failed: ${e?.message || e}`);
+        if (isPeerConnectionLimitError(e)) {
+          throw e;
+        }
         if (attempt < maxAttempts) {
           try {
             await client.leave();
           } catch (_leave) { }
           liveDebugState.agoraJoined = false;
-          await new Promise((r) => setTimeout(r, 300 * attempt));
+          await new Promise((r) => setTimeout(r, 400 * attempt));
         }
       }
     }
@@ -4537,11 +4643,11 @@
   }
 
   function scheduleMediaRecover(reason) {
-    if (guestPublishInProgress || socketLeaveIntentional) return;
+    if (guestPublishInProgress || socketLeaveIntentional || agoraStartInProgress) return;
     if (__mediaRecoverTimer) return;
     __mediaRecoverTimer = setTimeout(async () => {
       __mediaRecoverTimer = null;
-      if (__mediaRecoverBusy || socketLeaveIntentional || guestPublishInProgress) return;
+      if (__mediaRecoverBusy || socketLeaveIntentional || guestPublishInProgress || agoraStartInProgress) return;
       __mediaRecoverBusy = true;
       try {
         liveDebugLog(`media recover: ${reason}`);
@@ -4567,6 +4673,9 @@
         }
       } catch (e) {
         liveDebugLog(`media recover failed: ${e?.message || e}`);
+        if (isPeerConnectionLimitError(e)) {
+          await disposeAgoraClient('peerconnection_limit');
+        }
       } finally {
         __mediaRecoverBusy = false;
       }
@@ -5157,6 +5266,11 @@
       liveDebugLog('startAgora skipped — guest publish in progress');
       return;
     }
+    if (agoraStartInProgress) {
+      liveDebugLog('startAgora skipped — already in progress');
+      return;
+    }
+    agoraStartInProgress = true;
     /* Wait for parallel early audience join if it is in flight */
     if (!isHost() && __viewerAgoraEarlyPromise) {
       try {
@@ -5214,20 +5328,16 @@
     }, 20000);
 
     try {
-      const AgoraRTC = await loadAgoraScript();
+      await loadAgoraScript();
       const alreadyOnChannel =
         agoraClient &&
         liveDebugState.agoraJoined &&
         String(liveDebugState.channel || '') === String(ch);
       if (!alreadyOnChannel) {
         if (agoraClient) {
-          try {
-            await agoraClient.leave();
-          } catch (_e) { }
-          agoraClient = null;
-          liveDebugState.agoraJoined = false;
+          await disposeAgoraClient('startAgora_rejoin');
         }
-        agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
+        await ensureAgoraClient();
       }
 
       let joined;
@@ -5253,6 +5363,9 @@
         liveDebugLog(`Agora join FAILED: ${msg}`);
         forensicEvent('AGORA_JOIN_FAILED', { channel: ch, msg });
         updateLiveDebug({ agoraJoined: false });
+        if (isPeerConnectionLimitError(joinErr) || isPeerConnectionLimitError(msg)) {
+          await disposeAgoraClient('peerconnection_limit');
+        }
         const friendly = friendlyAgoraError(msg);
         if (host) {
           toast(friendly, 'error');
@@ -5414,6 +5527,9 @@
       console.error('[live] Agora setup failed', err);
       liveDebugLog(`Agora setup FAILED: ${msg}`);
       updateLiveDebug({ agoraJoined: false, hostPublishing: false, publishSucceeded: false });
+      if (isPeerConnectionLimitError(err) || isPeerConnectionLimitError(msg)) {
+        await disposeAgoraClient('peerconnection_limit');
+      }
       if (host) {
         await onHostBroadcastFailed('agora_setup_failed', `Agora error: ${msg}`);
       } else {
@@ -5421,6 +5537,7 @@
       }
     } finally {
       clearTimeout(agoraDeadline);
+      agoraStartInProgress = false;
     }
   }
 
@@ -5706,47 +5823,14 @@
       }
 
       if (!upgradedInPlace) {
-        if (agoraClient) {
-          try {
-            for (const t of localTracks) {
-              try {
-                await agoraClient.unpublish(t);
-              } catch (_e) { }
-              try {
-                t.stop?.();
-                t.close?.();
-              } catch (_e2) { }
-            }
-          } catch (_e) { }
-          localTracks = [];
-          try {
-            await agoraClient.leave();
-          } catch (_e) { }
-          agoraClient = null;
-          liveDebugState.agoraJoined = false;
-        }
-        agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
-        await joinAgoraWithRetry(agoraClient, ch, true, 3);
+        await disposeAgoraClient('guest_publish_rejoin');
+        await ensureAgoraClient();
+        await joinAgoraWithRetry(agoraClient, ch, true, 2);
 
         /* Restore host A/V BEFORE opening mic — leave/rejoin was killing remote voice */
         bindAudioUnlockGestures();
         await unlockBrowserAudio();
-        await Promise.all(
-          (agoraClient.remoteUsers || []).map(async (remoteUser) => {
-            try {
-              if (remoteUser.hasAudio) await playRemoteMedia(remoteUser, 'audio');
-            } catch (_e) { }
-          })
-        );
-        await Promise.all(
-          (agoraClient.remoteUsers || []).map(async (remoteUser) => {
-            try {
-              if (remoteUser.hasVideo) await playRemoteMedia(remoteUser, 'video');
-            } catch (_e) { }
-          })
-        );
-        await ensureRemoteAudioPlaying().catch(() => { });
-        boostRemoteAudioVolumes();
+        await subscribeRemotesPreferAudio('guest-rejoin');
 
         const audioTrack = await withTimeout(
           AgoraRTC.createMicrophoneAudioTrack({
@@ -7091,30 +7175,9 @@
     stopBeautyPipeline();
     guestPublishAttempted = false;
     guestPublishInProgress = false;
-    for (const t of localTracks) {
-      try {
-        t.stop?.();
-        t.close?.();
-      } catch (_e) { }
-    }
-    localTracks = [];
-    if (rawCameraTrack) {
-      try {
-        rawCameraTrack.stop?.();
-        rawCameraTrack.close?.();
-      } catch (_e) { }
-      rawCameraTrack = null;
-    }
-    remoteUsers.clear();
-    if (agoraClient) {
-      try {
-        await agoraClient.leave();
-        liveDebugLog('Agora leave OK');
-      } catch (e) {
-        liveDebugLog(`Agora leave error: ${e?.message || e}`);
-      }
-      agoraClient = null;
-    }
+    __viewerAgoraEarlyPromise = null;
+    __viewerAgoraEarlyChannel = null;
+    await disposeAgoraClient('stopAgora');
     if (window.__apLocalStream) {
       window.__apLocalStream.getTracks().forEach((t) => t.stop());
       window.__apLocalStream = null;
