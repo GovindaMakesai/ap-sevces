@@ -51,11 +51,11 @@ async function clearSeatRequests(channel) {
   await redis.del(seatRequestStoreKey(channel));
 }
 
-async function listSeatRequests(channel) {
+async function listSeatRequests(channel, membersOptional = null) {
   const map = await readSeatRequestMap(channel);
   const room = await findByChannel(channel);
   if (!room) return [];
-  const members = await getActiveMembers(room.id);
+  const members = membersOptional || (await getActiveMembers(room.id));
   const onStage = new Set(
     members
       .filter(
@@ -81,7 +81,11 @@ async function listSeatRequests(channel) {
 /** In-memory hot cache — DB is source of truth. */
 const roomCache = new Map();
 const roomStyleByChannel = new Map();
-const ROOM_CACHE_TTL_MS = 5000;
+const snapshotCache = new Map();
+const heartbeatCreditAt = new Map();
+const ROOM_CACHE_TTL_MS = 15000;
+const SNAPSHOT_CACHE_TTL_MS = 2000;
+const HEARTBEAT_CREDIT_MIN_MS = 28000;
 
 function cacheRoom(channel, row) {
   if (channel && row) roomCache.set(channel, { row, at: Date.now() });
@@ -98,7 +102,24 @@ function getCachedRoom(channel) {
 }
 
 function invalidateRoomCache(channel) {
-  if (channel) roomCache.delete(channel);
+  if (channel) {
+    roomCache.delete(channel);
+    snapshotCache.delete(channel);
+  }
+}
+
+function getCachedSnapshot(channel) {
+  const hit = snapshotCache.get(channel);
+  if (!hit) return null;
+  if (Date.now() - hit.at > SNAPSHOT_CACHE_TTL_MS) {
+    snapshotCache.delete(channel);
+    return null;
+  }
+  return hit.state;
+}
+
+function cacheSnapshot(channel, state) {
+  if (channel && state) snapshotCache.set(channel, { state, at: Date.now() });
 }
 
 function parsePayload(raw) {
@@ -321,14 +342,14 @@ async function getRecentChatFeed(liveRoomId) {
     `SELECT id, event_type, payload, user_id, created_at FROM live_room_events
      WHERE live_room_id = $1 AND event_type IN ('chat', 'gift')
        AND COALESCE((payload->>'deleted')::boolean, false) = false
-     ORDER BY created_at DESC LIMIT 80`,
+     ORDER BY created_at DESC LIMIT 40`,
     [liveRoomId]
   );
   const system = await db.query(
     `SELECT id, event_type, payload, user_id, created_at FROM live_room_events
      WHERE live_room_id = $1 AND event_type IN ('join', 'leave', 'seat_join')
        AND COALESCE((payload->>'deleted')::boolean, false) = false
-     ORDER BY created_at DESC LIMIT 25`,
+     ORDER BY created_at DESC LIMIT 12`,
     [liveRoomId]
   );
   return [...chats.rows, ...system.rows].sort(
@@ -336,7 +357,12 @@ async function getRecentChatFeed(liveRoomId) {
   );
 }
 
-async function buildSnapshot(channel) {
+async function buildSnapshot(channel, { bypassCache = false } = {}) {
+  if (!bypassCache) {
+    const cached = getCachedSnapshot(channel);
+    if (cached) return cached;
+  }
+
   const room = await findByChannel(channel);
   if (!room) return null;
 
@@ -487,20 +513,28 @@ async function buildSnapshot(channel) {
   let hostIsPlatformAdmin = false;
   let hostUserRole = null;
   if (room.host_user_id) {
-    const hostPicRes = await db.query(
-      `SELECT profile_pic, display_id, role FROM users WHERE id = $1`,
-      [room.host_user_id]
-    );
-    hostProfilePic = hostPicRes.rows[0]?.profile_pic || null;
-    hostDisplayId =
-      hostPicRes.rows[0]?.display_id != null ? String(hostPicRes.rows[0].display_id) : null;
-    hostIsPlatformAdmin = isPlatformAdminRole(hostPicRes.rows[0]?.role);
-    hostUserRole = hostPicRes.rows[0]?.role || null;
+    const hostMember = members.find((m) => String(m.user_id) === String(room.host_user_id));
+    if (hostMember) {
+      hostProfilePic = hostMember.profile_pic || null;
+      hostDisplayId = hostMember.display_id != null ? String(hostMember.display_id) : null;
+      hostIsPlatformAdmin = isPlatformAdminRole(hostMember.user_role);
+      hostUserRole = hostMember.user_role || null;
+    } else {
+      const hostPicRes = await db.query(
+        `SELECT profile_pic, display_id, role FROM users WHERE id = $1`,
+        [room.host_user_id]
+      );
+      hostProfilePic = hostPicRes.rows[0]?.profile_pic || null;
+      hostDisplayId =
+        hostPicRes.rows[0]?.display_id != null ? String(hostPicRes.rows[0].display_id) : null;
+      hostIsPlatformAdmin = isPlatformAdminRole(hostPicRes.rows[0]?.role);
+      hostUserRole = hostPicRes.rows[0]?.role || null;
+    }
   }
 
-  const seatRequests = await listSeatRequests(channel);
+  const seatRequests = await listSeatRequests(channel, members);
 
-  return {
+  const state = {
     channel: room.channel,
     type: room.room_type,
     roomId: room.id,
@@ -522,6 +556,8 @@ async function buildSnapshot(channel) {
     updatedAt: room.updated_at,
     roomStyle: getRoomStyle(room.channel),
   };
+  cacheSnapshot(channel, state);
+  return state;
 }
 
 async function logChatEvent(liveRoomId, userId, payload) {
@@ -960,18 +996,29 @@ async function isMemberOnStage(channel, userId) {
 async function touchHeartbeat(channel, userId) {
   const room = await findByChannel(channel);
   if (!room || room.status !== 'active') return;
-  // Credit real gap since last room update (capped), not a fixed overestimate.
-  let addSec = HEARTBEAT_SECONDS;
-  if (room.updated_at) {
-    const gap = Math.floor((Date.now() - new Date(room.updated_at).getTime()) / 1000);
-    if (Number.isFinite(gap) && gap > 0) addSec = Math.min(60, Math.max(1, gap));
-  }
-  await accumulateMemberWatchTime(room, userId, addSec);
+
+  const creditKey = `${room.id}:${userId}`;
+  const now = Date.now();
+  const lastCredit = heartbeatCreditAt.get(creditKey) || 0;
+  const shouldCredit = now - lastCredit >= HEARTBEAT_CREDIT_MIN_MS;
+
+  // Always refresh presence; credit watch-time less often to cut DB write load
   await db.query(
     `UPDATE live_room_members SET last_seen_at = CURRENT_TIMESTAMP
      WHERE live_room_id = $1 AND user_id = $2 AND left_at IS NULL`,
     [room.id, userId]
   );
+
+  if (!shouldCredit) return;
+  heartbeatCreditAt.set(creditKey, now);
+
+  let addSec = HEARTBEAT_SECONDS;
+  if (room.updated_at) {
+    const gap = Math.floor((now - new Date(room.updated_at).getTime()) / 1000);
+    if (Number.isFinite(gap) && gap > 0) addSec = Math.min(60, Math.max(1, gap));
+  }
+  await accumulateMemberWatchTime(room, userId, addSec);
+
   const isHost = String(room.host_user_id) === String(userId);
   if (isHost) {
     await accumulateHostHeartbeat(room, userId, addSec);
@@ -987,9 +1034,7 @@ async function touchHeartbeat(channel, userId) {
       [room.id, viewers]
     );
     invalidateRoomCache(channel);
-    return;
   }
-  await db.query(`UPDATE live_rooms SET updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [room.id]);
 }
 
 async function pruneStaleMembers(staleSeconds = 90) {

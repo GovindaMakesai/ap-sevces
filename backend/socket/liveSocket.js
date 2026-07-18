@@ -201,12 +201,6 @@ function registerLiveSocket(io) {
         socket.data.liveDisplayName = displayName;
         socket.data.isHost = isHost;
 
-        try {
-          await liveRoomService.touchHeartbeat(channel, socket.userId);
-        } catch (hbErr) {
-          console.warn('live:join heartbeat', hbErr.message);
-        }
-
         let state = null;
         try {
           state = await liveRoomService.buildSnapshot(channel);
@@ -225,8 +219,14 @@ function registerLiveSocket(io) {
             seats: [],
           };
         }
-        io.to(`live:${channel}`).emit('live:state', state);
+        /* Joiner gets full state via ack; others only get count (avoid N× huge snapshots) */
         io.to(`live:${channel}`).emit('live:viewer_count', { viewers: state?.viewers || 0 });
+        socket.to(`live:${channel}`).emit('live:member_joined', {
+          userId: socket.userId,
+          name: displayName,
+          viewers: state?.viewers || 0,
+          isHost,
+        });
 
         safeAck(ack, answeredRef, { ok: true, state, isHost });
 

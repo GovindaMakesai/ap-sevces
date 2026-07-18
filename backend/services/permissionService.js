@@ -6,7 +6,19 @@ function legacyRoleToSlug(role) {
   return role || 'customer';
 }
 
+/** Short TTL cache — live join hits this on every connection */
+const permCache = new Map();
+const PERM_TTL_MS = 60_000;
+
+function invalidateUserPermissions(userId) {
+  if (userId) permCache.delete(String(userId));
+}
+
 async function getUserPermissions(userId) {
+  const key = String(userId || '');
+  const hit = permCache.get(key);
+  if (hit && Date.now() - hit.at < PERM_TTL_MS) return hit.perms;
+
   const userRes = await db.query('SELECT role FROM users WHERE id = $1', [userId]);
   if (!userRes.rows.length) return [];
 
@@ -26,7 +38,9 @@ async function getUserPermissions(userId) {
      WHERE r.slug = ANY($1::text[])`,
     [[...slugs]]
   );
-  return permRes.rows.map((r) => r.slug);
+  const perms = permRes.rows.map((r) => r.slug);
+  permCache.set(key, { perms, at: Date.now() });
+  return perms;
 }
 
 async function userHasPermission(userId, permissionSlug) {
@@ -60,7 +74,15 @@ async function syncUserRole(userId, roleSlug) {
       roleRow.rows[0].id,
     ]);
   }
+  invalidateUserPermissions(userId);
   return slug;
 }
 
-module.exports = { legacyRoleToSlug, getUserPermissions, userHasPermission, syncUserRole, ALLOWED_ROLES };
+module.exports = {
+  legacyRoleToSlug,
+  getUserPermissions,
+  userHasPermission,
+  syncUserRole,
+  invalidateUserPermissions,
+  ALLOWED_ROLES,
+};

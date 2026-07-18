@@ -653,15 +653,17 @@
   function startHeartbeat() {
     stopHeartbeat();
     heartbeatTimer = setInterval(() => {
+      if (document.hidden) return;
       if (liveSocket?.connected && channelId()) {
         liveSocket.emit('live:heartbeat', { channel: channelId() });
       }
-    }, 15000);
+    }, 35000);
     if (window.__apStateRefreshTimer) clearInterval(window.__apStateRefreshTimer);
     if (isPartyRoomPage()) {
       window.__apStateRefreshTimer = setInterval(() => {
+        if (document.hidden) return;
         if (roomJoinCompleted && liveSocket?.connected) requestFreshRoomState();
-      }, 60000);
+      }, 90000);
     }
   }
 
@@ -4074,17 +4076,34 @@
   let agoraClient = null;
   let localTracks = [];
   let agoraMode = 'live';
+  let agoraLoadPromise = null;
 
   function loadAgoraScript() {
-    return new Promise((resolve, reject) => {
-      if (window.AgoraRTC) return resolve(window.AgoraRTC);
+    if (window.AgoraRTC) return Promise.resolve(window.AgoraRTC);
+    if (agoraLoadPromise) return agoraLoadPromise;
+    agoraLoadPromise = new Promise((resolve, reject) => {
+      const existing = document.querySelector('script[data-ap-agora-sdk]');
+      if (existing) {
+        existing.addEventListener('load', () => resolve(window.AgoraRTC));
+        existing.addEventListener('error', () => reject(new Error('Agora SDK failed to load')));
+        if (window.AgoraRTC) resolve(window.AgoraRTC);
+        return;
+      }
       const s = document.createElement('script');
       s.src = 'https://download.agora.io/sdk/release/AgoraRTC_N-4.22.0.js';
+      s.async = true;
+      s.dataset.apAgoraSdk = '1';
       s.onload = () => resolve(window.AgoraRTC);
       s.onerror = () => reject(new Error('Agora SDK failed to load'));
       document.head.appendChild(s);
     });
+    return agoraLoadPromise;
   }
+
+  /* Start Agora download as early as possible (parallel with auth/socket) */
+  try {
+    loadAgoraScript().catch(() => {});
+  } catch (_e) {}
 
   async function fetchAgoraToken(channel, asPublisher = false) {
     const user = currentUser();
@@ -5490,8 +5509,23 @@
   function applyBeautyEngineState() {
     clearTimeout(window.__apBeautySyncTimer);
     window.__apBeautySyncTimer = setTimeout(() => {
-      syncPublishedBeautyTrack().catch((e) => liveDebugLog(`beauty engine sync: ${e?.message || e}`));
+      ensureBeautyLoaded()
+        .then(() => syncPublishedBeautyTrack())
+        .catch((e) => liveDebugLog(`beauty engine sync: ${e?.message || e}`));
     }, 100);
+  }
+
+  let beautyLoadPromise = null;
+  function ensureBeautyLoaded() {
+    if (window.APBeauty) return Promise.resolve(window.APBeauty);
+    if (beautyLoadPromise) return beautyLoadPromise;
+    beautyLoadPromise = import(`/beauty/index.js?v=20260718-perf`)
+      .then(() => window.APBeauty)
+      .catch((err) => {
+        beautyLoadPromise = null;
+        throw err;
+      });
+    return beautyLoadPromise;
   }
 
   function stopBeautyPipeline() {
@@ -6265,12 +6299,15 @@
     });
   }
 
-  function openVideoFilterSheet() {
+  async function openVideoFilterSheet() {
     if (!isHost() || broadcastMode === 'audio') {
       toast('Filters are for video live only', 'info');
       return;
     }
-    // Earn4U Beauty Engine sheet (MediaPipe / commercial providers)
+    // Earn4U Beauty Engine sheet (lazy-loaded for hosts only)
+    try {
+      await ensureBeautyLoaded();
+    } catch (_e) {}
     if (window.APBeauty?.openSheet) {
       window.APBeauty.openSheet();
       return;
@@ -13735,9 +13772,10 @@
     }
     if (!window.__apPartyHostAudienceRefresh && isHost()) {
       window.__apPartyHostAudienceRefresh = setInterval(() => {
+        if (document.hidden) return;
         if (!isPartyRoomPage() || !roomJoinCompleted || !isHost() || socketLeaveIntentional) return;
         requestFreshRoomState();
-      }, 12000);
+      }, 45000);
     }
   }
 

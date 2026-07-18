@@ -6,6 +6,7 @@ require('dotenv').config({ path: path.join(__dirname, '.env') });
 const express = require('express');
 const http = require('http');
 const cors = require('cors');
+const compression = require('compression');
 const cookieParser = require('cookie-parser');
 const passport = require('passport');
 const { Server } = require('socket.io');
@@ -118,6 +119,9 @@ function isAllowedCorsOrigin(origin) {
 }
 
 applySecurityMiddleware(app);
+
+/* Shrink JSON/API payloads — major win on Hostinger KVM + mobile networks */
+app.use(compression({ threshold: 512 }));
 
 app.use(cors({
   origin(origin, callback) {

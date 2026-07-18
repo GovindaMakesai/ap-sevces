@@ -5,11 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#1a0f3a">
   <title>Party Room - AP Services</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-live.css?v=20260717-chat-scroll">
-  <link rel="stylesheet" href="social-live-session.css?v=20260703-minimize-fix">
-  <link rel="stylesheet" href="social-live-ref-ui.css?v=20260715-gift-coins">
-  <link rel="stylesheet" href="social-fx.css">
+  <link rel="preconnect" href="https://download.agora.io" crossorigin>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+  <link rel="preload" href="https://download.agora.io/sdk/release/AgoraRTC_N-4.22.0.js" as="script">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" media="print" onload="this.media='all'">
+  <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"></noscript>
+  <link rel="stylesheet" href="social-live.css?v=20260718-perf">
+  <link rel="stylesheet" href="social-live-session.css?v=20260718-perf">
+  <link rel="stylesheet" href="social-live-ref-ui.css?v=20260718-perf">
+  <link rel="stylesheet" href="social-fx.css?v=20260718-perf">
   <style id="ap-immersive-critical">
     html.ap-live-immersive .social-bridge-header,
     html.ap-live-immersive #ap-bridge-header,
@@ -65,7 +69,7 @@
       [200, 800, 2000, 5000, 10000].forEach(function (ms) {
         setTimeout(enable, ms);
       });
-      setInterval(enable, 1500);
+      setInterval(enable, 12000);
       document.addEventListener('visibilitychange', function () {
         enable();
         hardenDom();
@@ -333,16 +337,16 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="ap-config.js"></script>
-  <script src="app.js?v=20260713-hierarchy"></script>
-  <script src="social-wallet.js?v=20260715-seller-gift"></script>
-  <script src="social-ui.js?v=20260716-emoji-uri2"></script>
-  <script src="social-interactions.js?v=20260717-block-hide"></script>
+  <script src="app.js?v=20260718-perf"></script>
+  <script src="social-wallet.js?v=20260718-perf"></script>
+  <script src="social-ui.js?v=20260718-perf"></script>
+  <script src="social-interactions.js?v=20260718-perf"></script>
   <script src="auth-guard.js"></script>
-  <script src="social-fx.js?v=20260715-gift-ss"></script>
+  <script src="social-fx.js?v=20260718-perf"></script>
   <script src="live-emoji-data.js"></script>
-  <script src="social-shell.js?v=20260717-block-hide"></script>
-  <script src="live-session-provider.js?v=20260624-android-back"></script>
-  <script src="social-live.js?v=20260717-chat-scroll"></script>
-  <script src="social-nav.js?v=20260624-android-back"></script>
+  <script src="social-shell.js?v=20260718-perf"></script>
+  <script src="live-session-provider.js?v=20260718-perf"></script>
+  <script src="social-live.js?v=20260718-perf"></script>
+  <script src="social-nav.js?v=20260718-perf"></script>
 </body>
 </html>
