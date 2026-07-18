@@ -13495,6 +13495,7 @@
 
   function releaseScreenCaptureProtection() {
     screenCaptureEnabled = false;
+    /* Native shell ignores unlock while still on live URL — safe to request */
     postNativeMessage({ type: 'screen_capture', block: false, enable: false });
   }
 
@@ -13502,15 +13503,62 @@
     setScreenCaptureProtection(true);
   }
 
+  function flashLiveCaptureShield() {
+    let el = document.getElementById('apCaptureShield');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'apCaptureShield';
+      el.className = 'ap-capture-shield';
+      el.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(el);
+    }
+    el.classList.add('is-on');
+    clearTimeout(flashLiveCaptureShield._t);
+    flashLiveCaptureShield._t = setTimeout(() => {
+      el.classList.remove('is-on');
+    }, 1200);
+    try {
+      toast('Screenshots & screen recording are blocked on live', 'warning');
+    } catch (_e) { }
+  }
+
+  function mountLiveSecurityWatermark() {
+    if (!(isLiveRoomPage() || isPartyRoomPage())) return;
+    const user = currentUser();
+    const uid = String(user?.id || user?.user_id || 'guest');
+    const name = displayName(user).slice(0, 18);
+    const label = `AP · ${uid} · ${name}`;
+    let wrap = document.getElementById('apLiveWatermark');
+    if (!wrap) {
+      wrap = document.createElement('div');
+      wrap.id = 'apLiveWatermark';
+      wrap.className = 'ap-live-watermark';
+      wrap.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(wrap);
+    }
+    const tiles = Array.from({ length: 36 }, () => `<span>${escapeHtml(label)}</span>`).join('');
+    wrap.innerHTML = `<div class="ap-live-watermark-inner">${tiles}</div>`;
+    document.documentElement.classList.add('ap-secure-live');
+    document.body?.classList?.add?.('ap-secure-live');
+    setScreenCaptureProtection(true);
+  }
+
+  function onScreenshotAttempt() {
+    setScreenCaptureProtection(true);
+    flashLiveCaptureShield();
+    mountLiveSecurityWatermark();
+  }
+
   function bindScreenCaptureLifecycle() {
     if (bindScreenCaptureLifecycle.bound) return;
     bindScreenCaptureLifecycle.bound = true;
     setScreenCaptureProtection(true);
+    mountLiveSecurityWatermark();
     if (!window.__apScreenCapturePulse) {
       window.__apScreenCapturePulse = setInterval(() => {
         if (!document.body?.dataset?.livePage) return;
         postNativeMessage({ type: 'screen_capture', block: true, enable: true });
-      }, 1200);
+      }, 800);
     }
     window.addEventListener('pagehide', () => {
       if (window.__apLeavingRoom) releaseScreenCaptureProtection();
@@ -13522,12 +13570,14 @@
       if (isLiveRoomPage() || isPartyRoomPage()) {
         screenCaptureEnabled = null;
         setScreenCaptureProtection(true);
+        mountLiveSecurityWatermark();
       }
     });
     window.addEventListener('focus', () => {
       if (isLiveRoomPage() || isPartyRoomPage()) {
         screenCaptureEnabled = null;
         setScreenCaptureProtection(true);
+        mountLiveSecurityWatermark();
       }
     });
   }
@@ -15279,6 +15329,7 @@
     applyBeautyEngineState,
     openBeautySheet: () => openVideoFilterSheet(),
     forceRemoteAudio,
+    onScreenshotAttempt,
     getForensicReport() {
       return window.__liveDebug || { events: [] };
     },

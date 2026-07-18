@@ -863,7 +863,7 @@ export default function App() {
     };
   }, []);
 
-  /* Keep FLAG_SECURE sticky while on live/party — re-assert often (Android drops it) */
+  /* Keep FLAG_SECURE sticky on live/party — Android drops it after overlays/resume */
   useEffect(() => {
     const id = setInterval(() => {
       const url = webViewCurrentUrlRef.current || '';
@@ -871,11 +871,11 @@ export default function App() {
       ScreenCapture.preventScreenCaptureAsync(LIVE_SECURE_KEY).catch(() => {});
       ScreenCapture.preventScreenCaptureAsync('default').catch(() => {});
       screenCaptureBlockedRef.current = true;
-    }, 1200);
+    }, 800);
     return () => clearInterval(id);
   }, []);
 
-  /* Warn if a screenshot somehow goes through (detection; lock should prevent on Android) */
+  /* Screenshot attempt during live: re-lock + black out video (iOS still may save a frame) */
   useEffect(() => {
     let sub;
     try {
@@ -884,10 +884,13 @@ export default function App() {
         if (!isLiveCaptureUrl(url)) return;
         lockLiveScreenCapture(true);
         if (Platform.OS === 'android' && ToastAndroid) {
-          ToastAndroid.show('Screenshots are disabled during live', ToastAndroid.SHORT);
+          ToastAndroid.show('Screenshots are blocked on live streams', ToastAndroid.SHORT);
         }
         webViewRef.current?.injectJavaScript(
-          `(function(){try{if(window.SocialLiveToast){window.SocialLiveToast('Screenshots are disabled in live rooms','warning');}else if(window.apToast){window.apToast('Screenshots are disabled in live rooms');}}catch(e){}true;})();`
+          `(function(){try{
+            if(window.SocialLive&&window.SocialLive.onScreenshotAttempt){window.SocialLive.onScreenshotAttempt();}
+            else if(window.SocialLiveToast){window.SocialLiveToast('Screenshots are blocked on live','warning');}
+          }catch(e){}true;})();`
         );
       });
     } catch (_e) { /* older native builds */ }
@@ -1088,7 +1091,6 @@ export default function App() {
         if (data.type === 'screen_capture') {
           (async () => {
             try {
-              /* Prefer explicit `block`; legacy `enable:true` also means block screenshots */
               const block =
                 data.block !== undefined ? Boolean(data.block) : data.enable !== false && Boolean(data.enable);
               if (block || isLiveCaptureUrl(webViewCurrentUrlRef.current)) {
