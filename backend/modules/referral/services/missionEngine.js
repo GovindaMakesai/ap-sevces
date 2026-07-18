@@ -229,16 +229,72 @@ function windowBounds(referral, windowDays) {
   return { start, end };
 }
 
-async function computeBroadcastHoursInWindow(userId, start, end) {
-  const res = await db.query(
-    `SELECT COALESCE(SUM(counted_seconds),0)::bigint AS sec
-     FROM broadcast_summary
-     WHERE user_id = $1
-       AND day >= $2::date
-       AND day <= $3::date`,
-    [userId, start.toISOString().slice(0, 10), end.toISOString().slice(0, 10)]
-  );
-  return Number(res.rows[0]?.sec || 0) / 3600;
+/** mission_progress.period_key is varchar(32) — full `invite_<uuid>` overflows and blocks unlocks */
+function invitePeriodKey(referralId) {
+  const compact = String(referralId || '').replace(/-/g, '');
+  return `i_${compact.slice(0, 30)}`.slice(0, 32);
+}
+
+async function computeBroadcastHoursInWindow(userId, start, end, { dailyCapHours = 3 } = {}) {
+  const startDay = start.toISOString().slice(0, 10);
+  const endDay = end.toISOString().slice(0, 10);
+  const capSec = Math.max(0, Number(dailyCapHours) || 3) * 3600;
+
+  /* Primary source: live_host_stat_daily (actual live/party seconds).
+     broadcast_summary is often empty because hosts rarely hit /host/broadcast/end. */
+  const live = await db
+    .query(
+      `SELECT COALESCE(SUM(
+          LEAST(COALESCE(live_seconds, 0) + COALESCE(party_seconds, 0), $4::bigint)
+        ), 0)::bigint AS sec
+       FROM live_host_stat_daily
+       WHERE host_user_id = $1
+         AND stat_date >= $2::date
+         AND stat_date <= $3::date`,
+      [userId, startDay, endDay, capSec]
+    )
+    .catch(() => ({ rows: [{ sec: 0 }] }));
+
+  let sec = Number(live.rows[0]?.sec || 0);
+
+  if (sec <= 0) {
+    const summary = await db
+      .query(
+        `SELECT COALESCE(SUM(counted_seconds),0)::bigint AS sec
+         FROM broadcast_summary
+         WHERE user_id = $1
+           AND day >= $2::date
+           AND day <= $3::date`,
+        [userId, startDay, endDay]
+      )
+      .catch(() => ({ rows: [{ sec: 0 }] }));
+    sec = Number(summary.rows[0]?.sec || 0);
+  }
+
+  if (sec <= 0) {
+    const rooms = await db
+      .query(
+        `SELECT COALESCE(SUM(
+            LEAST(
+              COALESCE(broadcast_seconds, 0),
+              GREATEST(
+                0,
+                EXTRACT(EPOCH FROM (COALESCE(ended_at, NOW()) - started_at))::bigint
+              ),
+              $4::bigint
+            )
+          ), 0)::bigint AS sec
+         FROM live_rooms
+         WHERE host_user_id = $1
+           AND started_at >= $2
+           AND started_at <= $3`,
+        [userId, start.toISOString(), end.toISOString(), capSec]
+      )
+      .catch(() => ({ rows: [{ sec: 0 }] }));
+    sec = Number(rooms.rows[0]?.sec || 0);
+  }
+
+  return sec / 3600;
 }
 
 async function computeHostEarningsUsdInWindow(userId, start, end) {
@@ -284,7 +340,9 @@ async function grantInviterMissionReward({ referral, mission, inviteeId }) {
     const cfg = missionConfig(mission);
     const windowDays = Number(cfg.window_days || 7);
     const { start, end } = windowBounds(referral, windowDays);
-    const hours = await computeBroadcastHoursInWindow(inviteeId, start, end);
+    const hours = await computeBroadcastHoursInWindow(inviteeId, start, end, {
+      dailyCapHours: Number(cfg.daily_cap_hours || 3),
+    });
     if (hours < 2) {
       return null;
     }
@@ -335,7 +393,7 @@ async function syncUserMissions(userId) {
     const now = new Date();
     const expired = now > end;
 
-    const pKey = `invite_${referral.id}`;
+    const pKey = invitePeriodKey(referral.id);
     let progress = await getOrCreateProgress(userId, mission, pKey);
     if (['claimed'].includes(String(progress.status))) {
       out.push({ mission, progress, locked: false, percent: 100, windowTo: 'inviter' });
@@ -345,7 +403,9 @@ async function syncUserMissions(userId) {
     let value = Number(progress.progress_value || 0);
     if (!expired || progress.status === 'completed') {
       if (mission.mission_type === 'broadcast_hours') {
-        value = await computeBroadcastHoursInWindow(userId, start, end);
+        value = await computeBroadcastHoursInWindow(userId, start, end, {
+          dailyCapHours: Number(cfg.daily_cap_hours || 3),
+        });
       } else if (mission.mission_type === 'host_earnings_usd') {
         value = await computeHostEarningsUsdInWindow(userId, start, end);
       }
@@ -423,7 +483,7 @@ async function claimMission(userId, missionId) {
   const prog = await db.query(
     `SELECT * FROM mission_progress
      WHERE mission_id = $1 AND user_id = $2 AND period_key = $3`,
-    [mission.id, userId, `invite_${referral.id}`]
+    [mission.id, userId, invitePeriodKey(referral.id)]
   );
   const progress = prog.rows[0];
   if (!progress || !['completed', 'claimed'].includes(String(progress.status))) {

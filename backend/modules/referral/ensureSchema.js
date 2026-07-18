@@ -33,6 +33,10 @@ async function ensureReferralSchema() {
     await client.query('BEGIN');
     const sql = fs.readFileSync(migrationPath, 'utf8');
     await client.query(sql);
+    /* period_key must fit invite mission keys (was varchar(32) and blocked 2h unlocks) */
+    await client.query(
+      `ALTER TABLE mission_progress ALTER COLUMN period_key TYPE VARCHAR(64)`
+    ).catch(() => {});
     /* Fix early seed that used a non-resolving domain for invite links. */
     await client.query(
       `INSERT INTO referral_settings (key, value)

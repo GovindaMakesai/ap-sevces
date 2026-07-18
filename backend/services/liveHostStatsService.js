@@ -95,6 +95,12 @@ async function recordSessionEnd(room) {
        session_count = live_host_stat_daily.session_count + 1`,
     [room.host_user_id, statDate, liveAdd, partyAdd, peak]
   );
+
+  /* Refresh invite missions so 2h stream points unlock from real live stats */
+  try {
+    const missionEngine = require('../modules/referral/services/missionEngine');
+    await missionEngine.syncUserMissions(room.host_user_id);
+  } catch (_e) {}
 }
 
 async function accumulateHostHeartbeat(room, userId, seconds = HEARTBEAT_SECONDS) {
