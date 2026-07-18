@@ -2,9 +2,13 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260718-seat-voice';
+  window.__AP_LIVE_BUILD = '20260718-media-engine';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
+
+  function liveMedia() {
+    return window.APLiveMedia || null;
+  }
 
   if (!_liveEmoji.GIFT_CATALOG) {
     console.warn('[live] Load live-emoji-data.js before social-live.js for gift icons');
@@ -1510,6 +1514,7 @@
     publishSucceeded = false;
     guestPublishAttempted = false;
     hasSpeakerSeat = false;
+    syncLiveMediaPublisherMode();
     for (const t of localTracks) {
       try {
         if (agoraClient) await agoraClient.unpublish(t);
@@ -1522,6 +1527,7 @@
     localTracks = [];
     updateLiveDebug({ hostPublishing: false, publishSucceeded: false });
     syncMicButtonUi();
+    boostRemoteAudioVolumes();
     if (rejoinAsAudience && agoraClient && channelId()) {
       try {
         await joinAgoraWithRetry(agoraClient, channelId(), false, 2);
@@ -3585,26 +3591,17 @@
           renderGuestRail();
         }
         const pullGuestMic = () => {
-          /* Host must force-pull seat audio — soft ensure misses late publishes */
-          const force = isHost();
-          const pull = force
-            ? resubscribeAllRemoteMedia({ force: true })
-            : ensureRemoteAudioPlaying();
-          Promise.resolve(pull)
-            .then(() => ensureRemoteAudioPlaying())
+          /* Soft ensure only — force resubscribe was one-way-deafening the host */
+          ensureRemoteAudioPlaying()
             .then(() => boostRemoteAudioVolumes())
             .catch(() => { });
-          kickstartRemoteAudio('guest-mic-ready');
         };
         if (window.__apGiftSending) {
-          /* Don't drop guest voice forever during gifts — retry shortly after */
-          setTimeout(pullGuestMic, 1200);
-          setTimeout(pullGuestMic, 2800);
+          setTimeout(pullGuestMic, 800);
           return;
         }
         pullGuestMic();
-        setTimeout(pullGuestMic, 600);
-        setTimeout(pullGuestMic, 1800);
+        setTimeout(pullGuestMic, 1000);
       });
 
       liveSocket.on('live:member_mute', (payload) => {
@@ -4179,6 +4176,9 @@
     }
     liveDebugLog(`dispose Agora (${reason})`);
     try {
+      liveMedia()?.dispose?.();
+    } catch (_eng) {}
+    try {
       for (const t of localTracks) {
         try {
           await client.unpublish?.(t);
@@ -4504,25 +4504,43 @@
   function bindAgoraClientHandlers(client, agoraChannel) {
     if (!client || client.__apHandlersBound) return;
     client.__apHandlersBound = true;
+    try {
+      const eng = liveMedia();
+      if (eng) {
+        eng.configure({
+          log: (msg, data) => liveDebugLog(`media:${msg}${data ? ' ' + JSON.stringify(data) : ''}`),
+          shouldHear: () => shouldHearRemoteAudio(),
+          requestSpeaker: () => requestNativeSpeakerAudio(),
+          unlockAudio: () => unlockBrowserAudio(),
+        });
+        syncLiveMediaPublisherMode();
+        eng.startHealthWatch(() => agoraClient, {
+          onDeadTrack: (user) => {
+            eng.remountIfDead(user, async (u) => {
+              await playRemoteMedia(u, 'audio', { force: true });
+            }).catch(() => {});
+          },
+        });
+      }
+    } catch (_cfg) {}
     client.on('user-published', async (user, mediaType) => {
       liveDebugLog(`user-published uid=${user.uid} media=${mediaType}`);
       forensicEvent('REMOTE_USER_PUBLISHED', { uid: user.uid, mediaType, channel: agoraChannel });
-      /* Host: always force audio so seat mics are not skipped as "already playing" */
-      const force = mediaType === 'audio' && isHost();
-      void playRemoteMedia(user, mediaType, { force })
+      /* Never force-unsubscribe — AEC silence ≠ dead subscribe */
+      void playRemoteMedia(user, mediaType, { force: false })
         .then(() => {
           if (mediaType === 'audio') {
-            kickstartRemoteAudio('user-published-audio');
-            boostRemoteAudioVolumes();
+            const eng = liveMedia();
+            if (eng) {
+              eng.playRemoteAudio(user, { force: false }).then(() => eng.boostAll(agoraClient));
+            } else {
+              kickstartRemoteAudio('user-published-audio');
+              boostRemoteAudioVolumes();
+            }
             if (isHost()) {
               setTimeout(() => {
                 ensureRemoteAudioPlaying().then(() => boostRemoteAudioVolumes()).catch(() => {});
-              }, 400);
-              setTimeout(() => {
-                playRemoteMedia(user, 'audio', { force: true })
-                  .then(() => boostRemoteAudioVolumes())
-                  .catch(() => {});
-              }, 1200);
+              }, 500);
             }
           }
           if (mediaType === 'video') {
@@ -5542,14 +5560,12 @@
               parallel: true,
             });
             updateLiveDebug({ hostPublishing: true, publishSucceeded: true });
-            /* AEC ducks seat mics once host mic is live — force hear + max volume */
+            /* AEC ducks seat mics once host mic is live — apply publisher volume immediately */
+            syncLiveMediaPublisherMode();
             ensureRemoteAudioPlaying()
               .then(() => boostRemoteAudioVolumes())
               .catch(() => { });
             setTimeout(() => boostRemoteAudioVolumes(), 1000);
-            setTimeout(() => {
-              ensureRemoteAudioPlaying().then(() => boostRemoteAudioVolumes()).catch(() => {});
-            }, 2500);
           } catch (pubErr) {
             const msg = pubErr?.message || String(pubErr);
             console.error('[live] publish failed', pubErr);
@@ -5927,21 +5943,16 @@
         profilePic: user.profilePic || user.profile_pic || null,
       });
 
-      /* Soft boost only — burst resubscribe was chopping host A/V for guests */
+      /* Sync volume IMMEDIATELY — delayed boost was the audible 50% dip */
+      syncLiveMediaPublisherMode();
+      boostRemoteAudioVolumes();
       await ensureRemoteAudioPlaying().catch(() => { });
       boostRemoteAudioVolumes();
       kickstartRemoteAudio('guest-publish');
-      /* AEC ducks remotes after mic opens — re-boost after engine settles */
-      setTimeout(() => {
-        if (socketLeaveIntentional || !hasSpeakerSeat) return;
-        ensureRemoteAudioPlaying()
-          .then(() => boostRemoteAudioVolumes())
-          .catch(() => { });
-      }, 800);
       setTimeout(() => {
         if (socketLeaveIntentional || !hasSpeakerSeat) return;
         boostRemoteAudioVolumes();
-      }, 2000);
+      }, 1200);
 
       // Tell host/viewers to pull our mic (covers missed user-published on some devices)
       try {
@@ -10659,17 +10670,8 @@
           return;
         }
       }
-    } else if (mediaType === 'audio' && user.audioTrack && isHost()) {
-      /* Host force: replay first; only unsubscribe if play still fails */
-      const ok = await tryPlayRemoteAudioTrack(user);
-      boostRemoteAudioVolumes();
-      if (ok && user.audioTrack.isPlaying !== false) {
-        return;
-      }
-      try {
-        await agoraClient.unsubscribe(user, 'audio');
-      } catch (_unsub) { }
     }
+    /* force=true: replay only — never unsubscribe (AEC duck ≠ dead track) */
 
     let subscribed = false;
     for (let attempt = 1; attempt <= 2; attempt++) {
@@ -10902,15 +10904,10 @@
     return Boolean(soundOn || isHost() || hasSpeakerSeat);
   }
 
-  /** Agora remote volume is 0–400. Publishers need headroom — AEC ducks remotes ~50%. */
-  function remotePlaybackVolume() {
-    if (isHost() || (hasSpeakerSeat && publishSucceeded)) return 400;
-    return 100;
-  }
-
-  function remoteWebAudioGain() {
-    if (isHost() || (hasSpeakerSeat && publishSucceeded)) return 3.2;
-    return 1.8;
+  function syncLiveMediaPublisherMode() {
+    const eng = liveMedia();
+    if (!eng) return;
+    eng.setPublisherMode(Boolean(isHost() || (hasSpeakerSeat && publishSucceeded)));
   }
 
   function isNativeAppWebView() {
@@ -10952,8 +10949,8 @@
   }
 
   /**
-   * Route remote mic through AudioContext → STREAM_MUSIC/speaker.
-   * Do NOT call audioTrack.stop() — that was silencing guests for the host.
+   * Legacy Web Audio path — unused when LiveMediaEngine is loaded.
+   * Kept as last-resort fallback only.
    */
   async function playRemoteAudioViaWebAudio(user) {
     if (!user?.audioTrack || !shouldHearRemoteAudio()) return false;
@@ -10967,26 +10964,13 @@
           ? user.audioTrack.getMediaStreamTrack()
           : null;
       if (!mst || mst.readyState === 'ended') return false;
-
-      let trackForGraph = mst;
-      try {
-        if (typeof mst.clone === 'function') trackForGraph = mst.clone();
-      } catch (_clone) {
-        trackForGraph = mst;
-      }
-
       disconnectRemoteAudioGraph(user.uid);
-      const source = ctx.createMediaStreamSource(new MediaStream([trackForGraph]));
+      const source = ctx.createMediaStreamSource(new MediaStream([mst]));
       const gain = ctx.createGain();
-      gain.gain.value = remoteWebAudioGain();
+      gain.gain.value = isHost() || hasSpeakerSeat ? 3.0 : 1.8;
       source.connect(gain);
       gain.connect(ctx.destination);
-      __remoteAudioGraph.set(String(user.uid), {
-        source,
-        gain,
-        trackId: trackForGraph.id,
-        cloned: trackForGraph !== mst,
-      });
+      __remoteAudioGraph.set(String(user.uid), { source, gain, trackId: mst.id });
       return ctx.state === 'running';
     } catch (err) {
       liveDebugLog(`web-audio play failed uid=${user.uid}: ${err?.message || err}`);
@@ -11071,50 +11055,30 @@
 
   async function remountRemoteAudio(user) {
     if (!user || !agoraClient || !shouldHearRemoteAudio()) return false;
-    try {
-      removeRemoteAudioSink(user.uid);
-      try {
-        user.audioTrack?.stop?.();
-      } catch (_e) { }
-      try {
-        await agoraClient.unsubscribe(user, 'audio');
-      } catch (_e2) { }
-      await playRemoteMedia(user, 'audio');
-      return tryPlayRemoteAudioTrack(user);
-    } catch (err) {
-      liveDebugLog(`audio remount failed uid=${user?.uid}: ${err?.message || err}`);
-      return false;
+    const eng = liveMedia();
+    if (eng) {
+      return eng.remountIfDead(user, async (u) => {
+        await playRemoteMedia(u, 'audio', { force: true });
+      });
     }
+    return tryPlayRemoteAudioTrack(user);
   }
 
   function boostRemoteAudioVolumes() {
-    const vol = remotePlaybackVolume();
-    const gainVal = remoteWebAudioGain();
+    syncLiveMediaPublisherMode();
+    const eng = liveMedia();
+    if (eng) {
+      eng.boostAll(agoraClient);
+      return;
+    }
+    const vol = isHost() || (hasSpeakerSeat && publishSucceeded) ? 400 : 100;
     try {
       for (const user of agoraClient?.remoteUsers || []) {
         try {
           user.audioTrack?.setVolume?.(vol);
-          if (typeof user.audioTrack?.setMuted === 'function') {
-            user.audioTrack.setMuted(false).catch?.(() => {});
-          }
         } catch (_e) { }
       }
     } catch (_e) { }
-    unmuteDomMediaElements();
-    try {
-      __remoteAudioSinkEls.forEach((el) => {
-        if (!el) return;
-        el.muted = false;
-        el.volume = 1;
-        const p = el.play?.();
-        if (p && typeof p.catch === 'function') p.catch(() => {});
-      });
-    } catch (_e2) { }
-    try {
-      __remoteAudioGraph.forEach((node) => {
-        if (node?.gain?.gain) node.gain.gain.value = gainVal;
-      });
-    } catch (_e3) { }
   }
 
   function isRemoteAudioTrackAudible(track) {
@@ -11135,62 +11099,30 @@
     if (!user?.audioTrack) return false;
     if (!shouldHearRemoteAudio()) return false;
     requestNativeSpeakerAudio();
-    try {
-      const vol = remotePlaybackVolume();
-      user.audioTrack.setVolume?.(vol);
-      if (typeof user.audioTrack.setMuted === 'function') {
-        try {
-          await user.audioTrack.setMuted(false);
-        } catch (_e) { }
-      }
-
-      /* Host + seated: keep Agora play() AND Web Audio — stop() was muting guests for host */
-      const sink = getOrCreateRemoteAudioSink(user.uid);
-      sink.muted = false;
-      sink.defaultMuted = false;
-      sink.volume = 1;
-      try {
-        sink.removeAttribute('muted');
-      } catch (_e2) { }
-
-      let played = false;
-      try {
-        const p = user.audioTrack.play?.(sink);
-        if (p && typeof p.then === 'function') await p;
-        played = true;
-      } catch (_playEl) { }
-
-      if (!played) {
-        try {
-          const p2 = user.audioTrack.play?.();
-          if (p2 && typeof p2.then === 'function') await p2;
-          played = true;
-        } catch (_playDef) { }
-      }
-
-      let sinkOk = await playRemoteAudioViaDomSink(user);
-      /* Native / publishers: Web Audio boost counters AEC ducking (no stop) */
-      if (isNativeAppWebView() || isHost() || hasSpeakerSeat) {
-        await playRemoteAudioViaWebAudio(user);
-      } else if (!played && !sinkOk) {
-        await playRemoteAudioViaWebAudio(user);
-      }
-
-      unmuteDomMediaElements();
-      if (played || sinkOk || user.audioTrack.isPlaying) {
+    const eng = liveMedia();
+    if (eng) {
+      syncLiveMediaPublisherMode();
+      const ok = await eng.playRemoteAudio(user, { force: false });
+      if (ok) {
         audioUnlocked = true;
         hideTapForSoundHint();
-        return true;
       }
-      return false;
+      return ok;
+    }
+    /* Legacy fallback if engine script missing */
+    try {
+      user.audioTrack.setVolume?.(isHost() || hasSpeakerSeat ? 400 : 100);
+      const sink = getOrCreateRemoteAudioSink(user.uid);
+      sink.muted = false;
+      sink.volume = 1;
+      const p = user.audioTrack.play?.(sink);
+      if (p && typeof p.then === 'function') await p;
+      audioUnlocked = true;
+      hideTapForSoundHint();
+      return true;
     } catch (err) {
       liveDebugLog(`audio play blocked: ${err?.message || err}`);
-      try {
-        if (await playRemoteAudioViaDomSink(user)) return true;
-        return await playRemoteAudioViaWebAudio(user);
-      } catch (_e2) {
-        return false;
-      }
+      return false;
     }
   }
 
@@ -11200,21 +11132,12 @@
         try {
           const isLocalPreview =
             el.closest?.('#liveLocalHost, #liveLocalVideo, .ap-local-preview');
-          if (el.tagName === 'VIDEO' && isLocalPreview) {
-            el.muted = true;
-            return;
-          }
-          /* Never re-play remote video — interrupts decode and looks like stutter */
           if (el.tagName === 'VIDEO') {
             el.muted = true;
             return;
           }
           el.muted = false;
-          el.defaultMuted = false;
           el.volume = 1;
-          try {
-            el.removeAttribute?.('muted');
-          } catch (_e2) { }
           if (el.paused) {
             const playP = el.play?.();
             if (playP && typeof playP.catch === 'function') playP.catch(() => { });
@@ -11228,6 +11151,27 @@
     if (!agoraClient) return false;
     if (!shouldHearRemoteAudio()) return false;
     await unlockBrowserAudio();
+    const eng = liveMedia();
+    if (eng) {
+      syncLiveMediaPublisherMode();
+      /* Subscribe missing tracks first */
+      const remotes = agoraClient.remoteUsers || [];
+      await Promise.all(
+        remotes.map(async (user) => {
+          try {
+            if (user.hasAudio && !user.audioTrack) {
+              await playRemoteMedia(user, 'audio');
+            }
+          } catch (_e) { }
+        })
+      );
+      const anyOk = await eng.ensureAllRemoteAudio(agoraClient, { force: false });
+      if (anyOk) {
+        audioUnlocked = true;
+        hideTapForSoundHint();
+      }
+      return anyOk;
+    }
     const remotes = agoraClient.remoteUsers || [];
     let anyOk = false;
     await Promise.all(
@@ -11251,19 +11195,28 @@
     return anyOk;
   }
 
-  /** Soft retry remote audio after join — stop once playing to avoid chop. */
+  /** Soft retry — stop once playing (engine owns health after). */
   function kickstartRemoteAudio(reason) {
     if (!shouldHearRemoteAudio()) return;
     requestNativeSpeakerAudio();
     const seq = ++__audioKickSeq;
     liveDebugLog(`audio kickstart (${reason})`);
-    startSilentAudioWatchdog(30000);
+    const eng = liveMedia();
+    if (eng) {
+      eng.startHealthWatch(() => agoraClient, {
+        onDeadTrack: (user) => {
+          eng.remountIfDead(user, async (u) => {
+            await playRemoteMedia(u, 'audio', { force: true });
+          }).catch(() => {});
+        },
+      });
+    } else {
+      startSilentAudioWatchdog(30000);
+    }
     let settled = false;
-    const delays = [0, 200, 800];
-    delays.forEach((ms) => {
+    [0, 300].forEach((ms) => {
       setTimeout(() => {
         if (settled || seq !== __audioKickSeq || socketLeaveIntentional) return;
-        requestNativeSpeakerAudio();
         unlockBrowserAudio()
           .then(() => ensureRemoteAudioPlaying())
           .then((ok) => {
@@ -11278,13 +11231,12 @@
   }
 
   /**
-   * Remount only when audio track is clearly dead — not on brief quiet speech.
+   * Legacy silent watchdog — only used if LiveMediaEngine is absent.
    */
   function startSilentAudioWatchdog(ms = 30000) {
     __audioSinkWatchUntil = Math.max(__audioSinkWatchUntil, Date.now() + ms);
     if (__audioSinkWatchTimer) return;
     let quietTicks = 0;
-    let remountCount = 0;
     __audioSinkWatchTimer = setInterval(() => {
       if (socketLeaveIntentional || Date.now() > __audioSinkWatchUntil) {
         clearInterval(__audioSinkWatchTimer);
@@ -11293,52 +11245,18 @@
       }
       if (document.visibilityState !== 'visible') return;
       if (!agoraClient || !shouldHearRemoteAudio()) return;
-      if (guestPublishInProgress || __mediaRecoverBusy) return;
+      if (liveMedia()) return;
       const remotes = (agoraClient.remoteUsers || []).filter((u) => u.hasAudio);
       if (!remotes.length) return;
-
-      requestNativeSpeakerAudio();
-
-      let needsRemount = false;
+      let needs = false;
       remotes.forEach((user) => {
-        const uid = String(user.uid);
-        const graphOk = __remoteAudioGraph.has(uid);
-        const sink = __remoteAudioSinkEls.get(uid);
-        const sinkOk =
-          sink &&
-          !sink.paused &&
-          !sink.muted &&
-          !(sink.srcObject && sink.srcObject.getAudioTracks?.()[0]?.readyState === 'ended');
-        if (!user.audioTrack) {
-          needsRemount = true;
-        } else if (user.audioTrack.isPlaying === true) {
-          /* Playing = healthy even if speaker is quiet momentarily */
-          return;
-        } else if (!graphOk && !sinkOk && user.audioTrack.isPlaying === false) {
-          needsRemount = true;
-        }
-        if (isNativeAppWebView()) {
-          playRemoteAudioViaWebAudio(user).catch(() => {});
-        } else if (!graphOk && user.audioTrack?.isPlaying === false) {
-          playRemoteAudioViaDomSink(user).catch(() => {});
-        }
+        if (!user.audioTrack || user.audioTrack.isPlaying === false) needs = true;
       });
-
-      if (needsRemount) {
+      if (needs) {
         quietTicks += 1;
         ensureRemoteAudioPlaying().catch(() => {});
-        if (quietTicks >= 5 && remountCount < 2) {
-          quietTicks = 0;
-          remountCount += 1;
-          remotes.forEach((user) => {
-            if (user.audioTrack?.isPlaying === true) return;
-            remountRemoteAudio(user).catch(() => {});
-          });
-          liveDebugLog('audio silent watchdog remount');
-        }
-      } else {
-        quietTicks = 0;
-      }
+        if (quietTicks >= 5) quietTicks = 0;
+      } else quietTicks = 0;
     }, 4000);
   }
 
