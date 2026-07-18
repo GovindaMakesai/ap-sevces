@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260718-media-engine';
+  window.__AP_LIVE_BUILD = '20260718-no-fake-lips';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -429,11 +429,11 @@
       glow: 0.18,
       blush: { color: 'rgba(255,140,130,0.28)', size: 0.12 },
       highlight: 0.22,
-      lip: { color: 'rgba(220,90,100,0.18)', y: 0.62 },
+      lip: null,
       wash: null,
       sparkle: 0,
       vignette: 0.12,
-      beauty: { lighteningLevel: 0.45, smoothnessLevel: 0.55, rednessLevel: 0.18, lighteningContrastLevel: 1 },
+      beauty: { lighteningLevel: 0.45, smoothnessLevel: 0.55, rednessLevel: 0.1, lighteningContrastLevel: 1 },
     },
     glow: {
       label: 'Glow',
@@ -446,11 +446,11 @@
       glow: 0.42,
       blush: { color: 'rgba(255,160,120,0.32)', size: 0.14 },
       highlight: 0.4,
-      lip: { color: 'rgba(230,100,110,0.22)', y: 0.62 },
+      lip: null,
       wash: { color: 'rgba(255,220,180,0.14)', mode: 'soft-light' },
       sparkle: 0.35,
       vignette: 0.18,
-      beauty: { lighteningLevel: 0.7, smoothnessLevel: 0.7, rednessLevel: 0.2, lighteningContrastLevel: 1 },
+      beauty: { lighteningLevel: 0.7, smoothnessLevel: 0.7, rednessLevel: 0.12 lighteningContrastLevel: 1 },
     },
     silk: {
       label: 'Silk',
@@ -463,7 +463,7 @@
       glow: 0.35,
       blush: { color: 'rgba(255,170,190,0.3)', size: 0.13 },
       highlight: 0.35,
-      lip: { color: 'rgba(210,80,120,0.2)', y: 0.63 },
+      lip: null,
       wash: { color: 'rgba(250,240,255,0.12)', mode: 'soft-light' },
       sparkle: 0.2,
       vignette: 0.15,
@@ -480,11 +480,11 @@
       glow: 0.28,
       blush: { color: 'rgba(255,120,140,0.34)', size: 0.15 },
       highlight: 0.28,
-      lip: { color: 'rgba(200,60,90,0.28)', y: 0.63 },
+      lip: null,
       wash: null,
       sparkle: 0.15,
       vignette: 0.2,
-      beauty: { lighteningLevel: 0.55, smoothnessLevel: 0.9, rednessLevel: 0.22, lighteningContrastLevel: 1 },
+      beauty: { lighteningLevel: 0.55, smoothnessLevel: 0.9, rednessLevel: 0.12, lighteningContrastLevel: 1 },
     },
     glam: {
       label: 'Glam',
@@ -497,11 +497,11 @@
       glow: 0.38,
       blush: { color: 'rgba(255,90,110,0.4)', size: 0.16 },
       highlight: 0.45,
-      lip: { color: 'rgba(190,30,70,0.42)', y: 0.64 },
+      lip: null,
       wash: { color: 'rgba(255,180,200,0.1)', mode: 'overlay' },
       sparkle: 0.55,
       vignette: 0.22,
-      beauty: { lighteningLevel: 0.65, smoothnessLevel: 0.65, rednessLevel: 0.38, lighteningContrastLevel: 1 },
+      beauty: { lighteningLevel: 0.65, smoothnessLevel: 0.65, rednessLevel: 0.15, lighteningContrastLevel: 1 },
     },
     rose: {
       label: 'Rose',
@@ -514,11 +514,11 @@
       glow: 0.3,
       blush: { color: 'rgba(255,100,140,0.45)', size: 0.17 },
       highlight: 0.3,
-      lip: { color: 'rgba(220,50,100,0.35)', y: 0.63 },
+      lip: null,
       wash: { color: 'rgba(255,150,180,0.16)', mode: 'soft-light' },
       sparkle: 0.25,
       vignette: 0.16,
-      beauty: { lighteningLevel: 0.6, smoothnessLevel: 0.55, rednessLevel: 0.45, lighteningContrastLevel: 1 },
+      beauty: { lighteningLevel: 0.6, smoothnessLevel: 0.55, rednessLevel: 0.15, lighteningContrastLevel: 1 },
     },
     peach: {
       label: 'Peach',
@@ -531,11 +531,11 @@
       glow: 0.36,
       blush: { color: 'rgba(255,150,100,0.4)', size: 0.15 },
       highlight: 0.34,
-      lip: { color: 'rgba(230,90,80,0.3)', y: 0.62 },
+      lip: null,
       wash: { color: 'rgba(255,200,150,0.18)', mode: 'soft-light' },
       sparkle: 0.2,
       vignette: 0.14,
-      beauty: { lighteningLevel: 0.62, smoothnessLevel: 0.58, rednessLevel: 0.3, lighteningContrastLevel: 1 },
+      beauty: { lighteningLevel: 0.62, smoothnessLevel: 0.58, rednessLevel: 0.12 lighteningContrastLevel: 1 },
     },
     golden: {
       label: 'Golden',
@@ -548,11 +548,11 @@
       glow: 0.48,
       blush: { color: 'rgba(255,170,80,0.35)', size: 0.14 },
       highlight: 0.5,
-      lip: { color: 'rgba(200,80,60,0.28)', y: 0.62 },
+      lip: null,
       wash: { color: 'rgba(255,190,80,0.2)', mode: 'soft-light' },
       sparkle: 0.4,
       vignette: 0.25,
-      beauty: { lighteningLevel: 0.68, smoothnessLevel: 0.5, rednessLevel: 0.25, lighteningContrastLevel: 1 },
+      beauty: { lighteningLevel: 0.68, smoothnessLevel: 0.5, rednessLevel: 0.12, lighteningContrastLevel: 1 },
     },
     fresh: {
       label: 'Fresh',
@@ -565,7 +565,7 @@
       glow: 0.28,
       blush: { color: 'rgba(255,160,150,0.28)', size: 0.12 },
       highlight: 0.32,
-      lip: { color: 'rgba(220,100,120,0.22)', y: 0.62 },
+      lip: null,
       wash: { color: 'rgba(180,230,255,0.12)', mode: 'soft-light' },
       sparkle: 0.15,
       vignette: 0.12,
@@ -582,7 +582,7 @@
       glow: 0.5,
       blush: { color: 'rgba(200,160,255,0.28)', size: 0.14 },
       highlight: 0.42,
-      lip: { color: 'rgba(180,100,160,0.25)', y: 0.63 },
+      lip: null,
       wash: { color: 'rgba(200,180,255,0.16)', mode: 'soft-light' },
       sparkle: 0.65,
       vignette: 0.28,
@@ -599,7 +599,7 @@
       glow: 0.15,
       blush: { color: 'rgba(180,100,80,0.22)', size: 0.1 },
       highlight: 0.18,
-      lip: { color: 'rgba(140,50,50,0.25)', y: 0.63 },
+      lip: null,
       wash: { color: 'rgba(40,30,20,0.12)', mode: 'multiply' },
       sparkle: 0,
       vignette: 0.45,
@@ -616,11 +616,11 @@
       glow: 0.45,
       blush: { color: 'rgba(255,80,200,0.35)', size: 0.14 },
       highlight: 0.38,
-      lip: { color: 'rgba(255,40,180,0.4)', y: 0.63 },
+      lip: null,
       wash: { color: 'rgba(80,220,255,0.14)', mode: 'screen' },
       sparkle: 0.7,
       vignette: 0.3,
-      beauty: { lighteningLevel: 0.55, smoothnessLevel: 0.5, rednessLevel: 0.2, lighteningContrastLevel: 1 },
+      beauty: { lighteningLevel: 0.55, smoothnessLevel: 0.5, rednessLevel: 0.12 lighteningContrastLevel: 1 },
     },
     dusk: {
       label: 'Dusk',
@@ -633,11 +633,11 @@
       glow: 0.32,
       blush: { color: 'rgba(200,100,180,0.35)', size: 0.14 },
       highlight: 0.3,
-      lip: { color: 'rgba(160,40,120,0.35)', y: 0.63 },
+      lip: null,
       wash: { color: 'rgba(120,60,180,0.14)', mode: 'soft-light' },
       sparkle: 0.3,
       vignette: 0.32,
-      beauty: { lighteningLevel: 0.5, smoothnessLevel: 0.55, rednessLevel: 0.28, lighteningContrastLevel: 1 },
+      beauty: { lighteningLevel: 0.5, smoothnessLevel: 0.55, rednessLevel: 0.12, lighteningContrastLevel: 1 },
     },
     soft_focus: {
       label: 'Soft Focus',
@@ -650,11 +650,11 @@
       glow: 0.55,
       blush: { color: 'rgba(255,180,200,0.3)', size: 0.15 },
       highlight: 0.48,
-      lip: { color: 'rgba(220,120,150,0.22)', y: 0.62 },
+      lip: null,
       wash: { color: 'rgba(255,230,240,0.12)', mode: 'soft-light' },
       sparkle: 0.45,
       vignette: 0.2,
-      beauty: { lighteningLevel: 0.7, smoothnessLevel: 0.88, rednessLevel: 0.18, lighteningContrastLevel: 0 },
+      beauty: { lighteningLevel: 0.7, smoothnessLevel: 0.88, rednessLevel: 0.1, lighteningContrastLevel: 0 },
     },
   };
 
@@ -6208,22 +6208,8 @@
     ctx.restore();
   }
 
-  function drawLipTint(ctx, w, h, lip) {
-    if (!lip) return;
-    const { cx, cy, rx, ry } = beautyFaceLayout(w, h);
-    const y = cy + ry * (lip.y != null ? lip.y * 1.2 : 0.58);
-    const lipRx = rx * 0.28;
-    const lipRy = ry * 0.12;
-    ctx.save();
-    ctx.globalCompositeOperation = 'multiply';
-    const g = ctx.createRadialGradient(cx, y, 0, cx, y, lipRx);
-    g.addColorStop(0, lip.color);
-    g.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.ellipse(cx, y, lipRx, lipRy, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
+  function drawLipTint(_ctx, _w, _h, _lip) {
+    /* Disabled — oval lip paint floated off the mouth and looked fake on every filter. */
   }
 
   function drawWash(ctx, w, h, wash) {

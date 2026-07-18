@@ -124,13 +124,8 @@ void main() {
   float dr = circle(v_uv, u_eyeR + vec2(0.0, 0.035), 0.05);
   col = mix(col, col * 1.08 + 0.02, (dl + dr) * 0.5 * u_darkCircle * u_hasFace);
 
-  // Lip tint
-  float lipM = circle(v_uv, u_mouth, 0.055);
-  col = mix(col, mix(col, vec3(0.85, 0.35, 0.42), 0.35), lipM * u_lip * u_hasFace);
-
-  // Teeth whitening (mouth center)
-  float teethM = circle(v_uv, u_mouth, 0.028);
-  col = mix(col, vec3(max(col.r, 0.85), max(col.g, 0.85), max(col.b, 0.82)), teethM * u_teeth * 0.45 * u_hasFace);
+  // Lip tint / teeth blobs removed — landmark circles floated and looked fake.
+  // Keep uniforms for ABI compatibility; intensities are ignored.
 
   gl_FragColor = vec4(col, 1.0);
 }
@@ -358,8 +353,8 @@ export class BeautyRenderer {
     gl.uniform1f(gl.getUniformLocation(this._skinProg, 'u_maskRy'), face.maskRy);
     gl.uniform1f(gl.getUniformLocation(this._skinProg, 'u_eyeBright'), I.brightEyes || 0);
     gl.uniform1f(gl.getUniformLocation(this._skinProg, 'u_darkCircle'), I.darkCircles || 0);
-    gl.uniform1f(gl.getUniformLocation(this._skinProg, 'u_lip'), I.lipEnhancement || 0);
-    gl.uniform1f(gl.getUniformLocation(this._skinProg, 'u_teeth'), I.teethWhitening || 0);
+    gl.uniform1f(gl.getUniformLocation(this._skinProg, 'u_lip'), 0);
+    gl.uniform1f(gl.getUniformLocation(this._skinProg, 'u_teeth'), 0);
     gl.uniform2f(gl.getUniformLocation(this._skinProg, 'u_eyeL'), face.eyeL[0], face.eyeL[1]);
     gl.uniform2f(gl.getUniformLocation(this._skinProg, 'u_eyeR'), face.eyeR[0], face.eyeR[1]);
     gl.uniform2f(gl.getUniformLocation(this._skinProg, 'u_mouth'), face.mouth[0], face.mouth[1]);
