@@ -55,27 +55,31 @@ async function ensureReferralSchema() {
           OR qr_payload ILIKE '%apservices.live%'`
     );
 
-    /* Keep referral reward settings aligned with current product expectations.
-       Only overwrite when still on the legacy defaults, so custom admin values are preserved. */
+    /* Referral reward settings: no face-verify payout; 10,500 is broadcast_2h mission. */
     await client.query(
-      `UPDATE referral_settings
-       SET value = '1000'::jsonb, updated_at = CURRENT_TIMESTAMP
-       WHERE key = 'invite_signup_reward_coins' AND value IN ('500'::jsonb, '1000'::jsonb)`
+      `INSERT INTO referral_settings (key, value, updated_at)
+       VALUES ('invite_signup_reward_coins', '0'::jsonb, CURRENT_TIMESTAMP)
+       ON CONFLICT (key) DO UPDATE SET
+         value = '0'::jsonb,
+         updated_at = CURRENT_TIMESTAMP`
     );
     await client.query(
       `INSERT INTO referral_settings (key, value, updated_at)
-       VALUES ('invite_signup_reward_coins', '1000'::jsonb, CURRENT_TIMESTAMP)
-       ON CONFLICT (key) DO NOTHING`
+       VALUES ('invite_host_convert_reward_coins', '0'::jsonb, CURRENT_TIMESTAMP)
+       ON CONFLICT (key) DO UPDATE SET
+         value = '0'::jsonb,
+         updated_at = CURRENT_TIMESTAMP`
     );
+    /* Cancel unclaimed face-verify base rewards — 10,500 now requires 2h stream */
     await client.query(
-      `UPDATE referral_settings
-       SET value = '9500'::jsonb, updated_at = CURRENT_TIMESTAMP
-       WHERE key = 'invite_host_convert_reward_coins' AND value IN ('5000'::jsonb, '9500'::jsonb)`
-    );
-    await client.query(
-      `INSERT INTO referral_settings (key, value, updated_at)
-       VALUES ('invite_host_convert_reward_coins', '9500'::jsonb, CURRENT_TIMESTAMP)
-       ON CONFLICT (key) DO NOTHING`
+      `UPDATE referral_rewards
+       SET status = 'rejected',
+           updated_at = CURRENT_TIMESTAMP,
+           metadata = COALESCE(metadata, '{}'::jsonb) ||
+             '{"rejected_reason":"base_reward_requires_2h_stream","credit_as":"points"}'::jsonb
+       WHERE status IN ('pending', 'approved', 'scheduled')
+         AND paid_at IS NULL
+         AND reward_type IN ('validated', 'host_convert', 'signup', 'bonus')`
     );
     /* Invite rewards stay pending until the user taps Receive / Claim — credit as points, not coins */
     await client.query(
@@ -85,7 +89,7 @@ async function ensureReferralSchema() {
          value = '"manual"'::jsonb,
          updated_at = CURRENT_TIMESTAMP`
     );
-    /* Base invite only: inviter gets 1,000 + 9,500 = 10,500. No invitee signup bonus. */
+    /* No invitee signup bonus. */
     await client.query(
       `INSERT INTO referral_settings (key, value, updated_at)
        VALUES ('invitee_signup_reward_coins', '0'::jsonb, CURRENT_TIMESTAMP)

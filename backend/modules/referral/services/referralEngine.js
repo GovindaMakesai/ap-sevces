@@ -180,10 +180,12 @@ async function applyReferralCode(inviteeId, code, meta = {}) {
 }
 
 async function grantValidationRewards(referral) {
-  const inviterCoins = Number(await settings.getSetting('invite_signup_reward_coins', 1000)) || 0;
-  const inviteeCoins = Number(await settings.getSetting('invitee_signup_reward_coins', 200)) || 0;
+  /* Face/download validation only marks the invite valid.
+     10,500 points are earned via broadcast_2h mission after 2 hours of streaming — not here. */
+  const inviterCoins = Number(await settings.getSetting('invite_signup_reward_coins', 0)) || 0;
+  const inviteeCoins = Number(await settings.getSetting('invitee_signup_reward_coins', 0)) || 0;
   const hostConvertCoins =
-    Number(await settings.getSetting('invite_host_convert_reward_coins', 9500)) || 0;
+    Number(await settings.getSetting('invite_host_convert_reward_coins', 0)) || 0;
 
   if (inviterCoins > 0) {
     await rewardEngine.createReward({
@@ -206,8 +208,6 @@ async function grantValidationRewards(referral) {
     });
   }
 
-  /* Face/profile validation unlocks the conversion bonus (1,000 + 9,500 = 10,500 total).
-     createReward dedupes — never create a second host_convert for the same invite. */
   if (hostConvertCoins > 0) {
     await rewardEngine.createReward({
       beneficiaryId: referral.inviter_id,
@@ -250,6 +250,7 @@ async function grantValidationRewards(referral) {
       hostConvertCoins,
       totalInviter: inviterCoins + hostConvertCoins,
       credit_as: 'points',
+      note: 'base_10500_requires_2h_stream',
     },
   });
 }
@@ -280,32 +281,8 @@ async function revalidateReferral(inviteeId) {
     return { referral, validation, upgraded: false, held: true };
   }
 
-  /* Already rewarded: only fill missing types (createReward is idempotent). Never top-up with bonus duplicates. */
+  /* Already rewarded: do not re-grant face-verify base coins (now 0; 10,500 is broadcast_2h). */
   if (String(referral.status) === 'rewarded') {
-    const expectedInviterCoins = Number(await settings.getSetting('invite_signup_reward_coins', 1000)) || 0;
-    const expectedHostConvertCoins =
-      Number(await settings.getSetting('invite_host_convert_reward_coins', 9500)) || 0;
-
-    if (expectedInviterCoins > 0) {
-      await rewardEngine.createReward({
-        beneficiaryId: referral.inviter_id,
-        beneficiaryRole: 'inviter',
-        referralId: referral.id,
-        rewardType: 'validated',
-        coins: expectedInviterCoins,
-        metadata: { invitee_id: referral.invitee_id },
-      });
-    }
-    if (expectedHostConvertCoins > 0) {
-      await rewardEngine.createReward({
-        beneficiaryId: referral.inviter_id,
-        beneficiaryRole: 'inviter',
-        referralId: referral.id,
-        rewardType: 'host_convert',
-        coins: expectedHostConvertCoins,
-        metadata: { invitee_id: referral.invitee_id },
-      });
-    }
     await rewardEngine.collapseDuplicatePending?.(referral.inviter_id);
     return { referral, validation, upgraded: false };
   }
@@ -327,10 +304,19 @@ async function onInviteeBecameHost(inviteeId) {
   const referral = res.rows[0];
   if (!referral) return null;
 
-  const coins = Number(await settings.getSetting('invite_host_convert_reward_coins', 9500)) || 0;
-  if (coins <= 0) return null;
+  /* Host role alone does not pay 10,500 — that requires 2h stream (broadcast_2h mission). */
+  const coins = Number(await settings.getSetting('invite_host_convert_reward_coins', 0)) || 0;
+  if (coins <= 0) {
+    await logEvent({
+      referralId: referral.id,
+      inviterId: referral.inviter_id,
+      inviteeId,
+      eventType: 'invitee_became_host',
+      payload: { coins: 0, note: 'base_reward_via_broadcast_2h' },
+    });
+    return null;
+  }
 
-  /* Idempotent — createReward returns existing row if already present */
   const reward = await rewardEngine.createReward({
     beneficiaryId: referral.inviter_id,
     beneficiaryRole: 'inviter',

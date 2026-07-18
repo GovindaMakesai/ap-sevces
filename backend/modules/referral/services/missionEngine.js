@@ -2,8 +2,9 @@ const db = require('../../../config/database');
 const settings = require('./settingsService');
 const rewardEngine = require('./rewardEngine');
 
-/** Only these invite-host tasks count toward extra rewards after the 10,500 base. */
+/** Invite-host tasks. Base 10,500 is broadcast_2h (not face-verify). */
 const ALLOWED_MISSION_SLUGS = [
+  'broadcast_2h',
   'broadcast_1h',
   'broadcast_5h',
   'broadcast_8h',
@@ -15,6 +16,18 @@ const ALLOWED_MISSION_SLUGS = [
 ];
 
 const CANONICAL_MISSIONS = [
+  {
+    slug: 'broadcast_2h',
+    title: 'Invited host broadcasts 2 hours within 7 days',
+    description: 'Invited host to broadcast for 2 hours within 7 days',
+    mission_type: 'broadcast_hours',
+    target_value: 2,
+    target_unit: 'hours',
+    reward_coins: 10500,
+    period: 'lifetime',
+    sort_order: 5,
+    config: { window_days: 7, daily_cap_hours: 3, pay_to: 'inviter', is_base_invite_reward: true },
+  },
   {
     slug: 'broadcast_1h',
     title: 'Invited host broadcasts 1 hour within 7 days',
