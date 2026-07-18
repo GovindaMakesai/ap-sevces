@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260718-peerconnection-fix';
+  window.__AP_LIVE_BUILD = '20260718-av-parallel';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -4269,7 +4269,7 @@
   let __viewerAgoraEarlyPromise = null;
   let __viewerAgoraEarlyChannel = null;
 
-  /** Subscribe remotes with audio first so voice is not blocked behind video decode. */
+  /** Subscribe remotes — audio + video in true parallel (both instant). */
   async function subscribeRemotesPreferAudio(reason) {
     if (!agoraClient || !liveDebugState.agoraJoined) return;
     const remotes = agoraClient.remoteUsers || [];
@@ -4279,25 +4279,27 @@
     }
     bindAudioUnlockGestures();
     unlockBrowserAudio().catch(() => {});
+    kickstartRemoteAudio(reason || 'parallel-av');
 
-    const audioJobs = remotes
-      .filter((u) => u.hasAudio)
-      .map((u) => playRemoteMedia(u, 'audio').catch(() => {}));
-    /* Kick audio immediately — do not wait for video subscribe */
-    kickstartRemoteAudio(reason || 'early-audio');
-    if (audioJobs.length) {
-      void Promise.all(audioJobs).then(() => {
-        ensureRemoteAudioPlaying().catch(() => {});
-        boostRemoteAudioVolumes();
-      });
+    /* Fire A+V together — never wait on one before starting the other */
+    const jobs = [];
+    for (const u of remotes) {
+      if (u.hasVideo) jobs.push(playRemoteMedia(u, 'video').catch(() => {}));
+      if (u.hasAudio) jobs.push(playRemoteMedia(u, 'audio').catch(() => {}));
     }
-
-    const videoJobs = remotes
-      .filter((u) => u.hasVideo)
-      .map((u) => playRemoteMedia(u, 'video').catch(() => {}));
-    await Promise.all([...audioJobs, ...videoJobs]);
+    /* Start reveal immediately while subscribes run */
+    if (!isHost() && isLiveRoomPage()) {
+      revealLiveVideoWhenReady(120);
+    }
+    await Promise.all(jobs);
     ensureRemoteAudioPlaying().catch(() => {});
     boostRemoteAudioVolumes();
+    if (hasPlayingRemoteVideo() || document.querySelector('#liveRemoteHost video')) {
+      setLiveStreamVisible(true);
+      clearStickyLivePoster();
+      const bg = document.getElementById('liveBg');
+      if (bg) bg.style.display = 'none';
+    }
   }
 
   /**
@@ -4686,8 +4688,10 @@
     const container = document.getElementById('liveRemoteHost');
     const vid = container?.querySelector?.('video');
     if (!vid) return false;
-    /* Accept first decoded frame quickly — readyState>=2 was leaving a black gap */
-    if (vid.videoWidth > 0 && vid.readyState >= 1) return true;
+    /* Instant: play() already attached even before first decoded frame */
+    if (vid.dataset.apPlaying === '1') return true;
+    if (vid.videoWidth > 0) return true;
+    if (vid.readyState >= 1) return true;
     return !vid.paused && vid.readyState >= 2;
   }
 
@@ -10519,30 +10523,32 @@
   function setLiveStreamVisible(visible) {
     const root = document.getElementById('liveRoomRoot');
     const hasFrames = hasPlayingRemoteVideo();
-    /* Never claim video is live until frames exist — avoids permanent black screen */
-    const on = Boolean(visible) && (hasFrames || isHost());
+    const hasVideoEl = Boolean(document.querySelector('#liveRemoteHost video'));
+    /* Show as soon as video element is attached — don't wait on slow decode */
+    const on = Boolean(visible) && (hasFrames || hasVideoEl || isHost());
     if (root) root.classList.toggle('ap-has-video-stream', on);
     document.body.classList.toggle('ap-has-video-stream', on);
     const backdrop = document.getElementById('liveFeedBackdrop');
     if (backdrop) backdrop.style.opacity = on ? '0' : '';
     const bg = document.getElementById('liveBg');
     if (bg && !isHost()) {
-      if (on && hasFrames) {
+      if (on) {
         bg.style.display = 'none';
         clearStickyLivePoster();
-      } else if (!hasFrames) {
+      } else {
         bg.style.display = '';
         ensureStickyLivePoster();
       }
     }
   }
 
-  function revealLiveVideoWhenReady(attemptsLeft = 40) {
-    if (hasPlayingRemoteVideo()) {
+  function revealLiveVideoWhenReady(attemptsLeft = 120) {
+    const hasEl = Boolean(document.querySelector('#liveRemoteHost video'));
+    if (hasPlayingRemoteVideo() || hasEl) {
       setLiveStreamVisible(true);
       const bg = document.getElementById('liveBg');
       if (bg) bg.style.display = 'none';
-      clearStickyLivePoster();
+      clearStickyLivePoster(true);
       hideApLoader();
       return;
     }
@@ -10551,7 +10557,7 @@
       ensureRemoteAudioPlaying().catch(() => { });
       return;
     }
-    setTimeout(() => revealLiveVideoWhenReady(attemptsLeft - 1), 80);
+    setTimeout(() => revealLiveVideoWhenReady(attemptsLeft - 1), 16);
   }
 
   async function playRemoteMedia(user, mediaType) {
@@ -10636,7 +10642,6 @@
       if (container && user.videoTrack) {
         if (container === containerHost) container.innerHTML = '';
         else container.innerHTML = '';
-        ensureStickyLivePoster();
         try {
           user.videoTrack.play(container);
         } catch (playErr) {
@@ -10644,20 +10649,26 @@
           setTimeout(() => {
             try {
               user.videoTrack?.play(container);
+              const v2 = container.querySelector('video');
+              if (v2) v2.dataset.apPlaying = '1';
               bindRemoteVideoReveal(container);
+              setLiveStreamVisible(true);
+              clearStickyLivePoster();
             } catch (_e2) { }
-          }, 200);
+          }, 50);
         }
+        const vid = container.querySelector('video');
+        if (vid) vid.dataset.apPlaying = '1';
         bindRemoteVideoReveal(container);
+        /* Reveal video immediately in parallel with audio — don't wait on decode */
+        setLiveStreamVisible(true);
+        clearStickyLivePoster(true);
+        const bgNow = document.getElementById('liveBg');
+        if (bgNow) bgNow.style.display = 'none';
+        hideApLoader();
       }
       if (!isGuestVideo) {
-        const bg = document.getElementById('liveBg');
-        /* Keep host cover until first decoded frame — no black flash */
-        if (bg && !hasPlayingRemoteVideo()) {
-          bg.style.display = '';
-          ensureStickyLivePoster();
-        }
-        revealLiveVideoWhenReady(40);
+        revealLiveVideoWhenReady(60);
         updateModeBadge('video', false);
       }
       // Video often unlocks first; pull audio immediately so voice is not delayed.
