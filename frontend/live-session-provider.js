@@ -510,6 +510,9 @@
     tryExitPiP();
     updateMiniPlayer();
     window.APLive?.onMiniPlayerExpand?.();
+    try {
+      window.SocialLive?.forceRemoteAudio?.('live-session-foreground');
+    } catch (_e) {}
     notifyNative('foreground', {});
   }
 

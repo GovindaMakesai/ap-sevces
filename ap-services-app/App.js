@@ -104,6 +104,8 @@ const LOAD_TIMEOUT_MS = isDevLocalBase(resolveFrontendBase()) ? 20000 : 45000;
 
 const LIVE_APP_FOREGROUND_INJECT = `(function(){
   try { window.LiveSession && window.LiveSession.onAppForeground && window.LiveSession.onAppForeground(); } catch(e) {}
+  try { window.SocialLive && window.SocialLive.forceRemoteAudio && window.SocialLive.forceRemoteAudio('native-foreground'); } catch(e) {}
+  try { window.APLive && window.APLive.forceRemoteAudio && window.APLive.forceRemoteAudio('native-foreground'); } catch(e) {}
 })();true;`;
 
 const LIVE_APP_BACKGROUND_INJECT = `(function(){
