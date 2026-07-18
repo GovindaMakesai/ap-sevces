@@ -180,55 +180,11 @@ async function applyReferralCode(inviteeId, code, meta = {}) {
 }
 
 async function grantValidationRewards(referral) {
-  /* Face/download validation only marks the invite valid.
-     10,500 points are earned via broadcast_2h mission after 2 hours of streaming — not here. */
-  const inviterCoins = Number(await settings.getSetting('invite_signup_reward_coins', 0)) || 0;
-  const inviteeCoins = Number(await settings.getSetting('invitee_signup_reward_coins', 0)) || 0;
-  const hostConvertCoins =
-    Number(await settings.getSetting('invite_host_convert_reward_coins', 0)) || 0;
-
-  if (inviterCoins > 0) {
-    await rewardEngine.createReward({
-      beneficiaryId: referral.inviter_id,
-      beneficiaryRole: 'inviter',
-      referralId: referral.id,
-      rewardType: 'validated',
-      coins: inviterCoins,
-      metadata: { invitee_id: referral.invitee_id },
-    });
-  }
-  if (inviteeCoins > 0) {
-    await rewardEngine.createReward({
-      beneficiaryId: referral.invitee_id,
-      beneficiaryRole: 'invitee',
-      referralId: referral.id,
-      rewardType: 'validated',
-      coins: inviteeCoins,
-      metadata: { inviter_id: referral.inviter_id },
-    });
-  }
-
-  if (hostConvertCoins > 0) {
-    await rewardEngine.createReward({
-      beneficiaryId: referral.inviter_id,
-      beneficiaryRole: 'inviter',
-      referralId: referral.id,
-      rewardType: 'host_convert',
-      coins: hostConvertCoins,
-      metadata: { invitee_id: referral.invitee_id },
-    });
-    await logEvent({
-      referralId: referral.id,
-      inviterId: referral.inviter_id,
-      inviteeId: referral.invitee_id,
-      eventType: 'referral_face_verified_bonus',
-      payload: { coins: hostConvertCoins, credit_as: 'points' },
-    });
-  }
-
+  /* STRICT: face / download / validation NEVER pays invite points.
+     Base 10,500 is only via mission broadcast_2h after 2 hours of streaming. */
   await db.query(
     `UPDATE referrals SET status = 'rewarded', rewarded_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-     WHERE id = $1 AND status = 'valid'`,
+     WHERE id = $1 AND status IN ('valid', 'pending', 'validating')`,
     [referral.id]
   );
   await db.query(
@@ -243,14 +199,13 @@ async function grantValidationRewards(referral) {
     referralId: referral.id,
     inviterId: referral.inviter_id,
     inviteeId: referral.invitee_id,
-    eventType: 'referral_rewarded',
+    eventType: 'referral_validated_no_points',
     payload: {
-      inviterCoins,
-      inviteeCoins,
-      hostConvertCoins,
-      totalInviter: inviterCoins + hostConvertCoins,
+      inviterCoins: 0,
+      inviteeCoins: 0,
+      hostConvertCoins: 0,
       credit_as: 'points',
-      note: 'base_10500_requires_2h_stream',
+      note: 'strict_no_points_until_2h_stream',
     },
   });
 }
@@ -304,35 +259,15 @@ async function onInviteeBecameHost(inviteeId) {
   const referral = res.rows[0];
   if (!referral) return null;
 
-  /* Host role alone does not pay 10,500 — that requires 2h stream (broadcast_2h mission). */
-  const coins = Number(await settings.getSetting('invite_host_convert_reward_coins', 0)) || 0;
-  if (coins <= 0) {
-    await logEvent({
-      referralId: referral.id,
-      inviterId: referral.inviter_id,
-      inviteeId,
-      eventType: 'invitee_became_host',
-      payload: { coins: 0, note: 'base_reward_via_broadcast_2h' },
-    });
-    return null;
-  }
-
-  const reward = await rewardEngine.createReward({
-    beneficiaryId: referral.inviter_id,
-    beneficiaryRole: 'inviter',
-    referralId: referral.id,
-    rewardType: 'host_convert',
-    coins,
-    metadata: { invitee_id: inviteeId },
-  });
+  /* STRICT: becoming host / face verify never pays. Points only after 2h stream mission. */
   await logEvent({
     referralId: referral.id,
     inviterId: referral.inviter_id,
     inviteeId,
     eventType: 'invitee_became_host',
-    payload: { coins, credit_as: 'points' },
+    payload: { coins: 0, note: 'strict_no_points_until_2h_stream' },
   });
-  return reward;
+  return null;
 }
 
 function statusLabel(status) {

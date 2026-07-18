@@ -3,6 +3,9 @@ const walletService = require('../../../services/walletService');
 
 const ACTIVE_REWARD_STATUSES = ['pending', 'scheduled', 'approved', 'paid'];
 
+/** Face-verify / signup base types — permanently blocked. Points only via stream missions (2h+). */
+const BLOCKED_FACE_REWARD_TYPES = new Set(['validated', 'host_convert', 'signup', 'bonus']);
+
 /**
  * Invite rewards credit POINTS (star_balance), never spendable NR coins.
  * Always stay pending until the user taps Receive (manual claim).
@@ -19,6 +22,11 @@ async function createReward({
   client = null,
 }) {
   const q = client || db;
+  const type = String(rewardType || '').toLowerCase();
+  if (BLOCKED_FACE_REWARD_TYPES.has(type)) {
+    /* Strict: never create face/download invite point rows */
+    return null;
+  }
   const amount = Number(coins) || Number(stars) || 0;
   if (amount <= 0) return null;
 
@@ -89,6 +97,16 @@ async function payReward(rewardId, { client = null, force = false } = {}) {
     const res = await c.query(`SELECT * FROM referral_rewards WHERE id = $1 FOR UPDATE`, [rewardId]);
     const reward = res.rows[0];
     if (!reward) throw new Error('Reward not found');
+    if (BLOCKED_FACE_REWARD_TYPES.has(String(reward.reward_type || '').toLowerCase())) {
+      await c.query(
+        `UPDATE referral_rewards SET status = 'rejected', updated_at = CURRENT_TIMESTAMP,
+           metadata = COALESCE(metadata, '{}'::jsonb) ||
+             '{"rejected_reason":"strict_no_points_until_2h_stream"}'::jsonb
+         WHERE id = $1`,
+        [rewardId]
+      );
+      throw new Error('Invite points require 2 hours of streaming');
+    }
     if (reward.status === 'paid') return reward;
     if (reward.status === 'rejected' || reward.status === 'held') {
       throw new Error(`Reward is ${reward.status}`);
@@ -234,13 +252,28 @@ async function collapseDuplicatePending(userId) {
 async function claimPendingForUser(userId) {
   await collapseDuplicatePending(userId);
 
+  /* Kill any leftover face-verify rows before Receive can pay them */
+  await db.query(
+    `UPDATE referral_rewards
+     SET status = 'rejected',
+         updated_at = CURRENT_TIMESTAMP,
+         metadata = COALESCE(metadata, '{}'::jsonb) ||
+           '{"rejected_reason":"strict_no_points_until_2h_stream"}'::jsonb
+     WHERE beneficiary_id = $1
+       AND status IN ('pending', 'approved', 'scheduled')
+       AND paid_at IS NULL
+       AND reward_type = ANY($2::text[])`,
+    [userId, [...BLOCKED_FACE_REWARD_TYPES]]
+  );
+
   const pending = await db.query(
     `SELECT id FROM referral_rewards
      WHERE beneficiary_id = $1
        AND status IN ('pending', 'approved', 'scheduled')
+       AND reward_type <> ALL($2::text[])
        AND (scheduled_for IS NULL OR scheduled_for <= CURRENT_TIMESTAMP)
      ORDER BY created_at ASC LIMIT 50`,
-    [userId]
+    [userId, [...BLOCKED_FACE_REWARD_TYPES]]
   );
   const paid = [];
   for (const row of pending.rows) {
@@ -262,4 +295,5 @@ module.exports = {
   claimPendingForUser,
   collapseDuplicatePending,
   ACTIVE_REWARD_STATUSES,
+  BLOCKED_FACE_REWARD_TYPES,
 };

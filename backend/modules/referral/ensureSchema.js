@@ -70,13 +70,13 @@ async function ensureReferralSchema() {
          value = '0'::jsonb,
          updated_at = CURRENT_TIMESTAMP`
     );
-    /* Cancel unclaimed face-verify base rewards — 10,500 now requires 2h stream */
+    /* Cancel ALL unclaimed face-verify / signup base rewards every boot — never claimable */
     await client.query(
       `UPDATE referral_rewards
        SET status = 'rejected',
            updated_at = CURRENT_TIMESTAMP,
            metadata = COALESCE(metadata, '{}'::jsonb) ||
-             '{"rejected_reason":"base_reward_requires_2h_stream","credit_as":"points"}'::jsonb
+             '{"rejected_reason":"strict_no_points_until_2h_stream","credit_as":"points"}'::jsonb
        WHERE status IN ('pending', 'approved', 'scheduled')
          AND paid_at IS NULL
          AND reward_type IN ('validated', 'host_convert', 'signup', 'bonus')`

@@ -278,6 +278,18 @@ async function getOrCreateProgress(userId, mission, periodKeyValue) {
 async function grantInviterMissionReward({ referral, mission, inviteeId }) {
   const coins = Number(mission.reward_coins || 0);
   if (coins <= 0 || !referral?.inviter_id) return null;
+
+  /* Strict gate for base 10,500: must have 2+ counted stream hours */
+  if (String(mission.slug) === 'broadcast_2h') {
+    const cfg = missionConfig(mission);
+    const windowDays = Number(cfg.window_days || 7);
+    const { start, end } = windowBounds(referral, windowDays);
+    const hours = await computeBroadcastHoursInWindow(inviteeId, start, end);
+    if (hours < 2) {
+      return null;
+    }
+  }
+
   return rewardEngine.createReward({
     beneficiaryId: referral.inviter_id,
     beneficiaryRole: 'inviter',
