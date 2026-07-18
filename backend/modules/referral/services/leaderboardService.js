@@ -62,7 +62,10 @@ async function incomeLeaderboard({ period = 'weekly', limit = 50, viewerId = nul
        u.first_name, u.last_name, u.display_id, u.profile_pic,
        COUNT(DISTINCT r.id) FILTER (WHERE r.status IN ('valid','rewarded'))::int AS valid_invites,
        COUNT(DISTINCT r.id)::int AS total_invites,
-       COALESCE(SUM(rr.coins) FILTER (WHERE rr.status IN ('paid', 'pending', 'approved')), 0)::bigint AS reward_coins,
+       COALESCE(SUM(rr.coins) FILTER (
+         WHERE rr.status IN ('paid', 'pending', 'approved')
+           AND rr.reward_type NOT IN ('validated', 'host_convert', 'signup', 'bonus')
+       ), 0)::bigint AS reward_coins,
        COALESCE(SUM(rr.coins) FILTER (WHERE rr.status = 'paid'), 0)::bigint AS reward_coins_paid
      FROM referrals r
      JOIN users u ON u.id = r.inviter_id
@@ -71,7 +74,10 @@ async function incomeLeaderboard({ period = 'weekly', limit = 50, viewerId = nul
      WHERE r.applied_at > NOW() - ($1)::interval
        AND lower(COALESCE(u.email, '')) <> ALL($3::text[])
      GROUP BY r.inviter_id, u.first_name, u.last_name, u.display_id, u.profile_pic
-     HAVING COALESCE(SUM(rr.coins) FILTER (WHERE rr.status IN ('paid', 'pending', 'approved')), 0) > 0
+     HAVING COALESCE(SUM(rr.coins) FILTER (
+              WHERE rr.status IN ('paid', 'pending', 'approved')
+                AND rr.reward_type NOT IN ('validated', 'host_convert', 'signup', 'bonus')
+            ), 0) > 0
         OR COUNT(DISTINCT r.id) FILTER (WHERE r.status IN ('valid','rewarded')) > 0
      ORDER BY reward_coins DESC, valid_invites DESC, u.display_id ASC NULLS LAST
      LIMIT $2`,

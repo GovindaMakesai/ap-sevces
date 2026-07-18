@@ -122,7 +122,8 @@ async function ensureReferralSchema() {
              AND older.created_at < r.created_at
          )`
     );
-    /* Unpaid invite rewards must be claimed manually as points — never auto/scheduled pay */
+    /* Unpaid invite rewards must be claimed manually as points — never auto/scheduled pay.
+       Never revive rejected face-verify rows. */
     await client.query(
       `UPDATE referral_rewards
        SET status = 'pending',
@@ -131,7 +132,8 @@ async function ensureReferralSchema() {
            updated_at = CURRENT_TIMESTAMP,
            metadata = COALESCE(metadata, '{}'::jsonb) || '{"credit_as":"points"}'::jsonb
        WHERE status IN ('approved', 'scheduled')
-         AND paid_at IS NULL`
+         AND paid_at IS NULL
+         AND reward_type NOT IN ('validated', 'host_convert', 'signup', 'bonus')`
     );
     await client.query('COMMIT');
     console.log('✅ Referral / host recruitment schema ready');

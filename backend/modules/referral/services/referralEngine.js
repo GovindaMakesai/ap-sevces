@@ -284,7 +284,10 @@ async function rewardTotalsForReferral(referralId, inviterId) {
   const res = await db.query(
     `SELECT
        COALESCE(SUM(coins) FILTER (WHERE status = 'paid'), 0)::bigint AS paid,
-       COALESCE(SUM(coins) FILTER (WHERE status IN ('pending','scheduled','approved')), 0)::bigint AS pending
+       COALESCE(SUM(coins) FILTER (
+         WHERE status IN ('pending','scheduled','approved')
+           AND reward_type NOT IN ('validated', 'host_convert', 'signup', 'bonus')
+       ), 0)::bigint AS pending
      FROM referral_rewards
      WHERE referral_id = $1 AND beneficiary_id = $2`,
     [referralId, inviterId]
@@ -344,7 +347,10 @@ async function getDashboard(userId) {
     `SELECT
        COALESCE(SUM(coins) FILTER (WHERE status = 'paid' AND paid_at::date = CURRENT_DATE),0)::bigint AS today,
        COALESCE(SUM(coins) FILTER (WHERE status = 'paid'),0)::bigint AS total,
-       COALESCE(SUM(coins) FILTER (WHERE status IN ('pending','scheduled','approved')),0)::bigint AS pending
+       COALESCE(SUM(coins) FILTER (
+         WHERE status IN ('pending','scheduled','approved')
+           AND reward_type NOT IN ('validated', 'host_convert', 'signup', 'bonus')
+       ),0)::bigint AS pending
      FROM referral_rewards WHERE beneficiary_id = $1`,
     [userId]
   );
