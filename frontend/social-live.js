@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260718-live-stability';
+  window.__AP_LIVE_BUILD = '20260718-parallel-agora';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -4123,6 +4123,8 @@
     guestPublishAttempted = false;
     guestPublishInProgress = false;
     hostEndingIntentionally = false;
+    __viewerAgoraEarlyPromise = null;
+    __viewerAgoraEarlyChannel = null;
     updateLiveDebug({ socketConnected: false, roomJoined: false, publishSucceeded: false });
   }
 
@@ -4160,17 +4162,97 @@
   } catch (_e) {}
 
   let __agoraTokenInflight = new Map();
+  let __viewerAgoraEarlyPromise = null;
+  let __viewerAgoraEarlyChannel = null;
+
+  /** Subscribe remotes with audio first so voice is not blocked behind video decode. */
+  async function subscribeRemotesPreferAudio(reason) {
+    if (!agoraClient || !liveDebugState.agoraJoined) return;
+    const remotes = agoraClient.remoteUsers || [];
+    if (!remotes.length) {
+      kickstartRemoteAudio(reason || 'no-remotes-yet');
+      return;
+    }
+    bindAudioUnlockGestures();
+    unlockBrowserAudio().catch(() => {});
+
+    const audioJobs = remotes
+      .filter((u) => u.hasAudio)
+      .map((u) => playRemoteMedia(u, 'audio').catch(() => {}));
+    /* Kick audio immediately — do not wait for video subscribe */
+    kickstartRemoteAudio(reason || 'early-audio');
+    if (audioJobs.length) {
+      void Promise.all(audioJobs).then(() => {
+        ensureRemoteAudioPlaying().catch(() => {});
+        boostRemoteAudioVolumes();
+      });
+    }
+
+    const videoJobs = remotes
+      .filter((u) => u.hasVideo)
+      .map((u) => playRemoteMedia(u, 'video').catch(() => {}));
+    await Promise.all([...audioJobs, ...videoJobs]);
+    ensureRemoteAudioPlaying().catch(() => {});
+    boostRemoteAudioVolumes();
+  }
+
+  /**
+   * Viewers: join Agora as audience in parallel with socket live:join.
+   * Biggest TTFV win — media channel connects while room DB/socket work runs.
+   */
+  async function startViewerAgoraEarly(mode = 'live') {
+    if (isHost() || clientClaimsHost() || hasSpeakerSeat) return null;
+    const ch = channelId();
+    if (!ch) return null;
+    if (__viewerAgoraEarlyPromise && __viewerAgoraEarlyChannel === String(ch)) {
+      return __viewerAgoraEarlyPromise;
+    }
+    __viewerAgoraEarlyChannel = String(ch);
+    __viewerAgoraEarlyPromise = (async () => {
+      try {
+        if (window.Auth?.ensureAccessToken) {
+          await Auth.ensureAccessToken().catch(() => {});
+        }
+        const AgoraRTC = await loadAgoraScript();
+        const alreadyOnChannel =
+          agoraClient &&
+          liveDebugState.agoraJoined &&
+          String(liveDebugState.channel || '') === String(ch);
+        if (!alreadyOnChannel) {
+          if (agoraClient) {
+            try {
+              await agoraClient.leave();
+            } catch (_e) {}
+            agoraClient = null;
+            liveDebugState.agoraJoined = false;
+          }
+          agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
+          updateLiveDebug({ channel: ch, role: 'viewer' });
+          await joinAgoraWithRetry(agoraClient, ch, false, 2);
+          forensicEvent('AGORA_EARLY_JOIN_SUCCESS', { channel: ch, mode });
+        }
+        updateLiveDebug({
+          channel: ch,
+          role: 'viewer',
+          agoraJoined: true,
+          tokenReceived: true,
+        });
+        await subscribeRemotesPreferAudio(alreadyOnChannel ? 'early-reuse' : 'early-join');
+        liveDebugLog(`viewer Agora early join OK channel=${ch}`);
+        return { ok: true, channel: ch };
+      } catch (e) {
+        liveDebugLog(`viewer Agora early join failed: ${e?.message || e}`);
+        forensicEvent('AGORA_EARLY_JOIN_FAILED', { channel: ch, msg: e?.message || String(e) });
+        __viewerAgoraEarlyPromise = null;
+        return { ok: false, error: e };
+      }
+    })();
+    return __viewerAgoraEarlyPromise;
+  }
 
   async function warmViewerAgoraPipeline() {
-    if (isHost()) return;
-    try {
-      await loadAgoraScript();
-      const ch = channelId();
-      if (ch) {
-        /* Prefetch audience token while socket joins */
-        fetchAgoraToken(ch, false).catch(() => {});
-      }
-    } catch (_e) { /* join path will retry */ }
+    /* Kept for callers — full early join supersedes warm-only */
+    return startViewerAgoraEarly(isPartyRoomPage() ? 'party' : 'live');
   }
 
   async function fetchAgoraToken(channel, asPublisher = false) {
@@ -5075,6 +5157,12 @@
       liveDebugLog('startAgora skipped — guest publish in progress');
       return;
     }
+    /* Wait for parallel early audience join if it is in flight */
+    if (!isHost() && __viewerAgoraEarlyPromise) {
+      try {
+        await __viewerAgoraEarlyPromise;
+      } catch (_e) {}
+    }
     ensureLiveDebugPanel();
     ensureViewerDiagnostics();
     agoraMode = mode || 'live';
@@ -5091,7 +5179,7 @@
       role: host ? 'host' : 'viewer',
       hostPublishing: Boolean(hasSpeakerSeat && publishSucceeded),
       publishSucceeded: Boolean(publishSucceeded),
-      agoraJoined: false,
+      agoraJoined: Boolean(liveDebugState.agoraJoined && String(liveDebugState.channel || '') === String(ch)),
     });
     if (sessionEstablished) {
       setLiveStatus(
@@ -5154,24 +5242,11 @@
           });
         } else {
           joined = { channel: ch, uid: liveDebugState.agoraUid };
+          liveDebugLog('Agora already joined (early path) — subscribe only');
         }
         syncLiveUiState();
-        bindAudioUnlockGestures();
-        unlockBrowserAudio().catch(() => {});
-        /* Video + audio together — video first priority for live viewers */
-        await Promise.all(
-          (agoraClient.remoteUsers || []).map(async (remoteUser) => {
-            try {
-              const jobs = [];
-              if (remoteUser.hasVideo) jobs.push(playRemoteMedia(remoteUser, 'video'));
-              if (remoteUser.hasAudio) jobs.push(playRemoteMedia(remoteUser, 'audio'));
-              await Promise.all(jobs);
-            } catch (_e) { }
-          })
-        );
-        ensureRemoteAudioPlaying().catch(() => {});
-        boostRemoteAudioVolumes();
-        kickstartRemoteAudio(host ? 'host-joined' : 'viewer-joined');
+        /* Audio first — voice should not wait on video decode */
+        await subscribeRemotesPreferAudio(host ? 'host-joined' : alreadyOnChannel ? 'viewer-early' : 'viewer-joined');
       } catch (joinErr) {
         const msg = joinErr?.message || String(joinErr);
         console.error('[live] Agora join failed', joinErr);
@@ -10985,7 +11060,8 @@
     const seq = ++__audioKickSeq;
     liveDebugLog(`audio kickstart (${reason})`);
     startSilentAudioWatchdog(45000);
-    const delays = [0, 80, 250, 700, 1500, 3000];
+    /* Fast front-loaded retries — first sound ASAP */
+    const delays = [0, 40, 120, 300, 700, 1600];
     delays.forEach((ms) => {
       setTimeout(() => {
         if (seq !== __audioKickSeq || socketLeaveIntentional) return;
@@ -14292,7 +14368,7 @@
     }
     await Promise.race([
       profileRefresh,
-      new Promise((r) => setTimeout(r, 2500)),
+      new Promise((r) => setTimeout(r, isHost() || clientClaimsHost() ? 1500 : 350)),
     ]).catch(() => { });
     initForensicLog();
     restoreChannelFromDurableSession();
@@ -14304,6 +14380,8 @@
     bindHostControls('party');
     if (isHost()) forceRevealRoomShell();
     setApLoaderStep(1);
+    const earlyAgora =
+      !isHost() && !clientClaimsHost() ? startViewerAgoraEarly('party') : Promise.resolve();
     const joinGuard = setTimeout(() => {
       forceRevealRoomShell();
       if (!roomJoinCompleted) {
@@ -14337,7 +14415,9 @@
       return;
     }
     partyVoiceSkipped = false;
-    void startPartyVoiceAsync();
+    void Promise.resolve(earlyAgora)
+      .catch(() => {})
+      .then(() => startPartyVoiceAsync());
     postWelcomeMessage();
     maybeShowPartyRules();
     maybeShowViewerOnboarding();
@@ -14676,8 +14756,9 @@
     if (isHost()) forceRevealRoomShell();
     setApLoaderStep(1);
 
-    /* Overlap Agora SDK warm with socket join — biggest TTFV win */
-    const warmAgora = !isHost() ? warmViewerAgoraPipeline() : Promise.resolve();
+    /* Parallel: join Agora while socket live:join runs — cut TTFV */
+    const earlyAgora =
+      !isHost() && !clientClaimsHost() ? startViewerAgoraEarly('live') : Promise.resolve();
     const joinGuard = setTimeout(() => {
       forceRevealRoomShell();
       if (!roomJoinCompleted) {
@@ -14720,7 +14801,8 @@
     updateModeBadge(broadcastMode, false);
 
     partyVoiceSkipped = false;
-    void Promise.resolve(warmAgora)
+    /* Finish early Agora (or start if it failed), then ensure full media path */
+    void Promise.resolve(earlyAgora)
       .catch(() => {})
       .then(() => startLiveVoiceAsync());
     applyRoleUiAfterJoin();
