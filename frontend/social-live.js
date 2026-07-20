@@ -1135,7 +1135,8 @@
 
   function enforceLiveViewerAppOnly() {
     if (isNativeApApp()) return true;
-    if (isConfirmedRoomHost() || (isHost() && clientClaimsHost())) return true;
+    /* Only real confirmed hosts may use browser (to go live). URL ?host=1 alone is not enough. */
+    if (isConfirmedRoomHost()) return true;
     showLiveAppOnlySafetyGate();
     return false;
   }
@@ -10659,6 +10660,15 @@
     }
     /* force=true: replay only — never unsubscribe (AEC duck ≠ dead track) */
 
+    /* Browser viewers must not receive playable video (screenshot risk) — check BEFORE subscribe */
+    if (mediaType === 'video' && !isNativeApApp() && !isConfirmedRoomHost()) {
+      showLiveAppOnlySafetyGate();
+      try {
+        user.videoTrack?.stop?.();
+      } catch (_e) { }
+      return;
+    }
+
     let subscribed = false;
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
@@ -10679,8 +10689,7 @@
       scheduleMediaRecover('subscribe_failed');
       return;
     }
-    /* Browser viewers must not receive playable video (screenshot risk) */
-    if (mediaType === 'video' && !isNativeApApp() && !isHost()) {
+    if (mediaType === 'video' && !isNativeApApp() && !isConfirmedRoomHost()) {
       try {
         user.videoTrack?.stop?.();
       } catch (_e) { }
