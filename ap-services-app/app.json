@@ -61,7 +61,8 @@
     },
     "plugins": [
       "expo-web-browser",
-      "expo-screen-capture"
+      "expo-screen-capture",
+      "./plugins/with-secure-live-capture.js"
     ],
     "extra": {
       "client": {
