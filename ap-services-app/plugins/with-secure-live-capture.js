@@ -4,7 +4,6 @@
  */
 const {
   withMainActivity,
-  AndroidConfig,
   createRunOncePlugin,
 } = require('@expo/config-plugins');
 
