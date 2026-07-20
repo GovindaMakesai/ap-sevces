@@ -22,6 +22,25 @@
     return (location.pathname || '') + (location.search || '');
   }
 
+  /** Explore home — ignore query noise (app=1, source=expo-app, tab=…) for back stack */
+  function isExploreRoute(key) {
+    return /\/explore\.html/i.test(String(key || ''));
+  }
+
+  function sameNavRoute(a, b) {
+    const left = String(a || '');
+    const right = String(b || '');
+    if (left === right) return true;
+    if (isExploreRoute(left) && isExploreRoute(right)) return true;
+    try {
+      const pa = left.split('?')[0];
+      const pb = right.split('?')[0];
+      return pa === pb && pa.length > 1;
+    } catch (_e) {
+      return false;
+    }
+  }
+
   function withApp(href) {
     if (!href || href.includes('app=1')) return href;
     return href + (href.includes('?') ? '&' : '?') + 'app=1';
@@ -104,23 +123,26 @@
     const stack = loadStack();
     const cur = routeKey();
 
-    if (stack.length > 1 && stack[stack.length - 1] === cur) {
+    /* Pop even when query strings differ (explore?app=1 vs explore?app=1&source=…) */
+    if (stack.length > 1 && sameNavRoute(stack[stack.length - 1], cur)) {
       stack.pop();
+      while (stack.length && sameNavRoute(stack[stack.length - 1], cur)) stack.pop();
       const prev = stack[stack.length - 1];
       saveStack(stack);
-      if (prev && prev !== cur) {
-        location.href = prev;
+      if (prev && !sameNavRoute(prev, cur)) {
+        location.href = withApp(prev);
         return true;
       }
     }
 
-    if (opts?.allowHistory && window.history.length > 1) {
+    /* Do not use raw history.back() in the native app — it often lands on login/blank */
+    if (opts?.allowHistory && !isNative() && window.history.length > 1) {
       window.history.back();
       return true;
     }
 
-    if (!cur.includes('explore.html')) {
-      navigateTo(HOME, { replace: false });
+    if (!isExploreRoute(cur)) {
+      location.href = withApp(HOME);
       return true;
     }
 

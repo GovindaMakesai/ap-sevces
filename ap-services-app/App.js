@@ -152,12 +152,13 @@ const HARDWARE_BACK_INJECT = `(function(){
   var handled = false;
   try {
     var p = (location.pathname || '').toLowerCase();
+    var onExplore = /explore\\.html/i.test(p);
     var isLive = /live-room\\.html|party-room\\.html/i.test(p) || !!(document.body && document.body.dataset && document.body.dataset.livePage);
     function closeLiveUi() {
-      var openSheet = document.querySelector('.party-tools-sheet.open, .gift-sheet.open, .party-requests-sheet.open, .social-broadcast-sheet-wrap.is-open, .ap-modal-overlay.is-open');
+      var openSheet = document.querySelector('.party-tools-sheet.open, .gift-sheet.open, .party-requests-sheet.open, .social-broadcast-sheet-wrap.is-open, .ap-modal-overlay.is-open, .social-broadcast-overlay.is-open');
       if (openSheet) {
         openSheet.classList.remove('open', 'is-open', 'is-visible');
-        document.body.classList.remove('ap-live-overlay-open', 'ap-chat-open');
+        document.body.classList.remove('ap-live-overlay-open', 'ap-chat-open', 'party-requests-open');
         return true;
       }
       var emoji = document.getElementById('apEmojiPopover');
@@ -203,10 +204,8 @@ const HARDWARE_BACK_INJECT = `(function(){
       else handled = minimizeLive();
     } else if (window.SocialNav && window.SocialNav.handleHardwareBack) {
       handled = !!window.SocialNav.handleHardwareBack();
-    } else if (window.history.length > 1) {
-      window.history.back();
-      handled = true;
-    } else if (!/explore\\.html/i.test(p)) {
+    } else if (!onExplore) {
+      /* Never WebView-history-back to login/blank — always stay in-app */
       location.href='/explore.html?app=1&source=expo-app';
       handled = true;
     }
@@ -215,7 +214,9 @@ const HARDWARE_BACK_INJECT = `(function(){
     window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
       type:'back_result',
       handled:false,
-      route:location.pathname||''
+      route:location.pathname||'',
+      search:location.search||'',
+      onExplore:/explore\\.html/i.test((location.pathname||'').toLowerCase())
     }));
   }
 })();true;`;
@@ -1097,43 +1098,41 @@ export default function App() {
         if (data.type === 'back_result' && !data.handled) {
           const route = String(data.route || '');
           const currentUrl = webViewCurrentUrlRef.current || '';
-          if (/live-room\.html|party-room\.html/i.test(route) || /live-room\.html|party-room\.html/i.test(currentUrl)) {
+          const onLive =
+            /live-room\.html|party-room\.html/i.test(route) ||
+            /live-room\.html|party-room\.html/i.test(currentUrl);
+          if (onLive) {
             webViewRef.current?.injectJavaScript(LIVE_MINIMIZE_INJECT);
             return;
           }
-          webViewRef.current?.injectJavaScript(`(function(){
-            try {
-              var raw = localStorage.getItem('ap_live_active_session') || sessionStorage.getItem('ap_live_pip_session');
-              if (raw) {
-                var d = JSON.parse(raw);
-                if (d && d.url && (!d.expiresAt || Date.now() < d.expiresAt)) {
-                  if (/live-room\\.html|party-room\\.html/i.test(d.url)) {
-                    location.href = d.url;
-                    return;
-                  }
-                  location.href = '/explore.html?app=1&source=expo-app';
-                  return;
-                }
-              }
-            } catch(e) {}
-          })();true;`);
-          if (webViewCanGoBackRef.current && !/live-room\.html|party-room\.html/i.test(currentUrl)) {
-            webViewRef.current?.goBack();
-            return;
-          }
-          if (/explore\.html/i.test(route)) {
+          const onExplore =
+            data.onExplore === true ||
+            /explore\.html/i.test(route) ||
+            /explore\.html/i.test(currentUrl);
+
+          /*
+           * Never WebView.goBack() from home — history often points at login/blank
+           * and feels like the whole app closed. Stay in-app; double-press to exit.
+           */
+          if (onExplore) {
             webViewRef.current?.injectJavaScript(`(function(){
               try {
                 var raw = localStorage.getItem('ap_live_active_session') || sessionStorage.getItem('ap_live_pip_session');
                 if (raw) {
                   var d = JSON.parse(raw);
-                  if (d && d.url && (!d.expiresAt || Date.now() < d.expiresAt)) return;
+                  if (d && d.url && (!d.expiresAt || Date.now() < d.expiresAt) && /live-room\\.html|party-room\\.html/i.test(d.url)) {
+                    if (window.LiveSession && window.LiveSession.expand) { window.LiveSession.expand(); return; }
+                    location.href = d.url;
+                    return;
+                  }
                 }
               } catch(e) {}
               window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({type:'back_result_exit_ok'}));
             })();true;`);
             return;
           }
+
+          /* Any other page: return to Explore — never exit the app */
           webViewRef.current?.injectJavaScript(
             `window.location.href='/explore.html?app=1&source=expo-app';true;`
           );
@@ -1141,13 +1140,15 @@ export default function App() {
         }
         if (data.type === 'back_result_exit_ok') {
           const now = Date.now();
-          if (now - homeBackAtRef.current < 2200) {
+          if (now - homeBackAtRef.current < 2500) {
             homeBackAtRef.current = 0;
             BackHandler.exitApp();
             return;
           }
           homeBackAtRef.current = now;
-          ToastAndroid.show('Press back again to exit', ToastAndroid.SHORT);
+          if (Platform.OS === 'android') {
+            ToastAndroid.show('Press back again to exit', ToastAndroid.SHORT);
+          }
           return;
         }
       } catch (_e) {

@@ -3,7 +3,7 @@
     "name": "AP Services",
     "slug": "ap-services-app",
     "scheme": "apservices",
-    "version": "1.0.21",
+    "version": "1.0.22",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -22,7 +22,7 @@
     },
     "android": {
       "package": "com.apservices.app",
-      "versionCode": 30,
+      "versionCode": 31,
       "usesCleartextTraffic": true,
       "permissions": [
         "android.permission.CAMERA",
@@ -60,9 +60,7 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-web-browser",
-      "expo-screen-capture",
-      "expo-av"
+      "expo-web-browser"
     ],
     "extra": {
       "client": {
