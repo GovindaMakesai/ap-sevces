@@ -123,16 +123,16 @@ function resolveFoodRoulette(pick, betAmount) {
 }
 
 const GREEDY_ITEMS = [
-  { emoji: '💎', name: 'Diamond', mult: 45 },
-  { emoji: '👑', name: 'Crown', mult: 25 },
-  { emoji: '🔮', name: 'Orb', mult: 15 },
-  { emoji: '🪙', name: 'Coin', mult: 10 },
-  { emoji: '🎁', name: 'Gift', mult: 5 },
-  { emoji: '⭐', name: 'Star', mult: 5 },
-  { emoji: '🔥', name: 'Fire', mult: 5 },
-  { emoji: '🍀', name: 'Lucky', mult: 5 },
+  { emoji: '🍍', name: 'Pineapple', mult: 5 },
+  { emoji: '🍒', name: 'Cherries', mult: 5 },
+  { emoji: '🍌', name: 'Bananas', mult: 5 },
+  { emoji: '🍉', name: 'Watermelon', mult: 5 },
+  { emoji: '🍢', name: 'Skewers', mult: 10 },
+  { emoji: '🌯', name: 'Burrito', mult: 15 },
+  { emoji: '🍕', name: 'Pizza', mult: 25 },
+  { emoji: '🍗', name: 'Roast Chicken', mult: 45 },
 ];
-const GREEDY_WEIGHTS = { 0: 5, 1: 8, 2: 11, 3: 14, 4: 22, 5: 22, 6: 22, 7: 22 };
+const GREEDY_WEIGHTS = { 0: 22, 1: 22, 2: 22, 3: 22, 4: 14, 5: 11, 6: 8, 7: 5 };
 
 function normalizeGreedyBets(pick) {
   const raw = Array.isArray(pick?.bets) ? pick.bets : [];
@@ -204,6 +204,219 @@ function resolveGreedy(pick, betAmount) {
   };
 }
 
+/* —— Royal Battle (Teen Patti King vs Queen) —— */
+const TEEN_PATTI_AREAS = {
+  blue: { mult: 1.95, label: 'BLUE' },
+  red: { mult: 1.95, label: 'RED' },
+  pair: { mult: 3.5, label: 'PAIR' },
+  color: { mult: 10, label: 'COLOR' },
+  sequence: { mult: 15, label: 'SEQUENCE' },
+  pure_seq: { mult: 100, label: 'PURE SEQ' },
+  set: { mult: 100, label: 'SET' },
+};
+const TEEN_PATTI_RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+const TEEN_PATTI_SUITS = ['S', 'H', 'D', 'C'];
+const TEEN_PATTI_SUIT_SYM = { S: '♠', H: '♥', D: '♦', C: '♣' };
+const TEEN_PATTI_VAL = { A: 14, K: 13, Q: 12, J: 11 };
+
+function teenPattiVal(rank) {
+  return TEEN_PATTI_VAL[rank] || Number(rank);
+}
+
+function teenPattiDeck() {
+  const d = [];
+  for (const suit of TEEN_PATTI_SUITS) {
+    for (const rank of TEEN_PATTI_RANKS) {
+      d.push({ rank, suit, v: teenPattiVal(rank), sym: TEEN_PATTI_SUIT_SYM[suit] });
+    }
+  }
+  for (let i = d.length - 1; i > 0; i -= 1) {
+    const j = rand(i + 1);
+    const t = d[i];
+    d[i] = d[j];
+    d[j] = t;
+  }
+  return d;
+}
+
+function teenPattiIsSeq(vals) {
+  const s = vals.slice().sort((a, b) => a - b);
+  if (s[0] === 2 && s[1] === 3 && s[2] === 14) return true;
+  return s[0] + 1 === s[1] && s[1] + 1 === s[2];
+}
+
+/** Higher score wins. category used for side bets. */
+function evaluateTeenPattiHand(cards) {
+  const sorted = cards.slice().sort((a, b) => b.v - a.v);
+  const vals = sorted.map((c) => c.v);
+  const suits = sorted.map((c) => c.suit);
+  const sameSuit = suits[0] === suits[1] && suits[1] === suits[2];
+  const trail = vals[0] === vals[1] && vals[1] === vals[2];
+  const pair = vals[0] === vals[1] || vals[1] === vals[2] || vals[0] === vals[2];
+  const seq = teenPattiIsSeq(vals);
+  const pure = sameSuit && seq;
+
+  let pairVal = 0;
+  let kicker = 0;
+  if (pair && !trail) {
+    if (vals[0] === vals[1]) {
+      pairVal = vals[0];
+      kicker = vals[2];
+    } else if (vals[1] === vals[2]) {
+      pairVal = vals[1];
+      kicker = vals[0];
+    } else {
+      pairVal = vals[0];
+      kicker = vals[1];
+    }
+  }
+
+  let seqHigh = vals[0];
+  if (seq) {
+    const s = vals.slice().sort((a, b) => a - b);
+    seqHigh = s[0] === 2 && s[1] === 3 && s[2] === 14 ? 3 : s[2];
+  }
+
+  if (trail) {
+    return { score: 600 + vals[0], category: 'set', name: 'Set', label: 'Set', tie: vals };
+  }
+  if (pure) {
+    return {
+      score: 500 + seqHigh,
+      category: 'pure_seq',
+      name: 'Pure Sequence',
+      label: 'Pure Seq',
+      tie: [seqHigh].concat(vals),
+    };
+  }
+  if (seq) {
+    return {
+      score: 400 + seqHigh,
+      category: 'sequence',
+      name: 'Sequence',
+      label: 'Sequence',
+      tie: [seqHigh].concat(vals),
+    };
+  }
+  if (sameSuit) {
+    return { score: 300 + vals[0], category: 'color', name: 'Color', label: 'Color', tie: vals };
+  }
+  if (pair) {
+    return {
+      score: 200 + pairVal,
+      category: 'pair',
+      name: 'Pair',
+      label: 'Pair',
+      tie: [pairVal, kicker],
+    };
+  }
+  return {
+    score: 100 + vals[0],
+    category: 'high',
+    name: 'High card',
+    label: 'High card',
+    tie: vals,
+  };
+}
+
+function compareTeenPatti(a, b) {
+  if (a.score !== b.score) return a.score - b.score;
+  for (let i = 0; i < Math.max(a.tie.length, b.tie.length); i += 1) {
+    const av = a.tie[i] || 0;
+    const bv = b.tie[i] || 0;
+    if (av !== bv) return av - bv;
+  }
+  return 0;
+}
+
+function normalizeTeenPattiBets(pick) {
+  const raw = Array.isArray(pick?.bets) ? pick.bets : [];
+  const merged = new Map();
+  for (const row of raw) {
+    const area = String(row?.area || '').toLowerCase();
+    const amount = Number(row?.amount);
+    if (!TEEN_PATTI_AREAS[area]) throw new Error('Invalid bet area');
+    if (!Number.isFinite(amount) || amount <= 0 || !Number.isInteger(amount)) {
+      throw new Error('Invalid bet amount');
+    }
+    merged.set(area, (merged.get(area) || 0) + amount);
+  }
+  const bets = [...merged.entries()].map(([area, amount]) => ({ area, amount }));
+  if (!bets.length) throw new Error('Place at least one bet');
+  const totalBet = bets.reduce((sum, row) => sum + row.amount, 0);
+  return { bets, totalBet };
+}
+
+function payoutTeenPatti(amount, mult) {
+  return Math.floor(Number(amount) * Number(mult) + 1e-9);
+}
+
+function resolveTeenPatti(pick) {
+  const { bets, totalBet } = normalizeTeenPattiBets(pick);
+  const deck = teenPattiDeck();
+  const blueCards = [deck.pop(), deck.pop(), deck.pop()];
+  const redCards = [deck.pop(), deck.pop(), deck.pop()];
+  const blueEval = evaluateTeenPattiHand(blueCards);
+  const redEval = evaluateTeenPattiHand(redCards);
+  const cmp = compareTeenPatti(blueEval, redEval);
+  let winnerSide = 'tie';
+  if (cmp > 0) winnerSide = 'blue';
+  else if (cmp < 0) winnerSide = 'red';
+
+  const winningEval = winnerSide === 'blue' ? blueEval : winnerSide === 'red' ? redEval : null;
+  const winningCategory = winningEval ? winningEval.category : null;
+
+  let payout = 0;
+  const settled = [];
+  for (const row of bets) {
+    let hit = false;
+    let mult = 0;
+    if (row.area === 'blue' || row.area === 'red') {
+      hit = winnerSide === row.area;
+      mult = hit ? TEEN_PATTI_AREAS[row.area].mult : 0;
+    } else if (winningCategory && row.area === winningCategory) {
+      hit = true;
+      mult = TEEN_PATTI_AREAS[row.area].mult;
+    }
+    const winAmt = hit ? payoutTeenPatti(row.amount, mult) : 0;
+    payout += winAmt;
+    settled.push({ area: row.area, amount: row.amount, hit, mult, payout: winAmt });
+  }
+
+  return {
+    totalBet,
+    win: payout > 0,
+    payout,
+    mult: payout > 0 ? Number((payout / totalBet).toFixed(2)) : 0,
+    outcome: payout > 0 ? 'win' : 'loss',
+    bets,
+    settled,
+    winner_side: winnerSide,
+    winning_category: winningCategory,
+    blue_hand: {
+      cards: blueCards,
+      eval: { name: blueEval.name, label: blueEval.label, category: blueEval.category },
+    },
+    red_hand: {
+      cards: redCards,
+      eval: { name: redEval.name, label: redEval.label, category: redEval.category },
+    },
+    winning_fruit: {
+      name: winnerSide === 'tie' ? 'Tie' : winnerSide === 'blue' ? 'Blue (King)' : 'Red (Queen)',
+      emoji: winnerSide === 'blue' ? '👑' : winnerSide === 'red' ? '👸' : '🤝',
+      mult: payout > 0 ? Number((payout / totalBet).toFixed(2)) : 0,
+    },
+    animation: {
+      winnerSide,
+      winningCategory,
+      blueCards,
+      redCards,
+      blueLabel: blueEval.label,
+      redLabel: redEval.label,
+    },
+  };
+}
+
 function resolveRound(slug, pick, betAmount) {
   switch (String(slug)) {
     case 'crazy-fruit':
@@ -212,6 +425,8 @@ function resolveRound(slug, pick, betAmount) {
       return resolveFoodRoulette(pick || {}, betAmount);
     case 'greedy':
       return resolveGreedy(pick || {}, betAmount);
+    case 'teen-patti':
+      return resolveTeenPatti(pick || {});
     default:
       throw new Error('This game is not enabled for server play yet');
   }
@@ -224,4 +439,5 @@ module.exports = {
   CRAZY_FRUIT_FRUIT_CELLS,
   FOOD_CATEGORIES,
   GREEDY_ITEMS,
+  TEEN_PATTI_AREAS,
 };

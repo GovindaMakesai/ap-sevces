@@ -8,89 +8,133 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       min-height: 100vh;
-      background: linear-gradient(180deg, #0c1445 0%, #1a0a3e 50%, #0a0620 100%);
-      color: #fff; font-family: system-ui, -apple-system, sans-serif;
+      background:
+        radial-gradient(ellipse at 50% 0%, rgba(59, 130, 246, 0.22), transparent 55%),
+        linear-gradient(180deg, #07153a 0%, #0a1f4d 42%, #06102b 100%);
+      color: #fff;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
       display: flex; flex-direction: column; align-items: center;
-      padding: 10px 10px 20px; touch-action: manipulation; overflow-x: hidden;
+      padding: 10px 10px 22px; touch-action: manipulation; overflow-x: hidden;
     }
+    .wrap { width: 100%; max-width: 360px; }
+
     .top-row {
-      width: 100%; max-width: 360px; display: flex; align-items: center;
-      justify-content: space-between; margin-bottom: 4px;
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 8px;
     }
-    .title {
-      font-size: 1.45rem; font-weight: 900;
-      background: linear-gradient(180deg, #fde68a, #f59e0b);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+    .coin-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: linear-gradient(135deg, rgba(251, 191, 36, 0.95), rgba(217, 119, 6, 0.95));
+      color: #422006; padding: 6px 14px 6px 8px; border-radius: 999px;
+      font-weight: 900; font-size: 0.88rem;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    }
+    .coin-pill .coin-ico {
+      width: 22px; height: 22px; border-radius: 50%;
+      background: radial-gradient(circle at 35% 30%, #fde68a, #f59e0b 55%, #b45309);
+      border: 1.5px solid #fef3c7;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.72rem; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
     }
     .top-icons { display: flex; gap: 6px; }
     .icon-btn {
-      width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(200,155,60,0.45);
-      background: rgba(255,255,255,0.08); color: #fde68a; font-size: 0.85rem; cursor: pointer;
+      width: 34px; height: 34px; border-radius: 50%;
+      border: 1.5px solid rgba(200, 155, 60, 0.5);
+      background: rgba(8, 24, 60, 0.75);
+      color: #fde68a; font-size: 0.88rem; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
     }
-    .hud {
-      display: flex; align-items: center; gap: 8px; margin: 4px 0 8px; font-weight: 800; font-size: 0.82rem;
-      width: 100%; max-width: 360px; justify-content: center; flex-wrap: wrap;
-    }
-    .hud .coins {
-      background: linear-gradient(135deg, #fbbf24, #d97706);
-      color: #422006; padding: 6px 14px; border-radius: 999px;
-      display: flex; align-items: center; gap: 4px;
-    }
-    .hud .today-win {
-      background: rgba(255,255,255,0.08); padding: 6px 14px; border-radius: 999px;
-      border: 1px solid rgba(255,255,255,0.1);
-    }
+    .icon-btn:active { transform: scale(0.92); }
+    .icon-btn.muted { opacity: 0.55; }
 
     .machine {
-      width: 100%; max-width: 340px;
-      background: linear-gradient(180deg, #1e3a5f, #0f2341);
-      border: 3px solid #c89b3c; border-radius: 18px;
-      padding: 12px 10px; margin: 4px 0;
-      box-shadow: 0 12px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1);
+      width: 100%;
+      background:
+        linear-gradient(180deg, #1a3d6e 0%, #123056 45%, #0c2244 100%);
+      border: 3px solid #d4a84b;
+      border-radius: 20px;
+      padding: 10px 10px 12px;
+      margin: 0 0 8px;
+      box-shadow:
+        0 14px 40px rgba(0, 0, 0, 0.55),
+        inset 0 1px 0 rgba(255, 255, 255, 0.12),
+        inset 0 0 0 2px rgba(80, 50, 10, 0.35);
       position: relative;
+      overflow: hidden;
     }
     .machine::before {
-      content: ''; position: absolute; inset: 0; border-radius: 15px; pointer-events: none;
-      background: linear-gradient(110deg, transparent 40%, rgba(255,255,255,0.08) 50%, transparent 60%);
-      animation: shine 4.5s linear infinite;
+      content: ''; position: absolute; inset: 0; border-radius: 17px; pointer-events: none;
+      background: linear-gradient(110deg, transparent 38%, rgba(255, 255, 255, 0.07) 50%, transparent 62%);
+      animation: shine 5s linear infinite;
     }
-    @keyframes shine { from { transform: translateX(-40%); } to { transform: translateX(40%); } }
+    @keyframes shine { from { transform: translateX(-45%); } to { transform: translateX(45%); } }
+
+    .machine-title {
+      text-align: center; margin: 2px 0 10px; position: relative; z-index: 1;
+      font-size: 1.55rem; font-weight: 900; letter-spacing: 0.02em;
+      background: linear-gradient(180deg, #fff7c2 0%, #fde68a 28%, #f59e0b 72%, #b45309 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+      filter: drop-shadow(0 2px 0 #7c4a0a) drop-shadow(0 3px 6px rgba(0, 0, 0, 0.55));
+      font-style: italic; transform: skewX(-4deg);
+    }
 
     .grid {
       display: grid; grid-template-columns: repeat(4, 1fr);
-      grid-template-rows: repeat(3, 1fr);
-      gap: 6px; margin-bottom: 8px;
+      grid-template-rows: repeat(3, minmax(72px, 1fr));
+      gap: 6px; position: relative; z-index: 1;
     }
     .cell {
-      aspect-ratio: 1; border-radius: 12px;
-      background: linear-gradient(145deg, #2a4a7a, #1a3058);
-      border: 2px solid rgba(255,255,255,0.08);
+      border-radius: 12px;
+      background: linear-gradient(160deg, #2b5288 0%, #1a3760 100%);
+      border: 2px solid rgba(255, 255, 255, 0.1);
       display: flex; flex-direction: column; align-items: center;
       justify-content: center; gap: 2px;
       font-size: 1.55rem; position: relative;
-      box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+      box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.35), 0 2px 6px rgba(0, 0, 0, 0.2);
       transition: transform 0.15s, border-color 0.2s, box-shadow 0.2s;
-      color: #fff; cursor: pointer; overflow: hidden;
+      color: #fff; cursor: pointer; overflow: hidden; min-height: 72px;
     }
-    .cell .mult { font-size: 0.65rem; font-weight: 900; color: #c89b3c; }
+    .cell .mult {
+      font-size: 0.68rem; font-weight: 900; color: #fbbf24;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    }
     .cell .emoji { line-height: 1; animation: fruitBob 2.8s ease-in-out infinite; }
-    @keyframes fruitBob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-2px)} }
-    .cell .bet-tag {
-      position: absolute; top: 3px; left: 3px; min-width: 28px; text-align: center;
-      padding: 1px 4px; border-radius: 999px; background: rgba(251,191,36,0.95);
-      color: #3b2400; font-size: 0.55rem; font-weight: 900; display: none;
+    @keyframes fruitBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+
+    .cell .chip-stack {
+      position: absolute; bottom: 3px; left: 50%; transform: translateX(-50%);
+      display: none; align-items: flex-end; gap: 1px; height: 14px; pointer-events: none;
     }
-    .cell.has-bet .bet-tag { display: block; }
-    .cell.has-bet { border-color: #fbbf24; box-shadow: 0 0 12px rgba(251,191,36,0.35); }
+    .cell .chip-stack i {
+      width: 10px; height: 10px; border-radius: 50%;
+      border: 1px solid rgba(255, 255, 255, 0.45);
+      background: radial-gradient(circle at 30% 30%, #fde68a, #d97706);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+    }
+    .cell .chip-stack i:nth-child(2) { margin-bottom: 2px; }
+    .cell .chip-stack i:nth-child(3) { margin-bottom: 4px; }
+    .cell .bet-tag {
+      position: absolute; top: 3px; left: 3px; min-width: 26px; text-align: center;
+      padding: 1px 5px; border-radius: 999px;
+      background: linear-gradient(180deg, #fde68a, #f59e0b);
+      color: #3b2400; font-size: 0.52rem; font-weight: 900;
+      display: none; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+    }
+    .cell.has-bet .bet-tag,
+    .cell.has-bet .chip-stack { display: flex; }
+    .cell.has-bet {
+      border-color: #fbbf24;
+      box-shadow: 0 0 14px rgba(251, 191, 36, 0.4), inset 0 2px 5px rgba(0, 0, 0, 0.3);
+    }
     .cell.is-active {
-      border-color: #fbbf24 !important; transform: scale(1.05);
-      box-shadow: 0 0 14px rgba(251,191,36,0.55);
+      border-color: #fde68a !important; transform: scale(1.04);
+      box-shadow: 0 0 16px rgba(251, 191, 36, 0.6);
     }
     .cell.is-win {
       animation: cellWin 0.55s ease infinite alternate;
       border-color: #fde68a !important;
-      box-shadow: 0 0 24px rgba(251,191,36,0.9), 0 0 40px rgba(255,255,255,0.25);
+      box-shadow: 0 0 26px rgba(251, 191, 36, 0.95), 0 0 44px rgba(255, 255, 255, 0.28);
       z-index: 2;
     }
     @keyframes cellWin {
@@ -99,122 +143,225 @@
     }
 
     .cell.is-lucky {
-      background: linear-gradient(145deg, #b91c1c, #991b1b);
-      border-color: #fbbf24; cursor: default;
+      background: linear-gradient(160deg, #6366f1 0%, #4338ca 55%, #312e81 100%);
+      border-color: rgba(165, 180, 252, 0.55);
+      cursor: default;
+    }
+    .cell.is-lucky .lucky-label {
+      font-size: 0.72rem; font-weight: 900; color: #e0e7ff;
+      text-align: center; line-height: 1.15;
+      text-shadow: 0 0 10px rgba(129, 140, 248, 0.8);
     }
     .cell.is-super {
-      background: linear-gradient(145deg, #7c3aed, #4c1d95);
-      border-color: #fbbf24; cursor: default;
+      background: linear-gradient(135deg, #ef4444, #f59e0b, #22c55e, #3b82f6, #a855f7);
+      border-color: #fde68a; cursor: default;
     }
+    .cell.is-super .super-label {
+      font-size: 0.58rem; font-weight: 900; color: #fff;
+      text-align: center; line-height: 1.15;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+      background: rgba(0, 0, 0, 0.28);
+      padding: 4px 6px; border-radius: 8px;
+    }
+
     .cell.is-center {
       grid-column: 2 / 4;
       aspect-ratio: auto;
       min-height: 100%;
-      background: linear-gradient(145deg, #0f1d3a, #1a3058);
+      background: radial-gradient(circle at 50% 40%, #1a2f5c 0%, #0b1836 100%);
       border-color: #c89b3c;
       cursor: default;
-      box-shadow: inset 0 0 0 2px rgba(255,255,255,0.08), 0 0 16px rgba(200,155,60,0.2);
+      padding: 8px;
+      box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.06), 0 0 18px rgba(200, 155, 60, 0.22);
+    }
+    .marquee {
+      position: absolute; inset: 5px; border-radius: 10px; pointer-events: none;
+    }
+    .marquee span {
+      position: absolute; width: 7px; height: 7px; border-radius: 50%;
+      background: radial-gradient(circle at 35% 30%, #fff, #e2e8f0 55%, #94a3b8);
+      box-shadow: 0 0 6px rgba(255, 255, 255, 0.85), 0 0 10px rgba(253, 230, 138, 0.35);
+      animation: bulbPulse 1.2s ease-in-out infinite;
+    }
+    .marquee span:nth-child(odd) { animation-delay: 0.35s; }
+    @keyframes bulbPulse {
+      0%, 100% { opacity: 0.45; transform: scale(0.85); }
+      50% { opacity: 1; transform: scale(1.08); }
+    }
+    .cell.is-center .timer-inner {
+      position: relative; z-index: 1;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      width: 100%; height: 100%;
+      background: linear-gradient(180deg, #0a1428, #122246);
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
     }
     .cell.is-center .timer-label {
-      font-size: 0.55rem; color: rgba(255,255,255,0.65); font-weight: 700; letter-spacing: 0.02em;
+      font-size: 0.55rem; color: rgba(255, 255, 255, 0.65);
+      font-weight: 700; letter-spacing: 0.06em;
     }
     .cell.is-center .timer-num {
-      font-size: 1.85rem; font-weight: 900; color: #fde68a; line-height: 1; margin-top: 2px;
+      font-size: 2rem; font-weight: 900; color: #fde68a; line-height: 1; margin-top: 2px;
       font-variant-numeric: tabular-nums;
+      text-shadow: 0 0 12px rgba(251, 191, 36, 0.45);
+      font-family: 'Courier New', ui-monospace, monospace;
     }
-    .cell.is-center.urgent .timer-num { color: #fca5a5; animation: blink 0.5s ease-in-out infinite alternate; }
-    .cell.is-center.waiting .timer-num { font-size: 0.85rem; color: rgba(255,255,255,0.75); }
+    .cell.is-center.urgent .timer-num {
+      color: #fca5a5;
+      animation: blink 0.5s ease-in-out infinite alternate;
+    }
+    .cell.is-center.waiting .timer-num {
+      font-size: 0.95rem; color: rgba(255, 255, 255, 0.75);
+      font-family: inherit;
+    }
     @keyframes blink { from { opacity: 1; } to { opacity: 0.5; } }
 
-    .dots { display: flex; justify-content: center; gap: 4px; margin: 4px 0; }
-    .dots span { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.2); }
-    .dots span.on { background: #fbbf24; box-shadow: 0 0 8px rgba(251,191,36,0.7); }
+    .today-bar {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      width: 100%; margin: 0 0 8px; padding: 8px 14px;
+      background: linear-gradient(90deg, rgba(15, 35, 70, 0.9), rgba(30, 58, 110, 0.95), rgba(15, 35, 70, 0.9));
+      border: 1.5px solid rgba(212, 168, 75, 0.55);
+      border-radius: 12px;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 4px 12px rgba(0, 0, 0, 0.3);
+      font-size: 0.78rem; font-weight: 800; letter-spacing: 0.04em;
+      color: #fde68a;
+    }
+    .today-bar strong {
+      color: #fff; font-size: 0.95rem; letter-spacing: 0;
+      text-shadow: 0 0 8px rgba(251, 191, 36, 0.35);
+    }
 
     .instruction {
-      font-size: 0.72rem; color: rgba(255,255,255,0.65);
-      text-align: center; margin: 6px 0 4px;
+      font-size: 0.74rem; color: rgba(255, 255, 255, 0.7);
+      text-align: center; margin: 2px 0 8px; font-weight: 600;
     }
+
     .chips {
-      display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin: 6px 0;
+      display: flex; gap: 8px; justify-content: center; flex-wrap: nowrap; margin: 0 0 10px;
     }
     .chip {
-      border: 3px solid transparent; border-radius: 50%;
-      width: 52px; height: 52px; font-weight: 900; font-size: 0.7rem;
+      border: 3px solid rgba(255, 255, 255, 0.35); border-radius: 50%;
+      width: 54px; height: 54px; font-weight: 900; font-size: 0.7rem;
       display: flex; align-items: center; justify-content: center;
-      color: #fff; cursor: pointer;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+      color: #fff; cursor: pointer; position: relative;
+      box-shadow:
+        0 4px 12px rgba(0, 0, 0, 0.4),
+        inset 0 2px 4px rgba(255, 255, 255, 0.25),
+        inset 0 -3px 6px rgba(0, 0, 0, 0.25);
       flex-shrink: 0;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
     }
-    .chip.c100 { background: linear-gradient(145deg, #22c55e, #15803d); }
-    .chip.c1k { background: linear-gradient(145deg, #3b82f6, #1d4ed8); }
-    .chip.c10k { background: linear-gradient(145deg, #a855f7, #7c3aed); }
-    .chip.c50k { background: linear-gradient(145deg, #ef4444, #b91c1c); }
-    .chip.c100k { background: linear-gradient(145deg, #f59e0b, #d97706); }
+    .chip::before {
+      content: ''; position: absolute; inset: 5px; border-radius: 50%;
+      border: 1.5px dashed rgba(255, 255, 255, 0.35); pointer-events: none;
+    }
+    .chip.c100 { background: radial-gradient(circle at 35% 30%, #5eead4, #0d9488 60%, #0f766e); }
+    .chip.c1k  { background: radial-gradient(circle at 35% 30%, #86efac, #22c55e 55%, #15803d); }
+    .chip.c10k { background: radial-gradient(circle at 35% 30%, #93c5fd, #3b82f6 55%, #1d4ed8); }
+    .chip.c50k { background: radial-gradient(circle at 35% 30%, #fdba74, #f97316 55%, #c2410c); }
+    .chip.c100k{ background: radial-gradient(circle at 35% 30%, #fca5a5, #ef4444 55%, #b91c1c); }
     .chip.active {
       border-color: #fde68a;
-      box-shadow: 0 0 0 2px rgba(253,230,138,0.45), 0 0 16px rgba(251,191,36,0.4);
-      transform: scale(1.08);
+      box-shadow:
+        0 0 0 3px rgba(253, 230, 138, 0.55),
+        0 0 20px rgba(251, 191, 36, 0.55),
+        0 4px 12px rgba(0, 0, 0, 0.4),
+        inset 0 2px 4px rgba(255, 255, 255, 0.25);
+      transform: scale(1.1);
     }
 
     .result-strip {
-      display: flex; gap: 4px; align-items: center;
-      padding: 6px 10px; background: rgba(0,0,0,0.3);
-      border-radius: 10px; margin: 6px 0; overflow-x: auto;
-      max-width: 100%; width: 100%; max-width: 340px;
+      display: flex; gap: 6px; align-items: center;
+      padding: 8px 10px; background: rgba(0, 0, 0, 0.32);
+      border-radius: 12px; margin: 0 0 6px; overflow-x: auto;
+      width: 100%; border: 1px solid rgba(255, 255, 255, 0.06);
     }
     .result-strip .tag {
-      font-size: 0.6rem; font-weight: 800; color: #fbbf24;
-      background: rgba(251,191,36,0.15); padding: 2px 6px;
-      border-radius: 4px; flex-shrink: 0;
+      font-size: 0.65rem; font-weight: 800; color: #fbbf24;
+      background: rgba(251, 191, 36, 0.14); padding: 3px 7px;
+      border-radius: 6px; flex-shrink: 0;
     }
-    .result-strip .fruit { font-size: 1.1rem; flex-shrink: 0; }
-    .result-strip .fruit.new { position: relative; }
+    .result-strip #resultTrail { display: flex; gap: 6px; align-items: center; }
+    .result-strip .fruit {
+      font-size: 1.15rem; flex-shrink: 0; position: relative;
+      width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+    }
     .result-strip .fruit.new::after {
-      content: 'New'; position: absolute; top: -8px; left: 50%; transform: translateX(-50%);
-      font-size: 0.45rem; font-weight: 900; color: #4ade80; background: rgba(0,0,0,0.5);
-      padding: 0 3px; border-radius: 3px;
+      content: 'New'; position: absolute; top: -9px; left: 50%; transform: translateX(-50%);
+      font-size: 0.45rem; font-weight: 900; color: #4ade80;
+      background: rgba(0, 0, 0, 0.65); padding: 1px 4px; border-radius: 3px;
+      white-space: nowrap;
     }
 
     .status {
-      text-align: center; font-weight: 800; font-size: 0.88rem;
-      min-height: 32px; margin-top: 4px; color: #fde68a; padding: 0 8px;
+      text-align: center; font-weight: 700; font-size: 0.82rem;
+      min-height: 28px; margin-top: 2px; color: #fde68a; padding: 0 6px;
     }
 
     /* Win overlay */
     .win-mask {
-      position: fixed; inset: 0; background: rgba(5,8,30,0.88); display: none;
+      position: fixed; inset: 0; background: rgba(4, 10, 28, 0.9); display: none;
       align-items: center; justify-content: center; z-index: 9998; flex-direction: column;
-      padding: 20px; backdrop-filter: blur(5px);
+      padding: 20px; backdrop-filter: blur(6px);
     }
-    .win-mask.open { display: flex; animation: fadeIn 0.3s ease; }
+    .win-mask.open { display: flex; animation: fadeIn 0.35s ease; }
+    .win-mask.is-win {
+      background: radial-gradient(circle at 50% 40%, rgba(251, 191, 36, 0.22), rgba(4, 10, 28, 0.94) 55%);
+    }
+    .win-mask.is-lose {
+      background: radial-gradient(circle at 50% 40%, rgba(148, 163, 184, 0.12), rgba(4, 10, 28, 0.94) 55%);
+    }
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-    .win-card {
-      text-align: center; max-width: 320px; width: 100%;
-    }
+    .win-card { text-align: center; max-width: 320px; width: 100%; position: relative; }
     .win-emoji {
-      width: 110px; height: 110px; border-radius: 50%; margin: 0 auto 12px;
-      background: radial-gradient(circle, #fff, rgba(255,255,255,0.1));
-      display: flex; align-items: center; justify-content: center; font-size: 3.2rem;
-      box-shadow: 0 0 50px rgba(251,191,36,0.55);
+      width: 120px; height: 120px; border-radius: 50%; margin: 0 auto 14px;
+      background: radial-gradient(circle, #fff 0%, rgba(255, 255, 255, 0.12) 70%);
+      display: flex; align-items: center; justify-content: center; font-size: 3.4rem;
+      box-shadow: 0 0 50px rgba(251, 191, 36, 0.55), 0 0 80px rgba(255, 255, 255, 0.2);
       animation: winPopBig 0.6s ease;
+      position: relative;
     }
+    .win-emoji::before {
+      content: ''; position: absolute; inset: -20px; border-radius: 50%;
+      background: conic-gradient(from 0deg, transparent, rgba(251, 191, 36, 0.55), transparent 40%);
+      animation: raySpin 2s linear infinite; z-index: -1;
+    }
+    @keyframes raySpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
     @keyframes winPopBig {
-      0% { transform: scale(0.4); opacity: 0; }
-      60% { transform: scale(1.15); }
+      0% { transform: scale(0.35); opacity: 0; }
+      60% { transform: scale(1.18); }
       100% { transform: scale(1); }
     }
     .win-banner {
-      font-size: 1.25rem; font-weight: 900; margin-bottom: 6px;
+      font-size: 1.35rem; font-weight: 900; margin-bottom: 6px; letter-spacing: 0.04em;
     }
-    .win-banner.yes { color: #fde68a; text-shadow: 0 0 16px rgba(251,191,36,0.7); }
+    .win-banner.yes {
+      color: #fde68a;
+      text-shadow: 0 0 18px rgba(251, 191, 36, 0.75);
+      animation: bannerPulse 1s ease-in-out infinite;
+    }
     .win-banner.no { color: #fca5a5; }
-    .win-detail { font-size: 0.9rem; color: rgba(255,255,255,0.8); margin: 4px 0; }
-    .win-prize { font-size: 1.15rem; font-weight: 900; color: #fbbf24; margin-top: 6px; }
-    .win-next { font-size: 0.7rem; color: rgba(255,255,255,0.5); margin-top: 14px; }
+    @keyframes bannerPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.04); }
+    }
+    .win-detail { font-size: 0.92rem; color: rgba(255, 255, 255, 0.82); margin: 4px 0; }
+    .win-prize { font-size: 1.2rem; font-weight: 900; color: #fbbf24; margin-top: 8px; }
+    .win-next { font-size: 0.72rem; color: rgba(255, 255, 255, 0.5); margin-top: 16px; }
+
+    .confetti { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 9997; }
+    .confetti i {
+      position: absolute; width: 8px; height: 14px; border-radius: 2px; opacity: 0.9;
+      animation: confettiFall 2.4s linear forwards;
+    }
+    @keyframes confettiFall {
+      0% { transform: translateY(-10vh) rotate(0deg); opacity: 1; }
+      100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
+    }
 
     /* Panels */
     .panel-mask {
-      position: fixed; inset: 0; background: rgba(2,6,23,0.78); display: none;
+      position: fixed; inset: 0; background: rgba(2, 6, 23, 0.8); display: none;
       align-items: flex-end; justify-content: center; z-index: 9999; padding: 14px;
     }
     .panel-mask.open { display: flex; }
@@ -222,63 +369,67 @@
       width: min(400px, 100%); max-height: 78vh; overflow: auto;
       border-radius: 20px 20px 14px 14px;
       background: linear-gradient(180deg, #1e3a5f, #0a162a);
-      border: 1px solid rgba(200,155,60,0.35); padding: 14px;
+      border: 1px solid rgba(200, 155, 60, 0.35); padding: 14px;
     }
     .panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
     .panel-head h3 { color: #fde68a; font-size: 1rem; }
     .close-btn {
-      background: rgba(255,255,255,0.1); border: 0; color: #fff;
+      background: rgba(255, 255, 255, 0.1); border: 0; color: #fff;
       width: 32px; height: 32px; border-radius: 50%; cursor: pointer;
     }
     .list { display: flex; flex-direction: column; gap: 8px; }
     .card {
-      background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.08);
       border-radius: 14px; padding: 10px 12px;
     }
-    .muted { color: rgba(255,255,255,0.6); font-size: 0.78rem; }
-    .how-list { padding-left: 18px; font-size: 0.85rem; line-height: 1.55; color: rgba(255,255,255,0.85); }
+    .muted { color: rgba(255, 255, 255, 0.6); font-size: 0.78rem; }
+    .how-list { padding-left: 18px; font-size: 0.85rem; line-height: 1.55; color: rgba(255, 255, 255, 0.85); }
     .how-list li { margin-bottom: 8px; }
     .leader-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
     .rank-badge {
       width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center;
       justify-content: center; font-weight: 900; font-size: 0.75rem;
-      background: rgba(251,191,36,0.18); color: #fde68a;
+      background: rgba(251, 191, 36, 0.18); color: #fde68a;
     }
   </style>
 </head>
 <body>
-  <div class="top-row">
-    <div class="title">Crazy Fruit</div>
-    <div class="top-icons">
-      <button type="button" class="icon-btn" id="btnHow" title="How to play">?</button>
-      <button type="button" class="icon-btn" id="btnRank" title="Rankings">🏆</button>
-      <button type="button" class="icon-btn" id="btnRecords" title="Records">📋</button>
+  <div class="wrap">
+    <div class="top-row">
+      <div class="coin-pill">
+        <span class="coin-ico">🪙</span>
+        <strong id="coins">0</strong>
+      </div>
+      <div class="top-icons">
+        <button type="button" class="icon-btn" id="btnRecords" title="History">🕐</button>
+        <button type="button" class="icon-btn" id="btnSound" title="Sound">🔊</button>
+        <button type="button" class="icon-btn" id="btnHow" title="How to play">?</button>
+        <button type="button" class="icon-btn" id="btnRank" title="Rankings">🏆</button>
+      </div>
     </div>
+
+    <div class="machine">
+      <div class="machine-title">Crazy Fruit</div>
+      <div class="grid" id="grid"></div>
+    </div>
+
+    <div class="today-bar">TODAY'S WIN <strong id="todayWin">0</strong></div>
+
+    <div class="instruction">Select Amount → Choose Fruit</div>
+    <div class="chips" id="chips"></div>
+
+    <div class="result-strip">
+      <span class="tag">Result:</span>
+      <span id="resultTrail"></span>
+    </div>
+    <div class="status" id="status">Pick a chip, then tap fruits before the timer ends.</div>
   </div>
 
-  <div class="hud">
-    <div class="coins">🪙 <strong id="coins">0</strong></div>
-    <div class="today-win">TODAY'S WIN <strong id="todayWin">0</strong></div>
-  </div>
-
-  <div class="machine">
-    <div class="grid" id="grid"></div>
-    <div class="dots" id="dots"></div>
-  </div>
-
-  <div class="instruction">Select Amount → Choose Fruit</div>
-  <div class="chips" id="chips"></div>
-
-  <div class="result-strip">
-    <span class="tag">Result:</span>
-    <span id="resultTrail"></span>
-  </div>
-  <div class="status" id="status">Pick a chip, then tap fruits before the timer ends.</div>
-
+  <div class="confetti" id="confetti"></div>
   <div class="win-mask" id="winMask">
     <div class="win-card">
-      <div class="win-emoji" id="winEmoji">🍒</div>
       <div class="win-banner" id="winBanner">YOU WON!</div>
+      <div class="win-emoji" id="winEmoji">🍒</div>
       <div class="win-detail" id="winDetail"></div>
       <div class="win-prize" id="winPrize"></div>
       <div class="win-next" id="winNext">Next round in 4s</div>
@@ -351,7 +502,6 @@
   var betIndex = 1;
   var bets = {};
   var cellEls = [];
-  var dotEls = [];
   var results = [];
   var countdown = 30;
   var countdownTimer = null;
@@ -360,6 +510,7 @@
   var spinning = false;
   var roundLocked = false;
   var pending = {};
+  var soundOn = true;
 
   function post(o) {
     try {
@@ -406,6 +557,31 @@
     document.getElementById('status').textContent = msg;
   }
 
+  function placeMarqueeBulbs(marquee) {
+    var count = 20;
+    for (var i = 0; i < count; i++) {
+      var t = i / count;
+      var span = document.createElement('span');
+      var x, y;
+      if (t < 0.25) {
+        x = (t / 0.25) * 100;
+        y = 0;
+      } else if (t < 0.5) {
+        x = 100;
+        y = ((t - 0.25) / 0.25) * 100;
+      } else if (t < 0.75) {
+        x = 100 - ((t - 0.5) / 0.25) * 100;
+        y = 100;
+      } else {
+        x = 0;
+        y = 100 - ((t - 0.75) / 0.25) * 100;
+      }
+      span.style.left = 'calc(' + x + '% - 3.5px)';
+      span.style.top = 'calc(' + y + '% - 3.5px)';
+      marquee.appendChild(span);
+    }
+  }
+
   function setTimerDisplay() {
     var center = document.getElementById('centerTimer');
     if (!center) return;
@@ -439,32 +615,32 @@
       if (c.type === 'center') {
         el.className += ' is-center';
         el.id = 'centerTimer';
-        el.innerHTML = '<span class="timer-label">BET TIME</span><span class="timer-num">30</span>';
+        el.innerHTML =
+          '<div class="marquee" id="marquee"></div>' +
+          '<div class="timer-inner">' +
+          '<span class="timer-label">BET TIME</span>' +
+          '<span class="timer-num">30</span>' +
+          '</div>';
       } else if (c.type === 'lucky') {
         el.className += ' is-lucky';
-        el.innerHTML = '<span style="font-size:0.65rem;font-weight:900;color:#fde68a;text-align:center;line-height:1.15">Lucky</span>';
+        el.innerHTML = '<span class="lucky-label">Lucky</span>';
       } else if (c.type === 'super') {
         el.className += ' is-super';
-        el.innerHTML = '<span style="font-size:0.55rem;font-weight:900;color:#fde68a;text-align:center;line-height:1.15">Super<br>Lucky</span>';
+        el.innerHTML = '<span class="super-label">Super<br>Lucky</span>';
       } else {
         var fruit = FRUITS[c.fruit];
-        el.innerHTML = '<span class="bet-tag"></span><span class="emoji">' + fruit.emoji + '</span><span class="mult">x' + c.mult + '</span>';
+        el.innerHTML =
+          '<span class="bet-tag"></span>' +
+          '<span class="emoji">' + fruit.emoji + '</span>' +
+          '<span class="mult">x' + c.mult + '</span>' +
+          '<span class="chip-stack"><i></i><i></i><i></i></span>';
         el.addEventListener('click', function () { addBet(i); });
       }
       grid.appendChild(el);
       cellEls.push(el);
     });
-  }
-
-  function buildDots() {
-    var wrap = document.getElementById('dots');
-    wrap.innerHTML = '';
-    dotEls = [];
-    for (var i = 0; i < RING_UI.length; i++) {
-      var d = document.createElement('span');
-      wrap.appendChild(d);
-      dotEls.push(d);
-    }
+    var marquee = document.getElementById('marquee');
+    if (marquee) placeMarqueeBulbs(marquee);
   }
 
   function buildChips() {
@@ -493,12 +669,19 @@
       el.classList.toggle('has-bet', amount > 0);
       var tag = el.querySelector('.bet-tag');
       if (tag) tag.textContent = amount > 0 ? fmt(amount) : '';
+      var stack = el.querySelector('.chip-stack');
+      if (stack) {
+        var chips = stack.querySelectorAll('i');
+        var show = amount <= 0 ? 0 : amount < currentChip() * 2 ? 1 : amount < currentChip() * 4 ? 2 : 3;
+        for (var ci = 0; ci < chips.length; ci++) {
+          chips[ci].style.display = ci < show ? 'block' : 'none';
+        }
+      }
     });
   }
 
   function clearActive() {
     cellEls.forEach(function (el) { el.classList.remove('is-active', 'is-win'); });
-    dotEls.forEach(function (d) { d.classList.remove('on'); });
   }
 
   function startOrbit() {
@@ -508,7 +691,6 @@
       clearActive();
       var uiIdx = RING_UI[orbitPos % RING_UI.length];
       if (cellEls[uiIdx]) cellEls[uiIdx].classList.add('is-active');
-      if (dotEls[orbitPos % dotEls.length]) dotEls[orbitPos % dotEls.length].classList.add('on');
       orbitPos = (orbitPos + 1) % RING_UI.length;
     }, 180);
   }
@@ -556,24 +738,39 @@
       var ringPos = step % RING_UI.length;
       var uiIdx = RING_UI[ringPos];
       if (cellEls[uiIdx]) cellEls[uiIdx].classList.add('is-active');
-      if (dotEls[ringPos]) dotEls[ringPos].classList.add('on');
       step++;
       if (step >= stopAt) {
         clearInterval(interval);
         clearActive();
         if (cellEls[landUi]) cellEls[landUi].classList.add('is-win');
-        var ri = RING_UI.indexOf(landUi);
-        if (ri >= 0 && dotEls[ri]) dotEls[ri].classList.add('on');
-        orbitPos = (ri >= 0 ? ri : 0) + 1;
+        orbitPos = (RING_UI.indexOf(landUi) >= 0 ? RING_UI.indexOf(landUi) : 0) + 1;
         done(landBackend);
       }
     }, 90);
+  }
+
+  function burstConfetti() {
+    var root = document.getElementById('confetti');
+    root.innerHTML = '';
+    var colors = ['#fde68a', '#f59e0b', '#22c55e', '#3b82f6', '#ef4444', '#a855f7', '#fff'];
+    for (var i = 0; i < 36; i++) {
+      var bit = document.createElement('i');
+      bit.style.left = Math.random() * 100 + '%';
+      bit.style.background = colors[i % colors.length];
+      bit.style.animationDelay = (Math.random() * 0.4) + 's';
+      bit.style.animationDuration = (1.8 + Math.random() * 1.2) + 's';
+      root.appendChild(bit);
+    }
+    setTimeout(function () { root.innerHTML = ''; }, 3200);
   }
 
   function showWinOverlay(data, wager) {
     var winning = fruitDisplay(data.winning_fruit || {});
     var payout = Number(data.payout || 0);
     var didWin = payout > 0;
+    var mask = document.getElementById('winMask');
+    mask.classList.toggle('is-win', didWin);
+    mask.classList.toggle('is-lose', !didWin);
     document.getElementById('winEmoji').textContent = winning.emoji || '🎰';
     document.getElementById('winBanner').textContent = didWin ? 'YOU WON!' : 'NOT THIS TIME';
     document.getElementById('winBanner').className = 'win-banner ' + (didWin ? 'yes' : 'no');
@@ -583,7 +780,7 @@
     document.getElementById('winPrize').textContent = didWin
       ? ('+' + fmt(payout) + ' coins')
       : ('Wager ' + fmt(wager) + ' lost');
-    var mask = document.getElementById('winMask');
+    if (didWin) burstConfetti();
     mask.classList.add('open');
     var sec = 4;
     var nextEl = document.getElementById('winNext');
@@ -593,7 +790,7 @@
       nextEl.textContent = sec > 0 ? ('Next round in ' + sec + 's') : '';
       if (sec <= 0) {
         clearInterval(t);
-        mask.classList.remove('open');
+        mask.classList.remove('open', 'is-win', 'is-lose');
         resetRound();
       }
     }, 1000);
@@ -716,6 +913,12 @@
   document.getElementById('btnHow').addEventListener('click', function () { openPanel('howMask'); });
   document.getElementById('btnRank').addEventListener('click', function () { openPanel('rankMask'); loadPanels(); });
   document.getElementById('btnRecords').addEventListener('click', function () { openPanel('historyMask'); loadPanels(); });
+  document.getElementById('btnSound').addEventListener('click', function () {
+    soundOn = !soundOn;
+    var btn = document.getElementById('btnSound');
+    btn.textContent = soundOn ? '🔊' : '🔇';
+    btn.classList.toggle('muted', !soundOn);
+  });
   document.querySelectorAll('[data-close]').forEach(function (btn) {
     btn.addEventListener('click', function () { closePanel(btn.getAttribute('data-close')); });
   });
@@ -724,7 +927,6 @@
   });
 
   buildGrid();
-  buildDots();
   buildChips();
   startOrbit();
   resetRound();

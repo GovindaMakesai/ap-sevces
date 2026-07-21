@@ -21,8 +21,17 @@ import * as WebBrowser from 'expo-web-browser';
 import * as ScreenCapture from 'expo-screen-capture';
 import { getMobileDashboardInjectScript } from './injectedMobileFix';
 
-/** Live/party voice must use the loudspeaker — mic permission often routes Android to earpiece. */
-async function forceSpeakerAudioMode() {
+/**
+ * Native audio session only when the user is publishing mic.
+ * Audience must NOT call expo-av — on some Androids it steals focus (kills YouTube)
+ * and leaves WebView Agora "playing" with zero audible output.
+ * Host/mic: force loudspeaker so Android does not route to earpiece.
+ */
+async function forceSpeakerAudioMode(opts = {}) {
+  const recording = opts.recording === true;
+  if (!recording) {
+    return;
+  }
   try {
     await Audio.setAudioModeAsync({
       allowsRecordingIOS: true,
@@ -114,7 +123,7 @@ const STATUS_BAR_INSET =
   Platform.OS === 'android'
     ? RNStatusBar.currentHeight || Constants.statusBarHeight || 28
     : Constants.statusBarHeight || 28;
-/** Runs before page paint ΓÇö native shell + blocks legacy login redirect loop */
+/** Runs before page paint — native shell + blocks legacy login redirect loop */
 const PRODUCTION_API = apiConfig.API_URL;
 const LAN_DEV_LOCKED = __DEV__ && String(process.env.EXPO_PUBLIC_USE_LAN_WEB) === '1';
 const IS_STANDALONE_APP = Constants.appOwnership === 'standalone';
@@ -508,7 +517,7 @@ export default function App() {
   const nativeSessionRef = useRef(null);
   const oauthCompleteRef = useRef(false);
   const screenCaptureBlockedRef = useRef(false);
-  /** WebView source is set once ΓÇö post-login navigation uses injectJavaScript only */
+  /** WebView source is set once — post-login navigation uses injectJavaScript only */
   const webSourceUriRef = useRef('');
 
   const lockLiveScreenCapture = useCallback(async (force = false) => {
@@ -549,7 +558,7 @@ export default function App() {
     console.log('[ap-services-app] OAuth return URL:', APP_RETURN_URL);
     console.log('[ap-services-app] Mode:', isDevLocal ? 'LAN dev' : 'LIVE (HTTPS)');
     if (isDevLocal) {
-      console.log('[ap-services-app] LAN dev ΓÇö phone must be on same Wi-Fi; use npm start for live HTTPS');
+      console.log('[ap-services-app] LAN dev — phone must be on same Wi-Fi; use npm start for live HTTPS');
     }
   }, [frontendBase, isDevLocal]);
 
@@ -803,7 +812,7 @@ export default function App() {
     };
 
     const subscription = Linking.addEventListener('url', handleDeepLink);
-    // Do not call getInitialURL ΓÇö it replays stale OAuth codes on every Metro reload and breaks login.
+    // Do not call getInitialURL — it replays stale OAuth codes on every Metro reload and breaks login.
 
     return () => subscription.remove();
   }, [applyOAuthCredential]);
@@ -931,13 +940,13 @@ export default function App() {
       if (nextState === 'background' || nextState === 'inactive') {
         webViewRef.current.injectJavaScript(LIVE_APP_BACKGROUND_INJECT);
       } else if (nextState === 'active') {
-        forceSpeakerAudioMode().catch(() => {});
-        webViewRef.current.injectJavaScript(LIVE_APP_FOREGROUND_INJECT);
-        /* Re-lock screenshots on live/party after resume (Android may drop FLAG_SECURE) */
         const url = webViewCurrentUrlRef.current || '';
+        /* Only reclaim audio on live/party — never on explore (stops YouTube for no reason). */
         if (isLiveCaptureUrl(url)) {
+          forceSpeakerAudioMode({ recording: false }).catch(() => {});
           lockLiveScreenCapture(true);
         }
+        webViewRef.current.injectJavaScript(LIVE_APP_FOREGROUND_INJECT);
       }
     };
     const sub = AppState.addEventListener('change', onAppStateChange);
@@ -945,8 +954,8 @@ export default function App() {
   }, [lockLiveScreenCapture]);
 
   useEffect(() => {
-    forceSpeakerAudioMode().catch(() => {});
-    /* Don't request mic on every launch — that pushes Android into earpiece/call audio mode. */
+    /* Do NOT force audio mode on cold start — that steals YouTube/media focus
+       before any live audio is playing (silent app, other media killed). */
     requestAndroidMediaPermissions({ microphone: false }).catch(() => {});
   }, []);
 
@@ -1050,18 +1059,19 @@ export default function App() {
         }
         if (data.type === 'request_media_permissions') {
           (async () => {
-            await forceSpeakerAudioMode();
+            const needMic = data.microphone !== false;
+            await forceSpeakerAudioMode({ recording: needMic });
             const result = await requestAndroidMediaPermissions({
-              microphone: data.microphone !== false,
+              microphone: needMic,
             });
             /* Keep loudspeaker after mic grant — otherwise live voice goes to earpiece. */
-            await forceSpeakerAudioMode();
+            await forceSpeakerAudioMode({ recording: needMic });
             webViewRef.current?.injectJavaScript(buildMediaPermissionResultScript(result));
           })();
           return;
         }
         if (data.type === 'force_speaker_audio') {
-          forceSpeakerAudioMode().catch(() => {});
+          forceSpeakerAudioMode({ recording: data.recording === true }).catch(() => {});
           return;
         }
         if (data.type === 'share') {
@@ -1248,14 +1258,15 @@ export default function App() {
           const url = e?.nativeEvent?.url || '';
           injectMobileLayout(url);
           syncScreenCaptureForUrl(url);
-          if (isLiveCaptureUrl(url)) forceSpeakerAudioMode().catch(() => {});
+          /* Audience mode until Web asks for mic — keeps WebRTC audible on more Androids. */
+          if (isLiveCaptureUrl(url)) forceSpeakerAudioMode({ recording: false }).catch(() => {});
         }}
         onNavigationStateChange={(nav) => {
           const url = nav?.url || '';
           if (url) webViewCurrentUrlRef.current = url;
           webViewCanGoBackRef.current = Boolean(nav?.canGoBack);
           syncScreenCaptureForUrl(url);
-          if (isLiveCaptureUrl(url)) forceSpeakerAudioMode().catch(() => {});
+          if (isLiveCaptureUrl(url)) forceSpeakerAudioMode({ recording: false }).catch(() => {});
           if (url.includes('explore.html') || url.includes('dashboard')) {
             oauthCompleteRef.current = true;
             setLoadError('');

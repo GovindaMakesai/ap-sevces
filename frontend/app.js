@@ -1633,7 +1633,7 @@ const UI = {
             if (isMobileLayout()) {
                 ensureToggle();
                 sidebar.classList.add('dashboard-sidebar--mobile');
-                /* Keep menu usable on first paint ΓÇö user can collapse via toggle */
+                /* Keep menu usable on first paint — user can collapse via toggle */
                 if (toggleBtn && !sidebar.dataset.navTouched) {
                     setNavOpen(true);
                 }

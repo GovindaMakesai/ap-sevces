@@ -1,4 +1,4 @@
-// backend/server.js ΓÇö AP Services production entry
+// backend/server.js — AP Services production entry
 
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });

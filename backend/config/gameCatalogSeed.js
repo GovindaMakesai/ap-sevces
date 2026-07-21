@@ -59,14 +59,17 @@ function buildGameSeedRows() {
     },
     {
       slug: 'teen-patti',
-      name: 'Teen Patti',
+      name: 'Royal Battle',
       emoji: '??',
       html_path: '/games/teen-patti.html',
       category: 'cards',
       min_bet: 10,
-      max_bet: 50000,
+      max_bet: 5000000,
       sort_order: 6,
-      metadata: { gradient: 'linear-gradient(135deg,#8b5cf6,#4c1d95)', subtitle: 'Trail ? Sequence ? Color ? Pair' },
+      metadata: {
+        gradient: 'linear-gradient(135deg,#1e3a8a,#4c1d95)',
+        subtitle: 'King vs Queen · Teen Patti',
+      },
     },
   ];
 }

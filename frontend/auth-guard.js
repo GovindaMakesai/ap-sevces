@@ -1,5 +1,5 @@
 ﻿/**
- * Native app auth ΓÇö Welcome first; app pages need a saved token.
+ * Native app auth — Welcome first; app pages need a saved token.
  */
 (function () {
   const AUTH_PAGES = ['/app-auth.html', '/login.html', '/register.html', '/login-success.html'];

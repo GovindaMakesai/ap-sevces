@@ -1,6 +1,7 @@
 const db = require('../config/database');
 const walletService = require('./walletService');
 const gameEngine = require('./gameEngine');
+const coinSellerService = require('./coinSellerService');
 
 function mapCatalogRow(row) {
   if (!row) return null;
@@ -43,6 +44,8 @@ function mapRoundRow(row) {
     created_at: row.created_at,
     selected_bets: bets,
     winning_fruit: result.winning_fruit || null,
+    winner_side: result.winner_side || null,
+    winning_category: result.winning_category || null,
     display_name: row.display_name,
     display_id: row.display_id,
   };
@@ -103,19 +106,21 @@ async function playRound(userId, slug, { bet_amount: betAmount, pick = {} } = {}
     );
     const round = roundRes.rows[0];
 
-    const debit = await walletService.debitCoins(
+    const debit = await coinSellerService.debitGameSpend(
       userId,
       totalBet,
       { type: 'game_bet', reference_type: 'game_round', reference_id: round.id, metadata: { game_slug: slug, pick } },
       client
     );
 
-    let balance = debit.balance;
+    let balance = Number(debit.play_balance != null ? debit.play_balance : debit.balance);
     let creditTxId = null;
+    const playSource = debit.play_source || (debit.from_gift_inventory > 0 ? 'gift_inventory' : 'wallet');
     if (resolved.payout > 0) {
-      const credit = await walletService.creditCoins(
+      const credit = await coinSellerService.creditGameWin(
         userId,
         resolved.payout,
+        playSource,
         {
           type: 'game_win',
           reference_type: 'game_round',
@@ -124,11 +129,15 @@ async function playRound(userId, slug, { bet_amount: betAmount, pick = {} } = {}
         },
         client
       );
-      creditTxId = credit.transaction.id;
-      balance = credit.balance;
+      creditTxId = credit.transaction?.id || null;
+      balance = Number(credit.play_balance != null ? credit.play_balance : credit.balance);
     }
 
-    await client.query(`UPDATE game_rounds SET debit_tx_id = $2, credit_tx_id = $3 WHERE id = $1`, [round.id, debit.transaction.id, creditTxId]);
+    await client.query(`UPDATE game_rounds SET debit_tx_id = $2, credit_tx_id = $3 WHERE id = $1`, [
+      round.id,
+      debit.transaction?.id || null,
+      creditTxId,
+    ]);
     await client.query('COMMIT');
 
     return {
@@ -141,6 +150,7 @@ async function playRound(userId, slug, { bet_amount: betAmount, pick = {} } = {}
       win: !!resolved.win,
       outcome: resolved.outcome,
       balance,
+      play_source: playSource,
       animation: resolved.animation,
       winning_fruit: resolved.winning_fruit || null,
       winIdx: resolved.prizeIdx != null ? resolved.prizeIdx : undefined,
@@ -151,7 +161,10 @@ async function playRound(userId, slug, { bet_amount: betAmount, pick = {} } = {}
   } catch (err) {
     await db.safeRollback(client);
     if (err.code === 'INSUFFICIENT_BALANCE') {
-      throw Object.assign(new Error('Insufficient coin balance'), { status: 400, code: 'INSUFFICIENT_BALANCE' });
+      const msg = err.message && /gift coin/i.test(err.message)
+        ? err.message
+        : 'Insufficient coin balance';
+      throw Object.assign(new Error(msg), { status: 400, code: 'INSUFFICIENT_BALANCE' });
     }
     throw err;
   } finally {

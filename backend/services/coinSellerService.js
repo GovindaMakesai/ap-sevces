@@ -660,7 +660,7 @@ async function debitGiftSpend(userId, amount, meta = {}, client) {
     const roleRes = await c.query(`SELECT role FROM users WHERE id = $1`, [userId]);
     const role = String(roleRes.rows[0]?.role || '');
     const profileRes = await c.query(
-      `SELECT gift_inventory_coins, is_active FROM coin_seller_profiles WHERE user_id = $1 FOR UPDATE`,
+      `SELECT gift_inventory_coins, inventory_coins, is_active FROM coin_seller_profiles WHERE user_id = $1 FOR UPDATE`,
       [userId]
     );
     const profile = profileRes.rows[0];
@@ -685,9 +685,10 @@ async function debitGiftSpend(userId, amount, meta = {}, client) {
          WHERE user_id = $1`,
         [userId, amt]
       );
-      await c.query(
+      const tx = await c.query(
         `INSERT INTO wallet_transactions (user_id, type, amount, currency_type, reference_type, reference_id, status, metadata)
-         VALUES ($1, $2, $3, 'coin', $4, $5, 'completed', $6)`,
+         VALUES ($1, $2, $3, 'coin', $4, $5, 'completed', $6)
+         RETURNING id`,
         [
           userId,
           meta.type || 'gift_sent',
@@ -709,6 +710,9 @@ async function debitGiftSpend(userId, amount, meta = {}, client) {
         from_gift_inventory: amt,
         from_wallet: 0,
         coin_balance: Number(wallet.coin_balance),
+        play_source: 'gift_inventory',
+        play_balance: giftAvail - amt,
+        transaction: tx.rows[0],
       };
     }
 
@@ -731,6 +735,9 @@ async function debitGiftSpend(userId, amount, meta = {}, client) {
       from_gift_inventory: 0,
       from_wallet: amt,
       coin_balance: Number(walletResult.balance),
+      play_source: 'wallet',
+      play_balance: Number(walletResult.balance),
+      transaction: walletResult.transaction,
     };
   };
 
@@ -747,6 +754,148 @@ async function debitGiftSpend(userId, amount, meta = {}, client) {
   } finally {
     c.release();
   }
+}
+
+/**
+ * Game spend: same pools as gifting.
+ * - Coin sellers / gift-inventory users: gift_inventory_coins ONLY
+ * - Everyone else: wallet coin_balance (simple coins)
+ */
+async function debitGameSpend(userId, amount, meta = {}, client) {
+  try {
+    return await debitGiftSpend(
+      userId,
+      amount,
+      {
+        ...meta,
+        type: meta.type || 'game_bet',
+        reference_type: meta.reference_type || 'game_round',
+        metadata: { ...(meta.metadata || {}), purpose: 'game_bet' },
+      },
+      client
+    );
+  } catch (err) {
+    if (err.code === 'INSUFFICIENT_BALANCE' && /gift coin/i.test(String(err.message || ''))) {
+      err.message = String(err.message).replace(/gifts\.?$/i, 'games play.').replace(
+        /Sell coins cannot be used for gifts\./i,
+        'Sell coins cannot be used for games — exchange sell coins → gift coins in Seller Center.'
+      );
+    }
+    throw err;
+  }
+}
+
+/**
+ * Credit game wins back into the same pool that was debited.
+ * @param {'gift_inventory'|'wallet'} source
+ */
+async function creditGameWin(userId, amount, source, meta = {}, client) {
+  const amt = parseInt(amount, 10);
+  if (!amt || amt <= 0) {
+    const wallet = await walletService.getOrCreateWallet(userId, client);
+    return {
+      balance: Number(wallet.coin_balance),
+      gift_inventory_coins: 0,
+      play_source: source || 'wallet',
+      play_balance: Number(wallet.coin_balance),
+      transaction: { id: null },
+    };
+  }
+
+  const run = async (c) => {
+    if (source === 'gift_inventory') {
+      const profileRes = await c.query(
+        `SELECT gift_inventory_coins FROM coin_seller_profiles WHERE user_id = $1 FOR UPDATE`,
+        [userId]
+      );
+      if (!profileRes.rows[0]) {
+        throw new Error('Gift inventory profile not found for game win credit');
+      }
+      const before = Number(profileRes.rows[0].gift_inventory_coins || 0);
+      await c.query(
+        `UPDATE coin_seller_profiles
+         SET gift_inventory_coins = gift_inventory_coins + $2, updated_at = CURRENT_TIMESTAMP
+         WHERE user_id = $1`,
+        [userId, amt]
+      );
+      const tx = await c.query(
+        `INSERT INTO wallet_transactions (user_id, type, amount, currency_type, reference_type, reference_id, status, metadata)
+         VALUES ($1, $2, $3, 'coin', $4, $5, 'completed', $6)
+         RETURNING id`,
+        [
+          userId,
+          meta.type || 'game_win',
+          amt.toString(),
+          meta.reference_type || 'game_round',
+          meta.reference_id || null,
+          JSON.stringify({
+            ...(meta.metadata || {}),
+            to_gift_inventory: amt,
+            to_wallet: 0,
+            source: 'gift_inventory',
+          }),
+        ]
+      );
+      const wallet = await walletService.getOrCreateWallet(userId, c);
+      return {
+        balance: Number(wallet.coin_balance),
+        gift_inventory_coins: before + amt,
+        play_source: 'gift_inventory',
+        play_balance: before + amt,
+        transaction: tx.rows[0],
+      };
+    }
+
+    const credited = await walletService.creditCoins(userId, amt, meta, c);
+    return {
+      balance: Number(credited.balance),
+      gift_inventory_coins: 0,
+      play_source: 'wallet',
+      play_balance: Number(credited.balance),
+      transaction: credited.transaction,
+    };
+  };
+
+  if (client) return run(client);
+  const c = await db.pool.connect();
+  try {
+    await c.query('BEGIN');
+    const result = await run(c);
+    await c.query('COMMIT');
+    return result;
+  } catch (e) {
+    await db.safeRollback(c);
+    throw e;
+  } finally {
+    c.release();
+  }
+}
+
+/** Resolve which balance games should display for this user. */
+async function getGamePlayBalance(userId) {
+  const roleRes = await db.query(`SELECT role FROM users WHERE id = $1`, [userId]);
+  const role = String(roleRes.rows[0]?.role || '');
+  const profile = await getProfile(userId);
+  const useGiftInventory =
+    role === 'coin_seller' ||
+    !!(profile && profile.is_active) ||
+    (['admin', 'super_admin', 'founder', 'ceo'].includes(role) && !!profile?.is_active);
+
+  if (useGiftInventory && profile) {
+    return {
+      play_source: 'gift_inventory',
+      play_balance: Number(profile.gift_inventory_coins || 0),
+      coin_balance: 0,
+      gift_inventory_coins: Number(profile.gift_inventory_coins || 0),
+    };
+  }
+  const wallet = await walletService.getBalance(userId);
+  return {
+    play_source: 'wallet',
+    play_balance: Number(wallet.coin_balance || 0),
+    coin_balance: Number(wallet.coin_balance || 0),
+    gift_inventory_coins: 0,
+  };
 }
 
 async function applyRecharge(sellerId, { packageCoins, paymentChannel }) {
@@ -969,6 +1118,9 @@ module.exports = {
   exchangeSellerCoins,
   exchangeBeans,
   debitGiftSpend,
+  debitGameSpend,
+  creditGameWin,
+  getGamePlayBalance,
   applyRecharge,
   createPendingSellerRecharge,
   listSellerRecharges,
