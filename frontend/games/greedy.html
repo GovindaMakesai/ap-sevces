@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <title>Greedy</title>
+  <title>Krazy Khazana · Greedy</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { min-height:100vh; background:linear-gradient(180deg,#5b21b6 0%,#7c3aed 30%,#6d28d9 60%,#4c1d95 100%); color:#fff; font-family:'Segoe UI',system-ui,-apple-system,sans-serif; overflow-x:hidden; display:flex; flex-direction:column; align-items:center; }
@@ -124,7 +124,7 @@
 <body>
   <div class="game-wrap">
     <div class="top-icons">
-      <span class="title">Greedy</span>
+      <span class="title">Krazy Khazana</span>
       <div class="icons">
         <button class="icon-btn" id="btnSettings" title="Settings">⚙️</button>
         <button class="icon-btn" id="btnRecords" title="Records">🏆</button>
@@ -212,22 +212,9 @@
     { fruit: 6, mult: 5 },
     { fruit: 7, mult: 5 }
   ];
-  var CELLS = [
-    { type: 'fruit', fruit: 0, mult: 5 },
-    { type: 'fruit', fruit: 1, mult: 5 },
-    { type: 'fruit', fruit: 2, mult: 5 },
-    { type: 'fruit', fruit: 3, mult: 5 },
-    { type: 'side', label: 'Lucky' },
-    { type: 'center' },
-    { type: 'center' },
-    { type: 'side', label: 'Super' },
-    { type: 'fruit', fruit: 4, mult: 45 },
-    { type: 'fruit', fruit: 5, mult: 25 },
-    { type: 'fruit', fruit: 6, mult: 15 },
-    { type: 'fruit', fruit: 7, mult: 10 }
-  ];
-  var FRUIT_CELLS = [0, 1, 2, 3, 8, 9, 10, 11];
-  var RING = [0, 1, 2, 3, 7, 11, 10, 9, 8, 4];
+  var CELLS = TILE_DATA.map(function (t) { return { type: 'fruit', fruit: t.fruit, mult: t.mult }; });
+  var FRUIT_CELLS = [0, 1, 2, 3, 4, 5, 6, 7];
+  var RING = [0, 1, 2, 3, 4, 5, 6, 7];
   var BET_AMOUNTS = [100, 500, 1000, 10000, 100000];
   var BET_LABELS = ['100', '500', '1K', '10K', '100K'];
   var BET_CLASSES = ['chip-100', 'chip-500', 'chip-1k', 'chip-10k', 'chip-100k'];
@@ -431,7 +418,7 @@
   }
 
   function mapTileToCell(tileIdx) {
-    return FRUIT_CELLS[tileIdx];
+    return tileIdx;
   }
 
   /* ─── Orbit animation ─── */

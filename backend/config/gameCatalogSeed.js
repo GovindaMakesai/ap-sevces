@@ -45,7 +45,7 @@ function buildGameSeedRows() {
       min_bet: 100,
       max_bet: 500000,
       sort_order: 4,
-      metadata: { gradient: 'linear-gradient(135deg,#f97316,#9a3412)', subtitle: 'Pick the prize gem' },
+      metadata: { gradient: 'linear-gradient(135deg,#7c3aed,#4c1d95)', subtitle: 'Krazy Khazana gem wheel' },
     },
     {
       slug: 'card-war',
