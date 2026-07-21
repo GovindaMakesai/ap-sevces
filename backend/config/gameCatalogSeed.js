@@ -6,17 +6,18 @@ function buildGameSeedRows() {
     {
       slug: 'crazy-fruit',
       name: 'Crazy Fruit',
-      emoji: '??',
+      emoji: '\u{1F352}',
       html_path: '/games/crazy-fruit.html',
       category: 'slots',
       min_bet: 100,
       max_bet: 5000000,
+      sort_order: 1,
       metadata: { gradient: 'linear-gradient(135deg,#f59e0b,#b45309)', subtitle: 'Multi-bet fruit machine' },
     },
     {
       slug: 'food-roulette',
       name: 'Food Roulette',
-      emoji: '??',
+      emoji: '\u{1F355}',
       html_path: '/games/food-roulette.html',
       category: 'wheel',
       min_bet: 10,
@@ -27,7 +28,7 @@ function buildGameSeedRows() {
     {
       slug: 'roulette',
       name: 'Roulette',
-      emoji: '??',
+      emoji: '\u{1F3A1}',
       html_path: '/games/roulette.html',
       category: 'casino',
       min_bet: 10,
@@ -38,7 +39,7 @@ function buildGameSeedRows() {
     {
       slug: 'greedy',
       name: 'Greedy',
-      emoji: '??',
+      emoji: '\u{1F48E}',
       html_path: '/games/greedy.html',
       category: 'casino',
       min_bet: 100,
@@ -49,7 +50,7 @@ function buildGameSeedRows() {
     {
       slug: 'card-war',
       name: 'Card War',
-      emoji: '??',
+      emoji: '\u{1F0CF}',
       html_path: '/games/card-war.html',
       category: 'cards',
       min_bet: 10,
@@ -60,7 +61,7 @@ function buildGameSeedRows() {
     {
       slug: 'teen-patti',
       name: 'Royal Battle',
-      emoji: '??',
+      emoji: '\u{1F451}',
       html_path: '/games/teen-patti.html',
       category: 'cards',
       min_bet: 10,

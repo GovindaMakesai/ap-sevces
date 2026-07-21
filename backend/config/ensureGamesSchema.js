@@ -27,7 +27,7 @@ async function seedGameCatalog() {
         g.category,
         g.min_bet,
         g.max_bet,
-        g.sort_order,
+        g.sort_order != null ? g.sort_order : 0,
         JSON.stringify(g.metadata || {}),
       ]
     );
