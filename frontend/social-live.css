@@ -379,6 +379,14 @@ html.ap-secure-live .party-room-stage {
   touch-action: manipulation;
 }
 
+/* Temporarily hide Invite Friends feature across live/party rooms */
+#partyInvitePill,
+.party-invite-row {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
 #liveBtnGift,
 #partyBtnGift,
 .party-btn-gift.ap-btn-gift-hero,

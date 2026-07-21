@@ -5,6 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#ff8a3d">
   <title>Invite - AP Services</title>
+  <script>
+    /* Invite Friends is temporarily disabled for all users */
+    (function () {
+      var q = window.location.search || '';
+      var target = '/profile-tab.html' + (q.indexOf('app=1') >= 0 || /(?:^|[?&])app=1(?:&|$)/.test(q) ? '?app=1' : '');
+      window.location.replace(target);
+    })();
+  </script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-theme.css">
   <link rel="stylesheet" href="referral.css?v=20260716-help-visible">

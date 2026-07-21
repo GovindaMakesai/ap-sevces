@@ -1,8 +1,12 @@
 /**
  * After login/session restore, bind invitee → inviter once (code or display ID).
+ * Invite Friends is temporarily disabled — keep hooks no-op so deep links do nothing visible.
  */
 (function () {
+  const INVITE_FEATURE_ENABLED = false;
+
   async function tryApplyPendingReferral() {
+    if (!INVITE_FEATURE_ENABLED) return;
     const code = localStorage.getItem('ap_pending_ref');
     if (!code) return;
     if (!window.API?.request) return;
@@ -38,6 +42,7 @@
   }
 
   function captureRefFromUrl() {
+    if (!INVITE_FEATURE_ENABLED) return null;
     try {
       const params = new URLSearchParams(location.search);
       const ref =
@@ -58,6 +63,7 @@
   });
 
   async function tryRevalidateReferral() {
+    if (!INVITE_FEATURE_ENABLED) return;
     if (!window.API?.request) return;
     const user =
       window.Auth?.getUser?.() ||

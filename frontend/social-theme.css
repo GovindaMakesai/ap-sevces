@@ -2896,6 +2896,12 @@ html.social-app .social-profile-page .social-wallet-btn:active {
   color: #ff7a3d;
 }
 
+/* Temporarily hide Invite Friends from Me tab */
+.social-menu-item--invite,
+#inviteFriendsLink {
+  display: none !important;
+}
+
 .social-menu-item .chevron {
   color: #ccc;
 }

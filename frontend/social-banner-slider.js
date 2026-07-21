@@ -10,12 +10,6 @@
       html: '<p>Enjoy the Event and win <span class="coin">🪙</span> 268,710,000</p><p class="social-banner-date">16/05/2026 - 22/05/2026 (UTC+8)</p>',
     },
     {
-      className: 'social-banner--invite',
-      title: 'Invite Friends',
-      html: '<p>Up to <span class="coin">🪙</span> 10k / invite</p>',
-      center: true,
-    },
-    {
       className: 'social-banner--party',
       title: 'Live Party Tonight',
       html: '<p>Join rooms, send gifts &amp; climb rankings</p>',
