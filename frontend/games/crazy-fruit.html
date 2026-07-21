@@ -652,7 +652,7 @@
       spinning = false;
       roundLocked = false;
       setStatus(err.message || 'Play failed');
-      setTimeout(function () { if (!countdownTimer) resetRound(); }, 1400);
+      setTimeout(resetRound, 1600);
     });
   }
 

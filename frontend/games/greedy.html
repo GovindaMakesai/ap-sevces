@@ -463,17 +463,18 @@
     spinning = false;
     updateTimer();
     renderTiles();
-    if (countdownTimer) clearInterval(countdownTimer);
+    if (countdownTimer) {
+      clearInterval(countdownTimer);
+      countdownTimer = null;
+    }
     countdownTimer = setInterval(function () {
       if (spinning) return;
       countdown--;
-      if (countdown <= 7 && countdown > 0 && !roundLocked) {
-        updateTimer();
-      } else if (countdown <= 0) {
+      updateTimer();
+      if (countdown <= 0) {
         clearInterval(countdownTimer);
+        countdownTimer = null;
         finalizeRound();
-      } else {
-        updateTimer();
       }
     }, 1000);
   }
@@ -482,27 +483,34 @@
     spinning = true;
     setWaiting();
     var steps = Number(anim.totalSteps || 48);
-    var target = Number(anim.landRingIdx || 0);
-    var current = orbitPos;
-    var stopAt = current + steps + ((target - (current % RING.length) + RING.length) % RING.length);
+    var target = Number(anim.landRingIdx);
+    if (!Number.isFinite(target)) target = Number(anim.landCellIdx) || 0;
+    target = ((target % RING.length) + RING.length) % RING.length;
+    var current = orbitPos % RING.length;
+    var stopAt = current + steps + ((target - current + RING.length) % RING.length);
     var step = current;
-    var speed = 80;
-    var interval = setInterval(function () {
+
+    function tick() {
       clearActive();
       var tIdx = step % tileEls.length;
-      tileEls[tIdx].classList.add('is-active');
+      if (tileEls[tIdx]) tileEls[tIdx].classList.add('is-active');
       step++;
-      if (step >= stopAt - 8) speed = 145;
       if (step >= stopAt) {
-        clearInterval(interval);
         clearActive();
         var landCellIdx = Number(anim.landCellIdx);
+        if (!Number.isFinite(landCellIdx)) landCellIdx = target;
         var tileMatch = FRUIT_CELLS.indexOf(landCellIdx);
+        if (tileMatch < 0) tileMatch = landCellIdx;
         if (tileMatch >= 0 && tileEls[tileMatch]) tileEls[tileMatch].classList.add('is-win');
         orbitPos = (tileMatch >= 0 ? tileMatch : 0) + 1;
+        spinning = false;
         done(landCellIdx);
+        return;
       }
-    }, speed);
+      var delay = step >= stopAt - 8 ? 140 : 70;
+      setTimeout(tick, delay);
+    }
+    tick();
   }
 
   function spawnConfetti() {
@@ -567,12 +575,21 @@
       setTimeout(resetRound, 1200);
       return;
     }
-    setWaiting();
     var wagerTotal = totalBet();
-    makeRequest('GAME_PLAY', { pick: { bets: rows } }).then(function (data) {
-      animateFinalSpin(data.animation || {}, function (landCellIdx) {
+    if (wagerTotal > coins) {
+      setWaiting();
+      spinning = false;
+      roundLocked = false;
+      updateTimer();
+      document.getElementById('timerLabel').textContent = 'Not enough coins';
+      setTimeout(resetRound, 1600);
+      return;
+    }
+    setWaiting();
+    makeRequest('GAME_PLAY', { bet_amount: wagerTotal, pick: { bets: rows } }).then(function (data) {
+      animateFinalSpin(data.animation || { landCellIdx: data.winIdx || 0, landRingIdx: data.winIdx || 0, totalSteps: 40 }, function () {
         var winning = fruitDisplay(data.winning_fruit || {});
-        coins = Number(data.balance || coins);
+        coins = Number(data.balance != null ? data.balance : coins);
         updateCoins();
 
         if (winning.emoji) {
@@ -586,7 +603,11 @@
     }).catch(function (err) {
       spinning = false;
       roundLocked = false;
-      setTimeout(function () { if (!countdownTimer) resetRound(); }, 1400);
+      var msg = (err && err.message) ? err.message : 'Play failed';
+      document.getElementById('timerLabel').textContent = 'Error';
+      document.getElementById('timerNum').textContent = msg.length > 18 ? 'failed' : msg;
+      document.getElementById('centerTimer').classList.remove('waiting');
+      setTimeout(resetRound, 1800);
     });
   }
 

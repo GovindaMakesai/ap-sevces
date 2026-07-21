@@ -10,8 +10,7 @@ function buildGameSeedRows() {
       html_path: '/games/crazy-fruit.html',
       category: 'slots',
       min_bet: 100,
-      max_bet: 500000,
-      sort_order: 1,
+      max_bet: 5000000,
       metadata: { gradient: 'linear-gradient(135deg,#f59e0b,#b45309)', subtitle: 'Multi-bet fruit machine' },
     },
     {
@@ -43,7 +42,7 @@ function buildGameSeedRows() {
       html_path: '/games/greedy.html',
       category: 'casino',
       min_bet: 100,
-      max_bet: 500000,
+      max_bet: 5000000,
       sort_order: 4,
       metadata: { gradient: 'linear-gradient(135deg,#7c3aed,#4c1d95)', subtitle: 'Krazy Khazana gem wheel' },
     },
@@ -67,7 +66,7 @@ function buildGameSeedRows() {
       min_bet: 10,
       max_bet: 50000,
       sort_order: 6,
-      metadata: { gradient: 'linear-gradient(135deg,#8b5cf6,#4c1d95)', subtitle: 'Trail · Sequence · Color · Pair' },
+      metadata: { gradient: 'linear-gradient(135deg,#8b5cf6,#4c1d95)', subtitle: 'Trail ? Sequence ? Color ? Pair' },
     },
   ];
 }
