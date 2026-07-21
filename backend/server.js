@@ -26,6 +26,7 @@ const { ensureLiveUserAnalyticsSchema } = require('./config/ensureLiveUserAnalyt
 const { ensureBdHierarchySchema } = require('./config/ensureBdHierarchySchema');
 const { ensurePartyModerationSchema } = require('./config/ensurePartyModerationSchema');
 const { ensureWithdrawalQrSchema } = require('./config/ensureWithdrawalQrSchema');
+const { ensureGamesSchema } = require('./config/ensureGamesSchema');
 const referralModule = require('./modules/referral');
 const { applySecurityMiddleware, authLimiter, walletLimiter } = require('./middleware/security');
 const webhookRoutes = require('./routes/webhooks');
@@ -64,6 +65,7 @@ const liveRoutes = require('./routes/live');
 const platformRoutes = require('./routes/platform');
 const socialRoutes = require('./routes/social');
 const storeRoutes = require('./routes/store');
+const gamesRoutes = require('./routes/games');
 const trustRoutes = require('./routes/trust');
 const filesRoutes = require('./routes/files');
 const searchRoutes = require('./routes/search');
@@ -174,6 +176,7 @@ app.use('/api/live', liveRoutes);
 app.use('/api/wallet', walletLimiter, walletRoutes);
 app.use('/api/social', socialRoutes);
 app.use('/api/store', storeRoutes);
+app.use('/api/games', gamesRoutes);
 app.use('/api/trust', trustRoutes);
 app.use('/api/files', filesRoutes);
 app.use('/api/search', searchRoutes);
@@ -261,6 +264,7 @@ async function startServer() {
     await ensureLiveUserAnalyticsSchema();
     await ensureBdHierarchySchema();
     await ensurePartyModerationSchema();
+    await ensureGamesSchema();
     const { ensureDisplayIdSchema } = require('./config/ensureDisplayIdSchema');
     await ensureDisplayIdSchema();
   }

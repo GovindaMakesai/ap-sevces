@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
@@ -104,7 +104,7 @@
   let teamProgress = 1;
   let joinRequests = [];
   let roomGiftHistory = [];
-  /** Prevent gift banner/chat from repeating 2–3× (socket + state + local finish). */
+  /** Prevent gift banner/chat from repeating 2â€“3Ã— (socket + state + local finish). */
   const recentGiftFxKeys = new Map();
   const RECENT_GIFT_FX_MS = 10000;
 
@@ -124,7 +124,7 @@
         (String(giftOrMsg.id || '').startsWith('gift-') ? giftOrMsg.id : '')
     );
     if (txId) return `id:${txId}`;
-    /* Soft key: user ids + amount — ignore emoji (🌹 vs rose) so socket/state merge */
+    /* Soft key: user ids + amount â€” ignore emoji (ðŸŒ¹ vs rose) so socket/state merge */
     const from = String(g.fromUserId || g.senderId || giftOrMsg.userId || '');
     const to = String(g.toUserId || g.receiver_id || g.recipientId || '');
     const amt = Number(g.amount || g.coins || g.coin_amount || 0);
@@ -181,7 +181,7 @@
       fromUserId: gift.fromUserId || gift.senderId || null,
       to: gift.to || gift.recipientName || gift.recipient || 'Host',
       toUserId: gift.toUserId || gift.recipientId || gift.receiver_id || null,
-      emoji: gift.emoji || gift.gift_type || '🎁',
+      emoji: gift.emoji || gift.gift_type || 'ðŸŽ',
       amount: Number(gift.amount || gift.coins || gift.coin_amount || 0),
       at: gift.at ? new Date(gift.at).getTime() : Date.now(),
     };
@@ -205,7 +205,7 @@
 
   function hydrateGiftHistoryFromState(state) {
     const gifts = state?.gifts || [];
-    /* Prefer gifts[] only — gift chat messages are the same sends (was doubling history) */
+    /* Prefer gifts[] only â€” gift chat messages are the same sends (was doubling history) */
     if (gifts.length) {
       gifts.forEach((g) => pushRoomGift(g));
       return;
@@ -220,7 +220,7 @@
           fromUserId: m.userId || m.gift?.fromUserId,
           to: m.gift?.to || m.gift?.recipientName || 'Host',
           toUserId: m.gift?.toUserId || m.gift?.receiver_id,
-          emoji: m.gift?.emoji || '🎁',
+          emoji: m.gift?.emoji || 'ðŸŽ',
           amount: m.gift?.amount || m.gift?.coin_amount || m.gift?.coins || 0,
           at: m.at,
           ...(m.gift || {}),
@@ -284,11 +284,11 @@
     applyPkTeamsFromSnapshot(snapshot);
     pkTimerSec = pkSecsRemaining(snapshot);
     showPkOverlay(true);
-    setPkStatus('Get ready…');
+    setPkStatus('Get readyâ€¦');
     window.SocialFX?.pkCountdown?.(5, () => {
-      setPkStatus('PK LIVE — send gifts to score!');
+      setPkStatus('PK LIVE â€” send gifts to score!');
       updatePkBar();
-      toast('PK battle started — send gifts to add score', 'success');
+      toast('PK battle started â€” send gifts to add score', 'success');
     });
   }
 
@@ -774,7 +774,7 @@
     const params = new URLSearchParams();
     if (ch) params.set('channel', ch);
     params.set('app', '1');
-    // Viewer join only — never share host=1 / feed swipe mode
+    // Viewer join only â€” never share host=1 / feed swipe mode
     const modeQs = (qs('mode') || '').toLowerCase();
     if (modeQs === 'audio') params.set('mode', 'audio');
     return `${location.origin}/${page}?${params.toString()}`;
@@ -799,7 +799,7 @@
     try {
       await api.post('/messages/conversations', { receiverId: uid });
     } catch (_e) {
-      /* get-or-create may 404 elsewhere — /send still resolves peer */
+      /* get-or-create may 404 elsewhere â€” /send still resolves peer */
     }
     await api.post('/messages/send', { receiverId: uid, text });
   }
@@ -813,7 +813,7 @@
       await applyLocalMicMuteState();
       await ensureHostVideoPublishing().catch(() => { });
       ensureHostVideoVisible();
-      /* Hosts also need guest voice after background stop — do not skip remote restore */
+      /* Hosts also need guest voice after background stop â€” do not skip remote restore */
       await unlockBrowserAudio();
       await resubscribeAllRemoteMedia({ force: true }).catch(() => { });
       await ensureRemoteAudioPlaying().catch(() => { });
@@ -858,7 +858,7 @@
         liveSocket.emit('live:heartbeat', { channel: channelId() });
         if (!roomJoinCompleted) rejoinLiveRoom();
       } else if (liveSocket && !socketLeaveIntentional) {
-        setLiveStatus('Reconnecting…', null);
+        setLiveStatus('Reconnectingâ€¦', null);
         liveSocket.connect();
       } else if (!liveSocket && !socketLeaveIntentional && (roomJoinCompleted || lastJoinMeta)) {
         try {
@@ -951,7 +951,7 @@
   async function resumeHostBroadcastIfNeeded() {
     if (!isHost() || !roomJoinCompleted || agoraStartInProgress) return;
     if (publishSucceeded) {
-      // Already "live" but camera may have died after beauty/flip — recover video.
+      // Already "live" but camera may have died after beauty/flip â€” recover video.
       if (broadcastMode !== 'audio') {
         await ensureHostVideoPublishing().catch((e) =>
           liveDebugLog(`ensureHostVideo: ${e?.message || e}`)
@@ -999,7 +999,7 @@
         setLiveStatus(`Reconnect failed: ${res?.message || 'unknown'}`, false);
       } else {
         liveDebugLog(`Viewer rejoin failed: ${res?.message || 'unknown'}`);
-        setLiveStatus('Reconnecting…', null);
+        setLiveStatus('Reconnectingâ€¦', null);
       }
     });
   }
@@ -1064,7 +1064,7 @@
     return isHost() || isConfirmedRoomHost();
   }
 
-  /** Room/live admin only — not platform account admin */
+  /** Room/live admin only â€” not platform account admin */
   function isRoomAdminMember(m) {
     if (!m) return false;
     if (String(m.role || '') === 'admin') return true;
@@ -1072,7 +1072,7 @@
     return false;
   }
 
-  /** Host controls / host-only chrome — never trust URL ?host=1 alone */
+  /** Host controls / host-only chrome â€” never trust URL ?host=1 alone */
   function isConfirmedRoomHost() {
     const { id: meId, displayId: meDisplay } = currentUserIds();
     if (!roomJoinCompleted) return false;
@@ -1091,7 +1091,7 @@
     return document.body.dataset.livePage === 'party-room';
   }
 
-  /** Official Android/iOS shell — FLAG_SECURE only works here */
+  /** Official Android/iOS shell â€” FLAG_SECURE only works here */
   function isNativeApApp() {
     try {
       if (window.__AP_NATIVE_APP__ === true) return true;
@@ -1162,7 +1162,7 @@
       document.getElementById('apMicLinkModal')?.classList.remove('open');
       syncMicButtonUi();
       syncLiveOverlayClass();
-      toast('Host did not respond — tap the mic button to try again', 'warning');
+      toast('Host did not respond â€” tap the mic button to try again', 'warning');
     }, 180000);
   }
 
@@ -1208,7 +1208,7 @@
     }
     const ch = String(payload?.channel || channelId() || '').trim();
     if (!ch) {
-      onDone?.({ ok: false, message: 'Room channel not ready — try again' });
+      onDone?.({ ok: false, message: 'Room channel not ready â€” try again' });
       return;
     }
     if (!payload?.channel) payload = { ...payload, channel: ch };
@@ -1220,7 +1220,7 @@
       onDone?.(res);
     };
     const timer = setTimeout(() => {
-      finish({ ok: false, message: 'Accept timed out — try again' });
+      finish({ ok: false, message: 'Accept timed out â€” try again' });
     }, 10000);
     liveSocket.emit('live:seat_response', payload, (res) => finish(res || { ok: false }));
   }
@@ -1367,7 +1367,7 @@
       (m.seatIndex != null && m.role !== 'viewer');
     if (onStage) {
       const stage = isLiveRoomPage() ? 'On mic' : 'On seat';
-      return isAdmin ? `${adminLabel} · ${stage}` : stage;
+      return isAdmin ? `${adminLabel} Â· ${stage}` : stage;
     }
     if (isAdmin) return adminLabel;
     return 'In room';
@@ -1441,10 +1441,10 @@
         toast(
           selfLeave
             ? stayAdmin
-              ? `Left the seat — you are still a ${roomAdminLabel().toLowerCase()}`
+              ? `Left the seat â€” you are still a ${roomAdminLabel().toLowerCase()}`
               : 'Left the seat'
             : stayAdmin
-              ? `Removed from the seat — still ${roomAdminLabel().toLowerCase()}`
+              ? `Removed from the seat â€” still ${roomAdminLabel().toLowerCase()}`
               : 'Removed from the seat',
           'success'
         );
@@ -1548,8 +1548,8 @@
         <div class="ap-kick-duration-panel" role="dialog" aria-label="Kick duration">
           <h3>Kick out from live</h3>
           <p>They cannot rejoin until the block expires.</p>
-          <button type="button" class="ap-kick-opt" data-h="2"><i class="fas fa-ban"></i><span>Kick out · 2 hours</span></button>
-          <button type="button" class="ap-kick-opt" data-h="24"><i class="fas fa-ban"></i><span>Kick out · 24 hours</span></button>
+          <button type="button" class="ap-kick-opt" data-h="2"><i class="fas fa-ban"></i><span>Kick out Â· 2 hours</span></button>
+          <button type="button" class="ap-kick-opt" data-h="24"><i class="fas fa-ban"></i><span>Kick out Â· 24 hours</span></button>
           <button type="button" class="ap-kick-cancel" data-cancel="1">Cancel</button>
         </div>`;
       document.body.appendChild(sheet);
@@ -1636,7 +1636,7 @@
     });
   }
 
-  /** Live “Kick out” = timed ban (cannot rejoin). Party “Remove from seat” stays demote. */
+  /** Live â€œKick outâ€ = timed ban (cannot rejoin). Party â€œRemove from seatâ€ stays demote. */
   async function removeUserFromLiveOrSeat(userId, displayName, durationHours) {
     if (!canModerateRoom() || !userId) return;
     if (isRoomHostUserId(userId)) {
@@ -1721,11 +1721,11 @@
     const locked = Boolean(roomState?.chatLocked);
     const input = document.getElementById('liveChatInput');
     const send = document.getElementById('liveChatSend');
-    let placeholder = 'Say something…';
-    if (muted && locked) placeholder = 'Host muted all chat…';
-    else if (muted) placeholder = 'Chat muted by host…';
+    let placeholder = 'Say somethingâ€¦';
+    if (muted && locked) placeholder = 'Host muted all chatâ€¦';
+    else if (muted) placeholder = 'Chat muted by hostâ€¦';
     if (input) {
-      if (!input.dataset.apPlaceholder) input.dataset.apPlaceholder = input.placeholder || 'Say something…';
+      if (!input.dataset.apPlaceholder) input.dataset.apPlaceholder = input.placeholder || 'Say somethingâ€¦';
       input.disabled = muted;
       input.placeholder = muted ? placeholder : input.dataset.apPlaceholder;
     }
@@ -1823,7 +1823,7 @@
     menu.innerHTML = `
       <button type="button" data-cmod="delete"><i class="fas fa-trash"></i><span>Remove message</span></button>
       ${canKick && !isSelf ? '<button type="button" data-cmod="mutechat"><i class="fas fa-comment-slash"></i><span>Mute chat</span></button>' : ''}
-      ${canKick && !isSelf ? '<button type="button" data-cmod="kick"><i class="fas fa-ban"></i><span>Kick / ban from live…</span></button>' : ''}
+      ${canKick && !isSelf ? '<button type="button" data-cmod="kick"><i class="fas fa-ban"></i><span>Kick / ban from liveâ€¦</span></button>' : ''}
       ${canKick && !isSelf ? `<button type="button" data-cmod="block"><i class="fas fa-user-slash"></i><span>${blocked ? 'Unblock user' : 'Block user'}</span></button>` : ''}
       ${canKick && !isSelf ? '<button type="button" data-cmod="profile"><i class="fas fa-user"></i><span>View profile / more</span></button>' : ''}
       <button type="button" data-cmod="cancel"><i class="fas fa-times"></i><span>Cancel</span></button>`;
@@ -1930,7 +1930,7 @@
       (res) => {
         if (res?.ok) {
           toast(grant ? `${label} granted` : `Removed from ${label.toLowerCase()}`, 'success');
-          /* Optimistic UI so Make ↔ Remove toggles immediately */
+          /* Optimistic UI so Make â†” Remove toggles immediately */
           const uid = String(userId);
           if (roomState?.onlineMembers) {
             roomState.onlineMembers = roomState.onlineMembers.map((m) =>
@@ -1965,7 +1965,7 @@
         purgeBlockedUserFromLive(uid);
         /* If you blocked the host of this room, leave */
         if (isRoomHostUserId(uid) && !isHost()) {
-          toast('Leaving this live — host blocked', 'info');
+          toast('Leaving this live â€” host blocked', 'info');
           setTimeout(() => {
             try {
               window.location.href = '/explore.html?app=1';
@@ -2036,7 +2036,7 @@
       }
       return;
     }
-    // openProfileSheet is async and removes any prior mod menu — attach actions after it finishes.
+    // openProfileSheet is async and removes any prior mod menu â€” attach actions after it finishes.
     await openProfileSheet(name, userId);
     const panel = document.querySelector('#apProfileSheet .ap-profile-sheet-panel');
     if (!panel || !canModerateRoom()) return;
@@ -2059,7 +2059,7 @@
     const demoteLabel = isAdminMember
       ? `Remove from the seat (keep ${adminLabel.toLowerCase()})`
       : 'Remove from the seat';
-    /* Host: Make admin ↔ Remove admin. Live/room admins can Remove admin (not grant). */
+    /* Host: Make admin â†” Remove admin. Live/room admins can Remove admin (not grant). */
     const canMakeAdmin = canGrantRoomAdmin() && canKick && !isAdminMember;
     const canRemoveAdmin =
       canKick &&
@@ -2074,10 +2074,10 @@
       <button type="button" data-mod="unmute"><i class="fas fa-microphone"></i><span>Unmute mic</span></button>
       ${!onStage && isPartyRoomPage() ? '<button type="button" data-mod="addseat"><i class="fas fa-plus"></i><span>Add to seat</span></button>' : ''}
       ${!onStage && isLiveRoomPage() ? '<button type="button" data-mod="addseat"><i class="fas fa-plus"></i><span>Add to live</span></button>' : ''}
-      ${isPartyRoomPage() && onStage ? '<button type="button" data-mod="move"><i class="fas fa-exchange-alt"></i><span>Move to seat…</span></button>' : ''}
+      ${isPartyRoomPage() && onStage ? '<button type="button" data-mod="move"><i class="fas fa-exchange-alt"></i><span>Move to seatâ€¦</span></button>' : ''}
       ${canSeatMod && onStage ? `<button type="button" data-mod="demote"><i class="fas fa-user-minus"></i><span>${demoteLabel}</span></button>` : ''}
-      ${canKick ? '<button type="button" data-mod="kick2"><i class="fas fa-ban"></i><span>Kick out · 2 hours</span></button>' : ''}
-      ${canKick ? '<button type="button" data-mod="kick24"><i class="fas fa-ban"></i><span>Kick out · 24 hours</span></button>' : ''}
+      ${canKick ? '<button type="button" data-mod="kick2"><i class="fas fa-ban"></i><span>Kick out Â· 2 hours</span></button>' : ''}
+      ${canKick ? '<button type="button" data-mod="kick24"><i class="fas fa-ban"></i><span>Kick out Â· 24 hours</span></button>' : ''}
       ${canKick ? `<button type="button" data-mod="block"><i class="fas fa-user-slash"></i><span>${blocked ? 'Unblock user' : 'Block user'}</span></button>` : ''}
       <button type="button" data-mod="mute-all-chat"><i class="fas fa-comment-slash"></i><span>${chatLocked ? 'Unmute all chat' : 'Mute all chat'}</span></button>
       <button type="button" data-mod="clear-chat"><i class="fas fa-eraser"></i><span>Clear all chat</span></button>`;
@@ -2098,7 +2098,7 @@
       document.getElementById('apProfileSheet')?.classList.remove('open');
     });
     menu.querySelector('[data-mod="move"]')?.addEventListener('click', () => {
-      const seat = window.prompt('Seat number (1–15):', String(seatNum || 3));
+      const seat = window.prompt('Seat number (1â€“15):', String(seatNum || 3));
       if (seat) moveUserSeat(userId, Number(seat));
       menu.remove();
     });
@@ -2256,10 +2256,10 @@
       'afterend',
       `<div id="partyAudienceBar" class="party-audience-bar" hidden>
         <div class="party-audience-head">
-          <span class="party-audience-title"><i class="fas fa-users"></i> In room · <strong id="partyAudienceCount">0</strong></span>
+          <span class="party-audience-title"><i class="fas fa-users"></i> In room Â· <strong id="partyAudienceCount">0</strong></span>
         </div>
         <div class="party-audience-scroll" id="partyAudienceList" role="list"></div>
-        <p class="party-audience-empty" id="partyAudienceEmpty">Waiting for guests — tap Share to invite friends</p>
+        <p class="party-audience-empty" id="partyAudienceEmpty">Waiting for guests â€” tap Share to invite friends</p>
       </div>`
     );
     document.getElementById('partyAudienceList')?.addEventListener('click', (e) => {
@@ -2318,7 +2318,7 @@
     if (!list) return;
     const available = getPartyMembersForList();
     if (!available.length) {
-      list.innerHTML = '<p class="party-requests-empty">No one else in the room yet — share to invite friends</p>';
+      list.innerHTML = '<p class="party-requests-empty">No one else in the room yet â€” share to invite friends</p>';
       return;
     }
     const mod = canModerateRoom();
@@ -2360,7 +2360,7 @@
         return `
       <div class="party-req-row" data-user-id="${escapeHtml(uid)}">
         <img src="${avatarUrl(m.name, m.profilePic)}" alt="">
-        <div class="info"><strong>${escapeHtml(m.name || 'Guest')}</strong><br><small class="party-online-dot">● ${escapeHtml(role)}</small></div>
+        <div class="info"><strong>${escapeHtml(m.name || 'Guest')}</strong><br><small class="party-online-dot">â— ${escapeHtml(role)}</small></div>
         ${actionBtn}
       </div>`;
       })
@@ -2420,7 +2420,7 @@
   }
 
   function syncHostBarUi() {
-    /* Host/admin control bars removed from live UI — keep chrome clean.
+    /* Host/admin control bars removed from live UI â€” keep chrome clean.
        Moderation stays via people sheet + Basic Tools. */
     const hosting = isHost();
     const moderating = canModerateRoom();
@@ -2457,7 +2457,7 @@
       const liveSub = document.getElementById('liveSubLabel');
       if (liveSub) liveSub.textContent = 'Hosting';
       const ticker = document.getElementById('partyTicker');
-      if (ticker) ticker.textContent = 'You are hosting — tap Share so friends join this room';
+      if (ticker) ticker.textContent = 'You are hosting â€” tap Share so friends join this room';
     } else {
       followed = true;
       syncHostBarUi();
@@ -2781,9 +2781,9 @@
     const viewers = roomState?.viewers || 0;
     if (ok === true && /watching live|connected/i.test(text)) {
       ticker.innerHTML =
-        '<span class="live-watch-pill">● Watching live</span>' +
+        '<span class="live-watch-pill">â— Watching live</span>' +
         escapeHtml(hostName) +
-        ' · ' +
+        ' Â· ' +
         viewers +
         ' watching';
     } else if (ok === true) {
@@ -2832,7 +2832,7 @@
         bg.style.backgroundSize = 'cover';
         bg.style.backgroundPosition = 'center';
       } else if (hasVideoStream && !isAudio) {
-        // Keep camera visible — don't re-cover with the audio/live poster.
+        // Keep camera visible â€” don't re-cover with the audio/live poster.
         bg.style.display = 'none';
       } else {
         bg.style.display = 'block';
@@ -2863,7 +2863,7 @@
   function updateModeBadge(mode, hosting) {
     const el = document.getElementById('liveModeBadge');
     if (!el) return;
-    /* Hosts use the header "You are hosting" label — badge overlaps that pill */
+    /* Hosts use the header "You are hosting" label â€” badge overlaps that pill */
     if (isHost()) {
       el.style.display = 'none';
       el.classList.remove('is-audio', 'is-host');
@@ -2882,7 +2882,7 @@
 
   function memberIsOnMic(m) {
     if (!m || m.isHost || m.role === 'host') return false;
-    /* Room admins are moderators — not on mic unless they have a seat */
+    /* Room admins are moderators â€” not on mic unless they have a seat */
     if (m.seatIndex != null || m.seat_index != null) return true;
     return m.role === 'speaker';
   }
@@ -3096,13 +3096,13 @@
     const isParty = document.body.dataset.livePage === 'party-room';
     if (isParty && reason === 'media_blocked' && isLanHttpInNativeWebView()) {
       partyVoiceSkipped = true;
-      setLiveStatus('Party live (chat) — voice needs npm start (HTTPS)', false);
+      setLiveStatus('Party live (chat) â€” voice needs npm start (HTTPS)', false);
       onRoomReady();
       refreshViewerDiagnostics();
       return;
     }
     if (reason === 'media_blocked' && isLanHttpInNativeWebView()) {
-      setLiveStatus('Live broadcast needs HTTPS — run npm start (not start:lan)', false);
+      setLiveStatus('Live broadcast needs HTTPS â€” run npm start (not start:lan)', false);
       onRoomReady();
       refreshViewerDiagnostics();
       return;
@@ -3118,7 +3118,7 @@
     if (isParty && !sessionEstablished) onRoomReady();
     refreshViewerDiagnostics();
 
-    // Auto-recover intermittent failures — never spam createClient on PeerConnection limit
+    // Auto-recover intermittent failures â€” never spam createClient on PeerConnection limit
     const skipAuto =
       peerLimit ||
       reason === 'media_blocked' ||
@@ -3145,12 +3145,12 @@
     el.id = 'apLiveViewerDiag';
     el.className = 'ap-live-viewer-diag';
     el.innerHTML =
-      '<span id="apVDiagRoom">Room joined: —</span>' +
-      '<span id="apVDiagAgora">Agora connected: —</span>' +
+      '<span id="apVDiagRoom">Room joined: â€”</span>' +
+      '<span id="apVDiagAgora">Agora connected: â€”</span>' +
       '<span id="apVDiagRemote">Remote users: 0</span>' +
-      '<span id="apVDiagSocket">Socket: —</span>' +
-      '<span id="apVDiagSocketUrl">Socket URL: —</span>' +
-      '<span id="apVDiagSocketErr">Socket issue: —</span>';
+      '<span id="apVDiagSocket">Socket: â€”</span>' +
+      '<span id="apVDiagSocketUrl">Socket URL: â€”</span>' +
+      '<span id="apVDiagSocketErr">Socket issue: â€”</span>';
     document.body.appendChild(el);
   }
 
@@ -3175,7 +3175,7 @@
     return Promise.race([
       promise,
       new Promise((_, reject) => {
-        setTimeout(() => reject(new Error(`${label} timed out — check connection and camera/mic permission`)), ms);
+        setTimeout(() => reject(new Error(`${label} timed out â€” check connection and camera/mic permission`)), ms);
       }),
     ]);
   }
@@ -3185,16 +3185,16 @@
       sessionEstablished && publishSucceeded && liveDebugState.roomJoined && liveDebugState.socketConnected;
     if (isActuallyLive() || sessionLive) {
       if (agoraMode === 'party') {
-        return partyVoiceSkipped ? 'Party live — voice off' : micMuted ? 'Party live — mic off' : 'Party voice live';
+        return partyVoiceSkipped ? 'Party live â€” voice off' : micMuted ? 'Party live â€” mic off' : 'Party voice live';
       }
-      if (broadcastMode === 'audio') return micMuted ? 'Audio live — mic off' : 'Audio live';
-      return micMuted ? 'Video live — mic off' : 'Video live';
+      if (broadcastMode === 'audio') return micMuted ? 'Audio live â€” mic off' : 'Audio live';
+      return micMuted ? 'Video live â€” mic off' : 'Video live';
     }
-    if (agoraStartInProgress) return 'Starting broadcast…';
-    if (publishSucceeded && liveDebugState.agoraJoined) return 'Going live…';
-    if (liveDebugState.agoraJoined) return 'Starting camera & mic…';
-    if (liveDebugState.roomJoined) return 'Connecting voice…';
-    return 'Connecting…';
+    if (agoraStartInProgress) return 'Starting broadcastâ€¦';
+    if (publishSucceeded && liveDebugState.agoraJoined) return 'Going liveâ€¦';
+    if (liveDebugState.agoraJoined) return 'Starting camera & micâ€¦';
+    if (liveDebugState.roomJoined) return 'Connecting voiceâ€¦';
+    return 'Connectingâ€¦';
   }
 
   function syncLiveUiState() {
@@ -3209,7 +3209,7 @@
     }
     updateModeBadge(broadcastMode, false);
     if (liveDebugState.agoraJoined && remoteUsers.size === 0) {
-      setLiveStatus('Waiting for host stream…', null);
+      setLiveStatus('Waiting for host streamâ€¦', null);
     } else if (remoteUsers.size > 0) {
       setLiveStatus('Watching live', true);
     } else if (liveDebugState.roomJoined) {
@@ -3221,7 +3221,7 @@
     return val ? 'yes' : 'no';
   }
 
-  /** Dev-only overlay — off in native app and production unless explicitly enabled */
+  /** Dev-only overlay â€” off in native app and production unless explicitly enabled */
   function isLiveDebugEnabled() {
     try {
       if (localStorage.getItem('ap_live_debug') === '1') return true;
@@ -3429,22 +3429,22 @@
       throw e;
     }
     if (typeof io === 'undefined') {
-      liveDebugLog('Socket skipped — socket.io unavailable');
+      liveDebugLog('Socket skipped â€” socket.io unavailable');
       updateLiveDebug({ socketConnected: false, roomJoined: false });
       throw new Error('socket.io unavailable');
     }
     if (!currentUser()) {
-      liveDebugLog('Socket skipped — not logged in');
+      liveDebugLog('Socket skipped â€” not logged in');
       updateLiveDebug({ socketConnected: false, roomJoined: false });
       throw new Error('Not logged in');
     }
 
     const token = await resolveSocketAuthToken();
     if (!token) {
-      liveDebugLog('Socket skipped — missing auth token (sign in again)');
+      liveDebugLog('Socket skipped â€” missing auth token (sign in again)');
       lastSocketIssue = 'missing auth token';
       updateLiveDebug({ socketConnected: false, roomJoined: false });
-      throw new Error('Session expired — sign in again to join live');
+      throw new Error('Session expired â€” sign in again to join live');
     }
 
     if (!liveSocket) {
@@ -3496,11 +3496,11 @@
             disconnectUiTimer = setTimeout(() => {
               disconnectUiTimer = null;
               if (!liveSocket?.connected && !socketLeaveIntentional) {
-                setLiveStatus('Reconnecting…', null);
+                setLiveStatus('Reconnectingâ€¦', null);
               }
             }, 2800);
           } else {
-            setLiveStatus('Reconnecting…', null);
+            setLiveStatus('Reconnectingâ€¦', null);
           }
         }
       });
@@ -3521,8 +3521,8 @@
               liveSocket.connect();
               return;
             }
-            liveDebugLog('Session expired — sign in again');
-            toast('Session expired — please sign in again', 'error');
+            liveDebugLog('Session expired â€” sign in again');
+            toast('Session expired â€” please sign in again', 'error');
           } finally {
             socketAuthRetrying = false;
           }
@@ -3560,7 +3560,7 @@
           renderRoomState({ soft: sessionEstablished });
           renderRoomGiftPanels();
           refreshOpenGiftRecipients();
-          // New on-seat guest — pull their mic (host + other viewers)
+          // New on-seat guest â€” pull their mic (host + other viewers)
           // Defer while a gift is in flight so seat churn can't kill Send
           if (seatAdded && agoraClient && liveDebugState.agoraJoined && !window.__apGiftSending) {
             ensureRemoteAudioPlaying().catch(() => { });
@@ -3592,7 +3592,7 @@
           renderGuestRail();
         }
         const pullGuestMic = () => {
-          /* Soft ensure only — force resubscribe was one-way-deafening the host */
+          /* Soft ensure only â€” force resubscribe was one-way-deafening the host */
           ensureRemoteAudioPlaying()
             .then(() => boostRemoteAudioVolumes())
             .catch(() => { });
@@ -3697,7 +3697,7 @@
       liveSocket.on('live:mod_alert', (payload) => {
         if (!canModerateRoom() && !isHost() && !clientClaimsHost()) return;
         const who = payload?.user || 'Someone';
-        const strikes = payload?.strikes != null ? ` · strike ${payload.strikes}/3` : '';
+        const strikes = payload?.strikes != null ? ` Â· strike ${payload.strikes}/3` : '';
         if (payload?.type === 'abuse') {
           const act =
             payload.action === 'ban'
@@ -3724,7 +3724,7 @@
           id: normalized.id ? `gift-${normalizeGiftTxId(normalized.id)}` : undefined,
           user: normalized.from || normalized.senderName || 'User',
           userId: normalized.fromUserId || normalized.senderId || null,
-          text: `${normalized.emoji || '🎁'} sent to ${normalized.to || normalized.recipientName || 'Host'} · ${formatGiftCount(normalized.amount || normalized.coins || 0)} coins`,
+          text: `${normalized.emoji || 'ðŸŽ'} sent to ${normalized.to || normalized.recipientName || 'Host'} Â· ${formatGiftCount(normalized.amount || normalized.coins || 0)} coins`,
           gift: normalized,
           at: normalized.at || Date.now(),
         });
@@ -3734,7 +3734,7 @@
           renderRoomGiftPanels();
           return;
         }
-        /* One chat line only — skip WIN banner / fly banner (duplicate "sent to" notices) */
+        /* One chat line only â€” skip WIN banner / fly banner (duplicate "sent to" notices) */
         const combo = window.SocialFX?.trackCombo?.(normalized?.emoji || 'gift', normalized?.qty || 1) || 1;
         window.SocialFX?.playGift?.(normalized, { combo, skipActivity: true });
         onGiftTeamProgress(normalized?.amount || normalized?.coins || 100);
@@ -3781,7 +3781,7 @@
 
       liveSocket.on('live:seat_request', (req) => {
         if (!req) return;
-        /* Host may receive via user: room before canModerate is ready — still queue if host */
+        /* Host may receive via user: room before canModerate is ready â€” still queue if host */
         if (!canModerateRoom() && !isHost() && !clientClaimsHost()) return;
         const id = String(req.userId || req.id || '');
         if (!id) return;
@@ -3817,8 +3817,8 @@
             name: displayName(me),
             profilePic: me.profilePic || me.profile_pic || null,
           });
-          toast(isLiveRoomPage() ? 'You joined the live — enabling mic…' : 'You got a seat — enabling mic…', 'success');
-          // Single publish path — avoid leave/rejoin thrash from duplicate callers
+          toast(isLiveRoomPage() ? 'You joined the live â€” enabling micâ€¦' : 'You got a seat â€” enabling micâ€¦', 'success');
+          // Single publish path â€” avoid leave/rejoin thrash from duplicate callers
           await waitForPublisherAcl(channelId(), 12);
           await publishGuestAudio();
           if (!publishSucceeded && !guestPublishInProgress) {
@@ -3843,14 +3843,14 @@
         if (endedCh && endedCh !== myCh) return;
         if (agoraModeSwitchInProgress) return;
         if (hostEndingIntentionally) {
-          liveDebugLog('live:ended after host end — exiting');
+          liveDebugLog('live:ended after host end â€” exiting');
           setTimeout(exitRoom, 300);
           return;
         }
         if (isHost() || lastJoinMeta?.isHost) {
           if (hostEndedRecoverTimer) clearTimeout(hostEndedRecoverTimer);
-          liveDebugLog('live:ended while hosting — attempting to rejoin');
-          setLiveStatus('Reconnecting room…', null);
+          liveDebugLog('live:ended while hosting â€” attempting to rejoin');
+          setLiveStatus('Reconnecting roomâ€¦', null);
           hostEndedRecoverTimer = setTimeout(() => {
             hostEndedRecoverTimer = null;
             if (!liveSocket?.connected || !lastJoinMeta || hostEndingIntentionally) return;
@@ -3898,7 +3898,7 @@
           const stillAdmin = canModerateRoom();
           toast(
             stillAdmin
-              ? `Removed from the seat — you are still a ${roomAdminLabel().toLowerCase()}`
+              ? `Removed from the seat â€” you are still a ${roomAdminLabel().toLowerCase()}`
               : isLiveRoomPage()
                 ? 'Removed from the mic'
                 : 'You were removed from the seat',
@@ -3936,7 +3936,7 @@
           );
         }
         if (me && uid === String(me.id)) {
-          toast(isAdmin ? `You are now a ${roomAdminLabel().toLowerCase()} — you can manage seats, mute, and kick` : `${roomAdminLabel()} access removed`, 'info');
+          toast(isAdmin ? `You are now a ${roomAdminLabel().toLowerCase()} â€” you can manage seats, mute, and kick` : `${roomAdminLabel()} access removed`, 'info');
           syncHostBarUi();
           applyRoleUiAfterJoin();
         }
@@ -3976,7 +3976,7 @@
 
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
-        reject(new Error('Room join timeout — check server connection'));
+        reject(new Error('Room join timeout â€” check server connection'));
       }, 15000);
 
       const emitJoin = (joinPayload = {}) => {
@@ -4034,14 +4034,14 @@
                 console.error('[live] post-join render failed', renderErr);
               }
               setApLoaderStep(2);
-              setLiveStatus(serverIsHost ? 'Setting up voice…' : 'In room', serverIsHost ? null : true);
+              setLiveStatus(serverIsHost ? 'Setting up voiceâ€¦' : 'In room', serverIsHost ? null : true);
               if (serverIsHost) {
                 syncLiveUiState();
                 const isPartyPage = document.body.dataset.livePage === 'party-room';
                 toast(
                   isPartyPage
-                    ? 'Party live — share the link so others join this room'
-                    : 'You are live — share so viewers can find you',
+                    ? 'Party live â€” share the link so others join this room'
+                    : 'You are live â€” share so viewers can find you',
                   'success'
                 );
               }
@@ -4232,7 +4232,7 @@
         agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
       } catch (e) {
         if (isPeerConnectionLimitError(e)) {
-          liveDebugLog('createClient PeerConnection limit — force dispose + retry');
+          liveDebugLog('createClient PeerConnection limit â€” force dispose + retry');
           await disposeAgoraClient('peerconnection_limit');
           await new Promise((r) => setTimeout(r, 700));
           agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
@@ -4275,7 +4275,7 @@
   let __viewerAgoraEarlyPromise = null;
   let __viewerAgoraEarlyChannel = null;
 
-  /** Subscribe remotes — audio + video in true parallel (both instant). */
+  /** Subscribe remotes â€” audio + video in true parallel (both instant). */
   async function subscribeRemotesPreferAudio(reason) {
     if (!agoraClient || !liveDebugState.agoraJoined) return;
     const remotes = agoraClient.remoteUsers || [];
@@ -4287,7 +4287,7 @@
     unlockBrowserAudio().catch(() => {});
     kickstartRemoteAudio(reason || 'parallel-av');
 
-    /* Fire A+V together — never wait on one before starting the other */
+    /* Fire A+V together â€” never wait on one before starting the other */
     const jobs = [];
     for (const u of remotes) {
       if (u.hasVideo) jobs.push(playRemoteMedia(u, 'video').catch(() => {}));
@@ -4310,7 +4310,7 @@
 
   /**
    * Viewers: join Agora as audience in parallel with socket live:join.
-   * Biggest TTFV win — media channel connects while room DB/socket work runs.
+   * Biggest TTFV win â€” media channel connects while room DB/socket work runs.
    */
   async function startViewerAgoraEarly(mode = 'live') {
     if (isHost() || clientClaimsHost() || hasSpeakerSeat) return null;
@@ -4359,7 +4359,7 @@
   }
 
   async function warmViewerAgoraPipeline() {
-    /* Kept for callers — full early join supersedes warm-only */
+    /* Kept for callers â€” full early join supersedes warm-only */
     return startViewerAgoraEarly(isPartyRoomPage() ? 'party' : 'live');
   }
 
@@ -4375,7 +4375,7 @@
       (roomState?.hostId && user?.id && String(roomState.hostId) === String(user.id)) ||
       (qs('host') === '1' && !hasSpeakerSeat && !roomState?.hostId)
     );
-    // Publisher request must NOT imply host — seated guests need publisher tokens too.
+    // Publisher request must NOT imply host â€” seated guests need publisher tokens too.
     const wantsPublisher = Boolean(asPublisher) || isActualHost || hasSpeakerSeat;
     const role = wantsPublisher ? (isActualHost ? 'host' : 'publisher') : 'audience';
     const roomType = document.body.dataset.livePage === 'party-room' ? 'party' : 'live';
@@ -4432,14 +4432,14 @@
       if (/publisher token requires/i.test(raw)) {
         if (!liveDebugState.socketConnected) {
           throw new Error(
-            'Real-time socket not connected — room must join before going live. Reload and check Socket: YES in the debug bar.'
+            'Real-time socket not connected â€” room must join before going live. Reload and check Socket: YES in the debug bar.'
           );
         }
         if (!roomJoinCompleted) {
-          throw new Error('Room not joined yet — wait for socket connection, then try again.');
+          throw new Error('Room not joined yet â€” wait for socket connection, then try again.');
         }
         if (hasSpeakerSeat) {
-          throw new Error('Seat accepted but mic token denied — ask host to remove/re-add you to the seat.');
+          throw new Error('Seat accepted but mic token denied â€” ask host to remove/re-add you to the seat.');
         }
         throw new Error(
           'Server does not recognize you as host for this room. Start a new live/party from Streamer Center.'
@@ -4451,7 +4451,7 @@
       forensicEvent('TOKEN_REQUEST_FAILED', { channel, role, userId, mode: data.mode });
       throw new Error(
         data.message ||
-        'Agora token unavailable — server returned mock mode or empty token (check AGORA_APP_ID and AGORA_APP_CERTIFICATE)'
+        'Agora token unavailable â€” server returned mock mode or empty token (check AGORA_APP_ID and AGORA_APP_CERTIFICATE)'
       );
     }
     const tokenChannel = data.channel || channel;
@@ -4485,19 +4485,19 @@
   function friendlyAgoraError(msg) {
     const raw = String(msg || '');
     if (/Cannot create so many PeerConnections|RTCPeerConnection/i.test(raw)) {
-      return 'Connection overload — wait 2 seconds, then tap mic once to retry.';
+      return 'Connection overload â€” wait 2 seconds, then tap mic once to retry.';
     }
     if (/CAN_NOT_GET_GATEWAY/i.test(raw)) {
-      return 'Live audio/video is blocked: Agora account suspended (unpaid balance). Open Agora Console → Billing, add a card or top up until Available Balance is $0 or positive, then start a new live.';
+      return 'Live audio/video is blocked: Agora account suspended (unpaid balance). Open Agora Console â†’ Billing, add a card or top up until Available Balance is $0 or positive, then start a new live.';
     }
     if (/quota|minutes|exhausted/i.test(raw)) {
-      return 'Agora quota exceeded — top up minutes in Agora Console Billing, then retry.';
+      return 'Agora quota exceeded â€” top up minutes in Agora Console Billing, then retry.';
     }
     if (/dynamic use static key|invalid token|token/i.test(raw)) {
-      return 'Agora token invalid — check AGORA_APP_ID / AGORA_APP_CERTIFICATE on the server.';
+      return 'Agora token invalid â€” check AGORA_APP_ID / AGORA_APP_CERTIFICATE on the server.';
     }
     if (/permission|NotAllowedError|NotFoundError|Could not start video source/i.test(raw)) {
-      return 'Camera/mic permission blocked — allow access in browser/app settings and retry.';
+      return 'Camera/mic permission blocked â€” allow access in browser/app settings and retry.';
     }
     return raw || 'Voice connection failed';
   }
@@ -4527,7 +4527,7 @@
     client.on('user-published', async (user, mediaType) => {
       liveDebugLog(`user-published uid=${user.uid} media=${mediaType}`);
       forensicEvent('REMOTE_USER_PUBLISHED', { uid: user.uid, mediaType, channel: agoraChannel });
-      /* Never force-unsubscribe — AEC silence ≠ dead subscribe */
+      /* Never force-unsubscribe â€” AEC silence â‰  dead subscribe */
       void playRemoteMedia(user, mediaType, { force: false })
         .then(() => {
           if (mediaType === 'audio') {
@@ -4581,7 +4581,7 @@
       if (container && remoteUsers.size === 0 && mediaType !== 'audio') {
         // Don't wipe on audio-only unpublish; camera flip briefly unpublishes video.
         if (mediaType === 'video') {
-          // Leave container — health watchdog / republish will restore.
+          // Leave container â€” health watchdog / republish will restore.
         } else {
           container.innerHTML = '';
           setLiveStreamVisible(false);
@@ -4594,7 +4594,7 @@
       refreshAgoraTokenAndRenew().catch(() => { });
     });
     client.on('connection-state-change', (cur, prev, reason) => {
-      liveDebugLog(`Agora connection ${prev} → ${cur} (${reason || ''})`);
+      liveDebugLog(`Agora connection ${prev} â†’ ${cur} (${reason || ''})`);
       if (cur === 'CONNECTED' && prev && prev !== 'CONNECTED') {
         resubscribeAllRemoteMedia({ force: true }).catch(() => { });
         if (isHost() || hasSpeakerSeat) ensureMicPublishing().catch(() => { });
@@ -4694,7 +4694,7 @@
   function scheduleMediaRecover(reason) {
     if (guestPublishInProgress || socketLeaveIntentional || agoraStartInProgress) return;
     if (__mediaRecoverTimer || __mediaRecoverBusy) return;
-    /* Cooldown — rapid recover/resubscribe is what makes voice+video stutter */
+    /* Cooldown â€” rapid recover/resubscribe is what makes voice+video stutter */
     if (Date.now() - __mediaRecoverAt < 12000) {
       liveDebugLog(`media recover skipped (cooldown): ${reason}`);
       return;
@@ -4711,7 +4711,7 @@
           const page = document.body.dataset.livePage;
           await startAgora(page === 'party-room' ? 'party' : 'live');
         } else {
-          /* Soft recover only — never tear down working tracks unless force needed */
+          /* Soft recover only â€” never tear down working tracks unless force needed */
           await resubscribeAllRemoteMedia({ force: false });
           if ((isHost() || hasSpeakerSeat) && !publishSucceeded) {
             await ensureMicPublishing();
@@ -4772,7 +4772,7 @@
     return resolveEntryCoverUrl(name, pic, false);
   }
 
-  /** Host cover stays above video until first frame — kills black flash after loader */
+  /** Host cover stays above video until first frame â€” kills black flash after loader */
   function ensureStickyLivePoster() {
     if (isHost() || !isLiveRoomPage()) return;
     if (broadcastMode === 'audio') return;
@@ -4844,7 +4844,7 @@
       if (socketLeaveIntentional || !roomJoinCompleted) return;
       if (guestPublishInProgress || agoraStartInProgress || __mediaRecoverBusy) return;
       if (document.visibilityState !== 'visible') return;
-      /* Grace period after join — avoid thrashing while first frames arrive */
+      /* Grace period after join â€” avoid thrashing while first frames arrive */
       if (__mediaStableSince && Date.now() - __mediaStableSince < 10000) return;
 
       if (!agoraClient || !liveDebugState.agoraJoined) {
@@ -4870,7 +4870,7 @@
           if (!user.audioTrack) {
             unhealthy = true;
           } else if (user.audioTrack.isPlaying === false) {
-            /* Soft nudge only — do not mark recover yet */
+            /* Soft nudge only â€” do not mark recover yet */
             tryPlayRemoteAudioTrack(user).catch(() => { });
           }
         }
@@ -4912,7 +4912,7 @@
       if (tries > 6) {
         clearInterval(window.__apPartyAgoraRetryTimer);
         window.__apPartyAgoraRetryTimer = null;
-        setLiveStatus('Voice unavailable — chat still works', null);
+        setLiveStatus('Voice unavailable â€” chat still works', null);
         return;
       }
       try {
@@ -4925,7 +4925,7 @@
   }
 
   function setApLoaderStep(_step) {
-    /* steps UI removed — host cover loader only */
+    /* steps UI removed â€” host cover loader only */
   }
 
   function readLaunchCover(channel) {
@@ -5217,7 +5217,7 @@
   function webMediaBlockedReason() {
     const lanHttp = isLanHttpInNativeWebView();
     if (lanHttp && (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia)) {
-      return 'LAN HTTP blocks camera/mic in Android WebView. For live broadcast use: cd ap-services-app → npm start (HTTPS). On LAN you can still host party chat.';
+      return 'LAN HTTP blocks camera/mic in Android WebView. For live broadcast use: cd ap-services-app â†’ npm start (HTTPS). On LAN you can still host party chat.';
     }
     if (!navigator.mediaDevices?.getUserMedia) {
       return 'Camera/mic unavailable in this WebView. Allow Camera + Microphone in Android app settings, then reload.';
@@ -5229,14 +5229,14 @@
     liveDebugLog(`Host media blocked: ${mediaBlock}`);
     if (mode === 'party' && isLanHttpInNativeWebView()) {
       partyVoiceSkipped = true;
-      setLiveStatus('Party live (chat) — voice needs npm start (HTTPS)', false);
+      setLiveStatus('Party live (chat) â€” voice needs npm start (HTTPS)', false);
       onRoomReady();
       syncLiveUiState();
       refreshViewerDiagnostics();
       return;
     }
     if (isLanHttpInNativeWebView()) {
-      setLiveStatus('Live broadcast needs HTTPS — run npm start (not start:lan)', false);
+      setLiveStatus('Live broadcast needs HTTPS â€” run npm start (not start:lan)', false);
       onRoomReady();
       refreshViewerDiagnostics();
       return;
@@ -5249,8 +5249,8 @@
     const authish = /sign in|session|token|auth|expired|not logged/i.test(lastSocketIssue || '');
     setLiveStatus(
       authish
-        ? 'Session expired — please sign in again'
-        : 'Could not join room — check connection and retry',
+        ? 'Session expired â€” please sign in again'
+        : 'Could not join room â€” check connection and retry',
       false
     );
     if (authish) {
@@ -5319,11 +5319,11 @@
 
   async function startAgora(mode) {
     if (guestPublishInProgress) {
-      liveDebugLog('startAgora skipped — guest publish in progress');
+      liveDebugLog('startAgora skipped â€” guest publish in progress');
       return;
     }
     if (agoraStartInProgress) {
-      liveDebugLog('startAgora skipped — already in progress');
+      liveDebugLog('startAgora skipped â€” already in progress');
       return;
     }
     agoraStartInProgress = true;
@@ -5355,16 +5355,16 @@
       setLiveStatus(
         host
           ? isPartyRoomPage()
-            ? 'Connecting microphone…'
-            : 'Starting camera & mic…'
+            ? 'Connecting microphoneâ€¦'
+            : 'Starting camera & micâ€¦'
           : isPartyRoomPage()
-            ? 'Connecting to party audio…'
-            : 'Connecting to live…',
+            ? 'Connecting to party audioâ€¦'
+            : 'Connecting to liveâ€¦',
         null
       );
     } else {
-      showApLoader(host ? 'Starting your broadcast…' : 'Connecting to live…', 2);
-      setLiveStatus(host ? 'Starting camera & mic…' : 'Connecting to live…', null);
+      showApLoader(host ? 'Starting your broadcastâ€¦' : 'Connecting to liveâ€¦', 2);
+      setLiveStatus(host ? 'Starting camera & micâ€¦' : 'Connecting to liveâ€¦', null);
     }
     updateModeBadge(broadcastMode, false);
 
@@ -5378,7 +5378,7 @@
       } else if (isPartyRoomPage()) {
         partyVoiceSkipped = true;
         if (!sessionEstablished) onRoomReady();
-        setLiveStatus('Voice unavailable — chat still works', null);
+        setLiveStatus('Voice unavailable â€” chat still works', null);
         schedulePartyAgoraRetry();
       }
     }, 20000);
@@ -5408,10 +5408,10 @@
           });
         } else {
           joined = { channel: ch, uid: liveDebugState.agoraUid };
-          liveDebugLog('Agora already joined (early path) — subscribe only');
+          liveDebugLog('Agora already joined (early path) â€” subscribe only');
         }
         syncLiveUiState();
-        /* Audio first — voice should not wait on video decode */
+        /* Audio first â€” voice should not wait on video decode */
         await subscribeRemotesPreferAudio(host ? 'host-joined' : alreadyOnChannel ? 'viewer-early' : 'viewer-joined');
       } catch (joinErr) {
         const msg = joinErr?.message || String(joinErr);
@@ -5433,7 +5433,7 @@
             setLiveStatus(friendly, false);
             toast(friendly, 'error');
           } else {
-            setLiveStatus('Connecting to party audio…', null);
+            setLiveStatus('Connecting to party audioâ€¦', null);
             schedulePartyAgoraRetry();
           }
         } else {
@@ -5505,7 +5505,7 @@
         } else {
           const root = document.getElementById('liveRoomRoot');
           if (root) root.classList.remove('is-audio-mode');
-          /* Create mic + camera together, publish both at once — viewers get A/V at the same time */
+          /* Create mic + camera together, publish both at once â€” viewers get A/V at the same time */
           let audioTrack = null;
           let videoTrack = null;
           const mediaResults = await Promise.allSettled([
@@ -5550,7 +5550,7 @@
             return;
           }
           try {
-            /* Single stream only — dual low→high switch mid-watch breaks video/audio */
+            /* Single stream only â€” dual lowâ†’high switch mid-watch breaks video/audio */
             await agoraClient.publish(toPublish);
             localTracks = toPublish;
             publishSucceeded = true;
@@ -5561,7 +5561,7 @@
               parallel: true,
             });
             updateLiveDebug({ hostPublishing: true, publishSucceeded: true });
-            /* AEC ducks seat mics once host mic is live — apply publisher volume immediately */
+            /* AEC ducks seat mics once host mic is live â€” apply publisher volume immediately */
             syncLiveMediaPublisherMode();
             ensureRemoteAudioPlaying()
               .then(() => boostRemoteAudioVolumes())
@@ -5574,7 +5574,7 @@
             return;
           }
           if (!videoTrack && audioTrack) {
-            toast('Camera failed — audio is still live', 'warning');
+            toast('Camera failed â€” audio is still live', 'warning');
           }
           if (videoTrack) {
             applyVideoFilter();
@@ -5651,7 +5651,7 @@
       syncLiveUiState();
     } catch (e) {
       liveDebugLog(`mode switch failed: ${e?.message || e}`);
-      toast('Could not switch mode — retrying…', 'warning');
+      toast('Could not switch mode â€” retryingâ€¦', 'warning');
       try {
         await stopAgora({ skipEndRoom: true });
         await new Promise((r) => setTimeout(r, 400));
@@ -5731,7 +5731,7 @@
       return;
     }
 
-    // video mode — leave audio chrome first, keep mic, always recreate camera
+    // video mode â€” leave audio chrome first, keep mic, always recreate camera
     clearAudioModeUi();
 
     let audio = getLocalAudioTrack();
@@ -5834,7 +5834,7 @@
       } catch (e) {
         const msg = String(e?.message || e || '');
         if (msg && !/publisher token requires|403|denied/i.test(msg)) {
-          /* network blip — keep trying briefly */
+          /* network blip â€” keep trying briefly */
         }
       }
       await new Promise((r) => setTimeout(r, 200 + i * 80));
@@ -5867,7 +5867,7 @@
       const alreadyJoined = Boolean(agoraClient && liveDebugState.agoraJoined);
       let upgradedInPlace = false;
 
-      /* Prefer keep current Agora session — leave/rejoin blacks out host + breaks UI */
+      /* Prefer keep current Agora session â€” leave/rejoin blacks out host + breaks UI */
       if (alreadyJoined) {
         try {
           await waitForPublisherAcl(ch, 8);
@@ -5910,7 +5910,7 @@
         await ensureAgoraClient();
         await joinAgoraWithRetry(agoraClient, ch, true, 2);
 
-        /* Restore host A/V BEFORE opening mic — leave/rejoin was killing remote voice */
+        /* Restore host A/V BEFORE opening mic â€” leave/rejoin was killing remote voice */
         bindAudioUnlockGestures();
         await unlockBrowserAudio();
         await subscribeRemotesPreferAudio('guest-rejoin');
@@ -5944,7 +5944,7 @@
         profilePic: user.profilePic || user.profile_pic || null,
       });
 
-      /* Sync volume IMMEDIATELY — delayed boost was the audible 50% dip */
+      /* Sync volume IMMEDIATELY â€” delayed boost was the audible 50% dip */
       syncLiveMediaPublisherMode();
       boostRemoteAudioVolumes();
       await ensureRemoteAudioPlaying().catch(() => { });
@@ -5963,7 +5963,7 @@
           agoraUid: liveDebugState.agoraUid,
           hasVideo: false,
         });
-        /* Retry nudge — some hosts miss the first emit during gift/UI churn */
+        /* Retry nudge â€” some hosts miss the first emit during gift/UI churn */
         setTimeout(() => {
           try {
             liveSocket?.emit('live:guest_mic_ready', {
@@ -5979,7 +5979,7 @@
       syncMicButtonUi();
       renderPartySeats(roomState?.hostName);
       renderGuestRail();
-      toast('Mic is live — camera stays off. Tap mic to mute', 'success');
+      toast('Mic is live â€” camera stays off. Tap mic to mute', 'success');
     } catch (e) {
       const msg = friendlyAgoraError(e?.message || String(e));
       liveDebugLog(`Guest publish FAILED: ${msg}`);
@@ -6122,7 +6122,7 @@
 
   function drawFaceSoftMask(maskCtx, w, h) {
     maskCtx.clearRect(0, 0, w, h);
-    // Prefer tracked face box (browser FaceDetector) — closer to Instagram placement.
+    // Prefer tracked face box (browser FaceDetector) â€” closer to Instagram placement.
     const { cx, cy, rx, ry } = beautyFaceLayout(w, h);
     const g = maskCtx.createRadialGradient(cx, cy, rx * 0.12, cx, cy, Math.max(rx, ry));
     g.addColorStop(0, 'rgba(255,255,255,1)');
@@ -6158,7 +6158,7 @@
         h: b.height / bh,
       };
     } catch (_e) {
-      /* FaceDetector unsupported or failed — keep oval fallback */
+      /* FaceDetector unsupported or failed â€” keep oval fallback */
     }
   }
 
@@ -6210,7 +6210,7 @@
   }
 
   function drawLipTint(_ctx, _w, _h, _lip) {
-    /* Disabled — oval lip paint floated off the mouth and looked fake on every filter. */
+    /* Disabled â€” oval lip paint floated off the mouth and looked fake on every filter. */
   }
 
   function drawWash(ctx, w, h, wash) {
@@ -6302,7 +6302,7 @@
     ctx.drawImage(video, 0, 0, w, h);
     ctx.filter = 'none';
 
-    /* Skin soften at half-res — blur() on full HD is what made live crawl */
+    /* Skin soften at half-res â€” blur() on full HD is what made live crawl */
     if (preset.skin > 0 && preset.skinMix > 0 && softCtx) {
       const sw = aux.soft.width;
       const sh = aux.soft.height;
@@ -6479,7 +6479,7 @@
           // fall through to legacy
         }
       } else if (APB?.camera?.getCustomTrack?.()) {
-        // Engine turned off — drop custom track before legacy/raw path
+        // Engine turned off â€” drop custom track before legacy/raw path
         try {
           await agoraClient.unpublish([APB.camera.getCustomTrack()]);
         } catch (_e) { }
@@ -6503,7 +6503,7 @@
         playLocalHostPreview(rawCameraTrack);
         await applyAgoraBeautyEffect(rawCameraTrack);
         applyLocalPreviewCss();
-        /* Agora beauty only on raw path — canvas path does its own look */
+        /* Agora beauty only on raw path â€” canvas path does its own look */
         ensureHostVideoVisible();
       };
 
@@ -6518,11 +6518,11 @@
         return;
       }
 
-      // Pipeline already live — filter change only updates the draw loop.
+      // Pipeline already live â€” filter change only updates the draw loop.
       if (beautyPipeline?.customTrack) {
         const published = agoraClient.localTracks || [];
         if (published.includes?.(beautyPipeline.customTrack)) {
-          /* Raw is canvas source only — Agora beauty here doubles cost */
+          /* Raw is canvas source only â€” Agora beauty here doubles cost */
           try {
             if (rawCameraTrack?.setBeautyEffect) await rawCameraTrack.setBeautyEffect(false);
           } catch (_e) {}
@@ -6537,20 +6537,20 @@
         custom = await startBeautyPipeline(rawCameraTrack);
       }
       if (!custom) {
-        liveDebugLog('beauty pipeline unavailable — keeping raw camera');
+        liveDebugLog('beauty pipeline unavailable â€” keeping raw camera');
         await restoreRawCamera();
         return;
       }
 
       const framesOk = await waitForBeautyFrames(2200);
       if (!framesOk) {
-        liveDebugLog('beauty canvas still black — keeping raw camera');
+        liveDebugLog('beauty canvas still black â€” keeping raw camera');
         try {
           await agoraClient.unpublish([custom]);
         } catch (_e) { }
         stopBeautyPipeline();
         await restoreRawCamera();
-        toast('Face effect not ready — try another look', 'warning');
+        toast('Face effect not ready â€” try another look', 'warning');
         return;
       }
 
@@ -6580,7 +6580,7 @@
         } catch (_e) { }
         stopBeautyPipeline();
         await restoreRawCamera();
-        toast('Could not apply face effect — camera restored', 'warning');
+        toast('Could not apply face effect â€” camera restored', 'warning');
       }
     })().finally(() => {
       beautySyncPromise = null;
@@ -6619,7 +6619,7 @@
       return;
     }
 
-    liveDebugLog('host video missing/unhealthy — republishing camera');
+    liveDebugLog('host video missing/unhealthy â€” republishing camera');
     const audioTrack = getLocalAudioTrack?.() ||
       localTracks.find((t) => (t.getTrackType?.() || t.trackMediaType) === 'audio');
 
@@ -6659,7 +6659,7 @@
         rawCameraTrack = cam;
       } catch (e) {
         liveDebugLog(`recreate camera failed: ${e?.message || e}`);
-        toast('Camera stopped — tap Flip or rejoin to restore', 'warning');
+        toast('Camera stopped â€” tap Flip or rejoin to restore', 'warning');
         return;
       }
     }
@@ -6705,7 +6705,7 @@
   }
 
   function applyLocalPreviewCss() {
-    // When canvas beauty is published, effects are already in the frames —
+    // When canvas beauty is published, effects are already in the frames â€”
     // CSS tint on top made it look like only the background color changed.
     const css = isCanvasBeautyLive() ? '' : VIDEO_FILTERS[videoFilterId]?.css || '';
     [
@@ -6728,7 +6728,7 @@
         videoFilterId !== 'none'
     );
     if (canvasLive) {
-      /* Draw loop reads videoFilterId — no republish needed on filter swap */
+      /* Draw loop reads videoFilterId â€” no republish needed on filter swap */
       try {
         if (rawCameraTrack?.setBeautyEffect) rawCameraTrack.setBeautyEffect(false);
       } catch (_e) {}
@@ -6908,7 +6908,7 @@
     if (!localBox || !videoTrack?.play) return;
     localBox.innerHTML = '';
     localBox.style.display = '';
-    // Always disable Agora's built-in mirror — it sticks across switchCamera().
+    // Always disable Agora's built-in mirror â€” it sticks across switchCamera().
     // Front selfie flip is CSS-only; back camera stays unflipped.
     videoTrack.play(localBox, { mirror: false });
     applyHostPreviewMirror(localBox, cameraFacing);
@@ -6945,7 +6945,7 @@
     const currentId = oldVideo?.getMediaStreamTrack?.()?.getSettings?.()?.deviceId;
     const cameraId = await pickCameraDeviceId(AgoraRTC, nextFacing, currentId);
 
-    // Mobile WebViews often only allow one camera open — release old first.
+    // Mobile WebViews often only allow one camera open â€” release old first.
     if (oldVideo) {
       try {
         await agoraClient.unpublish([oldVideo]);
@@ -7010,7 +7010,7 @@
       const AgoraRTC = window.AgoraRTC || (await loadAgoraScript());
       const videoTrack = getLocalVideoTrack();
 
-      // Prefer setDevice when beauty is off — less black-screen prone on front cam.
+      // Prefer setDevice when beauty is off â€” less black-screen prone on front cam.
       const beautyOn = Boolean(
         beautyPipeline?.customTrack ||
         (window.APBeauty?.camera?.getCustomTrack?.()) ||
@@ -7289,7 +7289,7 @@
     let html = visible
       .map((c) => {
         if (c.action === 'follow') {
-          const lbl = followed ? 'Following ✓' : c.label;
+          const lbl = followed ? 'Following âœ“' : c.label;
           const cls = followed ? ' ap-chip is-follow-done' : ' ap-chip';
           return `<button type="button" class="${cls.trim()}" data-chip-action="follow">${escapeHtml(lbl)}</button>`;
         }
@@ -7342,7 +7342,7 @@
     const g = items[selectedGiftIdx] || items[0];
     const banner = document.getElementById('giftRtpBanner');
     if (banner && g) {
-      banner.innerHTML = `<span>【${escapeHtml(g.name)}】Creators receive <strong>90%</strong> · Platform 10% · ${formatGiftCoinPrice(g.cost)} each</span>`;
+      banner.innerHTML = `<span>ã€${escapeHtml(g.name)}ã€‘Creators receive <strong>90%</strong> Â· Platform 10% Â· ${formatGiftCoinPrice(g.cost)} each</span>`;
     }
     const me = currentUser();
     const bal = lastCoinBalance != null ? lastCoinBalance : 0;
@@ -7354,18 +7354,18 @@
     if (lvlEl) lvlEl.textContent = String(lvl);
     const xpText = document.getElementById('giftXpText');
     if (xpText) {
-      xpText.textContent = `+4XP · XP requires: ${xpNeed.toLocaleString()} · Lv.${lvl + 1}`;
+      xpText.textContent = `+4XP Â· XP requires: ${xpNeed.toLocaleString()} Â· Lv.${lvl + 1}`;
     }
     const xpBar = document.getElementById('giftXpBar');
     if (xpBar) xpBar.style.width = userXpProgress + '%';
     const sendBtn = document.getElementById('giftSendBtn');
     const total = (parseInt(g?.cost, 10) || 0) * giftQty;
     if (sendBtn) {
-      /* Don't use native disabled — it eats taps. Visual state only. */
+      /* Don't use native disabled â€” it eats taps. Visual state only. */
       sendBtn.disabled = false;
       sendBtn.classList.toggle('is-disabled', bal < total);
       sendBtn.title = bal < total ? 'Not enough gift coins' : 'Send gift';
-      sendBtn.textContent = total > 0 ? `Send · ${formatGiftCoinPrice(total)}` : 'Send';
+      sendBtn.textContent = total > 0 ? `Send Â· ${formatGiftCoinPrice(total)}` : 'Send';
     }
   }
 
@@ -7478,7 +7478,7 @@
     if (isLiveRoomPage() && isHost()) {
       if (!publishSucceeded) {
         if (isLanHttpInNativeWebView()) {
-          toast('Voice/video needs HTTPS — run npm start in ap-services-app', 'warning');
+          toast('Voice/video needs HTTPS â€” run npm start in ap-services-app', 'warning');
           return;
         }
         partyVoiceSkipped = false;
@@ -7632,7 +7632,7 @@
     if (!msg) return;
     const text = String(msg.text || '');
     if (msg.type === 'system' && /watching|viewer count|people are watching/i.test(text)) return;
-    /* Seat/mic requests already show as Agree/Decline — drop duplicate system lines */
+    /* Seat/mic requests already show as Agree/Decline â€” drop duplicate system lines */
     if (
       msg.type === 'system' &&
       /requested to join|requested mic|wants to join (on mic|the (live|stream)|a seat)/i.test(text)
@@ -7752,12 +7752,12 @@
           const fromName = msg.user || g.from || 'User';
           const toName = g.to || g.recipientName || 'Host';
           div.innerHTML =
-            `<button type="button" class="party-chat-gift-ico party-chat-gift-tap" data-gift-user="${escapeAttr(fromName)}" data-gift-uid="${escapeHtml(fromId)}" data-gift-to="${escapeAttr(toName)}" data-gift-toid="${escapeHtml(toId)}" aria-label="Open gift profile">${escapeHtml(g.emoji || '🎁')}</button>` +
+            `<button type="button" class="party-chat-gift-ico party-chat-gift-tap" data-gift-user="${escapeAttr(fromName)}" data-gift-uid="${escapeHtml(fromId)}" data-gift-to="${escapeAttr(toName)}" data-gift-toid="${escapeHtml(toId)}" aria-label="Open gift profile">${escapeHtml(g.emoji || 'ðŸŽ')}</button>` +
             `<span class="party-chat-gift-body">` +
             `<button type="button" class="party-chat-gift-tap" data-gift-user="${escapeAttr(fromName)}" data-gift-uid="${escapeHtml(fromId)}"><strong>${escapeHtml(fromName)}</strong></button>` +
-            ` sent ${escapeHtml(g.emoji || '🎁')} to ` +
+            ` sent ${escapeHtml(g.emoji || 'ðŸŽ')} to ` +
             `<button type="button" class="party-chat-gift-tap" data-gift-user="${escapeAttr(toName)}" data-gift-uid="${escapeHtml(toId)}"><strong>${escapeHtml(toName)}</strong></button>` +
-            ` · ${formatGiftCount(g.amount || g.coins || 0)} coins</span>`;
+            ` Â· ${formatGiftCount(g.amount || g.coins || 0)} coins</span>`;
           div.querySelectorAll('.party-chat-gift-tap').forEach((btn) => {
             btn.addEventListener('click', (e) => {
               e.preventDefault();
@@ -7854,11 +7854,11 @@
        * is consistent and we can trust incoming messages again. */
       const age = Date.now() - chatClearedAt;
       if (age < 30000) {
-        /* Completely ignore server messages — only real-time live:chat events pass */
+        /* Completely ignore server messages â€” only real-time live:chat events pass */
         renderChatFeed();
         return;
       }
-      /* 30 s passed — trust server again */
+      /* 30 s passed â€” trust server again */
       chatClearedAt = 0;
     }
     msgs.forEach((m) => {
@@ -7877,7 +7877,7 @@
     const hostCls = s.host ? ' is-host' : '';
     const speaking = s.speaking ? ' is-speaking' : '';
     const mutedCls = s.muted ? ' is-muted' : '';
-    const crown = s.host ? '<span class="seat-crown">👑</span>' : '';
+    const crown = s.host ? '<span class="seat-crown">ðŸ‘‘</span>' : '';
     const admin = memberIsAdminMarked(s) || isAdminUserId(s.userId);
     const adminBadge =
       !s.host && admin ? '<span class="seat-admin-badge">Admin</span>' : '';
@@ -7895,7 +7895,7 @@
           ${waveBars}
         </div>
         <span class="seat-name">${escapeHtml(s.name)}</span>
-        ${Number(s.gifts) > 0 ? `<span class="seat-gifts">🎁 ${formatGiftCount(s.gifts)}</span>` : ''}
+        ${Number(s.gifts) > 0 ? `<span class="seat-gifts">ðŸŽ ${formatGiftCount(s.gifts)}</span>` : ''}
       </button>`;
   }
 
@@ -8072,7 +8072,7 @@
       // Viewers can chat in party/live without tapping Follow first
       followed = true;
     }
-    const label = followed ? 'Following ✓' : 'Follow +';
+    const label = followed ? 'Following âœ“' : 'Follow +';
     const btn = document.getElementById('partyBtnFollow') || document.getElementById('liveBtnFollow');
     const hbtn = document.getElementById('partyHostFollow');
     if (btn) {
@@ -8080,7 +8080,7 @@
       btn.classList.toggle('is-following', followed && !isHost());
     }
     if (hbtn) {
-      hbtn.textContent = followed ? '✓' : '+';
+      hbtn.textContent = followed ? 'âœ“' : '+';
       hbtn.style.display = isHost() ? 'none' : '';
     }
     renderQuickChips();
@@ -8094,7 +8094,7 @@
     if (meId && roomState?.seats?.some((s) => String(s.userId) === meId && !s.isHost)) {
       hasSpeakerSeat = true;
       if (micLinkPending) clearMicRequestState();
-      /* Seat accept handler owns the first publish — don't race leave/rejoin here */
+      /* Seat accept handler owns the first publish â€” don't race leave/rejoin here */
       const seatPromoteFresh = Date.now() - seatPromoteAt < 12000;
       if (
         !isHost() &&
@@ -8114,7 +8114,7 @@
         (s) => String(s.userId) === meId && !s.isHost
       );
       if (!stillSeated) {
-        /* Don't clear mid-publish or right after host accept — stale state races. */
+        /* Don't clear mid-publish or right after host accept â€” stale state races. */
         if (guestPublishInProgress || Date.now() - seatPromoteAt < 8000) {
           /* keep hasSpeakerSeat */
         } else {
@@ -8176,13 +8176,13 @@
       const viewers = roomState?.viewers || 0;
       if (!isHost() && remoteUsers.size > 0) {
         ticker.innerHTML =
-          '<span class="live-watch-pill">● Watching live</span>' +
+          '<span class="live-watch-pill">â— Watching live</span>' +
           escapeHtml(hostName) +
-          ' · ' +
+          ' Â· ' +
           viewers +
           ' watching';
       } else {
-        ticker.textContent = `${hostName} is live · ${viewers} watching`;
+        ticker.textContent = `${hostName} is live Â· ${viewers} watching`;
       }
     }
     const sub = document.getElementById('liveSubLabel');
@@ -8228,9 +8228,9 @@
     if (!el || !gift) return;
     const amount = Number(gift.amount || gift.coins || gift.cost || 0) || 0;
     const qty = Math.max(1, Number(gift.qty || gift.quantity || 1) || 1);
-    const costLabel = amount > 0 ? ` · ${formatGiftCoinPrice(amount)}` : '';
-    const qtyLabel = qty > 1 ? ` ×${qty}` : '';
-    el.innerHTML = `<img src="${avatarUrl(gift.from)}" alt=""><span><strong>${escapeHtml(gift.from)}</strong> sent ${gift.emoji || '🎁'}${qtyLabel}${costLabel}</span>`;
+    const costLabel = amount > 0 ? ` Â· ${formatGiftCoinPrice(amount)}` : '';
+    const qtyLabel = qty > 1 ? ` Ã—${qty}` : '';
+    el.innerHTML = `<img src="${avatarUrl(gift.from)}" alt=""><span><strong>${escapeHtml(gift.from)}</strong> sent ${gift.emoji || 'ðŸŽ'}${qtyLabel}${costLabel}</span>`;
     el.classList.add('is-visible');
     clearTimeout(el._hide);
     el._hide = setTimeout(() => el.classList.remove('is-visible'), 4500);
@@ -8256,7 +8256,7 @@
     if (!el || !document.body.classList.contains('is-pk-mode')) return;
     if (pkTimerSec <= 0) {
       el.textContent = 'PK 00:00';
-      setPkStatus('Time is up — ending battle…');
+      setPkStatus('Time is up â€” ending battleâ€¦');
       if (!pkEndRequested && isHost() && liveSocket?.connected) {
         pkEndRequested = true;
         liveSocket.emit('pk:end', { channel: channelId() });
@@ -8443,7 +8443,7 @@
   }
 
   function hideHostMicInvitePopup() {
-    /* Popup retired — keep helper so old callers don't throw */
+    /* Popup retired â€” keep helper so old callers don't throw */
     document.getElementById('apHostMicInviteModal')?.classList.remove('open');
     syncLiveOverlayClass();
   }
@@ -8526,7 +8526,7 @@
     }
   }
 
-  /* Floating top Agree/Decline bar removed — only chat Agree/Decline stays */
+  /* Floating top Agree/Decline bar removed â€” only chat Agree/Decline stays */
   function hideMicRequestActionBar() {
     document.getElementById('apMicRequestBar')?.remove();
   }
@@ -8597,7 +8597,7 @@
       if (agreeBtn) acceptMicRequest(req, { btn: agreeBtn });
       else denyMicRequest(req);
     };
-    /* Document capture — survives chat re-renders and ghost overlay blocks */
+    /* Document capture â€” survives chat re-renders and ghost overlay blocks */
     document.addEventListener('click', handleMicInviteTap, true);
     const feed = document.getElementById('partyChatFeed');
     if (feed) feed.dataset.micInviteBound = '1';
@@ -8605,7 +8605,7 @@
 
   function acceptMicRequest(req, opts = {}) {
     if (!req) {
-      toast('Request expired — ask them to request again', 'warning');
+      toast('Request expired â€” ask them to request again', 'warning');
       renderJoinRequests();
       return;
     }
@@ -8614,22 +8614,22 @@
       return;
     }
     if (isLiveRoomPage() && countStageGuests() >= LIVE_MAX_GUESTS) {
-      toast(`Live stage is full — max ${LIVE_MAX_ON_STAGE} people (host + ${LIVE_MAX_GUESTS} guests)`, 'warning');
+      toast(`Live stage is full â€” max ${LIVE_MAX_ON_STAGE} people (host + ${LIVE_MAX_GUESTS} guests)`, 'warning');
       return;
     }
     if (isPartyRoomPage() && isPartySeatsFull()) {
-      toast('Party is full — max 15 on stage (host + 14 guests)', 'warning');
+      toast('Party is full â€” max 15 on stage (host + 14 guests)', 'warning');
       return;
     }
     if (!liveSocket?.connected) {
-      toast('Not connected — try again', 'error');
+      toast('Not connected â€” try again', 'error');
       return;
     }
     const btn = opts.btn || null;
     if (btn) {
       btn.disabled = true;
       btn.dataset.busy = '1';
-      btn.textContent = '…';
+      btn.textContent = 'â€¦';
     }
     const uid = String(req.userId || req.id || '');
     emitSeatResponse(
@@ -8709,7 +8709,7 @@
   function recoverStuckLiveUi(opts = {}) {
     const forceGift = Boolean(opts.forceGift);
     const age = Date.now() - (Number(window.__apGiftSendingAt) || 0);
-    /* Never interrupt an in-flight gift from live:state — only hard unlock on force / long hang */
+    /* Never interrupt an in-flight gift from live:state â€” only hard unlock on force / long hang */
     if (window.__apGiftSending && (forceGift || age > 12000)) {
       window.__apGiftSending = false;
       window.__apGiftSendingAt = 0;
@@ -8732,7 +8732,7 @@
       '#apInAppShareSheet.open, #apSurpriseShop.open, #apFilterSheet.open, #apProfileSheet.open, ' +
       '#apInRoomWebPanel.open, #apSeatSheet.open';
 
-    /* Requests sheet closed but body class left on → gift icon dead */
+    /* Requests sheet closed but body class left on â†’ gift icon dead */
     const reqSheet = document.getElementById('partyRequestsSheet');
     if (
       document.body.classList.contains('party-requests-open') &&
@@ -8741,14 +8741,14 @@
       document.body.classList.remove('party-requests-open');
     }
 
-    /* Closed overlays sometimes keep stray .open from race — force-clear ghosts.
+    /* Closed overlays sometimes keep stray .open from race â€” force-clear ghosts.
        Never kill tools/gift/requests that are actually open+visible (watchdog used to
        close Basic Tools instantly because the sheet covered the Tools button). */
     if (forceGift) {
       document.querySelectorAll('.ap-modal-overlay.open').forEach((el) => {
         if (el.id === 'apHostMicInviteModal') return;
         if (el.id === 'giftSheet' || el.classList.contains('gift-sheet')) return;
-        /* Never auto-kill profile / seat sheets — user opened them on purpose */
+        /* Never auto-kill profile / seat sheets â€” user opened them on purpose */
         if (el.id === 'apProfileSheet' || el.id === 'apSeatSheet') return;
         el.classList.remove('open');
       });
@@ -8797,7 +8797,7 @@
     const bar = document.getElementById('partyBottomBar');
     if (!bar) return;
     let h = Math.ceil(bar.getBoundingClientRect().height || 58);
-    /* Cap — a bloated height pushes sticky bars into the invite/joined hit zone */
+    /* Cap â€” a bloated height pushes sticky bars into the invite/joined hit zone */
     if (!Number.isFinite(h) || h < 48) h = 58;
     if (h > 120) h = 72;
     document.documentElement.style.setProperty('--ap-bottom-bar-h', `${h}px`);
@@ -8830,13 +8830,13 @@
       if (!el) return;
       const isOpen = el.classList.contains('open');
       if (!isOpen) {
-        /* Never use visibility:hidden — it leaks into the next open and makes an invisible full-screen tap shield */
+        /* Never use visibility:hidden â€” it leaks into the next open and makes an invisible full-screen tap shield */
         el.style.pointerEvents = 'none';
         el.style.removeProperty('visibility');
         el.style.display = 'none';
         return;
       }
-      /* Ghost "open but invisible / off-screen" sheets trap every tap — force-close them */
+      /* Ghost "open but invisible / off-screen" sheets trap every tap â€” force-close them */
       try {
         const cs = getComputedStyle(el);
         const rect = el.getBoundingClientRect();
@@ -9073,7 +9073,7 @@
       if (!found || !found.blocked) return;
       /*
        * Only salvage on click when something is blocking chrome.
-       * Never unlock/open on pointerdown — that caused tools to flicker open/close.
+       * Never unlock/open on pointerdown â€” that caused tools to flicker open/close.
        */
       e.preventDefault();
       e.stopPropagation();
@@ -9189,7 +9189,7 @@
         return;
       }
 
-      /* Bottom actions blocked while sheets closed — force restore */
+      /* Bottom actions blocked while sheets closed â€” force restore */
       if (bar && !reqOpen && !giftOpen && !toolsOpen) {
         const pe = (bar.style.pointerEvents || '').toLowerCase();
         const hidden =
@@ -9199,11 +9199,11 @@
         if (hidden) unlockLiveChrome({ forceGift: true });
       }
 
-      /* Do not probe chrome while a real sheet is open — sheet covers Tools/Gift and
-         unlocking would instantly close Basic Tools (open → close flicker). */
+      /* Do not probe chrome while a real sheet is open â€” sheet covers Tools/Gift and
+         unlocking would instantly close Basic Tools (open â†’ close flicker). */
       if (reqOpen || giftOpen || toolsOpen) return;
 
-      /* Probe Joined / Gift / Tools centers — if covered by a non-chrome layer, unlock */
+      /* Probe Joined / Gift / Tools centers â€” if covered by a non-chrome layer, unlock */
       ['liveViewerCount', 'partyBtnTools', 'liveBtnGift', 'partyBtnGift', 'partyBtnUsersAll'].forEach((id) => {
         const el = document.getElementById(id);
         if (!el) return;
@@ -9338,15 +9338,15 @@
   function handleSeatInviteClick(btn) {
     const uid = btn.dataset.inviteSeat;
     if (!uid || !liveSocket?.connected) {
-      toast('Not connected — try again', 'error');
+      toast('Not connected â€” try again', 'error');
       return;
     }
     if (isLiveRoomPage() && countStageGuests() >= LIVE_MAX_GUESTS) {
-      toast(`Live stage is full — max ${LIVE_MAX_ON_STAGE} people (host + ${LIVE_MAX_GUESTS} guests)`, 'warning');
+      toast(`Live stage is full â€” max ${LIVE_MAX_ON_STAGE} people (host + ${LIVE_MAX_GUESTS} guests)`, 'warning');
       return;
     }
     if (isPartyRoomPage() && isPartySeatsFull()) {
-      toast('Party is full — max 15 on stage', 'warning');
+      toast('Party is full â€” max 15 on stage', 'warning');
       return;
     }
     const member = getPartyMembersForList().find((m) => String(m.userId) === String(uid));
@@ -9361,7 +9361,7 @@
     btn.disabled = true;
     btn.dataset.busy = '1';
     const prevLabel = btn.textContent;
-    btn.textContent = '…';
+    btn.textContent = 'â€¦';
     emitSeatResponse(payload, (res) => {
       btn.disabled = false;
       btn.dataset.busy = '0';
@@ -9376,7 +9376,7 @@
         renderMicRequestActionBar();
         requestFreshRoomState?.();
       } else {
-        toast(res?.message || 'Could not add — ask them to reopen the live, then try Add again', 'error');
+        toast(res?.message || 'Could not add â€” ask them to reopen the live, then try Add again', 'error');
       }
     });
   }
@@ -9416,7 +9416,7 @@
       });
     }
 
-    /* Always (re)bind panel actions — sheet may be reparented */
+    /* Always (re)bind panel actions â€” sheet may be reparented */
     const panel = sheet.querySelector('.party-requests-panel');
     if (!panel || panel.dataset.seatActionsBound === '1') return;
     panel.dataset.seatActionsBound = '1';
@@ -9491,7 +9491,7 @@
       const target = document.getElementById('partyLiveActions');
       if (!target) return;
       const usersBtn = document.getElementById('partyBtnUsersAll');
-      /* Order: Users → Invite (host controls bar removed) */
+      /* Order: Users â†’ Invite (host controls bar removed) */
       if (usersBtn && usersBtn.parentElement === target && target.firstElementChild !== usersBtn) {
         target.insertBefore(usersBtn, target.firstElementChild);
       }
@@ -9587,7 +9587,7 @@
   }
 
   function adminAvatarFrameClass(_isAdmin) {
-    /* Gold admin ring looked cluttered in live UI — keep identity via role label only */
+    /* Gold admin ring looked cluttered in live UI â€” keep identity via role label only */
     return '';
   }
 
@@ -9607,7 +9607,7 @@
       `<div class="party-music-sheet party-bg-sheet" id="partyBgPickerSheet" aria-hidden="true">
         <div class="party-music-panel">
           <h3>Room background</h3>
-          <p>Pick a look for your party — premium themes need coins or VIP.</p>
+          <p>Pick a look for your party â€” premium themes need coins or VIP.</p>
           <div class="party-bg-grid">${items}</div>
           <div class="party-music-actions">
             <button type="button" class="party-music-close" id="partyBgPickerClose">Close</button>
@@ -9691,7 +9691,7 @@
       e.target.value = '';
       if (!file) return;
       try {
-        toast('Uploading music…', 'info');
+        toast('Uploading musicâ€¦', 'info');
         const uploaded = await uploadPartyMusicFile(file);
         const id = `custom-${Date.now()}`;
         partyMusicCustomTracks.unshift({
@@ -10212,7 +10212,7 @@
   function bindMicLinkModal() {
     if (window.__apMicModalBound) return;
     window.__apMicModalBound = true;
-    document.getElementById('apMicLinkContinue')?.addEventListener('click', () => toast('Waiting for host approval…'));
+    document.getElementById('apMicLinkContinue')?.addEventListener('click', () => toast('Waiting for host approvalâ€¦'));
     document.getElementById('apMicLinkCancel')?.addEventListener('click', hideMicLinkModal);
     document.getElementById('apMicLinkCancel2')?.addEventListener('click', hideMicLinkModal);
     document.getElementById('apMicLinkConfirm')?.addEventListener('click', hideMicLinkModal);
@@ -10222,13 +10222,13 @@
   }
 
   function ensureHostMicInviteModal() {
-    /* Popup retired — mic Agree/Decline now lives in chat */
+    /* Popup retired â€” mic Agree/Decline now lives in chat */
     document.getElementById('apHostMicInviteModal')?.classList.remove('open');
     document.getElementById('apHostMicInviteModal')?.remove();
   }
 
   function bindHostMicInviteModal() {
-    /* no-op — chat actions handle Agree/Decline */
+    /* no-op â€” chat actions handle Agree/Decline */
   }
 
   function updateCharCount() {
@@ -10364,21 +10364,21 @@
               <h2>Top-up coins (UPI)</h2>
               <button type="button" id="apTopupClose"><i class="fas fa-times"></i></button>
             </div>
-            <p class="ap-topup-balance">🪙 <span id="apTopupBal">0</span></p>
-            <div class="ap-topup-banner">Pay via PhonePe / GPay / Paytm UPI — then submit your UTR here. You stay in the party room.</div>
+            <p class="ap-topup-balance">ðŸª™ <span id="apTopupBal">0</span></p>
+            <div class="ap-topup-banner">Pay via PhonePe / GPay / Paytm UPI â€” then submit your UTR here. You stay in the party room.</div>
             <div id="apTopupStep1">
-              <p class="ap-topup-pay-hint" style="font-size:12px;color:#666;margin:0 0 10px;text-align:center">Select amount (INR) — coins credit after admin verifies UTR</p>
+              <p class="ap-topup-pay-hint" style="font-size:12px;color:#666;margin:0 0 10px;text-align:center">Select amount (INR) â€” coins credit after admin verifies UTR</p>
               <div class="ap-topup-grid" id="apTopupGrid"></div>
               <button type="button" class="ap-topup-recharge" id="apTopupRecharge">Continue to payment</button>
             </div>
             <div id="apTopupStep2" hidden>
-              <p class="ap-topup-pay-hint" style="text-align:center;margin:8px 0"><strong id="apTopupSelectedLabel">₹199</strong> → <span id="apTopupSelectedCoins">1,990</span> coins</p>
+              <p class="ap-topup-pay-hint" style="text-align:center;margin:8px 0"><strong id="apTopupSelectedLabel">â‚¹199</strong> â†’ <span id="apTopupSelectedCoins">1,990</span> coins</p>
               <div class="ap-topup-qr-wrap" style="text-align:center;margin:8px 0">
                 <img src="assets/payment-qr.png" alt="UPI QR" style="max-width:180px;border-radius:12px" onerror="this.style.display='none'">
                 <p style="font-size:11px;color:#888">Scan & pay the exact amount</p>
               </div>
               <label style="display:block;font-size:12px;font-weight:600;margin:8px 0 4px" for="apTopupUtr">UTR (from payment app)</label>
-              <input type="text" id="apTopupUtr" inputmode="numeric" maxlength="22" placeholder="10–22 digit UTR" style="width:100%;box-sizing:border-box;padding:12px;border-radius:10px;border:1px solid #ddd;font-size:16px">
+              <input type="text" id="apTopupUtr" inputmode="numeric" maxlength="22" placeholder="10â€“22 digit UTR" style="width:100%;box-sizing:border-box;padding:12px;border-radius:10px;border:1px solid #ddd;font-size:16px">
               <div class="rc-proof-upload ap-topup-proof" id="apTopupProofZone" role="button" tabindex="0" style="margin-top:10px;padding:14px 10px">
                 <div id="apTopupProofPlaceholder" class="rc-proof-placeholder">
                   <div class="icon"><i class="fas fa-cloud-upload-alt"></i></div>
@@ -10391,7 +10391,7 @@
               </div>
               <input type="file" id="apTopupProof" class="rc-file-input-hidden" accept="image/jpeg,image/png,image/webp,image/*" tabindex="-1" aria-hidden="true">
               <button type="button" class="ap-topup-recharge" id="apTopupSubmit" style="margin-top:12px">Submit for verification</button>
-              <button type="button" class="ap-topup-back" id="apTopupBack" type="button" style="margin-top:8px;width:100%;border:none;background:none;color:#666;font-size:13px">← Change amount</button>
+              <button type="button" class="ap-topup-back" id="apTopupBack" type="button" style="margin-top:8px;width:100%;border:none;background:none;color:#666;font-size:13px">â† Change amount</button>
             </div>
             <label class="ap-topup-agree"><input type="checkbox" checked id="apTopupAgree"> I agree to the <a href="/terms.html?app=1">User Recharge Agreement</a></label>
           </div>
@@ -10411,7 +10411,7 @@
           .map(
             ([inr, coins], i) =>
               `<button type="button" class="ap-topup-pack${i === 1 ? ' is-selected' : ''}" data-inr="${inr}" data-coins="${coins}">
-                <strong>${coins.toLocaleString('en-IN')}</strong><span>₹${inr.toLocaleString('en-IN')}</span>
+                <strong>${coins.toLocaleString('en-IN')}</strong><span>â‚¹${inr.toLocaleString('en-IN')}</span>
               </button>`
           )
           .join('');
@@ -10446,7 +10446,7 @@
         const coins = sel?.dataset?.coins || '1990';
         const lbl = document.getElementById('apTopupSelectedLabel');
         const coinsEl = document.getElementById('apTopupSelectedCoins');
-        if (lbl) lbl.textContent = '₹' + Number(inr).toLocaleString('en-IN');
+        if (lbl) lbl.textContent = 'â‚¹' + Number(inr).toLocaleString('en-IN');
         if (coinsEl) coinsEl.textContent = Number(coins).toLocaleString('en-IN') + ' coins';
         document.getElementById('apTopupStep1')?.setAttribute('hidden', '');
         document.getElementById('apTopupStep2')?.removeAttribute('hidden');
@@ -10500,14 +10500,14 @@
         const inr = parseFloat(sel?.dataset?.inr || '199');
         const utr = (document.getElementById('apTopupUtr')?.value || '').trim().replace(/\s+/g, '');
         if (!/^\d{10,22}$/.test(utr)) {
-          toast('Enter the 10–22 digit UTR from your UPI receipt', 'warning');
+          toast('Enter the 10â€“22 digit UTR from your UPI receipt', 'warning');
           return;
         }
         const proof = apTopupProofFile;
         const btn = document.getElementById('apTopupSubmit');
         if (btn) {
           btn.disabled = true;
-          btn.textContent = 'Submitting…';
+          btn.textContent = 'Submittingâ€¦';
         }
         try {
           if (!window.SocialWallet?.submitRecharge) throw new Error('Wallet unavailable');
@@ -10551,7 +10551,7 @@
             <div class="ap-surprise-hero">
               <div class="ap-surprise-card">
                 <span class="ap-surprise-title">Heart Voyage</span>
-                <span class="ap-surprise-art">🛥️❤️</span>
+                <span class="ap-surprise-art">ðŸ›¥ï¸â¤ï¸</span>
               </div>
             </div>
             <div class="ap-surprise-foot">
@@ -10584,7 +10584,7 @@
     const root = document.getElementById('liveRoomRoot');
     const hasFrames = hasPlayingRemoteVideo();
     const hasVideoEl = Boolean(document.querySelector('#liveRemoteHost video'));
-    /* Show as soon as video element is attached — don't wait on slow decode */
+    /* Show as soon as video element is attached â€” don't wait on slow decode */
     const on = Boolean(visible) && (hasFrames || hasVideoEl || isHost());
     if (root) root.classList.toggle('ap-has-video-stream', on);
     document.body.classList.toggle('ap-has-video-stream', on);
@@ -10622,7 +10622,7 @@
 
   async function playRemoteMedia(user, mediaType, { force = false } = {}) {
     if (!user || !agoraClient) return;
-    /* Never play AV for users you blocked (or who blocked you — mirrored in cache) */
+    /* Never play AV for users you blocked (or who blocked you â€” mirrored in cache) */
     try {
       syncAgoraUidMap();
       const map = window.__apAgoraUidMap || {};
@@ -10639,7 +10639,7 @@
       }
     } catch (_e3) { }
 
-    /* Already subscribed + playing — re-subscribe tears A/V and causes choppy voice/video */
+    /* Already subscribed + playing â€” re-subscribe tears A/V and causes choppy voice/video */
     if (!force) {
       if (mediaType === 'audio' && user.audioTrack) {
         if (user.audioTrack.isPlaying !== false) {
@@ -10658,9 +10658,9 @@
         }
       }
     }
-    /* force=true: replay only — never unsubscribe (AEC duck ≠ dead track) */
+    /* force=true: replay only â€” never unsubscribe (AEC duck â‰  dead track) */
 
-    /* Browser viewers must not receive playable video (screenshot risk) — check BEFORE subscribe */
+    /* Browser viewers must not receive playable video (screenshot risk) â€” check BEFORE subscribe */
     if (mediaType === 'video' && !isNativeApApp() && !isConfirmedRoomHost()) {
       showLiveAppOnlySafetyGate();
       try {
@@ -10699,7 +10699,7 @@
     if (mediaType === 'video') {
       const containerHost = document.getElementById('liveRemoteHost');
       const root = document.getElementById('liveRoomRoot');
-      // Host switched audio → video: leave voice stage even if URL still says mode=audio
+      // Host switched audio â†’ video: leave voice stage even if URL still says mode=audio
       if (!isHost()) {
         broadcastMode = 'video';
         clearAudioModeUi();
@@ -10750,7 +10750,7 @@
         const vid = container.querySelector('video');
         if (vid) vid.dataset.apPlaying = '1';
         bindRemoteVideoReveal(container);
-        /* Reveal video immediately in parallel with audio — don't wait on decode */
+        /* Reveal video immediately in parallel with audio â€” don't wait on decode */
         setLiveStreamVisible(true);
         clearStickyLivePoster(true);
         const bgNow = document.getElementById('liveBg');
@@ -10761,7 +10761,7 @@
         revealLiveVideoWhenReady(60);
         updateModeBadge('video', false);
       }
-      /* Soft audio nudge only — avoid burst re-subscribe that chops voice */
+      /* Soft audio nudge only â€” avoid burst re-subscribe that chops voice */
       ensureRemoteAudioPlaying().catch(() => { });
       kickstartRemoteAudio('remote-video');
     }
@@ -10821,7 +10821,7 @@
       await applyLocalMicMuteState();
       return;
     }
-    liveDebugLog('host mic missing/unhealthy — republishing audio');
+    liveDebugLog('host mic missing/unhealthy â€” republishing audio');
     const AgoraRTC = window.AgoraRTC || (await loadAgoraScript());
     // Drop dead audio tracks
     localTracks = localTracks.filter((t) => {
@@ -10915,8 +10915,10 @@
 
   function requestNativeSpeakerAudio() {
     try {
+      /* recording:true only when we own a mic â€” audience stays in media mode (hearable). */
+      const recording = Boolean(isHost() || (hasSpeakerSeat && publishSucceeded));
       window.ReactNativeWebView?.postMessage?.(
-        JSON.stringify({ type: 'force_speaker_audio', ts: Date.now() })
+        JSON.stringify({ type: 'force_speaker_audio', recording, ts: Date.now() })
       );
     } catch (_e) { }
   }
@@ -10944,7 +10946,7 @@
   }
 
   /**
-   * Legacy Web Audio path — unused when LiveMediaEngine is loaded.
+   * Legacy Web Audio path â€” unused when LiveMediaEngine is loaded.
    * Kept as last-resort fallback only.
    */
   async function playRemoteAudioViaWebAudio(user) {
@@ -11190,7 +11192,7 @@
     return anyOk;
   }
 
-  /** Soft retry — stop once playing (engine owns health after). */
+  /** Soft retry â€” stop once playing (engine owns health after). */
   function kickstartRemoteAudio(reason) {
     if (!shouldHearRemoteAudio()) return;
     requestNativeSpeakerAudio();
@@ -11226,7 +11228,7 @@
   }
 
   /**
-   * Legacy silent watchdog — only used if LiveMediaEngine is absent.
+   * Legacy silent watchdog â€” only used if LiveMediaEngine is absent.
    */
   function startSilentAudioWatchdog(ms = 30000) {
     __audioSinkWatchUntil = Math.max(__audioSinkWatchUntil, Date.now() + ms);
@@ -11271,7 +11273,7 @@
   }
 
   function showTapForSoundHint() {
-    /* Removed — auto-unlock handles audio. Keep DOM clean if an old button exists. */
+    /* Hidden by product request â€” auto-unlock + gestures still run. */
     hideTapForSoundHint();
   }
 
@@ -11329,7 +11331,7 @@
   }
 
   function showWinBanner(_gift) {
-    /* Disabled — chat already shows "X sent to Y"; WIN flash was a duplicate notice */
+    /* Disabled â€” chat already shows "X sent to Y"; WIN flash was a duplicate notice */
     const el = document.getElementById('partyWinBanner');
     if (!el) return;
     el.innerHTML = '';
@@ -11391,14 +11393,14 @@
       prev.count += 1;
       totals.set(key, prev);
     });
-    /* Do not also sum roomState.gifts — those are the same sends already in roomGiftHistory */
+    /* Do not also sum roomState.gifts â€” those are the same sends already in roomGiftHistory */
     if (analyticsEl) {
       const rows = [...totals.values()].sort((a, b) => b.coins - a.coins).slice(0, 8);
       analyticsEl.innerHTML = rows.length
         ? rows
           .map(
             (r) =>
-              `<div class="party-gift-stat-row"><span>${escapeHtml(r.label)}</span><strong>${formatGiftCount(r.coins)} coins · ${r.count} gifts</strong></div>`
+              `<div class="party-gift-stat-row"><span>${escapeHtml(r.label)}</span><strong>${formatGiftCount(r.coins)} coins Â· ${r.count} gifts</strong></div>`
           )
           .join('')
         : '<p class="party-requests-empty">No gifts sent in this room yet</p>';
@@ -11410,7 +11412,7 @@
         ? recent
           .map(
             (g) =>
-              `<div class="party-gift-history-row"><img src="${avatarUrl(g.from)}" alt=""><span><strong>${escapeHtml(g.from)}</strong> → ${escapeHtml(g.to)} ${g.emoji || '🎁'} <em>${formatGiftCount(g.amount)}</em></span></div>`
+              `<div class="party-gift-history-row"><img src="${avatarUrl(g.from)}" alt=""><span><strong>${escapeHtml(g.from)}</strong> â†’ ${escapeHtml(g.to)} ${g.emoji || 'ðŸŽ'} <em>${formatGiftCount(g.amount)}</em></span></div>`
           )
           .join('')
         : '<p class="party-requests-empty">Gift history will appear here as people send gifts</p>';
@@ -11463,7 +11465,7 @@
     const name = displayName(user);
     const id = String(user.id);
     if (micLinkPending) {
-      toast('Request pending — waiting for host', 'info');
+      toast('Request pending â€” waiting for host', 'info');
       showMicLinkModal('waiting');
       return;
     }
@@ -11474,14 +11476,14 @@
     if (isStageFull()) {
       toast(
         isLiveRoomPage()
-          ? `Live stage is full — max ${LIVE_MAX_ON_STAGE} people (host + ${LIVE_MAX_GUESTS} guests)`
-          : 'Party is full — all 15 seats taken',
+          ? `Live stage is full â€” max ${LIVE_MAX_ON_STAGE} people (host + ${LIVE_MAX_GUESTS} guests)`
+          : 'Party is full â€” all 15 seats taken',
         'warning'
       );
       return;
     }
     if (!liveSocket?.connected) {
-      toast('Not connected to room — wait a moment or reload', 'error');
+      toast('Not connected to room â€” wait a moment or reload', 'error');
       return;
     }
     liveSocket.emit('live:seat_request', {
@@ -11489,7 +11491,7 @@
       userId: id,
       name,
     });
-    /* No system chat line — host already gets Agree/Decline in chat via live:seat_request */
+    /* No system chat line â€” host already gets Agree/Decline in chat via live:seat_request */
     micLinkPending = true;
     startMicRequestWatchdog();
     showMicLinkModal('waiting');
@@ -11595,7 +11597,7 @@
   function isValidGiftUserId(id) {
     const s = String(id || '').trim();
     if (!s || s === 'null' || s === 'undefined') return false;
-    /* UUID or numeric display-backed ids — reject obvious garbage */
+    /* UUID or numeric display-backed ids â€” reject obvious garbage */
     return s.length >= 8;
   }
 
@@ -11618,7 +11620,7 @@
     /* Streamer always first for viewers */
     if (hostId && hostId !== meId) push(hostName, hostId, 'host');
 
-    /* On-stage guests only (valid user ids) — not every lurker */
+    /* On-stage guests only (valid user ids) â€” not every lurker */
     (roomState?.seats || []).forEach((s) => {
       if (!s) return;
       const uid = (s.userId ?? s.user_id ?? s.id ?? s.uid) != null ? String(s.userId ?? s.user_id ?? s.id ?? s.uid) : '';
@@ -11652,7 +11654,7 @@
     if (isValidGiftUserId(toId) && toId !== meId) {
       const byId = all.find((r) => String(r.id) === String(toId));
       if (byId) return [byId];
-      /* Selected id may briefly vanish on seat churn — keep gifting host */
+      /* Selected id may briefly vanish on seat churn â€” keep gifting host */
       if (hostId && hostId !== meId) {
         const host = all.find((r) => String(r.id) === hostId);
         if (host) return [host];
@@ -11675,7 +11677,7 @@
     if (isValidGiftUserId(fromSheet) && fromSheet !== meId) {
       const stillThere = getGiftRecipients().some((r) => String(r.id) === fromSheet);
       if (stillThere) return fromSheet;
-      /* Seat snapshot race — fall back to host rather than fail send */
+      /* Seat snapshot race â€” fall back to host rather than fail send */
       if (hostId && hostId !== meId) return hostId;
       return fromSheet;
     }
@@ -11701,14 +11703,14 @@
   function refreshOpenGiftRecipients() {
     const sheet = document.getElementById('giftSheet');
     if (!sheet?.classList.contains('open')) return;
-    /* Don't rebuild chips mid-send — seat joins were wiping the receiver mid-gift */
+    /* Don't rebuild chips mid-send â€” seat joins were wiping the receiver mid-gift */
     if (window.__apGiftSending) return;
     const meId = String(currentUser()?.id || '');
     const hostId = String(roomState?.hostId || activeFeedHostId || '');
     const prevId = sheet.dataset.toUserId || '';
     const list = getGiftRecipients();
     let keepId = isValidGiftUserId(prevId) && prevId !== meId ? prevId : '';
-    /* If previous target briefly missing from snapshot, prefer host — do not jump to newest guest */
+    /* If previous target briefly missing from snapshot, prefer host â€” do not jump to newest guest */
     if (keepId && !list.some((r) => String(r.id) === keepId)) {
       keepId = '';
     }
@@ -11748,7 +11750,7 @@
       `<div class="ap-modal-overlay align-bottom" id="apInAppShareSheet">
         <div class="ap-profile-sheet-panel ap-share-sheet-panel">
           <h3 class="ap-share-sheet-title">Invite to room</h3>
-          <p class="ap-share-sheet-sub">Pick someone you follow — they'll get a chat invite with your room link</p>
+          <p class="ap-share-sheet-sub">Pick someone you follow â€” they'll get a chat invite with your room link</p>
           <div class="ap-share-user-list" id="apShareUserList"></div>
           <div class="ap-share-actions">
             <button type="button" class="ap-share-cancel" id="apShareCancel">Close</button>
@@ -11848,7 +11850,7 @@
           const statusEl = btn.querySelector('.ap-share-status');
           if (btn.disabled) return;
           btn.disabled = true;
-          if (statusEl) statusEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending…';
+          if (statusEl) statusEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sendingâ€¦';
           try {
             await sendRoomInviteToUser(userId, inviteText);
             if (statusEl) {
@@ -11868,7 +11870,7 @@
                 JSON.stringify({ userId, name, text: inviteText, at: Date.now() })
               );
             } catch (_e) { }
-            toast(e?.message || 'Could not send invite — opening chat…', 'warning');
+            toast(e?.message || 'Could not send invite â€” opening chatâ€¦', 'warning');
             if (userId) {
               setTimeout(() => {
                 openInPartyBrowse(`/chat.html?id=${encodeURIComponent(userId)}&app=1`);
@@ -11910,13 +11912,13 @@
       bindInviteRows(users);
     };
 
-    /* Instant: never leave the sheet on "Loading…" while network hangs */
+    /* Instant: never leave the sheet on "Loadingâ€¦" while network hangs */
     const cached = readCachedInviteFriends();
     const hasCache = normalizeInviteUsers(cached).length > 0;
     if (hasCache) paintInviteList(cached);
     else {
       list.innerHTML =
-        '<p class="ap-share-loading"><span class="ap-share-skeleton" aria-hidden="true"></span> Loading friends…</p>';
+        '<p class="ap-share-loading"><span class="ap-share-skeleton" aria-hidden="true"></span> Loading friendsâ€¦</p>';
     }
 
     const fetchFollowingDirect = async () => {
@@ -11953,7 +11955,7 @@
     const failSafe = setTimeout(() => {
       if (settled) return;
       settled = true;
-      /* Clear loading no matter what — show cache / empty / room people */
+      /* Clear loading no matter what â€” show cache / empty / room people */
       if (list.querySelector('.ap-share-loading')) {
         paintInviteList(readCachedInviteFriends());
       }
@@ -12138,7 +12140,7 @@
         grid.querySelectorAll('button').forEach((b) => b.classList.remove('is-selected'));
         btn.classList.add('is-selected');
         updateGiftMeta();
-        /* Selecting only — never auto-send */
+        /* Selecting only â€” never auto-send */
       });
     });
     updateGiftMeta();
@@ -12175,7 +12177,7 @@
     window.__apToolsOpenBusyUntil = now + 700;
     const sheet = document.getElementById('partyToolsSheet');
     if (isSheetReallyOpen(sheet)) return;
-    /* Soft unlock only — forceGift used to close tools in the same tick we open them */
+    /* Soft unlock only â€” forceGift used to close tools in the same tick we open them */
     hideMicRequestActionBar();
     document.body.classList.remove('party-requests-open', 'ap-sheet-open');
     const req = document.getElementById('partyRequestsSheet');
@@ -12407,7 +12409,7 @@
         pad.style.display = 'none';
         return;
       }
-      /* Cover the joined count pill generously — hosts need this for seat control */
+      /* Cover the joined count pill generously â€” hosts need this for seat control */
       const w = Math.max(r.width + 20, 72);
       const h = Math.max(r.height + 16, 40);
       pad.style.display = 'block';
@@ -12491,7 +12493,7 @@
     }
     const sheet = document.getElementById('giftSheet');
     if (!sheet) {
-      toast('Gift panel failed to load — refresh the room', 'error');
+      toast('Gift panel failed to load â€” refresh the room', 'error');
       return;
     }
     const sendBtnReset = document.getElementById('giftSendBtn');
@@ -12618,10 +12620,10 @@
     const stuckFor = Date.now() - (Number(window.__apGiftSendingAt) || 0);
     if (window.__apGiftSending) {
       if (stuckFor < 8000) {
-        toast('Gift still sending…', 'info');
+        toast('Gift still sendingâ€¦', 'info');
         return;
       }
-      /* Unlock after hang — don't fight an in-flight seat refresh */
+      /* Unlock after hang â€” don't fight an in-flight seat refresh */
       recoverStuckLiveUi({ forceGift: true });
     }
 
@@ -12639,7 +12641,7 @@
     if (!recipients.length) {
       const msg = isHost()
         ? 'Pick a guest who joined the live to receive the gift'
-        : 'Host is still connecting — wait a moment, then try again';
+        : 'Host is still connecting â€” wait a moment, then try again';
       setGiftSendError(msg);
       toast(msg, 'warning');
       return;
@@ -12648,7 +12650,7 @@
     let balance = 0;
     let balanceFresh = false;
     try {
-      /* Sellers: auto-convert sell coins → gift coins so Send stays usable in live */
+      /* Sellers: auto-convert sell coins â†’ gift coins so Send stays usable in live */
       if (window.SocialWallet?.ensureGiftableCoins) {
         await Promise.race([
           SocialWallet.ensureGiftableCoins(totalCost),
@@ -12667,7 +12669,7 @@
       balanceFresh = false;
     }
     if (!balanceFresh) {
-      /* Soft fallback — cached wallet so a slow API can't freeze gifts forever */
+      /* Soft fallback â€” cached wallet so a slow API can't freeze gifts forever */
       try {
         const cached = SocialWallet?.getCachedBalance?.() || {};
         const soft = SocialWallet?.getGiftableCoins
@@ -12680,7 +12682,7 @@
       } catch (_e2) { }
     }
     if (!balanceFresh) {
-      const msg = 'Could not verify gift balance — check connection and try again';
+      const msg = 'Could not verify gift balance â€” check connection and try again';
       setGiftSendError(msg);
       toast(msg, 'warning');
       recoverStuckLiveUi({ forceGift: true });
@@ -12693,12 +12695,12 @@
         const sellable = SocialWallet?.getSellableCoins?.(cached) || 0;
         const msg =
           sellable > 0
-            ? 'Not enough gift coins — convert sell coins in Seller Center, then try again'
-            : 'Not enough gift coins — add stock or convert in Seller Center';
+            ? 'Not enough gift coins â€” convert sell coins in Seller Center, then try again'
+            : 'Not enough gift coins â€” add stock or convert in Seller Center';
         setGiftSendError(msg);
         toast(msg, 'warning');
       } else {
-        const msg = 'Not enough coins — recharge first';
+        const msg = 'Not enough coins â€” recharge first';
         setGiftSendError(msg);
         toast(msg, 'warning');
         openTopupSheet();
@@ -12724,7 +12726,7 @@
       sendBtn.disabled = false;
       sendBtn.setAttribute('aria-busy', 'true');
       sendBtn.classList.add('is-sending');
-      sendBtn.textContent = 'Sending…';
+      sendBtn.textContent = 'Sendingâ€¦';
     }
 
     let releaseDone = false;
@@ -12747,18 +12749,18 @@
       updateGiftMeta();
     };
 
-    /* Hard unlock — never leave Send dead after a hung network call */
+    /* Hard unlock â€” never leave Send dead after a hung network call */
     window.__apGiftSendWatchdog = setTimeout(() => {
       if (window.__apGiftSending) {
         releaseGiftSend();
-        const msg = 'Gift took too long — tap Send to try again';
+        const msg = 'Gift took too long â€” tap Send to try again';
         setGiftSendError(msg);
         toast(msg, 'warning');
       }
     }, 7000);
 
     const finishOk = async (chargedAmount) => {
-      /* Do not pushRoomGift / chat here — live:gift owns the single history + chat line. */
+      /* Do not pushRoomGift / chat here â€” live:gift owns the single history + chat line. */
       void chargedAmount;
       setGiftSendError('');
       toast('Gift sent!', 'success');
@@ -12783,8 +12785,8 @@
           .then(() => refreshCoinDisplay())
           .catch(() => { });
         if (cached.is_coin_seller) {
-          /* Keep user in live — Seller Center is opt-in via balance button */
-          setGiftSendError('Not enough gift coins — tap Balance to open Seller Center');
+          /* Keep user in live â€” Seller Center is opt-in via balance button */
+          setGiftSendError('Not enough gift coins â€” tap Balance to open Seller Center');
         } else {
           openTopupSheet();
         }
@@ -12853,7 +12855,7 @@
             await finishOk(lastCharged);
             return;
           }
-          /* Only fall back to REST when socket is down — not on timeout (avoids double charge) */
+          /* Only fall back to REST when socket is down â€” not on timeout (avoids double charge) */
           if (
             !sendAll &&
             receiverId &&
@@ -12906,20 +12908,20 @@
       e.stopPropagation();
       const cached = SocialWallet?.getCachedBalance?.() || {};
       if (cached.is_coin_seller) {
-        /* Stay in live — convert sell→gift for a typical gift amount instead of navigating away */
+        /* Stay in live â€” convert sellâ†’gift for a typical gift amount instead of navigating away */
         const unit =
           Number(
             (GIFT_CATALOG[giftCategory] || GIFT_CATALOG.gift)?.[selectedGiftIdx]?.cost
           ) || 10;
         const need = Math.max(unit * giftQty, 100);
         try {
-          toast('Converting sell coins → gift coins…', 'info');
+          toast('Converting sell coins â†’ gift coinsâ€¦', 'info');
           await SocialWallet.ensureGiftableCoins?.(need);
           await refreshCoinDisplay();
           updateGiftMeta();
-          toast('Gift coins ready — tap Send', 'success');
+          toast('Gift coins ready â€” tap Send', 'success');
         } catch (err) {
-          toast(err?.message || 'Could not convert coins — open Seller Center from Me', 'warning');
+          toast(err?.message || 'Could not convert coins â€” open Seller Center from Me', 'warning');
         }
         return;
       }
@@ -12969,7 +12971,7 @@
     }
   }
 
-  /** Mirrors backend chatModerationService — block sex/abuse before emit (hosts included) */
+  /** Mirrors backend chatModerationService â€” block sex/abuse before emit (hosts included) */
   function clientChatLooksBlocked(raw) {
     const norm = String(raw || '')
       .toLowerCase()
@@ -13045,7 +13047,7 @@
       syncChatMuteUi();
       return;
     }
-    /* Client-side filter (matches server) — blocks sex/abuse for everyone including hosts */
+    /* Client-side filter (matches server) â€” blocks sex/abuse for everyone including hosts */
     if (clientChatLooksBlocked(t)) {
       toast(
         'This message was blocked. Sexual / abusive language is not allowed in live chat.',
@@ -13078,7 +13080,7 @@
     renderChatFeed();
     updateCharCount();
     if (!liveSocket?.connected) {
-      toast('Not connected yet — message queued locally', 'warning');
+      toast('Not connected yet â€” message queued locally', 'warning');
       return;
     }
     liveSocket.emit(
@@ -13096,7 +13098,7 @@
           renderChatFeed();
           const code = String(res?.code || '');
           if (code.startsWith('ABUSE_')) {
-            toast(res?.message || 'Message blocked — abusive language not allowed', 'warning');
+            toast(res?.message || 'Message blocked â€” abusive language not allowed', 'warning');
             if (res.action === 'mute') syncChatMuteUi?.();
             return;
           }
@@ -13208,7 +13210,7 @@
         chatVisLockUntil = now + 400;
         if (hideBtn) {
           setLiveChatHidden(true);
-          toast('Chat hidden — tap Chat to show', 'info');
+          toast('Chat hidden â€” tap Chat to show', 'info');
         } else if (showBtn) {
           setLiveChatHidden(false);
           chatTab = 'all';
@@ -13238,7 +13240,7 @@
       setLiveChatHidden(false);
     }
 
-    /* Click-only show/hide — do NOT hide chat on scroll/swipe (was closing while reading). */
+    /* Click-only show/hide â€” do NOT hide chat on scroll/swipe (was closing while reading). */
 
     const openToolsFromBar = (e) => {
       openToolsSheetReliable(e);
@@ -13248,7 +13250,7 @@
       toolsBtn.dataset.toolsOpenBound = '1';
       toolsBtn.style.pointerEvents = 'auto';
       toolsBtn.style.zIndex = '14250';
-      /* Click only — pointerup + click caused open-then-instant-close flicker */
+      /* Click only â€” pointerup + click caused open-then-instant-close flicker */
       toolsBtn.addEventListener('click', openToolsFromBar, true);
     }
     document.getElementById('partyToolsClose')?.addEventListener('click', () => {
@@ -13278,46 +13280,42 @@
       });
     });
 
-    function openGameOverlay(url) {
-      closeGameOverlay();
-      const wrap = document.createElement('div');
-      wrap.id = 'apGameOverlay';
-      wrap.className = 'ap-game-overlay';
-      wrap.innerHTML =
-        `<div class="ap-game-header">
-          <span class="ap-game-title">Game</span>
-          <button type="button" class="ap-game-close" id="apGameClose" aria-label="Close game"><i class="fas fa-times"></i></button>
-        </div>
-        <iframe id="apGameFrame" class="ap-game-frame" src="${url}" allow="autoplay" sandbox="allow-scripts allow-same-origin allow-popups" loading="eager"></iframe>`;
-      document.body.appendChild(wrap);
-      requestAnimationFrame(() => wrap.classList.add('is-open'));
+    async function sendWalletCoinsToGameFrame(frame, forceFresh = true) {
+      if (!frame?.contentWindow) return;
+      try {
+        const bal = await getWalletCoins(forceFresh);
+        frame.contentWindow.postMessage({ type: 'SET_COINS', coins: bal }, '*');
+      } catch (_e) { }
+    }
 
-      wrap.querySelector('#apGameClose')?.addEventListener('click', closeGameOverlay);
-      wrap.addEventListener('click', (e) => {
-        if (e.target === wrap) closeGameOverlay();
-      });
-
-      /* Send coin balance to game iframe */
+    function postGameFrameReply(type, requestId, success, data, message) {
       const frame = document.getElementById('apGameFrame');
-      if (frame) {
-        frame.addEventListener('load', () => {
-          try {
-            const user = currentUser();
-            const bal = Number(user?.coins || user?.coin_balance || 0);
-            frame.contentWindow?.postMessage({ type: 'SET_COINS', coins: bal }, '*');
-          } catch (_e) { }
-        });
-      }
+      try {
+        frame?.contentWindow?.postMessage({ type, requestId, success, data, message }, '*');
+      } catch (_e) { }
+    }
 
-      /* Listen for game events */
-      window.__apGameMsgHandler = (ev) => {
-        let d = ev.data;
-        if (typeof d === 'string') {
-          try { d = JSON.parse(d); } catch (_e) { return; }
-        }
-        if (!d || !d.type) return;
-        if (d.type === 'GAME_RESULT' && d.win) {
-          const msg = `🎰 Won ${(d.payout || 0).toLocaleString()} coins in ${d.game || 'game'}!`;
+    async function proxyGamePlay(d) {
+      if (!d?.requestId || !d?.game) {
+        postGameFrameReply('GAME_PLAY_RESULT', d?.requestId, false, null, 'Invalid play request');
+        return;
+      }
+      if (!window.API?.post) {
+        postGameFrameReply('GAME_PLAY_RESULT', d.requestId, false, null, 'Please log in to play');
+        return;
+      }
+      try {
+        if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken();
+        const res = await API.post(`/games/${encodeURIComponent(d.game)}/play`, {
+          bet_amount: d.bet_amount,
+          pick: d.pick || {},
+        });
+        const payload = res.data || res;
+        await sendWalletCoinsToGameFrame(document.getElementById('apGameFrame'), true);
+        postGameFrameReply('GAME_PLAY_RESULT', d.requestId, true, payload);
+        const payout = Number(payload?.payout || 0);
+        if (payout > 0) {
+          const msg = `Won ${payout.toLocaleString()} coins in ${d.game}!`;
           toast(msg, 'success');
           rememberChatMessage({
             id: `game-${Date.now()}`,
@@ -13328,8 +13326,99 @@
           });
           renderChatFeed();
         }
-        if (d.type === 'GAME_NEED_COINS') {
+      } catch (e) {
+        const message = e?.message || e?.data?.message || 'Play failed';
+        if (String(message).toLowerCase().includes('insufficient')) {
           toast('Not enough coins — recharge!', 'warning');
+        } else {
+          toast(message, 'warning');
+        }
+        postGameFrameReply('GAME_PLAY_RESULT', d.requestId, false, null, message);
+      }
+    }
+
+    async function proxyGameRead(d, kind) {
+      if (!d?.requestId || !d?.game) {
+        postGameFrameReply(kind === 'history' ? 'GAME_HISTORY_RESULT' : 'GAME_LEADERBOARD_RESULT', d?.requestId, false, null, 'Invalid request');
+        return;
+      }
+      if (!window.API?.get) {
+        postGameFrameReply(kind === 'history' ? 'GAME_HISTORY_RESULT' : 'GAME_LEADERBOARD_RESULT', d.requestId, false, null, 'Please log in to play');
+        return;
+      }
+      try {
+        if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken();
+        const query = [];
+        if (d.limit) query.push(`limit=${encodeURIComponent(d.limit)}`);
+        if (d.days) query.push(`days=${encodeURIComponent(d.days)}`);
+        const endpoint = kind === 'history'
+          ? `/games/${encodeURIComponent(d.game)}/history${query.length ? `?${query.join('&')}` : ''}`
+          : `/games/${encodeURIComponent(d.game)}/leaderboard${query.length ? `?${query.join('&')}` : ''}`;
+        const res = await API.get(endpoint);
+        postGameFrameReply(kind === 'history' ? 'GAME_HISTORY_RESULT' : 'GAME_LEADERBOARD_RESULT', d.requestId, true, res.data || res);
+      } catch (e) {
+        const message = e?.message || 'Request failed';
+        postGameFrameReply(kind === 'history' ? 'GAME_HISTORY_RESULT' : 'GAME_LEADERBOARD_RESULT', d.requestId, false, null, message);
+      }
+    }
+function openGameOverlay(url) {
+      closeGameOverlay();
+      const bust = (url.includes('?') ? '&' : '?') + 'v=' + Date.now();
+      const gameUrl = url + bust;
+      const wrap = document.createElement('div');
+      wrap.id = 'apGameOverlay';
+      wrap.className = 'ap-game-overlay';
+      wrap.innerHTML =
+        `<div class="ap-game-header">
+          <span class="ap-game-title">Game</span>
+          <button type="button" class="ap-game-close" id="apGameClose" aria-label="Close game"><i class="fas fa-times"></i></button>
+        </div>
+        <iframe id="apGameFrame" class="ap-game-frame" src="${gameUrl}" allow="autoplay" sandbox="allow-scripts allow-same-origin allow-popups" loading="eager"></iframe>`;
+      document.body.appendChild(wrap);
+      requestAnimationFrame(() => wrap.classList.add('is-open'));
+
+      wrap.querySelector('#apGameClose')?.addEventListener('click', closeGameOverlay);
+      wrap.addEventListener('click', (e) => {
+        if (e.target === wrap) closeGameOverlay();
+      });
+
+      /* Send real wallet balance to game iframe (PostgreSQL via SocialWallet) */
+      const frame = document.getElementById('apGameFrame');
+      if (frame) {
+        frame.addEventListener('load', () => {
+          sendWalletCoinsToGameFrame(frame, true);
+        });
+      }
+
+      /* Listen for game events */
+      window.__apGameMsgHandler = (ev) => {
+        let d = ev.data;
+        if (typeof d === 'string') {
+          try { d = JSON.parse(d); } catch (_e) { return; }
+        }
+        if (!d || !d.type) return;
+        if (d.type === 'GAME_PLAY') {
+          proxyGamePlay(d);
+          return;
+        }
+        if (d.type === 'GAME_HISTORY_REQUEST') {
+          proxyGameRead(d, 'history');
+          return;
+        }
+        if (d.type === 'GAME_LEADERBOARD_REQUEST') {
+          proxyGameRead(d, 'leaderboard');
+          return;
+        }
+        if (d.type === 'GAME_RESULT' && d.win) {
+          const frame = document.getElementById('apGameFrame');
+          if (frame) sendWalletCoinsToGameFrame(frame, true);
+        }
+        if (d.type === 'GAME_NEED_COINS') {
+          toast('Not enough coins - recharge!', 'warning');
+        }
+        if (d.type === 'GAME_BET') {
+          const frame = document.getElementById('apGameFrame');
+          if (frame) sendWalletCoinsToGameFrame(frame, true);
         }
       };
       window.addEventListener('message', window.__apGameMsgHandler);
@@ -13382,12 +13471,12 @@
       }
       const btn = document.getElementById('partyBtnFollow');
       const hbtn = document.getElementById('partyHostFollow');
-      const label = followed ? 'Following ✓' : 'Follow +';
+      const label = followed ? 'Following âœ“' : 'Follow +';
       if (btn) {
         btn.textContent = label;
         btn.classList.toggle('is-following', followed);
       }
-      if (hbtn) hbtn.textContent = followed ? '✓' : '+';
+      if (hbtn) hbtn.textContent = followed ? 'âœ“' : '+';
       if (followed && !wasFollowing) {
         window.SocialFX?.showFollowBurst?.(hbtn || btn);
       }
@@ -13410,6 +13499,18 @@
       soundOn = !soundOn;
       audioUnlocked = soundOn;
       if (soundOn) {
+        requestNativeSpeakerAudio();
+        await unlockBrowserAudio();
+        unmuteDomMediaElements();
+        const eng = liveMedia();
+        if (eng && agoraClient) {
+          for (const user of agoraClient.remoteUsers || []) {
+            if (user.audioTrack) {
+              await eng.playRemoteAudio(user, { force: true }).catch(() => {});
+            }
+          }
+          eng.boostAll(agoraClient);
+        }
         await ensureRemoteAudioPlaying();
         hideTapForSoundHint();
       } else {
@@ -13489,7 +13590,7 @@
     document.getElementById('partyBtnGiftWish')?.addEventListener('click', () => {
       document.getElementById('partyToolsSheet')?.classList.remove('open');
       const host = roomState?.hostName || 'Host';
-      sendChat(`🌟 Gift wish: I hope @${host} gets amazing gifts today!`);
+      sendChat(`ðŸŒŸ Gift wish: I hope @${host} gets amazing gifts today!`);
       toast('Gift wish sent to chat', 'success');
     });
     document.getElementById('partyBtnEffects')?.addEventListener('click', () => {
@@ -13510,7 +13611,7 @@
         liveSocket.emit('live:chat', {
           channel: channelId(),
           type: 'system',
-          text: `Report filed for room ${channelId().slice(0, 8)} — moderators notified`,
+          text: `Report filed for room ${channelId().slice(0, 8)} â€” moderators notified`,
         });
       }
       toast('Report submitted. Our team will review.', 'success');
@@ -13632,7 +13733,7 @@
             <p><strong>Party Hosts</strong> must keep the room active, welcome guests, and follow community guidelines.</p>
             <ul>
               <li>No vulgar, violent, or illegal content</li>
-              <li>Respect all guests — harassment is not tolerated</li>
+              <li>Respect all guests â€” harassment is not tolerated</li>
               <li>Gifts &amp; coins are final once sent</li>
               <li>AP Services moderators monitor rooms 24/7</li>
             </ul>
@@ -13654,7 +13755,7 @@
         'beforeend',
         `<div class="ap-modal-overlay align-bottom" id="apSeatSheet">
           <div class="ap-seat-sheet-panel">
-            <div class="ap-seat-badge">👑</div>
+            <div class="ap-seat-badge">ðŸ‘‘</div>
             <h3 id="apSeatTitle">Crown seat</h3>
             <p class="ap-seat-desc" id="apSeatDesc">Hosts assign speakers to crown seats. Tap a join request to approve a guest.</p>
             <div class="ap-seat-steps">
@@ -13685,7 +13786,7 @@
               </div>
               <div class="ap-onboard-step" data-step="2">
                 <h3>Request a mic</h3>
-                <p>Tap the mic button to ask the host to speak. The host approves join requests — you are never auto-assigned as host.</p>
+                <p>Tap the mic button to ask the host to speak. The host approves join requests â€” you are never auto-assigned as host.</p>
               </div>
               <div class="ap-onboard-step" data-step="3">
                 <h3>Guardian rankings</h3>
@@ -13741,7 +13842,7 @@
                   <span id="apProfileRoleBadge"></span>
                   <span id="apProfileLvl">Lv.18</span>
                 </div>
-                <p class="ap-profile-id-row" id="apProfileId">ID: — <button type="button" id="apProfileCopyId" aria-label="Copy ID"><i class="far fa-copy"></i></button></p>
+                <p class="ap-profile-id-row" id="apProfileId">ID: â€” <button type="button" id="apProfileCopyId" aria-label="Copy ID"><i class="far fa-copy"></i></button></p>
                 <div class="ap-profile-social-stats" id="apProfileSocialStats">
                   <div class="ap-profile-stat"><strong id="apProfileFollowers">0</strong><span>Followers</span></div>
                   <div class="ap-profile-stat"><strong id="apProfileFollowing">0</strong><span>Following</span></div>
@@ -13805,7 +13906,7 @@
       const { name, userId } = activeProfileUser;
       document.getElementById('apProfileSheet')?.classList.remove('open');
       if (userId) navigateToUserProfile(userId, name);
-      else toast('Profile unavailable — user ID missing', 'warning');
+      else toast('Profile unavailable â€” user ID missing', 'warning');
     });
 
     document.getElementById('apProfileAddFriend')?.addEventListener('click', async () => {
@@ -13825,7 +13926,7 @@
         toast(now ? `You're now following ${name}` : `Unfollowed ${name}`, now ? 'success' : 'info');
         return;
       }
-      toast('Follow feature loading…', 'info');
+      toast('Follow feature loadingâ€¦', 'info');
     });
 
     document.getElementById('apProfileMention')?.addEventListener('click', () => {
@@ -13850,7 +13951,7 @@
         openInPartyBrowse(`/chat.html?id=${encodeURIComponent(id)}&app=1`);
         return;
       }
-      toast('Message unavailable — user ID missing', 'warning');
+      toast('Message unavailable â€” user ID missing', 'warning');
     });
 
     document.getElementById('apProfileMore')?.addEventListener('click', () => {
@@ -13882,7 +13983,7 @@
         ${uid ? '<button type="button" data-act="chat">Open chat</button>' : ''}`;
       panel.appendChild(menu);
       menu.querySelector('[data-act="report"]')?.addEventListener('click', () => {
-        toast('Report submitted — our team will review', 'success');
+        toast('Report submitted â€” our team will review', 'success');
         menu.remove();
       });
       menu.querySelector('[data-act="block"]')?.addEventListener('click', async () => {
@@ -13942,7 +14043,7 @@
 
   function releaseScreenCaptureProtection() {
     screenCaptureEnabled = false;
-    /* Native shell ignores unlock while still on live URL — safe to request */
+    /* Native shell ignores unlock while still on live URL â€” safe to request */
     postNativeMessage({ type: 'screen_capture', block: false, enable: false });
   }
 
@@ -14187,7 +14288,7 @@
     if (idEl) {
       const idHtml =
         window.formatAdminIdHtml?.(idDisplay, { isAdmin: activeProfileUser.isAdmin }) ||
-        `ID: ${idDisplay || '—'}`;
+        `ID: ${idDisplay || 'â€”'}`;
       idEl.innerHTML = `<span class="ap-profile-id-text">${idHtml}</span><button type="button" id="apProfileCopyId" aria-label="Copy ID"><i class="far fa-copy"></i></button>`;
       idEl.classList.toggle('is-admin-id', activeProfileUser.isAdmin);
       document.getElementById('apProfileCopyId')?.addEventListener('click', () => {
@@ -14360,10 +14461,10 @@
             <button type="button" class="gift-tab-bell" aria-label="Notifications"><i class="fas fa-bell"></i></button>
           </div>
           <div class="gift-gallery-hint">
-            <span>Still need <strong id="giftLitNeed">26</strong> to light up 🎺</span>
+            <span>Still need <strong id="giftLitNeed">26</strong> to light up ðŸŽº</span>
             <button type="button" id="giftGalleryBtn">Gallery</button>
           </div>
-          <button type="button" class="gift-balance-btn" id="giftBalanceBtn">🎁 <span id="giftCoinsBal">0</span> gift &gt;</button>
+          <button type="button" class="gift-balance-btn" id="giftBalanceBtn">ðŸŽ <span id="giftCoinsBal">0</span> gift &gt;</button>
           <div class="gift-grid" id="giftGrid"></div>
           <div class="gift-qty-row">
             <div class="gift-qty-btns">
@@ -14379,7 +14480,7 @@
       </div>`
     );
     const balBtn = document.getElementById('giftBalanceBtn');
-    if (balBtn) balBtn.innerHTML = `🎁 <span id="giftCoinsBal">0</span> gift &gt;`;
+    if (balBtn) balBtn.innerHTML = `ðŸŽ <span id="giftCoinsBal">0</span> gift &gt;`;
     document.getElementById('giftSendAll')?.addEventListener('change', (e) => {
       const row = document.getElementById('giftRecipients');
       const meId = String(currentUser()?.id || '');
@@ -14402,7 +14503,7 @@
   function postWelcomeMessage() {
     rememberChatMessage({
       type: 'system',
-      text: 'Welcome to AP Services LIVE! Be respectful — admins monitor 24/7. Give a double-tap like to support the host!',
+      text: 'Welcome to AP Services LIVE! Be respectful â€” admins monitor 24/7. Give a double-tap like to support the host!',
     });
     renderChatFeed();
   }
@@ -14505,10 +14606,10 @@
       forceRevealRoomShell();
       if (!roomJoinCompleted) {
         partyRoomInitStarted = false;
-        setLiveStatus('Connection timed out — tap mic or reload', false);
+        setLiveStatus('Connection timed out â€” tap mic or reload', false);
       } else if (!sessionEstablished) {
         finalizeRoomEntry();
-        setLiveStatus('Voice still connecting…', null);
+        setLiveStatus('Voice still connectingâ€¦', null);
       }
     }, 12000);
     try {
@@ -14676,7 +14777,7 @@
     if (chatInputFocused || document.body.classList.contains('ap-keyboard-open')) return true;
     const chatInput = document.getElementById('liveChatInput');
     if (chatInput && document.activeElement === chatInput) return true;
-    /* Only block on real open sheets — never on a stale body class alone */
+    /* Only block on real open sheets â€” never on a stale body class alone */
     return Boolean(
       document.querySelector(
         '#apProfileSheet.open, #apGiftSheet.open, #giftSheet.open, #apTopupSheet.open, #apSeatSheet.open, .ap-gift-sheet.open, .gift-sheet.open, .party-tools-sheet.open, .party-requests-sheet.open, .party-music-sheet.open, #partyBgPickerSheet.open, #apInAppShareSheet.open, #apEmojiPopover.is-open, #apMicLinkModal.open, #apHostMicInviteModal.open, #apSurpriseShop.open, #apFilterSheet.open'
@@ -14735,7 +14836,7 @@
     chatMessages = [];
     guestPublishAttempted = false;
     setLiveStreamVisible(false);
-    setLiveStatus('Switching room…', null);
+    setLiveStatus('Switching roomâ€¦', null);
 
     if (liveSocket?.connected) {
       liveSocket.emit('live:leave');
@@ -14850,7 +14951,7 @@
       setTimeout(() => (location.href = '/app-auth.html?app=1'), 800);
       return;
     }
-    /* Viewers: don't block on slow profile — stream first */
+    /* Viewers: don't block on slow profile â€” stream first */
     await Promise.race([
       profileRefresh,
       new Promise((r) => setTimeout(r, isHost() || clientClaimsHost() ? 1500 : 350)),
@@ -14875,16 +14976,16 @@
     if (isHost()) forceRevealRoomShell();
     setApLoaderStep(1);
 
-    /* Parallel: join Agora while socket live:join runs — cut TTFV */
+    /* Parallel: join Agora while socket live:join runs â€” cut TTFV */
     const earlyAgora =
       !isHost() && !clientClaimsHost() ? startViewerAgoraEarly('live') : Promise.resolve();
     const joinGuard = setTimeout(() => {
       forceRevealRoomShell();
       if (!roomJoinCompleted) {
-        setLiveStatus('Connection timed out — tap mic or reload', false);
+        setLiveStatus('Connection timed out â€” tap mic or reload', false);
       } else if (!sessionEstablished) {
         finalizeRoomEntry();
-        setLiveStatus('Stream still connecting…', null);
+        setLiveStatus('Stream still connectingâ€¦', null);
       }
     }, 8000);
     try {
@@ -15196,7 +15297,7 @@
       .map((d) => {
         const val = formatValue ? formatValue(d[valueKey]) : String(d[valueKey] || 0);
         const count = countKey ? Number(d[countKey] || 0) : 0;
-        const countHtml = count > 0 ? `<span class="sub-count">· ${count} gift${count === 1 ? '' : 's'}</span>` : '';
+        const countHtml = count > 0 ? `<span class="sub-count">Â· ${count} gift${count === 1 ? '' : 's'}</span>` : '';
         return `<div class="streamer-daily-row ${rowClass || ''}">
           <div><strong>${dailyDateLabel(d.date)}</strong></div>
           <div class="hrs">${val}${countHtml}</div>
@@ -15264,7 +15365,7 @@
     const uidEl = document.getElementById('streamerUid');
     if (uidEl && user) {
       const publicId = window.formatUserDisplayId?.(user) || String(user.display_id || '');
-      uidEl.textContent = publicId ? 'ID:' + publicId : 'ID:—';
+      uidEl.textContent = publicId ? 'ID:' + publicId : 'ID:â€”';
     }
 
     document.querySelectorAll('[data-stats-period]').forEach((btn) => {
@@ -15376,9 +15477,9 @@
 
     const track = document.getElementById('luckyGiftTrack');
     const slides = [
-      { title: 'Dream Ship 300%', icons: '🚢 💎 🌟' },
-      { title: 'Lucky gifts 100%', icons: '💜 👠 🔫 🔔 🍭' },
-      { title: 'Activity gifts', icons: '🎁 ✨ 🎀' },
+      { title: 'Dream Ship 300%', icons: 'ðŸš¢ ðŸ’Ž ðŸŒŸ' },
+      { title: 'Lucky gifts 100%', icons: 'ðŸ’œ ðŸ‘  ðŸ”« ðŸ”” ðŸ­' },
+      { title: 'Activity gifts', icons: 'ðŸŽ âœ¨ ðŸŽ€' },
     ];
     let idx = 1;
     if (track) {
@@ -15395,9 +15496,9 @@
     }
 
     const LUCKY_RANKS = [
-      { rank: 1, name: 'Varsace 🐻', score: '25,682,396', coins: '1,800,000' },
-      { rank: 2, name: 'Kuldeep 🎵', score: '18,420,100', coins: '900,000' },
-      { rank: 3, name: 'Affy 🍒', score: '12,100,550', coins: '500,000' },
+      { rank: 1, name: 'Varsace ðŸ»', score: '25,682,396', coins: '1,800,000' },
+      { rank: 2, name: 'Kuldeep ðŸŽµ', score: '18,420,100', coins: '900,000' },
+      { rank: 3, name: 'Affy ðŸ’', score: '12,100,550', coins: '500,000' },
       { rank: 4, name: 'MAAAA', score: '8,200,000', coins: '200,000' },
     ];
     let luckyPeriod = '3day';
@@ -15428,15 +15529,15 @@
       if (!list) return;
       const claims = luckyClaimsForPeriod(luckyPeriod);
       list.innerHTML = LUCKY_RANKS.map((r) => {
-        const medal = r.rank <= 3 ? ['🥇', '🥈', '🥉'][r.rank - 1] : r.rank;
+        const medal = r.rank <= 3 ? ['ðŸ¥‡', 'ðŸ¥ˆ', 'ðŸ¥‰'][r.rank - 1] : r.rank;
         const claimed = Boolean(claims[String(r.rank)]);
         const btnLabel = claimed ? 'Claimed' : 'Receive';
         const btnDisabled = claimed ? ' disabled' : '';
         return `<div class="lucky-rank-row">
           <span class="rank-badge">${medal}</span>
           <img src="${avatarUrl(r.name)}" alt="">
-          <div class="info"><div class="name">${r.name} 🇮🇳</div>
-          <div class="scores"><span>🎉 ${r.score}</span><span>🪙 ${r.coins}</span></div></div>
+          <div class="info"><div class="name">${r.name} ðŸ‡®ðŸ‡³</div>
+          <div class="scores"><span>ðŸŽ‰ ${r.score}</span><span>ðŸª™ ${r.coins}</span></div></div>
           <button type="button" class="btn-receive${claimed ? ' is-claimed' : ''}" data-rank="${r.rank}" data-period="${luckyPeriod}"${btnDisabled}>${btnLabel}</button>
         </div>`;
       }).join('');
@@ -15480,7 +15581,7 @@
 
     document.getElementById('luckyRulesBtn')?.addEventListener('click', () => {
       window.alert(
-        'Lucky Gifts Party rules:\n\n• Gifts sent during the event count toward rankings.\n• Rewards are distributed after each ranking period ends.\n• Verified accounts only — misuse may result in disqualification.\n• AP Services moderators review all claims.'
+        'Lucky Gifts Party rules:\n\nâ€¢ Gifts sent during the event count toward rankings.\nâ€¢ Rewards are distributed after each ranking period ends.\nâ€¢ Verified accounts only â€” misuse may result in disqualification.\nâ€¢ AP Services moderators review all claims.'
       );
     });
   }
@@ -15512,7 +15613,7 @@
         balanceEl.innerHTML =
           '<i class="fas fa-coins"></i>' + coins.toLocaleString('en-IN') + ' <span style="font-size:14px;font-weight:600">coins</span>';
       } catch (_e) {
-        balanceEl.innerHTML = '<i class="fas fa-coins"></i>—';
+        balanceEl.innerHTML = '<i class="fas fa-coins"></i>â€”';
       }
     }
 
@@ -15533,11 +15634,11 @@
 
     const syncAmount = () => {
       const { base, bonus, total } = packageCoins(selected);
-      if (amountEl) amountEl.textContent = '₹' + selected.toLocaleString('en-IN');
+      if (amountEl) amountEl.textContent = 'â‚¹' + selected.toLocaleString('en-IN');
       if (coinsEl) coinsEl.textContent = total.toLocaleString('en-IN') + ' coins';
       if (breakdownEl) {
         breakdownEl.textContent =
-          `Base ${base.toLocaleString('en-IN')} · Bonus +${bonus.toLocaleString('en-IN')} · Total ${total.toLocaleString('en-IN')}`;
+          `Base ${base.toLocaleString('en-IN')} Â· Bonus +${bonus.toLocaleString('en-IN')} Â· Total ${total.toLocaleString('en-IN')}`;
       }
       updateRechargeUiState();
     };
@@ -15564,11 +15665,11 @@
       if (submitHint) {
         if (utrOk) {
           submitHint.textContent = proofFile
-            ? 'Ready! Screenshot attached — tap the green button to submit.'
+            ? 'Ready! Screenshot attached â€” tap the green button to submit.'
             : 'Ready! Tap the green button to submit your payment.';
           submitHint.className = 'rc-submit-hint is-ready';
         } else {
-          submitHint.textContent = 'Step 1: pick package · Step 2: pay via QR · Step 3: paste UTR above';
+          submitHint.textContent = 'Step 1: pick package Â· Step 2: pay via QR Â· Step 3: paste UTR above';
           submitHint.className = 'rc-submit-hint';
         }
       }
@@ -15614,8 +15715,8 @@
       };
       reader.onerror = () => {
         zone?.classList.remove('has-file');
-        if (window.SocialUI) SocialUI.toast('Could not read image — try another file', 'error');
-        else toast('Could not read image — try another file', 'error');
+        if (window.SocialUI) SocialUI.toast('Could not read image â€” try another file', 'error');
+        else toast('Could not read image â€” try another file', 'error');
       };
       reader.readAsDataURL(file);
     }
@@ -15682,8 +15783,8 @@
                 ? Number(r.coins_credited).toLocaleString('en-IN')
                 : packageCoins(r.amount_inr).total.toLocaleString('en-IN');
             return `<div class="rc-history-item recharge-history-item ${badge}">
-              <div><strong>₹${Number(r.amount_inr).toLocaleString('en-IN')}</strong> → ${coins} coins</div>
-              <div class="rc-history-meta recharge-history-meta">UTR: ${r.transaction_id || '—'} · ${new Date(r.created_at).toLocaleString()}</div>
+              <div><strong>â‚¹${Number(r.amount_inr).toLocaleString('en-IN')}</strong> â†’ ${coins} coins</div>
+              <div class="rc-history-meta recharge-history-meta">UTR: ${r.transaction_id || 'â€”'} Â· ${new Date(r.created_at).toLocaleString()}</div>
               <span class="rc-status-badge recharge-status-badge">${st}</span>
             </div>`;
           })
@@ -15697,7 +15798,7 @@
     submitBtn?.addEventListener('click', async () => {
       const utr = (utrEl?.value || '').trim().replace(/\s+/g, '');
       if (!/^\d{10,22}$/.test(utr)) {
-        const msg = 'Enter the 10–22 digit UTR from your UPI payment receipt.';
+        const msg = 'Enter the 10â€“22 digit UTR from your UPI payment receipt.';
         if (window.SocialUI) SocialUI.showError('Invalid UTR', msg);
         else toast(msg, 'warning');
         return;
@@ -15709,7 +15810,7 @@
       }
       if (submitBtn) {
         submitBtn.disabled = true;
-        submitBtn.textContent = 'Submitting…';
+        submitBtn.textContent = 'Submittingâ€¦';
       }
       try {
         await SocialWallet.submitRecharge(
@@ -15724,7 +15825,7 @@
         if (window.SocialUI) {
           SocialUI.showSuccess(
             'Payment submitted',
-            `₹${selected.toLocaleString('en-IN')} → ${total.toLocaleString('en-IN')} coins after admin verification (usually within a few hours).`
+            `â‚¹${selected.toLocaleString('en-IN')} â†’ ${total.toLocaleString('en-IN')} coins after admin verification (usually within a few hours).`
           );
         } else toast('Submitted! Coins credited after admin verifies your UTR.', 'success');
         if (utrEl) utrEl.value = '';
@@ -15812,3 +15913,5 @@
     if (page === 'coins-recharge') initCoinsRecharge();
   });
 })();
+
+

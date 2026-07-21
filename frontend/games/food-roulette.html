@@ -211,6 +211,7 @@
   var results = [];
   var betCountdown = 0;
   var countdownTimer = null;
+  var playPending = null;
 
   function post(o) {
     try {
@@ -221,6 +222,20 @@
         window.ReactNativeWebView.postMessage(JSON.stringify(o));
       }
     } catch (e) {}
+  }
+
+  function requestPlay(payload) {
+    return new Promise(function (resolve, reject) {
+      var requestId = 'play-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+      playPending = { requestId: requestId, resolve: resolve, reject: reject };
+      post(Object.assign({ type: 'GAME_PLAY', requestId: requestId }, payload));
+      setTimeout(function () {
+        if (playPending && playPending.requestId === requestId) {
+          playPending = null;
+          reject(new Error('Play timeout'));
+        }
+      }, 20000);
+    });
   }
 
   function items() { return CATEGORIES[currentCat]; }
@@ -361,13 +376,8 @@
 
     selectedSlice = idx;
     highlightSlice(idx);
-    coins -= bet;
-    updateHud();
-
     var list = items();
-    post({ type: 'GAME_BET', game: 'food-roulette', bet: bet, food: list[idx].name });
     document.getElementById('status').textContent = 'Bet on ' + list[idx].emoji + ' ' + list[idx].name + '!';
-
     startCountdown(3);
   }
 
@@ -375,60 +385,73 @@
     if (busy || selectedSlice < 0) return;
     busy = true;
     var list = items();
-    var n = list.length;
-    var sliceDeg = 360 / n;
     var bet = currentBet();
+    if (coins < bet) {
+      document.getElementById('status').textContent = 'Not enough coins!';
+      post({ type: 'GAME_NEED_COINS', game: 'food-roulette', need: bet - coins });
+      busy = false;
+      selectedSlice = -1;
+      highlightSlice(-1);
+      return;
+    }
 
-    /* Determine outcome: ~35% land on picked slice */
-    var isWin = Math.random() < 0.35;
-    var landIdx = isWin ? selectedSlice : (function () {
-      var other;
-      do { other = Math.floor(Math.random() * n); } while (other === selectedSlice);
-      return other;
-    })();
-
-    /* Spin: 5 full rotations + offset to land pointer on slice */
-    var targetDeg = 360 * 5 + (360 - (landIdx * sliceDeg + sliceDeg / 2));
-    rotation += targetDeg;
-
-    var bg = document.getElementById('wheelBg');
-    bg.style.transform = 'rotate(' + rotation + 'deg)';
     document.getElementById('status').textContent = 'Spinning…';
 
-    setTimeout(function () {
-      var landed = list[landIdx];
-      var payout = 0;
-      var resultEmoji = landed.emoji;
+    requestPlay({
+      game: 'food-roulette',
+      bet_amount: bet,
+      pick: { category: currentCat, sliceIdx: selectedSlice },
+    }).then(function (data) {
+      var anim = data.animation || {};
+      var n = list.length;
+      var sliceDeg = 360 / n;
+      var landIdx = anim.landSliceIdx != null ? anim.landSliceIdx : selectedSlice;
+      var targetDeg = 360 * 5 + (360 - (landIdx * sliceDeg + sliceDeg / 2));
+      rotation += targetDeg;
 
-      if (landIdx === selectedSlice) {
-        payout = bet * landed.mult;
-        coins += payout;
-        todayWin += payout;
-        document.getElementById('status').textContent = landed.emoji + ' ' + landed.name + ' x' + landed.mult + '! +' + payout.toLocaleString();
-      } else {
-        document.getElementById('status').textContent = 'Landed on ' + landed.emoji + ' — miss!';
-      }
+      var bg = document.getElementById('wheelBg');
+      bg.style.transform = 'rotate(' + rotation + 'deg)';
 
-      updateHud();
-      results.unshift(resultEmoji);
-      if (results.length > 12) results = results.slice(0, 12);
-      document.getElementById('resultTrail').innerHTML = results.map(function (r) {
-        return '<span class="fruit">' + r + '</span>';
-      }).join('');
+      setTimeout(function () {
+        var landed = list[landIdx];
+        var payout = Number(data.payout || 0);
+        var mult = Number(data.mult || 0);
+        var resultEmoji = landed.emoji;
 
-      post({
-        type: 'GAME_RESULT', game: 'food-roulette',
-        win: payout > 0, bet: bet, payout: payout, mult: landed.mult,
-        food: landed.name, coins: coins, todayWin: todayWin,
-      });
+        if (payout > 0) {
+          document.getElementById('status').textContent = landed.emoji + ' ' + landed.name + ' x' + mult + '! +' + payout.toLocaleString();
+          todayWin += payout;
+        } else {
+          document.getElementById('status').textContent = 'Landed on ' + landed.emoji + ' — miss!';
+        }
 
+        coins = Number(data.balance || coins);
+        updateHud();
+        results.unshift(resultEmoji);
+        if (results.length > 12) results = results.slice(0, 12);
+        document.getElementById('resultTrail').innerHTML = results.map(function (r) {
+          return '<span class="fruit">' + r + '</span>';
+        }).join('');
+
+        post({
+          type: 'GAME_RESULT', game: 'food-roulette',
+          win: payout > 0, bet: bet, payout: payout, mult: mult,
+          food: landed.name, coins: coins, todayWin: todayWin,
+        });
+
+        selectedSlice = -1;
+        highlightSlice(-1);
+        busy = false;
+      }, 3600);
+    }).catch(function (err) {
+      document.getElementById('status').textContent = err.message || 'Play failed';
       selectedSlice = -1;
       highlightSlice(-1);
       busy = false;
-    }, 3600);
+    });
   }
 
-  /* Listen for coin balance from parent */
+  /* Listen for coin balance and play results from parent */
   window.addEventListener('message', function (ev) {
     var d = ev.data;
     if (typeof d === 'string') {
@@ -437,6 +460,12 @@
     if (d && d.type === 'SET_COINS') {
       coins = Number(d.coins) || 0;
       updateHud();
+    }
+    if (d && d.type === 'GAME_PLAY_RESULT' && playPending && d.requestId === playPending.requestId) {
+      var pending = playPending;
+      playPending = null;
+      if (d.success) pending.resolve(d.data);
+      else pending.reject(new Error(d.message || 'Play failed'));
     }
   });
 

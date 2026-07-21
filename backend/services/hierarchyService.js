@@ -934,7 +934,27 @@ async function inviteHostToAgency(ownerUserId, userRef) {
     if (String(existingHost.rows[0].agency_id) === String(agency.id)) {
       throw new Error('This user is already a host in your agency');
     }
-    throw new Error('This user already belongs to another agency');
+    throw new Error('This user already belongs to another agency — they must use Change Agency');
+  }
+
+  const pendingChange = await db.query(
+    `SELECT id FROM host_agency_change_requests
+     WHERE host_user_id = $1 AND status IN ('pending_release', 'pending_accept')
+     LIMIT 1`,
+    [invitee.id]
+  );
+  if (pendingChange.rows[0]) {
+    throw new Error('This user has a pending agency change request — wait for it to complete');
+  }
+
+  const otherPendingInvite = await db.query(
+    `SELECT id FROM agency_host_invites
+     WHERE invitee_user_id = $1 AND status = 'pending' AND agency_id != $2
+     LIMIT 1`,
+    [invitee.id, agency.id]
+  );
+  if (otherPendingInvite.rows[0]) {
+    throw new Error('This user already has a pending host invite from another agency');
   }
 
   const pending = await db.query(
@@ -1032,6 +1052,14 @@ async function respondToAgencyHostInvite(inviteeUserId, inviteId, decision) {
       data: { invite_id: inviteId, status: 'rejected' },
     });
     return { status: 'rejected', invite_id: inviteId };
+  }
+
+  const existingHost = await db.query(
+    `SELECT agency_id FROM host_profiles WHERE user_id = $1 AND status = 'active'`,
+    [inviteeUserId]
+  );
+  if (existingHost.rows[0] && String(existingHost.rows[0].agency_id) !== String(invite.agency_id)) {
+    throw new Error('You already belong to another agency — use Change Agency instead of accepting this invite');
   }
 
   await assignHostToAgency(invite.invited_by, inviteeUserId, invite.agency_id);
@@ -1212,6 +1240,14 @@ async function inviteAgencyToNetwork(ownerUserId, userRef) {
 
   if (['agency', 'admin', 'super_admin'].includes(String(invitee.role || '').toLowerCase())) {
     throw new Error('This user is already an Agency');
+  }
+
+  const existingHost = await db.query(
+    `SELECT agency_id FROM host_profiles WHERE user_id = $1 AND status = 'active'`,
+    [invitee.id]
+  );
+  if (existingHost.rows[0]) {
+    throw new Error('This user is a host under an agency — they must leave their agency first before becoming an Agency');
   }
 
   const pending = await db.query(
@@ -1546,6 +1582,14 @@ async function respondToAgencyNetworkInvite(inviteeUserId, inviteId, decision) {
   if (!user) throw new Error('User not found');
   if (['agency', 'admin', 'super_admin'].includes(String(user.role || '').toLowerCase())) {
     throw new Error('You already have an Agency');
+  }
+
+  const existingHost = await db.query(
+    `SELECT agency_id FROM host_profiles WHERE user_id = $1 AND status = 'active'`,
+    [inviteeUserId]
+  );
+  if (existingHost.rows[0]) {
+    throw new Error('You are a host under an agency — leave your current agency first before becoming an Agency');
   }
 
   const agencyName =
