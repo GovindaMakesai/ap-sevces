@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260718-no-fake-lips';
+  window.__AP_LIVE_BUILD = '20260723-mesh-audio-v2';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -3758,12 +3758,11 @@
           refreshOpenGiftRecipients();
           // New on-seat guest — pull their mic (host + other viewers)
           // Defer while a gift is in flight so seat churn can't kill Send
-          if (seatAdded && agoraClient && liveDebugState.agoraJoined && !window.__apGiftSending) {
-            refreshPartyMeshAudio('seat-added');
-            setTimeout(() => {
-              if (window.__apGiftSending) return;
-              refreshPartyMeshAudio('seat-added-late');
-            }, 1200);
+          if (seatAdded && agoraClient && liveDebugState.agoraJoined) {
+            runOrDeferMeshPull(() => {
+              refreshPartyMeshAudio('seat-added');
+              setTimeout(() => refreshPartyMeshAudio('seat-added-late'), 1200);
+            });
           }
         }, 80);
       });
@@ -3790,13 +3789,11 @@
         const pullGuestMic = () => {
           refreshPartyMeshAudio('guest_mic_ready');
         };
-        if (window.__apGiftSending) {
-          setTimeout(pullGuestMic, 800);
-          return;
-        }
-        pullGuestMic();
-        setTimeout(pullGuestMic, 1000);
-        setTimeout(pullGuestMic, 2500);
+        runOrDeferMeshPull(() => {
+          pullGuestMic();
+          setTimeout(pullGuestMic, 1000);
+          setTimeout(pullGuestMic, 2500);
+        });
       });
 
       liveSocket.on('live:member_mute', (payload) => {
@@ -4791,7 +4788,7 @@
         });
         syncLiveMediaPublisherMode();
         eng.startHealthWatch(() => agoraClient, {
-          intervalMs: 3500,
+          intervalMs: 2500,
           onDeadTrack: (user) => {
             eng.remountIfDead(user, async (u) => {
               await playRemoteMedia(u, 'audio', { force: true });
@@ -10946,7 +10943,10 @@
     /* Already subscribed + playing — re-subscribe tears A/V and causes choppy voice/video */
     if (!force) {
       if (mediaType === 'audio' && user.audioTrack) {
-        if (user.audioTrack.isPlaying !== false) {
+        const eng = liveMedia();
+        const looksHealthy =
+          user.audioTrack.isPlaying === true && !eng?.trackLooksSilent?.(user);
+        if (looksHealthy) {
           await tryPlayRemoteAudioTrack(user);
           boostRemoteAudioVolumes();
           return;
@@ -11206,27 +11206,67 @@
   function syncLiveMediaPublisherMode() {
     const eng = liveMedia();
     if (!eng) return;
-    eng.setPublisherMode(Boolean(isHost() || (hasSpeakerSeat && publishSucceeded)));
+    /* Enable AEC compensation as soon as we have a seat — don't wait for publishSucceeded */
+    eng.setPublisherMode(Boolean(isHost() || hasSpeakerSeat));
   }
 
   let __partyMeshTimer = null;
+  let __pendingMeshPull = null;
+  function runOrDeferMeshPull(fn) {
+    if (window.__apGiftSending) {
+      __pendingMeshPull = fn;
+      setTimeout(() => {
+        if (window.__apGiftSending) return;
+        const queued = __pendingMeshPull;
+        __pendingMeshPull = null;
+        if (typeof queued === 'function') queued();
+      }, 900);
+      return;
+    }
+    fn();
+  }
+
   function refreshPartyMeshAudio(reason) {
     if (!agoraClient || !shouldHearRemoteAudio()) return;
     const eng = liveMedia();
     const remotes = agoraClient.remoteUsers || [];
-    if (remotes.length < 2 && !isHost() && !hasSpeakerSeat) {
+    const forceMesh = Boolean(isHost() || hasSpeakerSeat || remotes.length >= 2);
+    if (!forceMesh) {
       ensureRemoteAudioPlaying().catch(() => {});
       return;
     }
     liveDebugLog(`party mesh refresh (${reason || 'nudge'}) remotes=${remotes.length}`);
     syncLiveMediaPublisherMode();
-    if (eng?.meshRefresh) {
-      eng.meshRefresh(agoraClient).catch(() => ensureRemoteAudioPlaying());
-    } else {
-      ensureRemoteAudioPlaying()
-        .then(() => boostRemoteAudioVolumes())
-        .catch(() => {});
-    }
+    const pull = async () => {
+      /* Subscribe any missing tracks first (engine cannot subscribe) */
+      await Promise.all(
+        remotes.map(async (user) => {
+          try {
+            if (user.hasAudio && !user.audioTrack) {
+              await playRemoteMedia(user, 'audio', { force: true });
+            }
+          } catch (_e) {}
+        })
+      );
+      if (eng?.ensureAllRemoteAudioDetailed) {
+        const status = await eng.ensureAllRemoteAudioDetailed(agoraClient, { force: true });
+        if (!status?.allOk) {
+          await Promise.all(
+            (status?.missing || []).map(async (uid) => {
+              const user = remotes.find((u) => String(u.uid) === String(uid));
+              if (user) await playRemoteMedia(user, 'audio', { force: true });
+            })
+          );
+          await eng.ensureAllRemoteAudioDetailed(agoraClient, { force: true });
+        }
+      } else if (eng?.meshRefresh) {
+        await eng.meshRefresh(agoraClient);
+      } else {
+        await ensureRemoteAudioPlaying();
+        boostRemoteAudioVolumes();
+      }
+    };
+    pull().catch(() => ensureRemoteAudioPlaying());
   }
 
   function startPartyMeshKeepalive() {
@@ -11439,14 +11479,15 @@
     }
   }
 
-  async function tryPlayRemoteAudioTrack(user) {
+  async function tryPlayRemoteAudioTrack(user, opts) {
     if (!user?.audioTrack) return false;
     if (!shouldHearRemoteAudio()) return false;
     requestNativeSpeakerAudio();
+    const force = Boolean(opts?.force);
     const eng = liveMedia();
     if (eng) {
       syncLiveMediaPublisherMode();
-      const ok = await eng.playRemoteAudio(user, { force: false });
+      const ok = await eng.playRemoteAudio(user, { force });
       if (ok) {
         audioUnlocked = true;
         hideTapForSoundHint();
@@ -11504,42 +11545,48 @@
         remotes.map(async (user) => {
           try {
             if (user.hasAudio && !user.audioTrack) {
-              await playRemoteMedia(user, 'audio');
+              await playRemoteMedia(user, 'audio', { force: true });
             }
           } catch (_e) { }
         })
       );
-      const anyOk = await eng.ensureAllRemoteAudio(agoraClient, { force: false });
-      if (anyOk) {
+      const status = eng.ensureAllRemoteAudioDetailed
+        ? await eng.ensureAllRemoteAudioDetailed(agoraClient, { force: false })
+        : { allOk: await eng.ensureAllRemoteAudio(agoraClient, { force: false }) };
+      if (status?.allOk) {
         audioUnlocked = true;
         hideTapForSoundHint();
       }
-      return anyOk;
+      return Boolean(status?.allOk);
     }
     const remotes = agoraClient.remoteUsers || [];
-    let anyOk = false;
+    let okCount = 0;
+    let needCount = 0;
     await Promise.all(
       remotes.map(async (user) => {
         try {
+          if (!(user.hasAudio || user.audioTrack)) return;
+          needCount += 1;
           if (user.hasAudio && !user.audioTrack) {
-            await playRemoteMedia(user, 'audio');
+            await playRemoteMedia(user, 'audio', { force: true });
           }
           if (user.audioTrack) {
-            const ok = await tryPlayRemoteAudioTrack(user);
-            if (ok) anyOk = true;
+            const ok = await tryPlayRemoteAudioTrack(user, { force: true });
+            if (ok) okCount += 1;
           }
         } catch (_e) { }
       })
     );
-    if (anyOk) {
+    const allOk = needCount > 0 && okCount >= needCount;
+    if (allOk) {
       audioUnlocked = true;
       hideTapForSoundHint();
       boostRemoteAudioVolumes();
     }
-    return anyOk;
+    return allOk;
   }
 
-  /** Soft retry — stop once playing (engine owns health after). */
+  /** Keep retrying until every remote with audio is OK (multi-seat safe). */
   function kickstartRemoteAudio(reason) {
     if (!shouldHearRemoteAudio()) return;
     requestNativeSpeakerAudio();
@@ -11548,17 +11595,28 @@
     const eng = liveMedia();
     if (eng) {
       eng.startHealthWatch(() => agoraClient, {
+        intervalMs: 2500,
         onDeadTrack: (user) => {
           eng.remountIfDead(user, async (u) => {
             await playRemoteMedia(u, 'audio', { force: true });
           }).catch(() => {});
+        },
+        onMissingTrack: (user) => {
+          playRemoteMedia(user, 'audio', { force: true }).catch(() => {});
+        },
+        onStuckSilent: (user) => {
+          playRemoteMedia(user, 'audio', { force: true })
+            .then(() => eng.playRemoteAudio(user, { force: true }))
+            .then(() => eng.boostAll(agoraClient))
+            .catch(() => {});
         },
       });
     } else {
       startSilentAudioWatchdog(30000);
     }
     let settled = false;
-    [0, 300].forEach((ms) => {
+    const delays = [0, 400, 1200, 3000];
+    delays.forEach((ms) => {
       setTimeout(() => {
         if (settled || seq !== __audioKickSeq || socketLeaveIntentional) return;
         unlockBrowserAudio()
@@ -11567,6 +11625,8 @@
             if (ok) {
               settled = true;
               boostRemoteAudioVolumes();
+            } else if (ms >= 1200) {
+              refreshPartyMeshAudio(`kickstart-retry-${ms}`);
             }
           })
           .catch(() => { });

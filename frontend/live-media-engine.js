@@ -15,7 +15,7 @@
 (function (global) {
   'use strict';
 
-  const BUILD = '20260723-mesh-audio';
+  const BUILD = '20260723-mesh-audio-v2';
   const VOL_AUDIENCE = 100;
   /** Agora remote volume max — counters WebRTC AEC ducking when local mic is open */
   const VOL_PUBLISHER = 400;
@@ -253,34 +253,62 @@
   }
 
   async function ensureAllRemoteAudio(client, { force = false } = {}) {
-    if (!client || !state.shouldHear()) return false;
+    const status = await ensureAllRemoteAudioDetailed(client, { force });
+    return Boolean(status?.allOk);
+  }
+
+  /**
+   * Per-UID result — never treat "one remote OK" as success for multi-seat rooms.
+   */
+  async function ensureAllRemoteAudioDetailed(client, { force = false } = {}) {
+    if (!client || !state.shouldHear()) {
+      return { allOk: false, okCount: 0, needCount: 0, missing: [], silent: [] };
+    }
     const remotes = (client.remoteUsers || []).filter((u) => u.hasAudio || u.audioTrack);
-    let any = false;
+    const missing = [];
+    const silent = [];
+    let okCount = 0;
     await Promise.all(
       remotes.map(async (user) => {
         try {
-          if (!user.audioTrack) return;
-          const needForce = force || sinkNeedsReplay(user.uid) || user.audioTrack.isPlaying === false;
+          if (!user.audioTrack) {
+            missing.push(user.uid);
+            return;
+          }
+          const needForce =
+            force ||
+            sinkNeedsReplay(user.uid) ||
+            user.audioTrack.isPlaying !== true ||
+            trackLooksSilent(user);
           const ok = await playRemoteAudio(user, { force: needForce });
-          if (ok) any = true;
-        } catch (_e) {}
+          if (ok && !trackLooksSilent(user)) okCount += 1;
+          else silent.push(user.uid);
+        } catch (_e) {
+          silent.push(user?.uid);
+        }
       })
     );
     boostAll(client);
-    return any;
+    const needCount = remotes.length;
+    /* Empty room is not "all ok" — kickstart must keep trying until remotes appear */
+    const allOk = needCount > 0 && okCount >= needCount && missing.length === 0;
+    log('ensure_all_remote', { allOk, okCount, needCount, missing: missing.length, silent: silent.length });
+    return { allOk, okCount, needCount, missing, silent };
   }
 
   async function meshRefresh(client) {
     if (!client || !state.shouldHear()) return false;
     log('mesh_refresh', { remotes: client.remoteUsers?.length || 0 });
-    return ensureAllRemoteAudio(client, { force: true });
+    const status = await ensureAllRemoteAudioDetailed(client, { force: true });
+    return Boolean(status?.allOk);
   }
 
   async function remountIfDead(user, subscribeFn) {
     if (!user || !trackEnded(user)) return false;
     const uid = String(user.uid);
     const last = state.remountAt.get(uid) || 0;
-    if (Date.now() - last < 12000) return false;
+    const cooldown = 5000;
+    if (Date.now() - last < cooldown) return false;
     state.remountAt.set(uid, Date.now());
     state.stats.remount += 1;
     log('remount_dead_track', { uid });
@@ -292,7 +320,7 @@
   }
 
   function startHealthWatch(getClient, opts = {}) {
-    const baseInterval = opts.intervalMs || 4000;
+    const baseInterval = opts.intervalMs || 2500;
     stopHealthWatch();
     state.healthTimer = global.setInterval(() => {
       try {
@@ -301,7 +329,7 @@
         if (!client || !state.shouldHear()) return;
         const remotes = (client.remoteUsers || []).filter((u) => u.hasAudio || u.audioTrack);
         const busy = remotes.length >= 3;
-        const minGap = busy ? 2500 : 3500;
+        const minGap = busy ? 1500 : 2500;
         if (Date.now() - state.lastHealthAt < minGap) return;
         state.lastHealthAt = Date.now();
 
@@ -319,10 +347,9 @@
           if (silent) {
             const ticks = (state.quietTicks.get(uid) || 0) + 1;
             state.quietTicks.set(uid, ticks);
-            if (ticks >= 1) {
-              playRemoteAudio(user, { force: true }).catch(() => {});
-            }
-            if (ticks >= 3 && typeof opts.onStuckSilent === 'function') {
+            /* Multi-seat: force-replay on first quiet tick, escalate after 2 */
+            playRemoteAudio(user, { force: true }).catch(() => {});
+            if (ticks >= 2 && typeof opts.onStuckSilent === 'function') {
               opts.onStuckSilent(user);
               state.quietTicks.set(uid, 0);
             }
@@ -365,6 +392,7 @@
     playbackVolume,
     playRemoteAudio,
     ensureAllRemoteAudio,
+    ensureAllRemoteAudioDetailed,
     meshRefresh,
     boostAll,
     remountIfDead,

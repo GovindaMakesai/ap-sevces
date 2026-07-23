@@ -3,7 +3,7 @@
     "name": "AP Live Service",
     "slug": "ap-services-app",
     "scheme": "apservices",
-    "version": "1.0.28",
+    "version": "1.0.29",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -22,7 +22,7 @@
     },
     "android": {
       "package": "com.apservices.app",
-      "versionCode": 44,
+      "versionCode": 45,
       "usesCleartextTraffic": true,
       "permissions": [
         "android.permission.CAMERA",
@@ -66,6 +66,9 @@
         "expo-build-properties",
         {
           "android": {
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36,
+            "buildToolsVersion": "36.0.0",
             "enableMinifyInReleaseBuilds": true,
             "enableShrinkResourcesInReleaseBuilds": true,
             "extraProguardRules": "-keep class com.facebook.react.** { *; }\n-keep class com.facebook.hermes.** { *; }\n-keep class com.swmansion.** { *; }\n-keep class expo.modules.** { *; }\n-keep class com.reactnativecommunity.webview.** { *; }\n-keepclassmembers class * { @com.facebook.react.uimanager.annotations.ReactProp <methods>; }\n-keepclassmembers class * { @com.facebook.react.uimanager.annotations.ReactPropGroup <methods>; }\n-dontwarn com.facebook.react.**\n-dontwarn expo.modules.**\n"
