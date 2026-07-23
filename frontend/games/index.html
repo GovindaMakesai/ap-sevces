@@ -15,7 +15,7 @@
     h1 { font-size: 1.35rem; text-align: center; margin: 0 0 8px; }
     p { text-align: center; opacity: 0.85; font-size: 0.85rem; max-width: 340px; margin: 0 auto 20px; }
     .grid {
-      display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+      display: grid; grid-template-columns: 1fr; gap: 12px;
       max-width: 420px; margin: 0 auto;
     }
     a.game {
@@ -26,12 +26,9 @@
     }
     a.game span { font-size: 1.8rem; }
     a.game small { font-weight: 600; opacity: 0.85; font-size: 0.72rem; text-align: center; }
-    .cardwar { background: linear-gradient(160deg, #16a34a, #14532d); }
-    .greedy { background: linear-gradient(160deg, #f97316, #9a3412); }
-    .roulette { background: linear-gradient(160deg, #ef4444, #111827); }
-    .teenpatti { background: linear-gradient(160deg, #8b5cf6, #4c1d95); grid-column: 1 / -1; }
     .crazyFruit { background: linear-gradient(160deg, #f59e0b, #b45309); }
-    .foodRoulette { background: linear-gradient(160deg, #ec4899, #9d174d); }
+    .greedy { background: linear-gradient(160deg, #7c3aed, #4c1d95); }
+    .teenpatti { background: linear-gradient(160deg, #8b5cf6, #4c1d95); }
   </style>
 </head>
 <body>
@@ -39,11 +36,8 @@
   <p>Play these inside live/party rooms via Basic Tools → Games, or preview standalone below.</p>
   <div class="grid">
     <a class="game crazyFruit" href="/games/crazy-fruit.html"><span>🍒</span>Crazy Fruit<small>Slot machine spin</small></a>
-    <a class="game foodRoulette" href="/games/food-roulette.html"><span>🍕</span>Food Roulette<small>Wheel spin & bet</small></a>
-    <a class="game cardwar" href="/games/card-war.html"><span>🃏</span>Card War<small>Higher card wins</small></a>
-    <a class="game greedy" href="/games/greedy.html"><span>💎</span>Greedy<small>Krazy Khazana wheel</small></a>
-    <a class="game roulette" href="/games/roulette.html"><span>🎡</span>Roulette<small>Red / Black / Green</small></a>
-    <a class="game teenpatti" href="/games/teen-patti.html"><span>👑</span>Royal Battle<small>King vs Queen · Teen Patti</small></a>
+    <a class="game greedy" href="/games/greedy.html"><span>💎</span>Krazy Khazana<small>Greedy gem wheel</small></a>
+    <a class="game teenpatti" href="/games/teen-patti.html"><span>👑</span>Teen Patti<small>King vs Queen · Royal Battle</small></a>
   </div>
   <script>
     try {

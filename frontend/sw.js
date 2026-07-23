@@ -1,10 +1,12 @@
-const CACHE_NAME = 'ap-services-v7-sonic';
+const CACHE_NAME = 'ap-services-v8-logo';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/icons/icon-192.svg',
-  '/icons/icon-512.svg',
+  '/ap-logo.png',
+  '/favicon.png',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
 ];
 
 function isHtmlPath(pathname) {

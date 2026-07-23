@@ -386,21 +386,47 @@
     const vis = document.querySelector('input[name="socialVis"]:checked')?.value || 'public';
     const btn = document.getElementById('socialCreatePost');
     const prog = document.getElementById('socialCreateProgress');
-    btn.disabled = true;
-    btn.textContent = 'Posting…';
+    if (btn?.dataset.posting === '1') return;
+    if (btn) {
+      btn.dataset.posting = '1';
+      btn.disabled = true;
+      btn.textContent = 'Posting…';
+    }
     if (prog) {
       prog.style.display = 'block';
-      prog.textContent = 'Saving…';
+      prog.textContent = fileIsVideo(pendingFile) ? 'Saving video…' : 'Saving…';
     }
+    const unlock = () => {
+      if (btn) {
+        btn.dataset.posting = '0';
+        btn.disabled = false;
+        btn.textContent = 'Post';
+      }
+      if (prog) prog.style.display = 'none';
+    };
+    const hardTimeout = setTimeout(() => {
+      unlock();
+      if (window.SocialUI) {
+        SocialUI.showError('Posting timed out', 'Close this sheet and try a shorter video (under 10s).');
+      } else {
+        alert('Posting timed out. Try a shorter video.');
+      }
+    }, 20000);
     try {
       if (!window.SocialInteractions?.savePostFromForm) {
         throw new Error('Upload module not loaded. Refresh the page and try again.');
       }
-      await SocialInteractions.savePostFromForm(caption, vis, pendingFile, {
-        skipCompress: true,
-        trimStart: pendingTrim?.start,
-        trimEnd: pendingTrim?.end,
-      });
+      await Promise.race([
+        SocialInteractions.savePostFromForm(caption, vis, pendingFile, {
+          skipCompress: true,
+          trimStart: pendingTrim?.start,
+          trimEnd: pendingTrim?.end,
+        }),
+        new Promise((_, rej) =>
+          setTimeout(() => rej(new Error('Posting took too long. Try a shorter video.')), 18000)
+        ),
+      ]);
+      clearTimeout(hardTimeout);
       close();
       if (window.SocialUI) SocialUI.showSuccess('Posted!', 'Your moment is live on Square.');
       else if (window.SocialInteractions?.toast) SocialInteractions.toast('Posted to Square!', 'success');
@@ -410,13 +436,17 @@
         window.location.href = '/square.html?app=1';
       }
     } catch (err) {
+      clearTimeout(hardTimeout);
       if (window.SocialUI) SocialUI.showError('Could not post', err.message || 'Try a smaller photo or shorter video.');
       else alert(err.message || 'Could not post.');
     } finally {
-      btn.disabled = false;
-      btn.textContent = 'Post';
-      if (prog) prog.style.display = 'none';
+      clearTimeout(hardTimeout);
+      unlock();
     }
+  }
+
+  function fileIsVideo(file) {
+    return Boolean(file && String(file.type || '').startsWith('video/'));
   }
 
   function bindCameraButtons() {

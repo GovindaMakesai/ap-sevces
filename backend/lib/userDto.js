@@ -62,6 +62,7 @@ function publicLiveRoom(row) {
     hostName: row.host_display_name,
     hostDisplayId: row.host_display_id != null ? String(row.host_display_id) : null,
     hostProfilePic: row.host_profile_pic || null,
+    hostStreamCover: row.stream_cover_url || row.hostStreamCover || null,
     hostUpdatedAt: row.host_updated_at || null,
     viewers: row.viewer_count || 0,
     updatedAt: row.updated_at,

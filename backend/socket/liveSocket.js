@@ -1,10 +1,11 @@
-﻿const { getAccessTokenFromRequest } = require('../services/authTokenService');
+const { getAccessTokenFromRequest } = require('../services/authTokenService');
 const giftService = require('../services/giftService');
 const liveRoomService = require('../services/liveRoomService');
 const partyActivityService = require('../services/partyActivityService');
 const permissionService = require('../services/permissionService');
 const chatModerationService = require('../services/chatModerationService');
 const followService = require('../services/followService');
+const gameRoomService = require('../services/gameRoomService');
 const db = require('../config/database');
 
 const RATE_WINDOW_MS = 10_000;
@@ -45,6 +46,11 @@ function safeAck(ack, answeredRef, payload) {
 }
 
 function registerLiveSocket(io) {
+  liveRoomService.setLiveIo(io);
+  try {
+    gameRoomService.attachIo(io);
+  } catch (_e) {}
+
   io.use(async (socket, next) => {
     try {
       let token = socket.handshake.auth?.token;
@@ -97,6 +103,12 @@ function registerLiveSocket(io) {
 
         const displayName =
           String(socket.data.displayName || 'User').trim().slice(0, 32) || 'User';
+        const streamTitle = String(payload?.streamTitle || payload?.liveName || '')
+          .trim()
+          .slice(0, 48);
+        const streamCoverUrl =
+          String(payload?.streamCoverUrl || payload?.coverUrl || '').trim().slice(0, 700) || null;
+        const hostLiveName = streamTitle || displayName;
         const roomType = payload?.type === 'live' ? 'live' : 'party';
         const clientWantsHost = Boolean(payload?.isHost);
 
@@ -132,6 +144,7 @@ function registerLiveSocket(io) {
         }
 
         let isHost = false;
+        let isNewJoin = false;
         if (!existingRoom) {
           if (!clientWantsHost) {
             safeAck(ack, answeredRef, { ok: false, message: 'Room does not exist' });
@@ -147,7 +160,8 @@ function registerLiveSocket(io) {
             channel,
             roomType,
             hostUserId: socket.userId,
-            hostDisplayName: displayName,
+            hostDisplayName: hostLiveName,
+            streamCoverUrl,
           });
         } else if (String(existingRoom.host_user_id) === String(socket.userId)) {
           isHost = true;
@@ -156,15 +170,35 @@ function registerLiveSocket(io) {
               channel,
               roomType: existingRoom.room_type || roomType,
               hostUserId: socket.userId,
-              hostDisplayName: displayName,
+              hostDisplayName: hostLiveName,
+              streamCoverUrl,
             });
           } else {
-            await liveRoomService.joinRoom({
+            const hostJoin = await liveRoomService.joinRoom({
               channel,
               userId: socket.userId,
-              displayName,
+              displayName: hostLiveName,
               asHost: true,
             });
+            isNewJoin = Boolean(hostJoin?.isNewJoin);
+            if (
+              clientWantsHost &&
+              (streamTitle ||
+                payload?.streamCoverUrl !== undefined ||
+                payload?.coverUrl !== undefined)
+            ) {
+              try {
+                await liveRoomService.updateStreamPresentation({
+                  channel,
+                  userId: socket.userId,
+                  displayName: streamTitle || undefined,
+                  coverUrl:
+                    payload?.streamCoverUrl !== undefined || payload?.coverUrl !== undefined
+                      ? streamCoverUrl
+                      : undefined,
+                });
+              } catch (_e) { /* ignore */ }
+            }
           }
         } else {
           if (clientWantsHost) {
@@ -186,48 +220,76 @@ function registerLiveSocket(io) {
               return;
             }
           }
-          await liveRoomService.joinRoom({
+          const viewerJoin = await liveRoomService.joinRoom({
             channel,
             userId: socket.userId,
             displayName,
             asHost: false,
           });
+          isNewJoin = Boolean(viewerJoin?.isNewJoin);
         }
+
+        const joinedRoom = await liveRoomService.findByChannel(channel);
 
         if (currentChannel) socket.leave(`live:${currentChannel}`);
         currentChannel = channel;
         socket.join(`live:${channel}`);
         socket.data.liveChannel = channel;
-        socket.data.liveDisplayName = displayName;
+        socket.data.liveDisplayName = isHost ? hostLiveName : displayName;
         socket.data.isHost = isHost;
 
         /* Ack immediately with lean state so clients start Agora without waiting on full snapshot */
         const leanState = {
           channel,
-          type: existingRoom?.room_type || roomType,
-          hostId: isHost ? String(socket.userId) : String(existingRoom?.host_user_id || ''),
-          hostName: existingRoom?.host_display_name || displayName,
-          hostProfilePic: existingRoom?.host_profile_pic || null,
-          viewers: Number(existingRoom?.viewer_count) || 1,
+          type: joinedRoom?.room_type || roomType,
+          hostId: isHost ? String(socket.userId) : String(joinedRoom?.host_user_id || ''),
+          hostName: joinedRoom?.host_display_name || (isHost ? hostLiveName : displayName),
+          hostProfilePic: null,
+          hostStreamCover: joinedRoom?.stream_cover_url || null,
+          viewers: Number(joinedRoom?.viewer_count) || 1,
           messages: [],
           gifts: [],
           seats: [],
-          broadcastMode: existingRoom?.broadcast_mode || 'video',
+          broadcastMode: joinedRoom?.broadcast_mode || 'video',
         };
         safeAck(ack, answeredRef, { ok: true, state: leanState, isHost });
 
-        socket.to(`live:${channel}`).emit('live:member_joined', {
-          userId: socket.userId,
-          name: displayName,
-          viewers: leanState.viewers,
-          isHost,
-        });
+        const announceName = isHost ? hostLiveName : displayName;
+        if (isNewJoin && !isHost) {
+          socket.to(`live:${channel}`).emit('live:member_joined', {
+            userId: socket.userId,
+            name: announceName,
+            viewers: leanState.viewers,
+            isHost: false,
+          });
+          socket.to(`live:${channel}`).emit('live:chat', {
+            type: 'system',
+            text: `${announceName} joined`,
+            user: announceName,
+            userId: socket.userId,
+            at: new Date().toISOString(),
+          });
+        } else {
+          socket.to(`live:${channel}`).emit('live:member_joined', {
+            userId: socket.userId,
+            name: announceName,
+            viewers: leanState.viewers,
+            isHost,
+            silent: true,
+          });
+        }
 
         try {
-          const state = await liveRoomService.buildSnapshot(channel);
+          const state = await liveRoomService.buildSnapshot(channel, { bypassCache: true });
           if (state) {
             io.to(`live:${channel}`).emit('live:viewer_count', { viewers: state.viewers || 0 });
+            /* Full state to joiner; room gets viewer count + join chat already */
             socket.emit('live:state', state);
+            socket.to(`live:${channel}`).emit('live:members_sync', {
+              viewers: state.viewers || 0,
+              onlineMembers: state.onlineMembers || [],
+              seats: state.seats || [],
+            });
           }
         } catch (snapErr) {
           console.error('live:join snapshot', snapErr.message);
@@ -254,6 +316,39 @@ function registerLiveSocket(io) {
       const channel = sanitizeChannel(payload?.channel || currentChannel);
       if (!channel) return;
       await liveRoomService.touchHeartbeat(channel, socket.userId);
+    });
+
+    socket.on('live:update_presentation', async (payload, ack) => {
+      try {
+        const channel = sanitizeChannel(payload?.channel || currentChannel);
+        if (!channel) {
+          if (ack) ack({ ok: false, message: 'channel required' });
+          return;
+        }
+        const state = await liveRoomService.updateStreamPresentation({
+          channel,
+          userId: socket.userId,
+          displayName: payload?.streamTitle || payload?.liveName || payload?.displayName,
+          coverUrl:
+            payload?.streamCoverUrl !== undefined
+              ? payload.streamCoverUrl
+              : payload?.coverUrl !== undefined
+                ? payload.coverUrl
+                : undefined,
+        });
+        if (state) {
+          socket.data.liveDisplayName = state.hostName || socket.data.liveDisplayName;
+          io.to(`live:${channel}`).emit('live:state', state);
+          io.to(`live:${channel}`).emit('live:presentation', {
+            hostName: state.hostName,
+            hostStreamCover: state.hostStreamCover,
+            hostProfilePic: state.hostProfilePic,
+          });
+        }
+        if (ack) ack({ ok: true, state });
+      } catch (err) {
+        if (ack) ack({ ok: false, message: err.message || 'Could not update live info' });
+      }
     });
 
     socket.on('live:request_state', async (payload, ack) => {
@@ -288,7 +383,8 @@ function registerLiveSocket(io) {
           return;
         }
         const room = await liveRoomService.findByChannel(channel);
-        if (room && String(room.host_user_id) === targetUserId) {
+        const isTargetHost = room && String(room.host_user_id) === targetUserId;
+        if (isTargetHost && !liveRoomService.isPlatformAdminRole(socket.userRole)) {
           if (ack) ack({ ok: false, message: 'Cannot remove the room host' });
           return;
         }
@@ -302,9 +398,21 @@ function registerLiveSocket(io) {
           channel,
           userId: targetUserId,
           bannedBy: socket.userId,
-          reason: payload?.reason || 'kicked_by_host',
-          durationHours: rawDuration,
+          reason: payload?.reason || (isTargetHost ? 'admin_kicked_host' : 'kicked_by_host'),
+          durationHours: isTargetHost ? 0 : rawDuration,
         });
+        if (kickResult.hostKicked || kickResult.endsRoom) {
+          io.to(`live:${channel}`).emit('live:chat', {
+            type: 'system',
+            text: 'Admin ended this live — host was removed',
+          });
+          io.to(`live:${channel}`).emit('live:ended', {
+            channel,
+            reason: 'admin_kicked_host',
+          });
+          if (ack) ack({ ok: true, ended: true, hostKicked: true });
+          return;
+        }
         const banInfo =
           kickResult.ban ||
           liveRoomService.banBlockPayload({
@@ -1132,9 +1240,24 @@ function registerLiveSocket(io) {
           userId: socket.userId,
         });
         if (updated) {
+          const leaveName = String(socket.data.liveDisplayName || 'Someone').slice(0, 32);
           io.to(`live:${channel}`).emit('live:viewer_count', { viewers: updated.viewer_count });
-          const state = await liveRoomService.buildSnapshot(channel);
-          if (state) io.to(`live:${channel}`).emit('live:state', state);
+          io.to(`live:${channel}`).emit('live:member_left', {
+            userId: socket.userId,
+            name: leaveName,
+            viewers: updated.viewer_count,
+          });
+          io.to(`live:${channel}`).emit('live:chat', {
+            type: 'system',
+            text: `${leaveName} left`,
+            user: leaveName,
+            userId: socket.userId,
+            at: new Date().toISOString(),
+          });
+          const state = await liveRoomService.buildSnapshot(channel, { bypassCache: true });
+          if (state) {
+            io.to(`live:${channel}`).emit('live:state', state);
+          }
           if (updated.viewer_count === 0) {
             await liveRoomService.endRoom(channel, 'empty_room');
             io.to(`live:${channel}`).emit('live:ended', { channel });
@@ -1145,7 +1268,10 @@ function registerLiveSocket(io) {
       }
     };
 
-    socket.on('live:leave', () => handleLeave({ intentional: true }));
+    socket.on('live:leave', async (payload, ack) => {
+      await handleLeave({ intentional: true });
+      if (typeof ack === 'function') ack({ ok: true });
+    });
 
     socket.on('disconnect', async () => {
       if (!currentChannel) return;
@@ -1198,11 +1324,16 @@ function registerLiveSocket(io) {
           const updated = await liveRoomService.leaveRoom({ channel, userId });
           if (updated) {
             io.to(`live:${channel}`).emit('live:viewer_count', { viewers: updated.viewer_count });
-            const state = await liveRoomService.buildSnapshot(channel);
+            io.to(`live:${channel}`).emit('live:member_left', {
+              userId,
+              name: 'Someone',
+              viewers: updated.viewer_count,
+            });
+            const state = await liveRoomService.buildSnapshot(channel, { bypassCache: true });
             if (state) io.to(`live:${channel}`).emit('live:state', state);
           }
         } catch (_e) {}
-      }, 45000);
+      }, 12000);
     });
   });
 }

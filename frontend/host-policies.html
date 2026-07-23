@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0614">
+  <title>Host Policies - AP Live Service</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="social-theme.css?v=20260723-promo-full">
+  <style>
+    body.host-policy-page {
+      margin: 0;
+      background: #0b0614;
+      color: #fff;
+      min-height: 100dvh;
+      font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+    }
+    .hp-top {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: max(12px, env(safe-area-inset-top)) 14px 12px;
+      background: rgba(11, 6, 20, 0.92);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .hp-top .back {
+      width: 36px; height: 36px; border-radius: 50%;
+      border: none; background: rgba(255,255,255,0.1); color: #fff;
+      display: grid; place-items: center; cursor: pointer;
+    }
+    .hp-top h1 { margin: 0; font-size: 17px; font-weight: 800; }
+    .hp-tabs {
+      display: flex; gap: 8px; padding: 12px 14px 4px;
+    }
+    .hp-tabs button {
+      flex: 1; border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.75);
+      border-radius: 999px; padding: 10px 12px; font-weight: 700; font-size: 13px;
+      cursor: pointer;
+    }
+    .hp-tabs button.active {
+      background: linear-gradient(135deg, #f472b6, #a855f7);
+      border-color: transparent; color: #fff;
+    }
+    .hp-panel { padding: 10px 12px 28px; display: none; }
+    .hp-panel.active { display: block; }
+    .hp-panel img {
+      width: 100%;
+      height: auto;
+      max-width: 100%;
+      border-radius: 14px;
+      display: block;
+      object-fit: contain;
+      background: #12081f;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+    }
+    .hp-cta {
+      margin: 16px 12px 32px;
+      display: block; text-align: center; text-decoration: none;
+      padding: 14px 16px; border-radius: 999px; font-weight: 800;
+      background: linear-gradient(135deg, #fbbf24, #f59e0b);
+      color: #3d2e08;
+    }
+  </style>
+  <script src="native-session-restore.js"></script>
+  <script src="ap-config.js"></script>
+  <script src="ap-native-boot.js"></script>
+</head>
+<body class="host-policy-page">
+  <header class="hp-top">
+    <button type="button" class="back" data-ap-back aria-label="Back"><i class="fas fa-arrow-left"></i></button>
+    <h1>Host earning policies</h1>
+  </header>
+
+  <div class="hp-tabs" role="tablist">
+    <button type="button" class="active" data-policy="star" role="tab">Star Host</button>
+    <button type="button" data-policy="normal" role="tab">Normal Host</button>
+  </div>
+
+  <section class="hp-panel active" id="panel-star" data-panel="star">
+    <img src="/assets/promos/star-host-policy.png" alt="Star Host Policy — weekly $7 rewards for 14 hours live">
+  </section>
+  <section class="hp-panel" id="panel-normal" data-panel="normal">
+    <img src="/assets/promos/normal-host-policy.png" alt="Normal Host Policy — hourly beans bonus for new hosts">
+  </section>
+
+  <a class="hp-cta" href="/streamer-center.html?app=1">Open Streamer Center</a>
+  <a class="hp-cta" href="/role-apply.html?app=1" style="margin-top:-16px;background:linear-gradient(135deg,#f472b6,#db2777);color:#fff">Apply to become a Host</a>
+
+  <script src="social-nav.js?v=20260720-back-fix"></script>
+  <script>
+    (function () {
+      const q = new URLSearchParams(location.search).get('policy') || 'star';
+      function show(policy) {
+        document.querySelectorAll('.hp-tabs button').forEach((b) => {
+          b.classList.toggle('active', b.dataset.policy === policy);
+        });
+        document.querySelectorAll('.hp-panel').forEach((p) => {
+          p.classList.toggle('active', p.dataset.panel === policy);
+        });
+        const url = new URL(location.href);
+        url.searchParams.set('policy', policy);
+        url.searchParams.set('app', '1');
+        history.replaceState(null, '', url.pathname + '?' + url.searchParams.toString());
+      }
+      show(q === 'normal' ? 'normal' : 'star');
+      document.querySelectorAll('.hp-tabs button').forEach((b) => {
+        b.addEventListener('click', () => show(b.dataset.policy));
+      });
+    })();
+  </script>
+</body>
+</html>

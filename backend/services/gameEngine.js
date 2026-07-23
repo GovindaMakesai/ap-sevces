@@ -16,6 +16,7 @@ const CRAZY_FRUIT_CELLS = [
   { type: 'fruit', fruit: 6, mult: 15, emoji: '??', name: 'Watermelon' },
   { type: 'fruit', fruit: 7, mult: 10, emoji: '??', name: 'Apple' },
 ];
+/* Base weights — high multipliers already rarer. Soft house edge applied at resolve. */
 const CRAZY_FRUIT_WEIGHTS = { 0: 22, 1: 22, 2: 22, 3: 22, 8: 5, 9: 8, 10: 11, 11: 14 };
 
 const FOOD_CATEGORIES = {
@@ -47,12 +48,40 @@ function rand(max) {
 
 function pickWeighted(candidates, weights) {
   const total = candidates.reduce((sum, cellIdx) => sum + Number(weights[cellIdx] || 1), 0);
-  let roll = rand(total);
+  let roll = rand(Math.max(1, total));
   for (const cellIdx of candidates) {
     roll -= Number(weights[cellIdx] || 1);
     if (roll < 0) return cellIdx;
   }
   return candidates[0];
+}
+
+/**
+ * Soft house edge: slightly lower chance to land on cells the player bet on.
+ * High multipliers get stronger dampening. Never voids a hit — if it lands, it pays.
+ */
+function dampenBetWeights(baseWeights, betCells, multByCell) {
+  const weights = { ...baseWeights };
+  const coverage = betCells.length;
+  /* Covering more of the board → stronger dampen so spray-betting isn't free money */
+  const coverageFactor = coverage >= 6 ? 0.35 : coverage >= 4 ? 0.45 : coverage >= 2 ? 0.55 : 0.65;
+  for (const cell of betCells) {
+    const mult = Number(multByCell[cell] || 5);
+    const multFactor = mult >= 25 ? 0.4 : mult >= 15 ? 0.55 : mult >= 10 ? 0.7 : 0.85;
+    const factor = coverageFactor * multFactor;
+    weights[cell] = Math.max(1, Math.round(Number(baseWeights[cell] || 1) * factor));
+  }
+  return weights;
+}
+
+function foodSliceWeights(list) {
+  const weights = {};
+  list.forEach((item, i) => {
+    const mult = Number(item.mult || 5);
+    /* Inverse-ish: x5 common, x45 rare — feels natural, not a hard 10% gate */
+    weights[i] = mult >= 45 ? 3 : mult >= 25 ? 5 : mult >= 15 ? 8 : mult >= 10 ? 12 : 18;
+  });
+  return weights;
 }
 
 function normalizeCrazyFruitBets(pick) {
@@ -77,7 +106,13 @@ function normalizeCrazyFruitBets(pick) {
 
 function resolveCrazyFruit(pick) {
   const { bets, totalBet } = normalizeCrazyFruitBets(pick);
-  const landCellIdx = pickWeighted(CRAZY_FRUIT_FRUIT_CELLS, CRAZY_FRUIT_WEIGHTS);
+  const betCells = [...new Set(bets.map((row) => row.cellIdx))];
+  const multByCell = {};
+  for (const cellIdx of CRAZY_FRUIT_FRUIT_CELLS) {
+    multByCell[cellIdx] = CRAZY_FRUIT_CELLS[cellIdx].mult;
+  }
+  const weights = dampenBetWeights(CRAZY_FRUIT_WEIGHTS, betCells, multByCell);
+  const landCellIdx = pickWeighted(CRAZY_FRUIT_FRUIT_CELLS, weights);
   const landed = CRAZY_FRUIT_CELLS[landCellIdx];
   const winningBet = bets.find((row) => row.cellIdx === landCellIdx);
   const payout = winningBet ? winningBet.amount * landed.mult : 0;
@@ -106,18 +141,20 @@ function resolveFoodRoulette(pick, betAmount) {
   if (!Number.isInteger(sliceIdx) || sliceIdx < 0 || sliceIdx >= list.length) {
     throw new Error('Invalid slice pick');
   }
-  const win = rand(10000) < 3500;
-  const landIdx = win ? sliceIdx : (() => {
-    const others = list.map((_, i) => i).filter((i) => i !== sliceIdx);
-    return others[rand(others.length)];
-  })();
+  const base = foodSliceWeights(list);
+  const weights = dampenBetWeights(base, [sliceIdx], { [sliceIdx]: list[sliceIdx].mult });
+  const landIdx = pickWeighted(
+    list.map((_, i) => i),
+    weights
+  );
   const landed = list[landIdx];
+  const hit = landIdx === sliceIdx;
   return {
     totalBet: betAmount,
-    win: landIdx === sliceIdx,
-    payout: landIdx === sliceIdx ? betAmount * landed.mult : 0,
-    mult: landIdx === sliceIdx ? landed.mult : 0,
-    outcome: landIdx === sliceIdx ? 'win' : 'loss',
+    win: hit,
+    payout: hit ? betAmount * landed.mult : 0,
+    mult: hit ? landed.mult : 0,
+    outcome: hit ? 'win' : 'loss',
     animation: { category, landSliceIdx: landIdx, food: landed.name, emoji: landed.emoji },
   };
 }
@@ -154,13 +191,24 @@ function normalizeGreedyBets(pick) {
   return { bets, totalBet };
 }
 
+/** Shared room land — one outcome for all players in the room. */
+function resolveGreedyLand(betCells = []) {
+  const cells = [...new Set((betCells || []).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n < GREEDY_ITEMS.length))];
+  const allCells = GREEDY_ITEMS.map((_, i) => i);
+  const multByCell = {};
+  GREEDY_ITEMS.forEach((item, i) => {
+    multByCell[i] = item.mult;
+  });
+  const weights = cells.length ? dampenBetWeights(GREEDY_WEIGHTS, cells, multByCell) : { ...GREEDY_WEIGHTS };
+  const landIdx = pickWeighted(allCells, weights);
+  return { landIdx, landed: GREEDY_ITEMS[landIdx] };
+}
+
 function resolveGreedy(pick, betAmount) {
   if (Array.isArray(pick?.bets) && pick.bets.length) {
     const { bets, totalBet } = normalizeGreedyBets(pick);
-    const landIdx = pickWeighted(
-      GREEDY_ITEMS.map((_, i) => i),
-      GREEDY_WEIGHTS
-    );
+    const betCells = [...new Set(bets.map((row) => row.cellIdx))];
+    const { landIdx } = resolveGreedyLand(betCells);
     const landed = GREEDY_ITEMS[landIdx];
     const winningBet = bets.find((row) => row.cellIdx === landIdx);
     const payout = winningBet ? winningBet.amount * landed.mult : 0;
@@ -186,7 +234,13 @@ function resolveGreedy(pick, betAmount) {
   if (!Number.isInteger(gemIdx) || gemIdx < 0 || gemIdx >= GREEDY_ITEMS.length) {
     throw new Error('Invalid gem pick');
   }
-  const prizeIdx = rand(GREEDY_ITEMS.length);
+  const allCells = GREEDY_ITEMS.map((_, i) => i);
+  const multByCell = {};
+  GREEDY_ITEMS.forEach((item, i) => {
+    multByCell[i] = item.mult;
+  });
+  const weights = dampenBetWeights(GREEDY_WEIGHTS, [gemIdx], multByCell);
+  const prizeIdx = pickWeighted(allCells, weights);
   const isWin = gemIdx === prizeIdx;
   const mult = isWin ? 3 : 0;
   const landed = GREEDY_ITEMS[prizeIdx];
@@ -206,13 +260,13 @@ function resolveGreedy(pick, betAmount) {
 
 /* —— Royal Battle (Teen Patti King vs Queen) —— */
 const TEEN_PATTI_AREAS = {
-  blue: { mult: 1.95, label: 'BLUE' },
-  red: { mult: 1.95, label: 'RED' },
-  pair: { mult: 3.5, label: 'PAIR' },
-  color: { mult: 10, label: 'COLOR' },
-  sequence: { mult: 15, label: 'SEQUENCE' },
-  pure_seq: { mult: 100, label: 'PURE SEQ' },
-  set: { mult: 100, label: 'SET' },
+  blue: { mult: 1.9, label: 'BLUE' },
+  red: { mult: 1.9, label: 'RED' },
+  pair: { mult: 3.2, label: 'PAIR' },
+  color: { mult: 9, label: 'COLOR' },
+  sequence: { mult: 13, label: 'SEQUENCE' },
+  pure_seq: { mult: 80, label: 'PURE SEQ' },
+  set: { mult: 80, label: 'SET' },
 };
 const TEEN_PATTI_RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
 const TEEN_PATTI_SUITS = ['S', 'H', 'D', 'C'];
@@ -353,6 +407,11 @@ function payoutTeenPatti(amount, mult) {
 
 function resolveTeenPatti(pick) {
   const { bets, totalBet } = normalizeTeenPattiBets(pick);
+  /* Fair deal — never show a win then zero payout. Soft house edge is in blue/red mult (1.9). */
+  return computeTeenPattiRound(bets, totalBet);
+}
+
+function computeTeenPattiRound(bets, totalBet) {
   const deck = teenPattiDeck();
   const blueCards = [deck.pop(), deck.pop(), deck.pop()];
   const redCards = [deck.pop(), deck.pop(), deck.pop()];
@@ -434,6 +493,8 @@ function resolveRound(slug, pick, betAmount) {
 
 module.exports = {
   resolveRound,
+  normalizeGreedyBets,
+  resolveGreedyLand,
   CRAZY_FRUIT_CELLS,
   CRAZY_FRUIT_RING,
   CRAZY_FRUIT_FRUIT_CELLS,

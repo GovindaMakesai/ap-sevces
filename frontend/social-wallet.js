@@ -55,6 +55,35 @@
     lastFetch = 0;
   }
 
+  /** Patch cached balance immediately after a game round (before next /wallet/balance fetch). */
+  function applyGameBalance(balance, playSource) {
+    const bal = Math.max(0, Number(balance) || 0);
+    const src = String(playSource || '').toLowerCase();
+    const useGiftPool = src === 'gift_inventory' || cached.is_coin_seller;
+    if (useGiftPool) {
+      cached = normalizeBalance(
+        {
+          ...cached,
+          gift_inventory_coins: bal,
+          giftable_coins: bal,
+        },
+        cached
+      );
+    } else {
+      cached = normalizeBalance(
+        {
+          ...cached,
+          coin_balance: bal,
+          giftable_coins: bal,
+        },
+        cached
+      );
+    }
+    lastFetch = Date.now();
+    document.dispatchEvent(new CustomEvent('wallet:balance', { detail: cached }));
+    return cached;
+  }
+
   async function fetchBalance(force) {
     if (!window.API) return cached;
     if (window.Auth?.hasSession && !Auth.hasSession()) return cached;
@@ -222,6 +251,7 @@
   window.SocialWallet = {
     fetchBalance,
     invalidateBalance,
+    applyGameBalance,
     getCachedBalance,
     getPointsBalance,
     getCoinsBalance,

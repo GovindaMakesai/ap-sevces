@@ -3,6 +3,15 @@ const walletService = require('./walletService');
 const gameEngine = require('./gameEngine');
 const coinSellerService = require('./coinSellerService');
 
+/**
+ * When false: resolve + show wins, debit bets, but do NOT credit payout coins.
+ * Default ON — set GAME_WIN_CREDITS_ENABLED=false to pause payouts.
+ */
+function gameWinCreditsEnabled() {
+  const v = String(process.env.GAME_WIN_CREDITS_ENABLED ?? 'true').trim().toLowerCase();
+  return !(v === 'false' || v === '0' || v === 'no' || v === 'off');
+}
+
 function mapCatalogRow(row) {
   if (!row) return null;
   return {
@@ -116,7 +125,9 @@ async function playRound(userId, slug, { bet_amount: betAmount, pick = {} } = {}
     let balance = Number(debit.play_balance != null ? debit.play_balance : debit.balance);
     let creditTxId = null;
     const playSource = debit.play_source || (debit.from_gift_inventory > 0 ? 'gift_inventory' : 'wallet');
-    if (resolved.payout > 0) {
+    const creditsEnabled = gameWinCreditsEnabled();
+    let creditsApplied = false;
+    if (resolved.payout > 0 && creditsEnabled) {
       const credit = await coinSellerService.creditGameWin(
         userId,
         resolved.payout,
@@ -131,13 +142,26 @@ async function playRound(userId, slug, { bet_amount: betAmount, pick = {} } = {}
       );
       creditTxId = credit.transaction?.id || null;
       balance = Number(credit.play_balance != null ? credit.play_balance : credit.balance);
+      creditsApplied = true;
     }
 
-    await client.query(`UPDATE game_rounds SET debit_tx_id = $2, credit_tx_id = $3 WHERE id = $1`, [
-      round.id,
-      debit.transaction?.id || null,
-      creditTxId,
-    ]);
+    /* Persist display payout always; mark whether coins were actually credited */
+    await client.query(
+      `UPDATE game_rounds
+       SET debit_tx_id = $2,
+           credit_tx_id = $3,
+           result = COALESCE(result, '{}'::jsonb) || $4::jsonb
+       WHERE id = $1`,
+      [
+        round.id,
+        debit.transaction?.id || null,
+        creditTxId,
+        JSON.stringify({
+          credits_applied: creditsApplied,
+          credits_pending: Number(resolved.payout || 0) > 0 && !creditsApplied,
+        }),
+      ]
+    );
     await client.query('COMMIT');
 
     return {
@@ -151,6 +175,8 @@ async function playRound(userId, slug, { bet_amount: betAmount, pick = {} } = {}
       outcome: resolved.outcome,
       balance,
       play_source: playSource,
+      credits_applied: creditsApplied,
+      credits_pending: Number(resolved.payout || 0) > 0 && !creditsApplied,
       animation: resolved.animation,
       winning_fruit: resolved.winning_fruit || null,
       winIdx: resolved.prizeIdx != null ? resolved.prizeIdx : undefined,
@@ -186,20 +212,47 @@ async function listHistory(userId, slug, { limit = 20 } = {}) {
   return res.rows.map(mapRoundRow);
 }
 
-async function getLeaderboard(slug, { limit = 10, lookbackDays = 7 } = {}) {
+async function getLeaderboard(slug, { limit = 10, lookbackDays = 7, mode = 'players' } = {}) {
+  if (mode === 'rounds') {
+    const res = await db.query(
+      `SELECT gr.*, u.display_id, u.first_name, u.last_name, u.email,
+              COALESCE(NULLIF(TRIM(CONCAT(u.first_name, ' ', u.last_name)), ''), u.email, CONCAT('ID ', u.display_id::text)) AS display_name
+       FROM game_rounds gr
+       JOIN users u ON u.id = gr.user_id
+       WHERE gr.game_slug = $1
+         AND gr.payout_amount > 0
+         AND gr.created_at >= NOW() - ($2::int * INTERVAL '1 day')
+       ORDER BY gr.payout_amount DESC, gr.created_at DESC
+       LIMIT $3`,
+      [slug, lookbackDays, limit]
+    );
+    return res.rows.map(mapRoundRow);
+  }
+
   const res = await db.query(
-    `SELECT gr.*, u.display_id, u.first_name, u.last_name, u.email,
-            COALESCE(NULLIF(TRIM(CONCAT(u.first_name, ' ', u.last_name)), ''), u.email, CONCAT('ID ', u.display_id::text)) AS display_name
+    `SELECT u.id AS user_id, u.display_id, u.first_name, u.last_name, u.email,
+            COALESCE(NULLIF(TRIM(CONCAT(u.first_name, ' ', u.last_name)), ''), u.email, CONCAT('ID ', u.display_id::text)) AS display_name,
+            COALESCE(SUM(gr.payout_amount), 0)::bigint AS total_won,
+            COUNT(*)::int AS win_rounds,
+            MAX(gr.payout_amount)::bigint AS best_win
      FROM game_rounds gr
      JOIN users u ON u.id = gr.user_id
      WHERE gr.game_slug = $1
        AND gr.payout_amount > 0
        AND gr.created_at >= NOW() - ($2::int * INTERVAL '1 day')
-     ORDER BY gr.payout_amount DESC, gr.created_at DESC
+     GROUP BY u.id, u.display_id, u.first_name, u.last_name, u.email
+     ORDER BY total_won DESC, win_rounds DESC
      LIMIT $3`,
     [slug, lookbackDays, limit]
   );
-  return res.rows.map(mapRoundRow);
+  return res.rows.map((row) => ({
+    user_id: row.user_id,
+    display_id: row.display_id,
+    display_name: row.display_name,
+    total_won: Number(row.total_won || 0),
+    win_rounds: Number(row.win_rounds || 0),
+    best_win: Number(row.best_win || 0),
+  }));
 }
 
 module.exports = { listCatalog, getBySlug, playRound, listHistory, getLeaderboard };

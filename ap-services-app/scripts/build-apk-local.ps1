@@ -67,10 +67,14 @@ if (-not $Debug) {
     $_ -notmatch '^MYAPP_UPLOAD_KEY_ALIAS=' -and
     $_ -notmatch '^MYAPP_UPLOAD_STORE_PASSWORD=' -and
     $_ -notmatch '^MYAPP_UPLOAD_KEY_PASSWORD=' -and
-    $_ -notmatch '^reactNativeArchitectures='
+    $_ -notmatch '^reactNativeArchitectures=' -and
+    $_ -notmatch '^android\.enableMinifyInReleaseBuilds=' -and
+    $_ -notmatch '^android\.enableShrinkResourcesInReleaseBuilds='
   }
   $lines += @(
     "reactNativeArchitectures=arm64-v8a",
+    "android.enableMinifyInReleaseBuilds=true",
+    "android.enableShrinkResourcesInReleaseBuilds=true",
     "MYAPP_UPLOAD_STORE_FILE=upload.jks",
     "MYAPP_UPLOAD_KEY_ALIAS=$alias",
     "MYAPP_UPLOAD_STORE_PASSWORD=$storePass",

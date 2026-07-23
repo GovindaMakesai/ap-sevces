@@ -1,26 +1,28 @@
 /**
- * AP Live FX Engine — gifts, combos, PK, engagement animations
- * Web stack: CSS + Canvas + optional lottie-web (CDN)
+ * AP Live FX Engine — premium cinematic gifts, combos, PK, engagement
+ * Web stack: CSS transforms + Canvas particles + optional lottie-web (CDN)
+ * Presentation only — does not touch wallet / gift APIs / sockets.
  */
 (function () {
-  const PREMIUM_KEYWORDS = /yacht|lion|dragon|palace|rocket|car|crown|voyage|nebula|isle|elf|fireworks/i;
-  const PREMIUM_EMOJI = new Set(['🛥️', '🦁', '🐉', '🏝️', '🚀', '🏎️', '👑', '🎆', '🌌', '🧚', '🔥', '🏆']);
-  const SMALL_EMOJI = new Set(['🌹', '❤️', '👋', '☕', '🍒', '⭐', '👍', '💐', '🍋', '🥝']);
+  const LEGENDARY_KEYWORDS =
+    /yacht|lion|dragon|phoenix|palace|castle|jet|bugatti|ferrari|lamborghini|rolls|throne|kingdom|nebula|galaxy|universe|meteor|whale|mansion|penthouse|empire/i;
+  const VIP_KEYWORDS = /crown|watch|diamond|sapphire|supercar|fireworks|necklace|bracelet|panther|tiger|horse/i;
 
-  const COMBO_WINDOW_MS = 3000;
+  const COMBO_WINDOW_MS = 3200;
   const COMBO_MULTIPLIERS = [1, 5, 10, 20, 50, 100];
 
   let fxRoot = null;
   let activityRail = null;
-  let comboState = { key: '', count: 0, timer: null, multiplier: 1 };
+  let comboState = { key: '', count: 0, timer: null, multiplier: 1, lastAt: 0 };
   let comboBadgeEl = null;
   let lastViewerCount = 0;
   let speakingUsers = new Set();
   let lottieLoaded = false;
   let sessionGiftTotal = 0;
+  let activeGiftAnim = { key: '', combo: 0, el: null, tier: '' };
+  let lastCinematicAt = 0;
 
   const LOTTIE_URLS = {
-    rocket: 'https://lottie.host/6e5c0b3e-8c8a-4e0e-9f3a-1b2c3d4e5f6a/7xK9mNpQr.json',
     confetti: 'https://assets2.lottiefiles.com/packages/lf20_u4yrau.json',
   };
 
@@ -108,11 +110,141 @@
 
   function getGiftTier(gift) {
     const cost = Number(gift?.amount || gift?.cost) || 0;
-    const emoji = gift?.emoji || '';
     const name = gift?.name || gift?.gift_type || '';
-    if (cost >= 50000 || PREMIUM_EMOJI.has(emoji) || PREMIUM_KEYWORDS.test(name)) return 'premium';
-    if (cost >= 500 || (!SMALL_EMOJI.has(emoji) && cost >= 100)) return 'medium';
+    if (cost >= 5000000 || LEGENDARY_KEYWORDS.test(name)) return 'legendary';
+    if (cost >= 250000 || VIP_KEYWORDS.test(name)) return 'vip';
+    if (cost >= 25000) return 'premium';
+    if (cost >= 3000) return 'medium';
     return 'small';
+  }
+
+  function isCinematicTier(tier, cost) {
+    return tier === 'legendary' || tier === 'vip' || Number(cost) >= 100000;
+  }
+
+  function hostTargetEl() {
+    return (
+      document.querySelector('.party-host .party-host-av, .party-host img, #partyHostAvatar, .live-host-avatar, .seat-avatar--host img') ||
+      document.querySelector('.party-seat.is-host .seat-avatar, .party-seat[data-slot="1"] .seat-avatar')
+    );
+  }
+
+  function pulseHostCelebration(intensity) {
+    const host = hostTargetEl();
+    if (!host) return;
+    const wrap = host.closest('.party-host, .party-seat, .seat-avatar') || host;
+    wrap.classList.remove('ap-host-gift-glow');
+    void wrap.offsetWidth;
+    wrap.classList.add('ap-host-gift-glow');
+    if (intensity >= 20) wrap.classList.add('ap-host-gift-glow--vip');
+    if (intensity >= 50) wrap.classList.add('ap-host-gift-glow--legend');
+    setTimeout(() => {
+      wrap.classList.remove('ap-host-gift-glow', 'ap-host-gift-glow--vip', 'ap-host-gift-glow--legend');
+    }, intensity >= 50 ? 4200 : 2400);
+  }
+
+  function spawnSparkBurst(x, y, count, palette) {
+    ensureRoot();
+    const colors = palette || ['#fbbf24', '#fde68a', '#fff7ed', '#f59e0b'];
+    const n = Math.min(36, Math.max(6, count || 12));
+    for (let i = 0; i < n; i += 1) {
+      const p = document.createElement('div');
+      p.className = 'ap-lux-spark';
+      const ang = (Math.PI * 2 * i) / n + Math.random() * 0.4;
+      const dist = 40 + Math.random() * 90;
+      p.style.left = x + 'px';
+      p.style.top = y + 'px';
+      p.style.background = colors[i % colors.length];
+      p.style.setProperty('--sx', Math.cos(ang) * dist + 'px');
+      p.style.setProperty('--sy', Math.sin(ang) * dist + 'px');
+      fxRoot.appendChild(p);
+      setTimeout(() => p.remove(), 900);
+    }
+  }
+
+  function spawnCoinRainLuxury(opts) {
+    ensureRoot();
+    const o = opts || {};
+    const count = Math.min(80, Math.max(12, o.count || 40));
+    const kind = o.kind || 'gold';
+    for (let i = 0; i < count; i += 1) {
+      setTimeout(() => {
+        const el = document.createElement('div');
+        el.className = 'ap-lux-rain ' + (kind === 'diamond' ? 'is-diamond' : kind === 'gem' ? 'is-gem' : 'is-gold');
+        el.textContent = kind === 'diamond' ? '💎' : kind === 'gem' ? '💍' : '🪙';
+        el.style.left = Math.random() * 100 + 'vw';
+        el.style.setProperty('--fall', 1.6 + Math.random() * 1.8 + 's');
+        el.style.setProperty('--drift', (Math.random() - 0.5) * 80 + 'px');
+        el.style.fontSize = 12 + Math.random() * 14 + 'px';
+        fxRoot.appendChild(el);
+        setTimeout(() => el.remove(), 4000);
+      }, i * 28);
+    }
+  }
+
+  function cinematicTravel(gift, combo) {
+    ensureRoot();
+    const emoji = gift.emoji || '🎁';
+    const amount = Number(gift.amount || gift.cost) || 0;
+    const el = document.createElement('div');
+    el.className = 'ap-cinematic-gift';
+    if (combo >= 20) el.classList.add('is-zoom');
+    if (combo >= 50) el.classList.add('is-lightning');
+    if (combo >= 100) el.classList.add('is-legendary');
+    el.innerHTML = `
+      <div class="ap-cinematic-trail"></div>
+      <div class="ap-cinematic-orb">${emoji}</div>
+      <div class="ap-cinematic-bloom"></div>`;
+    fxRoot.appendChild(el);
+
+    const host = hostTargetEl();
+    const rect = host?.getBoundingClientRect?.();
+    const tx = rect ? rect.left + rect.width / 2 : window.innerWidth * 0.5;
+    const ty = rect ? rect.top + rect.height / 2 : window.innerHeight * 0.28;
+    el.style.setProperty('--land-x', tx + 'px');
+    el.style.setProperty('--land-y', ty + 'px');
+
+    setTimeout(() => {
+      spawnSparkBurst(tx, ty, 10 + Math.min(24, Math.floor(amount / 5000)), ['#fbbf24', '#fde68a', '#fff']);
+      pulseHostCelebration(combo || 1);
+      if (amount >= 10000) spawnCoinRainLuxury({ count: 18, kind: 'gold' });
+    }, 720);
+
+    setTimeout(() => el.remove(), 1600);
+    return el;
+  }
+
+  function upgradeComboFx(combo) {
+    ensureRoot();
+    if (comboBadgeEl) {
+      comboBadgeEl.classList.remove('ap-combo-bump');
+      void comboBadgeEl.offsetWidth;
+      comboBadgeEl.classList.add('ap-combo-bump');
+    }
+    const cx = window.innerWidth / 2;
+    const cy = window.innerHeight * 0.72;
+    if (combo >= 5) spawnSparkBurst(cx, cy, 10 + combo / 2);
+    if (combo >= 10) {
+      document.body.classList.add('ap-combo-aura');
+      setTimeout(() => document.body.classList.remove('ap-combo-aura'), 900);
+    }
+    if (combo >= 20) {
+      document.body.classList.add('ap-combo-zoom');
+      setTimeout(() => document.body.classList.remove('ap-combo-zoom'), 700);
+    }
+    if (combo >= 50) {
+      const bolt = document.createElement('div');
+      bolt.className = 'ap-combo-lightning';
+      fxRoot.appendChild(bolt);
+      setTimeout(() => bolt.remove(), 700);
+      screenShake();
+    }
+    if (combo >= 100) {
+      confetti({ count: 90, originY: 0.35, colors: ['#fbbf24', '#f59e0b', '#fff7ed', '#f472b6'] });
+      spawnCoinRainLuxury({ count: 50, kind: 'diamond' });
+      playSound('gift-premium');
+    }
+    pulseHostCelebration(combo);
   }
 
   function getUserLevel(userId, giftSpend) {
@@ -203,58 +335,119 @@
     }
   }
 
-  async function playPremiumOverlay(gift) {
+  async function playPremiumOverlay(gift, opts) {
     ensureRoot();
-    const overlay = document.createElement('div');
-    overlay.className = 'ap-premium-gift';
+    const now = Date.now();
+    /* Throttle overlapping full-screen cinematics */
+    if (now - lastCinematicAt < 1800 && !opts?.force) return;
+    lastCinematicAt = now;
+
     const emoji = gift.emoji || '🎁';
     const from = gift.from || 'Someone';
-    const amount = gift.amount || gift.cost || 0;
+    const amount = Number(gift.amount || gift.cost) || 0;
+    const tier = getGiftTier(gift);
+    const duration = tier === 'legendary' ? 7200 : amount >= 1000000 ? 6000 : 4800;
+    const motif = LEGENDARY_KEYWORDS.test(gift.name || gift.gift_type || '')
+      ? String(gift.name || gift.gift_type || '').toLowerCase()
+      : '';
+
+    const overlay = document.createElement('div');
+    overlay.className = 'ap-premium-gift ap-cinematic-overlay';
+    if (tier === 'legendary') overlay.classList.add('is-legendary');
+    else if (tier === 'vip') overlay.classList.add('is-vip');
+
+    let sceneClass = 'ap-scene-default';
+    if (/dragon|phoenix/.test(motif)) sceneClass = 'ap-scene-dragon';
+    else if (/yacht|jet|ferrari|lamborghini|bugatti|rolls|car/.test(motif)) sceneClass = 'ap-scene-vehicle';
+    else if (/galaxy|universe|meteor|nebula|whale|portal/.test(motif)) sceneClass = 'ap-scene-cosmos';
+    else if (/lion|tiger|panther|horse/.test(motif)) sceneClass = 'ap-scene-beast';
+    else if (/firework|diwali|eid|valentine|christmas/.test(motif)) sceneClass = 'ap-scene-festive';
+    else if (/castle|throne|palace|kingdom|mansion|penthouse/.test(motif)) sceneClass = 'ap-scene-royal';
 
     overlay.innerHTML = `
+      <div class="ap-cinematic-bg ${sceneClass}"></div>
+      <div class="ap-cinematic-particles" aria-hidden="true"></div>
       <div class="ap-lottie-wrap" id="apPremiumLottie"></div>
-      <div class="ap-premium-emoji" style="display:none">${emoji}</div>
+      <div class="ap-premium-emoji ap-cinematic-hero">${emoji}</div>
       <div class="ap-premium-meta">
         <div class="ap-premium-from">${escapeHtml(from)}</div>
-        <div class="ap-premium-cost">sent ${emoji} · ${Number(amount).toLocaleString()} coins</div>
+        <div class="ap-premium-cost">sent ${emoji} · ${amount.toLocaleString()} coins</div>
       </div>`;
     fxRoot.appendChild(overlay);
+    activeGiftAnim = { key: String(emoji), combo: opts?.combo || 1, el: overlay, tier };
+
+    const particles = overlay.querySelector('.ap-cinematic-particles');
+    if (particles) {
+      for (let i = 0; i < 18; i += 1) {
+        const d = document.createElement('i');
+        d.style.left = Math.random() * 100 + '%';
+        d.style.animationDelay = Math.random() * 2 + 's';
+        d.style.animationDuration = 2.5 + Math.random() * 2.5 + 's';
+        particles.appendChild(d);
+      }
+    }
 
     const lottie = await loadLottie();
     const wrap = overlay.querySelector('#apPremiumLottie');
-    const emojiEl = overlay.querySelector('.ap-premium-emoji');
-    let usedLottie = false;
-    if (lottie && wrap) {
+    if (lottie && wrap && amount >= 500000) {
       try {
-        const anim = lottie.loadAnimation({
+        lottie.loadAnimation({
           container: wrap,
           renderer: 'svg',
           loop: false,
           autoplay: true,
           path: LOTTIE_URLS.confetti,
         });
-        anim.addEventListener('data_failed', () => {
-          wrap.style.display = 'none';
-          if (emojiEl) emojiEl.style.display = '';
-        });
-        usedLottie = true;
       } catch (_e) {
         wrap.style.display = 'none';
-        if (emojiEl) emojiEl.style.display = '';
       }
-    } else {
+    } else if (wrap) {
       wrap.style.display = 'none';
-      if (emojiEl) emojiEl.style.display = '';
     }
 
-    if (!usedLottie && emojiEl) emojiEl.style.display = '';
-
     screenShake();
-    haptic([20, 40, 20]);
+    haptic([20, 40, 20, 40, 30]);
     playSound('gift-premium');
-    confetti({ count: 80, originY: 0.5 });
+    confetti({
+      count: tier === 'legendary' ? 120 : 70,
+      originY: 0.45,
+      colors: ['#fbbf24', '#f59e0b', '#fde68a', '#f472b6', '#22d3ee'],
+    });
+    spawnCoinRainLuxury({
+      count: tier === 'legendary' ? 60 : 32,
+      kind: amount >= 1000000 ? 'diamond' : 'gold',
+    });
+    pulseHostCelebration(tier === 'legendary' ? 100 : 50);
+    audienceFlash(tier);
 
-    setTimeout(() => overlay.remove(), 3500);
+    setTimeout(() => {
+      overlay.classList.add('is-out');
+      setTimeout(() => {
+        overlay.remove();
+        if (activeGiftAnim.el === overlay) activeGiftAnim = { key: '', combo: 0, el: null, tier: '' };
+      }, 420);
+    }, duration);
+  }
+
+  function audienceFlash(tier) {
+    ensureRoot();
+    const flash = document.createElement('div');
+    flash.className = 'ap-audience-flash' + (tier === 'legendary' ? ' is-legend' : '');
+    fxRoot.appendChild(flash);
+    setTimeout(() => flash.remove(), 900);
+    if (tier === 'vip' || tier === 'legendary') {
+      for (let i = 0; i < 8; i += 1) {
+        setTimeout(() => {
+          const h = document.createElement('div');
+          h.className = 'ap-audience-heart';
+          h.textContent = i % 2 ? '💖' : '✨';
+          h.style.left = 10 + Math.random() * 80 + 'vw';
+          h.style.bottom = '8%';
+          fxRoot.appendChild(h);
+          setTimeout(() => h.remove(), 1800);
+        }, i * 90);
+      }
+    }
   }
 
   function escapeHtml(s) {
@@ -270,9 +463,10 @@
     const tier = getGiftTier(gift);
     const emoji = gift.emoji || '🎁';
     const amount = Number(gift.amount || gift.cost) || 0;
+    const combo = Number(opts?.combo) || 1;
+    const key = String(emoji);
     sessionGiftTotal += amount;
 
-    /* Chat already shows "X sent to Y" — skip duplicate activity rail text */
     if (!opts?.skipActivity) {
       pushActivity({
         type: 'gift',
@@ -280,34 +474,70 @@
       });
     }
 
-    if (tier === 'premium') {
-      playPremiumOverlay(gift);
-      spawnFloaters(emoji, 12, 'premium');
+    /* Progressive combo upgrade — do not replay full cinematic */
+    if (activeGiftAnim.key === key && combo > activeGiftAnim.combo && combo > 1) {
+      activeGiftAnim.combo = combo;
+      upgradeComboFx(combo);
+      playSound('combo');
+      return;
+    }
+
+    if (isCinematicTier(tier, amount)) {
+      playPremiumOverlay(gift, { combo });
+      if (combo < 5) cinematicTravel(gift, combo);
+    } else if (tier === 'premium') {
+      activeGiftAnim = { key, combo, el: null, tier };
+      cinematicTravel(gift, combo);
+      spawnFloaters(emoji, 10, 'premium');
+      playSound('gift-premium');
+      haptic(14);
+      if (amount >= 25000) spawnCoinRainLuxury({ count: 20, kind: 'gold' });
+      pulseHostCelebration(combo);
     } else if (tier === 'medium') {
+      activeGiftAnim = { key, combo, el: null, tier };
+      cinematicTravel(gift, combo);
       playSound('gift-small');
       haptic(10);
       spawnFloaters(emoji, 8, 'medium');
+      pulseHostCelebration(combo);
     } else {
+      activeGiftAnim = { key, combo, el: null, tier };
+      cinematicTravel(gift, Math.max(1, combo));
       playSound('gift-small');
       spawnFloaters(emoji, 5, 'small');
     }
 
-    if (opts?.combo && opts.combo >= 10) {
+    if (combo >= 5 && combo < 100) upgradeComboFx(combo);
+
+    if (combo >= 10) {
       const burst = document.createElement('div');
       burst.className = 'ap-combo-explosion';
       fxRoot.appendChild(burst);
       setTimeout(() => burst.remove(), 600);
-      confetti({ count: 40, originX: 0.5, originY: 0.75 });
+      confetti({ count: 28 + Math.min(40, combo), originX: 0.5, originY: 0.75 });
     }
   }
 
-  function showComboBadge(multiplier, secondsLeft) {
+  function showComboBadge(multiplier, secondsLeft, count) {
     ensureRoot();
-    if (comboBadgeEl) comboBadgeEl.remove();
-    comboBadgeEl = document.createElement('div');
-    comboBadgeEl.className = 'ap-combo-badge';
-    comboBadgeEl.innerHTML = `COMBO x${multiplier}<span class="ap-combo-timer">${secondsLeft}s</span>`;
-    document.body.appendChild(comboBadgeEl);
+    if (!comboBadgeEl) {
+      comboBadgeEl = document.createElement('div');
+      comboBadgeEl.className = 'ap-combo-badge ap-combo-lux';
+      document.body.appendChild(comboBadgeEl);
+    }
+    const fire = multiplier >= 50 ? '⚡' : multiplier >= 10 ? '🔥' : '✨';
+    comboBadgeEl.innerHTML = `
+      <span class="ap-combo-fire">${fire}</span>
+      <span class="ap-combo-x">x${count || multiplier}</span>
+      <span class="ap-combo-label">Combo</span>
+      <span class="ap-combo-timer">${secondsLeft}s</span>`;
+    comboBadgeEl.classList.remove('ap-combo-bump');
+    void comboBadgeEl.offsetWidth;
+    comboBadgeEl.classList.add('ap-combo-bump');
+    if (multiplier >= 20) comboBadgeEl.classList.add('is-gold');
+    else comboBadgeEl.classList.remove('is-gold');
+    if (multiplier >= 100) comboBadgeEl.classList.add('is-mythic');
+    else comboBadgeEl.classList.remove('is-mythic');
   }
 
   function hideComboBadge() {
@@ -344,12 +574,12 @@
         hideComboBadge();
         return;
       }
-      showComboBadge(multiplier, left);
+      showComboBadge(multiplier, left, comboState.count);
       comboState.timer = setTimeout(tick, 200);
     };
     tick();
 
-    if (multiplier >= 10) {
+    if (multiplier >= 5) {
       playSound('combo');
       haptic([8, 8, 8]);
     }
@@ -458,7 +688,8 @@
   }
 
   function coinRain(count) {
-    confetti({ count: count || 50, originY: 0.1, colors: ['#fbbf24', '#f59e0b', '#fcd34d'] });
+    spawnCoinRainLuxury({ count: count || 50, kind: 'gold' });
+    confetti({ count: Math.min(60, count || 50), originY: 0.1, colors: ['#fbbf24', '#f59e0b', '#fcd34d'] });
     haptic([10, 20, 10, 20]);
     playSound('gift-premium');
   }

@@ -181,6 +181,22 @@ exports.agencyDashboard = async (req, res) => {
   }
 };
 
+exports.agencyAgentLevel = async (req, res) => {
+  try {
+    const role = String(req.userRole || '').toLowerCase();
+    if (role !== 'agency' && !STAFF.has(role)) {
+      return res.status(403).json({ success: false, message: 'Agency access required' });
+    }
+    const agency = await hierarchyService.ensureAgencyForOwner(req.userId);
+    if (!agency) return res.status(404).json({ success: false, message: 'Agency not found' });
+    const agencyTierService = require('../services/agencyTierService');
+    const data = await agencyTierService.getAgencyTierSnapshot(agency.id);
+    res.json({ success: true, data });
+  } catch (e) {
+    res.status(e.status || 400).json({ success: false, message: e.message });
+  }
+};
+
 exports.renameAgency = async (req, res) => {
   try {
     const role = String(req.userRole || '').toLowerCase();

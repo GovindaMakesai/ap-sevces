@@ -101,6 +101,12 @@ async function ensureReferralSchema() {
          value = '0'::jsonb,
          updated_at = CURRENT_TIMESTAMP`
     );
+    /* Master switch: invite UI on, reward payouts off until enabled from DB/admin. */
+    await client.query(
+      `INSERT INTO referral_settings (key, value, updated_at)
+       VALUES ('invite_rewards_enabled', 'false'::jsonb, CURRENT_TIMESTAMP)
+       ON CONFLICT (key) DO NOTHING`
+    );
     /* Sync canonical invite-host tasks (guide table only) */
     try {
       const missionEngine = require('./services/missionEngine');

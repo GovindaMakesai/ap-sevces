@@ -440,12 +440,53 @@ const updateProfile = async (req, res) => {
             return res.status(400).json({ success: false, message: 'No profile fields to update' });
         }
 
+        const current = await User.findById(req.userId);
+        if (!current) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        let nameChange = null;
+        if (fields.first_name !== undefined || fields.last_name !== undefined) {
+            const nameChangeService = require('../services/nameChangeService');
+            try {
+                nameChange = await nameChangeService.applyNameChangePolicy({
+                    userId: req.userId,
+                    oldUser: current,
+                    nextFirst: fields.first_name !== undefined ? fields.first_name : current.first_name,
+                    nextLast: fields.last_name !== undefined ? fields.last_name : current.last_name,
+                });
+            } catch (err) {
+                if (err.code === 'INSUFFICIENT_BALANCE') {
+                    return res.status(402).json({
+                        success: false,
+                        message: err.message,
+                        code: 'INSUFFICIENT_BALANCE',
+                        data: { name_change: await nameChangeService.getNameChangeQuota(req.userId) },
+                    });
+                }
+                throw err;
+            }
+        }
+
         const user = await User.updateProfile(req.userId, fields);
         if (!user) {
             return res.status(404).json({ success: false, message: 'User not found' });
         }
         const { publicUser } = require('../lib/userDto');
-        res.json({ success: true, data: { user: publicUser(user, { self: true }) }, message: 'Profile updated' });
+        const nameChangeService = require('../services/nameChangeService');
+        const quota = nameChange?.quota || (await nameChangeService.getNameChangeQuota(req.userId));
+        res.json({
+            success: true,
+            data: {
+                user: publicUser(user, { self: true }),
+                name_change: quota,
+                name_change_charged: nameChange?.charged || 0,
+            },
+            message:
+                nameChange?.charged > 0
+                    ? `Profile updated (−${Number(nameChange.charged).toLocaleString()} coins for name change)`
+                    : 'Profile updated',
+        });
     } catch (error) {
         console.error('❌ Update profile error:', error);
         res.status(500).json({ success: false, message: 'Failed to update profile' });
@@ -507,7 +548,18 @@ const getMe = async (req, res) => {
             user = await User.findById(req.userId);
         }
         const { publicUser } = require('../lib/userDto');
-        res.json({ success: true, data: { user: publicUser(user, { self: true }) } });
+        let name_change = null;
+        try {
+            const nameChangeService = require('../services/nameChangeService');
+            name_change = await nameChangeService.getNameChangeQuota(req.userId);
+        } catch (_e) { /* schema may not be ready yet */ }
+        res.json({
+            success: true,
+            data: {
+                user: publicUser(user, { self: true }),
+                name_change,
+            },
+        });
     } catch (error) {
         console.error('❌ Get profile error:', error);
         res.status(500).json({

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
@@ -76,7 +76,95 @@
   let giftCategory = 'gift';
   let giftQty = 1;
   let selectedGiftIdx = 0;
+  let giftSearchQuery = '';
   let activeFeedHostId = '';
+
+  function giftMemoryKey(kind) {
+    const uid = currentUser()?.id || 'guest';
+    return `ap_gift_${kind}_${uid}`;
+  }
+
+  function readGiftMemory(kind) {
+    try {
+      return JSON.parse(localStorage.getItem(giftMemoryKey(kind)) || '[]') || [];
+    } catch (_e) {
+      return [];
+    }
+  }
+
+  function writeGiftMemory(kind, list) {
+    try {
+      localStorage.setItem(giftMemoryKey(kind), JSON.stringify((list || []).slice(0, 24)));
+    } catch (_e) {}
+  }
+
+  function rememberGiftUse(item) {
+    if (!item) return;
+    const slug = item.slug || giftSlugFor(item);
+    const recent = readGiftMemory('recent').filter((x) => x.slug !== slug);
+    recent.unshift({
+      emoji: item.emoji,
+      name: item.name,
+      cost: item.cost,
+      tag: item.tag,
+      slug,
+    });
+    writeGiftMemory('recent', recent);
+  }
+
+  function toggleGiftFavorite(item) {
+    if (!item) return false;
+    const slug = item.slug || giftSlugFor(item);
+    const favs = readGiftMemory('fav');
+    const idx = favs.findIndex((x) => x.slug === slug);
+    if (idx >= 0) favs.splice(idx, 1);
+    else {
+      favs.unshift({
+        emoji: item.emoji,
+        name: item.name,
+        cost: item.cost,
+        tag: item.tag || '♥',
+        slug,
+      });
+    }
+    writeGiftMemory('fav', favs);
+    return idx < 0;
+  }
+
+  function isGiftFavorite(item) {
+    const slug = item?.slug || giftSlugFor(item || {});
+    return readGiftMemory('fav').some((x) => x.slug === slug);
+  }
+
+  function collectAllGifts() {
+    const out = [];
+    const seen = new Set();
+    Object.values(GIFT_CATALOG).forEach((arr) => {
+      (arr || []).forEach((g) => {
+        const key = `${g.slug || giftSlugFor(g)}:${g.cost}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        out.push(g);
+      });
+    });
+    return out;
+  }
+
+  function giftsForCategory(cat) {
+    if (cat === 'recent') return readGiftMemory('recent');
+    if (cat === 'favorites') return readGiftMemory('fav');
+    if (cat === 'trending') {
+      return collectAllGifts()
+        .slice()
+        .sort((a, b) => Number(b.cost) - Number(a.cost))
+        .slice(0, 16);
+    }
+    if (cat === 'vip') {
+      return collectAllGifts().filter((g) => Number(g.cost) >= 10000);
+    }
+    if (cat === 'island') return GIFT_CATALOG.lifestyle || GIFT_CATALOG.gift;
+    return GIFT_CATALOG[cat] || GIFT_CATALOG.gift || [];
+  }
 
   let liveSocket = null;
   let roomState = null;
@@ -1610,10 +1698,38 @@
     } catch (_e) { }
   }
 
+  function isPlatformAdminSelf() {
+    const role = String(currentUser()?.role || '').toLowerCase();
+    return ['admin', 'super_admin', 'founder', 'ceo'].includes(role);
+  }
+
   async function kickUserFromRoom(userId, reason, durationHours) {
     if (!canModerateRoom() || !liveSocket?.connected || !userId) return;
-    if (isRoomHostUserId(userId)) {
+    if (isRoomHostUserId(userId) && !isPlatformAdminSelf()) {
       toast('Cannot remove the room host', 'warning');
+      return;
+    }
+    if (isRoomHostUserId(userId) && isPlatformAdminSelf()) {
+      if (
+        !window.confirm(
+          'Kick the host and end this live?\n\nAll viewers will be disconnected. This does not ban the host account.'
+        )
+      ) {
+        return;
+      }
+      liveSocket.emit(
+        'live:kick',
+        {
+          channel: channelId(),
+          userId,
+          reason: reason || 'admin_kicked_host',
+          durationHours: 0,
+        },
+        (res) => {
+          if (res?.ok) toast('Host removed — live ended', 'success');
+          else toast(res?.message || 'Could not remove host', 'error');
+        }
+      );
       return;
     }
     let hours = durationHours;
@@ -1640,6 +1756,10 @@
   async function removeUserFromLiveOrSeat(userId, displayName, durationHours) {
     if (!canModerateRoom() || !userId) return;
     if (isRoomHostUserId(userId)) {
+      if (isPlatformAdminSelf()) {
+        await kickUserFromRoom(userId, 'admin_kicked_host', 0);
+        return;
+      }
       toast('Cannot remove the room host', 'warning');
       return;
     }
@@ -2051,18 +2171,18 @@
       { userId, name };
     const isAdminMember = isRoomAdminMember(memberHit);
     const onStage = memberIsOnStage(userId) || memberIsOnStage(memberHit);
-    /* Host + room/live admins can remove anyone except the host from the seat */
+    /* Platform admins can kick the host; room mods cannot */
     const canSeatMod = !isTargetHost;
-    const canKick = !isTargetHost;
+    const canKick = !isTargetHost || isPlatformAdminSelf();
     const adminLabel = roomAdminLabel();
     const blocked = Boolean(userId && window.SocialInteractions?.isBlocked?.(userId));
     const demoteLabel = isAdminMember
       ? `Remove from the seat (keep ${adminLabel.toLowerCase()})`
       : 'Remove from the seat';
     /* Host: Make admin ↔ Remove admin. Live/room admins can Remove admin (not grant). */
-    const canMakeAdmin = canGrantRoomAdmin() && canKick && !isAdminMember;
+    const canMakeAdmin = canGrantRoomAdmin() && !isTargetHost && !isAdminMember;
     const canRemoveAdmin =
-      canKick &&
+      !isTargetHost &&
       isAdminMember &&
       (canGrantRoomAdmin() || canModerateRoom()) &&
       String(userId) !== String(currentUser()?.id || '');
@@ -2070,15 +2190,16 @@
     menu.innerHTML = `
       ${canMakeAdmin ? `<button type="button" data-mod="admin-grant"><i class="fas fa-user-shield"></i><span>Make admin</span></button>` : ''}
       ${canRemoveAdmin ? `<button type="button" data-mod="admin-revoke"><i class="fas fa-user-slash"></i><span>Remove admin</span></button>` : ''}
-      <button type="button" data-mod="mute"><i class="fas fa-microphone-slash"></i><span>Mute mic</span></button>
-      <button type="button" data-mod="unmute"><i class="fas fa-microphone"></i><span>Unmute mic</span></button>
-      ${!onStage && isPartyRoomPage() ? '<button type="button" data-mod="addseat"><i class="fas fa-plus"></i><span>Add to seat</span></button>' : ''}
-      ${!onStage && isLiveRoomPage() ? '<button type="button" data-mod="addseat"><i class="fas fa-plus"></i><span>Add to live</span></button>' : ''}
-      ${isPartyRoomPage() && onStage ? '<button type="button" data-mod="move"><i class="fas fa-exchange-alt"></i><span>Move to seat…</span></button>' : ''}
+      ${!isTargetHost ? '<button type="button" data-mod="mute"><i class="fas fa-microphone-slash"></i><span>Mute mic</span></button>' : ''}
+      ${!isTargetHost ? '<button type="button" data-mod="unmute"><i class="fas fa-microphone"></i><span>Unmute mic</span></button>' : ''}
+      ${!onStage && isPartyRoomPage() && !isTargetHost ? '<button type="button" data-mod="addseat"><i class="fas fa-plus"></i><span>Add to seat</span></button>' : ''}
+      ${!onStage && isLiveRoomPage() && !isTargetHost ? '<button type="button" data-mod="addseat"><i class="fas fa-plus"></i><span>Add to live</span></button>' : ''}
+      ${isPartyRoomPage() && onStage && !isTargetHost ? '<button type="button" data-mod="move"><i class="fas fa-exchange-alt"></i><span>Move to seat…</span></button>' : ''}
       ${canSeatMod && onStage ? `<button type="button" data-mod="demote"><i class="fas fa-user-minus"></i><span>${demoteLabel}</span></button>` : ''}
-      ${canKick ? '<button type="button" data-mod="kick2"><i class="fas fa-ban"></i><span>Kick out · 2 hours</span></button>' : ''}
-      ${canKick ? '<button type="button" data-mod="kick24"><i class="fas fa-ban"></i><span>Kick out · 24 hours</span></button>' : ''}
-      ${canKick ? `<button type="button" data-mod="block"><i class="fas fa-user-slash"></i><span>${blocked ? 'Unblock user' : 'Block user'}</span></button>` : ''}
+      ${canKick && isTargetHost ? '<button type="button" data-mod="kick-host"><i class="fas fa-gavel"></i><span>Kick host &amp; end live</span></button>' : ''}
+      ${canKick && !isTargetHost ? '<button type="button" data-mod="kick2"><i class="fas fa-ban"></i><span>Kick out · 2 hours</span></button>' : ''}
+      ${canKick && !isTargetHost ? '<button type="button" data-mod="kick24"><i class="fas fa-ban"></i><span>Kick out · 24 hours</span></button>' : ''}
+      ${canKick && !isTargetHost ? `<button type="button" data-mod="block"><i class="fas fa-user-slash"></i><span>${blocked ? 'Unblock user' : 'Block user'}</span></button>` : ''}
       <button type="button" data-mod="mute-all-chat"><i class="fas fa-comment-slash"></i><span>${chatLocked ? 'Unmute all chat' : 'Mute all chat'}</span></button>
       <button type="button" data-mod="clear-chat"><i class="fas fa-eraser"></i><span>Clear all chat</span></button>`;
     menu.querySelector('[data-mod="mute"]')?.addEventListener('click', () => {
@@ -2104,6 +2225,11 @@
     });
     menu.querySelector('[data-mod="demote"]')?.addEventListener('click', () => {
       demoteUserFromSeat(userId);
+      menu.remove();
+      document.getElementById('apProfileSheet')?.classList.remove('open');
+    });
+    menu.querySelector('[data-mod="kick-host"]')?.addEventListener('click', () => {
+      kickUserFromRoom(userId, 'admin_kicked_host', 0);
       menu.remove();
       document.getElementById('apProfileSheet')?.classList.remove('open');
     });
@@ -2574,6 +2700,7 @@
   }
 
   function resolveHostProfilePic() {
+    if (roomState?.hostStreamCover) return roomState.hostStreamCover;
     const hostId = String(roomState?.hostId || '');
     const hostSeat = (roomState?.seats || []).find(
       (s) => s?.isHost || (hostId && String(s?.userId) === hostId)
@@ -2666,6 +2793,7 @@
       }
     }
     if (!merged.hostProfilePic && prev.hostProfilePic) merged.hostProfilePic = prev.hostProfilePic;
+    if (!merged.hostStreamCover && prev.hostStreamCover) merged.hostStreamCover = prev.hostStreamCover;
     if (!merged.hostId && prev.hostId) merged.hostId = prev.hostId;
     if (!merged.hostName && prev.hostName) merged.hostName = prev.hostName;
     if (!merged.hostUserRole && prev.hostUserRole) merged.hostUserRole = prev.hostUserRole;
@@ -2737,9 +2865,9 @@
     return guests;
   }
 
-  function paintHostAvatarImg(img, hostName) {
+  function paintHostAvatarImg(img, hostName, coverOverride) {
     if (!img) return;
-    const pic = resolveHostProfilePic();
+    const pic = coverOverride || resolveHostProfilePic();
     const url = avatarUrl(hostName, pic);
     img.alt = hostName || 'Host';
     img.dataset.name = hostName || 'Host';
@@ -2797,6 +2925,9 @@
   }
 
   function getStreamCoverUrl(hostName) {
+    if (roomState?.hostStreamCover) {
+      return resolveMediaUrl(roomState.hostStreamCover) || roomState.hostStreamCover;
+    }
     const uid = roomState?.hostId || currentUser()?.id;
     if (uid) {
       try {
@@ -2804,7 +2935,63 @@
         if (custom) return custom;
       } catch (_e) { }
     }
+    if (roomState?.hostProfilePic) {
+      return resolveMediaUrl(roomState.hostProfilePic) || roomState.hostProfilePic;
+    }
     return themeCover('live', hostName || 'Streamer');
+  }
+
+  function readPendingStreamMeta() {
+    try {
+      const raw = sessionStorage.getItem('ap_live_stream_meta');
+      if (!raw) return null;
+      const data = JSON.parse(raw);
+      if (!data || !data.ts || Date.now() - data.ts > 15 * 60 * 1000) return null;
+      return data;
+    } catch (_e) {
+      return null;
+    }
+  }
+
+  function clearPendingStreamMeta() {
+    try {
+      sessionStorage.removeItem('ap_live_stream_meta');
+    } catch (_e) { /* ignore */ }
+  }
+
+  function openEditLivePresentation() {
+    if (!isHost() && !clientClaimsHost()) {
+      toast('Only the host can edit live name and picture', 'warning');
+      return;
+    }
+    const currentName = roomState?.hostName || displayName(currentUser());
+    const nextName = window.prompt('Live stream name (does not change your profile name):', currentName);
+    if (nextName == null) return;
+    const trimmed = String(nextName).trim().slice(0, 48);
+    if (!trimmed) {
+      toast('Live name cannot be empty', 'warning');
+      return;
+    }
+    const cover = window.prompt(
+      'Live cover image URL (optional — leave blank to keep current; type CLEAR to remove).\nDoes not change your profile picture.',
+      roomState?.hostStreamCover || ''
+    );
+    if (cover == null) return;
+    const payload = {
+      channel: channelId(),
+      streamTitle: trimmed,
+    };
+    if (String(cover).trim().toUpperCase() === 'CLEAR') payload.streamCoverUrl = '';
+    else if (String(cover).trim()) payload.streamCoverUrl = String(cover).trim().slice(0, 700);
+    liveSocket?.emit('live:update_presentation', payload, (res) => {
+      if (res?.ok) {
+        toast('Live name/picture updated for this stream only', 'success');
+        if (res.state) {
+          roomState = { ...(roomState || {}), ...res.state };
+          renderRoomState();
+        }
+      } else toast(res?.message || 'Could not update', 'error');
+    });
   }
 
   function applyLiveBackground(mode, hostName) {
@@ -2828,7 +3015,11 @@
       if (isAudio) {
         bg.style.display = 'block';
         bg.style.background = '';
-        bg.style.backgroundImage = `url('${themeCover('audio', name)}')`;
+        const cover =
+          getStreamCoverUrl(name) ||
+          resolveStickyPosterUrl() ||
+          themeCover('audio', name);
+        bg.style.backgroundImage = cover ? `url('${cover}')` : `url('${themeCover('audio', name)}')`;
         bg.style.backgroundSize = 'cover';
         bg.style.backgroundPosition = 'center';
       } else if (hasVideoStream && !isAudio) {
@@ -2851,11 +3042,16 @@
         }
       }
     }
-    if (audioAvatar) audioAvatar.src = avatarUrl(name);
+    if (audioAvatar) {
+      const cover = getStreamCoverUrl(name);
+      audioAvatar.src = cover || avatarUrl(name, roomState?.hostProfilePic);
+    }
     if (audioLabel) audioLabel.textContent = isAudio ? 'Voice live' : 'Live';
     const backdrop = document.getElementById('liveFeedBackdrop');
     if (backdrop && document.body.classList.contains('live-feed-mode')) {
-      backdrop.style.backgroundImage = `url('${themeCover(isAudio ? 'audio' : 'live', name)}')`;
+      const feedCover =
+        getStreamCoverUrl(name) || themeCover(isAudio ? 'audio' : 'live', name);
+      backdrop.style.backgroundImage = `url('${feedCover}')`;
     }
     updateModeBadge(isAudio ? 'audio' : 'video', isHost() && isActuallyLive());
   }
@@ -3563,10 +3759,10 @@
           // New on-seat guest — pull their mic (host + other viewers)
           // Defer while a gift is in flight so seat churn can't kill Send
           if (seatAdded && agoraClient && liveDebugState.agoraJoined && !window.__apGiftSending) {
-            ensureRemoteAudioPlaying().catch(() => { });
+            refreshPartyMeshAudio('seat-added');
             setTimeout(() => {
               if (window.__apGiftSending) return;
-              ensureRemoteAudioPlaying().catch(() => { });
+              refreshPartyMeshAudio('seat-added-late');
             }, 1200);
           }
         }, 80);
@@ -3592,10 +3788,7 @@
           renderGuestRail();
         }
         const pullGuestMic = () => {
-          /* Soft ensure only — force resubscribe was one-way-deafening the host */
-          ensureRemoteAudioPlaying()
-            .then(() => boostRemoteAudioVolumes())
-            .catch(() => { });
+          refreshPartyMeshAudio('guest_mic_ready');
         };
         if (window.__apGiftSending) {
           setTimeout(pullGuestMic, 800);
@@ -3603,6 +3796,7 @@
         }
         pullGuestMic();
         setTimeout(pullGuestMic, 1000);
+        setTimeout(pullGuestMic, 2500);
       });
 
       liveSocket.on('live:member_mute', (payload) => {
@@ -3747,6 +3941,20 @@
         }
       });
 
+      liveSocket.on('live:game', (payload) => {
+        if (!payload || payload.game !== 'greedy') return;
+        if (payload.channel && channelId() && String(payload.channel) !== String(channelId())) return;
+        const frame = document.getElementById('apGameFrame');
+        if (!frame?.contentWindow) return;
+        try {
+          frame.contentWindow.postMessage({
+            type: 'GAME_ROOM_EVENT',
+            game: payload.game || 'greedy',
+            ...payload,
+          }, '*');
+        } catch (_e) { }
+      });
+
       liveSocket.on('pk:start', (snapshot) => {
         beginPkBattle(snapshot);
       });
@@ -3777,6 +3985,63 @@
           renderTopGifters();
           renderPartyAudienceBar();
         }
+      });
+
+      liveSocket.on('live:member_joined', (payload) => {
+        if (!payload) return;
+        const name = String(payload.name || 'Someone').slice(0, 32);
+        if (payload.viewers != null) {
+          lastViewerCount = Number(payload.viewers) || 0;
+          if (roomState) roomState.viewers = lastViewerCount;
+          const el = document.getElementById('liveViewerCount');
+          if (el) {
+            el.textContent = isLiveRoomPage()
+              ? `${lastViewerCount} joined`
+              : String(lastViewerCount);
+          }
+        }
+        /* Join chat line comes from live:chat — avoid duplicate here */
+        if (!payload.isHost && !payload.silent && name) {
+          try {
+            showJoinBanner?.(name);
+          } catch (_e) { /* optional */ }
+        }
+        requestFreshRoomState();
+      });
+
+      liveSocket.on('live:member_left', (payload) => {
+        if (!payload) return;
+        if (payload.viewers != null) {
+          lastViewerCount = Number(payload.viewers) || 0;
+          if (roomState) roomState.viewers = lastViewerCount;
+          const el = document.getElementById('liveViewerCount');
+          if (el) {
+            el.textContent = isLiveRoomPage()
+              ? `${lastViewerCount} joined`
+              : String(lastViewerCount);
+          }
+        }
+        const uid = String(payload.userId || '');
+        if (uid) forgetStickyStageGuest(uid);
+        requestFreshRoomState();
+      });
+
+      liveSocket.on('live:members_sync', (payload) => {
+        if (!payload || !roomState) return;
+        if (payload.viewers != null) roomState.viewers = Number(payload.viewers) || 0;
+        if (Array.isArray(payload.onlineMembers)) roomState.onlineMembers = payload.onlineMembers;
+        if (Array.isArray(payload.seats)) roomState.seats = payload.seats;
+        stripBlockedUsersFromRoomState(roomState);
+        renderRoomState();
+      });
+
+      liveSocket.on('live:presentation', (payload) => {
+        if (!payload || !roomState) return;
+        if (payload.hostName) roomState.hostName = payload.hostName;
+        if (payload.hostStreamCover !== undefined) roomState.hostStreamCover = payload.hostStreamCover;
+        if (payload.hostProfilePic !== undefined) roomState.hostProfilePic = payload.hostProfilePic;
+        renderRoomState();
+        applyLiveBackground(broadcastMode, roomState.hostName);
       });
 
       liveSocket.on('live:seat_request', (req) => {
@@ -3980,6 +4245,14 @@
       }, 15000);
 
       const emitJoin = (joinPayload = {}) => {
+        const meta = readPendingStreamMeta();
+        const hostExtras =
+          hostFlag && meta
+            ? {
+                streamTitle: meta.streamTitle || undefined,
+                streamCoverUrl: meta.streamCoverUrl || undefined,
+              }
+            : {};
         liveSocket.emit(
           'live:join',
           {
@@ -3987,6 +4260,7 @@
             type: type === 'live' ? 'live' : 'party',
             displayName: displayName(user),
             isHost: hostFlag,
+            ...hostExtras,
             ...joinPayload,
           },
           (res) => {
@@ -4002,6 +4276,7 @@
               return;
             }
             if (res?.ok) {
+              if (hostFlag) clearPendingStreamMeta();
               roomState = res.state || { channel: ch, viewers: 1, hostName: displayName(user) };
               seedChatProfileCacheFromState(roomState);
               roomJoinCompleted = true;
@@ -4516,29 +4791,47 @@
         });
         syncLiveMediaPublisherMode();
         eng.startHealthWatch(() => agoraClient, {
+          intervalMs: 3500,
           onDeadTrack: (user) => {
             eng.remountIfDead(user, async (u) => {
               await playRemoteMedia(u, 'audio', { force: true });
             }).catch(() => {});
           },
+          onMissingTrack: (user) => {
+            playRemoteMedia(user, 'audio', { force: true }).catch(() => {});
+          },
+          onStuckSilent: (user) => {
+            playRemoteMedia(user, 'audio', { force: true })
+              .then(() => eng.playRemoteAudio(user, { force: true }))
+              .then(() => eng.boostAll(agoraClient))
+              .catch(() => {});
+          },
         });
+        startPartyMeshKeepalive();
       }
     } catch (_cfg) {}
     client.on('user-published', async (user, mediaType) => {
       liveDebugLog(`user-published uid=${user.uid} media=${mediaType}`);
       forensicEvent('REMOTE_USER_PUBLISHED', { uid: user.uid, mediaType, channel: agoraChannel });
       /* Never force-unsubscribe — AEC silence ≠ dead subscribe */
-      void playRemoteMedia(user, mediaType, { force: false })
+      void playRemoteMedia(user, mediaType, { force: mediaType === 'audio' })
         .then(() => {
           if (mediaType === 'audio') {
             const eng = liveMedia();
             if (eng) {
-              eng.playRemoteAudio(user, { force: false }).then(() => eng.boostAll(agoraClient));
+              eng.playRemoteAudio(user, { force: true }).then(() => eng.boostAll(agoraClient));
             } else {
               kickstartRemoteAudio('user-published-audio');
               boostRemoteAudioVolumes();
             }
-            if (isHost()) {
+            /* Multi-seat: refresh EVERYONE's audio when a new mic joins */
+            setTimeout(() => {
+              refreshPartyMeshAudio('user-published');
+            }, 400);
+            setTimeout(() => {
+              refreshPartyMeshAudio('user-published-late');
+            }, 1800);
+            if (isHost() || hasSpeakerSeat) {
               setTimeout(() => {
                 ensureRemoteAudioPlaying().then(() => boostRemoteAudioVolumes()).catch(() => {});
               }, 500);
@@ -4958,6 +5251,10 @@
 
   function resolveEntryCoverUrl(name, profilePic, party) {
     const label = String(name || 'Host').trim() || 'Host';
+    const streamCover = getStreamCoverUrl(label);
+    if (streamCover && roomState?.hostStreamCover) {
+      return streamCover;
+    }
     if (profilePic) {
       const resolved =
         window.SocialShell?.getImageUrl?.(profilePic) ||
@@ -4966,10 +5263,7 @@
           : null);
       if (resolved) return avatarUrl(label, resolved);
     }
-    if (isHost()) {
-      const custom = getStreamCoverUrl(label);
-      if (custom) return custom;
-    }
+    if (streamCover) return streamCover;
     return themeCover(party ? 'party' : 'live', label);
   }
 
@@ -5950,9 +6244,12 @@
       await ensureRemoteAudioPlaying().catch(() => { });
       boostRemoteAudioVolumes();
       kickstartRemoteAudio('guest-publish');
+      startPartyMeshKeepalive();
+      refreshPartyMeshAudio('guest-publish');
       setTimeout(() => {
         if (socketLeaveIntentional || !hasSpeakerSeat) return;
         boostRemoteAudioVolumes();
+        refreshPartyMeshAudio('guest-publish-late');
       }, 1200);
 
       // Tell host/viewers to pull our mic (covers missed user-published on some devices)
@@ -7239,6 +7536,7 @@
     stopBeautyPipeline();
     guestPublishAttempted = false;
     guestPublishInProgress = false;
+    stopPartyMeshKeepalive();
     __viewerAgoraEarlyPromise = null;
     __viewerAgoraEarlyChannel = null;
     await disposeAgoraClient('stopAgora');
@@ -7338,7 +7636,7 @@
   }
 
   function updateGiftMeta() {
-    const items = GIFT_CATALOG[giftCategory] || GIFT_CATALOG.gift;
+    const items = giftsForCategory(giftCategory);
     const g = items[selectedGiftIdx] || items[0];
     const banner = document.getElementById('giftRtpBanner');
     if (banner && g) {
@@ -7947,9 +8245,9 @@
     const hosting = isHost();
     const hostPic = resolveHostProfilePic();
     const host = {
-      name: hosting ? me : hostName || 'Host',
+      name: (hosting ? roomState?.hostName || me : hostName) || 'Host',
       userId: hosting ? meId : roomState?.hostId || '',
-      profilePic: hostPic,
+      profilePic: hostPic || getStreamCoverUrl(hostName),
       host: true,
       gifts: 0,
       muted: micMuted,
@@ -8139,7 +8437,13 @@
       hostEl.title = full;
     }
     if (hostImg) {
-      paintHostAvatarImg(hostImg, hostName);
+      paintHostAvatarImg(hostImg, hostName, getStreamCoverUrl(hostName));
+    }
+    const editLiveBtn = document.getElementById('liveEditPresentationBtn');
+    if (editLiveBtn) {
+      const showEdit = Boolean(isHost() || clientClaimsHost());
+      editLiveBtn.hidden = !showEdit;
+      editLiveBtn.style.display = showEdit ? '' : 'none';
     }
 
     const vc = document.getElementById('liveViewerCount');
@@ -10905,6 +11209,49 @@
     eng.setPublisherMode(Boolean(isHost() || (hasSpeakerSeat && publishSucceeded)));
   }
 
+  let __partyMeshTimer = null;
+  function refreshPartyMeshAudio(reason) {
+    if (!agoraClient || !shouldHearRemoteAudio()) return;
+    const eng = liveMedia();
+    const remotes = agoraClient.remoteUsers || [];
+    if (remotes.length < 2 && !isHost() && !hasSpeakerSeat) {
+      ensureRemoteAudioPlaying().catch(() => {});
+      return;
+    }
+    liveDebugLog(`party mesh refresh (${reason || 'nudge'}) remotes=${remotes.length}`);
+    syncLiveMediaPublisherMode();
+    if (eng?.meshRefresh) {
+      eng.meshRefresh(agoraClient).catch(() => ensureRemoteAudioPlaying());
+    } else {
+      ensureRemoteAudioPlaying()
+        .then(() => boostRemoteAudioVolumes())
+        .catch(() => {});
+    }
+  }
+
+  function startPartyMeshKeepalive() {
+    if (__partyMeshTimer) return;
+    __partyMeshTimer = setInterval(() => {
+      try {
+        if (document.visibilityState !== 'visible') return;
+        if (!agoraClient || socketLeaveIntentional) return;
+        if (!shouldHearRemoteAudio()) return;
+        const n = (agoraClient.remoteUsers || []).filter((u) => u.hasAudio || u.audioTrack).length;
+        /* Keepalive when several mics are live (party seats / multi-guest live) */
+        if (n >= 2 || hasSpeakerSeat || isHost()) {
+          refreshPartyMeshAudio('keepalive');
+        }
+      } catch (_e) { /* ignore */ }
+    }, 7000);
+  }
+
+  function stopPartyMeshKeepalive() {
+    if (__partyMeshTimer) {
+      clearInterval(__partyMeshTimer);
+      __partyMeshTimer = null;
+    }
+  }
+
   function isNativeAppWebView() {
     try {
       return Boolean(window.ReactNativeWebView) || /; wv\)/i.test(navigator.userAgent || '');
@@ -11272,9 +11619,88 @@
     ensureRemoteAudioPlaying().catch(() => {});
   }
 
+  function ensureTapForSoundEl() {
+    let el = document.getElementById('apTapForSound');
+    if (el) return el;
+    el = document.createElement('button');
+    el.type = 'button';
+    el.id = 'apTapForSound';
+    el.className = 'ap-tap-for-sound';
+    el.setAttribute('aria-label', 'Tap to enable live sound');
+    el.innerHTML = '<i class="fas fa-volume-up"></i><span>Tap for sound</span>';
+    el.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      soundOn = true;
+      audioUnlocked = true;
+      requestNativeSpeakerAudio();
+      try {
+        await unlockBrowserAudio();
+      } catch (_e) { /* ignore */ }
+      unmuteDomMediaElements();
+      const eng = liveMedia();
+      if (eng && agoraClient) {
+        for (const user of agoraClient.remoteUsers || []) {
+          if (user.hasAudio && !user.audioTrack) {
+            try {
+              await playRemoteMedia(user, 'audio', { force: true });
+            } catch (_e2) { /* ignore */ }
+          }
+          if (user.audioTrack) {
+            try {
+              user.audioTrack.setVolume?.(400);
+              await eng.playRemoteAudio(user, { force: true });
+            } catch (_e3) { /* ignore */ }
+          }
+        }
+        eng.boostAll(agoraClient);
+      }
+      forceRemoteAudio('tap_for_sound');
+      await ensureRemoteAudioPlaying();
+      boostRemoteAudioVolumes();
+      toast('Sound unlocked — you should hear the live now', 'success');
+      hideTapForSoundHint();
+      /* If still quiet after a beat, keep button available */
+      setTimeout(() => {
+        if (!isRemoteAudioAudibleNow()) showTapForSoundHint();
+      }, 2500);
+    });
+    document.body.appendChild(el);
+    return el;
+  }
+
+  function isRemoteAudioAudibleNow() {
+    try {
+      const remotes = agoraClient?.remoteUsers || [];
+      for (const user of remotes) {
+        const t = user?.audioTrack;
+        if (!t) continue;
+        if (t.isPlaying === true) {
+          try {
+            if (typeof t.getVolumeLevel === 'function') {
+              if (Number(t.getVolumeLevel()) > 0.002) return true;
+            } else return true;
+          } catch (_e) {
+            return true;
+          }
+        }
+      }
+      const sinks = document.querySelectorAll('audio.ap-remote-audio-sink, audio[data-ap-remote-audio]');
+      for (const el of sinks) {
+        if (el && !el.paused && !el.muted && el.volume > 0) return true;
+      }
+    } catch (_e) { /* ignore */ }
+    return false;
+  }
+
   function showTapForSoundHint() {
-    /* Hidden by product request — auto-unlock + gestures still run. */
-    hideTapForSoundHint();
+    if (isHost() && !hasSpeakerSeat) {
+      /* Hosts publishing usually don't need this; still allow if they want guest audio */
+    }
+    if (!shouldHearRemoteAudio()) return;
+    const el = ensureTapForSoundEl();
+    el.classList.add('is-visible');
+    el.style.display = '';
   }
 
   function hideTapForSoundHint() {
@@ -11283,6 +11709,24 @@
       el.classList.remove('is-visible');
       el.style.display = 'none';
     }
+  }
+
+  function scheduleSilentAudioPrompt() {
+    if (window.__apSilentAudioPromptTimer) clearTimeout(window.__apSilentAudioPromptTimer);
+    window.__apSilentAudioPromptTimer = setTimeout(() => {
+      try {
+        if (document.visibilityState !== 'visible') return;
+        if (!agoraClient || !shouldHearRemoteAudio()) return;
+        const hasRemoteAudio = (agoraClient.remoteUsers || []).some((u) => u.hasAudio || u.audioTrack);
+        if (!hasRemoteAudio) return;
+        if (isRemoteAudioAudibleNow()) {
+          hideTapForSoundHint();
+          return;
+        }
+        showTapForSoundHint();
+        forceRemoteAudio('silent_prompt');
+      } catch (_e) { /* ignore */ }
+    }, 2200);
   }
 
   function bindAudioUnlockGestures() {
@@ -11294,11 +11738,15 @@
         .then((ok) => {
           if (ok) {
             audioUnlocked = true;
-            hideTapForSoundHint();
+            if (isRemoteAudioAudibleNow()) hideTapForSoundHint();
             boostRemoteAudioVolumes();
+          } else {
+            scheduleSilentAudioPrompt();
           }
         })
-        .catch(() => { });
+        .catch(() => {
+          scheduleSilentAudioPrompt();
+        });
     };
     document.addEventListener('pointerdown', unlock, { passive: true });
     document.addEventListener('touchstart', unlock, { passive: true });
@@ -11308,9 +11756,9 @@
     if (consumeEntryAudioGesture()) {
       audioUnlocked = true;
       unlock();
-    } else {
-      unlockBrowserAudio().then(() => ensureRemoteAudioPlaying()).catch(() => { });
     }
+    scheduleSilentAudioPrompt();
+    setTimeout(scheduleSilentAudioPrompt, 5000);
   }
 
   function ensureHostVideoVisible() {
@@ -12118,29 +12566,63 @@
   function renderGiftGrid() {
     const grid = document.getElementById('giftGrid');
     if (!grid) return;
-    const items = GIFT_CATALOG[giftCategory] || GIFT_CATALOG.gift;
+    let items = giftsForCategory(giftCategory);
+    const q = String(giftSearchQuery || '')
+      .trim()
+      .toLowerCase();
+    if (q) {
+      items = items.filter(
+        (g) =>
+          String(g.name || '')
+            .toLowerCase()
+            .includes(q) ||
+          String(g.tag || '')
+            .toLowerCase()
+            .includes(q) ||
+          String(g.cost || '').includes(q)
+      );
+    }
+    if (!items.length) {
+      grid.innerHTML = `<div class="gift-grid-empty">No gifts in this collection yet</div>`;
+      updateGiftMeta();
+      return;
+    }
     grid.innerHTML = items
       .map((g, i) => {
-        const tier = window.SocialFX?.getGiftTier?.(g) || 'small';
+        const tier = window.SocialFX?.getGiftTier?.(g) || (Number(g.cost) >= 100000 ? 'vip' : Number(g.cost) >= 3000 ? 'medium' : 'small');
         const cost = Number(g.cost) || 0;
+        const fav = isGiftFavorite(g);
         return `
-      <button type="button" data-gift-idx="${i}" data-gift="${g.emoji}" data-cost="${cost}" data-tier="${tier}" class="${i === selectedGiftIdx ? 'is-selected' : ''}">
+      <button type="button" data-gift-idx="${i}" data-gift="${g.emoji}" data-cost="${cost}" data-tier="${tier}" data-slug="${escapeAttr(g.slug || giftSlugFor(g))}" class="gift-card ${i === selectedGiftIdx ? 'is-selected' : ''}${fav ? ' is-fav' : ''}">
+        <span class="gift-card-glow" aria-hidden="true"></span>
         <span class="g">${g.emoji}</span>
         <span class="gift-name">${escapeHtml(g.name || 'Gift')}</span>
         ${g.tag ? `<span class="gift-tag">${escapeHtml(g.tag)}</span>` : ''}
         <span class="gift-coin-cost" aria-label="${formatGiftCoinPrice(cost)}">${formatGiftCoinPrice(cost)}</span>
+        <span class="gift-fav-btn" data-fav-idx="${i}" title="Favorite">${fav ? '♥' : '♡'}</span>
       </button>`;
       })
       .join('');
     grid.querySelectorAll('[data-gift-idx]').forEach((btn) => {
       btn.addEventListener('click', (e) => {
+        if (e.target?.closest?.('[data-fav-idx]')) return;
         e.preventDefault();
         e.stopPropagation();
         selectedGiftIdx = parseInt(btn.dataset.giftIdx, 10) || 0;
         grid.querySelectorAll('button').forEach((b) => b.classList.remove('is-selected'));
         btn.classList.add('is-selected');
         updateGiftMeta();
-        /* Selecting only — never auto-send */
+      });
+    });
+    grid.querySelectorAll('[data-fav-idx]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const idx = parseInt(btn.dataset.favIdx, 10) || 0;
+        const item = items[idx];
+        if (!item) return;
+        toggleGiftFavorite(item);
+        renderGiftGrid();
       });
     });
     updateGiftMeta();
@@ -12628,7 +13110,7 @@
     }
 
     setGiftSendError('');
-    const items = GIFT_CATALOG[giftCategory] || GIFT_CATALOG.gift;
+    const items = giftsForCategory(giftCategory);
     const g = items[selectedGiftIdx] || items[0];
     if (!g) {
       toast('Pick a gift first', 'warning');
@@ -12796,6 +13278,7 @@
     const tryApi = async (reason) => {
       try {
         await sendGiftViaApi(receiverId, cost, g.emoji, to, g.slug);
+        rememberGiftUse(g);
         renderRoomGiftPanels();
       } catch (e) {
         handleGiftFail(e.message || reason || 'Gift failed');
@@ -12910,9 +13393,7 @@
       if (cached.is_coin_seller) {
         /* Stay in live — convert sell→gift for a typical gift amount instead of navigating away */
         const unit =
-          Number(
-            (GIFT_CATALOG[giftCategory] || GIFT_CATALOG.gift)?.[selectedGiftIdx]?.cost
-          ) || 10;
+          Number(giftsForCategory(giftCategory)?.[selectedGiftIdx]?.cost) || 10;
         const need = Math.max(unit * giftQty, 100);
         try {
           toast('Converting sell coins → gift coins…', 'info');
@@ -13280,12 +13761,15 @@
       });
     });
 
-    async function sendWalletCoinsToGameFrame(frame, forceFresh = true) {
+    async function sendWalletCoinsToGameFrame(frame, forceFresh = true, coinsOverride = null) {
       if (!frame?.contentWindow) return;
       try {
-        /* Games use the same spendable pool as gifts:
-           coin sellers → gift inventory; others → simple wallet coins */
-        const bal = await getCoins(forceFresh);
+        let bal = coinsOverride != null ? Number(coinsOverride) : null;
+        if (!Number.isFinite(bal)) {
+          /* Games use the same spendable pool as gifts:
+             coin sellers → gift inventory; others → simple wallet coins */
+          bal = await getCoins(forceFresh);
+        }
         frame.contentWindow.postMessage({ type: 'SET_COINS', coins: bal }, '*');
       } catch (_e) { }
     }
@@ -13313,21 +13797,17 @@
           pick: d.pick || {},
         });
         const payload = res.data || res;
-        await sendWalletCoinsToGameFrame(document.getElementById('apGameFrame'), true);
-        postGameFrameReply('GAME_PLAY_RESULT', d.requestId, true, payload);
-        const payout = Number(payload?.payout || 0);
-        if (payout > 0) {
-          const msg = `Won ${payout.toLocaleString()} coins in ${d.game}!`;
-          toast(msg, 'success');
-          rememberChatMessage({
-            id: `game-${Date.now()}`,
-            type: 'system',
-            text: msg,
-            user: displayName(currentUser()) || 'Player',
-            userId: currentUser()?.id || '',
-          });
-          renderChatFeed();
+        const frame = document.getElementById('apGameFrame');
+        const nextBal = payload?.balance != null ? Number(payload.balance) : null;
+        if (nextBal != null && Number.isFinite(nextBal)) {
+          window.SocialWallet?.applyGameBalance?.(nextBal, payload.play_source);
+          lastCoinBalance = nextBal;
+        } else {
+          window.SocialWallet?.invalidateBalance?.();
         }
+        await sendWalletCoinsToGameFrame(frame, false, nextBal);
+        postGameFrameReply('GAME_PLAY_RESULT', d.requestId, true, payload);
+        refreshCoinDisplay().catch(() => { });
       } catch (e) {
         const message = e?.message || e?.data?.message || 'Play failed';
         if (String(message).toLowerCase().includes('insufficient')) {
@@ -13353,6 +13833,8 @@
         const query = [];
         if (d.limit) query.push(`limit=${encodeURIComponent(d.limit)}`);
         if (d.days) query.push(`days=${encodeURIComponent(d.days)}`);
+        if (d.mode) query.push(`mode=${encodeURIComponent(d.mode)}`);
+        if (d.scope) query.push(`scope=${encodeURIComponent(d.scope)}`);
         const endpoint = kind === 'history'
           ? `/games/${encodeURIComponent(d.game)}/history${query.length ? `?${query.join('&')}` : ''}`
           : `/games/${encodeURIComponent(d.game)}/leaderboard${query.length ? `?${query.join('&')}` : ''}`;
@@ -13363,6 +13845,76 @@
         postGameFrameReply(kind === 'history' ? 'GAME_HISTORY_RESULT' : 'GAME_LEADERBOARD_RESULT', d.requestId, false, null, message);
       }
     }
+
+    async function proxyGameRoomState(d) {
+      if (!d?.requestId || !d?.game) {
+        postGameFrameReply('GAME_ROOM_STATE_RESULT', d?.requestId, false, null, 'Invalid request');
+        return;
+      }
+      try {
+        if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken();
+        const ch = encodeURIComponent(d.channel || channelId() || '');
+        const res = await API.get(`/games/${encodeURIComponent(d.game)}/room?channel=${ch}`);
+        postGameFrameReply('GAME_ROOM_STATE_RESULT', d.requestId, true, res.data || res);
+      } catch (e) {
+        postGameFrameReply('GAME_ROOM_STATE_RESULT', d.requestId, false, null, e?.message || 'Room state failed');
+      }
+    }
+
+    async function proxyGameRoomBet(d) {
+      if (!d?.requestId || !d?.game) {
+        postGameFrameReply('GAME_ROOM_BET_RESULT', d?.requestId, false, null, 'Invalid request');
+        return;
+      }
+      try {
+        if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken();
+        const res = await API.post(`/games/${encodeURIComponent(d.game)}/room/bet`, {
+          channel: d.channel || channelId(),
+          bets: d.bets || d.pick?.bets || [],
+        });
+        const payload = res.data || res;
+        const nextBal = payload?.balance != null ? Number(payload.balance) : null;
+        const frame = document.getElementById('apGameFrame');
+        if (nextBal != null && Number.isFinite(nextBal)) {
+          window.SocialWallet?.applyGameBalance?.(nextBal, payload.play_source);
+          lastCoinBalance = nextBal;
+          await sendWalletCoinsToGameFrame(frame, false, nextBal);
+        }
+        postGameFrameReply('GAME_ROOM_BET_RESULT', d.requestId, true, payload);
+        refreshCoinDisplay().catch(() => { });
+      } catch (e) {
+        const message = e?.message || e?.data?.message || 'Bet failed';
+        if (String(message).toLowerCase().includes('insufficient')) {
+          toast('Not enough coins — recharge!', 'warning');
+        }
+        postGameFrameReply('GAME_ROOM_BET_RESULT', d.requestId, false, null, message);
+      }
+    }
+
+    function sendRoomToGameFrame(frame) {
+      if (!frame?.contentWindow) return;
+      const me = currentUser();
+      try {
+        frame.contentWindow.postMessage({
+          type: 'SET_ROOM',
+          channel: channelId(),
+          display_id: me?.display_id != null ? me.display_id : me?.displayId,
+        }, '*');
+      } catch (_e) {}
+    }
+
+    function forwardLiveGameToFrame(payload) {
+      const frame = document.getElementById('apGameFrame');
+      if (!frame?.contentWindow || !payload) return;
+      try {
+        frame.contentWindow.postMessage({
+          type: 'GAME_ROOM_EVENT',
+          game: payload.game || 'greedy',
+          ...payload,
+        }, '*');
+      } catch (_e) {}
+    }
+
 function openGameOverlay(url) {
       closeGameOverlay();
       const bust = (url.includes('?') ? '&' : '?') + 'v=' + Date.now();
@@ -13389,6 +13941,7 @@ function openGameOverlay(url) {
       if (frame) {
         frame.addEventListener('load', () => {
           sendWalletCoinsToGameFrame(frame, true);
+          sendRoomToGameFrame(frame);
         });
       }
 
@@ -13403,6 +13956,14 @@ function openGameOverlay(url) {
           proxyGamePlay(d);
           return;
         }
+        if (d.type === 'GAME_ROOM_STATE_REQUEST') {
+          proxyGameRoomState(d);
+          return;
+        }
+        if (d.type === 'GAME_ROOM_BET') {
+          proxyGameRoomBet(d);
+          return;
+        }
         if (d.type === 'GAME_HISTORY_REQUEST') {
           proxyGameRead(d, 'history');
           return;
@@ -13413,16 +13974,25 @@ function openGameOverlay(url) {
         }
         if (d.type === 'REQUEST_COINS' || d.type === 'GAME_READY') {
           const frame = document.getElementById('apGameFrame');
-          if (frame) sendWalletCoinsToGameFrame(frame, true);
+          if (frame) {
+            sendWalletCoinsToGameFrame(frame, true);
+            sendRoomToGameFrame(frame);
+          }
           return;
         }
         if (d.type === 'GAME_CLOSE') {
           closeGameOverlay();
           return;
         }
-        if (d.type === 'GAME_RESULT' && d.win) {
+        if (d.type === 'GAME_RESULT') {
           const frame = document.getElementById('apGameFrame');
-          if (frame) sendWalletCoinsToGameFrame(frame, true);
+          if (d.coins != null && Number.isFinite(Number(d.coins))) {
+            window.SocialWallet?.applyGameBalance?.(Number(d.coins), d.play_source);
+            if (frame) sendWalletCoinsToGameFrame(frame, false, Number(d.coins));
+          } else if (frame) {
+            sendWalletCoinsToGameFrame(frame, true);
+          }
+          refreshCoinDisplay().catch(() => { });
         }
         if (d.type === 'GAME_NEED_COINS') {
           toast('Not enough coins - recharge!', 'warning');
@@ -13445,6 +14015,8 @@ function openGameOverlay(url) {
         window.removeEventListener('message', window.__apGameMsgHandler);
         window.__apGameMsgHandler = null;
       }
+      window.SocialWallet?.invalidateBalance?.();
+      refreshCoinDisplay().catch(() => { });
     }
     document.getElementById('partyToolsSheet')?.addEventListener('click', (e) => {
       if (e.target.id !== 'partyToolsSheet') return;
@@ -13499,6 +14071,9 @@ function openGameOverlay(url) {
     document.getElementById('partyBtnFollow')?.addEventListener('click', toggleFollow);
     document.getElementById('partyHostFollow')?.addEventListener('click', toggleFollow);
     document.getElementById('liveBtnFollow')?.addEventListener('click', toggleFollow);
+    document.getElementById('liveEditPresentationBtn')?.addEventListener('click', () => {
+      openEditLivePresentation();
+    });
 
     document.getElementById('liveBtnMic')?.addEventListener('click', () => handleMicButton());
 
@@ -14449,27 +15024,84 @@ function openGameOverlay(url) {
         );
         delete document.getElementById('giftSheet')?.dataset.bound;
       }
+      /* Upgrade tabs once for premium catalog */
+      const tabs = document.getElementById('giftSheetTabs');
+      if (tabs && !tabs.dataset.lux) {
+        tabs.dataset.lux = '1';
+        tabs.innerHTML = `
+            <button type="button" data-cat="recent">Recent</button>
+            <button type="button" data-cat="favorites">♥</button>
+            <button type="button" data-cat="trending">Trending</button>
+            <button type="button" data-cat="new">New</button>
+            <button type="button" data-cat="gift" class="active">Gifts</button>
+            <button type="button" data-cat="flowers">Flowers</button>
+            <button type="button" data-cat="jewelry">Jewelry</button>
+            <button type="button" data-cat="cars">Cars</button>
+            <button type="button" data-cat="lifestyle">Lifestyle</button>
+            <button type="button" data-cat="animals">Animals</button>
+            <button type="button" data-cat="fantasy">Fantasy</button>
+            <button type="button" data-cat="cosmic">Cosmic</button>
+            <button type="button" data-cat="seasonal">Season</button>
+            <button type="button" data-cat="lucky">Lucky</button>
+            <button type="button" data-cat="vip">VIP</button>
+            <button type="button" data-cat="privilege">Privi</button>`;
+        tabs.querySelectorAll('button[data-cat]').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            tabs.querySelectorAll('button[data-cat]').forEach((b) => b.classList.remove('active'));
+            btn.classList.add('active');
+            giftCategory = btn.dataset.cat || 'gift';
+            selectedGiftIdx = 0;
+            renderGiftGrid();
+          });
+        });
+      }
+      if (!document.getElementById('giftSearchInput')) {
+        const banner = document.getElementById('giftRtpBanner');
+        banner?.insertAdjacentHTML(
+          'beforebegin',
+          `<div class="gift-search-row"><input type="search" id="giftSearchInput" class="gift-search-input" placeholder="Search luxury gifts…" autocomplete="off" /></div>`
+        );
+        document.getElementById('giftSearchInput')?.addEventListener('input', (e) => {
+          giftSearchQuery = e.target.value || '';
+          selectedGiftIdx = 0;
+          renderGiftGrid();
+        });
+      }
+      document.getElementById('giftSheet')?.classList.add('gift-sheet--lux');
       return;
     }
     document.body.insertAdjacentHTML(
       'beforeend',
       `
-      <div class="gift-sheet" id="giftSheet">
+      <div class="gift-sheet gift-sheet--lux" id="giftSheet">
         <div class="gift-sheet-panel">
           <button type="button" class="gift-sheet-close" id="giftSheetClose" aria-label="Close gifts">&times;</button>
           <div class="gift-send-header">
-            <span class="gift-send-label">Send</span>
+            <span class="gift-send-label">Send Gift</span>
             <label class="gift-all-toggle"><span>ALL</span><input type="checkbox" id="giftSendAll"></label>
           </div>
           <div class="gift-recipients" id="giftRecipients"></div>
+          <div class="gift-search-row">
+            <input type="search" id="giftSearchInput" class="gift-search-input" placeholder="Search luxury gifts…" autocomplete="off" />
+          </div>
           <div class="gift-rtp-banner" id="giftRtpBanner"><span>Select a gift to see details</span></div>
-          <div class="gift-sheet-tabs" id="giftSheetTabs">
+          <div class="gift-sheet-tabs" id="giftSheetTabs" data-lux="1">
+            <button type="button" data-cat="recent">Recent</button>
+            <button type="button" data-cat="favorites">♥</button>
+            <button type="button" data-cat="trending">Trending</button>
             <button type="button" data-cat="new">New</button>
-            <button type="button" data-cat="gift" class="active">Gift</button>
+            <button type="button" data-cat="gift" class="active">Gifts</button>
+            <button type="button" data-cat="flowers">Flowers</button>
+            <button type="button" data-cat="jewelry">Jewelry</button>
+            <button type="button" data-cat="cars">Cars</button>
+            <button type="button" data-cat="lifestyle">Lifestyle</button>
+            <button type="button" data-cat="animals">Animals</button>
+            <button type="button" data-cat="fantasy">Fantasy</button>
+            <button type="button" data-cat="cosmic">Cosmic</button>
+            <button type="button" data-cat="seasonal">Season</button>
             <button type="button" data-cat="lucky">Lucky</button>
-            <button type="button" data-cat="island">Interaction</button>
+            <button type="button" data-cat="vip">VIP</button>
             <button type="button" data-cat="privilege">Privi</button>
-            <button type="button" class="gift-tab-bell" aria-label="Notifications"><i class="fas fa-bell"></i></button>
           </div>
           <div class="gift-gallery-hint">
             <span>Still need <strong id="giftLitNeed">26</strong> to light up 🎺</span>
@@ -14505,6 +15137,11 @@ function openGameOverlay(url) {
       }
     });
     document.getElementById('giftGalleryBtn')?.addEventListener('click', () => openSurpriseShop());
+    document.getElementById('giftSearchInput')?.addEventListener('input', (e) => {
+      giftSearchQuery = e.target.value || '';
+      selectedGiftIdx = 0;
+      renderGiftGrid();
+    });
     giftQty = 1;
     renderGiftGrid();
     refreshCoinDisplay();
@@ -14758,6 +15395,8 @@ function openGameOverlay(url) {
         channel: r.channel,
         hostName: r.hostName || 'Host',
         hostId: r.hostId,
+        hostStreamCover: r.hostStreamCover || null,
+        hostProfilePic: r.hostProfilePic || null,
         viewers: r.viewers || 0,
         mode: String(r.channel || '').includes('audio') ? 'audio' : 'video',
       }));
@@ -14834,23 +15473,68 @@ function openGameOverlay(url) {
     });
 
     const backdrop = document.getElementById('liveFeedBackdrop');
+    const feedCover =
+      (item.hostStreamCover &&
+        (resolveMediaUrl(item.hostStreamCover) || item.hostStreamCover)) ||
+      (item.hostProfilePic && avatarUrl(item.hostName, item.hostProfilePic)) ||
+      themeCover(broadcastMode === 'audio' ? 'audio' : 'live', item.hostName);
     if (backdrop) {
-      backdrop.style.backgroundImage = `url('${themeCover(broadcastMode === 'audio' ? 'audio' : 'live', item.hostName)}')`;
+      backdrop.style.backgroundImage = `url('${feedCover}')`;
     }
 
     document.getElementById('liveHostName').textContent = item.hostName.slice(0, 18);
-    document.getElementById('liveHostAvatar').src = avatarUrl(item.hostName);
+    document.getElementById('liveHostAvatar').src =
+      (item.hostStreamCover &&
+        (resolveMediaUrl(item.hostStreamCover) || item.hostStreamCover)) ||
+      avatarUrl(item.hostName, item.hostProfilePic);
     document.getElementById('liveViewerCount').textContent = String(item.viewers || 0);
     updateModeBadge(broadcastMode, false);
 
-    roomState = null;
+    roomState = {
+      hostName: item.hostName,
+      hostId: item.hostId || null,
+      hostStreamCover: item.hostStreamCover || null,
+      hostProfilePic: item.hostProfilePic || null,
+      viewers: item.viewers || 0,
+    };
     chatMessages = [];
     guestPublishAttempted = false;
+    hasSpeakerSeat = false;
+    seatPromoteAt = 0;
+    lastViewerCount = 0;
+    joinRequests = [];
+    roomGiftHistory = [];
+    try {
+      stickyStageGuests.clear();
+    } catch (_e) { /* ignore */ }
+    try {
+      window.__apAgoraUidMap = {};
+    } catch (_e2) { /* ignore */ }
+    try {
+      remoteUsers.clear();
+    } catch (_e3) { /* ignore */ }
+    const guestRail = document.getElementById('liveGuestRail') || document.getElementById('partyGuestRail');
+    if (guestRail) guestRail.innerHTML = '';
+    const seatsEl = document.getElementById('partySeats');
+    if (seatsEl) seatsEl.innerHTML = '';
+    const chatFeed = document.getElementById('partyChatFeed') || document.getElementById('liveChatFeed');
+    if (chatFeed) chatFeed.innerHTML = '';
     setLiveStreamVisible(false);
     setLiveStatus('Switching room…', null);
 
     if (liveSocket?.connected) {
-      liveSocket.emit('live:leave');
+      await new Promise((resolve) => {
+        const t = setTimeout(resolve, 800);
+        try {
+          liveSocket.emit('live:leave', {}, () => {
+            clearTimeout(t);
+            resolve();
+          });
+        } catch (_e) {
+          clearTimeout(t);
+          resolve();
+        }
+      });
     }
     roomJoinCompleted = false;
     await stopAgora({ skipEndRoom: true });
@@ -14903,12 +15587,18 @@ function openGameOverlay(url) {
     if (!scroll) return;
 
     scroll.innerHTML = feedItems
-      .map(
-        (item, i) => `
+      .map((item, i) => {
+        const cover =
+          (item.hostStreamCover &&
+            String(item.hostStreamCover).replace(/'/g, '%27')) ||
+          (item.hostProfilePic &&
+            String(avatarUrl(item.hostName, item.hostProfilePic) || '').replace(/'/g, '%27')) ||
+          themeCover(item.mode === 'audio' ? 'audio' : 'live', item.hostName);
+        return `
       <section class="live-feed-slide${i === 0 ? ' is-active' : ''}" data-index="${i}"
-        style="background-image:url('${themeCover(item.mode === 'audio' ? 'audio' : 'live', item.hostName)}')">
-      </section>`
-      )
+        style="background-image:url('${cover}')">
+      </section>`;
+      })
       .join('');
     scroll.removeAttribute('aria-hidden');
     if (backdrop) {

@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#c9a227">
   <title>Me - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-theme.css?v=20260716-invite-ui">
+  <link rel="stylesheet" href="social-theme.css?v=20260723-invite-on">
   <link rel="stylesheet" href="social-features.css">
   <style>
     html:not(.profile-ready) .social-profile-hero,
@@ -229,6 +229,7 @@
         <div class="social-profile-edit-field">
           <label for="editDisplayName">Name</label>
           <input type="text" id="editDisplayName" name="name" autocomplete="name" maxlength="120" required>
+          <p class="social-profile-name-hint" id="editNameChangeHint">2 free name changes per month. 3rd+ costs 10,000 coins.</p>
         </div>
         <div class="social-profile-edit-field">
           <label for="editPhone">Phone</label>
@@ -242,7 +243,7 @@
   <nav class="social-menu-list">
     <a href="#" class="social-menu-item" id="adminDashLink" style="display:none"><i class="fas fa-shield-alt"></i><span>Admin Dashboard</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/admin-dashboard.html#notifications" class="social-menu-item" id="adminNotifLink" style="display:none"><i class="fas fa-bell"></i><span>Admin Notifications</span><i class="fas fa-chevron-right chevron"></i></a>
-    <a href="/referral.html?app=1" class="social-menu-item social-menu-item--invite" id="inviteFriendsLink" hidden style="display:none !important" aria-hidden="true">
+    <a href="/referral.html?app=1" class="social-menu-item social-menu-item--invite" id="inviteFriendsLink" style="display:flex" aria-hidden="false">
       <i class="fas fa-envelope"></i>
       <span class="social-menu-item-text">
         <span class="social-menu-item-title">Invite</span>
@@ -250,6 +251,7 @@
       </span>
       <i class="fas fa-chevron-right chevron"></i>
     </a>
+    <a href="/host-policies.html?app=1" class="social-menu-item"><i class="fas fa-star"></i><span>Host earning policies</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/role-apply.html?app=1" class="social-menu-item" id="roleApplyLink"><i class="fas fa-user-plus"></i><span>Apply for Host / Agency / Seller</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/coin-seller-center.html?app=1" class="social-menu-item" id="coinSellerLink" style="display:none"><i class="fas fa-coins"></i><span>Coin Seller Center</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/streamer-center.html?app=1" class="social-menu-item" id="hostCenterLink"><i class="fas fa-video"></i><span>Host / Streamer Center</span><i class="fas fa-chevron-right chevron"></i></a>
@@ -277,7 +279,7 @@
   <script src="social-ui.js?v=20260624-profile-url-fix"></script>
   <script src="social-interactions.js?v=20260624-profile-url-fix"></script>
   <script src="social-shell.js?v=20260624-profile-url-fix"></script>
-  <script src="referral-hook.js?v=20260716-invite-connect"></script>
+  <script src="referral-hook.js?v=20260723-invite-on"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
       Auth.checkAuth();
@@ -413,6 +415,38 @@
         document.dispatchEvent(new CustomEvent('user:profile-updated', { detail: updated }));
       }
 
+      let nameChangeQuota = null;
+
+      function paintNameChangeHint(quota) {
+        const hint = document.getElementById('editNameChangeHint');
+        if (!hint) return;
+        const q = quota || nameChangeQuota;
+        if (!q) {
+          hint.textContent = '2 free name changes per month. 3rd+ costs 10,000 coins.';
+          return;
+        }
+        const freeLeft = Number(q.free_left ?? Math.max(0, (q.free_limit || 2) - (q.used || 0)));
+        const fee = Number(q.fee_coins || 10000).toLocaleString();
+        if (freeLeft > 0) {
+          hint.textContent = `${freeLeft} free name change${freeLeft === 1 ? '' : 's'} left this month. After that, ${fee} coins each.`;
+        } else {
+          hint.textContent = `No free name changes left this month. Next change costs ${fee} coins.`;
+        }
+      }
+
+      async function refreshNameChangeQuota() {
+        try {
+          await Auth.ensureAccessToken?.();
+          const meRes = await (API.getFresh || API.get)('/auth/me');
+          nameChangeQuota = meRes?.data?.name_change || null;
+          paintNameChangeHint(nameChangeQuota);
+          return nameChangeQuota;
+        } catch (_e) {
+          paintNameChangeHint(null);
+          return null;
+        }
+      }
+
       function openProfileEdit() {
         if (!user) {
           location.href = '/login.html?redirect=' + encodeURIComponent('/profile-tab.html?app=1');
@@ -421,6 +455,8 @@
         document.getElementById('editDisplayName').value =
           `${user.first_name || ''} ${user.last_name || ''}`.trim();
         document.getElementById('editPhone').value = user.phone || '';
+        paintNameChangeHint(nameChangeQuota);
+        refreshNameChangeQuota();
         const sheet = document.getElementById('profileEditSheet');
         sheet.classList.add('open');
         sheet.setAttribute('aria-hidden', 'false');
@@ -507,6 +543,20 @@
           const space = fullName.indexOf(' ');
           const first_name = space === -1 ? fullName : fullName.slice(0, space);
           const last_name = space === -1 ? '' : fullName.slice(space + 1).trim();
+          const prevName = `${user.first_name || ''} ${user.last_name || ''}`.trim().replace(/\s+/g, ' ');
+          const nextName = fullName.replace(/\s+/g, ' ');
+          const nameChanging = prevName !== nextName;
+          if (nameChanging) {
+            const q = nameChangeQuota || (await refreshNameChangeQuota());
+            const freeLeft = Number(q?.free_left ?? 2);
+            const fee = Number(q?.fee_coins || 10000);
+            if (freeLeft <= 0) {
+              const ok = window.confirm(
+                `You've used 2 free name changes this month.\n\nChange name for ${fee.toLocaleString()} coins?`
+              );
+              if (!ok) return;
+            }
+          }
           const saveBtn = document.getElementById('profileEditSave');
           saveBtn.disabled = true;
           saveBtn.textContent = 'Saving…';
@@ -514,15 +564,35 @@
             await Auth.ensureAccessToken?.();
             const response = await API.patch('/auth/profile', { first_name, last_name, phone });
             const updated = response?.data?.user;
+            if (response?.data?.name_change) {
+              nameChangeQuota = response.data.name_change;
+              paintNameChangeHint(nameChangeQuota);
+            }
             if (updated) {
               applyUserUpdate(updated);
               closeProfileEdit();
-              SocialUI?.toast?.('Profile updated', 'success');
+              const charged = Number(response?.data?.name_change_charged || 0);
+              SocialUI?.toast?.(
+                charged > 0
+                  ? `Name updated (−${charged.toLocaleString()} coins)`
+                  : response?.message || 'Profile updated',
+                'success'
+              );
+              if (charged > 0) {
+                try {
+                  window.SocialWallet?.invalidateBalance?.();
+                  window.SocialWallet?.fetchBalance?.(true);
+                } catch (_e) { /* ignore */ }
+              }
             } else {
               SocialUI?.toast?.(response?.message || 'Update failed', 'error');
             }
           } catch (error) {
             SocialUI?.toast?.(error?.message || 'Failed to update profile', 'error');
+            if (error?.data?.name_change) {
+              nameChangeQuota = error.data.name_change;
+              paintNameChangeHint(nameChangeQuota);
+            }
           } finally {
             saveBtn.disabled = false;
             saveBtn.textContent = 'Save changes';
@@ -595,12 +665,12 @@
         const hostCenterLink = document.getElementById('hostCenterLink');
         if (hostCenterLink) {
           hostCenterLink.href = '/streamer-center.html?app=1';
-          /* Agency accounts use Agency Center, not Host tools */
-          hostCenterLink.style.display = role === 'agency' ? 'none' : 'flex';
+          /* Agency owners can host too — show Streamer Center alongside Agency Center */
+          hostCenterLink.style.display = 'flex';
         }
         const liveVerifyLink = document.getElementById('liveVerifyLink');
-        if (liveVerifyLink && role === 'agency') {
-          liveVerifyLink.style.display = 'none';
+        if (liveVerifyLink) {
+          liveVerifyLink.style.display = 'flex';
         }
         const roleApply = document.getElementById('roleApplyLink');
         if (roleApply) {

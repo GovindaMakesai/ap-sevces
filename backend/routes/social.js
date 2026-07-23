@@ -4,6 +4,7 @@ const { verifyToken, optionalAuth } = require('../middleware/auth');
 const social = require('../controllers/socialController');
 const roleApplicationController = require('../controllers/roleApplicationController');
 const privateUpload = require('../middleware/privateUpload');
+const socialMediaUpload = require('../middleware/socialMediaUpload');
 
 router.get('/gifts/catalog', social.listGiftCatalog);
 router.get('/coin-sellers', social.listCoinSellers);
@@ -46,6 +47,18 @@ router.post('/coin-seller/recharge', privateUpload.single('payment_proof'), soci
 router.get('/coin-seller/recharges', social.coinSellerRechargeHistory);
 
 router.post('/posts', social.createPost);
+router.post(
+  '/posts/media',
+  (req, res, next) => {
+    socialMediaUpload.single('media')(req, res, (err) => {
+      if (err) {
+        return res.status(400).json({ success: false, message: err.message || 'Upload failed' });
+      }
+      return next();
+    });
+  },
+  social.uploadPostMedia
+);
 router.post('/posts/:postId/like', social.likePost);
 router.post('/posts/:postId/comments', social.commentPost);
 router.get('/posts/:postId/comments', social.getComments);

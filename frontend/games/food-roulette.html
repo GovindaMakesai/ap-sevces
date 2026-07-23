@@ -396,6 +396,8 @@
     }
 
     document.getElementById('status').textContent = 'Spinning…';
+    coins = Math.max(0, coins - bet);
+    updateHud();
 
     requestPlay({
       game: 'food-roulette',
@@ -437,6 +439,7 @@
           type: 'GAME_RESULT', game: 'food-roulette',
           win: payout > 0, bet: bet, payout: payout, mult: mult,
           food: landed.name, coins: coins, todayWin: todayWin,
+          play_source: data.play_source || null,
         });
 
         selectedSlice = -1;
@@ -444,6 +447,8 @@
         busy = false;
       }, 3600);
     }).catch(function (err) {
+      coins = Math.max(0, coins + bet);
+      updateHud();
       document.getElementById('status').textContent = err.message || 'Play failed';
       selectedSlice = -1;
       highlightSlice(-1);

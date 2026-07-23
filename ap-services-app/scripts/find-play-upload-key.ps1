@@ -1,10 +1,14 @@
 # Find a .jks/.keystore whose SHA1 matches Google Play's expected upload certificate.
+# Source of truth: Play Console → App signing → Upload key (also ap-services-app/PLAY_SIGNING.json)
 $ErrorActionPreference = "Continue"
-$expected = "D1:22:D9:AD:C3:E5:D5:FF:34:6B:32:C0:41:3F:5C:F3:A3:CC:46:58"
+$expected = "65:42:00:1F:3D:E4:AB:6A:FA:3A:D6:77:80:FE:D9:00:DC:00:D1:66"
+$appSigningSha1 = "9E:D0:91:B6:56:09:FC:8B:99:C1:BC:5A:DC:1C:A7:10:DD:D6:1F:2E"
 $wrong = "29:E2:29:CC:D5:E0:2D:94:9C:68:1C:5E:7C:AC:EE:51:F3:3D:7F:7E"
 
 Write-Host "Play Console expects upload cert SHA1:"
 Write-Host "  $expected"
+Write-Host "App signing SHA1 (Google; for Firebase/OAuth):"
+Write-Host "  $appSigningSha1"
 Write-Host ""
 Write-Host "Local ap-services-upload.jks / EAS download (wrong for Play if SHA1 differs):"
 Write-Host "  $wrong"

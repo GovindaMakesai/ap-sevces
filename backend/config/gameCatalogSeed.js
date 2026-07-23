@@ -1,5 +1,5 @@
 /**
- * Seed rows for game_catalog.
+ * Seed rows for game_catalog — only live games.
  */
 function buildGameSeedRows() {
   return [
@@ -15,64 +15,34 @@ function buildGameSeedRows() {
       metadata: { gradient: 'linear-gradient(135deg,#f59e0b,#b45309)', subtitle: 'Multi-bet fruit machine' },
     },
     {
-      slug: 'food-roulette',
-      name: 'Food Roulette',
-      emoji: '\u{1F355}',
-      html_path: '/games/food-roulette.html',
-      category: 'wheel',
-      min_bet: 10,
-      max_bet: 10000,
-      sort_order: 2,
-      metadata: { gradient: 'linear-gradient(135deg,#ec4899,#9d174d)', subtitle: 'Wheel spin & bet' },
-    },
-    {
-      slug: 'roulette',
-      name: 'Roulette',
-      emoji: '\u{1F3A1}',
-      html_path: '/games/roulette.html',
-      category: 'casino',
-      min_bet: 10,
-      max_bet: 50000,
-      sort_order: 3,
-      metadata: { gradient: 'linear-gradient(135deg,#ef4444,#991b1b)', subtitle: 'Red / Black / Green' },
-    },
-    {
       slug: 'greedy',
-      name: 'Greedy',
+      name: 'Krazy Khazana',
       emoji: '\u{1F48E}',
       html_path: '/games/greedy.html',
       category: 'casino',
       min_bet: 100,
       max_bet: 5000000,
-      sort_order: 4,
-      metadata: { gradient: 'linear-gradient(135deg,#7c3aed,#4c1d95)', subtitle: 'Krazy Khazana gem wheel' },
-    },
-    {
-      slug: 'card-war',
-      name: 'Card War',
-      emoji: '\u{1F0CF}',
-      html_path: '/games/card-war.html',
-      category: 'cards',
-      min_bet: 10,
-      max_bet: 5000,
-      sort_order: 5,
-      metadata: { gradient: 'linear-gradient(135deg,#22c55e,#14532d)', subtitle: 'Higher card wins' },
+      sort_order: 2,
+      metadata: { gradient: 'linear-gradient(135deg,#7c3aed,#4c1d95)', subtitle: 'Greedy gem wheel' },
     },
     {
       slug: 'teen-patti',
-      name: 'Royal Battle',
+      name: 'Teen Patti',
       emoji: '\u{1F451}',
       html_path: '/games/teen-patti.html',
       category: 'cards',
       min_bet: 10,
       max_bet: 5000000,
-      sort_order: 6,
+      sort_order: 3,
       metadata: {
         gradient: 'linear-gradient(135deg,#1e3a8a,#4c1d95)',
-        subtitle: 'King vs Queen � Teen Patti',
+        subtitle: 'King vs Queen · Royal Battle',
       },
     },
   ];
 }
 
-module.exports = { buildGameSeedRows };
+/** Slugs that must stay available */
+const ACTIVE_GAME_SLUGS = ['crazy-fruit', 'greedy', 'teen-patti'];
+
+module.exports = { buildGameSeedRows, ACTIVE_GAME_SLUGS };

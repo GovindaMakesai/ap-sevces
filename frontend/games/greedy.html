@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -331,6 +331,41 @@
       flex-shrink: 0;
     }
     .history-strip .hs-item { font-size: 1.15rem; margin-right: 4px; }
+    .players-strip {
+      margin-top: 8px;
+      min-height: 26px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: center;
+    }
+    .player-chip {
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      max-width: 150px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .player-chip.me {
+      background: rgba(251, 191, 36, 0.22);
+      border-color: rgba(251, 191, 36, 0.45);
+      color: #fde68a;
+    }
+    .tile { position: relative; }
+    .tile .others-bet {
+      position: absolute;
+      left: 3px;
+      bottom: 2px;
+      font-size: 0.52rem;
+      font-weight: 800;
+      color: #a5f3fc;
+      text-shadow: 0 1px 2px rgba(0,0,0,.65);
+    }
 
     /* Help panel */
     .help-body {
@@ -428,46 +463,33 @@
     .win-info .wi-fruit { font-size: 1rem; font-weight: 800; margin: 4px 0; }
     .win-info .wi-prize { font-size: 1.1rem; font-weight: 900; color: #fde68a; }
     .win-info .wi-wager { font-size: 0.85rem; color: rgba(255, 255, 255, 0.7); margin-top: 2px; }
-    .win-top-winners { width: 100%; max-width: 340px; }
+    .win-top-winners { width: 100%; max-width: 360px; }
     .win-top-winners h4 {
       text-align: center;
-      font-size: 0.85rem;
+      font-size: 0.9rem;
       color: #fde68a;
-      margin-bottom: 8px;
-    }
-    .tw-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 8px;
-      background: rgba(255, 255, 255, 0.06);
-      border-radius: 12px;
-      margin-bottom: 4px;
-    }
-    .tw-rank {
-      width: 26px;
-      height: 26px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.7rem;
+      margin: 4px 0 10px;
       font-weight: 900;
-      flex-shrink: 0;
     }
-    .tw-rank.r1 { background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #451a03; }
-    .tw-rank.r2 { background: linear-gradient(135deg, #94a3b8, #64748b); color: #1e293b; }
-    .tw-rank.r3 { background: linear-gradient(135deg, #d97706, #b45309); color: #fff; }
-    .tw-rank.rn { background: rgba(255, 255, 255, 0.1); color: rgba(255, 255, 255, 0.7); }
-    .tw-name {
-      flex: 1;
-      font-size: 0.78rem;
-      font-weight: 700;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+    .podium { display: flex; align-items: flex-end; justify-content: center; gap: 10px; min-height: 120px; }
+    .pod { text-align: center; width: 30%; }
+    .pod .av {
+      width: 52px; height: 52px; border-radius: 50%; margin: 0 auto 6px;
+      background: rgba(255,255,255,0.12); border: 3px solid rgba(255,255,255,0.35);
+      display: flex; align-items: center; justify-content: center; font-size: 1.4rem;
+      position: relative;
     }
-    .tw-prize { font-size: 0.78rem; font-weight: 800; color: #fde68a; }
+    .pod.p1 .av { width: 68px; height: 68px; border-color: #fbbf24; }
+    .pod.p2 .av { border-color: #93c5fd; }
+    .pod.p3 .av { border-color: #f9a8d4; }
+    .pod .crown { position: absolute; top: -14px; left: 50%; transform: translateX(-50%); font-size: 0.9rem; }
+    .pod .nm { font-size: 0.65rem; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pod .pr { font-size: 0.7rem; color: #fde68a; font-weight: 900; }
+    .pod .bt { font-size: 0.58rem; color: rgba(255,255,255,0.65); }
+    .podium-empty {
+      width: 100%; text-align: center; color: rgba(255,255,255,0.6); font-size: 0.85rem;
+      padding: 18px 8px; font-weight: 700;
+    }
     .win-countdown { margin-top: 10px; font-size: 0.72rem; color: rgba(255, 255, 255, 0.5); }
 
     /* Panels */
@@ -499,6 +521,9 @@
       margin-bottom: 12px;
     }
     .panel-head h3 { color: #fde68a; font-size: 1rem; }
+    .lb-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+    .lb-tab { flex: 1; padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(255,255,255,.12); background: rgba(0,0,0,.2); color: #cbd5e1; font-weight: 800; font-size: .78rem; }
+    .lb-tab.active { background: rgba(251,191,36,.18); color: #fde68a; border-color: rgba(251,191,36,.35); }
     .close-btn {
       background: rgba(255, 255, 255, 0.1);
       border: 0;
@@ -580,6 +605,8 @@
       <div class="chips-row" id="chipsRow"></div>
     </div>
 
+    <div class="players-strip" id="playersStrip"></div>
+
     <div class="history-strip">
       <span class="hs-label">Winning History</span>
       <span id="historyTrail"></span>
@@ -597,8 +624,8 @@
       <div class="wi-wager" id="wiWager"></div>
     </div>
     <div class="win-top-winners" id="winTopWinners">
-      <h4>Top Winners</h4>
-      <div id="winLeaderRows"></div>
+      <h4 id="winPlayersTitle">Top Winner</h4>
+      <div class="podium" id="winLeaderRows"></div>
     </div>
     <div class="win-countdown" id="winCountdown"></div>
   </div>
@@ -608,10 +635,10 @@
       <div class="panel-head"><h3>How to Play</h3><button class="close-btn" data-close="helpMask">✕</button></div>
       <div class="help-body">
         <p>1. Pick a chip amount (100 → 100K).</p>
-        <p>2. Tap one or more foods on the wheel to place bets.</p>
-        <p>3. When the timer hits 0, the wheel spins and lands on a food.</p>
-        <p>4. If you bet on the winning food, you win <strong>your bet × the multiplier</strong>.</p>
-        <p>Higher multipliers (Pizza, Roast Chicken) hit less often.</p>
+        <p>2. Tap foods on the wheel to place bets (shared with everyone in this room).</p>
+        <p>3. When the timer hits 0, the wheel spins for <strong>everyone</strong> — even if you did not bet.</p>
+        <p>4. Winning History shows what landed for the room from everyone’s rounds.</p>
+        <p>If you bet on the winning food, you win <strong>your bet × the multiplier</strong>.</p>
       </div>
     </div>
   </div>
@@ -625,7 +652,11 @@
 
   <div class="panel-mask" id="rankMask">
     <div class="panel">
-      <div class="panel-head"><h3>Top Wins</h3><button class="close-btn" data-close="rankMask">✕</button></div>
+      <div class="panel-head"><h3>Rankings</h3><button class="close-btn" data-close="rankMask">✕</button></div>
+      <div class="lb-tabs">
+        <button type="button" class="lb-tab active" data-lb-tab="players">Top players</button>
+        <button type="button" class="lb-tab" data-lb-tab="rounds">Big wins</button>
+      </div>
       <div class="list" id="leaderboardList"><div class="card muted">Loading...</div></div>
     </div>
   </div>
@@ -663,6 +694,7 @@
   var coins = 0;
   var betIndex = 0;
   var bets = {};
+  var othersByCell = {};
   var tileEls = [];
   var results = [];
   var countdown = 25;
@@ -674,6 +706,14 @@
   var pending = {};
   var shownCoins = 0;
   var lastLeaderboard = [];
+  var lbMode = 'players';
+  var roomChannel = '';
+  var roomMode = false;
+  var roomState = null;
+  var meDisplayId = '';
+  var lastHandledResult = '';
+  var syncTimer = null;
+  var placingBet = false;
 
   function post(o) {
     try {
@@ -709,10 +749,21 @@
       updateCoins();
       return;
     }
-    if ((d.type === 'GAME_PLAY_RESULT' || d.type === 'GAME_HISTORY_RESULT' || d.type === 'GAME_LEADERBOARD_RESULT') && d.requestId && pending[d.requestId]) {
+    if (d.type === 'SET_ROOM') {
+      roomChannel = String(d.channel || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64);
+      meDisplayId = d.display_id != null ? String(d.display_id) : meDisplayId;
+      roomMode = !!roomChannel;
+      if (roomMode) joinRoomMode();
+      return;
+    }
+    if (d.type === 'GAME_ROOM_EVENT' && d.game === 'greedy') {
+      applyRoomPayload(d);
+      return;
+    }
+    if ((d.type === 'GAME_PLAY_RESULT' || d.type === 'GAME_HISTORY_RESULT' || d.type === 'GAME_LEADERBOARD_RESULT' || d.type === 'GAME_ROOM_STATE_RESULT' || d.type === 'GAME_ROOM_BET_RESULT') && d.requestId && pending[d.requestId]) {
       var req = pending[d.requestId];
       delete pending[d.requestId];
-      if (d.success) req.resolve(d.data || []);
+      if (d.success) req.resolve(d.data != null ? d.data : []);
       else req.reject(new Error(d.message || 'Request failed'));
     }
   });
@@ -720,6 +771,11 @@
   function currentChip() { return BET_AMOUNTS[betIndex]; }
   function totalBet() {
     return Object.keys(bets).reduce(function (s, k) { return s + Number(bets[k] || 0); }, 0);
+  }
+  function displayCoins() {
+    if (roomMode) return coins;
+    if (roundLocked || spinning) return coins;
+    return Math.max(0, coins - totalBet());
   }
   function fmt(n) { return Number(n || 0).toLocaleString(); }
   function fruitDisplay(win) {
@@ -745,8 +801,9 @@
 
   function updateCoins() {
     var el = document.getElementById('coins');
-    animateCount(el, shownCoins, coins, 260);
-    shownCoins = coins;
+    var show = displayCoins();
+    animateCount(el, shownCoins, show, 260);
+    shownCoins = show;
   }
 
   function buildArena() {
@@ -847,10 +904,35 @@
     tileEls.forEach(function (tile, i) {
       var mapIdx = mapTileToCell(i);
       var amount = Number(bets[mapIdx] || 0);
-      tile.classList.toggle('has-bet', amount > 0);
+      var others = Number(othersByCell[mapIdx] || 0);
+      tile.classList.toggle('has-bet', amount > 0 || others > 0);
       var badge = tile.querySelector('.bet-badge');
       if (badge) badge.innerHTML = amount > 0 ? ('you ❤️ ' + fmt(amount)) : '';
+      var ob = tile.querySelector('.others-bet');
+      if (!ob) {
+        ob = document.createElement('span');
+        ob.className = 'others-bet';
+        tile.appendChild(ob);
+      }
+      ob.textContent = others > 0 ? ('+' + fmt(others)) : '';
     });
+  }
+
+  function renderPlayers(players) {
+    var root = document.getElementById('playersStrip');
+    if (!root) return;
+    players = players || [];
+    if (!players.length) {
+      root.innerHTML = roomMode
+        ? '<span class="player-chip muted">Waiting for players…</span>'
+        : '';
+      return;
+    }
+    root.innerHTML = players.map(function (p) {
+      var mine = meDisplayId && String(p.display_id) === String(meDisplayId);
+      var short = (p.display_name || ('ID ' + p.display_id) || 'Player').slice(0, 18);
+      return '<span class="player-chip' + (mine ? ' me' : '') + '">' + short + ' · ❤️' + fmt(p.total_bet) + '</span>';
+    }).join('');
   }
 
   function mapTileToCell(tileIdx) {
@@ -871,16 +953,151 @@
     }, 200);
   }
 
+  function syncBetsFromState(state) {
+    bets = {};
+    othersByCell = {};
+    (state.players || []).forEach(function (p) {
+      var mine = meDisplayId && String(p.display_id) === String(meDisplayId);
+      (p.bets || []).forEach(function (row) {
+        var idx = Number(row.cellIdx);
+        var amt = Number(row.amount || 0);
+        if (mine) bets[idx] = (bets[idx] || 0) + amt;
+        else othersByCell[idx] = (othersByCell[idx] || 0) + amt;
+      });
+    });
+    renderTiles();
+    renderPlayers(state.players || []);
+    updateCoins();
+  }
+
+  function applyHistoryFromState(state) {
+    if (state && state.history && state.history.length) {
+      results = state.history.map(function (h) { return h.emoji || '🎰'; }).slice(0, 12);
+      renderHistory();
+    }
+  }
+
+  function applyRoomState(state, opts) {
+    if (!state) return;
+    opts = opts || {};
+    roomState = state;
+    syncBetsFromState(state);
+    applyHistoryFromState(state);
+
+    if (state.phase === 'betting') {
+      roundLocked = false;
+      var secs = Math.max(0, Math.ceil(Number(state.ends_in_ms || 0) / 1000));
+      countdown = secs;
+      updateTimer();
+      if (!opts.skipTimerRestart) startLocalCountdownFromServer(state);
+    } else if (state.phase === 'result' || state.phase === 'settling') {
+      roundLocked = true;
+      if (state.result && state.round_id && state.round_id !== lastHandledResult) {
+        handleRoomResult(state);
+      } else {
+        setWaiting();
+      }
+    }
+  }
+
+  function applyRoomPayload(d) {
+    var state = d.state || d.data || null;
+    if (!state) return;
+    if (d.type === 'round_result' || (state.phase === 'result' && state.result)) {
+      applyRoomState(state, { skipTimerRestart: true });
+      return;
+    }
+    applyRoomState(state);
+  }
+
+  function startLocalCountdownFromServer(state) {
+    clearCountdown();
+    var endAt = Number(state.phase_ends_at || 0);
+    countdownTimer = setInterval(function () {
+      if (spinning) return;
+      var left = Math.max(0, Math.ceil((endAt - Date.now()) / 1000));
+      countdown = left;
+      updateTimer();
+      if (left <= 0) {
+        clearCountdown();
+        if (roomMode) {
+          setWaiting();
+          roundLocked = true;
+          /* server settles; poll once in case socket missed */
+          setTimeout(function () { refreshRoomState(); }, 600);
+        } else {
+          finalizeRound();
+        }
+      }
+    }, 250);
+  }
+
+  function refreshRoomState() {
+    if (!roomMode || !roomChannel) return Promise.resolve();
+    return makeRequest('GAME_ROOM_STATE_REQUEST', { channel: roomChannel }).then(function (state) {
+      applyRoomState(state);
+      return state;
+    }).catch(function () {});
+  }
+
+  function joinRoomMode() {
+    clearCountdown();
+    refreshRoomState();
+    loadPublicOutcomes();
+    if (syncTimer) clearInterval(syncTimer);
+    syncTimer = setInterval(function () {
+      if (!roomMode || spinning) return;
+      refreshRoomState();
+    }, 4000);
+  }
+
+  function loadPublicOutcomes() {
+    makeRequest('GAME_HISTORY_REQUEST', { limit: 24, scope: 'outcomes' }).then(function (rows) {
+      if (!rows || !rows.length) return;
+      results = rows.map(function (r) { return r.emoji || (r.winning_fruit && r.winning_fruit.emoji) || '🎰'; }).slice(0, 12);
+      renderHistory();
+    }).catch(function () {});
+  }
+
   function addBet(tileIdx) {
-    if (spinning || roundLocked) return;
+    if (spinning || roundLocked || placingBet) return;
     var cellIdx = mapTileToCell(tileIdx);
     var chip = currentChip();
+    if (chip > coins) {
+      post({ type: 'GAME_NEED_COINS', game: 'greedy', need: chip - coins });
+      return;
+    }
+
+    if (roomMode) {
+      placingBet = true;
+      makeRequest('GAME_ROOM_BET', {
+        channel: roomChannel,
+        bets: [{ cellIdx: cellIdx, amount: chip }]
+      }).then(function (data) {
+        placingBet = false;
+        if (data && data.balance != null) {
+          coins = Number(data.balance);
+          updateCoins();
+        }
+        if (data && data.state) applyRoomState(data.state, { skipTimerRestart: true });
+      }).catch(function (err) {
+        placingBet = false;
+        var msg = (err && err.message) ? err.message : 'Bet failed';
+        document.getElementById('timerLabel').textContent = msg.length > 22 ? 'Bet failed' : msg;
+        setTimeout(function () {
+          if (roomState && roomState.phase === 'betting') updateTimer();
+        }, 1200);
+      });
+      return;
+    }
+
     if (totalBet() + chip > coins) {
       post({ type: 'GAME_NEED_COINS', game: 'greedy', need: totalBet() + chip - coins });
       return;
     }
     bets[cellIdx] = Number(bets[cellIdx] || 0) + chip;
     renderTiles();
+    updateCoins();
   }
 
   function selectedBetRows() {
@@ -897,12 +1114,18 @@
   }
 
   function resetRound() {
+    if (roomMode) {
+      refreshRoomState();
+      return;
+    }
     bets = {};
+    othersByCell = {};
     countdown = 25;
     roundLocked = false;
     spinning = false;
     updateTimer();
     renderTiles();
+    renderPlayers([]);
     clearCountdown();
     countdownTimer = setInterval(function () {
       if (spinning) return;
@@ -913,6 +1136,33 @@
         finalizeRound();
       }
     }, 1000);
+  }
+
+  function handleRoomResult(state) {
+    if (!state || !state.result || !state.round_id) return;
+    if (state.round_id === lastHandledResult) return;
+    lastHandledResult = state.round_id;
+    clearCountdown();
+    roundLocked = true;
+    var anim = (state.result && state.result.animation) || { landCellIdx: state.result.winning_cell_idx || 0, totalSteps: 40 };
+    var myRow = (state.players || []).find(function (p) {
+      return meDisplayId && String(p.display_id) === String(meDisplayId);
+    });
+    var myWager = myRow ? Number(myRow.total_bet || 0) : 0;
+    var myPayout = myRow ? Number(myRow.payout || 0) : 0;
+    animateFinalSpin(anim, function () {
+      applyHistoryFromState(state);
+      loadPublicOutcomes();
+      showWinOverlay({
+        winning_fruit: state.result.winning_fruit,
+        payout: myPayout,
+        players: state.players || [],
+        winners: state.winners || [],
+        player_count: state.result.player_count || (state.players || []).length,
+        spectated: !myRow
+      }, myWager);
+      post({ type: 'GAME_READY', game: 'greedy' });
+    });
   }
 
   function animateFinalSpin(anim, done) {
@@ -970,23 +1220,62 @@
     var overlay = document.getElementById('winOverlay');
     var payout = Number(data.payout || 0);
     var didWin = payout > 0;
+    var spectated = !!data.spectated;
     overlay.classList.toggle('is-win', didWin);
-    overlay.classList.toggle('is-lose', !didWin);
-    document.getElementById('winBanner').textContent = didWin ? 'YOU WON!' : 'NOT THIS TIME';
+    overlay.classList.toggle('is-lose', !didWin && !spectated);
+    var bannerText = didWin ? 'YOU WON!' : (spectated ? 'ROUND RESULT' : 'NOT THIS TIME');
+    document.getElementById('winBanner').textContent = bannerText;
     document.getElementById('winBanner').className = 'win-banner ' + (didWin ? 'win' : 'lose');
     document.getElementById('winGlowEmoji').textContent = winning.emoji || '🎰';
     document.getElementById('wiFruit').textContent = (winning.emoji || '') + ' ' + (winning.name || 'Unknown');
-    document.getElementById('wiPrize').innerHTML = didWin ? ('Prize: ❤️ ' + fmt(payout)) : 'Prize: ❤️ 0';
-    document.getElementById('wiWager').innerHTML = 'Your Wager: ❤️ ' + fmt(wager || totalBet());
+    if (spectated && !didWin) {
+      document.getElementById('wiPrize').innerHTML = 'Players this round: ' + fmt(data.player_count || 0);
+      document.getElementById('wiWager').innerHTML = 'You watched this round';
+    } else {
+      document.getElementById('wiPrize').innerHTML = didWin ? ('Prize: ❤️ ' + fmt(payout)) : 'Prize: ❤️ 0';
+      document.getElementById('wiWager').innerHTML = 'Your Wager: ❤️ ' + fmt(wager || totalBet());
+    }
     if (didWin) spawnConfetti();
 
-    var leaderHtml = '';
-    (lastLeaderboard.slice(0, 5)).forEach(function (row, idx) {
-      var rc = idx === 0 ? 'r1' : idx === 1 ? 'r2' : idx === 2 ? 'r3' : 'rn';
-      var badge = idx === 0 ? '👑' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : '#' + (idx + 1);
-      leaderHtml += '<div class="tw-row"><div class="tw-rank ' + rc + '">' + badge + '</div><div class="tw-name">' + (row.display_name || ('ID ' + row.display_id)) + '</div><div class="tw-prize">❤️ ' + fmt(row.payout_amount) + '</div></div>';
+    var titleEl = document.getElementById('winPlayersTitle');
+    if (titleEl) titleEl.textContent = 'Top Winner';
+
+    var players = (data.players && data.players.length)
+      ? data.players.slice()
+      : [];
+    players.sort(function (a, b) {
+      return Number(b.payout || 0) - Number(a.payout || 0) ||
+        Number(b.total_bet || 0) - Number(a.total_bet || 0);
     });
-    document.getElementById('winLeaderRows').innerHTML = leaderHtml;
+    var rows = players.slice(0, 3).map(function (p) {
+      return {
+        display_name: p.display_name || ('ID ' + (p.display_id || '')),
+        payout_amount: Number(p.payout || 0),
+        bet_amount: Number(p.total_bet != null ? p.total_bet : p.bet_amount || 0)
+      };
+    });
+
+    var podium = document.getElementById('winLeaderRows');
+    if (!rows.length) {
+      podium.innerHTML = '<div class="podium-empty">No one played or bet this round</div>';
+    } else {
+      var order = rows.length >= 3 ? [1, 0, 2] : rows.map(function (_r, i) { return i; });
+      var html = '';
+      order.forEach(function (idx) {
+        var r = rows[idx];
+        var place = idx + 1;
+        if (!r) {
+          html += '<div class="pod p' + place + '"></div>';
+          return;
+        }
+        html += '<div class="pod p' + place + '"><div class="av">' +
+          (place === 1 ? '<span class="crown">👑</span>' : place === 2 ? '<span class="crown">🥈</span>' : place === 3 ? '<span class="crown">🥉</span>' : '') +
+          '👤</div><div class="nm">' + r.display_name + '</div>' +
+          '<div class="pr">💎 ' + fmt(r.payout_amount) + '</div>' +
+          '<div class="bt">Bet: ' + fmt(r.bet_amount) + '</div></div>';
+      });
+      podium.innerHTML = html;
+    }
     overlay.classList.add('open');
 
     var sec = 5;
@@ -998,12 +1287,19 @@
       if (sec <= 0) {
         clearInterval(cdInt);
         overlay.classList.remove('open');
-        resetRound();
+        if (roomMode) refreshRoomState();
+        else resetRound();
       }
     }, 1000);
   }
 
   function finalizeRound() {
+    if (roomMode) {
+      setWaiting();
+      roundLocked = true;
+      refreshRoomState();
+      return;
+    }
     var rows = selectedBetRows();
     roundLocked = true;
     if (!rows.length) {
@@ -1021,6 +1317,8 @@
       setTimeout(resetRound, 1600);
       return;
     }
+    coins = Math.max(0, coins - wagerTotal);
+    updateCoins();
     setWaiting();
     makeRequest('GAME_PLAY', { bet_amount: wagerTotal, pick: { bets: rows } }).then(function (data) {
       animateFinalSpin(data.animation || { landCellIdx: data.winIdx || 0, landRingIdx: data.winIdx || 0, totalSteps: 40 }, function () {
@@ -1034,9 +1332,23 @@
         if (results.length > 12) results = results.slice(0, 12);
         renderHistory();
         loadPanels();
-        showWinOverlay(data, wagerTotal);
+        showWinOverlay({
+          winning_fruit: data.winning_fruit,
+          payout: Number(data.payout || 0),
+          players: [{
+            display_name: 'You',
+            display_id: meDisplayId || '',
+            total_bet: wagerTotal,
+            payout: Number(data.payout || 0),
+            win: Number(data.payout || 0) > 0
+          }],
+          player_count: 1,
+          spectated: false
+        }, wagerTotal);
       });
     }).catch(function (err) {
+      coins = Math.max(0, coins + wagerTotal);
+      updateCoins();
       spinning = false;
       roundLocked = false;
       var msg = (err && err.message) ? err.message : 'Play failed';
@@ -1059,7 +1371,7 @@
   function renderHistoryPanel(rows) {
     var root = document.getElementById('historyList');
     if (!rows || !rows.length) {
-      root.innerHTML = '<div class="card muted">No game records yet.</div>';
+      root.innerHTML = '<div class="card muted">No winning rounds yet.</div>';
       return;
     }
     root.innerHTML = rows.map(function (row) {
@@ -1070,7 +1382,9 @@
       }).join('');
       var winFruit = fruitDisplay(row.winning_fruit);
       var win = row.winning_fruit ? ((winFruit.emoji ? (winFruit.emoji + ' ') : '') + winFruit.name) : '--';
-      return '<div class="card"><div class="card-top"><strong>Round ' + row.round_code + '</strong><span class="muted">' + new Date(row.created_at).toLocaleString() + '</span></div><div class="bets-grid">' + betsHtml + '</div><div style="display:flex;justify-content:space-between;margin-top:8px;font-size:.82rem"><span>Winner: <strong>' + win + '</strong></span><span>❤️ <strong>' + fmt(row.payout_amount) + '</strong></span></div></div>';
+      var who = row.display_name ? ('<div class="muted" style="margin-bottom:4px">' + row.display_name + '</div>') : '';
+      var code = row.round_code || '';
+      return '<div class="card">' + who + '<div class="card-top"><strong>' + (code ? ('Round ' + code) : 'Win') + '</strong><span class="muted">' + new Date(row.created_at).toLocaleString() + '</span></div><div class="bets-grid">' + betsHtml + '</div><div style="display:flex;justify-content:space-between;margin-top:8px;font-size:.82rem"><span>Winner: <strong>' + win + '</strong></span><span>❤️ <strong>' + fmt(row.payout_amount) + '</strong></span></div></div>';
     }).join('');
   }
 
@@ -1081,19 +1395,40 @@
       root.innerHTML = '<div class="card muted">No winning rounds yet.</div>';
       return;
     }
+    if (lbMode === 'players') {
+      root.innerHTML = rows.map(function (row, idx) {
+        return '<div class="card leader-row"><div style="display:flex;align-items:center;gap:10px"><div class="rank-badge">' + (idx + 1) + '</div><div><div style="font-weight:900">' + (row.display_name || ('ID ' + row.display_id)) + '</div><div class="muted" style="font-size:.72rem">' + fmt(row.win_rounds || 0) + ' wins · best ' + fmt(row.best_win || 0) + '</div></div></div><div style="text-align:right"><div style="font-weight:900;color:#fde68a">❤️ ' + fmt(row.total_won || 0) + '</div></div></div>';
+      }).join('');
+      return;
+    }
     root.innerHTML = rows.map(function (row, idx) {
-      var winFruit = fruitDisplay(row.winning_fruit);
-      return '<div class="card leader-row"><div style="display:flex;align-items:center;gap:10px"><div class="rank-badge">' + (idx + 1) + '</div><div><div style="font-weight:900">' + (row.display_name || ('ID ' + row.display_id)) + '</div><div class="muted" style="font-size:.72rem">Round ' + row.round_code + ' - ' + (winFruit.emoji || '') + '</div></div></div><div style="text-align:right"><div style="font-weight:900;color:#fde68a">❤️ ' + fmt(row.payout_amount) + '</div></div></div>';
+      return '<div class="card leader-row"><div style="display:flex;align-items:center;gap:10px"><div class="rank-badge">' + (idx + 1) + '</div><div><div style="font-weight:900">' + (row.display_name || ('ID ' + row.display_id)) + '</div><div class="muted" style="font-size:.72rem">Round ' + row.round_code + '</div></div></div><div style="text-align:right"><div style="font-weight:900;color:#fde68a">❤️ ' + fmt(row.payout_amount) + '</div></div></div>';
     }).join('');
   }
 
+  function loadLeaderboard() {
+    makeRequest('GAME_LEADERBOARD_REQUEST', { limit: 10, days: 7, mode: lbMode }).then(function (rows) { renderLeaderboard(rows); }).catch(function () {
+      document.getElementById('leaderboardList').innerHTML = '<div class="card muted">Could not load rankings.</div>';
+    });
+  }
+
   function loadPanels() {
-    makeRequest('GAME_HISTORY_REQUEST', { limit: 20 }).then(function (rows) { renderHistoryPanel(rows); }).catch(function () {});
-    makeRequest('GAME_LEADERBOARD_REQUEST', { limit: 10, days: 7 }).then(function (rows) { renderLeaderboard(rows); }).catch(function () {});
+    var histReq = roomMode
+      ? makeRequest('GAME_HISTORY_REQUEST', { limit: 20, scope: 'wins' })
+      : makeRequest('GAME_HISTORY_REQUEST', { limit: 20 });
+    histReq.then(function (rows) { renderHistoryPanel(rows); }).catch(function () {});
+    loadLeaderboard();
   }
 
   document.getElementById('btnHelp').addEventListener('click', function () { openPanel('helpMask'); });
-  document.getElementById('btnRankings').addEventListener('click', function () { openPanel('rankMask'); });
+  document.getElementById('btnRankings').addEventListener('click', function () { openPanel('rankMask'); loadPanels(); });
+  document.querySelectorAll('[data-lb-tab]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      lbMode = btn.getAttribute('data-lb-tab') || 'players';
+      document.querySelectorAll('[data-lb-tab]').forEach(function (b) { b.classList.toggle('active', b === btn); });
+      loadLeaderboard();
+    });
+  });
   document.getElementById('btnClose').addEventListener('click', function () {
     post({ type: 'GAME_CLOSE', game: 'greedy' });
   });
@@ -1110,10 +1445,13 @@
   buildArena();
   buildChips();
   startOrbit();
-  resetRound();
   renderHistory();
   loadPanels();
   post({ type: 'GAME_READY', game: 'greedy' });
+  /* Room mode starts after SET_ROOM from parent; solo fallback timer */
+  setTimeout(function () {
+    if (!roomMode) resetRound();
+  }, 400);
 })();
 </script>
 </body>

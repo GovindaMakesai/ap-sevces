@@ -116,6 +116,7 @@ async function submitApplication(
     if (!invite) {
       throw new Error('A valid Agency invite code is required to apply as Host');
     }
+    await hierarchyService.assertEligibleForHostInvite(userId, { invitingAgencyId: invite.agency_id });
     targetAgencyId = invite.agency_id;
     targetBdUserId = invite.bd_user_id || null;
     normalizedPromo = String(invite.code).toUpperCase();
@@ -338,6 +339,7 @@ async function reviewApplication(
     if (!agency) {
       throw new Error('Agency not found — pick by name or number from the list');
     }
+    await hierarchyService.assertEligibleForHostInvite(app.user_id, { invitingAgencyId: agency.id });
     await permissionService.syncUserRole(app.user_id, 'creator');
     await hierarchyService.assignHostToAgency(adminUserId, app.user_id, agency.id);
     const upd = await markReviewed(applicationId, adminUserId, 'approved');

@@ -23,6 +23,8 @@ const { ensureRoleApplicationsSchema } = require('./config/ensureRoleApplication
 const { ensurePaymentApprovalsSchema } = require('./config/ensurePaymentApprovalsSchema');
 const { ensureLiveHostStatsSchema } = require('./config/ensureLiveHostStatsSchema');
 const { ensureLiveUserAnalyticsSchema } = require('./config/ensureLiveUserAnalyticsSchema');
+const { ensureLiveRoomsSchema } = require('./config/ensureLiveRoomsSchema');
+const { ensureSocialPostsSchema } = require('./config/ensureSocialPostsSchema');
 const { ensureBdHierarchySchema } = require('./config/ensureBdHierarchySchema');
 const { ensurePartyModerationSchema } = require('./config/ensurePartyModerationSchema');
 const { ensureWithdrawalQrSchema } = require('./config/ensureWithdrawalQrSchema');
@@ -262,11 +264,15 @@ async function startServer() {
     await ensurePaymentApprovalsSchema();
     await ensureLiveHostStatsSchema();
     await ensureLiveUserAnalyticsSchema();
+    await ensureLiveRoomsSchema();
+    await ensureSocialPostsSchema();
     await ensureBdHierarchySchema();
     await ensurePartyModerationSchema();
     await ensureGamesSchema();
     const { ensureDisplayIdSchema } = require('./config/ensureDisplayIdSchema');
     await ensureDisplayIdSchema();
+    const { ensureNameChangeSchema } = require('./config/ensureNameChangeSchema');
+    await ensureNameChangeSchema();
   }
 
   await referralModule.boot();

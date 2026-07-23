@@ -102,6 +102,20 @@ pm2 restart ap-api
 pm2 logs ap-api --lines 20
 ```
 
+## Weekly DB backup (Monday)
+
+Full Postgres dump via `pg_dump` every Monday **03:00 UTC**. Files land in `/var/backups/ap-services-db/` (last **8** weeks kept).
+
+```bash
+# Install / refresh cron (once after deploy)
+bash /var/www/ap-services/deploy/hostinger/install-db-backup-cron.sh
+
+# Manual run
+bash /var/www/ap-services/deploy/hostinger/backup-db.sh
+```
+
+Needs `postgresql-client-17` (matches Supabase). Optional: set `BACKUP_DATABASE_URL` in `backend/.env` to the Supabase **Direct** connection if pooler dumps fail.
+
 ## Health checks
 
 ```bash

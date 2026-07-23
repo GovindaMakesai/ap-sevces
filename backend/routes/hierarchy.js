@@ -16,6 +16,7 @@ router.get('/bd/promo-codes', authorizeRoles('bdm', 'admin'), hierarchyControlle
 router.get('/bd/applications', authorizeRoles('bdm', 'admin'), hierarchyController.bdPendingApplications);
 router.post('/bd/applications/:id/review', authorizeRoles('bdm', 'admin'), hierarchyController.bdReviewApplication);
 router.get('/agency/dashboard', authorizeRoles('agency', 'admin'), hierarchyController.agencyDashboard);
+router.get('/agency/agent-level', authorizeRoles('agency', 'admin'), hierarchyController.agencyAgentLevel);
 router.patch('/agency/name', authorizeRoles('agency', 'admin'), hierarchyController.renameAgency);
 router.get('/agency/invite-code', authorizeRoles('agency', 'admin'), hierarchyController.getAgencyInviteCode);
 router.post('/agency/invite-host', authorizeRoles('agency', 'admin'), hierarchyController.inviteHostToAgency);

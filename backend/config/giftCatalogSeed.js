@@ -41,13 +41,15 @@ function buildGiftSeedRows() {
         coin_cost: Number(item.cost) || 0,
         category,
         tier:
-          Number(item.cost) >= 500000
-            ? 'vip'
-            : Number(item.cost) >= 5000
-              ? 'large'
-              : Number(item.cost) >= 100
-                ? 'medium'
-                : 'small',
+          Number(item.cost) >= 5000000
+            ? 'legendary'
+            : Number(item.cost) >= 250000
+              ? 'vip'
+              : Number(item.cost) >= 25000
+                ? 'premium'
+                : Number(item.cost) >= 3000
+                  ? 'medium'
+                  : 'small',
         sort_order: sort++,
       });
     }

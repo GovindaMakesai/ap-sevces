@@ -2,6 +2,7 @@ import {
   ActivityIndicator,
   AppState,
   BackHandler,
+  Image,
   PermissionsAndroid,
   Platform,
   StatusBar as RNStatusBar,
@@ -21,6 +22,7 @@ import * as WebBrowser from 'expo-web-browser';
 import * as ScreenCapture from 'expo-screen-capture';
 import { getMobileDashboardInjectScript } from './injectedMobileFix';
 
+const BRAND_LOGO = require('./assets/logo-loading.png');
 /**
  * Native audio session only when the user is publishing mic.
  * Audience must NOT call expo-av — on some Androids it steals focus (kills YouTube)
@@ -523,11 +525,8 @@ export default function App() {
   const lockLiveScreenCapture = useCallback(async (force = false) => {
     screenCaptureBlockedRef.current = true;
     try {
-      /* Always re-assert both keys — Android can drop FLAG_SECURE after overlays / resume */
       await ScreenCapture.preventScreenCaptureAsync(LIVE_SECURE_KEY);
-      await ScreenCapture.preventScreenCaptureAsync('default');
       if (force) {
-        /* Toggle unique key so Expo re-applies even if it thought we were already locked */
         const bump = `ap-live-secure-bump-${Date.now() % 100000}`;
         await ScreenCapture.preventScreenCaptureAsync(bump);
       }
@@ -537,16 +536,26 @@ export default function App() {
   }, []);
 
   const unlockLiveScreenCapture = useCallback(async () => {
-    /* Safety: never allow screenshots/recording while the app is open.
-       Host streams must not be capturable from the Play Store app. */
-    await lockLiveScreenCapture(true);
-  }, [lockLiveScreenCapture]);
+    if (!screenCaptureBlockedRef.current) return;
+    try {
+      await ScreenCapture.allowScreenCaptureAsync(LIVE_SECURE_KEY);
+      await ScreenCapture.allowScreenCaptureAsync('default');
+    } catch (err) {
+      console.warn('[screen-capture] unlock failed', err?.message || err);
+    } finally {
+      screenCaptureBlockedRef.current = false;
+    }
+  }, []);
 
   const syncScreenCaptureForUrl = useCallback(
-    async (_url) => {
-      await lockLiveScreenCapture(true);
+    async (url) => {
+      if (isLiveCaptureUrl(url)) {
+        await lockLiveScreenCapture(true);
+      } else {
+        await unlockLiveScreenCapture();
+      }
     },
-    [lockLiveScreenCapture]
+    [lockLiveScreenCapture, unlockLiveScreenCapture]
   );
 
   const isDevLocal = useMemo(() => isDevLocalBase(frontendBase), [frontendBase]);
@@ -853,47 +862,40 @@ export default function App() {
     [applyOAuthCredential, startOAuthInBrowser]
   );
 
+  /* Screenshots allowed everywhere except live/party rooms */
   useEffect(() => {
-    lockLiveScreenCapture(true).catch(() => {});
-    /* App-wide FLAG_SECURE for creator safety — screenshots/recordings stay black */
-    const id = setInterval(() => {
-      ScreenCapture.preventScreenCaptureAsync(LIVE_SECURE_KEY).catch(() => {});
-      ScreenCapture.preventScreenCaptureAsync('default').catch(() => {});
-      screenCaptureBlockedRef.current = true;
-    }, 800);
-    return () => clearInterval(id);
-  }, [lockLiveScreenCapture]);
+    unlockLiveScreenCapture().catch(() => {});
+  }, [unlockLiveScreenCapture]);
 
-  /* Extra pulse while on live/party */
+  /* Keep FLAG_SECURE asserted while inside a live/party room only */
   useEffect(() => {
     const id = setInterval(() => {
       const url = webViewCurrentUrlRef.current || '';
       if (!isLiveCaptureUrl(url)) return;
       ScreenCapture.preventScreenCaptureAsync(LIVE_SECURE_KEY).catch(() => {});
-      ScreenCapture.preventScreenCaptureAsync('default').catch(() => {});
       const bump = `ap-live-secure-bump-${Date.now() % 100000}`;
       ScreenCapture.preventScreenCaptureAsync(bump).catch(() => {});
+      screenCaptureBlockedRef.current = true;
     }, 1500);
     return () => clearInterval(id);
   }, []);
 
-  /* Screenshot attempt: re-lock + black out live video */
+  /* Screenshot attempt: re-lock only on live/party */
   useEffect(() => {
     let sub;
     try {
       sub = ScreenCapture.addScreenshotListener(() => {
-        lockLiveScreenCapture(true);
         const url = webViewCurrentUrlRef.current || '';
+        if (!isLiveCaptureUrl(url)) return;
+        lockLiveScreenCapture(true);
         if (Platform.OS === 'android' && ToastAndroid) {
-          ToastAndroid.show('Screenshots are blocked for safety', ToastAndroid.SHORT);
+          ToastAndroid.show('Screenshots are blocked during live streams', ToastAndroid.SHORT);
         }
-        if (isLiveCaptureUrl(url)) {
-          webViewRef.current?.injectJavaScript(
-            `(function(){try{
-              if(window.SocialLive&&window.SocialLive.onScreenshotAttempt){window.SocialLive.onScreenshotAttempt();}
-            }catch(e){}true;})();`
-          );
-        }
+        webViewRef.current?.injectJavaScript(
+          `(function(){try{
+            if(window.SocialLive&&window.SocialLive.onScreenshotAttempt){window.SocialLive.onScreenshotAttempt();}
+          }catch(e){}true;})();`
+        );
       });
     } catch (_e) { /* older native builds */ }
     return () => {
@@ -1094,8 +1096,13 @@ export default function App() {
         if (data.type === 'screen_capture') {
           (async () => {
             try {
-              /* Always block — never unlock (creator safety) */
-              await lockLiveScreenCapture(true);
+              const enabled = data.enabled !== false && data.block !== false;
+              const url = webViewCurrentUrlRef.current || '';
+              if (enabled && (data.force || isLiveCaptureUrl(url))) {
+                await lockLiveScreenCapture(true);
+              } else if (!enabled) {
+                await unlockLiveScreenCapture();
+              }
             } catch (err) {
               console.warn('[screen-capture]', err?.message || err);
             }
@@ -1230,8 +1237,9 @@ export default function App() {
         startInLoadingState
         renderLoading={() => (
           <View style={styles.loading}>
-            <ActivityIndicator size="large" color="#c9a227" />
-            <Text style={styles.loadingText}>Loading AP Services...</Text>
+            <Image source={BRAND_LOGO} style={styles.loadingLogo} resizeMode="contain" />
+            <ActivityIndicator size="large" color="#2F7BFF" style={{ marginTop: 18 }} />
+            <Text style={styles.loadingText}>Loading…</Text>
           </View>
         )}
         pullToRefreshEnabled={false}
@@ -1319,12 +1327,18 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fdf9f0' },
   webview: { flex: 1, backgroundColor: '#fdf9f0' },
   loading: {
+    ...StyleSheet.absoluteFillObject,
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fdf9f0',
+    backgroundColor: '#000000',
   },
-  loadingText: { marginTop: 12, color: '#8b6914', fontSize: 14 },
+  loadingLogo: {
+    width: 168,
+    height: 168,
+    borderRadius: 84,
+  },
+  loadingText: { marginTop: 14, color: '#9ec4ff', fontSize: 15, fontWeight: '600', letterSpacing: 0.3 },
   errorBar: {
     backgroundColor: '#fef2f2',
     borderBottomWidth: 1,

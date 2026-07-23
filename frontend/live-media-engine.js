@@ -8,13 +8,14 @@
  * 3. Web Audio / DomSink are fallbacks only when play() throws — never simultaneous.
  * 4. Role-based playback volume applied synchronously on publish / role change.
  * 5. One health loop with hysteresis; remount only if MediaStreamTrack ended.
+ * 6. Multi-seat: never trust isPlaying alone — verify sink is actually playing.
  *
  * social-live.js owns sockets, seats, UI. This module owns media playback policy.
  */
 (function (global) {
   'use strict';
 
-  const BUILD = '20260718-media-engine';
+  const BUILD = '20260723-mesh-audio';
   const VOL_AUDIENCE = 100;
   /** Agora remote volume max — counters WebRTC AEC ducking when local mic is open */
   const VOL_PUBLISHER = 400;
@@ -28,6 +29,7 @@
     sinks: new Map(),
     lastHealthAt: 0,
     remountAt: new Map(),
+    quietTicks: new Map(),
     healthTimer: null,
     stats: {
       playOk: 0,
@@ -35,6 +37,7 @@
       remount: 0,
       boost: 0,
       skipHealthy: 0,
+      forceReplay: 0,
     },
   };
 
@@ -72,6 +75,8 @@
     if (!el && global.document?.body) {
       el = global.document.createElement('audio');
       el.id = `apRemoteAudioSink-${key}`;
+      el.className = 'ap-remote-audio-sink';
+      el.dataset.apRemoteAudio = '1';
       el.autoplay = true;
       el.controls = false;
       el.preload = 'auto';
@@ -89,6 +94,7 @@
     const key = String(uid);
     const el = state.sinks.get(key) || global.document?.getElementById?.(`apRemoteAudioSink-${key}`);
     state.sinks.delete(key);
+    state.quietTicks.delete(key);
     if (!el) return;
     try {
       el.pause?.();
@@ -112,10 +118,31 @@
     }
   }
 
-  /**
-   * Primary remote audio play — single path.
-   * Returns true if playback was started or already healthy.
-   */
+  function sinkNeedsReplay(uid) {
+    try {
+      const el = state.sinks.get(String(uid)) || global.document?.getElementById?.(`apRemoteAudioSink-${uid}`);
+      if (!el) return false;
+      if (el.paused) return true;
+      if (el.muted) return true;
+      if (Number(el.volume) < 0.05) return true;
+      return false;
+    } catch (_e) {
+      return false;
+    }
+  }
+
+  function trackLooksSilent(user) {
+    try {
+      const t = user?.audioTrack;
+      if (!t) return true;
+      /* Do NOT use getVolumeLevel — quiet/not-speaking users are ~0 and that is normal */
+      if (t.isPlaying === false) return true;
+      return sinkNeedsReplay(user.uid);
+    } catch (_e) {
+      return false;
+    }
+  }
+
   async function playRemoteAudio(user, { force = false } = {}) {
     if (!user?.audioTrack) return false;
     if (!state.shouldHear()) return false;
@@ -133,11 +160,12 @@
       }
     } catch (_e2) {}
 
-    /* Already playing and track alive — do not re-play (avoids A/V desync) */
-    if (!force && user.audioTrack.isPlaying === true && !trackEnded(user)) {
+    const sinkBroken = sinkNeedsReplay(user.uid);
+    if (!force && !sinkBroken && user.audioTrack.isPlaying === true && !trackEnded(user)) {
       state.stats.skipHealthy += 1;
       return true;
     }
+    if (force || sinkBroken) state.stats.forceReplay += 1;
 
     const sink = getOrCreateSink(user.uid);
     if (sink) {
@@ -152,13 +180,36 @@
     try {
       const p = sink ? user.audioTrack.play(sink) : user.audioTrack.play();
       if (p && typeof p.then === 'function') await p;
+      if (sink) {
+        try {
+          sink.muted = false;
+          sink.defaultMuted = false;
+          sink.volume = 1;
+          sink.removeAttribute?.('muted');
+          if (sink.paused) {
+            const sp = sink.play?.();
+            if (sp && typeof sp.then === 'function') await sp.catch?.(() => {});
+          }
+        } catch (_sinkPlay) {}
+      }
+      if (sink && sink.paused) {
+        const mst = user.audioTrack.getMediaStreamTrack?.();
+        if (mst && mst.readyState !== 'ended') {
+          sink.srcObject = new MediaStream([mst]);
+          const playP = sink.play?.();
+          if (playP && typeof playP.then === 'function') await playP.catch?.(() => {});
+          state.stats.playOk += 1;
+          log('remote_audio_dom_fallback', { uid: user.uid, vol });
+          return !sink.paused;
+        }
+      }
       state.stats.playOk += 1;
+      state.quietTicks.set(String(user.uid), 0);
       log('remote_audio_play_ok', { uid: user.uid, vol, force });
       return true;
     } catch (err) {
       state.stats.playFail += 1;
       log('remote_audio_play_fail', { uid: user.uid, err: err?.message || String(err) });
-      /* Fallback: pipe MST into <audio> without cloning / Web Audio stack */
       try {
         const mst = user.audioTrack.getMediaStreamTrack?.();
         if (!mst || mst.readyState === 'ended' || !sink) return false;
@@ -191,14 +242,16 @@
         if (!el) return;
         el.muted = false;
         el.volume = 1;
+        if (el.paused) {
+          try {
+            el.play?.()?.catch?.(() => {});
+          } catch (_e4) {}
+        }
       });
     } catch (_e3) {}
     log('boost_all', { vol, remotes: client?.remoteUsers?.length || 0 });
   }
 
-  /**
-   * Ensure every remote with hasAudio is playing. Never unsubscribe.
-   */
   async function ensureAllRemoteAudio(client, { force = false } = {}) {
     if (!client || !state.shouldHear()) return false;
     const remotes = (client.remoteUsers || []).filter((u) => u.hasAudio || u.audioTrack);
@@ -207,7 +260,8 @@
       remotes.map(async (user) => {
         try {
           if (!user.audioTrack) return;
-          const ok = await playRemoteAudio(user, { force });
+          const needForce = force || sinkNeedsReplay(user.uid) || user.audioTrack.isPlaying === false;
+          const ok = await playRemoteAudio(user, { force: needForce });
           if (ok) any = true;
         } catch (_e) {}
       })
@@ -216,15 +270,17 @@
     return any;
   }
 
-  /**
-   * Destructive remount — ONLY when MediaStreamTrack is ended.
-   * Caller must provide subscribeFn(user) that re-subscribes audio.
-   */
+  async function meshRefresh(client) {
+    if (!client || !state.shouldHear()) return false;
+    log('mesh_refresh', { remotes: client.remoteUsers?.length || 0 });
+    return ensureAllRemoteAudio(client, { force: true });
+  }
+
   async function remountIfDead(user, subscribeFn) {
     if (!user || !trackEnded(user)) return false;
     const uid = String(user.uid);
     const last = state.remountAt.get(uid) || 0;
-    if (Date.now() - last < 15000) return false;
+    if (Date.now() - last < 12000) return false;
     state.remountAt.set(uid, Date.now());
     state.stats.remount += 1;
     log('remount_dead_track', { uid });
@@ -235,38 +291,52 @@
     return playRemoteAudio(user, { force: true });
   }
 
-  /**
-   * Single health loop — replaces overlapping silent/kickstart thrash.
-   */
   function startHealthWatch(getClient, opts = {}) {
-    const intervalMs = opts.intervalMs || 6000;
+    const baseInterval = opts.intervalMs || 4000;
     stopHealthWatch();
     state.healthTimer = global.setInterval(() => {
       try {
         if (global.document?.visibilityState === 'hidden') return;
-        if (Date.now() - state.lastHealthAt < 4000) return;
         const client = typeof getClient === 'function' ? getClient() : null;
         if (!client || !state.shouldHear()) return;
+        const remotes = (client.remoteUsers || []).filter((u) => u.hasAudio || u.audioTrack);
+        const busy = remotes.length >= 3;
+        const minGap = busy ? 2500 : 3500;
+        if (Date.now() - state.lastHealthAt < minGap) return;
         state.lastHealthAt = Date.now();
-        const remotes = client.remoteUsers || [];
+
         remotes.forEach((user) => {
-          if (!user.hasAudio && !user.audioTrack) return;
           if (trackEnded(user)) {
-            /* Caller may wire remount via onDeadTrack */
             if (typeof opts.onDeadTrack === 'function') opts.onDeadTrack(user);
             return;
           }
-          if (user.audioTrack && user.audioTrack.isPlaying === false) {
-            playRemoteAudio(user, { force: false }).catch(() => {});
-          } else if (user.audioTrack) {
+          if (!user.audioTrack) {
+            if (typeof opts.onMissingTrack === 'function') opts.onMissingTrack(user);
+            return;
+          }
+          const uid = String(user.uid);
+          const silent = trackLooksSilent(user);
+          if (silent) {
+            const ticks = (state.quietTicks.get(uid) || 0) + 1;
+            state.quietTicks.set(uid, ticks);
+            if (ticks >= 1) {
+              playRemoteAudio(user, { force: true }).catch(() => {});
+            }
+            if (ticks >= 3 && typeof opts.onStuckSilent === 'function') {
+              opts.onStuckSilent(user);
+              state.quietTicks.set(uid, 0);
+            }
+          } else {
+            state.quietTicks.set(uid, 0);
             try {
               user.audioTrack.setVolume?.(playbackVolume());
             } catch (_e) {}
           }
         });
+        if (busy || state.isPublisher) boostAll(client);
       } catch (_e) {}
-    }, intervalMs);
-    log('health_watch_start', { intervalMs });
+    }, baseInterval);
+    log('health_watch_start', { intervalMs: baseInterval });
   }
 
   function stopHealthWatch() {
@@ -284,6 +354,7 @@
     stopHealthWatch();
     clearAllSinks();
     state.remountAt.clear();
+    state.quietTicks.clear();
     log('engine_dispose');
   }
 
@@ -294,6 +365,7 @@
     playbackVolume,
     playRemoteAudio,
     ensureAllRemoteAudio,
+    meshRefresh,
     boostAll,
     remountIfDead,
     startHealthWatch,
@@ -303,6 +375,7 @@
     getStats,
     dispose,
     trackEnded,
+    trackLooksSilent,
   };
 
   global.APLiveMedia = api;

@@ -1,6 +1,6 @@
 const db = require('../config/database');
 const commissionService = require('./commissionService');
-const agencyService = require('./agencyService');
+const agencyTierService = require('./agencyTierService');
 
 function monthKey(d = new Date()) {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-01`;
@@ -29,47 +29,45 @@ async function recordRechargeVolume(agencyId, amountInr) {
   );
 }
 
+/**
+ * Evaluate Agent levels from last-30-day host + invited-agency earnings.
+ * Writes tier_code + live/match % onto agencies.
+ */
 async function evaluateAgencyLevels() {
-  const settings = await commissionService.getCommissionSettings();
-  const agencies = await db.query(`SELECT id, commission_percent FROM agencies WHERE status = 'active'`);
-  const results = [];
-
-  for (const agency of agencies.rows) {
-    const perf = await db.query(
-      `SELECT * FROM agency_performance WHERE agency_id = $1 AND period_month = $2`,
-      [agency.id, monthKey()]
+  const results = await agencyTierService.evaluateAllAgencyTiers();
+  for (const row of results) {
+    if (!row) continue;
+    await db.query(
+      `INSERT INTO agency_performance (agency_id, period_month, gift_revenue, creator_revenue, commission_level, target_met)
+       VALUES ($1, $2, $3, $3, $4, $5)
+       ON CONFLICT (agency_id, period_month)
+       DO UPDATE SET commission_level = EXCLUDED.commission_level,
+                     target_met = EXCLUDED.target_met,
+                     gift_revenue = GREATEST(agency_performance.gift_revenue, EXCLUDED.gift_revenue)`,
+      [
+        row.agency_id,
+        monthKey(),
+        row.earnings?.total || 0,
+        row.live_pct,
+        ['A', 'S'].includes(String(row.tier_code || '').toUpperCase()),
+      ]
     );
-    const row = perf.rows[0] || { gift_revenue: 0, recharge_volume_inr: 0 };
-    const revenue = Number(row.gift_revenue || 0);
-    const rechargeInr = Number(row.recharge_volume_inr || 0);
-    const score = revenue + rechargeInr * (await walletServiceSettings()).coins_per_inr;
-
-    let newLevel = 12;
-    if (score >= settings.upgrade_threshold_inr * 2) newLevel = 20;
-    else if (score >= settings.upgrade_threshold_inr) newLevel = 16;
-    else if (score < settings.downgrade_threshold_inr) newLevel = 12;
-
-    const current = Number(agency.commission_percent);
-    if (newLevel !== current) {
-      await commissionService.setAgencyCommissionLevel(agency.id, newLevel);
-      await db.query(
-        `UPDATE agency_performance SET commission_level = $1, target_met = $2
-         WHERE agency_id = $3 AND period_month = $4`,
-        [newLevel, newLevel >= 16, agency.id, monthKey()]
-      );
-      results.push({ agency_id: agency.id, from: current, to: newLevel });
-    }
   }
-  return results;
-}
-
-async function walletServiceSettings() {
-  const walletService = require('./walletService');
-  return walletService.getWalletSettings();
+  return results.map((r) =>
+    r
+      ? {
+          agency_id: r.agency_id,
+          tier: r.tier_code,
+          live_pct: r.live_pct,
+          earnings: r.earnings?.total || 0,
+        }
+      : null
+  );
 }
 
 async function refreshActiveCounts() {
-  await db.query(`
+  await db.query(
+    `
     UPDATE agency_performance ap SET
       active_workers = sub.c,
       active_creators = sub.creators
@@ -80,7 +78,9 @@ async function refreshActiveCounts() {
       FROM agency_members am GROUP BY am.agency_id
     ) sub
     WHERE ap.agency_id = sub.agency_id AND ap.period_month = $1
-  `, [monthKey()]);
+  `,
+    [monthKey()]
+  );
 }
 
 module.exports = {

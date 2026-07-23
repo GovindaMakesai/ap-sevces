@@ -533,6 +533,7 @@ const API = {
                 if (data.message) {
                     const err = new Error(data.message);
                     err.status = response.status;
+                    err.data = data.data || data;
                     throw err;
                 }
             }

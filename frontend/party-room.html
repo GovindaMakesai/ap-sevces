@@ -10,10 +10,10 @@
   <link rel="preload" href="https://download.agora.io/sdk/release/AgoraRTC_N-4.22.0.js" as="script">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" media="print" onload="this.media='all'">
   <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"></noscript>
-  <link rel="stylesheet" href="social-live.css?v=20260720-hide-tap-sound">
+  <link rel="stylesheet" href="social-live.css?v=20260723-lux-gifts">
   <link rel="stylesheet" href="social-live-session.css?v=20260718-safety">
   <link rel="stylesheet" href="social-live-ref-ui.css?v=20260718-safety">
-  <link rel="stylesheet" href="social-fx.css?v=20260718-safety">
+  <link rel="stylesheet" href="social-fx.css?v=20260723-lux-gifts">
   <style id="ap-immersive-critical">
     html.ap-live-immersive .social-bridge-header,
     html.ap-live-immersive #ap-bridge-header,
@@ -29,6 +29,33 @@
     html.ap-live-immersive body,
     html.ap-live-immersive.social-bridge-mode body,
     body[data-live-page] { padding: 0 !important; margin: 0 !important; background: #000 !important; overflow: hidden !important; }
+    .party-host-name-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+    }
+    .party-host-name-row .name {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .live-edit-presentation-btn {
+      flex: 0 0 auto;
+      width: 26px;
+      height: 26px;
+      border: 0;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.16);
+      color: #fff;
+      font-size: 11px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      padding: 0;
+    }
   </style>
   <script>
     document.documentElement.classList.add('ap-live-immersive');
@@ -135,7 +162,12 @@
       <div class="party-host">
         <img id="partyHostAvatar" alt="Host">
         <div class="party-host-meta">
-          <div class="name" id="partyHostName">Host</div>
+          <div class="party-host-name-row">
+            <div class="name" id="partyHostName">Host</div>
+            <button type="button" class="live-edit-presentation-btn" id="liveEditPresentationBtn" hidden title="Edit party name &amp; picture">
+              <i class="fas fa-pen"></i>
+            </button>
+          </div>
           <div class="sub"><span class="heart-stat">?? <span id="partyHearts">0</span></span> <span id="partyHostLabel">Voice party</span></div>
         </div>
         <button type="button" class="party-follow-btn" id="partyHostFollow" aria-label="Follow">+</button>
@@ -187,8 +219,8 @@
       <button type="button" class="party-host-action mod-tool" id="partyBtnClearChat" hidden><i class="fas fa-eraser"></i> Clear chat</button>
     </div>
 
-    <div class="party-invite-row" hidden style="display:none !important" aria-hidden="true">
-      <button type="button" class="party-event-pill" id="partyInvitePill" hidden>
+    <div class="party-invite-row">
+      <button type="button" class="party-event-pill" id="partyInvitePill">
         <span class="pill-title"><i class="fas fa-user-plus"></i> Invite friends</span>
         <span class="pill-sub">Tap to pick from your follows</span>
       </button>
@@ -297,12 +329,7 @@
       <h3 class="party-tools-title party-tools-title--games">Games</h3>
       <div class="party-tools-grid party-tools-grid-4">
         <button type="button" class="ap-tool-game" data-game="/games/crazy-fruit.html"><span class="ico" style="background:linear-gradient(135deg,#f59e0b,#b45309)">🍒</span>Crazy Fruit</button>
-        <button type="button" class="ap-tool-game" data-game="/games/food-roulette.html"><span class="ico" style="background:linear-gradient(135deg,#ec4899,#9d174d)">🍕</span>Food Roulette</button>
-        <button type="button" class="ap-tool-game" data-game="/games/roulette.html"><span class="ico" style="background:linear-gradient(135deg,#ef4444,#991b1b)">🎡</span>Roulette</button>
-        <button type="button" class="ap-tool-game" data-game="/games/greedy.html"><span class="ico" style="background:linear-gradient(135deg,#7c3aed,#4c1d95)">💎</span>Greedy</button>
-      </div>
-      <div class="party-tools-grid party-tools-grid-4 party-tools-row2">
-        <button type="button" class="ap-tool-game" data-game="/games/card-war.html"><span class="ico" style="background:linear-gradient(135deg,#22c55e,#14532d)">🃏</span>Card War</button>
+        <button type="button" class="ap-tool-game" data-game="/games/greedy.html"><span class="ico" style="background:linear-gradient(135deg,#7c3aed,#4c1d95)">💎</span>Krazy Khazana</button>
         <button type="button" class="ap-tool-game" data-game="/games/teen-patti.html"><span class="ico" style="background:linear-gradient(135deg,#8b5cf6,#4c1d95)">🃏</span>Teen Patti</button>
       </div>
       <h3 class="party-tools-title party-tools-title--features">Features Centre</h3>
@@ -341,12 +368,12 @@
   <script src="social-ui.js?v=20260718-perf"></script>
   <script src="social-interactions.js?v=20260718-perf"></script>
   <script src="auth-guard.js"></script>
-  <script src="social-fx.js?v=20260718-perf"></script>
-  <script src="live-emoji-data.js"></script>
+  <script src="social-fx.js?v=20260723-lux-gifts"></script>
+  <script src="live-emoji-data.js?v=20260723-lux-gifts"></script>
   <script src="social-shell.js?v=20260718-audio"></script>
   <script src="live-session-provider.js?v=20260718-perf"></script>
-  <script src="live-media-engine.js?v=20260720-audio-route"></script>
-  <script src="social-live.js?v=20260720-hide-tap-sound"></script>
+  <script src="live-media-engine.js?v=20260723-mesh-audio"></script>
+  <script src="social-live.js?v=20260723-lux-gifts"></script>
   <script src="social-nav.js?v=20260720-back-fix"></script>
 </body>
 </html>

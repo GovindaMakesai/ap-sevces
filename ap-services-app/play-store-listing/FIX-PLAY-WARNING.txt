@@ -1,0 +1,46 @@
+FIX THIS PLAY WARNING (it is usually correct)
+
+Google flagged your listing because screenshots / feature graphic look like
+marketing posters or stock photos — not the real app UI.
+
+DO NOT argue and submit as-is if you uploaded:
+- Star Host / Normal Host policy posters as phone screenshots
+- AI / stock model banners as feature graphic
+Those will often get rejected.
+
+────────────────────────────────────────
+What to upload instead
+────────────────────────────────────────
+
+1) Feature graphic (1024 × 500)
+   Use: Desktop\AP-Live-Play-Listing\feature-graphic-1024x500.jpg
+   (brand logo + AP LIVE SERVICE text — no stock photos)
+
+2) Phone screenshots (2–8 images, 9:16 preferred)
+   Take from the REAL app after login (phone or emulator):
+   - Explore / Live grid
+   - A live room (chat + gifts visible)
+   - Party room
+   - Profile / Me tab
+   - Wallet or gifts panel
+   - Rankings or Invite page
+   - Streamer Center (optional)
+
+   How on Android:
+   Open the installed app → open each screen → volume-down + power
+   (outside live rooms you can screenshot; live rooms are blocked on purpose)
+
+3) Tablet screenshots
+   Either remove 10-inch / 7-inch if not needed, or upload the same
+   real in-app screens (not posters).
+
+────────────────────────────────────────
+Then in Play Console
+────────────────────────────────────────
+Store listings → Default store listing
+→ Replace Feature graphic
+→ Replace Phone screenshots (delete poster images first)
+→ Save
+→ Send for review
+
+Name / short / full description you already set is fine for a live app.

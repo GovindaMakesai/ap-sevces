@@ -12,28 +12,52 @@
   const TOPIC_KINDS = ['topic', 'video', 'services', 'party', 'live', 'audio'];
 
   function topicThumb(i, label) {
-    return topicPlaceholder(i, label);
+    return topicCover(i, label);
   }
 
-  function topicPlaceholder(i, label) {
-    const shades = ['#e5e7eb', '#d1d5db', '#cbd5e1', '#9ca3af'];
-    const bg = shades[Number(i) % shades.length];
+  function topicCover(i, label) {
+    const palettes = [
+      ['#1e1b4b', '#7c3aed', '#f472b6'],
+      ['#0c4a6e', '#0284c7', '#38bdf8'],
+      ['#7c2d12', '#ea580c', '#fbbf24'],
+      ['#14532d', '#16a34a', '#86efac'],
+      ['#4c0519', '#db2777', '#fda4af'],
+      ['#312e81', '#6366f1', '#c4b5fd'],
+    ];
+    const icons = ['🎉', '💃', '🏠', '🎤', '✨', '🔥'];
+    const [c0, c1, c2] = palettes[Number(i) % palettes.length];
+    const icon = icons[Number(i) % icons.length];
     const title = String(label || 'Topic')
-      .slice(0, 16)
+      .replace(/^#/, '')
+      .slice(0, 22)
       .replace(/[<>&"]/g, '');
     const svg =
-      '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="500">' +
-      '<rect width="100%" height="100%" fill="' +
-      bg +
-      '"/>' +
-      '<rect x="130" y="170" width="140" height="100" rx="10" fill="#f9fafb" stroke="#d1d5db" stroke-width="2"/>' +
-      '<polygon points="185,195 185,245 225,220" fill="#9ca3af"/>' +
-      '<text x="200" y="320" text-anchor="middle" font-family="Arial,sans-serif" font-size="13" fill="#6b7280">' +
+      '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="500" viewBox="0 0 400 500">' +
+      '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">' +
+      '<stop offset="0%" stop-color="' + c0 + '"/>' +
+      '<stop offset="55%" stop-color="' + c1 + '"/>' +
+      '<stop offset="100%" stop-color="' + c2 + '"/>' +
+      '</linearGradient>' +
+      '<radialGradient id="glow" cx="70%" cy="20%" r="50%">' +
+      '<stop offset="0%" stop-color="#ffffff" stop-opacity="0.35"/>' +
+      '<stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>' +
+      '</radialGradient></defs>' +
+      '<rect width="400" height="500" fill="url(#g)"/>' +
+      '<rect width="400" height="500" fill="url(#glow)"/>' +
+      '<circle cx="320" cy="90" r="48" fill="rgba(255,255,255,0.12)"/>' +
+      '<circle cx="60" cy="420" r="70" fill="rgba(0,0,0,0.12)"/>' +
+      '<text x="200" y="210" text-anchor="middle" font-size="64">' + icon + '</text>' +
+      '<text x="200" y="280" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="22" font-weight="700" fill="#ffffff">' +
       title +
       '</text>' +
-      '<text x="200" y="345" text-anchor="middle" font-family="Arial,sans-serif" font-size="11" fill="#9ca3af">Coming soon</text>' +
+      '<text x="200" y="312" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="13" fill="rgba(255,255,255,0.85)">Tap to join</text>' +
       '</svg>';
     return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
+  }
+
+  /* keep old name for callers */
+  function topicPlaceholder(i, label) {
+    return topicCover(i, label);
   }
 
   function toast(msg, type) {
@@ -53,22 +77,76 @@
 
   function openIdb() {
     return new Promise((resolve, reject) => {
-      const req = indexedDB.open(IDB_NAME, 1);
-      req.onupgradeneeded = () => {
-        req.result.createObjectStore(IDB_STORE);
-      };
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
+      let done = false;
+      const timer = setTimeout(() => {
+        if (done) return;
+        done = true;
+        reject(new Error('Storage timed out — try again'));
+      }, 4000);
+      try {
+        const req = indexedDB.open(IDB_NAME, 1);
+        req.onupgradeneeded = () => {
+          try {
+            req.result.createObjectStore(IDB_STORE);
+          } catch (_e) { /* already exists */ }
+        };
+        req.onsuccess = () => {
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          resolve(req.result);
+        };
+        req.onerror = () => {
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          reject(req.error || new Error('Storage unavailable'));
+        };
+        req.onblocked = () => {
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          reject(new Error('Storage blocked — close other tabs and retry'));
+        };
+      } catch (e) {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        reject(e);
+      }
     });
   }
 
   async function saveBlob(id, blob) {
     const db = await openIdb();
     return new Promise((resolve, reject) => {
-      const tx = db.transaction(IDB_STORE, 'readwrite');
-      tx.objectStore(IDB_STORE).put(blob, id);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
+      let done = false;
+      const timer = setTimeout(() => {
+        if (done) return;
+        done = true;
+        reject(new Error('Save timed out'));
+      }, 8000);
+      try {
+        const tx = db.transaction(IDB_STORE, 'readwrite');
+        tx.objectStore(IDB_STORE).put(blob, id);
+        tx.oncomplete = () => {
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          resolve();
+        };
+        tx.onerror = () => {
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          reject(tx.error || new Error('Save failed'));
+        };
+      } catch (e) {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        reject(e);
+      }
     });
   }
 
@@ -96,35 +174,104 @@
     savePosts(posts);
   }
 
-  async function generateVideoThumb(file) {
+  function isPlaceholderThumb(url) {
+    const u = String(url || '').trim();
+    if (!u) return true;
+    if (/dicebear|ui-avatars|avatar\.svg/i.test(u)) return true;
+    /* Letter / initials SVG avatars must never be used as video posters */
+    if (u.startsWith('data:image/svg')) return true;
+    return false;
+  }
+
+  async function generateVideoThumb(file, seekAtSec) {
+    if (!file) return '';
+    const seekTo = Number(seekAtSec);
     return new Promise((resolve) => {
-      try {
-        const video = document.createElement('video');
-        video.preload = 'metadata';
-        video.muted = true;
-        video.playsInline = true;
-        const url = URL.createObjectURL(file);
-        video.onloadeddata = () => {
-          video.currentTime = Math.min(0.25, (video.duration || 1) * 0.05);
-        };
-        video.onseeked = () => {
-          const w = video.videoWidth || 720;
-          const h = video.videoHeight || 1280;
+      let settled = false;
+      let captureStarted = false;
+      const finish = (value) => {
+        if (settled) return;
+        settled = true;
+        try {
+          URL.revokeObjectURL(url);
+        } catch (_e) { /* ignore */ }
+        clearTimeout(timer);
+        resolve(value || '');
+      };
+
+      const video = document.createElement('video');
+      video.preload = 'auto';
+      video.muted = true;
+      video.playsInline = true;
+      video.setAttribute('playsinline', 'true');
+      video.setAttribute('webkit-playsinline', 'true');
+      const url = URL.createObjectURL(file);
+      const timer = setTimeout(() => finish(''), 2500);
+
+      const capture = () => {
+        if (settled) return;
+        try {
+          const w = video.videoWidth || 0;
+          const h = video.videoHeight || 0;
+          if (!w || !h) return;
+          const maxW = 480;
+          const scale = Math.min(1, maxW / w);
           const canvas = document.createElement('canvas');
-          canvas.width = w;
-          canvas.height = h;
-          canvas.getContext('2d').drawImage(video, 0, 0, w, h);
-          URL.revokeObjectURL(url);
-          resolve(canvas.toDataURL('image/jpeg', 0.82));
+          canvas.width = Math.max(1, Math.round(w * scale));
+          canvas.height = Math.max(1, Math.round(h * scale));
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            finish('');
+            return;
+          }
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          finish(canvas.toDataURL('image/jpeg', 0.72));
+        } catch (_e) {
+          finish('');
+        }
+      };
+
+      const seekAndCapture = () => {
+        if (captureStarted || settled) return;
+        captureStarted = true;
+        const dur = Number(video.duration);
+        let t = 0.15;
+        if (Number.isFinite(seekTo) && seekTo >= 0) t = seekTo;
+        else if (Number.isFinite(dur) && dur > 0) t = Math.min(0.35, Math.max(0.05, dur * 0.08));
+        const onSeeked = () => {
+          video.removeEventListener('seeked', onSeeked);
+          capture();
         };
-        video.onerror = () => {
-          URL.revokeObjectURL(url);
-          resolve('');
-        };
-        video.src = url;
-      } catch (_e) {
-        resolve('');
-      }
+        video.addEventListener('seeked', onSeeked);
+        try {
+          if (typeof video.fastSeek === 'function') video.fastSeek(t);
+          else video.currentTime = t;
+        } catch (_e) {
+          /* Some WebViews refuse seek — grab whatever frame is ready */
+          setTimeout(capture, 120);
+        }
+        /* seeked can be skipped on some Android WebViews */
+        setTimeout(() => {
+          if (!settled) capture();
+        }, 1200);
+      };
+
+      video.addEventListener('loadeddata', seekAndCapture, { once: true });
+      video.addEventListener('loadedmetadata', () => {
+        if (video.readyState >= 2) seekAndCapture();
+      }, { once: true });
+      video.onerror = () => finish('');
+      video.src = url;
+      try {
+        video.load();
+      } catch (_e) { /* ignore */ }
+      /* Kick decode on stubborn mobile WebViews */
+      video.play?.().then(() => {
+        try {
+          video.pause();
+        } catch (_e2) { /* ignore */ }
+        if (!settled) seekAndCapture();
+      }).catch(() => { /* autoplay blocked — loadeddata path still runs */ });
     });
   }
 
@@ -167,11 +314,21 @@
     if (post.imageData) return post.imageData;
     if (post.mediaId) {
       try {
+        const mem = window.__apSessionMedia?.[post.mediaId];
+        if (mem) return URL.createObjectURL(mem);
+      } catch (_e0) { /* ignore */ }
+      try {
         const blob = await loadBlob(post.mediaId);
-        if (blob) return URL.createObjectURL(blob);
+        if (blob) {
+          window.__apSessionMedia = window.__apSessionMedia || {};
+          window.__apSessionMedia[post.mediaId] = blob;
+          return URL.createObjectURL(blob);
+        }
       } catch (_e) {}
     }
-    return post.image || post.thumb || (window.SocialUI ? SocialUI.avatarUrl(post.userName) : '');
+    if (post.image) return post.image;
+    if (post.thumb && !isPlaceholderThumb(post.thumb)) return post.thumb;
+    return '';
   }
 
   function blobToBase64(blob) {
@@ -197,19 +354,27 @@
       const res = await API.get('/social/posts');
       if (res.success && Array.isArray(res.data)) {
         return res.data.map((p) => {
+          const mediaUrl = resolveMediaUrl(p.media_url || p.mediaUrl);
+          const thumbUrl = resolveMediaUrl(p.thumb_url || p.thumbUrl);
+          const mediaType = String(p.media_type || p.mediaType || '').toLowerCase();
+          const isVideo =
+            mediaType === 'video' || isVideoMediaUrl(mediaUrl);
           const mapped = {
             id: p.id,
             userId: p.user_id,
             userName: `${p.author?.first_name || ''} ${p.author?.last_name || ''}`.trim() || 'User',
             text: p.body,
             caption: p.body,
-            image: p.media_url,
+            image: mediaUrl,
+            thumb: thumbUrl || (!isVideo ? mediaUrl : ''),
             likes: p.like_count || 0,
             comments: p.comment_count || 0,
+            shares: p.share_count || 0,
             liked: !!p.liked,
             createdAt: p.created_at,
+            visibility: p.visibility || 'public',
             fromApi: true,
-            isVideo: isVideoMediaUrl(p.media_url),
+            isVideo,
           };
           if (mapped.liked) setLike(mapped.id, true);
           return mapped;
@@ -219,6 +384,78 @@
       /* fallback */
     }
     return [];
+  }
+
+  function resolveMediaUrl(path) {
+    if (!path) return '';
+    const p = String(path).trim();
+    if (!p) return '';
+    if (/^(https?:|data:|blob:)/i.test(p)) return p;
+    if (window.SocialShell?.getImageUrl) {
+      const built = SocialShell.getImageUrl(p);
+      if (built) return built;
+    }
+    const base = String(
+      window.CONFIG?.BACKEND_URL ||
+        String(window.CONFIG?.API_URL || '').replace(/\/api\/?$/, '') ||
+        ''
+    ).replace(/\/$/, '');
+    return base ? base + (p.startsWith('/') ? p : `/${p}`) : p;
+  }
+
+  async function uploadSocialMediaFile(file, progressLabel) {
+    if (!window.API?.upload) throw new Error('Upload unavailable — please refresh');
+    if (!file) throw new Error('No file selected');
+    const fd = new FormData();
+    fd.append('media', file, file.name || (String(file.type || '').startsWith('video/') ? 'clip.mp4' : 'photo.jpg'));
+    try {
+      if (progressLabel) {
+        const prog = document.getElementById('socialCreateProgress');
+        if (prog) {
+          prog.style.display = 'block';
+          prog.textContent = progressLabel;
+        }
+      }
+    } catch (_e) { /* ignore */ }
+    const res = await API.upload('/social/posts/media', fd);
+    const data = res?.data?.data || res?.data || res;
+    const url = data?.mediaUrl || data?.url;
+    if (!url) throw new Error(res?.message || 'Media upload failed');
+    return {
+      url: resolveMediaUrl(url),
+      path: url,
+      mediaType: data.mediaType || (String(file.type || '').startsWith('video/') ? 'video' : 'image'),
+    };
+  }
+
+  async function uploadThumbDataUrl(dataUrl) {
+    if (!dataUrl || !String(dataUrl).startsWith('data:image')) return null;
+    try {
+      const blob = await (await fetch(dataUrl)).blob();
+      const uploaded = await uploadSocialMediaFile(
+        new File([blob], 'thumb.jpg', { type: blob.type || 'image/jpeg' }),
+        'Uploading thumbnail…'
+      );
+      return uploaded.path || uploaded.url;
+    } catch (_e) {
+      return null;
+    }
+  }
+
+  async function createApiPost({ caption, visibility, mediaPath, thumbPath, mediaType }) {
+    if (!window.API?.post) throw new Error('Not connected — please log in again');
+    const res = await API.post('/social/posts', {
+      body: caption || '',
+      caption: caption || '',
+      mediaUrl: mediaPath || null,
+      thumbUrl: thumbPath || null,
+      mediaType: mediaType || (mediaPath ? 'image' : 'none'),
+      visibility: visibility === 'private' ? 'private' : 'public',
+    });
+    if (!res?.success && !res?.data) {
+      throw new Error(res?.message || 'Could not save post to server');
+    }
+    return res.data || res;
   }
 
   function sortPostsNewest(posts) {
@@ -243,7 +480,25 @@
   }
 
   function savePosts(posts) {
-    localStorage.setItem(POSTS_KEY, JSON.stringify(posts.slice(0, 50)));
+    const list = posts.slice(0, 50);
+    try {
+      localStorage.setItem(POSTS_KEY, JSON.stringify(list));
+      return;
+    } catch (_e) {
+      /* Quota — drop heavy thumbs/imageData on older posts */
+      try {
+        const slim = list.map((p, i) => {
+          if (i === 0) return p;
+          const copy = { ...p };
+          if (copy.thumb && String(copy.thumb).length > 80000) copy.thumb = '';
+          if (copy.imageData && String(copy.imageData).length > 80000) delete copy.imageData;
+          return copy;
+        });
+        localStorage.setItem(POSTS_KEY, JSON.stringify(slim));
+      } catch (_e2) {
+        console.warn('[social] could not save posts', _e2);
+      }
+    }
   }
 
   function getLikes() {
@@ -838,6 +1093,22 @@
       await saveBlob(mediaId, blob);
       return mediaId;
     } catch (e) {
+      /* IndexedDB often flakes after reinstall — fall back to in-memory / smaller path */
+      console.warn('[social] idb save failed, using inline media', e?.message || e);
+      if (blob && blob.type && String(blob.type).startsWith('video/')) {
+        /* Large videos can't live in localStorage — keep a blob URL for this session only */
+        try {
+          const sessionKey = `ap_session_media_${mediaId}`;
+          window.__apSessionMedia = window.__apSessionMedia || {};
+          window.__apSessionMedia[mediaId] = blob;
+          try {
+            sessionStorage.setItem(sessionKey, '1');
+          } catch (_s) { /* ignore */ }
+          return mediaId;
+        } catch (_e2) {
+          throw new Error('Could not save video on this device. Reopen the app and try a shorter clip.');
+        }
+      }
       const b64 = await blobToBase64(blob);
       if (b64.length > 3_500_000) {
         throw new Error('File is too large for this device. Try a smaller photo or shorter video (under 3 MB).');
@@ -852,60 +1123,100 @@
     }
     const opts = options || {};
     const user = window.Auth?.getUser?.();
-    const id = Date.now();
-    const post = {
-      id,
-      caption: caption || '',
-      visibility,
-      userName: user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'You' : 'You',
-      userId: user?.id || 'me',
-      minsAgo: 0,
-      likes: 0,
-      comments: 0,
-      gifts: 0,
-      shares: 0,
-      isVideo: false,
-      mediaId: null,
-      imageData: null,
-      thumb: window.SocialUI ? SocialUI.avatarUrl(user?.first_name || 'You') : '',
-    };
+    if (!user?.id && !localStorage.getItem('token') && !localStorage.getItem('accessToken')) {
+      throw new Error('Please log in to post.');
+    }
+
+    let mediaPath = null;
+    let thumbPath = null;
+    let mediaType = 'none';
+    let localThumb = '';
+    let isVideo = false;
 
     if (file) {
-      post.isVideo = file.type.startsWith('video/');
-      if (post.isVideo && file.size > 12 * 1024 * 1024) {
+      isVideo = String(file.type || '').startsWith('video/');
+      if (isVideo && file.size > 12 * 1024 * 1024) {
         throw new Error('Video must be under 12 MB. Trim the clip or pick a shorter one.');
       }
-      if (post.isVideo && opts.trimEnd != null && opts.trimStart != null) {
+      if (isVideo && opts.trimEnd != null && opts.trimStart != null) {
         const len = Number(opts.trimEnd) - Number(opts.trimStart);
         if (len > 10.5) throw new Error('Video clip must be 10 seconds or less.');
-        post.trimStart = Number(opts.trimStart);
-        post.trimEnd = Number(opts.trimEnd);
       }
-      let blob = file;
-      if (!post.isVideo && !opts.skipCompress) blob = await compressImage(file, 800);
-      const mediaId = 'media-' + id;
-      const stored = await storeMediaBlob(mediaId, blob);
-      if (typeof stored === 'string') {
-        post.mediaId = stored;
-      } else {
-        post.imageData = stored.imageData;
+
+      let uploadFile = file;
+      if (!isVideo && !opts.skipCompress) {
+        try {
+          uploadFile = await compressImage(file, 1280);
+        } catch (_e) {
+          uploadFile = file;
+        }
       }
-      if (post.isVideo) {
-        generateVideoThumb(file).then((thumb) => {
-          if (!thumb) return;
-          const posts = getPosts();
-          const p = posts.find((x) => String(x.id) === String(id));
-          if (p) {
-            p.thumb = thumb;
-            savePosts(posts);
-          }
-        });
-      } else if (!post.thumb || post.thumb.includes('dicebear')) {
-        post.thumb = post.imageData || post.thumb;
+
+      if (isVideo) {
+        const seekAt =
+          opts.trimStart != null && Number.isFinite(Number(opts.trimStart))
+            ? Number(opts.trimStart) + 0.12
+            : undefined;
+        try {
+          localThumb = await Promise.race([
+            generateVideoThumb(file, seekAt),
+            new Promise((r) => setTimeout(() => r(''), 2000)),
+          ]);
+        } catch (_e) {
+          localThumb = '';
+        }
+        if (isPlaceholderThumb(localThumb)) localThumb = '';
+      }
+
+      const uploaded = await uploadSocialMediaFile(
+        uploadFile,
+        isVideo ? 'Uploading video…' : 'Uploading photo…'
+      );
+      mediaPath = uploaded.path;
+      mediaType = uploaded.mediaType || (isVideo ? 'video' : 'image');
+
+      if (isVideo && localThumb) {
+        thumbPath = await uploadThumbDataUrl(localThumb);
       }
     }
 
-    const posts = getPosts();
+    const apiPost = await createApiPost({
+      caption,
+      visibility,
+      mediaPath,
+      thumbPath,
+      mediaType,
+    });
+
+    const mediaUrl = resolveMediaUrl(apiPost.media_url || mediaPath);
+    const thumbUrl = resolveMediaUrl(apiPost.thumb_url || thumbPath) || localThumb || (!isVideo ? mediaUrl : '');
+    const post = {
+      id: apiPost.id || Date.now(),
+      caption: apiPost.body || caption || '',
+      visibility: apiPost.visibility || visibility || 'public',
+      userName:
+        `${apiPost.author?.first_name || ''} ${apiPost.author?.last_name || ''}`.trim() ||
+        (user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : '') ||
+        'You',
+      userId: apiPost.user_id || user?.id || 'me',
+      minsAgo: 0,
+      likes: apiPost.like_count || 0,
+      comments: apiPost.comment_count || 0,
+      gifts: 0,
+      shares: apiPost.share_count || 0,
+      isVideo: mediaType === 'video' || isVideo,
+      mediaId: null,
+      imageData: null,
+      image: mediaUrl,
+      thumb: thumbUrl,
+      fromApi: true,
+      createdAt: apiPost.created_at || new Date().toISOString(),
+    };
+    if (opts.trimStart != null) post.trimStart = Number(opts.trimStart);
+    if (opts.trimEnd != null) post.trimEnd = Number(opts.trimEnd);
+
+    /* Keep a local cache copy for instant UI; server is source of truth */
+    const posts = getPosts().filter((p) => String(p.id) !== String(post.id));
     posts.unshift(post);
     savePosts(posts);
     return post;
@@ -1166,7 +1477,7 @@
         trimEnd: p.trimEnd,
         liked: isLiked(p.id, p),
         mediaUrl: await getMediaUrl(p),
-        thumb: p.thumb || (await getMediaUrl(p)),
+        thumb: !isPlaceholderThumb(p.thumb) ? p.thumb : '',
         workerId: null,
       }))
     );
@@ -1207,9 +1518,14 @@
     const likeCount = document.getElementById('likeCount');
 
     if (avatar) {
+      const profilePic =
+        (window.Auth?.getUser?.()?.id &&
+          String(item.userId) === String(window.Auth.getUser().id) &&
+          (window.Auth.getUser().profile_pic || window.Auth.getUser().profilePic)) ||
+        null;
       avatar.src = window.SocialUI
-        ? SocialUI.avatarUrl(item.name, item.thumb || item.mediaUrl)
-        : item.thumb || item.mediaUrl;
+        ? SocialUI.avatarUrl(item.name, profilePic)
+        : '';
       avatar.alt = item.name || 'Creator';
     }
     if (name) {
@@ -1545,14 +1861,15 @@
     const html = await Promise.all(
       posts.map(async (p) => {
         const url = p.demo ? p.image : await getMediaUrl(p);
-        const thumbUrl = p.thumb || url;
+        let thumbUrl = !isPlaceholderThumb(p.thumb) ? p.thumb : '';
+        if (!thumbUrl && !postIsVideo(p) && url && !isPlaceholderThumb(url)) thumbUrl = url;
         const user = window.Auth?.getUser?.();
         const isOwner =
           !p.demo &&
           user &&
           (String(p.userId) === String(user.id) || p.userId === 'me' || String(p.userId) === String(user.email));
         const media = postIsVideo(p)
-          ? `<video src="${url}" playsinline muted poster="${thumbUrl || ''}"${videoTagAttrs(p)}></video>`
+          ? `<video src="${url}" playsinline muted preload="metadata" poster="${thumbUrl || ''}"${videoTagAttrs(p)}></video>`
           : `<img src="${url || SocialShell?.avatarFallback(p.userName)}" alt="">`;
         const liked = !p.demo && isLiked(p.id, p);
         const openReel = !p.demo && postHasMedia(p) ? ' data-open-reel="1"' : '';
@@ -1571,7 +1888,7 @@
           <button type="button" class="social-act-btn" data-act="share" data-id="${p.id}"><i class="far fa-paper-plane"></i> <span>${p.shares || 0}</span></button>
         </div>
         <a class="social-post-user" href="${profileUrl({ userName: p.userName, userId: p.userId })}">
-          <img src="${SocialShell?.avatarFallback(p.userName) || thumbUrl}" alt="">
+          <img src="${SocialShell?.avatarFallback(p.userName) || (window.SocialUI?.avatarUrl?.(p.userName) || '')}" alt="">
           <div>
             <div class="social-post-user-name">${escapeHtml(p.userName)} 🇮🇳</div>
             <div class="social-post-caption">${escapeHtml(p.caption || '')}</div>
@@ -1581,6 +1898,47 @@
       })
     );
     feed.innerHTML = html.join('');
+
+    /* Backfill missing video posters from the first decoded frame */
+    feed.querySelectorAll('.social-post-media video').forEach((vid) => {
+      if (vid.getAttribute('poster')) return;
+      const fillPoster = () => {
+        try {
+          if (!vid.videoWidth) return;
+          const canvas = document.createElement('canvas');
+          const scale = Math.min(1, 360 / vid.videoWidth);
+          canvas.width = Math.round(vid.videoWidth * scale);
+          canvas.height = Math.round(vid.videoHeight * scale);
+          canvas.getContext('2d').drawImage(vid, 0, 0, canvas.width, canvas.height);
+          const data = canvas.toDataURL('image/jpeg', 0.7);
+          vid.setAttribute('poster', data);
+          const postId = vid.closest('[data-post-id]')?.dataset?.postId;
+          if (postId && data) {
+            const posts = getPosts();
+            const p = posts.find((x) => String(x.id) === String(postId));
+            if (p && isPlaceholderThumb(p.thumb)) {
+              p.thumb = data;
+              savePosts(posts);
+            }
+          }
+        } catch (_e) { /* ignore */ }
+      };
+      const onMeta = () => {
+        const t = Math.min(0.2, (vid.duration || 1) * 0.05);
+        const onSeeked = () => {
+          vid.removeEventListener('seeked', onSeeked);
+          fillPoster();
+        };
+        vid.addEventListener('seeked', onSeeked);
+        try {
+          vid.currentTime = t;
+        } catch (_e) {
+          fillPoster();
+        }
+      };
+      if (vid.readyState >= 2) onMeta();
+      else vid.addEventListener('loadeddata', onMeta, { once: true });
+    });
 
     feed.querySelectorAll('[data-delete-post]').forEach((btn) => {
       btn.addEventListener('click', async (e) => {
@@ -1693,9 +2051,9 @@
           ${[0, 1, 2, 3]
             .map(
               (n) =>
-                `<button type="button" class="thumb social-topic-thumb-placeholder" data-go-video data-topic="${ti}">
-                  <img src="${topicThumb(ti * 4 + n, 'Clip')}" alt="" loading="lazy" onerror="this.src='${fallbackThumb}'">
-                  <i class="fas fa-image"></i>
+                `<button type="button" class="thumb social-topic-thumb-card" data-go-video data-topic="${ti}">
+                  <img src="${topicThumb(ti * 4 + n, t.title)}" alt="" loading="lazy" onerror="this.src='${fallbackThumb}'">
+                  <i class="fas fa-play"></i>
                 </button>`
             )
             .join('')}

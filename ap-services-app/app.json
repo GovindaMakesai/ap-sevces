@@ -1,9 +1,9 @@
 {
   "expo": {
-    "name": "AP Services",
+    "name": "AP Live Service",
     "slug": "ap-services-app",
     "scheme": "apservices",
-    "version": "1.0.24",
+    "version": "1.0.28",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -11,7 +11,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#000000"
     },
     "ios": {
       "supportsTablet": true,
@@ -22,7 +22,7 @@
     },
     "android": {
       "package": "com.apservices.app",
-      "versionCode": 40,
+      "versionCode": 44,
       "usesCleartextTraffic": true,
       "permissions": [
         "android.permission.CAMERA",
@@ -40,7 +40,7 @@
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
       "intentFilters": [
@@ -61,7 +61,17 @@
     },
     "plugins": [
       "expo-web-browser",
-      "./plugins/with-secure-live-capture.js"
+      "./plugins/with-secure-live-capture.js",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "extraProguardRules": "-keep class com.facebook.react.** { *; }\n-keep class com.facebook.hermes.** { *; }\n-keep class com.swmansion.** { *; }\n-keep class expo.modules.** { *; }\n-keep class com.reactnativecommunity.webview.** { *; }\n-keepclassmembers class * { @com.facebook.react.uimanager.annotations.ReactProp <methods>; }\n-keepclassmembers class * { @com.facebook.react.uimanager.annotations.ReactPropGroup <methods>; }\n-dontwarn com.facebook.react.**\n-dontwarn expo.modules.**\n"
+          }
+        }
+      ]
     ],
     "extra": {
       "client": {

@@ -1,10 +1,16 @@
 const db = require('../../../config/database');
 const walletService = require('../../../services/walletService');
+const settings = require('./settingsService');
 
 const ACTIVE_REWARD_STATUSES = ['pending', 'scheduled', 'approved', 'paid'];
 
 /** Face-verify / signup base types — permanently blocked. Points only via stream missions (2h+). */
 const BLOCKED_FACE_REWARD_TYPES = new Set(['validated', 'host_convert', 'signup', 'bonus']);
+
+async function inviteRewardsEnabled() {
+  const v = await settings.getSetting('invite_rewards_enabled', false);
+  return v === true || v === 'true' || v === 1 || v === '1';
+}
 
 /**
  * Invite rewards credit POINTS (star_balance), never spendable NR coins.
@@ -22,6 +28,7 @@ async function createReward({
   client = null,
 }) {
   const q = client || db;
+  if (!(await inviteRewardsEnabled())) return null;
   const type = String(rewardType || '').toLowerCase();
   if (BLOCKED_FACE_REWARD_TYPES.has(type)) {
     /* Strict: never create face/download invite point rows */
@@ -97,6 +104,9 @@ async function payReward(rewardId, { client = null, force = false } = {}) {
     const res = await c.query(`SELECT * FROM referral_rewards WHERE id = $1 FOR UPDATE`, [rewardId]);
     const reward = res.rows[0];
     if (!reward) throw new Error('Reward not found');
+    if (!(await inviteRewardsEnabled())) {
+      throw new Error('Invite rewards are temporarily disabled');
+    }
     if (BLOCKED_FACE_REWARD_TYPES.has(String(reward.reward_type || '').toLowerCase())) {
       await c.query(
         `UPDATE referral_rewards SET status = 'rejected', updated_at = CURRENT_TIMESTAMP,
@@ -250,6 +260,9 @@ async function collapseDuplicatePending(userId) {
 }
 
 async function claimPendingForUser(userId) {
+  if (!(await inviteRewardsEnabled())) {
+    return [];
+  }
   await collapseDuplicatePending(userId);
 
   /* Kill any leftover face-verify rows before Receive can pay them */
@@ -289,6 +302,7 @@ async function claimPendingForUser(userId) {
 module.exports = {
   createReward,
   payReward,
+  inviteRewardsEnabled,
   processDueScheduled,
   approveReward,
   rejectReward,

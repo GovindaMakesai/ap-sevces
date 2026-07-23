@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -312,7 +312,7 @@
       background: radial-gradient(circle at 50% 40%, rgba(148, 163, 184, 0.12), rgba(4, 10, 28, 0.94) 55%);
     }
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-    .win-card { text-align: center; max-width: 320px; width: 100%; position: relative; }
+    .win-card { text-align: center; max-width: 360px; width: 100%; position: relative; }
     .win-emoji {
       width: 120px; height: 120px; border-radius: 50%; margin: 0 auto 14px;
       background: radial-gradient(circle, #fff 0%, rgba(255, 255, 255, 0.12) 70%);
@@ -347,6 +347,26 @@
     }
     .win-detail { font-size: 0.92rem; color: rgba(255, 255, 255, 0.82); margin: 4px 0; }
     .win-prize { font-size: 1.2rem; font-weight: 900; color: #fbbf24; margin-top: 8px; }
+    .win-betline { font-size: 0.82rem; color: rgba(255,255,255,0.65); margin-top: 2px; }
+    .top-winners-title {
+      text-align: center; color: #fbbf24; font-weight: 900; margin: 14px 0 10px;
+      border-top: 1px solid rgba(251,191,36,0.3); padding-top: 10px; font-size: 0.9rem;
+    }
+    .podium { display: flex; align-items: flex-end; justify-content: center; gap: 10px; min-height: 110px; }
+    .pod { text-align: center; width: 30%; }
+    .pod .av {
+      width: 48px; height: 48px; border-radius: 50%; margin: 0 auto 6px;
+      background: rgba(255,255,255,0.12); border: 3px solid rgba(255,255,255,0.35);
+      display: flex; align-items: center; justify-content: center; font-size: 1.3rem; position: relative;
+    }
+    .pod.p1 .av { width: 64px; height: 64px; border-color: #fbbf24; }
+    .pod.p2 .av { border-color: #93c5fd; }
+    .pod.p3 .av { border-color: #f9a8d4; }
+    .pod .crown { position: absolute; top: -14px; left: 50%; transform: translateX(-50%); font-size: 0.85rem; }
+    .pod .nm { font-size: 0.62rem; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pod .pr { font-size: 0.68rem; color: #fde68a; font-weight: 900; }
+    .pod .bt { font-size: 0.55rem; color: rgba(255,255,255,0.6); }
+    .podium-empty { width: 100%; text-align: center; color: rgba(255,255,255,0.55); font-size: 0.82rem; padding: 14px 8px; font-weight: 700; }
     .win-next { font-size: 0.72rem; color: rgba(255, 255, 255, 0.5); margin-top: 16px; }
 
     .confetti { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 9997; }
@@ -373,6 +393,9 @@
     }
     .panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
     .panel-head h3 { color: #fde68a; font-size: 1rem; }
+    .lb-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+    .lb-tab { flex: 1; padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(255,255,255,.12); background: rgba(0,0,0,.2); color: #cbd5e1; font-weight: 800; font-size: .78rem; }
+    .lb-tab.active { background: rgba(251,191,36,.18); color: #fde68a; border-color: rgba(251,191,36,.35); }
     .close-btn {
       background: rgba(255, 255, 255, 0.1); border: 0; color: #fff;
       width: 32px; height: 32px; border-radius: 50%; cursor: pointer;
@@ -432,6 +455,9 @@
       <div class="win-emoji" id="winEmoji">🍒</div>
       <div class="win-detail" id="winDetail"></div>
       <div class="win-prize" id="winPrize"></div>
+      <div class="win-betline" id="winBetLine"></div>
+      <div class="top-winners-title">Top Winner</div>
+      <div class="podium" id="podium"></div>
       <div class="win-next" id="winNext">Next round in 4s</div>
     </div>
   </div>
@@ -451,7 +477,11 @@
 
   <div class="panel-mask" id="rankMask">
     <div class="panel">
-      <div class="panel-head"><h3>Top winners</h3><button type="button" class="close-btn" data-close="rankMask">✕</button></div>
+      <div class="panel-head"><h3>Rankings</h3><button type="button" class="close-btn" data-close="rankMask">✕</button></div>
+      <div class="lb-tabs">
+        <button type="button" class="lb-tab active" data-lb-tab="players">Top players</button>
+        <button type="button" class="lb-tab" data-lb-tab="rounds">Big wins</button>
+      </div>
       <div class="list" id="leaderboardList"><div class="card muted">Loading…</div></div>
     </div>
   </div>
@@ -511,6 +541,7 @@
   var roundLocked = false;
   var pending = {};
   var soundOn = true;
+  var lbMode = 'players';
 
   function post(o) {
     try {
@@ -540,6 +571,10 @@
   function totalBet() {
     return Object.keys(bets).reduce(function (s, k) { return s + Number(bets[k] || 0); }, 0);
   }
+  function displayCoins() {
+    if (roundLocked || spinning) return coins;
+    return Math.max(0, coins - totalBet());
+  }
   function fruitDisplay(win) {
     if (!win || !win.name) return { emoji: '', name: '' };
     for (var i = 0; i < FRUITS.length; i++) {
@@ -549,7 +584,7 @@
   }
 
   function updateHud() {
-    document.getElementById('coins').textContent = fmt(coins);
+    document.getElementById('coins').textContent = fmt(displayCoins());
     document.getElementById('todayWin').textContent = fmt(todayWin);
   }
 
@@ -707,6 +742,7 @@
     }
     bets[backendIdx] = Number(bets[backendIdx] || 0) + chip;
     renderCells();
+    updateHud();
     var fruit = FRUITS[CELLS[uiIdx].fruit];
     setStatus('Added ' + fmt(chip) + ' on ' + fruit.emoji + ' ' + fruit.name);
   }
@@ -764,6 +800,32 @@
     setTimeout(function () { root.innerHTML = ''; }, 3200);
   }
 
+  function renderPodium(rows) {
+    var podium = document.getElementById('podium');
+    if (!podium) return;
+    rows = (rows || []).slice(0, 3);
+    if (!rows.length) {
+      podium.innerHTML = '<div class="podium-empty">No one played or bet this round</div>';
+      return;
+    }
+    var order = rows.length >= 3 ? [1, 0, 2] : rows.map(function (_r, i) { return i; });
+    var html = '';
+    order.forEach(function (idx) {
+      var r = rows[idx];
+      var place = idx + 1;
+      if (!r) {
+        html += '<div class="pod p' + place + '"></div>';
+        return;
+      }
+      html += '<div class="pod p' + place + '"><div class="av">' +
+        (place === 1 ? '<span class="crown">👑</span>' : place === 2 ? '<span class="crown">🥈</span>' : place === 3 ? '<span class="crown">🥉</span>' : '') +
+        '👤</div><div class="nm">' + (r.display_name || 'Player') + '</div>' +
+        '<div class="pr">💎 ' + fmt(r.payout_amount) + '</div>' +
+        '<div class="bt">Bet: ' + fmt(r.bet_amount) + '</div></div>';
+    });
+    podium.innerHTML = html;
+  }
+
   function showWinOverlay(data, wager) {
     var winning = fruitDisplay(data.winning_fruit || {});
     var payout = Number(data.payout || 0);
@@ -777,10 +839,28 @@
     document.getElementById('winDetail').textContent =
       (winning.emoji || '') + ' ' + (winning.name || 'Fruit') +
       (didWin ? (' ×' + Number(data.mult || 0)) : ' landed');
-    document.getElementById('winPrize').textContent = didWin
-      ? ('+' + fmt(payout) + ' coins')
-      : ('Wager ' + fmt(wager) + ' lost');
+    document.getElementById('winPrize').textContent = 'Your Prize: 💎 ' + fmt(payout);
+    document.getElementById('winBetLine').textContent = 'Your Bet: 💎 ' + fmt(wager || 0);
     if (didWin) burstConfetti();
+
+    var rows = [];
+    if (data.players && data.players.length) {
+      rows = data.players.map(function (p) {
+        return {
+          display_name: p.display_name || ('ID ' + (p.display_id || '')),
+          payout_amount: Number(p.payout != null ? p.payout : p.payout_amount || 0),
+          bet_amount: Number(p.total_bet != null ? p.total_bet : p.bet_amount || 0)
+        };
+      });
+    } else if (Number(wager || 0) > 0) {
+      rows = [{ display_name: 'You', payout_amount: payout, bet_amount: Number(wager || 0) }];
+    }
+    rows.sort(function (a, b) {
+      return Number(b.payout_amount || 0) - Number(a.payout_amount || 0) ||
+        Number(b.bet_amount || 0) - Number(a.bet_amount || 0);
+    });
+    renderPodium(rows);
+
     mask.classList.add('open');
     var sec = 4;
     var nextEl = document.getElementById('winNext');
@@ -828,6 +908,8 @@
       return;
     }
     var wager = totalBet();
+    coins = Math.max(0, coins - wager);
+    updateHud();
     setWaiting();
     setStatus('Spinning… good luck!');
     makeRequest('GAME_PLAY', { pick: { bets: rows } }).then(function (data) {
@@ -846,6 +928,8 @@
         showWinOverlay(data, wager);
       });
     }).catch(function (err) {
+      coins = Math.max(0, coins + wager);
+      updateHud();
       spinning = false;
       roundLocked = false;
       setStatus(err.message || 'Play failed');
@@ -880,15 +964,27 @@
       root.innerHTML = '<div class="card muted">No winners yet.</div>';
       return;
     }
+    if (lbMode === 'players') {
+      root.innerHTML = rows.map(function (row, idx) {
+        return '<div class="card leader-row"><div style="display:flex;align-items:center;gap:8px"><div class="rank-badge">' + (idx + 1) + '</div><div><div style="font-weight:900">' + (row.display_name || ('ID ' + row.display_id)) + '</div><div class="muted">' + fmt(row.win_rounds || 0) + ' wins · best ' + fmt(row.best_win || 0) + '</div></div></div><div style="font-weight:900;color:#fde68a">' + fmt(row.total_won || 0) + '</div></div>';
+      }).join('');
+      return;
+    }
     root.innerHTML = rows.map(function (row, idx) {
       var win = fruitDisplay(row.winning_fruit);
-      return '<div class="card leader-row"><div style="display:flex;align-items:center;gap:8px"><div class="rank-badge">' + (idx + 1) + '</div><div><div style="font-weight:900">' + (row.display_name || ('ID ' + row.display_id)) + '</div><div class="muted">' + (win.emoji || '') + ' Round ' + row.round_code + '</div></div></div><div style="font-weight:900;color:#fde68a">' + fmt(row.payout_amount) + '</div></div>';
+      return '<div class="card leader-row"><div style="display:flex;align-items:center;gap:8px"><div class="rank-badge">' + (idx + 1) + '</div><div><div style="font-weight:900">' + (row.display_name || ('ID ' + row.display_id)) + '</div><div class="muted">Round ' + row.round_code + '</div></div></div><div style="font-weight:900;color:#fde68a">' + fmt(row.payout_amount) + '</div></div>';
     }).join('');
+  }
+
+  function loadLeaderboard() {
+    makeRequest('GAME_LEADERBOARD_REQUEST', { limit: 10, days: 7, mode: lbMode }).then(renderLeaderboard).catch(function () {
+      document.getElementById('leaderboardList').innerHTML = '<div class="card muted">Could not load rankings.</div>';
+    });
   }
 
   function loadPanels() {
     makeRequest('GAME_HISTORY_REQUEST', { limit: 20 }).then(renderHistory).catch(function () {});
-    makeRequest('GAME_LEADERBOARD_REQUEST', { limit: 10, days: 7 }).then(renderLeaderboard).catch(function () {});
+    loadLeaderboard();
   }
 
   window.addEventListener('message', function (ev) {
@@ -912,6 +1008,13 @@
 
   document.getElementById('btnHow').addEventListener('click', function () { openPanel('howMask'); });
   document.getElementById('btnRank').addEventListener('click', function () { openPanel('rankMask'); loadPanels(); });
+  document.querySelectorAll('[data-lb-tab]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      lbMode = btn.getAttribute('data-lb-tab') || 'players';
+      document.querySelectorAll('[data-lb-tab]').forEach(function (b) { b.classList.toggle('active', b === btn); });
+      loadLeaderboard();
+    });
+  });
   document.getElementById('btnRecords').addEventListener('click', function () { openPanel('historyMask'); loadPanels(); });
   document.getElementById('btnSound').addEventListener('click', function () {
     soundOn = !soundOn;

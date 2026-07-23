@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#faf6ee">
   <title>Streamer Center - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-live.css?v=20260714-points-friendly">
+  <link rel="stylesheet" href="social-live.css?v=20260723-promo-full">
   <link rel="stylesheet" href="mobile-app.css">
 </head>
 <body data-live-page="streamer-center" class="streamer-page">
@@ -16,6 +16,21 @@
     <p class="uid" id="streamerUid">ID:—</p>
     <p class="streamer-agency" id="streamerAgency" hidden></p>
   </header>
+
+  <section class="streamer-card streamer-host-promos" aria-label="Host earning policies">
+    <h2>Host earning policies</h2>
+    <p class="streamer-hint">See Star Host and Normal Host rewards — tap a card to open full details.</p>
+    <div class="streamer-policy-grid">
+      <a class="streamer-policy-card" href="/host-policies.html?policy=star&app=1">
+        <img src="/assets/promos/star-host-policy.png" alt="Star Host Policy" loading="lazy">
+        <span>Star Host Policy</span>
+      </a>
+      <a class="streamer-policy-card" href="/host-policies.html?policy=normal&app=1">
+        <img src="/assets/promos/normal-host-policy.png" alt="Normal Host Policy" loading="lazy">
+        <span>Normal Host Policy</span>
+      </a>
+    </div>
+  </section>
 
   <section class="streamer-card" id="streamerAgencyCard" style="display:none">
     <h2>My Agency</h2>
@@ -258,6 +273,7 @@
       const role = String(user?.role || '').toLowerCase();
       const agencyCard = document.getElementById('streamerAgencyCard');
       if (agencyCard) {
+        /* Hosts manage membership here; agency owners use Agency Center */
         agencyCard.style.display = role === 'creator' ? '' : 'none';
       }
 
@@ -269,7 +285,14 @@
           won.textContent = Number(d.monthStars || 0).toLocaleString();
         }
         const agencyEl = document.getElementById('streamerAgency');
-        if (agencyEl && role === 'creator') {
+        if (agencyEl && role === 'agency') {
+          agencyEl.hidden = false;
+          agencyEl.classList.remove('unassigned');
+          const ownName = d.agency?.name || d.profile?.agency_name || '';
+          agencyEl.innerHTML = ownName
+            ? `<a href="/agency-center.html?app=1" style="color:inherit;text-decoration:none"><i class="fas fa-building"></i> Your agency: <strong>${String(ownName).replace(/</g, '&lt;')}</strong> · Agency Center</a>`
+            : `<a href="/agency-center.html?app=1" style="color:inherit;text-decoration:none"><i class="fas fa-building"></i> Agency Center</a>`;
+        } else if (agencyEl && role === 'creator') {
           const agency = d.agency || null;
           const name = agency?.name || d.profile?.agency_name || '';
           if (name) {
@@ -291,7 +314,12 @@
         }
       } catch (_e) {
         const agencyEl = document.getElementById('streamerAgency');
-        if (agencyEl && role === 'creator') {
+        if (agencyEl && role === 'agency') {
+          agencyEl.hidden = false;
+          agencyEl.classList.remove('unassigned');
+          agencyEl.innerHTML =
+            `<a href="/agency-center.html?app=1" style="color:inherit;text-decoration:none"><i class="fas fa-building"></i> Agency Center</a>`;
+        } else if (agencyEl && role === 'creator') {
           agencyEl.hidden = false;
           agencyEl.classList.add('unassigned');
           agencyEl.innerHTML = `<i class="fas fa-building"></i> Agency info unavailable`;

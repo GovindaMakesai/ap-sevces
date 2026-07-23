@@ -1,9 +1,8 @@
 /**
  * After login/session restore, bind invitee → inviter once (code or display ID).
- * Invite Friends is temporarily disabled — keep hooks no-op so deep links do nothing visible.
  */
 (function () {
-  const INVITE_FEATURE_ENABLED = false;
+  const INVITE_FEATURE_ENABLED = true;
 
   async function tryApplyPendingReferral() {
     if (!INVITE_FEATURE_ENABLED) return;

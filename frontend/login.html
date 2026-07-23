@@ -96,6 +96,20 @@
             color: var(--primary-600);
         }
 
+        .auth-logo.auth-logo--img {
+            display: flex;
+            justify-content: center;
+            line-height: 0;
+        }
+
+        .auth-logo.auth-logo--img img {
+            width: 96px;
+            height: 96px;
+            border-radius: 50%;
+            object-fit: cover;
+            display: block;
+        }
+
         .auth-header h1 {
             font-size: 2rem;
             margin-bottom: var(--spacing-xs);
@@ -614,7 +628,9 @@
     <nav class="navbar">
         <div class="container">
             <div class="nav-content">
-                <a href="/" class="logo">AP<span>Services</span></a>
+                <a href="/" class="logo logo--img" aria-label="AP Services">
+                    <img src="/ap-logo.png" alt="AP Services" width="40" height="40">
+                </a>
                 
                 <div class="nav-links">
                     <!-- Dynamically populated by app.js -->
@@ -633,7 +649,9 @@
         <div class="auth-container">
             <div class="auth-card">
                 <div class="auth-header">
-                    <a href="/app-auth.html?app=1" class="auth-logo" data-auth-nav>AP<span>Services</span></a>
+                    <a href="/app-auth.html?app=1" class="auth-logo auth-logo--img" data-auth-nav aria-label="AP Services">
+                        <img src="/ap-logo.png" alt="AP Services" width="96" height="96">
+                    </a>
                     <h1>Welcome Back</h1>
                     <p>Sign in with Google, Facebook, or GitHub</p>
                     <p style="margin-top:8px;font-size:13px"><a href="/app-auth.html?app=1" style="color:#a67c1a" data-auth-nav>← Back to welcome</a></p>

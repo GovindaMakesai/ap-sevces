@@ -403,6 +403,20 @@ a:hover {
     color: var(--primary-600);
 }
 
+.logo.logo--img {
+    display: inline-flex;
+    align-items: center;
+    line-height: 0;
+}
+
+.logo.logo--img img {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+    display: block;
+}
+
 .nav-links {
     align-items: center;
     gap: var(--spacing-lg);
@@ -1040,6 +1054,12 @@ a:hover {
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+    }
+
+    .logo.logo--img {
+        overflow: visible;
+        text-overflow: clip;
+        flex-shrink: 0;
     }
 
     /* Higher specificity so dashboard inline CSS cannot break the mobile menu */

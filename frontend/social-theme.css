@@ -131,7 +131,8 @@ body.social-tabs-page #social-banner-slider {
   padding-top: calc(var(--social-video-tabs-h) + 4px);
 }
 
-body.social-tabs-page #social-banner-slider+.social-post-feed {
+body.social-tabs-page #social-banner-slider+.social-post-feed,
+body.social-tabs-page #socialHostPolicyPosters+.social-post-feed {
   padding-top: 0;
 }
 
@@ -2599,6 +2600,14 @@ html.ap-expo-app .social-profile-hero {
   box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15);
 }
 
+.social-profile-name-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.35;
+  color: #92400e;
+  opacity: 0.9;
+}
+
 .social-profile-edit-save {
   width: 100%;
   border: none;
@@ -2896,10 +2905,10 @@ html.social-app .social-profile-page .social-wallet-btn:active {
   color: #ff7a3d;
 }
 
-/* Temporarily hide Invite Friends from Me tab */
+/* Invite Friends — always visible on Me tab */
 .social-menu-item--invite,
 #inviteFriendsLink {
-  display: none !important;
+  display: flex !important;
 }
 
 .social-menu-item .chevron {

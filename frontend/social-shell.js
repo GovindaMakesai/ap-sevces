@@ -191,7 +191,17 @@
       room.name ||
       `${room.first_name || ''} ${room.last_name || ''}`.trim() ||
       'Host';
-    const pic = room.hostProfilePic || room.host_profile_pic || room.profile_pic || room.profilePic;
+    const cover =
+      room.hostStreamCover ||
+      room.stream_cover_url ||
+      room.host_stream_cover ||
+      null;
+    const pic =
+      cover ||
+      room.hostProfilePic ||
+      room.host_profile_pic ||
+      room.profile_pic ||
+      room.profilePic;
     const cacheKey = room.hostUpdatedAt || room.updatedAt || room.updated_at;
     return hostCardImage(name, pic, cacheKey, party);
   }
@@ -404,6 +414,7 @@
   function mapRoomToCard(r, isParty) {
     const name = r.hostName || r.host_display_name || 'Host';
     const hostProfilePic = r.hostProfilePic || r.host_profile_pic || null;
+    const hostStreamCover = r.hostStreamCover || r.stream_cover_url || null;
     const hostUpdatedAt = r.hostUpdatedAt || r.updated_at || r.updatedAt;
     return {
       id: r.channel,
@@ -411,10 +422,14 @@
       userId: r.hostId || r.host_user_id,
       name,
       hostProfilePic,
+      hostStreamCover,
       hostUpdatedAt,
       roomType: isParty ? 'party' : 'live',
       party: isParty,
-      image: roomCardImage({ ...r, hostProfilePic, hostUpdatedAt, hostName: name }, isParty),
+      image: roomCardImage(
+        { ...r, hostProfilePic, hostStreamCover, hostUpdatedAt, hostName: name },
+        isParty
+      ),
       viewers: r.viewers || r.viewer_count || 0,
       startedAt: r.startedAt || r.started_at,
       updatedAt: r.updatedAt || r.updated_at,
@@ -1399,6 +1414,27 @@
     openBroadcastPicker('live');
   }
 
+  function savePendingStreamMeta({ streamTitle, streamCoverUrl } = {}) {
+    try {
+      const payload = {
+        streamTitle: String(streamTitle || '').trim().slice(0, 48) || null,
+        streamCoverUrl: String(streamCoverUrl || '').trim().slice(0, 700) || null,
+        ts: Date.now(),
+      };
+      if (!payload.streamTitle && !payload.streamCoverUrl) {
+        sessionStorage.removeItem('ap_live_stream_meta');
+        return;
+      }
+      sessionStorage.setItem('ap_live_stream_meta', JSON.stringify(payload));
+    } catch (_e) { /* ignore */ }
+  }
+
+  function collectStreamMetaFromSheet(el) {
+    const title = el?.querySelector('[data-live-title]')?.value;
+    const cover = el?.querySelector('[data-live-cover]')?.value;
+    savePendingStreamMeta({ streamTitle: title, streamCoverUrl: cover });
+  }
+
   function goStartLiveBroadcast(opts) {
     const user = window.Auth?.getUser?.();
     if (!user) {
@@ -1650,14 +1686,65 @@
     stopPrelivePreview(el);
     el.classList.remove('is-prelive');
     if (kind === 'party') {
-      goStartParty(opts);
+      const defaultName = String(
+        window.Auth?.getUser?.()?.display_name ||
+          `${window.Auth?.getUser?.()?.first_name || ''} ${window.Auth?.getUser?.()?.last_name || ''}`.trim() ||
+          window.Auth?.getUser?.()?.name ||
+          ''
+      ).trim();
+      el.innerHTML = `
+        <div class="social-broadcast-sheet">
+          <h3>Start party</h3>
+          <p>Set a party-only name &amp; cover (optional). Your profile name and photo stay unchanged.</p>
+          <label class="social-broadcast-field">
+            <span>Party name</span>
+            <input type="text" data-live-title maxlength="48" placeholder="Name shown in this party" value="${defaultName.replace(/"/g, '&quot;')}">
+          </label>
+          <label class="social-broadcast-field">
+            <span>Party cover URL (optional)</span>
+            <input type="url" data-live-cover maxlength="700" placeholder="https://… image for this party only">
+          </label>
+          <div class="social-broadcast-options">
+            <button type="button" class="social-broadcast-opt" data-go-party-start>
+              <span class="ico party"><i class="fas fa-users"></i></span>
+              <div><strong>Start voice party</strong><span>Multi-seat audio room</span></div>
+            </button>
+          </div>
+          <button type="button" class="social-broadcast-cancel" data-broadcast-cancel>Cancel</button>
+        </div>`;
+      el.querySelector('[data-go-party-start]')?.addEventListener('click', () => {
+        collectStreamMetaFromSheet(el);
+        stopPrelivePreview(el);
+        el.classList.remove('is-open');
+        goStartParty({ ...(opts || {}), confirmed: true });
+      });
+      el.querySelector('[data-broadcast-cancel]')?.addEventListener('click', () => {
+        stopPrelivePreview(el);
+        el.classList.remove('is-open');
+      });
+      el.onclick = (e) => {
+        if (e.target === el) {
+          stopPrelivePreview(el);
+          el.classList.remove('is-open');
+        }
+      };
+      el.classList.add('is-open');
       return;
     }
     if (kind === 'live') {
+      const defaultName = String(window.Auth?.getUser?.()?.display_name || window.Auth?.getUser?.()?.name || '').trim();
       el.innerHTML = `
         <div class="social-broadcast-sheet">
           <h3>Go live</h3>
-          <p>Instagram-style — you broadcast solo, viewers join to watch, chat &amp; send gifts.</p>
+          <p>Set a live-only name &amp; cover (optional). Your profile name and photo stay unchanged.</p>
+          <label class="social-broadcast-field">
+            <span>Live name</span>
+            <input type="text" data-live-title maxlength="48" placeholder="Name shown on this live" value="${defaultName.replace(/"/g, '&quot;')}">
+          </label>
+          <label class="social-broadcast-field">
+            <span>Live cover URL (optional)</span>
+            <input type="url" data-live-cover maxlength="700" placeholder="https://… image for this stream only">
+          </label>
           <div class="social-broadcast-options">
             <button type="button" class="social-broadcast-opt" data-go-live="video">
               <span class="ico video"><i class="fas fa-video"></i></span>
@@ -1671,9 +1758,11 @@
           <button type="button" class="social-broadcast-cancel" data-broadcast-cancel>Cancel</button>
         </div>`;
       el.querySelector('[data-go-live="video"]')?.addEventListener('click', () => {
+        collectStreamMetaFromSheet(el);
         openPreliveFilterStep(opts, el);
       });
       el.querySelector('[data-go-live="audio"]')?.addEventListener('click', () => {
+        collectStreamMetaFromSheet(el);
         stopPrelivePreview(el);
         el.classList.remove('is-open');
         goStartLiveBroadcast({ ...(opts || {}), mode: 'audio' });

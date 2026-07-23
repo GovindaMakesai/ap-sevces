@@ -394,6 +394,10 @@
     .pod .nm { font-size: 0.65rem; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .pod .pr { font-size: 0.7rem; color: #f9a8d4; font-weight: 900; }
     .pod .bt { font-size: 0.58rem; color: #94a3b8; }
+    .podium-empty {
+      width: 100%; text-align: center; color: #94a3b8; font-size: 0.85rem;
+      padding: 18px 8px; font-weight: 700;
+    }
   </style>
 </head>
 <body>
@@ -627,6 +631,10 @@
   function totalBet() {
     return AREAS.reduce(function (s, a) { return s + Number(bets[a] || 0); }, 0);
   }
+  function displayCoins() {
+    if (roundLocked || spinning) return coins;
+    return Math.max(0, coins - totalBet());
+  }
   function setStatus(t) { document.getElementById('status').textContent = t || ''; }
 
   function animateCount(el, from, to, dur) {
@@ -640,8 +648,9 @@
     })();
   }
   function updateCoins() {
-    animateCount(document.getElementById('coins'), shownCoins, coins, 260);
-    shownCoins = coins;
+    var show = displayCoins();
+    animateCount(document.getElementById('coins'), shownCoins, show, 260);
+    shownCoins = show;
   }
 
   function paintMiniCard(c) {
@@ -740,6 +749,7 @@
         el.classList.toggle('is-glow-green', mine > 0);
       }
     });
+    updateCoins();
   }
 
   function flyGem(toEl) {
@@ -864,26 +874,45 @@
     document.getElementById('resBet').textContent = fmt(wager);
     document.getElementById('resEmoji').textContent = payout > 0 ? '😍' : '😅';
     var podium = document.getElementById('podium');
-    var rows = (lastLeaderboard || []).slice(0, 3);
-    if (!rows.length && payout > 0) {
-      rows = [{ display_name: 'You', payout_amount: payout, bet_amount: wager }];
+    /* This-round players only — never weekly leaderboard aggregates (those lack bet/win fields). */
+    var rows = [];
+    if (data.players && data.players.length) {
+      rows = data.players.map(function (p) {
+        return {
+          display_name: p.display_name || ('ID ' + (p.display_id || '')),
+          payout_amount: Number(p.payout != null ? p.payout : p.payout_amount || 0),
+          bet_amount: Number(p.total_bet != null ? p.total_bet : p.bet_amount || 0)
+        };
+      });
+    } else if (Number(wager || 0) > 0) {
+      rows = [{ display_name: 'You', payout_amount: payout, bet_amount: Number(wager || 0) }];
     }
-    var order = [1, 0, 2];
-    var html = '';
-    order.forEach(function (idx) {
-      var r = rows[idx];
-      var place = idx + 1;
-      if (!r) {
-        html += '<div class="pod p' + place + '"></div>';
-        return;
-      }
-      html += '<div class="pod p' + place + '"><div class="av">' +
-        (place === 1 ? '<span class="crown">👑</span>' : place === 2 ? '<span class="crown">🥈</span>' : '<span class="crown">🥉</span>') +
-        '👤</div><div class="nm">' + (r.display_name || ('ID ' + (r.display_id || ''))) + '</div>' +
-        '<div class="pr">💎 ' + fmt(r.payout_amount) + '</div>' +
-        '<div class="bt">Bet: ' + fmt(r.bet_amount || r.betAmount || 0) + '</div></div>';
+    rows.sort(function (a, b) {
+      return Number(b.payout_amount || 0) - Number(a.payout_amount || 0) ||
+        Number(b.bet_amount || 0) - Number(a.bet_amount || 0);
     });
-    podium.innerHTML = html;
+    rows = rows.slice(0, 3);
+
+    if (!rows.length) {
+      podium.innerHTML = '<div class="podium-empty">No one played or bet this round</div>';
+    } else {
+      var order = rows.length >= 3 ? [1, 0, 2] : rows.map(function (_r, i) { return i; });
+      var html = '';
+      order.forEach(function (idx) {
+        var r = rows[idx];
+        var place = idx + 1;
+        if (!r) {
+          html += '<div class="pod p' + place + '"></div>';
+          return;
+        }
+        html += '<div class="pod p' + place + '"><div class="av">' +
+          (place === 1 ? '<span class="crown">👑</span>' : place === 2 ? '<span class="crown">🥈</span>' : place === 3 ? '<span class="crown">🥉</span>' : '') +
+          '👤</div><div class="nm">' + (r.display_name || 'Player') + '</div>' +
+          '<div class="pr">💎 ' + fmt(r.payout_amount) + '</div>' +
+          '<div class="bt">Bet: ' + fmt(r.bet_amount) + '</div></div>';
+      });
+      podium.innerHTML = html;
+    }
     document.getElementById('resultMask').classList.add('open');
     var sec = 5;
     var cd = document.getElementById('resCountdown');
@@ -960,6 +989,8 @@
       return;
     }
     lastBets = Object.assign({}, bets);
+    coins = Math.max(0, coins - wager);
+    updateCoins();
     setWaiting('…');
     makeRequest('GAME_PLAY', {
       bet_amount: wager,
@@ -967,6 +998,8 @@
     }).then(function (data) {
       revealAndSettle(data, wager);
     }).catch(function (err) {
+      coins = Math.max(0, coins + wager);
+      updateCoins();
       setStatus(err.message || 'Play failed');
       roundLocked = false;
       spinning = false;

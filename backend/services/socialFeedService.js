@@ -1,11 +1,17 @@
 const db = require('../config/database');
 
-async function createPost(userId, { body, mediaUrl }) {
+async function createPost(userId, { body, mediaUrl, thumbUrl, mediaType, visibility }) {
   const text = String(body || '').trim();
-  if (!text && !mediaUrl) throw new Error('Post body or media required');
+  const media = mediaUrl ? String(mediaUrl).trim() : null;
+  if (!text && !media) throw new Error('Post body or media required');
+  const type =
+    mediaType ||
+    (media && /\.(mp4|webm|mov|m4v)(\?|$)/i.test(media) ? 'video' : media ? 'image' : 'none');
+  const vis = visibility === 'private' ? 'private' : 'public';
   const res = await db.query(
-    `INSERT INTO social_posts (user_id, body, media_url) VALUES ($1, $2, $3) RETURNING *`,
-    [userId, text || '', mediaUrl || null]
+    `INSERT INTO social_posts (user_id, body, media_url, thumb_url, media_type, visibility)
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+    [userId, text || '', media, thumbUrl || null, type, vis]
   );
   return enrichPost(res.rows[0], userId);
 }
@@ -39,8 +45,12 @@ async function enrichPost(post, viewerId) {
 
 async function listFeed(viewerId, { limit = 30, offset = 0 } = {}) {
   const res = await db.query(
-    `SELECT * FROM social_posts ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
-    [limit, offset]
+    `SELECT * FROM social_posts
+     WHERE COALESCE(visibility, 'public') = 'public'
+        OR user_id = $3
+     ORDER BY created_at DESC
+     LIMIT $1 OFFSET $2`,
+    [limit, offset, viewerId || null]
   );
   return Promise.all(res.rows.map((p) => enrichPost(p, viewerId)));
 }

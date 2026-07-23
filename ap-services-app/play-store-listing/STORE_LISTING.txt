@@ -1,0 +1,63 @@
+Google Play — Default store listing (en-GB)
+Paste these into: Grow users → Store presence → Store listings → Default store listing
+
+────────────────────────────────────────
+App name * (max 30)
+────────────────────────────────────────
+AP Live Service
+
+────────────────────────────────────────
+Short description * (max 80)
+────────────────────────────────────────
+Go live, join party rooms, send gifts & earn with friends on AP Live Service
+
+────────────────────────────────────────
+Full description * (max 4000)
+────────────────────────────────────────
+AP Live Service is a live streaming and social entertainment app where you can go live, join party rooms, connect with creators, send gifts, and grow with your community.
+
+LIVE STREAMING
+• Start a live video stream and chat with your audience in real time
+• Join party rooms for multi-person audio and video sessions
+• Discover popular creators and trending rooms
+
+GIFTS & WALLET
+• Support hosts with gifts and coins
+• Track earnings, points, and rewards
+• Smooth in-app wallet experience
+
+AGENCY & CREATOR TOOLS
+• Host and agency centres to manage performance
+• Invite friends and grow your network
+• Daily missions and rankings to stay competitive
+
+FUN IN THE ROOM
+• Play in-room games while you watch or host
+• Rankings, invitations, and social discovery
+
+Why AP Live Service?
+• Fast, mobile-first live experience
+• Built for hosts, agencies, and viewers
+• Secure login and reliable streaming
+
+Download AP Live Service and start connecting, entertaining, and earning today.
+
+────────────────────────────────────────
+Graphics to upload
+────────────────────────────────────────
+App icon (512×512):
+  play-store-listing/play-icon-512.png
+
+Feature graphic (1024×500):
+  play-store-listing/feature-graphic-1024x500.png
+  (or .jpg if Console prefers JPEG)
+
+Phone / tablet screenshots:
+  Keep your current screenshots, or replace with fresh captures from Explore, Live, Party, Profile, Wallet, and Agency screens (9:16 preferred for phones).
+
+────────────────────────────────────────
+After saving
+────────────────────────────────────────
+1. Click Save in Store listing
+2. Submit for review (with your new AAB release if publishing together)
+3. Optional: also update the on-device app name in the next AAB (app.json "name")

@@ -64,16 +64,21 @@ $lines = $lines | Where-Object {
   $_ -notmatch '^MYAPP_UPLOAD_KEY_ALIAS=' -and
   $_ -notmatch '^MYAPP_UPLOAD_STORE_PASSWORD=' -and
   $_ -notmatch '^MYAPP_UPLOAD_KEY_PASSWORD=' -and
-  $_ -notmatch '^reactNativeArchitectures='
+  $_ -notmatch '^reactNativeArchitectures=' -and
+  $_ -notmatch '^android\.enableMinifyInReleaseBuilds=' -and
+  $_ -notmatch '^android\.enableShrinkResourcesInReleaseBuilds='
 }
 $lines += @(
   "reactNativeArchitectures=arm64-v8a",
+  "android.enableMinifyInReleaseBuilds=true",
+  "android.enableShrinkResourcesInReleaseBuilds=true",
   "MYAPP_UPLOAD_STORE_FILE=upload.jks",
   "MYAPP_UPLOAD_KEY_ALIAS=$alias",
   "MYAPP_UPLOAD_STORE_PASSWORD=$storePass",
   "MYAPP_UPLOAD_KEY_PASSWORD=$keyPass"
 )
 $lines | Set-Content $gradleProps -Encoding UTF8
+Write-Host "R8 minify + resource shrink enabled for release"
 
 $buildGradle = Join-Path $dest "android\app\build.gradle"
 if (Test-Path $buildGradle) {
@@ -91,6 +96,8 @@ $env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
 $env:ANDROID_SDK_ROOT = $env:ANDROID_HOME
 
 Write-Host "Building release AAB v$version ($($appJson.expo.android.package)) ..."
+$env:NODE_ENV = "production"
+$env:CI = "1"
 .\gradlew.bat bundleRelease --no-daemon
 
 $merged = "$dest\android\app\build\intermediates\merged_manifests\release\processReleaseManifest\AndroidManifest.xml"

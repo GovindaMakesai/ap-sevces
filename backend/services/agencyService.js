@@ -1,8 +1,13 @@
 const db = require('../config/database');
 
-const COMMISSION_LEVELS = [12, 16, 20];
+/** Legacy buckets — Agent levels now use 4/8/12/16/20 via agencyTierService */
+const COMMISSION_LEVELS = [4, 8, 12, 16, 20];
 
-async function createAgency({ name, ownerUserId, parentAgencyId = null, commissionPercent = 12 }) {
+async function createAgency({ name, ownerUserId, parentAgencyId = null, commissionPercent = 4 }) {
+  try {
+    const agencyTierService = require('./agencyTierService');
+    await agencyTierService.ensureTierSchema();
+  } catch (_e) {}
   const client = await db.pool.connect();
   try {
     await client.query('BEGIN');
@@ -13,11 +18,20 @@ async function createAgency({ name, ownerUserId, parentAgencyId = null, commissi
       level = parent.rows[0].level + 1;
     }
 
-    const agency = await client.query(
-      `INSERT INTO agencies (name, owner_user_id, parent_agency_id, level, commission_percent)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [name, ownerUserId, parentAgencyId, level, commissionPercent]
-    );
+    let agency;
+    try {
+      agency = await client.query(
+        `INSERT INTO agencies (name, owner_user_id, parent_agency_id, level, commission_percent, tier_code, match_chat_commission_pct)
+         VALUES ($1, $2, $3, $4, $5, 'D', $5) RETURNING *`,
+        [name, ownerUserId, parentAgencyId, level, commissionPercent]
+      );
+    } catch (_colErr) {
+      agency = await client.query(
+        `INSERT INTO agencies (name, owner_user_id, parent_agency_id, level, commission_percent)
+         VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+        [name, ownerUserId, parentAgencyId, level, commissionPercent]
+      );
+    }
 
     await client.query(
       `INSERT INTO agency_members (agency_id, user_id, role) VALUES ($1, $2, 'owner')

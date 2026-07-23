@@ -323,6 +323,17 @@
     </section>
 
     <nav class="ag-menu">
+      <button type="button" class="ag-menu-item" data-panel="agent-level">
+        <span class="ico app"><i class="fas fa-medal"></i></span>
+        <span class="label">Agent level</span>
+        <span class="badge" id="agTierBadge" style="background:#7c3aed;color:#fff" hidden>D</span>
+        <span class="arrow"><i class="fas fa-chevron-right"></i></span>
+      </button>
+      <a href="/streamer-center.html?app=1" class="ag-menu-item" style="text-decoration:none;color:inherit">
+        <span class="ico host"><i class="fas fa-video"></i></span>
+        <span class="label">Streamer Center</span>
+        <span class="arrow"><i class="fas fa-chevron-right"></i></span>
+      </a>
       <button type="button" class="ag-menu-item" data-panel="hosts">
         <span class="ico host"><i class="fas fa-microphone"></i></span>
         <span class="label">Host List</span>
@@ -348,6 +359,16 @@
       </button>
     </nav>
   </div>
+
+  <section class="ag-panel" id="panel-agent-level">
+    <div class="ag-panel-head">
+      <button type="button" data-back aria-label="Back"><i class="fas fa-chevron-left"></i></button>
+      <h2>Agent level</h2>
+    </div>
+    <div id="agAgentLevel" style="padding:0 4px 24px">
+      <p class="ag-empty">Loading…</p>
+    </div>
+  </section>
 
   <section class="ag-panel" id="panel-hosts">
     <div class="ag-panel-head">
@@ -516,6 +537,68 @@
         document.getElementById('agTotalIncome').textContent = total.toLocaleString();
         document.getElementById('agMyIncome').textContent = myIncome.toLocaleString();
         document.getElementById('agInviteIncome').textContent = inviteIncome.toLocaleString();
+
+        const level = d.agentLevel;
+        if (level?.current) {
+          const badge = document.getElementById('agTierBadge');
+          if (badge) {
+            badge.hidden = false;
+            badge.textContent = level.current.code || 'D';
+          }
+        }
+        const levelMount = document.getElementById('agAgentLevel');
+        if (levelMount && level) {
+          const cur = level.current || {};
+          const next = level.next_tier;
+          const earn = level.earnings || {};
+          const rows = (level.table || [])
+            .map((t) => {
+              const active = String(t.code).toUpperCase() === String(cur.code || '').toUpperCase();
+              return `<tr style="${active ? 'background:#f3e8ff;font-weight:700' : ''}">
+                <td style="padding:8px">${t.code}</td>
+                <td style="padding:8px;text-align:right">${Number(t.min_earnings || 0).toLocaleString()}</td>
+                <td style="padding:8px;text-align:right">${Number(t.live_pct)}%</td>
+                <td style="padding:8px;text-align:right">${Number(t.match_chat_pct)}%</td>
+              </tr>`;
+            })
+            .join('');
+          levelMount.innerHTML = `
+            <div style="background:linear-gradient(135deg,#ede9fe,#fae8ff);border-radius:16px;padding:16px;margin-bottom:14px">
+              <div style="font-size:12px;color:#6b7280">Your level</div>
+              <div style="font-size:28px;font-weight:800;color:#6d28d9">${cur.code || 'D'}
+                <span style="font-size:14px;font-weight:600;color:#7c3aed">· Live ${cur.live_pct || 4}% · Chat ${cur.match_chat_pct || 4}%</span>
+              </div>
+              <div style="margin-top:8px;font-size:13px;color:#374151">
+                Last 30 days earnings: <strong>${Number(earn.total || 0).toLocaleString()}</strong>
+                <div style="font-size:12px;color:#6b7280;margin-top:4px">
+                  Hosts ${Number(earn.host_income || 0).toLocaleString()} · Invited agencies ${Number(earn.invited_agency_income || 0).toLocaleString()}
+                </div>
+                ${next ? `<div style="margin-top:6px">Next ${next.code}: need ${Number(next.need || 0).toLocaleString()} more</div>` : '<div style="margin-top:6px">Max level reached</div>'}
+              </div>
+            </div>
+            <div style="font-size:13px;color:#4b5563;line-height:1.45;margin-bottom:12px">
+              <strong>Rules</strong>
+              <ol style="margin:8px 0 0;padding-left:18px">
+                <li>Commission ratio follows total earnings in the last 30 days: (a) income of hosts under you + (b) income of agencies you invited.</li>
+                <li>Includes gifts / video &amp; voice / chat income. Excludes task &amp; ranking rewards from the platform.</li>
+                <li>If an invited agent is inactive 7+ days or banned, their income is not counted.</li>
+                <li>From hosts: your rate × host performance. From invited agencies: (your rate − their rate) × their hosts’ performance.</li>
+              </ol>
+            </div>
+            <div style="overflow:auto;border:1px solid #e5e7eb;border-radius:12px">
+              <table style="width:100%;border-collapse:collapse;font-size:13px">
+                <thead>
+                  <tr style="background:#f9fafb;text-align:left">
+                    <th style="padding:8px">Level</th>
+                    <th style="padding:8px;text-align:right">Earnings</th>
+                    <th style="padding:8px;text-align:right">Live</th>
+                    <th style="padding:8px;text-align:right">Match &amp; Chat</th>
+                  </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+              </table>
+            </div>`;
+        }
 
         const hosts = d.hosts || [];
         const children = d.childAgencies || [];

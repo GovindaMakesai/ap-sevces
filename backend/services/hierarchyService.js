@@ -170,7 +170,7 @@ async function bdReviewApplication(bdUserId, applicationId, { decision, reason, 
       ownerUserId: app.user_id,
       bdUserId,
       parentAgencyId: app.target_agency_id || null,
-      commissionPercent: 20,
+      commissionPercent: 4,
     });
     await db.query(
       `UPDATE role_applications
@@ -409,11 +409,108 @@ async function createAgencyUnderBd({
   return getAgencyDetail(agency.id);
 }
 
+async function assertEligibleForHostInvite(
+  userId,
+  { invitingAgencyId = null, allowExistingInAgency = false } = {}
+) {
+  const userRes = await db.query(
+    `SELECT id, role, first_name, last_name, display_id, email FROM users WHERE id = $1`,
+    [userId]
+  );
+  const user = userRes.rows[0];
+  if (!user) throw new Error('User not found');
+
+  if (user.role === 'agency') {
+    throw new Error('Agency accounts cannot be invited as Host');
+  }
+
+  const ownedAgency = await db.query(
+    `SELECT id, name FROM agencies WHERE owner_user_id = $1 AND status = 'active' LIMIT 1`,
+    [userId]
+  );
+  if (ownedAgency.rows[0]) {
+    throw new Error('Agency owners cannot be invited as Host');
+  }
+
+  const ownerMember = await db.query(
+    `SELECT am.agency_id, a.name
+     FROM agency_members am
+     JOIN agencies a ON a.id = am.agency_id AND a.status = 'active'
+     WHERE am.user_id = $1 AND am.role = 'owner'
+     LIMIT 1`,
+    [userId]
+  );
+  if (ownerMember.rows[0]) {
+    throw new Error('Agency owners cannot be invited as Host');
+  }
+
+  const hostProfile = await db.query(
+    `SELECT hp.agency_id, a.name AS agency_name
+     FROM host_profiles hp
+     JOIN agencies a ON a.id = hp.agency_id
+     WHERE hp.user_id = $1 AND hp.status = 'active'
+     LIMIT 1`,
+    [userId]
+  );
+  if (hostProfile.rows[0]) {
+    if (
+      allowExistingInAgency &&
+      invitingAgencyId &&
+      String(hostProfile.rows[0].agency_id) === String(invitingAgencyId)
+    ) {
+      /* same-agency re-assign is allowed */
+    } else if (invitingAgencyId && String(hostProfile.rows[0].agency_id) === String(invitingAgencyId)) {
+      throw new Error('This user is already a host in your agency');
+    } else {
+      throw new Error('This user already belongs to another agency — they must use Change Agency');
+    }
+  }
+
+  const hostMember = await db.query(
+    `SELECT am.agency_id, a.name AS agency_name
+     FROM agency_members am
+     JOIN agencies a ON a.id = am.agency_id AND a.status = 'active'
+     WHERE am.user_id = $1 AND am.role IN ('creator', 'host')
+     LIMIT 1`,
+    [userId]
+  );
+  if (hostMember.rows[0]) {
+    if (
+      allowExistingInAgency &&
+      invitingAgencyId &&
+      String(hostMember.rows[0].agency_id) === String(invitingAgencyId)
+    ) {
+      /* same-agency re-assign is allowed */
+    } else if (invitingAgencyId && String(hostMember.rows[0].agency_id) === String(invitingAgencyId)) {
+      throw new Error('This user is already a host in your agency');
+    } else {
+      throw new Error('This user already belongs to another agency — they must use Change Agency');
+    }
+  }
+
+  const pendingChange = await db.query(
+    `SELECT id FROM host_agency_change_requests
+     WHERE host_user_id = $1 AND status IN ('pending_release', 'pending_accept')
+     LIMIT 1`,
+    [userId]
+  );
+  if (pendingChange.rows[0]) {
+    throw new Error('This user has a pending agency change request — wait for it to complete');
+  }
+
+  return user;
+}
+
 async function assignHostToAgency(actorUserId, hostUserId, agencyId) {
   const agency = await db.query(`SELECT * FROM agencies WHERE id = $1 AND status = 'active'`, [
     agencyId,
   ]);
   if (!agency.rows[0]) throw new Error('Agency not found');
+
+  await assertEligibleForHostInvite(hostUserId, {
+    invitingAgencyId: agencyId,
+    allowExistingInAgency: true,
+  });
 
   const existing = await db.query(`SELECT agency_id FROM host_profiles WHERE user_id = $1`, [
     hostUserId,
@@ -675,15 +772,30 @@ async function agencyDashboard(ownerUserId) {
     [ownerUserId]
   );
   const myAgencyIncome = Number(month.rows[0]?.coins || 0);
-  const inviteAgencyIncome = 0;
+  const inviteMonth = await db.query(
+    `SELECT COUNT(*)::int AS gifts, COALESCE(SUM(amount),0)::bigint AS coins
+     FROM commission_transactions
+     WHERE user_id = $1 AND role = 'invite_agency'
+       AND created_at >= date_trunc('month', CURRENT_TIMESTAMP)`,
+    [ownerUserId]
+  );
+  const inviteAgencyIncome = Number(inviteMonth.rows[0]?.coins || 0);
+  let agentLevel = null;
+  try {
+    const agencyTierService = require('./agencyTierService');
+    agentLevel = await agencyTierService.getAgencyTierSnapshot(agencyId);
+  } catch (_e) {
+    agentLevel = null;
+  }
   return {
     agency,
     hosts: hosts.rows,
     childAgencies: childAgencies.rows,
-    monthGifts: month.rows[0]?.gifts || 0,
+    monthGifts: (month.rows[0]?.gifts || 0) + (inviteMonth.rows[0]?.gifts || 0),
     monthRevenueCoins: myAgencyIncome + inviteAgencyIncome,
     myAgencyIncome,
     inviteAgencyIncome,
+    agentLevel,
   };
 }
 
@@ -893,7 +1005,7 @@ async function ensureAgencyForOwner(ownerUserId, { name } = {}) {
     name: defaultName,
     ownerUserId,
     bdUserId: null,
-    commissionPercent: 20,
+    commissionPercent: 4,
   });
   return getAgencyOwnedByUser(ownerUserId);
 }
@@ -926,26 +1038,7 @@ async function inviteHostToAgency(ownerUserId, userRef) {
   if (!invitee) throw new Error('User not found — use email or public User ID');
   if (String(invitee.id) === String(ownerUserId)) throw new Error('Cannot invite yourself');
 
-  const existingHost = await db.query(
-    `SELECT agency_id FROM host_profiles WHERE user_id = $1 AND status = 'active'`,
-    [invitee.id]
-  );
-  if (existingHost.rows[0]) {
-    if (String(existingHost.rows[0].agency_id) === String(agency.id)) {
-      throw new Error('This user is already a host in your agency');
-    }
-    throw new Error('This user already belongs to another agency — they must use Change Agency');
-  }
-
-  const pendingChange = await db.query(
-    `SELECT id FROM host_agency_change_requests
-     WHERE host_user_id = $1 AND status IN ('pending_release', 'pending_accept')
-     LIMIT 1`,
-    [invitee.id]
-  );
-  if (pendingChange.rows[0]) {
-    throw new Error('This user has a pending agency change request — wait for it to complete');
-  }
+  await assertEligibleForHostInvite(invitee.id, { invitingAgencyId: agency.id });
 
   const otherPendingInvite = await db.query(
     `SELECT id FROM agency_host_invites
@@ -1062,6 +1155,8 @@ async function respondToAgencyHostInvite(inviteeUserId, inviteId, decision) {
     throw new Error('You already belong to another agency — use Change Agency instead of accepting this invite');
   }
 
+  await assertEligibleForHostInvite(inviteeUserId, { invitingAgencyId: invite.agency_id });
+
   await assignHostToAgency(invite.invited_by, inviteeUserId, invite.agency_id);
   await db.query(
     `UPDATE agency_host_invites
@@ -1164,6 +1259,7 @@ async function agencyReviewHostApplication(ownerUserId, applicationId, { decisio
       });
     }
 
+    await assertEligibleForHostInvite(app.user_id, { invitingAgencyId: agency.id });
     await assignHostToAgency(ownerUserId, app.user_id, agency.id);
     await db.query(
       `UPDATE role_applications
@@ -1204,7 +1300,7 @@ async function agencyReviewHostApplication(ownerUserId, applicationId, { decisio
       ownerUserId: app.user_id,
       bdUserId: app.target_bd_user_id || agency.bd_user_id || null,
       parentAgencyId: agency.id,
-      commissionPercent: 20,
+      commissionPercent: 4,
     });
     await db.query(
       `UPDATE role_applications
@@ -1483,7 +1579,7 @@ async function respondToBecomeAgencyRequest(agencyOwnerUserId, requestId, decisi
     ownerUserId: request.host_user_id,
     bdUserId: parent.rows[0].bd_user_id || null,
     parentAgencyId: request.agency_id,
-    commissionPercent: 20,
+    commissionPercent: 4,
   });
 
   /* Host becomes child agency — remove host membership under parent */
@@ -1600,7 +1696,7 @@ async function respondToAgencyNetworkInvite(inviteeUserId, inviteId, decision) {
     ownerUserId: inviteeUserId,
     bdUserId: parent.rows[0].bd_user_id || null,
     parentAgencyId: invite.agency_id,
-    commissionPercent: 20,
+    commissionPercent: 4,
   });
 
   await db.query(
@@ -1894,6 +1990,7 @@ module.exports = {
   assignAgencyToBd,
   createAgencyUnderBd,
   assignHostToAgency,
+  assertEligibleForHostInvite,
   transferHost,
   getAgencyDetail,
   getHostAgency,

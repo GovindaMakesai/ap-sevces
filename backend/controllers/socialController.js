@@ -219,10 +219,40 @@ async function listPosts(req, res) {
 
 async function createPost(req, res) {
   try {
-    const post = await socialFeedService.createPost(uid(req), req.body);
+    const body = req.body || {};
+    const post = await socialFeedService.createPost(uid(req), {
+      body: body.body || body.caption || body.text || '',
+      mediaUrl: body.mediaUrl || body.media_url || null,
+      thumbUrl: body.thumbUrl || body.thumb_url || null,
+      mediaType: body.mediaType || body.media_type || null,
+      visibility: body.visibility || 'public',
+    });
     res.status(201).json({ success: true, data: post });
   } catch (e) {
     res.status(400).json({ success: false, message: e.message });
+  }
+}
+
+async function uploadPostMedia(req, res) {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No media file uploaded' });
+    }
+    const isVideo = String(req.file.mimetype || '').startsWith('video/');
+    const rel = `/uploads/social/${req.file.filename}`;
+    res.status(201).json({
+      success: true,
+      data: {
+        url: rel,
+        mediaUrl: rel,
+        mediaType: isVideo ? 'video' : 'image',
+        mimeType: req.file.mimetype,
+        size: req.file.size,
+        originalName: req.file.originalname,
+      },
+    });
+  } catch (e) {
+    res.status(400).json({ success: false, message: e.message || 'Upload failed' });
   }
 }
 
@@ -414,6 +444,7 @@ module.exports = {
   mySellerOrders,
   listPosts,
   createPost,
+  uploadPostMedia,
   likePost,
   commentPost,
   getComments,

@@ -8,6 +8,10 @@ Production builds are **local only**. No Expo account or EAS cloud build is requ
 | Android package | `com.apservices.app` |
 | Play developer | Muqaddas Technology |
 | Production API | `https://api.apservices.in` |
+| Upload key SHA-1 | `65:42:00:1F:3D:E4:AB:6A:FA:3A:D6:77:80:FE:D9:00:DC:00:D1:66` |
+| App signing SHA-1 | `9E:D0:91:B6:56:09:FC:8B:99:C1:BC:5A:DC:1C:A7:10:DD:D6:1F:2E` |
+
+Full cert fingerprints: see `PLAY_SIGNING.json` (and DB `platform_settings.play_app_signing`).
 
 ## One-time setup
 
