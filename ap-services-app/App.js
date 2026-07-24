@@ -15,37 +15,25 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import Constants from 'expo-constants';
-import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
 import { WebView } from 'react-native-webview';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import * as ScreenCapture from 'expo-screen-capture';
 import { getMobileDashboardInjectScript } from './injectedMobileFix';
+import LiveAudioRoute from './liveAudioRoute';
 
 const BRAND_LOGO = require('./assets/logo-loading.png');
-/**
- * Native audio session only when the user is publishing mic.
- * Audience must NOT call expo-av — on some Androids it steals focus (kills YouTube)
- * and leaves WebView Agora "playing" with zero audible output.
- * Host/mic: force loudspeaker so Android does not route to earpiece.
- */
+
+/** @deprecated Prefer LiveAudioRoute — kept as thin compat for older web posts. */
 async function forceSpeakerAudioMode(opts = {}) {
   const recording = opts.recording === true;
-  if (!recording) {
-    return;
-  }
-  try {
-    await Audio.setAudioModeAsync({
-      allowsRecordingIOS: true,
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: true,
-      shouldDuckOthers: true,
-      playThroughEarpieceAndroid: false,
-      interruptionModeIOS: InterruptionModeIOS.DuckOthers,
-      interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
+  if (recording) {
+    await LiveAudioRoute.enterTalk({
+      bluetoothSafe: opts.bluetoothSafe !== false,
+      reason: 'compat_force_speaker',
     });
-  } catch (err) {
-    console.warn('[audio-mode]', err?.message || err);
+  } else {
+    await LiveAudioRoute.enterPlayback('compat_force_speaker_playback');
   }
 }
 
@@ -943,9 +931,9 @@ export default function App() {
         webViewRef.current.injectJavaScript(LIVE_APP_BACKGROUND_INJECT);
       } else if (nextState === 'active') {
         const url = webViewCurrentUrlRef.current || '';
-        /* Only reclaim audio on live/party — never on explore (stops YouTube for no reason). */
+        /* Phase 2A: re-apply native live route on foreground (speaker/BT). */
         if (isLiveCaptureUrl(url)) {
-          forceSpeakerAudioMode({ recording: false }).catch(() => {});
+          LiveAudioRoute.onAppForeground().catch(() => {});
           lockLiveScreenCapture(true);
         }
         webViewRef.current.injectJavaScript(LIVE_APP_FOREGROUND_INJECT);
@@ -954,6 +942,20 @@ export default function App() {
     const sub = AppState.addEventListener('change', onAppStateChange);
     return () => sub.remove();
   }, [lockLiveScreenCapture]);
+
+  useEffect(() => {
+    if (__DEV__) LiveAudioRoute.setDebug(true);
+    const unsub = LiveAudioRoute.subscribe((evt) => {
+      if (__DEV__ || evt?.event === 'transition' || evt?.event === 'route_change') {
+        console.warn('[LiveAudioRoute:app]', evt?.event, evt);
+      }
+    });
+    return () => {
+      try {
+        unsub?.();
+      } catch (_e) {}
+    };
+  }, []);
 
   useEffect(() => {
     /* Do NOT force audio mode on cold start — that steals YouTube/media focus
@@ -1072,8 +1074,42 @@ export default function App() {
           })();
           return;
         }
+        if (data.type === 'temp_voice_route_debug') {
+          /* TEMPORARY — logcat for iQOO/BT investigation; remove after */
+          console.warn('[TEMP-VOICE-ROUTE:wv]', data.entry?.type, data.entry || data);
+          return;
+        }
+        if (data.type === 'live_audio_route') {
+          const action = String(data.action || '');
+          const reason = data.reason || action;
+          if (action === 'enterPlayback') {
+            LiveAudioRoute.enterPlayback(reason).catch(() => {});
+          } else if (action === 'enterTalk') {
+            LiveAudioRoute.enterTalk({
+              bluetoothSafe: data.bluetoothSafe !== false,
+              reason,
+            }).catch(() => {});
+          } else if (action === 'exitTalk') {
+            LiveAudioRoute.exitTalk(reason).catch(() => {});
+          } else if (action === 'leaveLive') {
+            LiveAudioRoute.leaveLive(reason).catch(() => {});
+          } else if (action === 'reevaluate') {
+            LiveAudioRoute.reevaluate(reason).catch(() => {});
+          } else if (action === 'debug') {
+            LiveAudioRoute.setDebug(data.enabled !== false);
+          }
+          return;
+        }
         if (data.type === 'force_speaker_audio') {
-          forceSpeakerAudioMode({ recording: data.recording === true }).catch(() => {});
+          /* Compat: map old web posts onto LiveAudioRoute */
+          if (data.recording === true) {
+            LiveAudioRoute.enterTalk({
+              bluetoothSafe: data.bluetoothSafe !== false,
+              reason: 'force_speaker_audio',
+            }).catch(() => {});
+          } else if (isLiveCaptureUrl(webViewCurrentUrlRef.current || '')) {
+            LiveAudioRoute.enterPlayback('force_speaker_audio').catch(() => {});
+          }
           return;
         }
         if (data.type === 'share') {
@@ -1266,15 +1302,28 @@ export default function App() {
           const url = e?.nativeEvent?.url || '';
           injectMobileLayout(url);
           syncScreenCaptureForUrl(url);
-          /* Audience mode until Web asks for mic — keeps WebRTC audible on more Androids. */
-          if (isLiveCaptureUrl(url)) forceSpeakerAudioMode({ recording: false }).catch(() => {});
+          /* Phase 2A: audience playback focus when entering live/party pages. */
+          if (isLiveCaptureUrl(url)) {
+            LiveAudioRoute.enterPlayback('webview_load').catch(() => {});
+          } else {
+            LiveAudioRoute.leaveLive('webview_load_non_live').catch(() => {});
+          }
         }}
         onNavigationStateChange={(nav) => {
           const url = nav?.url || '';
+          const prev = webViewCurrentUrlRef.current || '';
           if (url) webViewCurrentUrlRef.current = url;
           webViewCanGoBackRef.current = Boolean(nav?.canGoBack);
           syncScreenCaptureForUrl(url);
-          if (isLiveCaptureUrl(url)) forceSpeakerAudioMode({ recording: false }).catch(() => {});
+          const nowLive = isLiveCaptureUrl(url);
+          const wasLive = isLiveCaptureUrl(prev);
+          if (nowLive && !wasLive) {
+            LiveAudioRoute.enterPlayback('nav_enter_live').catch(() => {});
+          } else if (!nowLive && wasLive) {
+            LiveAudioRoute.leaveLive('nav_leave_live').catch(() => {});
+          } else if (nowLive) {
+            /* Stay in current livePlay/liveTalk — don't downgrade talk→play on every nav tick */
+          }
           if (url.includes('explore.html') || url.includes('dashboard')) {
             oauthCompleteRef.current = true;
             setLoadError('');

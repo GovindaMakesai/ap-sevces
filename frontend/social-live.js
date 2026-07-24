@@ -2,7 +2,7 @@
  * Party room (voice grid) + Live room (video) - Agora + Socket.io
  */
 (function () {
-  window.__AP_LIVE_BUILD = '20260724-voice-unstuck';
+  window.__AP_LIVE_BUILD = '20260724-phase2a-route';
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
@@ -1665,6 +1665,8 @@
         liveDebugLog(`Audience token renew after demote failed: ${e?.message || e}`);
       }
     }
+    /* Phase 2A: leave communication/recording mode → audience playback */
+    notifyLiveAudioRoute('exitTalk', { reason: 'demote_or_leave_seat' });
   }
 
   function pickKickDurationHours() {
@@ -5726,6 +5728,12 @@
     hideApLoader();
     syncLiveUiState();
     window.LiveSession?.onRoomActive?.();
+    /* Phase 2A: audience playback focus (host upgrades to enterTalk when mic publishes) */
+    if (isHost() || hasSpeakerSeat) {
+      notifyLiveAudioRoute('enterTalk', { reason: 'onRoomReady', bluetoothSafe: true });
+    } else {
+      notifyLiveAudioRoute('enterPlayback', { reason: 'onRoomReady' });
+    }
     if (!isHost() && isLiveRoomPage()) {
       revealLiveVideoWhenReady(80);
     }
@@ -5884,6 +5892,7 @@
             liveDebugLog('Publish OK party audio');
             forensicEvent('PUBLISH_SUCCESS', { channel: joined.channel, mode: 'party' });
             updateLiveDebug({ hostPublishing: true, publishSucceeded: true });
+            notifyLiveAudioRoute('enterTalk', { reason: 'host_party_publish', bluetoothSafe: true });
             ensureRemoteAudioPlaying().then(() => boostRemoteAudioVolumes()).catch(() => {});
             setTimeout(() => boostRemoteAudioVolumes(), 1000);
           } catch (pubErr) {
@@ -5901,6 +5910,7 @@
             liveDebugLog('Publish OK live audio');
             forensicEvent('PUBLISH_SUCCESS', { channel: joined.channel, mode: 'audio' });
             updateLiveDebug({ hostPublishing: true, publishSucceeded: true });
+            notifyLiveAudioRoute('enterTalk', { reason: 'host_audio_publish', bluetoothSafe: true });
             ensureRemoteAudioPlaying().then(() => boostRemoteAudioVolumes()).catch(() => {});
             setTimeout(() => boostRemoteAudioVolumes(), 1000);
           } catch (pubErr) {
@@ -5967,6 +5977,7 @@
             updateLiveDebug({ hostPublishing: true, publishSucceeded: true });
             /* AEC ducks seat mics once host mic is live — apply publisher volume immediately */
             syncLiveMediaPublisherMode();
+            notifyLiveAudioRoute('enterTalk', { reason: 'host_av_publish', bluetoothSafe: true });
             ensureRemoteAudioPlaying()
               .then(() => boostRemoteAudioVolumes())
               .catch(() => { });
@@ -6370,6 +6381,7 @@
       try {
         window.APVoiceMetrics?.noteSeatJoinOk?.();
       } catch (_m1) {}
+      notifyLiveAudioRoute('enterTalk', { reason: 'guest_publish_ok', bluetoothSafe: true });
       toast('Mic is live — camera stays off. Tap mic to mute', 'success');
     } catch (e) {
       const msg = friendlyAgoraError(e?.message || String(e));
@@ -7683,6 +7695,7 @@
     }
     updateLiveDebug({ agoraJoined: false, hostPublishing: false, publishSucceeded: false, remoteUsersCount: 0 });
     syncLiveUiState();
+    notifyLiveAudioRoute('leaveLive', { reason: 'stopAgora' });
   }
 
   /* ---------- UI: chat / seats / gifts ---------- */
@@ -11537,14 +11550,34 @@
     }
   }
 
+  function notifyLiveAudioRoute(action, extra = {}) {
+    try {
+      if (!window.ReactNativeWebView?.postMessage) return;
+      window.ReactNativeWebView.postMessage(
+        JSON.stringify({
+          type: 'live_audio_route',
+          action,
+          ts: Date.now(),
+          ...extra,
+        })
+      );
+    } catch (_e) {}
+  }
+
   function requestNativeSpeakerAudio() {
     try {
-      /* recording:true only when we own a mic — audience stays in media mode (hearable). */
-      const recording = Boolean(isHost() || (hasSpeakerSeat && publishSucceeded) || hasSpeakerSeat);
+      /* Phase 2A: talk vs playback — native LiveAudioRoute owns focus/route. */
+      const talking = Boolean(isHost() || (hasSpeakerSeat && publishSucceeded) || hasSpeakerSeat);
+      if (talking) {
+        notifyLiveAudioRoute('enterTalk', { bluetoothSafe: true, reason: 'requestNativeSpeakerAudio' });
+      } else {
+        notifyLiveAudioRoute('enterPlayback', { reason: 'requestNativeSpeakerAudio' });
+      }
+      /* Compat for older app builds */
       window.ReactNativeWebView?.postMessage?.(
         JSON.stringify({
           type: 'force_speaker_audio',
-          recording,
+          recording: talking,
           bluetoothSafe: true,
           ts: Date.now(),
         })
@@ -11552,18 +11585,25 @@
     } catch (_e) { }
   }
 
-  /** Route remote audio to Bluetooth headphones when available (setSinkId). */
+  /** Route remote audio — desktop only. Android WebView has no setSinkId; native LiveAudioRoute owns output. */
   async function routeRemoteAudioOutputs() {
     try {
+      if (/Android/i.test(navigator.userAgent || '')) {
+        liveDebugLog('audio output: skip setSinkId on Android (native LiveAudioRoute)');
+        return;
+      }
       if (!navigator.mediaDevices?.enumerateDevices) return;
       const devices = await navigator.mediaDevices.enumerateDevices();
       const outs = devices.filter((d) => d.kind === 'audiooutput');
       if (!outs.length) return;
+      if (typeof HTMLMediaElement === 'undefined' || typeof HTMLMediaElement.prototype.setSinkId !== 'function') {
+        return;
+      }
       const bt = outs.find((d) =>
         /bluetooth|bt |airpods|galaxy buds|headset|headphone|wh-?\d|ears/i.test(String(d.label || ''))
       );
       const pick = bt || outs.find((d) => d.deviceId && d.deviceId !== 'communications') || outs[0];
-      if (!pick?.deviceId || typeof HTMLMediaElement === 'undefined') return;
+      if (!pick?.deviceId) return;
       const els = document.querySelectorAll(
         'audio.ap-remote-audio-sink, audio[data-ap-remote-audio="1"], audio#apRemoteAudioSink'
       );
@@ -11579,6 +11619,16 @@
       liveDebugLog(`audio output routed → ${pick.label || pick.deviceId}`);
     } catch (_e) {}
   }
+
+  /* Slice 2: notify native when outputs change (BT / headset). Native re-applies LiveAudioRoute. */
+  try {
+    if (!window.__apAudioRouteDeviceChangeBound && navigator.mediaDevices?.addEventListener) {
+      window.__apAudioRouteDeviceChangeBound = true;
+      navigator.mediaDevices.addEventListener('devicechange', () => {
+        notifyLiveAudioRoute('reevaluate', { reason: 'mediaDevices_devicechange' });
+      });
+    }
+  } catch (_e) {}
 
   function disconnectRemoteAudioGraph(uid) {
     const key = String(uid);
@@ -16869,6 +16919,7 @@ function openGameOverlay(url) {
     openBeautySheet: () => openVideoFilterSheet(),
     forceRemoteAudio,
     onScreenshotAttempt,
+    notifyLiveAudioRoute,
     getForensicReport() {
       return window.__liveDebug || { events: [] };
     },
@@ -16876,6 +16927,11 @@ function openGameOverlay(url) {
   window.APLive = window.SocialLive;
 
   document.addEventListener('DOMContentLoaded', () => {
+    try {
+      if (localStorage.getItem('ap_voice_route_debug') === '1') {
+        notifyLiveAudioRoute('debug', { enabled: true, reason: 'localStorage' });
+      }
+    } catch (_e) {}
     const page = document.body?.dataset?.livePage;
     if (page === 'party-room' || page === 'live-room') {
       bindApLoaderDismiss();
