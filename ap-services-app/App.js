@@ -1064,12 +1064,15 @@ export default function App() {
         if (data.type === 'request_media_permissions') {
           (async () => {
             const needMic = data.microphone !== false;
-            await forceSpeakerAudioMode({ recording: needMic });
+            /* Android: recording/communication mode enables HW AEC that cancels host voice.
+             * WebView getUserMedia still works in playback mode. iOS still needs recording. */
+            const useRecordingMode =
+              Platform.OS === 'ios' && needMic && data.recordingAudioMode !== false;
+            await forceSpeakerAudioMode({ recording: useRecordingMode });
             const result = await requestAndroidMediaPermissions({
               microphone: needMic,
             });
-            /* Keep loudspeaker after mic grant — otherwise live voice goes to earpiece. */
-            await forceSpeakerAudioMode({ recording: needMic });
+            await forceSpeakerAudioMode({ recording: useRecordingMode });
             webViewRef.current?.injectJavaScript(buildMediaPermissionResultScript(result));
           })();
           return;

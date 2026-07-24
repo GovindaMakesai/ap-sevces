@@ -4646,6 +4646,9 @@
         }
       } catch (_e3) {}
       localTracks = [];
+      try {
+        disposeHostMicBoostGraph();
+      } catch (_boost) {}
       if (rawCameraTrack) {
         try {
           rawCameraTrack.stop?.();
@@ -5631,7 +5634,14 @@
       const onEvt = (e) => finish(e.detail);
       const timer = setTimeout(() => finish({ ok: false, reason: 'timeout' }), 10000);
       document.addEventListener('ap-media-permissions', onEvt);
-      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'request_media_permissions' }));
+      /* Host: ask native NOT to enter communication/recording audio mode (Samsung AEC). */
+      window.ReactNativeWebView.postMessage(
+        JSON.stringify({
+          type: 'request_media_permissions',
+          microphone: true,
+          recordingAudioMode: false,
+        })
+      );
     });
   }
 
@@ -5728,8 +5738,12 @@
     hideApLoader();
     syncLiveUiState();
     window.LiveSession?.onRoomActive?.();
-    /* Phase 2A: audience playback focus (host upgrades to enterTalk when mic publishes) */
-    if (isHost() || hasSpeakerSeat) {
+    /* Host must NOT use enterTalk/recording mode on Android — Samsung HW AEC
+     * in MODE_IN_COMMUNICATION cancels the host's own uplink (must-shout bug).
+     * WebView getUserMedia works fine in playback focus. */
+    if (isHost()) {
+      notifyLiveAudioRoute('enterPlayback', { reason: 'onRoomReady_host' });
+    } else if (hasSpeakerSeat) {
       notifyLiveAudioRoute('enterTalk', { reason: 'onRoomReady', bluetoothSafe: true });
     } else {
       notifyLiveAudioRoute('enterPlayback', { reason: 'onRoomReady' });
@@ -5892,7 +5906,7 @@
             liveDebugLog('Publish OK party audio');
             forensicEvent('PUBLISH_SUCCESS', { channel: joined.channel, mode: 'party' });
             updateLiveDebug({ hostPublishing: true, publishSucceeded: true });
-            notifyLiveAudioRoute('enterTalk', { reason: 'host_party_publish', bluetoothSafe: true });
+            notifyLiveAudioRoute('enterPlayback', { reason: 'host_party_publish' });
             ensureRemoteAudioPlaying().then(() => boostRemoteAudioVolumes()).catch(() => {});
             setTimeout(() => boostRemoteAudioVolumes(), 1000);
           } catch (pubErr) {
@@ -5910,7 +5924,7 @@
             liveDebugLog('Publish OK live audio');
             forensicEvent('PUBLISH_SUCCESS', { channel: joined.channel, mode: 'audio' });
             updateLiveDebug({ hostPublishing: true, publishSucceeded: true });
-            notifyLiveAudioRoute('enterTalk', { reason: 'host_audio_publish', bluetoothSafe: true });
+            notifyLiveAudioRoute('enterPlayback', { reason: 'host_audio_publish' });
             ensureRemoteAudioPlaying().then(() => boostRemoteAudioVolumes()).catch(() => {});
             setTimeout(() => boostRemoteAudioVolumes(), 1000);
           } catch (pubErr) {
@@ -5977,7 +5991,7 @@
             updateLiveDebug({ hostPublishing: true, publishSucceeded: true });
             /* AEC ducks seat mics once host mic is live — apply publisher volume immediately */
             syncLiveMediaPublisherMode();
-            notifyLiveAudioRoute('enterTalk', { reason: 'host_av_publish', bluetoothSafe: true });
+            notifyLiveAudioRoute('enterPlayback', { reason: 'host_av_publish' });
             ensureRemoteAudioPlaying()
               .then(() => boostRemoteAudioVolumes())
               .catch(() => { });
@@ -7575,26 +7589,148 @@
     );
   }
 
-  /** Host uses normal send; seat guests need higher send so they match host loudness. */
-  const LIVE_MIC_OPTS = { AEC: true, ANS: false, AGC: true };
-  const LIVE_MIC_SEND_VOLUME_HOST = 100;
-  const LIVE_MIC_SEND_VOLUME_SEAT = 160;
+  /**
+   * Host mic (Samsung A51): communication/recording audio mode turns on HW AEC
+   * that cancels the host's own voice — software gain cannot fix gated silence.
+   * Host capture: leave that mode, disable 3A, prefer camcorder mic, max send vol.
+   */
+  const LIVE_MIC_SEND_VOLUME_HOST = 1000;
+  const LIVE_MIC_SEND_VOLUME_SEAT = 250;
+
+  function isAndroidHostMicRisk() {
+    try {
+      return /Android/i.test(String(navigator.userAgent || ''));
+    } catch (_e) {
+      return false;
+    }
+  }
+
+  function isSamsungHostMicRisk() {
+    try {
+      const ua = String(navigator.userAgent || '');
+      return /Samsung|SM-A51|SM-A515|SM-A516|SM-A5|SM-A\d/i.test(ua);
+    } catch (_e) {
+      return false;
+    }
+  }
 
   function localMicSendVolume() {
-    /* Mild seat boost so seat voice matches host — keep clear (not clipped) */
     if (!isHost() && hasSpeakerSeat) return LIVE_MIC_SEND_VOLUME_SEAT;
     return LIVE_MIC_SEND_VOLUME_HOST;
+  }
+
+  function disposeHostMicBoostGraph() {
+    try {
+      window.__apHostMicBoostGain?.disconnect?.();
+    } catch (_e) {}
+    try {
+      window.__apHostMicBoostCtx?.close?.();
+    } catch (_e2) {}
+    try {
+      window.__apHostMicRawStream?.getTracks?.().forEach((t) => t.stop());
+    } catch (_e3) {}
+    window.__apHostMicBoostGain = null;
+    window.__apHostMicBoostCtx = null;
+    window.__apHostMicRawStream = null;
+  }
+
+  async function pickBestHostMicrophoneId(rtc) {
+    try {
+      const list =
+        (typeof rtc.getMicrophones === 'function' ? await rtc.getMicrophones() : null) ||
+        (await navigator.mediaDevices?.enumerateDevices?.())?.filter((d) => d.kind === 'audioinput') ||
+        [];
+      if (!list.length) return undefined;
+      const score = (label) => {
+        const s = String(label || '').toLowerCase();
+        if (/voice.?recog|recognition|communication|voip|headset/i.test(s)) return 0;
+        if (/camcorder|camera|back|speaker.?phone|default/i.test(s)) return 3;
+        if (/samsung|sm-/i.test(s)) return 2;
+        return 1;
+      };
+      const ranked = [...list].sort((a, b) => score(b.label) - score(a.label));
+      const best = ranked[0];
+      liveDebugLog(`mic pick: ${best?.label || best?.deviceId || 'default'} score=${score(best?.label)}`);
+      return best?.deviceId || undefined;
+    } catch (_e) {
+      return undefined;
+    }
+  }
+
+  /** Exit Android communication mode before opening the mic (old + new app builds). */
+  function leaveHostCommunicationAudioMode() {
+    try {
+      notifyLiveAudioRoute('enterPlayback', { reason: 'host_pre_mic' });
+      window.ReactNativeWebView?.postMessage?.(
+        JSON.stringify({
+          type: 'force_speaker_audio',
+          recording: false,
+          bluetoothSafe: true,
+          ts: Date.now(),
+        })
+      );
+    } catch (_e) {}
   }
 
   async function createRoomMicrophoneTrack(AgoraRTC) {
     const rtc = AgoraRTC || window.AgoraRTC;
     if (!rtc?.createMicrophoneAudioTrack) throw new Error('Microphone API unavailable');
-    const audioTrack = await withTimeout(
-      rtc.createMicrophoneAudioTrack({ ...LIVE_MIC_OPTS }),
-      25000,
-      'Microphone access'
+    const hostLike = Boolean(isHost());
+    liveDebugLog(
+      `mic create host=${hostLike} android=${isAndroidHostMicRisk()} samsung=${isSamsungHostMicRisk()} vol=${localMicSendVolume()}`
     );
+
+    if (hostLike) {
+      leaveHostCommunicationAudioMode();
+      await new Promise((r) => setTimeout(r, 120));
+    }
+
+    disposeHostMicBoostGraph();
+    const micId = hostLike ? await pickBestHostMicrophoneId(rtc) : undefined;
+    const opts = hostLike
+      ? {
+          AEC: false,
+          ANS: false,
+          AGC: false,
+          encoderConfig: 'music_standard',
+          ...(micId ? { microphoneId: micId } : {}),
+        }
+      : {
+          AEC: true,
+          ANS: false,
+          AGC: false,
+          encoderConfig: 'speech_standard',
+        };
+
+    let audioTrack = null;
+    try {
+      audioTrack = await withTimeout(
+        rtc.createMicrophoneAudioTrack({ ...opts }),
+        25000,
+        'Microphone access'
+      );
+    } catch (firstErr) {
+      liveDebugLog(`mic create retry: ${firstErr?.message || firstErr}`);
+      audioTrack = await withTimeout(
+        rtc.createMicrophoneAudioTrack({
+          AEC: false,
+          ANS: false,
+          AGC: false,
+        }),
+        25000,
+        'Microphone access'
+      );
+    }
+
     await normalizeLocalMicLevel(audioTrack);
+    setTimeout(() => normalizeLocalMicLevel(audioTrack).catch(() => {}), 600);
+    setTimeout(() => normalizeLocalMicLevel(audioTrack).catch(() => {}), 2000);
+    if (hostLike && !window.__apHostMicToastShown) {
+      window.__apHostMicToastShown = true;
+      try {
+        toast('Mic clear-mode on — talk normally', 'success');
+      } catch (_t) {}
+    }
     return audioTrack;
   }
 
@@ -11566,18 +11702,19 @@
 
   function requestNativeSpeakerAudio() {
     try {
-      /* Phase 2A: talk vs playback — native LiveAudioRoute owns focus/route. */
-      const talking = Boolean(isHost() || (hasSpeakerSeat && publishSucceeded) || hasSpeakerSeat);
-      if (talking) {
+      /* Host: never recording/communication mode — Samsung AEC eats host voice.
+       * Seat guests: enterTalk for duplex. Audience: playback. */
+      const seatTalking = Boolean(!isHost() && hasSpeakerSeat);
+      if (seatTalking) {
         notifyLiveAudioRoute('enterTalk', { bluetoothSafe: true, reason: 'requestNativeSpeakerAudio' });
       } else {
         notifyLiveAudioRoute('enterPlayback', { reason: 'requestNativeSpeakerAudio' });
       }
-      /* Compat for older app builds */
+      /* Compat for older app builds — recording:false for host is the A51 fix */
       window.ReactNativeWebView?.postMessage?.(
         JSON.stringify({
           type: 'force_speaker_audio',
-          recording: talking,
+          recording: seatTalking,
           bluetoothSafe: true,
           ts: Date.now(),
         })

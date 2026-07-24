@@ -13,8 +13,9 @@
 (function (global) {
   'use strict';
 
-  const BUILD = '20260724-phase1-life';
-  const VOL = 100;
+  const BUILD = '20260724-host-clear-mic';
+  /* Quiet uplink (Samsung host) — lift remote playback; 100 was too thin */
+  const VOL = 350;
 
   const state = {
     log: null,
