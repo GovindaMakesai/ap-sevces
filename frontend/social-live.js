@@ -7590,12 +7590,12 @@
   }
 
   /**
-   * Host mic (Samsung A51): Android communication/recording mode enables HW AEC
-   * that cancels the host's own voice. Stay in playback mode + AGC off + high
-   * send volume. Keep software AEC ON so seat voices do not double via speaker loop.
+   * Host mic (Samsung A51): avoid Android communication mode (HW AEC cancels host).
+   * Keep software AEC on to stop seat echo. Send volumes stay near Agora default (100)
+   * — earlier 1000/250 made multi-seat rooms sound like a fish market.
    */
-  const LIVE_MIC_SEND_VOLUME_HOST = 1000;
-  const LIVE_MIC_SEND_VOLUME_SEAT = 250;
+  const LIVE_MIC_SEND_VOLUME_HOST = 100;
+  const LIVE_MIC_SEND_VOLUME_SEAT = 100;
 
   function isAndroidHostMicRisk() {
     try {
@@ -7616,6 +7616,8 @@
 
   function localMicSendVolume() {
     if (!isHost() && hasSpeakerSeat) return LIVE_MIC_SEND_VOLUME_SEAT;
+    /* Mild only — not a blast */
+    if (isHost() && isSamsungHostMicRisk()) return 130;
     return LIVE_MIC_SEND_VOLUME_HOST;
   }
 
@@ -11804,7 +11806,7 @@
       disconnectRemoteAudioGraph(user.uid);
       const source = ctx.createMediaStreamSource(new MediaStream([mst]));
       const gain = ctx.createGain();
-      gain.gain.value = isHost() || hasSpeakerSeat ? 3.0 : 1.8;
+      gain.gain.value = 1.0;
       source.connect(gain);
       gain.connect(ctx.destination);
       __remoteAudioGraph.set(String(user.uid), { source, gain, trackId: mst.id });
@@ -11908,7 +11910,7 @@
       eng.boostAll(agoraClient);
       return;
     }
-    const vol = isHost() || (hasSpeakerSeat && publishSucceeded) ? 400 : 100;
+    const vol = 100;
     try {
       for (const user of agoraClient?.remoteUsers || []) {
         try {
@@ -11937,6 +11939,10 @@
     if (!shouldHearRemoteAudio()) return false;
     requestNativeSpeakerAudio();
     const force = Boolean(opts?.force);
+    /* Drop legacy Web Audio graphs — dual path = double/fish-market noise */
+    try {
+      disconnectRemoteAudioGraph(user.uid);
+    } catch (_g) {}
     const eng = liveMedia();
     if (eng) {
       syncLiveMediaPublisherMode();
@@ -11949,7 +11955,7 @@
     }
     /* Legacy fallback if engine script missing */
     try {
-      user.audioTrack.setVolume?.(isHost() || hasSpeakerSeat ? 400 : 100);
+      user.audioTrack.setVolume?.(100);
       const sink = getOrCreateRemoteAudioSink(user.uid);
       sink.muted = false;
       sink.volume = 1;
@@ -11966,14 +11972,9 @@
 
   function unmuteDomMediaElements() {
     try {
-      document.querySelectorAll('audio, video').forEach((el) => {
+      /* Only remote live sinks — never blast every <audio> (gifts/music = fish market) */
+      document.querySelectorAll('audio.ap-remote-audio-sink, audio[data-ap-remote-audio="1"]').forEach((el) => {
         try {
-          const isLocalPreview =
-            el.closest?.('#liveLocalHost, #liveLocalVideo, .ap-local-preview');
-          if (el.tagName === 'VIDEO') {
-            el.muted = true;
-            return;
-          }
           el.muted = false;
           el.volume = 1;
           if (el.paused) {
@@ -12126,7 +12127,7 @@
           }
           if (user.audioTrack) {
             try {
-              user.audioTrack.setVolume?.(400);
+              user.audioTrack.setVolume?.(100);
               await eng.playRemoteAudio(user, { force: true });
             } catch (_e3) { /* ignore */ }
           }

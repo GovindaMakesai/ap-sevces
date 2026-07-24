@@ -13,9 +13,9 @@
 (function (global) {
   'use strict';
 
-  const BUILD = '20260724-seat-echo-fix';
-  /* Moderate remote gain — 350 made residual seat echo feel like double voice */
-  const VOL = 180;
+  const BUILD = '20260724-audio-calm';
+  /* Agora default remote volume — boosted values caused fish-market loudness */
+  const VOL = 100;
 
   const state = {
     log: null,
