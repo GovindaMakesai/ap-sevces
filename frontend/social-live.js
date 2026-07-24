@@ -7590,9 +7590,9 @@
   }
 
   /**
-   * Host mic (Samsung A51): communication/recording audio mode turns on HW AEC
-   * that cancels the host's own voice — software gain cannot fix gated silence.
-   * Host capture: leave that mode, disable 3A, prefer camcorder mic, max send vol.
+   * Host mic (Samsung A51): Android communication/recording mode enables HW AEC
+   * that cancels the host's own voice. Stay in playback mode + AGC off + high
+   * send volume. Keep software AEC ON so seat voices do not double via speaker loop.
    */
   const LIVE_MIC_SEND_VOLUME_HOST = 1000;
   const LIVE_MIC_SEND_VOLUME_SEAT = 250;
@@ -7689,7 +7689,9 @@
     const micId = hostLike ? await pickBestHostMicrophoneId(rtc) : undefined;
     const opts = hostLike
       ? {
-          AEC: false,
+          /* AEC must stay ON or seat voices loop back via host speaker (double voice).
+           * Keep AGC off + high send vol + no Android communication mode for Samsung clarity. */
+          AEC: true,
           ANS: false,
           AGC: false,
           encoderConfig: 'music_standard',
@@ -7713,7 +7715,7 @@
       liveDebugLog(`mic create retry: ${firstErr?.message || firstErr}`);
       audioTrack = await withTimeout(
         rtc.createMicrophoneAudioTrack({
-          AEC: false,
+          AEC: true,
           ANS: false,
           AGC: false,
         }),
@@ -7725,12 +7727,6 @@
     await normalizeLocalMicLevel(audioTrack);
     setTimeout(() => normalizeLocalMicLevel(audioTrack).catch(() => {}), 600);
     setTimeout(() => normalizeLocalMicLevel(audioTrack).catch(() => {}), 2000);
-    if (hostLike && !window.__apHostMicToastShown) {
-      window.__apHostMicToastShown = true;
-      try {
-        toast('Mic clear-mode on — talk normally', 'success');
-      } catch (_t) {}
-    }
     return audioTrack;
   }
 

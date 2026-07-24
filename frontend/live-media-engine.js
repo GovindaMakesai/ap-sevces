@@ -13,9 +13,9 @@
 (function (global) {
   'use strict';
 
-  const BUILD = '20260724-host-clear-mic';
-  /* Quiet uplink (Samsung host) — lift remote playback; 100 was too thin */
-  const VOL = 350;
+  const BUILD = '20260724-seat-echo-fix';
+  /* Moderate remote gain — 350 made residual seat echo feel like double voice */
+  const VOL = 180;
 
   const state = {
     log: null,
