@@ -13,7 +13,7 @@
 (function (global) {
   'use strict';
 
-  const BUILD = '20260724-audio-calm';
+  const BUILD = '20260725-phone-audio';
   /* Agora default remote volume — boosted values caused fish-market loudness */
   const VOL = 100;
 
@@ -21,8 +21,8 @@
     log: null,
     isPublisher: false,
     shouldHear: () => true,
-    requestSpeaker: () => {},
-    unlockAudio: async () => {},
+    requestSpeaker: () => { },
+    unlockAudio: async () => { },
     sinks: new Map(),
     lastHealthAt: 0,
     remountAt: new Map(),
@@ -42,7 +42,7 @@
     try {
       if (typeof state.log === 'function') state.log(msg, data);
       else if (global.console?.debug) global.console.debug('[LiveMedia]', msg, data || '');
-    } catch (_e) {}
+    } catch (_e) { }
   }
 
   function configure(opts = {}) {
@@ -82,7 +82,7 @@
       el.muted = false;
       el.volume = 1;
       el.style.cssText =
-        'position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;pointer-events:none;';
+        'position:fixed;left:0;bottom:0;width:2px;height:2px;opacity:0.01;pointer-events:none;z-index:-1;';
       global.document.body.appendChild(el);
     }
     if (el) {
@@ -104,7 +104,7 @@
       el.srcObject = null;
       el.removeAttribute('src');
       el.remove();
-    } catch (_e) {}
+    } catch (_e) { }
   }
 
   function clearAllSinks() {
@@ -148,14 +148,14 @@
     try {
       state.requestSpeaker();
       await state.unlockAudio();
-    } catch (_e) {}
+    } catch (_e) { }
 
     try {
       user.audioTrack.setVolume?.(VOL);
       if (typeof user.audioTrack.setMuted === 'function') {
-        await user.audioTrack.setMuted(false).catch?.(() => {});
+        await user.audioTrack.setMuted(false).catch?.(() => { });
       }
-    } catch (_e2) {}
+    } catch (_e2) { }
 
     const sinkBroken = sinkNeedsReplay(user.uid);
     if (!force && !sinkBroken && user.audioTrack.isPlaying === true && !trackEnded(user)) {
@@ -176,7 +176,7 @@
       sink.volume = 1;
       try {
         sink.removeAttribute('muted');
-      } catch (_e3) {}
+      } catch (_e3) { }
     }
 
     try {
@@ -188,8 +188,8 @@
         if (sink.paused) {
           try {
             const sp = sink.play?.();
-            if (sp && typeof sp.then === 'function') await sp.catch?.(() => {});
-          } catch (_sp) {}
+            if (sp && typeof sp.then === 'function') await sp.catch?.(() => { });
+          } catch (_sp) { }
         }
       }
       state.stats.playOk += 1;
@@ -222,11 +222,11 @@
           if (!user.audioTrack) continue;
           user.audioTrack.setVolume?.(VOL);
           if (typeof user.audioTrack.setMuted === 'function') {
-            user.audioTrack.setMuted(false).catch?.(() => {});
+            user.audioTrack.setMuted(false).catch?.(() => { });
           }
-        } catch (_e) {}
+        } catch (_e) { }
       }
-    } catch (_e2) {}
+    } catch (_e2) { }
     try {
       state.sinks.forEach((el) => {
         if (!el) return;
@@ -234,11 +234,11 @@
         el.volume = 1;
         if (el.paused) {
           try {
-            el.play?.()?.catch?.(() => {});
-          } catch (_e4) {}
+            el.play?.()?.catch?.(() => { });
+          } catch (_e4) { }
         }
       });
-    } catch (_e3) {}
+    } catch (_e3) { }
   }
 
   async function ensureAllRemoteAudio(client, { force = false } = {}) {
@@ -320,7 +320,7 @@
             state.quietTicks.set(uid, ticks);
             /* Only recover after sustained pause — avoid stuck thrash */
             if (ticks >= 3) {
-              playRemoteAudio(user, { force: true }).catch(() => {});
+              playRemoteAudio(user, { force: true }).catch(() => { });
             }
             if (ticks >= 6 && typeof opts.onStuckSilent === 'function') {
               opts.onStuckSilent(user);
@@ -330,11 +330,11 @@
             state.quietTicks.set(uid, 0);
             try {
               user.audioTrack.setVolume?.(VOL);
-            } catch (_e) {}
+            } catch (_e) { }
           }
         });
         if (remotes.length) boostAll(client);
-      } catch (_e) {}
+      } catch (_e) { }
     }, baseInterval);
     log('health_watch_start', { intervalMs: baseInterval });
   }

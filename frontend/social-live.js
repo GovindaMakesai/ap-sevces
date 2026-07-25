@@ -110,7 +110,7 @@
   function writeGiftMemory(kind, list) {
     try {
       localStorage.setItem(giftMemoryKey(kind), JSON.stringify((list || []).slice(0, 24)));
-    } catch (_e) {}
+    } catch (_e) { }
   }
 
   function rememberGiftUse(item) {
@@ -240,9 +240,9 @@
     const g = giftOrMsg.gift || giftOrMsg;
     const txId = normalizeGiftTxId(
       g.gift_tx_id ||
-        g.giftId ||
-        (String(g.id || '').length >= 8 && !/^\d+$/.test(String(g.id || '')) ? g.id : '') ||
-        (String(giftOrMsg.id || '').startsWith('gift-') ? giftOrMsg.id : '')
+      g.giftId ||
+      (String(g.id || '').length >= 8 && !/^\d+$/.test(String(g.id || '')) ? g.id : '') ||
+      (String(giftOrMsg.id || '').startsWith('gift-') ? giftOrMsg.id : '')
     );
     if (txId) return `id:${txId}`;
     /* Soft key: user ids + amount — ignore emoji (🌹 vs rose) so socket/state merge */
@@ -270,11 +270,11 @@
     if (!key) return true;
     const soft = key.startsWith('id:')
       ? giftFingerprint({
-          ...gift,
-          id: null,
-          gift_tx_id: null,
-          gift: gift.gift ? { ...gift.gift, id: null, gift_tx_id: null } : undefined,
-        })
+        ...gift,
+        id: null,
+        gift_tx_id: null,
+        gift: gift.gift ? { ...gift.gift, id: null, gift_tx_id: null } : undefined,
+      })
       : key;
     if (recentGiftFxKeys.has(key) || (soft && recentGiftFxKeys.has(soft))) return false;
     const now = Date.now();
@@ -503,7 +503,7 @@
       const force = localStorage.getItem('ap_publish_canvas_beauty');
       if (force === '1') return true;
       if (force === '0') return false;
-    } catch (_e) {}
+    } catch (_e) { }
     try {
       const cores = Number(navigator.hardwareConcurrency) || 4;
       const mem = Number(navigator.deviceMemory) || 4;
@@ -1353,10 +1353,10 @@
     const memberUid = (m) =>
       String(
         m?.userId ??
-          m?.user_id ??
-          m?.id ??
-          m?.uid ??
-          ''
+        m?.user_id ??
+        m?.id ??
+        m?.uid ??
+        ''
       );
     const members = [
       ...(Array.isArray(roomState?.onlineMembers) ? roomState.onlineMembers : []),
@@ -1646,12 +1646,12 @@
     if (tracks.length) {
       try {
         await lifeUnpublish(tracks);
-      } catch (_e) {}
+      } catch (_e) { }
       for (const t of tracks) {
         try {
           t.stop?.();
           t.close?.();
-        } catch (_e2) {}
+        } catch (_e2) { }
       }
     }
     updateLiveDebug({ hostPublishing: false, publishSucceeded: false });
@@ -3324,7 +3324,7 @@
     }
     try {
       window.APVoiceMetrics?.onForensic?.(name, detail);
-    } catch (_m) {}
+    } catch (_m) { }
     try {
       const prev = JSON.parse(localStorage.getItem('ap_live_forensics') || '[]');
       prev.push(entry);
@@ -4192,7 +4192,7 @@
           }
           syncLiveMediaPublisherMode();
           boostRemoteAudioVolumes();
-          ensureRemoteAudioPlaying().catch(() => {});
+          ensureRemoteAudioPlaying().catch(() => { });
           if (isPartyRoomPage()) renderPartySeats(roomState?.hostName);
           else renderGuestRail();
           if (publishSucceeded) {
@@ -4374,9 +4374,9 @@
         const hostExtras =
           hostFlag && meta
             ? {
-                streamTitle: meta.streamTitle || undefined,
-                streamCoverUrl: meta.streamCoverUrl || undefined,
-              }
+              streamTitle: meta.streamTitle || undefined,
+              streamCoverUrl: meta.streamCoverUrl || undefined,
+            }
             : {};
         liveSocket.emit(
           'live:join',
@@ -4587,7 +4587,7 @@
     }
     try {
       await agoraClient.unpublish(list.length === 1 ? list[0] : list);
-    } catch (_e) {}
+    } catch (_e) { }
   }
 
   function syncLifeClientMeta() {
@@ -4596,7 +4596,7 @@
         joined: Boolean(liveDebugState.agoraJoined),
         channel: liveDebugState.channel || channelId(),
       });
-    } catch (_e) {}
+    } catch (_e) { }
   }
 
   function clearAllRemoteAudioSinks() {
@@ -4604,10 +4604,10 @@
       __remoteAudioSinkEls.forEach((_el, uid) => {
         try {
           removeRemoteAudioSink(uid);
-        } catch (_e) {}
+        } catch (_e) { }
       });
       __remoteAudioSinkEls.clear();
-    } catch (_e2) {}
+    } catch (_e2) { }
   }
 
   /**
@@ -4630,30 +4630,30 @@
       liveDebugLog(`dispose Agora (${reason})`);
       try {
         window.APVoiceMetrics?.noteDispose?.(reason);
-      } catch (_m) {}
+      } catch (_m) { }
       try {
         liveMedia()?.dispose?.();
-      } catch (_eng) {}
+      } catch (_eng) { }
       try {
         for (const t of localTracks) {
           try {
             await client.unpublish?.(t);
-          } catch (_e) {}
+          } catch (_e) { }
           try {
             t.stop?.();
             t.close?.();
-          } catch (_e2) {}
+          } catch (_e2) { }
         }
-      } catch (_e3) {}
+      } catch (_e3) { }
       localTracks = [];
       try {
         disposeHostMicBoostGraph();
-      } catch (_boost) {}
+      } catch (_boost) { }
       if (rawCameraTrack) {
         try {
           rawCameraTrack.stop?.();
           rawCameraTrack.close?.();
-        } catch (_e4) {}
+        } catch (_e4) { }
         rawCameraTrack = null;
       }
       try {
@@ -4661,26 +4661,26 @@
         for (const u of remotes) {
           try {
             u.audioTrack?.stop?.();
-          } catch (_e5) {}
+          } catch (_e5) { }
           try {
             u.videoTrack?.stop?.();
-          } catch (_e6) {}
+          } catch (_e6) { }
           try {
             await client.unsubscribe?.(u);
-          } catch (_e7) {}
+          } catch (_e7) { }
         }
-      } catch (_e8) {}
+      } catch (_e8) { }
       remoteUsers.clear();
       clearAllRemoteAudioSinks();
       try {
         client.__apHandlersBound = false;
-      } catch (_e9) {}
+      } catch (_e9) { }
       try {
         await client.leave();
-      } catch (_e10) {}
+      } catch (_e10) { }
       try {
         agoraLife()?.syncExternalClient?.(null, { joined: false, channel: null });
-      } catch (_e11) {}
+      } catch (_e11) { }
       /* Android WebView needs a beat before the next createClient */
       await new Promise((r) => setTimeout(r, reason === 'peerconnection_limit' ? 900 : 400));
     });
@@ -4734,8 +4734,8 @@
 
   /* Start Agora download as early as possible (parallel with auth/socket) */
   try {
-    loadAgoraScript().catch(() => {});
-  } catch (_e) {}
+    loadAgoraScript().catch(() => { });
+  } catch (_e) { }
 
   let __agoraTokenInflight = new Map();
   let __viewerAgoraEarlyPromise = null;
@@ -4750,21 +4750,21 @@
       return;
     }
     bindAudioUnlockGestures();
-    unlockBrowserAudio().catch(() => {});
+    unlockBrowserAudio().catch(() => { });
     kickstartRemoteAudio(reason || 'parallel-av');
 
     /* Fire A+V together — never wait on one before starting the other */
     const jobs = [];
     for (const u of remotes) {
-      if (u.hasVideo) jobs.push(playRemoteMedia(u, 'video').catch(() => {}));
-      if (u.hasAudio) jobs.push(playRemoteMedia(u, 'audio').catch(() => {}));
+      if (u.hasVideo) jobs.push(playRemoteMedia(u, 'video').catch(() => { }));
+      if (u.hasAudio) jobs.push(playRemoteMedia(u, 'audio').catch(() => { }));
     }
     /* Start reveal immediately while subscribes run */
     if (!isHost() && isLiveRoomPage()) {
       revealLiveVideoWhenReady(120);
     }
     await Promise.all(jobs);
-    ensureRemoteAudioPlaying().catch(() => {});
+    ensureRemoteAudioPlaying().catch(() => { });
     boostRemoteAudioVolumes();
     if (hasPlayingRemoteVideo() || document.querySelector('#liveRemoteHost video')) {
       setLiveStreamVisible(true);
@@ -4789,7 +4789,7 @@
     __viewerAgoraEarlyPromise = (async () => {
       try {
         if (window.Auth?.ensureAccessToken) {
-          await Auth.ensureAccessToken().catch(() => {});
+          await Auth.ensureAccessToken().catch(() => { });
         }
         const AgoraRTC = await loadAgoraScript();
         const alreadyOnChannel =
@@ -4835,31 +4835,31 @@
       return __agoraTokenInflight.get(cacheKey);
     }
     const run = (async () => {
-    const user = currentUser();
-    const userId = user?.id != null ? String(user.id) : null;
-    const isActualHost = Boolean(
-      (roomState?.hostId && user?.id && String(roomState.hostId) === String(user.id)) ||
-      (qs('host') === '1' && !hasSpeakerSeat && !roomState?.hostId)
-    );
-    // Publisher request must NOT imply host — seated guests need publisher tokens too.
-    const wantsPublisher = Boolean(asPublisher) || isActualHost || hasSpeakerSeat;
-    const role = wantsPublisher ? (isActualHost ? 'host' : 'publisher') : 'audience';
-    const roomType = document.body.dataset.livePage === 'party-room' ? 'party' : 'live';
+      const user = currentUser();
+      const userId = user?.id != null ? String(user.id) : null;
+      const isActualHost = Boolean(
+        (roomState?.hostId && user?.id && String(roomState.hostId) === String(user.id)) ||
+        (qs('host') === '1' && !hasSpeakerSeat && !roomState?.hostId)
+      );
+      // Publisher request must NOT imply host — seated guests need publisher tokens too.
+      const wantsPublisher = Boolean(asPublisher) || isActualHost || hasSpeakerSeat;
+      const role = wantsPublisher ? (isActualHost ? 'host' : 'publisher') : 'audience';
+      const roomType = document.body.dataset.livePage === 'party-room' ? 'party' : 'live';
 
-    liveDebugLog(
-      `Token request channel=${channel} role=${role} asPublisher=${Boolean(asPublisher)} seated=${hasSpeakerSeat} userId=${userId}`
-    );
-    forensicEvent('TOKEN_REQUEST_START', {
-      channel,
-      role,
-      asPublisher: Boolean(asPublisher),
-      hasSpeakerSeat,
-      userId,
-      roomType,
-    });
+      liveDebugLog(
+        `Token request channel=${channel} role=${role} asPublisher=${Boolean(asPublisher)} seated=${hasSpeakerSeat} userId=${userId}`
+      );
+      forensicEvent('TOKEN_REQUEST_START', {
+        channel,
+        role,
+        asPublisher: Boolean(asPublisher),
+        hasSpeakerSeat,
+        userId,
+        roomType,
+      });
 
-    const payloads = asPublisher
-      ? [
+      const payloads = asPublisher
+        ? [
           { channel, role },
           {
             channel,
@@ -4872,67 +4872,67 @@
             seated: hasSpeakerSeat,
           },
         ]
-      : [{ channel, role }];
+        : [{ channel, role }];
 
-    let data = null;
-    let lastErr = null;
-    for (let i = 0; i < payloads.length; i++) {
-      try {
-        data = await API.post('/live/agora/token', payloads[i]);
-        if (data?.success) break;
-        lastErr = new Error(data?.message || 'Agora token request failed (success=false)');
-      } catch (e) {
-        lastErr = e;
+      let data = null;
+      let lastErr = null;
+      for (let i = 0; i < payloads.length; i++) {
+        try {
+          data = await API.post('/live/agora/token', payloads[i]);
+          if (data?.success) break;
+          lastErr = new Error(data?.message || 'Agora token request failed (success=false)');
+        } catch (e) {
+          lastErr = e;
+        }
+        liveDebugLog(`Token request retry ${i + 1}/${payloads.length} failed: ${lastErr?.message || lastErr}`);
       }
-      liveDebugLog(`Token request retry ${i + 1}/${payloads.length} failed: ${lastErr?.message || lastErr}`);
-    }
-    if (!data?.success) {
-      forensicEvent('TOKEN_REQUEST_FAILED', {
-        channel,
+      if (!data?.success) {
+        forensicEvent('TOKEN_REQUEST_FAILED', {
+          channel,
+          role,
+          hasSpeakerSeat,
+          userId,
+          message: lastErr?.message || data?.message,
+        });
+        const raw = lastErr?.message || data?.message || 'Agora token request failed';
+        if (/publisher token requires/i.test(raw)) {
+          if (!liveDebugState.socketConnected) {
+            throw new Error(
+              'Real-time socket not connected — room must join before going live. Reload and check Socket: YES in the debug bar.'
+            );
+          }
+          if (!roomJoinCompleted) {
+            throw new Error('Room not joined yet — wait for socket connection, then try again.');
+          }
+          if (hasSpeakerSeat) {
+            throw new Error('Seat accepted but mic token denied — ask host to remove/re-add you to the seat.');
+          }
+          throw new Error(
+            'Server does not recognize you as host for this room. Start a new live/party from Streamer Center.'
+          );
+        }
+        throw new Error(raw);
+      }
+      if (data.mode === 'mock' || !data.token) {
+        forensicEvent('TOKEN_REQUEST_FAILED', { channel, role, userId, mode: data.mode });
+        throw new Error(
+          data.message ||
+          'Agora token unavailable — server returned mock mode or empty token (check AGORA_APP_ID and AGORA_APP_CERTIFICATE)'
+        );
+      }
+      const tokenChannel = data.channel || channel;
+      auditChannel('token', tokenChannel);
+      forensicEvent('TOKEN_SUCCESS', {
+        channel: tokenChannel,
         role,
         hasSpeakerSeat,
         userId,
-        message: lastErr?.message || data?.message,
+        uid: data.uid,
+        mode: data.mode,
       });
-      const raw = lastErr?.message || data?.message || 'Agora token request failed';
-      if (/publisher token requires/i.test(raw)) {
-        if (!liveDebugState.socketConnected) {
-          throw new Error(
-            'Real-time socket not connected — room must join before going live. Reload and check Socket: YES in the debug bar.'
-          );
-        }
-        if (!roomJoinCompleted) {
-          throw new Error('Room not joined yet — wait for socket connection, then try again.');
-        }
-        if (hasSpeakerSeat) {
-          throw new Error('Seat accepted but mic token denied — ask host to remove/re-add you to the seat.');
-        }
-        throw new Error(
-          'Server does not recognize you as host for this room. Start a new live/party from Streamer Center.'
-        );
-      }
-      throw new Error(raw);
-    }
-    if (data.mode === 'mock' || !data.token) {
-      forensicEvent('TOKEN_REQUEST_FAILED', { channel, role, userId, mode: data.mode });
-      throw new Error(
-        data.message ||
-        'Agora token unavailable — server returned mock mode or empty token (check AGORA_APP_ID and AGORA_APP_CERTIFICATE)'
-      );
-    }
-    const tokenChannel = data.channel || channel;
-    auditChannel('token', tokenChannel);
-    forensicEvent('TOKEN_SUCCESS', {
-      channel: tokenChannel,
-      role,
-      hasSpeakerSeat,
-      userId,
-      uid: data.uid,
-      mode: data.mode,
-    });
-    liveDebugLog(`Token OK mode=${data.mode} uid=${data.uid} channel=${tokenChannel} role=${role}`);
-    updateLiveDebug({ tokenReceived: true });
-    return data;
+      liveDebugLog(`Token OK mode=${data.mode} uid=${data.uid} channel=${tokenChannel} role=${role}`);
+      updateLiveDebug({ tokenReceived: true });
+      return data;
     })();
     __agoraTokenInflight.set(cacheKey, run);
     try {
@@ -4991,18 +4991,18 @@
           onDeadTrack: (user) => {
             eng.remountIfDead(user, async (u) => {
               await playRemoteMedia(u, 'audio', { force: false });
-            }).catch(() => {});
+            }).catch(() => { });
           },
           onMissingTrack: (user) => {
-            playRemoteMedia(user, 'audio', { force: false }).catch(() => {});
+            playRemoteMedia(user, 'audio', { force: false }).catch(() => { });
           },
           onStuckSilent: (user) => {
             /* Confirmed unhealthy after hysteresis inside engine — soft play only */
-            eng.playRemoteAudio(user, { force: false }).catch(() => {});
+            eng.playRemoteAudio(user, { force: false }).catch(() => { });
           },
         });
       }
-    } catch (_cfg) {}
+    } catch (_cfg) { }
     client.on('user-published', async (user, mediaType) => {
       liveDebugLog(`user-published uid=${user.uid} media=${mediaType}`);
       forensicEvent('REMOTE_USER_PUBLISHED', { uid: user.uid, mediaType, channel: agoraChannel });
@@ -5014,7 +5014,7 @@
             if (eng) {
               eng.playRemoteAudio(user, { force: false }).then(() => eng.boostAll(agoraClient));
             } else {
-              ensureRemoteAudioPlaying().catch(() => {});
+              ensureRemoteAudioPlaying().catch(() => { });
             }
           }
           if (mediaType === 'video') {
@@ -5182,7 +5182,7 @@
           try {
             window.APVoiceMetrics?.noteRecover?.(reason);
             forensicEvent('MEDIA_RECOVER', { reason });
-          } catch (_m) {}
+          } catch (_m) { }
           if (!agoraClient || !liveDebugState.agoraJoined) {
             const page = document.body.dataset.livePage;
             await startAgora(page === 'party-room' ? 'party' : 'live');
@@ -5748,6 +5748,30 @@
     } else {
       notifyLiveAudioRoute('enterPlayback', { reason: 'onRoomReady' });
     }
+    /* Force audible path on join — some phones stay silent until unlock + speaker route */
+    soundOn = true;
+    requestNativeSpeakerAudio();
+    unlockBrowserAudio()
+      .then(() => {
+        unmuteDomMediaElements();
+        return ensureRemoteAudioPlaying();
+      })
+      .then(() => boostRemoteAudioVolumes())
+      .catch(() => {});
+    setTimeout(() => {
+      unmuteDomMediaElements();
+      ensureRemoteAudioPlaying().catch(() => {});
+      boostRemoteAudioVolumes();
+    }, 900);
+    setTimeout(() => {
+      if (!shouldHearRemoteAudio()) return;
+      if (!isRemoteAudioAudibleNow()) {
+        forceRemoteAudio('onRoomReady_silent');
+        try {
+          showTapForSoundHint?.();
+        } catch (_h) {}
+      }
+    }, 2800);
     if (!isHost() && isLiveRoomPage()) {
       revealLiveVideoWhenReady(80);
     }
@@ -5772,7 +5796,7 @@
     if (!isHost() && __viewerAgoraEarlyPromise) {
       try {
         await __viewerAgoraEarlyPromise;
-      } catch (_e) {}
+      } catch (_e) { }
     }
     ensureLiveDebugPanel();
     ensureViewerDiagnostics();
@@ -5826,214 +5850,214 @@
 
     try {
       await runAgoraLifecycle('startAgora', async () => {
-      await loadAgoraScript();
-      const alreadyOnChannel =
-        agoraClient &&
-        liveDebugState.agoraJoined &&
-        String(liveDebugState.channel || '') === String(ch);
-      if (!alreadyOnChannel) {
-        if (agoraClient) {
-          await disposeAgoraClient('startAgora_rejoin');
-        }
-        await ensureAgoraClient();
-      }
-
-      let joined;
-      try {
-        const asPublisher = host || hasSpeakerSeat;
+        await loadAgoraScript();
+        const alreadyOnChannel =
+          agoraClient &&
+          liveDebugState.agoraJoined &&
+          String(liveDebugState.channel || '') === String(ch);
         if (!alreadyOnChannel) {
-          joined = await joinAgoraWithRetry(agoraClient, ch, asPublisher, 2);
-          forensicEvent('AGORA_JOIN_SUCCESS', {
-            channel: joined.channel,
-            uid: joined.uid,
-            role: host ? 'host' : 'audience',
-          });
-        } else {
-          joined = { channel: ch, uid: liveDebugState.agoraUid };
-          liveDebugLog('Agora already joined (early path) — subscribe only');
-        }
-        syncLiveUiState();
-        /* Audio first — voice should not wait on video decode */
-        await subscribeRemotesPreferAudio(host ? 'host-joined' : alreadyOnChannel ? 'viewer-early' : 'viewer-joined');
-      } catch (joinErr) {
-        const msg = joinErr?.message || String(joinErr);
-        console.error('[live] Agora join failed', joinErr);
-        liveDebugLog(`Agora join FAILED: ${msg}`);
-        forensicEvent('AGORA_JOIN_FAILED', { channel: ch, msg });
-        updateLiveDebug({ agoraJoined: false });
-        if (isPeerConnectionLimitError(joinErr) || isPeerConnectionLimitError(msg)) {
-          await disposeAgoraClient('peerconnection_limit');
-        }
-        const friendly = friendlyAgoraError(msg);
-        if (host) {
-          toast(friendly, 'error');
-          await onHostBroadcastFailed('agora_join_failed', friendly);
-        } else if (isPartyRoomPage()) {
-          partyVoiceSkipped = true;
-          onRoomReady();
-          if (/CAN_NOT_GET_GATEWAY/i.test(msg)) {
-            setLiveStatus(friendly, false);
-            toast(friendly, 'error');
-          } else {
-            setLiveStatus('Connecting to party audio…', null);
-            schedulePartyAgoraRetry();
+          if (agoraClient) {
+            await disposeAgoraClient('startAgora_rejoin');
           }
-        } else {
-          onRoomReady();
-          setLiveStatus(friendly, /CAN_NOT_GET_GATEWAY/i.test(msg) ? false : null);
-          if (/CAN_NOT_GET_GATEWAY/i.test(msg)) toast(friendly, 'error');
+          await ensureAgoraClient();
         }
-        return;
-      }
 
-      const uid = joined.uid;
-      window.SocialFX?.initAgoraVolumeIndicator?.(agoraClient, uid || currentUser()?.id);
-
-      if (host) {
-        await requestNativeMediaPermissions();
-        const mediaBlock = webMediaBlockedReason();
-        if (mediaBlock) {
-          await handleHostMediaBlocked(mediaBlock, mode);
+        let joined;
+        try {
+          const asPublisher = host || hasSpeakerSeat;
+          if (!alreadyOnChannel) {
+            joined = await joinAgoraWithRetry(agoraClient, ch, asPublisher, 2);
+            forensicEvent('AGORA_JOIN_SUCCESS', {
+              channel: joined.channel,
+              uid: joined.uid,
+              role: host ? 'host' : 'audience',
+            });
+          } else {
+            joined = { channel: ch, uid: liveDebugState.agoraUid };
+            liveDebugLog('Agora already joined (early path) — subscribe only');
+          }
+          syncLiveUiState();
+          /* Audio first — voice should not wait on video decode */
+          await subscribeRemotesPreferAudio(host ? 'host-joined' : alreadyOnChannel ? 'viewer-early' : 'viewer-joined');
+        } catch (joinErr) {
+          const msg = joinErr?.message || String(joinErr);
+          console.error('[live] Agora join failed', joinErr);
+          liveDebugLog(`Agora join FAILED: ${msg}`);
+          forensicEvent('AGORA_JOIN_FAILED', { channel: ch, msg });
+          updateLiveDebug({ agoraJoined: false });
+          if (isPeerConnectionLimitError(joinErr) || isPeerConnectionLimitError(msg)) {
+            await disposeAgoraClient('peerconnection_limit');
+          }
+          const friendly = friendlyAgoraError(msg);
+          if (host) {
+            toast(friendly, 'error');
+            await onHostBroadcastFailed('agora_join_failed', friendly);
+          } else if (isPartyRoomPage()) {
+            partyVoiceSkipped = true;
+            onRoomReady();
+            if (/CAN_NOT_GET_GATEWAY/i.test(msg)) {
+              setLiveStatus(friendly, false);
+              toast(friendly, 'error');
+            } else {
+              setLiveStatus('Connecting to party audio…', null);
+              schedulePartyAgoraRetry();
+            }
+          } else {
+            onRoomReady();
+            setLiveStatus(friendly, /CAN_NOT_GET_GATEWAY/i.test(msg) ? false : null);
+            if (/CAN_NOT_GET_GATEWAY/i.test(msg)) toast(friendly, 'error');
+          }
           return;
         }
-        if (mode === 'party') {
-          const audioTrack = await createRoomMicrophoneTrack(AgoraRTC);
-          localTracks = [audioTrack];
-          try {
-            await lifePublish(audioTrack);
-            publishSucceeded = true;
-            partyVoiceSkipped = false;
-            liveDebugLog('Publish OK party audio');
-            forensicEvent('PUBLISH_SUCCESS', { channel: joined.channel, mode: 'party' });
-            updateLiveDebug({ hostPublishing: true, publishSucceeded: true });
-            notifyLiveAudioRoute('enterPlayback', { reason: 'host_party_publish' });
-            ensureRemoteAudioPlaying().then(() => boostRemoteAudioVolumes()).catch(() => {});
-            setTimeout(() => boostRemoteAudioVolumes(), 1000);
-          } catch (pubErr) {
-            const msg = pubErr?.message || String(pubErr);
-            console.error('[live] publish failed', pubErr);
-            await onHostBroadcastFailed('publish_failed', `Publish failed: ${msg}`);
-            return;
-          }
-        } else if (broadcastMode === 'audio') {
-          const audioTrack = await createRoomMicrophoneTrack(AgoraRTC);
-          localTracks = [audioTrack];
-          try {
-            await lifePublish(audioTrack);
-            publishSucceeded = true;
-            liveDebugLog('Publish OK live audio');
-            forensicEvent('PUBLISH_SUCCESS', { channel: joined.channel, mode: 'audio' });
-            updateLiveDebug({ hostPublishing: true, publishSucceeded: true });
-            notifyLiveAudioRoute('enterPlayback', { reason: 'host_audio_publish' });
-            ensureRemoteAudioPlaying().then(() => boostRemoteAudioVolumes()).catch(() => {});
-            setTimeout(() => boostRemoteAudioVolumes(), 1000);
-          } catch (pubErr) {
-            const msg = pubErr?.message || String(pubErr);
-            console.error('[live] publish failed', pubErr);
-            await onHostBroadcastFailed('publish_failed', `Publish failed: ${msg}`);
-            return;
-          }
-          const localBox = document.getElementById('liveLocalHost');
-          if (localBox) localBox.style.display = 'none';
-          const fallback = document.getElementById('liveLocalVideo');
-          if (fallback) fallback.style.display = 'none';
-          applyLiveBackground('audio', displayName(currentUser()));
-        } else {
-          const root = document.getElementById('liveRoomRoot');
-          if (root) root.classList.remove('is-audio-mode');
-          /* Create mic + camera together, publish both at once — viewers get A/V at the same time */
-          let audioTrack = null;
-          let videoTrack = null;
-          const mediaResults = await Promise.allSettled([
-            createRoomMicrophoneTrack(AgoraRTC),
-            withTimeout(
-              AgoraRTC.createCameraVideoTrack({
-                facingMode: cameraFacing,
-                /* Slightly lighter first encode = faster first remote frame */
-                encoderConfig: '480p_1',
-              }),
-              25000,
-              'Camera access'
-            ),
-          ]);
-          if (mediaResults[0].status === 'fulfilled') {
-            audioTrack = mediaResults[0].value;
-          } else {
-            liveDebugLog(`Host mic create failed: ${mediaResults[0].reason?.message || mediaResults[0].reason}`);
-          }
-          if (mediaResults[1].status === 'fulfilled') {
-            videoTrack = mediaResults[1].value;
-            rawCameraTrack = videoTrack;
-            const localBox = document.getElementById('liveLocalHost');
-            if (localBox) playLocalHostPreview(videoTrack);
-            ensureHostVideoVisible();
-            setLiveStreamVisible(true);
-          } else {
-            liveDebugLog(`Host camera create failed: ${mediaResults[1].reason?.message || mediaResults[1].reason}`);
-          }
 
-          const toPublish = [audioTrack, videoTrack].filter(Boolean);
-          if (!toPublish.length) {
-            await onHostBroadcastFailed('publish_failed', 'Could not open camera or microphone');
+        const uid = joined.uid;
+        window.SocialFX?.initAgoraVolumeIndicator?.(agoraClient, uid || currentUser()?.id);
+
+        if (host) {
+          await requestNativeMediaPermissions();
+          const mediaBlock = webMediaBlockedReason();
+          if (mediaBlock) {
+            await handleHostMediaBlocked(mediaBlock, mode);
             return;
           }
-          try {
-            /* Single stream only — dual low→high switch mid-watch breaks video/audio */
-            await lifePublish(toPublish);
-            localTracks = toPublish;
-            publishSucceeded = true;
-            liveDebugLog(`Publish OK live A/V together (a=${Boolean(audioTrack)} v=${Boolean(videoTrack)})`);
-            forensicEvent('PUBLISH_SUCCESS', {
-              channel: joined.channel,
-              mode: 'video',
-              parallel: true,
-            });
-            updateLiveDebug({ hostPublishing: true, publishSucceeded: true });
-            /* AEC ducks seat mics once host mic is live — apply publisher volume immediately */
-            syncLiveMediaPublisherMode();
-            notifyLiveAudioRoute('enterPlayback', { reason: 'host_av_publish' });
-            ensureRemoteAudioPlaying()
-              .then(() => boostRemoteAudioVolumes())
-              .catch(() => { });
-            setTimeout(() => boostRemoteAudioVolumes(), 1000);
-          } catch (pubErr) {
-            const msg = pubErr?.message || String(pubErr);
-            console.error('[live] publish failed', pubErr);
-            await onHostBroadcastFailed('publish_failed', `Publish failed: ${msg}`);
-            return;
-          }
-          if (!videoTrack && audioTrack) {
-            toast('Camera failed — audio is still live', 'warning');
-          }
-          if (videoTrack) {
-            applyVideoFilter();
-            ensureHostVideoVisible();
-            setLiveStreamVisible(true);
-          }
-          // Verify mic stayed published (some devices drop audio after camera start)
-          setTimeout(() => {
-            ensureHostAudioPublishing().catch((e) => liveDebugLog(`post-live mic check: ${e?.message || e}`));
-          }, 800);
-          setTimeout(() => {
-            ensureHostAudioPublishing().catch((e) => liveDebugLog(`post-live mic check2: ${e?.message || e}`));
-          }, 2500);
-          setTimeout(() => {
-            if (videoFilterId && videoFilterId !== 'none') {
-              syncPublishedBeautyTrack().catch((e) => liveDebugLog(`post-live beauty: ${e?.message || e}`));
+          if (mode === 'party') {
+            const audioTrack = await createRoomMicrophoneTrack(AgoraRTC);
+            localTracks = [audioTrack];
+            try {
+              await lifePublish(audioTrack);
+              publishSucceeded = true;
+              partyVoiceSkipped = false;
+              liveDebugLog('Publish OK party audio');
+              forensicEvent('PUBLISH_SUCCESS', { channel: joined.channel, mode: 'party' });
+              updateLiveDebug({ hostPublishing: true, publishSucceeded: true });
+              notifyLiveAudioRoute('enterPlayback', { reason: 'host_party_publish' });
+              ensureRemoteAudioPlaying().then(() => boostRemoteAudioVolumes()).catch(() => { });
+              setTimeout(() => boostRemoteAudioVolumes(), 1000);
+            } catch (pubErr) {
+              const msg = pubErr?.message || String(pubErr);
+              console.error('[live] publish failed', pubErr);
+              await onHostBroadcastFailed('publish_failed', `Publish failed: ${msg}`);
+              return;
             }
-          }, 700);
+          } else if (broadcastMode === 'audio') {
+            const audioTrack = await createRoomMicrophoneTrack(AgoraRTC);
+            localTracks = [audioTrack];
+            try {
+              await lifePublish(audioTrack);
+              publishSucceeded = true;
+              liveDebugLog('Publish OK live audio');
+              forensicEvent('PUBLISH_SUCCESS', { channel: joined.channel, mode: 'audio' });
+              updateLiveDebug({ hostPublishing: true, publishSucceeded: true });
+              notifyLiveAudioRoute('enterPlayback', { reason: 'host_audio_publish' });
+              ensureRemoteAudioPlaying().then(() => boostRemoteAudioVolumes()).catch(() => { });
+              setTimeout(() => boostRemoteAudioVolumes(), 1000);
+            } catch (pubErr) {
+              const msg = pubErr?.message || String(pubErr);
+              console.error('[live] publish failed', pubErr);
+              await onHostBroadcastFailed('publish_failed', `Publish failed: ${msg}`);
+              return;
+            }
+            const localBox = document.getElementById('liveLocalHost');
+            if (localBox) localBox.style.display = 'none';
+            const fallback = document.getElementById('liveLocalVideo');
+            if (fallback) fallback.style.display = 'none';
+            applyLiveBackground('audio', displayName(currentUser()));
+          } else {
+            const root = document.getElementById('liveRoomRoot');
+            if (root) root.classList.remove('is-audio-mode');
+            /* Create mic + camera together, publish both at once — viewers get A/V at the same time */
+            let audioTrack = null;
+            let videoTrack = null;
+            const mediaResults = await Promise.allSettled([
+              createRoomMicrophoneTrack(AgoraRTC),
+              withTimeout(
+                AgoraRTC.createCameraVideoTrack({
+                  facingMode: cameraFacing,
+                  /* Slightly lighter first encode = faster first remote frame */
+                  encoderConfig: '480p_1',
+                }),
+                25000,
+                'Camera access'
+              ),
+            ]);
+            if (mediaResults[0].status === 'fulfilled') {
+              audioTrack = mediaResults[0].value;
+            } else {
+              liveDebugLog(`Host mic create failed: ${mediaResults[0].reason?.message || mediaResults[0].reason}`);
+            }
+            if (mediaResults[1].status === 'fulfilled') {
+              videoTrack = mediaResults[1].value;
+              rawCameraTrack = videoTrack;
+              const localBox = document.getElementById('liveLocalHost');
+              if (localBox) playLocalHostPreview(videoTrack);
+              ensureHostVideoVisible();
+              setLiveStreamVisible(true);
+            } else {
+              liveDebugLog(`Host camera create failed: ${mediaResults[1].reason?.message || mediaResults[1].reason}`);
+            }
+
+            const toPublish = [audioTrack, videoTrack].filter(Boolean);
+            if (!toPublish.length) {
+              await onHostBroadcastFailed('publish_failed', 'Could not open camera or microphone');
+              return;
+            }
+            try {
+              /* Single stream only — dual low→high switch mid-watch breaks video/audio */
+              await lifePublish(toPublish);
+              localTracks = toPublish;
+              publishSucceeded = true;
+              liveDebugLog(`Publish OK live A/V together (a=${Boolean(audioTrack)} v=${Boolean(videoTrack)})`);
+              forensicEvent('PUBLISH_SUCCESS', {
+                channel: joined.channel,
+                mode: 'video',
+                parallel: true,
+              });
+              updateLiveDebug({ hostPublishing: true, publishSucceeded: true });
+              /* AEC ducks seat mics once host mic is live — apply publisher volume immediately */
+              syncLiveMediaPublisherMode();
+              notifyLiveAudioRoute('enterPlayback', { reason: 'host_av_publish' });
+              ensureRemoteAudioPlaying()
+                .then(() => boostRemoteAudioVolumes())
+                .catch(() => { });
+              setTimeout(() => boostRemoteAudioVolumes(), 1000);
+            } catch (pubErr) {
+              const msg = pubErr?.message || String(pubErr);
+              console.error('[live] publish failed', pubErr);
+              await onHostBroadcastFailed('publish_failed', `Publish failed: ${msg}`);
+              return;
+            }
+            if (!videoTrack && audioTrack) {
+              toast('Camera failed — audio is still live', 'warning');
+            }
+            if (videoTrack) {
+              applyVideoFilter();
+              ensureHostVideoVisible();
+              setLiveStreamVisible(true);
+            }
+            // Verify mic stayed published (some devices drop audio after camera start)
+            setTimeout(() => {
+              ensureHostAudioPublishing().catch((e) => liveDebugLog(`post-live mic check: ${e?.message || e}`));
+            }, 800);
+            setTimeout(() => {
+              ensureHostAudioPublishing().catch((e) => liveDebugLog(`post-live mic check2: ${e?.message || e}`));
+            }, 2500);
+            setTimeout(() => {
+              if (videoFilterId && videoFilterId !== 'none') {
+                syncPublishedBeautyTrack().catch((e) => liveDebugLog(`post-live beauty: ${e?.message || e}`));
+              }
+            }, 700);
+          }
+          onRoomReady();
+          syncLiveUiState();
+        } else {
+          onRoomReady();
+          applyLiveBackground(broadcastMode === 'audio' ? 'audio' : 'live', roomState?.hostName);
+          if (hasSpeakerSeat) {
+            await publishGuestAudio().catch((e) =>
+              liveDebugLog(`Guest publish after join: ${e?.message || e}`)
+            );
+          }
         }
-        onRoomReady();
-        syncLiveUiState();
-      } else {
-        onRoomReady();
-        applyLiveBackground(broadcastMode === 'audio' ? 'audio' : 'live', roomState?.hostName);
-        if (hasSpeakerSeat) {
-          await publishGuestAudio().catch((e) =>
-            liveDebugLog(`Guest publish after join: ${e?.message || e}`)
-          );
-        }
-      }
       }); // end runAgoraLifecycle startAgora
     } catch (err) {
       const msg = err?.message || String(err);
@@ -6288,7 +6312,7 @@
     try {
       try {
         window.APVoiceMetrics?.noteSeatJoinStart?.();
-      } catch (_m0) {}
+      } catch (_m0) { }
       await runAgoraLifecycle('seatUpgrade', async () => {
         const AgoraRTC = await loadAgoraScript();
         const alreadyJoined = Boolean(agoraClient && liveDebugState.agoraJoined);
@@ -6304,7 +6328,7 @@
               try {
                 t.stop?.();
                 t.close?.();
-              } catch (_e2) {}
+              } catch (_e2) { }
             }
           }
           const audioTrack = await createRoomMicrophoneTrack(AgoraRTC);
@@ -6368,7 +6392,7 @@
       await normalizeLocalMicLevel();
       syncLiveMediaPublisherMode();
       boostRemoteAudioVolumes();
-      await ensureRemoteAudioPlaying().catch(() => {});
+      await ensureRemoteAudioPlaying().catch(() => { });
 
       try {
         liveSocket?.emit('live:guest_mic_ready', {
@@ -6385,16 +6409,16 @@
               agoraUid: liveDebugState.agoraUid,
               hasVideo: false,
             });
-          } catch (_e2) {}
+          } catch (_e2) { }
         }, 1500);
-      } catch (_e) {}
+      } catch (_e) { }
 
       syncMicButtonUi();
       renderPartySeats(roomState?.hostName);
       renderGuestRail();
       try {
         window.APVoiceMetrics?.noteSeatJoinOk?.();
-      } catch (_m1) {}
+      } catch (_m1) { }
       notifyLiveAudioRoute('enterTalk', { reason: 'guest_publish_ok', bluetoothSafe: true });
       toast('Mic is live — camera stays off. Tap mic to mute', 'success');
     } catch (e) {
@@ -6404,13 +6428,13 @@
       guestPublishAttempted = false;
       try {
         window.APVoiceMetrics?.noteSeatJoinFail?.(msg);
-      } catch (_m2) {}
+      } catch (_m2) { }
       toast(`Mic failed: ${msg}`, 'error');
     } finally {
       guestPublishInProgress = false;
       if (guestPublishQueued && hasSpeakerSeat && !publishSucceeded) {
         guestPublishQueued = false;
-        setTimeout(() => publishGuestAudio().catch(() => {}), 400);
+        setTimeout(() => publishGuestAudio().catch(() => { }), 400);
       } else {
         guestPublishQueued = false;
       }
@@ -6945,7 +6969,7 @@
           /* Raw is canvas source only — Agora beauty here doubles cost */
           try {
             if (rawCameraTrack?.setBeautyEffect) await rawCameraTrack.setBeautyEffect(false);
-          } catch (_e) {}
+          } catch (_e) { }
           applyLocalPreviewCss();
           playLocalHostPreview(beautyPipeline.customTrack);
           return;
@@ -6976,7 +7000,7 @@
 
       try {
         if (rawCameraTrack?.setBeautyEffect) await rawCameraTrack.setBeautyEffect(false);
-      } catch (_e) {}
+      } catch (_e) { }
 
       const oldVideo = getLocalVideoTrack();
       try {
@@ -7143,15 +7167,15 @@
     applyLocalPreviewCss();
     const canvasLive = Boolean(
       PUBLISH_CANVAS_BEAUTY &&
-        beautyPipeline?.customTrack &&
-        videoFilterId &&
-        videoFilterId !== 'none'
+      beautyPipeline?.customTrack &&
+      videoFilterId &&
+      videoFilterId !== 'none'
     );
     if (canvasLive) {
       /* Draw loop reads videoFilterId — no republish needed on filter swap */
       try {
         if (rawCameraTrack?.setBeautyEffect) rawCameraTrack.setBeautyEffect(false);
-      } catch (_e) {}
+      } catch (_e) { }
       return;
     }
     applyAgoraBeautyEffect(rawCameraTrack || getLocalVideoTrack()).catch(() => { });
@@ -7191,7 +7215,7 @@
         }, 280);
         try {
           btn.scrollIntoView({ behavior: 'auto', inline: 'center', block: 'nearest' });
-        } catch (_e) {}
+        } catch (_e) { }
       });
     });
   }
@@ -7204,7 +7228,7 @@
     // Earn4U Beauty Engine sheet (lazy-loaded for hosts only)
     try {
       await ensureBeautyLoaded();
-    } catch (_e) {}
+    } catch (_e) { }
     if (window.APBeauty?.openSheet) {
       window.APBeauty.openSheet();
       return;
@@ -7624,13 +7648,13 @@
   function disposeHostMicBoostGraph() {
     try {
       window.__apHostMicBoostGain?.disconnect?.();
-    } catch (_e) {}
+    } catch (_e) { }
     try {
       window.__apHostMicBoostCtx?.close?.();
-    } catch (_e2) {}
+    } catch (_e2) { }
     try {
       window.__apHostMicRawStream?.getTracks?.().forEach((t) => t.stop());
-    } catch (_e3) {}
+    } catch (_e3) { }
     window.__apHostMicBoostGain = null;
     window.__apHostMicBoostCtx = null;
     window.__apHostMicRawStream = null;
@@ -7671,7 +7695,7 @@
           ts: Date.now(),
         })
       );
-    } catch (_e) {}
+    } catch (_e) { }
   }
 
   async function createRoomMicrophoneTrack(AgoraRTC) {
@@ -7691,20 +7715,20 @@
     const micId = hostLike ? await pickBestHostMicrophoneId(rtc) : undefined;
     const opts = hostLike
       ? {
-          /* AEC must stay ON or seat voices loop back via host speaker (double voice).
-           * Keep AGC off + high send vol + no Android communication mode for Samsung clarity. */
-          AEC: true,
-          ANS: false,
-          AGC: false,
-          encoderConfig: 'music_standard',
-          ...(micId ? { microphoneId: micId } : {}),
-        }
+        /* AEC must stay ON or seat voices loop back via host speaker (double voice).
+         * Keep AGC off + high send vol + no Android communication mode for Samsung clarity. */
+        AEC: true,
+        ANS: false,
+        AGC: false,
+        encoderConfig: 'music_standard',
+        ...(micId ? { microphoneId: micId } : {}),
+      }
       : {
-          AEC: true,
-          ANS: false,
-          AGC: false,
-          encoderConfig: 'speech_standard',
-        };
+        AEC: true,
+        ANS: false,
+        AGC: false,
+        encoderConfig: 'speech_standard',
+      };
 
     let audioTrack = null;
     try {
@@ -7727,8 +7751,8 @@
     }
 
     await normalizeLocalMicLevel(audioTrack);
-    setTimeout(() => normalizeLocalMicLevel(audioTrack).catch(() => {}), 600);
-    setTimeout(() => normalizeLocalMicLevel(audioTrack).catch(() => {}), 2000);
+    setTimeout(() => normalizeLocalMicLevel(audioTrack).catch(() => { }), 600);
+    setTimeout(() => normalizeLocalMicLevel(audioTrack).catch(() => { }), 2000);
     return audioTrack;
   }
 
@@ -7738,10 +7762,10 @@
     try {
       if (typeof audio.setEnabled === 'function') await audio.setEnabled(!micMuted);
       if (typeof audio.setMuted === 'function') await audio.setMuted(Boolean(micMuted));
-    } catch (_e) {}
+    } catch (_e) { }
     try {
       audio.setVolume?.(localMicSendVolume());
-    } catch (_e2) {}
+    } catch (_e2) { }
   }
 
   async function applyLocalMicMuteState() {
@@ -8280,136 +8304,136 @@
       (m) => !(m.type === 'mic_invite' && (m.inviteStatus || 'pending') === 'pending')
     );
     [...rest, ...pendingMic].forEach((msg) => {
-        const div = document.createElement('div');
-        if (msg.type === 'system') {
-          const isJoin = /\bjoined\b/i.test(msg.text || '');
-          const isLeave = /\bleft\b/i.test(msg.text || '');
-          const uid = String(msg.userId || '');
-          const uname = msg.user || String(msg.text || '').replace(/\s+(joined|left).*$/i, '').trim() || 'User';
-          div.className =
-            'party-chat-msg system' +
-            (isJoin ? ' join-msg' : '') +
-            (isLeave ? ' leave-msg' : '') +
-            (uid ? ' is-tappable' : '');
-          if (uid) {
-            div.innerHTML = `<button type="button" class="party-chat-sys-user" data-chat-user="${escapeAttr(uname)}" data-chat-uid="${escapeHtml(uid)}">${escapeHtml(msg.text || '')}</button>`;
-            div.querySelector('.party-chat-sys-user')?.addEventListener('click', (e) => {
-              e.stopPropagation();
-              openProfileSheet(uname, uid);
-            });
-          } else {
-            div.textContent = msg.text || '';
-          }
-        } else if (msg.type === 'mic_invite') {
-          const uid = String(msg.inviteUserId || msg.userId || '');
-          const uname = msg.inviteName || msg.user || 'Guest';
-          const status = msg.inviteStatus || 'pending';
-          const pic = msg.profilePic || null;
-          div.className = 'party-chat-msg party-chat-mic-invite' + (status !== 'pending' ? ' is-resolved' : '');
-          div.dataset.micInviteUid = uid;
-          if (status === 'pending') {
-            div.innerHTML =
-              `<button type="button" class="party-chat-avatar-btn" data-chat-user="${escapeAttr(uname)}" data-chat-uid="${escapeHtml(uid)}">` +
-              `<img src="${escapeAttr(avatarUrl(uname, pic))}" alt="" loading="lazy"></button>` +
-              `<div class="party-chat-mic-body">` +
-              `<div class="party-chat-mic-text"><strong>${escapeHtml(uname)}</strong> wants to join on mic</div>` +
-              `<div class="party-chat-mic-actions">` +
-              `<button type="button" class="party-chat-mic-deny" data-mic-deny="${escapeHtml(uid)}">Decline</button>` +
-              `<button type="button" class="party-chat-mic-agree" data-mic-agree="${escapeHtml(uid)}">Agree</button>` +
-              `</div></div>`;
-          } else {
-            const label = status === 'accepted' ? 'Agreed' : 'Declined';
-            div.innerHTML =
-              `<span class="party-chat-mic-resolved">${label}: <strong>${escapeHtml(uname)}</strong> mic request</span>`;
-          }
-          div.querySelector('.party-chat-avatar-btn')?.addEventListener('click', (e) => {
+      const div = document.createElement('div');
+      if (msg.type === 'system') {
+        const isJoin = /\bjoined\b/i.test(msg.text || '');
+        const isLeave = /\bleft\b/i.test(msg.text || '');
+        const uid = String(msg.userId || '');
+        const uname = msg.user || String(msg.text || '').replace(/\s+(joined|left).*$/i, '').trim() || 'User';
+        div.className =
+          'party-chat-msg system' +
+          (isJoin ? ' join-msg' : '') +
+          (isLeave ? ' leave-msg' : '') +
+          (uid ? ' is-tappable' : '');
+        if (uid) {
+          div.innerHTML = `<button type="button" class="party-chat-sys-user" data-chat-user="${escapeAttr(uname)}" data-chat-uid="${escapeHtml(uid)}">${escapeHtml(msg.text || '')}</button>`;
+          div.querySelector('.party-chat-sys-user')?.addEventListener('click', (e) => {
             e.stopPropagation();
             openProfileSheet(uname, uid);
           });
-        } else if (msg.type === 'gift') {
-          div.className = 'party-chat-msg party-chat-msg--gift is-tappable';
-          const g = msg.gift || {};
-          const fromId = String(msg.userId || g.fromUserId || g.senderId || '');
-          const toId = String(g.toUserId || g.receiver_id || g.recipientId || '');
-          const fromName = msg.user || g.from || 'User';
-          const toName = g.to || g.recipientName || 'Host';
-          div.innerHTML =
-            `<button type="button" class="party-chat-gift-ico party-chat-gift-tap" data-gift-user="${escapeAttr(fromName)}" data-gift-uid="${escapeHtml(fromId)}" data-gift-to="${escapeAttr(toName)}" data-gift-toid="${escapeHtml(toId)}" aria-label="Open gift profile">${escapeHtml(g.emoji || '🎁')}</button>` +
-            `<span class="party-chat-gift-body">` +
-            `<button type="button" class="party-chat-gift-tap" data-gift-user="${escapeAttr(fromName)}" data-gift-uid="${escapeHtml(fromId)}"><strong>${escapeHtml(fromName)}</strong></button>` +
-            ` sent ${escapeHtml(g.emoji || '🎁')} to ` +
-            `<button type="button" class="party-chat-gift-tap" data-gift-user="${escapeAttr(toName)}" data-gift-uid="${escapeHtml(toId)}"><strong>${escapeHtml(toName)}</strong></button>` +
-            ` · ${formatGiftCount(g.amount || g.coins || 0)} coins</span>`;
-          div.querySelectorAll('.party-chat-gift-tap').forEach((btn) => {
-            btn.addEventListener('click', (e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              const uid = btn.dataset.giftUid || '';
-              const name = btn.dataset.giftUser || 'User';
-              if (uid) openProfileSheet(name, uid);
-              else if (name) openProfileSheet(name, '');
-            });
-          });
-          div.addEventListener('click', (e) => {
-            if (e.target.closest('.party-chat-gift-tap')) return;
-            const giftTo = toId || fromId;
-            const giftName = toId ? toName : fromName;
-            if (giftTo) openGiftSheet(giftName, giftTo);
-            else if (fromId) openProfileSheet(fromName, fromId);
-          });
         } else {
-          div.className = 'party-chat-msg';
-          const uid = msg.userId || '';
-          const pic = msg.profilePic || getChatProfilePic(msg);
-          const avatarSrc = avatarUrl(msg.user, pic);
-          const lvlInfo = window.SocialFX
-            ? SocialFX.getUserLevel(msg.userId || msg.user, msg.giftSpend)
-            : { level: msg.lvl || 2, isVip: false, isFan: false };
-          const badge = window.SocialFX
-            ? SocialFX.levelBadgeHtml(lvlInfo.level, { isVip: lvlInfo.isVip, isFan: lvlInfo.isFan })
-            : `<span class="lvl">${msg.lvl || 1}</span>`;
-          const admin = uid && isAdminUserId(uid);
-          const adminBadge = admin ? '<span class="party-chat-admin-badge">Admin</span>' : '';
-          div.innerHTML =
-            `<button type="button" class="party-chat-avatar-btn${adminAvatarFrameClass(admin)}" data-chat-user="${escapeAttr(msg.user || 'User')}" data-chat-uid="${escapeHtml(String(uid))}">` +
-            `<img src="${escapeAttr(avatarSrc)}" alt="" data-name="${escapeAttr(msg.user || 'User')}" data-avatar-src="${escapeAttr(pic || '')}" loading="lazy" decoding="async" fetchpriority="low">${adminAvatarTagHtml(admin)}</button>` +
-            `<div class="party-chat-body">` +
-            `<div class="party-chat-meta">${badge}${adminBadge}` +
-            `<button type="button" class="party-chat-user-btn" data-chat-user="${escapeAttr(msg.user || 'User')}" data-chat-uid="${escapeHtml(String(uid))}">` +
-            `<span class="user${admin ? ' is-admin-name' : ''}">${escapeHtml(msg.user)}</span></button>` +
-            `${canModerateRoom() ? `<button type="button" class="party-chat-mod-btn" aria-label="Moderate message" data-msg-id="${escapeAttr(String(msg.id || ''))}"><i class="fas fa-ellipsis-v" aria-hidden="true"></i></button>` : ''}` +
-            `</div>` +
-            `<span class="party-chat-text">${escapeHtml(msg.text)}</span></div>`;
-          const img = div.querySelector('.party-chat-avatar-btn img');
-          if (img) {
-            img.onerror = () => {
-              img.onerror = null;
-              img.src = avatarUrl(msg.user, null);
-            };
-          }
-          div.querySelectorAll('.party-chat-avatar-btn, .party-chat-user-btn').forEach((btn) => {
-            btn.addEventListener('click', (e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              openProfileSheet(btn.dataset.chatUser || 'User', btn.dataset.chatUid || '');
-            });
-          });
-          const modBtn = div.querySelector('.party-chat-mod-btn');
-          if (modBtn) {
-            modBtn.addEventListener('click', (e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              openChatMessageModMenu({ ...msg, type: msg.type || 'chat' }, modBtn);
-            });
-            div.addEventListener('contextmenu', (e) => {
-              if (!canModerateRoom()) return;
-              e.preventDefault();
-              openChatMessageModMenu({ ...msg, type: msg.type || 'chat' }, modBtn);
-            });
-          }
+          div.textContent = msg.text || '';
         }
-        feed.appendChild(div);
-      });
+      } else if (msg.type === 'mic_invite') {
+        const uid = String(msg.inviteUserId || msg.userId || '');
+        const uname = msg.inviteName || msg.user || 'Guest';
+        const status = msg.inviteStatus || 'pending';
+        const pic = msg.profilePic || null;
+        div.className = 'party-chat-msg party-chat-mic-invite' + (status !== 'pending' ? ' is-resolved' : '');
+        div.dataset.micInviteUid = uid;
+        if (status === 'pending') {
+          div.innerHTML =
+            `<button type="button" class="party-chat-avatar-btn" data-chat-user="${escapeAttr(uname)}" data-chat-uid="${escapeHtml(uid)}">` +
+            `<img src="${escapeAttr(avatarUrl(uname, pic))}" alt="" loading="lazy"></button>` +
+            `<div class="party-chat-mic-body">` +
+            `<div class="party-chat-mic-text"><strong>${escapeHtml(uname)}</strong> wants to join on mic</div>` +
+            `<div class="party-chat-mic-actions">` +
+            `<button type="button" class="party-chat-mic-deny" data-mic-deny="${escapeHtml(uid)}">Decline</button>` +
+            `<button type="button" class="party-chat-mic-agree" data-mic-agree="${escapeHtml(uid)}">Agree</button>` +
+            `</div></div>`;
+        } else {
+          const label = status === 'accepted' ? 'Agreed' : 'Declined';
+          div.innerHTML =
+            `<span class="party-chat-mic-resolved">${label}: <strong>${escapeHtml(uname)}</strong> mic request</span>`;
+        }
+        div.querySelector('.party-chat-avatar-btn')?.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openProfileSheet(uname, uid);
+        });
+      } else if (msg.type === 'gift') {
+        div.className = 'party-chat-msg party-chat-msg--gift is-tappable';
+        const g = msg.gift || {};
+        const fromId = String(msg.userId || g.fromUserId || g.senderId || '');
+        const toId = String(g.toUserId || g.receiver_id || g.recipientId || '');
+        const fromName = msg.user || g.from || 'User';
+        const toName = g.to || g.recipientName || 'Host';
+        div.innerHTML =
+          `<button type="button" class="party-chat-gift-ico party-chat-gift-tap" data-gift-user="${escapeAttr(fromName)}" data-gift-uid="${escapeHtml(fromId)}" data-gift-to="${escapeAttr(toName)}" data-gift-toid="${escapeHtml(toId)}" aria-label="Open gift profile">${escapeHtml(g.emoji || '🎁')}</button>` +
+          `<span class="party-chat-gift-body">` +
+          `<button type="button" class="party-chat-gift-tap" data-gift-user="${escapeAttr(fromName)}" data-gift-uid="${escapeHtml(fromId)}"><strong>${escapeHtml(fromName)}</strong></button>` +
+          ` sent ${escapeHtml(g.emoji || '🎁')} to ` +
+          `<button type="button" class="party-chat-gift-tap" data-gift-user="${escapeAttr(toName)}" data-gift-uid="${escapeHtml(toId)}"><strong>${escapeHtml(toName)}</strong></button>` +
+          ` · ${formatGiftCount(g.amount || g.coins || 0)} coins</span>`;
+        div.querySelectorAll('.party-chat-gift-tap').forEach((btn) => {
+          btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const uid = btn.dataset.giftUid || '';
+            const name = btn.dataset.giftUser || 'User';
+            if (uid) openProfileSheet(name, uid);
+            else if (name) openProfileSheet(name, '');
+          });
+        });
+        div.addEventListener('click', (e) => {
+          if (e.target.closest('.party-chat-gift-tap')) return;
+          const giftTo = toId || fromId;
+          const giftName = toId ? toName : fromName;
+          if (giftTo) openGiftSheet(giftName, giftTo);
+          else if (fromId) openProfileSheet(fromName, fromId);
+        });
+      } else {
+        div.className = 'party-chat-msg';
+        const uid = msg.userId || '';
+        const pic = msg.profilePic || getChatProfilePic(msg);
+        const avatarSrc = avatarUrl(msg.user, pic);
+        const lvlInfo = window.SocialFX
+          ? SocialFX.getUserLevel(msg.userId || msg.user, msg.giftSpend)
+          : { level: msg.lvl || 2, isVip: false, isFan: false };
+        const badge = window.SocialFX
+          ? SocialFX.levelBadgeHtml(lvlInfo.level, { isVip: lvlInfo.isVip, isFan: lvlInfo.isFan })
+          : `<span class="lvl">${msg.lvl || 1}</span>`;
+        const admin = uid && isAdminUserId(uid);
+        const adminBadge = admin ? '<span class="party-chat-admin-badge">Admin</span>' : '';
+        div.innerHTML =
+          `<button type="button" class="party-chat-avatar-btn${adminAvatarFrameClass(admin)}" data-chat-user="${escapeAttr(msg.user || 'User')}" data-chat-uid="${escapeHtml(String(uid))}">` +
+          `<img src="${escapeAttr(avatarSrc)}" alt="" data-name="${escapeAttr(msg.user || 'User')}" data-avatar-src="${escapeAttr(pic || '')}" loading="lazy" decoding="async" fetchpriority="low">${adminAvatarTagHtml(admin)}</button>` +
+          `<div class="party-chat-body">` +
+          `<div class="party-chat-meta">${badge}${adminBadge}` +
+          `<button type="button" class="party-chat-user-btn" data-chat-user="${escapeAttr(msg.user || 'User')}" data-chat-uid="${escapeHtml(String(uid))}">` +
+          `<span class="user${admin ? ' is-admin-name' : ''}">${escapeHtml(msg.user)}</span></button>` +
+          `${canModerateRoom() ? `<button type="button" class="party-chat-mod-btn" aria-label="Moderate message" data-msg-id="${escapeAttr(String(msg.id || ''))}"><i class="fas fa-ellipsis-v" aria-hidden="true"></i></button>` : ''}` +
+          `</div>` +
+          `<span class="party-chat-text">${escapeHtml(msg.text)}</span></div>`;
+        const img = div.querySelector('.party-chat-avatar-btn img');
+        if (img) {
+          img.onerror = () => {
+            img.onerror = null;
+            img.src = avatarUrl(msg.user, null);
+          };
+        }
+        div.querySelectorAll('.party-chat-avatar-btn, .party-chat-user-btn').forEach((btn) => {
+          btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            openProfileSheet(btn.dataset.chatUser || 'User', btn.dataset.chatUid || '');
+          });
+        });
+        const modBtn = div.querySelector('.party-chat-mod-btn');
+        if (modBtn) {
+          modBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            openChatMessageModMenu({ ...msg, type: msg.type || 'chat' }, modBtn);
+          });
+          div.addEventListener('contextmenu', (e) => {
+            if (!canModerateRoom()) return;
+            e.preventDefault();
+            openChatMessageModMenu({ ...msg, type: msg.type || 'chat' }, modBtn);
+          });
+        }
+      }
+      feed.appendChild(div);
+    });
     bindMicInviteChatActions();
     window.SocialUI?.bindAvatarFallbacks?.(feed);
     if (wasNearBottom) feed.scrollTop = feed.scrollHeight;
@@ -9901,10 +9925,10 @@
       joinRequests.find((x) => String(x.id) === id) ||
       (id
         ? {
-            id,
-            userId: id,
-            name: btn.closest('.party-req-row')?.querySelector('strong')?.textContent || 'Guest',
-          }
+          id,
+          userId: id,
+          name: btn.closest('.party-req-row')?.querySelector('strong')?.textContent || 'Guest',
+        }
         : null);
     acceptMicRequest(req, { btn });
   }
@@ -9915,10 +9939,10 @@
       joinRequests.find((x) => String(x.id) === id) ||
       (id
         ? {
-            id,
-            userId: id,
-            name: btn.closest('.party-req-row')?.querySelector('strong')?.textContent || 'Guest',
-          }
+          id,
+          userId: id,
+          name: btn.closest('.party-req-row')?.querySelector('strong')?.textContent || 'Guest',
+        }
         : null);
     denyMicRequest(req);
   }
@@ -10314,9 +10338,11 @@
       el.id = 'partyBgMusic';
       el.loop = true;
       el.preload = 'auto';
+      el.dataset.apUnlock = '1';
       el.setAttribute('playsinline', '');
       el.setAttribute('webkit-playsinline', '');
-      el.style.display = 'none';
+      el.style.cssText =
+        'position:fixed;left:0;bottom:0;width:2px;height:2px;opacity:0.01;pointer-events:none;z-index:-1;';
       el.setAttribute('aria-hidden', 'true');
       document.body.appendChild(el);
     }
@@ -10337,18 +10363,18 @@
     if (!track) return;
     try {
       if (agoraClient && publishSucceeded) {
-        await lifeUnpublish([track]).catch(() => {});
+        await lifeUnpublish([track]).catch(() => { });
       }
-    } catch (_e) {}
+    } catch (_e) { }
     try {
       track.stopProcessAudioBuffer?.();
-    } catch (_e) {}
+    } catch (_e) { }
     try {
       track.stop?.();
-    } catch (_e) {}
+    } catch (_e) { }
     try {
       track.close?.();
-    } catch (_e) {}
+    } catch (_e) { }
   }
 
   async function publishPartyMusicToStream(url) {
@@ -10365,7 +10391,7 @@
       await track.startProcessAudioBuffer({ loop: true });
       try {
         track.setVolume?.(55);
-      } catch (_e) {}
+      } catch (_e) { }
       await lifePublish([track]);
       partyMusicAgoraTrack = track;
       return true;
@@ -10383,7 +10409,7 @@
         audio.pause();
         audio.removeAttribute('src');
         audio.load();
-      } catch (_e) {}
+      } catch (_e) { }
     }
     stopPartyMusicAgoraTrack();
     partyMusicPlayingId = '';
@@ -10407,7 +10433,7 @@
 
     partyMusicPublishBusy = true;
     try {
-      await unlockBrowserAudio?.().catch?.(() => {});
+      await unlockBrowserAudio?.().catch?.(() => { });
       const prevId = partyMusicPlayingId;
       const audioWasPlaying = audio && !audio.paused;
       if (prevId || audioWasPlaying || partyMusicAgoraTrack) {
@@ -10416,7 +10442,7 @@
           audio.pause();
           audio.removeAttribute('src');
           audio.load();
-        } catch (_e) {}
+        } catch (_e) { }
         partyMusicPlayingId = '';
       }
       partyMusicPlayingId = trackId;
@@ -11591,7 +11617,7 @@
         src.connect(ctx.destination);
         src.start(0);
       } catch (_e) { }
-      routeRemoteAudioOutputs().catch(() => {});
+      routeRemoteAudioOutputs().catch(() => { });
       return ctx.state === 'running' || ctx.state === 'suspended';
     } catch (_e) {
       return false;
@@ -11652,7 +11678,7 @@
             if (user.hasAudio && !user.audioTrack) {
               await playRemoteMedia(user, 'audio', { force: false });
             }
-          } catch (_e) {}
+          } catch (_e) { }
         })
       );
       if (eng?.ensureAllRemoteAudioDetailed) {
@@ -11695,7 +11721,7 @@
           ...extra,
         })
       );
-    } catch (_e) {}
+    } catch (_e) { }
   }
 
   function requestNativeSpeakerAudio() {
@@ -11748,11 +11774,11 @@
             if (typeof el.setSinkId === 'function') {
               await el.setSinkId(pick.deviceId);
             }
-          } catch (_e) {}
+          } catch (_e) { }
         })
       );
       liveDebugLog(`audio output routed → ${pick.label || pick.deviceId}`);
-    } catch (_e) {}
+    } catch (_e) { }
   }
 
   /* Slice 2: notify native when outputs change (BT / headset). Native re-applies LiveAudioRoute. */
@@ -11763,7 +11789,7 @@
         notifyLiveAudioRoute('reevaluate', { reason: 'mediaDevices_devicechange' });
       });
     }
-  } catch (_e) {}
+  } catch (_e) { }
 
   function disconnectRemoteAudioGraph(uid) {
     const key = String(uid);
@@ -11825,6 +11851,8 @@
     if (!el) {
       el = document.createElement('audio');
       el.id = `apRemoteAudioSink-${key}`;
+      el.className = 'ap-remote-audio-sink';
+      el.dataset.apRemoteAudio = '1';
       el.autoplay = true;
       el.controls = false;
       el.preload = 'auto';
@@ -11832,8 +11860,9 @@
       el.setAttribute('webkit-playsinline', '');
       el.setAttribute('x5-playsinline', '');
       el.setAttribute('x5-video-player-type', 'h5');
+      /* On-screen tiny sink — left:-9999px is muted by some Android WebViews */
       el.style.cssText =
-        'position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;pointer-events:none;';
+        'position:fixed;left:0;bottom:0;width:2px;height:2px;opacity:0.01;pointer-events:none;z-index:-1;';
       document.body.appendChild(el);
     }
     __remoteAudioSinkEls.set(key, el);
@@ -11942,7 +11971,7 @@
     /* Drop legacy Web Audio graphs — dual path = double/fish-market noise */
     try {
       disconnectRemoteAudioGraph(user.uid);
-    } catch (_g) {}
+    } catch (_g) { }
     const eng = liveMedia();
     if (eng) {
       syncLiveMediaPublisherMode();
@@ -11972,11 +12001,17 @@
 
   function unmuteDomMediaElements() {
     try {
-      /* Only remote live sinks — never blast every <audio> (gifts/music = fish market) */
-      document.querySelectorAll('audio.ap-remote-audio-sink, audio[data-ap-remote-audio="1"]').forEach((el) => {
+      const nodes = document.querySelectorAll(
+        'audio.ap-remote-audio-sink, audio[data-ap-remote-audio="1"], #partyBgMusic, audio[data-ap-unlock="1"]'
+      );
+      nodes.forEach((el) => {
         try {
           el.muted = false;
-          el.volume = 1;
+          el.defaultMuted = false;
+          el.volume = Math.max(Number(el.volume) || 0, 1);
+          try {
+            el.removeAttribute('muted');
+          } catch (_m) {}
           if (el.paused) {
             const playP = el.play?.();
             if (playP && typeof playP.catch === 'function') playP.catch(() => { });
@@ -12050,7 +12085,7 @@
       .then((ok) => {
         if (ok) boostRemoteAudioVolumes();
       })
-      .catch(() => {});
+      .catch(() => { });
   }
 
   /**
@@ -12077,7 +12112,7 @@
       });
       if (needs) {
         quietTicks += 1;
-        ensureRemoteAudioPlaying().catch(() => {});
+        ensureRemoteAudioPlaying().catch(() => { });
         if (quietTicks >= 5) quietTicks = 0;
       } else quietTicks = 0;
     }, 4000);
@@ -12095,7 +12130,7 @@
       } catch (_e) { }
     }
     kickstartRemoteAudio(reason || 'force');
-    ensureRemoteAudioPlaying().catch(() => {});
+    ensureRemoteAudioPlaying().catch(() => { });
   }
 
   function ensureTapForSoundEl() {
@@ -14368,7 +14403,7 @@
           channel: channelId(),
           display_id: me?.display_id != null ? me.display_id : me?.displayId,
         }, '*');
-      } catch (_e) {}
+      } catch (_e) { }
     }
 
     function forwardLiveGameToFrame(payload) {
@@ -14380,10 +14415,10 @@
           game: payload.game || 'greedy',
           ...payload,
         }, '*');
-      } catch (_e) {}
+      } catch (_e) { }
     }
 
-function openGameOverlay(url) {
+    function openGameOverlay(url) {
       closeGameOverlay();
       const bust = (url.includes('?') ? '&' : '?') + 'v=' + Date.now();
       const gameUrl = url + bust;
@@ -14560,7 +14595,7 @@ function openGameOverlay(url) {
         if (eng && agoraClient) {
           for (const user of agoraClient.remoteUsers || []) {
             if (user.audioTrack) {
-              await eng.playRemoteAudio(user, { force: true }).catch(() => {});
+              await eng.playRemoteAudio(user, { force: true }).catch(() => { });
             }
           }
           eng.boostAll(agoraClient);
@@ -15288,7 +15323,7 @@ function openGameOverlay(url) {
         null,
       isRoomAdmin: Boolean(
         (seatHit?.role === 'admin' || seatHit?.isAdmin) &&
-          !isPlatformAdminUserId(resolvedId)
+        !isPlatformAdminUserId(resolvedId)
       ),
       isAdmin: Boolean(
         memberIsAdminMarked(seatHit) ||
@@ -15761,7 +15796,7 @@ function openGameOverlay(url) {
     }
     partyVoiceSkipped = false;
     void Promise.resolve(earlyAgora)
-      .catch(() => {})
+      .catch(() => { })
       .then(() => startPartyVoiceAsync());
     postWelcomeMessage();
     maybeShowPartyRules();
@@ -16201,7 +16236,7 @@ function openGameOverlay(url) {
     partyVoiceSkipped = false;
     /* Finish early Agora (or start if it failed), then ensure full media path */
     void Promise.resolve(earlyAgora)
-      .catch(() => {})
+      .catch(() => { })
       .then(() => startLiveVoiceAsync());
     applyRoleUiAfterJoin();
     postWelcomeMessage();
@@ -17065,7 +17100,7 @@ function openGameOverlay(url) {
       if (localStorage.getItem('ap_voice_route_debug') === '1') {
         notifyLiveAudioRoute('debug', { enabled: true, reason: 'localStorage' });
       }
-    } catch (_e) {}
+    } catch (_e) { }
     const page = document.body?.dataset?.livePage;
     if (page === 'party-room' || page === 'live-room') {
       bindApLoaderDismiss();
@@ -17087,7 +17122,7 @@ function openGameOverlay(url) {
       if (window.SocialInteractions?.refreshBlockCache) {
         SocialInteractions.refreshBlockCache()
           .then(() => purgeAllBlockedFromLiveUi())
-          .catch(() => {});
+          .catch(() => { });
       }
     }
     if (page === 'party-room') initPartyRoom();
