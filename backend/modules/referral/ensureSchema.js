@@ -101,11 +101,13 @@ async function ensureReferralSchema() {
          value = '0'::jsonb,
          updated_at = CURRENT_TIMESTAMP`
     );
-    /* Master switch: invite UI on, reward payouts off until enabled from DB/admin. */
+    /* Master switch: invite UI hidden — keep reward payouts OFF (do not revive on boot). */
     await client.query(
       `INSERT INTO referral_settings (key, value, updated_at)
        VALUES ('invite_rewards_enabled', 'false'::jsonb, CURRENT_TIMESTAMP)
-       ON CONFLICT (key) DO NOTHING`
+       ON CONFLICT (key) DO UPDATE SET
+         value = 'false'::jsonb,
+         updated_at = CURRENT_TIMESTAMP`
     );
     /* Sync canonical invite-host tasks (guide table only) */
     try {

@@ -16,6 +16,9 @@ npm-debug.log*
 *.sqlite
 *.db
 
+# Local DB / reward backups (do not commit dumps)
+backend/backups/
+
 # Uploads
 uploads/
 temp/
