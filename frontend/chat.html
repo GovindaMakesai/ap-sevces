@@ -1521,7 +1521,7 @@
     <script src="social-ui.js?v=20260702-follow-fix"></script>
     <script src="social-interactions.js?v=20260717-block-hide"></script>
     <script src="social-wallet.js?v=20260714-gift-only"></script>
-    <script src="live-emoji-data.js"></script>
+    <script src="live-emoji-data.js?v=20260726-gift-200"></script>
     <script src="social-fx.js"></script>
     <script src="social-shell.js?v=20260717-block-hide"></script>
     <script src="social-nav.js?v=20260720-back-fix"></script>
@@ -4441,6 +4441,9 @@
                 { slug: 'heart_10', emoji: '❤️', name: 'Heart', coin_cost: 10 },
                 { slug: 'flowers_50', emoji: '💐', name: 'Flowers', coin_cost: 50 },
                 { slug: 'rose_100', emoji: '🌹', name: 'Rose', coin_cost: 100 },
+                { slug: 'cake_slice_200', emoji: '🍰', name: 'Cake Slice', coin_cost: 200 },
+                { slug: 'cheers_200', emoji: '🍻', name: 'Cheers', coin_cost: 200 },
+                { slug: 'tulip_200', emoji: '🌷', name: 'Tulip', coin_cost: 200 },
                 { slug: 'coffee_500', emoji: '☕', name: 'Coffee', coin_cost: 500 },
             ];
         }
@@ -4577,7 +4580,7 @@
             const grid = document.getElementById('chatGiftGrid');
             if (!grid) return;
             grid.innerHTML = chatGiftCatalog
-                .slice(0, 24)
+                .slice(0, 48)
                 .map(
                     (g, i) => {
                       const cost = Number(g.coin_cost) || 0;
