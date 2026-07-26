@@ -12,6 +12,7 @@
         { emoji: '\u{1F49C}', name: 'Purple Heart', cost: 100 },
         { emoji: '\u{1F340}', name: 'Clover', cost: 100 },
         { emoji: '\u{1F381}', name: 'Gift Box', cost: 150 },
+        { emoji: '\u{1FA99}', name: '200 Coins', cost: 200, tag: 'Hot' },
         { emoji: '\u{1F370}', name: 'Cake Slice', cost: 200 },
         { emoji: '\u{1F37B}', name: 'Cheers', cost: 200 },
         { emoji: '\u{1F49B}', name: 'Yellow Heart', cost: 200 },
