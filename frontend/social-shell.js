@@ -698,6 +698,8 @@
 
   function bindLiveCards(root) {
     (root || document).querySelectorAll('.social-live-card[data-href]').forEach((el) => {
+      if (el.dataset.liveBound === '1') return;
+      el.dataset.liveBound = '1';
       const go = (e) => {
         if (e?.target?.closest?.('a, button')) return;
         if (e) e.preventDefault();
@@ -800,7 +802,7 @@
       return [];
     }
 
-    for (let attempt = 0; attempt < 2; attempt++) {
+    for (let attempt = 0; attempt < 3; attempt++) {
       try {
         if (attempt > 0 && window.API?.clearGetCache) {
           API.clearGetCache('/live/rooms');
@@ -811,7 +813,7 @@
             const res = await Promise.race([
               API.get(path),
               new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('Rooms request timed out')), 6000)
+                setTimeout(() => reject(new Error('Rooms request timed out')), 10000)
               ),
             ]);
             rows = parseRoomsPayload(res);
@@ -823,9 +825,7 @@
         } else {
           rows = await publicRoomsFetch();
         }
-        if (!opts.skipEnrich) {
-          rows = await enrichRoomsWithHostPhotos(rows).catch(() => rows);
-        }
+        rows = await enrichRoomsWithHostPhotos(rows).catch(() => rows);
         const filtered = normalizeRoomRows(rows, party);
         const rooms = filtered.map((r) => mapRoomToCard(r, party));
         return { rooms, error: null };
@@ -910,18 +910,32 @@
     return `<div class="social-grid social-grid-cards social-grid--skeleton">${cards}</div>`;
   }
 
+  function dedupeRoomCards(rooms) {
+    const seen = new Set();
+    return (rooms || []).filter((r) => {
+      const key = String(r.channel || r.id || '').trim();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
   function paintExploreRooms(grid, rooms, opts, limit) {
     if (!grid) return;
+    const unique = dedupeRoomCards(rooms);
     grid.classList.remove('is-loading', 'is-empty');
     grid.classList.add('has-rooms');
     grid.innerHTML =
-      renderExploreFeedHead(opts && opts.party, rooms.length) + renderExploreCardsHtml(rooms, opts);
+      renderExploreFeedHead(opts && opts.party, unique.length) +
+      renderExploreCardsHtml(unique, opts);
     bindLiveCards(grid);
     if (window.SocialUI?.bindAvatarFallbacks) SocialUI.bindAvatarFallbacks(grid);
-    bindGridInfiniteScroll(grid.id, limit || 12, opts);
+    if (!grid.dataset.infiniteBound) {
+      bindGridInfiniteScroll(grid.id, limit || 12, opts);
+    }
     syncExploreFloatingActions(true, opts);
-    if (!opts.party) setExploreTabCount('explore', rooms.length);
-    else setExploreTabCount('party', rooms.length);
+    if (!opts.party) setExploreTabCount('explore', unique.length);
+    else setExploreTabCount('party', unique.length);
   }
 
 
@@ -960,31 +974,25 @@
     const cacheKey = roomsCacheKey(opts, limit || 12);
     if (!gridScrollState[key]) gridScrollState[key] = { limit: limit || 12, loading: false, gen: 0 };
     const st = gridScrollState[key];
-    /* Append can wait; full reloads must supersede in-flight loads (tab switch / refresh).
-       Old bug: st.loading blocked the new load while the old one was discarded via loadToken → empty forever. */
     if (st.loading && opts.append) return;
     const myGen = (st.gen = (st.gen || 0) + 1);
     st.loading = true;
     if (!opts.append) {
       grid.classList.remove('is-empty', 'has-rooms');
-      const cached = readRoomsCache(cacheKey);
-      if (cached?.rooms?.length) {
-        paintExploreRooms(grid, cached.rooms, opts, limit || st.limit);
-      } else {
-        grid.classList.add('is-loading');
-        grid.innerHTML = renderExploreSkeletonGrid(8);
-      }
-      syncExploreFloatingActions(Boolean(cached?.rooms?.length), opts);
+      grid.classList.add('is-loading');
+      grid.innerHTML = renderExploreSkeletonGrid(8);
+      syncExploreFloatingActions(false, opts);
     }
     try {
-      const { rooms, error } = await fetchActiveRooms(limit || st.limit, { ...opts, skipEnrich: true });
+      const { rooms, error } = await fetchActiveRooms(limit || st.limit, opts);
       if (myGen !== st.gen) return;
       if (opts.loadToken != null && opts.loadToken !== window.__exploreGridToken) {
         return;
       }
       const liveGrid = document.getElementById(gridId) || grid;
       liveGrid.classList.remove('is-loading');
-      if (!rooms.length) {
+      const unique = dedupeRoomCards(rooms);
+      if (!unique.length) {
         if (!opts.append) {
           liveGrid.classList.add('is-empty');
           liveGrid.classList.remove('has-rooms');
@@ -997,33 +1005,20 @@
           bindEmptyLiveGrid(liveGrid, opts);
           syncExploreFloatingActions(false, opts);
         }
-        scheduleExploreTabCounts();
         return;
       }
-      writeRoomsCache(cacheKey, rooms);
-      if (!opts.append) {
-        paintExploreRooms(liveGrid, rooms, opts, limit || st.limit);
-      } else {
-        liveGrid.classList.remove('is-empty');
-        liveGrid.classList.add('has-rooms');
-        const inner = liveGrid.querySelector('.social-grid-cards');
-        if (inner) {
-          const more = rooms
-            .map((p, i) => renderLiveCard(p, i, opts))
-            .filter(Boolean)
-            .join('');
-          inner.insertAdjacentHTML('beforeend', more);
-          bindLiveCards(liveGrid);
-          if (window.SocialUI?.bindAvatarFallbacks) SocialUI.bindAvatarFallbacks(liveGrid);
-        }
-        syncExploreFloatingActions(true, opts);
-      }
-      scheduleExploreTabCounts();
+      writeRoomsCache(cacheKey, unique);
+      paintExploreRooms(liveGrid, unique, opts, limit || st.limit);
     } catch (e) {
       console.warn('SocialShell: fillGrid', e);
       if (myGen !== st.gen) return;
       const liveGrid = document.getElementById(gridId) || grid;
       liveGrid.classList.remove('is-loading');
+      const cached = readRoomsCache(cacheKey);
+      if (!opts.append && cached?.rooms?.length) {
+        paintExploreRooms(liveGrid, cached.rooms, opts, limit || st.limit);
+        return;
+      }
       if (!opts.append && !liveGrid.querySelector('.social-live-card:not(.social-live-card--skeleton)')) {
         liveGrid.classList.add('is-empty');
         liveGrid.classList.remove('has-rooms');
@@ -1249,7 +1244,6 @@
     if (window.SocialUI) SocialUI.bindAvatarFallbacks(document);
 
     bindLiveCards(document);
-    scheduleExploreTabCounts();
   }
 
   async function fillFollowingView(searchQuery) {
