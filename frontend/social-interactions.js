@@ -1569,11 +1569,47 @@
     return fromPosts.filter((x) => x.mediaUrl || x.thumb);
   }
 
+  function setVideoImmersive(on) {
+    const enabled = !!on;
+    document.documentElement.classList.toggle('social-video-immersive', enabled);
+    document.body?.classList.toggle('social-video-immersive', enabled);
+    try {
+      document.documentElement.style.setProperty('--social-video-tabs-h', enabled ? '0px' : '');
+    } catch (_e) { /* ignore */ }
+  }
+
+  function shouldStartVideoImmersive() {
+    const qs = new URLSearchParams(location.search);
+    if (qs.get('fullscreen') === '0') return false;
+    if (qs.get('fullscreen') === '1' || qs.get('post') || qs.get('topic')) return true;
+    return document.body?.classList?.contains('social-video-page');
+  }
+
+  function ensureReelCloseButton(onClose) {
+    let btn = document.getElementById('reelCloseBtn');
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.type = 'button';
+      btn.id = 'reelCloseBtn';
+      btn.className = 'social-reel-close-btn';
+      btn.setAttribute('aria-label', 'Close');
+      btn.innerHTML = '<i class="fas fa-chevron-down"></i>';
+      document.getElementById('reelUi')?.appendChild(btn);
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (typeof onClose === 'function') onClose();
+        else setVideoImmersive(false);
+      });
+    }
+    btn.style.display = '';
+  }
+
   function openReelViewer(postId) {
     if (!postId) return;
     sessionStorage.setItem('social_reel_start', String(postId));
     sessionStorage.setItem(REEL_SOUND_KEY, '1');
-    location.href = '/video.html?post=' + encodeURIComponent(postId) + '&app=1';
+    location.href =
+      '/video.html?post=' + encodeURIComponent(postId) + '&app=1&fullscreen=1';
   }
 
   function updateReelUI(item) {
@@ -1647,10 +1683,20 @@
     ensureStarterCoins();
     const wrap = document.getElementById(containerId);
     if (!wrap) return;
-    const pros = window.SocialShell ? await SocialShell.fetchPros(8) : [];
+    const qs = new URLSearchParams(location.search);
     const startPost =
-      new URLSearchParams(location.search).get('post') ||
+      qs.get('post') ||
       sessionStorage.getItem('social_reel_start');
+    if (shouldStartVideoImmersive()) setVideoImmersive(true);
+    if (startPost) {
+      ensureReelCloseButton(() => {
+        if (history.length > 1) history.back();
+        else location.href = '/square.html?app=1';
+      });
+    } else {
+      ensureReelCloseButton(() => setVideoImmersive(false));
+    }
+    const pros = window.SocialShell ? await SocialShell.fetchPros(8) : [];
     reelItems = await buildReelItems(pros, { videosOnly: true, startPostId: startPost });
     const uiLayer = document.getElementById('reelUi');
 
@@ -1721,6 +1767,7 @@
         if (e.target.closest('#reelUi') || e.target.closest('[data-action]')) return;
         const vid = slide.querySelector('video[data-reel-video]');
         if (!vid) return;
+        setVideoImmersive(true);
         if (vid.muted) {
           setReelSoundEnabled(true);
           applySocialVideoSound(vid, true);
@@ -1952,11 +1999,11 @@
           ? `<video src="${url}" playsinline muted preload="metadata" data-social-feed-video poster="${thumbUrl || ''}"${videoTagAttrs(p)}></video>`
           : `<img src="${url || SocialShell?.avatarFallback(p.userName)}" alt="">`;
         const liked = !p.demo && isLiked(p.id, p);
-        const openReel = !p.demo && postHasMedia(p) ? ' data-open-reel="1"' : '';
+        const openReel = !p.demo && postIsVideo(p) ? ' data-open-reel="1" data-open-reel-video="1"' : (!p.demo && postHasMedia(p) ? ' data-open-reel="1"' : '');
         return `
       <article class="social-post-card" data-post-id="${p.id}"${openReel}>
         <div class="social-post-media">${media}
-          ${postIsVideo(p) ? '<span class="play-badge"><i class="fas fa-play"></i></span>' : '<span class="play-badge play-badge--photo"><i class="fas fa-expand"></i></span>'}
+          ${postIsVideo(p) ? '<span class="play-badge play-badge--fullscreen"><i class="fas fa-expand"></i></span>' : '<span class="play-badge play-badge--photo"><i class="fas fa-expand"></i></span>'}
           ${p.visibility === 'private' ? '<span class="social-post-private-badge"><i class="fas fa-lock"></i> Private</span>' : ''}
           ${isOwner ? `<button type="button" class="social-post-delete" data-delete-post="${p.id}" aria-label="Delete post"><i class="fas fa-times"></i></button>` : ''}
         </div>
@@ -2037,6 +2084,13 @@
 
     feed.querySelectorAll('.social-post-media video[data-social-feed-video]').forEach((vid) => {
       const mediaWrap = vid.closest('.social-post-media');
+      const postId = vid.closest('[data-post-id]')?.dataset?.postId;
+      vid.addEventListener('click', (e) => {
+        if (e.target.closest('.social-feed-sound-btn')) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (postId) openReelViewer(postId);
+      });
       if (!mediaWrap || mediaWrap.querySelector('.social-feed-sound-btn')) return;
       const btn = document.createElement('button');
       btn.type = 'button';
@@ -2065,7 +2119,8 @@
 
     feed.querySelectorAll('[data-open-reel]').forEach((card) => {
       card.addEventListener('click', (e) => {
-        if (e.target.closest('[data-act], [data-delete-post], .social-post-user, button, a')) return;
+        if (e.target.closest('[data-act], [data-delete-post], .social-post-user, button, a, .social-feed-sound-btn')) return;
+        if (e.target.closest('video[data-social-feed-video]')) return;
         openReelViewer(card.dataset.postId);
       });
     });
