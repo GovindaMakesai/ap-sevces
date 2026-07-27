@@ -399,21 +399,17 @@ html.social-video-immersive {
   --social-video-tabs-h: 0px;
 }
 
-html.social-video-immersive .social-video-top,
-html.social-video-immersive #social-bottom-nav-mount .social-bottom-nav {
+/* Hide top tabs in immersive — keep bottom nav always tappable (TikTok-style) */
+html.social-video-immersive .social-video-top {
   opacity: 0;
   pointer-events: none;
   transform: translateY(-12px);
   transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
-html.social-video-immersive #social-bottom-nav-mount .social-bottom-nav {
-  transform: translateY(12px);
-}
-
 html.social-video-immersive .social-reels-wrap {
   top: 0;
-  bottom: 0;
+  bottom: calc(var(--social-bottom-nav-h) + var(--social-safe-bottom));
   z-index: 80;
 }
 

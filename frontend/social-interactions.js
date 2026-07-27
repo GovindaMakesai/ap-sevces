@@ -1602,8 +1602,8 @@
   function shouldStartVideoImmersive() {
     const qs = new URLSearchParams(location.search);
     if (qs.get('fullscreen') === '0') return false;
-    if (qs.get('fullscreen') === '1' || qs.get('post') || qs.get('topic')) return true;
-    return document.body?.classList?.contains('social-video-page');
+    /* Only when opened as a single reel — not the whole Video tab */
+    return qs.get('fullscreen') === '1' || !!qs.get('post') || !!qs.get('topic');
   }
 
   function ensureReelCloseButton(onClose) {

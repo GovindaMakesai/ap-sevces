@@ -644,30 +644,56 @@
   }
 
   let fastNavBound = false;
+  let navSwitching = false;
   function bindFastBottomNav() {
     if (fastNavBound) return;
     fastNavBound = true;
+
+    function goBottomNav(link, e) {
+      const href = link.getAttribute('href');
+      if (!href || href.startsWith('http') || href.startsWith('#')) return false;
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      if (link.classList.contains('is-active')) {
+        if (window.SocialNav?.refreshPage) SocialNav.refreshPage();
+        else window.location.reload();
+        return true;
+      }
+      if (navSwitching) return true;
+      navSwitching = true;
+      document.querySelectorAll('.social-bottom-nav .nav-item').forEach((el) => {
+        el.classList.toggle('is-active', el === link);
+      });
+      document.documentElement.classList.add('ap-nav-switching');
+      /* Leave immediately — do not wait for pending fetches / rAF / load finish */
+      window.location.href = href;
+      return true;
+    }
+
+    /* pointerdown fires before main-thread load work eats the click */
+    document.addEventListener(
+      'pointerdown',
+      (e) => {
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        const link = e.target.closest?.('.social-bottom-nav a[data-nav]');
+        if (!link) return;
+        goBottomNav(link, e);
+      },
+      true
+    );
     document.addEventListener(
       'click',
       (e) => {
         const link = e.target.closest?.('.social-bottom-nav a[data-nav]');
         if (!link) return;
-        const href = link.getAttribute('href');
-        if (!href || href.startsWith('http') || href.startsWith('#')) return;
-        if (link.classList.contains('is-active')) {
+        if (navSwitching) {
           e.preventDefault();
-          if (window.SocialNav?.refreshPage) SocialNav.refreshPage();
-          else window.location.reload();
+          e.stopPropagation();
           return;
         }
-        e.preventDefault();
-        document.querySelectorAll('.social-bottom-nav .nav-item').forEach((el) => {
-          el.classList.toggle('is-active', el === link);
-        });
-        document.documentElement.classList.add('ap-nav-switching');
-        requestAnimationFrame(() => {
-          window.location.href = href;
-        });
+        goBottomNav(link, e);
       },
       true
     );

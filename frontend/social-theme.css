@@ -1107,13 +1107,21 @@ html.ap-expo-app body.social-tabs-page .social-top {
   cursor: pointer;
 }
 
-/* Bottom nav — reference app */
+/* Bottom nav — always above page load overlays; taps must never wait on fetch */
+#social-bottom-nav-mount {
+  position: relative;
+  z-index: 10050;
+  pointer-events: none;
+}
+#social-bottom-nav-mount .social-bottom-nav {
+  pointer-events: auto !important;
+}
 .social-bottom-nav {
   position: fixed;
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 200;
+  z-index: 10050;
   height: calc(var(--social-bottom-nav-h) + var(--social-safe-bottom));
   padding: 6px 8px var(--social-safe-bottom);
   background: #fff;
@@ -1122,6 +1130,8 @@ html.ap-expo-app body.social-tabs-page .social-top {
   align-items: flex-end;
   justify-content: space-around;
   box-shadow: 0 -8px 28px rgba(60, 45, 10, 0.08);
+  pointer-events: auto !important;
+  touch-action: manipulation;
 }
 
 .social-bottom-nav .nav-item {
@@ -1132,6 +1142,9 @@ html.ap-expo-app body.social-tabs-page .social-top {
   text-decoration: none;
   color: #b8a88a;
   min-height: 48px;
+  pointer-events: auto !important;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
   position: relative;
   -webkit-tap-highlight-color: transparent;
 }
