@@ -155,6 +155,18 @@ function registerLiveSocket(io) {
             safeAck(ack, answeredRef, { ok: false, message: 'No permission to host' });
             return;
           }
+          const hostCd = await liveRoomService.getActiveHostCooldown(socket.userId);
+          if (hostCd) {
+            const info = liveRoomService.hostCooldownBlockPayload(hostCd);
+            safeAck(ack, answeredRef, {
+              ok: false,
+              message:
+                info?.message ||
+                'An admin blocked you from going live. Try again when the block expires.',
+              ban: info,
+            });
+            return;
+          }
           isHost = true;
           await liveRoomService.hostRoom({
             channel,
@@ -166,6 +178,18 @@ function registerLiveSocket(io) {
         } else if (String(existingRoom.host_user_id) === String(socket.userId)) {
           isHost = true;
           if (existingRoom.status === 'ended' && clientWantsHost) {
+            const hostCd = await liveRoomService.getActiveHostCooldown(socket.userId);
+            if (hostCd) {
+              const info = liveRoomService.hostCooldownBlockPayload(hostCd);
+              safeAck(ack, answeredRef, {
+                ok: false,
+                message:
+                  info?.message ||
+                  'An admin blocked you from going live. Try again when the block expires.',
+                ban: info,
+              });
+              return;
+            }
             await liveRoomService.hostRoom({
               channel,
               roomType: existingRoom.room_type || roomType,
@@ -384,9 +408,18 @@ function registerLiveSocket(io) {
         }
         const room = await liveRoomService.findByChannel(channel);
         const isTargetHost = room && String(room.host_user_id) === targetUserId;
-        if (isTargetHost && !liveRoomService.isPlatformAdminRole(socket.userRole)) {
-          if (ack) ack({ ok: false, message: 'Cannot remove the room host' });
-          return;
+        if (isTargetHost) {
+          /* Prefer live DB role over JWT (stale tokens may omit/outdate role) */
+          let actorRole = socket.userRole;
+          try {
+            const actorRes = await db.query(`SELECT role FROM users WHERE id = $1`, [socket.userId]);
+            if (actorRes.rows[0]?.role) actorRole = actorRes.rows[0].role;
+            socket.userRole = actorRole;
+          } catch (_e) { /* keep jwt role */ }
+          if (!liveRoomService.isPlatformAdminRole(actorRole)) {
+            if (ack) ack({ ok: false, message: 'Only a platform admin can kick the live host' });
+            return;
+          }
         }
         const rawDuration =
           payload?.durationHours !== undefined
@@ -399,17 +432,62 @@ function registerLiveSocket(io) {
           userId: targetUserId,
           bannedBy: socket.userId,
           reason: payload?.reason || (isTargetHost ? 'admin_kicked_host' : 'kicked_by_host'),
-          durationHours: isTargetHost ? 0 : rawDuration,
+          /* Host: 0 = end live only; 2/24 = end live + host cooldown */
+          durationHours: isTargetHost ? Number(rawDuration) || 0 : rawDuration,
         });
         if (kickResult.hostKicked || kickResult.endsRoom) {
-          io.to(`live:${channel}`).emit('live:chat', {
-            type: 'system',
-            text: 'Admin ended this live — host was removed',
-          });
-          io.to(`live:${channel}`).emit('live:ended', {
+          const endPayload = {
             channel,
             reason: 'admin_kicked_host',
+            hostKicked: true,
+            hostUserId: targetUserId,
+            durationHours: kickResult.durationHours || null,
+            expiresAt: kickResult.expiresAt || null,
+          };
+          io.to(`live:${channel}`).emit('live:chat', {
+            type: 'system',
+            text: kickResult.durationHours
+              ? `Admin ended this live — host blocked for ${kickResult.durationHours} hours`
+              : 'Admin ended this live — host was removed',
           });
+          io.to(`live:${channel}`).emit('live:ended', endPayload);
+          /* Force host + everyone out of the socket room so host cannot linger/rejoin */
+          try {
+            const sockets = await io.in(`live:${channel}`).fetchSockets();
+            const seen = new Set(sockets.map((s) => s.id));
+            for (const s of sockets) {
+              s.leave(`live:${channel}`);
+              if (s.data?.liveChannel === channel) s.data.liveChannel = null;
+              s.emit('live:ended', endPayload);
+              if (String(s.userId) === targetUserId) {
+                s.emit('live:kicked', {
+                  userId: targetUserId,
+                  channel,
+                  reason: 'admin_kicked_host',
+                  permanent: false,
+                  message: 'An admin removed you and ended this live',
+                });
+              }
+            }
+            /* Host may already have left the room channel — still notify their user room */
+            const hostSockets = await io.in(`user:${targetUserId}`).fetchSockets();
+            for (const s of hostSockets) {
+              if (seen.has(s.id)) continue;
+              s.leave(`live:${channel}`);
+              if (s.data?.liveChannel === channel) s.data.liveChannel = null;
+              s.emit('live:ended', endPayload);
+              s.emit('live:kicked', {
+                userId: targetUserId,
+                channel,
+                reason: 'admin_kicked_host',
+                permanent: false,
+                message: 'An admin removed you and ended this live',
+              });
+            }
+          } catch (forceErr) {
+            console.warn('live:kick host force leave', forceErr.message);
+            io.to(`user:${targetUserId}`).emit('live:ended', endPayload);
+          }
           if (ack) ack({ ok: true, ended: true, hostKicked: true });
           return;
         }
@@ -432,9 +510,8 @@ function registerLiveSocket(io) {
 
         /* Force-leave every socket for that user so they cannot linger in the room */
         try {
-          const sockets = await io.fetchSockets();
+          const sockets = await io.in(`user:${targetUserId}`).fetchSockets();
           for (const s of sockets) {
-            if (String(s.userId) !== targetUserId) continue;
             s.leave(`live:${channel}`);
             if (s.data?.liveChannel === channel) s.data.liveChannel = null;
             s.emit('live:kicked', kickPayload);

@@ -327,13 +327,9 @@
     if (now - _chatUnreadSyncAt < 60000) return getChatUnreadCount();
     _chatUnreadSyncAt = now;
     try {
-      const res = await API.get('/messages/conversations');
+      const res = await API.get('/messages/unread-count');
       const total = Number(res?.data?.totalUnread);
-      const count = Number.isFinite(total)
-        ? total
-        : (Array.isArray(res?.data?.conversations)
-            ? res.data.conversations.reduce((s, c) => s + (Number(c.unreadCount) || 0), 0)
-            : 0);
+      const count = Number.isFinite(total) ? total : 0;
       paintChatNavBadge(count);
       return count;
     } catch (e) {

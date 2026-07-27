@@ -3325,6 +3325,8 @@
     try {
       window.APVoiceMetrics?.onForensic?.(name, detail);
     } catch (_m) { }
+    /* Hot path: skip localStorage + console unless live debug is on */
+    if (!isLiveDebugEnabled()) return;
     try {
       const prev = JSON.parse(localStorage.getItem('ap_live_forensics') || '[]');
       prev.push(entry);
@@ -3562,6 +3564,7 @@
   }
 
   function liveDebugLog(msg) {
+    if (!isLiveDebugEnabled()) return;
     const line = `[live-debug] ${msg}`;
     console.log(line);
     const logEl = document.getElementById('apLiveDebugLog');
@@ -9837,7 +9840,7 @@
           unlockLiveChrome({ forceGift: true });
         } catch (_e4) { /* ignore */ }
       });
-    }, 700);
+    }, 2500);
   }
 
   function openPartyRequestsSheet() {
@@ -13326,7 +13329,7 @@
     syncPad();
     window.addEventListener('resize', syncPad);
     window.addEventListener('scroll', syncPad, true);
-    setInterval(syncPad, 600);
+    window.addEventListener('orientationchange', syncPad);
     /* Keep chrome unlocked so pad stays useful */
     setInterval(() => {
       if (!document.body?.dataset?.livePage) return;
@@ -13336,7 +13339,8 @@
         btn.style.pointerEvents = 'auto';
         btn.style.zIndex = '14250';
       }
-    }, 1200);
+      syncPad();
+    }, 4000);
   }
 
   function installJoinedHitPad() {
@@ -13447,7 +13451,7 @@
     syncPad();
     window.addEventListener('resize', syncPad);
     window.addEventListener('scroll', syncPad, true);
-    setInterval(syncPad, 600);
+    window.addEventListener('orientationchange', syncPad);
     setInterval(() => {
       if (!document.body?.dataset?.livePage) return;
       if (isSheetReallyOpen(document.getElementById('partyRequestsSheet'))) return;
@@ -13461,7 +13465,8 @@
         row.style.pointerEvents = 'auto';
         row.style.zIndex = '14900';
       }
-    }, 1200);
+      syncPad();
+    }, 4000);
   }
 
   function openGiftSheet(targetName, targetUserId) {
@@ -15177,10 +15182,8 @@
     document.documentElement.classList.add('ap-secure-live');
     document.body?.classList?.add?.('ap-secure-live');
     if (!window.__apScreenCapturePulse) {
-      window.__apScreenCapturePulse = setInterval(() => {
-        if (!document.body?.dataset?.livePage) return;
-        postNativeMessage({ type: 'screen_capture', block: true, enable: true });
-      }, 800);
+      /* Once on enter + visibility/focus handlers below — avoid 800ms native spam */
+      postNativeMessage({ type: 'screen_capture', block: true, enable: true });
     }
     window.addEventListener('pagehide', () => {
       if (window.__apLeavingRoom) releaseScreenCaptureProtection();

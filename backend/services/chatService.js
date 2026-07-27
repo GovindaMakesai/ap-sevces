@@ -49,14 +49,16 @@ async function findOrCreateConversationByUserIds(userIdA, userIdB) {
     return ins.rows[0];
 }
 
-async function listConversationsForUser(currentUserId) {
+async function listConversationsForUser(currentUserId, { limit = 80 } = {}) {
     const uid = normId(currentUserId);
     if (!uid) return [];
+    const lim = Math.min(Math.max(Number(limit) || 80, 1), 200);
     const result = await db.query(
         `SELECT * FROM conversations
          WHERE user_low = $1::uuid OR user_high = $1::uuid
-         ORDER BY last_message_at DESC NULLS LAST, updated_at DESC`,
-        [uid]
+         ORDER BY last_message_at DESC NULLS LAST, updated_at DESC
+         LIMIT $2`,
+        [uid, lim]
     );
     const hidden = await followService.getHiddenUserIdSet(uid);
     if (!hidden.size) return result.rows;
@@ -118,22 +120,66 @@ async function markConversationRead(conversationId, userId) {
     }
 }
 
-async function totalUnreadForUser(userId) {
-    const rows = await listConversationsForUser(userId);
-    let total = 0;
-    for (const row of rows) {
-        total += await unreadCountForConversation(row, userId);
-    }
-    return total;
+async function unreadCountsForConversations(conversationIds, userId) {
+    const uid = normId(userId);
+    const ids = (conversationIds || []).map((id) => String(id)).filter(Boolean);
+    const map = new Map();
+    if (!uid || !ids.length) return map;
+    const r = await db.query(
+        `SELECT c.id::text AS id, COUNT(m.id)::int AS unread
+         FROM conversations c
+         LEFT JOIN chat_messages m
+           ON m.conversation_id = c.id
+          AND m.receiver_id = $1::uuid
+          AND m.created_at > COALESCE(
+                CASE
+                  WHEN c.user_low = $1::uuid THEN c.user_low_last_read_at
+                  ELSE c.user_high_last_read_at
+                END,
+                TIMESTAMP '1970-01-01'
+              )
+         WHERE c.id = ANY($2::uuid[])
+         GROUP BY c.id`,
+        [uid, ids]
+    );
+    for (const row of r.rows) map.set(String(row.id), Number(row.unread) || 0);
+    return map;
 }
 
-async function listMessages(conversationId) {
+async function totalUnreadForUser(userId) {
+    const uid = normId(userId);
+    if (!uid) return 0;
+    const r = await db.query(
+        `SELECT COUNT(*)::int AS c
+         FROM chat_messages m
+         INNER JOIN conversations c ON c.id = m.conversation_id
+         WHERE m.receiver_id = $1::uuid
+           AND (c.user_low = $1::uuid OR c.user_high = $1::uuid)
+           AND m.created_at > COALESCE(
+                 CASE
+                   WHEN c.user_low = $1::uuid THEN c.user_low_last_read_at
+                   ELSE c.user_high_last_read_at
+                 END,
+                 TIMESTAMP '1970-01-01'
+               )`,
+        [uid]
+    );
+    return Number(r.rows[0]?.c) || 0;
+}
+
+async function listMessages(conversationId, { limit = 150 } = {}) {
+    const lim = Math.min(Math.max(Number(limit) || 150, 1), 500);
     const r = await db.query(
         `SELECT id, conversation_id, sender_id, receiver_id, body, created_at
-         FROM chat_messages
-         WHERE conversation_id = $1
+         FROM (
+           SELECT id, conversation_id, sender_id, receiver_id, body, created_at
+           FROM chat_messages
+           WHERE conversation_id = $1
+           ORDER BY created_at DESC
+           LIMIT $2
+         ) recent
          ORDER BY created_at ASC`,
-        [conversationId]
+        [conversationId, lim]
     );
     return r.rows;
 }
@@ -254,6 +300,7 @@ module.exports = {
     appendMessage,
     sendBetweenUsers,
     unreadCountForConversation,
+    unreadCountsForConversations,
     markConversationRead,
     totalUnreadForUser,
     getFemaleMessageQuota,

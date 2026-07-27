@@ -1173,6 +1173,21 @@ function banBlockPayload(ban) {
   };
 }
 
+/** Message when a kicked host tries to start a new live/party. */
+function hostCooldownBlockPayload(row) {
+  if (!row) return null;
+  const base = banBlockPayload(row);
+  if (!base) return null;
+  const hrs = base.remainingHours;
+  const until = base.expiresAt ? new Date(base.expiresAt).toLocaleString() : null;
+  return {
+    ...base,
+    message: until
+      ? `An admin blocked you from going live for ${hrs} more hour${hrs === 1 ? '' : 's'} (until ${until}).`
+      : 'An admin blocked you from going live.',
+  };
+}
+
 async function assertUserNotBanned(liveRoomId, userId) {
   const ban = await getActiveBan(liveRoomId, userId);
   if (!ban) return null;
@@ -1181,6 +1196,57 @@ async function assertUserNotBanned(liveRoomId, userId) {
   err.code = 'ROOM_BANNED';
   err.ban = info;
   throw err;
+}
+
+let hostCooldownTableReady = false;
+
+async function ensureHostCooldownTable() {
+  if (hostCooldownTableReady) return;
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS live_host_cooldowns (
+      user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      banned_by UUID REFERENCES users(id) ON DELETE SET NULL,
+      reason TEXT,
+      expires_at TIMESTAMPTZ NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  hostCooldownTableReady = true;
+}
+
+async function setHostCooldown(userId, bannedBy, reason, durationHours) {
+  const hours = Number(durationHours);
+  if (!userId || !Number.isFinite(hours) || hours < 2) return null;
+  await ensureHostCooldownTable();
+  const expiresAt = new Date(Date.now() + Math.min(Math.floor(hours), 24 * 365) * 60 * 60 * 1000);
+  await db.query(
+    `INSERT INTO live_host_cooldowns (user_id, banned_by, reason, expires_at, created_at)
+     VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+     ON CONFLICT (user_id) DO UPDATE SET
+       banned_by = EXCLUDED.banned_by,
+       reason = EXCLUDED.reason,
+       expires_at = EXCLUDED.expires_at,
+       created_at = CURRENT_TIMESTAMP`,
+    [userId, bannedBy || null, reason || 'admin_kicked_host', expiresAt]
+  );
+  return expiresAt;
+}
+
+async function getActiveHostCooldown(userId) {
+  if (!userId) return null;
+  try {
+    if (!hostCooldownTableReady) await ensureHostCooldownTable();
+    const res = await db.query(
+      `SELECT user_id, banned_by, reason, expires_at
+       FROM live_host_cooldowns
+       WHERE user_id = $1 AND expires_at > CURRENT_TIMESTAMP
+       LIMIT 1`,
+      [userId]
+    );
+    return res.rows[0] || null;
+  } catch (_e) {
+    return null;
+  }
 }
 
 /**
@@ -1196,14 +1262,23 @@ async function kickMember({ channel, userId, bannedBy, reason, durationHours }) 
     if (!isPlatformAdminRole(actor.rows[0]?.role)) {
       throw new Error('Cannot remove the room host');
     }
+    let hours = durationHours === undefined || durationHours === '' ? 0 : Number(durationHours);
+    if (!Number.isFinite(hours) || hours < 0) hours = 0;
+    let expiresAt = null;
+    if (hours >= 2) {
+      expiresAt = await setHostCooldown(userId, bannedBy, reason || 'admin_kicked_host', hours);
+    }
     const ended = await endRoom(channel, reason || 'admin_kicked_host');
     return {
       room: ended || room,
       hostKicked: true,
       endsRoom: true,
-      expiresAt: null,
-      durationHours: null,
-      ban: banBlockPayload({ reason: reason || 'admin_kicked_host', expires_at: null }),
+      expiresAt,
+      durationHours: hours >= 2 ? hours : null,
+      ban: banBlockPayload({
+        reason: reason || 'admin_kicked_host',
+        expires_at: expiresAt,
+      }),
     };
   }
 
@@ -1476,6 +1551,7 @@ module.exports = {
   getActiveBan,
   getActiveBanByChannel,
   banBlockPayload,
+  hostCooldownBlockPayload,
   assertUserNotBanned,
   kickMember,
   canPublishInRoom,
@@ -1494,5 +1570,7 @@ module.exports = {
   updateStreamPresentation,
   setLiveIo,
   isPlatformAdminRole,
+  getActiveHostCooldown,
+  setHostCooldown,
   roomCache,
 };

@@ -52,38 +52,61 @@ async function enrichConversation(conversation, currentUserId) {
 exports.listConversations = async (req, res) => {
     try {
         const currentUserId = String(req.userId);
-        const rows = await chatService.listConversationsForUser(currentUserId);
-        const enriched = await Promise.all(
-            rows.map(async (conv) => {
-                try {
-                    return await enrichConversation(conv, currentUserId);
-                } catch (rowErr) {
-                    console.warn('enrichConversation skip', conv?.id, rowErr.message);
-                    try {
-                        const otherId = chatService.otherParticipantId(conv, currentUserId);
-                        return {
-                            id: String(conv.id),
-                            participants: [String(conv.user_low), String(conv.user_high)],
-                            otherUser: {
-                                id: otherId || '',
-                                first_name: 'User',
-                                last_name: '',
-                                role: 'customer',
-                                profile_pic: null,
-                                displayName: 'User',
-                            },
-                            lastMessageText: conv.last_message_text || '',
-                            lastMessageAt: conv.last_message_at,
-                            updatedAt: conv.updated_at,
-                            unreadCount: 0,
-                            isOfficial: false,
-                        };
-                    } catch (_e) {
-                        return null;
-                    }
-                }
-            })
-        ).then((list) => list.filter(Boolean));
+        const rows = await chatService.listConversationsForUser(currentUserId, { limit: 80 });
+        const otherIds = rows
+            .map((conv) => chatService.otherParticipantId(conv, currentUserId))
+            .filter(Boolean);
+        const uniqueOtherIds = [...new Set(otherIds.map(String))];
+        const usersById = new Map();
+        if (uniqueOtherIds.length) {
+            const userRows = await require('../config/database').query(
+                `SELECT id, first_name, last_name, role, profile_pic
+                 FROM users WHERE id = ANY($1::uuid[])`,
+                [uniqueOtherIds]
+            );
+            for (const u of userRows.rows) usersById.set(String(u.id), u);
+        }
+        const unreadMap = await chatService.unreadCountsForConversations(
+            rows.map((r) => r.id),
+            currentUserId
+        );
+        const { isOfficialRole } = require('../services/systemMessageService');
+        const enriched = rows.map((conv) => {
+            const otherId = chatService.otherParticipantId(conv, currentUserId);
+            const otherUser = otherId ? usersById.get(String(otherId)) : null;
+            const role = otherUser?.role || 'customer';
+            const isOfficial = isOfficialRole(role) || role === 'worker';
+            const displayName =
+                isOfficial && OFFICIAL_DISPLAY_ROLES.has(role)
+                    ? 'AP Services'
+                    : `${otherUser?.first_name || 'User'} ${otherUser?.last_name || ''}`.trim();
+            return {
+                id: String(conv.id),
+                participants: [String(conv.user_low), String(conv.user_high)],
+                otherUser: otherUser
+                    ? {
+                          id: String(otherUser.id),
+                          first_name: otherUser.first_name,
+                          last_name: otherUser.last_name,
+                          role: otherUser.role,
+                          profile_pic: otherUser.profile_pic || null,
+                          displayName,
+                      }
+                    : {
+                          id: otherId || '',
+                          first_name: 'User',
+                          last_name: '',
+                          role: 'customer',
+                          profile_pic: null,
+                          displayName: 'User',
+                      },
+                lastMessageText: conv.last_message_text || '',
+                lastMessageAt: conv.last_message_at,
+                updatedAt: conv.updated_at,
+                unreadCount: unreadMap.get(String(conv.id)) || 0,
+                isOfficial,
+            };
+        });
         const totalUnread = enriched.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
 
         res.json({
@@ -96,6 +119,16 @@ exports.listConversations = async (req, res) => {
             success: false,
             message: 'Failed to fetch conversations'
         });
+    }
+};
+
+exports.getUnreadCount = async (req, res) => {
+    try {
+        const totalUnread = await chatService.totalUnreadForUser(String(req.userId));
+        res.json({ success: true, data: { totalUnread } });
+    } catch (error) {
+        console.error('getUnreadCount error:', error);
+        res.status(500).json({ success: false, message: 'Failed to fetch unread count' });
     }
 };
 

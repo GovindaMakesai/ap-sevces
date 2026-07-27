@@ -405,8 +405,18 @@ const API = {
         return error;
     },
 
+    _apiDebugEnabled() {
+        try {
+            return localStorage.getItem('ap_api_debug') === '1';
+        } catch (_e) {
+            return false;
+        }
+    },
+
     async _fetchOnce(url, options = {}, retried = false, cacheKey = '', rateLimitRetry = 0) {
-        console.log(`≡ƒôí API Request: ${options.method || 'GET'} ${url}`);
+        if (this._apiDebugEnabled()) {
+            console.log(`API Request: ${options.method || 'GET'} ${url}`);
+        }
 
         if (typeof Auth !== 'undefined' && Auth.ensureAccessToken) {
             try {
@@ -521,7 +531,9 @@ const API = {
                 await new Promise((r) => setTimeout(r, 600));
                 return this._fetchOnce(url, options, retried, cacheKey, rateLimitRetry + 1);
             }
-            console.error('Γ¥î API Error Response:', data);
+            if (this._apiDebugEnabled()) {
+                console.error('API Error Response:', data);
+            }
             if (typeof data === 'object' && data !== null) {
                 if (Array.isArray(data.errors) && data.errors.length) {
                     const first = data.errors[0];
@@ -542,7 +554,9 @@ const API = {
             throw err;
         }
 
-        console.log('Γ£à API Success:', data);
+        if (this._apiDebugEnabled()) {
+            console.log('API Success:', data);
+        }
         return data;
     },
 

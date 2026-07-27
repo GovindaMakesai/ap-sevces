@@ -5,12 +5,14 @@ const {
     sendMessage,
     getMessages,
     listConversations,
-    getOrCreateConversation
+    getOrCreateConversation,
+    getUnreadCount
 } = require('../controllers/messageController');
 
 const router = express.Router();
 
 router.get('/conversations', verifyToken, listConversations);
+router.get('/unread-count', verifyToken, getUnreadCount);
 router.post('/conversations', verifyToken, getOrCreateConversation);
 
 function sendUploadMiddleware(req, res, next) {
