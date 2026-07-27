@@ -800,7 +800,7 @@
       return [];
     }
 
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < 2; attempt++) {
       try {
         if (attempt > 0 && window.API?.clearGetCache) {
           API.clearGetCache('/live/rooms');
@@ -811,7 +811,7 @@
             const res = await Promise.race([
               API.get(path),
               new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('Rooms request timed out')), 12000)
+                setTimeout(() => reject(new Error('Rooms request timed out')), 6000)
               ),
             ]);
             rows = parseRoomsPayload(res);
@@ -823,7 +823,9 @@
         } else {
           rows = await publicRoomsFetch();
         }
-        rows = await enrichRoomsWithHostPhotos(rows).catch(() => rows);
+        if (!opts.skipEnrich) {
+          rows = await enrichRoomsWithHostPhotos(rows).catch(() => rows);
+        }
         const filtered = normalizeRoomRows(rows, party);
         const rooms = filtered.map((r) => mapRoomToCard(r, party));
         return { rooms, error: null };
@@ -871,6 +873,57 @@
   }
 
   const gridScrollState = {};
+  const ROOMS_CACHE_MS = 30000;
+  let exploreCountsTimer = null;
+
+  function roomsCacheKey(opts, limit) {
+    const party = opts && opts.party ? 'party' : 'live';
+    const sort = (opts && opts.sort) || 'trending';
+    return `ap_rooms_v1_${party}_${sort}_${limit || 12}`;
+  }
+
+  function readRoomsCache(key) {
+    try {
+      const raw = sessionStorage.getItem(key);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || Date.now() - Number(parsed.at || 0) > ROOMS_CACHE_MS) return null;
+      return parsed;
+    } catch (_e) {
+      return null;
+    }
+  }
+
+  function writeRoomsCache(key, rooms) {
+    try {
+      sessionStorage.setItem(key, JSON.stringify({ at: Date.now(), rooms: rooms || [] }));
+    } catch (_e) { /* ignore */ }
+  }
+
+  function renderExploreSkeletonGrid(count = 8) {
+    const cards = Array.from({ length: count }, () => `
+      <article class="social-live-card social-live-card--skeleton" aria-hidden="true">
+        <div class="social-skeleton-cover"></div>
+        <div class="social-skeleton-line social-skeleton-line--short"></div>
+        <div class="social-skeleton-line"></div>
+      </article>`).join('');
+    return `<div class="social-grid social-grid-cards social-grid--skeleton">${cards}</div>`;
+  }
+
+  function paintExploreRooms(grid, rooms, opts, limit) {
+    if (!grid) return;
+    grid.classList.remove('is-loading', 'is-empty');
+    grid.classList.add('has-rooms');
+    grid.innerHTML =
+      renderExploreFeedHead(opts && opts.party, rooms.length) + renderExploreCardsHtml(rooms, opts);
+    bindLiveCards(grid);
+    if (window.SocialUI?.bindAvatarFallbacks) SocialUI.bindAvatarFallbacks(grid);
+    bindGridInfiniteScroll(grid.id, limit || 12, opts);
+    syncExploreFloatingActions(true, opts);
+    if (!opts.party) setExploreTabCount('explore', rooms.length);
+    else setExploreTabCount('party', rooms.length);
+  }
+
 
   function gridStateKey(gridId, opts = {}) {
     return `${gridId}:${opts.sort || 'trending'}:${opts.party ? 'party' : 'live'}`;
@@ -904,6 +957,7 @@
     const grid = document.getElementById(gridId);
     if (!grid) return;
     const key = gridStateKey(gridId, opts);
+    const cacheKey = roomsCacheKey(opts, limit || 12);
     if (!gridScrollState[key]) gridScrollState[key] = { limit: limit || 12, loading: false, gen: 0 };
     const st = gridScrollState[key];
     /* Append can wait; full reloads must supersede in-flight loads (tab switch / refresh).
@@ -913,15 +967,19 @@
     st.loading = true;
     if (!opts.append) {
       grid.classList.remove('is-empty', 'has-rooms');
-      grid.classList.add('is-loading');
-      grid.innerHTML = '<div class="social-explore-loading"><span class="social-spinner"></span></div>';
-      syncExploreFloatingActions(false, opts);
+      const cached = readRoomsCache(cacheKey);
+      if (cached?.rooms?.length) {
+        paintExploreRooms(grid, cached.rooms, opts, limit || st.limit);
+      } else {
+        grid.classList.add('is-loading');
+        grid.innerHTML = renderExploreSkeletonGrid(8);
+      }
+      syncExploreFloatingActions(Boolean(cached?.rooms?.length), opts);
     }
     try {
-      const { rooms, error } = await fetchActiveRooms(limit || st.limit, opts);
+      const { rooms, error } = await fetchActiveRooms(limit || st.limit, { ...opts, skipEnrich: true });
       if (myGen !== st.gen) return;
       if (opts.loadToken != null && opts.loadToken !== window.__exploreGridToken) {
-        // Stale tab result — drop it; newer load owns the grid.
         return;
       }
       const liveGrid = document.getElementById(gridId) || grid;
@@ -939,24 +997,34 @@
           bindEmptyLiveGrid(liveGrid, opts);
           syncExploreFloatingActions(false, opts);
         }
-        updateExploreTabCounts();
+        scheduleExploreTabCounts();
         return;
       }
-      liveGrid.classList.remove('is-empty');
-      liveGrid.classList.add('has-rooms');
-      liveGrid.innerHTML =
-        renderExploreFeedHead(opts && opts.party, rooms.length) + renderExploreCardsHtml(rooms, opts);
-      bindLiveCards(liveGrid);
-      if (window.SocialUI?.bindAvatarFallbacks) SocialUI.bindAvatarFallbacks(liveGrid);
-      bindGridInfiniteScroll(gridId, limit || 12, opts);
-      syncExploreFloatingActions(true, opts);
-      updateExploreTabCounts();
+      writeRoomsCache(cacheKey, rooms);
+      if (!opts.append) {
+        paintExploreRooms(liveGrid, rooms, opts, limit || st.limit);
+      } else {
+        liveGrid.classList.remove('is-empty');
+        liveGrid.classList.add('has-rooms');
+        const inner = liveGrid.querySelector('.social-grid-cards');
+        if (inner) {
+          const more = rooms
+            .map((p, i) => renderLiveCard(p, i, opts))
+            .filter(Boolean)
+            .join('');
+          inner.insertAdjacentHTML('beforeend', more);
+          bindLiveCards(liveGrid);
+          if (window.SocialUI?.bindAvatarFallbacks) SocialUI.bindAvatarFallbacks(liveGrid);
+        }
+        syncExploreFloatingActions(true, opts);
+      }
+      scheduleExploreTabCounts();
     } catch (e) {
       console.warn('SocialShell: fillGrid', e);
       if (myGen !== st.gen) return;
       const liveGrid = document.getElementById(gridId) || grid;
       liveGrid.classList.remove('is-loading');
-      if (!opts.append) {
+      if (!opts.append && !liveGrid.querySelector('.social-live-card:not(.social-live-card--skeleton)')) {
         liveGrid.classList.add('is-empty');
         liveGrid.classList.remove('has-rooms');
         liveGrid.innerHTML = renderEmptyLiveGrid(opts && opts.party, { error: true });
@@ -986,12 +1054,18 @@
     }
   }
 
+  function scheduleExploreTabCounts() {
+    if (!document.body.classList.contains('social-explore-page')) return;
+    clearTimeout(exploreCountsTimer);
+    exploreCountsTimer = setTimeout(() => updateExploreTabCounts(), 3000);
+  }
+
   async function updateExploreTabCounts() {
     if (!document.body.classList.contains('social-explore-page')) return;
     try {
       const [liveRes, partyRes] = await Promise.all([
-        API.get('/live/rooms?type=live&limit=50&sort=trending'),
-        API.get('/live/rooms?type=party&limit=50&sort=trending'),
+        API.get('/live/rooms?type=live&limit=20&sort=trending'),
+        API.get('/live/rooms?type=party&limit=20&sort=trending'),
       ]);
       const liveRows = Array.isArray(liveRes?.data) ? liveRes.data : [];
       const partyRows = Array.isArray(partyRes?.data) ? partyRes.data : [];
@@ -1175,7 +1249,7 @@
     if (window.SocialUI) SocialUI.bindAvatarFallbacks(document);
 
     bindLiveCards(document);
-    updateExploreTabCounts();
+    scheduleExploreTabCounts();
   }
 
   async function fillFollowingView(searchQuery) {

@@ -9,7 +9,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <script src="/ap-native-boot.js"></script>
     <link rel="stylesheet" href="/social-theme.css?v=20260626-discover-chat">
-    <link rel="stylesheet" href="/social-chat.css?v=20260718-chat-soft">
+    <link rel="stylesheet" href="/social-chat.css?v=20260727-fastload">
     
     <!-- Font Awesome 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -3140,10 +3140,14 @@
             if (!chatList) return;
             /* Don’t wipe a successful list while a background retry runs */
             if (chatList.querySelector('.chat-item, .ap-msg-item, [data-conversation-id]')) return;
-            chatList.innerHTML =
-                '<div class="ap-msg-empty"><i class="fas fa-comments"></i>' +
-                '<p>Loading messages…</p>' +
-                '<small>' + String(sub || 'Please wait').replace(/</g, '') + '</small></div>';
+            chatList.innerHTML = Array.from({ length: 6 }, () =>
+                '<div class="ap-chat-skeleton-row" aria-hidden="true">' +
+                '<div class="ap-chat-skeleton-avatar"></div>' +
+                '<div class="ap-chat-skeleton-lines">' +
+                '<div class="ap-chat-skeleton-line ap-chat-skeleton-line--short"></div>' +
+                '<div class="ap-chat-skeleton-line"></div>' +
+                '</div></div>'
+            ).join('');
         }
 
         let __chatLoadInFlight = null;
@@ -3162,7 +3166,7 @@
                 if (typeof Auth?.ensureAccessToken === 'function') {
                     await Promise.race([
                         Auth.ensureAccessToken(),
-                        new Promise((r) => setTimeout(r, 6000)),
+                        new Promise((r) => setTimeout(r, 2500)),
                     ]).catch(() => {});
                 }
                 if (!getChatToken()) {
@@ -3175,11 +3179,11 @@
                             try {
                                 window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'request_session' }));
                             } catch (_e) { finish(); }
-                            setTimeout(finish, 5000);
+                            setTimeout(finish, 2500);
                         });
                         await Promise.race([
                             Promise.resolve(Auth.ensureAccessToken?.()).catch(() => {}),
-                            new Promise((r) => setTimeout(r, 4000)),
+                            new Promise((r) => setTimeout(r, 2000)),
                         ]);
                     }
                 }

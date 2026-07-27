@@ -1479,6 +1479,27 @@
     return '/creator-profile.html?name=' + encodeURIComponent(name) + '&app=1';
   }
 
+  function renderSquareSkeleton(count = 3) {
+    return Array.from({ length: count }, () => `
+      <article class="social-post-card social-post-card--skeleton" aria-hidden="true">
+        <div class="social-skeleton-media"></div>
+        <div class="social-skeleton-line social-skeleton-line--short"></div>
+        <div class="social-skeleton-line"></div>
+      </article>`).join('');
+  }
+
+  function paintReelSkeleton(wrap, uiLayer) {
+    if (!wrap || wrap.querySelector('#reelsScroll')) return;
+    const scroll = document.createElement('div');
+    scroll.id = 'reelsScroll';
+    scroll.className = 'social-reels-scroll social-reels-scroll--skeleton';
+    scroll.innerHTML = Array.from({ length: 3 }, (_, i) => `
+      <section class="social-reel-slide social-reel-slide--skeleton" data-index="${i}">
+        <div class="social-skeleton-reel"></div>
+      </section>`).join('');
+    wrap.insertBefore(scroll, uiLayer || wrap.firstChild);
+  }
+
   /** Video reels page */
   let reelItems = [];
   let reelIndex = 0;
@@ -1696,9 +1717,10 @@
     } else {
       ensureReelCloseButton(() => setVideoImmersive(false));
     }
-    const pros = window.SocialShell ? await SocialShell.fetchPros(8) : [];
-    reelItems = await buildReelItems(pros, { videosOnly: true, startPostId: startPost });
     const uiLayer = document.getElementById('reelUi');
+    paintReelSkeleton(wrap, uiLayer);
+    const prosPromise = window.SocialShell ? SocialShell.fetchPros(8) : Promise.resolve([]);
+    reelItems = await buildReelItems(await prosPromise, { videosOnly: true, startPostId: startPost });
 
     if (!reelItems.length) {
       const empty = document.createElement('p');
@@ -1966,9 +1988,16 @@
     const feed = typeof container === 'string' ? document.getElementById(container) : container;
     if (!feed) return;
 
-    let posts = (await loadPosts()).filter((p) => canViewPost(p));
+    if (!feed.querySelector('.social-post-card')) {
+      feed.innerHTML = renderSquareSkeleton(4);
+    }
+
+    const [loadedPosts, pros] = await Promise.all([
+      loadPosts().then((rows) => rows.filter((p) => canViewPost(p))),
+      window.SocialShell ? SocialShell.fetchPros(4) : Promise.resolve([]),
+    ]);
+    let posts = loadedPosts;
     const feedPosts = posts;
-    const pros = window.SocialShell ? await SocialShell.fetchPros(4) : [];
     if (!posts.length) {
       posts = pros.map((p, i) => ({
         id: 'demo-' + i,

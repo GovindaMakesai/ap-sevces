@@ -423,7 +423,7 @@ const API = {
                 /* Hard cap — hung refresh must not freeze Live feed / whole WebView */
                 await Promise.race([
                     Auth.ensureAccessToken(),
-                    new Promise((resolve) => setTimeout(resolve, 4500)),
+                    new Promise((resolve) => setTimeout(resolve, 1800)),
                 ]);
             } catch (_e) {
                 /* Public endpoints (live rooms) must still load if refresh fails */
