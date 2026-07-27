@@ -9,6 +9,9 @@
   <link rel="stylesheet" href="social-theme.css?v=20260723-loadmore">
   <link rel="stylesheet" href="social-features.css?v=20260723-loadmore">
   <link rel="stylesheet" href="social-fx.css?v=20260702-follow-fix">
+  <style>
+    @keyframes rankSkel { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+  </style>
 </head>
 <body class="social-rank-page social-rank-page--gold">
   <div class="social-rank-sticky-top">
@@ -61,12 +64,12 @@
 
   <div id="social-bottom-nav-mount"></div>
 
-  <script src="app.js?v=20260702-follow-fix"></script>
+  <script src="app.js?v=20260727-livefix"></script>
   <script src="social-ui.js?v=20260702-follow-fix"></script>
   <script src="social-interactions.js?v=20260717-block-hide"></script>
-  <script src="social-shell.js"></script>
+  <script src="social-shell.js?v=20260727-livefix"></script>
   <script src="social-nav.js"></script>
-  <script src="social-fx.js"></script>
+  <script defer src="social-fx.js"></script>
   <script>
     const TAB_CATEGORY = { host: 'creators', rich: 'gifters', gift: 'gifters', video: 'video' };
     const TAB_MODE = { host: '', rich: '', gift: 'count', video: '' };
@@ -150,7 +153,9 @@
       const id = 'rankList' + currentTab.charAt(0).toUpperCase() + currentTab.slice(1);
       const el = document.getElementById(id);
       if (!el) return;
-      el.innerHTML = '<p class="social-rank-empty" style="text-align:center;padding:24px;color:#8b6914">Loading rankings…</p>';
+      el.innerHTML = Array.from({ length: 8 }, () =>
+        '<div class="social-rank-skel" style="height:56px;margin:8px 0;border-radius:12px;background:linear-gradient(90deg,#f5e6c8 25%,#fff8e7 50%,#f5e6c8 75%);background-size:200% 100%;animation:rankSkel 1.2s ease infinite"></div>'
+      ).join('');
       updatePromo();
       let rows = [];
       try {
@@ -251,10 +256,10 @@
       refreshRanks();
     }
 
-    document.addEventListener('DOMContentLoaded', async () => {
+    document.addEventListener('DOMContentLoaded', () => {
       SocialShell.initPage({ activeNav: 'rankings' });
       if (window.SocialInteractions?.refreshSocialCaches) {
-        await SocialInteractions.refreshSocialCaches().catch(() => {});
+        SocialInteractions.refreshSocialCaches().catch(() => {});
       }
       document.querySelectorAll('.social-rank-main-tab').forEach((tab) => {
         tab.classList.toggle('active', tab.dataset.tab === currentTab);
@@ -279,7 +284,7 @@
       document.querySelectorAll('.social-rank-sub-tab').forEach((t) => {
         t.classList.toggle('active', t.dataset.period === currentPeriod);
       });
-      await refreshRanks();
+      refreshRanks();
       window.refreshRanks = refreshRanks;
       if (window.SocialNav) {
         SocialNav.registerRefresh(refreshRanks);

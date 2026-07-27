@@ -640,7 +640,7 @@
     patchAppLinks();
     bindFastBottomNav();
     prefetchNavTargets();
-    syncChatUnreadFromApi();
+    setTimeout(() => syncChatUnreadFromApi(), 1800);
   }
 
   let fastNavBound = false;

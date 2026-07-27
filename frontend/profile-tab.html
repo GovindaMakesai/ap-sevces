@@ -274,33 +274,20 @@
   <div id="social-bottom-nav-mount"></div>
 
   <script src="ap-config.js"></script>
-  <script src="app.js?v=20260718-profile-name"></script>
+  <script src="app.js?v=20260727-livefix"></script>
   <script src="social-wallet.js?v=20260715-wallet-fix"></script>
   <script src="social-ui.js?v=20260624-profile-url-fix"></script>
   <script src="social-interactions.js?v=20260624-profile-url-fix"></script>
-  <script src="social-shell.js?v=20260624-profile-url-fix"></script>
+  <script src="social-shell.js?v=20260727-livefix"></script>
   <script src="referral-hook.js?v=20260723-invite-on"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
+      SocialShell.initPage({ activeNav: 'profile' });
       Auth.checkAuth();
       let user = Auth.getUser();
-      if (Auth.hasSession?.()) {
-        await Auth.ensureAccessToken?.();
-        try {
-          await Auth.refreshSession?.();
-        } catch (_e) {}
-        try {
-          const meRes = await API.get('/auth/me');
-          const freshUser = meRes?.data?.user || meRes?.data;
-          if (freshUser?.id) {
-            localStorage.setItem('user', JSON.stringify(freshUser));
-            if (window.AppState) AppState.user = freshUser;
-            user = freshUser;
-          }
-        } catch (_e) {}
-      }
+      if (user) paintProfileAvatar(user);
+      document.documentElement.classList.add('profile-ready');
 
-      SocialShell.initPage({ activeNav: 'profile' });
       const btn = document.getElementById('profileMainBtn');
       const dash = document.getElementById('dashLink');
       const adminDash = document.getElementById('adminDashLink');
@@ -312,7 +299,28 @@
         if (loadingBar) loadingBar.remove();
         document.documentElement.classList.add('profile-ready');
       }
-      setTimeout(finishProfile, 2500);
+      setTimeout(finishProfile, 350);
+
+      async function refreshProfileUser() {
+        if (!Auth.hasSession?.()) return;
+        try {
+          await Promise.race([
+            Auth.ensureAccessToken?.(),
+            new Promise((r) => setTimeout(r, 1800)),
+          ]);
+        } catch (_e) {}
+        try {
+          const meRes = await API.get('/auth/me');
+          const freshUser = meRes?.data?.user || meRes?.data;
+          if (freshUser?.id) {
+            localStorage.setItem('user', JSON.stringify(freshUser));
+            if (window.AppState) AppState.user = freshUser;
+            user = freshUser;
+            paintProfileAvatar(user);
+          }
+        } catch (_e) {}
+      }
+      refreshProfileUser();
 
       function paintProfileAvatar(user) {
         if (!user) return;
