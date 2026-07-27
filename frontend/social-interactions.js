@@ -75,6 +75,74 @@
     el._t = setTimeout(() => el.classList.remove('show'), 2200);
   }
 
+  const REEL_SOUND_KEY = 'social_reel_sound';
+
+  function reelSoundEnabled() {
+    try {
+      return sessionStorage.getItem(REEL_SOUND_KEY) === '1';
+    } catch (_e) {
+      return false;
+    }
+  }
+
+  function setReelSoundEnabled(on) {
+    try {
+      sessionStorage.setItem(REEL_SOUND_KEY, on ? '1' : '0');
+    } catch (_e) { /* ignore */ }
+  }
+
+  function applySocialVideoSound(vid, enabled) {
+    if (!vid || vid.tagName !== 'VIDEO') return;
+    vid.muted = !enabled;
+    vid.volume = enabled ? 1 : 0;
+    if (enabled) vid.removeAttribute('muted');
+    else vid.setAttribute('muted', '');
+    updateReelSoundButton();
+  }
+
+  function getActiveReelVideo(scroll) {
+    const root = scroll || document.getElementById('reelsScroll');
+    const slide = root?.querySelector(`.social-reel-slide[data-index="${reelIndex}"]`);
+    return slide?.querySelector('video[data-reel-video]') || null;
+  }
+
+  function updateReelSoundButton() {
+    const btn = document.getElementById('reelSoundBtn');
+    if (!btn) return;
+    const on = reelSoundEnabled();
+    btn.classList.toggle('is-on', on);
+    btn.setAttribute('aria-label', on ? 'Mute sound' : 'Turn on sound');
+    const icon = btn.querySelector('i');
+    if (icon) icon.className = on ? 'fas fa-volume-high' : 'fas fa-volume-xmark';
+  }
+
+  function toggleReelSound(scroll) {
+    const next = !reelSoundEnabled();
+    setReelSoundEnabled(next);
+    const vid = getActiveReelVideo(scroll);
+    applySocialVideoSound(vid, next);
+    if (next && vid) vid.play().catch(() => {});
+  }
+
+  function ensureReelSoundButton(scroll) {
+    let btn = document.getElementById('reelSoundBtn');
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.type = 'button';
+      btn.id = 'reelSoundBtn';
+      btn.className = 'social-reel-action social-reel-sound-btn';
+      btn.setAttribute('aria-label', 'Turn on sound');
+      btn.innerHTML =
+        '<span class="social-reel-action-icon"><i class="fas fa-volume-xmark"></i></span>';
+      document.getElementById('reelUi')?.appendChild(btn);
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleReelSound(scroll);
+      });
+    }
+    updateReelSoundButton();
+  }
+
   function openIdb() {
     return new Promise((resolve, reject) => {
       let done = false;
@@ -1504,6 +1572,7 @@
   function openReelViewer(postId) {
     if (!postId) return;
     sessionStorage.setItem('social_reel_start', String(postId));
+    sessionStorage.setItem(REEL_SOUND_KEY, '1');
     location.href = '/video.html?post=' + encodeURIComponent(postId) + '&app=1';
   }
 
@@ -1532,6 +1601,9 @@
       name.textContent = '@' + String(item.name || 'Creator').replace(/\s+/g, '');
     }
     if (cap) cap.textContent = item.caption || '';
+    const scroll = document.getElementById('reelsScroll');
+    const activeVid = getActiveReelVideo(scroll);
+    if (activeVid) applySocialVideoSound(activeVid, reelSoundEnabled());
     if (follow) {
       const fid = item.workerId || item.userId || item.name;
       const on = isFollowing(fid, item.name);
@@ -1629,6 +1701,7 @@
             const i = parseInt(en.target.dataset.index, 10);
             reelItems[i] && updateReelUI(reelItems[i]);
             en.target.querySelectorAll('video[data-reel-video]').forEach((v) => {
+              applySocialVideoSound(v, reelSoundEnabled());
               v.play().catch(() => {});
             });
           } else {
@@ -1648,6 +1721,12 @@
         if (e.target.closest('#reelUi') || e.target.closest('[data-action]')) return;
         const vid = slide.querySelector('video[data-reel-video]');
         if (!vid) return;
+        if (vid.muted) {
+          setReelSoundEnabled(true);
+          applySocialVideoSound(vid, true);
+          vid.play().catch(() => {});
+          return;
+        }
         if (vid.paused) vid.play().catch(() => {});
         else vid.pause();
       });
@@ -1655,6 +1734,7 @@
 
     updateReelUI(reelItems[0]);
     bindReelActionsPanel();
+    ensureReelSoundButton(scroll);
 
     if (startPost) {
       const idx = reelItems.findIndex((x) => String(x.postId) === String(startPost));
@@ -1869,7 +1949,7 @@
           user &&
           (String(p.userId) === String(user.id) || p.userId === 'me' || String(p.userId) === String(user.email));
         const media = postIsVideo(p)
-          ? `<video src="${url}" playsinline muted preload="metadata" poster="${thumbUrl || ''}"${videoTagAttrs(p)}></video>`
+          ? `<video src="${url}" playsinline muted preload="metadata" data-social-feed-video poster="${thumbUrl || ''}"${videoTagAttrs(p)}></video>`
           : `<img src="${url || SocialShell?.avatarFallback(p.userName)}" alt="">`;
         const liked = !p.demo && isLiked(p.id, p);
         const openReel = !p.demo && postHasMedia(p) ? ' data-open-reel="1"' : '';
@@ -1954,6 +2034,34 @@
     });
     feed.querySelectorAll('.social-post-media video, .social-post-media img').forEach((el) => markMediaOrientation(el));
     bindVideoTrimPlayback(feed);
+
+    feed.querySelectorAll('.social-post-media video[data-social-feed-video]').forEach((vid) => {
+      const mediaWrap = vid.closest('.social-post-media');
+      if (!mediaWrap || mediaWrap.querySelector('.social-feed-sound-btn')) return;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'social-feed-sound-btn';
+      btn.setAttribute('aria-label', 'Play with sound');
+      btn.innerHTML = '<i class="fas fa-volume-xmark"></i>';
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const enabling = vid.muted;
+        vid.muted = !enabling;
+        vid.volume = enabling ? 1 : 0;
+        if (enabling) {
+          vid.removeAttribute('muted');
+          btn.innerHTML = '<i class="fas fa-volume-high"></i>';
+          btn.classList.add('is-on');
+          vid.play().catch(() => {});
+        } else {
+          vid.setAttribute('muted', '');
+          btn.innerHTML = '<i class="fas fa-volume-xmark"></i>';
+          btn.classList.remove('is-on');
+        }
+      });
+      mediaWrap.appendChild(btn);
+    });
 
     feed.querySelectorAll('[data-open-reel]').forEach((card) => {
       card.addEventListener('click', (e) => {
