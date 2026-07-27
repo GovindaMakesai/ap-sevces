@@ -404,20 +404,24 @@ body.explore-tab-party .social-explore-feed-count {
   padding: 0;
 }
 
-body.explore-empty-state.explore-tab-live .social-start-live:not([hidden]) {
+body.explore-empty-state.explore-tab-live .social-start-live:not([hidden]),
+body.explore-has-rooms.explore-tab-live .social-start-live:not([hidden]),
+body.social-explore-page.explore-tab-live .social-start-live:not([hidden]) {
   display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  z-index: 220;
 }
 
-body.explore-empty-state.explore-tab-party .social-start-party:not([hidden]) {
+body.explore-empty-state.explore-tab-party .social-start-party:not([hidden]),
+body.explore-has-rooms.explore-tab-party .social-start-party:not([hidden]),
+body.social-explore-page.explore-tab-party .social-start-party:not([hidden]) {
   display: flex !important;
-}
-
-body.explore-has-rooms.explore-tab-live .social-start-live:not([hidden]) {
-  display: flex !important;
-}
-
-body.explore-has-rooms.explore-tab-party .social-start-party:not([hidden]) {
-  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  z-index: 220;
 }
 
 .social-explore-page .social-explore-mount.has-rooms {
@@ -1072,7 +1076,7 @@ html.ap-expo-app body.social-tabs-page .social-top {
   position: fixed;
   right: 16px;
   bottom: calc(var(--social-bottom-nav-h) + var(--social-safe-bottom) + 16px);
-  z-index: 90;
+  z-index: 220;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1086,13 +1090,15 @@ html.ap-expo-app body.social-tabs-page .social-top {
   box-shadow: 0 6px 20px rgba(245, 158, 11, 0.45);
   cursor: pointer;
   text-decoration: none;
+  pointer-events: auto !important;
+  touch-action: manipulation;
 }
 
 .social-start-party {
   position: fixed;
   left: 16px;
   bottom: calc(var(--social-bottom-nav-h) + var(--social-safe-bottom) + 16px);
-  z-index: 90;
+  z-index: 220;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1105,12 +1111,12 @@ html.ap-expo-app body.social-tabs-page .social-top {
   font-size: 14px;
   box-shadow: 0 6px 20px rgba(124, 58, 237, 0.4);
   cursor: pointer;
+  pointer-events: auto !important;
+  touch-action: manipulation;
 }
 
-/* Bottom nav — always above page load overlays; taps must never wait on fetch */
+/* Bottom nav — taps must never wait on fetch; keep stacking local to the bar */
 #social-bottom-nav-mount {
-  position: relative;
-  z-index: 10050;
   pointer-events: none;
 }
 #social-bottom-nav-mount .social-bottom-nav {
@@ -1121,7 +1127,7 @@ html.ap-expo-app body.social-tabs-page .social-top {
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 10050;
+  z-index: 200;
   height: calc(var(--social-bottom-nav-h) + var(--social-safe-bottom));
   padding: 6px 8px var(--social-safe-bottom);
   background: #fff;

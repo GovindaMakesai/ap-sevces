@@ -447,8 +447,8 @@
     /* Always keep Go Live / Party FAB available — empty feed must not block starting a stream */
     liveBtn.hidden = party;
     partyBtn.hidden = !party;
-    liveBtn.style.display = party ? 'none' : '';
-    partyBtn.style.display = party ? '' : 'none';
+    liveBtn.style.display = party ? 'none' : 'flex';
+    partyBtn.style.display = party ? 'flex' : 'none';
   }
 
   function renderExploreFeedHead(party, count) {

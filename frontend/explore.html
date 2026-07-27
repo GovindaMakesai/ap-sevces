@@ -6,13 +6,13 @@
   <meta name="theme-color" content="#fdf9f0">
   <title>Explore - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-theme.css?v=20260727-navtap">
-  <link rel="stylesheet" href="social-features.css?v=20260727-navtap">
+  <link rel="stylesheet" href="social-theme.css?v=20260727-golive">
+  <link rel="stylesheet" href="social-features.css?v=20260727-golive">
   <script src="native-session-restore.js"></script>
   <script src="ap-config.js"></script>
   <script src="ap-native-boot.js"></script>
 </head>
-<body class="social-tabs-page social-explore-page explore-empty-state">
+<body class="social-tabs-page social-explore-page explore-empty-state explore-tab-live">
   <header class="social-top">
     <div class="social-explore-search-row">
       <div class="social-search">
@@ -42,7 +42,7 @@
   <div id="exploreEmpty" style="display:none"></div>
 
   <button type="button" class="social-start-party" id="social-start-party" hidden style="display:none"><i class="fas fa-users"></i> Party</button>
-  <button type="button" class="social-start-live" id="social-start-live" hidden style="display:none"><i class="fas fa-video"></i> Go Live</button>
+  <button type="button" class="social-start-live" id="social-start-live"><i class="fas fa-video"></i> Go Live</button>
   <div id="social-bottom-nav-mount"></div>
 
   <script src="app.js?v=20260727-livefix"></script>
@@ -50,7 +50,7 @@
   <script src="social-interactions.js"></script>
   <script src="auth-guard.js"></script>
   <script src="social-create-post.js"></script>
-  <script src="social-shell.js?v=20260727-navtap"></script>
+  <script src="social-shell.js?v=20260727-golive"></script>
   <script src="social-nav.js?v=20260720-back-fix"></script>
   <script>
     document.addEventListener('DOMContentLoaded', () => {
@@ -161,6 +161,9 @@
       }
 
       SocialShell.initPage({ activeNav: 'explore' });
+      if (window.SocialShell?.syncExploreFloatingActions) {
+        SocialShell.syncExploreFloatingActions(false, { party: currentTab === 'party' });
+      }
 
       document.querySelectorAll('#exploreTabs button[data-tab]').forEach((btn) => {
         btn.addEventListener('click', (e) => {

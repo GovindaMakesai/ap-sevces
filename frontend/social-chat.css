@@ -622,7 +622,7 @@ html.social-bridge-mode body.chat-active .chat-page {
 body.chat-active #social-bottom-nav-mount,
 body.chat-active .social-bottom-nav {
   display: flex !important;
-  z-index: 10050;
+  z-index: 300;
   bottom: var(--ap-chat-bottom-pad, env(safe-area-inset-bottom, 0px));
 }
 
