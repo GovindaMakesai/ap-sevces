@@ -25,7 +25,9 @@ const MENU: MenuItem[] = [
   { id: 'invite', label: 'Invite', icon: 'fa-gift', href: '/referral.html?app=1' },
   { id: 'topup', label: 'Top Up', icon: 'fa-coins', href: '/coins-recharge.html?app=1' },
   { id: 'withdraw', label: 'Withdraw', icon: 'fa-money-bill-wave', href: '/withdraw.html?app=1' },
-  { id: 'store', label: 'Store', icon: 'fa-store', href: '/store.html?app=1' },
+  { id: 'store', label: 'Store & Gifts', icon: 'fa-store', href: '/store.html?app=1' },
+  { id: 'centers', label: 'Centers', icon: 'fa-th-large', href: '/centers' },
+  { id: 'settings', label: 'Settings', icon: 'fa-cog', href: '/settings' },
   { id: 'vip', label: 'VIP Privileges', icon: 'fa-crown', href: '/vip.html?app=1' },
   { id: 'rankings', label: 'Rankings', icon: 'fa-trophy', href: '/rankings.html' },
   { id: 'messages', label: 'Messages', icon: 'fa-comments', href: '/chat.html' },
@@ -43,6 +45,26 @@ const MENU: MenuItem[] = [
     show: (u) => {
       const role = String(u?.role || '').toLowerCase();
       return role.includes('agency') || Boolean(u?.is_admin);
+    },
+  },
+  {
+    id: 'bd',
+    label: 'BD Center',
+    icon: 'fa-network-wired',
+    href: '/bd-center.html?app=1',
+    show: (u) => {
+      const role = String(u?.role || '').toLowerCase();
+      return role === 'bdm' || Boolean(u?.is_admin) || ['admin', 'super_admin', 'founder', 'ceo'].includes(role);
+    },
+  },
+  {
+    id: 'my-agency',
+    label: 'My Agency',
+    icon: 'fa-handshake',
+    href: '/host-agency.html?app=1',
+    show: (u) => {
+      const role = String(u?.role || '').toLowerCase();
+      return role.includes('creator') || role.includes('host') || Boolean(u?.is_admin);
     },
   },
   { id: 'help', label: 'Help', icon: 'fa-question-circle', href: '/help.html?app=1' },

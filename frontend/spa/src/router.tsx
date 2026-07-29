@@ -3,6 +3,9 @@ import { AppShell } from '@/layouts/AppShell';
 import { KeepAliveOutlet } from '@/layouts/KeepAliveOutlet';
 import { LegacyBridgePage } from '@/pages/LegacyBridgePage';
 import { LoginPage } from '@/pages/LoginPage';
+import { SearchPage } from '@/pages/SearchPage';
+import { SettingsPage } from '@/pages/SettingsPage';
+import { CentersPage } from '@/pages/CentersPage';
 import { SpaNavBridge } from '@/nav/SpaNavBridge';
 
 /**
@@ -24,6 +27,9 @@ export function AppRouter() {
             <Route path="profile/*" element={null} />
             <Route path="rankings/*" element={null} />
           </Route>
+          <Route path="search" element={<SearchPage />} />
+          <Route path="settings" element={<SettingsPage />} />
+          <Route path="centers" element={<CentersPage />} />
           <Route path="legacy/*" element={<LegacyBridgePage />} />
         </Route>
         <Route path="*" element={<Navigate to="/explore" replace />} />

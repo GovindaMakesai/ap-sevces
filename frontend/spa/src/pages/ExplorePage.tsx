@@ -54,25 +54,35 @@ export function ExplorePage() {
     <div className="ap-page ap-page-explore ap-native-explore">
       <header className="ap-explore-head">
         <h1 className="ap-explore-brand">AP Live</h1>
-        <div className="ap-explore-tabs" role="tablist">
+        <div className="ap-explore-head-actions">
           <button
             type="button"
-            role="tab"
-            aria-selected={tab === 'live'}
-            className={tab === 'live' ? 'is-active' : ''}
-            onClick={() => setTab('live')}
+            className="ap-icon-btn"
+            aria-label="Search"
+            onClick={() => go('/search')}
           >
-            Live
+            <i className="fas fa-magnifying-glass" />
           </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === 'party'}
-            className={tab === 'party' ? 'is-active' : ''}
-            onClick={() => setTab('party')}
-          >
-            Party
-          </button>
+          <div className="ap-explore-tabs" role="tablist">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === 'live'}
+              className={tab === 'live' ? 'is-active' : ''}
+              onClick={() => setTab('live')}
+            >
+              Live
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === 'party'}
+              className={tab === 'party' ? 'is-active' : ''}
+              onClick={() => setTab('party')}
+            >
+              Party
+            </button>
+          </div>
         </div>
       </header>
 

@@ -12,6 +12,8 @@ const TAB_MAP: Record<string, string> = {
   '/rankings.html': '/rankings',
   '/app-auth.html': '/login',
   '/login.html': '/login',
+  '/search.html': '/search',
+  '/settings.html': '/settings',
 };
 
 export type SpaNavTarget = {
@@ -62,6 +64,22 @@ export function mapLegacyHrefToSpa(href: string): SpaNavTarget | null {
   if (pathname.startsWith('/spa/') || pathname === '/spa') {
     const rest = pathname.slice('/spa'.length) || '/';
     return { to: rest + url.search };
+  }
+
+  /* Native shell routes (no .html) */
+  const SHELL = [
+    '/search',
+    '/settings',
+    '/centers',
+    '/explore',
+    '/video',
+    '/chat',
+    '/profile',
+    '/rankings',
+    '/login',
+  ];
+  if (SHELL.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
+    return { to: pathname + url.search };
   }
 
   /* Legacy bridge: keep path + query */

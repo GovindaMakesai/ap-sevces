@@ -710,12 +710,245 @@ body,
   display: block;
 }
 
-.ap-video-tile span {
-  position: absolute;
-  left: 6px;
-  bottom: 6px;
-  font-size: 11px;
-  font-weight: 700;
+.ap-explore-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ap-icon-btn {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ap-fg);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+
+/* —— Search / Settings / Centers —— */
+.ap-native-search,
+.ap-native-hub {
+  display: flex;
+  flex-direction: column;
+  background: #0a0a0e;
+}
+
+.ap-search-head,
+.ap-hub-head {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+}
+
+.ap-hub-head h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.ap-search-input {
+  flex: 1;
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ap-fg);
+  font-size: 15px;
+  outline: none;
+}
+
+.ap-search-scroll,
+.ap-hub-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 12px 28px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.ap-search-section {
+  margin-bottom: 18px;
+}
+
+.ap-search-section h2,
+.ap-hub-section h2 {
+  margin: 12px 4px 8px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ap-muted);
+}
+
+.ap-search-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 10px 6px;
+  text-align: left;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.ap-search-av {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #222;
+}
+
+.ap-search-badge {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--ap-accent);
   color: #fff;
-  text-shadow: 0 1px 2px #000;
+}
+
+.ap-search-badge.is-seller {
+  background: #d4a84b;
+  color: #1a1200;
+}
+
+.ap-search-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ap-search-meta strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ap-search-meta span {
+  font-size: 12px;
+  color: var(--ap-muted);
+}
+
+.ap-search-fallback {
+  display: none;
+}
+
+.ap-hub-lead,
+.ap-hub-hint {
+  color: var(--ap-muted);
+  font-size: 13px;
+  padding: 4px 6px 12px;
+}
+
+.ap-hub-section {
+  margin-bottom: 16px;
+}
+
+.ap-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 15px;
+}
+
+.ap-toggle-row input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--ap-accent);
+}
+
+.ap-center-card {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 0;
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  text-align: left;
+  padding: 14px 12px;
+  margin-bottom: 8px;
+  border-radius: 14px;
+  cursor: pointer;
+}
+
+.ap-center-card > i:first-child {
+  width: 28px;
+  color: var(--ap-accent);
+  font-size: 18px;
+}
+
+.ap-center-card span {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ap-center-card em {
+  font-style: normal;
+  font-size: 12px;
+  color: var(--ap-muted);
+}
+
+.ap-page-legacy {
+  display: flex;
+  flex-direction: column;
+}
+
+.ap-page-legacy.is-immersive .ap-legacy-frame-wrap {
+  position: absolute;
+  inset: 0;
+}
+
+.ap-legacy-back {
+  flex-shrink: 0;
+  align-self: flex-start;
+  margin: 8px 10px;
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  z-index: 6;
+}
+
+.ap-legacy-back--float {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  margin: 0;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.ap-legacy-frame-wrap {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.ap-legacy-frame-wrap .ap-legacy-frame {
+  width: 100%;
+  height: 100%;
 }

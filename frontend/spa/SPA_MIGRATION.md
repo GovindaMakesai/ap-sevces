@@ -127,10 +127,18 @@ Still the live product (and Phase 1 embeds):
 | **2** | Hide dual nav; postMessage nav from embeds; login route in shell | **~30%** |
 | **3** | Native Explore + Profile (drop those iframes) | **~50%** |
 | **4** | Native Chat list + Rankings; Video keep-alive/hybrid; broader spa_embed bridge | **~70%** |
-| 5 | Live room / gifts / agency / settings / search in SPA | ~90% |
+| **5** | Search, Settings, Centers hubs; live/store/agency stay legacy bridge | **~85%** |
 | 6 | Remove MPA entry; WebView → `/spa/`; delete dead HTML | **100%** |
 
-**After Phase 4 on this branch: ~65–70% overall.**
+**After Phase 5 on this branch: ~85% overall.**
+
+### Phase 5 notes
+
+- **`/spa/search`** — `GET /search`; Live / People / Sellers → legacy deep links
+- **`/spa/settings`** — notification toggles + Help/Privacy/VIP/policies links
+- **`/spa/centers`** — role-gated Host / Agency / BD / Seller / verify hubs → `/legacy/*`
+- **Live room / gifts / store / recharge / agency dashboards** remain legacy iframes (intentional)
+- Legacy bridge shell **Back** control for non-immersive + floating leave for live/party
 
 ### Phase 4 notes
 
