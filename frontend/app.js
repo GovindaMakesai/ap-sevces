@@ -418,12 +418,23 @@ const API = {
             console.log(`API Request: ${options.method || 'GET'} ${url}`);
         }
 
-        if (typeof Auth !== 'undefined' && Auth.ensureAccessToken) {
+        const method = String(options.method || 'GET').toUpperCase();
+        const pathOnly = String(url || '').split('?')[0];
+        /* Public GETs must never wait on token refresh — Live feed first paint */
+        const isPublicGet =
+            method === 'GET' &&
+            (/\/live\/rooms(?:\/|$)/i.test(pathOnly) ||
+                /\/v1\/leaderboards(?:\/|$)/i.test(pathOnly) ||
+                /\/social\/gifts\/catalog(?:\/|$)/i.test(pathOnly) ||
+                /\/messages\/unread-count(?:\/|$)/i.test(pathOnly) ||
+                /\/auth\/me(?:\/|$)/i.test(pathOnly));
+
+        if (!isPublicGet && typeof Auth !== 'undefined' && Auth.ensureAccessToken) {
             try {
                 /* Hard cap — hung refresh must not freeze Live feed / whole WebView */
                 await Promise.race([
                     Auth.ensureAccessToken(),
-                    new Promise((resolve) => setTimeout(resolve, 1800)),
+                    new Promise((resolve) => setTimeout(resolve, 1200)),
                 ]);
             } catch (_e) {
                 /* Public endpoints (live rooms) must still load if refresh fails */
@@ -1081,6 +1092,13 @@ const Auth = {
 
     async refreshSession(force = false) {
         const now = Date.now();
+        try {
+            const persisted = Number(sessionStorage.getItem('ap_last_session_refresh') || 0);
+            if (!force && persisted && now - persisted < 120000) {
+                this._lastSessionRefresh = persisted;
+                return Boolean(AppState.user || localStorage.getItem('user'));
+            }
+        } catch (_e) { /* ignore */ }
         if (!force && this._lastSessionRefresh && now - this._lastSessionRefresh < 30000) {
             return Boolean(AppState.user || localStorage.getItem('user'));
         }
@@ -1108,6 +1126,9 @@ const Auth = {
                         localStorage.setItem('token', res.data.accessToken);
                     }
                     this._lastSessionRefresh = Date.now();
+                    try {
+                        sessionStorage.setItem('ap_last_session_refresh', String(this._lastSessionRefresh));
+                    } catch (_e) { /* ignore */ }
                     return true;
                 }
             } catch (e) {
@@ -1132,6 +1153,9 @@ const Auth = {
                                     localStorage.setItem('token', res2.data.accessToken);
                                 }
                                 this._lastSessionRefresh = Date.now();
+                                try {
+                                    sessionStorage.setItem('ap_last_session_refresh', String(this._lastSessionRefresh));
+                                } catch (_e) { /* ignore */ }
                                 return true;
                             }
                         } catch (_e2) { /* fall through */ }
@@ -1150,6 +1174,9 @@ const Auth = {
                 return Boolean(AppState.user || localStorage.getItem('user'));
             }
             this._lastSessionRefresh = Date.now();
+            try {
+                sessionStorage.setItem('ap_last_session_refresh', String(this._lastSessionRefresh));
+            } catch (_e) { /* ignore */ }
             return Boolean(AppState.user || localStorage.getItem('user'));
         })();
 

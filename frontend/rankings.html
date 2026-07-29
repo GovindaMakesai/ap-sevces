@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#fdf9f0">
   <title>Rankings - AP Services</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" media="print" onload="this.media='all'">
+  <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"></noscript>
   <link rel="stylesheet" href="social-theme.css?v=20260729-instant">
   <link rel="stylesheet" href="social-features.css?v=20260729-instant">
   <link rel="stylesheet" href="social-fx.css?v=20260702-follow-fix">
@@ -64,10 +65,10 @@
 
   <div id="social-bottom-nav-mount"></div>
 
-  <script src="app.js?v=20260727-livefix"></script>
+  <script src="app.js?v=20260729-perf2"></script>
   <script src="social-ui.js?v=20260702-follow-fix"></script>
   <script src="social-interactions.js?v=20260717-block-hide"></script>
-  <script src="social-shell.js?v=20260729-instant"></script>
+  <script src="social-shell.js?v=20260729-perf2"></script>
   <script src="social-nav.js"></script>
   <script defer src="social-fx.js"></script>
   <script>
@@ -143,7 +144,7 @@
       const data = await res.json();
       if (!data.success || !Array.isArray(data.data)) return [];
       if (window.SocialInteractions?.refreshBlockCache) {
-        await SocialInteractions.refreshBlockCache().catch(() => {});
+        SocialInteractions.refreshBlockCache().catch(() => {});
       }
       return data.data
         .map((row) => ({

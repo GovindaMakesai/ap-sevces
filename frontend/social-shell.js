@@ -324,8 +324,15 @@
   async function syncChatUnreadFromApi() {
     if (!hasAppSession() || !window.API?.get) return getChatUnreadCount();
     const now = Date.now();
-    if (now - _chatUnreadSyncAt < 60000) return getChatUnreadCount();
+    let last = _chatUnreadSyncAt;
+    try {
+      last = Math.max(last, Number(sessionStorage.getItem('ap_chat_unread_sync_at') || 0));
+    } catch (_e) { /* ignore */ }
+    if (now - last < 120000) return getChatUnreadCount();
     _chatUnreadSyncAt = now;
+    try {
+      sessionStorage.setItem('ap_chat_unread_sync_at', String(now));
+    } catch (_e) { /* ignore */ }
     try {
       const res = await API.get('/messages/unread-count');
       const total = Number(res?.data?.totalUnread);
@@ -508,7 +515,7 @@
 
     return `
       <article class="social-live-card${party ? ' is-party' : ' is-live'}" data-href="${href}" data-room-type="${party ? 'party' : 'live'}" role="button" tabindex="0">
-        <img src="${imgAttr}" alt="${nameAttr}" data-name="${nameAttr}" loading="lazy" onerror="this.onerror=null;this.src='${fallbackAttr}'">
+        <img src="${imgAttr}" alt="${nameAttr}" data-name="${nameAttr}" loading="${index < 4 ? 'eager' : 'lazy'}"${index < 2 ? ' fetchpriority="high"' : ''} decoding="async" onerror="this.onerror=null;this.src='${fallbackAttr}'">
         ${typeBadge}
         ${viewerBadge}
         <div class="bottom">
@@ -640,7 +647,7 @@
     patchAppLinks();
     bindFastBottomNav();
     prefetchNavTargets();
-    setTimeout(() => syncChatUnreadFromApi(), 1800);
+    setTimeout(() => syncChatUnreadFromApi(), 3500);
   }
 
   let fastNavBound = false;
@@ -830,35 +837,40 @@
 
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        if (attempt > 0 && window.API?.clearGetCache) {
-          API.clearGetCache('/live/rooms');
-        }
         let rows = [];
-        if (window.API?.get && attempt === 0) {
-          try {
+        /* Prefer public fetch first — skips Auth.ensureAccessToken on Live open */
+        try {
+          rows = await publicRoomsFetch();
+        } catch (pubErr) {
+          lastError = pubErr;
+          if (window.API?.get) {
             const res = await Promise.race([
               API.get(path),
               new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('Rooms request timed out')), 10000)
+                setTimeout(() => reject(new Error('Rooms request timed out')), 8000)
               ),
             ]);
             rows = parseRoomsPayload(res);
-          } catch (apiErr) {
-            /* Fall through to public fetch — /live/rooms is public */
-            lastError = apiErr;
-            rows = await publicRoomsFetch();
+          } else {
+            throw pubErr;
           }
-        } else {
-          rows = await publicRoomsFetch();
         }
-        rows = await enrichRoomsWithHostPhotos(rows).catch(() => rows);
+        /* Do not await photo enrich — Live grid must paint immediately */
         const filtered = normalizeRoomRows(rows, party);
         const rooms = filtered.map((r) => mapRoomToCard(r, party));
+        enrichRoomsWithHostPhotos(rows)
+          .then((enriched) => {
+            try {
+              const nicer = normalizeRoomRows(enriched, party).map((r) => mapRoomToCard(r, party));
+              if (nicer.length) writeRoomsCache(roomsCacheKey({ party, sort }, limit || 12), nicer);
+            } catch (_e) { /* ignore */ }
+          })
+          .catch(() => {});
         return { rooms, error: null };
       } catch (e) {
         lastError = e;
         console.warn(`SocialShell: active rooms API attempt ${attempt + 1}`, e);
-        await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
+        await new Promise((r) => setTimeout(r, 200 * (attempt + 1)));
       }
     }
 

@@ -1294,14 +1294,8 @@ export default function App() {
         style={styles.webview}
         source={{ uri: webUri }}
         injectedJavaScriptBeforeContentLoaded={injectedBootstrap}
-        startInLoadingState
-        renderLoading={() => (
-          <View style={styles.loading}>
-            <Image source={BRAND_LOGO} style={styles.loadingLogo} resizeMode="contain" />
-            <ActivityIndicator size="large" color="#2F7BFF" style={{ marginTop: 18 }} />
-            <Text style={styles.loadingText}>Loading…</Text>
-          </View>
-        )}
+        startInLoadingState={false}
+        /* Do not show a full-screen native loader on every tab navigation */
         pullToRefreshEnabled={false}
         overScrollMode="never"
         bounces={true}
@@ -1382,8 +1376,8 @@ export default function App() {
         onMessage={onWebViewMessage}
         javaScriptEnabled
         domStorageEnabled
-        cacheEnabled={__DEV__}
-        cacheMode={Platform.OS === 'android' ? (__DEV__ ? 'LOAD_DEFAULT' : 'LOAD_NO_CACHE') : undefined}
+        cacheEnabled={true}
+        cacheMode={Platform.OS === 'android' ? 'LOAD_DEFAULT' : undefined}
         sharedCookiesEnabled
         thirdPartyCookiesEnabled
         allowsInlineMediaPlayback
