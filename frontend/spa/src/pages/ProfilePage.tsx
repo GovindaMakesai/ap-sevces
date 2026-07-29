@@ -28,6 +28,12 @@ const MENU: MenuItem[] = [
   { id: 'store', label: 'Store & Gifts', icon: 'fa-store', href: '/store.html?app=1' },
   { id: 'centers', label: 'Centers', icon: 'fa-th-large', href: '/centers' },
   { id: 'settings', label: 'Settings', icon: 'fa-cog', href: '/settings' },
+  {
+    id: 'edit-profile',
+    label: 'Edit Profile',
+    icon: 'fa-user-edit',
+    href: '/profile-tab.html?app=1&edit=1',
+  },
   { id: 'vip', label: 'VIP Privileges', icon: 'fa-crown', href: '/vip.html?app=1' },
   { id: 'rankings', label: 'Rankings', icon: 'fa-trophy', href: '/rankings.html' },
   { id: 'messages', label: 'Messages', icon: 'fa-comments', href: '/chat.html' },
