@@ -189,6 +189,15 @@
   function go(url) {
     if (!url || window.__apNavLock) return;
     window.__apNavLock = true;
+    if (window.SocialShell?.spaNavigate) {
+      SocialShell.spaNavigate(url, { replace: true });
+      window.__apNavLock = false;
+      return;
+    }
+    if (typeof window.__apSpaNavigate === 'function' && window.__apSpaNavigate(url, { replace: true })) {
+      window.__apNavLock = false;
+      return;
+    }
     window.location.replace(url);
   }
 

@@ -9,6 +9,24 @@
     return q.get('app') === '1' || q.get('source') === 'expo-app';
   }
 
+  function isSpaEmbed() {
+    try {
+      return new URLSearchParams(window.location.search || '').get('spa_embed') === '1';
+    } catch (_e) {
+      return false;
+    }
+  }
+
+  if (isSpaEmbed()) {
+    document.documentElement.classList.add('spa-embed');
+    if (!document.querySelector('script[data-ap-spa-embed]')) {
+      const s = document.createElement('script');
+      s.src = '/ap-spa-embed.js';
+      s.setAttribute('data-ap-spa-embed', '1');
+      (document.head || document.documentElement).appendChild(s);
+    }
+  }
+
   if (!isNative()) return;
 
   window.__AP_NATIVE_APP__ = true;
@@ -61,6 +79,20 @@
   }
 
   if (!onAuth && !localStorage.getItem('user') && !localStorage.getItem('token')) {
+    /* SPA shell owns auth — do not hard-redirect embeds */
+    if (isSpaEmbed()) {
+      try {
+        window.parent.postMessage(
+          {
+            source: 'ap-spa-embed',
+            type: 'navigate',
+            href: '/app-auth.html?app=1&redirect=' + encodeURIComponent(location.pathname + location.search),
+          },
+          location.origin
+        );
+      } catch (_e) { /* ignore */ }
+      return;
+    }
     if (path.endsWith('/explore.html')) {
       document.documentElement.classList.add('auth-restoring');
       location.replace('/app-auth.html?app=1&source=expo-app');
