@@ -14,11 +14,11 @@
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "https://api.apservices.in/api/$1"
+      "dest": "/api/[...path]"
     },
     {
       "src": "/auth/(.*)",
-      "dest": "https://api.apservices.in/auth/$1"
+      "dest": "/api/auth/[...path]"
     },
     {
       "src": "/",

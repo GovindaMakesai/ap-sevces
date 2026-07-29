@@ -44,6 +44,8 @@ WebBrowser.maybeCompleteAuthSession();
 const PRODUCTION_WEB = apiConfig.USE_HTTPS_DOMAIN
   ? apiConfig.BACKEND_URL.replace(/\/$/, '')
   : 'https://ap-sevces.vercel.app';
+/** Reachable CDN UI when some Wi‑Fi / ISPs block Hostinger IP 62.72.56.74 */
+const FALLBACK_WEB = 'https://ap-sevces.vercel.app';
 const DEV_WEB_PORT = 5500;
 
 const LIVE_SECURE_KEY = 'ap-live-secure';
@@ -280,8 +282,12 @@ function redirectDeactivatedInWebView(message) {
 
 function buildAppShellBootstrap(frontendBase) {
   const isDevLocal = isDevLocalBase(frontendBase);
-  const injectedApi = isDevLocal ? `${frontendBase}/api` : PRODUCTION_API;
-  const injectedSocket = isDevLocal ? frontendBase : apiConfig.BACKEND_URL;
+  const useEdgeProxy =
+    isDevLocal || /vercel\.app$/i.test(String(frontendBase || ''));
+  const injectedApi = useEdgeProxy ? `${frontendBase.replace(/\/$/, '')}/api` : PRODUCTION_API;
+  const injectedSocket = useEdgeProxy
+    ? frontendBase.replace(/\/$/, '')
+    : apiConfig.BACKEND_URL;
   const oauthReturn = APP_RETURN_URL.replace(/'/g, "\\'");
   return `(function(){try{
     var p=(location.pathname||'').toLowerCase();
@@ -562,22 +568,37 @@ export default function App() {
   useEffect(() => {
     if (isDevLocal) return;
     let cancelled = false;
-    fetch(`${PRODUCTION_WEB}/api/health`, { method: 'GET' })
-      .then((res) => {
-        if (cancelled || res.ok) return;
-        setLoadError(`Server returned ${res.status}. Wait a minute and reload the app.`);
+    const primary = PRODUCTION_WEB.replace(/\/$/, '');
+    const fallback = FALLBACK_WEB.replace(/\/$/, '');
+    const alreadyOnFallback = String(frontendBase || '').replace(/\/$/, '') === fallback;
+
+    const probe = (base) =>
+      fetch(`${base}/api/health`, { method: 'GET' }).then((res) => {
+        if (!res.ok) throw new Error(`status_${res.status}`);
+        return base;
+      });
+
+    probe(alreadyOnFallback ? fallback : primary)
+      .catch(() => {
+        if (alreadyOnFallback || cancelled) throw new Error('unreachable');
+        console.warn('[ap-services-app] Primary blocked on this network — switching to Vercel edge');
+        setFrontendBase(fallback);
+        return probe(fallback);
+      })
+      .then(() => {
+        if (!cancelled) setLoadError(null);
       })
       .catch(() => {
         if (!cancelled) {
           setLoadError(
-            `No connection to ${PRODUCTION_WEB}. Check Wi-Fi/mobile data, then force-close and reopen the app.`
+            'No connection on this Wi-Fi to AP Services. Try mobile data, or switch Wi-Fi. Server IP may be blocked by your ISP.'
           );
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [isDevLocal]);
+  }, [frontendBase, isDevLocal]);
 
   useEffect(() => {
     webViewReadyRef.current = false;

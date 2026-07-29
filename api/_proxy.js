@@ -18,7 +18,11 @@ async function readBody(req) {
 async function proxyToBackend(req, res, backendPath) {
   const host = req.headers.host || 'localhost';
   const url = new URL(req.url || '/', `http://${host}`);
-  const target = `${BACKEND}${backendPath}${url.search}`;
+  /* Catch-all query may include path= segments — strip those from search forwarded upstream */
+  const params = new URLSearchParams(url.search);
+  params.delete('path');
+  const qs = params.toString();
+  const target = `${BACKEND}${backendPath}${qs ? `?${qs}` : ''}`;
 
   const headers = {};
   for (const [k, v] of Object.entries(req.headers || {})) {

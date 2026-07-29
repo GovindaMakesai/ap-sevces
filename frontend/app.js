@@ -105,16 +105,16 @@ function resolveApiUrl() {
     if (host === 'api.apservices.in') {
         return `${window.location.origin.replace(/\/$/, '')}/api`;
     }
+    /* Native WebView on Vercel failover — use edge /api proxy (ISP may block Hostinger IP) */
+    if (isVercelHost()) {
+        return `${window.location.origin.replace(/\/$/, '')}/api`;
+    }
     if (IS_EXPO_WEBVIEW || IS_CAPACITOR || window.__AP_NATIVE_APP__) {
         return LIVE_API_URL;
     }
     if (IS_LOCAL) {
         const host = window.location.hostname || '127.0.0.1';
         return `http://${host}:5000/api`;
-    }
-    // Always hit the real API host. Vercel /api rewrites return NOT_FOUND for live/agora routes.
-    if (isVercelHost()) {
-        return LIVE_API_URL;
     }
     return LIVE_API_URL;
 }
@@ -133,15 +133,15 @@ function resolveBackendUrl() {
     if (host === 'api.apservices.in') {
         return window.location.origin.replace(/\/$/, '');
     }
+    if (isVercelHost()) {
+        return window.location.origin.replace(/\/$/, '');
+    }
     if (IS_EXPO_WEBVIEW || IS_CAPACITOR || window.__AP_NATIVE_APP__) {
         return LIVE_BACKEND_URL;
     }
     if (IS_LOCAL) {
         const h = window.location.hostname || '127.0.0.1';
         return `http://${h}:5000`;
-    }
-    if (isVercelHost()) {
-        return LIVE_BACKEND_URL;
     }
     return resolveApiUrl().replace(/\/api\/?$/, '');
 }
