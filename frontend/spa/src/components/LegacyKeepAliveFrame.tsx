@@ -6,15 +6,24 @@ type Props = {
   title: string;
   /** When false, iframe stays mounted but hidden by parent keep-alive. */
   active: boolean;
+  /** Remount iframe when src identity changes (thread deep links). */
+  remountOnSrcChange?: boolean;
 };
 
 /**
  * Phase-1 bridge: embed existing MPA screens inside the SPA shell.
  * Iframe loads once on first activation; later tab switches only hide/show.
  */
-export function LegacyKeepAliveFrame({ src, title, active }: Props) {
+export function LegacyKeepAliveFrame({
+  src,
+  title,
+  active,
+  remountOnSrcChange = false,
+}: Props) {
   const [mounted, setMounted] = useState(active);
   const frameRef = useRef<HTMLIFrameElement>(null);
+  const [frameKey, setFrameKey] = useState(0);
+  const lastSrc = useRef(src);
 
   const url = useMemo(() => {
     const u = new URL(src, window.location.origin);
@@ -27,12 +36,21 @@ export function LegacyKeepAliveFrame({ src, title, active }: Props) {
     if (active) setMounted(true);
   }, [active]);
 
+  useEffect(() => {
+    if (!remountOnSrcChange) return;
+    if (lastSrc.current !== src) {
+      lastSrc.current = src;
+      setFrameKey((k) => k + 1);
+    }
+  }, [src, remountOnSrcChange]);
+
   if (!mounted) {
     return <div className="ap-legacy-placeholder" aria-hidden />;
   }
 
   return (
     <iframe
+      key={remountOnSrcChange ? `${frameKey}:${url}` : undefined}
       ref={frameRef}
       className="ap-legacy-frame"
       title={title}

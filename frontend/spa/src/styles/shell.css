@@ -452,3 +452,270 @@ body,
 .ap-menu-danger {
   color: #ff6b8a;
 }
+
+/* —— Native Chat —— */
+.ap-native-chat {
+  display: flex;
+  flex-direction: column;
+  background: #0a0a0e;
+}
+
+.ap-chat-head,
+.ap-ranks-head,
+.ap-video-head {
+  flex-shrink: 0;
+  padding: 14px 16px 10px;
+}
+
+.ap-chat-head h1,
+.ap-ranks-head h1,
+.ap-video-head h1 {
+  margin: 0 0 10px;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.ap-chat-scroll,
+.ap-ranks-scroll,
+.ap-video-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.ap-chat-list,
+.ap-ranks-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 8px 24px;
+}
+
+.ap-chat-row,
+.ap-rank-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 12px 8px;
+  text-align: left;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.ap-chat-av,
+.ap-rank-av {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #222;
+  flex-shrink: 0;
+}
+
+.ap-chat-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ap-chat-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.ap-chat-top strong {
+  font-size: 15px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ap-chat-top time,
+.ap-chat-preview {
+  font-size: 12px;
+  color: var(--ap-muted);
+}
+
+.ap-chat-preview {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ap-official {
+  color: #60a5fa;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.ap-chat-unread {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--ap-accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+}
+
+.ap-thread-back {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 6;
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ap-thread-frame,
+.ap-video-frame {
+  position: absolute;
+  inset: 0;
+}
+
+.ap-page-chat:has(.ap-thread-frame) .ap-thread-frame {
+  top: 0;
+}
+
+/* —— Native Rankings —— */
+.ap-native-ranks {
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, #1a1510 0%, #07070a 32%);
+}
+
+.ap-ranks-tabs,
+.ap-ranks-periods,
+.ap-video-modes {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.ap-ranks-tabs {
+  margin-bottom: 8px;
+}
+
+.ap-ranks-tabs button,
+.ap-ranks-periods button,
+.ap-video-modes button {
+  border: 0;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ap-muted);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 7px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.ap-ranks-tabs button.is-active,
+.ap-ranks-periods button.is-active,
+.ap-video-modes button.is-active {
+  background: linear-gradient(135deg, #d4a84b, #9a7218);
+  color: #fff;
+}
+
+.ap-rank-n {
+  width: 28px;
+  text-align: center;
+  font-weight: 800;
+  font-size: 15px;
+  color: var(--ap-muted);
+}
+
+.ap-rank-row.is-top-1 .ap-rank-n {
+  color: #f5d76e;
+}
+.ap-rank-row.is-top-2 .ap-rank-n {
+  color: #c0c0c0;
+}
+.ap-rank-row.is-top-3 .ap-rank-n {
+  color: #cd7f32;
+}
+
+.ap-rank-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ap-rank-meta strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ap-rank-meta span {
+  font-size: 12px;
+  color: #d4a84b;
+}
+
+/* —— Video —— */
+.ap-native-video {
+  display: flex;
+  flex-direction: column;
+}
+
+.ap-native-video .ap-video-frame {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.ap-native-video.is-immersive .ap-video-frame {
+  position: absolute;
+  inset: 0;
+}
+
+.ap-video-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 2px;
+  padding-bottom: 24px;
+}
+
+.ap-video-tile {
+  position: relative;
+  border: 0;
+  padding: 0;
+  aspect-ratio: 9 / 16;
+  background: #111;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.ap-video-tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ap-video-tile span {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 2px #000;
+}

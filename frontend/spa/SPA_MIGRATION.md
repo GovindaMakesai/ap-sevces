@@ -126,11 +126,18 @@ Still the live product (and Phase 1 embeds):
 | **1** | Branch, shell, router, stores, Query, keep-alive legacy embeds, docs | **~15%** |
 | **2** | Hide dual nav; postMessage nav from embeds; login route in shell | **~30%** |
 | **3** | Native Explore + Profile (drop those iframes) | **~50%** |
-| 4 | Native Chat + Video + Rankings | ~70% |
+| **4** | Native Chat list + Rankings; Video keep-alive/hybrid; broader spa_embed bridge | **~70%** |
 | 5 | Live room / gifts / agency / settings / search in SPA | ~90% |
 | 6 | Remove MPA entry; WebView → `/spa/`; delete dead HTML | **100%** |
 
-**After Phase 2+3 work on this branch: ~45–50% overall.**
+**After Phase 4 on this branch: ~65–70% overall.**
+
+### Phase 4 notes
+
+- **Chat:** native conversation list (`GET /messages/conversations`); thread opens legacy `chat.html` with sockets/composer
+- **Rankings:** native leaderboards (`GET /v1/leaderboards`)
+- **Video:** keep-alive reels player + optional posts grid → fullscreen legacy reel (playback not reimplemented)
+- **Bridge:** `ap-spa-embed.js` early boot + `auth-guard.go` uses `spaNavigate` when embedded
 
 ### Phase 2 — postMessage bridge
 
