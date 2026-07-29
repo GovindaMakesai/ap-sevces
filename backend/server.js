@@ -1,7 +1,8 @@
 // backend/server.js — AP Services production entry
 
 const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '.env') });
+/* override:true so PM2 stale AGORA_* env cannot keep an old App ID after .env updates */
+require('dotenv').config({ path: path.join(__dirname, '.env'), override: true });
 
 const express = require('express');
 const http = require('http');
