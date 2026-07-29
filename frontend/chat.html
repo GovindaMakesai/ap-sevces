@@ -1512,6 +1512,7 @@
 
     <!-- Socket.io loaded async after chat boot (sync CDN was blocking Messages on slow networks) -->
     <script src="app.js?v=20260729-perf2"></script>
+    <script src="ap-spa-embed.js"></script>
     <script src="auth-guard.js"></script>
     <script src="social-ui.js?v=20260702-follow-fix"></script>
     <script src="social-interactions.js?v=20260717-block-hide"></script>
@@ -1523,6 +1524,16 @@
     
     <script>
         // ==================== CHAT JAVASCRIPT ====================
+        function apChatGo(href, opts) {
+            if (!href) return false;
+            if (window.SocialShell?.spaNavigate) return SocialShell.spaNavigate(href, opts);
+            if (typeof window.apSpaNavigate === 'function') return window.apSpaNavigate(href, opts);
+            if (typeof window.__apSpaNavigate === 'function') return window.__apSpaNavigate(href, opts);
+            if (opts && opts.replace) window.location.replace(href);
+            else window.location.href = href;
+            return true;
+        }
+
         function markChatPageReady() {
             document.querySelectorAll('.chat-page').forEach((el) => {
                 el.classList.remove('ap-chat-loading');
@@ -1699,15 +1710,16 @@
                         Toast.show(hasUserOnly ? 'Please sign in again to load messages' : 'Please login to use chat', 'warning');
                     }
                     setTimeout(() => {
-                        window.location.replace(
-                            '/app-auth.html?app=1&redirect=' + encodeURIComponent(location.pathname + location.search)
+                        apChatGo(
+                            '/app-auth.html?app=1&redirect=' + encodeURIComponent(location.pathname + location.search),
+                            { replace: true }
                         );
                     }, 900);
                     return;
                 }
                 paintListStatus('Please sign in to view messages', '', true);
                 if (window.Toast?.show) Toast.show('Please login to use chat', 'warning');
-                setTimeout(() => { window.location.href = '/login.html'; }, 800);
+                setTimeout(() => { apChatGo('/login.html', { replace: true }); }, 800);
                 return;
             }
 
@@ -2049,7 +2061,7 @@
                 '<small>' + hint + '</small>' +
                 '<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:14px">' +
                 (isAuth
-                    ? '<button type="button" onclick="location.href=\'/app-auth.html?app=1&redirect=\'+encodeURIComponent(location.pathname+location.search)" style="padding:10px 18px;border-radius:999px;border:none;background:#e6a23c;color:#fff;font-weight:600;cursor:pointer">Sign in</button>'
+                    ? '<button type="button" onclick="apChatGo(\'/app-auth.html?app=1&redirect=\'+encodeURIComponent(location.pathname+location.search))" style="padding:10px 18px;border-radius:999px;border:none;background:#e6a23c;color:#fff;font-weight:600;cursor:pointer">Sign in</button>'
                     : '<button type="button" onclick="loadConversations()" style="padding:10px 18px;border-radius:999px;border:none;background:#e6a23c;color:#fff;font-weight:600;cursor:pointer">Try again</button>') +
                 '</div></div>';
             if (!isAuth && !(extra && extra.skipAutoRetry)) {
@@ -2296,17 +2308,10 @@
                 sessionStorage.removeItem('ap_live_join_meta');
             } catch (_e) {}
             try {
-                const topWin = window.top || window;
-                if (topWin !== window) {
-                    try {
-                        topWin.LiveSession?.forceCleanup?.();
-                    } catch (_e) {}
-                    topWin.location.href = dest;
-                    return;
-                }
                 window.LiveSession?.forceCleanup?.();
             } catch (_e) {}
-            location.href = dest;
+            /* Prefer SPA parent navigation over top.location (avoids leaving /spa shell) */
+            apChatGo(dest);
         }
 
         function buildRoomInviteCard(invite) {
@@ -2497,7 +2502,7 @@
                             : '<strong>Agency invitation</strong><div style="font-size:13px;margin-top:8px;opacity:.85">You rejected this invite.</div>';
                 }
                 if (decision === 'accepted' && confirm((res.message || 'You are now an Agency') + '\n\nOpen Agency Center?')) {
-                    location.href = '/agency-center.html?app=1';
+                    apChatGo('/agency-center.html?app=1');
                 }
             } catch (e) {
                 alert(e.message || 'Could not respond to invite');
@@ -2539,7 +2544,7 @@
                 if (decision === 'accepted') {
                     setTimeout(() => {
                         if (confirm('Open Streamer Center?')) {
-                            location.href = '/streamer-center.html?app=1';
+                            apChatGo('/streamer-center.html?app=1');
                         }
                     }, 400);
                 }
@@ -3778,7 +3783,7 @@
                 });
                 sheet.querySelector('[data-chat-menu="help"]')?.addEventListener('click', () => {
                     sheet.classList.remove('open');
-                    window.location.href = '/help.html?app=1';
+                    apChatGo('/help.html?app=1');
                 });
             }
             sheet.classList.add('open');
@@ -4411,7 +4416,7 @@
                           }).then((x) => x.json());
                     const wid = r?.data?.id || r?.data?.data?.id;
                     if (wid) {
-                        window.location.href = `/worker-profile.html?id=${encodeURIComponent(wid)}&app=1`;
+                        apChatGo(`/worker-profile.html?id=${encodeURIComponent(wid)}&app=1`);
                         return;
                     }
                 } catch (_e) {
@@ -4419,7 +4424,7 @@
                 }
             }
             const name = encodeURIComponent(conv.name || 'User');
-            window.location.href = `/creator-profile.html?userId=${encodeURIComponent(otherUserId)}&name=${name}&app=1`;
+            apChatGo(`/creator-profile.html?userId=${encodeURIComponent(otherUserId)}&name=${name}&app=1`);
         }
 
         // ==================== UTILITIES ====================
@@ -4711,9 +4716,11 @@
                       'warning'
                     );
                     setTimeout(() => {
-                        window.location.href = isSeller
-                          ? '/coin-seller-center.html?app=1'
-                          : '/coins-recharge.html?app=1';
+                        apChatGo(
+                          isSeller
+                            ? '/coin-seller-center.html?app=1'
+                            : '/coins-recharge.html?app=1'
+                        );
                     }, 600);
                     return;
                 }
@@ -4754,7 +4761,7 @@
                 } else if (/insufficient/i.test(msg)) {
                     Toast.show('Not enough coins — recharge first', 'warning');
                     setTimeout(() => {
-                        window.location.href = '/coins-recharge.html?app=1';
+                        apChatGo('/coins-recharge.html?app=1');
                     }, 600);
                 } else if (/unknown gift/i.test(msg)) {
                     Toast.show('Gift catalog outdated — reloading…', 'warning');
@@ -4813,6 +4820,13 @@
             emitTypingState(false);
             isTyping = false;
             clearTimeout(typingTimeout);
+            try {
+                const p = new URLSearchParams(location.search || '');
+                if (p.get('conversation') || p.get('id') || p.get('worker')) {
+                    apChatGo('/chat.html?app=1', { replace: true });
+                    return;
+                }
+            } catch (_e) { /* ignore */ }
             resetChatPaneToList();
         }
 

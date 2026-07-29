@@ -695,6 +695,11 @@
   }
 
   function ensureBottomNav(activeId) {
+    /* Always wire SPA embed bridge on immersive pages too */
+    if (isSpaEmbed()) {
+      bindSpaEmbedNavigation();
+      document.documentElement.classList.add('spa-embed');
+    }
     if (isImmersiveLivePage()) return;
     /* SPA shell owns the tab bar — hide MPA nav inside keep-alive embeds */
     if (isSpaEmbed()) {
@@ -703,8 +708,6 @@
         mount.innerHTML = '';
         mount.style.display = 'none';
       }
-      document.documentElement.classList.add('spa-embed');
-      bindSpaEmbedNavigation();
       return;
     }
     if (!hasAppSession()) return;
@@ -2240,4 +2243,11 @@
     paintChatNavBadge,
     getChatUnreadCount,
   };
+
+  /* Live/party pages never call initPage — still wire embed bridge */
+  if (isSpaEmbed()) {
+    try {
+      bindSpaEmbedNavigation();
+    } catch (_e) { /* ignore */ }
+  }
 })();

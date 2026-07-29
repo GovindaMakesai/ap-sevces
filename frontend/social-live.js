@@ -6,6 +6,20 @@
   const _liveEmoji = typeof window !== 'undefined' && window.AP_LIVE_EMOJI ? window.AP_LIVE_EMOJI : {};
   const COIN_EMOJI = _liveEmoji.COIN || '\u{1FA99}';
 
+  function apGo(href, opts) {
+    if (!href) return false;
+    if (window.SocialShell?.spaNavigate) return SocialShell.spaNavigate(href, opts);
+    if (typeof window.apSpaNavigate === 'function') return window.apSpaNavigate(href, opts);
+    if (typeof window.__apSpaNavigate === 'function') return window.__apSpaNavigate(href, opts);
+    if (opts && opts.replace) window.location.replace(href);
+    else window.location.href = href;
+    return true;
+  }
+
+  function apGoExplore(opts) {
+    return apGo('/explore.html?app=1', opts || { replace: true });
+  }
+
   function liveMedia() {
     return window.APLiveMedia || null;
   }
@@ -1266,7 +1280,7 @@
       </div>`;
     document.body.appendChild(gate);
     document.getElementById('apLiveAppOnlyBack')?.addEventListener('click', () => {
-      location.href = '/explore.html?app=1';
+      apGoExplore();
     });
     /* Do NOT remove video/canvas nodes — false gate flashes wipe faces while audio keeps playing */
   }
@@ -1624,7 +1638,7 @@
         : '/' + String(href || '');
     if (window.LiveSession?.openBrowsePage?.(url)) return true;
     if (window.LiveSession?.minimize?.(url)) return true;
-    location.href = url;
+    apGo(url);
     return false;
   }
 
@@ -2191,7 +2205,7 @@
           toast('Leaving this live — host blocked', 'info');
           setTimeout(() => {
             try {
-              window.location.href = '/explore.html?app=1';
+              apGoExplore();
             } catch (_e) { /* ignore */ }
           }, 600);
         }
@@ -5706,8 +5720,9 @@
     );
     if (authish) {
       setTimeout(() => {
-        location.href =
-          '/app-auth.html?app=1&redirect=' + encodeURIComponent(location.pathname + location.search);
+        apGo(
+          '/app-auth.html?app=1&redirect=' + encodeURIComponent(location.pathname + location.search)
+        );
       }, 1600);
     }
   }
@@ -10779,7 +10794,7 @@
       sessionStorage.removeItem('ap_live_pip_session');
       if (!window.__apLiveSessionExitInProgress) window.LiveSession?.forceCleanup?.();
     } catch (_e) { }
-    location.href = browseUrl;
+    apGo(browseUrl);
   }
 
   function handleLiveRoomBack() {
@@ -10936,10 +10951,10 @@
       n = 'User';
     }
     if (userId) {
-      location.href = `/creator-profile.html?userId=${encodeURIComponent(userId)}&name=${n}&app=1`;
+      apGo(`/creator-profile.html?userId=${encodeURIComponent(userId)}&name=${n}&app=1`);
       return;
     }
-    location.href = `/creator-profile.html?name=${n}&app=1`;
+    apGo(`/creator-profile.html?name=${n}&app=1`);
   }
 
   function bindRoomAvatars() {
@@ -14863,8 +14878,7 @@
     } catch (_e) { }
     await stopAgora({ skipEndRoom: hostEndingIntentionally });
     leaveSocket();
-    const dest = '/explore.html?app=1';
-    location.href = dest;
+    apGoExplore();
   }
 
   async function endRoomOrExit() {
@@ -15823,7 +15837,7 @@
     if (!user) {
       partyRoomInitStarted = false;
       toast('Please log in');
-      setTimeout(() => (location.href = '/app-auth.html?app=1'), 800);
+      setTimeout(() => apGo('/app-auth.html?app=1'), 800);
       return;
     }
     await Promise.race([
@@ -16160,7 +16174,7 @@
     const user = currentUser();
     if (!user) {
       toast('Please log in to watch live');
-      setTimeout(() => (location.href = '/app-auth.html?app=1'), 800);
+      setTimeout(() => apGo('/app-auth.html?app=1'), 800);
       return;
     }
 
@@ -16169,7 +16183,7 @@
     feedItems = await fetchLiveFeedItems();
     if (!feedItems.length) {
       toast('No live streams right now');
-      setTimeout(() => (location.href = '/explore.html?app=1'), 900);
+      setTimeout(() => apGoExplore(), 900);
       return;
     }
 
@@ -16241,7 +16255,7 @@
     const user = currentUser();
     if (!user) {
       toast('Please log in to watch or broadcast');
-      setTimeout(() => (location.href = '/app-auth.html?app=1'), 800);
+      setTimeout(() => apGo('/app-auth.html?app=1'), 800);
       return;
     }
     /* Viewers: don't block on slow profile — stream first */
@@ -16730,12 +16744,12 @@
     document.getElementById('streamerStartLive')?.addEventListener('click', () => {
       if (window.SocialShell?.openBroadcastPicker) SocialShell.openBroadcastPicker('live');
       else if (window.SocialShell?.goStartLiveBroadcast) SocialShell.goStartLiveBroadcast({ mode: 'video' });
-      else location.href = '/live-room.html?host=1&mode=video&app=1';
+      else apGo('/live-room.html?host=1&mode=video&app=1');
     });
 
     document.getElementById('streamerStartParty')?.addEventListener('click', () => {
       if (window.SocialShell?.goStartParty) SocialShell.goStartParty();
-      else location.href = '/party-room.html?host=1&app=1';
+      else apGo('/party-room.html?host=1&app=1');
     });
 
     document.querySelector('.btn-upload')?.addEventListener('click', () => {

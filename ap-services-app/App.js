@@ -142,7 +142,7 @@ const LIVE_MINIMIZE_INJECT = `(function(){
     if(window.APLive&&window.APLive.handleBack){window.APLive.handleBack();ack();return;}
     if(window.SocialLive&&window.SocialLive.handleBack){window.SocialLive.handleBack();ack();return;}
     if(window.LiveSession&&window.LiveSession.handleBack&&window.LiveSession.handleBack()){ack();return;}
-    if(window.LiveSession&&window.LiveSession.minimize&&window.LiveSession.minimize('/explore.html?app=1&source=expo-app')){ack();return;}
+    if(window.LiveSession&&window.LiveSession.minimize&&window.LiveSession.minimize((/\\/spa\\//i.test(p)?'/spa/explore?app=1&source=expo-app':'/explore.html?app=1&source=expo-app'))){ack();return;}
     ack();
   } catch(e) {
     try{window.ReactNativeWebView&&window.ReactNativeWebView.postMessage(JSON.stringify({type:'hardware_back_handled'}));}catch(_e){}
@@ -152,9 +152,16 @@ const LIVE_MINIMIZE_INJECT = `(function(){
 const HARDWARE_BACK_INJECT = `(function(){
   var handled = false;
   try {
+    if (typeof window.__AP_SPA_HARDWARE_BACK === 'function' && window.__AP_SPA_HARDWARE_BACK()) {
+      handled = true;
+    }
     var p = (location.pathname || '').toLowerCase();
-    var onExplore = /explore\\.html/i.test(p);
-    var isLive = /live-room\\.html|party-room\\.html/i.test(p) || !!(document.body && document.body.dataset && document.body.dataset.livePage);
+    var onExplore = /explore\\.html/i.test(p) || /\\/spa\\/?$/.test(p) || /\\/spa\\/explore/i.test(p);
+    var isLive = /live-room\\.html|party-room\\.html/i.test(p) || /\\/spa\\/legacy\\/(live-room|party-room)/i.test(p) || !!(document.body && document.body.dataset && document.body.dataset.livePage);
+    function spaHome(){
+      if (/\\/spa\\//i.test(p) || /\\/spa\\//i.test(String(location.href||''))) return '/spa/explore?app=1&source=expo-app';
+      return '/explore.html?app=1&source=expo-app';
+    }
     function closeLiveUi() {
       var openSheet = document.querySelector('.party-tools-sheet.open, .gift-sheet.open, .party-requests-sheet.open, .social-broadcast-sheet-wrap.is-open, .ap-modal-overlay.is-open, .social-broadcast-overlay.is-open');
       if (openSheet) {
@@ -176,7 +183,7 @@ const HARDWARE_BACK_INJECT = `(function(){
       }
       if (window.LiveSession && window.LiveSession.isMinimized && window.LiveSession.isMinimized()) return true;
       if (window.LiveSession && window.LiveSession.minimize) {
-        window.LiveSession.minimize('/explore.html?app=1&source=expo-app');
+        window.LiveSession.minimize(spaHome());
         return true;
       }
       var live = window.APLive || window.SocialLive;
@@ -190,25 +197,27 @@ const HARDWARE_BACK_INJECT = `(function(){
       }
       return true;
     }
-    if (window.LiveSession && window.LiveSession.onAndroidBack && window.LiveSession.onAndroidBack()) {
-      handled = true;
-    } else if (window.LiveSession && window.LiveSession.handleBack && window.LiveSession.handleBack()) {
-      handled = true;
-    } else if (window.APLive && window.APLive.handleBack) {
-      window.APLive.handleBack();
-      handled = true;
-    } else if (window.SocialLive && window.SocialLive.handleBack) {
-      window.SocialLive.handleBack();
-      handled = true;
-    } else if (isLive) {
-      if (closeLiveUi()) handled = true;
-      else handled = minimizeLive();
-    } else if (window.SocialNav && window.SocialNav.handleHardwareBack) {
-      handled = !!window.SocialNav.handleHardwareBack();
-    } else if (!onExplore) {
-      /* Never WebView-history-back to login/blank — always stay in-app */
-      location.href='/explore.html?app=1&source=expo-app';
-      handled = true;
+    if (!handled) {
+      if (window.LiveSession && window.LiveSession.onAndroidBack && window.LiveSession.onAndroidBack()) {
+        handled = true;
+      } else if (window.LiveSession && window.LiveSession.handleBack && window.LiveSession.handleBack()) {
+        handled = true;
+      } else if (window.APLive && window.APLive.handleBack) {
+        window.APLive.handleBack();
+        handled = true;
+      } else if (window.SocialLive && window.SocialLive.handleBack) {
+        window.SocialLive.handleBack();
+        handled = true;
+      } else if (isLive) {
+        if (closeLiveUi()) handled = true;
+        else handled = minimizeLive();
+      } else if (window.SocialNav && window.SocialNav.handleHardwareBack) {
+        handled = !!window.SocialNav.handleHardwareBack();
+      } else if (!onExplore) {
+        /* Never WebView-history-back to login/blank — always stay in-app */
+        location.href = spaHome();
+        handled = true;
+      }
     }
   } catch(e) {}
   if (!handled) {
@@ -217,7 +226,7 @@ const HARDWARE_BACK_INJECT = `(function(){
       handled:false,
       route:location.pathname||'',
       search:location.search||'',
-      onExplore:/explore\\.html/i.test((location.pathname||'').toLowerCase())
+      onExplore:/explore\\.html/i.test((location.pathname||'').toLowerCase()) || /\\/spa\\/explore/i.test((location.pathname||'').toLowerCase()) || /\\/spa\\/?$/.test((location.pathname||'').toLowerCase())
     }));
   }
 })();true;`;
@@ -1185,7 +1194,10 @@ export default function App() {
           const onExplore =
             data.onExplore === true ||
             /explore\.html/i.test(route) ||
-            /explore\.html/i.test(currentUrl);
+            /explore\.html/i.test(currentUrl) ||
+            /\/spa\/explore/i.test(route) ||
+            /\/spa\/?(\?|$)/i.test(route) ||
+            /\/spa\/explore/i.test(currentUrl);
 
           /*
            * Never WebView.goBack() from home — history often points at login/blank
@@ -1209,9 +1221,14 @@ export default function App() {
             return;
           }
 
-          /* Any other page: return to Explore — never exit the app */
+          /* Any other page: return to Explore — prefer SPA home when already under /spa/ */
           webViewRef.current?.injectJavaScript(
-            `window.location.href='/explore.html?app=1&source=expo-app';true;`
+            `(function(){
+              var p=(location.pathname||'').toLowerCase();
+              var home=/\\/spa\\//i.test(p)?'/spa/explore?app=1&source=expo-app':'/explore.html?app=1&source=expo-app';
+              if(typeof window.__AP_SPA_HARDWARE_BACK==='function'&&window.__AP_SPA_HARDWARE_BACK())return;
+              location.href=home;
+            })();true;`
           );
           return;
         }
@@ -1342,7 +1359,7 @@ export default function App() {
           } else if (nowLive) {
             /* Stay in current livePlay/liveTalk — don't downgrade talk→play on every nav tick */
           }
-          if (url.includes('explore.html') || url.includes('dashboard')) {
+          if (url.includes('explore.html') || url.includes('/spa/explore') || url.includes('dashboard')) {
             oauthCompleteRef.current = true;
             setLoadError('');
           }

@@ -88,6 +88,14 @@
       stack.push(next);
     }
     saveStack(stack);
+    if (window.SocialShell?.spaNavigate) {
+      SocialShell.spaNavigate(next, opts);
+      return;
+    }
+    if (typeof window.apSpaNavigate === 'function') {
+      window.apSpaNavigate(next, opts);
+      return;
+    }
     if (opts?.replace) location.replace(next);
     else location.href = next;
   }
@@ -130,19 +138,23 @@
       const prev = stack[stack.length - 1];
       saveStack(stack);
       if (prev && !sameNavRoute(prev, cur)) {
-        location.href = withApp(prev);
+        navigateTo(prev, { replace: true });
         return true;
       }
     }
 
     /* Do not use raw history.back() in the native app — it often lands on login/blank */
     if (opts?.allowHistory && !isNative() && window.history.length > 1) {
+      if (typeof window.apSpaBack === 'function') {
+        window.apSpaBack();
+        return true;
+      }
       window.history.back();
       return true;
     }
 
     if (!isExploreRoute(cur)) {
-      location.href = withApp(HOME);
+      navigateTo(HOME, { replace: true });
       return true;
     }
 

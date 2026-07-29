@@ -7,6 +7,7 @@ import { SearchPage } from '@/pages/SearchPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { CentersPage } from '@/pages/CentersPage';
 import { SpaNavBridge } from '@/nav/SpaNavBridge';
+import { SpaHardwareBack } from '@/nav/SpaHardwareBack';
 
 /**
  * Client-side routes. Primary tabs stay mounted via KeepAliveOutlet.
@@ -16,6 +17,7 @@ export function AppRouter() {
   return (
     <>
       <SpaNavBridge />
+      <SpaHardwareBack />
       <Routes>
         <Route path="login" element={<LoginPage />} />
         <Route element={<AppShell />}>

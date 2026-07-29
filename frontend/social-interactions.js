@@ -9,6 +9,16 @@
   const IDB_NAME = 'ap_social_media';
   const IDB_STORE = 'blobs';
 
+  function apGo(href, opts) {
+    if (!href) return false;
+    if (window.SocialShell?.spaNavigate) return SocialShell.spaNavigate(href, opts);
+    if (typeof window.apSpaNavigate === 'function') return window.apSpaNavigate(href, opts);
+    if (typeof window.__apSpaNavigate === 'function') return window.__apSpaNavigate(href, opts);
+    if (opts && opts.replace) window.location.replace(href);
+    else window.location.href = href;
+    return true;
+  }
+
   const TOPIC_KINDS = ['topic', 'video', 'services', 'party', 'live', 'audio'];
 
   function topicThumb(i, label) {
@@ -913,7 +923,7 @@
         if (fail.relogin) {
           setTimeout(() => {
             const redirect = encodeURIComponent(location.pathname + location.search);
-            location.href = '/app-auth.html?app=1&redirect=' + redirect;
+            apGo('/app-auth.html?app=1&redirect=' + redirect);
           }, 1400);
         }
         return isFollowing(uid, creatorName);
@@ -921,7 +931,7 @@
     }
     if (!hasAuth()) {
       const redirect = encodeURIComponent(location.pathname + location.search);
-      location.href = '/app-auth.html?app=1&redirect=' + redirect;
+      apGo('/app-auth.html?app=1&redirect=' + redirect);
       return false;
     }
     return toggleFollowLocal(creatorId, creatorName);
@@ -1456,7 +1466,7 @@
     } catch (e) {
       if (e.status === 400 || /insufficient/i.test(e.message)) {
         toast('Not enough coins — open Store to recharge', 'warning');
-        setTimeout(() => (location.href = '/coins-recharge.html?app=1'), 600);
+        setTimeout(() => apGo('/coins-recharge.html?app=1'), 600);
       } else {
         toast(window.SocialUI?.friendlyMessage(e.message) || e.message || 'Gift failed', 'error');
       }
@@ -1629,8 +1639,9 @@
     if (!postId) return;
     sessionStorage.setItem('social_reel_start', String(postId));
     sessionStorage.setItem(REEL_SOUND_KEY, '1');
-    location.href =
-      '/video.html?post=' + encodeURIComponent(postId) + '&app=1&fullscreen=1';
+    apGo(
+      '/video.html?post=' + encodeURIComponent(postId) + '&app=1&fullscreen=1'
+    );
   }
 
   function updateReelUI(item) {
@@ -1712,7 +1723,7 @@
     if (startPost) {
       ensureReelCloseButton(() => {
         if (history.length > 1) history.back();
-        else location.href = '/square.html?app=1';
+        else apGo('/square.html?app=1');
       });
     } else {
       ensureReelCloseButton(() => setVideoImmersive(false));
@@ -1820,13 +1831,13 @@
     document.getElementById('videoAvatarBtn')?.addEventListener('click', (e) => {
       e.stopPropagation();
       const item = reelItems[reelIndex];
-      if (item) location.href = profileUrl(item);
+      if (item) apGo(profileUrl(item));
     });
 
     document.getElementById('videoName')?.addEventListener('click', (e) => {
       e.stopPropagation();
       const item = reelItems[reelIndex];
-      if (item) location.href = profileUrl(item);
+      if (item) apGo(profileUrl(item));
     });
 
     if (window.SocialUI) SocialUI.bindAvatarFallbacks(document);
@@ -1930,7 +1941,7 @@
             : Number(bal.giftable_coins ?? bal.coin_balance ?? 0);
           if (giftBal < coinCost) {
             toast('Not enough coins — opening recharge', 'warning');
-            setTimeout(() => (location.href = '/coins-recharge.html?app=1'), 500);
+            setTimeout(() => apGo('/coins-recharge.html?app=1'), 500);
             updateReelUI(item);
             return;
           }
@@ -1946,7 +1957,7 @@
         } catch (e) {
           if (/insufficient/i.test(e.message)) {
             toast('Need coins — opening recharge', 'warning');
-            setTimeout(() => (location.href = '/coins-recharge.html?app=1'), 500);
+            setTimeout(() => apGo('/coins-recharge.html?app=1'), 500);
           } else {
             toast(window.SocialUI?.friendlyMessage(e.message) || e.message || 'Gift failed', 'error');
           }
@@ -2256,13 +2267,13 @@
     list.querySelectorAll('[data-join-topic]').forEach((b) => {
       b.addEventListener('click', () => {
         const topic = b.closest('.social-topic-block')?.dataset?.topicId || '0';
-        location.href = '/topic-watch.html?topic=' + topic + '&app=1';
+        apGo('/topic-watch.html?topic=' + topic + '&app=1');
       });
     });
     list.querySelectorAll('[data-go-video]').forEach((b) => {
       b.addEventListener('click', () => {
         const topic = b.dataset.topic || '0';
-        location.href = '/topic-watch.html?topic=' + topic + '&app=1';
+        apGo('/topic-watch.html?topic=' + topic + '&app=1');
       });
     });
   }
