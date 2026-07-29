@@ -636,8 +636,26 @@
     return path.endsWith('/live-room.html') || path.endsWith('/party-room.html');
   }
 
+  function isSpaEmbed() {
+    try {
+      return new URLSearchParams(window.location.search || '').get('spa_embed') === '1';
+    } catch (_) {
+      return false;
+    }
+  }
+
   function ensureBottomNav(activeId) {
     if (isImmersiveLivePage()) return;
+    /* SPA shell owns the tab bar — hide MPA nav inside keep-alive embeds */
+    if (isSpaEmbed()) {
+      const mount = document.getElementById('social-bottom-nav-mount');
+      if (mount) {
+        mount.innerHTML = '';
+        mount.style.display = 'none';
+      }
+      document.documentElement.classList.add('spa-embed');
+      return;
+    }
     if (!hasAppSession()) return;
     const mount = document.getElementById('social-bottom-nav-mount');
     if (!mount) return;
