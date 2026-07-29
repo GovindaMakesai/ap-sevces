@@ -644,6 +644,56 @@
     }
   }
 
+  /**
+   * When embedded in the React SPA shell, ask the parent to client-route
+   * instead of doing a full document navigation inside the iframe.
+   */
+  function spaNavigate(href, opts) {
+    const next = withAppQuery(href);
+    if (!next) return false;
+    if (isSpaEmbed() && window.parent && window.parent !== window) {
+      try {
+        window.parent.postMessage(
+          {
+            source: 'ap-spa-embed',
+            type: opts && opts.replace ? 'replace' : 'navigate',
+            href: next,
+            replace: Boolean(opts && opts.replace),
+          },
+          window.location.origin
+        );
+        return true;
+      } catch (_e) {
+        /* fall through */
+      }
+    }
+    if (opts && opts.replace) window.location.replace(next);
+    else window.location.href = next;
+    return true;
+  }
+
+  let spaEmbedNavBound = false;
+  function bindSpaEmbedNavigation() {
+    if (!isSpaEmbed() || spaEmbedNavBound) return;
+    spaEmbedNavBound = true;
+    document.documentElement.classList.add('spa-embed');
+    document.addEventListener(
+      'click',
+      (e) => {
+        const a = e.target?.closest?.('a[href]');
+        if (!a) return;
+        const href = a.getAttribute('href');
+        if (!href || href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('tel:')) return;
+        if (a.target === '_blank' || a.hasAttribute('download')) return;
+        if (/^https?:\/\//i.test(href) && !href.startsWith(window.location.origin)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        spaNavigate(href);
+      },
+      true
+    );
+  }
+
   function ensureBottomNav(activeId) {
     if (isImmersiveLivePage()) return;
     /* SPA shell owns the tab bar — hide MPA nav inside keep-alive embeds */
@@ -654,6 +704,7 @@
         mount.style.display = 'none';
       }
       document.documentElement.classList.add('spa-embed');
+      bindSpaEmbedNavigation();
       return;
     }
     if (!hasAppSession()) return;
@@ -693,7 +744,7 @@
       });
       document.documentElement.classList.add('ap-nav-switching');
       /* Leave immediately — do not wait for pending fetches / rAF / load finish */
-      window.location.href = href;
+      spaNavigate(href);
       return true;
     }
 
@@ -780,7 +831,7 @@
               }
             } catch (_audioE) {}
           } catch (_e) {}
-          window.location.href = href;
+          spaNavigate(href);
         }
       };
       el.addEventListener('click', go);
@@ -795,7 +846,7 @@
       btn.addEventListener('click', () => {
         document.querySelectorAll('.social-filter-chips .chip').forEach((b) => b.classList.remove('is-active'));
         btn.classList.add('is-active');
-        if (btn.dataset.chip === 'Global') window.location.href = withAppQuery('/services.html');
+        if (btn.dataset.chip === 'Global') spaNavigate('/services.html');
       });
     });
   }
@@ -1194,7 +1245,7 @@
       '<button type="button" class="ap-live-pip-close" id="apLivePipClose" aria-label="Dismiss"><i class="fas fa-times"></i></button>';
     document.body.appendChild(bar);
     document.getElementById('apLivePipExpand')?.addEventListener('click', () => {
-      location.href = data.url;
+      spaNavigate(data.url);
     });
     document.getElementById('apLivePipClose')?.addEventListener('click', () => {
       try {
@@ -1263,9 +1314,11 @@
           await fillFollowingView(q);
           return;
         }
-        window.location.href = q
-          ? `/services.html?search=${encodeURIComponent(q)}&app=1`
-          : '/services.html?app=1';
+        spaNavigate(
+          q
+            ? `/services.html?search=${encodeURIComponent(q)}&app=1`
+            : '/services.html?app=1'
+        );
       });
     });
 
@@ -1532,16 +1585,16 @@
   function goToStreamerCenter() {
     const user = window.Auth?.getUser?.();
     if (!user) {
-      window.location.href = '/app-auth.html?app=1';
+      spaNavigate('/app-auth.html?app=1');
       return;
     }
-    window.location.href = '/streamer-center.html?app=1';
+    spaNavigate('/streamer-center.html?app=1');
   }
 
   function goStartLive() {
     const user = window.Auth?.getUser?.();
     if (!user) {
-      window.location.href = '/app-auth.html?app=1';
+      spaNavigate('/app-auth.html?app=1');
       return;
     }
     openBroadcastPicker('live');
@@ -1571,7 +1624,7 @@
   function goStartLiveBroadcast(opts) {
     const user = window.Auth?.getUser?.();
     if (!user) {
-      window.location.href = '/app-auth.html?app=1';
+      spaNavigate('/app-auth.html?app=1');
       return;
     }
     const mode = opts?.mode || 'video';
@@ -1589,8 +1642,9 @@
       const base = String(user.id || 'user').replace(/[^a-zA-Z0-9]/g, '').slice(0, 10);
       if (isParty) {
         const channel = opts?.channel || 'party-' + base + '-' + Date.now().toString(36).slice(-6);
-        window.location.href =
-          '/party-room.html?host=1&channel=' + encodeURIComponent(channel) + topic + '&app=1';
+        spaNavigate(
+          '/party-room.html?host=1&channel=' + encodeURIComponent(channel) + topic + '&app=1'
+        );
         return;
       }
       const channel = 'live-' + base + '-' + Date.now().toString(36).slice(-6);
@@ -1599,14 +1653,15 @@
         mode === 'video' && filterId && filterId !== 'none'
           ? '&filter=' + encodeURIComponent(filterId)
           : '';
-      window.location.href =
+      spaNavigate(
         '/live-room.html?host=1&mode=' +
-        encodeURIComponent(mode) +
-        '&channel=' +
-        encodeURIComponent(channel) +
-        topic +
-        filterQ +
-        '&app=1';
+          encodeURIComponent(mode) +
+          '&channel=' +
+          encodeURIComponent(channel) +
+          topic +
+          filterQ +
+          '&app=1'
+      );
     };
     if (mode === 'video' && !isParty && !opts?.skipVerify) {
       const api = window.API || window.Auth?.api;
@@ -1623,7 +1678,7 @@
               const ret = encodeURIComponent(
                 '/streamer-center.html?app=1&goLive=video'
               );
-              window.location.href = '/live-verify.html?redirect=' + ret + '&app=1';
+              spaNavigate('/live-verify.html?redirect=' + ret + '&app=1');
               return;
             }
             proceed();
@@ -1639,7 +1694,7 @@
   function goStartParty(opts) {
     const user = window.Auth?.getUser?.();
     if (!user) {
-      window.location.href = '/app-auth.html?app=1';
+      spaNavigate('/app-auth.html?app=1');
       return;
     }
     goStartLiveBroadcast({ ...(opts || {}), party: true, mode: 'audio' });
@@ -1812,7 +1867,7 @@
   function openBroadcastPicker(kind, opts) {
     const user = window.Auth?.getUser?.();
     if (!user) {
-      window.location.href = '/app-auth.html?app=1';
+      spaNavigate('/app-auth.html?app=1');
       return;
     }
     const el = ensureBroadcastOverlay();
@@ -2063,7 +2118,7 @@
     wrap.querySelectorAll('.social-reel-slide').forEach((slide) => {
       slide.addEventListener('click', () => {
         const href = slide.dataset.href;
-        if (href) window.location.href = withAppQuery(href);
+        if (href) spaNavigate(href);
       });
     });
   }
@@ -2105,12 +2160,12 @@
       .join('');
     list.querySelectorAll('[data-join-topic]').forEach((b) => {
       b.addEventListener('click', () => {
-        window.location.href = withAppQuery('/video.html');
+        spaNavigate('/video.html');
       });
     });
     list.querySelectorAll('[data-go-video]').forEach((b) => {
       b.addEventListener('click', () => {
-        window.location.href = withAppQuery('/video.html');
+        spaNavigate('/video.html');
       });
     });
   }
@@ -2125,7 +2180,7 @@
       }
     })();
     if (!user) {
-      window.location.href = withAppQuery('/app-auth.html');
+      spaNavigate('/app-auth.html');
       return;
     }
     const role = user.role || 'customer';
@@ -2140,13 +2195,15 @@
       agency: '/agency-center.html',
       bdm: '/bd-center.html',
     };
-    window.location.href = withAppQuery(routes[role] || '/customer-dashboard.html');
+    spaNavigate(routes[role] || '/customer-dashboard.html');
   }
 
   window.SocialShell = {
     initPage,
     renderBottomNav,
     ensureBottomNav,
+    spaNavigate,
+    isSpaEmbed,
     hasAppSession,
     patchAppLinks,
     renderLiveCard,
