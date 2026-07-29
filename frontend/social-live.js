@@ -498,6 +498,23 @@
   const BEAUTY_PROCESS_MAX_W = 480;
   const BEAUTY_TARGET_FPS = 18;
   const BEAUTY_FRAME_MS = 1000 / BEAUTY_TARGET_FPS;
+
+  /** Lighter encode on weak phones so faces actually publish instead of black/stuck video. */
+  function isLowEndLiveDevice() {
+    try {
+      const cores = Number(navigator.hardwareConcurrency) || 4;
+      const mem = Number(navigator.deviceMemory) || 4;
+      const saveData = Boolean(navigator.connection?.saveData);
+      return saveData || cores <= 4 || mem <= 2;
+    } catch (_e) {
+      return true;
+    }
+  }
+
+  function getLiveCameraEncoderConfig() {
+    return isLowEndLiveDevice() ? '360p_1' : '480p_1';
+  }
+
   function shouldPublishCanvasBeauty() {
     try {
       const force = localStorage.getItem('ap_publish_canvas_beauty');
@@ -505,10 +522,9 @@
       if (force === '0') return false;
     } catch (_e) { }
     try {
+      if (isLowEndLiveDevice()) return false;
       const cores = Number(navigator.hardwareConcurrency) || 4;
       const mem = Number(navigator.deviceMemory) || 4;
-      const saveData = Boolean(navigator.connection?.saveData);
-      if (saveData) return false;
       return cores >= 8 && mem >= 6;
     } catch (_e) {
       return false;
@@ -1217,7 +1233,12 @@
     try {
       if (window.__AP_NATIVE_APP__ === true) return true;
       if (window.ReactNativeWebView) return true;
+      if (window.Capacitor?.isNativePlatform?.()) return true;
       if (document.documentElement.classList.contains('ap-expo-app')) return true;
+      /* App WebView often sets app=1 before the bridge flag injects */
+      if (new URLSearchParams(location.search).get('app') === '1' && /; wv\)|Expo|APServices/i.test(navigator.userAgent || '')) {
+        return true;
+      }
     } catch (_e) { }
     return false;
   }
@@ -1247,11 +1268,7 @@
     document.getElementById('apLiveAppOnlyBack')?.addEventListener('click', () => {
       location.href = '/explore.html?app=1';
     });
-    try {
-      document.querySelectorAll('video, canvas').forEach((el) => {
-        el.remove();
-      });
-    } catch (_e) { }
+    /* Do NOT remove video/canvas nodes — false gate flashes wipe faces while audio keeps playing */
   }
 
   function enforceLiveViewerAppOnly() {
@@ -5635,7 +5652,7 @@
         resolve(detail || { ok: false });
       };
       const onEvt = (e) => finish(e.detail);
-      const timer = setTimeout(() => finish({ ok: false, reason: 'timeout' }), 10000);
+      const timer = setTimeout(() => finish({ ok: false, reason: 'timeout' }), 4500);
       document.addEventListener('ap-media-permissions', onEvt);
       /* Host: ask native NOT to enter communication/recording audio mode (Samsung AEC). */
       window.ReactNativeWebView.postMessage(
@@ -5854,6 +5871,9 @@
     try {
       await runAgoraLifecycle('startAgora', async () => {
         await loadAgoraScript();
+        const permsP = host
+          ? requestNativeMediaPermissions().catch(() => ({ ok: false, reason: 'perm_error' }))
+          : Promise.resolve({ ok: true, skipped: true });
         const alreadyOnChannel =
           agoraClient &&
           liveDebugState.agoraJoined &&
@@ -5917,7 +5937,7 @@
         window.SocialFX?.initAgoraVolumeIndicator?.(agoraClient, uid || currentUser()?.id);
 
         if (host) {
-          await requestNativeMediaPermissions();
+          await permsP;
           const mediaBlock = webMediaBlockedReason();
           if (mediaBlock) {
             await handleHostMediaBlocked(mediaBlock, mode);
@@ -5976,10 +5996,9 @@
               withTimeout(
                 AgoraRTC.createCameraVideoTrack({
                   facingMode: cameraFacing,
-                  /* Slightly lighter first encode = faster first remote frame */
-                  encoderConfig: '480p_1',
+                  encoderConfig: getLiveCameraEncoderConfig(),
                 }),
-                25000,
+                isLowEndLiveDevice() ? 15000 : 20000,
                 'Camera access'
               ),
             ]);
@@ -5997,6 +6016,24 @@
               setLiveStreamVisible(true);
             } else {
               liveDebugLog(`Host camera create failed: ${mediaResults[1].reason?.message || mediaResults[1].reason}`);
+              try {
+                videoTrack = await withTimeout(
+                  AgoraRTC.createCameraVideoTrack({
+                    facingMode: cameraFacing,
+                    encoderConfig: '360p_1',
+                  }),
+                  12000,
+                  'Camera access retry'
+                );
+                rawCameraTrack = videoTrack;
+                const localBox = document.getElementById('liveLocalHost');
+                if (localBox) playLocalHostPreview(videoTrack);
+                ensureHostVideoVisible();
+                setLiveStreamVisible(true);
+                liveDebugLog('Host camera retry OK (360p)');
+              } catch (retryErr) {
+                liveDebugLog(`Host camera retry failed: ${retryErr?.message || retryErr}`);
+              }
             }
 
             const toPublish = [audioTrack, videoTrack].filter(Boolean);
@@ -6019,8 +6056,13 @@
               /* AEC ducks seat mics once host mic is live — apply publisher volume immediately */
               syncLiveMediaPublisherMode();
               notifyLiveAudioRoute('enterPlayback', { reason: 'host_av_publish' });
+              setTimeout(() => notifyLiveAudioRoute('reevaluate', { reason: 'host_av_settled' }), 400);
+              setTimeout(() => notifyLiveAudioRoute('reevaluate', { reason: 'host_av_bt_check' }), 1500);
               ensureRemoteAudioPlaying()
-                .then(() => boostRemoteAudioVolumes())
+                .then(() => {
+                  boostRemoteAudioVolumes();
+                  return routeRemoteAudioOutputs();
+                })
                 .catch(() => { });
               setTimeout(() => boostRemoteAudioVolumes(), 1000);
             } catch (pubErr) {
@@ -6030,7 +6072,8 @@
               return;
             }
             if (!videoTrack && audioTrack) {
-              toast('Camera failed — audio is still live', 'warning');
+              toast('Camera failed — retry Go Live or flip camera. Audio is live for now.', 'warning');
+              setLiveStatus('Camera failed — tap flip camera or restart live', false);
             }
             if (videoTrack) {
               applyVideoFilter();
@@ -6045,10 +6088,10 @@
               ensureHostAudioPublishing().catch((e) => liveDebugLog(`post-live mic check2: ${e?.message || e}`));
             }, 2500);
             setTimeout(() => {
-              if (videoFilterId && videoFilterId !== 'none') {
+              if (videoFilterId && videoFilterId !== 'none' && !isLowEndLiveDevice()) {
                 syncPublishedBeautyTrack().catch((e) => liveDebugLog(`post-live beauty: ${e?.message || e}`));
               }
-            }, 700);
+            }, 900);
           }
           onRoomReady();
           syncLiveUiState();
@@ -6060,6 +6103,14 @@
               liveDebugLog(`Guest publish after join: ${e?.message || e}`)
             );
           }
+          notifyLiveAudioRoute('enterPlayback', { reason: 'viewer_joined' });
+          setTimeout(() => notifyLiveAudioRoute('reevaluate', { reason: 'viewer_bt_settled' }), 500);
+          ensureRemoteAudioPlaying()
+            .then(() => {
+              boostRemoteAudioVolumes();
+              return routeRemoteAudioOutputs();
+            })
+            .catch(() => { });
         }
       }); // end runAgoraLifecycle startAgora
     } catch (err) {
@@ -6905,11 +6956,16 @@
             return type === 'video' && t !== custom;
           });
           if (oldVideo) {
-            try {
-              await lifeUnpublish([oldVideo]);
-            } catch (_e) { }
-          }
-          if (!published.includes?.(custom)) {
+            /* Publish beauty first, then drop raw — avoids black gap viewers see as "no face" */
+            if (!published.includes?.(custom)) {
+              await lifePublish(custom);
+            }
+            if (oldVideo !== custom) {
+              try {
+                await lifeUnpublish([oldVideo]);
+              } catch (_e) { }
+            }
+          } else if (!published.includes?.(custom)) {
             await lifePublish(custom);
           }
           localTracks = audioTrack ? [audioTrack, custom] : [custom];
@@ -7007,16 +7063,16 @@
 
       const oldVideo = getLocalVideoTrack();
       try {
-        // Unpublish raw only after canvas has real frames, then publish beauty.
+        /* Publish beauty first so viewers never see a video-less gap */
+        await lifePublish(custom);
+        localTracks = audioTrack ? [audioTrack, custom] : [custom];
+        applyLocalPreviewCss();
+        playLocalHostPreview(custom);
         if (oldVideo && oldVideo !== custom) {
           try {
             await lifeUnpublish([oldVideo]);
           } catch (_e) { }
         }
-        await lifePublish(custom);
-        localTracks = audioTrack ? [audioTrack, custom] : [custom];
-        applyLocalPreviewCss();
-        playLocalHostPreview(custom);
         ensureHostVideoVisible();
         setLiveStreamVisible(true);
         liveDebugLog(`beauty published filter=${videoFilterId}`);
@@ -7102,7 +7158,10 @@
     if (camDead) {
       try {
         const AgoraRTC = window.AgoraRTC || (await loadAgoraScript());
-        cam = await AgoraRTC.createCameraVideoTrack({ facingMode: cameraFacing });
+        cam = await AgoraRTC.createCameraVideoTrack({
+          facingMode: cameraFacing,
+          encoderConfig: getLiveCameraEncoderConfig(),
+        });
         rawCameraTrack = cam;
       } catch (e) {
         liveDebugLog(`recreate camera failed: ${e?.message || e}`);
@@ -7405,8 +7464,8 @@
     }
 
     const createOpts = cameraId
-      ? { cameraId, facingMode: nextFacing }
-      : { facingMode: nextFacing };
+      ? { cameraId, facingMode: nextFacing, encoderConfig: getLiveCameraEncoderConfig() }
+      : { facingMode: nextFacing, encoderConfig: getLiveCameraEncoderConfig() };
     let newVideo;
     try {
       newVideo = await AgoraRTC.createCameraVideoTrack(createOpts);
@@ -7414,7 +7473,13 @@
       liveDebugLog(`camera create failed (${nextFacing}): ${firstErr?.message || firstErr}`);
       newVideo = await AgoraRTC.createCameraVideoTrack({
         facingMode: { exact: nextFacing },
-      }).catch(() => AgoraRTC.createCameraVideoTrack({ facingMode: nextFacing }));
+        encoderConfig: '360p_1',
+      }).catch(() =>
+        AgoraRTC.createCameraVideoTrack({
+          facingMode: nextFacing,
+          encoderConfig: '360p_1',
+        })
+      );
     }
     rawCameraTrack = newVideo;
     try {
@@ -11788,8 +11853,20 @@
   try {
     if (!window.__apAudioRouteDeviceChangeBound && navigator.mediaDevices?.addEventListener) {
       window.__apAudioRouteDeviceChangeBound = true;
+      let btRouteTimer = null;
       navigator.mediaDevices.addEventListener('devicechange', () => {
-        notifyLiveAudioRoute('reevaluate', { reason: 'mediaDevices_devicechange' });
+        clearTimeout(btRouteTimer);
+        btRouteTimer = setTimeout(() => {
+          notifyLiveAudioRoute('reevaluate', { reason: 'mediaDevices_devicechange' });
+          requestNativeSpeakerAudio();
+          ensureRemoteAudioPlaying()
+            .then(() => {
+              boostRemoteAudioVolumes();
+              return routeRemoteAudioOutputs();
+            })
+            .catch(() => { });
+          setTimeout(() => boostRemoteAudioVolumes(), 600);
+        }, 350);
       });
     }
   } catch (_e) { }

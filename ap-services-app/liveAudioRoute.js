@@ -61,15 +61,15 @@ async function applyIdle() {
 }
 
 async function applyLivePlay() {
-  /* Playback focus for audience — loudspeaker / A2DP, not earpiece, not SCO-forced. */
+  /* Playback focus for audience — loudspeaker / A2DP. DuckOthers keeps Bluetooth hearable. */
   await Audio.setAudioModeAsync({
     allowsRecordingIOS: false,
     playsInSilentModeIOS: true,
     staysActiveInBackground: true,
-    shouldDuckOthers: false,
+    shouldDuckOthers: true,
     playThroughEarpieceAndroid: false,
-    interruptionModeIOS: InterruptionModeIOS.DoNotMix,
-    interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+    interruptionModeIOS: InterruptionModeIOS.MixWithOthers,
+    interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
   });
   lastAppliedAt = Date.now();
   emit('session_start', { mode: 'livePlay', platform: Platform.OS });
@@ -77,18 +77,15 @@ async function applyLivePlay() {
 }
 
 async function applyLiveTalk({ bluetoothSafe = true } = {}) {
-  /* Mic path. Android only has DoNotMix | DuckOthers (no MixWithOthers).
-   * DuckOthers is gentler on A2DP when mic opens; DoNotMix is exclusive. */
+  /* Mic path. Always prefer BT-safe ducking so headphones keep playing remote audio. */
   await Audio.setAudioModeAsync({
     allowsRecordingIOS: true,
     playsInSilentModeIOS: true,
     staysActiveInBackground: true,
-    shouldDuckOthers: false,
+    shouldDuckOthers: true,
     playThroughEarpieceAndroid: false,
     interruptionModeIOS: InterruptionModeIOS.MixWithOthers,
-    interruptionModeAndroid: bluetoothSafe
-      ? InterruptionModeAndroid.DuckOthers
-      : InterruptionModeAndroid.DoNotMix,
+    interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
   });
   lastAppliedAt = Date.now();
   emit('session_start', { mode: 'liveTalk', bluetoothSafe, platform: Platform.OS });

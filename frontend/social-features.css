@@ -324,6 +324,13 @@
   background: #000;
 }
 
+html.social-video-immersive .social-reel-slide video.is-portrait,
+html.social-video-immersive .social-reel-slide img.is-portrait,
+html.social-video-immersive .social-reel-slide video.is-landscape {
+  object-fit: cover;
+  background: #000;
+}
+
 .social-reel-slide video.is-landscape {
   object-fit: contain;
   background: #000;
@@ -417,7 +424,7 @@ html.social-video-immersive .social-reels-wrap {
   position: absolute;
   top: calc(env(safe-area-inset-top, 0) + 10px);
   left: 12px;
-  z-index: 40;
+  z-index: 120;
   width: 40px;
   height: 40px;
   border: none;
