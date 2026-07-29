@@ -21,6 +21,18 @@
       "dest": "/api/auth/[...path]"
     },
     {
+      "src": "/spa/assets/(.*)",
+      "dest": "/frontend/spa/dist/assets/$1"
+    },
+    {
+      "src": "/spa",
+      "dest": "/frontend/spa/dist/index.html"
+    },
+    {
+      "src": "/spa/(.*)",
+      "dest": "/frontend/spa/dist/index.html"
+    },
+    {
       "src": "/",
       "dest": "/frontend/index.html"
     },
