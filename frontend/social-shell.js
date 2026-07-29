@@ -899,7 +899,8 @@
   }
 
   const gridScrollState = {};
-  const ROOMS_CACHE_MS = 30000;
+  const ROOMS_CACHE_MS = 120000; /* fresh window */
+  const ROOMS_STALE_MS = 15 * 60 * 1000; /* still paint instantly up to 15m */
   let exploreCountsTimer = null;
 
   function roomsCacheKey(opts, limit) {
@@ -908,12 +909,15 @@
     return `ap_rooms_v1_${party}_${sort}_${limit || 12}`;
   }
 
-  function readRoomsCache(key) {
+  function readRoomsCache(key, { allowStale = false } = {}) {
     try {
       const raw = sessionStorage.getItem(key);
       if (!raw) return null;
       const parsed = JSON.parse(raw);
-      if (!parsed || Date.now() - Number(parsed.at || 0) > ROOMS_CACHE_MS) return null;
+      if (!parsed) return null;
+      const age = Date.now() - Number(parsed.at || 0);
+      if (age > ROOMS_STALE_MS) return null;
+      if (!allowStale && age > ROOMS_CACHE_MS) return null;
       return parsed;
     } catch (_e) {
       return null;
@@ -1003,11 +1007,19 @@
     if (st.loading && opts.append) return;
     const myGen = (st.gen = (st.gen || 0) + 1);
     st.loading = true;
+    /* Instagram-style: paint last rooms instantly, refresh in background */
+    let paintedFromCache = false;
     if (!opts.append) {
-      grid.classList.remove('is-empty', 'has-rooms');
-      grid.classList.add('is-loading');
-      grid.innerHTML = renderExploreSkeletonGrid(8);
-      syncExploreFloatingActions(false, opts);
+      const warm = readRoomsCache(cacheKey, { allowStale: true });
+      if (warm?.rooms?.length) {
+        paintExploreRooms(grid, warm.rooms, opts, limit || st.limit);
+        paintedFromCache = true;
+      } else {
+        grid.classList.remove('is-empty', 'has-rooms');
+        grid.classList.add('is-loading');
+        grid.innerHTML = renderExploreSkeletonGrid(6);
+        syncExploreFloatingActions(false, opts);
+      }
     }
     try {
       const { rooms, error } = await fetchActiveRooms(limit || st.limit, opts);
@@ -1019,7 +1031,7 @@
       liveGrid.classList.remove('is-loading');
       const unique = dedupeRoomCards(rooms);
       if (!unique.length) {
-        if (!opts.append) {
+        if (!opts.append && !paintedFromCache) {
           liveGrid.classList.add('is-empty');
           liveGrid.classList.remove('has-rooms');
           const altHint = error ? '' : await emptyStateAltHint(Boolean(opts.party));
@@ -1040,7 +1052,8 @@
       if (myGen !== st.gen) return;
       const liveGrid = document.getElementById(gridId) || grid;
       liveGrid.classList.remove('is-loading');
-      const cached = readRoomsCache(cacheKey);
+      if (paintedFromCache) return;
+      const cached = readRoomsCache(cacheKey, { allowStale: true });
       if (!opts.append && cached?.rooms?.length) {
         paintExploreRooms(liveGrid, cached.rooms, opts, limit || st.limit);
         return;

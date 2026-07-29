@@ -6,18 +6,12 @@
   <meta name="theme-color" content="#c9a227">
   <title>Me - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-theme.css?v=20260727-navtap">
-  <link rel="stylesheet" href="social-features.css?v=20260727-navtap">
+  <link rel="stylesheet" href="social-theme.css?v=20260729-instant">
+  <link rel="stylesheet" href="social-features.css?v=20260729-instant">
   <style>
-    html:not(.profile-ready) .social-profile-hero,
-    html:not(.profile-ready) .social-menu-list { opacity: 0.35; }
-    html.profile-ready .social-profile-hero,
-    html.profile-ready .social-menu-list { opacity: 1; transition: opacity 0.2s ease; }
-    .profile-loading-bar {
-      height: 3px; background: linear-gradient(90deg, #e8c56a, #c9a227, #e8c56a);
-      background-size: 200% 100%; animation: profile-load 1s linear infinite;
-    }
-    @keyframes profile-load { to { background-position: 200% 0; } }
+    html .social-profile-hero,
+    html .social-menu-list { opacity: 1; }
+    .profile-loading-bar { display: none !important; }
     #profileStats {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -274,11 +268,11 @@
   <div id="social-bottom-nav-mount"></div>
 
   <script src="ap-config.js"></script>
-  <script src="app.js?v=20260727-livefix"></script>
+  <script src="app.js?v=20260729-instant"></script>
   <script src="social-wallet.js?v=20260715-wallet-fix"></script>
   <script src="social-ui.js?v=20260624-profile-url-fix"></script>
   <script src="social-interactions.js?v=20260624-profile-url-fix"></script>
-  <script src="social-shell.js?v=20260727-navtap"></script>
+  <script src="social-shell.js?v=20260729-instant"></script>
   <script src="referral-hook.js?v=20260723-invite-on"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
@@ -287,6 +281,7 @@
       let user = Auth.getUser();
       if (user) paintProfileAvatar(user);
       document.documentElement.classList.add('profile-ready');
+      document.getElementById('profileLoadingBar')?.remove();
 
       const btn = document.getElementById('profileMainBtn');
       const dash = document.getElementById('dashLink');
@@ -299,7 +294,7 @@
         if (loadingBar) loadingBar.remove();
         document.documentElement.classList.add('profile-ready');
       }
-      setTimeout(finishProfile, 350);
+      finishProfile();
 
       async function refreshProfileUser() {
         if (!Auth.hasSession?.()) return;

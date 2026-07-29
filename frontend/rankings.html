@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#fdf9f0">
   <title>Rankings - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-theme.css?v=20260727-navtap">
-  <link rel="stylesheet" href="social-features.css?v=20260727-navtap">
+  <link rel="stylesheet" href="social-theme.css?v=20260729-instant">
+  <link rel="stylesheet" href="social-features.css?v=20260729-instant">
   <link rel="stylesheet" href="social-fx.css?v=20260702-follow-fix">
   <style>
     @keyframes rankSkel { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
@@ -67,7 +67,7 @@
   <script src="app.js?v=20260727-livefix"></script>
   <script src="social-ui.js?v=20260702-follow-fix"></script>
   <script src="social-interactions.js?v=20260717-block-hide"></script>
-  <script src="social-shell.js?v=20260727-navtap"></script>
+  <script src="social-shell.js?v=20260729-instant"></script>
   <script src="social-nav.js"></script>
   <script defer src="social-fx.js"></script>
   <script>
@@ -101,6 +101,29 @@
 
     let rankCache = [];
     let rankVisible = 20;
+
+    function ranksCacheKey(period, tab) {
+      return `ap_ranks_v1_${period}_${tab}`;
+    }
+
+    function readRanksCache(period, tab) {
+      try {
+        const raw = sessionStorage.getItem(ranksCacheKey(period, tab));
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (!parsed?.rows) return null;
+        if (Date.now() - Number(parsed.at || 0) > 15 * 60 * 1000) return null;
+        return parsed.rows;
+      } catch (_e) {
+        return null;
+      }
+    }
+
+    function writeRanksCache(period, tab, rows) {
+      try {
+        sessionStorage.setItem(ranksCacheKey(period, tab), JSON.stringify({ at: Date.now(), rows: rows || [] }));
+      } catch (_e) { /* ignore */ }
+    }
 
     async function fetchRankings(period, tab) {
       const category = TAB_CATEGORY[tab] || 'creators';
@@ -153,17 +176,26 @@
       const id = 'rankList' + currentTab.charAt(0).toUpperCase() + currentTab.slice(1);
       const el = document.getElementById(id);
       if (!el) return;
-      el.innerHTML = Array.from({ length: 8 }, () =>
-        '<div class="social-rank-skel" style="height:56px;margin:8px 0;border-radius:12px;background:linear-gradient(90deg,#f5e6c8 25%,#fff8e7 50%,#f5e6c8 75%);background-size:200% 100%;animation:rankSkel 1.2s ease infinite"></div>'
-      ).join('');
       updatePromo();
+      const warm = readRanksCache(currentPeriod, currentTab);
+      if (warm?.length) {
+        rankCache = warm;
+        rankVisible = 20;
+        renderRankList(id, rankCache.slice(0, rankVisible), rankCache.length > rankVisible);
+      } else {
+        el.innerHTML = Array.from({ length: 6 }, () =>
+          '<div class="social-rank-skel" style="height:56px;margin:8px 0;border-radius:12px;background:linear-gradient(90deg,#f5e6c8 25%,#fff8e7 50%,#f5e6c8 75%);background-size:200% 100%;animation:rankSkel 1.2s ease infinite"></div>'
+        ).join('');
+      }
       let rows = [];
       try {
         rows = await fetchRankings(currentPeriod, currentTab);
         rankCache = rows;
         rankVisible = 20;
+        writeRanksCache(currentPeriod, currentTab, rows);
       } catch (e) {
         console.warn('rankings fetch', e);
+        if (!rankCache.length) rankCache = warm || [];
       }
       renderRankList(id, rankCache.slice(0, rankVisible), rankCache.length > rankVisible);
     }

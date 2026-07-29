@@ -8,8 +8,8 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <script src="/ap-native-boot.js"></script>
-    <link rel="stylesheet" href="/social-theme.css?v=20260727-navtap">
-    <link rel="stylesheet" href="/social-chat.css?v=20260727-navtap">
+    <link rel="stylesheet" href="/social-theme.css?v=20260729-instant">
+    <link rel="stylesheet" href="/social-chat.css?v=20260729-instant">
     
     <!-- Font Awesome 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -1523,7 +1523,7 @@
     <script src="social-wallet.js?v=20260714-gift-only"></script>
     <script src="live-emoji-data.js?v=20260726-gift-200"></script>
     <script src="social-fx.js"></script>
-    <script src="social-shell.js?v=20260727-navtap"></script>
+    <script src="social-shell.js?v=20260729-instant"></script>
     <script src="social-nav.js?v=20260720-back-fix"></script>
     
     <script>
@@ -3150,6 +3150,37 @@
             ).join('');
         }
 
+        function readCachedConversations() {
+            try {
+                const raw = sessionStorage.getItem('ap_chat_list_v1');
+                if (!raw) return null;
+                const parsed = JSON.parse(raw);
+                if (!parsed?.list?.length) return null;
+                if (Date.now() - Number(parsed.at || 0) > 30 * 60 * 1000) return null;
+                return parsed;
+            } catch (_e) {
+                return null;
+            }
+        }
+
+        function writeCachedConversations(list, badgeTotal) {
+            try {
+                sessionStorage.setItem(
+                    'ap_chat_list_v1',
+                    JSON.stringify({ at: Date.now(), list: list || [], badgeTotal: Number(badgeTotal) || 0 })
+                );
+            } catch (_e) { /* ignore */ }
+        }
+
+        function paintCachedConversationsIfAny() {
+            const cached = readCachedConversations();
+            if (!cached?.list?.length) return false;
+            useChatStore.setState({ conversations: cached.list });
+            loadChatList();
+            markChatPageReady();
+            return true;
+        }
+
         let __chatLoadInFlight = null;
 
         async function loadConversations(opts) {
@@ -3162,7 +3193,8 @@
             const maxAttempts = silent || background ? 2 : 3;
             let lastError = null;
             try {
-                if (!background) paintChatLoading('Checking session…');
+                const hadCache = !background && paintCachedConversationsIfAny();
+                if (!background && !hadCache) paintChatLoading('Checking session…');
                 if (typeof Auth?.ensureAccessToken === 'function') {
                     await Promise.race([
                         Auth.ensureAccessToken(),
@@ -3238,6 +3270,7 @@
                         try { localStorage.setItem('chat_unread', String(badgeTotal)); } catch (_e) {}
                         if (window.SocialShell?.paintChatNavBadge) SocialShell.paintChatNavBadge(badgeTotal);
                         useChatStore.setState({ conversations });
+                        writeCachedConversations(conversations, badgeTotal);
                         loadChatList();
                         ensureChatPaneNotBlank();
                         try {

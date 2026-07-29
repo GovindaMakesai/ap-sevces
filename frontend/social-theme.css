@@ -3214,8 +3214,8 @@ html.ap-live-immersive.social-app body {
 }
 
 html.ap-nav-switching body {
-  opacity: 0.92;
-  transition: opacity 0.08s ease;
+  /* Instant tab switch — no fade that feels like a full-page reload */
+  opacity: 1;
 }
 
 .ap-live-pip-bar {
