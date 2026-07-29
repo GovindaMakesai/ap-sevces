@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="robots" content="noindex" />
+  <title>AP Services — SPA</title>
+  <script>
+    (function () {
+      var q = window.location.search || '';
+      var hash = window.location.hash || '';
+      var dest = '/spa/explore' + (q || '?app=1');
+      if (q.indexOf('app=') === -1) {
+        dest += (dest.indexOf('?') >= 0 ? '&' : '?') + 'app=1';
+      }
+      window.location.replace(dest + hash);
+    })();
+  </script>
+  <noscript>
+    <meta http-equiv="refresh" content="0;url=/spa/explore?app=1" />
+  </noscript>
+</head>
+<body style="margin:0;background:#07070a;color:#f5f5f7;font-family:system-ui;display:grid;place-items:center;min-height:100vh">
+  <p>Opening AP Services… <a href="/spa/explore?app=1" style="color:#ff2d55">Continue</a></p>
+</body>
+</html>

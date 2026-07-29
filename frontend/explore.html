@@ -5,6 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#fdf9f0">
   <title>Explore - AP Services</title>
+  <script>
+    /* Opt-in SPA preview only — native app never sends try_spa=1 */
+    (function () {
+      try {
+        var q = new URLSearchParams(location.search || '');
+        if (q.get('try_spa') === '1') {
+          q.delete('try_spa');
+          if (!q.has('app')) q.set('app', '1');
+          var qs = q.toString();
+          location.replace('/spa/explore' + (qs ? '?' + qs : ''));
+        }
+      } catch (_e) {}
+    })();
+  </script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" media="print" onload="this.media='all'">
   <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"></noscript>
   <link rel="stylesheet" href="social-theme.css?v=20260729-instant">

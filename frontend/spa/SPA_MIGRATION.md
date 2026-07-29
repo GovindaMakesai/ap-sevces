@@ -128,9 +128,18 @@ Still the live product (and Phase 1 embeds):
 | **3** | Native Explore + Profile (drop those iframes) | **~50%** |
 | **4** | Native Chat list + Rankings; Video keep-alive/hybrid; broader spa_embed bridge | **~70%** |
 | **5** | Search, Settings, Centers hubs; live/store/agency stay legacy bridge | **~85%** |
-| 6 | Remove MPA entry; WebView → `/spa/`; delete dead HTML | **100%** |
+| **6** | Cutover **prep** (docs, opt-in web entry, deploy path) — WebView URL gated | **~95%** |
 
-**After Phase 5 on this branch: ~85% overall.**
+**After Phase 6 prep on this branch: ~95% overall.**  
+**100%** requires an explicit product decision to point the native WebView at `/spa/` and ship a store build (out of scope here).
+
+### Phase 6 prep (this commit)
+
+- [`CUTOVER.md`](./CUTOVER.md) — pre-flight, Vercel `dist` requirement, App.js change **documented only**
+- [`LEGACY_INVENTORY.md`](./LEGACY_INVENTORY.md) — what must not be deleted yet
+- Web opt-in: `/go-spa.html` and `/explore.html?try_spa=1` → `/spa/explore`
+- Root scripts: `npm run build:spa`, `npm run dev:spa`
+- **No** changes to `ap-services-app/App.js`, EAS, signing, or Play Store
 
 ### Phase 5 notes
 
@@ -178,12 +187,13 @@ npm run build   # output: frontend/spa/dist
 npm run typecheck
 ```
 
-## Cutover (later — not now)
+## Cutover (gated — see CUTOVER.md)
 
-1. Merge `spa-migration` when approved  
-2. Deploy SPA `dist` under `/spa/`  
-3. Change WebView start URL in a **separate** app release (EAS/AAB) — out of scope for this refactor  
-4. Keep MPA URLs until analytics confirm SPA stability  
+1. `npm run build:spa` so `frontend/spa/dist` exists for Vercel  
+2. Preview `/spa/explore` and `/go-spa.html`  
+3. Merge `spa-migration` when approved  
+4. **Separate release:** change WebView start URL to `/spa/explore` (EAS/AAB) — not part of this refactor  
+5. Keep MPA files listed in `LEGACY_INVENTORY.md` until those flows are ported or permanently bridged  
 
 ---
 
@@ -203,3 +213,11 @@ npm run typecheck
 - [ ] Profile Top Up / menu uses `/spa/legacy/...` without leaving shell
 - [ ] `/spa/login` signs in and returns to Explore
 - [ ] Live/party immersive routes hide bottom nav  
+
+### Phase 6 prep
+- [x] `CUTOVER.md` + `LEGACY_INVENTORY.md` written  
+- [x] `/go-spa.html` + `explore.html?try_spa=1` opt-in  
+- [x] `npm run build:spa` / `dev:spa` scripts  
+- [x] No App.js / EAS / AAB / Play Store changes  
+- [ ] Preview deploy with built `frontend/spa/dist`  
+- [ ] Explicit approval before WebView URL cutover  

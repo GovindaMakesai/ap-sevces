@@ -33,6 +33,14 @@
       "dest": "/frontend/spa/dist/index.html"
     },
     {
+      "src": "/go-spa.html",
+      "dest": "/frontend/go-spa.html"
+    },
+    {
+      "src": "/go-spa",
+      "dest": "/frontend/go-spa.html"
+    },
+    {
       "src": "/",
       "dest": "/frontend/index.html"
     },
