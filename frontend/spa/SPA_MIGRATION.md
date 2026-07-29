@@ -124,13 +124,26 @@ Still the live product (and Phase 1 embeds):
 | Phase | Goal | Est. overall % after phase |
 |-------|------|----------------------------|
 | **1** | Branch, shell, router, stores, Query, keep-alive legacy embeds, docs | **~15%** |
-| 2 | Hide dual nav; postMessage nav from embeds; login route in shell | ~30% |
-| 3 | Native Explore + Profile (drop those iframes) | ~50% |
+| **2** | Hide dual nav; postMessage nav from embeds; login route in shell | **~30%** |
+| **3** | Native Explore + Profile (drop those iframes) | **~50%** |
 | 4 | Native Chat + Video + Rankings | ~70% |
 | 5 | Live room / gifts / agency / settings / search in SPA | ~90% |
 | 6 | Remove MPA entry; WebView → `/spa/`; delete dead HTML | **100%** |
 
-**After this Phase 1 commit: ~15% overall.** Phase 1 checklist itself: scaffold + shell + docs ≈ **90% of Phase 1** (remaining: local `npm run build` verification, optional embed CSS for `spa_embed`).
+**After Phase 2+3 work on this branch: ~45–50% overall.**
+
+### Phase 2 — postMessage bridge
+
+- MPA `social-shell.js`: `spaNavigate()` + click capture when `spa_embed=1`
+- SPA: `SpaNavBridge` listens for `{ source: 'ap-spa-embed', type: 'navigate', href }`
+- Maps tab HTML → `/explore|/video|/chat|/profile|/rankings`; other pages → `/legacy/...`
+- `/spa/login` embeds `app-auth.html` and hydrates token into Zustand
+
+### Phase 3 — native Explore + Profile
+
+- `ExplorePage`: React Query `GET /live/rooms`, Live/Party tabs, Go Live FAB → legacy streamer center / room
+- `ProfilePage`: `/auth/me`, `/wallet/balance`, `/social/stats/:id`, menu → SPA legacy bridge
+- Room open still uses Agora MPA (`live-room.html` / `party-room.html`) via `/legacy/*` (intentional)
 
 ---
 
@@ -143,7 +156,7 @@ npm run dev
 # open http://localhost:5173/spa/
 ```
 
-API calls proxy to `https://api.apservices.in` via Vite.
+Vite serves sibling `frontend/*.html` for legacy iframes and proxies `/api` → `https://api.apservices.in`.
 
 ```bash
 npm run build   # output: frontend/spa/dist
@@ -159,11 +172,19 @@ npm run typecheck
 
 ---
 
-## Validation checklist (Phase 1)
+## Validation checklist
 
-- [ ] `npm run typecheck` / `npm run build` succeed  
-- [ ] Tab navigation updates URL without full document reload of the shell  
-- [ ] Returning to a visited tab keeps iframe content (scroll/state)  
-- [ ] Browser back/forward moves between `/spa/*` routes  
-- [ ] Token in `localStorage` hydrates `authStore`  
-- [ ] Production MPA still works unchanged on `main`  
+### Phase 1
+- [x] `npm run typecheck` / `npm run build` succeed  
+- [x] Tab navigation updates URL without full document reload of the shell  
+- [x] Returning to a visited tab keeps state  
+- [x] Browser back/forward moves between `/spa/*` routes  
+- [x] Token in `localStorage` hydrates `authStore`  
+- [x] Production MPA still works unchanged on `main`  
+
+### Phase 2–3
+- [ ] From Chat/Video embed, in-page link navigates parent SPA (no iframe-only reload for tabs)
+- [ ] Opening a live card from native Explore lands on `/spa/legacy/live-room.html?...`
+- [ ] Profile Top Up / menu uses `/spa/legacy/...` without leaving shell
+- [ ] `/spa/login` signs in and returns to Explore
+- [ ] Live/party immersive routes hide bottom nav  
