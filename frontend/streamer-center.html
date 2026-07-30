@@ -7,6 +7,7 @@
   <title>Streamer Center - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-live.css?v=20260723-promo-full">
+  <link rel="stylesheet" href="social-creator-polish.css?v=20260730-cx3">
   <link rel="stylesheet" href="mobile-app.css">
 </head>
 <body data-live-page="streamer-center" class="streamer-page">
@@ -266,6 +267,7 @@
 
   <script src="app.js?v=20260716-face-loop1"></script>
   <script src="auth-guard.js"></script>
+  <script src="social-creator-polish.js?v=20260730-cx3"></script>
   <script src="social-shell.js?v=20260716-face-loop1"></script>
   <script src="social-nav.js"></script>
   <script src="social-live.js?v=20260716-seat-overlay-fix"></script>
@@ -374,7 +376,13 @@
           const top = document.getElementById('streamerTopContent');
           if (top) {
             if (!data.topContent?.length) {
-              top.innerHTML = '<p style="font-size:12px;color:#9ca3af">No content in this period yet.</p>';
+              top.innerHTML = window.SocialCreatorPolish
+                ? SocialCreatorPolish.emptyStateHtml({
+                    icon: '◎',
+                    title: 'No content yet',
+                    body: 'Posts and videos from this period will appear here.',
+                  })
+                : '<p class="ap-muted">No content in this period yet.</p>';
             } else {
               top.innerHTML = data.topContent
                 .map((c) => {
@@ -388,7 +396,17 @@
           }
         } catch (_err) {
           const top = document.getElementById('streamerTopContent');
-          if (top) top.innerHTML = '<p style="font-size:12px;color:#9ca3af">Analytics unavailable</p>';
+          if (top) {
+            top.innerHTML = window.SocialCreatorPolish
+              ? SocialCreatorPolish.errorStateHtml({
+                  title: 'Analytics unavailable',
+                  body: 'We couldn’t load your content stats.',
+                })
+              : '<p class="ap-muted">Analytics unavailable</p>';
+            if (window.SocialCreatorPolish) {
+              SocialCreatorPolish.bindRetry(top, () => loadCreatorAnalytics(period));
+            }
+          }
         }
       }
 

@@ -1469,9 +1469,15 @@
       </div>`;
     document.body.appendChild(el);
     el.addEventListener('click', (e) => {
-      if (e.target === el) el.classList.remove('open');
+      if (e.target === el) {
+        el.classList.remove('open');
+        window.SocialCreatorPolish?.haptic?.('light');
+      }
     });
-    document.getElementById('socialCommentClose').addEventListener('click', () => el.classList.remove('open'));
+    document.getElementById('socialCommentClose').addEventListener('click', () => {
+      el.classList.remove('open');
+      window.SocialCreatorPolish?.haptic?.('light');
+    });
     return el;
   }
 
@@ -1591,7 +1597,12 @@
         openComments(postId);
         document.dispatchEvent(new CustomEvent('social:comment', { detail: { postId, count: n } }));
         SocialRealtime.emit('social:comment', { postId, count: n });
-        toast('Comment posted');
+        if (window.SocialCreatorPolish?.successFeedback) SocialCreatorPolish.successFeedback('Comment posted');
+        else toast('Comment posted', 'success');
+      } catch (err) {
+        if (window.SocialCreatorPolish?.errorFeedback) {
+          SocialCreatorPolish.errorFeedback(err.message || 'Could not post comment');
+        } else toast(err.message || 'Could not post comment', 'error');
       } finally {
         commentSending = false;
         sendBtn.disabled = false;
@@ -1609,9 +1620,14 @@
   async function sharePost(post) {
     const url = location.origin + '/square.html?post=' + post.id + '&app=1';
     const text = (post.caption || 'Check this out on AP Services').slice(0, 100);
-    const shared = window.SocialUI?.shareLink
-      ? await SocialUI.shareLink({ title: 'AP Services', text, url })
-      : false;
+    let shared = false;
+    try {
+      shared = window.SocialUI?.shareLink
+        ? await SocialUI.shareLink({ title: 'AP Services', text, url })
+        : false;
+    } catch (_e) {
+      shared = false;
+    }
     if (shared) {
       const posts = getPosts();
       const p = posts.find((x) => String(x.id) === String(post.id));
@@ -1626,6 +1642,10 @@
           if (res?.data?.share_count != null) post.shares = res.data.share_count;
         } catch (_e) { /* ignore */ }
       }
+      if (window.SocialCreatorPolish?.successFeedback) SocialCreatorPolish.successFeedback('Shared');
+      else toast('Shared', 'success');
+    } else {
+      toast('Share cancelled', 'info');
     }
     return shared;
   }
@@ -2048,11 +2068,24 @@
       if (!empty) {
         empty = document.createElement('div');
         empty.className = 'social-empty-state social-reel-empty';
-        empty.style.cssText = 'color:#6b4f10;text-align:center;padding:48px 24px;pointer-events:auto;position:relative;z-index:2';
+        empty.style.cssText =
+          'text-align:center;padding:48px 24px;pointer-events:auto;position:relative;z-index:2';
         wrap.insertBefore(empty, uiLayer || null);
       }
-      empty.innerHTML =
-        '<div class="illus" aria-hidden="true">▶</div><h3>No videos yet</h3><p>Share a short clip from the camera — it will show up here.</p>';
+      empty.innerHTML = window.SocialCreatorPolish
+        ? SocialCreatorPolish.emptyStateHtml({
+            icon: '▶',
+            title: 'No videos yet',
+            body: 'Share a short clip from the camera — it will show up here.',
+            ctaLabel: 'Create a video',
+            ctaAction: 'create',
+          }).replace('social-empty-state--feed ap-empty', 'social-empty-state--feed ap-empty social-reel-empty')
+        : '<div class="illus" aria-hidden="true">▶</div><h3>No videos yet</h3><p>Share a short clip from the camera — it will show up here.</p>';
+      if (window.SocialCreatorPolish) {
+        SocialCreatorPolish.bindEmptyCta(empty, {
+          create: () => document.querySelector('[data-social-camera]')?.click(),
+        });
+      }
       const stale = document.getElementById('reelsScroll');
       if (stale) stale.remove();
       if (uiLayer) uiLayer.style.display = 'none';
@@ -2295,6 +2328,7 @@
             void likeBtn.offsetWidth;
             likeBtn.classList.add('social-like-pop');
           }
+          window.SocialCreatorPolish?.haptic?.(liked ? 'success' : 'light');
           toast(liked ? 'Liked!' : 'Unliked');
         } catch (_e) {
           toast('Could not update like', 'error');
@@ -2399,21 +2433,45 @@
       limit: opts.limit || 30,
       offset: opts.offset || 0,
     };
-    const posts = (await loadPosts(loadOpts)).filter((p) => canViewPost(p));
+    let posts = [];
+    try {
+      posts = (await loadPosts(loadOpts)).filter((p) => canViewPost(p));
+    } catch (_err) {
+      const polish = window.SocialCreatorPolish;
+      feed.innerHTML = polish
+        ? polish.errorStateHtml({
+            title: 'Couldn’t load posts',
+            body: 'Check your connection and try again.',
+          })
+        : '<p style="text-align:center;padding:24px;color:#8b6914">Couldn’t load posts.</p>';
+      if (polish) {
+        polish.bindRetry(feed, () => renderSquareFeed(feed, opts));
+      }
+      return;
+    }
     const feedPosts = posts;
 
     if (!posts.length) {
-      feed.innerHTML = `
-        <div class="social-empty-state social-empty-state--feed">
-          <div class="illus" aria-hidden="true">✦</div>
-          <h3>${feedScope === 'following' ? 'No posts from people you follow' : 'No posts yet'}</h3>
-          <p>${
-            feedScope === 'following'
+      const polish = window.SocialCreatorPolish;
+      const followingEmpty = feedScope === 'following';
+      feed.innerHTML = polish
+        ? polish.emptyStateHtml({
+            icon: followingEmpty ? '◎' : '✦',
+            title: followingEmpty ? 'No posts from people you follow' : 'No posts yet',
+            body: followingEmpty
               ? 'Follow creators to see their updates here.'
-              : 'Be the first to share a moment. Tap the camera to create.'
-          }</p>
-          <a class="btn-open" href="#" data-social-camera>Create a post</a>
-        </div>`;
+              : 'Be the first to share a moment. Tap the camera to create.',
+            ctaLabel: followingEmpty ? 'Discover creators' : 'Create a post',
+            ctaAction: followingEmpty ? 'discover' : 'create',
+            ctaHref: followingEmpty ? '/discover-creators.html?app=1' : undefined,
+          })
+        : `<div class="social-empty-state social-empty-state--feed"><div class="illus">✦</div><h3>No posts yet</h3><p>Be the first to share a moment.</p></div>`;
+      if (polish) {
+        polish.bindEmptyCta(feed, {
+          create: () => document.querySelector('[data-social-camera]')?.click(),
+          discover: () => (location.href = '/discover-creators.html?app=1'),
+        });
+      }
       return;
     }
 

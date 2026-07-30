@@ -49,22 +49,36 @@
       const res = await API.get('/social/discover/rails?limit=10');
       return res?.success ? res.data : null;
     } catch (_e) {
-      return null;
+      return { _error: true };
     }
   }
 
   async function mount(containerId) {
     const el = typeof containerId === 'string' ? document.getElementById(containerId) : containerId;
     if (!el) return;
+    el.hidden = false;
     el.innerHTML = '<div class="ap-discover-rails ap-discover-rails--loading"><div class="ap-discover-skel"></div></div>';
     const data = await fetchRails();
+    if (data?._error) {
+      el.innerHTML = window.SocialCreatorPolish
+        ? SocialCreatorPolish.errorStateHtml({
+            title: 'Discovery unavailable',
+            body: 'We couldn’t load recommendations right now.',
+            retryLabel: 'Retry',
+          })
+        : '';
+      if (window.SocialCreatorPolish) {
+        SocialCreatorPolish.bindRetry(el, () => mount(el));
+      }
+      return;
+    }
     if (!data?.sections?.length) {
       el.innerHTML = '';
       el.hidden = true;
       return;
     }
     el.hidden = false;
-    el.innerHTML = `<div class="ap-discover-rails">${data.sections
+    el.innerHTML = `<div class="ap-discover-rails ap-fade-in">${data.sections
       .map((sec) => {
         if (!sec.items?.length) {
           if (sec.id !== 'live_now') return '';

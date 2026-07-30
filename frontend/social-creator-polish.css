@@ -1,0 +1,545 @@
+/**
+ * AP Live — Creator Experience Phase 3 polish layer
+ * Motion / spacing / type / empty / error / a11y — no layout redesign.
+ */
+
+:root {
+  --ap-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --ap-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ap-dur-fast: 160ms;
+  --ap-dur: 240ms;
+  --ap-dur-slow: 360ms;
+  --ap-space-1: 4px;
+  --ap-space-2: 8px;
+  --ap-space-3: 12px;
+  --ap-space-4: 16px;
+  --ap-space-5: 24px;
+  --ap-space-6: 32px;
+  --ap-touch: 44px;
+  --ap-text-xs: 11px;
+  --ap-text-sm: 13px;
+  --ap-text-md: 15px;
+  --ap-text-lg: 18px;
+  --ap-text-xl: 22px;
+  --ap-line: 1.45;
+  --ap-radius: 14px;
+}
+
+/* ---- Motion: standardized interaction feedback ---- */
+.social-like-pop,
+.ap-follow-pop,
+.ap-reel-heart-burst {
+  animation-timing-function: var(--ap-ease) !important;
+}
+
+.social-like-pop {
+  animation-duration: var(--ap-dur) !important;
+}
+
+.ap-follow-pop {
+  animation-duration: var(--ap-dur-fast) !important;
+}
+
+.social-act-btn,
+.social-reel-action,
+.social-feed-scope-btn,
+.ap-creator-follow-btn,
+.creator-follow-btn,
+.creator-chat-btn,
+.creator-tab,
+.social-comment-input-row button {
+  transition:
+    transform var(--ap-dur-fast) var(--ap-ease),
+    background var(--ap-dur) var(--ap-ease),
+    color var(--ap-dur) var(--ap-ease),
+    opacity var(--ap-dur-fast) var(--ap-ease),
+    box-shadow var(--ap-dur) var(--ap-ease);
+}
+
+.social-act-btn:active,
+.social-reel-action:active,
+.social-feed-scope-btn:active,
+.ap-creator-follow-btn:active,
+.creator-follow-btn:active {
+  transform: scale(0.94);
+}
+
+.social-post-card {
+  transition: box-shadow var(--ap-dur) var(--ap-ease), transform var(--ap-dur) var(--ap-ease);
+}
+
+.ap-fade-out {
+  opacity: 0;
+  transition: opacity var(--ap-dur-fast) var(--ap-ease);
+}
+
+.ap-fade-in {
+  animation: ap-fade-in var(--ap-dur) var(--ap-ease);
+}
+
+@keyframes ap-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ---- Spacing rhythm ---- */
+.social-post-feed {
+  padding: 0 var(--ap-space-4) calc(88px + env(safe-area-inset-bottom, 0px));
+}
+
+.social-post-card {
+  margin-bottom: var(--ap-space-4);
+  border-radius: var(--ap-radius);
+}
+
+.social-post-meta {
+  padding: var(--ap-space-2) var(--ap-space-4) 0;
+  font-size: var(--ap-text-xs);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #a16207;
+  text-transform: none;
+}
+
+.social-post-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--ap-space-1);
+  padding: var(--ap-space-2) var(--ap-space-3);
+  min-height: var(--ap-touch);
+}
+
+.social-act-btn {
+  min-width: var(--ap-touch);
+  min-height: var(--ap-touch);
+  padding: var(--ap-space-2) var(--ap-space-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: var(--ap-text-sm);
+  font-weight: 700;
+  color: #6b4f10;
+  border-radius: 999px;
+}
+
+.social-post-user {
+  padding: var(--ap-space-2) var(--ap-space-4) var(--ap-space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ap-space-2);
+}
+
+.social-post-caption {
+  font-size: var(--ap-text-sm);
+  line-height: var(--ap-line);
+  color: #78350f;
+  font-weight: 500;
+  -webkit-line-clamp: 4;
+}
+
+.social-feed-scope {
+  gap: var(--ap-space-2);
+  padding: var(--ap-space-2) var(--ap-space-4) var(--ap-space-3);
+}
+
+.social-feed-scope-btn {
+  min-height: 36px;
+  padding: 8px 16px;
+  font-size: var(--ap-text-xs);
+  letter-spacing: 0.02em;
+}
+
+/* ---- Typography hierarchy ---- */
+.ap-creator-name {
+  font-size: var(--ap-text-sm);
+  font-weight: 800;
+  line-height: 1.25;
+  color: #6b4f10;
+}
+
+.ap-reel-handle {
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.social-reel-caption {
+  font-size: var(--ap-text-sm) !important;
+  line-height: var(--ap-line) !important;
+  max-height: 4.4em;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+.social-reel-name {
+  font-size: var(--ap-text-md) !important;
+  font-weight: 800 !important;
+  line-height: 1.3 !important;
+}
+
+.ap-discover-title {
+  font-size: var(--ap-text-sm);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6b4f10;
+  margin: 0 var(--ap-space-4) var(--ap-space-2);
+}
+
+/* ---- Loading / shimmer ---- */
+.social-skeleton-media,
+.social-skeleton-reel,
+.social-skeleton-line,
+.ap-discover-rails--loading .ap-discover-skel {
+  background: linear-gradient(
+    90deg,
+    #f5e6c8 0%,
+    #fffdf8 45%,
+    #f5e6c8 90%
+  );
+  background-size: 200% 100%;
+  animation: ap-shimmer 1.35s ease infinite;
+}
+
+@keyframes ap-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+.social-post-card--skeleton {
+  margin-bottom: var(--ap-space-4);
+  border-radius: var(--ap-radius);
+  overflow: hidden;
+  border: 1px solid rgba(201, 162, 39, 0.12);
+}
+
+/* ---- Empty + error ---- */
+.social-empty-state--feed,
+.ap-empty,
+.ap-error-state {
+  margin: var(--ap-space-4) var(--ap-space-4) calc(80px + env(safe-area-inset-bottom, 0px));
+  padding: var(--ap-space-6) var(--ap-space-5);
+  border-radius: 18px;
+  border: 1px solid rgba(201, 162, 39, 0.22);
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(251, 191, 36, 0.12), transparent 55%),
+    #fffdf8;
+}
+
+.social-empty-state--feed h3,
+.ap-empty h3,
+.ap-error-state h3 {
+  font-size: var(--ap-text-lg);
+  font-weight: 800;
+  color: #6b4f10;
+  margin: 0 0 var(--ap-space-2);
+}
+
+.social-empty-state--feed p,
+.ap-empty p,
+.ap-error-state p {
+  font-size: var(--ap-text-sm);
+  line-height: var(--ap-line);
+  color: #8b6914;
+  margin: 0 0 var(--ap-space-4);
+  max-width: 28ch;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.social-empty-state--feed .illus,
+.ap-empty .illus,
+.ap-error-state .illus {
+  font-size: 36px;
+  width: auto;
+  margin-bottom: var(--ap-space-3);
+  color: #c9a227;
+  opacity: 1;
+}
+
+.ap-error-state .illus {
+  color: #b45309;
+}
+
+.social-empty-state .btn-open,
+.ap-empty-cta,
+.ap-retry-btn {
+  min-height: var(--ap-touch);
+  min-width: 140px;
+  padding: 12px 28px;
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+  font-size: var(--ap-text-sm);
+  font-weight: 800;
+  background: linear-gradient(135deg, #fbbf24, #c9a227);
+  color: #1a1000;
+  box-shadow: 0 6px 16px rgba(201, 162, 39, 0.28);
+}
+
+.ap-retry-btn {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+/* Reel empty on dark video chrome */
+.social-reel-empty {
+  background: transparent !important;
+  border: none !important;
+  color: #f5e6c8 !important;
+}
+.social-reel-empty h3 { color: #fffdf8 !important; }
+.social-reel-empty p { color: rgba(255, 253, 248, 0.75) !important; }
+.social-reel-empty .illus { color: #fbbf24 !important; }
+
+/* ---- Comment sheet: animatable open (no display toggle flash) ---- */
+.social-comment-sheet {
+  display: flex !important;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity var(--ap-dur) var(--ap-ease),
+    visibility var(--ap-dur) var(--ap-ease);
+  background: rgba(26, 16, 0, 0.42);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.social-comment-sheet.open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.social-comment-panel {
+  padding: var(--ap-space-4) var(--ap-space-4) calc(var(--ap-space-4) + env(safe-area-inset-bottom, 0px));
+  transform: translateY(110%);
+  transition: transform var(--ap-dur-slow) var(--ap-ease);
+  max-height: min(72vh, 640px);
+}
+
+.social-comment-sheet.open .social-comment-panel {
+  transform: translateY(0);
+}
+
+.social-comment-head {
+  font-size: var(--ap-text-md);
+  font-weight: 800;
+  color: #6b4f10;
+}
+
+.social-comment-head button {
+  min-width: var(--ap-touch);
+  min-height: var(--ap-touch);
+  border: none;
+  background: transparent;
+  color: #8b6914;
+  font-size: 18px;
+  border-radius: 50%;
+}
+
+.social-comment-item {
+  padding: var(--ap-space-3) 0;
+  font-size: var(--ap-text-sm);
+  line-height: var(--ap-line);
+  color: #78350f;
+  animation: ap-fade-in var(--ap-dur) var(--ap-ease);
+}
+
+.social-comment-empty {
+  text-align: center;
+  padding: var(--ap-space-5) var(--ap-space-3);
+  color: #8b6914;
+  font-size: var(--ap-text-sm);
+}
+
+.social-comment-input-row input {
+  min-height: var(--ap-touch);
+  font-size: 16px; /* iOS zoom prevention */
+  padding: 12px 16px;
+}
+
+.social-comment-input-row button {
+  min-height: var(--ap-touch);
+  min-width: 72px;
+}
+
+/* ---- Identity consistency ---- */
+.ap-creator-identity {
+  gap: var(--ap-space-3);
+}
+
+.ap-creator-avatar {
+  width: 42px;
+  height: 42px;
+  border-width: 2px;
+}
+
+.ap-creator-follow-btn,
+.creator-follow-btn,
+.creator-chat-btn {
+  min-height: 40px;
+  min-width: 96px;
+  padding: 8px 18px;
+  font-size: var(--ap-text-sm);
+}
+
+.ap-creator-agency,
+.ap-creator-level {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ap-creator-name {
+  word-break: break-word;
+}
+
+/* ---- Discovery polish ---- */
+.ap-discover-rails {
+  padding: var(--ap-space-2) 0 var(--ap-space-3);
+}
+
+.ap-discover-section {
+  margin-bottom: var(--ap-space-3);
+}
+
+.ap-discover-row {
+  gap: var(--ap-space-3);
+  padding: 0 var(--ap-space-4) var(--ap-space-2);
+  scroll-snap-type: x proximity;
+}
+
+.ap-discover-card {
+  flex: 0 0 112px;
+  width: 112px;
+  border-radius: var(--ap-radius);
+  scroll-snap-align: start;
+  transition: transform var(--ap-dur-fast) var(--ap-ease), box-shadow var(--ap-dur) var(--ap-ease);
+}
+
+.ap-discover-card:active {
+  transform: scale(0.97);
+}
+
+.ap-discover-card img,
+.ap-discover-fallback {
+  height: 140px;
+}
+
+.ap-discover-name {
+  font-size: var(--ap-text-xs);
+  font-weight: 800;
+  padding: 8px 8px 2px;
+}
+
+.ap-discover-meta {
+  font-size: 10px;
+  padding: 0 8px 10px;
+}
+
+.ap-discover-empty {
+  margin: 0 var(--ap-space-4);
+  padding: var(--ap-space-3);
+  border-radius: 12px;
+  background: rgba(201, 162, 39, 0.08);
+  font-size: var(--ap-text-xs);
+  color: #8b6914;
+}
+
+/* ---- Profile polish ---- */
+.creator-bio {
+  margin: var(--ap-space-2) var(--ap-space-5) 0;
+  font-size: var(--ap-text-sm);
+  line-height: var(--ap-line);
+  color: #78350f;
+  max-width: 36ch;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.creator-tabs {
+  margin: var(--ap-space-3) var(--ap-space-4) 0;
+}
+
+.creator-tab {
+  min-height: var(--ap-touch);
+  font-size: var(--ap-text-sm);
+}
+
+.creator-engagement-card strong {
+  font-size: var(--ap-text-lg);
+}
+
+.creator-engagement-card span {
+  font-size: 10px;
+}
+
+.creator-featured {
+  margin: var(--ap-space-3) var(--ap-space-4);
+  transition: transform var(--ap-dur-fast) var(--ap-ease), box-shadow var(--ap-dur) var(--ap-ease);
+}
+
+.creator-featured:active {
+  transform: scale(0.985);
+}
+
+/* ---- Analytics empty ---- */
+.streamer-top-content .ap-empty,
+#streamerTopContent .ap-muted {
+  font-size: var(--ap-text-sm);
+  color: #8b6914;
+  text-align: center;
+  padding: var(--ap-space-4);
+}
+
+.streamer-analytics-grid .metric {
+  min-height: 72px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* ---- Accessibility ---- */
+.social-act-btn:focus-visible,
+.social-reel-action:focus-visible,
+.social-feed-scope-btn:focus-visible,
+.ap-creator-follow-btn:focus-visible,
+.creator-tab:focus-visible,
+.ap-retry-btn:focus-visible,
+.social-comment-input-row button:focus-visible,
+.social-comment-input-row input:focus-visible {
+  outline: 2px solid #c9a227;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Long username / caption safety */
+.ap-creator-meta,
+.social-post-user-name,
+.ap-reel-handle {
+  overflow-wrap: anywhere;
+}
+
+/* Delete / media controls touch */
+.social-post-delete,
+.social-feed-sound-btn {
+  min-width: 40px;
+  min-height: 40px;
+}
+
+.social-live-pill {
+  min-height: 22px;
+  padding: 3px 8px;
+}

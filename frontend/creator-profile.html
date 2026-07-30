@@ -7,7 +7,8 @@
   <title>Profile - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-theme.css?v=20260628-profile-fix">
-  <link rel="stylesheet" href="social-features.css?v=20260730-cx2">
+  <link rel="stylesheet" href="social-features.css?v=20260730-cx3">
+  <link rel="stylesheet" href="social-creator-polish.css?v=20260730-cx3">
   <style>
     .creator-hero { text-align: center; padding: 24px 16px 12px; }
     .creator-avatar { width: 88px; height: 88px; border-radius: 50%; object-fit: cover; margin-bottom: 12px; border: 3px solid #fbbf24; }
@@ -139,8 +140,9 @@
   <script src="app.js?v=20260702-follow-fix"></script>
   <script src="auth-guard.js"></script>
   <script src="social-ui.js?v=20260702-follow-fix"></script>
+  <script src="social-creator-polish.js?v=20260730-cx3"></script>
   <script src="social-creator-identity.js?v=20260730-cx2"></script>
-  <script src="social-interactions.js?v=20260730-cx2"></script>
+  <script src="social-interactions.js?v=20260730-cx3"></script>
   <script src="social-shell.js"></script>
   <script>
     function profileApiRoot() {
@@ -211,7 +213,12 @@
         }
         following = await SocialInteractions.toggleFollow(userId, name);
         syncFollowBtn();
-        SocialUI.toast(following ? 'You are now following ' + name : 'Unfollowed ' + name, following ? 'success' : 'info');
+        window.SocialCreatorPolish?.haptic?.(following ? 'success' : 'light');
+        if (window.SocialCreatorPolish?.successFeedback) {
+          SocialCreatorPolish.successFeedback(following ? 'Following ' + name : 'Unfollowed ' + name);
+        } else {
+          SocialUI.toast(following ? 'You are now following ' + name : 'Unfollowed ' + name, following ? 'success' : 'info');
+        }
       });
 
       document.getElementById('creatorChat')?.addEventListener('click', (e) => {
@@ -456,8 +463,15 @@
         });
         await loadTab('posts');
       } else {
-        feed.innerHTML =
-          '<div class="social-empty-state social-empty-state--feed"><div class="illus">✦</div><h3>Profile unavailable</h3><p>Open a creator from Video or Square so we can load their posts.</p></div>';
+        feed.innerHTML = window.SocialCreatorPolish
+          ? SocialCreatorPolish.emptyStateHtml({
+              icon: '◎',
+              title: 'Profile unavailable',
+              body: 'Open a creator from Video or Square so we can load their posts.',
+              ctaLabel: 'Browse Video',
+              ctaHref: '/video.html?app=1',
+            })
+          : '<div class="social-empty-state social-empty-state--feed"><div class="illus">✦</div><h3>Profile unavailable</h3><p>Open a creator from Video or Square so we can load their posts.</p></div>';
       }
     });
   </script>
