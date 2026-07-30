@@ -290,7 +290,7 @@
         <div class="ag-income-row">
           <div class="ico"><i class="fas fa-building"></i></div>
           <div class="txt">
-            <span>My Agency Income</span>
+            <span>My Agency Income (Points)</span>
             <strong id="agMyIncome">0</strong>
           </div>
           <button type="button" class="go" data-panel="hosts" aria-label="Details"><i class="fas fa-chevron-right"></i></button>
@@ -298,7 +298,7 @@
         <div class="ag-income-row">
           <div class="ico"><i class="fas fa-hand-holding-dollar"></i></div>
           <div class="txt">
-            <span>Invite Agency Income</span>
+            <span>Invite Agency Income (Coins)</span>
             <strong id="agInviteIncome">0</strong>
           </div>
           <button type="button" class="go" data-panel="agencies" aria-label="Details"><i class="fas fa-chevron-right"></i></button>
@@ -531,9 +531,15 @@
         const d = res.data || {};
         const agency = d.agency || {};
         document.getElementById('agAgencyName').textContent = agency.name || '—';
-        const total = Number(d.monthRevenueCoins || d.myAgencyIncome || 0);
-        const myIncome = Number(d.myAgencyIncome != null ? d.myAgencyIncome : total);
-        const inviteIncome = Number(d.inviteAgencyIncome || 0);
+        const myIncome = Number(
+          d.myAgencyIncomePoints != null ? d.myAgencyIncomePoints : d.myAgencyIncome != null ? d.myAgencyIncome : 0
+        );
+        const inviteIncome = Number(
+          d.inviteAgencyIncomeCoins != null
+            ? d.inviteAgencyIncomeCoins
+            : d.inviteAgencyIncome || 0
+        );
+        const total = myIncome + inviteIncome;
         document.getElementById('agTotalIncome').textContent = total.toLocaleString();
         document.getElementById('agMyIncome').textContent = myIncome.toLocaleString();
         document.getElementById('agInviteIncome').textContent = inviteIncome.toLocaleString();

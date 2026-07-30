@@ -795,6 +795,11 @@ async function agencyDashboard(ownerUserId) {
     monthRevenueCoins: myAgencyIncome + inviteAgencyIncome,
     myAgencyIncome,
     inviteAgencyIncome,
+    /* Host→Agency = Points; Sub→Parent override = Coins */
+    myAgencyIncomePoints: myAgencyIncome,
+    inviteAgencyIncomeCoins: inviteAgencyIncome,
+    monthAgencyPoints: myAgencyIncome,
+    monthAgencyCoins: inviteAgencyIncome,
     agentLevel,
   };
 }
