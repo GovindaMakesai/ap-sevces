@@ -15,6 +15,8 @@ function publicUser(user, { self = false } = {}) {
     is_verified: Boolean(user.is_verified),
     display_id: displayId,
     is_admin: isAdmin,
+    bio: user.bio || null,
+    social_links: user.social_links || {},
   };
   if (self) {
     return {

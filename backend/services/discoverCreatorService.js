@@ -50,25 +50,59 @@ const AGENCY_LATERAL = `
 
 async function fetchCreatorRows(userIds) {
   if (!userIds.length) return [];
-  const res = await db.query(
-    `SELECT u.id, u.first_name, u.last_name, u.profile_pic, u.role, u.display_id, u.updated_at,
-            (SELECT COUNT(*)::int FROM user_follows WHERE following_id = u.id) AS followers,
-            (SELECT COUNT(*)::int FROM user_follows WHERE follower_id = u.id) AS following,
-            (SELECT COALESCE(SUM(gt.creator_amount), 0)::float FROM gift_transactions gt WHERE gt.receiver_id = u.id) AS gift_earnings,
-            (SELECT COUNT(*)::int FROM gift_transactions gt WHERE gt.receiver_id = u.id) AS gift_count,
-            (SELECT COUNT(*)::int FROM live_rooms lr WHERE lr.host_user_id = u.id) AS live_sessions,
-            lr.channel AS live_channel,
-            lr.viewer_count AS live_viewers,
-            lr.room_type AS live_room_type,
-            ag.agency_id,
-            ag.agency_name
-     FROM users u
-     ${LIVE_LATERAL}
-     ${AGENCY_LATERAL}
-     WHERE u.id = ANY($1::uuid[]) AND u.is_active = TRUE`,
-    [userIds]
-  );
-  return res.rows;
+  try {
+    const res = await db.query(
+      `SELECT u.id, u.first_name, u.last_name, u.profile_pic, u.role, u.display_id, u.updated_at,
+              u.is_verified, u.bio, u.social_links, u.featured_post_id,
+              (SELECT COUNT(*)::int FROM user_follows WHERE following_id = u.id) AS followers,
+              (SELECT COUNT(*)::int FROM user_follows WHERE follower_id = u.id) AS following,
+              (SELECT COALESCE(SUM(gt.creator_amount), 0)::float FROM gift_transactions gt WHERE gt.receiver_id = u.id) AS gift_earnings,
+              (SELECT COUNT(*)::int FROM gift_transactions gt WHERE gt.receiver_id = u.id) AS gift_count,
+              (SELECT COUNT(*)::int FROM live_rooms lr WHERE lr.host_user_id = u.id) AS live_sessions,
+              lr.channel AS live_channel,
+              lr.viewer_count AS live_viewers,
+              lr.room_type AS live_room_type,
+              ag.agency_id,
+              ag.agency_name,
+              vl.name AS vip_level_name,
+              vl.level AS vip_level_rank,
+              cb.badge_type AS creator_badge_type,
+              cb.crown_type AS creator_crown_type
+       FROM users u
+       ${LIVE_LATERAL}
+       ${AGENCY_LATERAL}
+       LEFT JOIN vip_memberships vm ON vm.user_id = u.id
+       LEFT JOIN vip_levels vl ON vl.id = vm.vip_level_id
+       LEFT JOIN LATERAL (
+         SELECT badge_type, crown_type FROM creator_badges
+         WHERE user_id = u.id ORDER BY granted_at DESC NULLS LAST LIMIT 1
+       ) cb ON TRUE
+       WHERE u.id = ANY($1::uuid[]) AND u.is_active = TRUE`,
+      [userIds]
+    );
+    return res.rows;
+  } catch (e) {
+    console.warn('fetchCreatorRows enriched failed, fallback:', e.message);
+    const res = await db.query(
+      `SELECT u.id, u.first_name, u.last_name, u.profile_pic, u.role, u.display_id, u.updated_at,
+              (SELECT COUNT(*)::int FROM user_follows WHERE following_id = u.id) AS followers,
+              (SELECT COUNT(*)::int FROM user_follows WHERE follower_id = u.id) AS following,
+              (SELECT COALESCE(SUM(gt.creator_amount), 0)::float FROM gift_transactions gt WHERE gt.receiver_id = u.id) AS gift_earnings,
+              (SELECT COUNT(*)::int FROM gift_transactions gt WHERE gt.receiver_id = u.id) AS gift_count,
+              (SELECT COUNT(*)::int FROM live_rooms lr WHERE lr.host_user_id = u.id) AS live_sessions,
+              lr.channel AS live_channel,
+              lr.viewer_count AS live_viewers,
+              lr.room_type AS live_room_type,
+              ag.agency_id,
+              ag.agency_name
+       FROM users u
+       ${LIVE_LATERAL}
+       ${AGENCY_LATERAL}
+       WHERE u.id = ANY($1::uuid[]) AND u.is_active = TRUE`,
+      [userIds]
+    );
+    return res.rows;
+  }
 }
 
 async function fetchFallbackCreators(limit, hiddenIds = []) {
@@ -114,6 +148,14 @@ function mapCreatorRow(row, { rank = null, engagementScore = null, viewerId = nu
     : Math.max(Number(row.gift_earnings || 0), Number(row.followers || 0) * 10);
   const isFollowing = followingSet ? followingSet.has(String(row.id)) : false;
   const liveRoomType = row.live_room_type || null;
+  let socialLinks = row.social_links || {};
+  if (typeof socialLinks === 'string') {
+    try {
+      socialLinks = JSON.parse(socialLinks);
+    } catch (_e) {
+      socialLinks = {};
+    }
+  }
   return {
     id: String(row.id),
     displayId: row.display_id != null ? String(row.display_id) : null,
@@ -123,6 +165,15 @@ function mapCreatorRow(row, { rank = null, engagementScore = null, viewerId = nu
     profilePic: row.profile_pic || null,
     profileUpdatedAt: row.updated_at || null,
     role: row.role || 'customer',
+    isVerified: Boolean(row.is_verified),
+    bio: row.bio || null,
+    socialLinks,
+    vipLevel: row.vip_level_name || null,
+    vipLevelRank: row.vip_level_rank != null ? Number(row.vip_level_rank) : null,
+    creatorBadge: row.creator_badge_type || null,
+    creatorCrown: row.creator_crown_type || null,
+    /* Plug-in slot if a dedicated creator level ships later */
+    creatorLevel: row.vip_level_name || row.creator_badge_type || null,
     rank,
     engagementScore: score,
     engagementLabel: formatScore(score),
@@ -143,6 +194,7 @@ function mapCreatorRow(row, { rank = null, engagementScore = null, viewerId = nu
     isFollowing,
     postsCount: Number(row.posts_count || 0),
     videosCount: Number(row.videos_count || 0),
+    featuredPostId: row.featured_post_id ? String(row.featured_post_id) : null,
     profileHref: `/creator-profile.html?userId=${encodeURIComponent(String(row.id))}&name=${encodeURIComponent(buildDisplayName(row))}&app=1`,
   };
 }
@@ -298,12 +350,48 @@ async function getCreatorEngagement(userId, viewerId = null) {
       followingSet,
     }
   );
+
+  let featuredVideo = null;
+  try {
+    const discovery = require('./creatorDiscoveryService');
+    const fv = await discovery.getFeaturedVideo(id);
+    if (fv) {
+      featuredVideo = {
+        id: fv.id,
+        mediaUrl: fv.media_url,
+        thumbUrl: fv.thumb_url,
+        caption: fv.body || '',
+        likes: fv.like_count || 0,
+        comments: fv.comment_count || 0,
+        source: fv.featured_source || 'auto',
+        href: `/video.html?post=${encodeURIComponent(fv.id)}&app=1&fullscreen=1`,
+      };
+    }
+  } catch (_e) {
+    featuredVideo = null;
+  }
+
+  /* Lifetime live hours from host stats when available */
+  let liveHoursTotal = null;
+  try {
+    const hrs = await db.query(
+      `SELECT COALESCE(SUM(live_seconds + party_seconds), 0)::float / 3600.0 AS hours
+       FROM live_host_stat_daily WHERE host_user_id = $1`,
+      [id]
+    );
+    liveHoursTotal = Math.round(Number(hrs.rows[0]?.hours || 0) * 10) / 10;
+  } catch (_e) {
+    liveHoursTotal = null;
+  }
+
   return {
     ...mapped,
     followers: Number(stats.followers) || mapped.followers,
     following: Number(stats.following) || mapped.following,
     postsCount: counts.posts_count,
     videosCount: counts.videos_count,
+    featuredVideo,
+    liveHoursTotal,
   };
 }
 

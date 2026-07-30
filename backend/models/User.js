@@ -80,6 +80,7 @@ class User {
     }
 
     static async updateProfile(id, fields) {
+        const { sanitizeBio, sanitizeSocialLinks } = require('../services/creatorProfileSanitize');
         const allowed = {};
         if (fields.first_name !== undefined) {
             const v = String(fields.first_name || '').trim().slice(0, 100);
@@ -98,8 +99,23 @@ class User {
         if (fields.gender !== undefined) {
             allowed.gender = User.normalizeGender(fields.gender);
         }
+        if (fields.bio !== undefined) {
+            allowed.bio = sanitizeBio(fields.bio);
+        }
+        if (fields.social_links !== undefined || fields.socialLinks !== undefined) {
+            allowed.social_links = JSON.stringify(
+              sanitizeSocialLinks(fields.social_links !== undefined ? fields.social_links : fields.socialLinks)
+            );
+        }
+        if (fields.featured_post_id !== undefined || fields.featuredPostId !== undefined) {
+            const fid = fields.featured_post_id !== undefined ? fields.featured_post_id : fields.featuredPostId;
+            allowed.featured_post_id = fid ? String(fid) : null;
+        }
         if (!Object.keys(allowed).length) return User.findById(id);
-        const sets = Object.keys(allowed).map((k, i) => `${k} = $${i + 2}`);
+        const sets = Object.keys(allowed).map((k, i) => {
+          if (k === 'social_links') return `${k} = $${i + 2}::jsonb`;
+          return `${k} = $${i + 2}`;
+        });
         const values = [id, ...Object.values(allowed)];
         await db.query(
             `UPDATE users SET ${sets.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,

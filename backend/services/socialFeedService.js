@@ -46,6 +46,7 @@ function mapPostRow(row, { liked = false, author = null } = {}) {
       profile_pic: row.profile_pic,
       display_id: row.display_id,
       role: row.author_role,
+      is_verified: row.is_verified,
     },
     like_count: Number(row.like_count || 0),
     comment_count: Number(row.comment_count || 0),
@@ -68,7 +69,7 @@ async function enrichPosts(posts, viewerId) {
   const [usersRes, likesRes, commentsRes, likedRes] = await Promise.all([
     userIds.length
       ? db.query(
-          `SELECT id, first_name, last_name, profile_pic, display_id, role
+          `SELECT id, first_name, last_name, profile_pic, display_id, role, is_verified
            FROM users WHERE id = ANY($1::uuid[])`,
           [userIds]
         )

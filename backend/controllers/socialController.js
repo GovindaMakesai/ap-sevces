@@ -132,6 +132,39 @@ async function creatorEngagement(req, res) {
   }
 }
 
+async function discoverRails(req, res) {
+  try {
+    const creatorDiscoveryService = require('../services/creatorDiscoveryService');
+    const data = await creatorDiscoveryService.getDiscoveryRails(req.userId || null, {
+      limit: parseInt(req.query.limit, 10) || 12,
+    });
+    res.json({ success: true, data });
+  } catch (e) {
+    console.error('discoverRails error:', e);
+    res.status(500).json({ success: false, message: 'Failed to load discovery' });
+  }
+}
+
+async function creatorAnalytics(req, res) {
+  try {
+    const targetId = String(req.params.userId || '');
+    if (!targetId) {
+      return res.status(400).json({ success: false, message: 'userId required' });
+    }
+    if (String(req.userId) !== targetId) {
+      return res.status(403).json({ success: false, message: 'You can only view your own analytics' });
+    }
+    const creatorAnalyticsService = require('../services/creatorAnalyticsService');
+    const data = await creatorAnalyticsService.getCreatorAnalytics(targetId, {
+      period: req.query.period || 'week',
+    });
+    res.json({ success: true, data });
+  } catch (e) {
+    console.error('creatorAnalytics error:', e);
+    res.status(500).json({ success: false, message: 'Failed to load analytics' });
+  }
+}
+
 async function listGiftCatalog(_req, res) {
   const res2 = await db.query(
     `SELECT slug, emoji, name, coin_cost, category, tier FROM gift_catalog
@@ -467,7 +500,9 @@ module.exports = {
   followStats,
   liveFollowing,
   discoverCreators,
+  discoverRails,
   creatorEngagement,
+  creatorAnalytics,
   listGiftCatalog,
   listCoinSellers,
   buyFromSeller,

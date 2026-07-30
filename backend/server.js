@@ -274,6 +274,8 @@ async function startServer() {
     await ensureDisplayIdSchema();
     const { ensureNameChangeSchema } = require('./config/ensureNameChangeSchema');
     await ensureNameChangeSchema();
+    const { ensureCreatorProfileSchema } = require('./config/ensureCreatorProfileSchema');
+    await ensureCreatorProfileSchema();
   }
 
   await referralModule.boot();

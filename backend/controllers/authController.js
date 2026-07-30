@@ -429,12 +429,18 @@ const login = async (req, res) => {
 };
 const updateProfile = async (req, res) => {
     try {
-        const { first_name, last_name, phone, gender } = req.body || {};
+        const { first_name, last_name, phone, gender, bio, social_links, socialLinks, featured_post_id, featuredPostId } =
+          req.body || {};
         const fields = {};
         if (first_name !== undefined) fields.first_name = first_name;
         if (last_name !== undefined) fields.last_name = last_name;
         if (phone !== undefined) fields.phone = phone;
         if (gender !== undefined) fields.gender = gender;
+        if (bio !== undefined) fields.bio = bio;
+        if (social_links !== undefined) fields.social_links = social_links;
+        if (socialLinks !== undefined) fields.socialLinks = socialLinks;
+        if (featured_post_id !== undefined) fields.featured_post_id = featured_post_id;
+        if (featuredPostId !== undefined) fields.featuredPostId = featuredPostId;
 
         if (!Object.keys(fields).length) {
             return res.status(400).json({ success: false, message: 'No profile fields to update' });

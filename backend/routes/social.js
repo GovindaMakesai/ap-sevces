@@ -9,11 +9,14 @@ const socialMediaUpload = require('../middleware/socialMediaUpload');
 router.get('/gifts/catalog', social.listGiftCatalog);
 router.get('/coin-sellers', social.listCoinSellers);
 router.get('/discover/creators', optionalAuth, social.discoverCreators);
+router.get('/discover/rails', optionalAuth, social.discoverRails);
 router.get('/creators/:userId/engagement', optionalAuth, social.creatorEngagement);
 router.get('/stats/:userId', optionalAuth, social.followStats);
 router.get('/posts', optionalAuth, social.listPosts);
 
 router.use(verifyToken);
+
+router.get('/creators/:userId/analytics', social.creatorAnalytics);
 
 router.post('/follow/:userId', social.followUser);
 router.delete('/follow/:userId', social.unfollowUser);
