@@ -8,7 +8,8 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" media="print" onload="this.media='all'">
   <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"></noscript>
   <link rel="stylesheet" href="social-theme.css?v=20260727-navtap">
-  <link rel="stylesheet" href="social-features.css?v=20260729-livefix">
+  <link rel="stylesheet" href="social-features.css?v=20260730-cx2">
+  <link rel="stylesheet" href="social-fx.css?v=20260730-cx2">
   <style>
     .social-video-page .social-video-top {
       background: var(--social-cream, #fdf9f0);
@@ -46,6 +47,8 @@
       <button type="button" class="social-feed-scope-btn" data-feed="latest">Latest</button>
     </div>
   </header>
+
+  <div id="social-discover-rails"></div>
 
   <div id="reelsMount" class="social-reels-wrap">
     <div class="social-reel-ui" id="reelUi">
@@ -87,7 +90,10 @@
   <script src="app.js?v=20260729-perf2"></script>
   <script src="social-wallet.js"></script>
   <script src="social-ui.js"></script>
-  <script src="social-interactions.js?v=20260730-creator"></script>
+  <script src="social-fx.js?v=20260730-cx2"></script>
+  <script src="social-creator-identity.js?v=20260730-cx2"></script>
+  <script src="social-discovery-rails.js?v=20260730-cx2"></script>
+  <script src="social-interactions.js?v=20260730-cx2"></script>
   <script src="social-create-post.js?v=20260723-db-posts"></script>
   <script src="social-shell.js?v=20260729-perf2"></script>
   <script>
@@ -104,7 +110,9 @@
       });
       SocialShell.initPage({ activeNav: 'video', reelsId: null });
       SocialCreatePost.bindCameraButtons();
-      /* Do not await — bottom nav must stay tappable while reels load */
+      if (window.SocialDiscoveryRails) {
+        SocialDiscoveryRails.mount('social-discover-rails').catch(() => {});
+      }
       Promise.resolve(SocialInteractions.initVideoPage('reelsMount', { feed: current })).catch(() => {});
     });
   </script>

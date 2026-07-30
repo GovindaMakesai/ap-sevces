@@ -4,114 +4,105 @@
 **Date:** 2026-07-30  
 **Branch:** `main` (production)  
 **Scope:** `frontend/`, `backend/` — **ignore `frontend/spa/`**  
-**Status:** Implementation in progress (Phases 1–9)  
+**Status:** Phase 1 complete · **Creator Experience Phase 2 in progress**  
 **Constraints:** Keep cream/gold, nav, layouts, branding. No Instagram/TikTok clone. No SPA migration. No Expo/AAB.
 
 ---
 
-## Locked product decisions
+## Phase 2 locked defaults
 
 | Topic | Decision |
 |-------|----------|
-| Media | Single photo OR video; carousel-ready `media_items` shape |
-| Trim | Playback markers only (no server export) |
-| Storage | Local `/uploads/social` via `socialMediaUrl.js` (CDN-ready) |
-| Private posts | Owner-only |
-| Profile tabs | Posts \| Videos |
-| Agency | Badge/name when creator belongs to agency |
-| Feed default | **For You** (ranked) + Following + Latest |
-| Ranking | Configurable weights in `socialFeedRanking.js` |
-| Blocks | Always excluded from feeds / discover / recommendations |
-| Realtime | Optimistic + soft refresh; `SocialRealtime` hook for Socket.IO later |
-| Bookmarks | Out of scope (`bookmarkPost` stub only) |
-| LIVE badge | Deep-link to live **or** party room (host or on seat) |
-| Demo content | Removed from production Square empty state |
-| Topics | Left as-is + `SocialTopicsProvider` swap point |
-| Schema | `ensureSocialPostsSchema` indexes only (non-destructive) |
+| Bio | Free text, sanitized, max 280 |
+| Social links | Instagram / YouTube / X / Website with URL validation |
+| Creator level | Reuse VIP membership + creator badges; UI plug-in ready |
+| Featured video | Auto top public video (engagement × recency); `featured_post_id` for manual pin later |
+| Discovery rails | Live Now · Trending · New Creators · Because You Follow |
+| Analytics | Derived from posts/gifts/follows/lives; no event pipeline yet |
+| Reel viewer | Premium polish, **no layout redesign** |
 
 ---
 
-## Completed
+## Completed — Phase 1
 
-### Backend
-- [x] `GET /api/social/posts` supports `userId`, `feed=for_you|following|latest`, `mediaType`, `limit`/`offset`
-- [x] optionalAuth on list posts (public creator profiles)
-- [x] Batch enrich (no N+1 per post for likes/comments/authors)
-- [x] Blocked-user exclusion in feed
-- [x] Ranking weights: `backend/config/socialFeedRanking.js`
-- [x] Media abstraction: `backend/services/socialMediaUrl.js` (`media_items` array)
-- [x] Indexes on `user_id`, visibility, media_type, likes/comments
-- [x] Safe like `ON CONFLICT (post_id, user_id)`
-- [x] Comments pagination (`limit`/`offset`)
-- [x] Creator engagement: posts/videos counts, agency, LIVE (host **or** party seat)
-- [x] Discover: block filter + agency + party LIVE
-- [x] Feed attaches `author_live` for pills
-
-### Frontend
-- [x] Creator profile loads posts/videos from API by `userId` (Posts \| Videos tabs)
-- [x] Agency badge; LIVE banner → live/party room
-- [x] Comments / delete / share wired to APIs
-- [x] Demo/fake Square posts removed; real empty states
-- [x] For You / Following / Latest on Square + Video
-- [x] Relative timestamps; hashtag styling; like pop + in-flight lock
-- [x] Reels: `src` only for active ±1; soft refresh; buffering indicator
-- [x] LIVE pills on Square/Video author rows
-- [x] Profile tab → “My posts & videos”
-- [x] UUID-first profile links / follow keys where available
-- [x] `SocialRealtime` + `bookmarkPost` extension points
-- [x] Topics: `SocialTopicsProvider` extension (content unchanged)
+- Posts-by-user API, ranked For You / Following / Latest, blocks, comments/delete/share, profile tabs, demo removal, reels ±1 preload, LIVE pills, indexes, media abstraction.
 
 ---
 
-## Remaining / follow-ups
+## Completed — Phase 2 (this pass)
+
+### Premium Reel Viewer
+- [x] Scroll containment + slide `contain` for fewer paints
+- [x] Fade-in when video `canplay` / active slide
+- [x] Double-tap heart (SocialFX or inline burst) → like
+- [x] Background/resume: pause on hide, restore + play on visible
+- [x] Memory: detach `src` beyond ±1; warm ±2 posters only
+- [x] Buffer spinner polish
+
+### Engagement
+- [x] Like pop + in-flight lock (Phase 1) kept
+- [x] Follow button pop animation via identity module
+- [x] Comment sheet slide transition CSS
+- [x] Optimistic follow with rollback
+
+### Creator identity
+- [x] `social-creator-identity.js` — avatar, verified, role, agency, level, LIVE
+- [x] Wired on Square cards + reel name row + profiles
+
+### Discovery
+- [x] `GET /api/social/discover/rails`
+- [x] Lightweight rails on Video + Square (`social-discovery-rails.js`)
+
+### Profiles
+- [x] `users.bio`, `social_links`, `featured_post_id` via `ensureCreatorProfileSchema`
+- [x] Engagement payload: bio, links, VIP/badge, featured video, live hours
+- [x] Own-profile “Edit bio & links”
+
+### Analytics
+- [x] `GET /api/social/creators/:userId/analytics` (self only)
+- [x] Streamer Center “Content analytics” panel (likes/comments/shares/followers/posts/gifts/live hours + top content)
+- [x] `eventsSupported: false` extension flag for future watch-time
+
+---
+
+## Remaining / next polish
 
 | Item | Notes |
 |------|--------|
-| Infinite scroll pagination | API ready; client still loads first page (limit 30–40) |
-| CDN migration | Set `PUBLIC_MEDIA_BASE` / `CDN_BASE_URL` when ready |
-| Multi-image carousel | Use `media_items`; schema JSONB optional later |
-| Socket.IO engagement | Plug into `SocialRealtime.subscribe/emit` |
-| Bookmarks | Stub only |
-| Server-side trim export | Explicitly out of scope |
+| Perf instrumentation HUD | Optional debug overlay for FPS / TTFV on A51 |
+| Infinite scroll | API ready; not yet client infinite |
+| Manual featured pin UI | Column ready; edit prompt can set `featured_post_id` later |
+| Richer bio editor | Prompt-based MVP; replace with sheet when needed |
+| Impression/watch-time events | Service shape ready — do not build pipeline yet |
 
 ---
 
-## Key APIs
+## Key APIs (Phase 2)
 
 ```
-GET  /api/social/posts?feed=for_you|following|latest&userId=&mediaType=video|posts|all&limit=&offset=
-GET  /api/social/posts/:id/comments?limit=&offset=
-POST /api/social/posts/:id/comments
-POST /api/social/posts/:id/like
-POST /api/social/posts/:id/share
-DELETE /api/social/posts/:id
-GET  /api/social/creators/:userId/engagement  (+ postsCount, videosCount, agency*, liveHref)
+GET  /api/social/discover/rails?limit=
+GET  /api/social/creators/:userId/engagement  (+ bio, socialLinks, featuredVideo, vipLevel, creatorLevel)
+GET  /api/social/creators/:userId/analytics?period=today|week|month
+PUT  /api/auth/profile  { bio, social_links, featured_post_id }
 ```
 
 ---
 
-## DB (ensureSocialPostsSchema)
+## Regression checklist (Phase 2)
 
-- Columns: `thumb_url`, `media_type`, `visibility` (existing)
-- Indexes: `idx_social_posts_user_created`, `visibility_created`, `media_type_created`, likes/comments post indexes
-
----
-
-## Regression checklist
-
-1. Upload photo/video → appears on own creator profile (other device) under correct tab  
-2. Private post visible only to owner  
-3. Square empty state has no demo cards  
-4. For You / Following / Latest switch without full app reload  
-5. Blocked users absent from Square, Video, Discover  
-6. LIVE pill opens correct live or party room  
-7. Like / comment / delete sync across devices  
-8. Reels do not attach every video `src` at once  
+1. Video: double-tap heart likes + burst; single tap still play/pause  
+2. Background app → return: active reel resumes without flash  
+3. Scroll far: only nearby videos have `src`  
+4. Square/Video show Live Now / Trending rails when data exists  
+5. Profile shows bio/links/featured; own profile can edit  
+6. Streamer Center analytics matches period toggles  
+7. Same creator badges identical on Square card vs profile  
+8. A51: no obvious decode thrash when flinging reels  
 
 ---
 
-## Files touched (primary)
+## Files (Phase 2 primary)
 
-**Backend:** `socialFeedService.js`, `socialMediaUrl.js`, `socialFeedRanking.js`, `ensureSocialPostsSchema.js`, `discoverCreatorService.js`, `socialController.js`, `routes/social.js`  
+**Backend:** `ensureCreatorProfileSchema.js`, `creatorProfileSanitize.js`, `creatorDiscoveryService.js`, `creatorAnalyticsService.js`, `discoverCreatorService.js`, `User.js`, `userDto.js`, `authController.js`, `socialController.js`, `routes/social.js`, `server.js`  
 
-**Frontend:** `social-interactions.js`, `creator-profile.html`, `square.html`, `video.html`, `profile-tab.html`, `social-features.css`, `social-shell.js`
+**Frontend:** `social-creator-identity.js`, `social-discovery-rails.js`, `social-interactions.js`, `social-features.css`, `video.html`, `square.html`, `creator-profile.html`, `streamer-center.html`

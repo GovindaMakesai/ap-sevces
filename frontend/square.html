@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#c9a227">
   <title>Square - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-theme.css?v=20260730-creator">
-  <link rel="stylesheet" href="social-features.css?v=20260730-creator">
+  <link rel="stylesheet" href="social-theme.css?v=20260730-cx2">
+  <link rel="stylesheet" href="social-features.css?v=20260730-cx2">
 </head>
 <body class="social-tabs-page">
   <header class="social-top">
@@ -26,13 +26,16 @@
   </header>
 
   <div id="social-banner-slider"></div>
+  <div id="social-discover-rails"></div>
 
   <div class="social-post-feed" id="squareFeed"></div>
   <div id="social-bottom-nav-mount"></div>
 
   <script src="app.js?v=20260727-livefix"></script>
   <script src="social-wallet.js?v=20260714-dual-coins"></script>
-  <script src="social-interactions.js?v=20260730-creator"></script>
+  <script src="social-creator-identity.js?v=20260730-cx2"></script>
+  <script src="social-discovery-rails.js?v=20260730-cx2"></script>
+  <script src="social-interactions.js?v=20260730-cx2"></script>
   <script src="social-banner-slider.js?v=20260723-policy-full"></script>
   <script src="social-create-post.js?v=20260723-db-posts"></script>
   <script src="social-shell.js?v=20260727-navtap"></script>
@@ -48,6 +51,9 @@
           await SocialInteractions.renderSquareFeed('squareFeed', { feed: next });
         });
       });
+      if (window.SocialDiscoveryRails) {
+        SocialDiscoveryRails.mount('social-discover-rails').catch(() => {});
+      }
       SocialShell.initPage({ activeNav: 'video', squareFeed: true });
     });
   </script>

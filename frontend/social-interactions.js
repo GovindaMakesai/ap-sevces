@@ -322,6 +322,10 @@
       visibility: p.visibility || 'public',
       fromApi: true,
       isVideo,
+      role: p.author?.role || null,
+      isVerified: !!(p.author?.is_verified),
+      agencyName: null,
+      creatorLevel: null,
       authorLive: live
         ? {
             href: live.href,
@@ -1769,6 +1773,10 @@
         mediaUrl: await getMediaUrl(p),
         thumb: !isPlaceholderThumb(p.thumb) ? p.thumb : '',
         authorLive: p.authorLive || null,
+        role: p.role || p.author?.role || null,
+        isVerified: !!(p.isVerified || p.author?.is_verified),
+        agencyName: p.agencyName || null,
+        creatorLevel: p.creatorLevel || p.vipLevel || null,
         workerId: null,
         fromApi: !!p.fromApi,
       }))
@@ -1783,10 +1791,10 @@
     slides.forEach((slide) => {
       const i = parseInt(slide.dataset.index, 10);
       const vid = slide.querySelector('video[data-reel-video]');
+      const dist = Math.abs(i - activeIndex);
       if (!vid) return;
-      const near = Math.abs(i - activeIndex) <= 1;
       const src = vid.dataset.src || '';
-      if (near) {
+      if (dist <= 1) {
         if (src && vid.getAttribute('src') !== src) {
           vid.setAttribute('src', src);
           vid.preload = i === activeIndex ? 'auto' : 'metadata';
@@ -1794,11 +1802,84 @@
             vid.load();
           } catch (_e) { /* ignore */ }
         }
-      } else if (vid.getAttribute('src')) {
-        vid.pause();
+        if (i === activeIndex) {
+          vid.setAttribute('playsinline', '');
+        }
+      } else if (dist === 2 && src && !vid.getAttribute('src')) {
+        /* Warm decode path for ±2 without full attach on weak devices — poster only */
+        vid.preload = 'none';
+      } else if (dist > 1 && vid.getAttribute('src')) {
+        try {
+          vid.pause();
+        } catch (_e) { /* ignore */ }
         vid.removeAttribute('src');
         try {
           vid.load();
+        } catch (_e) { /* ignore */ }
+      }
+    });
+  }
+
+  function bindReelDoubleTapLike(scroll) {
+    if (!scroll || scroll.dataset.dblLikeBound) return;
+    scroll.dataset.dblLikeBound = '1';
+    let lastTap = 0;
+    let lastX = 0;
+    let lastY = 0;
+    const fire = (x, y) => {
+      const item = reelItems[reelIndex];
+      if (!item?.postId) return;
+      handleReelAction('like');
+      if (window.SocialFX?.spawnLike) SocialFX.spawnLike(x, y);
+      else spawnInlineHeart(x, y);
+    };
+    scroll.addEventListener(
+      'touchend',
+      (e) => {
+        if (e.target.closest('#reelUi, [data-action], .social-live-pill, button, a')) return;
+        const t = e.changedTouches?.[0];
+        if (!t) return;
+        const now = Date.now();
+        if (now - lastTap < 280 && Math.abs(t.clientX - lastX) < 40 && Math.abs(t.clientY - lastY) < 40) {
+          fire(t.clientX, t.clientY);
+          lastTap = 0;
+          return;
+        }
+        lastTap = now;
+        lastX = t.clientX;
+        lastY = t.clientY;
+      },
+      { passive: true }
+    );
+    scroll.addEventListener('dblclick', (e) => {
+      if (e.target.closest('#reelUi, [data-action], .social-live-pill, button, a')) return;
+      fire(e.clientX, e.clientY);
+    });
+  }
+
+  function spawnInlineHeart(x, y) {
+    const el = document.createElement('div');
+    el.className = 'ap-reel-heart-burst';
+    el.innerHTML = '<i class="fas fa-heart"></i>';
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 700);
+  }
+
+  function bindReelVisibilityResume(scroll) {
+    if (bindReelVisibilityResume._bound) return;
+    bindReelVisibilityResume._bound = true;
+    document.addEventListener('visibilitychange', () => {
+      const vid = getActiveReelVideo(scroll || document.getElementById('reelsScroll'));
+      if (!vid) return;
+      if (document.visibilityState === 'visible') {
+        syncReelMediaSources(document.getElementById('reelsScroll'), reelIndex);
+        applySocialVideoSound(vid, reelSoundEnabled());
+        vid.play().catch(() => {});
+      } else {
+        try {
+          vid.pause();
         } catch (_e) { /* ignore */ }
       }
     });
@@ -1870,8 +1951,22 @@
       avatar.alt = item.name || 'Creator';
     }
     if (name) {
-      const handle = '@' + String(item.name || 'Creator').replace(/\s+/g, '');
-      name.innerHTML = escapeHtml(handle) + (item.authorLive ? ' ' + liveBadgeHtml(item.authorLive) : '');
+      const handle = String(item.name || 'Creator');
+      const identity = {
+        id: item.userId,
+        displayName: handle,
+        profilePic: item.profilePic,
+        role: item.role,
+        isVerified: item.isVerified,
+        agencyName: item.agencyName,
+        creatorLevel: item.creatorLevel || item.vipLevel,
+        authorLive: item.authorLive,
+        isLive: !!item.authorLive,
+        liveHref: item.authorLive?.href,
+      };
+      const badges = window.SocialCreatorIdentity?.renderBadgesHtml?.(identity, 'reel') ||
+        (item.authorLive ? ' ' + liveBadgeHtml(item.authorLive) : '');
+      name.innerHTML = '<span class="ap-reel-handle">@' + escapeHtml(handle.replace(/\s+/g, '')) + '</span> ' + badges;
     }
     if (cap) cap.innerHTML = formatCaptionHtml(item.caption || '');
     const scroll = document.getElementById('reelsScroll');
@@ -1988,8 +2083,8 @@
     scroll.innerHTML = reelItems
       .map((item, i) => {
         const media = item.isVideo
-          ? `<video data-src="${item.mediaUrl || ''}" playsinline loop muted data-reel-video preload="none" poster="${item.thumb || ''}"${item.trimStart != null ? ` data-trim-start="${item.trimStart}" data-trim-end="${item.trimEnd}"` : ''}></video>`
-          : `<img src="${item.mediaUrl || item.thumb}" alt="">`;
+          ? `<video data-src="${item.mediaUrl || ''}" playsinline loop muted data-reel-video preload="none" poster="${item.thumb || ''}" class="social-reel-media"${item.trimStart != null ? ` data-trim-start="${item.trimStart}" data-trim-end="${item.trimEnd}"` : ''}></video>`
+          : `<img src="${item.mediaUrl || item.thumb}" alt="" class="social-reel-media">`;
         return `<section class="social-reel-slide" data-index="${i}" data-item-id="${item.id}">
           ${media}
           <div class="social-reel-buffer" hidden aria-hidden="true"></div>
@@ -2020,13 +2115,17 @@
               };
               const onReady = () => {
                 if (buf) buf.hidden = true;
+                v.classList.add('is-ready');
+                en.target.classList.add('is-active-slide');
               };
               v.addEventListener('waiting', onWaiting);
               v.addEventListener('playing', onReady);
               v.addEventListener('canplay', onReady, { once: true });
-              v.play().catch(() => {});
+              const playP = v.play();
+              if (playP?.catch) playP.catch(() => {});
             });
           } else {
+            en.target.classList.remove('is-active-slide');
             en.target.querySelectorAll('video[data-reel-video]').forEach((v) => v.pause());
           }
         });
@@ -2084,6 +2183,8 @@
       slide?.scrollIntoView({ behavior: 'instant', block: 'start' });
     }
 
+    bindReelDoubleTapLike(scroll);
+    bindReelVisibilityResume(scroll);
     ensureReelRotateControl(scroll);
 
     const avatarBtn = document.getElementById('videoAvatarBtn');
@@ -2356,13 +2457,26 @@
           <button type="button" class="social-act-btn" data-act="gift" data-id="${p.id}"><i class="fas fa-gift"></i> <span>${p.gifts || 0}</span></button>
           <button type="button" class="social-act-btn" data-act="share" data-id="${p.id}"><i class="far fa-paper-plane"></i> <span>${p.shares || 0}</span></button>
         </div>
-        <a class="social-post-user" href="${profileUrl({ userName: p.userName, userId: p.userId })}">
-          <img src="${avatarSrc}" alt="">
-          <div>
-            <div class="social-post-user-name">${escapeHtml(p.userName)} ${liveBadgeHtml(p.authorLive)}</div>
-            <div class="social-post-caption">${hasMedia ? formatCaptionHtml(p.caption || '') : ''}</div>
-          </div>
-        </a>
+        <div class="social-post-user">
+          ${
+            window.SocialCreatorIdentity
+              ? SocialCreatorIdentity.renderIdentityHtml(
+                  {
+                    id: p.userId,
+                    displayName: p.userName,
+                    profilePic: p.profilePic,
+                    role: p.role,
+                    isVerified: p.isVerified,
+                    agencyName: p.agencyName,
+                    creatorLevel: p.creatorLevel,
+                    authorLive: p.authorLive,
+                  },
+                  { variant: 'card', href: profileUrl({ userName: p.userName, userId: p.userId }) }
+                )
+              : `<a href="${profileUrl({ userName: p.userName, userId: p.userId })}"><img src="${avatarSrc}" alt=""><div class="social-post-user-name">${escapeHtml(p.userName)} ${liveBadgeHtml(p.authorLive)}</div></a>`
+          }
+          <div class="social-post-caption">${hasMedia ? formatCaptionHtml(p.caption || '') : ''}</div>
+        </div>
       </article>`;
       })
     );

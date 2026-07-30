@@ -66,6 +66,28 @@
     </div>
   </section>
 
+  <section class="streamer-card" id="streamerContentAnalytics">
+    <h2>Content analytics</h2>
+    <p class="streamer-hint">From your posts, gifts, follows and lives · watch-time tracking can plug in later</p>
+    <div class="streamer-pills" id="streamerAnalyticsPills">
+      <button type="button" data-analytics-period="today">Today</button>
+      <button type="button" class="active" data-analytics-period="week">Week</button>
+      <button type="button" data-analytics-period="month">Month</button>
+    </div>
+    <div class="streamer-analytics-grid" id="streamerAnalyticsGrid">
+      <div class="metric"><div class="val" id="anLikes">—</div><div class="lbl">Likes</div></div>
+      <div class="metric"><div class="val" id="anComments">—</div><div class="lbl">Comments</div></div>
+      <div class="metric"><div class="val" id="anShares">—</div><div class="lbl">Shares</div></div>
+      <div class="metric"><div class="val" id="anFollowers">—</div><div class="lbl">Followers gained</div></div>
+      <div class="metric"><div class="val" id="anPosts">—</div><div class="lbl">Posts</div></div>
+      <div class="metric"><div class="val" id="anVideos">—</div><div class="lbl">Videos</div></div>
+      <div class="metric"><div class="val" id="anGifts">—</div><div class="lbl">Gifts received</div></div>
+      <div class="metric"><div class="val" id="anLiveHours">—</div><div class="lbl">Live hours</div></div>
+    </div>
+    <h3 class="streamer-daily-title" style="margin-top:16px">Top content</h3>
+    <div class="streamer-top-content" id="streamerTopContent"><p style="font-size:12px;color:#9ca3af">Loading…</p></div>
+  </section>
+
   <section class="streamer-card">
     <h2>Hosting time</h2>
     <p class="streamer-hint">Live and Party tracked separately · hours per day</p>
@@ -327,6 +349,57 @@
           agencyEl.hidden = true;
         }
       }
+
+      async function loadCreatorAnalytics(period) {
+        if (!user?.id || !window.API?.get) return;
+        try {
+          const res = await API.get(
+            '/social/creators/' + encodeURIComponent(user.id) + '/analytics?period=' + encodeURIComponent(period || 'week')
+          );
+          const data = res?.data;
+          if (!data?.metrics) return;
+          const m = data.metrics;
+          const set = (id, v) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = v == null ? '—' : String(v);
+          };
+          set('anLikes', m.likes);
+          set('anComments', m.comments);
+          set('anShares', m.shares);
+          set('anFollowers', m.followersGained);
+          set('anPosts', m.posts);
+          set('anVideos', m.videos);
+          set('anGifts', m.giftCount);
+          set('anLiveHours', m.liveHours);
+          const top = document.getElementById('streamerTopContent');
+          if (top) {
+            if (!data.topContent?.length) {
+              top.innerHTML = '<p style="font-size:12px;color:#9ca3af">No content in this period yet.</p>';
+            } else {
+              top.innerHTML = data.topContent
+                .map((c) => {
+                  const thumb = c.thumb
+                    ? (window.SocialShell?.getImageUrl?.(c.thumb) || c.thumb)
+                    : '';
+                  return `<a href="${c.href || '#'}"><img src="${thumb || ''}" alt=""><div><strong>${String(c.caption || 'Post').replace(/</g, '&lt;')}</strong><div style="font-size:11px;color:#8b6914">${c.likes || 0} likes · ${c.comments || 0} comments</div></div></a>`;
+                })
+                .join('');
+            }
+          }
+        } catch (_err) {
+          const top = document.getElementById('streamerTopContent');
+          if (top) top.innerHTML = '<p style="font-size:12px;color:#9ca3af">Analytics unavailable</p>';
+        }
+      }
+
+      document.getElementById('streamerAnalyticsPills')?.querySelectorAll('[data-analytics-period]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('#streamerAnalyticsPills button').forEach((b) => b.classList.remove('active'));
+          btn.classList.add('active');
+          loadCreatorAnalytics(btn.dataset.analyticsPeriod);
+        });
+      });
+      loadCreatorAnalytics('week');
 
       const key = user?.id ? 'ap_streamer_cover_' + user.id : null;
       const preview = document.getElementById('streamerCoverPreview');

@@ -7,7 +7,7 @@
   <title>Profile - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-theme.css?v=20260628-profile-fix">
-  <link rel="stylesheet" href="social-features.css?v=20260730-creator">
+  <link rel="stylesheet" href="social-features.css?v=20260730-cx2">
   <style>
     .creator-hero { text-align: center; padding: 24px 16px 12px; }
     .creator-avatar { width: 88px; height: 88px; border-radius: 50%; object-fit: cover; margin-bottom: 12px; border: 3px solid #fbbf24; }
@@ -127,6 +127,7 @@
     <strong>Creator earnings:</strong> You keep <strong>90%</strong> of gifts &amp; bookings · Platform share <strong>10%</strong>
   </div>
   <a id="creatorLiveBanner" class="creator-live-banner" hidden></a>
+  <div id="creatorFeatured" hidden></div>
   <div class="creator-engagement-grid" id="creatorEngagement" hidden></div>
   <div class="creator-tabs" id="creatorTabs" hidden>
     <button type="button" class="creator-tab is-active" data-tab="posts">Posts <span class="creator-tab-count" id="tabPostsCount"></span></button>
@@ -138,7 +139,8 @@
   <script src="app.js?v=20260702-follow-fix"></script>
   <script src="auth-guard.js"></script>
   <script src="social-ui.js?v=20260702-follow-fix"></script>
-  <script src="social-interactions.js?v=20260730-creator"></script>
+  <script src="social-creator-identity.js?v=20260730-cx2"></script>
+  <script src="social-interactions.js?v=20260730-cx2"></script>
   <script src="social-shell.js"></script>
   <script>
     function profileApiRoot() {
@@ -257,22 +259,74 @@
             const idEl = document.getElementById('creatorDisplayId');
             if (idEl) idEl.textContent = publicDisplayId || '—';
             const displayName = e.displayName || name;
-            const roleBadge = window.formatRoleBadgeHtml?.(e.role || e, { withEmoji: true }) || '';
+            const badges =
+              (window.SocialCreatorIdentity?.renderBadgesHtml?.(e, 'profile') ||
+                window.formatRoleBadgeHtml?.(e.role || e, { withEmoji: true }) ||
+                '');
             const nameEl = document.getElementById('creatorNameHeading');
             if (nameEl) {
-              nameEl.innerHTML =
-                esc(displayName) +
-                (roleBadge ? ' ' + roleBadge : '');
+              nameEl.innerHTML = esc(displayName) + (badges ? ' ' + badges : '');
             }
             document.getElementById('creatorTitle').textContent = displayName;
+            if (e.bio) {
+              let bioEl = document.getElementById('creatorBio');
+              if (!bioEl) {
+                bioEl = document.createElement('p');
+                bioEl.id = 'creatorBio';
+                bioEl.className = 'creator-bio';
+                const wrap = document.getElementById('creatorAgencyWrap');
+                if (wrap) wrap.after(bioEl);
+                else hero.appendChild(bioEl);
+              }
+              bioEl.textContent = e.bio;
+            }
+            const links = e.socialLinks || {};
+            const linkEntries = [
+              ['instagram', 'Instagram', links.instagram],
+              ['youtube', 'YouTube', links.youtube],
+              ['x', 'X', links.x],
+              ['website', 'Website', links.website],
+            ].filter((x) => x[2]);
+            if (linkEntries.length) {
+              let linksEl = document.getElementById('creatorSocialLinks');
+              if (!linksEl) {
+                linksEl = document.createElement('div');
+                linksEl.id = 'creatorSocialLinks';
+                linksEl.className = 'creator-social-links';
+                hero.appendChild(linksEl);
+              }
+              linksEl.innerHTML = linkEntries
+                .map(
+                  ([, label, href]) =>
+                    '<a href="' + esc(href) + '" target="_blank" rel="noopener noreferrer">' + esc(label) + '</a>'
+                )
+                .join('');
+            }
             if (e.agencyName) {
               const wrap = document.getElementById('creatorAgencyWrap');
-              if (wrap) {
+              if (wrap && !e.agencyName) { /* handled in badges */ }
+              else if (wrap) {
                 wrap.innerHTML =
                   '<span class="creator-agency-badge"><i class="fas fa-building"></i> ' +
                   esc(e.agencyName) +
                   '</span>';
               }
+            }
+            if (e.featuredVideo) {
+              const feat = document.getElementById('creatorFeatured');
+              const thumb =
+                (window.SocialInteractions?.resolveMediaUrl?.(e.featuredVideo.thumbUrl || e.featuredVideo.mediaUrl) ||
+                  e.featuredVideo.thumbUrl ||
+                  '');
+              feat.hidden = false;
+              feat.innerHTML =
+                '<a class="creator-featured" href="' +
+                esc(e.featuredVideo.href) +
+                '">' +
+                (thumb ? '<img src="' + esc(thumb) + '" alt="">' : '') +
+                '<div class="creator-featured-meta"><i class="fas fa-star"></i> Featured · ' +
+                esc((e.featuredVideo.caption || 'Top video').slice(0, 60)) +
+                '</div></a>';
             }
             const avatarEl = hero.querySelector('.creator-avatar');
             if (avatarEl && e.profilePic) {
@@ -315,6 +369,43 @@
               following = true;
               followBtn.textContent = 'Following';
               followBtn.classList.add('is-on');
+            }
+            const me = window.Auth?.getUser?.();
+            if (me && String(me.id) === String(userId)) {
+              followBtn.style.display = 'none';
+              let editBtn = document.getElementById('creatorEditBio');
+              if (!editBtn) {
+                editBtn = document.createElement('button');
+                editBtn.type = 'button';
+                editBtn.id = 'creatorEditBio';
+                editBtn.className = 'creator-chat-btn';
+                editBtn.textContent = 'Edit bio & links';
+                document.querySelector('.creator-actions')?.appendChild(editBtn);
+                editBtn.addEventListener('click', async () => {
+                  const bio = prompt('Your bio (max 280 chars)', e.bio || '');
+                  if (bio === null) return;
+                  const ig = prompt('Instagram URL or @handle (optional)', (e.socialLinks && e.socialLinks.instagram) || '');
+                  if (ig === null) return;
+                  const yt = prompt('YouTube URL (optional)', (e.socialLinks && e.socialLinks.youtube) || '');
+                  if (yt === null) return;
+                  try {
+                    if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken();
+                    await API.put('/auth/profile', {
+                      bio,
+                      social_links: {
+                        instagram: ig || undefined,
+                        youtube: yt || undefined,
+                        x: e.socialLinks?.x,
+                        website: e.socialLinks?.website,
+                      },
+                    });
+                    SocialUI?.toast?.('Profile updated', 'success');
+                    location.reload();
+                  } catch (err) {
+                    SocialUI?.toast?.(err.message || 'Could not update profile', 'error');
+                  }
+                });
+              }
             }
           }
         } catch (_err) {
