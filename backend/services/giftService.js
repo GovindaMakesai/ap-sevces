@@ -226,6 +226,15 @@ async function sendGift({
     await leaderboardService.ingestGiftLeaderboards(giftRow);
     await charityService.allocateFromGift(Number(amount), giftRow.id);
 
+    setImmediate(() => {
+      try {
+        const pushNotificationService = require('./pushNotificationService');
+        pushNotificationService
+          .notifyGiftReceived(receiverId, senderId, giftRow.id)
+          .catch((err) => console.warn('[gift] push failed', err.message));
+      } catch (_e) {}
+    });
+
     const coinBal = Number(debitResult.balance);
     const giftInv = Number(debitResult.gift_inventory_coins || 0);
     const sellerGiftOnly = Number(debitResult.from_wallet || 0) === 0;

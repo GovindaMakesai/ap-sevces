@@ -1,0 +1,40 @@
+{
+  "project_info": {
+    "project_number": "312265965405",
+    "firebase_url": "https://muqaddas-technology-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "muqaddas-technology",
+    "storage_bucket": "muqaddas-technology.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:312265965405:android:1aecde5435292f2e3272b4",
+        "android_client_info": {
+          "package_name": "com.apservices.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "312265965405-deo86stfisj2a7mkp25ieuhudqf7tfdc.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAD8eTNodzqWh2IWWL7c-pwLeojaELv9-E"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "312265965405-deo86stfisj2a7mkp25ieuhudqf7tfdc.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

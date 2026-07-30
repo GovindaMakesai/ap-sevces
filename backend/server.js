@@ -174,6 +174,7 @@ app.use('/api/bookings', bookingRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/push', require('./routes/push'));
 app.use('/api/messages', messageRoutes);
 app.use('/api/live', liveRoutes);
 app.use('/api/wallet', walletLimiter, walletRoutes);
@@ -278,6 +279,14 @@ async function startServer() {
     await ensureCreatorProfileSchema();
     const { ensureClientMetricsSchema } = require('./config/ensureClientMetricsSchema');
     await ensureClientMetricsSchema();
+  }
+
+  /* Push tables are lightweight + required for FCM even when full schema ensure is skipped */
+  try {
+    const { ensurePushNotificationsSchema } = require('./config/ensurePushNotificationsSchema');
+    await ensurePushNotificationsSchema();
+  } catch (err) {
+    logger.warn('Push schema ensure failed', { message: err.message });
   }
 
   await referralModule.boot();

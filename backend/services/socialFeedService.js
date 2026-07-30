@@ -28,6 +28,53 @@ async function createPost(userId, { body, mediaUrl, thumbUrl, mediaType, visibil
     [userId, text || '', media, thumb || null, type, vis]
   );
   const enriched = await enrichPosts([res.rows[0]], userId);
+
+  if (vis === 'public') {
+    setImmediate(() => {
+      (async () => {
+        try {
+          const pushNotificationService = require('./pushNotificationService');
+          const nameRes = await db.query(
+            `SELECT first_name, last_name, display_id FROM users WHERE id = $1`,
+            [userId]
+          );
+          const u = nameRes.rows[0] || {};
+          const name =
+            `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.display_id || 'A creator';
+          const followers = await db.query(
+            `SELECT follower_id FROM user_follows WHERE following_id = $1`,
+            [userId]
+          );
+          const template = pushNotificationService.TEMPLATES.post_published(
+            name,
+            res.rows[0].id
+          );
+          pushNotificationService.queuePushMany(
+            followers.rows.map((r) => r.follower_id),
+            template,
+            { dedupeKey: `post:${res.rows[0].id}` }
+          );
+
+          const mentions = text.match(/@([a-zA-Z0-9_]{2,32})/g) || [];
+          if (mentions.length) {
+            const handles = [...new Set(mentions.map((m) => m.slice(1).toLowerCase()))];
+            const mentioned = await db.query(
+              `SELECT id FROM users WHERE LOWER(display_id) = ANY($1::text[]) LIMIT 20`,
+              [handles]
+            );
+            await pushNotificationService.notifyMentions(
+              mentioned.rows.map((r) => r.id),
+              userId,
+              { postId: res.rows[0].id, label: 'a post' }
+            );
+          }
+        } catch (err) {
+          console.warn('[post] push failed', err.message);
+        }
+      })();
+    });
+  }
+
   return enriched[0];
 }
 
@@ -262,6 +309,39 @@ async function addComment(postId, userId, body) {
     `SELECT id, first_name, last_name, profile_pic FROM users WHERE id = $1`,
     [userId]
   );
+
+  setImmediate(() => {
+    (async () => {
+      try {
+        const pushNotificationService = require('./pushNotificationService');
+        const postRes = await db.query(`SELECT user_id FROM social_posts WHERE id = $1`, [postId]);
+        const ownerId = postRes.rows[0]?.user_id;
+        if (ownerId) {
+          await pushNotificationService.notifyComment(ownerId, userId, postId);
+        }
+
+        const mentions = text.match(/@([a-zA-Z0-9_]{2,32})/g) || [];
+        if (mentions.length) {
+          const handles = [...new Set(mentions.map((m) => m.slice(1).toLowerCase()))];
+          const mentioned = await db.query(
+            `SELECT id FROM users
+             WHERE LOWER(display_id) = ANY($1::text[])
+                OR LOWER(REPLACE(COALESCE(first_name,'') || COALESCE(last_name,''), ' ', '')) = ANY($1::text[])
+             LIMIT 20`,
+            [handles]
+          );
+          await pushNotificationService.notifyMentions(
+            mentioned.rows.map((r) => r.id),
+            userId,
+            { postId, label: 'a comment' }
+          );
+        }
+      } catch (err) {
+        console.warn('[comment] push failed', err.message);
+      }
+    })();
+  });
+
   return { ...res.rows[0], author: userRes.rows[0] };
 }
 

@@ -535,6 +535,21 @@ async function assignHostToAgency(actorUserId, hostUserId, agencyId) {
     [hostUserId, agencyId, actorUserId || null]
   );
   await audit(actorUserId, 'host.assign_agency', 'host', hostUserId, { agencyId });
+
+  setImmediate(() => {
+    (async () => {
+      try {
+        const pushNotificationService = require('./pushNotificationService');
+        const agencyName = agency.rows[0].name || 'Agency';
+        const ownerId = agency.rows[0].owner_user_id;
+        await pushNotificationService.notifyHostApproved(hostUserId, agencyName);
+        if (ownerId && String(ownerId) !== String(hostUserId)) {
+          await pushNotificationService.notifyNewHostJoined(ownerId, hostUserId);
+        }
+      } catch (_e) {}
+    })();
+  });
+
   return res.rows[0];
 }
 
@@ -1258,10 +1273,19 @@ async function agencyReviewHostApplication(ownerUserId, applicationId, { decisio
     const status = decision === 'approved' || decision === 'accepted' ? 'approved' : 'rejected';
     if (status === 'rejected') {
       const roleApplicationService = require('./roleApplicationService');
-      return roleApplicationService.reviewApplication(applicationId, ownerUserId, {
+      const reviewed = await roleApplicationService.reviewApplication(applicationId, ownerUserId, {
         decision: 'rejected',
         reason: reason || 'Not approved by agency',
       });
+      setImmediate(() => {
+        try {
+          const pushNotificationService = require('./pushNotificationService');
+          pushNotificationService
+            .notifyHostRejected(app.user_id, agency.name)
+            .catch(() => {});
+        } catch (_e) {}
+      });
+      return reviewed;
     }
 
     await assertEligibleForHostInvite(app.user_id, { invitingAgencyId: agency.id });

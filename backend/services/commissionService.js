@@ -188,6 +188,16 @@ async function creditAgencyShare(
     },
     client
   );
+
+  setImmediate(() => {
+    try {
+      const pushNotificationService = require('./pushNotificationService');
+      pushNotificationService
+        .notifyCommissionReceived(ownerUserId, amount, currencyType)
+        .catch(() => {});
+    } catch (_e) {}
+  });
+
   return { role, userId: ownerUserId, amount, agencyId, currencyType };
 }
 

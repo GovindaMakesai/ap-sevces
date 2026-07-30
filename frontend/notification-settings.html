@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Notification Settings – AP Live</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="social-theme.css" />
+  <link rel="stylesheet" href="social-features.css" />
+  <style>
+    .ap-notif-page { max-width: 520px; margin: 0 auto; padding: 16px 16px 96px; }
+    .ap-notif-page h1 { font-size: 1.35rem; margin: 12px 0 6px; }
+    .ap-notif-page .sub { color: var(--ap-muted, #6b6358); font-size: 0.92rem; margin-bottom: 18px; }
+    .ap-notif-list { display: flex; flex-direction: column; gap: 10px; }
+    .ap-notif-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 14px 16px; background: rgba(255,255,255,0.55); border-radius: 14px;
+      border: 1px solid rgba(0,0,0,0.06);
+    }
+    .ap-notif-row strong { display: block; font-size: 0.98rem; }
+    .ap-notif-row span { display: block; font-size: 0.8rem; color: #6b6358; margin-top: 2px; }
+    .ap-switch { position: relative; width: 48px; height: 28px; flex-shrink: 0; }
+    .ap-switch input { opacity: 0; width: 0; height: 0; }
+    .ap-switch .slider {
+      position: absolute; inset: 0; border-radius: 999px; background: #c9c2b6; cursor: pointer;
+      transition: 0.2s;
+    }
+    .ap-switch .slider::before {
+      content: ""; position: absolute; width: 22px; height: 22px; left: 3px; top: 3px;
+      border-radius: 50%; background: #fff; transition: 0.2s;
+    }
+    .ap-switch input:checked + .slider { background: #c9a227; }
+    .ap-switch input:checked + .slider::before { transform: translateX(20px); }
+    .ap-notif-status { font-size: 0.85rem; color: #6b6358; min-height: 1.2em; margin-top: 12px; }
+    .ap-notif-back { display: inline-flex; align-items: center; gap: 8px; color: inherit; text-decoration: none; font-weight: 600; }
+  </style>
+</head>
+<body class="social-page">
+  <div class="ap-notif-page">
+    <a class="ap-notif-back" href="/profile-tab.html?app=1"><i class="fas fa-arrow-left"></i> Profile</a>
+    <h1>Push notifications</h1>
+    <p class="sub">Choose which alerts you receive on this device.</p>
+    <div class="ap-notif-list" id="notifList">
+      <div class="ap-notif-row">
+        <div><strong>Master push</strong><span>Turn off all push notifications</span></div>
+        <label class="ap-switch"><input type="checkbox" data-key="push_enabled" checked /><span class="slider"></span></label>
+      </div>
+      <div class="ap-notif-row">
+        <div><strong>Live &amp; Party</strong><span>When creators you follow go live</span></div>
+        <label class="ap-switch"><input type="checkbox" data-key="live_notifications" checked /><span class="slider"></span></label>
+      </div>
+      <div class="ap-notif-row">
+        <div><strong>Posts</strong><span>New posts from people you follow</span></div>
+        <label class="ap-switch"><input type="checkbox" data-key="post_notifications" checked /><span class="slider"></span></label>
+      </div>
+      <div class="ap-notif-row">
+        <div><strong>Comments</strong><span>Comments on your posts</span></div>
+        <label class="ap-switch"><input type="checkbox" data-key="comment_notifications" checked /><span class="slider"></span></label>
+      </div>
+      <div class="ap-notif-row">
+        <div><strong>Mentions</strong><span>When someone @mentions you</span></div>
+        <label class="ap-switch"><input type="checkbox" data-key="mention_notifications" checked /><span class="slider"></span></label>
+      </div>
+      <div class="ap-notif-row">
+        <div><strong>Follows</strong><span>New followers</span></div>
+        <label class="ap-switch"><input type="checkbox" data-key="follow_notifications" checked /><span class="slider"></span></label>
+      </div>
+      <div class="ap-notif-row">
+        <div><strong>Gifts</strong><span>When someone sends you a gift</span></div>
+        <label class="ap-switch"><input type="checkbox" data-key="gift_notifications" checked /><span class="slider"></span></label>
+      </div>
+      <div class="ap-notif-row">
+        <div><strong>Agency</strong><span>Host approvals, joins, commissions</span></div>
+        <label class="ap-switch"><input type="checkbox" data-key="agency_notifications" checked /><span class="slider"></span></label>
+      </div>
+    </div>
+    <p class="ap-notif-status" id="notifStatus"></p>
+  </div>
+  <div id="social-bottom-nav-mount"></div>
+  <script src="ap-config.js"></script>
+  <script src="app.js"></script>
+  <script src="social-shell.js"></script>
+  <script>
+    (function () {
+      const statusEl = document.getElementById('notifStatus');
+      const keys = [
+        'push_enabled', 'live_notifications', 'post_notifications', 'comment_notifications',
+        'mention_notifications', 'follow_notifications', 'gift_notifications', 'agency_notifications'
+      ];
+
+      function apiBase() {
+        try {
+          if (window.AP_CONFIG && window.AP_CONFIG.API_BASE) return String(window.AP_CONFIG.API_BASE).replace(/\/$/, '');
+        } catch (_e) {}
+        return '/api';
+      }
+
+      function token() {
+        try { return localStorage.getItem('token') || ''; } catch (_e) { return ''; }
+      }
+
+      async function load() {
+        const t = token();
+        if (!t) {
+          statusEl.textContent = 'Sign in to manage notification settings.';
+          return;
+        }
+        try {
+          const res = await fetch(apiBase() + '/push/settings', {
+            headers: { Authorization: 'Bearer ' + t }
+          });
+          const json = await res.json();
+          const data = json.data || {};
+          keys.forEach((k) => {
+            const input = document.querySelector('input[data-key="' + k + '"]');
+            if (!input) return;
+            input.checked = data[k] !== false;
+          });
+          statusEl.textContent = '';
+        } catch (e) {
+          statusEl.textContent = 'Could not load settings.';
+        }
+      }
+
+      let saveTimer = null;
+      async function save() {
+        const t = token();
+        if (!t) return;
+        const body = {};
+        keys.forEach((k) => {
+          const input = document.querySelector('input[data-key="' + k + '"]');
+          if (input) body[k] = !!input.checked;
+        });
+        statusEl.textContent = 'Saving…';
+        try {
+          const res = await fetch(apiBase() + '/push/settings', {
+            method: 'PUT',
+            headers: {
+              Authorization: 'Bearer ' + t,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(body)
+          });
+          if (!res.ok) throw new Error('save failed');
+          statusEl.textContent = 'Saved';
+          setTimeout(() => { if (statusEl.textContent === 'Saved') statusEl.textContent = ''; }, 1500);
+        } catch (_e) {
+          statusEl.textContent = 'Save failed. Try again.';
+        }
+      }
+
+      document.getElementById('notifList').addEventListener('change', () => {
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(save, 250);
+      });
+
+      load();
+    })();
+  </script>
+</body>
+</html>
