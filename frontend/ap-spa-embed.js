@@ -113,7 +113,8 @@
         window.SocialLive.handleBack();
         return;
       }
-      spaBack();
+      /* Prefer Explore over spaBack — history.back in the shell often lands on Chat */
+      spaNavigate('/explore.html?app=1', { replace: true });
     }
   });
 })();

@@ -25,17 +25,12 @@ export function SpaHardwareBack() {
       try {
         const path = location.pathname || '';
         if (isLegacyLive(path)) {
-          const frame = document.querySelector(
-            'iframe.ap-legacy-frame, .ap-legacy-frame-wrap iframe'
-          ) as HTMLIFrameElement | null;
-          if (frame?.contentWindow) {
-            frame.contentWindow.postMessage(
-              { source: 'ap-spa-shell', type: 'hardware_back' },
-              window.location.origin
-            );
-          }
-          /* Parent also leaves the legacy route so shell returns to Explore */
-          window.setTimeout(() => navigate('/explore', { replace: true }), 120);
+          /*
+           * Go to Explore immediately. Do not post hardware_back first: an
+           * unloaded iframe spaBack → navigate(-1) can land on Chat and drop a
+           * delayed explore navigate. Iframe teardown cleans Agora on unmount.
+           */
+          navigate('/explore', { replace: true });
           return true;
         }
 

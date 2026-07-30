@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { apiFetch } from '@/api/client';
-import { mediaUrl, hostInitials } from '@/api/types';
+import { mediaUrl } from '@/api/types';
 import { useSpaNavigate } from '@/nav/useSpaNavigate';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -99,22 +99,24 @@ export function SearchPage() {
   }, [hasToken, debounced, searchQ.isLoading, searchQ.isError, empty]);
 
   return (
-    <div className="ap-page ap-page-search ap-native-search">
-      <header className="ap-search-head">
+    <div className="ap-page ap-page-hub ap-page-search">
+      <header className="ap-hub-head">
         <button type="button" className="ap-icon-btn" onClick={() => go('/explore')} aria-label="Back">
           <i className="fas fa-arrow-left" />
         </button>
-        <input
-          className="ap-search-input"
-          type="search"
-          placeholder="Search people, live, sellers…"
-          value={q}
-          autoFocus
-          onChange={(e) => setQ(e.target.value)}
-        />
+        <div className="ap-search-field" style={{ flex: 1, marginBottom: 0 }}>
+          <i className="fas fa-search" aria-hidden />
+          <input
+            type="search"
+            placeholder="Nickname or ID number"
+            value={q}
+            autoFocus
+            onChange={(e) => setQ(e.target.value)}
+          />
+        </div>
       </header>
 
-      <div className="ap-search-scroll">
+      <div className="ap-hub-scroll">
         {!hasToken ? (
           <div className="ap-muted-center">
             <p>{hint}</p>
@@ -130,15 +132,17 @@ export function SearchPage() {
               <section className="ap-search-section">
                 <h2>Live now</h2>
                 {rooms.map((r) => {
-                  const party = String(r.room_type || '').toLowerCase() === 'party' || String(r.channel).startsWith('party-');
+                  const party =
+                    String(r.room_type || '').toLowerCase() === 'party' ||
+                    String(r.channel).startsWith('party-');
                   const name = r.host_display_name || 'Host';
                   const href = party
                     ? `/party-room.html?channel=${encodeURIComponent(r.channel)}&app=1`
                     : `/live-room.html?channel=${encodeURIComponent(r.channel)}&feed=1&hostName=${encodeURIComponent(name)}&app=1`;
                   return (
                     <button key={r.channel} type="button" className="ap-search-row" onClick={() => go(href)}>
-                      <span className="ap-search-badge">{party ? 'PARTY' : 'LIVE'}</span>
-                      <span className="ap-search-meta">
+                      <span className="ap-search-av">{party ? 'P' : 'L'}</span>
+                      <span>
                         <strong>{name}</strong>
                         <span>{Number(r.viewer_count) || 0} watching</span>
                       </span>
@@ -155,7 +159,7 @@ export function SearchPage() {
                   const name = userName(u);
                   const pic =
                     mediaUrl(u.profile_pic) ||
-                    `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=1a1a22&color=fff`;
+                    `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=f3e6c8&color=8a6914`;
                   return (
                     <button
                       key={u.id}
@@ -167,16 +171,13 @@ export function SearchPage() {
                         )
                       }
                     >
-                      <img src={pic} alt="" className="ap-search-av" />
-                      <span className="ap-search-meta">
+                      <img src={pic} alt="" />
+                      <span>
                         <strong>{name}</strong>
                         <span>
                           {u.display_id != null ? `ID ${u.display_id}` : u.role || 'user'}
                           {u.is_creator ? ' · creator' : ''}
                         </span>
-                      </span>
-                      <span className="ap-search-fallback" aria-hidden>
-                        {hostInitials(name)}
                       </span>
                     </button>
                   );
@@ -199,8 +200,8 @@ export function SearchPage() {
                       className="ap-search-row"
                       onClick={() => go('/coin-seller-center.html?app=1')}
                     >
-                      <span className="ap-search-badge is-seller">SELL</span>
-                      <span className="ap-search-meta">
+                      <span className="ap-search-av">$</span>
+                      <span>
                         <strong>{name}</strong>
                         <span>{Number(s.inventory_coins) || 0} coins</span>
                       </span>

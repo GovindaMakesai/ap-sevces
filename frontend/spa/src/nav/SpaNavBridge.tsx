@@ -14,7 +14,13 @@ export function SpaNavBridge() {
       if (!isApSpaNavMessage(event.data)) return;
 
       if (event.data.type === 'back') {
-        navigate(-1);
+        const path = window.location.pathname.toLowerCase();
+        if (path.includes('/legacy/live-room') || path.includes('/legacy/party-room')) {
+          navigate('/explore', { replace: true });
+          return;
+        }
+        if (window.history.length > 1) navigate(-1);
+        else navigate('/explore', { replace: true });
         return;
       }
 

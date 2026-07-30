@@ -96,7 +96,7 @@ export function CentersPage() {
   const links = CENTERS.filter((c) => !c.show || c.show(user));
 
   return (
-    <div className="ap-page ap-page-centers ap-native-hub">
+    <div className="ap-page ap-page-hub ap-page-centers">
       <header className="ap-hub-head">
         <button type="button" className="ap-icon-btn" onClick={() => go('/profile')} aria-label="Back">
           <i className="fas fa-arrow-left" />
@@ -105,15 +105,15 @@ export function CentersPage() {
       </header>
 
       <div className="ap-hub-scroll">
-        <p className="ap-hub-lead">Host, agency, and seller tools open in the secure legacy workspace.</p>
+        <p className="ap-hub-hint">Host, agency, and seller tools open in the secure legacy workspace.</p>
         {links.map((c) => (
           <button key={c.id} type="button" className="ap-center-card" onClick={() => go(c.href)}>
             <i className={`fas ${c.icon}`} aria-hidden />
             <span>
               <strong>{c.label}</strong>
-              <em>{c.desc}</em>
+              <span>{c.desc}</span>
             </span>
-            <i className="fas fa-chevron-right ap-chevron" aria-hidden />
+            <i className="fas fa-chevron-right chevron" aria-hidden />
           </button>
         ))}
       </div>

@@ -1,58 +1,66 @@
 import { NavLink } from 'react-router-dom';
 import { useUiStore } from '@/stores/uiStore';
 
-type Tab =
-  | { to: string; id: string; label: string; icon: string; badge?: boolean }
-  | { to: string; id: string; label: string; icon: 'planet'; center: true };
-
-const TABS: Tab[] = [
-  { to: '/explore', id: 'explore', label: 'Live', icon: 'fa-house' },
-  { to: '/video', id: 'video', label: 'Video', icon: 'fa-clapperboard' },
-  { to: '/explore', id: 'planet', label: '', icon: 'planet', center: true },
-  { to: '/chat', id: 'chat', label: 'Chat', icon: 'fa-comment', badge: true },
-  { to: '/profile', id: 'profile', label: 'Me', icon: 'fa-user' },
-];
-
 /**
- * Client-side tab bar — never uses location.href / full reloads.
+ * Production bottom nav (social-shell.js BOTTOM_NAV) — icons only, cream/gold planet.
+ * Video | Rankings | Explore(center) | Chat | Profile
  */
 export function BottomNav() {
   const unread = useUiStore((s) => s.chatUnread);
 
   return (
-    <nav className="ap-bottom-nav" aria-label="Main">
-      {TABS.map((tab) => {
-        if ('center' in tab && tab.center) {
-          return (
-            <NavLink
-              key={tab.id}
-              to="/explore"
-              className={({ isActive }) =>
-                `ap-nav-item ap-nav-center${isActive ? ' is-active' : ''}`
-              }
-              aria-label="Live"
-            >
-              <span className="ap-nav-planet" aria-hidden>
-                <span className="ap-nav-planet-glow" />
-                <span className="ap-nav-planet-body" />
-              </span>
-            </NavLink>
-          );
-        }
-        return (
-          <NavLink
-            key={tab.id}
-            to={tab.to}
-            className={({ isActive }) => `ap-nav-item${isActive ? ' is-active' : ''}`}
-          >
-            <i className={`fas ${tab.icon}`} aria-hidden />
-            {'badge' in tab && tab.badge && unread > 0 ? (
-              <span className="ap-nav-badge">{unread > 9 ? '9+' : unread}</span>
-            ) : null}
-            <span className="ap-nav-label">{tab.label}</span>
-          </NavLink>
-        );
-      })}
+    <nav className="social-bottom-nav ap-shell-bottom-nav" aria-label="Main">
+      <NavLink
+        to="/video"
+        className={({ isActive }) => `nav-item${isActive ? ' is-active' : ''}`}
+        data-nav="video"
+        aria-label="Video"
+      >
+        <i className="fas fa-video" aria-hidden />
+      </NavLink>
+
+      <NavLink
+        to="/rankings"
+        className={({ isActive }) => `nav-item${isActive ? ' is-active' : ''}`}
+        data-nav="rankings"
+        aria-label="Rankings"
+      >
+        <i className="fas fa-trophy" aria-hidden />
+      </NavLink>
+
+      <NavLink
+        to="/explore"
+        className={({ isActive }) => `nav-item nav-center${isActive ? ' is-active' : ''}`}
+        data-nav="explore"
+        aria-label="Explore"
+      >
+        <span className="nav-planet" aria-hidden="true">
+          <span className="nav-planet-glow" />
+          <span className="nav-planet-body" />
+          <span className="nav-planet-ring" />
+        </span>
+      </NavLink>
+
+      <NavLink
+        to="/chat"
+        className={({ isActive }) => `nav-item${isActive ? ' is-active' : ''}`}
+        data-nav="chat"
+        aria-label="Chat"
+      >
+        <i className="fas fa-comment-dots" aria-hidden />
+        {unread > 0 ? (
+          <span className="nav-badge">{unread > 9 ? '9+' : unread}</span>
+        ) : null}
+      </NavLink>
+
+      <NavLink
+        to="/profile"
+        className={({ isActive }) => `nav-item${isActive ? ' is-active' : ''}`}
+        data-nav="profile"
+        aria-label="Profile"
+      >
+        <i className="fas fa-user" aria-hidden />
+      </NavLink>
     </nav>
   );
 }

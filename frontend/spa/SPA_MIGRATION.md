@@ -33,7 +33,9 @@ flowchart LR
 
 **Phase 1 (this commit):** shell + client routing + keep-alive + **legacy HTML embeds** (iframes) so features keep working while screens are ported.
 
-**Later phases:** replace each iframe with a native React screen; then point the WebView at `/spa/` (separate release decision).
+**Visual parity (required):** Do **not** redesign the product. Tab screens (Explore, Video, Chat, Profile, Rankings) reuse production HTML/CSS (`social-theme`, cream/gold, planet nav). SPA work is architecture and performance only (routing, keep-alive, bridge). Native React UIs that diverge from production are rejected.
+
+**Later phases:** optional React ports **only if** they reuse production class names/CSS and match pixel-level UI; then point the WebView at `/spa/` (separate release decision).
 
 ---
 

@@ -62,7 +62,7 @@ export function SettingsPage() {
   const s = settingsQ.data?.data || {};
 
   return (
-    <div className="ap-page ap-page-settings ap-native-hub">
+    <div className="ap-page ap-page-hub ap-page-settings">
       <header className="ap-hub-head">
         <button type="button" className="ap-icon-btn" onClick={() => go('/profile')} aria-label="Back">
           <i className="fas fa-arrow-left" />
@@ -80,7 +80,7 @@ export function SettingsPage() {
               <p className="ap-hub-hint">Couldn’t load notification settings.</p>
             ) : (
               TOGGLES.map((t) => (
-                <label key={t.key} className="ap-toggle-row">
+                <label key={t.key} className="ap-hub-toggle">
                   <span>{t.label}</span>
                   <input
                     type="checkbox"
@@ -96,13 +96,20 @@ export function SettingsPage() {
 
         <section className="ap-hub-section">
           <h2>More</h2>
-          {LINKS.map((l) => (
-            <button key={l.id} type="button" className="ap-menu-row" onClick={() => go(l.href)}>
-              <i className={`fas ${l.icon}`} aria-hidden />
-              <span>{l.label}</span>
-              <i className="fas fa-chevron-right ap-chevron" aria-hidden />
-            </button>
-          ))}
+          <nav className="social-menu-list">
+            {LINKS.map((l) => (
+              <button
+                key={l.id}
+                type="button"
+                className="social-menu-item"
+                onClick={() => go(l.href)}
+              >
+                <i className={`fas ${l.icon}`} aria-hidden />
+                <span>{l.label}</span>
+                <i className="fas fa-chevron-right chevron" aria-hidden />
+              </button>
+            ))}
+          </nav>
         </section>
       </div>
     </div>

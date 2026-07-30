@@ -49,8 +49,9 @@ export function LegacyBridgePage() {
           type="button"
           className="ap-legacy-back ap-legacy-back--float"
           onClick={() => {
-            if (window.history.length > 1) navigate(-1);
-            else navigate('/explore');
+            /* Always return to Explore — navigate(-1) can no-op or land
+               on another legacy/deep link when history is long. */
+            navigate('/explore', { replace: true });
           }}
           aria-label="Leave room"
         >
