@@ -502,6 +502,122 @@
   margin: 0;
 }
 
+/* Post / reel gift picker (live-style catalog) */
+.ap-post-gift-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.ap-post-gift-sheet[hidden] {
+  display: none !important;
+}
+.ap-post-gift-panel {
+  width: 100%;
+  max-width: 480px;
+  max-height: min(72vh, 560px);
+  background: #fffdf8;
+  border-radius: 20px 20px 0 0;
+  padding: 14px 14px calc(16px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -12px 40px rgba(60, 45, 10, 0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ap-post-gift-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.ap-post-gift-head h3 {
+  margin: 0;
+  font-size: 18px;
+  color: #6b4f10;
+}
+.ap-post-gift-to {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #8b6914;
+}
+.ap-post-gift-close {
+  border: none;
+  background: #f5e6c8;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  font-size: 22px;
+  line-height: 1;
+  color: #6b4f10;
+  cursor: pointer;
+}
+.ap-post-gift-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  overflow-y: auto;
+  max-height: 42vh;
+  padding: 2px;
+}
+.ap-post-gift-item {
+  border: 1.5px solid #ead9b0;
+  border-radius: 14px;
+  background: #fff;
+  padding: 10px 4px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  cursor: pointer;
+  min-height: 84px;
+}
+.ap-post-gift-item.is-selected {
+  border-color: #c9a227;
+  background: #fff8e1;
+  box-shadow: 0 0 0 2px rgba(201, 162, 39, 0.25);
+}
+.ap-post-gift-item .g {
+  font-size: 26px;
+  line-height: 1;
+}
+.ap-post-gift-item .n {
+  font-size: 10px;
+  font-weight: 700;
+  color: #6b4f10;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ap-post-gift-item .c {
+  font-size: 10px;
+  color: #a16207;
+  font-weight: 700;
+}
+.ap-post-gift-balance {
+  margin: 0;
+  text-align: center;
+  font-size: 13px;
+  color: #8b6914;
+}
+.ap-post-gift-send {
+  border: none;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #f5c842, #c9a227);
+  color: #3b2a08;
+  font-weight: 800;
+  font-size: 16px;
+  padding: 14px;
+  cursor: pointer;
+}
+.ap-post-gift-send:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
 .social-search-user--identity {
   display: block;
   padding: 8px 0;

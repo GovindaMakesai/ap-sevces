@@ -1660,6 +1660,269 @@
     return shared;
   }
 
+  let postGiftCatalog = [];
+  let postGiftSelectedIdx = 0;
+  let postGiftTarget = null;
+  let postGiftBusy = false;
+
+  function defaultPostGiftCatalog() {
+    const catalog = window.AP_LIVE_EMOJI?.GIFT_CATALOG;
+    if (catalog && typeof catalog === 'object') {
+      const merged = [];
+      const seen = new Set();
+      Object.values(catalog).forEach((items) => {
+        (items || []).forEach((g) => {
+          const coin_cost = Number(g.cost ?? g.coin_cost) || 10;
+          const slug = String(g.slug || `${(g.name || 'gift').toLowerCase().replace(/\s+/g, '_')}_${coin_cost}`);
+          const key = `${slug}:${coin_cost}`;
+          if (seen.has(key)) return;
+          seen.add(key);
+          merged.push({
+            slug,
+            emoji: g.emoji || '🎁',
+            name: g.name || 'Gift',
+            coin_cost,
+          });
+        });
+      });
+      if (merged.length) {
+        merged.sort((a, b) => a.coin_cost - b.coin_cost);
+        return merged.slice(0, 64);
+      }
+    }
+    return [
+      { slug: 'heart_10', emoji: '❤️', name: 'Heart', coin_cost: 10 },
+      { slug: 'rose_50', emoji: '🌹', name: 'Rose', coin_cost: 50 },
+      { slug: 'flowers_100', emoji: '💐', name: 'Flowers', coin_cost: 100 },
+      { slug: 'cake_200', emoji: '🍰', name: 'Cake', coin_cost: 200 },
+      { slug: 'diamond_500', emoji: '💎', name: 'Diamond', coin_cost: 500 },
+      { slug: 'crown_1000', emoji: '👑', name: 'Crown', coin_cost: 1000 },
+      { slug: 'car_5000', emoji: '🚗', name: 'Sports Car', coin_cost: 5000 },
+      { slug: 'castle_10000', emoji: '🏰', name: 'Castle', coin_cost: 10000 },
+    ];
+  }
+
+  function ensurePostGiftSheet() {
+    let sheet = document.getElementById('apPostGiftSheet');
+    if (sheet) return sheet;
+    sheet = document.createElement('div');
+    sheet.id = 'apPostGiftSheet';
+    sheet.className = 'ap-post-gift-sheet';
+    sheet.hidden = true;
+    sheet.innerHTML = `
+      <div class="ap-post-gift-panel" role="dialog" aria-label="Send gift">
+        <div class="ap-post-gift-head">
+          <div>
+            <h3>Send Gift</h3>
+            <p class="ap-post-gift-to">To <strong id="apPostGiftTo">Creator</strong></p>
+          </div>
+          <button type="button" class="ap-post-gift-close" id="apPostGiftClose" aria-label="Close">&times;</button>
+        </div>
+        <div class="ap-post-gift-grid" id="apPostGiftGrid"></div>
+        <p class="ap-post-gift-balance">Gift coins: <span id="apPostGiftBal">0</span></p>
+        <button type="button" class="ap-post-gift-send" id="apPostGiftSend">Send Gift</button>
+      </div>`;
+    document.body.appendChild(sheet);
+    sheet.addEventListener('click', (e) => {
+      if (e.target === sheet) closePostGiftSheet();
+    });
+    document.getElementById('apPostGiftClose')?.addEventListener('click', closePostGiftSheet);
+    document.getElementById('apPostGiftSend')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      confirmPostGiftSend();
+    });
+    return sheet;
+  }
+
+  function renderPostGiftGrid() {
+    const grid = document.getElementById('apPostGiftGrid');
+    if (!grid) return;
+    if (!postGiftCatalog.length) postGiftCatalog = defaultPostGiftCatalog();
+    grid.innerHTML = postGiftCatalog
+      .map((g, i) => {
+        const cost = Number(g.coin_cost) || 0;
+        return `<button type="button" class="ap-post-gift-item${i === postGiftSelectedIdx ? ' is-selected' : ''}" data-idx="${i}">
+          <span class="g">${g.emoji || '🎁'}</span>
+          <span class="n">${escapeHtml(g.name || 'Gift')}</span>
+          <span class="c">${cost.toLocaleString('en-IN')}</span>
+        </button>`;
+      })
+      .join('');
+    grid.querySelectorAll('.ap-post-gift-item').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        postGiftSelectedIdx = parseInt(btn.dataset.idx, 10) || 0;
+        grid.querySelectorAll('.ap-post-gift-item').forEach((b) => b.classList.toggle('is-selected', b === btn));
+      });
+    });
+  }
+
+  function closePostGiftSheet() {
+    const sheet = document.getElementById('apPostGiftSheet');
+    if (sheet) sheet.hidden = true;
+    postGiftTarget = null;
+  }
+
+  async function loadPostGiftCatalog() {
+    if (postGiftCatalog.length) return postGiftCatalog;
+    postGiftCatalog = defaultPostGiftCatalog();
+    try {
+      if (!window.API?.get) return postGiftCatalog;
+      const res = await API.get('/social/gifts/catalog');
+      const rows = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+      if (rows.length) {
+        postGiftCatalog = rows
+          .map((g) => ({
+            slug: g.slug || `gift_${g.coin_cost || 10}`,
+            emoji: g.emoji || '🎁',
+            name: g.name || 'Gift',
+            coin_cost: Number(g.coin_cost ?? g.cost) || 10,
+          }))
+          .sort((a, b) => a.coin_cost - b.coin_cost)
+          .slice(0, 80);
+      }
+    } catch (_e) { /* keep defaults */ }
+    return postGiftCatalog;
+  }
+
+  async function openPostGiftSheet(postHint) {
+    if (!window.SocialWallet) {
+      toast('Please log in to send gifts', 'warning');
+      return;
+    }
+    const me = window.Auth?.getUser?.();
+    if (!me?.id && !localStorage.getItem('token') && !localStorage.getItem('accessToken')) {
+      toast('Please log in to send gifts', 'warning');
+      return;
+    }
+    const p = postHint || findPostById(postHint?.id);
+    const receiverId = p?.userId || p?.user_id;
+    if (!receiverId || receiverId === 'me') {
+      toast('Cannot send gift to this post', 'error');
+      return;
+    }
+    if (me?.id && String(receiverId) === String(me.id)) {
+      toast('You can’t gift your own post', 'info');
+      return;
+    }
+
+    postGiftTarget = {
+      postId: p.id || postHint?.id || postHint?.postId,
+      userId: receiverId,
+      userName: p.userName || p.name || postHint?.userName || 'Creator',
+      gifts: p.gifts || 0,
+      post: p,
+    };
+    postGiftSelectedIdx = 0;
+
+    const sheet = ensurePostGiftSheet();
+    await loadPostGiftCatalog();
+    renderPostGiftGrid();
+    const toEl = document.getElementById('apPostGiftTo');
+    if (toEl) toEl.textContent = postGiftTarget.userName;
+    try {
+      const b = await SocialWallet.fetchBalance(true);
+      const giftBal = SocialWallet.getGiftableCoins
+        ? SocialWallet.getGiftableCoins(b)
+        : Number(b.giftable_coins ?? b.coin_balance ?? 0);
+      const balEl = document.getElementById('apPostGiftBal');
+      if (balEl) balEl.textContent = Number(giftBal || 0).toLocaleString('en-IN');
+    } catch (_e) {
+      const balEl = document.getElementById('apPostGiftBal');
+      if (balEl) balEl.textContent = '0';
+    }
+    sheet.hidden = false;
+    window.SocialCreatorPolish?.haptic?.('light');
+  }
+
+  async function confirmPostGiftSend() {
+    if (postGiftBusy || !postGiftTarget) return;
+    const g = postGiftCatalog[postGiftSelectedIdx];
+    if (!g) {
+      toast('Select a gift', 'warning');
+      return;
+    }
+    const coinCost = Number(g.coin_cost) || 0;
+    if (!coinCost) {
+      toast('Invalid gift', 'warning');
+      return;
+    }
+    const btn = document.getElementById('apPostGiftSend');
+    postGiftBusy = true;
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Sending…';
+    }
+    try {
+      const bal = await SocialWallet.fetchBalance(true);
+      const giftBal = SocialWallet.getGiftableCoins
+        ? SocialWallet.getGiftableCoins(bal)
+        : Number(bal.giftable_coins ?? bal.coin_balance ?? 0);
+      if (giftBal < coinCost) {
+        toast('Not enough coins — open Store to recharge', 'warning');
+        setTimeout(() => (location.href = '/coins-recharge.html?app=1'), 600);
+        return;
+      }
+      await SocialWallet.sendGift({
+        receiver_id: postGiftTarget.userId,
+        coin_amount: coinCost,
+        gift_type: g.slug || 'post_gift',
+        qty: 1,
+      });
+
+      const postId = postGiftTarget.postId;
+      if (postGiftTarget.post) postGiftTarget.post.gifts = (postGiftTarget.post.gifts || 0) + 1;
+      const local = getPosts();
+      const lp = local.find((x) => String(x.id) === String(postId));
+      if (lp) {
+        lp.gifts = (lp.gifts || 0) + 1;
+        savePosts(local);
+      }
+      const reel = (reelItems || []).find((x) => String(x.postId) === String(postId));
+      if (reel) {
+        reel.gifts = (reel.gifts || 0) + 1;
+        try {
+          updateReelUI(reel);
+        } catch (_e) { /* ignore */ }
+      }
+      document.querySelectorAll(`[data-act="gift"][data-id="${postId}"] span`).forEach((span) => {
+        const n = Number(span.textContent || 0) + 1;
+        span.textContent = String(n);
+      });
+
+      if (window.SocialFX?.spawnGift) {
+        SocialFX.spawnGift({
+          emoji: g.emoji,
+          name: g.name,
+          gift_type: g.slug,
+          amount: coinCost,
+        });
+      }
+
+      toast(`${g.emoji || '🎁'} ${g.name || 'Gift'} sent`, 'success');
+      window.SocialCreatorPolish?.haptic?.('success');
+      document.dispatchEvent(
+        new CustomEvent('social:gift', {
+          detail: { postId, receiverId: postGiftTarget.userId, gift: g },
+        })
+      );
+      closePostGiftSheet();
+    } catch (e) {
+      if (e.status === 400 || /insufficient/i.test(e.message)) {
+        toast('Not enough coins — open Store to recharge', 'warning');
+        setTimeout(() => (location.href = '/coins-recharge.html?app=1'), 600);
+      } else {
+        toast(window.SocialUI?.friendlyMessage(e.message) || e.message || 'Gift failed', 'error');
+      }
+    } finally {
+      postGiftBusy = false;
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'Send Gift';
+      }
+    }
+  }
+
   function findPostById(postId) {
     const id = String(postId || '');
     if (!id) return null;
@@ -1685,71 +1948,24 @@
     return null;
   }
 
+  /** Opens live-style gift picker for a post/reel (does not send immediately). */
   async function sendGift(postId, postHint) {
-    if (!window.SocialWallet) {
-      toast('Please log in to send gifts', 'warning');
-      return false;
-    }
-    const me = window.Auth?.getUser?.();
-    if (!me?.id && !localStorage.getItem('token') && !localStorage.getItem('accessToken')) {
-      toast('Please log in to send gifts', 'warning');
-      return false;
-    }
-
     const p = postHint || findPostById(postId);
-    const receiverId = p?.userId || p?.user_id || postHint?.userId;
-    if (!receiverId || receiverId === 'me') {
+    if (!p && postHint?.userId) {
+      await openPostGiftSheet({
+        id: postId,
+        userId: postHint.userId,
+        userName: postHint.userName || postHint.name,
+        gifts: postHint.gifts || 0,
+      });
+      return true;
+    }
+    if (!p) {
       toast('Cannot send gift to this post', 'error');
       return false;
     }
-    if (me?.id && String(receiverId) === String(me.id)) {
-      toast('You can’t gift your own post', 'info');
-      return false;
-    }
-
-    const coinCost = 10;
-    try {
-      const bal = await SocialWallet.fetchBalance(true);
-      const giftBal = SocialWallet.getGiftableCoins
-        ? SocialWallet.getGiftableCoins(bal)
-        : Number(bal.giftable_coins ?? bal.coin_balance ?? 0);
-      if (giftBal < coinCost) {
-        toast('Not enough coins — open Store to recharge', 'warning');
-        setTimeout(() => (location.href = '/coins-recharge.html?app=1'), 600);
-        return false;
-      }
-
-      await SocialWallet.sendGift({
-        receiver_id: receiverId,
-        coin_amount: coinCost,
-        gift_type: 'post_gift',
-      });
-
-      if (p) {
-        p.gifts = (p.gifts || 0) + 1;
-        const local = getPosts();
-        const lp = local.find((x) => String(x.id) === String(p.id || postId));
-        if (lp) {
-          lp.gifts = p.gifts;
-          savePosts(local);
-        }
-      }
-      const reel = (reelItems || []).find((x) => String(x.postId) === String(postId));
-      if (reel) reel.gifts = (reel.gifts || 0) + 1;
-
-      toast('Gift sent 🎁', 'success');
-      window.SocialCreatorPolish?.haptic?.('success');
-      document.dispatchEvent(new CustomEvent('social:gift', { detail: { postId, receiverId } }));
-      return true;
-    } catch (e) {
-      if (e.status === 400 || /insufficient/i.test(e.message)) {
-        toast('Not enough coins — open Store to recharge', 'warning');
-        setTimeout(() => (location.href = '/coins-recharge.html?app=1'), 600);
-      } else {
-        toast(window.SocialUI?.friendlyMessage(e.message) || e.message || 'Gift failed', 'error');
-      }
-      return false;
-    }
+    await openPostGiftSheet({ ...p, id: p.id || postId });
+    return true;
   }
 
   function profileUrl(item) {
@@ -2541,22 +2757,15 @@
     if (action === 'gift') {
       ensureStarterCoins();
       if (item.postId || item.userId) {
-        const before = Number(item.gifts || 0);
-        const ok = await sendGift(item.postId || item.id, {
+        await sendGift(item.postId || item.id, {
           id: item.postId || item.id,
           userId: item.userId,
           userName: item.name,
-          gifts: before,
+          gifts: item.gifts || 0,
         });
-        if (ok) {
-          item.gifts = Math.max(before + 1, Number(item.gifts || 0));
-          stats[key].gifts = item.gifts;
-          saveReelStats(stats);
-        }
       } else {
         toast('Join their live room to send gifts', 'info');
       }
-      updateReelUI(item);
       return;
     }
 
@@ -2899,11 +3108,7 @@
       btn.addEventListener('click', async () => {
         const id = btn.dataset.id;
         const p = feedPosts.find((x) => String(x.id) === String(id)) || findPostById(id);
-        const ok = await sendGift(id, p);
-        if (ok) {
-          const count = p?.gifts ?? Number(btn.querySelector('span')?.textContent || 0) + 1;
-          if (btn.querySelector('span')) btn.querySelector('span').textContent = String(count);
-        }
+        await sendGift(id, p);
       });
     });
     qs('[data-act="share"]').forEach((btn) => {
