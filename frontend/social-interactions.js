@@ -1660,30 +1660,87 @@
     return shared;
   }
 
-  async function sendGift(postId) {
-    if (!window.SocialWallet) {
-      toast('Please log in to send gifts', 'warning');
-      return;
-    }
-    const posts = getPosts();
-    const p = posts.find((x) => String(x.id) === String(postId));
-    const receiverId = p?.userId;
-    if (!receiverId || receiverId === 'me') {
-      toast('Cannot send gift to this post');
-      return;
+  function findPostById(postId) {
+    const id = String(postId || '');
+    if (!id) return null;
+    const fromLocal = getPosts().find((x) => String(x.id) === id);
+    if (fromLocal) return fromLocal;
+    const fromReels = (reelItems || []).find((x) => String(x.postId) === id || String(x.id) === id);
+    if (fromReels) {
+      return {
+        id: fromReels.postId || fromReels.id,
+        userId: fromReels.userId,
+        userName: fromReels.name,
+        gifts: fromReels.gifts || 0,
+        fromApi: true,
+      };
     }
     try {
+      const feeds = document.querySelectorAll('[id$="Feed"], .social-post-feed');
+      for (const feed of feeds) {
+        const hit = (feed._squarePosts || []).find((x) => String(x.id) === id);
+        if (hit) return hit;
+      }
+    } catch (_e) { /* ignore */ }
+    return null;
+  }
+
+  async function sendGift(postId, postHint) {
+    if (!window.SocialWallet) {
+      toast('Please log in to send gifts', 'warning');
+      return false;
+    }
+    const me = window.Auth?.getUser?.();
+    if (!me?.id && !localStorage.getItem('token') && !localStorage.getItem('accessToken')) {
+      toast('Please log in to send gifts', 'warning');
+      return false;
+    }
+
+    const p = postHint || findPostById(postId);
+    const receiverId = p?.userId || p?.user_id || postHint?.userId;
+    if (!receiverId || receiverId === 'me') {
+      toast('Cannot send gift to this post', 'error');
+      return false;
+    }
+    if (me?.id && String(receiverId) === String(me.id)) {
+      toast('You can’t gift your own post', 'info');
+      return false;
+    }
+
+    const coinCost = 10;
+    try {
+      const bal = await SocialWallet.fetchBalance(true);
+      const giftBal = SocialWallet.getGiftableCoins
+        ? SocialWallet.getGiftableCoins(bal)
+        : Number(bal.giftable_coins ?? bal.coin_balance ?? 0);
+      if (giftBal < coinCost) {
+        toast('Not enough coins — open Store to recharge', 'warning');
+        setTimeout(() => (location.href = '/coins-recharge.html?app=1'), 600);
+        return false;
+      }
+
       await SocialWallet.sendGift({
         receiver_id: receiverId,
-        coin_amount: 10,
+        coin_amount: coinCost,
         gift_type: 'post_gift',
       });
+
       if (p) {
         p.gifts = (p.gifts || 0) + 1;
-        savePosts(posts);
+        const local = getPosts();
+        const lp = local.find((x) => String(x.id) === String(p.id || postId));
+        if (lp) {
+          lp.gifts = p.gifts;
+          savePosts(local);
+        }
       }
-      toast('Gift sent 🎁');
-      document.dispatchEvent(new CustomEvent('social:gift', { detail: { postId } }));
+      const reel = (reelItems || []).find((x) => String(x.postId) === String(postId));
+      if (reel) reel.gifts = (reel.gifts || 0) + 1;
+
+      toast('Gift sent 🎁', 'success');
+      window.SocialCreatorPolish?.haptic?.('success');
+      document.dispatchEvent(new CustomEvent('social:gift', { detail: { postId, receiverId } }));
+      return true;
     } catch (e) {
       if (e.status === 400 || /insufficient/i.test(e.message)) {
         toast('Not enough coins — open Store to recharge', 'warning');
@@ -1691,6 +1748,7 @@
       } else {
         toast(window.SocialUI?.friendlyMessage(e.message) || e.message || 'Gift failed', 'error');
       }
+      return false;
     }
   }
 
@@ -2482,37 +2540,18 @@
 
     if (action === 'gift') {
       ensureStarterCoins();
-      if (item.postId) {
-        await sendGift(item.postId);
-      } else if (item.userId && window.SocialWallet) {
-        try {
-          const bal = await SocialWallet.fetchBalance(true);
-          const coinCost = 10;
-          const giftBal = SocialWallet.getGiftableCoins
-            ? SocialWallet.getGiftableCoins(bal)
-            : Number(bal.giftable_coins ?? bal.coin_balance ?? 0);
-          if (giftBal < coinCost) {
-            toast('Not enough coins — opening recharge', 'warning');
-            setTimeout(() => (location.href = '/coins-recharge.html?app=1'), 500);
-            updateReelUI(item);
-            return;
-          }
-          await SocialWallet.sendGift({
-            receiver_id: item.userId,
-            coin_amount: coinCost,
-            gift_type: 'reel_gift',
-          });
-          item.gifts = (item.gifts || 0) + 1;
+      if (item.postId || item.userId) {
+        const before = Number(item.gifts || 0);
+        const ok = await sendGift(item.postId || item.id, {
+          id: item.postId || item.id,
+          userId: item.userId,
+          userName: item.name,
+          gifts: before,
+        });
+        if (ok) {
+          item.gifts = Math.max(before + 1, Number(item.gifts || 0));
           stats[key].gifts = item.gifts;
           saveReelStats(stats);
-          toast('Gift sent 🎁', 'success');
-        } catch (e) {
-          if (/insufficient/i.test(e.message)) {
-            toast('Need coins — opening recharge', 'warning');
-            setTimeout(() => (location.href = '/coins-recharge.html?app=1'), 500);
-          } else {
-            toast(window.SocialUI?.friendlyMessage(e.message) || e.message || 'Gift failed', 'error');
-          }
         }
       } else {
         toast('Join their live room to send gifts', 'info');
@@ -2857,11 +2896,14 @@
       btn.addEventListener('click', () => openComments(btn.dataset.id));
     });
     qs('[data-act="gift"]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        sendGift(btn.dataset.id);
-        const postsLocal = getPosts();
-        const p = postsLocal.find((x) => String(x.id) === String(btn.dataset.id));
-        if (p) btn.querySelector('span').textContent = p.gifts || 0;
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.id;
+        const p = feedPosts.find((x) => String(x.id) === String(id)) || findPostById(id);
+        const ok = await sendGift(id, p);
+        if (ok) {
+          const count = p?.gifts ?? Number(btn.querySelector('span')?.textContent || 0) + 1;
+          if (btn.querySelector('span')) btn.querySelector('span').textContent = String(count);
+        }
       });
     });
     qs('[data-act="share"]').forEach((btn) => {
