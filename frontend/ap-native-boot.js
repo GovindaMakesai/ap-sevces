@@ -72,14 +72,12 @@
     return;
   }
 
-  ['/social-theme.css', '/ap-soft-nav.js?v=20260730-fastnav3', '/social-nav.js'].forEach(function (href) {
-    if (href.indexOf('.js') !== -1) {
-      var src = href;
-      if (document.querySelector('script[src*="ap-soft-nav.js"]') && href.indexOf('ap-soft-nav') !== -1) return;
+  ['/social-theme.css', '/social-nav.js'].forEach(function (href) {
+    if (href.endsWith('.js')) {
       if (document.querySelector('script[src="' + href + '"]')) return;
       const script = document.createElement('script');
-      script.src = src;
-      script.defer = href.indexOf('ap-soft-nav') === -1;
+      script.src = href;
+      script.defer = true;
       (document.head || html).appendChild(script);
       return;
     }
