@@ -1959,7 +1959,7 @@ function bootstrapNativeAppShell() {
     }
     if (!document.querySelector('script[src*="auth-guard.js"]')) {
         const guard = document.createElement('script');
-        guard.src = '/auth-guard.js';
+        guard.src = '/auth-guard.js?v=20260730-fastnav2';
         guard.async = false;
         document.head.appendChild(guard);
     }
@@ -2045,7 +2045,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (Auth.hasSession()) {
         if (!(isNativeAppContext() && onAuthScreen)) {
             Auth.ensureAccessToken().catch(() => { });
-            Auth.refreshSession().catch(() => { });
+            /* Native tab pages: auth-guard validates with TTL — skip duplicate /auth refresh */
+            if (!isNativeAppContext()) {
+                Auth.refreshSession().catch(() => { });
+            }
         }
         scheduleProactiveSessionRefresh();
     }

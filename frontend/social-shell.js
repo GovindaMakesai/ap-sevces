@@ -676,6 +676,22 @@
   let fastNavBound = false;
   let navSwitching = false;
 
+  function paintNavSwitchOverlay(href) {
+    let el = document.getElementById('ap-nav-switch-overlay');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'ap-nav-switch-overlay';
+      el.setAttribute('aria-hidden', 'true');
+      el.innerHTML = '<span class="ap-nav-switch-bar"></span>';
+      (document.body || document.documentElement).appendChild(el);
+    }
+    el.classList.add('is-on');
+    try {
+      const path = new URL(href, location.origin).pathname.toLowerCase();
+      el.dataset.to = path;
+    } catch (_e) {}
+  }
+
   function navigateInApp(href, { markActive } = {}) {
     if (!href || href.startsWith('http') || href.startsWith('#')) return false;
     try {
@@ -690,8 +706,12 @@
     navSwitching = true;
     if (typeof markActive === 'function') markActive();
     document.documentElement.classList.add('ap-nav-switching');
-    /* Leave immediately — do not wait for pending fetches / rAF / load finish */
-    window.location.href = href;
+    paintNavSwitchOverlay(href);
+    /* Warm cache then leave — do not await (keeps tap snappy) */
+    try {
+      fetch(href, { credentials: 'same-origin', cache: 'force-cache', mode: 'same-origin' }).catch(() => {});
+    } catch (_e) {}
+    window.location.assign(href);
     return true;
   }
 
@@ -790,29 +810,39 @@
       '/profile-tab.html',
     ];
     const seen = new Set();
-    pages.forEach((path) => {
-      const href = withAppQuery(path);
+    const warm = (href) => {
       if (seen.has(href)) return;
       seen.add(href);
+      /* Android WebView often ignores <link rel=prefetch> — fetch warms HTTP cache */
+      try {
+        fetch(href, { credentials: 'same-origin', cache: 'force-cache', mode: 'same-origin' }).catch(() => {});
+      } catch (_e) {}
       const link = document.createElement('link');
       link.rel = 'prefetch';
       link.as = 'document';
       link.href = href;
       document.head.appendChild(link);
-    });
-    /* Warm shared shell assets so the next HTML paints faster */
-    [
-      'social-theme.css?v=20260730-videofix',
-      'social-features.css?v=20260730-videofix',
-      'social-shell.js?v=20260730-fastnav',
-      'social-interactions.js?v=20260730-stab1',
-      'app.js?v=20260729-perf2',
-    ].forEach((asset) => {
-      const link = document.createElement('link');
-      link.rel = 'prefetch';
-      link.href = asset;
-      document.head.appendChild(link);
-    });
+    };
+    const run = () => {
+      pages.forEach((path) => warm(withAppQuery(path)));
+      [
+        'social-theme.css?v=20260730-fastnav2',
+        'social-features.css?v=20260730-videofix',
+        'social-shell.js?v=20260730-fastnav2',
+        'social-interactions.js?v=20260730-stab1',
+        'app.js?v=20260729-perf2',
+        'auth-guard.js?v=20260730-fastnav2',
+      ].forEach((asset) => {
+        try {
+          fetch(asset, { cache: 'force-cache', mode: 'same-origin' }).catch(() => {});
+        } catch (_e) {}
+      });
+    };
+    if (typeof requestIdleCallback === 'function') {
+      requestIdleCallback(run, { timeout: 1200 });
+    } else {
+      setTimeout(run, 400);
+    }
   }
 
   function patchAppLinks() {

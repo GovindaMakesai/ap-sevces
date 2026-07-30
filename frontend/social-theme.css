@@ -3238,6 +3238,33 @@ html.ap-nav-switching body {
   pointer-events: none;
 }
 
+#ap-nav-switch-overlay {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  z-index: 99999;
+  height: 3px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.08s linear;
+}
+#ap-nav-switch-overlay.is-on {
+  opacity: 1;
+}
+#ap-nav-switch-overlay .ap-nav-switch-bar {
+  display: block;
+  height: 100%;
+  width: 35%;
+  background: linear-gradient(90deg, #c9a227, #f5c842, #c9a227);
+  animation: ap-nav-bar 0.7s ease-in-out infinite;
+}
+@keyframes ap-nav-bar {
+  0% { transform: translateX(-100%); width: 30%; }
+  50% { width: 55%; }
+  100% { transform: translateX(350%); width: 30%; }
+}
+
 .social-bottom-nav .nav-item:active,
 .social-main-tabs a:active,
 .social-feed-scope-btn:active {
