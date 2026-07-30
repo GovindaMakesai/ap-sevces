@@ -135,16 +135,37 @@
     }
   }
 
+  let lastSessionOkAt = 0;
+  const SESSION_OK_TTL_MS = 90 * 1000;
+
   async function validateSession() {
     const cachedUser = getUser();
     if (cachedUser && window.AppState) {
       AppState.user = cachedUser;
     }
 
+    /* Tab switches reload the whole HTML page — don't re-hit /auth on every tap */
+    if (cachedUser && Date.now() - lastSessionOkAt < SESSION_OK_TTL_MS) {
+      return true;
+    }
+    try {
+      const memo = Number(sessionStorage.getItem('ap_session_ok_at') || 0);
+      if (cachedUser && Date.now() - memo < SESSION_OK_TTL_MS) {
+        lastSessionOkAt = memo;
+        return true;
+      }
+    } catch (_e) {}
+
     try {
       if (window.Auth && typeof Auth.refreshSession === 'function') {
         const ok = await Auth.refreshSession();
-        if (ok) return true;
+        if (ok) {
+          lastSessionOkAt = Date.now();
+          try {
+            sessionStorage.setItem('ap_session_ok_at', String(lastSessionOkAt));
+          } catch (_e) {}
+          return true;
+        }
         if (!localStorage.getItem('user')) return false;
         return Boolean(cachedUser || getUser());
       }
@@ -178,6 +199,10 @@
       if (res.ok && data.success && data.data?.user) {
         localStorage.setItem('user', JSON.stringify(data.data.user));
         if (window.AppState) AppState.user = data.data.user;
+        lastSessionOkAt = Date.now();
+        try {
+          sessionStorage.setItem('ap_session_ok_at', String(lastSessionOkAt));
+        } catch (_e) {}
         return true;
       }
       return Boolean(cachedUser || getUser());
@@ -279,10 +304,9 @@
 
     markAuthedUi();
 
-    const restoreTimer = setTimeout(clearAuthRestoring, 2500);
+    /* Don't hold UI behind a 2.5s auth timer — paint immediately; validate in background */
+    clearAuthRestoring();
     validateSession().then((ok) => {
-      clearTimeout(restoreTimer);
-      clearAuthRestoring();
       if (!ok && !isLoggedIn()) {
         markGuestUi();
         localStorage.removeItem('user');
@@ -293,7 +317,7 @@
       refreshAppNavigation();
     });
 
-    [150, 500, 1200].forEach((ms) => {
+    [80, 400].forEach((ms) => {
       setTimeout(refreshAppNavigation, ms);
     });
   }

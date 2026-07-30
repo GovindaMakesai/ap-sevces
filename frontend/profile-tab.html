@@ -250,6 +250,7 @@
     <a href="/role-apply.html?app=1" class="social-menu-item" id="roleApplyLink"><i class="fas fa-user-plus"></i><span>Apply for Host / Agency / Seller</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/coin-seller-center.html?app=1" class="social-menu-item" id="coinSellerLink" style="display:none"><i class="fas fa-coins"></i><span>Coin Seller Center</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/streamer-center.html?app=1" class="social-menu-item" id="hostCenterLink"><i class="fas fa-video"></i><span>Host / Streamer Center</span><i class="fas fa-chevron-right chevron"></i></a>
+    <a href="#" class="social-menu-item" id="myContentLink"><i class="fas fa-photo-film"></i><span>My posts &amp; videos</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/host-agency.html?app=1" class="social-menu-item" id="myAgencyLink" style="display:none"><i class="fas fa-handshake"></i><span>My Agency / Change Agency</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/live-verify.html?redirect=/streamer-center.html%3Fapp%3D1&amp;app=1" class="social-menu-item" id="liveVerifyLink"><i class="fas fa-id-card"></i><span>Live verification &amp; selfie</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="#" class="social-menu-item" id="bdCenterLink" style="display:none"><i class="fas fa-network-wired"></i><span>BD Center</span><i class="fas fa-chevron-right chevron"></i></a>
@@ -257,6 +258,7 @@
     <a href="#" class="social-menu-item" id="agencyLink" style="display:none"><i class="fas fa-building"></i><span>Agency Center</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="#" class="social-menu-item" id="dashLink" style="display:none"><i class="fas fa-th-large"></i><span>My Dashboard</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="#" class="social-menu-item" id="editProfileMenuLink" style="display:none"><i class="fas fa-user-edit"></i><span>Edit Profile</span><i class="fas fa-chevron-right chevron"></i></a>
+    <a href="/notification-settings.html?app=1" class="social-menu-item"><i class="fas fa-bell"></i><span>Notification settings</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/store.html" class="social-menu-item"><i class="fas fa-store"></i><span>Store</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/vip.html" class="social-menu-item"><i class="fas fa-crown"></i><span>VIP Privileges</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/rankings.html" class="social-menu-item"><i class="fas fa-trophy"></i><span>Rankings</span><i class="fas fa-chevron-right chevron"></i></a>
@@ -273,7 +275,8 @@
   <script src="social-wallet.js?v=20260715-wallet-fix"></script>
   <script src="social-ui.js?v=20260624-profile-url-fix"></script>
   <script src="social-interactions.js?v=20260624-profile-url-fix"></script>
-  <script src="social-shell.js?v=20260729-perf2"></script>
+  <script src="ap-soft-nav.js?v=20260730-fastnav4"></script>
+  <script src="social-shell.js?v=20260730-fastnav4"></script>
   <script src="referral-hook.js?v=20260723-invite-on"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
@@ -296,27 +299,6 @@
         document.documentElement.classList.add('profile-ready');
       }
       finishProfile();
-
-      async function refreshProfileUser() {
-        if (!Auth.hasSession?.()) return;
-        try {
-          await Promise.race([
-            Auth.ensureAccessToken?.(),
-            new Promise((r) => setTimeout(r, 1800)),
-          ]);
-        } catch (_e) {}
-        try {
-          const meRes = await API.get('/auth/me');
-          const freshUser = meRes?.data?.user || meRes?.data;
-          if (freshUser?.id) {
-            localStorage.setItem('user', JSON.stringify(freshUser));
-            if (window.AppState) AppState.user = freshUser;
-            user = freshUser;
-            paintProfileAvatar(user);
-          }
-        } catch (_e) {}
-      }
-      refreshProfileUser();
 
       function paintProfileAvatar(user) {
         if (!user) return;
@@ -672,6 +654,17 @@
           /* Agency owners can host too — show Streamer Center alongside Agency Center */
           hostCenterLink.style.display = 'flex';
         }
+        const myContentLink = document.getElementById('myContentLink');
+        if (myContentLink && user?.id) {
+          const uname = [user.first_name, user.last_name].filter(Boolean).join(' ').trim() || 'Me';
+          myContentLink.href =
+            '/creator-profile.html?userId=' +
+            encodeURIComponent(user.id) +
+            '&name=' +
+            encodeURIComponent(uname) +
+            '&app=1';
+          myContentLink.style.display = 'flex';
+        }
         const liveVerifyLink = document.getElementById('liveVerifyLink');
         if (liveVerifyLink) {
           liveVerifyLink.style.display = 'flex';
@@ -803,16 +796,22 @@
           SocialWallet.fetchBalance(true).then(paintWallet);
           document.addEventListener('wallet:balance', (e) => paintWallet(e.detail || {}));
         }
-        if (window.SocialInteractions?.refreshFollowCache) {
-          await SocialInteractions.refreshFollowCache().catch(() => {});
-        }
-        if (window.SocialInteractions?.getFollowStats) {
-          const s = await SocialInteractions.getFollowStats(user.id);
-          document.getElementById('statFollowing').textContent = s.following;
-          document.getElementById('statFollowers').textContent = s.followers;
-          if (!window.SocialWallet) {
-            document.getElementById('statCoins').textContent = s.coins.toLocaleString();
-          }
+        if (window.SocialInteractions?.refreshFollowCache || window.SocialInteractions?.getFollowStats) {
+          Promise.all([
+            window.SocialInteractions?.refreshFollowCache?.().catch(() => {}),
+            user?.id && window.SocialInteractions?.getFollowStats
+              ? SocialInteractions.getFollowStats(user.id).catch(() => null)
+              : Promise.resolve(null),
+          ]).then(([, s]) => {
+            if (!s) return;
+            try {
+              document.getElementById('statFollowing').textContent = s.following;
+              document.getElementById('statFollowers').textContent = s.followers;
+              if (!window.SocialWallet) {
+                document.getElementById('statCoins').textContent = s.coins.toLocaleString();
+              }
+            } catch (_e) { /* ignore */ }
+          });
         }
         document.getElementById('statFollowingBtn')?.addEventListener('click', async (e) => {
           e.preventDefault();

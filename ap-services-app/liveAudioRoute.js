@@ -5,6 +5,9 @@
  *   enterPlayback() | enterTalk() | exitTalk() | leaveLive() | reevaluate()
  *
  * States: idle → livePlay ↔ liveTalk → teardown → idle
+ *
+ * Bluetooth: we avoid thrashing setAudioModeAsync (which fights A2DP/SCO).
+ * Redundant same-mode applies within APPLY_COOLDOWN_MS are no-ops.
  */
 import { AppState, Platform } from 'react-native';
 import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
@@ -16,10 +19,13 @@ export const LiveAudioStates = Object.freeze({
   TEARDOWN: 'teardown',
 });
 
+const APPLY_COOLDOWN_MS = 2000;
+
 let state = LiveAudioStates.IDLE;
 let chain = Promise.resolve();
 let debug = false;
 let lastAppliedAt = 0;
+let lastAppliedMode = null;
 let lastFocusEvent = null;
 const listeners = new Set();
 
@@ -33,6 +39,16 @@ function log(event, data) {
 
 function emit(event, data) {
   log(event, data);
+  /* Always surface transitions in logcat for A51 / BT field debug */
+  try {
+    console.warn('[LiveAudioRoute:TX]', event, {
+      state,
+      lastAppliedMode,
+      lastAppliedAt,
+      platform: Platform.OS,
+      ...(data || {}),
+    });
+  } catch (_e) {}
   listeners.forEach((fn) => {
     try {
       fn({ event, state, ...(data || {}) });
@@ -46,6 +62,10 @@ function run(fn) {
   return next;
 }
 
+function recentlyApplied(mode) {
+  return lastAppliedMode === mode && Date.now() - lastAppliedAt < APPLY_COOLDOWN_MS;
+}
+
 async function applyIdle() {
   await Audio.setAudioModeAsync({
     allowsRecordingIOS: false,
@@ -57,11 +77,16 @@ async function applyIdle() {
     interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
   });
   lastAppliedAt = Date.now();
+  lastAppliedMode = 'idle';
   emit('session_end', { mode: 'idle', platform: Platform.OS });
 }
 
-async function applyLivePlay() {
-  /* Playback focus for audience — loudspeaker / A2DP. DuckOthers keeps Bluetooth hearable. */
+async function applyLivePlay({ force = false } = {}) {
+  if (!force && recentlyApplied('livePlay')) {
+    emit('apply_skipped', { mode: 'livePlay', reason: 'cooldown' });
+    return;
+  }
+  /* Playback focus — DuckOthers keeps Bluetooth A2DP hearable. */
   await Audio.setAudioModeAsync({
     allowsRecordingIOS: false,
     playsInSilentModeIOS: true,
@@ -72,12 +97,17 @@ async function applyLivePlay() {
     interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
   });
   lastAppliedAt = Date.now();
+  lastAppliedMode = 'livePlay';
   emit('session_start', { mode: 'livePlay', platform: Platform.OS });
   emit('focus_gain', { mode: 'livePlay' });
 }
 
-async function applyLiveTalk({ bluetoothSafe = true } = {}) {
-  /* Mic path. Always prefer BT-safe ducking so headphones keep playing remote audio. */
+async function applyLiveTalk({ bluetoothSafe = true, force = false } = {}) {
+  if (!force && recentlyApplied('liveTalk')) {
+    emit('apply_skipped', { mode: 'liveTalk', reason: 'cooldown' });
+    return;
+  }
+  /* Mic path. DuckOthers so headphones keep playing remote audio. */
   await Audio.setAudioModeAsync({
     allowsRecordingIOS: true,
     playsInSilentModeIOS: true,
@@ -88,6 +118,7 @@ async function applyLiveTalk({ bluetoothSafe = true } = {}) {
     interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
   });
   lastAppliedAt = Date.now();
+  lastAppliedMode = 'liveTalk';
   emit('session_start', { mode: 'liveTalk', bluetoothSafe, platform: Platform.OS });
   emit('focus_gain', { mode: 'liveTalk' });
 }
@@ -115,6 +146,7 @@ export const LiveAudioRoute = {
     return {
       state,
       lastAppliedAt,
+      lastAppliedMode,
       lastFocusEvent,
       platform: Platform.OS,
       debug,
@@ -135,14 +167,15 @@ export const LiveAudioRoute = {
   /** Audience (or host before mic) — media playback focus. */
   enterPlayback(reason = 'enterPlayback') {
     return run(async () => {
+      const force = /force|foreground|nav_enter|webview_load/i.test(String(reason || ''));
       if (state === LiveAudioStates.LIVE_PLAY) {
-        await applyLivePlay();
+        await applyLivePlay({ force });
         emit('reevaluate', { reason, state });
         return state;
       }
       emit('transition', { from: state, to: LiveAudioStates.LIVE_PLAY, reason });
       state = LiveAudioStates.LIVE_PLAY;
-      await applyLivePlay();
+      await applyLivePlay({ force: true });
       return state;
     });
   },
@@ -151,9 +184,13 @@ export const LiveAudioRoute = {
   enterTalk(opts = {}) {
     return run(async () => {
       const reason = opts.reason || 'enterTalk';
+      if (state === LiveAudioStates.LIVE_TALK && recentlyApplied('liveTalk')) {
+        emit('enterTalk_noop', { reason, state });
+        return state;
+      }
       emit('transition', { from: state, to: LiveAudioStates.LIVE_TALK, reason });
       state = LiveAudioStates.LIVE_TALK;
-      await applyLiveTalk({ bluetoothSafe: opts.bluetoothSafe !== false });
+      await applyLiveTalk({ bluetoothSafe: opts.bluetoothSafe !== false, force: true });
       return state;
     });
   },
@@ -167,7 +204,7 @@ export const LiveAudioRoute = {
       }
       emit('transition', { from: state, to: LiveAudioStates.LIVE_PLAY, reason });
       state = LiveAudioStates.LIVE_PLAY;
-      await applyLivePlay();
+      await applyLivePlay({ force: true });
       emit('exit_communication_mode', { reason });
       return state;
     });
@@ -186,14 +223,17 @@ export const LiveAudioRoute = {
     });
   },
 
-  /** BT / headset / focus change — re-apply current live mode without Agora knowledge. */
+  /**
+   * BT / headset / focus change — re-apply current live mode without Agora knowledge.
+   * Cooldown prevents rapid devicechange/speaker posts from killing Bluetooth audio.
+   */
   reevaluate(reason = 'reevaluate') {
     return run(async () => {
       emit('route_change', { reason, state });
       if (state === LiveAudioStates.LIVE_TALK) {
         await applyLiveTalk({});
       } else if (state === LiveAudioStates.LIVE_PLAY) {
-        await applyLivePlay();
+        await applyLivePlay({});
       }
       return state;
     });

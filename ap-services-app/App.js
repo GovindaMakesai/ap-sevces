@@ -21,6 +21,13 @@ import * as WebBrowser from 'expo-web-browser';
 import * as ScreenCapture from 'expo-screen-capture';
 import { getMobileDashboardInjectScript } from './injectedMobileFix';
 import LiveAudioRoute from './liveAudioRoute';
+import {
+  registerForPushNotificationsAsync,
+  uploadPushToken,
+  resolvePushDeepLink,
+  extractNotificationData,
+} from './pushNotifications';
+import * as Notifications from 'expo-notifications';
 
 const BRAND_LOGO = require('./assets/logo-loading.png');
 
@@ -378,7 +385,13 @@ function switchToProductionFrontend(setFrontendBase, setLanFallbackDone, setLoad
 function isNativeOAuthReturnUrl(url) {
   if (!url) return false;
   const u = String(url);
-  return u.startsWith('apservices://') || u.startsWith('exp://');
+  return u.startsWith('apservices://oauth') || u.startsWith('exp://');
+}
+
+function isAppDeepLink(url) {
+  if (!url) return false;
+  const u = String(url);
+  return u.startsWith('aplive://') || u.startsWith('apservices://');
 }
 
 /** @returns {{ type: 'code' | 'token', value: string } | null} */
@@ -524,6 +537,41 @@ export default function App() {
   const screenCaptureBlockedRef = useRef(false);
   /** WebView source is set once — post-login navigation uses injectJavaScript only */
   const webSourceUriRef = useRef('');
+  const pushTokenRef = useRef(null);
+  const frontendBaseRef = useRef(frontendBase);
+  frontendBaseRef.current = frontendBase;
+
+  const navigateWebViewTo = useCallback((absoluteUrl) => {
+    if (!absoluteUrl || !webViewRef.current) return;
+    const safe = JSON.stringify(String(absoluteUrl));
+    webViewRef.current.injectJavaScript(
+      `(function(){try{window.location.href=${safe};}catch(e){}true;})();`
+    );
+  }, []);
+
+  const syncPushToken = useCallback(async (sess) => {
+    try {
+      const access = sess?.accessToken;
+      if (!access) return;
+      /* Always (re)request permission + refresh token after login */
+      const info = await registerForPushNotificationsAsync();
+      pushTokenRef.current = info;
+      if (info?.token) {
+        const ok = await uploadPushToken(access, info);
+        if (!ok) console.warn('[push] register-token failed after login');
+      }
+    } catch (err) {
+      console.warn('[push] sync failed', err?.message || err);
+    }
+  }, []);
+
+  const openFromPushData = useCallback(
+    (data) => {
+      const url = resolvePushDeepLink(data, frontendBaseRef.current);
+      if (url) navigateWebViewTo(url);
+    },
+    [navigateWebViewTo]
+  );
 
   const lockLiveScreenCapture = useCallback(async (force = false) => {
     screenCaptureBlockedRef.current = true;
@@ -721,6 +769,7 @@ export default function App() {
         tryGo();
         setTimeout(tryGo, 150);
         setTimeout(tryGo, 500);
+        syncPushToken({ user, accessToken, refreshToken });
       } catch (err) {
         console.warn('[ap-services-app] Login exchange failed', err);
         const msg = err.message || 'Sign in failed. Try Google again.';
@@ -735,7 +784,7 @@ export default function App() {
         if (processingCredRef.current === credKey) processingCredRef.current = '';
       }
     },
-    [frontendBase]
+    [frontendBase, syncPushToken]
   );
 
   const applyOAuthCredential = useCallback(
@@ -828,21 +877,59 @@ export default function App() {
 
   useEffect(() => {
     const handleDeepLink = ({ url }) => {
-      if (!isNativeOAuthReturnUrl(url)) return;
-      if (oauthCompleteRef.current) return;
-      const credential = extractOAuthCredential(url);
-      if (!credential) return;
-      const credKey = `${credential.type}:${credential.value}`;
-      if (handledTokenRef.current === credKey) return;
-      pendingTokenRef.current = credential;
-      applyOAuthCredential(credential);
+      if (isNativeOAuthReturnUrl(url)) {
+        if (oauthCompleteRef.current) return;
+        const credential = extractOAuthCredential(url);
+        if (!credential) return;
+        const credKey = `${credential.type}:${credential.value}`;
+        if (handledTokenRef.current === credKey) return;
+        pendingTokenRef.current = credential;
+        applyOAuthCredential(credential);
+        return;
+      }
+      if (isAppDeepLink(url)) {
+        const target = resolvePushDeepLink(url, frontendBaseRef.current);
+        if (target) navigateWebViewTo(target);
+      }
     };
 
     const subscription = Linking.addEventListener('url', handleDeepLink);
     // Do not call getInitialURL — it replays stale OAuth codes on every Metro reload and breaks login.
 
     return () => subscription.remove();
-  }, [applyOAuthCredential]);
+  }, [applyOAuthCredential, navigateWebViewTo]);
+
+  useEffect(() => {
+    let subReceived;
+    let subResponse;
+    (async () => {
+      try {
+        const info = await registerForPushNotificationsAsync();
+        pushTokenRef.current = info;
+        if (nativeSessionRef.current?.accessToken && info) {
+          await uploadPushToken(nativeSessionRef.current.accessToken, info);
+        }
+      } catch (_e) {}
+    })();
+
+    subReceived = Notifications.addNotificationReceivedListener(() => {});
+    subResponse = Notifications.addNotificationResponseReceivedListener((response) => {
+      openFromPushData(extractNotificationData(response));
+    });
+
+    Notifications.getLastNotificationResponseAsync()
+      .then((response) => {
+        if (response) openFromPushData(extractNotificationData(response));
+      })
+      .catch(() => {});
+
+    return () => {
+      try {
+        subReceived?.remove?.();
+        subResponse?.remove?.();
+      } catch (_e) {}
+    };
+  }, [openFromPushData]);
 
   const handleOAuthUrl = useCallback(
     (url) => {
@@ -1064,6 +1151,7 @@ export default function App() {
               buildSessionInjectScript(fresh.user, fresh.accessToken, fresh.refreshToken) +
               `try{window.dispatchEvent(new CustomEvent('ap-session-injected'));window.dispatchEvent(new CustomEvent('ap-session-restored'));}catch(e){};true;`;
             webViewRef.current?.injectJavaScript(inject);
+            syncPushToken(fresh);
           })();
           return;
         }
@@ -1086,6 +1174,7 @@ export default function App() {
           setSessionInject(
             buildSessionInjectScript(data.user, data.accessToken || null, data.refreshToken || null)
           );
+          syncPushToken(nativeSessionRef.current);
           webViewRef.current?.injectJavaScript(
             buildNavigateScript(data.user, data.accessToken || null, dest, data.refreshToken || null)
           );
@@ -1134,8 +1223,16 @@ export default function App() {
           return;
         }
         if (data.type === 'force_speaker_audio') {
-          /* Compat: map old web posts onto LiveAudioRoute */
-          if (data.recording === true) {
+          /* Compat: map old web posts onto LiveAudioRoute — skip if already in desired mode */
+          const snap = LiveAudioRoute.getDebugSnapshot?.() || {};
+          const wantTalk = data.recording === true;
+          const already =
+            (wantTalk && snap.state === 'liveTalk') ||
+            (!wantTalk && snap.state === 'livePlay');
+          if (already && snap.lastAppliedAt && Date.now() - snap.lastAppliedAt < 2000) {
+            return;
+          }
+          if (wantTalk) {
             LiveAudioRoute.enterTalk({
               bluetoothSafe: data.bluetoothSafe !== false,
               reason: 'force_speaker_audio',
@@ -1249,7 +1346,7 @@ export default function App() {
         /* not our message */
       }
     },
-    [startOAuthInBrowser, frontendBase, clearNativeSession, lockLiveScreenCapture, unlockLiveScreenCapture]
+    [startOAuthInBrowser, frontendBase, clearNativeSession, lockLiveScreenCapture, unlockLiveScreenCapture, syncPushToken]
   );
 
   const onShouldStartLoadWithRequest = (request) => {

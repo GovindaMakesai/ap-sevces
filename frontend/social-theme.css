@@ -1561,16 +1561,35 @@ html.social-video-page.social-native body {
 }
 
 .social-video-page .social-bottom-nav {
-  background: rgba(0, 0, 0, 0.85);
-  border-top-color: rgba(255, 255, 255, 0.1);
+  background: #fffdf8;
+  border-top-color: rgba(232, 212, 168, 0.85);
+  /* Fully opaque so no feed/rails bleed through behind icons */
+  opacity: 1;
+  backdrop-filter: none;
 }
 
 .social-video-page .social-bottom-nav a {
-  color: rgba(255, 255, 255, 0.6);
+  color: #b8a88a;
 }
 
-.social-video-page .social-bottom-nav a.active {
-  color: #fff;
+.social-video-page .social-bottom-nav a.active,
+.social-video-page .social-bottom-nav .nav-item.is-active {
+  color: #e89b1f;
+}
+
+/* Never show Square-style discovery photo rails on Video */
+.social-video-page #social-discover-rails,
+.social-video-page .ap-discover-rails,
+body.social-video-page #social-discover-rails,
+body.social-video-page .ap-discover-rails {
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  max-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  pointer-events: none !important;
 }
 
 .social-video-top {
@@ -1615,7 +1634,7 @@ html.social-video-page.social-native body {
 .social-video-actions {
   position: absolute;
   right: 10px;
-  bottom: 72px;
+  bottom: calc(var(--social-bottom-nav-h, 62px) + var(--social-safe-bottom, 0px) + 20px);
   z-index: 30;
   display: flex;
   flex-direction: column;
@@ -1628,7 +1647,7 @@ html.social-video-page.social-native body {
 .social-video-page .social-reel-ui .social-video-actions {
   position: absolute;
   right: 10px;
-  bottom: 72px;
+  bottom: calc(var(--social-bottom-nav-h, 62px) + var(--social-safe-bottom, 0px) + 20px);
 }
 
 .social-video-actions button {
@@ -3214,8 +3233,44 @@ html.ap-live-immersive.social-app body {
 }
 
 html.ap-nav-switching body {
-  /* Instant tab switch — no fade that feels like a full-page reload */
+  /* Keep current screen painted — no fade that feels like a dead pause */
   opacity: 1;
+  pointer-events: none;
+}
+
+#ap-nav-switch-overlay {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  z-index: 99999;
+  height: 3px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.08s linear;
+}
+#ap-nav-switch-overlay.is-on {
+  opacity: 1;
+}
+#ap-nav-switch-overlay .ap-nav-switch-bar {
+  display: block;
+  height: 100%;
+  width: 35%;
+  background: linear-gradient(90deg, #c9a227, #f5c842, #c9a227);
+  animation: ap-nav-bar 0.7s ease-in-out infinite;
+}
+@keyframes ap-nav-bar {
+  0% { transform: translateX(-100%); width: 30%; }
+  50% { width: 55%; }
+  100% { transform: translateX(350%); width: 30%; }
+}
+
+.social-bottom-nav .nav-item:active,
+.social-main-tabs a:active,
+.social-feed-scope-btn:active {
+  transform: scale(0.94);
+  opacity: 0.88;
+  transition: transform 0.08s ease, opacity 0.08s ease;
 }
 
 .ap-live-pip-bar {

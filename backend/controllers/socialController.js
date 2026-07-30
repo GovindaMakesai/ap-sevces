@@ -132,6 +132,53 @@ async function creatorEngagement(req, res) {
   }
 }
 
+async function discoverRails(req, res) {
+  try {
+    const creatorDiscoveryService = require('../services/creatorDiscoveryService');
+    const data = await creatorDiscoveryService.getDiscoveryRails(req.userId || null, {
+      limit: parseInt(req.query.limit, 10) || 12,
+    });
+    res.json({ success: true, data });
+  } catch (e) {
+    console.error('discoverRails error:', e);
+    res.status(500).json({ success: false, message: 'Failed to load discovery' });
+  }
+}
+
+async function clientMetrics(req, res) {
+  try {
+    const clientMetricsService = require('../services/clientMetricsService');
+    const data = await clientMetricsService.ingestClientMetrics(req.userId || null, req.body || {}, {
+      path: req.headers.referer || req.get?.('referer') || '',
+      ua: req.headers['user-agent'] || '',
+    });
+    res.json({ success: true, data });
+  } catch (e) {
+    console.warn('clientMetrics error:', e.message);
+    res.status(200).json({ success: true, data: { accepted: 0 } });
+  }
+}
+
+async function creatorAnalytics(req, res) {
+  try {
+    const targetId = String(req.params.userId || '');
+    if (!targetId) {
+      return res.status(400).json({ success: false, message: 'userId required' });
+    }
+    if (String(req.userId) !== targetId) {
+      return res.status(403).json({ success: false, message: 'You can only view your own analytics' });
+    }
+    const creatorAnalyticsService = require('../services/creatorAnalyticsService');
+    const data = await creatorAnalyticsService.getCreatorAnalytics(targetId, {
+      period: req.query.period || 'week',
+    });
+    res.json({ success: true, data });
+  } catch (e) {
+    console.error('creatorAnalytics error:', e);
+    res.status(500).json({ success: false, message: 'Failed to load analytics' });
+  }
+}
+
 async function listGiftCatalog(_req, res) {
   const res2 = await db.query(
     `SELECT slug, emoji, name, coin_cost, category, tier FROM gift_catalog
@@ -210,11 +257,41 @@ async function mySellerOrders(req, res) {
 }
 
 async function listPosts(req, res) {
-  const data = await socialFeedService.listFeed(uid(req), {
-    limit: parseInt(req.query.limit, 10) || 30,
-    offset: parseInt(req.query.offset, 10) || 0,
-  });
-  res.json({ success: true, data });
+  try {
+    const viewerId = req.userId || uid(req) || null;
+    const data = await socialFeedService.listFeed(viewerId, {
+      limit: parseInt(req.query.limit, 10) || 30,
+      offset: parseInt(req.query.offset, 10) || 0,
+      userId: req.query.userId || req.query.user_id || null,
+      feed: req.query.feed || req.query.scope || null,
+      mediaType: req.query.mediaType || req.query.media_type || 'all',
+    });
+    const meta = {};
+    if (req.query.userId || req.query.user_id) {
+      meta.counts = await socialFeedService.getCreatorPostCounts(
+        req.query.userId || req.query.user_id,
+        viewerId
+      );
+    }
+    /* Attach LIVE status for authors (feed pills) */
+    try {
+      const authorIds = [...new Set(data.map((p) => p.user_id || p.author?.id).filter(Boolean))];
+      if (authorIds.length) {
+        const liveMap = await discoverCreatorService.getLiveStatusForUsers(authorIds);
+        data.forEach((p) => {
+          const aid = String(p.user_id || p.author?.id || '');
+          const live = liveMap.get(aid);
+          p.author_live = live || null;
+        });
+      }
+    } catch (_e) {
+      /* non-fatal */
+    }
+    res.json({ success: true, data, meta: Object.keys(meta).length ? meta : undefined });
+  } catch (e) {
+    console.error('listPosts error:', e);
+    res.status(500).json({ success: false, message: 'Failed to load posts' });
+  }
 }
 
 async function createPost(req, res) {
@@ -275,7 +352,10 @@ async function commentPost(req, res) {
 }
 
 async function getComments(req, res) {
-  const data = await socialFeedService.listComments(req.params.postId);
+  const data = await socialFeedService.listComments(req.params.postId, {
+    limit: parseInt(req.query.limit, 10) || 50,
+    offset: parseInt(req.query.offset, 10) || 0,
+  });
   res.json({ success: true, data });
 }
 
@@ -434,7 +514,10 @@ module.exports = {
   followStats,
   liveFollowing,
   discoverCreators,
+  discoverRails,
+  clientMetrics,
   creatorEngagement,
+  creatorAnalytics,
   listGiftCatalog,
   listCoinSellers,
   buyFromSeller,

@@ -127,24 +127,50 @@ async function creditAgencyShare(
   client
 ) {
   if (amount <= 0 || !ownerUserId) return null;
-  await walletService.creditCoins(
-    ownerUserId,
-    amount,
-    {
-      type: role === 'invite_agency' ? 'invite_agency_commission' : 'agency_commission',
-      reference_type: 'gift',
-      reference_id: giftId,
-      metadata: {
-        agency_id: agencyId,
-        source_user_id: hostUserId,
-        percentage,
-        host_performance: hostPerformance,
-        tier_code: tierCode,
-        ...metadata,
+
+  /* Currency rules (never mix):
+   * - Host → direct Agency (role agency) → Agency Points (stars)
+   * - Sub Agency → Parent Agency override (role invite_agency) → Agency Coins
+   */
+  const isParentOverride = role === 'invite_agency';
+  const currencyType = isParentOverride ? 'coin' : 'star';
+  const txType = isParentOverride ? 'invite_agency_commission' : 'agency_commission';
+  const meta = {
+    agency_id: agencyId,
+    source_user_id: hostUserId,
+    percentage,
+    host_performance: hostPerformance,
+    tier_code: tierCode,
+    reward_type: isParentOverride ? 'agency_coins' : 'agency_points',
+    ...metadata,
+  };
+
+  if (isParentOverride) {
+    await walletService.creditCoins(
+      ownerUserId,
+      amount,
+      {
+        type: txType,
+        reference_type: 'gift',
+        reference_id: giftId,
+        metadata: meta,
       },
-    },
-    client
-  );
+      client
+    );
+  } else {
+    await walletService.creditStars(
+      ownerUserId,
+      amount,
+      {
+        type: txType,
+        reference_type: 'gift',
+        reference_id: giftId,
+        metadata: meta,
+      },
+      client
+    );
+  }
+
   await client.query(
     `UPDATE agencies SET total_income = total_income + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
     [String(amount), agencyId]
@@ -157,18 +183,29 @@ async function creditAgencyShare(
       coins: hostPerformance,
       percentage,
       amount,
-      metadata: { agency_id: agencyId, tier_code: tierCode, ...metadata },
+      currencyType,
+      metadata: { agency_id: agencyId, tier_code: tierCode, reward_type: meta.reward_type, ...metadata },
     },
     client
   );
-  return { role, userId: ownerUserId, amount, agencyId };
+
+  setImmediate(() => {
+    try {
+      const pushNotificationService = require('./pushNotificationService');
+      pushNotificationService
+        .notifyCommissionReceived(ownerUserId, amount, currencyType)
+        .catch(() => {});
+    } catch (_e) {}
+  });
+
+  return { role, userId: ownerUserId, amount, agencyId, currencyType };
 }
 
 /**
  * Settle a gift:
- * - Host share from commission_rules → stars
- * - Direct agency: live_pct × host_performance → coins
- * - Parent agencies: (own_pct − child_pct) × host_performance → invite_agency coins
+ * - Host share from commission_rules → Points (stars)
+ * - Direct agency (Host → Agency): live_pct × host_performance → Agency Points
+ * - Parent override (Sub → Parent): (own_pct − child_pct) × host_performance → Agency Coins
  * - BD from rules; platform = remainder
  */
 async function settleGift({ giftId, hostUserId, grossCoins, senderId, giftType, client }) {
@@ -211,6 +248,7 @@ async function settleGift({ giftId, hostUserId, grossCoins, senderId, giftType, 
     results.push({ role: 'host', userId: hostUserId, amount: hostAmount });
   }
 
+  let agencyPointsPaid = 0;
   let agencyCoinsPaid = 0;
   const cfg = await agencyTierService.getTierConfig();
 
@@ -253,12 +291,15 @@ async function settleGift({ giftId, hostUserId, grossCoins, senderId, giftType, 
         );
         if (credited) {
           results.push(credited);
-          agencyCoinsPaid += amount;
+          if (role === 'agency') agencyPointsPaid += amount;
+          else agencyCoinsPaid += amount;
         }
       }
       childPct = Math.max(childPct, ownPct);
     }
   }
+
+  const agencyTotalPaid = agencyPointsPaid + agencyCoinsPaid;
 
   const bdAlloc = allocations.find((a) => a.role === 'bd');
   if (bdAlloc && Number(bdAlloc.amount) > 0) {
@@ -319,7 +360,7 @@ async function settleGift({ giftId, hostUserId, grossCoins, senderId, giftType, 
 
   const platformAmount = Math.max(
     0,
-    Number(grossCoins) - hostAmount - agencyCoinsPaid - (bdAlloc ? Number(bdAlloc.amount) : 0)
+    Number(grossCoins) - hostAmount - agencyTotalPaid - (bdAlloc ? Number(bdAlloc.amount) : 0)
   );
   if (platformAmount > 0) {
     await platformService.creditPlatformFee(
@@ -331,7 +372,9 @@ async function settleGift({ giftId, hostUserId, grossCoins, senderId, giftType, 
           receiver_id: hostUserId,
           role: 'platform',
           host_amount: hostAmount,
-          agency_amount: agencyCoinsPaid,
+          agency_points: agencyPointsPaid,
+          agency_coins: agencyCoinsPaid,
+          agency_amount: agencyTotalPaid,
         },
       },
       client

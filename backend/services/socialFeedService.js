@@ -1,58 +1,281 @@
 const db = require('../config/database');
+const followService = require('./followService');
+const { normalizeMediaItems, toPublicUrl } = require('./socialMediaUrl');
+const RANKING = require('../config/socialFeedRanking');
 
-async function createPost(userId, { body, mediaUrl, thumbUrl, mediaType, visibility }) {
+async function createPost(userId, { body, mediaUrl, thumbUrl, mediaType, visibility, mediaItems } = {}) {
   const text = String(body || '').trim();
-  const media = mediaUrl ? String(mediaUrl).trim() : null;
+  let media = mediaUrl ? String(mediaUrl).trim() : null;
+  let thumb = thumbUrl ? String(thumbUrl).trim() : null;
+  let type = mediaType || null;
+
+  /* Carousel-ready: accept mediaItems[0] as primary until multi-image ships */
+  if ((!media || !type) && Array.isArray(mediaItems) && mediaItems[0]) {
+    const first = mediaItems[0];
+    media = media || first.url || first.media_url || null;
+    thumb = thumb || first.thumb || first.thumb_url || null;
+    type = type || first.type || first.media_type || null;
+  }
+
   if (!text && !media) throw new Error('Post body or media required');
-  const type =
-    mediaType ||
+  type =
+    type ||
     (media && /\.(mp4|webm|mov|m4v)(\?|$)/i.test(media) ? 'video' : media ? 'image' : 'none');
   const vis = visibility === 'private' ? 'private' : 'public';
   const res = await db.query(
     `INSERT INTO social_posts (user_id, body, media_url, thumb_url, media_type, visibility)
      VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-    [userId, text || '', media, thumbUrl || null, type, vis]
+    [userId, text || '', media, thumb || null, type, vis]
   );
-  return enrichPost(res.rows[0], userId);
+  const enriched = await enrichPosts([res.rows[0]], userId);
+
+  if (vis === 'public') {
+    setImmediate(() => {
+      (async () => {
+        try {
+          const pushNotificationService = require('./pushNotificationService');
+          const nameRes = await db.query(
+            `SELECT first_name, last_name, display_id FROM users WHERE id = $1`,
+            [userId]
+          );
+          const u = nameRes.rows[0] || {};
+          const name =
+            `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.display_id || 'A creator';
+          const followers = await db.query(
+            `SELECT follower_id FROM user_follows WHERE following_id = $1`,
+            [userId]
+          );
+          const template = pushNotificationService.TEMPLATES.post_published(
+            name,
+            res.rows[0].id
+          );
+          pushNotificationService.queuePushMany(
+            followers.rows.map((r) => r.follower_id),
+            template,
+            { dedupeKey: `post:${res.rows[0].id}` }
+          );
+
+          const mentions = text.match(/@([a-zA-Z0-9_]{2,32})/g) || [];
+          if (mentions.length) {
+            const handles = [...new Set(mentions.map((m) => m.slice(1).toLowerCase()))];
+            const mentioned = await db.query(
+              `SELECT id FROM users WHERE LOWER(display_id) = ANY($1::text[]) LIMIT 20`,
+              [handles]
+            );
+            await pushNotificationService.notifyMentions(
+              mentioned.rows.map((r) => r.id),
+              userId,
+              { postId: res.rows[0].id, label: 'a post' }
+            );
+          }
+        } catch (err) {
+          console.warn('[post] push failed', err.message);
+        }
+      })();
+    });
+  }
+
+  return enriched[0];
 }
 
-async function enrichPost(post, viewerId) {
-  const userRes = await db.query(
-    `SELECT id, first_name, last_name, profile_pic FROM users WHERE id = $1`,
-    [post.user_id]
-  );
-  const likesRes = await db.query(`SELECT COUNT(*)::int AS c FROM social_post_likes WHERE post_id = $1`, [post.id]);
-  let liked = false;
-  if (viewerId) {
-    const l = await db.query(
-      `SELECT 1 FROM social_post_likes WHERE post_id = $1 AND user_id = $2`,
-      [post.id, viewerId]
-    );
-    liked = l.rows.length > 0;
-  }
-  const commentsRes = await db.query(
-    `SELECT COUNT(*)::int AS c FROM social_post_comments WHERE post_id = $1`,
-    [post.id]
-  );
+function mapPostRow(row, { liked = false, author = null } = {}) {
+  const mediaItems = normalizeMediaItems(row);
+  const primary = mediaItems[0] || null;
   return {
-    ...post,
-    author: userRes.rows[0],
-    like_count: likesRes.rows[0].c,
-    comment_count: commentsRes.rows[0].c,
-    liked,
+    ...row,
+    media_url: primary?.url || toPublicUrl(row.media_url),
+    thumb_url: primary?.thumb || toPublicUrl(row.thumb_url),
+    media_items: mediaItems,
+    author: author || {
+      id: row.author_id,
+      first_name: row.first_name,
+      last_name: row.last_name,
+      profile_pic: row.profile_pic,
+      display_id: row.display_id,
+      role: row.author_role,
+      is_verified: row.is_verified,
+    },
+    like_count: Number(row.like_count || 0),
+    comment_count: Number(row.comment_count || 0),
+    share_count: Number(row.share_count || 0),
+    liked: !!liked,
+    /* Extension points — clients ignore until features ship */
+    bookmarks_supported: false,
+    realtime_channel: null,
   };
 }
 
-async function listFeed(viewerId, { limit = 30, offset = 0 } = {}) {
-  const res = await db.query(
-    `SELECT * FROM social_posts
-     WHERE COALESCE(visibility, 'public') = 'public'
-        OR user_id = $3
-     ORDER BY created_at DESC
-     LIMIT $1 OFFSET $2`,
-    [limit, offset, viewerId || null]
+/**
+ * Batch enrich posts (kills N+1). Accepts raw social_posts rows or joined rows.
+ */
+async function enrichPosts(posts, viewerId) {
+  if (!posts?.length) return [];
+  const ids = posts.map((p) => p.id);
+  const userIds = [...new Set(posts.map((p) => p.user_id).filter(Boolean))];
+
+  const [usersRes, likesRes, commentsRes, likedRes] = await Promise.all([
+    userIds.length
+      ? db.query(
+          `SELECT id, first_name, last_name, profile_pic, display_id, role, is_verified
+           FROM users WHERE id = ANY($1::uuid[])`,
+          [userIds]
+        )
+      : Promise.resolve({ rows: [] }),
+    db.query(
+      `SELECT post_id, COUNT(*)::int AS c FROM social_post_likes
+       WHERE post_id = ANY($1::uuid[]) GROUP BY post_id`,
+      [ids]
+    ),
+    db.query(
+      `SELECT post_id, COUNT(*)::int AS c FROM social_post_comments
+       WHERE post_id = ANY($1::uuid[]) GROUP BY post_id`,
+      [ids]
+    ),
+    viewerId
+      ? db.query(
+          `SELECT post_id FROM social_post_likes
+           WHERE post_id = ANY($1::uuid[]) AND user_id = $2`,
+          [ids, viewerId]
+        )
+      : Promise.resolve({ rows: [] }),
+  ]);
+
+  const authors = new Map(usersRes.rows.map((u) => [String(u.id), u]));
+  const likeMap = new Map(likesRes.rows.map((r) => [String(r.post_id), r.c]));
+  const commentMap = new Map(commentsRes.rows.map((r) => [String(r.post_id), r.c]));
+  const likedSet = new Set(likedRes.rows.map((r) => String(r.post_id)));
+
+  return posts.map((p) =>
+    mapPostRow(
+      {
+        ...p,
+        like_count: likeMap.get(String(p.id)) || 0,
+        comment_count: commentMap.get(String(p.id)) || 0,
+      },
+      {
+        liked: likedSet.has(String(p.id)),
+        author: authors.get(String(p.user_id)) || null,
+      }
+    )
   );
-  return Promise.all(res.rows.map((p) => enrichPost(p, viewerId)));
+}
+
+async function getCreatorPostCounts(userId, viewerId = null) {
+  const isOwner = viewerId && String(viewerId) === String(userId);
+  const res = await db.query(
+    `SELECT
+       COUNT(*) FILTER (WHERE media_type IS DISTINCT FROM 'video')::int AS posts_count,
+       COUNT(*) FILTER (WHERE media_type = 'video')::int AS videos_count,
+       COUNT(*)::int AS total_count
+     FROM social_posts
+     WHERE user_id = $1
+       AND (
+         COALESCE(visibility, 'public') = 'public'
+         OR ($2::boolean IS TRUE)
+       )`,
+    [userId, !!isOwner]
+  );
+  return res.rows[0] || { posts_count: 0, videos_count: 0, total_count: 0 };
+}
+
+/**
+ * List feed.
+ * @param {object} opts
+ * @param {string} [opts.userId] — creator profile filter
+ * @param {'for_you'|'following'|'latest'} [opts.feed]
+ * @param {'video'|'image'|'all'} [opts.mediaType]
+ * @param {number} [opts.limit]
+ * @param {number} [opts.offset]
+ */
+async function listFeed(viewerId, opts = {}) {
+  const limit = Math.min(Math.max(parseInt(opts.limit, 10) || 30, 1), 50);
+  const offset = Math.max(parseInt(opts.offset, 10) || 0, 0);
+  const creatorId = opts.userId ? String(opts.userId).trim() : null;
+  const mediaType = String(opts.mediaType || opts.media_type || 'all').toLowerCase();
+  let feed = String(opts.feed || opts.scope || '').toLowerCase();
+  if (!feed) feed = creatorId ? 'latest' : 'for_you';
+  if (!['for_you', 'following', 'latest'].includes(feed)) feed = 'for_you';
+
+  const hidden = viewerId ? await followService.getHiddenUserIdSet(viewerId) : new Set();
+  const hiddenArr = [...hidden];
+
+  const params = [];
+  const where = [];
+
+  /* Visibility: public OR own private */
+  params.push(viewerId || null);
+  const viewerParam = `$${params.length}`;
+  where.push(`(COALESCE(p.visibility, 'public') = 'public' OR p.user_id = ${viewerParam})`);
+
+  if (creatorId) {
+    params.push(creatorId);
+    where.push(`p.user_id = $${params.length}`);
+  }
+
+  if (mediaType === 'video') {
+    where.push(`p.media_type = 'video'`);
+  } else if (mediaType === 'posts' || mediaType === 'photo' || mediaType === 'image') {
+    /* Posts tab: everything that is not a video reel */
+    where.push(`(p.media_type IS DISTINCT FROM 'video')`);
+  }
+
+  if (hiddenArr.length) {
+    params.push(hiddenArr);
+    where.push(`NOT (p.user_id = ANY($${params.length}::uuid[]))`);
+  }
+
+  if (feed === 'following') {
+    if (!viewerId) return [];
+    params.push(viewerId);
+    where.push(
+      `p.user_id IN (SELECT following_id FROM user_follows WHERE follower_id = $${params.length})`
+    );
+  }
+
+  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+  const halfLife = RANKING.RECENCY_HALF_LIFE_HOURS;
+  const likeW = RANKING.LIKE_WEIGHT;
+  const commentW = RANKING.COMMENT_WEIGHT;
+  const shareW = RANKING.SHARE_WEIGHT;
+  const base = RANKING.BASE_SCORE;
+
+  let orderSql = 'ORDER BY p.created_at DESC';
+  if (feed === 'for_you' && !creatorId) {
+    orderSql = `ORDER BY (
+      (${base}::float
+        + COALESCE(lc.c, 0) * ${likeW}
+        + COALESCE(cc.c, 0) * ${commentW}
+        + COALESCE(p.share_count, 0) * ${shareW}
+      ) * EXP(
+        -GREATEST(EXTRACT(EPOCH FROM (NOW() - p.created_at)), 0) / 3600.0 / ${halfLife}
+      )
+    ) DESC, p.created_at DESC`;
+  }
+
+  params.push(limit);
+  const limParam = `$${params.length}`;
+  params.push(offset);
+  const offParam = `$${params.length}`;
+
+  const res = await db.query(
+    `SELECT p.*,
+            COALESCE(lc.c, 0)::int AS like_count,
+            COALESCE(cc.c, 0)::int AS comment_count
+     FROM social_posts p
+     LEFT JOIN (
+       SELECT post_id, COUNT(*)::int AS c FROM social_post_likes GROUP BY post_id
+     ) lc ON lc.post_id = p.id
+     LEFT JOIN (
+       SELECT post_id, COUNT(*)::int AS c FROM social_post_comments GROUP BY post_id
+     ) cc ON cc.post_id = p.id
+     ${whereSql}
+     ${orderSql}
+     LIMIT ${limParam} OFFSET ${offParam}`,
+    params
+  );
+
+  return enrichPosts(res.rows, viewerId);
 }
 
 async function toggleLike(postId, userId) {
@@ -61,10 +284,17 @@ async function toggleLike(postId, userId) {
     [postId, userId]
   );
   if (existing.rows.length) {
-    await db.query(`DELETE FROM social_post_likes WHERE post_id = $1 AND user_id = $2`, [postId, userId]);
+    await db.query(`DELETE FROM social_post_likes WHERE post_id = $1 AND user_id = $2`, [
+      postId,
+      userId,
+    ]);
     return { liked: false };
   }
-  await db.query(`INSERT INTO social_post_likes (post_id, user_id) VALUES ($1, $2)`, [postId, userId]);
+  await db.query(
+    `INSERT INTO social_post_likes (post_id, user_id) VALUES ($1, $2)
+     ON CONFLICT (post_id, user_id) DO NOTHING`,
+    [postId, userId]
+  );
   return { liked: true };
 }
 
@@ -79,16 +309,53 @@ async function addComment(postId, userId, body) {
     `SELECT id, first_name, last_name, profile_pic FROM users WHERE id = $1`,
     [userId]
   );
+
+  setImmediate(() => {
+    (async () => {
+      try {
+        const pushNotificationService = require('./pushNotificationService');
+        const postRes = await db.query(`SELECT user_id FROM social_posts WHERE id = $1`, [postId]);
+        const ownerId = postRes.rows[0]?.user_id;
+        if (ownerId) {
+          await pushNotificationService.notifyComment(ownerId, userId, postId);
+        }
+
+        const mentions = text.match(/@([a-zA-Z0-9_]{2,32})/g) || [];
+        if (mentions.length) {
+          const handles = [...new Set(mentions.map((m) => m.slice(1).toLowerCase()))];
+          const mentioned = await db.query(
+            `SELECT id FROM users
+             WHERE LOWER(display_id) = ANY($1::text[])
+                OR LOWER(REPLACE(COALESCE(first_name,'') || COALESCE(last_name,''), ' ', '')) = ANY($1::text[])
+             LIMIT 20`,
+            [handles]
+          );
+          await pushNotificationService.notifyMentions(
+            mentioned.rows.map((r) => r.id),
+            userId,
+            { postId, label: 'a comment' }
+          );
+        }
+      } catch (err) {
+        console.warn('[comment] push failed', err.message);
+      }
+    })();
+  });
+
   return { ...res.rows[0], author: userRes.rows[0] };
 }
 
-async function listComments(postId, limit = 50) {
+async function listComments(postId, { limit = 50, offset = 0 } = {}) {
+  const lim = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 100);
+  const off = Math.max(parseInt(offset, 10) || 0, 0);
   const res = await db.query(
     `SELECT c.*, u.first_name, u.last_name, u.profile_pic
      FROM social_post_comments c
      JOIN users u ON u.id = c.user_id
-     WHERE c.post_id = $1 ORDER BY c.created_at ASC LIMIT $2`,
-    [postId, limit]
+     WHERE c.post_id = $1
+     ORDER BY c.created_at ASC
+     LIMIT $2 OFFSET $3`,
+    [postId, lim, off]
   );
   return res.rows;
 }
@@ -114,9 +381,12 @@ async function deletePost(postId, userId) {
 module.exports = {
   createPost,
   listFeed,
+  enrichPosts,
+  getCreatorPostCounts,
   toggleLike,
   addComment,
   listComments,
   sharePost,
   deletePost,
+  RANKING,
 };

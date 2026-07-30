@@ -239,7 +239,8 @@
   }
 
   function canViewPost(post) {
-    if (!post || post.demo) return true;
+    if (!post) return false;
+    if (post.demo) return false; /* demo content removed from production */
     if (post.visibility !== 'private') return true;
     const user = window.Auth?.getUser?.();
     const uid = user?.id || user?.email;
@@ -250,6 +251,117 @@
   function deletePost(postId) {
     const posts = getPosts().filter((p) => String(p.id) !== String(postId));
     savePosts(posts);
+  }
+
+  async function deletePostRemote(postId) {
+    deletePost(postId);
+    if (!window.API || !hasAuth()) return { deleted: true, localOnly: true };
+    try {
+      if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken();
+      await API.delete(`/social/posts/${postId}`);
+      return { deleted: true };
+    } catch (e) {
+      throw e;
+    }
+  }
+
+  /** Soft realtime hook — Socket.IO can plug in later without refactoring callers */
+  const SocialRealtime = (window.SocialRealtime = window.SocialRealtime || {
+    subscribe(_channel, _handler) {
+      return () => {};
+    },
+    emit(_event, _payload) {},
+  });
+
+  /** Bookmarks extension point (out of scope) */
+  async function bookmarkPost(_postId) {
+    return { supported: false };
+  }
+
+  function relativeTime(isoOrMs) {
+    if (!isoOrMs && isoOrMs !== 0) return '';
+    const t = typeof isoOrMs === 'number' ? isoOrMs : new Date(isoOrMs).getTime();
+    if (!Number.isFinite(t)) return '';
+    const sec = Math.max(0, Math.floor((Date.now() - t) / 1000));
+    if (sec < 45) return 'Just now';
+    if (sec < 3600) return Math.floor(sec / 60) + 'm ago';
+    if (sec < 86400) return Math.floor(sec / 3600) + 'h ago';
+    if (sec < 604800) return Math.floor(sec / 86400) + 'd ago';
+    try {
+      return new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    } catch (_e) {
+      return '';
+    }
+  }
+
+  function formatCaptionHtml(text) {
+    const esc = escapeHtml(text || '');
+    return esc.replace(/(#[\w\u0900-\u097F]+)/g, '<span class="social-hashtag">$1</span>');
+  }
+
+  function liveBadgeHtml(live) {
+    if (!live || !live.href) return '';
+    return (
+      '<a class="social-live-pill" href="' +
+      escapeHtml(live.href) +
+      '" onclick="event.stopPropagation()"><i class="fas fa-circle"></i> LIVE</a>'
+    );
+  }
+
+  function mapApiPost(p) {
+    const mediaUrl = resolveMediaUrl(p.media_url || p.mediaUrl || p.media_items?.[0]?.url);
+    const thumbUrl = resolveMediaUrl(p.thumb_url || p.thumbUrl || p.media_items?.[0]?.thumb);
+    const mediaType = String(p.media_type || p.mediaType || p.media_items?.[0]?.type || '').toLowerCase();
+    const isVideo = mediaType === 'video' || isVideoMediaUrl(mediaUrl);
+    const live = p.author_live || null;
+    const mapped = {
+      id: p.id,
+      userId: p.user_id || p.author?.id,
+      userName: `${p.author?.first_name || ''} ${p.author?.last_name || ''}`.trim() || 'User',
+      profilePic: p.author?.profile_pic || null,
+      text: p.body,
+      caption: p.body,
+      image: mediaUrl,
+      thumb: thumbUrl || (!isVideo ? mediaUrl : ''),
+      mediaItems: Array.isArray(p.media_items) ? p.media_items : null,
+      likes: p.like_count || 0,
+      comments: p.comment_count || 0,
+      shares: p.share_count || 0,
+      liked: !!p.liked,
+      createdAt: p.created_at,
+      visibility: p.visibility || 'public',
+      fromApi: true,
+      isVideo,
+      role: p.author?.role || null,
+      isVerified: !!(p.author?.is_verified),
+      agencyName: null,
+      creatorLevel: null,
+      authorLive: live
+        ? {
+            href: live.href,
+            channel: live.channel,
+            roomType: live.roomType || live.room_type,
+            viewers: live.viewers,
+          }
+        : null,
+    };
+    if (mapped.liked) setLike(mapped.id, true);
+    return mapped;
+  }
+
+  function currentFeedScope() {
+    const qs = new URLSearchParams(location.search);
+    const f = (qs.get('feed') || sessionStorage.getItem('social_feed_scope') || 'for_you').toLowerCase();
+    return ['for_you', 'following', 'latest'].includes(f) ? f : 'for_you';
+  }
+
+  function setFeedScope(scope) {
+    const s = ['for_you', 'following', 'latest'].includes(scope) ? scope : 'for_you';
+    sessionStorage.setItem('social_feed_scope', s);
+    const url = new URL(location.href);
+    url.searchParams.set('feed', s);
+    history.replaceState(null, '', url.pathname + url.search);
+    return s;
   }
 
   function isPlaceholderThumb(url) {
@@ -426,42 +538,28 @@
     }
   }
 
-  async function fetchApiPosts() {
-    if (!window.API || !(localStorage.getItem('user') || localStorage.getItem('token'))) return [];
+  async function fetchApiPosts(options) {
+    const opts = options || {};
+    if (!window.API) return { posts: [], meta: null };
+    const hasSession = !!(localStorage.getItem('user') || localStorage.getItem('token'));
+    /* Public creator profiles can load without session when optionalAuth is used */
+    if (!hasSession && !opts.userId) return { posts: [], meta: null };
     try {
-      const res = await API.get('/social/posts');
+      const params = new URLSearchParams();
+      params.set('limit', String(opts.limit || 30));
+      params.set('offset', String(opts.offset || 0));
+      if (opts.userId) params.set('userId', opts.userId);
+      if (opts.mediaType && opts.mediaType !== 'all') params.set('mediaType', opts.mediaType);
+      const feed = opts.feed || (opts.userId ? 'latest' : currentFeedScope());
+      if (feed) params.set('feed', feed);
+      const res = await API.get('/social/posts?' + params.toString());
       if (res.success && Array.isArray(res.data)) {
-        return res.data.map((p) => {
-          const mediaUrl = resolveMediaUrl(p.media_url || p.mediaUrl);
-          const thumbUrl = resolveMediaUrl(p.thumb_url || p.thumbUrl);
-          const mediaType = String(p.media_type || p.mediaType || '').toLowerCase();
-          const isVideo =
-            mediaType === 'video' || isVideoMediaUrl(mediaUrl);
-          const mapped = {
-            id: p.id,
-            userId: p.user_id,
-            userName: `${p.author?.first_name || ''} ${p.author?.last_name || ''}`.trim() || 'User',
-            text: p.body,
-            caption: p.body,
-            image: mediaUrl,
-            thumb: thumbUrl || (!isVideo ? mediaUrl : ''),
-            likes: p.like_count || 0,
-            comments: p.comment_count || 0,
-            shares: p.share_count || 0,
-            liked: !!p.liked,
-            createdAt: p.created_at,
-            visibility: p.visibility || 'public',
-            fromApi: true,
-            isVideo,
-          };
-          if (mapped.liked) setLike(mapped.id, true);
-          return mapped;
-        });
+        return { posts: res.data.map(mapApiPost), meta: res.meta || null };
       }
     } catch (_e) {
       /* fallback */
     }
-    return [];
+    return { posts: [], meta: null };
   }
 
   function resolveMediaUrl(path) {
@@ -544,17 +642,37 @@
     });
   }
 
-  async function loadPosts() {
-    const local = getPosts();
-    const api = await fetchApiPosts();
-    if (!api.length) return local;
+  async function loadPosts(options) {
+    const opts = options || {};
+    const local = getPosts().filter((p) => canViewPost(p));
+    const { posts: api, meta } = await fetchApiPosts(opts);
+    if (opts._metaOut) opts._metaOut.meta = meta;
+    const paging = Number(opts.offset || 0) > 0;
+    if (!api.length) {
+      if (paging) return [];
+      if (opts.userId) {
+        return local.filter((p) => String(p.userId) === String(opts.userId));
+      }
+      if (opts.feed === 'following') return [];
+      return opts.feed === 'for_you' || opts.feed === 'latest' || !opts.feed ? local : local;
+    }
     const byId = new Map();
     api.forEach((p) => byId.set(String(p.id), p));
-    local.forEach((p) => {
-      const k = String(p.id);
-      byId.set(k, byId.has(k) ? { ...byId.get(k), ...p } : p);
-    });
-    return sortPostsNewest(Array.from(byId.values()));
+    if (!paging && !opts.userId && opts.feed !== 'following') {
+      local.forEach((p) => {
+        const k = String(p.id);
+        if (!byId.has(k)) byId.set(k, p);
+      });
+    }
+    let list = Array.from(byId.values()).filter((p) => canViewPost(p));
+    if (opts.userId) list = list.filter((p) => String(p.userId) === String(opts.userId));
+    if (opts.mediaType === 'video') list = list.filter((p) => postIsVideo(p));
+    if (opts.mediaType === 'image' || opts.mediaType === 'photo' || opts.mediaType === 'posts') {
+      list = list.filter((p) => !postIsVideo(p));
+    }
+    /* For You keeps server order; Latest / profile sort by time */
+    if (opts.feed === 'for_you' && !opts.userId) return list;
+    return sortPostsNewest(list);
   }
 
   function savePosts(posts) {
@@ -599,24 +717,67 @@
     return !!(post && post.liked);
   }
 
+  const likeInFlight = new Set();
+
   async function toggleLikePost(postId, post) {
+    const key = String(postId);
+    if (likeInFlight.has(key)) return { liked: isLiked(postId, post), delta: 0, locked: true };
+    likeInFlight.add(key);
     const wasLiked = isLiked(postId, post);
     const nextLiked = !wasLiked;
     setLike(postId, nextLiked);
-    if (post?.fromApi && window.API && hasAuth()) {
-      try {
-        if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken();
-        const res = await API.post(`/social/posts/${postId}/like`);
-        if (res?.success && res.data) {
-          setLike(postId, !!res.data.liked);
-          return { liked: !!res.data.liked, delta: res.data.liked ? (wasLiked ? 0 : 1) : wasLiked ? -1 : 0 };
+    try {
+      if (post?.fromApi && window.API && hasAuth()) {
+        try {
+          if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken();
+          const res = await API.post(`/social/posts/${postId}/like`);
+          if (res?.success && res.data) {
+            setLike(postId, !!res.data.liked);
+            return { liked: !!res.data.liked, delta: res.data.liked ? (wasLiked ? 0 : 1) : wasLiked ? -1 : 0 };
+          }
+        } catch (_e) {
+          setLike(postId, wasLiked);
+          throw _e;
         }
-      } catch (_e) {
-        setLike(postId, wasLiked);
-        throw _e;
       }
+      return { liked: nextLiked, delta: nextLiked ? 1 : -1 };
+    } finally {
+      likeInFlight.delete(key);
     }
-    return { liked: nextLiked, delta: nextLiked ? 1 : -1 };
+  }
+
+  async function fetchCommentsApi(postId) {
+    if (!window.API) return null;
+    try {
+      const res = await API.get(`/social/posts/${postId}/comments`);
+      if (res?.success && Array.isArray(res.data)) {
+        return res.data.map((c) => ({
+          id: c.id,
+          user: `${c.first_name || c.author?.first_name || ''} ${c.last_name || c.author?.last_name || ''}`.trim() || 'User',
+          text: c.body,
+          at: c.created_at ? new Date(c.created_at).getTime() : Date.now(),
+          fromApi: true,
+        }));
+      }
+    } catch (_e) {
+      return null;
+    }
+    return null;
+  }
+
+  async function postCommentApi(postId, text) {
+    if (!window.API || !hasAuth()) throw new Error('Please log in to comment');
+    if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken();
+    const res = await API.post(`/social/posts/${postId}/comments`, { body: text });
+    if (!res?.success) throw new Error(res?.message || 'Comment failed');
+    const c = res.data;
+    return {
+      id: c.id,
+      user: `${c.author?.first_name || ''} ${c.author?.last_name || ''}`.trim() || 'You',
+      text: c.body || text,
+      at: Date.now(),
+      fromApi: true,
+    };
   }
 
   function getComments(postId) {
@@ -1211,6 +1372,7 @@
     let localThumb = '';
     let isVideo = false;
 
+    try {
     if (file) {
       isVideo = String(file.type || '').startsWith('video/');
       if (isVideo && file.size > 12 * 1024 * 1024) {
@@ -1297,7 +1459,14 @@
     const posts = getPosts().filter((p) => String(p.id) !== String(post.id));
     posts.unshift(post);
     savePosts(posts);
+    window.SocialCreatorTelemetry?.track?.('upload_ok', 1, { mediaType: mediaType || 'none' });
     return post;
+    } catch (err) {
+      window.SocialCreatorTelemetry?.track?.('upload_fail', 1, {
+        message: String(err?.message || 'fail').slice(0, 120),
+      });
+      throw err;
+    }
   }
 
   function ensureCommentSheet() {
@@ -1320,9 +1489,15 @@
       </div>`;
     document.body.appendChild(el);
     el.addEventListener('click', (e) => {
-      if (e.target === el) el.classList.remove('open');
+      if (e.target === el) {
+        el.classList.remove('open');
+        window.SocialCreatorPolish?.haptic?.('light');
+      }
     });
-    document.getElementById('socialCommentClose').addEventListener('click', () => el.classList.remove('open'));
+    document.getElementById('socialCommentClose').addEventListener('click', () => {
+      el.classList.remove('open');
+      window.SocialCreatorPolish?.haptic?.('light');
+    });
     return el;
   }
 
@@ -1389,11 +1564,25 @@
   }
 
   let commentPostId = null;
+  let commentSending = false;
 
-  function openComments(postId) {
+  async function openComments(postId) {
     const sheet = ensureCommentSheet();
     const list = document.getElementById('socialCommentList');
-    const comments = getComments(postId);
+    list.innerHTML = '<p class="social-comment-empty">Loading…</p>';
+    sheet.classList.add('open');
+    commentPostId = postId;
+
+    let comments = getComments(postId);
+    const apiComments = await fetchCommentsApi(postId);
+    if (apiComments) {
+      comments = apiComments;
+      try {
+        const all = JSON.parse(localStorage.getItem(COMMENTS_KEY) || '{}');
+        all[postId] = apiComments;
+        localStorage.setItem(COMMENTS_KEY, JSON.stringify(all));
+      } catch (_e) { /* ignore */ }
+    }
     list.innerHTML = comments.length
       ? comments
           .map(
@@ -1402,16 +1591,42 @@
           )
           .join('')
       : '<p class="social-comment-empty">No comments yet. Be the first!</p>';
-    sheet.classList.add('open');
-    document.getElementById('socialCommentSend').onclick = () => {
+
+    const sendBtn = document.getElementById('socialCommentSend');
+    sendBtn.onclick = async () => {
+      if (commentSending) return;
       const inp = document.getElementById('socialCommentInput');
       const t = (inp.value || '').trim();
       if (!t) return;
-      const n = addComment(postId, t);
-      inp.value = '';
-      openComments(postId);
-      document.dispatchEvent(new CustomEvent('social:comment', { detail: { postId, count: n } }));
-      toast('Comment posted');
+      commentSending = true;
+      sendBtn.disabled = true;
+      try {
+        let n;
+        try {
+          const created = await postCommentApi(postId, t);
+          const local = getComments(postId);
+          local.push(created);
+          const all = JSON.parse(localStorage.getItem(COMMENTS_KEY) || '{}');
+          all[postId] = local;
+          localStorage.setItem(COMMENTS_KEY, JSON.stringify(all));
+          n = local.length;
+        } catch (_apiErr) {
+          n = addComment(postId, t);
+        }
+        inp.value = '';
+        openComments(postId);
+        document.dispatchEvent(new CustomEvent('social:comment', { detail: { postId, count: n } }));
+        SocialRealtime.emit('social:comment', { postId, count: n });
+        if (window.SocialCreatorPolish?.successFeedback) SocialCreatorPolish.successFeedback('Comment posted');
+        else toast('Comment posted', 'success');
+      } catch (err) {
+        if (window.SocialCreatorPolish?.errorFeedback) {
+          SocialCreatorPolish.errorFeedback(err.message || 'Could not post comment');
+        } else toast(err.message || 'Could not post comment', 'error');
+      } finally {
+        commentSending = false;
+        sendBtn.disabled = false;
+      }
     };
   }
 
@@ -1425,9 +1640,14 @@
   async function sharePost(post) {
     const url = location.origin + '/square.html?post=' + post.id + '&app=1';
     const text = (post.caption || 'Check this out on AP Services').slice(0, 100);
-    const shared = window.SocialUI?.shareLink
-      ? await SocialUI.shareLink({ title: 'AP Services', text, url })
-      : false;
+    let shared = false;
+    try {
+      shared = window.SocialUI?.shareLink
+        ? await SocialUI.shareLink({ title: 'AP Services', text, url })
+        : false;
+    } catch (_e) {
+      shared = false;
+    }
     if (shared) {
       const posts = getPosts();
       const p = posts.find((x) => String(x.id) === String(post.id));
@@ -1435,34 +1655,268 @@
         p.shares = (p.shares || 0) + 1;
         savePosts(posts);
       }
+      post.shares = (post.shares || 0) + 1;
+      if (post.fromApi && window.API && hasAuth()) {
+        try {
+          const res = await API.post(`/social/posts/${post.id}/share`);
+          if (res?.data?.share_count != null) post.shares = res.data.share_count;
+        } catch (_e) { /* ignore */ }
+      }
+      if (window.SocialCreatorPolish?.successFeedback) SocialCreatorPolish.successFeedback('Shared');
+      else toast('Shared', 'success');
+    } else {
+      toast('Share cancelled', 'info');
     }
     return shared;
   }
 
-  async function sendGift(postId) {
+  let postGiftCatalog = [];
+  let postGiftSelectedIdx = 0;
+  let postGiftTarget = null;
+  let postGiftBusy = false;
+
+  function defaultPostGiftCatalog() {
+    const catalog = window.AP_LIVE_EMOJI?.GIFT_CATALOG;
+    if (catalog && typeof catalog === 'object') {
+      const merged = [];
+      const seen = new Set();
+      Object.values(catalog).forEach((items) => {
+        (items || []).forEach((g) => {
+          const coin_cost = Number(g.cost ?? g.coin_cost) || 10;
+          const slug = String(g.slug || `${(g.name || 'gift').toLowerCase().replace(/\s+/g, '_')}_${coin_cost}`);
+          const key = `${slug}:${coin_cost}`;
+          if (seen.has(key)) return;
+          seen.add(key);
+          merged.push({
+            slug,
+            emoji: g.emoji || '🎁',
+            name: g.name || 'Gift',
+            coin_cost,
+          });
+        });
+      });
+      if (merged.length) {
+        merged.sort((a, b) => a.coin_cost - b.coin_cost);
+        return merged.slice(0, 64);
+      }
+    }
+    return [
+      { slug: 'heart_10', emoji: '❤️', name: 'Heart', coin_cost: 10 },
+      { slug: 'rose_50', emoji: '🌹', name: 'Rose', coin_cost: 50 },
+      { slug: 'flowers_100', emoji: '💐', name: 'Flowers', coin_cost: 100 },
+      { slug: 'cake_200', emoji: '🍰', name: 'Cake', coin_cost: 200 },
+      { slug: 'diamond_500', emoji: '💎', name: 'Diamond', coin_cost: 500 },
+      { slug: 'crown_1000', emoji: '👑', name: 'Crown', coin_cost: 1000 },
+      { slug: 'car_5000', emoji: '🚗', name: 'Sports Car', coin_cost: 5000 },
+      { slug: 'castle_10000', emoji: '🏰', name: 'Castle', coin_cost: 10000 },
+    ];
+  }
+
+  function ensurePostGiftSheet() {
+    let sheet = document.getElementById('apPostGiftSheet');
+    if (sheet) return sheet;
+    sheet = document.createElement('div');
+    sheet.id = 'apPostGiftSheet';
+    sheet.className = 'ap-post-gift-sheet';
+    sheet.hidden = true;
+    sheet.innerHTML = `
+      <div class="ap-post-gift-panel" role="dialog" aria-label="Send gift">
+        <div class="ap-post-gift-head">
+          <div>
+            <h3>Send Gift</h3>
+            <p class="ap-post-gift-to">To <strong id="apPostGiftTo">Creator</strong></p>
+          </div>
+          <button type="button" class="ap-post-gift-close" id="apPostGiftClose" aria-label="Close">&times;</button>
+        </div>
+        <div class="ap-post-gift-grid" id="apPostGiftGrid"></div>
+        <p class="ap-post-gift-balance">Gift coins: <span id="apPostGiftBal">0</span></p>
+        <button type="button" class="ap-post-gift-send" id="apPostGiftSend">Send Gift</button>
+      </div>`;
+    document.body.appendChild(sheet);
+    sheet.addEventListener('click', (e) => {
+      if (e.target === sheet) closePostGiftSheet();
+    });
+    document.getElementById('apPostGiftClose')?.addEventListener('click', closePostGiftSheet);
+    document.getElementById('apPostGiftSend')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      confirmPostGiftSend();
+    });
+    return sheet;
+  }
+
+  function renderPostGiftGrid() {
+    const grid = document.getElementById('apPostGiftGrid');
+    if (!grid) return;
+    if (!postGiftCatalog.length) postGiftCatalog = defaultPostGiftCatalog();
+    grid.innerHTML = postGiftCatalog
+      .map((g, i) => {
+        const cost = Number(g.coin_cost) || 0;
+        return `<button type="button" class="ap-post-gift-item${i === postGiftSelectedIdx ? ' is-selected' : ''}" data-idx="${i}">
+          <span class="g">${g.emoji || '🎁'}</span>
+          <span class="n">${escapeHtml(g.name || 'Gift')}</span>
+          <span class="c">${cost.toLocaleString('en-IN')}</span>
+        </button>`;
+      })
+      .join('');
+    grid.querySelectorAll('.ap-post-gift-item').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        postGiftSelectedIdx = parseInt(btn.dataset.idx, 10) || 0;
+        grid.querySelectorAll('.ap-post-gift-item').forEach((b) => b.classList.toggle('is-selected', b === btn));
+      });
+    });
+  }
+
+  function closePostGiftSheet() {
+    const sheet = document.getElementById('apPostGiftSheet');
+    if (sheet) sheet.hidden = true;
+    postGiftTarget = null;
+  }
+
+  async function loadPostGiftCatalog() {
+    if (postGiftCatalog.length) return postGiftCatalog;
+    postGiftCatalog = defaultPostGiftCatalog();
+    try {
+      if (!window.API?.get) return postGiftCatalog;
+      const res = await API.get('/social/gifts/catalog');
+      const rows = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+      if (rows.length) {
+        postGiftCatalog = rows
+          .map((g) => ({
+            slug: g.slug || `gift_${g.coin_cost || 10}`,
+            emoji: g.emoji || '🎁',
+            name: g.name || 'Gift',
+            coin_cost: Number(g.coin_cost ?? g.cost) || 10,
+          }))
+          .sort((a, b) => a.coin_cost - b.coin_cost)
+          .slice(0, 80);
+      }
+    } catch (_e) { /* keep defaults */ }
+    return postGiftCatalog;
+  }
+
+  async function openPostGiftSheet(postHint) {
     if (!window.SocialWallet) {
       toast('Please log in to send gifts', 'warning');
       return;
     }
-    const posts = getPosts();
-    const p = posts.find((x) => String(x.id) === String(postId));
-    const receiverId = p?.userId;
-    if (!receiverId || receiverId === 'me') {
-      toast('Cannot send gift to this post');
+    const me = window.Auth?.getUser?.();
+    if (!me?.id && !localStorage.getItem('token') && !localStorage.getItem('accessToken')) {
+      toast('Please log in to send gifts', 'warning');
       return;
     }
+    const p = postHint || findPostById(postHint?.id);
+    const receiverId = p?.userId || p?.user_id;
+    if (!receiverId || receiverId === 'me') {
+      toast('Cannot send gift to this post', 'error');
+      return;
+    }
+    if (me?.id && String(receiverId) === String(me.id)) {
+      toast('You can’t gift your own post', 'info');
+      return;
+    }
+
+    postGiftTarget = {
+      postId: p.id || postHint?.id || postHint?.postId,
+      userId: receiverId,
+      userName: p.userName || p.name || postHint?.userName || 'Creator',
+      gifts: p.gifts || 0,
+      post: p,
+    };
+    postGiftSelectedIdx = 0;
+
+    const sheet = ensurePostGiftSheet();
+    await loadPostGiftCatalog();
+    renderPostGiftGrid();
+    const toEl = document.getElementById('apPostGiftTo');
+    if (toEl) toEl.textContent = postGiftTarget.userName;
     try {
-      await SocialWallet.sendGift({
-        receiver_id: receiverId,
-        coin_amount: 10,
-        gift_type: 'post_gift',
-      });
-      if (p) {
-        p.gifts = (p.gifts || 0) + 1;
-        savePosts(posts);
+      const b = await SocialWallet.fetchBalance(true);
+      const giftBal = SocialWallet.getGiftableCoins
+        ? SocialWallet.getGiftableCoins(b)
+        : Number(b.giftable_coins ?? b.coin_balance ?? 0);
+      const balEl = document.getElementById('apPostGiftBal');
+      if (balEl) balEl.textContent = Number(giftBal || 0).toLocaleString('en-IN');
+    } catch (_e) {
+      const balEl = document.getElementById('apPostGiftBal');
+      if (balEl) balEl.textContent = '0';
+    }
+    sheet.hidden = false;
+    window.SocialCreatorPolish?.haptic?.('light');
+  }
+
+  async function confirmPostGiftSend() {
+    if (postGiftBusy || !postGiftTarget) return;
+    const g = postGiftCatalog[postGiftSelectedIdx];
+    if (!g) {
+      toast('Select a gift', 'warning');
+      return;
+    }
+    const coinCost = Number(g.coin_cost) || 0;
+    if (!coinCost) {
+      toast('Invalid gift', 'warning');
+      return;
+    }
+    const btn = document.getElementById('apPostGiftSend');
+    postGiftBusy = true;
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Sending…';
+    }
+    try {
+      const bal = await SocialWallet.fetchBalance(true);
+      const giftBal = SocialWallet.getGiftableCoins
+        ? SocialWallet.getGiftableCoins(bal)
+        : Number(bal.giftable_coins ?? bal.coin_balance ?? 0);
+      if (giftBal < coinCost) {
+        toast('Not enough coins — open Store to recharge', 'warning');
+        setTimeout(() => (location.href = '/coins-recharge.html?app=1'), 600);
+        return;
       }
-      toast('Gift sent 🎁');
-      document.dispatchEvent(new CustomEvent('social:gift', { detail: { postId } }));
+      await SocialWallet.sendGift({
+        receiver_id: postGiftTarget.userId,
+        coin_amount: coinCost,
+        gift_type: g.slug || 'post_gift',
+        qty: 1,
+      });
+
+      const postId = postGiftTarget.postId;
+      if (postGiftTarget.post) postGiftTarget.post.gifts = (postGiftTarget.post.gifts || 0) + 1;
+      const local = getPosts();
+      const lp = local.find((x) => String(x.id) === String(postId));
+      if (lp) {
+        lp.gifts = (lp.gifts || 0) + 1;
+        savePosts(local);
+      }
+      const reel = (reelItems || []).find((x) => String(x.postId) === String(postId));
+      if (reel) {
+        reel.gifts = (reel.gifts || 0) + 1;
+        try {
+          updateReelUI(reel);
+        } catch (_e) { /* ignore */ }
+      }
+      document.querySelectorAll(`[data-act="gift"][data-id="${postId}"] span`).forEach((span) => {
+        const n = Number(span.textContent || 0) + 1;
+        span.textContent = String(n);
+      });
+
+      if (window.SocialFX?.spawnGift) {
+        SocialFX.spawnGift({
+          emoji: g.emoji,
+          name: g.name,
+          gift_type: g.slug,
+          amount: coinCost,
+        });
+      }
+
+      toast(`${g.emoji || '🎁'} ${g.name || 'Gift'} sent`, 'success');
+      window.SocialCreatorPolish?.haptic?.('success');
+      document.dispatchEvent(
+        new CustomEvent('social:gift', {
+          detail: { postId, receiverId: postGiftTarget.userId, gift: g },
+        })
+      );
+      closePostGiftSheet();
     } catch (e) {
       if (e.status === 400 || /insufficient/i.test(e.message)) {
         toast('Not enough coins — open Store to recharge', 'warning');
@@ -1470,7 +1924,58 @@
       } else {
         toast(window.SocialUI?.friendlyMessage(e.message) || e.message || 'Gift failed', 'error');
       }
+    } finally {
+      postGiftBusy = false;
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'Send Gift';
+      }
     }
+  }
+
+  function findPostById(postId) {
+    const id = String(postId || '');
+    if (!id) return null;
+    const fromLocal = getPosts().find((x) => String(x.id) === id);
+    if (fromLocal) return fromLocal;
+    const fromReels = (reelItems || []).find((x) => String(x.postId) === id || String(x.id) === id);
+    if (fromReels) {
+      return {
+        id: fromReels.postId || fromReels.id,
+        userId: fromReels.userId,
+        userName: fromReels.name,
+        gifts: fromReels.gifts || 0,
+        fromApi: true,
+      };
+    }
+    try {
+      const feeds = document.querySelectorAll('[id$="Feed"], .social-post-feed');
+      for (const feed of feeds) {
+        const hit = (feed._squarePosts || []).find((x) => String(x.id) === id);
+        if (hit) return hit;
+      }
+    } catch (_e) { /* ignore */ }
+    return null;
+  }
+
+  /** Opens live-style gift picker for a post/reel (does not send immediately). */
+  async function sendGift(postId, postHint) {
+    const p = postHint || findPostById(postId);
+    if (!p && postHint?.userId) {
+      await openPostGiftSheet({
+        id: postId,
+        userId: postHint.userId,
+        userName: postHint.userName || postHint.name,
+        gifts: postHint.gifts || 0,
+      });
+      return true;
+    }
+    if (!p) {
+      toast('Cannot send gift to this post', 'error');
+      return false;
+    }
+    await openPostGiftSheet({ ...p, id: p.id || postId });
+    return true;
   }
 
   function profileUrl(item) {
@@ -1543,6 +2048,10 @@
     const opts = options || {};
     const videosOnly = opts.videosOnly !== false;
     const startPostId = opts.startPostId || null;
+    const feedScope = opts.feed || currentFeedScope();
+    const pageSize = opts.limit || 40;
+    const offset = Number(opts.offset || 0);
+    const skipLocal = offset > 0 || opts.skipLocal;
 
     function matchesFilter(p) {
       if (!canViewPost(p)) return false;
@@ -1550,10 +2059,20 @@
       return videosOnly ? postIsVideo(p) : postHasMedia(p);
     }
 
-    const userPosts = getPosts().filter(matchesFilter);
-    const apiPosts = (await loadPosts()).filter(matchesFilter);
+    const tMark = window.SocialCreatorTelemetry?.mark?.('feed_load_ms');
+    const apiPosts = (
+      await loadPosts({
+        feed: feedScope,
+        mediaType: videosOnly ? 'video' : 'all',
+        limit: pageSize,
+        offset,
+      })
+    ).filter(matchesFilter);
+    tMark?.end?.({ feed: feedScope, surface: 'video', offset, count: apiPosts.length });
+
+    const userPosts = skipLocal ? [] : getPosts().filter(matchesFilter);
     const merged = [];
-    const seen = new Set();
+    const seen = new Set(opts.excludeIds || []);
     [...apiPosts, ...userPosts].forEach((p) => {
       const key = String(p.id);
       if (seen.has(key)) return;
@@ -1566,6 +2085,7 @@
         postId: p.id,
         name: p.userName,
         userId: p.userId,
+        profilePic: p.profilePic || null,
         caption: p.caption || p.text || '',
         likes: p.likes || 0,
         comments: p.comments || 0,
@@ -1577,27 +2097,117 @@
         liked: isLiked(p.id, p),
         mediaUrl: await getMediaUrl(p),
         thumb: !isPlaceholderThumb(p.thumb) ? p.thumb : '',
+        authorLive: p.authorLive || null,
+        role: p.role || p.author?.role || null,
+        isVerified: !!(p.isVerified || p.author?.is_verified),
+        agencyName: p.agencyName || null,
+        creatorLevel: p.creatorLevel || p.vipLevel || null,
         workerId: null,
+        fromApi: !!p.fromApi,
       }))
     );
 
-    const fromPros = pros.map((p, i) => ({
-      id: 'pro-' + (p.userId || p.id || i),
-      postId: null,
-      name: p.name,
-      userId: p.userId || p.id || null,
-      workerId: p.workerId || p.id || null,
-      caption: p.category || 'Follow for more 🔥',
-      likes: 200 + i * 47,
-      comments: 4 + i,
-      gifts: i % 3,
-      shares: 40 + i * 10,
-      isVideo: false,
-      mediaUrl: p.image || (window.SocialUI?.themeCover('video', p.name) || p.image),
-      thumb: p.image || (window.SocialUI?.themeCover('video', p.name) || p.image),
-    }));
-
     return fromPosts.filter((x) => x.mediaUrl || x.thumb);
+  }
+
+  function syncReelMediaSources(scroll, activeIndex) {
+    if (!scroll) return;
+    const slides = scroll.querySelectorAll('.social-reel-slide');
+    slides.forEach((slide) => {
+      const i = parseInt(slide.dataset.index, 10);
+      const vid = slide.querySelector('video[data-reel-video]');
+      const dist = Math.abs(i - activeIndex);
+      if (!vid) return;
+      const src = vid.dataset.src || '';
+      if (dist <= 1) {
+        if (src && vid.getAttribute('src') !== src) {
+          vid.setAttribute('src', src);
+          vid.preload = i === activeIndex ? 'auto' : 'metadata';
+          try {
+            vid.load();
+          } catch (_e) { /* ignore */ }
+        }
+        if (i === activeIndex) {
+          vid.setAttribute('playsinline', '');
+        }
+      } else if (dist === 2 && src && !vid.getAttribute('src')) {
+        /* Warm decode path for ±2 without full attach on weak devices — poster only */
+        vid.preload = 'none';
+      } else if (dist > 1 && vid.getAttribute('src')) {
+        try {
+          vid.pause();
+        } catch (_e) { /* ignore */ }
+        vid.removeAttribute('src');
+        try {
+          vid.load();
+        } catch (_e) { /* ignore */ }
+      }
+    });
+  }
+
+  function bindReelDoubleTapLike(scroll) {
+    if (!scroll || scroll.dataset.dblLikeBound) return;
+    scroll.dataset.dblLikeBound = '1';
+    let lastTap = 0;
+    let lastX = 0;
+    let lastY = 0;
+    const fire = (x, y) => {
+      const item = reelItems[reelIndex];
+      if (!item?.postId) return;
+      handleReelAction('like');
+      if (window.SocialFX?.spawnLike) SocialFX.spawnLike(x, y);
+      else spawnInlineHeart(x, y);
+    };
+    scroll.addEventListener(
+      'touchend',
+      (e) => {
+        if (e.target.closest('#reelUi, [data-action], .social-live-pill, button, a')) return;
+        const t = e.changedTouches?.[0];
+        if (!t) return;
+        const now = Date.now();
+        if (now - lastTap < 280 && Math.abs(t.clientX - lastX) < 40 && Math.abs(t.clientY - lastY) < 40) {
+          fire(t.clientX, t.clientY);
+          lastTap = 0;
+          return;
+        }
+        lastTap = now;
+        lastX = t.clientX;
+        lastY = t.clientY;
+      },
+      { passive: true }
+    );
+    scroll.addEventListener('dblclick', (e) => {
+      if (e.target.closest('#reelUi, [data-action], .social-live-pill, button, a')) return;
+      fire(e.clientX, e.clientY);
+    });
+  }
+
+  function spawnInlineHeart(x, y) {
+    const el = document.createElement('div');
+    el.className = 'ap-reel-heart-burst';
+    el.innerHTML = '<i class="fas fa-heart"></i>';
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 700);
+  }
+
+  function bindReelVisibilityResume(scroll) {
+    if (bindReelVisibilityResume._bound) return;
+    bindReelVisibilityResume._bound = true;
+    document.addEventListener('visibilitychange', () => {
+      const vid = getActiveReelVideo(scroll || document.getElementById('reelsScroll'));
+      if (!vid) return;
+      if (document.visibilityState === 'visible') {
+        syncReelMediaSources(document.getElementById('reelsScroll'), reelIndex);
+        applySocialVideoSound(vid, reelSoundEnabled());
+        vid.play().catch(() => {});
+      } else {
+        try {
+          vid.pause();
+        } catch (_e) { /* ignore */ }
+      }
+    });
   }
 
   function setVideoImmersive(on) {
@@ -1656,6 +2266,7 @@
 
     if (avatar) {
       const profilePic =
+        item.profilePic ||
         (window.Auth?.getUser?.()?.id &&
           String(item.userId) === String(window.Auth.getUser().id) &&
           (window.Auth.getUser().profile_pic || window.Auth.getUser().profilePic)) ||
@@ -1666,21 +2277,41 @@
       avatar.alt = item.name || 'Creator';
     }
     if (name) {
-      name.textContent = '@' + String(item.name || 'Creator').replace(/\s+/g, '');
+      const handle = String(item.name || 'Creator');
+      const identity = {
+        id: item.userId,
+        displayName: handle,
+        profilePic: item.profilePic,
+        role: item.role,
+        isVerified: item.isVerified,
+        agencyName: item.agencyName,
+        creatorLevel: item.creatorLevel || item.vipLevel,
+        authorLive: item.authorLive,
+        isLive: !!item.authorLive,
+        liveHref: item.authorLive?.href,
+      };
+      const badges = window.SocialCreatorIdentity?.renderBadgesHtml?.(identity, 'reel') ||
+        (item.authorLive ? ' ' + liveBadgeHtml(item.authorLive) : '');
+      name.innerHTML = '<span class="ap-reel-handle">@' + escapeHtml(handle.replace(/\s+/g, '')) + '</span> ' + badges;
     }
-    if (cap) cap.textContent = item.caption || '';
+    if (cap) cap.innerHTML = formatCaptionHtml(item.caption || '');
     const scroll = document.getElementById('reelsScroll');
+    syncReelMediaSources(scroll, reelIndex);
     const activeVid = getActiveReelVideo(scroll);
     if (activeVid) applySocialVideoSound(activeVid, reelSoundEnabled());
     if (follow) {
-      const fid = item.workerId || item.userId || item.name;
+      const fid = item.userId || item.workerId || item.name;
       const on = isFollowing(fid, item.name);
       follow.textContent = on ? '✓' : '+';
       follow.classList.toggle('is-following', on);
       follow.setAttribute('aria-label', on ? 'Following' : 'Follow');
       follow.onclick = async (e) => {
         e.stopPropagation();
-        const now = await toggleFollow(fid, item.name);
+        if (!item.userId) {
+          toast('Profile link incomplete', 'warning');
+          return;
+        }
+        const now = await toggleFollow(item.userId, item.name);
         follow.textContent = now ? '✓' : '+';
         follow.classList.toggle('is-following', now);
         follow.setAttribute('aria-label', now ? 'Following' : 'Follow');
@@ -1711,7 +2342,8 @@
     return String(n);
   }
 
-  async function initVideoPage(containerId) {
+  async function initVideoPage(containerId, options) {
+    const pageOpts = options || {};
     ensureStarterCoins();
     const wrap = document.getElementById(containerId);
     if (!wrap) return;
@@ -1729,78 +2361,164 @@
       ensureReelCloseButton(() => setVideoImmersive(false));
     }
     const uiLayer = document.getElementById('reelUi');
-    paintReelSkeleton(wrap, uiLayer);
-    const prosPromise = window.SocialShell ? SocialShell.fetchPros(8) : Promise.resolve([]);
-    reelItems = await buildReelItems(await prosPromise, { videosOnly: true, startPostId: startPost });
+    const soft = !!pageOpts.soft && wrap.querySelector('#reelsScroll');
+    if (!soft) paintReelSkeleton(wrap, uiLayer);
+    const pageSize = 40;
+    const feedScope = pageOpts.feed || currentFeedScope();
+    reelItems = await buildReelItems([], {
+      videosOnly: true,
+      startPostId: startPost,
+      feed: feedScope,
+      limit: pageSize,
+      offset: 0,
+    });
+    wrap._reelOffset = reelItems.length;
+    wrap._reelHasMore = reelItems.length >= pageSize;
+    wrap._reelFeed = feedScope;
+    wrap._reelPageSize = pageSize;
+    wrap._reelLoadingMore = false;
 
     if (!reelItems.length) {
-      const empty = document.createElement('p');
-      empty.style.cssText = 'color:#fff;text-align:center;padding:40px;pointer-events:auto';
-      empty.textContent = 'No videos yet. Post a video from the Square camera.';
-      wrap.insertBefore(empty, uiLayer || null);
+      let empty = wrap.querySelector('.social-reel-empty');
+      if (!empty) {
+        empty = document.createElement('div');
+        empty.className = 'social-empty-state social-reel-empty';
+        empty.style.cssText =
+          'text-align:center;padding:48px 24px;pointer-events:auto;position:relative;z-index:2';
+        wrap.insertBefore(empty, uiLayer || null);
+      }
+      empty.innerHTML = window.SocialCreatorPolish
+        ? SocialCreatorPolish.emptyStateHtml({
+            icon: '▶',
+            title: 'No videos yet',
+            body: 'Share a short clip from the camera — it will show up here.',
+            ctaLabel: 'Create a video',
+            ctaAction: 'create',
+          }).replace('social-empty-state--feed ap-empty', 'social-empty-state--feed ap-empty social-reel-empty')
+        : '<div class="illus" aria-hidden="true">▶</div><h3>No videos yet</h3><p>Share a short clip from the camera — it will show up here.</p>';
+      if (window.SocialCreatorPolish) {
+        SocialCreatorPolish.bindEmptyCta(empty, {
+          create: () => document.querySelector('[data-social-camera]')?.click(),
+        });
+      }
+      const stale = document.getElementById('reelsScroll');
+      if (stale) stale.remove();
       if (uiLayer) uiLayer.style.display = 'none';
       return;
     }
+    if (uiLayer) uiLayer.style.display = '';
 
     const stats = getReelStats();
     reelItems.forEach((item) => {
       const s = stats[reelKey(item)];
       if (s) {
         if (s.likes) item.likes = Math.max(item.likes || 0, s.likes);
-        if (s.comments?.length) item.comments = s.comments.length;
+        if (s.comments?.length) item.comments = Math.max(item.comments || 0, s.comments.length);
         if (s.gifts) item.gifts = Math.max(item.gifts || 0, s.gifts);
         if (s.shares) item.shares = Math.max(item.shares || 0, s.shares);
       }
     });
 
     let scroll = document.getElementById('reelsScroll');
-    if (scroll) scroll.remove();
-
-    scroll = document.createElement('div');
-    scroll.id = 'reelsScroll';
-    scroll.className = 'social-reels-scroll';
+    const keepIndex = soft ? reelIndex : 0;
+    if (!scroll) {
+      scroll = document.createElement('div');
+      scroll.id = 'reelsScroll';
+      scroll.className = 'social-reels-scroll';
+      wrap.insertBefore(scroll, uiLayer || wrap.firstChild);
+    }
+    scroll.classList.remove('social-reels-scroll--skeleton');
     scroll.innerHTML = reelItems
       .map((item, i) => {
         const media = item.isVideo
-          ? `<video src="${item.mediaUrl}" playsinline loop muted data-reel-video poster="${item.thumb || ''}"${item.trimStart != null ? ` data-trim-start="${item.trimStart}" data-trim-end="${item.trimEnd}"` : ''}></video>`
-          : `<img src="${item.mediaUrl || item.thumb}" alt="">`;
+          ? `<video data-src="${item.mediaUrl || ''}" playsinline loop muted data-reel-video preload="none" poster="${item.thumb || ''}" class="social-reel-media"${item.trimStart != null ? ` data-trim-start="${item.trimStart}" data-trim-end="${item.trimEnd}"` : ''}></video>`
+          : `<img src="${item.mediaUrl || item.thumb}" alt="" class="social-reel-media">`;
         return `<section class="social-reel-slide" data-index="${i}" data-item-id="${item.id}">
           ${media}
+          <div class="social-reel-buffer" hidden aria-hidden="true"></div>
           <div class="social-reel-gradient"></div>
         </section>`;
       })
       .join('');
 
-    wrap.insertBefore(scroll, uiLayer || wrap.firstChild);
+    wrap.querySelector('.social-reel-empty')?.remove();
 
+    if (scroll._reelObserver) {
+      try {
+        scroll._reelObserver.disconnect();
+      } catch (_e) { /* ignore */ }
+    }
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((en) => {
           if (en.isIntersecting) {
             const i = parseInt(en.target.dataset.index, 10);
             reelItems[i] && updateReelUI(reelItems[i]);
+            syncReelMediaSources(scroll, i);
+            if (wrap._reelHasMore && i >= reelItems.length - 3) {
+              appendMoreReels(wrap, scroll, observer).catch(() => {});
+            }
             en.target.querySelectorAll('video[data-reel-video]').forEach((v) => {
               applySocialVideoSound(v, reelSoundEnabled());
-              v.play().catch(() => {});
+              const buf = en.target.querySelector('.social-reel-buffer');
+              const onWaiting = () => {
+                if (buf) buf.hidden = false;
+              };
+              const onReady = () => {
+                if (buf) buf.hidden = true;
+                v.classList.add('is-ready');
+                en.target.classList.add('is-active-slide');
+              };
+              v.addEventListener('waiting', onWaiting);
+              v.addEventListener('playing', onReady);
+              v.addEventListener('canplay', onReady, { once: true });
+              if (!v.dataset.ttfvBound) {
+                v.dataset.ttfvBound = '1';
+                const t0 = performance.now();
+                const markFrame = () => {
+                  window.SocialCreatorTelemetry?.track?.('ttfv_ms', Math.round(performance.now() - t0), {
+                    postId: reelItems[i]?.postId,
+                  });
+                };
+                v.addEventListener('playing', markFrame, { once: true });
+                v.addEventListener('timeupdate', () => {
+                  if (v.dataset.reelDone) return;
+                  const dur = v.duration;
+                  if (!dur || !Number.isFinite(dur)) return;
+                  if (v.currentTime / dur >= 0.9) {
+                    v.dataset.reelDone = '1';
+                    window.SocialCreatorTelemetry?.track?.('reel_complete', 1, {
+                      postId: reelItems[i]?.postId,
+                    });
+                  }
+                });
+              }
+              const playP = v.play();
+              if (playP?.catch) playP.catch(() => {});
             });
           } else {
+            en.target.classList.remove('is-active-slide');
             en.target.querySelectorAll('video[data-reel-video]').forEach((v) => v.pause());
           }
         });
       },
       { root: scroll, threshold: 0.6 }
     );
+    scroll._reelObserver = observer;
     scroll.querySelectorAll('.social-reel-slide').forEach((s) => observer.observe(s));
 
     scroll.querySelectorAll('.social-reel-slide video, .social-reel-slide img').forEach((el) => markMediaOrientation(el));
     bindVideoTrimPlayback(scroll);
 
     scroll.querySelectorAll('.social-reel-slide').forEach((slide) => {
+      if (slide.dataset.clickBound) return;
+      slide.dataset.clickBound = '1';
       slide.addEventListener('click', (e) => {
-        if (e.target.closest('#reelUi') || e.target.closest('[data-action]')) return;
+        if (e.target.closest('#reelUi') || e.target.closest('[data-action]') || e.target.closest('.social-live-pill')) return;
         const vid = slide.querySelector('video[data-reel-video]');
         if (!vid) return;
         setVideoImmersive(true);
+        syncReelMediaSources(scroll, parseInt(slide.dataset.index, 10) || 0);
         if (vid.muted) {
           setReelSoundEnabled(true);
           applySocialVideoSound(vid, true);
@@ -1812,7 +2530,15 @@
       });
     });
 
-    updateReelUI(reelItems[0]);
+    const startIdx =
+      startPost != null
+        ? Math.max(
+            0,
+            reelItems.findIndex((x) => String(x.postId) === String(startPost))
+          )
+        : keepIndex;
+    syncReelMediaSources(scroll, startIdx >= 0 ? startIdx : 0);
+    updateReelUI(reelItems[startIdx >= 0 ? startIdx : 0] || reelItems[0]);
     bindReelActionsPanel();
     ensureReelSoundButton(scroll);
 
@@ -1824,23 +2550,122 @@
         updateReelUI(reelItems[idx]);
       }
       sessionStorage.removeItem('social_reel_start');
+    } else if (soft && keepIndex > 0) {
+      const slide = scroll.querySelector(`[data-index="${keepIndex}"]`);
+      slide?.scrollIntoView({ behavior: 'instant', block: 'start' });
     }
 
+    bindReelDoubleTapLike(scroll);
+    bindReelVisibilityResume(scroll);
     ensureReelRotateControl(scroll);
 
-    document.getElementById('videoAvatarBtn')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const item = reelItems[reelIndex];
-      if (item) apGo(profileUrl(item));
-    });
+    const avatarBtn = document.getElementById('videoAvatarBtn');
+    if (avatarBtn && !avatarBtn.dataset.bound) {
+      avatarBtn.dataset.bound = '1';
+      avatarBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const item = reelItems[reelIndex];
+        if (item) apGo(profileUrl(item));
+      });
+    }
 
-    document.getElementById('videoName')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const item = reelItems[reelIndex];
-      if (item) apGo(profileUrl(item));
-    });
+    const nameEl = document.getElementById('videoName');
+    if (nameEl && !nameEl.dataset.bound) {
+      nameEl.dataset.bound = '1';
+      nameEl.addEventListener('click', (e) => {
+        if (e.target.closest('.social-live-pill')) return;
+        e.stopPropagation();
+        const item = reelItems[reelIndex];
+        if (item) apGo(profileUrl(item));
+      });
+    }
 
     if (window.SocialUI) SocialUI.bindAvatarFallbacks(document);
+    if (window.SocialNav?.registerRefresh && !wrap.dataset.refreshBound) {
+      wrap.dataset.refreshBound = '1';
+      SocialNav.registerRefresh(async () => {
+        try {
+          await initVideoPage(containerId, { soft: true, feed: currentFeedScope() });
+        } catch (_e) { /* ignore */ }
+      });
+    }
+  }
+
+  async function appendMoreReels(wrap, scroll, observer) {
+    if (!wrap || !scroll || wrap._reelLoadingMore || wrap._reelHasMore === false) return;
+    wrap._reelLoadingMore = true;
+    try {
+      const pageSize = wrap._reelPageSize || 40;
+      const excludeIds = new Set(reelItems.map((x) => String(x.postId)));
+      const more = await buildReelItems([], {
+        videosOnly: true,
+        feed: wrap._reelFeed || currentFeedScope(),
+        limit: pageSize,
+        offset: Number(wrap._reelOffset || 0),
+        skipLocal: true,
+        excludeIds,
+      });
+      if (!more.length) {
+        wrap._reelHasMore = false;
+        return;
+      }
+      const startIdx = reelItems.length;
+      reelItems = reelItems.concat(more);
+      wrap._reelOffset = Number(wrap._reelOffset || 0) + more.length;
+      wrap._reelHasMore = more.length >= pageSize;
+      window.SocialCreatorTelemetry?.track?.('feed_page', more.length, { surface: 'video' });
+
+      const stats = getReelStats();
+      more.forEach((item) => {
+        const s = stats[reelKey(item)];
+        if (s) {
+          if (s.likes) item.likes = Math.max(item.likes || 0, s.likes);
+          if (s.comments?.length) item.comments = Math.max(item.comments || 0, s.comments.length);
+          if (s.gifts) item.gifts = Math.max(item.gifts || 0, s.gifts);
+          if (s.shares) item.shares = Math.max(item.shares || 0, s.shares);
+        }
+      });
+
+      const frag = document.createDocumentFragment();
+      more.forEach((item, j) => {
+        const i = startIdx + j;
+        const section = document.createElement('section');
+        section.className = 'social-reel-slide';
+        section.dataset.index = String(i);
+        section.dataset.itemId = item.id;
+        const media = item.isVideo
+          ? `<video data-src="${item.mediaUrl || ''}" playsinline loop muted data-reel-video preload="none" poster="${item.thumb || ''}" class="social-reel-media"${item.trimStart != null ? ` data-trim-start="${item.trimStart}" data-trim-end="${item.trimEnd}"` : ''}></video>`
+          : `<img src="${item.mediaUrl || item.thumb}" alt="" class="social-reel-media">`;
+        section.innerHTML = `${media}<div class="social-reel-buffer" hidden aria-hidden="true"></div><div class="social-reel-gradient"></div>`;
+        frag.appendChild(section);
+        observer.observe(section);
+        section.querySelectorAll('video, img').forEach((el) => markMediaOrientation(el));
+        bindVideoTrimPlayback(section);
+        if (!section.dataset.clickBound) {
+          section.dataset.clickBound = '1';
+          section.addEventListener('click', (e) => {
+            if (e.target.closest('#reelUi') || e.target.closest('[data-action]') || e.target.closest('.social-live-pill')) return;
+            const vid = section.querySelector('video[data-reel-video]');
+            if (!vid) return;
+            setVideoImmersive(true);
+            syncReelMediaSources(scroll, parseInt(section.dataset.index, 10) || 0);
+            if (vid.muted) {
+              setReelSoundEnabled(true);
+              applySocialVideoSound(vid, true);
+              vid.play().catch(() => {});
+              return;
+            }
+            if (vid.paused) vid.play().catch(() => {});
+            else vid.pause();
+          });
+        }
+      });
+      scroll.appendChild(frag);
+    } catch (_e) {
+      window.SocialCreatorTelemetry?.track?.('api_error', 1, { where: 'video_feed_more' });
+    } finally {
+      wrap._reelLoadingMore = false;
+    }
   }
 
   function ensureReelRotateControl(scroll) {
@@ -1904,10 +2729,22 @@
 
     if (action === 'like') {
       if (item.postId) {
-        const p = getPosts().find((x) => String(x.id) === String(item.postId)) || { id: item.postId, fromApi: true };
+        const p =
+          getPosts().find((x) => String(x.id) === String(item.postId)) || {
+            id: item.postId,
+            fromApi: item.fromApi !== false,
+          };
         try {
-          const { liked, delta } = await toggleLikePost(item.postId, p);
+          const { liked, delta, locked } = await toggleLikePost(item.postId, p);
+          if (locked) return;
           if (delta) item.likes = Math.max(0, (item.likes || 0) + delta);
+          const likeBtn = document.querySelector('#reelActions [data-action="like"]');
+          if (liked && likeBtn) {
+            likeBtn.classList.remove('social-like-pop');
+            void likeBtn.offsetWidth;
+            likeBtn.classList.add('social-like-pop');
+          }
+          window.SocialCreatorPolish?.haptic?.(liked ? 'success' : 'light');
           toast(liked ? 'Liked!' : 'Unliked');
         } catch (_e) {
           toast('Could not update like', 'error');
@@ -1930,42 +2767,16 @@
 
     if (action === 'gift') {
       ensureStarterCoins();
-      if (item.postId) {
-        await sendGift(item.postId);
-      } else if (item.userId && window.SocialWallet) {
-        try {
-          const bal = await SocialWallet.fetchBalance(true);
-          const coinCost = 10;
-          const giftBal = SocialWallet.getGiftableCoins
-            ? SocialWallet.getGiftableCoins(bal)
-            : Number(bal.giftable_coins ?? bal.coin_balance ?? 0);
-          if (giftBal < coinCost) {
-            toast('Not enough coins — opening recharge', 'warning');
-            setTimeout(() => apGo('/coins-recharge.html?app=1'), 500);
-            updateReelUI(item);
-            return;
-          }
-          await SocialWallet.sendGift({
-            receiver_id: item.userId,
-            coin_amount: coinCost,
-            gift_type: 'reel_gift',
-          });
-          item.gifts = (item.gifts || 0) + 1;
-          stats[key].gifts = item.gifts;
-          saveReelStats(stats);
-          toast('Gift sent 🎁', 'success');
-        } catch (e) {
-          if (/insufficient/i.test(e.message)) {
-            toast('Need coins — opening recharge', 'warning');
-            setTimeout(() => apGo('/coins-recharge.html?app=1'), 500);
-          } else {
-            toast(window.SocialUI?.friendlyMessage(e.message) || e.message || 'Gift failed', 'error');
-          }
-        }
+      if (item.postId || item.userId) {
+        await sendGift(item.postId || item.id, {
+          id: item.postId || item.id,
+          userId: item.userId,
+          userName: item.name,
+          gifts: item.gifts || 0,
+        });
       } else {
         toast('Join their live room to send gifts', 'info');
       }
-      updateReelUI(item);
       return;
     }
 
@@ -1995,134 +2806,234 @@
     }
   }
 
-  async function renderSquareFeed(container) {
+  async function renderSquareFeed(container, options) {
+    const opts = options || {};
     const feed = typeof container === 'string' ? document.getElementById(container) : container;
     if (!feed) return;
+    const append = !!opts.append;
+    const pageSize = opts.limit || 30;
+    if (append && (feed._squareLoading || feed._squareHasMore === false)) return;
+    feed._squareLoading = true;
+    const tMark = window.SocialCreatorTelemetry?.mark?.('feed_load_ms');
 
-    if (!feed.querySelector('.social-post-card')) {
+    if (!append && !feed.querySelector('.social-post-card') && !feed.querySelector('.social-empty-state')) {
       feed.innerHTML = renderSquareSkeleton(4);
     }
 
-    const [loadedPosts, pros] = await Promise.all([
-      loadPosts().then((rows) => rows.filter((p) => canViewPost(p))),
-      window.SocialShell ? SocialShell.fetchPros(4) : Promise.resolve([]),
-    ]);
-    let posts = loadedPosts;
-    const feedPosts = posts;
-    if (!posts.length) {
-      posts = pros.map((p, i) => ({
-        id: 'demo-' + i,
-        caption: i % 2 ? 'Great day! #APServices' : 'Book home services anytime',
-        userName: p.name,
-        minsAgo: 1 + i * 3,
-        likes: 12 + i,
-        comments: 2,
-        gifts: 0,
-        shares: 1,
-        image: p.image,
-        isVideo: false,
-        demo: true,
-      }));
+    const feedScope = opts.feed || currentFeedScope();
+    const loadOpts = {
+      feed: feedScope,
+      userId: opts.userId || null,
+      mediaType: opts.mediaType || 'all',
+      limit: pageSize,
+      offset: append ? Number(feed._squareOffset || 0) : opts.offset || 0,
+    };
+    let posts = [];
+    try {
+      posts = (await loadPosts(loadOpts)).filter((p) => canViewPost(p));
+      tMark?.end?.({ feed: feedScope, append: append ? 1 : 0, count: posts.length });
+    } catch (_err) {
+      window.SocialCreatorTelemetry?.track?.('api_error', 1, { where: 'square_feed' });
+      feed._squareLoading = false;
+      if (append) {
+        return;
+      }
+      const polish = window.SocialCreatorPolish;
+      feed.innerHTML = polish
+        ? polish.errorStateHtml({
+            title: 'Couldn’t load posts',
+            body: 'Check your connection and try again.',
+          })
+        : '<p style="text-align:center;padding:24px;color:#8b6914">Couldn’t load posts.</p>';
+      if (polish) {
+        polish.bindRetry(feed, () => renderSquareFeed(feed, { ...opts, append: false }));
+      }
+      return;
     }
+
+    if (!append && !posts.length) {
+      const polish = window.SocialCreatorPolish;
+      const followingEmpty = feedScope === 'following';
+      feed.innerHTML = polish
+        ? polish.emptyStateHtml({
+            icon: followingEmpty ? '◎' : '✦',
+            title: followingEmpty ? 'No posts from people you follow' : 'No posts yet',
+            body: followingEmpty
+              ? 'Follow creators to see their updates here.'
+              : 'Be the first to share a moment. Tap the camera to create.',
+            ctaLabel: followingEmpty ? 'Discover creators' : 'Create a post',
+            ctaAction: followingEmpty ? 'discover' : 'create',
+            ctaHref: followingEmpty ? '/discover-creators.html?app=1' : undefined,
+          })
+        : `<div class="social-empty-state social-empty-state--feed"><div class="illus">✦</div><h3>No posts yet</h3><p>Be the first to share a moment.</p></div>`;
+      if (polish) {
+        polish.bindEmptyCta(feed, {
+          create: () => document.querySelector('[data-social-camera]')?.click(),
+          discover: () => (location.href = '/discover-creators.html?app=1'),
+        });
+      }
+      feed._squareLoading = false;
+      feed._squareHasMore = false;
+      return;
+    }
+
+    if (append && !posts.length) {
+      feed._squareHasMore = false;
+      feed._squareLoading = false;
+      const tip = feed.querySelector('.ap-feed-end');
+      if (!tip) {
+        const end = document.createElement('p');
+        end.className = 'ap-feed-end';
+        end.textContent = 'You’re all caught up';
+        feed.appendChild(end);
+      }
+      return;
+    }
+
+    const feedPosts = append ? [...(feed._squarePosts || []), ...posts] : posts;
+    feed._squarePosts = feedPosts;
+    feed._squareOffset = (append ? Number(feed._squareOffset || 0) : 0) + posts.length;
+    feed._squareHasMore = posts.length >= pageSize;
+    feed._squareFeedOpts = { ...opts, feed: feedScope, append: false };
 
     const html = await Promise.all(
       posts.map(async (p) => {
-        const url = p.demo ? p.image : await getMediaUrl(p);
+        const url = await getMediaUrl(p);
         let thumbUrl = !isPlaceholderThumb(p.thumb) ? p.thumb : '';
         if (!thumbUrl && !postIsVideo(p) && url && !isPlaceholderThumb(url)) thumbUrl = url;
         const user = window.Auth?.getUser?.();
         const isOwner =
-          !p.demo &&
           user &&
           (String(p.userId) === String(user.id) || p.userId === 'me' || String(p.userId) === String(user.email));
-        const media = postIsVideo(p)
-          ? `<video src="${url}" playsinline muted preload="metadata" data-social-feed-video poster="${thumbUrl || ''}"${videoTagAttrs(p)}></video>`
-          : `<img src="${url || SocialShell?.avatarFallback(p.userName)}" alt="">`;
-        const liked = !p.demo && isLiked(p.id, p);
-        const openReel = !p.demo && postIsVideo(p) ? ' data-open-reel="1" data-open-reel-video="1"' : (!p.demo && postHasMedia(p) ? ' data-open-reel="1"' : '');
+        const hasMedia = !!(url || thumbUrl);
+        const media = !hasMedia
+          ? `<div class="social-post-text-only">${formatCaptionHtml(p.caption || p.text || '')}</div>`
+          : postIsVideo(p)
+            ? `<video ${thumbUrl ? `poster="${thumbUrl}"` : ''} playsinline muted preload="none" data-social-feed-video data-src="${url || ''}"${videoTagAttrs(p)}></video>`
+            : `<img src="${url || SocialShell?.avatarFallback(p.userName)}" alt="" loading="lazy">`;
+        const liked = isLiked(p.id, p);
+        const openReel = hasMedia
+          ? postIsVideo(p)
+            ? ' data-open-reel="1" data-open-reel-video="1"'
+            : ' data-open-reel="1"'
+          : '';
+        const avatarSrc = p.profilePic
+          ? resolveMediaUrl(p.profilePic)
+          : SocialShell?.avatarFallback(p.userName) || window.SocialUI?.avatarUrl?.(p.userName) || '';
+        const when = relativeTime(p.createdAt || p.id);
         return `
       <article class="social-post-card" data-post-id="${p.id}"${openReel}>
         <div class="social-post-media">${media}
-          ${postIsVideo(p) ? '<span class="play-badge play-badge--fullscreen"><i class="fas fa-expand"></i></span>' : '<span class="play-badge play-badge--photo"><i class="fas fa-expand"></i></span>'}
+          ${hasMedia && postIsVideo(p) ? '<span class="play-badge play-badge--fullscreen"><i class="fas fa-expand"></i></span>' : ''}
+          ${hasMedia && !postIsVideo(p) ? '<span class="play-badge play-badge--photo"><i class="fas fa-expand"></i></span>' : ''}
           ${p.visibility === 'private' ? '<span class="social-post-private-badge"><i class="fas fa-lock"></i> Private</span>' : ''}
           ${isOwner ? `<button type="button" class="social-post-delete" data-delete-post="${p.id}" aria-label="Delete post"><i class="fas fa-times"></i></button>` : ''}
         </div>
-        <div class="social-post-meta">${p.minsAgo || 1} mins ago</div>
+        <div class="social-post-meta">${escapeHtml(when)}</div>
         <div class="social-post-actions">
           <button type="button" class="social-act-btn" data-act="like" data-id="${p.id}"><i class="${liked ? 'fas' : 'far'} fa-heart"></i> <span>${p.likes || 0}</span></button>
           <button type="button" class="social-act-btn" data-act="comment" data-id="${p.id}"><i class="far fa-comment"></i> <span>${p.comments || 0}</span></button>
           <button type="button" class="social-act-btn" data-act="gift" data-id="${p.id}"><i class="fas fa-gift"></i> <span>${p.gifts || 0}</span></button>
           <button type="button" class="social-act-btn" data-act="share" data-id="${p.id}"><i class="far fa-paper-plane"></i> <span>${p.shares || 0}</span></button>
         </div>
-        <a class="social-post-user" href="${profileUrl({ userName: p.userName, userId: p.userId })}">
-          <img src="${SocialShell?.avatarFallback(p.userName) || (window.SocialUI?.avatarUrl?.(p.userName) || '')}" alt="">
-          <div>
-            <div class="social-post-user-name">${escapeHtml(p.userName)} 🇮🇳</div>
-            <div class="social-post-caption">${escapeHtml(p.caption || '')}</div>
-          </div>
-        </a>
+        <div class="social-post-user">
+          ${
+            window.SocialCreatorIdentity
+              ? SocialCreatorIdentity.renderIdentityHtml(
+                  {
+                    id: p.userId,
+                    displayName: p.userName,
+                    profilePic: p.profilePic,
+                    role: p.role,
+                    isVerified: p.isVerified,
+                    agencyName: p.agencyName,
+                    creatorLevel: p.creatorLevel,
+                    authorLive: p.authorLive,
+                  },
+                  { variant: 'card', href: profileUrl({ userName: p.userName, userId: p.userId }) }
+                )
+              : `<a href="${profileUrl({ userName: p.userName, userId: p.userId })}"><img src="${avatarSrc}" alt=""><div class="social-post-user-name">${escapeHtml(p.userName)} ${liveBadgeHtml(p.authorLive)}</div></a>`
+          }
+          <div class="social-post-caption">${hasMedia ? formatCaptionHtml(p.caption || '') : ''}</div>
+        </div>
       </article>`;
       })
     );
-    feed.innerHTML = html.join('');
+    const fragment = document.createElement('div');
+    fragment.innerHTML = html.join('');
+    const newCards = [...fragment.children];
+    if (!append) {
+      feed.innerHTML = '';
+      newCards.forEach((n) => feed.appendChild(n));
+    } else {
+      const sentinel = feed.querySelector('.ap-feed-sentinel');
+      newCards.forEach((n) => {
+        if (sentinel) feed.insertBefore(n, sentinel);
+        else feed.appendChild(n);
+      });
+      window.SocialCreatorTelemetry?.track?.('feed_page', posts.length, { feed: feedScope });
+    }
 
-    /* Backfill missing video posters from the first decoded frame */
-    feed.querySelectorAll('.social-post-media video').forEach((vid) => {
-      if (vid.getAttribute('poster')) return;
-      const fillPoster = () => {
-        try {
-          if (!vid.videoWidth) return;
-          const canvas = document.createElement('canvas');
-          const scale = Math.min(1, 360 / vid.videoWidth);
-          canvas.width = Math.round(vid.videoWidth * scale);
-          canvas.height = Math.round(vid.videoHeight * scale);
-          canvas.getContext('2d').drawImage(vid, 0, 0, canvas.width, canvas.height);
-          const data = canvas.toDataURL('image/jpeg', 0.7);
-          vid.setAttribute('poster', data);
-          const postId = vid.closest('[data-post-id]')?.dataset?.postId;
-          if (postId && data) {
-            const posts = getPosts();
-            const p = posts.find((x) => String(x.id) === String(postId));
-            if (p && isPlaceholderThumb(p.thumb)) {
-              p.thumb = data;
-              savePosts(posts);
-            }
+    const qs = (sel) =>
+      append ? newCards.flatMap((n) => [...n.querySelectorAll(sel)]) : [...feed.querySelectorAll(sel)];
+
+    /* Lazy-attach video src when near viewport; prefer server thumb over seek-hack */
+    const vidObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((en) => {
+          const vid = en.target;
+          if (!en.isIntersecting) return;
+          const src = vid.getAttribute('data-src');
+          if (src && !vid.getAttribute('src')) {
+            vid.setAttribute('src', src);
+            vid.load?.();
           }
-        } catch (_e) { /* ignore */ }
-      };
-      const onMeta = () => {
-        const t = Math.min(0.2, (vid.duration || 1) * 0.05);
-        const onSeeked = () => {
-          vid.removeEventListener('seeked', onSeeked);
-          fillPoster();
-        };
-        vid.addEventListener('seeked', onSeeked);
-        try {
-          vid.currentTime = t;
-        } catch (_e) {
-          fillPoster();
-        }
-      };
-      if (vid.readyState >= 2) onMeta();
-      else vid.addEventListener('loadeddata', onMeta, { once: true });
+        });
+      },
+      { rootMargin: '200px' }
+    );
+    qs('video[data-src]').forEach((vid) => {
+      if (vid.getAttribute('poster')) {
+        vidObserver.observe(vid);
+        return;
+      }
+      vidObserver.observe(vid);
+      vid.addEventListener(
+        'loadeddata',
+        () => {
+          if (vid.getAttribute('poster') || !vid.videoWidth) return;
+          try {
+            const canvas = document.createElement('canvas');
+            const scale = Math.min(1, 360 / vid.videoWidth);
+            canvas.width = Math.round(vid.videoWidth * scale);
+            canvas.height = Math.round(vid.videoHeight * scale);
+            canvas.getContext('2d').drawImage(vid, 0, 0, canvas.width, canvas.height);
+            vid.setAttribute('poster', canvas.toDataURL('image/jpeg', 0.7));
+          } catch (_e) { /* ignore */ }
+        },
+        { once: true }
+      );
     });
 
-    feed.querySelectorAll('[data-delete-post]').forEach((btn) => {
+    qs('[data-delete-post]').forEach((btn) => {
       btn.addEventListener('click', async (e) => {
         e.preventDefault();
         e.stopPropagation();
         const id = btn.dataset.deletePost;
-        if (confirm('Delete this post?')) {
-          deletePost(id);
-          await renderSquareFeed(feed);
+        if (!confirm('Delete this post?')) return;
+        try {
+          await deletePostRemote(id);
+          await renderSquareFeed(feed, { ...feed._squareFeedOpts, append: false });
           toast('Post deleted');
+        } catch (_err) {
+          toast('Could not delete post', 'error');
         }
       });
     });
-    feed.querySelectorAll('.social-post-media video, .social-post-media img').forEach((el) => markMediaOrientation(el));
-    bindVideoTrimPlayback(feed);
+    qs('.social-post-media video, .social-post-media img').forEach((el) => markMediaOrientation(el));
+    newCards.forEach((card) => bindVideoTrimPlayback(card));
 
-    feed.querySelectorAll('.social-post-media video[data-social-feed-video]').forEach((vid) => {
+    qs('.social-post-media video[data-social-feed-video]').forEach((vid) => {
       const mediaWrap = vid.closest('.social-post-media');
       const postId = vid.closest('[data-post-id]')?.dataset?.postId;
       vid.addEventListener('click', (e) => {
@@ -2141,6 +3052,9 @@
         e.preventDefault();
         e.stopPropagation();
         const enabling = vid.muted;
+        if (!vid.getAttribute('src') && vid.getAttribute('data-src')) {
+          vid.setAttribute('src', vid.getAttribute('data-src'));
+        }
         vid.muted = !enabling;
         vid.volume = enabling ? 1 : 0;
         if (enabling) {
@@ -2157,7 +3071,7 @@
       mediaWrap.appendChild(btn);
     });
 
-    feed.querySelectorAll('[data-open-reel]').forEach((card) => {
+    qs('[data-open-reel]').forEach((card) => {
       card.addEventListener('click', (e) => {
         if (e.target.closest('[data-act], [data-delete-post], .social-post-user, button, a, .social-feed-sound-btn')) return;
         if (e.target.closest('video[data-social-feed-video]')) return;
@@ -2165,22 +3079,14 @@
       });
     });
 
-    feed.querySelectorAll('[data-act="like"]').forEach((btn) => {
+    qs('[data-act="like"]').forEach((btn) => {
       btn.addEventListener('click', async (e) => {
         e.stopPropagation();
         const id = btn.dataset.id;
-        if (String(id).startsWith('demo-')) {
-          const s = btn.querySelector('span');
-          const icon = btn.querySelector('i');
-          const nowLiked = !icon.classList.contains('fas');
-          icon.className = nowLiked ? 'fas fa-heart' : 'far fa-heart';
-          const n = parseInt(s.textContent, 10) || 0;
-          s.textContent = String(Math.max(0, n + (nowLiked ? 1 : -1)));
-          return;
-        }
         const p = feedPosts.find((x) => String(x.id) === String(id));
         try {
-          const { liked, delta } = await toggleLikePost(id, p);
+          const { liked, delta, locked } = await toggleLikePost(id, p || { id, fromApi: true });
+          if (locked) return;
           if (p && delta) {
             p.likes = Math.max(0, (p.likes || 0) + delta);
             if (!p.fromApi) {
@@ -2194,49 +3100,93 @@
           }
           btn.querySelector('i').className = liked ? 'fas fa-heart' : 'far fa-heart';
           btn.classList.toggle('is-liked', liked);
+          if (liked) {
+            btn.classList.remove('social-like-pop');
+            void btn.offsetWidth;
+            btn.classList.add('social-like-pop');
+          }
           btn.querySelector('span').textContent = p?.likes ?? btn.querySelector('span').textContent;
+          SocialRealtime.emit('social:like', { postId: id, liked });
         } catch (_e) {
           toast('Could not update like', 'error');
         }
       });
     });
-    feed.querySelectorAll('[data-act="comment"]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        if (String(btn.dataset.id).startsWith('demo-')) return toast('Sign in & post to comment');
-        openComments(btn.dataset.id);
-      });
+    qs('[data-act="comment"]').forEach((btn) => {
+      btn.addEventListener('click', () => openComments(btn.dataset.id));
     });
-    feed.querySelectorAll('[data-act="gift"]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        if (String(btn.dataset.id).startsWith('demo-')) return toast('Gift sent 🎁');
-        sendGift(btn.dataset.id);
-        const posts = getPosts();
-        const p = posts.find((x) => String(x.id) === String(btn.dataset.id));
-        if (p) btn.querySelector('span').textContent = p.gifts || 0;
-      });
-    });
-    feed.querySelectorAll('[data-act="share"]').forEach((btn) => {
+    qs('[data-act="gift"]').forEach((btn) => {
       btn.addEventListener('click', async () => {
         const id = btn.dataset.id;
-        if (String(id).startsWith('demo-')) return toast('Link copied');
-        const p = getPosts().find((x) => String(x.id) === String(id));
+        const p = feedPosts.find((x) => String(x.id) === String(id)) || findPostById(id);
+        await sendGift(id, p);
+      });
+    });
+    qs('[data-act="share"]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.id;
+        const p = feedPosts.find((x) => String(x.id) === String(id)) || getPosts().find((x) => String(x.id) === String(id));
         if (p) {
           await sharePost(p);
           btn.querySelector('span').textContent = p.shares || 0;
         }
       });
     });
+
+    feed._squareLoading = false;
+    ensureSquareInfiniteScroll(feed);
+
+    if (!feed._squareSoftBound) {
+      feed._squareSoftBound = true;
+      SocialRealtime.on('social:reconnect', () => {
+        if (document.visibilityState === 'visible') {
+          renderSquareFeed(feed, { ...feed._squareFeedOpts, soft: true, append: false });
+        }
+      });
+    }
+  }
+
+  function ensureSquareInfiniteScroll(feed) {
+    if (!feed) return;
+    let sentinel = feed.querySelector('.ap-feed-sentinel');
+    if (!sentinel) {
+      sentinel = document.createElement('div');
+      sentinel.className = 'ap-feed-sentinel';
+      sentinel.setAttribute('aria-hidden', 'true');
+      feed.appendChild(sentinel);
+      if (feed._squareIo) {
+        try {
+          feed._squareIo.disconnect();
+        } catch (_e) { /* ignore */ }
+        feed._squareIo = null;
+      }
+    }
+    if (!feed._squareIo) {
+      feed._squareIo = new IntersectionObserver(
+        (entries) => {
+          const hit = entries.some((e) => e.isIntersecting);
+          if (!hit || feed._squareLoading || feed._squareHasMore === false) return;
+          renderSquareFeed(feed, { ...feed._squareFeedOpts, append: true }).catch(() => {});
+        },
+        { root: null, rootMargin: '400px', threshold: 0 }
+      );
+    }
+    feed._squareIo.observe(sentinel);
   }
 
   function renderTopics(containerId) {
     const list = document.getElementById(containerId);
     if (!list) return;
-    const items = [
-      { title: '#Holi Video Collection Event', heat: 529819, ended: false },
-      { title: '#Jayfol Dance Challenge', heat: 412200, ended: false },
-      { title: '#Home Pro Tips', heat: 210440, ended: true },
-      { title: '#Live Party Moments', heat: 188900, ended: false },
-    ];
+    /* Extension: window.SocialTopicsProvider.getTopics() can replace hardcoded list later */
+    const items =
+      (typeof window.SocialTopicsProvider?.getTopics === 'function' &&
+        window.SocialTopicsProvider.getTopics()) ||
+      [
+        { title: '#Holi Video Collection Event', heat: 529819, ended: false },
+        { title: '#Jayfol Dance Challenge', heat: 412200, ended: false },
+        { title: '#Home Pro Tips', heat: 210440, ended: true },
+        { title: '#Live Party Moments', heat: 188900, ended: false },
+      ];
     const fallbackThumb = topicThumb(0, 'Topic');
     list.innerHTML = items
       .map(
@@ -2355,6 +3305,8 @@
 
   window.SocialInteractions = {
     getPosts,
+    loadPosts,
+    fetchApiPosts,
     savePostFromForm,
     renderSquareFeed,
     initVideoPage,
@@ -2385,7 +3337,14 @@
     getFollowEntries,
     openReelViewer,
     toggleLikePost,
+    deletePostRemote,
+    bookmarkPost,
+    currentFeedScope,
+    setFeedScope,
+    relativeTime,
     postIsVideo,
+    resolveMediaUrl,
+    profileUrl,
     apiSocial,
   };
 })();

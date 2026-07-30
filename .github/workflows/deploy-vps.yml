@@ -37,8 +37,6 @@ jobs:
             set -e
             APP_DIR=/var/www/ap-services
             cd "$APP_DIR"
-            DEPLOY_OLD_HEAD=$(git rev-parse HEAD)
-            git fetch origin main
-            git reset --hard origin/main
-            chmod +x deploy/hostinger/deploy.sh
-            DEPLOY_OLD_HEAD="$DEPLOY_OLD_HEAD" SKIP_GIT=1 bash deploy/hostinger/deploy.sh
+            chmod +x deploy/hostinger/deploy.sh deploy/hostinger/backup-db.sh
+            # deploy.sh backs up code+DB, then fetches origin/main and reloads
+            bash deploy/hostinger/deploy.sh

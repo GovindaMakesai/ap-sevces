@@ -3,7 +3,7 @@
     "name": "AP Live Service",
     "slug": "ap-services-app",
     "scheme": "apservices",
-    "version": "1.0.30",
+    "version": "1.0.32",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -22,14 +22,16 @@
     },
     "android": {
       "package": "com.apservices.app",
-      "versionCode": 46,
+      "googleServicesFile": "./google-services.json",
+      "versionCode": 48,
       "usesCleartextTraffic": true,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.FOREGROUND_SERVICE",
-        "android.permission.FOREGROUND_SERVICE_MICROPHONE"
+        "android.permission.FOREGROUND_SERVICE_MICROPHONE",
+        "android.permission.POST_NOTIFICATIONS"
       ],
       "blockedPermissions": [
         "android.permission.READ_MEDIA_IMAGES",
@@ -48,9 +50,8 @@
           "action": "VIEW",
           "autoVerify": false,
           "data": [
-            {
-              "scheme": "apservices"
-            }
+            { "scheme": "apservices" },
+            { "scheme": "aplive" }
           ],
           "category": ["BROWSABLE", "DEFAULT"]
         }
@@ -61,6 +62,15 @@
     },
     "plugins": [
       "expo-web-browser",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#C9A227",
+          "defaultChannel": "default",
+          "sounds": []
+        }
+      ],
       "./plugins/with-secure-live-capture.js",
       [
         "expo-build-properties",

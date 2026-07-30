@@ -95,12 +95,35 @@
       html += `<p class="social-search-section">Users</p><div class="social-search-users">`;
       users.forEach((u) => {
         const name = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email || 'User';
-        html += `<a href="/creator-profile.html?id=${u.id}&app=1" class="social-search-user">
+        const profileHref = `/creator-profile.html?userId=${encodeURIComponent(u.id)}&name=${encodeURIComponent(name)}&app=1`;
+        if (window.SocialCreatorIdentity?.renderIdentityHtml) {
+          html += `<div class="social-search-user social-search-user--identity">${SocialCreatorIdentity.renderIdentityHtml(
+            {
+              id: u.id,
+              displayName: name,
+              profilePic: u.profile_pic || u.profilePic,
+              role: u.role,
+              isVerified: u.is_verified || u.isVerified,
+              agencyName: u.agency_name || u.agencyName,
+              creatorLevel: u.creator_level || u.vip_level || u.creatorLevel,
+              isLive: !!(u.is_live || u.isLive || u.live_channel),
+              liveChannel: u.live_channel || u.liveChannel,
+              liveRoomType: u.live_room_type || u.liveRoomType,
+            },
+            {
+              variant: 'compact',
+              href: profileHref,
+              subtitle: u.display_id ? `ID ${u.display_id}` : `ID ${u.id}`,
+            }
+          )}</div>`;
+        } else {
+          html += `<a href="${profileHref}" class="social-search-user">
           <span class="social-search-user-name">${escapeHtml(name)} ${
             window.formatRoleBadgeHtml?.(u.role || u, { withEmoji: true }) || ''
           }</span>
           <span class="social-search-user-id">ID ${u.display_id || u.id}</span>
         </a>`;
+        }
       });
       html += `</div>`;
     }
@@ -724,6 +747,44 @@
 
   let fastNavBound = false;
   let navSwitching = false;
+
+  function paintNavSwitchOverlay(href) {
+    let el = document.getElementById('ap-nav-switch-overlay');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'ap-nav-switch-overlay';
+      el.setAttribute('aria-hidden', 'true');
+      el.innerHTML = '<span class="ap-nav-switch-bar"></span>';
+      (document.body || document.documentElement).appendChild(el);
+    }
+    el.classList.add('is-on');
+    try {
+      const path = new URL(href, location.origin).pathname.toLowerCase();
+      el.dataset.to = path;
+    } catch (_e) {}
+  }
+
+  function navigateInApp(href, { markActive } = {}) {
+    if (!href || href.startsWith('http') || href.startsWith('#')) return false;
+    try {
+      const next = new URL(href, location.origin);
+      const cur = new URL(location.href);
+      if (next.pathname === cur.pathname && next.search === cur.search) {
+        if (window.SocialNav?.refreshPage) SocialNav.refreshPage();
+        return true;
+      }
+    } catch (_e) { /* fall through */ }
+    if (navSwitching) return true;
+
+    /* Soft-nav disabled — it stacked timers/listeners and made the whole app lag */
+    navSwitching = true;
+    if (typeof markActive === 'function') markActive();
+    document.documentElement.classList.add('ap-nav-switching');
+    paintNavSwitchOverlay(href);
+    window.location.assign(href);
+    return true;
+  }
+
   function bindFastBottomNav() {
     if (fastNavBound) return;
     fastNavBound = true;
@@ -735,20 +796,29 @@
         e.preventDefault();
         e.stopPropagation();
       }
-      if (link.classList.contains('is-active')) {
-        if (window.SocialNav?.refreshPage) SocialNav.refreshPage();
-        else window.location.reload();
-        return true;
-      }
-      if (navSwitching) return true;
-      navSwitching = true;
-      document.querySelectorAll('.social-bottom-nav .nav-item').forEach((el) => {
-        el.classList.toggle('is-active', el === link);
+      return navigateInApp(href, {
+        markActive: () => {
+          document.querySelectorAll('.social-bottom-nav .nav-item').forEach((el) => {
+            el.classList.toggle('is-active', el === link);
+          });
+        },
       });
-      document.documentElement.classList.add('ap-nav-switching');
-      /* Leave immediately — do not wait for pending fetches / rAF / load finish */
-      spaNavigate(href);
-      return true;
+    }
+
+    function goMainTab(link, e) {
+      const href = link.getAttribute('href');
+      if (!href || href.startsWith('http') || href.startsWith('#')) return false;
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      return navigateInApp(href, {
+        markActive: () => {
+          document.querySelectorAll('.social-main-tabs a').forEach((el) => {
+            el.classList.toggle('active', el === link);
+          });
+        },
+      });
     }
 
     /* pointerdown fires before main-thread load work eats the click */
@@ -756,23 +826,38 @@
       'pointerdown',
       (e) => {
         if (e.pointerType === 'mouse' && e.button !== 0) return;
-        const link = e.target.closest?.('.social-bottom-nav a[data-nav]');
-        if (!link) return;
-        goBottomNav(link, e);
+        const bottom = e.target.closest?.('.social-bottom-nav a[data-nav]');
+        if (bottom) {
+          goBottomNav(bottom, e);
+          return;
+        }
+        const tab = e.target.closest?.('.social-main-tabs a[href]');
+        if (tab) goMainTab(tab, e);
       },
       true
     );
     document.addEventListener(
       'click',
       (e) => {
-        const link = e.target.closest?.('.social-bottom-nav a[data-nav]');
-        if (!link) return;
-        if (navSwitching) {
-          e.preventDefault();
-          e.stopPropagation();
+        const bottom = e.target.closest?.('.social-bottom-nav a[data-nav]');
+        if (bottom) {
+          if (navSwitching) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+          }
+          goBottomNav(bottom, e);
           return;
         }
-        goBottomNav(link, e);
+        const tab = e.target.closest?.('.social-main-tabs a[href]');
+        if (tab) {
+          if (navSwitching) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+          }
+          goMainTab(tab, e);
+        }
       },
       true
     );
@@ -784,12 +869,37 @@
     marker.id = 'ap-nav-prefetch';
     marker.name = 'ap-nav-prefetch';
     document.head.appendChild(marker);
-    BOTTOM_NAV.forEach((item) => {
-      const link = document.createElement('link');
-      link.rel = 'prefetch';
-      link.href = withAppQuery(item.href);
-      document.head.appendChild(link);
-    });
+    const pages = [
+      ...BOTTOM_NAV.map((item) => item.href),
+      '/video.html',
+      '/square.html',
+      '/topics.html',
+      '/explore.html',
+      '/rankings.html',
+      '/chat.html',
+      '/profile-tab.html',
+    ];
+    const seen = new Set();
+    const warm = (href) => {
+      if (seen.has(href)) return;
+      seen.add(href);
+      /* Single light prefetch — do not double-fetch / Cache API hammer */
+      try {
+        const link = document.createElement('link');
+        link.rel = 'prefetch';
+        link.as = 'document';
+        link.href = href;
+        document.head.appendChild(link);
+      } catch (_e) {}
+    };
+    const run = () => {
+      pages.forEach((path) => warm(withAppQuery(path)));
+    };
+    if (typeof requestIdleCallback === 'function') {
+      requestIdleCallback(run, { timeout: 2500 });
+    } else {
+      setTimeout(run, 1500);
+    }
   }
 
   function patchAppLinks() {
@@ -879,10 +989,10 @@
       let lastFail = null;
       for (const base of bases) {
         try {
-          const url = `${String(base).replace(/\/+$/, '')}${path}${path.includes('?') ? '&' : '?'}_=${Date.now()}`;
+          const url = `${String(base).replace(/\/+$/, '')}${path}`;
           const r = await fetch(url, {
             credentials: 'omit',
-            cache: 'no-store',
+            cache: 'default',
             mode: 'cors',
             headers: { Accept: 'application/json' },
           });
@@ -1371,6 +1481,35 @@
     bindLiveCards(document);
   }
 
+  const FOLLOWING_CACHE_KEY = 'ap_following_tab_v1';
+  const FOLLOWING_CACHE_FRESH_MS = 60_000;
+  const FOLLOWING_CACHE_PAINT_MS = 15 * 60_000;
+
+  function readFollowingCache() {
+    try {
+      const raw = sessionStorage.getItem(FOLLOWING_CACHE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || !Array.isArray(parsed.following)) return null;
+      return parsed;
+    } catch (_e) {
+      return null;
+    }
+  }
+
+  function writeFollowingCache(following, liveRows) {
+    try {
+      sessionStorage.setItem(
+        FOLLOWING_CACHE_KEY,
+        JSON.stringify({
+          t: Date.now(),
+          following: following || [],
+          live: liveRows || [],
+        })
+      );
+    } catch (_e) { /* ignore */ }
+  }
+
   async function fillFollowingView(searchQuery) {
     const mount = document.getElementById('exploreEmpty');
     const content = document.getElementById('exploreContent');
@@ -1381,8 +1520,6 @@
       content.innerHTML = '<div class="social-explore-mount" id="exploreGrid"></div>';
     }
     mount.style.display = 'block';
-    mount.innerHTML =
-      '<div class="social-empty-state"><p><i class="fas fa-spinner fa-spin"></i> Loading following…</p></div>';
 
     const loggedIn = window.Auth?.hasSession?.() || localStorage.getItem('user');
     if (!loggedIn) {
@@ -1391,26 +1528,47 @@
       return;
     }
 
+    const cached = readFollowingCache();
+    const cacheAge = cached ? Date.now() - Number(cached.t || 0) : Infinity;
+    if (!(cached?.following?.length) || cacheAge >= FOLLOWING_CACHE_PAINT_MS) {
+      mount.innerHTML =
+        '<div class="social-empty-state"><p><i class="fas fa-spinner fa-spin"></i> Loading following…</p></div>';
+    }
+
     try {
-      if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken();
-      const now = Date.now();
-      if (
-        window.SocialInteractions?.refreshFollowCache &&
-        (!window.__apFollowCacheAt || now - window.__apFollowCacheAt > 60000)
-      ) {
-        await SocialInteractions.refreshFollowCache();
-        window.__apFollowCacheAt = now;
+      if (window.Auth?.ensureAccessToken) {
+        await Promise.race([
+          Auth.ensureAccessToken(),
+          new Promise((r) => setTimeout(r, 1500)),
+        ]);
       }
     } catch (_e) {}
 
-    let following = [];
+    let following = Array.isArray(cached?.following) ? cached.following.slice() : [];
     let followLoadError = '';
-    try {
-      const res = await API.get('/social/following?limit=200');
-      following = Array.isArray(res?.data) ? res.data : [];
-    } catch (e) {
-      console.warn('SocialShell: following API', e);
-      followLoadError = String(e?.message || 'Could not load following');
+    let liveRows = Array.isArray(cached?.live) ? cached.live.slice() : [];
+
+    /* Reuse cached list while network refresh runs (or skip network if fresh) */
+    if (following.length && cacheAge < FOLLOWING_CACHE_PAINT_MS) {
+      /* keep spinner off — previous paint or empty until render below */
+    }
+
+    const skipNetwork = cached && cacheAge < FOLLOWING_CACHE_FRESH_MS && !searchQuery;
+    if (!skipNetwork) {
+      try {
+        const [followRes, liveRes] = await Promise.all([
+          API.get('/social/following?limit=200').catch((e) => {
+            followLoadError = String(e?.message || 'Could not load following');
+            return null;
+          }),
+          API.get('/social/following/live').catch(() => null),
+        ]);
+        if (Array.isArray(followRes?.data)) following = followRes.data;
+        if (Array.isArray(liveRes?.data)) liveRows = liveRes.data;
+      } catch (e) {
+        console.warn('SocialShell: following APIs', e);
+        followLoadError = String(e?.message || 'Could not load following');
+      }
     }
 
     if (!following.length && window.SocialInteractions?.getFollowingList) {
@@ -1422,15 +1580,11 @@
     }
 
     const liveMap = new Map();
-    try {
-      const liveRes = await API.get('/social/following/live');
-      const liveRows = Array.isArray(liveRes?.data) ? liveRes.data : [];
-      liveRows.forEach((r) => {
-        if (r?.id) liveMap.set(String(r.id), r);
-      });
-    } catch (e) {
-      console.warn('SocialShell: following live API', e);
-    }
+    liveRows.forEach((r) => {
+      if (r?.id) liveMap.set(String(r.id), r);
+    });
+
+    if (!followLoadError && !skipNetwork) writeFollowingCache(following, liveRows);
 
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
@@ -2053,7 +2207,9 @@
 
   async function fillSquareFeed() {
     if (window.SocialInteractions?.renderSquareFeed) {
-      await SocialInteractions.renderSquareFeed('squareFeed');
+      await SocialInteractions.renderSquareFeed('squareFeed', {
+        feed: window.SocialInteractions.currentFeedScope?.() || 'for_you',
+      });
       return;
     }
     const feed = document.getElementById('squareFeed');

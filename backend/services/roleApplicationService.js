@@ -279,6 +279,15 @@ async function notify(app, status, reason) {
       rejection_reason: status === 'rejected' ? reason || null : null,
     },
   });
+
+  if (app.role_type === 'creator' && status === 'rejected') {
+    setImmediate(() => {
+      try {
+        const pushNotificationService = require('./pushNotificationService');
+        pushNotificationService.notifyHostRejected(app.user_id, null).catch(() => {});
+      } catch (_e) {}
+    });
+  }
 }
 
 async function reviewApplication(

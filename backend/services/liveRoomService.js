@@ -208,6 +208,22 @@ async function hostRoom({ channel, roomType, hostUserId, hostDisplayName, stream
     room = await client.query(`SELECT * FROM live_rooms WHERE channel = $1`, [channel]);
     const liveRoomFresh = room.rows[0];
     cacheRoom(channel, liveRoomFresh);
+
+    /* FCM: notify followers / fans / agency after room is live (non-blocking) */
+    setImmediate(() => {
+      try {
+        const pushNotificationService = require('./pushNotificationService');
+        pushNotificationService
+          .notifyHostLive(hostUserId, hostDisplayName, channel, {
+            roomType: liveRoomFresh.room_type || roomType,
+            includeAgency: true,
+          })
+          .catch((err) => console.warn('[liveRoom] push notify failed', err.message));
+      } catch (err) {
+        console.warn('[liveRoom] push notify error', err.message);
+      }
+    });
+
     return liveRoomFresh;
   } catch (e) {
     await client.query('ROLLBACK');

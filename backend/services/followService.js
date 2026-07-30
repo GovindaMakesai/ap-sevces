@@ -11,11 +11,22 @@ async function follow(followerId, followingId) {
   );
   if (blocked.rows.length) throw new Error('Cannot follow this user');
 
-  await db.query(
+  const inserted = await db.query(
     `INSERT INTO user_follows (follower_id, following_id) VALUES ($1, $2)
-     ON CONFLICT (follower_id, following_id) DO NOTHING`,
+     ON CONFLICT (follower_id, following_id) DO NOTHING
+     RETURNING follower_id`,
     [followerId, followingId]
   );
+  if (inserted.rows.length) {
+    setImmediate(() => {
+      try {
+        const pushNotificationService = require('./pushNotificationService');
+        pushNotificationService
+          .notifyNewFollower(followingId, followerId)
+          .catch((err) => console.warn('[follow] push failed', err.message));
+      } catch (_e) {}
+    });
+  }
   return { followerId, followingId, following: true };
 }
 

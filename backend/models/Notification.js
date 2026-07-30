@@ -119,9 +119,14 @@ class Notification {
         const values = [];
         let paramCount = 1;
         
-        const allowedFields = ['email_enabled', 'push_enabled', 'sms_enabled', 
-                               'booking_updates', 'payment_updates', 'review_updates', 
-                               'promotional_updates', 'reminder_updates'];
+        const allowedFields = [
+            'email_enabled', 'push_enabled', 'sms_enabled',
+            'booking_updates', 'payment_updates', 'review_updates',
+            'promotional_updates', 'reminder_updates',
+            'live_notifications', 'post_notifications', 'comment_notifications',
+            'follow_notifications', 'gift_notifications', 'agency_notifications',
+            'mention_notifications',
+        ];
         
         for (const field of allowedFields) {
             if (settings[field] !== undefined) {
