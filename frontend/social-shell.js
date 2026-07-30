@@ -703,11 +703,25 @@
       }
     } catch (_e) { /* fall through */ }
     if (navSwitching) return true;
+
+    /* Soft nav: swap HTML in-place (no WebView full reload) */
+    if (window.ApSoftNav && window.ApSoftNav.canSoftNavigate(href)) {
+      navSwitching = true;
+      if (typeof markActive === 'function') markActive();
+      document.documentElement.classList.add('ap-nav-switching');
+      paintNavSwitchOverlay(href);
+      window.ApSoftNav.go(href, { markActive }).finally(() => {
+        navSwitching = false;
+        document.documentElement.classList.remove('ap-nav-switching');
+        document.getElementById('ap-nav-switch-overlay')?.classList.remove('is-on');
+      });
+      return true;
+    }
+
     navSwitching = true;
     if (typeof markActive === 'function') markActive();
     document.documentElement.classList.add('ap-nav-switching');
     paintNavSwitchOverlay(href);
-    /* Warm cache then leave — do not await (keeps tap snappy) */
     try {
       fetch(href, { credentials: 'same-origin', cache: 'force-cache', mode: 'same-origin' }).catch(() => {});
     } catch (_e) {}
@@ -815,7 +829,13 @@
       seen.add(href);
       /* Android WebView often ignores <link rel=prefetch> — fetch warms HTTP cache */
       try {
-        fetch(href, { credentials: 'same-origin', cache: 'force-cache', mode: 'same-origin' }).catch(() => {});
+        fetch(href, { credentials: 'same-origin', cache: 'force-cache', mode: 'same-origin' })
+          .then((r) => {
+            if (window.ApSoftNav && window.ApSoftNav.warm) window.ApSoftNav.warm(href);
+            return r;
+          })
+          .catch(() => {});
+        if (window.ApSoftNav && window.ApSoftNav.warm) window.ApSoftNav.warm(href);
       } catch (_e) {}
       const link = document.createElement('link');
       link.rel = 'prefetch';
