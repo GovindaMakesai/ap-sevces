@@ -132,11 +132,15 @@
   top: var(--social-video-tabs-h);
   left: 0;
   right: 0;
-  bottom: calc(var(--social-bottom-nav-h) + var(--social-safe-bottom));
+  /* Cover through the nav zone so nothing can peek under translucent chrome */
+  bottom: 0;
   z-index: 1;
   background: #000;
   overflow: hidden;
   pointer-events: none;
+  /* Keep active reel clear of the bottom nav */
+  padding-bottom: calc(var(--social-bottom-nav-h) + var(--social-safe-bottom));
+  box-sizing: border-box;
 }
 
 .social-reels-wrap .social-reels-scroll {

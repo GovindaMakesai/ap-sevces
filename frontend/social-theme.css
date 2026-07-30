@@ -1561,16 +1561,35 @@ html.social-video-page.social-native body {
 }
 
 .social-video-page .social-bottom-nav {
-  background: rgba(0, 0, 0, 0.85);
-  border-top-color: rgba(255, 255, 255, 0.1);
+  background: #fffdf8;
+  border-top-color: rgba(232, 212, 168, 0.85);
+  /* Fully opaque so no feed/rails bleed through behind icons */
+  opacity: 1;
+  backdrop-filter: none;
 }
 
 .social-video-page .social-bottom-nav a {
-  color: rgba(255, 255, 255, 0.6);
+  color: #b8a88a;
 }
 
-.social-video-page .social-bottom-nav a.active {
-  color: #fff;
+.social-video-page .social-bottom-nav a.active,
+.social-video-page .social-bottom-nav .nav-item.is-active {
+  color: #e89b1f;
+}
+
+/* Never show Square-style discovery photo rails on Video */
+.social-video-page #social-discover-rails,
+.social-video-page .ap-discover-rails,
+body.social-video-page #social-discover-rails,
+body.social-video-page .ap-discover-rails {
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  max-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  pointer-events: none !important;
 }
 
 .social-video-top {

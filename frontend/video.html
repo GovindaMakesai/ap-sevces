@@ -7,8 +7,8 @@
   <title>Video - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" media="print" onload="this.media='all'">
   <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"></noscript>
-  <link rel="stylesheet" href="social-theme.css?v=20260727-navtap">
-  <link rel="stylesheet" href="social-features.css?v=20260730-cx3">
+  <link rel="stylesheet" href="social-theme.css?v=20260730-videofix">
+  <link rel="stylesheet" href="social-features.css?v=20260730-videofix">
   <link rel="stylesheet" href="social-creator-polish.css?v=20260730-cx3">
   <link rel="stylesheet" href="social-fx.css?v=20260730-cx2">
   <style>
@@ -31,6 +31,13 @@
       background: rgba(201, 162, 39, 0.15) !important;
       color: var(--gold-800, #6b4f10) !important;
     }
+    /* Hard hide any leftover discovery photo strip on Video */
+    #social-discover-rails,
+    .ap-discover-rails {
+      display: none !important;
+      height: 0 !important;
+      overflow: hidden !important;
+    }
   </style>
 </head>
 <body class="social-video-page">
@@ -48,8 +55,6 @@
       <button type="button" class="social-feed-scope-btn" data-feed="latest">Latest</button>
     </div>
   </header>
-
-  <div id="social-discover-rails"></div>
 
   <div id="reelsMount" class="social-reels-wrap">
     <div class="social-reel-ui" id="reelUi">
@@ -95,7 +100,6 @@
   <script src="social-creator-telemetry.js?v=20260730-stab1"></script>
   <script src="social-creator-polish.js?v=20260730-cx3"></script>
   <script src="social-creator-identity.js?v=20260730-cx2"></script>
-  <script src="social-discovery-rails.js?v=20260730-cx3"></script>
   <script src="social-interactions.js?v=20260730-stab1"></script>
   <script src="social-create-post.js?v=20260723-db-posts"></script>
   <script src="social-shell.js?v=20260729-perf2"></script>
@@ -113,9 +117,7 @@
       });
       SocialShell.initPage({ activeNav: 'video', reelsId: null });
       SocialCreatePost.bindCameraButtons();
-      if (window.SocialDiscoveryRails) {
-        SocialDiscoveryRails.mount('social-discover-rails').catch(() => {});
-      }
+      /* Discovery rails stay on Square only — Video is immersive reels */
       Promise.resolve(SocialInteractions.initVideoPage('reelsMount', { feed: current })).catch(() => {});
     });
   </script>
