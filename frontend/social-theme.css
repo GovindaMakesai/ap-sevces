@@ -3233,8 +3233,17 @@ html.ap-live-immersive.social-app body {
 }
 
 html.ap-nav-switching body {
-  /* Instant tab switch — no fade that feels like a full-page reload */
+  /* Keep current screen painted — no fade that feels like a dead pause */
   opacity: 1;
+  pointer-events: none;
+}
+
+.social-bottom-nav .nav-item:active,
+.social-main-tabs a:active,
+.social-feed-scope-btn:active {
+  transform: scale(0.94);
+  opacity: 0.88;
+  transition: transform 0.08s ease, opacity 0.08s ease;
 }
 
 .ap-live-pip-bar {

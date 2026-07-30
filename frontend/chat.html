@@ -13,7 +13,9 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" media="print" onload="this.media='all'">
     
     <!-- Custom Styles -->
-    <link rel="stylesheet" href="styles.css?v=20260729-perf2">
+    <!-- Legacy marketplace CSS — non-blocking so chat theme paints first -->
+    <link rel="stylesheet" href="styles.css?v=20260729-perf2" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="styles.css?v=20260729-perf2"></noscript>
 
     <!-- Soft load: keep showing Loading… and retry in background — never dump debug on users -->
     <script>
@@ -1518,7 +1520,7 @@
     <script src="social-wallet.js?v=20260714-gift-only"></script>
     <script src="live-emoji-data.js?v=20260726-gift-200"></script>
     <script src="social-fx.js"></script>
-    <script src="social-shell.js?v=20260729-perf2"></script>
+    <script src="social-shell.js?v=20260730-fastnav"></script>
     <script src="social-nav.js?v=20260720-back-fix"></script>
     
     <script>
@@ -1570,19 +1572,6 @@
         }
 
         async function bootChatPage() {
-            try {
-                const bustKey = 'chat_cb_20260714e';
-                if (!sessionStorage.getItem(bustKey)) {
-                    sessionStorage.setItem(bustKey, '1');
-                    const u = new URL(location.href);
-                    if (u.searchParams.get('_cb') !== '20260714e') {
-                        u.searchParams.set('_cb', '20260714e');
-                        location.replace(u.toString());
-                        return;
-                    }
-                }
-            } catch (_e) { /* ignore */ }
-
             const chatList = document.getElementById('chatList');
             const paintListStatus = (title, sub, retry) => {
                 if (!chatList) return;
@@ -1594,8 +1583,14 @@
                         : '') +
                     '</div>';
             };
-            // Paint immediately so a later crash cannot leave the static placeholder forever
-            paintListStatus('Loading messages…', 'Starting…');
+            /* Instant list from session cache — never flash Loading when we already have chats */
+            let paintedFromCache = false;
+            try {
+                paintedFromCache = typeof paintCachedConversationsIfAny === 'function' && paintCachedConversationsIfAny();
+            } catch (_e) { /* ignore */ }
+            if (!paintedFromCache) {
+                paintListStatus('Loading messages…', 'Starting…');
+            }
             markChatPageReady();
             try { ensureChatPaneNotBlank(); } catch (_e) { /* ignore */ }
 
@@ -1680,11 +1675,6 @@
                 await ensureChatUser();
                 return hasUsableToken();
             };
-
-            /* Instant list from cache before any auth wait */
-            try {
-                if (typeof paintCachedConversationsIfAny === 'function') paintCachedConversationsIfAny();
-            } catch (_e) { /* ignore */ }
 
             const hasSession = await waitForSession();
             if (!hasSession) {
@@ -3231,7 +3221,8 @@
                         if (!background) {
                             paintChatLoading(attempt === 1 ? 'Fetching chats…' : 'Still connecting…');
                         }
-                        if (window.API?.clearGetCache) {
+                        /* Keep API GET short TTL for soft/background; bust only on interactive loads */
+                        if (!background && window.API?.clearGetCache) {
                             try { API.clearGetCache('/messages/conversations'); } catch (_e) { /* ignore */ }
                         }
                         const { data: root, ms, status } = await fetchConversationsDirect();

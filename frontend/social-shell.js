@@ -675,6 +675,26 @@
 
   let fastNavBound = false;
   let navSwitching = false;
+
+  function navigateInApp(href, { markActive } = {}) {
+    if (!href || href.startsWith('http') || href.startsWith('#')) return false;
+    try {
+      const next = new URL(href, location.origin);
+      const cur = new URL(location.href);
+      if (next.pathname === cur.pathname && next.search === cur.search) {
+        if (window.SocialNav?.refreshPage) SocialNav.refreshPage();
+        return true;
+      }
+    } catch (_e) { /* fall through */ }
+    if (navSwitching) return true;
+    navSwitching = true;
+    if (typeof markActive === 'function') markActive();
+    document.documentElement.classList.add('ap-nav-switching');
+    /* Leave immediately — do not wait for pending fetches / rAF / load finish */
+    window.location.href = href;
+    return true;
+  }
+
   function bindFastBottomNav() {
     if (fastNavBound) return;
     fastNavBound = true;
@@ -686,20 +706,29 @@
         e.preventDefault();
         e.stopPropagation();
       }
-      if (link.classList.contains('is-active')) {
-        /* Soft refresh only — never full reload (keeps painted content on screen) */
-        if (window.SocialNav?.refreshPage) SocialNav.refreshPage();
-        return true;
-      }
-      if (navSwitching) return true;
-      navSwitching = true;
-      document.querySelectorAll('.social-bottom-nav .nav-item').forEach((el) => {
-        el.classList.toggle('is-active', el === link);
+      return navigateInApp(href, {
+        markActive: () => {
+          document.querySelectorAll('.social-bottom-nav .nav-item').forEach((el) => {
+            el.classList.toggle('is-active', el === link);
+          });
+        },
       });
-      document.documentElement.classList.add('ap-nav-switching');
-      /* Leave immediately — do not wait for pending fetches / rAF / load finish */
-      window.location.href = href;
-      return true;
+    }
+
+    function goMainTab(link, e) {
+      const href = link.getAttribute('href');
+      if (!href || href.startsWith('http') || href.startsWith('#')) return false;
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      return navigateInApp(href, {
+        markActive: () => {
+          document.querySelectorAll('.social-main-tabs a').forEach((el) => {
+            el.classList.toggle('active', el === link);
+          });
+        },
+      });
     }
 
     /* pointerdown fires before main-thread load work eats the click */
@@ -707,23 +736,38 @@
       'pointerdown',
       (e) => {
         if (e.pointerType === 'mouse' && e.button !== 0) return;
-        const link = e.target.closest?.('.social-bottom-nav a[data-nav]');
-        if (!link) return;
-        goBottomNav(link, e);
+        const bottom = e.target.closest?.('.social-bottom-nav a[data-nav]');
+        if (bottom) {
+          goBottomNav(bottom, e);
+          return;
+        }
+        const tab = e.target.closest?.('.social-main-tabs a[href]');
+        if (tab) goMainTab(tab, e);
       },
       true
     );
     document.addEventListener(
       'click',
       (e) => {
-        const link = e.target.closest?.('.social-bottom-nav a[data-nav]');
-        if (!link) return;
-        if (navSwitching) {
-          e.preventDefault();
-          e.stopPropagation();
+        const bottom = e.target.closest?.('.social-bottom-nav a[data-nav]');
+        if (bottom) {
+          if (navSwitching) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+          }
+          goBottomNav(bottom, e);
           return;
         }
-        goBottomNav(link, e);
+        const tab = e.target.closest?.('.social-main-tabs a[href]');
+        if (tab) {
+          if (navSwitching) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+          }
+          goMainTab(tab, e);
+        }
       },
       true
     );
@@ -735,10 +779,38 @@
     marker.id = 'ap-nav-prefetch';
     marker.name = 'ap-nav-prefetch';
     document.head.appendChild(marker);
-    BOTTOM_NAV.forEach((item) => {
+    const pages = [
+      ...BOTTOM_NAV.map((item) => item.href),
+      '/video.html',
+      '/square.html',
+      '/topics.html',
+      '/explore.html',
+      '/rankings.html',
+      '/chat.html',
+      '/profile-tab.html',
+    ];
+    const seen = new Set();
+    pages.forEach((path) => {
+      const href = withAppQuery(path);
+      if (seen.has(href)) return;
+      seen.add(href);
       const link = document.createElement('link');
       link.rel = 'prefetch';
-      link.href = withAppQuery(item.href);
+      link.as = 'document';
+      link.href = href;
+      document.head.appendChild(link);
+    });
+    /* Warm shared shell assets so the next HTML paints faster */
+    [
+      'social-theme.css?v=20260730-videofix',
+      'social-features.css?v=20260730-videofix',
+      'social-shell.js?v=20260730-fastnav',
+      'social-interactions.js?v=20260730-stab1',
+      'app.js?v=20260729-perf2',
+    ].forEach((asset) => {
+      const link = document.createElement('link');
+      link.rel = 'prefetch';
+      link.href = asset;
       document.head.appendChild(link);
     });
   }
