@@ -664,8 +664,8 @@
         e.stopPropagation();
       }
       if (link.classList.contains('is-active')) {
+        /* Soft refresh only — never full reload (keeps painted content on screen) */
         if (window.SocialNav?.refreshPage) SocialNav.refreshPage();
-        else window.location.reload();
         return true;
       }
       if (navSwitching) return true;
@@ -807,10 +807,10 @@
       let lastFail = null;
       for (const base of bases) {
         try {
-          const url = `${String(base).replace(/\/+$/, '')}${path}${path.includes('?') ? '&' : '?'}_=${Date.now()}`;
+          const url = `${String(base).replace(/\/+$/, '')}${path}`;
           const r = await fetch(url, {
             credentials: 'omit',
-            cache: 'no-store',
+            cache: 'default',
             mode: 'cors',
             headers: { Accept: 'application/json' },
           });
@@ -1297,6 +1297,35 @@
     bindLiveCards(document);
   }
 
+  const FOLLOWING_CACHE_KEY = 'ap_following_tab_v1';
+  const FOLLOWING_CACHE_FRESH_MS = 60_000;
+  const FOLLOWING_CACHE_PAINT_MS = 15 * 60_000;
+
+  function readFollowingCache() {
+    try {
+      const raw = sessionStorage.getItem(FOLLOWING_CACHE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || !Array.isArray(parsed.following)) return null;
+      return parsed;
+    } catch (_e) {
+      return null;
+    }
+  }
+
+  function writeFollowingCache(following, liveRows) {
+    try {
+      sessionStorage.setItem(
+        FOLLOWING_CACHE_KEY,
+        JSON.stringify({
+          t: Date.now(),
+          following: following || [],
+          live: liveRows || [],
+        })
+      );
+    } catch (_e) { /* ignore */ }
+  }
+
   async function fillFollowingView(searchQuery) {
     const mount = document.getElementById('exploreEmpty');
     const content = document.getElementById('exploreContent');
@@ -1307,8 +1336,6 @@
       content.innerHTML = '<div class="social-explore-mount" id="exploreGrid"></div>';
     }
     mount.style.display = 'block';
-    mount.innerHTML =
-      '<div class="social-empty-state"><p><i class="fas fa-spinner fa-spin"></i> Loading following…</p></div>';
 
     const loggedIn = window.Auth?.hasSession?.() || localStorage.getItem('user');
     if (!loggedIn) {
@@ -1317,26 +1344,47 @@
       return;
     }
 
+    const cached = readFollowingCache();
+    const cacheAge = cached ? Date.now() - Number(cached.t || 0) : Infinity;
+    if (!(cached?.following?.length) || cacheAge >= FOLLOWING_CACHE_PAINT_MS) {
+      mount.innerHTML =
+        '<div class="social-empty-state"><p><i class="fas fa-spinner fa-spin"></i> Loading following…</p></div>';
+    }
+
     try {
-      if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken();
-      const now = Date.now();
-      if (
-        window.SocialInteractions?.refreshFollowCache &&
-        (!window.__apFollowCacheAt || now - window.__apFollowCacheAt > 60000)
-      ) {
-        await SocialInteractions.refreshFollowCache();
-        window.__apFollowCacheAt = now;
+      if (window.Auth?.ensureAccessToken) {
+        await Promise.race([
+          Auth.ensureAccessToken(),
+          new Promise((r) => setTimeout(r, 1500)),
+        ]);
       }
     } catch (_e) {}
 
-    let following = [];
+    let following = Array.isArray(cached?.following) ? cached.following.slice() : [];
     let followLoadError = '';
-    try {
-      const res = await API.get('/social/following?limit=200');
-      following = Array.isArray(res?.data) ? res.data : [];
-    } catch (e) {
-      console.warn('SocialShell: following API', e);
-      followLoadError = String(e?.message || 'Could not load following');
+    let liveRows = Array.isArray(cached?.live) ? cached.live.slice() : [];
+
+    /* Reuse cached list while network refresh runs (or skip network if fresh) */
+    if (following.length && cacheAge < FOLLOWING_CACHE_PAINT_MS) {
+      /* keep spinner off — previous paint or empty until render below */
+    }
+
+    const skipNetwork = cached && cacheAge < FOLLOWING_CACHE_FRESH_MS && !searchQuery;
+    if (!skipNetwork) {
+      try {
+        const [followRes, liveRes] = await Promise.all([
+          API.get('/social/following?limit=200').catch((e) => {
+            followLoadError = String(e?.message || 'Could not load following');
+            return null;
+          }),
+          API.get('/social/following/live').catch(() => null),
+        ]);
+        if (Array.isArray(followRes?.data)) following = followRes.data;
+        if (Array.isArray(liveRes?.data)) liveRows = liveRes.data;
+      } catch (e) {
+        console.warn('SocialShell: following APIs', e);
+        followLoadError = String(e?.message || 'Could not load following');
+      }
     }
 
     if (!following.length && window.SocialInteractions?.getFollowingList) {
@@ -1348,15 +1396,11 @@
     }
 
     const liveMap = new Map();
-    try {
-      const liveRes = await API.get('/social/following/live');
-      const liveRows = Array.isArray(liveRes?.data) ? liveRes.data : [];
-      liveRows.forEach((r) => {
-        if (r?.id) liveMap.set(String(r.id), r);
-      });
-    } catch (e) {
-      console.warn('SocialShell: following live API', e);
-    }
+    liveRows.forEach((r) => {
+      if (r?.id) liveMap.set(String(r.id), r);
+    });
+
+    if (!followLoadError && !skipNetwork) writeFollowingCache(following, liveRows);
 
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
@@ -1977,7 +2021,9 @@
 
   async function fillSquareFeed() {
     if (window.SocialInteractions?.renderSquareFeed) {
-      await SocialInteractions.renderSquareFeed('squareFeed');
+      await SocialInteractions.renderSquareFeed('squareFeed', {
+        feed: window.SocialInteractions.currentFeedScope?.() || 'for_you',
+      });
       return;
     }
     const feed = document.getElementById('squareFeed');

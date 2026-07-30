@@ -40,6 +40,11 @@
       <a href="/topics.html?app=1">Topics</a>
       <button type="button" class="social-icon-btn" data-social-camera style="margin-left:auto"><i class="fas fa-camera"></i></button>
     </div>
+    <div class="social-feed-scope social-feed-scope--video" id="videoFeedScope" role="tablist" aria-label="Feed">
+      <button type="button" class="social-feed-scope-btn is-active" data-feed="for_you">For You</button>
+      <button type="button" class="social-feed-scope-btn" data-feed="following">Following</button>
+      <button type="button" class="social-feed-scope-btn" data-feed="latest">Latest</button>
+    </div>
   </header>
 
   <div id="reelsMount" class="social-reels-wrap">
@@ -82,15 +87,25 @@
   <script src="app.js?v=20260729-perf2"></script>
   <script src="social-wallet.js"></script>
   <script src="social-ui.js"></script>
-  <script src="social-interactions.js?v=20260727-navtap"></script>
+  <script src="social-interactions.js?v=20260730-creator"></script>
   <script src="social-create-post.js?v=20260723-db-posts"></script>
   <script src="social-shell.js?v=20260729-perf2"></script>
   <script>
     document.addEventListener('DOMContentLoaded', () => {
+      const scope = document.getElementById('videoFeedScope');
+      const current = window.SocialInteractions?.currentFeedScope?.() || 'for_you';
+      scope?.querySelectorAll('[data-feed]').forEach((btn) => {
+        btn.classList.toggle('is-active', btn.dataset.feed === current);
+        btn.addEventListener('click', () => {
+          const next = SocialInteractions.setFeedScope(btn.dataset.feed);
+          scope.querySelectorAll('[data-feed]').forEach((b) => b.classList.toggle('is-active', b.dataset.feed === next));
+          SocialInteractions.initVideoPage('reelsMount', { soft: true, feed: next }).catch(() => {});
+        });
+      });
       SocialShell.initPage({ activeNav: 'video', reelsId: null });
       SocialCreatePost.bindCameraButtons();
       /* Do not await — bottom nav must stay tappable while reels load */
-      Promise.resolve(SocialInteractions.initVideoPage('reelsMount')).catch(() => {});
+      Promise.resolve(SocialInteractions.initVideoPage('reelsMount', { feed: current })).catch(() => {});
     });
   </script>
 </body>

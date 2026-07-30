@@ -7,7 +7,7 @@
   <title>Profile - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-theme.css?v=20260628-profile-fix">
-  <link rel="stylesheet" href="social-features.css?v=20260727-reels-fs">
+  <link rel="stylesheet" href="social-features.css?v=20260730-creator">
   <style>
     .creator-hero { text-align: center; padding: 24px 16px 12px; }
     .creator-avatar { width: 88px; height: 88px; border-radius: 50%; object-fit: cover; margin-bottom: 12px; border: 3px solid #fbbf24; }
@@ -64,6 +64,46 @@
       text-decoration: none;
       display: block;
     }
+    .creator-agency-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 8px;
+      padding: 4px 12px;
+      border-radius: 999px;
+      background: rgba(201, 162, 39, 0.15);
+      color: #78350f;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .creator-tabs {
+      display: flex;
+      gap: 0;
+      margin: 8px 16px 0;
+      border-bottom: 1px solid rgba(201, 162, 39, 0.25);
+    }
+    .creator-tab {
+      flex: 1;
+      text-align: center;
+      padding: 12px 8px;
+      border: none;
+      background: transparent;
+      color: #8b6914;
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+    }
+    .creator-tab.is-active {
+      color: #6b4f10;
+      border-bottom-color: #c9a227;
+    }
+    .creator-tab-count {
+      font-weight: 600;
+      opacity: 0.75;
+      font-size: 12px;
+    }
     .profile-loading .creator-avatar { background: #e5e7eb; animation: pulse 1.2s ease infinite; }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
     .creator-actions button { pointer-events: auto; touch-action: manipulation; }
@@ -86,16 +126,19 @@
   <div class="creator-earnings-note">
     <strong>Creator earnings:</strong> You keep <strong>90%</strong> of gifts &amp; bookings · Platform share <strong>10%</strong>
   </div>
-  <div id="creatorLiveBanner" hidden></div>
+  <a id="creatorLiveBanner" class="creator-live-banner" hidden></a>
   <div class="creator-engagement-grid" id="creatorEngagement" hidden></div>
-  <h3 class="creator-section-title">Recent posts</h3>
+  <div class="creator-tabs" id="creatorTabs" hidden>
+    <button type="button" class="creator-tab is-active" data-tab="posts">Posts <span class="creator-tab-count" id="tabPostsCount"></span></button>
+    <button type="button" class="creator-tab" data-tab="videos">Videos <span class="creator-tab-count" id="tabVideosCount"></span></button>
+  </div>
   <div class="social-post-feed" id="creatorPosts"></div>
   <div id="social-bottom-nav-mount"></div>
 
   <script src="app.js?v=20260702-follow-fix"></script>
   <script src="auth-guard.js"></script>
   <script src="social-ui.js?v=20260702-follow-fix"></script>
-  <script src="social-interactions.js?v=20260727-video-sound"></script>
+  <script src="social-interactions.js?v=20260730-creator"></script>
   <script src="social-shell.js"></script>
   <script>
     function profileApiRoot() {
@@ -108,6 +151,10 @@
       const redirect = encodeURIComponent(location.pathname + location.search);
       location.href = '/app-auth.html?app=1&redirect=' + redirect;
       return false;
+    }
+
+    function esc(s) {
+      return String(s || '').replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
     }
 
     document.addEventListener('DOMContentLoaded', async () => {
@@ -129,7 +176,8 @@
         : '';
       hero.innerHTML =
         '<img class="creator-avatar" src="' + SocialUI.avatarUrl(name) + '" alt="">' +
-        '<h2>' + name + '</h2>' +
+        '<h2 id="creatorNameHeading">' + esc(name) + '</h2>' +
+        '<div id="creatorAgencyWrap"></div>' +
         uidBlock +
         '<div class="creator-actions">' +
         '<button type="button" class="creator-follow-btn" id="creatorFollow">Follow</button>' +
@@ -151,11 +199,15 @@
         e.preventDefault();
         e.stopPropagation();
         if (!requireAuthForAction()) return;
+        if (!userId) {
+          SocialUI?.toast('Profile incomplete — missing user id', 'warning');
+          return;
+        }
         if (!window.SocialInteractions?.toggleFollow) {
           SocialUI?.toast('Please wait and try again', 'warning');
           return;
         }
-        following = await SocialInteractions.toggleFollow(followKey, name);
+        following = await SocialInteractions.toggleFollow(userId, name);
         syncFollowBtn();
         SocialUI.toast(following ? 'You are now following ' + name : 'Unfollowed ' + name, following ? 'success' : 'info');
       });
@@ -185,6 +237,10 @@
         }
       });
 
+      let postsCount = 0;
+      let videosCount = 0;
+      let activeTab = 'posts';
+
       if (userId) {
         try {
           const headers = {};
@@ -202,13 +258,22 @@
             if (idEl) idEl.textContent = publicDisplayId || '—';
             const displayName = e.displayName || name;
             const roleBadge = window.formatRoleBadgeHtml?.(e.role || e, { withEmoji: true }) || '';
-            const nameEl = document.getElementById('creatorName');
+            const nameEl = document.getElementById('creatorNameHeading');
             if (nameEl) {
               nameEl.innerHTML =
-                (displayName || '').replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c])) +
+                esc(displayName) +
                 (roleBadge ? ' ' + roleBadge : '');
             }
             document.getElementById('creatorTitle').textContent = displayName;
+            if (e.agencyName) {
+              const wrap = document.getElementById('creatorAgencyWrap');
+              if (wrap) {
+                wrap.innerHTML =
+                  '<span class="creator-agency-badge"><i class="fas fa-building"></i> ' +
+                  esc(e.agencyName) +
+                  '</span>';
+              }
+            }
             const avatarEl = hero.querySelector('.creator-avatar');
             if (avatarEl && e.profilePic) {
               const cacheKey = e.profileUpdatedAt || e.id || userId;
@@ -227,6 +292,8 @@
               if (v >= 1e3) return (v / 1e3).toFixed(1) + 'K';
               return String(v);
             };
+            postsCount = Number(e.postsCount || 0);
+            videosCount = Number(e.videosCount || 0);
             const grid = document.getElementById('creatorEngagement');
             grid.hidden = false;
             grid.className = 'creator-engagement-grid cols-3';
@@ -234,13 +301,14 @@
               '<div class="creator-engagement-card"><strong>' + fmt(e.followers) + '</strong><span>Followers</span></div>' +
               '<div class="creator-engagement-card"><strong>' + fmt(e.following) + '</strong><span>Following</span></div>' +
               '<div class="creator-engagement-card"><strong>' + fmt(e.giftCount) + '</strong><span>Gifts</span></div>' +
-              '<div class="creator-engagement-card"><strong>' + fmt(e.liveSessions) + '</strong><span>Live sessions</span></div>' +
-              '<div class="creator-engagement-card"><strong>' + e.engagementLabel + '</strong><span>Engagement</span></div>';
-            if (e.isLive && e.liveChannel) {
+              '<div class="creator-engagement-card"><strong>' + fmt(postsCount) + '</strong><span>Posts</span></div>' +
+              '<div class="creator-engagement-card"><strong>' + fmt(videosCount) + '</strong><span>Videos</span></div>' +
+              '<div class="creator-engagement-card"><strong>' + esc(e.engagementLabel) + '</strong><span>Engagement</span></div>';
+            if (e.isLive && (e.liveHref || e.liveChannel)) {
               const live = document.getElementById('creatorLiveBanner');
-              const roomPage = e.liveRoomType === 'party' ? 'party-room.html' : 'live-room.html';
               live.hidden = false;
-              live.href = '/' + roomPage + '?channel=' + encodeURIComponent(e.liveChannel) + '&app=1';
+              live.href = e.liveHref ||
+                ('/' + (e.liveRoomType === 'party' ? 'party-room' : 'live-room') + '.html?channel=' + encodeURIComponent(e.liveChannel) + '&app=1');
               live.innerHTML = '<i class="fas fa-circle" style="font-size:8px"></i> LIVE now · ' + fmt(e.liveViewers) + ' watching — Tap to join';
             }
             if (e.isFollowing) {
@@ -254,15 +322,51 @@
         }
       }
 
-      const posts = (SocialInteractions.getPosts() || []).filter((p) => p.userName === name);
+      const tabs = document.getElementById('creatorTabs');
       const feed = document.getElementById('creatorPosts');
-      if (!posts.length) {
-        feed.innerHTML = '<p style="text-align:center;padding:24px;color:#8b6914">No posts yet.</p>';
-      } else {
-        await SocialInteractions.renderSquareFeed(feed);
-        feed.querySelectorAll('.social-post-card').forEach((el) => {
-          if (!posts.find((p) => String(p.id) === el.dataset.postId)) el.remove();
+      if (userId) {
+        tabs.hidden = false;
+        document.getElementById('tabPostsCount').textContent = postsCount ? '(' + postsCount + ')' : '';
+        document.getElementById('tabVideosCount').textContent = videosCount ? '(' + videosCount + ')' : '';
+
+        async function loadTab(tab) {
+          activeTab = tab;
+          tabs.querySelectorAll('.creator-tab').forEach((b) => {
+            b.classList.toggle('is-active', b.dataset.tab === tab);
+          });
+          feed.innerHTML = SocialInteractions.renderSquareSkeleton
+            ? ''
+            : '';
+          await SocialInteractions.renderSquareFeed(feed, {
+            userId,
+            mediaType: tab === 'videos' ? 'video' : 'posts',
+            feed: 'latest',
+          });
+          /* Posts tab: non-video content; if empty also allow text-only via second pass */
+          if (tab === 'posts' && !feed.querySelector('.social-post-card') && !feed.querySelector('.social-empty-state--feed h3')) {
+            /* empty state already rendered */
+          }
+          if (tab === 'posts') {
+            const empty = feed.querySelector('.social-empty-state h3');
+            if (empty && /No posts/i.test(empty.textContent)) {
+              empty.textContent = 'No posts yet';
+            }
+          }
+          if (tab === 'videos') {
+            const empty = feed.querySelector('.social-empty-state h3');
+            if (empty) empty.textContent = 'No videos yet';
+            const p = feed.querySelector('.social-empty-state p');
+            if (p) p.textContent = 'When this creator uploads a video, it will appear here.';
+          }
+        }
+
+        tabs.querySelectorAll('.creator-tab').forEach((btn) => {
+          btn.addEventListener('click', () => loadTab(btn.dataset.tab));
         });
+        await loadTab('posts');
+      } else {
+        feed.innerHTML =
+          '<div class="social-empty-state social-empty-state--feed"><div class="illus">✦</div><h3>Profile unavailable</h3><p>Open a creator from Video or Square so we can load their posts.</p></div>';
       }
     });
   </script>

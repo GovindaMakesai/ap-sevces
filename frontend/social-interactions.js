@@ -229,7 +229,8 @@
   }
 
   function canViewPost(post) {
-    if (!post || post.demo) return true;
+    if (!post) return false;
+    if (post.demo) return false; /* demo content removed from production */
     if (post.visibility !== 'private') return true;
     const user = window.Auth?.getUser?.();
     const uid = user?.id || user?.email;
@@ -240,6 +241,113 @@
   function deletePost(postId) {
     const posts = getPosts().filter((p) => String(p.id) !== String(postId));
     savePosts(posts);
+  }
+
+  async function deletePostRemote(postId) {
+    deletePost(postId);
+    if (!window.API || !hasAuth()) return { deleted: true, localOnly: true };
+    try {
+      if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken();
+      await API.delete(`/social/posts/${postId}`);
+      return { deleted: true };
+    } catch (e) {
+      throw e;
+    }
+  }
+
+  /** Soft realtime hook — Socket.IO can plug in later without refactoring callers */
+  const SocialRealtime = (window.SocialRealtime = window.SocialRealtime || {
+    subscribe(_channel, _handler) {
+      return () => {};
+    },
+    emit(_event, _payload) {},
+  });
+
+  /** Bookmarks extension point (out of scope) */
+  async function bookmarkPost(_postId) {
+    return { supported: false };
+  }
+
+  function relativeTime(isoOrMs) {
+    if (!isoOrMs && isoOrMs !== 0) return '';
+    const t = typeof isoOrMs === 'number' ? isoOrMs : new Date(isoOrMs).getTime();
+    if (!Number.isFinite(t)) return '';
+    const sec = Math.max(0, Math.floor((Date.now() - t) / 1000));
+    if (sec < 45) return 'Just now';
+    if (sec < 3600) return Math.floor(sec / 60) + 'm ago';
+    if (sec < 86400) return Math.floor(sec / 3600) + 'h ago';
+    if (sec < 604800) return Math.floor(sec / 86400) + 'd ago';
+    try {
+      return new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    } catch (_e) {
+      return '';
+    }
+  }
+
+  function formatCaptionHtml(text) {
+    const esc = escapeHtml(text || '');
+    return esc.replace(/(#[\w\u0900-\u097F]+)/g, '<span class="social-hashtag">$1</span>');
+  }
+
+  function liveBadgeHtml(live) {
+    if (!live || !live.href) return '';
+    return (
+      '<a class="social-live-pill" href="' +
+      escapeHtml(live.href) +
+      '" onclick="event.stopPropagation()"><i class="fas fa-circle"></i> LIVE</a>'
+    );
+  }
+
+  function mapApiPost(p) {
+    const mediaUrl = resolveMediaUrl(p.media_url || p.mediaUrl || p.media_items?.[0]?.url);
+    const thumbUrl = resolveMediaUrl(p.thumb_url || p.thumbUrl || p.media_items?.[0]?.thumb);
+    const mediaType = String(p.media_type || p.mediaType || p.media_items?.[0]?.type || '').toLowerCase();
+    const isVideo = mediaType === 'video' || isVideoMediaUrl(mediaUrl);
+    const live = p.author_live || null;
+    const mapped = {
+      id: p.id,
+      userId: p.user_id || p.author?.id,
+      userName: `${p.author?.first_name || ''} ${p.author?.last_name || ''}`.trim() || 'User',
+      profilePic: p.author?.profile_pic || null,
+      text: p.body,
+      caption: p.body,
+      image: mediaUrl,
+      thumb: thumbUrl || (!isVideo ? mediaUrl : ''),
+      mediaItems: Array.isArray(p.media_items) ? p.media_items : null,
+      likes: p.like_count || 0,
+      comments: p.comment_count || 0,
+      shares: p.share_count || 0,
+      liked: !!p.liked,
+      createdAt: p.created_at,
+      visibility: p.visibility || 'public',
+      fromApi: true,
+      isVideo,
+      authorLive: live
+        ? {
+            href: live.href,
+            channel: live.channel,
+            roomType: live.roomType || live.room_type,
+            viewers: live.viewers,
+          }
+        : null,
+    };
+    if (mapped.liked) setLike(mapped.id, true);
+    return mapped;
+  }
+
+  function currentFeedScope() {
+    const qs = new URLSearchParams(location.search);
+    const f = (qs.get('feed') || sessionStorage.getItem('social_feed_scope') || 'for_you').toLowerCase();
+    return ['for_you', 'following', 'latest'].includes(f) ? f : 'for_you';
+  }
+
+  function setFeedScope(scope) {
+    const s = ['for_you', 'following', 'latest'].includes(scope) ? scope : 'for_you';
+    sessionStorage.setItem('social_feed_scope', s);
+    const url = new URL(location.href);
+    url.searchParams.set('feed', s);
+    history.replaceState(null, '', url.pathname + url.search);
+    return s;
   }
 
   function isPlaceholderThumb(url) {
@@ -416,42 +524,28 @@
     }
   }
 
-  async function fetchApiPosts() {
-    if (!window.API || !(localStorage.getItem('user') || localStorage.getItem('token'))) return [];
+  async function fetchApiPosts(options) {
+    const opts = options || {};
+    if (!window.API) return { posts: [], meta: null };
+    const hasSession = !!(localStorage.getItem('user') || localStorage.getItem('token'));
+    /* Public creator profiles can load without session when optionalAuth is used */
+    if (!hasSession && !opts.userId) return { posts: [], meta: null };
     try {
-      const res = await API.get('/social/posts');
+      const params = new URLSearchParams();
+      params.set('limit', String(opts.limit || 30));
+      params.set('offset', String(opts.offset || 0));
+      if (opts.userId) params.set('userId', opts.userId);
+      if (opts.mediaType && opts.mediaType !== 'all') params.set('mediaType', opts.mediaType);
+      const feed = opts.feed || (opts.userId ? 'latest' : currentFeedScope());
+      if (feed) params.set('feed', feed);
+      const res = await API.get('/social/posts?' + params.toString());
       if (res.success && Array.isArray(res.data)) {
-        return res.data.map((p) => {
-          const mediaUrl = resolveMediaUrl(p.media_url || p.mediaUrl);
-          const thumbUrl = resolveMediaUrl(p.thumb_url || p.thumbUrl);
-          const mediaType = String(p.media_type || p.mediaType || '').toLowerCase();
-          const isVideo =
-            mediaType === 'video' || isVideoMediaUrl(mediaUrl);
-          const mapped = {
-            id: p.id,
-            userId: p.user_id,
-            userName: `${p.author?.first_name || ''} ${p.author?.last_name || ''}`.trim() || 'User',
-            text: p.body,
-            caption: p.body,
-            image: mediaUrl,
-            thumb: thumbUrl || (!isVideo ? mediaUrl : ''),
-            likes: p.like_count || 0,
-            comments: p.comment_count || 0,
-            shares: p.share_count || 0,
-            liked: !!p.liked,
-            createdAt: p.created_at,
-            visibility: p.visibility || 'public',
-            fromApi: true,
-            isVideo,
-          };
-          if (mapped.liked) setLike(mapped.id, true);
-          return mapped;
-        });
+        return { posts: res.data.map(mapApiPost), meta: res.meta || null };
       }
     } catch (_e) {
       /* fallback */
     }
-    return [];
+    return { posts: [], meta: null };
   }
 
   function resolveMediaUrl(path) {
@@ -534,17 +628,35 @@
     });
   }
 
-  async function loadPosts() {
-    const local = getPosts();
-    const api = await fetchApiPosts();
-    if (!api.length) return local;
+  async function loadPosts(options) {
+    const opts = options || {};
+    const local = getPosts().filter((p) => canViewPost(p));
+    const { posts: api, meta } = await fetchApiPosts(opts);
+    if (opts._metaOut) opts._metaOut.meta = meta;
+    if (!api.length) {
+      if (opts.userId) {
+        return local.filter((p) => String(p.userId) === String(opts.userId));
+      }
+      if (opts.feed === 'following') return [];
+      return opts.feed === 'for_you' || opts.feed === 'latest' || !opts.feed ? local : local;
+    }
     const byId = new Map();
     api.forEach((p) => byId.set(String(p.id), p));
-    local.forEach((p) => {
-      const k = String(p.id);
-      byId.set(k, byId.has(k) ? { ...byId.get(k), ...p } : p);
-    });
-    return sortPostsNewest(Array.from(byId.values()));
+    if (!opts.userId && opts.feed !== 'following') {
+      local.forEach((p) => {
+        const k = String(p.id);
+        if (!byId.has(k)) byId.set(k, p);
+      });
+    }
+    let list = Array.from(byId.values()).filter((p) => canViewPost(p));
+    if (opts.userId) list = list.filter((p) => String(p.userId) === String(opts.userId));
+    if (opts.mediaType === 'video') list = list.filter((p) => postIsVideo(p));
+    if (opts.mediaType === 'image' || opts.mediaType === 'photo' || opts.mediaType === 'posts') {
+      list = list.filter((p) => !postIsVideo(p));
+    }
+    /* For You keeps server order; Latest / profile sort by time */
+    if (opts.feed === 'for_you' && !opts.userId) return list;
+    return sortPostsNewest(list);
   }
 
   function savePosts(posts) {
@@ -589,24 +701,67 @@
     return !!(post && post.liked);
   }
 
+  const likeInFlight = new Set();
+
   async function toggleLikePost(postId, post) {
+    const key = String(postId);
+    if (likeInFlight.has(key)) return { liked: isLiked(postId, post), delta: 0, locked: true };
+    likeInFlight.add(key);
     const wasLiked = isLiked(postId, post);
     const nextLiked = !wasLiked;
     setLike(postId, nextLiked);
-    if (post?.fromApi && window.API && hasAuth()) {
-      try {
-        if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken();
-        const res = await API.post(`/social/posts/${postId}/like`);
-        if (res?.success && res.data) {
-          setLike(postId, !!res.data.liked);
-          return { liked: !!res.data.liked, delta: res.data.liked ? (wasLiked ? 0 : 1) : wasLiked ? -1 : 0 };
+    try {
+      if (post?.fromApi && window.API && hasAuth()) {
+        try {
+          if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken();
+          const res = await API.post(`/social/posts/${postId}/like`);
+          if (res?.success && res.data) {
+            setLike(postId, !!res.data.liked);
+            return { liked: !!res.data.liked, delta: res.data.liked ? (wasLiked ? 0 : 1) : wasLiked ? -1 : 0 };
+          }
+        } catch (_e) {
+          setLike(postId, wasLiked);
+          throw _e;
         }
-      } catch (_e) {
-        setLike(postId, wasLiked);
-        throw _e;
       }
+      return { liked: nextLiked, delta: nextLiked ? 1 : -1 };
+    } finally {
+      likeInFlight.delete(key);
     }
-    return { liked: nextLiked, delta: nextLiked ? 1 : -1 };
+  }
+
+  async function fetchCommentsApi(postId) {
+    if (!window.API) return null;
+    try {
+      const res = await API.get(`/social/posts/${postId}/comments`);
+      if (res?.success && Array.isArray(res.data)) {
+        return res.data.map((c) => ({
+          id: c.id,
+          user: `${c.first_name || c.author?.first_name || ''} ${c.last_name || c.author?.last_name || ''}`.trim() || 'User',
+          text: c.body,
+          at: c.created_at ? new Date(c.created_at).getTime() : Date.now(),
+          fromApi: true,
+        }));
+      }
+    } catch (_e) {
+      return null;
+    }
+    return null;
+  }
+
+  async function postCommentApi(postId, text) {
+    if (!window.API || !hasAuth()) throw new Error('Please log in to comment');
+    if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken();
+    const res = await API.post(`/social/posts/${postId}/comments`, { body: text });
+    if (!res?.success) throw new Error(res?.message || 'Comment failed');
+    const c = res.data;
+    return {
+      id: c.id,
+      user: `${c.author?.first_name || ''} ${c.author?.last_name || ''}`.trim() || 'You',
+      text: c.body || text,
+      at: Date.now(),
+      fromApi: true,
+    };
   }
 
   function getComments(postId) {
@@ -1379,11 +1534,25 @@
   }
 
   let commentPostId = null;
+  let commentSending = false;
 
-  function openComments(postId) {
+  async function openComments(postId) {
     const sheet = ensureCommentSheet();
     const list = document.getElementById('socialCommentList');
-    const comments = getComments(postId);
+    list.innerHTML = '<p class="social-comment-empty">Loading…</p>';
+    sheet.classList.add('open');
+    commentPostId = postId;
+
+    let comments = getComments(postId);
+    const apiComments = await fetchCommentsApi(postId);
+    if (apiComments) {
+      comments = apiComments;
+      try {
+        const all = JSON.parse(localStorage.getItem(COMMENTS_KEY) || '{}');
+        all[postId] = apiComments;
+        localStorage.setItem(COMMENTS_KEY, JSON.stringify(all));
+      } catch (_e) { /* ignore */ }
+    }
     list.innerHTML = comments.length
       ? comments
           .map(
@@ -1392,16 +1561,37 @@
           )
           .join('')
       : '<p class="social-comment-empty">No comments yet. Be the first!</p>';
-    sheet.classList.add('open');
-    document.getElementById('socialCommentSend').onclick = () => {
+
+    const sendBtn = document.getElementById('socialCommentSend');
+    sendBtn.onclick = async () => {
+      if (commentSending) return;
       const inp = document.getElementById('socialCommentInput');
       const t = (inp.value || '').trim();
       if (!t) return;
-      const n = addComment(postId, t);
-      inp.value = '';
-      openComments(postId);
-      document.dispatchEvent(new CustomEvent('social:comment', { detail: { postId, count: n } }));
-      toast('Comment posted');
+      commentSending = true;
+      sendBtn.disabled = true;
+      try {
+        let n;
+        try {
+          const created = await postCommentApi(postId, t);
+          const local = getComments(postId);
+          local.push(created);
+          const all = JSON.parse(localStorage.getItem(COMMENTS_KEY) || '{}');
+          all[postId] = local;
+          localStorage.setItem(COMMENTS_KEY, JSON.stringify(all));
+          n = local.length;
+        } catch (_apiErr) {
+          n = addComment(postId, t);
+        }
+        inp.value = '';
+        openComments(postId);
+        document.dispatchEvent(new CustomEvent('social:comment', { detail: { postId, count: n } }));
+        SocialRealtime.emit('social:comment', { postId, count: n });
+        toast('Comment posted');
+      } finally {
+        commentSending = false;
+        sendBtn.disabled = false;
+      }
     };
   }
 
@@ -1424,6 +1614,13 @@
       if (p) {
         p.shares = (p.shares || 0) + 1;
         savePosts(posts);
+      }
+      post.shares = (post.shares || 0) + 1;
+      if (post.fromApi && window.API && hasAuth()) {
+        try {
+          const res = await API.post(`/social/posts/${post.id}/share`);
+          if (res?.data?.share_count != null) post.shares = res.data.share_count;
+        } catch (_e) { /* ignore */ }
       }
     }
     return shared;
@@ -1533,6 +1730,7 @@
     const opts = options || {};
     const videosOnly = opts.videosOnly !== false;
     const startPostId = opts.startPostId || null;
+    const feedScope = opts.feed || currentFeedScope();
 
     function matchesFilter(p) {
       if (!canViewPost(p)) return false;
@@ -1540,8 +1738,10 @@
       return videosOnly ? postIsVideo(p) : postHasMedia(p);
     }
 
+    const apiPosts = (await loadPosts({ feed: feedScope, mediaType: videosOnly ? 'video' : 'all', limit: 40 })).filter(
+      matchesFilter
+    );
     const userPosts = getPosts().filter(matchesFilter);
-    const apiPosts = (await loadPosts()).filter(matchesFilter);
     const merged = [];
     const seen = new Set();
     [...apiPosts, ...userPosts].forEach((p) => {
@@ -1556,6 +1756,7 @@
         postId: p.id,
         name: p.userName,
         userId: p.userId,
+        profilePic: p.profilePic || null,
         caption: p.caption || p.text || '',
         likes: p.likes || 0,
         comments: p.comments || 0,
@@ -1567,27 +1768,40 @@
         liked: isLiked(p.id, p),
         mediaUrl: await getMediaUrl(p),
         thumb: !isPlaceholderThumb(p.thumb) ? p.thumb : '',
+        authorLive: p.authorLive || null,
         workerId: null,
+        fromApi: !!p.fromApi,
       }))
     );
 
-    const fromPros = pros.map((p, i) => ({
-      id: 'pro-' + (p.userId || p.id || i),
-      postId: null,
-      name: p.name,
-      userId: p.userId || p.id || null,
-      workerId: p.workerId || p.id || null,
-      caption: p.category || 'Follow for more 🔥',
-      likes: 200 + i * 47,
-      comments: 4 + i,
-      gifts: i % 3,
-      shares: 40 + i * 10,
-      isVideo: false,
-      mediaUrl: p.image || (window.SocialUI?.themeCover('video', p.name) || p.image),
-      thumb: p.image || (window.SocialUI?.themeCover('video', p.name) || p.image),
-    }));
-
     return fromPosts.filter((x) => x.mediaUrl || x.thumb);
+  }
+
+  function syncReelMediaSources(scroll, activeIndex) {
+    if (!scroll) return;
+    const slides = scroll.querySelectorAll('.social-reel-slide');
+    slides.forEach((slide) => {
+      const i = parseInt(slide.dataset.index, 10);
+      const vid = slide.querySelector('video[data-reel-video]');
+      if (!vid) return;
+      const near = Math.abs(i - activeIndex) <= 1;
+      const src = vid.dataset.src || '';
+      if (near) {
+        if (src && vid.getAttribute('src') !== src) {
+          vid.setAttribute('src', src);
+          vid.preload = i === activeIndex ? 'auto' : 'metadata';
+          try {
+            vid.load();
+          } catch (_e) { /* ignore */ }
+        }
+      } else if (vid.getAttribute('src')) {
+        vid.pause();
+        vid.removeAttribute('src');
+        try {
+          vid.load();
+        } catch (_e) { /* ignore */ }
+      }
+    });
   }
 
   function setVideoImmersive(on) {
@@ -1645,6 +1859,7 @@
 
     if (avatar) {
       const profilePic =
+        item.profilePic ||
         (window.Auth?.getUser?.()?.id &&
           String(item.userId) === String(window.Auth.getUser().id) &&
           (window.Auth.getUser().profile_pic || window.Auth.getUser().profilePic)) ||
@@ -1655,21 +1870,27 @@
       avatar.alt = item.name || 'Creator';
     }
     if (name) {
-      name.textContent = '@' + String(item.name || 'Creator').replace(/\s+/g, '');
+      const handle = '@' + String(item.name || 'Creator').replace(/\s+/g, '');
+      name.innerHTML = escapeHtml(handle) + (item.authorLive ? ' ' + liveBadgeHtml(item.authorLive) : '');
     }
-    if (cap) cap.textContent = item.caption || '';
+    if (cap) cap.innerHTML = formatCaptionHtml(item.caption || '');
     const scroll = document.getElementById('reelsScroll');
+    syncReelMediaSources(scroll, reelIndex);
     const activeVid = getActiveReelVideo(scroll);
     if (activeVid) applySocialVideoSound(activeVid, reelSoundEnabled());
     if (follow) {
-      const fid = item.workerId || item.userId || item.name;
+      const fid = item.userId || item.workerId || item.name;
       const on = isFollowing(fid, item.name);
       follow.textContent = on ? '✓' : '+';
       follow.classList.toggle('is-following', on);
       follow.setAttribute('aria-label', on ? 'Following' : 'Follow');
       follow.onclick = async (e) => {
         e.stopPropagation();
-        const now = await toggleFollow(fid, item.name);
+        if (!item.userId) {
+          toast('Profile link incomplete', 'warning');
+          return;
+        }
+        const now = await toggleFollow(item.userId, item.name);
         follow.textContent = now ? '✓' : '+';
         follow.classList.toggle('is-following', now);
         follow.setAttribute('aria-label', now ? 'Following' : 'Follow');
@@ -1700,7 +1921,8 @@
     return String(n);
   }
 
-  async function initVideoPage(containerId) {
+  async function initVideoPage(containerId, options) {
+    const pageOpts = options || {};
     ensureStarterCoins();
     const wrap = document.getElementById(containerId);
     if (!wrap) return;
@@ -1718,58 +1940,90 @@
       ensureReelCloseButton(() => setVideoImmersive(false));
     }
     const uiLayer = document.getElementById('reelUi');
-    paintReelSkeleton(wrap, uiLayer);
-    const prosPromise = window.SocialShell ? SocialShell.fetchPros(8) : Promise.resolve([]);
-    reelItems = await buildReelItems(await prosPromise, { videosOnly: true, startPostId: startPost });
+    const soft = !!pageOpts.soft && wrap.querySelector('#reelsScroll');
+    if (!soft) paintReelSkeleton(wrap, uiLayer);
+    reelItems = await buildReelItems([], {
+      videosOnly: true,
+      startPostId: startPost,
+      feed: pageOpts.feed || currentFeedScope(),
+    });
 
     if (!reelItems.length) {
-      const empty = document.createElement('p');
-      empty.style.cssText = 'color:#fff;text-align:center;padding:40px;pointer-events:auto';
-      empty.textContent = 'No videos yet. Post a video from the Square camera.';
-      wrap.insertBefore(empty, uiLayer || null);
+      let empty = wrap.querySelector('.social-reel-empty');
+      if (!empty) {
+        empty = document.createElement('div');
+        empty.className = 'social-empty-state social-reel-empty';
+        empty.style.cssText = 'color:#6b4f10;text-align:center;padding:48px 24px;pointer-events:auto;position:relative;z-index:2';
+        wrap.insertBefore(empty, uiLayer || null);
+      }
+      empty.innerHTML =
+        '<div class="illus" aria-hidden="true">▶</div><h3>No videos yet</h3><p>Share a short clip from the camera — it will show up here.</p>';
+      const stale = document.getElementById('reelsScroll');
+      if (stale) stale.remove();
       if (uiLayer) uiLayer.style.display = 'none';
       return;
     }
+    if (uiLayer) uiLayer.style.display = '';
 
     const stats = getReelStats();
     reelItems.forEach((item) => {
       const s = stats[reelKey(item)];
       if (s) {
         if (s.likes) item.likes = Math.max(item.likes || 0, s.likes);
-        if (s.comments?.length) item.comments = s.comments.length;
+        if (s.comments?.length) item.comments = Math.max(item.comments || 0, s.comments.length);
         if (s.gifts) item.gifts = Math.max(item.gifts || 0, s.gifts);
         if (s.shares) item.shares = Math.max(item.shares || 0, s.shares);
       }
     });
 
     let scroll = document.getElementById('reelsScroll');
-    if (scroll) scroll.remove();
-
-    scroll = document.createElement('div');
-    scroll.id = 'reelsScroll';
-    scroll.className = 'social-reels-scroll';
+    const keepIndex = soft ? reelIndex : 0;
+    if (!scroll) {
+      scroll = document.createElement('div');
+      scroll.id = 'reelsScroll';
+      scroll.className = 'social-reels-scroll';
+      wrap.insertBefore(scroll, uiLayer || wrap.firstChild);
+    }
+    scroll.classList.remove('social-reels-scroll--skeleton');
     scroll.innerHTML = reelItems
       .map((item, i) => {
         const media = item.isVideo
-          ? `<video src="${item.mediaUrl}" playsinline loop muted data-reel-video poster="${item.thumb || ''}"${item.trimStart != null ? ` data-trim-start="${item.trimStart}" data-trim-end="${item.trimEnd}"` : ''}></video>`
+          ? `<video data-src="${item.mediaUrl || ''}" playsinline loop muted data-reel-video preload="none" poster="${item.thumb || ''}"${item.trimStart != null ? ` data-trim-start="${item.trimStart}" data-trim-end="${item.trimEnd}"` : ''}></video>`
           : `<img src="${item.mediaUrl || item.thumb}" alt="">`;
         return `<section class="social-reel-slide" data-index="${i}" data-item-id="${item.id}">
           ${media}
+          <div class="social-reel-buffer" hidden aria-hidden="true"></div>
           <div class="social-reel-gradient"></div>
         </section>`;
       })
       .join('');
 
-    wrap.insertBefore(scroll, uiLayer || wrap.firstChild);
+    wrap.querySelector('.social-reel-empty')?.remove();
 
+    if (scroll._reelObserver) {
+      try {
+        scroll._reelObserver.disconnect();
+      } catch (_e) { /* ignore */ }
+    }
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((en) => {
           if (en.isIntersecting) {
             const i = parseInt(en.target.dataset.index, 10);
             reelItems[i] && updateReelUI(reelItems[i]);
+            syncReelMediaSources(scroll, i);
             en.target.querySelectorAll('video[data-reel-video]').forEach((v) => {
               applySocialVideoSound(v, reelSoundEnabled());
+              const buf = en.target.querySelector('.social-reel-buffer');
+              const onWaiting = () => {
+                if (buf) buf.hidden = false;
+              };
+              const onReady = () => {
+                if (buf) buf.hidden = true;
+              };
+              v.addEventListener('waiting', onWaiting);
+              v.addEventListener('playing', onReady);
+              v.addEventListener('canplay', onReady, { once: true });
               v.play().catch(() => {});
             });
           } else {
@@ -1779,17 +2033,21 @@
       },
       { root: scroll, threshold: 0.6 }
     );
+    scroll._reelObserver = observer;
     scroll.querySelectorAll('.social-reel-slide').forEach((s) => observer.observe(s));
 
     scroll.querySelectorAll('.social-reel-slide video, .social-reel-slide img').forEach((el) => markMediaOrientation(el));
     bindVideoTrimPlayback(scroll);
 
     scroll.querySelectorAll('.social-reel-slide').forEach((slide) => {
+      if (slide.dataset.clickBound) return;
+      slide.dataset.clickBound = '1';
       slide.addEventListener('click', (e) => {
-        if (e.target.closest('#reelUi') || e.target.closest('[data-action]')) return;
+        if (e.target.closest('#reelUi') || e.target.closest('[data-action]') || e.target.closest('.social-live-pill')) return;
         const vid = slide.querySelector('video[data-reel-video]');
         if (!vid) return;
         setVideoImmersive(true);
+        syncReelMediaSources(scroll, parseInt(slide.dataset.index, 10) || 0);
         if (vid.muted) {
           setReelSoundEnabled(true);
           applySocialVideoSound(vid, true);
@@ -1801,7 +2059,15 @@
       });
     });
 
-    updateReelUI(reelItems[0]);
+    const startIdx =
+      startPost != null
+        ? Math.max(
+            0,
+            reelItems.findIndex((x) => String(x.postId) === String(startPost))
+          )
+        : keepIndex;
+    syncReelMediaSources(scroll, startIdx >= 0 ? startIdx : 0);
+    updateReelUI(reelItems[startIdx >= 0 ? startIdx : 0] || reelItems[0]);
     bindReelActionsPanel();
     ensureReelSoundButton(scroll);
 
@@ -1813,23 +2079,43 @@
         updateReelUI(reelItems[idx]);
       }
       sessionStorage.removeItem('social_reel_start');
+    } else if (soft && keepIndex > 0) {
+      const slide = scroll.querySelector(`[data-index="${keepIndex}"]`);
+      slide?.scrollIntoView({ behavior: 'instant', block: 'start' });
     }
 
     ensureReelRotateControl(scroll);
 
-    document.getElementById('videoAvatarBtn')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const item = reelItems[reelIndex];
-      if (item) location.href = profileUrl(item);
-    });
+    const avatarBtn = document.getElementById('videoAvatarBtn');
+    if (avatarBtn && !avatarBtn.dataset.bound) {
+      avatarBtn.dataset.bound = '1';
+      avatarBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const item = reelItems[reelIndex];
+        if (item) location.href = profileUrl(item);
+      });
+    }
 
-    document.getElementById('videoName')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const item = reelItems[reelIndex];
-      if (item) location.href = profileUrl(item);
-    });
+    const nameEl = document.getElementById('videoName');
+    if (nameEl && !nameEl.dataset.bound) {
+      nameEl.dataset.bound = '1';
+      nameEl.addEventListener('click', (e) => {
+        if (e.target.closest('.social-live-pill')) return;
+        e.stopPropagation();
+        const item = reelItems[reelIndex];
+        if (item) location.href = profileUrl(item);
+      });
+    }
 
     if (window.SocialUI) SocialUI.bindAvatarFallbacks(document);
+    if (window.SocialNav?.registerRefresh && !wrap.dataset.refreshBound) {
+      wrap.dataset.refreshBound = '1';
+      SocialNav.registerRefresh(async () => {
+        try {
+          await initVideoPage(containerId, { soft: true, feed: currentFeedScope() });
+        } catch (_e) { /* ignore */ }
+      });
+    }
   }
 
   function ensureReelRotateControl(scroll) {
@@ -1893,10 +2179,21 @@
 
     if (action === 'like') {
       if (item.postId) {
-        const p = getPosts().find((x) => String(x.id) === String(item.postId)) || { id: item.postId, fromApi: true };
+        const p =
+          getPosts().find((x) => String(x.id) === String(item.postId)) || {
+            id: item.postId,
+            fromApi: item.fromApi !== false,
+          };
         try {
-          const { liked, delta } = await toggleLikePost(item.postId, p);
+          const { liked, delta, locked } = await toggleLikePost(item.postId, p);
+          if (locked) return;
           if (delta) item.likes = Math.max(0, (item.likes || 0) + delta);
+          const likeBtn = document.querySelector('#reelActions [data-action="like"]');
+          if (liked && likeBtn) {
+            likeBtn.classList.remove('social-like-pop');
+            void likeBtn.offsetWidth;
+            likeBtn.classList.add('social-like-pop');
+          }
           toast(liked ? 'Liked!' : 'Unliked');
         } catch (_e) {
           toast('Could not update like', 'error');
@@ -1984,59 +2281,75 @@
     }
   }
 
-  async function renderSquareFeed(container) {
+  async function renderSquareFeed(container, options) {
+    const opts = options || {};
     const feed = typeof container === 'string' ? document.getElementById(container) : container;
     if (!feed) return;
 
-    if (!feed.querySelector('.social-post-card')) {
+    if (!feed.querySelector('.social-post-card') && !feed.querySelector('.social-empty-state')) {
       feed.innerHTML = renderSquareSkeleton(4);
     }
 
-    const [loadedPosts, pros] = await Promise.all([
-      loadPosts().then((rows) => rows.filter((p) => canViewPost(p))),
-      window.SocialShell ? SocialShell.fetchPros(4) : Promise.resolve([]),
-    ]);
-    let posts = loadedPosts;
+    const feedScope = opts.feed || currentFeedScope();
+    const loadOpts = {
+      feed: feedScope,
+      userId: opts.userId || null,
+      mediaType: opts.mediaType || 'all',
+      limit: opts.limit || 30,
+      offset: opts.offset || 0,
+    };
+    const posts = (await loadPosts(loadOpts)).filter((p) => canViewPost(p));
     const feedPosts = posts;
+
     if (!posts.length) {
-      posts = pros.map((p, i) => ({
-        id: 'demo-' + i,
-        caption: i % 2 ? 'Great day! #APServices' : 'Book home services anytime',
-        userName: p.name,
-        minsAgo: 1 + i * 3,
-        likes: 12 + i,
-        comments: 2,
-        gifts: 0,
-        shares: 1,
-        image: p.image,
-        isVideo: false,
-        demo: true,
-      }));
+      feed.innerHTML = `
+        <div class="social-empty-state social-empty-state--feed">
+          <div class="illus" aria-hidden="true">✦</div>
+          <h3>${feedScope === 'following' ? 'No posts from people you follow' : 'No posts yet'}</h3>
+          <p>${
+            feedScope === 'following'
+              ? 'Follow creators to see their updates here.'
+              : 'Be the first to share a moment. Tap the camera to create.'
+          }</p>
+          <a class="btn-open" href="#" data-social-camera>Create a post</a>
+        </div>`;
+      return;
     }
 
     const html = await Promise.all(
       posts.map(async (p) => {
-        const url = p.demo ? p.image : await getMediaUrl(p);
+        const url = await getMediaUrl(p);
         let thumbUrl = !isPlaceholderThumb(p.thumb) ? p.thumb : '';
         if (!thumbUrl && !postIsVideo(p) && url && !isPlaceholderThumb(url)) thumbUrl = url;
         const user = window.Auth?.getUser?.();
         const isOwner =
-          !p.demo &&
           user &&
           (String(p.userId) === String(user.id) || p.userId === 'me' || String(p.userId) === String(user.email));
-        const media = postIsVideo(p)
-          ? `<video src="${url}" playsinline muted preload="metadata" data-social-feed-video poster="${thumbUrl || ''}"${videoTagAttrs(p)}></video>`
-          : `<img src="${url || SocialShell?.avatarFallback(p.userName)}" alt="">`;
-        const liked = !p.demo && isLiked(p.id, p);
-        const openReel = !p.demo && postIsVideo(p) ? ' data-open-reel="1" data-open-reel-video="1"' : (!p.demo && postHasMedia(p) ? ' data-open-reel="1"' : '');
+        const hasMedia = !!(url || thumbUrl);
+        const media = !hasMedia
+          ? `<div class="social-post-text-only">${formatCaptionHtml(p.caption || p.text || '')}</div>`
+          : postIsVideo(p)
+            ? `<video ${thumbUrl ? `poster="${thumbUrl}"` : ''} playsinline muted preload="none" data-social-feed-video data-src="${url || ''}"${videoTagAttrs(p)}></video>`
+            : `<img src="${url || SocialShell?.avatarFallback(p.userName)}" alt="" loading="lazy">`;
+        const liked = isLiked(p.id, p);
+        const openReel = hasMedia
+          ? postIsVideo(p)
+            ? ' data-open-reel="1" data-open-reel-video="1"'
+            : ' data-open-reel="1"'
+          : '';
+        const avatarSrc = p.profilePic
+          ? resolveMediaUrl(p.profilePic)
+          : SocialShell?.avatarFallback(p.userName) || window.SocialUI?.avatarUrl?.(p.userName) || '';
+        const when = relativeTime(p.createdAt || p.id);
         return `
       <article class="social-post-card" data-post-id="${p.id}"${openReel}>
         <div class="social-post-media">${media}
-          ${postIsVideo(p) ? '<span class="play-badge play-badge--fullscreen"><i class="fas fa-expand"></i></span>' : '<span class="play-badge play-badge--photo"><i class="fas fa-expand"></i></span>'}
+          ${hasMedia && postIsVideo(p) ? '<span class="play-badge play-badge--fullscreen"><i class="fas fa-expand"></i></span>' : ''}
+          ${hasMedia && !postIsVideo(p) ? '<span class="play-badge play-badge--photo"><i class="fas fa-expand"></i></span>' : ''}
           ${p.visibility === 'private' ? '<span class="social-post-private-badge"><i class="fas fa-lock"></i> Private</span>' : ''}
           ${isOwner ? `<button type="button" class="social-post-delete" data-delete-post="${p.id}" aria-label="Delete post"><i class="fas fa-times"></i></button>` : ''}
         </div>
-        <div class="social-post-meta">${p.minsAgo || 1} mins ago</div>
+        <div class="social-post-meta">${escapeHtml(when)}</div>
         <div class="social-post-actions">
           <button type="button" class="social-act-btn" data-act="like" data-id="${p.id}"><i class="${liked ? 'fas' : 'far'} fa-heart"></i> <span>${p.likes || 0}</span></button>
           <button type="button" class="social-act-btn" data-act="comment" data-id="${p.id}"><i class="far fa-comment"></i> <span>${p.comments || 0}</span></button>
@@ -2044,10 +2357,10 @@
           <button type="button" class="social-act-btn" data-act="share" data-id="${p.id}"><i class="far fa-paper-plane"></i> <span>${p.shares || 0}</span></button>
         </div>
         <a class="social-post-user" href="${profileUrl({ userName: p.userName, userId: p.userId })}">
-          <img src="${SocialShell?.avatarFallback(p.userName) || (window.SocialUI?.avatarUrl?.(p.userName) || '')}" alt="">
+          <img src="${avatarSrc}" alt="">
           <div>
-            <div class="social-post-user-name">${escapeHtml(p.userName)} 🇮🇳</div>
-            <div class="social-post-caption">${escapeHtml(p.caption || '')}</div>
+            <div class="social-post-user-name">${escapeHtml(p.userName)} ${liveBadgeHtml(p.authorLive)}</div>
+            <div class="social-post-caption">${hasMedia ? formatCaptionHtml(p.caption || '') : ''}</div>
           </div>
         </a>
       </article>`;
@@ -2055,45 +2368,43 @@
     );
     feed.innerHTML = html.join('');
 
-    /* Backfill missing video posters from the first decoded frame */
-    feed.querySelectorAll('.social-post-media video').forEach((vid) => {
-      if (vid.getAttribute('poster')) return;
-      const fillPoster = () => {
-        try {
-          if (!vid.videoWidth) return;
-          const canvas = document.createElement('canvas');
-          const scale = Math.min(1, 360 / vid.videoWidth);
-          canvas.width = Math.round(vid.videoWidth * scale);
-          canvas.height = Math.round(vid.videoHeight * scale);
-          canvas.getContext('2d').drawImage(vid, 0, 0, canvas.width, canvas.height);
-          const data = canvas.toDataURL('image/jpeg', 0.7);
-          vid.setAttribute('poster', data);
-          const postId = vid.closest('[data-post-id]')?.dataset?.postId;
-          if (postId && data) {
-            const posts = getPosts();
-            const p = posts.find((x) => String(x.id) === String(postId));
-            if (p && isPlaceholderThumb(p.thumb)) {
-              p.thumb = data;
-              savePosts(posts);
-            }
+    /* Lazy-attach video src when near viewport; prefer server thumb over seek-hack */
+    const vidObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((en) => {
+          const vid = en.target;
+          if (!en.isIntersecting) return;
+          const src = vid.getAttribute('data-src');
+          if (src && !vid.getAttribute('src')) {
+            vid.setAttribute('src', src);
+            vid.load?.();
           }
-        } catch (_e) { /* ignore */ }
-      };
-      const onMeta = () => {
-        const t = Math.min(0.2, (vid.duration || 1) * 0.05);
-        const onSeeked = () => {
-          vid.removeEventListener('seeked', onSeeked);
-          fillPoster();
-        };
-        vid.addEventListener('seeked', onSeeked);
-        try {
-          vid.currentTime = t;
-        } catch (_e) {
-          fillPoster();
-        }
-      };
-      if (vid.readyState >= 2) onMeta();
-      else vid.addEventListener('loadeddata', onMeta, { once: true });
+        });
+      },
+      { rootMargin: '200px' }
+    );
+    feed.querySelectorAll('video[data-src]').forEach((vid) => {
+      if (vid.getAttribute('poster')) {
+        vidObserver.observe(vid);
+        return;
+      }
+      /* Only seek for poster when no thumb — defer until visible */
+      vidObserver.observe(vid);
+      vid.addEventListener(
+        'loadeddata',
+        () => {
+          if (vid.getAttribute('poster') || !vid.videoWidth) return;
+          try {
+            const canvas = document.createElement('canvas');
+            const scale = Math.min(1, 360 / vid.videoWidth);
+            canvas.width = Math.round(vid.videoWidth * scale);
+            canvas.height = Math.round(vid.videoHeight * scale);
+            canvas.getContext('2d').drawImage(vid, 0, 0, canvas.width, canvas.height);
+            vid.setAttribute('poster', canvas.toDataURL('image/jpeg', 0.7));
+          } catch (_e) { /* ignore */ }
+        },
+        { once: true }
+      );
     });
 
     feed.querySelectorAll('[data-delete-post]').forEach((btn) => {
@@ -2101,10 +2412,13 @@
         e.preventDefault();
         e.stopPropagation();
         const id = btn.dataset.deletePost;
-        if (confirm('Delete this post?')) {
-          deletePost(id);
-          await renderSquareFeed(feed);
+        if (!confirm('Delete this post?')) return;
+        try {
+          await deletePostRemote(id);
+          await renderSquareFeed(feed, opts);
           toast('Post deleted');
+        } catch (_err) {
+          toast('Could not delete post', 'error');
         }
       });
     });
@@ -2130,6 +2444,9 @@
         e.preventDefault();
         e.stopPropagation();
         const enabling = vid.muted;
+        if (!vid.getAttribute('src') && vid.getAttribute('data-src')) {
+          vid.setAttribute('src', vid.getAttribute('data-src'));
+        }
         vid.muted = !enabling;
         vid.volume = enabling ? 1 : 0;
         if (enabling) {
@@ -2158,18 +2475,10 @@
       btn.addEventListener('click', async (e) => {
         e.stopPropagation();
         const id = btn.dataset.id;
-        if (String(id).startsWith('demo-')) {
-          const s = btn.querySelector('span');
-          const icon = btn.querySelector('i');
-          const nowLiked = !icon.classList.contains('fas');
-          icon.className = nowLiked ? 'fas fa-heart' : 'far fa-heart';
-          const n = parseInt(s.textContent, 10) || 0;
-          s.textContent = String(Math.max(0, n + (nowLiked ? 1 : -1)));
-          return;
-        }
         const p = feedPosts.find((x) => String(x.id) === String(id));
         try {
-          const { liked, delta } = await toggleLikePost(id, p);
+          const { liked, delta, locked } = await toggleLikePost(id, p || { id, fromApi: true });
+          if (locked) return;
           if (p && delta) {
             p.likes = Math.max(0, (p.likes || 0) + delta);
             if (!p.fromApi) {
@@ -2183,32 +2492,33 @@
           }
           btn.querySelector('i').className = liked ? 'fas fa-heart' : 'far fa-heart';
           btn.classList.toggle('is-liked', liked);
+          if (liked) {
+            btn.classList.remove('social-like-pop');
+            void btn.offsetWidth;
+            btn.classList.add('social-like-pop');
+          }
           btn.querySelector('span').textContent = p?.likes ?? btn.querySelector('span').textContent;
+          SocialRealtime.emit('social:like', { postId: id, liked });
         } catch (_e) {
           toast('Could not update like', 'error');
         }
       });
     });
     feed.querySelectorAll('[data-act="comment"]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        if (String(btn.dataset.id).startsWith('demo-')) return toast('Sign in & post to comment');
-        openComments(btn.dataset.id);
-      });
+      btn.addEventListener('click', () => openComments(btn.dataset.id));
     });
     feed.querySelectorAll('[data-act="gift"]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        if (String(btn.dataset.id).startsWith('demo-')) return toast('Gift sent 🎁');
         sendGift(btn.dataset.id);
-        const posts = getPosts();
-        const p = posts.find((x) => String(x.id) === String(btn.dataset.id));
+        const postsLocal = getPosts();
+        const p = postsLocal.find((x) => String(x.id) === String(btn.dataset.id));
         if (p) btn.querySelector('span').textContent = p.gifts || 0;
       });
     });
     feed.querySelectorAll('[data-act="share"]').forEach((btn) => {
       btn.addEventListener('click', async () => {
         const id = btn.dataset.id;
-        if (String(id).startsWith('demo-')) return toast('Link copied');
-        const p = getPosts().find((x) => String(x.id) === String(id));
+        const p = feedPosts.find((x) => String(x.id) === String(id)) || getPosts().find((x) => String(x.id) === String(id));
         if (p) {
           await sharePost(p);
           btn.querySelector('span').textContent = p.shares || 0;
@@ -2220,12 +2530,16 @@
   function renderTopics(containerId) {
     const list = document.getElementById(containerId);
     if (!list) return;
-    const items = [
-      { title: '#Holi Video Collection Event', heat: 529819, ended: false },
-      { title: '#Jayfol Dance Challenge', heat: 412200, ended: false },
-      { title: '#Home Pro Tips', heat: 210440, ended: true },
-      { title: '#Live Party Moments', heat: 188900, ended: false },
-    ];
+    /* Extension: window.SocialTopicsProvider.getTopics() can replace hardcoded list later */
+    const items =
+      (typeof window.SocialTopicsProvider?.getTopics === 'function' &&
+        window.SocialTopicsProvider.getTopics()) ||
+      [
+        { title: '#Holi Video Collection Event', heat: 529819, ended: false },
+        { title: '#Jayfol Dance Challenge', heat: 412200, ended: false },
+        { title: '#Home Pro Tips', heat: 210440, ended: true },
+        { title: '#Live Party Moments', heat: 188900, ended: false },
+      ];
     const fallbackThumb = topicThumb(0, 'Topic');
     list.innerHTML = items
       .map(
@@ -2344,6 +2658,8 @@
 
   window.SocialInteractions = {
     getPosts,
+    loadPosts,
+    fetchApiPosts,
     savePostFromForm,
     renderSquareFeed,
     initVideoPage,
@@ -2374,7 +2690,14 @@
     getFollowEntries,
     openReelViewer,
     toggleLikePost,
+    deletePostRemote,
+    bookmarkPost,
+    currentFeedScope,
+    setFeedScope,
+    relativeTime,
     postIsVideo,
+    resolveMediaUrl,
+    profileUrl,
     apiSocial,
   };
 })();
