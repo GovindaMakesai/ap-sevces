@@ -11,7 +11,7 @@ router.get('/coin-sellers', social.listCoinSellers);
 router.get('/discover/creators', optionalAuth, social.discoverCreators);
 router.get('/creators/:userId/engagement', optionalAuth, social.creatorEngagement);
 router.get('/stats/:userId', optionalAuth, social.followStats);
-router.get('/posts', verifyToken, social.listPosts);
+router.get('/posts', optionalAuth, social.listPosts);
 
 router.use(verifyToken);
 

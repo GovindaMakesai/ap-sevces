@@ -210,11 +210,41 @@ async function mySellerOrders(req, res) {
 }
 
 async function listPosts(req, res) {
-  const data = await socialFeedService.listFeed(uid(req), {
-    limit: parseInt(req.query.limit, 10) || 30,
-    offset: parseInt(req.query.offset, 10) || 0,
-  });
-  res.json({ success: true, data });
+  try {
+    const viewerId = req.userId || uid(req) || null;
+    const data = await socialFeedService.listFeed(viewerId, {
+      limit: parseInt(req.query.limit, 10) || 30,
+      offset: parseInt(req.query.offset, 10) || 0,
+      userId: req.query.userId || req.query.user_id || null,
+      feed: req.query.feed || req.query.scope || null,
+      mediaType: req.query.mediaType || req.query.media_type || 'all',
+    });
+    const meta = {};
+    if (req.query.userId || req.query.user_id) {
+      meta.counts = await socialFeedService.getCreatorPostCounts(
+        req.query.userId || req.query.user_id,
+        viewerId
+      );
+    }
+    /* Attach LIVE status for authors (feed pills) */
+    try {
+      const authorIds = [...new Set(data.map((p) => p.user_id || p.author?.id).filter(Boolean))];
+      if (authorIds.length) {
+        const liveMap = await discoverCreatorService.getLiveStatusForUsers(authorIds);
+        data.forEach((p) => {
+          const aid = String(p.user_id || p.author?.id || '');
+          const live = liveMap.get(aid);
+          p.author_live = live || null;
+        });
+      }
+    } catch (_e) {
+      /* non-fatal */
+    }
+    res.json({ success: true, data, meta: Object.keys(meta).length ? meta : undefined });
+  } catch (e) {
+    console.error('listPosts error:', e);
+    res.status(500).json({ success: false, message: 'Failed to load posts' });
+  }
 }
 
 async function createPost(req, res) {
@@ -275,7 +305,10 @@ async function commentPost(req, res) {
 }
 
 async function getComments(req, res) {
-  const data = await socialFeedService.listComments(req.params.postId);
+  const data = await socialFeedService.listComments(req.params.postId, {
+    limit: parseInt(req.query.limit, 10) || 50,
+    offset: parseInt(req.query.offset, 10) || 0,
+  });
   res.json({ success: true, data });
 }
 
