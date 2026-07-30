@@ -145,6 +145,20 @@ async function discoverRails(req, res) {
   }
 }
 
+async function clientMetrics(req, res) {
+  try {
+    const clientMetricsService = require('../services/clientMetricsService');
+    const data = await clientMetricsService.ingestClientMetrics(req.userId || null, req.body || {}, {
+      path: req.headers.referer || req.get?.('referer') || '',
+      ua: req.headers['user-agent'] || '',
+    });
+    res.json({ success: true, data });
+  } catch (e) {
+    console.warn('clientMetrics error:', e.message);
+    res.status(200).json({ success: true, data: { accepted: 0 } });
+  }
+}
+
 async function creatorAnalytics(req, res) {
   try {
     const targetId = String(req.params.userId || '');
@@ -501,6 +515,7 @@ module.exports = {
   liveFollowing,
   discoverCreators,
   discoverRails,
+  clientMetrics,
   creatorEngagement,
   creatorAnalytics,
   listGiftCatalog,

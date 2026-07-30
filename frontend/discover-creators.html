@@ -41,6 +41,8 @@
   <script src="app.js?v=20260702-follow-fix"></script>
   <script src="social-ui.js?v=20260624-profile-url-fix"></script>
   <script src="auth-guard.js"></script>
+  <script src="social-creator-telemetry.js?v=20260730-stab1"></script>
+  <script src="social-creator-identity.js?v=20260730-cx2"></script>
   <script src="social-interactions.js?v=20260624-profile-url-fix"></script>
   <script src="social-shell.js?v=20260624-profile-url-fix"></script>
   <script src="social-nav.js"></script>
@@ -179,6 +181,14 @@
         creator.profileHref ||
           '/creator-profile.html?userId=' + encodeURIComponent(creator.id) + '&name=' + encodeURIComponent(creator.displayName || '') + '&app=1'
       );
+      const badges =
+        window.SocialCreatorIdentity?.renderBadgesHtml?.(
+          {
+            ...creator,
+            isLive: false,
+          },
+          'compact'
+        ) || '';
       const liveBadge = creator.isLive
         ? '<span class="discover-live-pill"><i class="fas fa-circle"></i> LIVE · ' + formatCount(creator.liveViewers) + '</span>'
         : '';
@@ -190,7 +200,7 @@
             '<span class="discover-creator-rank">#' + rank + '</span>' +
             '<img src="' + esc(avatarUrl(creator)) + '" alt="" class="discover-creator-avatar" loading="lazy">' +
             '<div class="discover-creator-info">' +
-              '<div class="discover-creator-name-row"><strong>' + name + '</strong>' + liveBadge + '</div>' +
+              '<div class="discover-creator-name-row"><strong>' + name + '</strong> ' + badges + ' ' + liveBadge + '</div>' +
               '<div class="discover-creator-metrics">' +
                 '<span><i class="fas fa-bolt"></i> ' + esc(creator.engagementLabel || '0') + ' engagement</span>' +
                 '<span><i class="fas fa-user-friends"></i> ' + formatCount(creator.followers) + ' followers</span>' +

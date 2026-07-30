@@ -4,7 +4,7 @@
 **Date:** 2026-07-30  
 **Branch:** `main` (production)  
 **Scope:** `frontend/`, `backend/` — **ignore `frontend/spa/`**  
-**Status:** Phase 1 ✅ · Phase 2 ✅ · **Phase 3 (UX Polish) ✅**  
+**Status:** Phase 1 ✅ · Phase 2 ✅ · Phase 3 ✅ · **Stabilization pack ✅ (freeze)**  
 **Constraints:** Keep cream/gold, nav, layouts, branding. No Instagram/TikTok clone. No SPA migration. No Expo/AAB.
 
 ---
@@ -16,40 +16,36 @@
 | 1 | Ownership, APIs, feeds, engagement wiring | Complete |
 | 2 | Premium reels, identity, discovery, profiles, analytics | Complete |
 | 3 | Motion, spacing, type, empty/error, a11y, delight | Complete |
+| Stabilization | Telemetry, infinite scroll, search identity, freeze | Complete |
 
-Full Phase 3 write-up: **`frontend/CREATOR_UX_POLISH_REPORT.md`**
-
----
-
-## Phase 3 deliverables
-
-- `social-creator-polish.css` — motion/spacing/type tokens, shimmer, empty/error, comment sheet animation, a11y
-- `social-creator-polish.js` — empty/error HTML, retry binding, haptic stub, success/error feedback
-- Wired on Video, Square, Creator Profile, Streamer Center
-- Retryable errors for feed, discovery, analytics
-- Comment sheet open/close without display-flash
-- Touch targets / focus-visible / reduced-motion
+Full Phase 3 write-up: **`frontend/CREATOR_UX_POLISH_REPORT.md`**  
+Freeze + regression matrix: **`frontend/CREATOR_STABILIZATION.md`**
 
 ---
 
-## Remaining backlog (non-blocking)
+## Stabilization deliverables
 
-| Item | Notes |
-|------|--------|
-| Infinite scroll | API ready |
-| Bio edit sheet | Replace prompts |
-| Search identity parity | Use `SocialCreatorIdentity` |
-| FPS debug HUD | Optional A51 tooling |
-| Native haptics wire-up | Stub already posts to RN WebView |
+- `POST /api/social/client-metrics` + `ensureClientMetricsSchema`
+- `social-creator-telemetry.js` — feed/TTFV/reel/profile/upload/api/js errors
+- Square infinite scroll (sentinel + offset pagination)
+- Video reel append when near end of list
+- Search + discover identity parity (`userId` links + badges)
+- Creator feature freeze after deploy + regression (see stabilization doc)
 
 ---
 
-## Regression checklist (Phase 3)
+## Post-freeze backlog
 
-1. Comment sheet slides up/down smoothly  
-2. Empty Square/Video/Following states show CTA  
-3. Offline/API failure on Square shows **Try again**  
-4. Discovery failure shows retry  
-5. Follow / like / share give clear success feedback  
-6. Scope tabs expose `aria-selected`  
-7. No layout redesign vs Phase 2  
+| Priority | Item | When |
+|----------|------|------|
+| High | Native haptics | Next native/Expo build |
+| Medium | Bio edit sheet | After creator cohort feedback |
+| Low | FPS debug HUD | Dev-only if A51 needs it |
+
+---
+
+## Engineering focus after freeze
+
+Live reliability · A51/Bluetooth audio · gifts · PK · agency · wallet/payouts · moderation · notifications.
+
+Only ship creator-side changes for P0 bugs or metrics/feedback-proven issues.

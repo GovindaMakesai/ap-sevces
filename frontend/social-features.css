@@ -2310,6 +2310,13 @@ body.social-discover-page .discover-creators-empty {
 }
 
 /* ===== Creator Experience Phase 2 ===== */
+.social-search-user--identity {
+  display: block;
+  padding: 8px 0;
+}
+.social-search-user--identity .ap-creator-identity {
+  width: 100%;
+}
 .ap-creator-identity {
   display: flex;
   align-items: center;

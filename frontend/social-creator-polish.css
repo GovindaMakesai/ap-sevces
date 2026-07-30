@@ -486,6 +486,31 @@
   transform: scale(0.985);
 }
 
+/* ---- Infinite scroll ---- */
+.ap-feed-sentinel {
+  height: 1px;
+  width: 100%;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.ap-feed-end {
+  text-align: center;
+  color: #8b6914;
+  font-size: 13px;
+  padding: 20px 16px 32px;
+  margin: 0;
+}
+
+.social-search-user--identity {
+  display: block;
+  padding: 8px 0;
+}
+
+.social-search-user--identity .ap-creator-identity {
+  width: 100%;
+}
+
 /* ---- Analytics empty ---- */
 .streamer-top-content .ap-empty,
 #streamerTopContent .ap-muted {

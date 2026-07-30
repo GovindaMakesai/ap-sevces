@@ -637,7 +637,9 @@
     const local = getPosts().filter((p) => canViewPost(p));
     const { posts: api, meta } = await fetchApiPosts(opts);
     if (opts._metaOut) opts._metaOut.meta = meta;
+    const paging = Number(opts.offset || 0) > 0;
     if (!api.length) {
+      if (paging) return [];
       if (opts.userId) {
         return local.filter((p) => String(p.userId) === String(opts.userId));
       }
@@ -646,7 +648,7 @@
     }
     const byId = new Map();
     api.forEach((p) => byId.set(String(p.id), p));
-    if (!opts.userId && opts.feed !== 'following') {
+    if (!paging && !opts.userId && opts.feed !== 'following') {
       local.forEach((p) => {
         const k = String(p.id);
         if (!byId.has(k)) byId.set(k, p);
@@ -1360,6 +1362,7 @@
     let localThumb = '';
     let isVideo = false;
 
+    try {
     if (file) {
       isVideo = String(file.type || '').startsWith('video/');
       if (isVideo && file.size > 12 * 1024 * 1024) {
@@ -1446,7 +1449,14 @@
     const posts = getPosts().filter((p) => String(p.id) !== String(post.id));
     posts.unshift(post);
     savePosts(posts);
+    window.SocialCreatorTelemetry?.track?.('upload_ok', 1, { mediaType: mediaType || 'none' });
     return post;
+    } catch (err) {
+      window.SocialCreatorTelemetry?.track?.('upload_fail', 1, {
+        message: String(err?.message || 'fail').slice(0, 120),
+      });
+      throw err;
+    }
   }
 
   function ensureCommentSheet() {
@@ -1755,6 +1765,9 @@
     const videosOnly = opts.videosOnly !== false;
     const startPostId = opts.startPostId || null;
     const feedScope = opts.feed || currentFeedScope();
+    const pageSize = opts.limit || 40;
+    const offset = Number(opts.offset || 0);
+    const skipLocal = offset > 0 || opts.skipLocal;
 
     function matchesFilter(p) {
       if (!canViewPost(p)) return false;
@@ -1762,12 +1775,20 @@
       return videosOnly ? postIsVideo(p) : postHasMedia(p);
     }
 
-    const apiPosts = (await loadPosts({ feed: feedScope, mediaType: videosOnly ? 'video' : 'all', limit: 40 })).filter(
-      matchesFilter
-    );
-    const userPosts = getPosts().filter(matchesFilter);
+    const tMark = window.SocialCreatorTelemetry?.mark?.('feed_load_ms');
+    const apiPosts = (
+      await loadPosts({
+        feed: feedScope,
+        mediaType: videosOnly ? 'video' : 'all',
+        limit: pageSize,
+        offset,
+      })
+    ).filter(matchesFilter);
+    tMark?.end?.({ feed: feedScope, surface: 'video', offset, count: apiPosts.length });
+
+    const userPosts = skipLocal ? [] : getPosts().filter(matchesFilter);
     const merged = [];
-    const seen = new Set();
+    const seen = new Set(opts.excludeIds || []);
     [...apiPosts, ...userPosts].forEach((p) => {
       const key = String(p.id);
       if (seen.has(key)) return;
@@ -2057,11 +2078,20 @@
     const uiLayer = document.getElementById('reelUi');
     const soft = !!pageOpts.soft && wrap.querySelector('#reelsScroll');
     if (!soft) paintReelSkeleton(wrap, uiLayer);
+    const pageSize = 40;
+    const feedScope = pageOpts.feed || currentFeedScope();
     reelItems = await buildReelItems([], {
       videosOnly: true,
       startPostId: startPost,
-      feed: pageOpts.feed || currentFeedScope(),
+      feed: feedScope,
+      limit: pageSize,
+      offset: 0,
     });
+    wrap._reelOffset = reelItems.length;
+    wrap._reelHasMore = reelItems.length >= pageSize;
+    wrap._reelFeed = feedScope;
+    wrap._reelPageSize = pageSize;
+    wrap._reelLoadingMore = false;
 
     if (!reelItems.length) {
       let empty = wrap.querySelector('.social-reel-empty');
@@ -2140,6 +2170,9 @@
             const i = parseInt(en.target.dataset.index, 10);
             reelItems[i] && updateReelUI(reelItems[i]);
             syncReelMediaSources(scroll, i);
+            if (wrap._reelHasMore && i >= reelItems.length - 3) {
+              appendMoreReels(wrap, scroll, observer).catch(() => {});
+            }
             en.target.querySelectorAll('video[data-reel-video]').forEach((v) => {
               applySocialVideoSound(v, reelSoundEnabled());
               const buf = en.target.querySelector('.social-reel-buffer');
@@ -2154,6 +2187,27 @@
               v.addEventListener('waiting', onWaiting);
               v.addEventListener('playing', onReady);
               v.addEventListener('canplay', onReady, { once: true });
+              if (!v.dataset.ttfvBound) {
+                v.dataset.ttfvBound = '1';
+                const t0 = performance.now();
+                const markFrame = () => {
+                  window.SocialCreatorTelemetry?.track?.('ttfv_ms', Math.round(performance.now() - t0), {
+                    postId: reelItems[i]?.postId,
+                  });
+                };
+                v.addEventListener('playing', markFrame, { once: true });
+                v.addEventListener('timeupdate', () => {
+                  if (v.dataset.reelDone) return;
+                  const dur = v.duration;
+                  if (!dur || !Number.isFinite(dur)) return;
+                  if (v.currentTime / dur >= 0.9) {
+                    v.dataset.reelDone = '1';
+                    window.SocialCreatorTelemetry?.track?.('reel_complete', 1, {
+                      postId: reelItems[i]?.postId,
+                    });
+                  }
+                });
+              }
               const playP = v.play();
               if (playP?.catch) playP.catch(() => {});
             });
@@ -2249,6 +2303,83 @@
           await initVideoPage(containerId, { soft: true, feed: currentFeedScope() });
         } catch (_e) { /* ignore */ }
       });
+    }
+  }
+
+  async function appendMoreReels(wrap, scroll, observer) {
+    if (!wrap || !scroll || wrap._reelLoadingMore || wrap._reelHasMore === false) return;
+    wrap._reelLoadingMore = true;
+    try {
+      const pageSize = wrap._reelPageSize || 40;
+      const excludeIds = new Set(reelItems.map((x) => String(x.postId)));
+      const more = await buildReelItems([], {
+        videosOnly: true,
+        feed: wrap._reelFeed || currentFeedScope(),
+        limit: pageSize,
+        offset: Number(wrap._reelOffset || 0),
+        skipLocal: true,
+        excludeIds,
+      });
+      if (!more.length) {
+        wrap._reelHasMore = false;
+        return;
+      }
+      const startIdx = reelItems.length;
+      reelItems = reelItems.concat(more);
+      wrap._reelOffset = Number(wrap._reelOffset || 0) + more.length;
+      wrap._reelHasMore = more.length >= pageSize;
+      window.SocialCreatorTelemetry?.track?.('feed_page', more.length, { surface: 'video' });
+
+      const stats = getReelStats();
+      more.forEach((item) => {
+        const s = stats[reelKey(item)];
+        if (s) {
+          if (s.likes) item.likes = Math.max(item.likes || 0, s.likes);
+          if (s.comments?.length) item.comments = Math.max(item.comments || 0, s.comments.length);
+          if (s.gifts) item.gifts = Math.max(item.gifts || 0, s.gifts);
+          if (s.shares) item.shares = Math.max(item.shares || 0, s.shares);
+        }
+      });
+
+      const frag = document.createDocumentFragment();
+      more.forEach((item, j) => {
+        const i = startIdx + j;
+        const section = document.createElement('section');
+        section.className = 'social-reel-slide';
+        section.dataset.index = String(i);
+        section.dataset.itemId = item.id;
+        const media = item.isVideo
+          ? `<video data-src="${item.mediaUrl || ''}" playsinline loop muted data-reel-video preload="none" poster="${item.thumb || ''}" class="social-reel-media"${item.trimStart != null ? ` data-trim-start="${item.trimStart}" data-trim-end="${item.trimEnd}"` : ''}></video>`
+          : `<img src="${item.mediaUrl || item.thumb}" alt="" class="social-reel-media">`;
+        section.innerHTML = `${media}<div class="social-reel-buffer" hidden aria-hidden="true"></div><div class="social-reel-gradient"></div>`;
+        frag.appendChild(section);
+        observer.observe(section);
+        section.querySelectorAll('video, img').forEach((el) => markMediaOrientation(el));
+        bindVideoTrimPlayback(section);
+        if (!section.dataset.clickBound) {
+          section.dataset.clickBound = '1';
+          section.addEventListener('click', (e) => {
+            if (e.target.closest('#reelUi') || e.target.closest('[data-action]') || e.target.closest('.social-live-pill')) return;
+            const vid = section.querySelector('video[data-reel-video]');
+            if (!vid) return;
+            setVideoImmersive(true);
+            syncReelMediaSources(scroll, parseInt(section.dataset.index, 10) || 0);
+            if (vid.muted) {
+              setReelSoundEnabled(true);
+              applySocialVideoSound(vid, true);
+              vid.play().catch(() => {});
+              return;
+            }
+            if (vid.paused) vid.play().catch(() => {});
+            else vid.pause();
+          });
+        }
+      });
+      scroll.appendChild(frag);
+    } catch (_e) {
+      window.SocialCreatorTelemetry?.track?.('api_error', 1, { where: 'video_feed_more' });
+    } finally {
+      wrap._reelLoadingMore = false;
     }
   }
 
@@ -2420,8 +2551,13 @@
     const opts = options || {};
     const feed = typeof container === 'string' ? document.getElementById(container) : container;
     if (!feed) return;
+    const append = !!opts.append;
+    const pageSize = opts.limit || 30;
+    if (append && (feed._squareLoading || feed._squareHasMore === false)) return;
+    feed._squareLoading = true;
+    const tMark = window.SocialCreatorTelemetry?.mark?.('feed_load_ms');
 
-    if (!feed.querySelector('.social-post-card') && !feed.querySelector('.social-empty-state')) {
+    if (!append && !feed.querySelector('.social-post-card') && !feed.querySelector('.social-empty-state')) {
       feed.innerHTML = renderSquareSkeleton(4);
     }
 
@@ -2430,13 +2566,19 @@
       feed: feedScope,
       userId: opts.userId || null,
       mediaType: opts.mediaType || 'all',
-      limit: opts.limit || 30,
-      offset: opts.offset || 0,
+      limit: pageSize,
+      offset: append ? Number(feed._squareOffset || 0) : opts.offset || 0,
     };
     let posts = [];
     try {
       posts = (await loadPosts(loadOpts)).filter((p) => canViewPost(p));
+      tMark?.end?.({ feed: feedScope, append: append ? 1 : 0, count: posts.length });
     } catch (_err) {
+      window.SocialCreatorTelemetry?.track?.('api_error', 1, { where: 'square_feed' });
+      feed._squareLoading = false;
+      if (append) {
+        return;
+      }
       const polish = window.SocialCreatorPolish;
       feed.innerHTML = polish
         ? polish.errorStateHtml({
@@ -2445,13 +2587,12 @@
           })
         : '<p style="text-align:center;padding:24px;color:#8b6914">Couldn’t load posts.</p>';
       if (polish) {
-        polish.bindRetry(feed, () => renderSquareFeed(feed, opts));
+        polish.bindRetry(feed, () => renderSquareFeed(feed, { ...opts, append: false }));
       }
       return;
     }
-    const feedPosts = posts;
 
-    if (!posts.length) {
+    if (!append && !posts.length) {
       const polish = window.SocialCreatorPolish;
       const followingEmpty = feedScope === 'following';
       feed.innerHTML = polish
@@ -2472,8 +2613,29 @@
           discover: () => (location.href = '/discover-creators.html?app=1'),
         });
       }
+      feed._squareLoading = false;
+      feed._squareHasMore = false;
       return;
     }
+
+    if (append && !posts.length) {
+      feed._squareHasMore = false;
+      feed._squareLoading = false;
+      const tip = feed.querySelector('.ap-feed-end');
+      if (!tip) {
+        const end = document.createElement('p');
+        end.className = 'ap-feed-end';
+        end.textContent = 'You’re all caught up';
+        feed.appendChild(end);
+      }
+      return;
+    }
+
+    const feedPosts = append ? [...(feed._squarePosts || []), ...posts] : posts;
+    feed._squarePosts = feedPosts;
+    feed._squareOffset = (append ? Number(feed._squareOffset || 0) : 0) + posts.length;
+    feed._squareHasMore = posts.length >= pageSize;
+    feed._squareFeedOpts = { ...opts, feed: feedScope, append: false };
 
     const html = await Promise.all(
       posts.map(async (p) => {
@@ -2538,7 +2700,23 @@
       </article>`;
       })
     );
-    feed.innerHTML = html.join('');
+    const fragment = document.createElement('div');
+    fragment.innerHTML = html.join('');
+    const newCards = [...fragment.children];
+    if (!append) {
+      feed.innerHTML = '';
+      newCards.forEach((n) => feed.appendChild(n));
+    } else {
+      const sentinel = feed.querySelector('.ap-feed-sentinel');
+      newCards.forEach((n) => {
+        if (sentinel) feed.insertBefore(n, sentinel);
+        else feed.appendChild(n);
+      });
+      window.SocialCreatorTelemetry?.track?.('feed_page', posts.length, { feed: feedScope });
+    }
+
+    const qs = (sel) =>
+      append ? newCards.flatMap((n) => [...n.querySelectorAll(sel)]) : [...feed.querySelectorAll(sel)];
 
     /* Lazy-attach video src when near viewport; prefer server thumb over seek-hack */
     const vidObserver = new IntersectionObserver(
@@ -2555,12 +2733,11 @@
       },
       { rootMargin: '200px' }
     );
-    feed.querySelectorAll('video[data-src]').forEach((vid) => {
+    qs('video[data-src]').forEach((vid) => {
       if (vid.getAttribute('poster')) {
         vidObserver.observe(vid);
         return;
       }
-      /* Only seek for poster when no thumb — defer until visible */
       vidObserver.observe(vid);
       vid.addEventListener(
         'loadeddata',
@@ -2579,7 +2756,7 @@
       );
     });
 
-    feed.querySelectorAll('[data-delete-post]').forEach((btn) => {
+    qs('[data-delete-post]').forEach((btn) => {
       btn.addEventListener('click', async (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -2587,17 +2764,17 @@
         if (!confirm('Delete this post?')) return;
         try {
           await deletePostRemote(id);
-          await renderSquareFeed(feed, opts);
+          await renderSquareFeed(feed, { ...feed._squareFeedOpts, append: false });
           toast('Post deleted');
         } catch (_err) {
           toast('Could not delete post', 'error');
         }
       });
     });
-    feed.querySelectorAll('.social-post-media video, .social-post-media img').forEach((el) => markMediaOrientation(el));
-    bindVideoTrimPlayback(feed);
+    qs('.social-post-media video, .social-post-media img').forEach((el) => markMediaOrientation(el));
+    newCards.forEach((card) => bindVideoTrimPlayback(card));
 
-    feed.querySelectorAll('.social-post-media video[data-social-feed-video]').forEach((vid) => {
+    qs('.social-post-media video[data-social-feed-video]').forEach((vid) => {
       const mediaWrap = vid.closest('.social-post-media');
       const postId = vid.closest('[data-post-id]')?.dataset?.postId;
       vid.addEventListener('click', (e) => {
@@ -2635,7 +2812,7 @@
       mediaWrap.appendChild(btn);
     });
 
-    feed.querySelectorAll('[data-open-reel]').forEach((card) => {
+    qs('[data-open-reel]').forEach((card) => {
       card.addEventListener('click', (e) => {
         if (e.target.closest('[data-act], [data-delete-post], .social-post-user, button, a, .social-feed-sound-btn')) return;
         if (e.target.closest('video[data-social-feed-video]')) return;
@@ -2643,7 +2820,7 @@
       });
     });
 
-    feed.querySelectorAll('[data-act="like"]').forEach((btn) => {
+    qs('[data-act="like"]').forEach((btn) => {
       btn.addEventListener('click', async (e) => {
         e.stopPropagation();
         const id = btn.dataset.id;
@@ -2676,10 +2853,10 @@
         }
       });
     });
-    feed.querySelectorAll('[data-act="comment"]').forEach((btn) => {
+    qs('[data-act="comment"]').forEach((btn) => {
       btn.addEventListener('click', () => openComments(btn.dataset.id));
     });
-    feed.querySelectorAll('[data-act="gift"]').forEach((btn) => {
+    qs('[data-act="gift"]').forEach((btn) => {
       btn.addEventListener('click', () => {
         sendGift(btn.dataset.id);
         const postsLocal = getPosts();
@@ -2687,7 +2864,7 @@
         if (p) btn.querySelector('span').textContent = p.gifts || 0;
       });
     });
-    feed.querySelectorAll('[data-act="share"]').forEach((btn) => {
+    qs('[data-act="share"]').forEach((btn) => {
       btn.addEventListener('click', async () => {
         const id = btn.dataset.id;
         const p = feedPosts.find((x) => String(x.id) === String(id)) || getPosts().find((x) => String(x.id) === String(id));
@@ -2697,6 +2874,46 @@
         }
       });
     });
+
+    feed._squareLoading = false;
+    ensureSquareInfiniteScroll(feed);
+
+    if (!feed._squareSoftBound) {
+      feed._squareSoftBound = true;
+      SocialRealtime.on('social:reconnect', () => {
+        if (document.visibilityState === 'visible') {
+          renderSquareFeed(feed, { ...feed._squareFeedOpts, soft: true, append: false });
+        }
+      });
+    }
+  }
+
+  function ensureSquareInfiniteScroll(feed) {
+    if (!feed) return;
+    let sentinel = feed.querySelector('.ap-feed-sentinel');
+    if (!sentinel) {
+      sentinel = document.createElement('div');
+      sentinel.className = 'ap-feed-sentinel';
+      sentinel.setAttribute('aria-hidden', 'true');
+      feed.appendChild(sentinel);
+      if (feed._squareIo) {
+        try {
+          feed._squareIo.disconnect();
+        } catch (_e) { /* ignore */ }
+        feed._squareIo = null;
+      }
+    }
+    if (!feed._squareIo) {
+      feed._squareIo = new IntersectionObserver(
+        (entries) => {
+          const hit = entries.some((e) => e.isIntersecting);
+          if (!hit || feed._squareLoading || feed._squareHasMore === false) return;
+          renderSquareFeed(feed, { ...feed._squareFeedOpts, append: true }).catch(() => {});
+        },
+        { root: null, rootMargin: '400px', threshold: 0 }
+      );
+    }
+    feed._squareIo.observe(sentinel);
   }
 
   function renderTopics(containerId) {

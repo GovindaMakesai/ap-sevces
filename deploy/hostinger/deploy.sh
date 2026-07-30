@@ -8,6 +8,28 @@ SKIP_GIT="${SKIP_GIT:-0}"
 
 cd "$APP_DIR"
 
+# Pre-deploy backup (code tree + optional DB dump). Set BACKUP_BEFORE=0 to skip.
+if [ "${BACKUP_BEFORE:-1}" = "1" ]; then
+  BACKUP_ROOT="${BACKUP_ROOT:-/var/backups/ap-services}"
+  STAMP="$(date -u '+%Y%m%dT%H%M%SZ')"
+  mkdir -p "$BACKUP_ROOT/code"
+  echo "==> Pre-deploy code backup -> $BACKUP_ROOT/code/pre-deploy-$STAMP.tgz"
+  tar -czf "$BACKUP_ROOT/code/pre-deploy-$STAMP.tgz" \
+    --exclude='node_modules' \
+    --exclude='.git' \
+    --exclude='frontend/spa' \
+    --exclude='ap-services-app/android' \
+    --exclude='ap-services-app/ios' \
+    -C "$APP_DIR" frontend backend deploy package.json package-lock.json ecosystem.config.js 2>/dev/null \
+    || echo "WARN: code backup tar failed (continuing)"
+  # Keep last 12 code snapshots
+  ls -1t "$BACKUP_ROOT/code"/pre-deploy-*.tgz 2>/dev/null | tail -n +13 | xargs -r rm -f || true
+  if [ -x "$APP_DIR/deploy/hostinger/backup-db.sh" ] || [ -f "$APP_DIR/deploy/hostinger/backup-db.sh" ]; then
+    echo "==> Pre-deploy DB backup"
+    bash "$APP_DIR/deploy/hostinger/backup-db.sh" || echo "WARN: DB backup failed (continuing deploy)"
+  fi
+fi
+
 OLD_HEAD=""
 if [ "$SKIP_GIT" != "1" ]; then
   OLD_HEAD=$(git rev-parse HEAD 2>/dev/null || echo "")

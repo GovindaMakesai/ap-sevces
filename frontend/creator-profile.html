@@ -140,9 +140,10 @@
   <script src="app.js?v=20260702-follow-fix"></script>
   <script src="auth-guard.js"></script>
   <script src="social-ui.js?v=20260702-follow-fix"></script>
+  <script src="social-creator-telemetry.js?v=20260730-stab1"></script>
   <script src="social-creator-polish.js?v=20260730-cx3"></script>
   <script src="social-creator-identity.js?v=20260730-cx2"></script>
-  <script src="social-interactions.js?v=20260730-cx3"></script>
+  <script src="social-interactions.js?v=20260730-stab1"></script>
   <script src="social-shell.js"></script>
   <script>
     function profileApiRoot() {
@@ -252,6 +253,7 @@
 
       if (userId) {
         try {
+          const tProfile = window.SocialCreatorTelemetry?.mark?.('profile_open_ms');
           const headers = {};
           const token = (window.Auth?.getToken?.() || localStorage.getItem('token'));
           if (token) headers.Authorization = 'Bearer ' + token;
@@ -260,6 +262,7 @@
             headers,
           });
           const payload = await res.json();
+          tProfile?.end?.({ userId, ok: payload.success ? 1 : 0 });
           if (payload.success && payload.data) {
             const e = payload.data;
             publicDisplayId = window.formatUserDisplayId?.(e) || e.displayId || e.display_id || '';

@@ -95,12 +95,35 @@
       html += `<p class="social-search-section">Users</p><div class="social-search-users">`;
       users.forEach((u) => {
         const name = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email || 'User';
-        html += `<a href="/creator-profile.html?id=${u.id}&app=1" class="social-search-user">
+        const profileHref = `/creator-profile.html?userId=${encodeURIComponent(u.id)}&name=${encodeURIComponent(name)}&app=1`;
+        if (window.SocialCreatorIdentity?.renderIdentityHtml) {
+          html += `<div class="social-search-user social-search-user--identity">${SocialCreatorIdentity.renderIdentityHtml(
+            {
+              id: u.id,
+              displayName: name,
+              profilePic: u.profile_pic || u.profilePic,
+              role: u.role,
+              isVerified: u.is_verified || u.isVerified,
+              agencyName: u.agency_name || u.agencyName,
+              creatorLevel: u.creator_level || u.vip_level || u.creatorLevel,
+              isLive: !!(u.is_live || u.isLive || u.live_channel),
+              liveChannel: u.live_channel || u.liveChannel,
+              liveRoomType: u.live_room_type || u.liveRoomType,
+            },
+            {
+              variant: 'compact',
+              href: profileHref,
+              subtitle: u.display_id ? `ID ${u.display_id}` : `ID ${u.id}`,
+            }
+          )}</div>`;
+        } else {
+          html += `<a href="${profileHref}" class="social-search-user">
           <span class="social-search-user-name">${escapeHtml(name)} ${
             window.formatRoleBadgeHtml?.(u.role || u, { withEmoji: true }) || ''
           }</span>
           <span class="social-search-user-id">ID ${u.display_id || u.id}</span>
         </a>`;
+        }
       });
       html += `</div>`;
     }

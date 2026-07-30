@@ -276,6 +276,8 @@ async function startServer() {
     await ensureNameChangeSchema();
     const { ensureCreatorProfileSchema } = require('./config/ensureCreatorProfileSchema');
     await ensureCreatorProfileSchema();
+    const { ensureClientMetricsSchema } = require('./config/ensureClientMetricsSchema');
+    await ensureClientMetricsSchema();
   }
 
   await referralModule.boot();
