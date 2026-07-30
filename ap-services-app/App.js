@@ -1125,8 +1125,16 @@ export default function App() {
           return;
         }
         if (data.type === 'force_speaker_audio') {
-          /* Compat: map old web posts onto LiveAudioRoute */
-          if (data.recording === true) {
+          /* Compat: map old web posts onto LiveAudioRoute — skip if already in desired mode */
+          const snap = LiveAudioRoute.getDebugSnapshot?.() || {};
+          const wantTalk = data.recording === true;
+          const already =
+            (wantTalk && snap.state === 'liveTalk') ||
+            (!wantTalk && snap.state === 'livePlay');
+          if (already && snap.lastAppliedAt && Date.now() - snap.lastAppliedAt < 2000) {
+            return;
+          }
+          if (wantTalk) {
             LiveAudioRoute.enterTalk({
               bluetoothSafe: data.bluetoothSafe !== false,
               reason: 'force_speaker_audio',

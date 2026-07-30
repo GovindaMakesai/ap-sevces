@@ -23,6 +23,8 @@
     shouldHear: () => true,
     requestSpeaker: () => { },
     unlockAudio: async () => { },
+    /** Optional: () => number — Samsung host AEC compensation etc. */
+    volumeFor: null,
     sinks: new Map(),
     lastHealthAt: 0,
     remountAt: new Map(),
@@ -50,6 +52,7 @@
     if (typeof opts.shouldHear === 'function') state.shouldHear = opts.shouldHear;
     if (typeof opts.requestSpeaker === 'function') state.requestSpeaker = opts.requestSpeaker;
     if (typeof opts.unlockAudio === 'function') state.unlockAudio = opts.unlockAudio;
+    if (typeof opts.volumeFor === 'function') state.volumeFor = opts.volumeFor;
     log('engine configure', { build: BUILD });
   }
 
@@ -57,10 +60,16 @@
     const next = Boolean(isPublisher);
     if (state.isPublisher === next) return;
     state.isPublisher = next;
-    log('publisher_mode', { isPublisher: next });
+    log('publisher_mode', { isPublisher: next, volume: playbackVolume() });
   }
 
   function playbackVolume() {
+    try {
+      if (typeof state.volumeFor === 'function') {
+        const v = Number(state.volumeFor({ isPublisher: state.isPublisher }));
+        if (Number.isFinite(v) && v > 0) return Math.min(400, Math.max(1, v));
+      }
+    } catch (_e) { }
     return VOL;
   }
 
@@ -146,12 +155,16 @@
     if (!state.shouldHear()) return false;
 
     try {
-      state.requestSpeaker();
+      /* Arm native playback mode once per session — not on every health tick (BT thrash) */
+      if (force || !state.__speakerArmed) {
+        state.__speakerArmed = true;
+        state.requestSpeaker();
+      }
       await state.unlockAudio();
     } catch (_e) { }
 
     try {
-      user.audioTrack.setVolume?.(VOL);
+      user.audioTrack.setVolume?.(playbackVolume());
       if (typeof user.audioTrack.setMuted === 'function') {
         await user.audioTrack.setMuted(false).catch?.(() => { });
       }
@@ -216,11 +229,12 @@
 
   function boostAll(client) {
     state.stats.boost += 1;
+    const vol = playbackVolume();
     try {
       for (const user of client?.remoteUsers || []) {
         try {
           if (!user.audioTrack) continue;
-          user.audioTrack.setVolume?.(VOL);
+          user.audioTrack.setVolume?.(vol);
           if (typeof user.audioTrack.setMuted === 'function') {
             user.audioTrack.setMuted(false).catch?.(() => { });
           }
@@ -329,7 +343,7 @@
           } else {
             state.quietTicks.set(uid, 0);
             try {
-              user.audioTrack.setVolume?.(VOL);
+              user.audioTrack.setVolume?.(playbackVolume());
             } catch (_e) { }
           }
         });
