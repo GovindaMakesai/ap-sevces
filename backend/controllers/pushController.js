@@ -57,12 +57,12 @@ exports.updateSettings = async (req, res) => {
 exports.diagnostics = async (req, res) => {
   try {
     const tokens = await pushNotificationService.getTokensForUser(req.userId);
-    const fcmConfigured = pushNotificationService.isFcmConfigured();
+    const fcm = pushNotificationService.getFcmStatus();
     let recent = [];
     try {
       const db = require('../config/database');
       const r = await db.query(
-        `SELECT success, error_code, left(coalesce(error_message,''), 120) AS error_message, created_at
+        `SELECT success, error_code, left(coalesce(error_message,''), 160) AS error_message, created_at
          FROM push_delivery_log
          WHERE user_id = $1
          ORDER BY created_at DESC
@@ -74,7 +74,8 @@ exports.diagnostics = async (req, res) => {
     res.json({
       success: true,
       data: {
-        fcmConfigured,
+        fcmConfigured: fcm.configured,
+        fcm,
         tokenCount: tokens.length,
         platforms: tokens.map((t) => t.platform),
         recentDelivery: recent,
@@ -88,12 +89,15 @@ exports.diagnostics = async (req, res) => {
 /** Send a test push to the logged-in user (requires a registered device token). */
 exports.sendTest = async (req, res) => {
   try {
-    if (!pushNotificationService.isFcmConfigured()) {
+    const fcm = pushNotificationService.getFcmStatus();
+    if (!fcm.configured) {
       return res.status(503).json({
         success: false,
         message:
-          'FCM not configured on server. Set FIREBASE_SERVICE_ACCOUNT_JSON (or FCM_SERVER_KEY) and restart ap-api.',
+          fcm.initError ||
+          'FCM not configured on server. Set FIREBASE_SERVICE_ACCOUNT_JSON (fix private_key newlines) and restart ap-api.',
         code: 'fcm_not_configured',
+        fcm,
       });
     }
     const result = await pushNotificationService.sendToUser(req.userId, {
@@ -110,7 +114,16 @@ exports.sendTest = async (req, res) => {
         result,
       });
     }
-    res.json({ success: true, data: result });
+    if (!result.sent) {
+      return res.status(502).json({
+        success: false,
+        message: 'Push attempted but not delivered. Check push_delivery_log / FCM credentials.',
+        code: 'not_delivered',
+        result,
+        fcm,
+      });
+    }
+    res.json({ success: true, data: result, fcm });
   } catch (error) {
     console.error('sendTest push error:', error);
     res.status(500).json({ success: false, message: error.message || 'Failed to send test push' });

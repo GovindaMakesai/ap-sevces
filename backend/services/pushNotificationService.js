@@ -14,7 +14,13 @@ function parseServiceAccount() {
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON || process.env.FIREBASE_ADMIN_SDK_JSON;
   if (!raw) return null;
   try {
-    return typeof raw === 'string' ? JSON.parse(raw) : raw;
+    const sa = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    if (!sa || typeof sa !== 'object') return null;
+    /* One-line .env pastes often keep literal \n instead of real newlines */
+    if (typeof sa.private_key === 'string' && sa.private_key.includes('\\n')) {
+      sa.private_key = sa.private_key.replace(/\\n/g, '\n');
+    }
+    return sa;
   } catch (err) {
     console.warn('[PushService] invalid FIREBASE_SERVICE_ACCOUNT_JSON', err.message);
     return null;
@@ -29,9 +35,12 @@ function isFcmConfigured() {
   );
 }
 
+let lastAdminInitError = null;
+
 function getFirebaseAdmin() {
   if (adminInitTried) return adminApp;
   adminInitTried = true;
+  lastAdminInitError = null;
   try {
     const admin = require('firebase-admin');
     if (admin.apps?.length) {
@@ -40,10 +49,19 @@ function getFirebaseAdmin() {
     }
     const sa = parseServiceAccount();
     if (sa) {
+      if (!sa.private_key || !sa.client_email) {
+        lastAdminInitError = 'service account missing private_key or client_email';
+        console.warn('[PushService]', lastAdminInitError);
+        adminApp = null;
+        return null;
+      }
       adminApp = admin.initializeApp({
         credential: admin.credential.cert(sa),
       });
-      console.log('[PushService] firebase-admin initialized');
+      console.log('[PushService] firebase-admin initialized', {
+        projectId: sa.project_id || null,
+        clientEmail: sa.client_email || null,
+      });
       return adminApp;
     }
     if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
@@ -54,10 +72,27 @@ function getFirebaseAdmin() {
       return adminApp;
     }
   } catch (err) {
-    console.warn('[PushService] firebase-admin unavailable:', err.message);
+    lastAdminInitError = err.message || String(err);
+    console.warn('[PushService] firebase-admin unavailable:', lastAdminInitError);
   }
   adminApp = null;
   return null;
+}
+
+function getFcmStatus() {
+  const sa = parseServiceAccount();
+  const legacy = Boolean(process.env.FCM_SERVER_KEY);
+  const adc = Boolean(process.env.GOOGLE_APPLICATION_CREDENTIALS);
+  const app = getFirebaseAdmin();
+  return {
+    envJsonPresent: Boolean(sa),
+    envLegacyKeyPresent: legacy,
+    envAdcPresent: adc,
+    adminReady: Boolean(app),
+    configured: Boolean(app || legacy),
+    initError: lastAdminInitError,
+    projectId: sa?.project_id || null,
+  };
 }
 
 async function ensureSchema() {
@@ -299,7 +334,12 @@ async function deliverToToken(userId, tokenRow, payload) {
     let result = await sendViaAdmin(token, meta);
     if (!result) result = await sendViaLegacy(token, meta);
     if (!result) {
-      console.log('[PushService] stub', { userId, title: payload.title, type: payload.type });
+      console.log('[PushService] stub', {
+        userId,
+        title: payload.title,
+        type: payload.type,
+        initError: lastAdminInitError,
+      });
       await logDelivery({
         userId,
         deviceToken: token,
@@ -307,9 +347,11 @@ async function deliverToToken(userId, tokenRow, payload) {
         title: payload.title,
         success: false,
         errorCode: 'stub',
-        errorMessage: 'FCM not configured',
+        errorMessage: lastAdminInitError
+          ? `FCM admin init failed: ${lastAdminInitError}`
+          : 'FCM not configured',
       });
-      return { sent: false, stub: true };
+      return { sent: false, stub: true, initError: lastAdminInitError };
     }
     await logDelivery({
       userId,
@@ -564,6 +606,7 @@ module.exports = {
   notifyNewHostJoined,
   notifyCommissionReceived,
   isFcmConfigured,
+  getFcmStatus,
   TEMPLATES,
   NotificationQueue,
 };
