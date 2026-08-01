@@ -43,10 +43,34 @@ function getFirebaseAdmin() {
   lastAdminInitError = null;
   try {
     const admin = require('firebase-admin');
-    if (admin.apps?.length) {
-      adminApp = admin.app();
+    /* firebase-admin v12+ modular: cert/applicationDefault are top-level.
+       Older builds used admin.credential.cert — support both. */
+    const getApps = typeof admin.getApps === 'function' ? admin.getApps : () => admin.apps || [];
+    const initializeApp =
+      typeof admin.initializeApp === 'function' ? admin.initializeApp.bind(admin) : null;
+    const certFn =
+      (admin.credential && typeof admin.credential.cert === 'function' && admin.credential.cert.bind(admin.credential)) ||
+      (typeof admin.cert === 'function' && admin.cert.bind(admin)) ||
+      null;
+    const adcFn =
+      (admin.credential &&
+        typeof admin.credential.applicationDefault === 'function' &&
+        admin.credential.applicationDefault.bind(admin.credential)) ||
+      (typeof admin.applicationDefault === 'function' && admin.applicationDefault.bind(admin)) ||
+      null;
+
+    const existing = getApps();
+    if (existing && existing.length) {
+      adminApp = typeof admin.getApp === 'function' ? admin.getApp() : existing[0];
       return adminApp;
     }
+    if (!initializeApp || !certFn) {
+      lastAdminInitError = 'firebase-admin missing initializeApp/cert API';
+      console.warn('[PushService]', lastAdminInitError, Object.keys(admin || {}));
+      adminApp = null;
+      return null;
+    }
+
     const sa = parseServiceAccount();
     if (sa) {
       if (!sa.private_key || !sa.client_email) {
@@ -55,8 +79,8 @@ function getFirebaseAdmin() {
         adminApp = null;
         return null;
       }
-      adminApp = admin.initializeApp({
-        credential: admin.credential.cert(sa),
+      adminApp = initializeApp({
+        credential: certFn(sa),
       });
       console.log('[PushService] firebase-admin initialized', {
         projectId: sa.project_id || null,
@@ -64,9 +88,9 @@ function getFirebaseAdmin() {
       });
       return adminApp;
     }
-    if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-      adminApp = admin.initializeApp({
-        credential: admin.credential.applicationDefault(),
+    if (process.env.GOOGLE_APPLICATION_CREDENTIALS && adcFn) {
+      adminApp = initializeApp({
+        credential: adcFn(),
       });
       console.log('[PushService] firebase-admin via applicationDefault');
       return adminApp;
@@ -276,7 +300,13 @@ async function sendViaAdmin(token, { title, body, data }) {
       },
     },
   };
-  const id = await admin.messaging().send(message);
+  let messaging;
+  if (typeof admin.messaging === 'function') {
+    messaging = admin.messaging(app);
+  } else {
+    messaging = require('firebase-admin/messaging').getMessaging(app);
+  }
+  const id = await messaging.send(message);
   return { id, provider: 'admin' };
 }
 
