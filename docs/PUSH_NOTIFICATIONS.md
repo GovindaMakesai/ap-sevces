@@ -60,3 +60,22 @@ Grant notification permission after login; token posts to `/api/push/register-to
 - Failures are written to `push_delivery_log`
 - Queue batches (~80), retries up to 3× with backoff, dedupes by event key
 - User prefs: Live, Posts, Comments, Mentions, Follows, Gifts, Agency (+ master `push_enabled`)
+
+## Quick test (after device registered)
+
+```bash
+# Logged-in user JWT required
+curl -s -H "Authorization: Bearer $TOKEN" https://api.apservices.in/api/push/diagnostics
+curl -s -X POST -H "Authorization: Bearer $TOKEN" https://api.apservices.in/api/push/test
+```
+
+Or from repo:
+
+```bash
+node backend/scripts/test-push.js
+node backend/scripts/test-push.js --send --email=you@example.com
+```
+
+Requires `FIREBASE_SERVICE_ACCOUNT_JSON` in `backend/.env` (or on the VPS) for a real FCM send. Without it the server stubs and logs `error_code=stub`.
+
+**App:** install **1.0.33+** (google-services plugin). 1.0.32 cannot obtain FCM tokens.

@@ -52,3 +52,67 @@ exports.updateSettings = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+/** Auth'd diagnostics — token count for this user + whether server can send FCM. */
+exports.diagnostics = async (req, res) => {
+  try {
+    const tokens = await pushNotificationService.getTokensForUser(req.userId);
+    const fcmConfigured = pushNotificationService.isFcmConfigured();
+    let recent = [];
+    try {
+      const db = require('../config/database');
+      const r = await db.query(
+        `SELECT success, error_code, left(coalesce(error_message,''), 120) AS error_message, created_at
+         FROM push_delivery_log
+         WHERE user_id = $1
+         ORDER BY created_at DESC
+         LIMIT 5`,
+        [req.userId]
+      );
+      recent = r.rows;
+    } catch (_e) {}
+    res.json({
+      success: true,
+      data: {
+        fcmConfigured,
+        tokenCount: tokens.length,
+        platforms: tokens.map((t) => t.platform),
+        recentDelivery: recent,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/** Send a test push to the logged-in user (requires a registered device token). */
+exports.sendTest = async (req, res) => {
+  try {
+    if (!pushNotificationService.isFcmConfigured()) {
+      return res.status(503).json({
+        success: false,
+        message:
+          'FCM not configured on server. Set FIREBASE_SERVICE_ACCOUNT_JSON (or FCM_SERVER_KEY) and restart ap-api.',
+        code: 'fcm_not_configured',
+      });
+    }
+    const result = await pushNotificationService.sendToUser(req.userId, {
+      title: 'AP Live test',
+      body: 'Push notifications are working ✅',
+      type: 'test',
+      data: { type: 'test', deep_link: 'aplive://explore' },
+    });
+    if (result.skipped && result.reason === 'no_tokens') {
+      return res.status(400).json({
+        success: false,
+        message: 'No device token registered. Open the 1.0.33+ app, log in, and allow notifications.',
+        code: 'no_tokens',
+        result,
+      });
+    }
+    res.json({ success: true, data: result });
+  } catch (error) {
+    console.error('sendTest push error:', error);
+    res.status(500).json({ success: false, message: error.message || 'Failed to send test push' });
+  }
+};

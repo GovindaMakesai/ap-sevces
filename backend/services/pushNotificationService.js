@@ -21,6 +21,14 @@ function parseServiceAccount() {
   }
 }
 
+function isFcmConfigured() {
+  return Boolean(
+    parseServiceAccount() ||
+      process.env.FCM_SERVER_KEY ||
+      process.env.GOOGLE_APPLICATION_CREDENTIALS
+  );
+}
+
 function getFirebaseAdmin() {
   if (adminInitTried) return adminApp;
   adminInitTried = true;
@@ -555,6 +563,7 @@ module.exports = {
   notifyHostRejected,
   notifyNewHostJoined,
   notifyCommissionReceived,
+  isFcmConfigured,
   TEMPLATES,
   NotificationQueue,
 };

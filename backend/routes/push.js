@@ -9,5 +9,7 @@ router.post('/register-token', pushController.registerToken);
 router.post('/remove-token', pushController.removeToken);
 router.get('/settings', pushController.getSettings);
 router.put('/settings', pushController.updateSettings);
+router.get('/diagnostics', pushController.diagnostics);
+router.post('/test', pushController.sendTest);
 
 module.exports = router;
