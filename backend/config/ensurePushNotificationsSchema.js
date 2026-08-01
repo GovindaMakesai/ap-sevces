@@ -54,6 +54,8 @@ async function ensurePushNotificationsSchema() {
     ['gift_notifications', 'BOOLEAN DEFAULT true'],
     ['agency_notifications', 'BOOLEAN DEFAULT true'],
     ['mention_notifications', 'BOOLEAN DEFAULT true'],
+    ['message_notifications', 'BOOLEAN DEFAULT true'],
+    ['wallet_notifications', 'BOOLEAN DEFAULT true'],
   ];
   for (const [col, def] of prefCols) {
     await db.query(

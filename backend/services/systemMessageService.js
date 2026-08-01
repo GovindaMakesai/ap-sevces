@@ -29,7 +29,7 @@ async function getNotifierUserId() {
   return cachedNotifierId;
 }
 
-async function sendSystemChatMessage(recipientUserId, text) {
+async function sendSystemChatMessage(recipientUserId, text, pushMeta = null) {
   const recipient = String(recipientUserId || '').trim();
   const body = String(text || '').trim();
   if (!recipient || !body) return null;
@@ -38,11 +38,26 @@ async function sendSystemChatMessage(recipientUserId, text) {
     const senderId = await getNotifierUserId();
     if (!senderId || senderId === recipient) return null;
 
+    const opts = { skipAdminNotify: true, skipQuota: true };
+    if (pushMeta) {
+      opts.systemPush = true;
+      opts.systemPushTitle = pushMeta.title || 'AP Live';
+      opts.systemPushBody = pushMeta.body || body.split('\n').filter(Boolean)[1] || body.slice(0, 100);
+      opts.systemPushKind = pushMeta.kind || 'wallet';
+      opts.systemPushDeepLink = pushMeta.deepLink || null;
+    } else {
+      /* Still push a short wallet/system alert by default */
+      opts.systemPush = true;
+      opts.systemPushTitle = 'AP Live';
+      opts.systemPushBody = body.split('\n').filter(Boolean).slice(0, 2).join(' — ').slice(0, 120);
+      opts.systemPushKind = 'wallet';
+    }
+
     const { conversation, message, receiverUserId } = await chatService.sendBetweenUsers(
       senderId,
       recipient,
       body,
-      { skipAdminNotify: true }
+      opts
     );
     const normalized = normalizeOutgoingChatMessage(message, conversation.id);
 
@@ -66,39 +81,63 @@ async function notifyCoinsCredited(userId, coins, { amountInr, source = 'recharg
     source === 'seller_inventory'
       ? `✅ Seller top-up approved!\n\n${n} coins were added to your ${label}. You can sell them from Coin Seller Center → Sell Coins.`
       : `✅ Coins credited!\n\n${n} NR coins${inr} have been added to your ${label} after admin verification. Open Profile to see your balance.`;
-  return sendSystemChatMessage(userId, text);
+  return sendSystemChatMessage(userId, text, {
+    title: 'Coins credited',
+    body: `${n} coins added to your wallet`,
+    kind: 'wallet',
+  });
 }
 
 async function notifyWithdrawalSubmitted(userId, { amount, amountInr } = {}) {
   const pts = Number(amount).toLocaleString('en-IN');
   const inr = amountInr != null ? ` (~₹${Number(amountInr).toFixed(2)})` : '';
   const text = `📋 Withdrawal submitted\n\nYour request to withdraw ${pts} points${inr} is under admin review. We will message you here when payment is sent.`;
-  return sendSystemChatMessage(userId, text);
+  return sendSystemChatMessage(userId, text, {
+    title: 'Withdrawal submitted',
+    body: `${pts} points under review`,
+    kind: 'withdrawal',
+  });
 }
 
 async function notifyWithdrawalPaid(userId, { amount, amountInr } = {}) {
   const pts = Number(amount).toLocaleString('en-IN');
   const inr = amountInr != null ? `₹${Number(amountInr).toFixed(2)}` : 'your account';
   const text = `💸 Withdrawal sent!\n\nAdmin has paid ${inr} for your ${pts} point withdrawal. Open Profile → Points → Details and tap **Confirm receipt** once you receive it.`;
-  return sendSystemChatMessage(userId, text);
+  return sendSystemChatMessage(userId, text, {
+    title: 'Withdrawal paid',
+    body: `Confirm receipt for ${pts} points`,
+    kind: 'withdrawal',
+  });
 }
 
 async function notifyWithdrawalCompleted(userId, { amount, amountInr } = {}) {
   const pts = Number(amount).toLocaleString('en-IN');
   const inr = amountInr != null ? ` (₹${Number(amountInr).toFixed(2)})` : '';
   const text = `🎉 Withdrawal complete\n\nYour withdrawal of ${pts} points${inr} is finished. Thank you for using AP Services!`;
-  return sendSystemChatMessage(userId, text);
+  return sendSystemChatMessage(userId, text, {
+    title: 'Withdrawal complete',
+    body: `${pts} points withdrawn`,
+    kind: 'withdrawal',
+  });
 }
 
 async function notifyWithdrawalRejected(userId, { amount, reason } = {}) {
   const pts = Number(amount).toLocaleString('en-IN');
   const text = `❌ Withdrawal not approved\n\nYour ${pts} point withdrawal was rejected and points were returned to your wallet.${reason ? `\n\nReason: ${reason}` : ''}`;
-  return sendSystemChatMessage(userId, text);
+  return sendSystemChatMessage(userId, text, {
+    title: 'Withdrawal rejected',
+    body: `${pts} points returned to wallet`,
+    kind: 'withdrawal',
+  });
 }
 
 async function notifyRechargeRejected(userId, { reason } = {}) {
   const text = `❌ Coin recharge not approved\n\nYour payment could not be verified.${reason ? ` ${reason}` : ' Contact support if you believe this is an error.'}`;
-  return sendSystemChatMessage(userId, text);
+  return sendSystemChatMessage(userId, text, {
+    title: 'Recharge not approved',
+    body: 'Your coin payment could not be verified',
+    kind: 'wallet',
+  });
 }
 
 /**

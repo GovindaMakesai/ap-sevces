@@ -22,9 +22,13 @@ Production push notifications for the Expo WebView app.
 - **Gift** – receiver
 - **Comment / @mention** – post owner / mentioned users
 - **Post** – followers (public posts)
-- **Agency** – host approved/rejected, new host joined, commission received
+- **Chat message** – receiver (HTTP + socket sends)
+- **Wallet** – coins credited / system wallet alerts
+- **Withdrawal** – submitted / paid / completed / rejected (user) + new request (admins)
+- **Agency** – host approved/rejected, new host joined, commission received, new host/agency applications
+- **Admin** – withdrawals, role applications, recharges (via `notifyAllAdmins`)
 
-Deep links: `aplive://live/{channel}`, `aplive://party/{channel}` (also handled as `apservices://…`).
+Deep links: `aplive://live/{channel}`, `aplive://party/{channel}`, `aplive://chat/{id}`, `aplive://withdraw`, `aplive://wallet`, `aplive://admin/{section}` (also handled as `apservices://…`).
 
 ## VPS env
 

@@ -28,6 +28,23 @@ function agencyDeepLink() {
   return deepLink('agency');
 }
 
+function chatDeepLink(conversationId) {
+  return deepLink(`chat/${encodeURIComponent(String(conversationId || ''))}`);
+}
+
+function walletDeepLink() {
+  return deepLink('wallet');
+}
+
+function withdrawDeepLink() {
+  return deepLink('withdraw');
+}
+
+function adminDeepLink(section) {
+  const s = String(section || 'notifications').replace(/^\//, '');
+  return deepLink(`admin/${encodeURIComponent(s)}`);
+}
+
 const TEMPLATES = {
   live_started(hostName, roomId) {
     const name = hostName || 'A creator';
@@ -178,6 +195,78 @@ const TEMPLATES = {
       preferenceKey: 'post_notifications',
     };
   },
+
+  new_message(senderName, conversationId, preview) {
+    const who = senderName || 'Someone';
+    let body = String(preview || '').trim();
+    if (!body) body = 'Sent you a message';
+    if (body.startsWith('__IMG__:')) body = '📷 Sent a photo';
+    if (body.length > 100) body = `${body.slice(0, 97)}…`;
+    return {
+      type: 'new_message',
+      title: who,
+      body,
+      data: {
+        type: 'new_message',
+        conversationId: String(conversationId || ''),
+        deepLink: chatDeepLink(conversationId),
+      },
+      preferenceKey: 'message_notifications',
+    };
+  },
+
+  wallet_update(title, body, deep) {
+    return {
+      type: 'wallet_update',
+      title: title || 'Wallet update',
+      body: body || 'Your wallet was updated.',
+      data: {
+        type: 'wallet_update',
+        deepLink: deep || walletDeepLink(),
+      },
+      preferenceKey: 'wallet_notifications',
+    };
+  },
+
+  withdrawal_update(title, body) {
+    return {
+      type: 'withdrawal_update',
+      title: title || 'Withdrawal update',
+      body: body || 'Your withdrawal status changed.',
+      data: {
+        type: 'withdrawal_update',
+        deepLink: withdrawDeepLink(),
+      },
+      preferenceKey: 'wallet_notifications',
+    };
+  },
+
+  agency_application(title, body) {
+    return {
+      type: 'agency_application',
+      title: title || 'New application',
+      body: body || 'Open Agency Center to review.',
+      data: {
+        type: 'agency_application',
+        deepLink: agencyDeepLink(),
+      },
+      preferenceKey: 'agency_notifications',
+    };
+  },
+
+  admin_alert(title, body, section) {
+    return {
+      type: 'admin_alert',
+      title: title || 'Admin alert',
+      body: body || 'Open the admin dashboard.',
+      data: {
+        type: 'admin_alert',
+        deepLink: adminDeepLink(section || 'notifications'),
+      },
+      /* Admins always get these when master push is on */
+      preferenceKey: null,
+    };
+  },
 };
 
 module.exports = {
@@ -188,4 +277,8 @@ module.exports = {
   profileDeepLink,
   postDeepLink,
   agencyDeepLink,
+  chatDeepLink,
+  walletDeepLink,
+  withdrawDeepLink,
+  adminDeepLink,
 };

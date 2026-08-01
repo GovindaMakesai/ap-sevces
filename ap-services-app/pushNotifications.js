@@ -176,12 +176,21 @@ export function resolvePushDeepLink(urlOrData, frontendBase) {
       path = `/creator-profile.html?userId=${encodeURIComponent(roomId)}&app=1`;
     } else if (kind === 'post' && roomId) {
       path = `/explore.html?app=1&post=${encodeURIComponent(roomId)}`;
+    } else if (kind === 'chat') {
+      path = roomId
+        ? `/chat.html?app=1&conversation=${encodeURIComponent(roomId)}`
+        : `/chat.html?app=1`;
     } else if (kind === 'agency') {
       path = `/agency-center.html?app=1`;
     } else if (kind === 'streamer') {
       path = `/streamer-center.html?app=1`;
     } else if (kind === 'wallet') {
       path = `/wallet.html?app=1`;
+    } else if (kind === 'withdraw') {
+      path = `/withdraw.html?app=1`;
+    } else if (kind === 'admin') {
+      const section = roomId || 'notifications';
+      path = `/admin-dashboard.html?app=1#${encodeURIComponent(section)}`;
     } else if (kind === 'explore') {
       path = `/explore.html?app=1`;
     }
@@ -191,10 +200,19 @@ export function resolvePushDeepLink(urlOrData, frontendBase) {
   if (!path && urlOrData && typeof urlOrData === 'object') {
     const type = String(urlOrData.type || '');
     const roomId = urlOrData.roomId || urlOrData.channel || '';
+    const conversationId = urlOrData.conversationId || '';
     if ((type === 'live_started' || type === 'host_live') && roomId) {
       path = `/live-room.html?channel=${encodeURIComponent(roomId)}&app=1`;
     } else if (type === 'party_started' && roomId) {
       path = `/party-room.html?channel=${encodeURIComponent(roomId)}&app=1`;
+    } else if (type === 'new_message' && conversationId) {
+      path = `/chat.html?app=1&conversation=${encodeURIComponent(conversationId)}`;
+    } else if (type === 'withdrawal_update') {
+      path = `/withdraw.html?app=1`;
+    } else if (type === 'wallet_update') {
+      path = `/wallet.html?app=1`;
+    } else if (type === 'admin_alert') {
+      path = `/admin-dashboard.html?app=1`;
     }
   }
 

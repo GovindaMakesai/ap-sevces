@@ -285,6 +285,31 @@ async function sendBetweenUsers(senderUserId, receiverRawId, text, options = {})
     };
     const updatedQuota = await getFemaleMessageQuota(senderUserId);
 
+    if (!options.skipPush) {
+      setImmediate(() => {
+        try {
+          const pushNotificationService = require('./pushNotificationService');
+          if (options.systemPush) {
+            const title = options.systemPushTitle || 'AP Live';
+            const body = options.systemPushBody || String(text || '').slice(0, 100);
+            const deep = options.systemPushDeepLink || null;
+            const kind = options.systemPushKind || 'wallet';
+            if (kind === 'withdrawal') {
+              pushNotificationService.notifyWithdrawalUpdate(receiverUserId, title, body).catch(() => {});
+            } else {
+              pushNotificationService.notifyWalletUpdate(receiverUserId, title, body, deep).catch(() => {});
+            }
+          } else {
+            pushNotificationService
+              .notifyNewMessage(receiverUserId, senderUserId, conv.id, text)
+              .catch(() => {});
+          }
+        } catch (_e) {
+          /* non-fatal */
+        }
+      });
+    }
+
     return { conversation: conv, message, receiverUserId, quota: updatedQuota };
 }
 

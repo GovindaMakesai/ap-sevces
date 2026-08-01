@@ -213,6 +213,8 @@ async function userAllowsPreference(userId, preferenceKey) {
     'gift_notifications',
     'agency_notifications',
     'mention_notifications',
+    'message_notifications',
+    'wallet_notifications',
   ]);
   if (!preferenceKey || !allowed.has(preferenceKey)) return true;
   try {
@@ -607,6 +609,35 @@ async function notifyCommissionReceived(ownerUserId, amount, currencyType) {
   });
 }
 
+async function notifyNewMessage(receiverId, senderId, conversationId, preview) {
+  if (!receiverId || !senderId || String(receiverId) === String(senderId)) return false;
+  const name = await displayNameFor(senderId);
+  return queuePush(receiverId, TEMPLATES.new_message(name, conversationId, preview), {
+    dedupeKey: `msg:${conversationId}:${Date.now() - (Date.now() % 15000)}`,
+  });
+}
+
+async function notifyWalletUpdate(userId, title, body, deepLink) {
+  if (!userId) return false;
+  return queuePush(userId, TEMPLATES.wallet_update(title, body, deepLink), {
+    dedupeKey: `wallet:${userId}:${title}:${Date.now() - (Date.now() % 30000)}`,
+  });
+}
+
+async function notifyWithdrawalUpdate(userId, title, body) {
+  if (!userId) return false;
+  return queuePush(userId, TEMPLATES.withdrawal_update(title, body), {
+    dedupeKey: `withdraw:${userId}:${title}:${Date.now() - (Date.now() % 30000)}`,
+  });
+}
+
+async function notifyAgencyApplication(ownerUserId, title, body) {
+  if (!ownerUserId) return false;
+  return queuePush(ownerUserId, TEMPLATES.agency_application(title, body), {
+    dedupeKey: `agency-app:${ownerUserId}:${Date.now() - (Date.now() % 60000)}`,
+  });
+}
+
 /* Wire queue → send */
 NotificationQueue.setSendHandler(async (job) => {
   return sendToUser(job.userId, {
@@ -635,6 +666,10 @@ module.exports = {
   notifyHostRejected,
   notifyNewHostJoined,
   notifyCommissionReceived,
+  notifyNewMessage,
+  notifyWalletUpdate,
+  notifyWithdrawalUpdate,
+  notifyAgencyApplication,
   isFcmConfigured,
   getFcmStatus,
   TEMPLATES,

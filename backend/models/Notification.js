@@ -125,7 +125,7 @@ class Notification {
             'promotional_updates', 'reminder_updates',
             'live_notifications', 'post_notifications', 'comment_notifications',
             'follow_notifications', 'gift_notifications', 'agency_notifications',
-            'mention_notifications',
+            'mention_notifications', 'message_notifications', 'wallet_notifications',
         ];
         
         for (const field of allowedFields) {

@@ -70,6 +70,14 @@
         <label class="ap-switch"><input type="checkbox" data-key="gift_notifications" checked /><span class="slider"></span></label>
       </div>
       <div class="ap-notif-row">
+        <div><strong>Messages</strong><span>New chat messages</span></div>
+        <label class="ap-switch"><input type="checkbox" data-key="message_notifications" checked /><span class="slider"></span></label>
+      </div>
+      <div class="ap-notif-row">
+        <div><strong>Wallet &amp; withdrawals</strong><span>Coins credited, withdrawal status</span></div>
+        <label class="ap-switch"><input type="checkbox" data-key="wallet_notifications" checked /><span class="slider"></span></label>
+      </div>
+      <div class="ap-notif-row">
         <div><strong>Agency</strong><span>Host approvals, joins, commissions</span></div>
         <label class="ap-switch"><input type="checkbox" data-key="agency_notifications" checked /><span class="slider"></span></label>
       </div>
@@ -85,7 +93,8 @@
       const statusEl = document.getElementById('notifStatus');
       const keys = [
         'push_enabled', 'live_notifications', 'post_notifications', 'comment_notifications',
-        'mention_notifications', 'follow_notifications', 'gift_notifications', 'agency_notifications'
+        'mention_notifications', 'follow_notifications', 'gift_notifications',
+        'message_notifications', 'wallet_notifications', 'agency_notifications'
       ];
 
       function apiBase() {

@@ -66,13 +66,18 @@ async function notifyAllAdmins({
       }
 
       if (pushService) {
-        void pushService
-          .sendToUser(adminId, {
-            title,
-            body: message || title,
-            data: { type, ...(data || {}) },
-          })
-          .catch(() => {});
+        const section =
+          type === 'withdrawal'
+            ? 'withdrawals'
+            : type === 'role_application'
+              ? 'role-applications'
+              : type === 'recharge' || type === 'payment'
+                ? 'recharges'
+                : 'notifications';
+        const template = pushService.TEMPLATES.admin_alert(title, message || title, section);
+        pushService.queuePush(adminId, template, {
+          dedupeKey: `admin:${type}:${adminId}:${Date.now() - (Date.now() % 15000)}`,
+        });
       }
     } catch (err) {
       console.warn('notifyAllAdmins skip', adminId, err.message);

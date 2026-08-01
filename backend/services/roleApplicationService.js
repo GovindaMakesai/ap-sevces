@@ -190,6 +190,18 @@ async function notifyAgencyOfHostApp(app) {
         agency_id: app.target_agency_id,
       },
     });
+    try {
+      const pushNotificationService = require('./pushNotificationService');
+      pushNotificationService
+        .notifyAgencyApplication(
+          agency.owner_user_id,
+          'New Host application',
+          `Someone applied to join ${agency.name || 'your agency'}.`
+        )
+        .catch(() => {});
+    } catch (_pushErr) {
+      /* non-fatal */
+    }
   } catch (_e) {
     /* non-fatal */
   }
@@ -216,6 +228,18 @@ async function notifyAgencyOfSubAgencyApp(app) {
         agency_id: app.target_agency_id,
       },
     });
+    try {
+      const pushNotificationService = require('./pushNotificationService');
+      pushNotificationService
+        .notifyAgencyApplication(
+          agency.owner_user_id,
+          'New Invite Agency application',
+          'Someone applied using your invite code.'
+        )
+        .catch(() => {});
+    } catch (_pushErr) {
+      /* non-fatal */
+    }
   } catch (_e) {
     /* non-fatal */
   }
