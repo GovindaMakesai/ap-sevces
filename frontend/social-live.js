@@ -7684,21 +7684,23 @@
   }
 
   /**
-   * Host mic (Samsung A51): avoid Android communication mode (HW AEC cancels host).
+   * Host / seat mic (OEM Android): avoid communication mode (HW AEC cancels uplink).
    * Keep software AEC on to stop seat echo. Send volumes stay near Agora default (100)
    * — earlier 1000/250 made multi-seat rooms sound like a fish market.
    *
-   * P0 A51 (2026-07-30 evidence):
-   * - Host uplink OK in enterPlayback; seat guest enterTalk re-enables HW AEC → quiet mic.
-   * - Host hears remotes quietly after fdb921c flattened remote vol 400→100 while AEC still ducks.
+   * P0 evidence (A51 / Minal-Veena class phones):
+   * - Host uplink OK in enterPlayback; seat guest enterTalk re-enables HW AEC → quiet/inaudible mic.
+   * - Host hears remotes quietly when software AEC ducks far-end and remote vol stays at 100.
+   * - WebView UA often omits "Samsung" and only has SM-XXXX — match all SM- + common India OEMs.
    */
   const LIVE_MIC_SEND_VOLUME_HOST = 100;
   const LIVE_MIC_SEND_VOLUME_SEAT = 100;
   const LIVE_REMOTE_VOL_DEFAULT = 100;
-  /* Compensates WebRTC/OEM AEC duck of far-end while host mic is published (A51 only). */
-  const LIVE_REMOTE_VOL_SAMSUNG_HOST = 280;
-  const LIVE_REMOTE_VOL_SAMSUNG_SEAT = 180;
-  const LIVE_MIC_SEND_SAMSUNG_SEAT = 160;
+  /* Compensates WebRTC/OEM AEC duck of far-end while host/seat mic is published. */
+  const LIVE_REMOTE_VOL_OEM_HOST = 280;
+  const LIVE_REMOTE_VOL_OEM_SEAT = 180;
+  const LIVE_REMOTE_VOL_ANDROID_HOST = 200;
+  const LIVE_MIC_SEND_OEM_SEAT = 160;
 
   function isAndroidHostMicRisk() {
     try {
@@ -7708,29 +7710,41 @@
     }
   }
 
-  function isSamsungHostMicRisk() {
+  /** Strong OEM AEC risk (Samsung / Vivo / iQOO / Oppo / …). */
+  function isOemHostMicRisk() {
     try {
       const ua = String(navigator.userAgent || '');
-      return /Samsung|SM-A51|SM-A515|SM-A516|SM-A5|SM-A\d/i.test(ua);
+      return /Samsung|SM-[A-Z0-9]|Vivo|iQOO|OPPO|Realme|OnePlus|Xiaomi|Redmi|POCO|Infinix|Tecno/i.test(
+        ua
+      );
     } catch (_e) {
       return false;
     }
   }
 
+  /** @deprecated name kept for call sites — now means any strong OEM AEC risk */
+  function isSamsungHostMicRisk() {
+    return isOemHostMicRisk();
+  }
+
   function localMicSendVolume() {
     if (!isHost() && hasSpeakerSeat) {
-      if (isSamsungHostMicRisk()) return LIVE_MIC_SEND_SAMSUNG_SEAT;
+      if (isOemHostMicRisk() || isAndroidHostMicRisk()) return LIVE_MIC_SEND_OEM_SEAT;
       return LIVE_MIC_SEND_VOLUME_SEAT;
     }
     /* Mild only — not a blast */
-    if (isHost() && isSamsungHostMicRisk()) return 130;
+    if (isHost() && isOemHostMicRisk()) return 130;
     return LIVE_MIC_SEND_VOLUME_HOST;
   }
 
   function remotePlaybackVolume() {
-    if (isSamsungHostMicRisk()) {
-      if (isHost()) return LIVE_REMOTE_VOL_SAMSUNG_HOST;
-      if (hasSpeakerSeat) return LIVE_REMOTE_VOL_SAMSUNG_SEAT;
+    if (isHost()) {
+      if (isOemHostMicRisk()) return LIVE_REMOTE_VOL_OEM_HOST;
+      /* Any Android host with AEC:true ducks seats — mild compensation */
+      if (isAndroidHostMicRisk()) return LIVE_REMOTE_VOL_ANDROID_HOST;
+    }
+    if (hasSpeakerSeat && (isOemHostMicRisk() || isAndroidHostMicRisk())) {
+      return LIVE_REMOTE_VOL_OEM_SEAT;
     }
     return LIVE_REMOTE_VOL_DEFAULT;
   }
@@ -7742,6 +7756,7 @@
       host: Boolean(isHost()),
       seat: Boolean(hasSpeakerSeat),
       samsung: isSamsungHostMicRisk(),
+      oem: isOemHostMicRisk(),
       android: isAndroidHostMicRisk(),
       sendVol: localMicSendVolume(),
       remoteVol: remotePlaybackVolume(),
@@ -7817,18 +7832,20 @@
   }
 
   /**
-   * Samsung A51: never enterTalk/recording — HW AEC cancels uplink (host OR seat).
-   * Other Android seats still use enterTalk for duplex OEMs that need it.
+   * Android host + seat: never enterTalk/recording — OEM HW AEC cancels uplink
+   * (Minal/Veena / A51 class: seats become inaudible). Desktop may still talk-mode.
    */
   function applyPublisherNativeAudioRoute(reason) {
-    const samsung = isSamsungHostMicRisk();
+    const oem = isOemHostMicRisk();
+    const android = isAndroidHostMicRisk();
     const seatTalking = Boolean(!isHost() && hasSpeakerSeat);
-    if (seatTalking && !samsung) {
+    /* Only non-Android seat guests may use enterTalk (desktop duplex). */
+    if (seatTalking && !android) {
       logAudioTransition('native_enterTalk', { reason });
       notifyLiveAudioRoute('enterTalk', { bluetoothSafe: true, reason });
       return;
     }
-    logAudioTransition('native_enterPlayback', { reason, seatTalking, samsung });
+    logAudioTransition('native_enterPlayback', { reason, seatTalking, oem, android });
     notifyLiveAudioRoute('enterPlayback', { reason });
   }
 
@@ -7837,20 +7854,21 @@
     if (!rtc?.createMicrophoneAudioTrack) throw new Error('Microphone API unavailable');
     const hostLike = Boolean(isHost());
     const seatLike = Boolean(!hostLike && hasSpeakerSeat);
-    const samsung = isSamsungHostMicRisk();
+    const oem = isOemHostMicRisk();
+    const android = isAndroidHostMicRisk();
     liveDebugLog(
-      `mic create host=${hostLike} seat=${seatLike} android=${isAndroidHostMicRisk()} samsung=${samsung} vol=${localMicSendVolume()}`
+      `mic create host=${hostLike} seat=${seatLike} android=${android} oem=${oem} vol=${localMicSendVolume()}`
     );
-    logAudioTransition('mic_create_start', { hostLike, seatLike });
+    logAudioTransition('mic_create_start', { hostLike, seatLike, oem, android });
 
-    /* Host + Samsung seats must leave communication mode before getUserMedia */
-    if (hostLike || (seatLike && samsung)) {
-      leaveHostCommunicationAudioMode(hostLike ? 'host_pre_mic' : 'samsung_seat_pre_mic');
+    /* All Android publishers must leave communication mode before getUserMedia */
+    if (hostLike || (seatLike && android)) {
+      leaveHostCommunicationAudioMode(hostLike ? 'host_pre_mic' : 'android_seat_pre_mic');
       await new Promise((r) => setTimeout(r, 120));
     }
 
     disposeHostMicBoostGraph();
-    const micId = hostLike || (seatLike && samsung) ? await pickBestHostMicrophoneId(rtc) : undefined;
+    const micId = hostLike || (seatLike && android) ? await pickBestHostMicrophoneId(rtc) : undefined;
     const opts = hostLike
       ? {
         /* AEC must stay ON or seat voices loop back via host speaker (double voice).
@@ -11866,11 +11884,11 @@
 
   function requestNativeSpeakerAudio(opts = {}) {
     try {
-      /* Host + Samsung seats: never recording/communication mode — Samsung HW AEC eats uplink.
-       * Other OEM seat guests: enterTalk for duplex. Audience: playback. */
+      /* Host + all Android seats: never recording/communication mode — OEM HW AEC eats uplink.
+       * Desktop seat guests may use talk. Audience: playback. */
       const seatTalking = Boolean(!isHost() && hasSpeakerSeat);
-      const samsung = isSamsungHostMicRisk();
-      const mode = seatTalking && !samsung ? 'talk' : 'play';
+      const android = isAndroidHostMicRisk();
+      const mode = seatTalking && !android ? 'talk' : 'play';
       const now = Date.now();
       if (
         !opts.force &&
@@ -11902,11 +11920,12 @@
     } catch (_e) { }
   }
 
-  /** Route remote audio — desktop only. Android WebView has no setSinkId; native LiveAudioRoute owns output. */
+  /** Route remote audio — desktop uses setSinkId; Android WebView cannot — native LiveAudioRoute owns BT. */
   async function routeRemoteAudioOutputs() {
     try {
       if (/Android/i.test(navigator.userAgent || '')) {
         liveDebugLog('audio output: skip setSinkId on Android (native LiveAudioRoute)');
+        notifyLiveAudioRoute('reevaluate', { reason: 'android_bluetooth_output' });
         return;
       }
       if (!navigator.mediaDevices?.enumerateDevices) return;
@@ -12153,7 +12172,7 @@
     }
     /* Legacy fallback if engine script missing */
     try {
-      user.audioTrack.setVolume?.(100);
+      user.audioTrack.setVolume?.(remotePlaybackVolume());
       const sink = getOrCreateRemoteAudioSink(user.uid);
       sink.muted = false;
       sink.volume = 1;
@@ -12331,7 +12350,7 @@
           }
           if (user.audioTrack) {
             try {
-              user.audioTrack.setVolume?.(100);
+              user.audioTrack.setVolume?.(remotePlaybackVolume());
               await eng.playRemoteAudio(user, { force: true });
             } catch (_e3) { /* ignore */ }
           }

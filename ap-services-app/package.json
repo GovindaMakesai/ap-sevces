@@ -23,6 +23,7 @@
     "postprebuild:android": "powershell -ExecutionPolicy Bypass -File ./scripts/patch-android-signing.ps1"
   },
   "dependencies": {
+    "ap-live-audio": "file:./modules/ap-live-audio",
     "expo": "~54.0.34",
     "expo-av": "~16.0.8",
     "expo-build-properties": "^57.0.7",

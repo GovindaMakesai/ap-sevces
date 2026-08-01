@@ -231,6 +231,30 @@ const HARDWARE_BACK_INJECT = `(function(){
 
 const MINIMIZE_LIVE_INJECT = LIVE_MINIMIZE_INJECT;
 
+async function requestAndroidBluetoothConnect() {
+  if (Platform.OS !== 'android') return { ok: true };
+  try {
+    const perm = PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT;
+    if (!perm) return { ok: true, skipped: true };
+    const current = await PermissionsAndroid.check(perm);
+    if (current) return { ok: true, granted: true };
+    const result = await PermissionsAndroid.request(perm, {
+      title: 'Bluetooth audio',
+      message: 'Allow Bluetooth so live voices can play through your headphones or earbuds.',
+      buttonPositive: 'Allow',
+      buttonNegative: 'Deny',
+    });
+    return {
+      ok:
+        result === PermissionsAndroid.RESULTS.GRANTED ||
+        result === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN,
+      result,
+    };
+  } catch (err) {
+    return { ok: false, error: err?.message || String(err) };
+  }
+}
+
 async function requestAndroidMediaPermissions(opts = {}) {
   if (Platform.OS !== 'android') return { ok: true, platform: Platform.OS };
   try {
@@ -248,10 +272,13 @@ async function requestAndroidMediaPermissions(opts = {}) {
     const micOk = wantMic
       ? microphone === PermissionsAndroid.RESULTS.GRANTED
       : true;
+    /* Android 12+: needed to detect BT headsets and route live voice to them */
+    const bluetooth = await requestAndroidBluetoothConnect();
     return {
       ok: cameraOk && micOk,
       camera,
       microphone: wantMic ? microphone : 'skipped',
+      bluetooth,
     };
   } catch (err) {
     return { ok: false, error: err?.message || String(err) };
@@ -1221,6 +1248,8 @@ export default function App() {
             (wantTalk && snap.state === 'liveTalk') ||
             (!wantTalk && snap.state === 'livePlay');
           if (already && snap.lastAppliedAt && Date.now() - snap.lastAppliedAt < 2000) {
+            /* Still re-apply BT route — speakerphone steal can happen without a mode change */
+            LiveAudioRoute.reevaluate('force_speaker_bt_keep').catch(() => {});
             return;
           }
           if (wantTalk) {
