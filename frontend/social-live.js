@@ -7685,22 +7685,22 @@
 
   /**
    * Host / seat mic (OEM Android): avoid communication mode (HW AEC cancels uplink).
-   * Keep software AEC on to stop seat echo. Send volumes stay near Agora default (100)
-   * — earlier 1000/250 made multi-seat rooms sound like a fish market.
+   * Keep software AEC on to stop seat echo.
    *
-   * P0 evidence (A51 / Minal-Veena class phones):
-   * - Host uplink OK in enterPlayback; seat guest enterTalk re-enables HW AEC → quiet/inaudible mic.
-   * - Host hears remotes quietly when software AEC ducks far-end and remote vol stays at 100.
-   * - WebView UA often omits "Samsung" and only has SM-XXXX — match all SM- + common India OEMs.
+   * Scope rules (do not blast healthy phones):
+   * - Volume boosts: OEM-risk devices only (Samsung SM-* / Vivo / iQOO / …).
+   * - Generic Android / iOS / desktop: Agora default volumes (100).
+   * - Routing: Android publishers use enterPlayback (no talk/recording) — mode fix, not gain.
+   * - Bluetooth: only when a BT output is actually connected.
    */
   const LIVE_MIC_SEND_VOLUME_HOST = 100;
   const LIVE_MIC_SEND_VOLUME_SEAT = 100;
   const LIVE_REMOTE_VOL_DEFAULT = 100;
-  /* Compensates WebRTC/OEM AEC duck of far-end while host/seat mic is published. */
+  /* OEM-only — compensates HW/software AEC duck on known-bad devices (A51 / Minal-Veena class). */
   const LIVE_REMOTE_VOL_OEM_HOST = 280;
   const LIVE_REMOTE_VOL_OEM_SEAT = 180;
-  const LIVE_REMOTE_VOL_ANDROID_HOST = 200;
   const LIVE_MIC_SEND_OEM_SEAT = 160;
+  const LIVE_MIC_SEND_OEM_HOST = 130;
 
   function isAndroidHostMicRisk() {
     try {
@@ -7710,7 +7710,7 @@
     }
   }
 
-  /** Strong OEM AEC risk (Samsung / Vivo / iQOO / Oppo / …). */
+  /** Strong OEM AEC risk only — used for volume compensation, not for every Android. */
   function isOemHostMicRisk() {
     try {
       const ua = String(navigator.userAgent || '');
@@ -7722,30 +7722,26 @@
     }
   }
 
-  /** @deprecated name kept for call sites — now means any strong OEM AEC risk */
+  /** @deprecated name kept for call sites — now means strong OEM AEC risk */
   function isSamsungHostMicRisk() {
     return isOemHostMicRisk();
   }
 
   function localMicSendVolume() {
+    /* Default 100 for everyone; only OEM seats/hosts get a mild send bump */
     if (!isHost() && hasSpeakerSeat) {
-      if (isOemHostMicRisk() || isAndroidHostMicRisk()) return LIVE_MIC_SEND_OEM_SEAT;
+      if (isOemHostMicRisk()) return LIVE_MIC_SEND_OEM_SEAT;
       return LIVE_MIC_SEND_VOLUME_SEAT;
     }
-    /* Mild only — not a blast */
-    if (isHost() && isOemHostMicRisk()) return 130;
+    if (isHost() && isOemHostMicRisk()) return LIVE_MIC_SEND_OEM_HOST;
     return LIVE_MIC_SEND_VOLUME_HOST;
   }
 
   function remotePlaybackVolume() {
-    if (isHost()) {
-      if (isOemHostMicRisk()) return LIVE_REMOTE_VOL_OEM_HOST;
-      /* Any Android host with AEC:true ducks seats — mild compensation */
-      if (isAndroidHostMicRisk()) return LIVE_REMOTE_VOL_ANDROID_HOST;
-    }
-    if (hasSpeakerSeat && (isOemHostMicRisk() || isAndroidHostMicRisk())) {
-      return LIVE_REMOTE_VOL_OEM_SEAT;
-    }
+    /* Hearing boost is OEM-only — never raise volume for stock Android / iOS / desktop */
+    if (!isOemHostMicRisk()) return LIVE_REMOTE_VOL_DEFAULT;
+    if (isHost()) return LIVE_REMOTE_VOL_OEM_HOST;
+    if (hasSpeakerSeat) return LIVE_REMOTE_VOL_OEM_SEAT;
     return LIVE_REMOTE_VOL_DEFAULT;
   }
 
@@ -7832,20 +7828,19 @@
   }
 
   /**
-   * Android host + seat: never enterTalk/recording — OEM HW AEC cancels uplink
-   * (Minal/Veena / A51 class: seats become inaudible). Desktop may still talk-mode.
+   * OEM-risk Android (Samsung/Vivo/…): never enterTalk — HW AEC cancels uplink.
+   * Other Android seats keep prior enterTalk duplex behavior so healthy OEMs are unchanged.
+   * Hosts always use enterPlayback (existing policy).
    */
   function applyPublisherNativeAudioRoute(reason) {
     const oem = isOemHostMicRisk();
-    const android = isAndroidHostMicRisk();
     const seatTalking = Boolean(!isHost() && hasSpeakerSeat);
-    /* Only non-Android seat guests may use enterTalk (desktop duplex). */
-    if (seatTalking && !android) {
+    if (seatTalking && !oem) {
       logAudioTransition('native_enterTalk', { reason });
       notifyLiveAudioRoute('enterTalk', { bluetoothSafe: true, reason });
       return;
     }
-    logAudioTransition('native_enterPlayback', { reason, seatTalking, oem, android });
+    logAudioTransition('native_enterPlayback', { reason, seatTalking, oem });
     notifyLiveAudioRoute('enterPlayback', { reason });
   }
 
@@ -7861,14 +7856,20 @@
     );
     logAudioTransition('mic_create_start', { hostLike, seatLike, oem, android });
 
-    /* All Android publishers must leave communication mode before getUserMedia */
-    if (hostLike || (seatLike && android)) {
-      leaveHostCommunicationAudioMode(hostLike ? 'host_pre_mic' : 'android_seat_pre_mic');
+    /*
+     * Leave communication mode before getUserMedia for:
+     * - all hosts (existing policy)
+     * - OEM-risk Android seats (AEC cancel path)
+     * Generic Android seats still use enterPlayback via applyPublisherNativeAudioRoute,
+     * but only OEM seats force the pre-mic leave + mic device pick (avoids side effects).
+     */
+    if (hostLike || (seatLike && oem)) {
+      leaveHostCommunicationAudioMode(hostLike ? 'host_pre_mic' : 'oem_seat_pre_mic');
       await new Promise((r) => setTimeout(r, 120));
     }
 
     disposeHostMicBoostGraph();
-    const micId = hostLike || (seatLike && android) ? await pickBestHostMicrophoneId(rtc) : undefined;
+    const micId = hostLike || (seatLike && oem) ? await pickBestHostMicrophoneId(rtc) : undefined;
     const opts = hostLike
       ? {
         /* AEC must stay ON or seat voices loop back via host speaker (double voice).
@@ -11884,11 +11885,10 @@
 
   function requestNativeSpeakerAudio(opts = {}) {
     try {
-      /* Host + all Android seats: never recording/communication mode — OEM HW AEC eats uplink.
-       * Desktop seat guests may use talk. Audience: playback. */
+      /* OEM-risk seats + all hosts: playback (avoid HW AEC). Other seats: talk. Audience: play. */
       const seatTalking = Boolean(!isHost() && hasSpeakerSeat);
-      const android = isAndroidHostMicRisk();
-      const mode = seatTalking && !android ? 'talk' : 'play';
+      const oem = isOemHostMicRisk();
+      const mode = seatTalking && !oem ? 'talk' : 'play';
       const now = Date.now();
       if (
         !opts.force &&
