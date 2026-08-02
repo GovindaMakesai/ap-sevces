@@ -1129,6 +1129,8 @@ export default function App() {
                 buildSessionInjectScript(fresh.user, fresh.accessToken, fresh.refreshToken) +
                 `try{window.dispatchEvent(new CustomEvent('ap-session-injected'));window.dispatchEvent(new CustomEvent('ap-session-restored'));}catch(e){};true;`;
               webViewRef.current?.injectJavaScript(inject);
+              /* Keep FCM token registered for already-logged-in users */
+              syncPushToken(fresh).catch(() => {});
             })();
             return;
           }

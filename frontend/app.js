@@ -944,6 +944,40 @@ const Auth = {
         return this._nativeSessionPromise;
     },
 
+    /**
+     * Push tokens only upload on native login today — returning users who stayed
+     * logged in after an update often have zero server tokens. Re-post session
+     * to the app shell so App.js syncPushToken runs (works on current 1.0.33+).
+     */
+    syncNativePushRegistration(force = false) {
+        if (!window.ReactNativeWebView) return false;
+        try {
+            const accessToken = localStorage.getItem('token');
+            if (!accessToken || !isAccessTokenUsable(accessToken)) return false;
+            let user = null;
+            try {
+                user = JSON.parse(localStorage.getItem('user') || 'null');
+            } catch (_e) {
+                user = null;
+            }
+            if (!user) return false;
+            const last = Number(localStorage.getItem('ap_push_sync_at') || 0);
+            if (!force && last && Date.now() - last < 12 * 60 * 60 * 1000) return false;
+            localStorage.setItem('ap_push_sync_at', String(Date.now()));
+            window.ReactNativeWebView.postMessage(
+                JSON.stringify({
+                    type: 'session_snapshot',
+                    user,
+                    accessToken,
+                    refreshToken: localStorage.getItem('ap_refresh_token') || null,
+                })
+            );
+            return true;
+        } catch (_e) {
+            return false;
+        }
+    },
+
     async repairSession() {
         const existing = localStorage.getItem('token');
         if (existing && isAccessTokenUsable(existing)) {
@@ -2051,6 +2085,19 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
         scheduleProactiveSessionRefresh();
+        /* Re-register FCM token for already-logged-in native users (no re-login needed) */
+        if (isNativeAppContext()) {
+            setTimeout(() => {
+                try {
+                    Auth.syncNativePushRegistration(false);
+                } catch (_e) { /* ignore */ }
+            }, 1500);
+            setTimeout(() => {
+                try {
+                    Auth.syncNativePushRegistration(false);
+                } catch (_e2) { /* ignore */ }
+            }, 8000);
+        }
     }
     if (!isNativeAppContext()) {
         UI.updateNavbar();
