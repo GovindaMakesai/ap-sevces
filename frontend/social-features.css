@@ -1418,6 +1418,9 @@ html.social-video-immersive .social-reels-wrap {
   -webkit-overflow-scrolling: touch;
 }
 .social-comment-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
   padding: 10px 0;
   border-bottom: 1px solid rgba(243, 232, 200, 0.9);
   font-size: 14px;
@@ -1428,8 +1431,23 @@ html.social-video-immersive .social-reels-wrap {
   padding-left: 12px;
   border-left: 2px solid #f0e2b0;
 }
+.social-comment-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #f0e2b0, #e8c56a);
+  border: 1.5px solid rgba(201, 162, 39, 0.35);
+}
+.social-comment-item.is-reply .social-comment-avatar {
+  width: 30px;
+  height: 30px;
+}
 .social-comment-main {
   display: block;
+  flex: 1;
+  min-width: 0;
 }
 .social-comment-main strong {
   color: #3d2e08;

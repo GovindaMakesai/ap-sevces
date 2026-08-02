@@ -750,6 +750,7 @@
             `${c.first_name || c.author?.first_name || ''} ${c.last_name || c.author?.last_name || ''}`.trim() ||
             'User',
           handle: c.display_id != null ? String(c.display_id) : '',
+          photo: c.profile_pic || c.author?.profile_pic || null,
           text: c.body,
           likeCount: Number(c.like_count) || 0,
           liked: Boolean(c.liked),
@@ -777,6 +778,7 @@
       parentId: c.parent_id || parentId || null,
       user: `${c.author?.first_name || ''} ${c.author?.last_name || ''}`.trim() || 'You',
       handle: c.author?.display_id != null ? String(c.author.display_id) : '',
+      photo: c.author?.profile_pic || null,
       text: c.body || text,
       likeCount: Number(c.like_count) || 0,
       liked: false,
@@ -817,7 +819,13 @@
       ? `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'You'
       : 'You';
     const list = all[postId] || [];
-    list.push({ id: Date.now(), user: name, text, at: Date.now() });
+    list.push({
+      id: Date.now(),
+      user: name,
+      photo: user?.profile_pic || user?.profilePic || null,
+      text,
+      at: Date.now(),
+    });
     all[postId] = list;
     localStorage.setItem(COMMENTS_KEY, JSON.stringify(all));
     const posts = getPosts();
@@ -1553,6 +1561,15 @@
     );
   }
 
+  function commentAvatarUrl(comment) {
+    const name = comment?.user || 'User';
+    const photo = comment?.photo || null;
+    try {
+      if (window.SocialUI?.avatarUrl) return SocialUI.avatarUrl(name, photo);
+    } catch (_e) { /* ignore */ }
+    return photo || '';
+  }
+
   function renderCommentItems(comments) {
     const roots = comments.filter((c) => !c.parentId);
     const byParent = new Map();
@@ -1567,7 +1584,9 @@
       const delBtn = canDeleteComment(c)
         ? `<button type="button" class="social-comment-act" data-act="delete" data-id="${escapeHtml(c.id)}" title="Delete"><i class="fas fa-trash"></i></button>`
         : '';
+      const avatar = escapeHtml(commentAvatarUrl(c));
       return `<div class="social-comment-item${isReply ? ' is-reply' : ''}" data-id="${escapeHtml(c.id)}">
+        <img class="social-comment-avatar" src="${avatar}" alt="" loading="lazy" decoding="async" data-avatar="1">
         <div class="social-comment-main">
           <strong>${escapeHtml(c.user)}</strong><span class="social-comment-body">${formatCommentText(c.text)}</span>
           <div class="social-comment-actions">
@@ -1693,6 +1712,9 @@
     }
     list.innerHTML = renderCommentItems(comments);
     bindCommentListActions(postId, list);
+    try {
+      window.SocialUI?.bindAvatarFallbacks?.(list);
+    } catch (_e) { /* ignore */ }
 
     const sendBtn = document.getElementById('socialCommentSend');
     sendBtn.onclick = async () => {
