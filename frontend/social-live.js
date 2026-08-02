@@ -7686,13 +7686,14 @@
   }
 
   /**
-   * Mic / remote volumes — Agora default ONLY.
+   * Mic / remote volumes.
    *
-   * INVARIANT: never scale send or playback by participant count, seat count,
-   * or role. Room-size volume coupling made host uplink quieter as remotes grew
-   * (AEC re-adapted every time we re-setVolume on user-published).
+   * INVARIANT: never scale by participant / seat count (that made host die as room grew).
+   * Host send uses a fixed mild bump once at mic create — compensates AEC without
+   * re-targeting levels when remotes join. Playback stays Agora default 100 for all.
    */
   const LIVE_TRACK_VOLUME = 100;
+  const LIVE_HOST_SEND_VOLUME = 140;
 
   function isAndroidHostMicRisk() {
     try {
@@ -7718,6 +7719,8 @@
   }
 
   function localMicSendVolume() {
+    /* Fixed host send only — never depends on remote count */
+    if (isHost()) return LIVE_HOST_SEND_VOLUME;
     return LIVE_TRACK_VOLUME;
   }
 
