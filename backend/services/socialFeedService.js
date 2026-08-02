@@ -3,6 +3,35 @@ const followService = require('./followService');
 const { normalizeMediaItems, toPublicUrl } = require('./socialMediaUrl');
 const RANKING = require('../config/socialFeedRanking');
 
+/** @Name / @First Last — prefer names over numeric display ids */
+function extractMentionTokens(text) {
+  const raw = String(text || '');
+  const found = [];
+  const re = /@([A-Za-z][A-Za-z0-9_]*(?:\s+[A-Za-z][A-Za-z0-9_]*){0,2}|[0-9]{4,12})/g;
+  let m;
+  while ((m = re.exec(raw))) {
+    const token = String(m[1] || '').trim();
+    if (token) found.push(token);
+  }
+  return [...new Set(found)];
+}
+
+async function resolveMentionedUserIds(tokens) {
+  if (!tokens.length) return [];
+  const lower = tokens.map((t) => t.toLowerCase());
+  const compact = tokens.map((t) => t.toLowerCase().replace(/\s+/g, ''));
+  const res = await db.query(
+    `SELECT id FROM users
+     WHERE LOWER(display_id::text) = ANY($1::text[])
+        OR LOWER(TRIM(BOTH FROM COALESCE(first_name,'') || ' ' || COALESCE(last_name,''))) = ANY($1::text[])
+        OR LOWER(REPLACE(TRIM(BOTH FROM COALESCE(first_name,'') || ' ' || COALESCE(last_name,'')), ' ', '')) = ANY($2::text[])
+        OR LOWER(COALESCE(first_name,'')) = ANY($1::text[])
+     LIMIT 20`,
+    [lower, compact]
+  );
+  return res.rows.map((r) => r.id);
+}
+
 async function createPost(userId, { body, mediaUrl, thumbUrl, mediaType, visibility, mediaItems } = {}) {
   const text = String(body || '').trim();
   let media = mediaUrl ? String(mediaUrl).trim() : null;
@@ -55,18 +84,13 @@ async function createPost(userId, { body, mediaUrl, thumbUrl, mediaType, visibil
             { dedupeKey: `post:${res.rows[0].id}` }
           );
 
-          const mentions = text.match(/@([a-zA-Z0-9_]{2,32})/g) || [];
-          if (mentions.length) {
-            const handles = [...new Set(mentions.map((m) => m.slice(1).toLowerCase()))];
-            const mentioned = await db.query(
-              `SELECT id FROM users WHERE LOWER(display_id) = ANY($1::text[]) LIMIT 20`,
-              [handles]
-            );
-            await pushNotificationService.notifyMentions(
-              mentioned.rows.map((r) => r.id),
-              userId,
-              { postId: res.rows[0].id, label: 'a post' }
-            );
+          const tokens = extractMentionTokens(text);
+          if (tokens.length) {
+            const mentionedIds = await resolveMentionedUserIds(tokens);
+            await pushNotificationService.notifyMentions(mentionedIds, userId, {
+              postId: res.rows[0].id,
+              label: 'a post',
+            });
           }
         } catch (err) {
           console.warn('[post] push failed', err.message);
@@ -333,21 +357,13 @@ async function addComment(postId, userId, body, { parentId = null } = {}) {
           await pushNotificationService.notifyComment(ownerId, userId, postId);
         }
 
-        const mentions = text.match(/@([a-zA-Z0-9_]{2,32})/g) || [];
-        if (mentions.length) {
-          const handles = [...new Set(mentions.map((m) => m.slice(1).toLowerCase()))];
-          const mentioned = await db.query(
-            `SELECT id FROM users
-             WHERE LOWER(display_id::text) = ANY($1::text[])
-                OR LOWER(REPLACE(COALESCE(first_name,'') || COALESCE(last_name,''), ' ', '')) = ANY($1::text[])
-             LIMIT 20`,
-            [handles]
-          );
-          await pushNotificationService.notifyMentions(
-            mentioned.rows.map((r) => r.id),
-            userId,
-            { postId, label: 'a comment' }
-          );
+        const tokens = extractMentionTokens(text);
+        if (tokens.length) {
+          const mentionedIds = await resolveMentionedUserIds(tokens);
+          await pushNotificationService.notifyMentions(mentionedIds, userId, {
+            postId,
+            label: 'a comment',
+          });
         }
       } catch (err) {
         console.warn('[comment] push failed', err.message);

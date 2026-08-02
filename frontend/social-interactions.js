@@ -1545,8 +1545,9 @@
   }
 
   function formatCommentText(text) {
+    /* Highlight @Name (incl. first+last) — not numeric display ids */
     return escapeHtml(text).replace(
-      /@([a-zA-Z0-9_]{2,32})/g,
+      /@([A-Za-z][A-Za-z0-9_]*(?:\s+[A-Za-z][A-Za-z0-9_]*){0,2})/g,
       '<span class="social-comment-mention">@$1</span>'
     );
   }
@@ -1565,16 +1566,15 @@
       const delBtn = canDeleteComment(c)
         ? `<button type="button" class="social-comment-act" data-act="delete" data-id="${escapeHtml(c.id)}" title="Delete"><i class="fas fa-trash"></i></button>`
         : '';
-      const handle = c.handle ? `<span class="social-comment-handle">@${escapeHtml(c.handle)}</span>` : '';
       return `<div class="social-comment-item${isReply ? ' is-reply' : ''}" data-id="${escapeHtml(c.id)}">
         <div class="social-comment-main">
-          <strong>${escapeHtml(c.user)}</strong> ${handle}
+          <strong>${escapeHtml(c.user)}</strong>
           <p class="social-comment-body">${formatCommentText(c.text)}</p>
           <div class="social-comment-actions">
             <button type="button" class="social-comment-act${likedCls}" data-act="like" data-id="${escapeHtml(c.id)}">
               <i class="fas fa-heart"></i> <span data-like-count>${Number(c.likeCount) || 0}</span>
             </button>
-            <button type="button" class="social-comment-act" data-act="reply" data-id="${escapeHtml(c.id)}" data-user="${escapeHtml(c.user)}" data-handle="${escapeHtml(c.handle || '')}">Reply</button>
+            <button type="button" class="social-comment-act" data-act="reply" data-id="${escapeHtml(c.id)}" data-user="${escapeHtml(c.user)}">Reply</button>
             ${delBtn}
           </div>
         </div>
@@ -1616,7 +1616,7 @@
   function setCommentReply(comment) {
     commentReplyToId = comment?.id || null;
     const hint = document.getElementById('socialCommentReplyHint');
-    const name = comment?.handle ? `@${comment.handle}` : comment?.user || 'comment';
+    const name = String(comment?.user || '').trim() || 'comment';
     if (hint) {
       hint.hidden = false;
       hint.innerHTML = `Replying to <strong>${escapeHtml(name)}</strong> <button type="button" id="socialCommentReplyCancel">Cancel</button>`;
@@ -1625,8 +1625,8 @@
     const inp = document.getElementById('socialCommentInput');
     if (inp) {
       inp.focus();
-      if (comment?.handle && !inp.value.includes(`@${comment.handle}`)) {
-        inp.value = `@${comment.handle} ${inp.value}`.trimStart();
+      if (name && name !== 'comment' && !inp.value.includes(`@${name}`)) {
+        inp.value = `@${name} ${inp.value}`.trimStart();
       }
     }
   }
@@ -1642,7 +1642,6 @@
         setCommentReply({
           id,
           user: btn.dataset.user,
-          handle: btn.dataset.handle,
         });
         return;
       }
