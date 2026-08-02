@@ -1,6 +1,29 @@
 const db = require('../config/database');
 const followService = require('./followService');
 const RANKING = require('../config/socialFeedRanking');
+const { toPublicUrl } = require('./socialMediaUrl');
+
+const PUBLIC_HOST = String(
+  process.env.PUBLIC_MEDIA_BASE ||
+    process.env.CDN_BASE_URL ||
+    process.env.PUBLIC_BASE_URL ||
+    process.env.BACKEND_PUBLIC_URL ||
+    'https://api.apservices.in'
+)
+  .trim()
+  .replace(/\/$/, '');
+
+/** Absolute media URL — relative /uploads paths break on the marketing/app host. */
+function absMediaUrl(pathOrUrl) {
+  const p = toPublicUrl(pathOrUrl);
+  if (!p) return null;
+  if (/^(https?:|data:|blob:)/i.test(p)) return p;
+  return `${PUBLIC_HOST}${p.startsWith('/') ? p : `/${p}`}`;
+}
+
+function isVideoPath(pathOrUrl) {
+  return /\.(mp4|webm|mov|m4v)(\?|$)/i.test(String(pathOrUrl || ''));
+}
 
 /**
  * Lightweight discovery rails for Video/Square.
@@ -42,7 +65,7 @@ function mapLiveRow(row) {
     type: 'live',
     userId: String(row.user_id || row.id),
     displayName: name,
-    profilePic: row.profile_pic || null,
+    profilePic: absMediaUrl(row.profile_pic),
     channel: row.channel,
     viewers: Number(row.viewer_count || 0),
     roomType,
@@ -57,7 +80,7 @@ function mapCreatorCard(row) {
     type: 'creator',
     userId: String(row.id),
     displayName: name,
-    profilePic: row.profile_pic || null,
+    profilePic: absMediaUrl(row.profile_pic),
     role: row.role || null,
     agencyName: row.agency_name || null,
     isVerified: Boolean(row.is_verified),
@@ -73,13 +96,20 @@ function mapCreatorCard(row) {
 
 function mapPostCard(row) {
   const name = `${row.first_name || ''} ${row.last_name || ''}`.trim() || 'Creator';
+  const profilePic = absMediaUrl(row.profile_pic);
+  const thumbRaw = row.thumb_url || null;
+  /* Never use a video file as <img> thumb — fall back to creator photo */
+  let thumb = absMediaUrl(thumbRaw);
+  if (!thumb || isVideoPath(thumbRaw) || isVideoPath(thumb)) {
+    thumb = profilePic;
+  }
   return {
     type: 'post',
     postId: String(row.id),
     userId: String(row.user_id),
     displayName: name,
-    profilePic: row.profile_pic || null,
-    thumb: row.thumb_url || row.media_url || null,
+    profilePic,
+    thumb,
     mediaType: row.media_type,
     likes: Number(row.like_count || 0),
     comments: Number(row.comment_count || 0),

@@ -11,11 +11,48 @@
       .replace(/"/g, '&quot;');
   }
 
+  function apiHost() {
+    try {
+      const base = String(
+        window.CONFIG?.BACKEND_URL ||
+          String(window.CONFIG?.API_URL || '').replace(/\/api\/?$/, '') ||
+          window.AP_CONFIG?.PRODUCTION_BACKEND_URL ||
+          'https://api.apservices.in'
+      ).replace(/\/$/, '');
+      return base || 'https://api.apservices.in';
+    } catch (_e) {
+      return 'https://api.apservices.in';
+    }
+  }
+
+  function isVideoPath(path) {
+    return /\.(mp4|webm|mov|m4v)(\?|$)/i.test(String(path || ''));
+  }
+
   function mediaUrl(path) {
     if (!path) return '';
-    if (window.SocialInteractions?.resolveMediaUrl) return SocialInteractions.resolveMediaUrl(path);
-    if (window.SocialShell?.getImageUrl) return SocialShell.getImageUrl(path) || path;
-    return path;
+    let p = String(path).trim();
+    if (!p || isVideoPath(p)) return '';
+    if (window.SocialInteractions?.resolveMediaUrl) {
+      const built = SocialInteractions.resolveMediaUrl(p);
+      if (built && !isVideoPath(built)) return built;
+    }
+    if (window.SocialShell?.getImageUrl) {
+      const built = SocialShell.getImageUrl(p);
+      if (built && !isVideoPath(built)) return built;
+    }
+    if (/^(https?:|data:|blob:)/i.test(p)) return p;
+    if (p.startsWith('//')) return `https:${p}`;
+    return `${apiHost()}${p.startsWith('/') ? p : `/${p}`}`;
+  }
+
+  function avatarFallback(name, photo) {
+    const resolved = mediaUrl(photo);
+    if (resolved) return resolved;
+    try {
+      if (window.SocialUI?.avatarUrl) return SocialUI.avatarUrl(name || 'Creator', null);
+    } catch (_e) { /* ignore */ }
+    return '';
   }
 
   function rankBadge(rank) {
@@ -24,32 +61,41 @@
     return `<span class="ap-discover-rank ap-discover-rank--${n}" aria-label="Rank ${n}">#${n}</span>`;
   }
 
+  function thumbImg(src, fallback, alt) {
+    const primary = esc(src || fallback || '');
+    const fb = esc(fallback || '');
+    if (!primary) {
+      return `<div class="ap-discover-fallback" aria-hidden="true">▶</div>`;
+    }
+    return `<img src="${primary}" alt="${esc(alt || '')}" loading="lazy" decoding="async"${fb ? ` data-fallback="${fb}"` : ''}>`;
+  }
+
   function itemCard(item, rank) {
     const badge = rankBadge(rank);
+    const name = item.displayName || 'Creator';
+    const profile = avatarFallback(name, item.profilePic);
     if (item.type === 'live') {
-      const pic = mediaUrl(item.profilePic) || window.SocialUI?.avatarUrl?.(item.displayName) || '';
       return `<a class="ap-discover-card ap-discover-card--live" href="${esc(item.href)}">
-        <img src="${esc(pic)}" alt="">
+        ${thumbImg(profile, profile, name)}
         ${badge}
         <span class="social-live-pill"><i class="fas fa-circle"></i> LIVE</span>
-        <span class="ap-discover-name">${esc(item.displayName)}</span>
+        <span class="ap-discover-name">${esc(name)}</span>
         <span class="ap-discover-meta">${Number(item.viewers || 0)} watching</span>
       </a>`;
     }
     if (item.type === 'post') {
-      const thumb = mediaUrl(item.thumb) || '';
+      const thumb = mediaUrl(item.thumb) || profile;
       return `<a class="ap-discover-card ap-discover-card--post" href="${esc(item.href)}">
-        ${thumb ? `<img src="${esc(thumb)}" alt="">` : '<div class="ap-discover-fallback">▶</div>'}
+        ${thumbImg(thumb, profile, name)}
         ${badge}
-        <span class="ap-discover-name">${esc(item.displayName)}</span>
+        <span class="ap-discover-name">${esc(name)}</span>
       </a>`;
     }
-    const pic = mediaUrl(item.profilePic) || window.SocialUI?.avatarUrl?.(item.displayName) || '';
     return `<a class="ap-discover-card ap-discover-card--creator" href="${esc(item.profileHref || item.href || '#')}">
-      <img src="${esc(pic)}" alt="">
+      ${thumbImg(profile, profile, name)}
       ${badge}
       ${item.isLive && item.liveHref ? `<span class="social-live-pill" data-href="${esc(item.liveHref)}"><i class="fas fa-circle"></i> LIVE</span>` : ''}
-      <span class="ap-discover-name">${esc(item.displayName)}</span>
+      <span class="ap-discover-name">${esc(name)}</span>
     </a>`;
   }
 
@@ -117,6 +163,21 @@
         e.preventDefault();
         e.stopPropagation();
         location.href = pill.getAttribute('data-href');
+      });
+    });
+    el.querySelectorAll('img[data-fallback]').forEach((img) => {
+      img.addEventListener('error', () => {
+        const fb = img.getAttribute('data-fallback');
+        if (fb && img.getAttribute('src') !== fb) {
+          img.setAttribute('src', fb);
+          img.removeAttribute('data-fallback');
+          return;
+        }
+        const div = document.createElement('div');
+        div.className = 'ap-discover-fallback';
+        div.setAttribute('aria-hidden', 'true');
+        div.textContent = '▶';
+        img.replaceWith(div);
       });
     });
   }

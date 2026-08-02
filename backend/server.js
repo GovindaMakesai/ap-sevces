@@ -153,10 +153,20 @@ app.use('/uploads', (req, res, next) => {
   if (p.includes('/private') || p.includes('/kyc') || p.includes('/withdrawal')) {
     return res.status(403).json({ success: false, message: 'Use signed file URL for private assets' });
   }
+  /* Allow <img> loads from the app/web host (apservices.in) onto api.apservices.in */
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
   return next();
 });
-app.use('/uploads/public', express.static(path.join(__dirname, 'uploads/public')));
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads/public', express.static(path.join(__dirname, 'uploads/public'), {
+  setHeaders(res) {
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  },
+}));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
+  setHeaders(res) {
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  },
+}));
 
 app.use((req, res, next) => {
   res.setHeader('X-Request-Id', req.headers['x-request-id'] || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);

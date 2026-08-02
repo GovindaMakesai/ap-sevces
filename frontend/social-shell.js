@@ -801,7 +801,6 @@
       ...BOTTOM_NAV.map((item) => item.href),
       '/video.html',
       '/square.html',
-      '/topics.html',
       '/explore.html',
       '/rankings.html',
       '/chat.html',
