@@ -3908,6 +3908,7 @@
         }
         const pullGuestMic = () => {
           refreshPartyMeshAudio('guest_mic_ready');
+          refreshPublisherAudioLevels('guest_mic_ready');
         };
         runOrDeferMeshPull(() => {
           pullGuestMic();
@@ -5002,8 +5003,8 @@
           shouldHear: () => shouldHearRemoteAudio(),
           requestSpeaker: () => requestNativeSpeakerAudio(),
           unlockAudio: () => unlockBrowserAudio(),
-          /* Samsung A51: host AEC ducks remotes — restore host-side playback boost (was 400 before fdb921c) */
-          volumeFor: () => remotePlaybackVolume(),
+          /* Host AEC ducks remotes — role-aware boost (host↔seat), audience stays 100 */
+          volumeFor: (ctx) => remotePlaybackVolume(ctx || {}),
         });
         syncLiveMediaPublisherMode();
         /* Phase 1: ONLY APLiveMedia owns health — no social-live media watchdog / mesh timer */
@@ -5037,6 +5038,8 @@
             } else {
               ensureRemoteAudioPlaying().catch(() => { });
             }
+            /* Re-level host send + remotes as each publisher joins (AEC scales with remotes) */
+            refreshPublisherAudioLevels('user_published_audio');
           }
           if (mediaType === 'video') {
             setLiveStreamVisible(true);
@@ -7684,23 +7687,27 @@
   }
 
   /**
-   * Host / seat mic (OEM Android): avoid communication mode (HW AEC cancels uplink).
-   * Keep software AEC on to stop seat echo.
+   * Multi-party voice (host ↔ seats). Web-only — no app rebuild.
    *
-   * Scope rules (do not blast healthy phones):
-   * - Volume boosts: OEM-risk devices only (Samsung SM-* / Vivo / iQOO / …).
-   * - Generic Android / iOS / desktop: Agora default volumes (100).
-   * - Routing: Android publishers use enterPlayback (no talk/recording) — mode fix, not gain.
-   * - Bluetooth: only when a BT output is actually connected.
+   * Root cause: host mic AEC:true + speaker playback. As more seats join, AEC
+   * ducks remotes (host can't hear seats) AND cancels host uplink (seats can't
+   * hear host / host must shout). Seat↔seat stays fine (less acoustic loop).
+   *
+   * Scope:
+   * - Audience stays at Agora default 100 (no fish-market for viewers).
+   * - Host/seat publishers get role-aware send + playback compensation.
+   * - Host track boosted harder for seats than seat↔seat.
    */
   const LIVE_MIC_SEND_VOLUME_HOST = 100;
   const LIVE_MIC_SEND_VOLUME_SEAT = 100;
   const LIVE_REMOTE_VOL_DEFAULT = 100;
-  /* OEM-only — compensates HW/software AEC duck on known-bad devices (A51 / Minal-Veena class). */
-  const LIVE_REMOTE_VOL_OEM_HOST = 280;
-  const LIVE_REMOTE_VOL_OEM_SEAT = 180;
-  const LIVE_MIC_SEND_OEM_SEAT = 160;
-  const LIVE_MIC_SEND_OEM_HOST = 130;
+  const LIVE_REMOTE_VOL_HOST_HEARS_SEATS = 300;
+  const LIVE_REMOTE_VOL_SEAT_HEARS_HOST = 360;
+  const LIVE_REMOTE_VOL_SEAT_HEARS_SEAT = 140;
+  const LIVE_MIC_SEND_HOST_WITH_SEATS_BASE = 160;
+  const LIVE_MIC_SEND_HOST_PER_REMOTE = 30;
+  const LIVE_MIC_SEND_HOST_MAX = 240;
+  const LIVE_MIC_SEND_SEAT = 170;
 
   function isAndroidHostMicRisk() {
     try {
@@ -7710,7 +7717,6 @@
     }
   }
 
-  /** Strong OEM AEC risk only — used for volume compensation, not for every Android. */
   function isOemHostMicRisk() {
     try {
       const ua = String(navigator.userAgent || '');
@@ -7722,27 +7728,86 @@
     }
   }
 
-  /** @deprecated name kept for call sites — now means strong OEM AEC risk */
   function isSamsungHostMicRisk() {
     return isOemHostMicRisk();
   }
 
-  function localMicSendVolume() {
-    /* Default 100 for everyone; only OEM seats/hosts get a mild send bump */
-    if (!isHost() && hasSpeakerSeat) {
-      if (isOemHostMicRisk()) return LIVE_MIC_SEND_OEM_SEAT;
-      return LIVE_MIC_SEND_VOLUME_SEAT;
+  function countRemoteAudioPublishers() {
+    try {
+      return (agoraClient?.remoteUsers || []).filter((u) => u?.hasAudio || u?.audioTrack).length;
+    } catch (_e) {
+      return 0;
     }
-    if (isHost() && isOemHostMicRisk()) return LIVE_MIC_SEND_OEM_HOST;
-    return LIVE_MIC_SEND_VOLUME_HOST;
   }
 
-  function remotePlaybackVolume() {
-    /* Hearing boost is OEM-only — never raise volume for stock Android / iOS / desktop */
-    if (!isOemHostMicRisk()) return LIVE_REMOTE_VOL_DEFAULT;
-    if (isHost()) return LIVE_REMOTE_VOL_OEM_HOST;
-    if (hasSpeakerSeat) return LIVE_REMOTE_VOL_OEM_SEAT;
-    return LIVE_REMOTE_VOL_DEFAULT;
+  function appUserIdFromAgoraUid(agoraUid) {
+    try {
+      const map = window.__apAgoraUidMap || {};
+      return map[String(agoraUid)] || null;
+    } catch (_e) {
+      return null;
+    }
+  }
+
+  function isAgoraUidHost(agoraUid) {
+    try {
+      const appId = appUserIdFromAgoraUid(agoraUid);
+      const hostId = roomState?.hostId;
+      if (appId && hostId && String(appId) === String(hostId)) return true;
+      if (hostId && String(agoraUid) === String(hostId)) return true;
+      return false;
+    } catch (_e) {
+      return false;
+    }
+  }
+
+  function localMicSendVolume() {
+    const remotes = countRemoteAudioPublishers();
+    if (isHost()) {
+      /* Alone: default. With seats: ramp send so AEC doesn't force shouting */
+      if (remotes <= 0) return LIVE_MIC_SEND_VOLUME_HOST;
+      return Math.min(
+        LIVE_MIC_SEND_HOST_MAX,
+        LIVE_MIC_SEND_HOST_WITH_SEATS_BASE + (remotes - 1) * LIVE_MIC_SEND_HOST_PER_REMOTE
+      );
+    }
+    if (hasSpeakerSeat) return LIVE_MIC_SEND_SEAT;
+    return LIVE_MIC_SEND_VOLUME_SEAT;
+  }
+
+  function remotePlaybackVolume(opts = {}) {
+    /* Viewers: never boost — keeps room calm for the crowd */
+    if (!isHost() && !hasSpeakerSeat) return LIVE_REMOTE_VOL_DEFAULT;
+
+    const uid = opts.uid != null ? opts.uid : opts.user?.uid;
+
+    if (isHost()) {
+      /* Host downlink: AEC ducks seat mics once host mic is live */
+      return countRemoteAudioPublishers() > 0 ? LIVE_REMOTE_VOL_HOST_HEARS_SEATS : 160;
+    }
+
+    /* Seat downlink: host uplink is the quiet one — boost host track only */
+    if (uid != null && isAgoraUidHost(uid)) return LIVE_REMOTE_VOL_SEAT_HEARS_HOST;
+    /* Before host uid is mapped, don't leave host at seat↔seat level */
+    try {
+      const hostId = roomState?.hostId;
+      const map = window.__apAgoraUidMap || {};
+      const hostMapped =
+        hostId && Object.keys(map).some((k) => String(map[k]) === String(hostId));
+      if (!hostMapped) return 280;
+    } catch (_e) { }
+    return LIVE_REMOTE_VOL_SEAT_HEARS_SEAT;
+  }
+
+  function refreshPublisherAudioLevels(reason) {
+    try {
+      normalizeLocalMicLevel().catch(() => { });
+      boostRemoteAudioVolumes();
+      logAudioTransition('refresh_publisher_levels', {
+        reason: reason || 'nudge',
+        remotes: countRemoteAudioPublishers(),
+      });
+    } catch (_e) { }
   }
 
   function logAudioTransition(event, extra) {
@@ -7828,19 +7893,19 @@
   }
 
   /**
-   * OEM-risk Android (Samsung/Vivo/…): never enterTalk — HW AEC cancels uplink.
-   * Other Android seats keep prior enterTalk duplex behavior so healthy OEMs are unchanged.
-   * Hosts always use enterPlayback (existing policy).
+   * Android seats + all hosts: enterPlayback only (HW AEC in talk-mode = must-shout / silent host).
+   * Desktop seats may still use enterTalk.
    */
   function applyPublisherNativeAudioRoute(reason) {
     const oem = isOemHostMicRisk();
+    const android = isAndroidHostMicRisk();
     const seatTalking = Boolean(!isHost() && hasSpeakerSeat);
-    if (seatTalking && !oem) {
+    if (seatTalking && !android) {
       logAudioTransition('native_enterTalk', { reason });
       notifyLiveAudioRoute('enterTalk', { bluetoothSafe: true, reason });
       return;
     }
-    logAudioTransition('native_enterPlayback', { reason, seatTalking, oem });
+    logAudioTransition('native_enterPlayback', { reason, seatTalking, oem, android });
     notifyLiveAudioRoute('enterPlayback', { reason });
   }
 
@@ -7857,19 +7922,16 @@
     logAudioTransition('mic_create_start', { hostLike, seatLike, oem, android });
 
     /*
-     * Leave communication mode before getUserMedia for:
-     * - all hosts (existing policy)
-     * - OEM-risk Android seats (AEC cancel path)
-     * Generic Android seats still use enterPlayback via applyPublisherNativeAudioRoute,
-     * but only OEM seats force the pre-mic leave + mic device pick (avoids side effects).
+     * Leave communication mode before getUserMedia for hosts + all Android seats.
+     * Talk/recording mode enables OEM HW AEC that cancels uplink (must-shout).
      */
-    if (hostLike || (seatLike && oem)) {
-      leaveHostCommunicationAudioMode(hostLike ? 'host_pre_mic' : 'oem_seat_pre_mic');
+    if (hostLike || (seatLike && android)) {
+      leaveHostCommunicationAudioMode(hostLike ? 'host_pre_mic' : 'android_seat_pre_mic');
       await new Promise((r) => setTimeout(r, 120));
     }
 
     disposeHostMicBoostGraph();
-    const micId = hostLike || (seatLike && oem) ? await pickBestHostMicrophoneId(rtc) : undefined;
+    const micId = hostLike || (seatLike && android) ? await pickBestHostMicrophoneId(rtc) : undefined;
     const opts = hostLike
       ? {
         /* AEC must stay ON or seat voices loop back via host speaker (double voice).
@@ -11885,10 +11947,10 @@
 
   function requestNativeSpeakerAudio(opts = {}) {
     try {
-      /* OEM-risk seats + all hosts: playback (avoid HW AEC). Other seats: talk. Audience: play. */
+      /* Host + all Android seats: playback (avoid HW AEC). Desktop seats: talk. Audience: play. */
       const seatTalking = Boolean(!isHost() && hasSpeakerSeat);
-      const oem = isOemHostMicRisk();
-      const mode = seatTalking && !oem ? 'talk' : 'play';
+      const android = isAndroidHostMicRisk();
+      const mode = seatTalking && !android ? 'talk' : 'play';
       const now = Date.now();
       if (
         !opts.force &&
@@ -12122,8 +12184,10 @@
   function boostRemoteAudioVolumes() {
     syncLiveMediaPublisherMode();
     const eng = liveMedia();
-    const vol = remotePlaybackVolume();
-    logAudioTransition('boost_remote_volumes', { vol });
+    logAudioTransition('boost_remote_volumes', {
+      volDefault: remotePlaybackVolume({}),
+      remotes: countRemoteAudioPublishers(),
+    });
     if (eng) {
       eng.boostAll(agoraClient);
       return;
@@ -12131,7 +12195,7 @@
     try {
       for (const user of agoraClient?.remoteUsers || []) {
         try {
-          user.audioTrack?.setVolume?.(vol);
+          user.audioTrack?.setVolume?.(remotePlaybackVolume({ uid: user.uid, user }));
         } catch (_e) { }
       }
     } catch (_e) { }

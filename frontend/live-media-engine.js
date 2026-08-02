@@ -13,8 +13,8 @@
 (function (global) {
   'use strict';
 
-  const BUILD = '20260725-phone-audio';
-  /* Agora default remote volume — boosted values caused fish-market loudness */
+  const BUILD = '20260802-host-seat-voice';
+  /* Audience default — publishers use volumeFor() for AEC compensation */
   const VOL = 100;
 
   const state = {
@@ -63,14 +63,36 @@
     log('publisher_mode', { isPublisher: next, volume: playbackVolume() });
   }
 
-  function playbackVolume() {
+  function playbackVolume(user) {
     try {
       if (typeof state.volumeFor === 'function') {
-        const v = Number(state.volumeFor({ isPublisher: state.isPublisher }));
+        const v = Number(
+          state.volumeFor({
+            isPublisher: state.isPublisher,
+            uid: user?.uid,
+            user,
+          })
+        );
         if (Number.isFinite(v) && v > 0) return Math.min(400, Math.max(1, v));
       }
     } catch (_e) { }
     return VOL;
+  }
+
+  function trackLooksSilent(user) {
+    try {
+      const t = user?.audioTrack;
+      if (!t) return true;
+      if (t.isPlaying === false) return true;
+      if (typeof t.getVolumeLevel === 'function') {
+        const lvl = Number(t.getVolumeLevel()) || 0;
+        /* Stuck "playing" but near-zero energy — treat as silent so we remount */
+        if (lvl < 0.0005 && sinkNeedsReplay(user.uid)) return true;
+      }
+      return sinkNeedsReplay(user.uid);
+    } catch (_e) {
+      return false;
+    }
   }
 
   function getOrCreateSink(uid) {
@@ -164,7 +186,7 @@
     } catch (_e) { }
 
     try {
-      user.audioTrack.setVolume?.(playbackVolume());
+      user.audioTrack.setVolume?.(playbackVolume(user));
       if (typeof user.audioTrack.setMuted === 'function') {
         await user.audioTrack.setMuted(false).catch?.(() => { });
       }
@@ -229,12 +251,11 @@
 
   function boostAll(client) {
     state.stats.boost += 1;
-    const vol = playbackVolume();
     try {
       for (const user of client?.remoteUsers || []) {
         try {
           if (!user.audioTrack) continue;
-          user.audioTrack.setVolume?.(vol);
+          user.audioTrack.setVolume?.(playbackVolume(user));
           if (typeof user.audioTrack.setMuted === 'function') {
             user.audioTrack.setMuted(false).catch?.(() => { });
           }
@@ -343,7 +364,7 @@
           } else {
             state.quietTicks.set(uid, 0);
             try {
-              user.audioTrack.setVolume?.(playbackVolume());
+              user.audioTrack.setVolume?.(playbackVolume(user));
             } catch (_e) { }
           }
         });
