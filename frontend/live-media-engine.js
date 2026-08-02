@@ -13,8 +13,8 @@
 (function (global) {
   'use strict';
 
-  const BUILD = '20260802-host-seat-voice';
-  /* Audience default — publishers use volumeFor() for AEC compensation */
+  const BUILD = '20260802-flat-volume';
+  /* Agora default remote volume — never scale by participant count */
   const VOL = 100;
 
   const state = {

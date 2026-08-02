@@ -3908,7 +3908,6 @@
         }
         const pullGuestMic = () => {
           refreshPartyMeshAudio('guest_mic_ready');
-          refreshPublisherAudioLevels('guest_mic_ready');
         };
         runOrDeferMeshPull(() => {
           pullGuestMic();
@@ -5003,8 +5002,8 @@
           shouldHear: () => shouldHearRemoteAudio(),
           requestSpeaker: () => requestNativeSpeakerAudio(),
           unlockAudio: () => unlockBrowserAudio(),
-          /* Host AEC ducks remotes — role-aware boost (host↔seat), audience stays 100 */
-          volumeFor: (ctx) => remotePlaybackVolume(ctx || {}),
+          /* Flat Agora default — never couple playback gain to room size / role */
+          volumeFor: () => LIVE_TRACK_VOLUME,
         });
         syncLiveMediaPublisherMode();
         /* Phase 1: ONLY APLiveMedia owns health — no social-live media watchdog / mesh timer */
@@ -5038,8 +5037,8 @@
             } else {
               ensureRemoteAudioPlaying().catch(() => { });
             }
-            /* Re-level host send + remotes as each publisher joins (AEC scales with remotes) */
-            refreshPublisherAudioLevels('user_published_audio');
+            /* Do NOT re-setVolume / re-normalize mic when remotes join — that couples
+             * host level to room size and re-triggers browser AEC adaptation. */
           }
           if (mediaType === 'video') {
             setLiveStreamVisible(true);
@@ -7687,27 +7686,13 @@
   }
 
   /**
-   * Multi-party voice (host ↔ seats). Web-only — no app rebuild.
+   * Mic / remote volumes — Agora default ONLY.
    *
-   * Root cause: host mic AEC:true + speaker playback. As more seats join, AEC
-   * ducks remotes (host can't hear seats) AND cancels host uplink (seats can't
-   * hear host / host must shout). Seat↔seat stays fine (less acoustic loop).
-   *
-   * Scope:
-   * - Audience stays at Agora default 100 (no fish-market for viewers).
-   * - Host/seat publishers get role-aware send + playback compensation.
-   * - Host track boosted harder for seats than seat↔seat.
+   * INVARIANT: never scale send or playback by participant count, seat count,
+   * or role. Room-size volume coupling made host uplink quieter as remotes grew
+   * (AEC re-adapted every time we re-setVolume on user-published).
    */
-  const LIVE_MIC_SEND_VOLUME_HOST = 100;
-  const LIVE_MIC_SEND_VOLUME_SEAT = 100;
-  const LIVE_REMOTE_VOL_DEFAULT = 100;
-  const LIVE_REMOTE_VOL_HOST_HEARS_SEATS = 300;
-  const LIVE_REMOTE_VOL_SEAT_HEARS_HOST = 360;
-  const LIVE_REMOTE_VOL_SEAT_HEARS_SEAT = 140;
-  const LIVE_MIC_SEND_HOST_WITH_SEATS_BASE = 160;
-  const LIVE_MIC_SEND_HOST_PER_REMOTE = 30;
-  const LIVE_MIC_SEND_HOST_MAX = 240;
-  const LIVE_MIC_SEND_SEAT = 170;
+  const LIVE_TRACK_VOLUME = 100;
 
   function isAndroidHostMicRisk() {
     try {
@@ -7732,82 +7717,12 @@
     return isOemHostMicRisk();
   }
 
-  function countRemoteAudioPublishers() {
-    try {
-      return (agoraClient?.remoteUsers || []).filter((u) => u?.hasAudio || u?.audioTrack).length;
-    } catch (_e) {
-      return 0;
-    }
-  }
-
-  function appUserIdFromAgoraUid(agoraUid) {
-    try {
-      const map = window.__apAgoraUidMap || {};
-      return map[String(agoraUid)] || null;
-    } catch (_e) {
-      return null;
-    }
-  }
-
-  function isAgoraUidHost(agoraUid) {
-    try {
-      const appId = appUserIdFromAgoraUid(agoraUid);
-      const hostId = roomState?.hostId;
-      if (appId && hostId && String(appId) === String(hostId)) return true;
-      if (hostId && String(agoraUid) === String(hostId)) return true;
-      return false;
-    } catch (_e) {
-      return false;
-    }
-  }
-
   function localMicSendVolume() {
-    const remotes = countRemoteAudioPublishers();
-    if (isHost()) {
-      /* Alone: default. With seats: ramp send so AEC doesn't force shouting */
-      if (remotes <= 0) return LIVE_MIC_SEND_VOLUME_HOST;
-      return Math.min(
-        LIVE_MIC_SEND_HOST_MAX,
-        LIVE_MIC_SEND_HOST_WITH_SEATS_BASE + (remotes - 1) * LIVE_MIC_SEND_HOST_PER_REMOTE
-      );
-    }
-    if (hasSpeakerSeat) return LIVE_MIC_SEND_SEAT;
-    return LIVE_MIC_SEND_VOLUME_SEAT;
+    return LIVE_TRACK_VOLUME;
   }
 
-  function remotePlaybackVolume(opts = {}) {
-    /* Viewers: never boost — keeps room calm for the crowd */
-    if (!isHost() && !hasSpeakerSeat) return LIVE_REMOTE_VOL_DEFAULT;
-
-    const uid = opts.uid != null ? opts.uid : opts.user?.uid;
-
-    if (isHost()) {
-      /* Host downlink: AEC ducks seat mics once host mic is live */
-      return countRemoteAudioPublishers() > 0 ? LIVE_REMOTE_VOL_HOST_HEARS_SEATS : 160;
-    }
-
-    /* Seat downlink: host uplink is the quiet one — boost host track only */
-    if (uid != null && isAgoraUidHost(uid)) return LIVE_REMOTE_VOL_SEAT_HEARS_HOST;
-    /* Before host uid is mapped, don't leave host at seat↔seat level */
-    try {
-      const hostId = roomState?.hostId;
-      const map = window.__apAgoraUidMap || {};
-      const hostMapped =
-        hostId && Object.keys(map).some((k) => String(map[k]) === String(hostId));
-      if (!hostMapped) return 280;
-    } catch (_e) { }
-    return LIVE_REMOTE_VOL_SEAT_HEARS_SEAT;
-  }
-
-  function refreshPublisherAudioLevels(reason) {
-    try {
-      normalizeLocalMicLevel().catch(() => { });
-      boostRemoteAudioVolumes();
-      logAudioTransition('refresh_publisher_levels', {
-        reason: reason || 'nudge',
-        remotes: countRemoteAudioPublishers(),
-      });
-    } catch (_e) { }
+  function remotePlaybackVolume() {
+    return LIVE_TRACK_VOLUME;
   }
 
   function logAudioTransition(event, extra) {
@@ -7971,8 +7886,7 @@
     }
 
     await normalizeLocalMicLevel(audioTrack);
-    setTimeout(() => normalizeLocalMicLevel(audioTrack).catch(() => { }), 600);
-    setTimeout(() => normalizeLocalMicLevel(audioTrack).catch(() => { }), 2000);
+    /* Single level apply at create — do not re-setVolume on timers (AEC adapts). */
     return audioTrack;
   }
 
@@ -12184,10 +12098,7 @@
   function boostRemoteAudioVolumes() {
     syncLiveMediaPublisherMode();
     const eng = liveMedia();
-    logAudioTransition('boost_remote_volumes', {
-      volDefault: remotePlaybackVolume({}),
-      remotes: countRemoteAudioPublishers(),
-    });
+    logAudioTransition('boost_remote_volumes', { vol: LIVE_TRACK_VOLUME });
     if (eng) {
       eng.boostAll(agoraClient);
       return;
@@ -12195,7 +12106,7 @@
     try {
       for (const user of agoraClient?.remoteUsers || []) {
         try {
-          user.audioTrack?.setVolume?.(remotePlaybackVolume({ uid: user.uid, user }));
+          user.audioTrack?.setVolume?.(LIVE_TRACK_VOLUME);
         } catch (_e) { }
       }
     } catch (_e) { }
