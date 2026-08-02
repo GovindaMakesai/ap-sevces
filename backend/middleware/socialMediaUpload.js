@@ -32,13 +32,13 @@ const allowed = new Set([
 
 const socialMediaUpload = multer({
   storage,
-  limits: { fileSize: 12 * 1024 * 1024 },
+  limits: { fileSize: 40 * 1024 * 1024 },
   fileFilter(_req, file, cb) {
     if (allowed.has(String(file.mimetype || '').toLowerCase())) {
       cb(null, true);
       return;
     }
-    cb(new Error('Only images (JPG/PNG/WEBP) or videos (MP4/WEBM/MOV) up to 12 MB are allowed'));
+    cb(new Error('Only images (JPG/PNG/WEBP) or videos (MP4/WEBM/MOV) up to 40 MB are allowed'));
   },
 });
 

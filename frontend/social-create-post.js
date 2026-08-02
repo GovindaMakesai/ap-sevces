@@ -1,8 +1,8 @@
 /**
- * Create post / moment — caption, media crop & 10s video trim, @ # visibility.
+ * Create post / moment — caption, media crop & 60s video trim, @ # visibility.
  */
 (function () {
-  const MAX_VIDEO_SEC = 10;
+  const MAX_VIDEO_SEC = 60;
   let pendingFile = null;
   let pendingTrim = null;
   let editorState = null;
@@ -39,7 +39,7 @@
               <input type="range" id="socialCreateTrimStart" min="0" max="0" step="0.1" value="0">
               <input type="range" id="socialCreateTrimEnd" min="0" max="0" step="0.1" value="0">
             </div>
-            <p class="social-create-trim-hint" id="socialCreateTrimHint">Select up to 10 seconds</p>
+            <p class="social-create-trim-hint" id="socialCreateTrimHint">Select up to 60 seconds</p>
           </div>
           <div class="social-create-crop-tools" id="socialCreateCropTools">
             <button type="button" data-ratio="1">1:1</button>
@@ -175,7 +175,7 @@
       if (cropStage) cropStage.style.display = 'none';
       if (cropTools) cropTools.style.display = 'none';
       if (videoStage) videoStage.style.display = 'block';
-      if (label) label.textContent = 'Trim video (max 10s)';
+      if (label) label.textContent = 'Trim video (max 60s)';
 
       const video = document.getElementById('socialCreateTrimVideo');
       const trimStart = document.getElementById('socialCreateTrimStart');
@@ -208,7 +208,7 @@
         editorState.previewFailed = true;
         trimStart.value = '0';
         trimEnd.value = String(MAX_VIDEO_SEC);
-        if (hint) hint.textContent = 'Preview unavailable — apply to upload (max 10s clip)';
+        if (hint) hint.textContent = 'Preview unavailable — apply to upload (max 60s clip)';
       };
       return;
     }
@@ -297,7 +297,7 @@
         const selLen = (editorState.trimEnd || 0) - (editorState.trimStart || 0);
         if (selLen <= 0) throw new Error('Select a valid clip range.');
         if (selLen > MAX_VIDEO_SEC + 0.15) {
-          throw new Error('Clip must be 10 seconds or less. Adjust the trim sliders.');
+          throw new Error('Clip must be 60 seconds or less. Adjust the trim sliders.');
         }
         out = editorState.file;
         pendingTrim = { start: editorState.trimStart || 0, end: editorState.trimEnd || MAX_VIDEO_SEC };

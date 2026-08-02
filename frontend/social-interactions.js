@@ -1396,12 +1396,12 @@
     try {
     if (file) {
       isVideo = String(file.type || '').startsWith('video/');
-      if (isVideo && file.size > 12 * 1024 * 1024) {
-        throw new Error('Video must be under 12 MB. Trim the clip or pick a shorter one.');
+      if (isVideo && file.size > 40 * 1024 * 1024) {
+        throw new Error('Video must be under 40 MB. Trim the clip or pick a shorter one.');
       }
       if (isVideo && opts.trimEnd != null && opts.trimStart != null) {
         const len = Number(opts.trimEnd) - Number(opts.trimStart);
-        if (len > 10.5) throw new Error('Video clip must be 10 seconds or less.');
+        if (len > 60.5) throw new Error('Video clip must be 60 seconds or less.');
       }
 
       let uploadFile = file;
