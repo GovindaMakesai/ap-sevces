@@ -66,6 +66,8 @@ router.post(
 router.post('/posts/:postId/like', social.likePost);
 router.post('/posts/:postId/comments', social.commentPost);
 router.get('/posts/:postId/comments', social.getComments);
+router.post('/comments/:commentId/like', social.likeComment);
+router.delete('/comments/:commentId', social.deleteComment);
 router.post('/posts/:postId/share', social.sharePost);
 router.delete('/posts/:postId', social.deletePost);
 

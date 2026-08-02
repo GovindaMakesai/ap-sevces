@@ -298,15 +298,28 @@ async function toggleLike(postId, userId) {
   return { liked: true };
 }
 
-async function addComment(postId, userId, body) {
+async function addComment(postId, userId, body, { parentId = null } = {}) {
   const text = String(body || '').trim();
   if (!text) throw new Error('Comment required');
+  let parent = null;
+  if (parentId) {
+    const parentRes = await db.query(
+      `SELECT id, post_id FROM social_post_comments
+       WHERE id = $1 AND deleted_at IS NULL`,
+      [parentId]
+    );
+    parent = parentRes.rows[0];
+    if (!parent || String(parent.post_id) !== String(postId)) {
+      throw new Error('Invalid reply target');
+    }
+  }
   const res = await db.query(
-    `INSERT INTO social_post_comments (post_id, user_id, body) VALUES ($1, $2, $3) RETURNING *`,
-    [postId, userId, text.slice(0, 2000)]
+    `INSERT INTO social_post_comments (post_id, user_id, body, parent_id)
+     VALUES ($1, $2, $3, $4) RETURNING *`,
+    [postId, userId, text.slice(0, 2000), parent ? parent.id : null]
   );
   const userRes = await db.query(
-    `SELECT id, first_name, last_name, profile_pic FROM users WHERE id = $1`,
+    `SELECT id, first_name, last_name, profile_pic, display_id FROM users WHERE id = $1`,
     [userId]
   );
 
@@ -325,7 +338,7 @@ async function addComment(postId, userId, body) {
           const handles = [...new Set(mentions.map((m) => m.slice(1).toLowerCase()))];
           const mentioned = await db.query(
             `SELECT id FROM users
-             WHERE LOWER(display_id) = ANY($1::text[])
+             WHERE LOWER(display_id::text) = ANY($1::text[])
                 OR LOWER(REPLACE(COALESCE(first_name,'') || COALESCE(last_name,''), ' ', '')) = ANY($1::text[])
              LIMIT 20`,
             [handles]
@@ -342,22 +355,98 @@ async function addComment(postId, userId, body) {
     })();
   });
 
-  return { ...res.rows[0], author: userRes.rows[0] };
+  return {
+    ...res.rows[0],
+    like_count: 0,
+    liked: false,
+    author: userRes.rows[0],
+  };
 }
 
-async function listComments(postId, { limit = 50, offset = 0 } = {}) {
+async function listComments(postId, { limit = 50, offset = 0, viewerId = null } = {}) {
   const lim = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 100);
   const off = Math.max(parseInt(offset, 10) || 0, 0);
   const res = await db.query(
-    `SELECT c.*, u.first_name, u.last_name, u.profile_pic
+    `SELECT c.id, c.post_id, c.user_id, c.body, c.parent_id, c.created_at,
+            u.first_name, u.last_name, u.profile_pic, u.display_id,
+            p.user_id AS post_owner_id,
+            (SELECT COUNT(*)::int FROM social_comment_likes cl WHERE cl.comment_id = c.id) AS like_count,
+            CASE
+              WHEN $4::uuid IS NULL THEN false
+              ELSE EXISTS (
+                SELECT 1 FROM social_comment_likes cl
+                WHERE cl.comment_id = c.id AND cl.user_id = $4::uuid
+              )
+            END AS liked
      FROM social_post_comments c
      JOIN users u ON u.id = c.user_id
-     WHERE c.post_id = $1
+     JOIN social_posts p ON p.id = c.post_id
+     WHERE c.post_id = $1 AND c.deleted_at IS NULL
      ORDER BY c.created_at ASC
      LIMIT $2 OFFSET $3`,
-    [postId, lim, off]
+    [postId, lim, off, viewerId || null]
   );
   return res.rows;
+}
+
+async function toggleCommentLike(commentId, userId) {
+  const comment = await db.query(
+    `SELECT id FROM social_post_comments WHERE id = $1 AND deleted_at IS NULL`,
+    [commentId]
+  );
+  if (!comment.rows[0]) throw new Error('Comment not found');
+  const existing = await db.query(
+    `SELECT 1 FROM social_comment_likes WHERE comment_id = $1 AND user_id = $2`,
+    [commentId, userId]
+  );
+  if (existing.rows.length) {
+    await db.query(`DELETE FROM social_comment_likes WHERE comment_id = $1 AND user_id = $2`, [
+      commentId,
+      userId,
+    ]);
+    const count = await db.query(
+      `SELECT COUNT(*)::int AS n FROM social_comment_likes WHERE comment_id = $1`,
+      [commentId]
+    );
+    return { liked: false, like_count: count.rows[0]?.n || 0 };
+  }
+  await db.query(
+    `INSERT INTO social_comment_likes (comment_id, user_id) VALUES ($1, $2)
+     ON CONFLICT (comment_id, user_id) DO NOTHING`,
+    [commentId, userId]
+  );
+  const count = await db.query(
+    `SELECT COUNT(*)::int AS n FROM social_comment_likes WHERE comment_id = $1`,
+    [commentId]
+  );
+  return { liked: true, like_count: count.rows[0]?.n || 0 };
+}
+
+const COMMENT_ADMIN_ROLES = new Set(['admin', 'super_admin', 'founder', 'ceo']);
+
+async function deleteComment(commentId, userId, { role = null } = {}) {
+  const row = await db.query(
+    `SELECT c.id, c.user_id AS commenter_id, p.user_id AS post_owner_id
+     FROM social_post_comments c
+     JOIN social_posts p ON p.id = c.post_id
+     WHERE c.id = $1 AND c.deleted_at IS NULL`,
+    [commentId]
+  );
+  if (!row.rows[0]) throw new Error('Comment not found');
+  const commenter = String(row.rows[0].commenter_id);
+  const owner = String(row.rows[0].post_owner_id);
+  const me = String(userId);
+  const isAdmin = COMMENT_ADMIN_ROLES.has(String(role || '').toLowerCase());
+  if (me !== commenter && me !== owner && !isAdmin) {
+    throw new Error('Not allowed to delete this comment');
+  }
+  await db.query(
+    `UPDATE social_post_comments
+     SET deleted_at = CURRENT_TIMESTAMP, deleted_by = $2
+     WHERE id = $1`,
+    [commentId, userId]
+  );
+  return { deleted: true };
 }
 
 async function sharePost(postId) {
@@ -386,6 +475,8 @@ module.exports = {
   toggleLike,
   addComment,
   listComments,
+  toggleCommentLike,
+  deleteComment,
   sharePost,
   deletePost,
   RANKING,

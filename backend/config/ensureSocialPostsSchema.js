@@ -32,6 +32,37 @@ async function ensureSocialPostsSchema() {
     CREATE INDEX IF NOT EXISTS idx_social_post_comments_post
       ON social_post_comments (post_id)
   `);
+
+  /* Comment likes / replies / soft-delete (posts + videos share social_post_comments) */
+  await db.query(`
+    ALTER TABLE social_post_comments
+      ADD COLUMN IF NOT EXISTS parent_id UUID REFERENCES social_post_comments(id) ON DELETE CASCADE,
+      ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS deleted_by UUID
+  `);
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_social_post_comments_parent
+      ON social_post_comments (parent_id)
+      WHERE parent_id IS NOT NULL
+  `);
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_social_post_comments_active
+      ON social_post_comments (post_id, created_at ASC)
+      WHERE deleted_at IS NULL
+  `);
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS social_comment_likes (
+      comment_id UUID NOT NULL REFERENCES social_post_comments(id) ON DELETE CASCADE,
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (comment_id, user_id)
+    )
+  `);
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_social_comment_likes_comment
+      ON social_comment_likes (comment_id)
+  `);
+
   ready = true;
 }
 

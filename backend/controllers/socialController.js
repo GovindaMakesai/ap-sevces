@@ -344,7 +344,9 @@ async function likePost(req, res) {
 
 async function commentPost(req, res) {
   try {
-    const data = await socialFeedService.addComment(req.params.postId, uid(req), req.body.body);
+    const data = await socialFeedService.addComment(req.params.postId, uid(req), req.body.body, {
+      parentId: req.body.parent_id || req.body.parentId || null,
+    });
     res.status(201).json({ success: true, data });
   } catch (e) {
     res.status(400).json({ success: false, message: e.message });
@@ -355,8 +357,29 @@ async function getComments(req, res) {
   const data = await socialFeedService.listComments(req.params.postId, {
     limit: parseInt(req.query.limit, 10) || 50,
     offset: parseInt(req.query.offset, 10) || 0,
+    viewerId: uid(req),
   });
   res.json({ success: true, data });
+}
+
+async function likeComment(req, res) {
+  try {
+    const data = await socialFeedService.toggleCommentLike(req.params.commentId, uid(req));
+    res.json({ success: true, data });
+  } catch (e) {
+    res.status(400).json({ success: false, message: e.message });
+  }
+}
+
+async function deleteComment(req, res) {
+  try {
+    const data = await socialFeedService.deleteComment(req.params.commentId, uid(req), {
+      role: req.userRole,
+    });
+    res.json({ success: true, data });
+  } catch (e) {
+    res.status(400).json({ success: false, message: e.message });
+  }
 }
 
 async function sharePost(req, res) {
@@ -531,6 +554,8 @@ module.exports = {
   likePost,
   commentPost,
   getComments,
+  likeComment,
+  deleteComment,
   sharePost,
   deletePost,
   reportUser,

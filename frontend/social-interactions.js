@@ -743,8 +743,16 @@
       if (res?.success && Array.isArray(res.data)) {
         return res.data.map((c) => ({
           id: c.id,
-          user: `${c.first_name || c.author?.first_name || ''} ${c.last_name || c.author?.last_name || ''}`.trim() || 'User',
+          userId: c.user_id,
+          postOwnerId: c.post_owner_id,
+          parentId: c.parent_id || null,
+          user:
+            `${c.first_name || c.author?.first_name || ''} ${c.last_name || c.author?.last_name || ''}`.trim() ||
+            'User',
+          handle: c.display_id != null ? String(c.display_id) : '',
           text: c.body,
+          likeCount: Number(c.like_count) || 0,
+          liked: Boolean(c.liked),
           at: c.created_at ? new Date(c.created_at).getTime() : Date.now(),
           fromApi: true,
         }));
@@ -755,19 +763,42 @@
     return null;
   }
 
-  async function postCommentApi(postId, text) {
+  async function postCommentApi(postId, text, parentId = null) {
     if (!window.API || !hasAuth()) throw new Error('Please log in to comment');
     if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken();
-    const res = await API.post(`/social/posts/${postId}/comments`, { body: text });
+    const payload = { body: text };
+    if (parentId) payload.parent_id = parentId;
+    const res = await API.post(`/social/posts/${postId}/comments`, payload);
     if (!res?.success) throw new Error(res?.message || 'Comment failed');
     const c = res.data;
     return {
       id: c.id,
+      userId: c.user_id || c.author?.id,
+      parentId: c.parent_id || parentId || null,
       user: `${c.author?.first_name || ''} ${c.author?.last_name || ''}`.trim() || 'You',
+      handle: c.author?.display_id != null ? String(c.author.display_id) : '',
       text: c.body || text,
+      likeCount: Number(c.like_count) || 0,
+      liked: false,
       at: Date.now(),
       fromApi: true,
     };
+  }
+
+  async function likeCommentApi(commentId) {
+    if (!window.API || !hasAuth()) throw new Error('Please log in');
+    if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken();
+    const res = await API.post(`/social/comments/${commentId}/like`, {});
+    if (!res?.success) throw new Error(res?.message || 'Like failed');
+    return res.data;
+  }
+
+  async function deleteCommentApi(commentId) {
+    if (!window.API || !hasAuth()) throw new Error('Please log in');
+    if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken();
+    const res = await API.delete(`/social/comments/${commentId}`);
+    if (!res?.success) throw new Error(res?.message || 'Delete failed');
+    return res.data;
   }
 
   function getComments(postId) {
@@ -1472,8 +1503,9 @@
           <button type="button" id="socialCommentClose"><i class="fas fa-times"></i></button>
         </div>
         <div class="social-comment-list" id="socialCommentList"></div>
+        <div class="social-comment-reply-hint" id="socialCommentReplyHint" hidden></div>
         <div class="social-comment-input-row">
-          <input type="text" id="socialCommentInput" placeholder="Add a comment…" maxlength="280">
+          <input type="text" id="socialCommentInput" placeholder="Add a comment… @ to mention" maxlength="280" autocomplete="off">
           <button type="button" id="socialCommentSend">Post</button>
         </div>
       </div>`;
@@ -1488,7 +1520,219 @@
       el.classList.remove('open');
       window.SocialCreatorPolish?.haptic?.('light');
     });
+    const inp = document.getElementById('socialCommentInput');
+    try {
+      window.SocialUI?.attachMentionAutocomplete?.(inp);
+    } catch (_e) { /* ignore */ }
     return el;
+  }
+
+  function currentCommentUser() {
+    return window.Auth?.getUser?.() || window.Auth?.user || null;
+  }
+
+  function canDeleteComment(c) {
+    const me = currentCommentUser();
+    if (!me?.id || !c) return false;
+    const myId = String(me.id);
+    const role = String(me.role || '').toLowerCase();
+    const isAdmin = ['admin', 'super_admin', 'founder', 'ceo'].includes(role);
+    return (
+      isAdmin ||
+      String(c.userId || '') === myId ||
+      String(c.postOwnerId || '') === myId
+    );
+  }
+
+  function formatCommentText(text) {
+    return escapeHtml(text).replace(
+      /@([a-zA-Z0-9_]{2,32})/g,
+      '<span class="social-comment-mention">@$1</span>'
+    );
+  }
+
+  function renderCommentItems(comments) {
+    const roots = comments.filter((c) => !c.parentId);
+    const byParent = new Map();
+    comments.forEach((c) => {
+      if (!c.parentId) return;
+      const key = String(c.parentId);
+      if (!byParent.has(key)) byParent.set(key, []);
+      byParent.get(key).push(c);
+    });
+    const renderOne = (c, isReply) => {
+      const likedCls = c.liked ? ' is-liked' : '';
+      const delBtn = canDeleteComment(c)
+        ? `<button type="button" class="social-comment-act" data-act="delete" data-id="${escapeHtml(c.id)}" title="Delete"><i class="fas fa-trash"></i></button>`
+        : '';
+      const handle = c.handle ? `<span class="social-comment-handle">@${escapeHtml(c.handle)}</span>` : '';
+      return `<div class="social-comment-item${isReply ? ' is-reply' : ''}" data-id="${escapeHtml(c.id)}">
+        <div class="social-comment-main">
+          <strong>${escapeHtml(c.user)}</strong> ${handle}
+          <p class="social-comment-body">${formatCommentText(c.text)}</p>
+          <div class="social-comment-actions">
+            <button type="button" class="social-comment-act${likedCls}" data-act="like" data-id="${escapeHtml(c.id)}">
+              <i class="fas fa-heart"></i> <span data-like-count>${Number(c.likeCount) || 0}</span>
+            </button>
+            <button type="button" class="social-comment-act" data-act="reply" data-id="${escapeHtml(c.id)}" data-user="${escapeHtml(c.user)}" data-handle="${escapeHtml(c.handle || '')}">Reply</button>
+            ${delBtn}
+          </div>
+        </div>
+      </div>`;
+    };
+    if (!roots.length && !comments.length) {
+      return '<p class="social-comment-empty">No comments yet. Be the first!</p>';
+    }
+    /* Orphans (parent missing) still show as roots */
+    const shown = new Set(roots.map((c) => String(c.id)));
+    let html = roots
+      .map((c) => {
+        const kids = byParent.get(String(c.id)) || [];
+        kids.forEach((k) => shown.add(String(k.id)));
+        return renderOne(c, false) + kids.map((k) => renderOne(k, true)).join('');
+      })
+      .join('');
+    comments.forEach((c) => {
+      if (!shown.has(String(c.id))) html += renderOne(c, Boolean(c.parentId));
+    });
+    return html || '<p class="social-comment-empty">No comments yet. Be the first!</p>';
+  }
+
+  let commentPostId = null;
+  let commentSending = false;
+  let commentReplyToId = null;
+
+  function clearCommentReply() {
+    commentReplyToId = null;
+    const hint = document.getElementById('socialCommentReplyHint');
+    if (hint) {
+      hint.hidden = true;
+      hint.innerHTML = '';
+    }
+    const inp = document.getElementById('socialCommentInput');
+    if (inp) inp.placeholder = 'Add a comment… @ to mention';
+  }
+
+  function setCommentReply(comment) {
+    commentReplyToId = comment?.id || null;
+    const hint = document.getElementById('socialCommentReplyHint');
+    const name = comment?.handle ? `@${comment.handle}` : comment?.user || 'comment';
+    if (hint) {
+      hint.hidden = false;
+      hint.innerHTML = `Replying to <strong>${escapeHtml(name)}</strong> <button type="button" id="socialCommentReplyCancel">Cancel</button>`;
+      document.getElementById('socialCommentReplyCancel')?.addEventListener('click', clearCommentReply);
+    }
+    const inp = document.getElementById('socialCommentInput');
+    if (inp) {
+      inp.focus();
+      if (comment?.handle && !inp.value.includes(`@${comment.handle}`)) {
+        inp.value = `@${comment.handle} ${inp.value}`.trimStart();
+      }
+    }
+  }
+
+  function bindCommentListActions(postId, listEl) {
+    listEl.onclick = async (e) => {
+      const btn = e.target.closest('[data-act]');
+      if (!btn) return;
+      const act = btn.dataset.act;
+      const id = btn.dataset.id;
+      if (!id) return;
+      if (act === 'reply') {
+        setCommentReply({
+          id,
+          user: btn.dataset.user,
+          handle: btn.dataset.handle,
+        });
+        return;
+      }
+      if (act === 'like') {
+        if (!hasAuth()) {
+          toast('Please log in to like', 'warning');
+          return;
+        }
+        try {
+          const data = await likeCommentApi(id);
+          const countEl = btn.querySelector('[data-like-count]');
+          if (countEl) countEl.textContent = String(data?.like_count ?? 0);
+          btn.classList.toggle('is-liked', Boolean(data?.liked));
+        } catch (err) {
+          toast(err.message || 'Could not like', 'error');
+        }
+        return;
+      }
+      if (act === 'delete') {
+        if (!confirm('Delete this comment?')) return;
+        try {
+          await deleteCommentApi(id);
+          toast('Comment deleted', 'success');
+          openComments(postId);
+        } catch (err) {
+          toast(err.message || 'Could not delete', 'error');
+        }
+      }
+    };
+  }
+
+  async function openComments(postId) {
+    const sheet = ensureCommentSheet();
+    const list = document.getElementById('socialCommentList');
+    list.innerHTML = '<p class="social-comment-empty">Loading…</p>';
+    sheet.classList.add('open');
+    commentPostId = postId;
+    clearCommentReply();
+
+    let comments = getComments(postId);
+    const apiComments = await fetchCommentsApi(postId);
+    if (apiComments) {
+      comments = apiComments;
+      try {
+        const all = JSON.parse(localStorage.getItem(COMMENTS_KEY) || '{}');
+        all[postId] = apiComments;
+        localStorage.setItem(COMMENTS_KEY, JSON.stringify(all));
+      } catch (_e) { /* ignore */ }
+    }
+    list.innerHTML = renderCommentItems(comments);
+    bindCommentListActions(postId, list);
+
+    const sendBtn = document.getElementById('socialCommentSend');
+    sendBtn.onclick = async () => {
+      if (commentSending) return;
+      const inp = document.getElementById('socialCommentInput');
+      const t = (inp.value || '').trim();
+      if (!t) return;
+      commentSending = true;
+      sendBtn.disabled = true;
+      const replyParent = commentReplyToId;
+      try {
+        let n;
+        try {
+          const created = await postCommentApi(postId, t, replyParent);
+          const local = getComments(postId);
+          local.push(created);
+          const all = JSON.parse(localStorage.getItem(COMMENTS_KEY) || '{}');
+          all[postId] = local;
+          localStorage.setItem(COMMENTS_KEY, JSON.stringify(all));
+          n = local.length;
+        } catch (_apiErr) {
+          n = addComment(postId, t);
+        }
+        inp.value = '';
+        clearCommentReply();
+        openComments(postId);
+        document.dispatchEvent(new CustomEvent('social:comment', { detail: { postId, count: n } }));
+        SocialRealtime.emit('social:comment', { postId, count: n });
+        if (window.SocialCreatorPolish?.successFeedback) SocialCreatorPolish.successFeedback('Comment posted');
+        else toast('Comment posted', 'success');
+      } catch (err) {
+        if (window.SocialCreatorPolish?.errorFeedback) {
+          SocialCreatorPolish.errorFeedback(err.message || 'Could not post comment');
+        } else toast(err.message || 'Could not post comment', 'error');
+      } finally {
+        commentSending = false;
+        sendBtn.disabled = false;
+      }
+    };
   }
 
   function getReelStats() {
@@ -1550,73 +1794,6 @@
       openCommentsForItem(item);
       updateReelUI(item);
       toast('Comment posted');
-    };
-  }
-
-  let commentPostId = null;
-  let commentSending = false;
-
-  async function openComments(postId) {
-    const sheet = ensureCommentSheet();
-    const list = document.getElementById('socialCommentList');
-    list.innerHTML = '<p class="social-comment-empty">Loading…</p>';
-    sheet.classList.add('open');
-    commentPostId = postId;
-
-    let comments = getComments(postId);
-    const apiComments = await fetchCommentsApi(postId);
-    if (apiComments) {
-      comments = apiComments;
-      try {
-        const all = JSON.parse(localStorage.getItem(COMMENTS_KEY) || '{}');
-        all[postId] = apiComments;
-        localStorage.setItem(COMMENTS_KEY, JSON.stringify(all));
-      } catch (_e) { /* ignore */ }
-    }
-    list.innerHTML = comments.length
-      ? comments
-          .map(
-            (c) =>
-              `<div class="social-comment-item"><strong>${escapeHtml(c.user)}</strong> ${escapeHtml(c.text)}</div>`
-          )
-          .join('')
-      : '<p class="social-comment-empty">No comments yet. Be the first!</p>';
-
-    const sendBtn = document.getElementById('socialCommentSend');
-    sendBtn.onclick = async () => {
-      if (commentSending) return;
-      const inp = document.getElementById('socialCommentInput');
-      const t = (inp.value || '').trim();
-      if (!t) return;
-      commentSending = true;
-      sendBtn.disabled = true;
-      try {
-        let n;
-        try {
-          const created = await postCommentApi(postId, t);
-          const local = getComments(postId);
-          local.push(created);
-          const all = JSON.parse(localStorage.getItem(COMMENTS_KEY) || '{}');
-          all[postId] = local;
-          localStorage.setItem(COMMENTS_KEY, JSON.stringify(all));
-          n = local.length;
-        } catch (_apiErr) {
-          n = addComment(postId, t);
-        }
-        inp.value = '';
-        openComments(postId);
-        document.dispatchEvent(new CustomEvent('social:comment', { detail: { postId, count: n } }));
-        SocialRealtime.emit('social:comment', { postId, count: n });
-        if (window.SocialCreatorPolish?.successFeedback) SocialCreatorPolish.successFeedback('Comment posted');
-        else toast('Comment posted', 'success');
-      } catch (err) {
-        if (window.SocialCreatorPolish?.errorFeedback) {
-          SocialCreatorPolish.errorFeedback(err.message || 'Could not post comment');
-        } else toast(err.message || 'Could not post comment', 'error');
-      } finally {
-        commentSending = false;
-        sendBtn.disabled = false;
-      }
     };
   }
 
