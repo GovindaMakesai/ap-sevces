@@ -6,17 +6,95 @@
   <meta name="theme-color" content="#c9a227">
   <title>Square - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-theme.css?v=20260730-fastnav2">
-  <link rel="stylesheet" href="social-features.css?v=20260802-thumb-fix3">
+  <link rel="stylesheet" href="social-theme.css?v=20260802-square-glow">
+  <link rel="stylesheet" href="social-features.css?v=20260802-square-glow">
   <link rel="stylesheet" href="social-creator-polish.css?v=20260802-thumb-fix3">
+  <style>
+    /* Square-only atmosphere — brighter gold theme, not flat dull cream */
+    html.social-app body.social-square-page,
+    body.social-square-page {
+      --cream-bg: #fff6e4;
+      --square-glow-a: rgba(245, 158, 11, 0.28);
+      --square-glow-b: rgba(201, 162, 39, 0.22);
+      --square-glow-c: rgba(255, 214, 102, 0.35);
+      background-color: #fff6e4;
+      background-image:
+        radial-gradient(ellipse 90% 55% at 12% -8%, var(--square-glow-c) 0%, transparent 58%),
+        radial-gradient(ellipse 70% 45% at 92% 6%, var(--square-glow-a) 0%, transparent 52%),
+        radial-gradient(ellipse 60% 40% at 50% 28%, var(--square-glow-b) 0%, transparent 55%),
+        radial-gradient(circle at 78% 72%, rgba(255, 186, 73, 0.14) 0%, transparent 42%),
+        linear-gradient(180deg, #fff9eb 0%, #fff3d6 42%, #ffefc8 100%);
+      background-attachment: fixed;
+    }
+    body.social-square-page .social-top {
+      background:
+        linear-gradient(180deg, rgba(255, 250, 235, 0.94) 0%, rgba(255, 244, 214, 0.88) 100%);
+      border-bottom-color: rgba(201, 162, 39, 0.22);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+    body.social-square-page .social-feed-scope {
+      background: rgba(255, 253, 248, 0.55);
+      border-radius: 14px;
+      padding: 4px;
+      margin-top: 4px;
+    }
+    body.social-square-page .social-feed-scope-btn.is-active {
+      background: linear-gradient(135deg, #f0c14b, #c9a227);
+      color: #3d2a08;
+      box-shadow: 0 4px 14px rgba(201, 162, 39, 0.35);
+    }
+    body.social-square-page .ap-discover-rails {
+      position: relative;
+    }
+    body.social-square-page .ap-discover-title {
+      color: #6b4f10;
+      text-shadow: 0 1px 0 rgba(255, 253, 248, 0.8);
+    }
+    body.social-square-page .ap-discover-card {
+      background: linear-gradient(180deg, #fffef9 0%, #fff8e8 100%);
+      border-color: rgba(201, 162, 39, 0.38);
+      box-shadow: 0 8px 22px rgba(166, 124, 26, 0.12);
+    }
+    body.social-square-page .social-post-card {
+      background: linear-gradient(180deg, #fffefb 0%, #fffaf0 100%);
+      border: 1px solid rgba(201, 162, 39, 0.2);
+      box-shadow: 0 10px 28px rgba(107, 79, 16, 0.1);
+    }
+    body.social-square-page .social-bottom-nav {
+      background: linear-gradient(180deg, #fffdf6 0%, #fff6e0 100%);
+      border-top-color: rgba(201, 162, 39, 0.28);
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      body.social-square-page::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 0;
+        background:
+          radial-gradient(circle at 20% 15%, rgba(255, 220, 120, 0.22) 0%, transparent 36%),
+          radial-gradient(circle at 85% 30%, rgba(245, 158, 11, 0.12) 0%, transparent 32%);
+        animation: ap-square-glow 14s ease-in-out infinite alternate;
+      }
+      body.social-square-page > * {
+        position: relative;
+        z-index: 1;
+      }
+      @keyframes ap-square-glow {
+        from { opacity: 0.55; transform: translate3d(0, 0, 0) scale(1); }
+        to { opacity: 1; transform: translate3d(0, -1.5%, 0) scale(1.04); }
+      }
+    }
+  </style>
 </head>
-<body class="social-tabs-page">
+<body class="social-tabs-page social-square-page">
   <header class="social-top">
     <div class="social-main-tabs">
       <a href="/explore.html?tab=following&app=1">Following</a>
       <a href="/video.html?app=1">Video</a>
       <a href="/square.html?app=1" class="active">Square</a>
-      <button type="button" class="social-icon-btn" data-social-camera style="margin-left:auto;border:none;background:#fffdf8" aria-label="Create post"><i class="fas fa-camera"></i></button>
+      <button type="button" class="social-icon-btn" data-social-camera style="margin-left:auto;border:none;background:rgba(255,253,248,0.92)" aria-label="Create post"><i class="fas fa-camera"></i></button>
     </div>
     <div class="social-feed-scope" id="squareFeedScope" role="tablist" aria-label="Feed">
       <button type="button" class="social-feed-scope-btn is-active" data-feed="for_you" role="tab" aria-selected="true">For You</button>
