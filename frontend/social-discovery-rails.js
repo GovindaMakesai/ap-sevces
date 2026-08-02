@@ -18,11 +18,19 @@
     return path;
   }
 
-  function itemCard(item) {
+  function rankBadge(rank) {
+    const n = Number(rank);
+    if (!Number.isFinite(n) || n < 1 || n > 3) return '';
+    return `<span class="ap-discover-rank ap-discover-rank--${n}" aria-label="Rank ${n}">#${n}</span>`;
+  }
+
+  function itemCard(item, rank) {
+    const badge = rankBadge(rank);
     if (item.type === 'live') {
       const pic = mediaUrl(item.profilePic) || window.SocialUI?.avatarUrl?.(item.displayName) || '';
       return `<a class="ap-discover-card ap-discover-card--live" href="${esc(item.href)}">
         <img src="${esc(pic)}" alt="">
+        ${badge}
         <span class="social-live-pill"><i class="fas fa-circle"></i> LIVE</span>
         <span class="ap-discover-name">${esc(item.displayName)}</span>
         <span class="ap-discover-meta">${Number(item.viewers || 0)} watching</span>
@@ -32,15 +40,21 @@
       const thumb = mediaUrl(item.thumb) || '';
       return `<a class="ap-discover-card ap-discover-card--post" href="${esc(item.href)}">
         ${thumb ? `<img src="${esc(thumb)}" alt="">` : '<div class="ap-discover-fallback">▶</div>'}
+        ${badge}
         <span class="ap-discover-name">${esc(item.displayName)}</span>
       </a>`;
     }
     const pic = mediaUrl(item.profilePic) || window.SocialUI?.avatarUrl?.(item.displayName) || '';
     return `<a class="ap-discover-card ap-discover-card--creator" href="${esc(item.profileHref || item.href || '#')}">
       <img src="${esc(pic)}" alt="">
+      ${badge}
       ${item.isLive && item.liveHref ? `<span class="social-live-pill" data-href="${esc(item.liveHref)}"><i class="fas fa-circle"></i> LIVE</span>` : ''}
       <span class="ap-discover-name">${esc(item.displayName)}</span>
     </a>`;
+  }
+
+  function sectionShowsRanks(sectionId) {
+    return sectionId === 'trending' || sectionId === 'new_creators' || sectionId === 'live_now';
   }
 
   async function fetchRails() {
@@ -87,9 +101,13 @@
             <p class="ap-discover-empty">No one is live right now — check back soon.</p>
           </section>`;
         }
+        const withRanks = sectionShowsRanks(sec.id);
+        const cards = sec.items
+          .map((item, i) => itemCard(item, withRanks ? i + 1 : 0))
+          .join('');
         return `<section class="ap-discover-section" data-section="${esc(sec.id)}">
           <h3 class="ap-discover-title">${esc(sec.title)}</h3>
-          <div class="ap-discover-row">${sec.items.map(itemCard).join('')}</div>
+          <div class="ap-discover-row">${cards}</div>
         </section>`;
       })
       .join('')}</div>`;
