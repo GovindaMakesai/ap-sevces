@@ -7686,14 +7686,14 @@
   }
 
   /**
-   * Mic / remote volumes.
+   * Mic / remote volumes — equal for host and seats, same on every device.
    *
-   * INVARIANT: never scale by participant / seat count (that made host die as room grew).
-   * Host send uses a fixed mild bump once at mic create — compensates AEC without
-   * re-targeting levels when remotes join. Playback stays Agora default 100 for all.
+   * INVARIANT: never scale by participant / seat count.
+   * Host and seats use the SAME fixed send level so uplink matches.
+   * Playback stays Agora default 100 for everyone (no role/device boosts).
    */
   const LIVE_TRACK_VOLUME = 100;
-  const LIVE_HOST_SEND_VOLUME = 140;
+  const LIVE_PUBLISHER_SEND_VOLUME = 140;
 
   function isAndroidHostMicRisk() {
     try {
@@ -7719,8 +7719,8 @@
   }
 
   function localMicSendVolume() {
-    /* Fixed host send only — never depends on remote count */
-    if (isHost()) return LIVE_HOST_SEND_VOLUME;
+    /* Same fixed send for host AND seats — never depends on remote count or OEM */
+    if (isHost() || hasSpeakerSeat) return LIVE_PUBLISHER_SEND_VOLUME;
     return LIVE_TRACK_VOLUME;
   }
 
