@@ -103,13 +103,14 @@ function mapPostCard(row) {
   if (!thumb || isVideoPath(thumbRaw) || isVideoPath(thumb)) {
     thumb = profilePic;
   }
+  /* Last resort: keep null so client can render initials — never send video media_url as thumb */
   return {
     type: 'post',
     postId: String(row.id),
     userId: String(row.user_id),
     displayName: name,
     profilePic,
-    thumb,
+    thumb: thumb || profilePic || null,
     mediaType: row.media_type,
     likes: Number(row.like_count || 0),
     comments: Number(row.comment_count || 0),

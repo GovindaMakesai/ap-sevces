@@ -29,19 +29,71 @@
     return /\.(mp4|webm|mov|m4v)(\?|$)/i.test(String(path || ''));
   }
 
+  function firstLetters(name) {
+    const parts = String(name || 'U')
+      .replace(/[^\w\s]|_/g, ' ')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2);
+    const letters = parts
+      .map((p) => {
+        try {
+          const ch = Array.from(p).find((c) => /[A-Za-z0-9]/.test(c));
+          return ch || Array.from(p)[0] || '';
+        } catch (_e) {
+          return p.charAt(0) || '';
+        }
+      })
+      .filter(Boolean);
+    const label = (letters.join('') || 'U').slice(0, 2).toUpperCase();
+    return /[A-Z0-9]/.test(label) ? label.replace(/[^A-Z0-9]/g, '') || 'U' : 'U';
+  }
+
+  function initialsSvg(name) {
+    const label = firstLetters(name);
+    const svg =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256">' +
+      '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">' +
+      '<stop offset="0%" stop-color="#e8c56a"/><stop offset="100%" stop-color="#9a7218"/></linearGradient></defs>' +
+      '<rect width="256" height="256" rx="128" fill="url(#g)"/>' +
+      '<text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" ' +
+      'font-family="Arial,sans-serif" font-size="96" font-weight="700" fill="#fff">' +
+      label +
+      '</text></svg>';
+    try {
+      return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
+    } catch (_e) {
+      return (
+        'data:image/svg+xml;charset=UTF-8,' +
+        encodeURIComponent(
+          '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256">' +
+            '<rect width="256" height="256" rx="128" fill="#c9a227"/>' +
+            '<text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" ' +
+            'font-family="Arial,sans-serif" font-size="96" font-weight="700" fill="#fff">U</text></svg>'
+        )
+      );
+    }
+  }
+
   function mediaUrl(path) {
     if (!path) return '';
     let p = String(path).trim();
     if (!p || isVideoPath(p)) return '';
-    if (window.SocialInteractions?.resolveMediaUrl) {
-      const built = SocialInteractions.resolveMediaUrl(p);
-      if (built && !isVideoPath(built)) return built;
-    }
-    if (window.SocialShell?.getImageUrl) {
-      const built = SocialShell.getImageUrl(p);
-      if (built && !isVideoPath(built)) return built;
-    }
-    if (/^(https?:|data:|blob:)/i.test(p)) return p;
+    if (/^(data:|blob:)/i.test(p)) return p;
+    try {
+      if (window.SocialShell?.getImageUrl) {
+        const built = SocialShell.getImageUrl(p);
+        if (built && !isVideoPath(built)) return built;
+      }
+    } catch (_e) { /* ignore */ }
+    try {
+      if (window.SocialInteractions?.resolveMediaUrl) {
+        const built = SocialInteractions.resolveMediaUrl(p);
+        if (built && !isVideoPath(built)) return built;
+      }
+    } catch (_e2) { /* ignore */ }
+    if (/^https?:\/\//i.test(p)) return p;
     if (p.startsWith('//')) return `https:${p}`;
     return `${apiHost()}${p.startsWith('/') ? p : `/${p}`}`;
   }
@@ -52,7 +104,7 @@
     try {
       if (window.SocialUI?.avatarUrl) return SocialUI.avatarUrl(name || 'Creator', null);
     } catch (_e) { /* ignore */ }
-    return '';
+    return initialsSvg(name || 'Creator');
   }
 
   function rankBadge(rank) {
@@ -62,12 +114,18 @@
   }
 
   function thumbImg(src, fallback, alt) {
-    const primary = esc(src || fallback || '');
-    const fb = esc(fallback || '');
-    if (!primary) {
-      return `<div class="ap-discover-fallback" aria-hidden="true">▶</div>`;
-    }
-    return `<img src="${primary}" alt="${esc(alt || '')}" loading="lazy" decoding="async"${fb ? ` data-fallback="${fb}"` : ''}>`;
+    const primary = String(src || '').trim();
+    const fb = String(fallback || '').trim();
+    const init = initialsSvg(alt || 'Creator');
+    const chain = [];
+    if (primary) chain.push(primary);
+    if (fb && fb !== primary) chain.push(fb);
+    if (!chain.includes(init)) chain.push(init);
+    const first = chain[0];
+    const rest = chain.slice(1).join('|');
+    return `<img class="ap-discover-thumb" src="${esc(first)}" alt="${esc(alt || '')}" decoding="async" referrerpolicy="no-referrer"${
+      rest ? ` data-fallbacks="${esc(rest)}"` : ''
+    }>`;
   }
 
   function itemCard(item, rank) {
@@ -111,6 +169,29 @@
     } catch (_e) {
       return { _error: true };
     }
+  }
+
+  function bindThumbFallbacks(root) {
+    root.querySelectorAll('img.ap-discover-thumb[data-fallbacks]').forEach((img) => {
+      img.addEventListener('error', function onErr() {
+        const raw = img.getAttribute('data-fallbacks') || '';
+        const queue = raw.split('|').map((s) => s.trim()).filter(Boolean);
+        while (queue.length) {
+          const next = queue.shift();
+          if (!next || next === img.getAttribute('src')) continue;
+          img.setAttribute('data-fallbacks', queue.join('|'));
+          img.setAttribute('src', next);
+          return;
+        }
+        img.removeEventListener('error', onErr);
+        img.removeAttribute('data-fallbacks');
+        const div = document.createElement('div');
+        div.className = 'ap-discover-fallback';
+        div.setAttribute('aria-hidden', 'true');
+        div.textContent = '▶';
+        img.replaceWith(div);
+      });
+    });
   }
 
   async function mount(containerId) {
@@ -165,21 +246,7 @@
         location.href = pill.getAttribute('data-href');
       });
     });
-    el.querySelectorAll('img[data-fallback]').forEach((img) => {
-      img.addEventListener('error', () => {
-        const fb = img.getAttribute('data-fallback');
-        if (fb && img.getAttribute('src') !== fb) {
-          img.setAttribute('src', fb);
-          img.removeAttribute('data-fallback');
-          return;
-        }
-        const div = document.createElement('div');
-        div.className = 'ap-discover-fallback';
-        div.setAttribute('aria-hidden', 'true');
-        div.textContent = '▶';
-        img.replaceWith(div);
-      });
-    });
+    bindThumbFallbacks(el);
   }
 
   window.SocialDiscoveryRails = { mount, fetchRails };

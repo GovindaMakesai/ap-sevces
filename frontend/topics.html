@@ -2,38 +2,18 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#ffffff">
-  <title>Topics - AP Services</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-theme.css?v=20260723-topics">
-  <link rel="stylesheet" href="social-features.css?v=20260723-topics">
-  <script src="ap-native-boot.js"></script>
-</head>
-<body class="social-tabs-page social-topics-page">
-  <header class="social-top">
-    <div class="social-main-tabs">
-      <a href="/explore.html?tab=following&app=1">Following</a>
-      <a href="/video.html?app=1">Video</a>
-      <a href="/square.html?app=1">Square</a>
-      <a href="/topics.html?app=1" class="active">Topics</a>
-      <button type="button" class="social-icon-btn" data-social-camera style="margin-left:auto;border:none;background:#f3f4f6"><i class="fas fa-camera"></i></button>
-    </div>
-  </header>
-
-  <div id="topicsList" style="padding-bottom:88px"></div>
-  <div id="social-bottom-nav-mount"></div>
-
-  <script src="app.js?v=20260627-social-fix"></script>
-  <script src="social-interactions.js?v=20260723-topics"></script>
-  <script src="social-create-post.js?v=20260627-social-fix"></script>
-  <script src="social-shell.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Redirecting…</title>
+  <meta http-equiv="refresh" content="0;url=/square.html?app=1">
   <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      SocialShell.initPage({ activeNav: 'video' });
-      SocialShell.renderTopicsList('topicsList');
-      if (window.SocialCreatePost?.bindCameraButtons) SocialCreatePost.bindCameraButtons();
-    });
+    (function () {
+      var params = new URLSearchParams(location.search || '');
+      if (!params.has('app')) params.set('app', '1');
+      location.replace('/square.html?' + params.toString());
+    })();
   </script>
+</head>
+<body>
+  <p style="font-family:sans-serif;padding:24px;color:#6b4f10">Topics is coming soon — opening Square…</p>
 </body>
 </html>
