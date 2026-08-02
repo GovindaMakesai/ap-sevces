@@ -411,9 +411,15 @@
   margin-bottom: var(--ap-space-3);
 }
 
+.ap-discover-title {
+  margin-left: 20px;
+  margin-right: 20px;
+}
+
 .ap-discover-row {
   gap: var(--ap-space-3);
-  padding: 0 var(--ap-space-4) var(--ap-space-2);
+  padding: 0 20px var(--ap-space-2);
+  scroll-padding-inline: 20px;
   scroll-snap-type: x proximity;
 }
 
@@ -446,7 +452,7 @@
 }
 
 .ap-discover-empty {
-  margin: 0 var(--ap-space-4);
+  margin: 0 20px;
   padding: var(--ap-space-3);
   border-radius: 12px;
   background: rgba(201, 162, 39, 0.08);
