@@ -2614,7 +2614,10 @@ html.social-video-immersive .social-comment-sheet {
   z-index: 1400;
 }
 
-.ap-discover-rails { padding: 10px 0 6px; }
+/* Hide Topics until the feature is ready */
+.social-main-tabs a[href*="topics.html"] {
+  display: none !important;
+}
 .ap-discover-section { margin-bottom: 12px; }
 .ap-discover-title {
   margin: 0 20px 10px;
@@ -2649,13 +2652,22 @@ html.social-video-immersive .social-comment-sheet {
   background: #fffdf8;
   border: 1px solid rgba(201, 162, 39, 0.28);
 }
+.ap-discover-thumb-wrap {
+  display: block;
+  width: 100%;
+  height: 132px;
+  background-size: cover;
+  background-position: center;
+  background-color: #f5e6c8;
+}
 .ap-discover-card img,
+.ap-discover-thumb,
 .ap-discover-fallback {
   display: block;
   width: 100%;
   height: 132px;
   object-fit: cover;
-  background: linear-gradient(145deg, #fef3c7, #f5e6c8);
+  background: transparent;
 }
 .ap-discover-fallback {
   display: flex;
@@ -2663,6 +2675,7 @@ html.social-video-immersive .social-comment-sheet {
   justify-content: center;
   font-size: 28px;
   color: #c9a227;
+  background: linear-gradient(145deg, #fef3c7, #f5e6c8);
 }
 .ap-discover-card .social-live-pill {
   position: absolute;

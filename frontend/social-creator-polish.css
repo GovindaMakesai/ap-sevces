@@ -440,6 +440,10 @@
   height: 140px;
 }
 
+.ap-discover-thumb-wrap {
+  height: 140px;
+}
+
 .ap-discover-name {
   font-size: var(--ap-text-xs);
   font-weight: 800;

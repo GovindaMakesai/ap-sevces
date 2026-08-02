@@ -2,6 +2,8 @@ const db = require('../config/database');
 const followService = require('./followService');
 const RANKING = require('../config/socialFeedRanking');
 const { toPublicUrl } = require('./socialMediaUrl');
+const fs = require('fs');
+const path = require('path');
 
 const PUBLIC_HOST = String(
   process.env.PUBLIC_MEDIA_BASE ||
@@ -13,6 +15,8 @@ const PUBLIC_HOST = String(
   .trim()
   .replace(/\/$/, '');
 
+const UPLOADS_ROOT = path.join(__dirname, '..', 'uploads');
+
 /** Absolute media URL — relative /uploads paths break on the marketing/app host. */
 function absMediaUrl(pathOrUrl) {
   const p = toPublicUrl(pathOrUrl);
@@ -23,6 +27,32 @@ function absMediaUrl(pathOrUrl) {
 
 function isVideoPath(pathOrUrl) {
   return /\.(mp4|webm|mov|m4v)(\?|$)/i.test(String(pathOrUrl || ''));
+}
+
+/** Drop local /uploads URLs whose files are missing on disk (broken thumbs). */
+function absExistingMediaUrl(pathOrUrl) {
+  const url = absMediaUrl(pathOrUrl);
+  if (!url) return null;
+  if (isVideoPath(pathOrUrl) || isVideoPath(url)) return null;
+  let pathname = url;
+  try {
+    if (/^https?:\/\//i.test(url)) pathname = new URL(url).pathname;
+  } catch (_e) {
+    pathname = String(pathOrUrl || '');
+  }
+  if (!pathname.startsWith('/uploads/')) {
+    /* External host — keep */
+    return url;
+  }
+  const rel = pathname.replace(/^\/uploads\/?/, '');
+  const full = path.join(UPLOADS_ROOT, rel);
+  if (!full.startsWith(UPLOADS_ROOT)) return null;
+  try {
+    if (!fs.existsSync(full)) return null;
+  } catch (_e) {
+    return null;
+  }
+  return url;
 }
 
 /**
@@ -65,7 +95,7 @@ function mapLiveRow(row) {
     type: 'live',
     userId: String(row.user_id || row.id),
     displayName: name,
-    profilePic: absMediaUrl(row.profile_pic),
+    profilePic: absExistingMediaUrl(row.profile_pic),
     channel: row.channel,
     viewers: Number(row.viewer_count || 0),
     roomType,
@@ -80,7 +110,7 @@ function mapCreatorCard(row) {
     type: 'creator',
     userId: String(row.id),
     displayName: name,
-    profilePic: absMediaUrl(row.profile_pic),
+    profilePic: absExistingMediaUrl(row.profile_pic),
     role: row.role || null,
     agencyName: row.agency_name || null,
     isVerified: Boolean(row.is_verified),
@@ -96,13 +126,11 @@ function mapCreatorCard(row) {
 
 function mapPostCard(row) {
   const name = `${row.first_name || ''} ${row.last_name || ''}`.trim() || 'Creator';
-  const profilePic = absMediaUrl(row.profile_pic);
+  const profilePic = absExistingMediaUrl(row.profile_pic);
   const thumbRaw = row.thumb_url || null;
   /* Never use a video file as <img> thumb — fall back to creator photo */
-  let thumb = absMediaUrl(thumbRaw);
-  if (!thumb || isVideoPath(thumbRaw) || isVideoPath(thumb)) {
-    thumb = profilePic;
-  }
+  let thumb = absExistingMediaUrl(thumbRaw);
+  if (!thumb) thumb = profilePic;
   /* Last resort: keep null so client can render initials — never send video media_url as thumb */
   return {
     type: 'post',

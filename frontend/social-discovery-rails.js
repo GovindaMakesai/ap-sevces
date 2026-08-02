@@ -3,6 +3,8 @@
  * Lightweight horizontal chips, AP Live cream/gold.
  */
 (function () {
+  const FALLBACK_CHAIN = new WeakMap();
+
   function esc(s) {
     return String(s || '')
       .replace(/&/g, '&amp;')
@@ -40,14 +42,13 @@
       .map((p) => {
         try {
           const ch = Array.from(p).find((c) => /[A-Za-z0-9]/.test(c));
-          return ch || Array.from(p)[0] || '';
+          return ch || '';
         } catch (_e) {
-          return p.charAt(0) || '';
+          return '';
         }
       })
       .filter(Boolean);
-    const label = (letters.join('') || 'U').slice(0, 2).toUpperCase();
-    return /[A-Z0-9]/.test(label) ? label.replace(/[^A-Z0-9]/g, '') || 'U' : 'U';
+    return (letters.join('') || 'U').slice(0, 2).toUpperCase();
   }
 
   function initialsSvg(name) {
@@ -56,7 +57,7 @@
       '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256">' +
       '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">' +
       '<stop offset="0%" stop-color="#e8c56a"/><stop offset="100%" stop-color="#9a7218"/></linearGradient></defs>' +
-      '<rect width="256" height="256" rx="128" fill="url(#g)"/>' +
+      '<rect width="256" height="256" rx="24" fill="url(#g)"/>' +
       '<text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" ' +
       'font-family="Arial,sans-serif" font-size="96" font-weight="700" fill="#fff">' +
       label +
@@ -68,7 +69,7 @@
         'data:image/svg+xml;charset=UTF-8,' +
         encodeURIComponent(
           '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256">' +
-            '<rect width="256" height="256" rx="128" fill="#c9a227"/>' +
+            '<rect width="256" height="256" rx="24" fill="#c9a227"/>' +
             '<text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" ' +
             'font-family="Arial,sans-serif" font-size="96" font-weight="700" fill="#fff">U</text></svg>'
         )
@@ -79,7 +80,7 @@
   function mediaUrl(path) {
     if (!path) return '';
     let p = String(path).trim();
-    if (!p || isVideoPath(p)) return '';
+    if (!p || p === 'null' || p === 'undefined' || isVideoPath(p)) return '';
     if (/^(data:|blob:)/i.test(p)) return p;
     try {
       if (window.SocialShell?.getImageUrl) {
@@ -102,7 +103,10 @@
     const resolved = mediaUrl(photo);
     if (resolved) return resolved;
     try {
-      if (window.SocialUI?.avatarUrl) return SocialUI.avatarUrl(name || 'Creator', null);
+      if (window.SocialUI?.avatarUrl) {
+        const u = SocialUI.avatarUrl(name || 'Creator', null);
+        if (u) return u;
+      }
     } catch (_e) { /* ignore */ }
     return initialsSvg(name || 'Creator');
   }
@@ -114,18 +118,17 @@
   }
 
   function thumbImg(src, fallback, alt) {
-    const primary = String(src || '').trim();
-    const fb = String(fallback || '').trim();
-    const init = initialsSvg(alt || 'Creator');
-    const chain = [];
-    if (primary) chain.push(primary);
-    if (fb && fb !== primary) chain.push(fb);
-    if (!chain.includes(init)) chain.push(init);
-    const first = chain[0];
-    const rest = chain.slice(1).join('|');
-    return `<img class="ap-discover-thumb" src="${esc(first)}" alt="${esc(alt || '')}" decoding="async" referrerpolicy="no-referrer"${
-      rest ? ` data-fallbacks="${esc(rest)}"` : ''
-    }>`;
+    const name = alt || 'Creator';
+    const primary = mediaUrl(src);
+    const fb = mediaUrl(fallback);
+    const init = initialsSvg(name);
+    const first = primary || fb || init;
+    const mid = fb && fb !== first ? fb : '';
+    return `<span class="ap-discover-thumb-wrap" style="background-image:url('${init.replace(/'/g, '%27')}')">
+      <img class="ap-discover-thumb" src="${esc(first)}" alt="${esc(name)}" decoding="async" data-ap-thumb="1"${
+        mid ? ` data-fallback="${esc(mid)}"` : ''
+      }>
+    </span>`;
   }
 
   function itemCard(item, rank) {
@@ -134,7 +137,7 @@
     const profile = avatarFallback(name, item.profilePic);
     if (item.type === 'live') {
       return `<a class="ap-discover-card ap-discover-card--live" href="${esc(item.href)}">
-        ${thumbImg(profile, profile, name)}
+        ${thumbImg(profile, null, name)}
         ${badge}
         <span class="social-live-pill"><i class="fas fa-circle"></i> LIVE</span>
         <span class="ap-discover-name">${esc(name)}</span>
@@ -150,7 +153,7 @@
       </a>`;
     }
     return `<a class="ap-discover-card ap-discover-card--creator" href="${esc(item.profileHref || item.href || '#')}">
-      ${thumbImg(profile, profile, name)}
+      ${thumbImg(profile, null, name)}
       ${badge}
       ${item.isLive && item.liveHref ? `<span class="social-live-pill" data-href="${esc(item.liveHref)}"><i class="fas fa-circle"></i> LIVE</span>` : ''}
       <span class="ap-discover-name">${esc(name)}</span>
@@ -172,24 +175,31 @@
   }
 
   function bindThumbFallbacks(root) {
-    root.querySelectorAll('img.ap-discover-thumb[data-fallbacks]').forEach((img) => {
+    root.querySelectorAll('img.ap-discover-thumb[data-ap-thumb]').forEach((img) => {
+      const wrap = img.closest('.ap-discover-thumb-wrap');
+      const name = img.getAttribute('alt') || 'Creator';
+      const primary = img.getAttribute('src') || '';
+      const profileGuess =
+        wrap?.parentElement?.querySelector?.('.ap-discover-name')?.textContent || name;
+      const chain = [];
+      if (primary) chain.push(primary);
+      const init = initialsSvg(profileGuess);
+      if (!chain.includes(init)) chain.push(init);
+      FALLBACK_CHAIN.set(img, { i: 0, chain });
+
       img.addEventListener('error', function onErr() {
-        const raw = img.getAttribute('data-fallbacks') || '';
-        const queue = raw.split('|').map((s) => s.trim()).filter(Boolean);
-        while (queue.length) {
-          const next = queue.shift();
-          if (!next || next === img.getAttribute('src')) continue;
-          img.setAttribute('data-fallbacks', queue.join('|'));
-          img.setAttribute('src', next);
+        const state = FALLBACK_CHAIN.get(img);
+        if (!state) {
+          img.style.opacity = '0';
+          return;
+        }
+        state.i += 1;
+        if (state.i < state.chain.length) {
+          img.src = state.chain[state.i];
           return;
         }
         img.removeEventListener('error', onErr);
-        img.removeAttribute('data-fallbacks');
-        const div = document.createElement('div');
-        div.className = 'ap-discover-fallback';
-        div.setAttribute('aria-hidden', 'true');
-        div.textContent = '▶';
-        img.replaceWith(div);
+        img.style.opacity = '0';
       });
     });
   }
