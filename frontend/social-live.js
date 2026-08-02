@@ -7840,33 +7840,28 @@
     logAudioTransition('mic_create_start', { hostLike, seatLike, oem, android });
 
     /*
-     * Leave communication mode before getUserMedia for hosts + all Android seats.
-     * Talk/recording mode enables OEM HW AEC that cancels uplink (must-shout).
+     * Same path for host + seats: leave talk/recording mode before getUserMedia
+     * on Android so OEM HW AEC doesn't cancel uplink on some phones only.
      */
-    if (hostLike || (seatLike && android)) {
+    if ((hostLike || seatLike) && android) {
       leaveHostCommunicationAudioMode(hostLike ? 'host_pre_mic' : 'android_seat_pre_mic');
+      await new Promise((r) => setTimeout(r, 120));
+    } else if (hostLike) {
+      leaveHostCommunicationAudioMode('host_pre_mic');
       await new Promise((r) => setTimeout(r, 120));
     }
 
     disposeHostMicBoostGraph();
-    const micId = hostLike || (seatLike && android) ? await pickBestHostMicrophoneId(rtc) : undefined;
-    const opts = hostLike
-      ? {
-        /* AEC must stay ON or seat voices loop back via host speaker (double voice).
-         * Keep AGC off + high send vol + no Android communication mode for Samsung clarity. */
-        AEC: true,
-        ANS: false,
-        AGC: false,
-        encoderConfig: 'music_standard',
-        ...(micId ? { microphoneId: micId } : {}),
-      }
-      : {
-        AEC: true,
-        ANS: false,
-        AGC: false,
-        encoderConfig: 'speech_standard',
-        ...(micId ? { microphoneId: micId } : {}),
-      };
+    /*
+     * Use OS default mic for everyone — picking different device IDs per role/OEM
+     * caused some phones loud and others quiet. Equal path = equal voice.
+     */
+    const opts = {
+      AEC: true,
+      ANS: false,
+      AGC: false,
+      encoderConfig: 'speech_standard',
+    };
 
     let audioTrack = null;
     try {
