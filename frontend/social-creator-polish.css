@@ -303,7 +303,8 @@
     opacity var(--ap-dur) var(--ap-ease),
     visibility var(--ap-dur) var(--ap-ease);
   background: rgba(26, 16, 0, 0.42);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-bottom: 0;
+  z-index: 1400;
 }
 
 .social-comment-sheet.open {
@@ -313,7 +314,7 @@
 }
 
 .social-comment-panel {
-  padding: var(--ap-space-4) var(--ap-space-4) calc(var(--ap-space-4) + env(safe-area-inset-bottom, 0px));
+  padding: var(--ap-space-3) var(--ap-space-4) calc(var(--ap-space-4) + env(safe-area-inset-bottom, 0px));
   transform: translateY(110%);
   transition: transform var(--ap-dur-slow) var(--ap-ease);
   max-height: min(72vh, 640px);
@@ -363,6 +364,10 @@
 .social-comment-input-row button {
   min-height: var(--ap-touch);
   min-width: 72px;
+}
+
+.social-comment-reply-hint[hidden] {
+  display: none !important;
 }
 
 /* ---- Identity consistency ---- */

@@ -1498,9 +1498,10 @@
     el.className = 'social-comment-sheet';
     el.innerHTML = `
       <div class="social-comment-panel">
+        <div class="social-comment-grab" aria-hidden="true"></div>
         <div class="social-comment-head">
           <h3>Comments</h3>
-          <button type="button" id="socialCommentClose"><i class="fas fa-times"></i></button>
+          <button type="button" id="socialCommentClose" aria-label="Close"><i class="fas fa-times"></i></button>
         </div>
         <div class="social-comment-list" id="socialCommentList"></div>
         <div class="social-comment-reply-hint" id="socialCommentReplyHint" hidden></div>
@@ -1568,8 +1569,7 @@
         : '';
       return `<div class="social-comment-item${isReply ? ' is-reply' : ''}" data-id="${escapeHtml(c.id)}">
         <div class="social-comment-main">
-          <strong>${escapeHtml(c.user)}</strong>
-          <p class="social-comment-body">${formatCommentText(c.text)}</p>
+          <strong>${escapeHtml(c.user)}</strong><span class="social-comment-body">${formatCommentText(c.text)}</span>
           <div class="social-comment-actions">
             <button type="button" class="social-comment-act${likedCls}" data-act="like" data-id="${escapeHtml(c.id)}">
               <i class="fas fa-heart"></i> <span data-like-count>${Number(c.likeCount) || 0}</span>
