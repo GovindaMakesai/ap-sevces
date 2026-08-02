@@ -5002,8 +5002,8 @@
           shouldHear: () => shouldHearRemoteAudio(),
           requestSpeaker: () => requestNativeSpeakerAudio(),
           unlockAudio: () => unlockBrowserAudio(),
-          /* Flat Agora default — never couple playback gain to room size / role */
-          volumeFor: () => LIVE_TRACK_VOLUME,
+          /* Flat Agora default for everyone; Minal/Veena get host-only playback boost */
+          volumeFor: (ctx) => remotePlaybackVolume(ctx?.uid ?? ctx?.user),
         });
         syncLiveMediaPublisherMode();
         /* Phase 1: ONLY APLiveMedia owns health — no social-live media watchdog / mesh timer */
@@ -7694,6 +7694,15 @@
    */
   const LIVE_TRACK_VOLUME = 100;
   const LIVE_PUBLISHER_SEND_VOLUME = 140;
+  /* Minal (4429133) + Veena (7337852) phones only: host sounds a bit quiet on their devices.
+   * Do not apply to anyone else — keeps flat 100 playback for the rest of the room. */
+  const QUIET_PHONE_HOST_LISTENERS = new Set([
+    '4429133',
+    '7337852',
+    '42a3da61-ae9f-473f-8faf-1fbef5e9dd10',
+    'db419b3a-a715-4d08-830c-b30592ae1b89',
+  ]);
+  const QUIET_PHONE_HOST_PLAYBACK_VOLUME = 200;
 
   function isAndroidHostMicRisk() {
     try {
@@ -7718,13 +7727,49 @@
     return isOemHostMicRisk();
   }
 
+  function isQuietPhoneHostListener() {
+    try {
+      const { id, displayId } = currentUserIds();
+      if (displayId && QUIET_PHONE_HOST_LISTENERS.has(String(displayId))) return true;
+      if (id && QUIET_PHONE_HOST_LISTENERS.has(String(id))) return true;
+    } catch (_e) { }
+    return false;
+  }
+
+  function isAgoraUidRoomHost(agoraUid) {
+    if (agoraUid == null) return false;
+    try {
+      const map = window.__apAgoraUidMap || {};
+      const appId = map[String(agoraUid)];
+      if (appId && isRoomHostUserId(appId)) return true;
+    } catch (_e) { }
+    return false;
+  }
+
   function localMicSendVolume() {
     /* Same fixed send for host AND seats — never depends on remote count or OEM */
     if (isHost() || hasSpeakerSeat) return LIVE_PUBLISHER_SEND_VOLUME;
     return LIVE_TRACK_VOLUME;
   }
 
-  function remotePlaybackVolume() {
+  function remotePlaybackVolume(userOrUid) {
+    if (!isQuietPhoneHostListener()) return LIVE_TRACK_VOLUME;
+    const uid =
+      userOrUid != null && typeof userOrUid === 'object'
+        ? userOrUid.uid
+        : userOrUid;
+    /* Boost host track only; if uid map not ready yet, boost so they still hear host. */
+    if (uid == null || isAgoraUidRoomHost(uid)) return QUIET_PHONE_HOST_PLAYBACK_VOLUME;
+    try {
+      const map = window.__apAgoraUidMap || {};
+      const hostId = roomState?.hostId;
+      const hostMapped = hostId
+        ? Object.keys(map).some((k) => String(map[k]) === String(hostId))
+        : false;
+      if (!hostMapped) return QUIET_PHONE_HOST_PLAYBACK_VOLUME;
+    } catch (_e) {
+      return QUIET_PHONE_HOST_PLAYBACK_VOLUME;
+    }
     return LIVE_TRACK_VOLUME;
   }
 
@@ -12096,7 +12141,10 @@
   function boostRemoteAudioVolumes() {
     syncLiveMediaPublisherMode();
     const eng = liveMedia();
-    logAudioTransition('boost_remote_volumes', { vol: LIVE_TRACK_VOLUME });
+    logAudioTransition('boost_remote_volumes', {
+      vol: remotePlaybackVolume(),
+      quietPhone: isQuietPhoneHostListener(),
+    });
     if (eng) {
       eng.boostAll(agoraClient);
       return;
@@ -12104,7 +12152,7 @@
     try {
       for (const user of agoraClient?.remoteUsers || []) {
         try {
-          user.audioTrack?.setVolume?.(LIVE_TRACK_VOLUME);
+          user.audioTrack?.setVolume?.(remotePlaybackVolume(user));
         } catch (_e) { }
       }
     } catch (_e) { }
@@ -12323,7 +12371,7 @@
           }
           if (user.audioTrack) {
             try {
-              user.audioTrack.setVolume?.(remotePlaybackVolume());
+              user.audioTrack.setVolume?.(remotePlaybackVolume(user));
               await eng.playRemoteAudio(user, { force: true });
             } catch (_e3) { /* ignore */ }
           }
