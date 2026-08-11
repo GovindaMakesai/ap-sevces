@@ -1,5 +1,6 @@
 /**
  * Native app — restore session before auth UI paints (prevents login flash on reopen).
+ * Also clears stuck auth-restoring hide states even if app.js never loads.
  */
 (function () {
   'use strict';
@@ -7,9 +8,99 @@
   function isNative() {
     if (window.__AP_NATIVE_APP__) return true;
     if (window.ReactNativeWebView || window.Capacitor) return true;
-    const q = new URLSearchParams(window.location.search);
-    return q.get('app') === '1' || q.get('source') === 'expo-app';
+    try {
+      const q = new URLSearchParams(window.location.search);
+      return q.get('app') === '1' || q.get('source') === 'expo-app';
+    } catch (_e) {
+      return false;
+    }
   }
+
+  function safeGet(key) {
+    try {
+      return localStorage.getItem(key);
+    } catch (_e) {
+      return null;
+    }
+  }
+
+  function safeRemove(key) {
+    try {
+      localStorage.removeItem(key);
+    } catch (_e) {}
+  }
+
+  /** Usable session: profile + access or refresh token (native reinject can supply access). */
+  function hasUsableSession() {
+    try {
+      const user = safeGet('user');
+      const token = safeGet('token');
+      const refresh = safeGet('ap_refresh_token');
+      return Boolean(user && (token || refresh));
+    } catch (_e) {
+      return false;
+    }
+  }
+
+  /** Any residual identity — used only to clean up incomplete state, not gate entry alone. */
+  function hasPartialSession() {
+    return Boolean(safeGet('user') || safeGet('token') || safeGet('ap_refresh_token'));
+  }
+
+  function clearSessionKeys() {
+    safeRemove('user');
+    safeRemove('token');
+    safeRemove('ap_refresh_token');
+    try {
+      sessionStorage.removeItem('ap_session_ok_at');
+      sessionStorage.removeItem('ap_last_session_refresh');
+    } catch (_e) {}
+  }
+
+  function clearAuthRestoring() {
+    try {
+      document.documentElement.classList.remove('auth-restoring', 'auth-locked');
+    } catch (_e) {}
+    try {
+      const explore = document.getElementById('exploreContent');
+      if (explore) {
+        explore.style.removeProperty('opacity');
+        explore.style.removeProperty('pointer-events');
+      }
+    } catch (_e) {}
+  }
+
+  /**
+   * Never leave the cream/blank auth-restoring hide without a hard upper bound.
+   * Safe to call many times; does not depend on app.js.
+   */
+  function scheduleAuthRestoringClear() {
+    if (window.__apAuthRestoreClearScheduled) {
+      clearAuthRestoring();
+      return;
+    }
+    window.__apAuthRestoreClearScheduled = true;
+    [0, 600, 1200, 2500, 4000].forEach(function (ms) {
+      setTimeout(clearAuthRestoring, ms);
+    });
+    try {
+      window.addEventListener('pageshow', clearAuthRestoring);
+      window.addEventListener('error', clearAuthRestoring);
+      window.addEventListener('unhandledrejection', clearAuthRestoring);
+      document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'visible') clearAuthRestoring();
+      });
+    } catch (_e) {}
+  }
+
+  window.ApSession = {
+    isNative: isNative,
+    hasUsableSession: hasUsableSession,
+    hasPartialSession: hasPartialSession,
+    clearSessionKeys: clearSessionKeys,
+    clearAuthRestoring: clearAuthRestoring,
+    scheduleAuthRestoringClear: scheduleAuthRestoringClear,
+  };
 
   if (!isNative()) return;
 
@@ -27,22 +118,14 @@
     (document.head || document.documentElement).appendChild(style);
   })();
 
-  function hasSession() {
-    try {
-      const user = localStorage.getItem('user');
-      const token = localStorage.getItem('token');
-      const refresh = localStorage.getItem('ap_refresh_token');
-      return Boolean(user && (token || refresh));
-    } catch (_e) {
-      return false;
-    }
-  }
+  /* Always arm recovery, even on pages that do not redirect */
+  scheduleAuthRestoringClear();
 
   function homeUrl() {
     const q = '?app=1&source=expo-app';
     let user = null;
     try {
-      user = JSON.parse(localStorage.getItem('user') || 'null');
+      user = JSON.parse(safeGet('user') || 'null');
     } catch (_e) {
       user = null;
     }
@@ -62,16 +145,37 @@
 
   const isAppEntry = path.endsWith('/explore.html');
 
-  if (onAuth && hasSession()) {
+  /* Incomplete junk session → wipe and show welcome (never infinite restore) */
+  if (hasPartialSession() && !hasUsableSession()) {
+    clearSessionKeys();
+    clearAuthRestoring();
+  }
+
+  if (onAuth && hasUsableSession()) {
     document.documentElement.classList.add('auth-restoring');
-    window.location.replace(homeUrl());
+    scheduleAuthRestoringClear();
+    try {
+      window.location.replace(homeUrl());
+    } catch (_e) {
+      clearAuthRestoring();
+    }
     return;
   }
 
-  if (isAppEntry && !hasSession()) {
+  if (isAppEntry && !hasUsableSession()) {
     document.documentElement.classList.add('auth-restoring');
-    window.location.replace('/app-auth.html?app=1&source=expo-app');
+    scheduleAuthRestoringClear();
+    try {
+      window.location.replace('/app-auth.html?app=1&source=expo-app');
+    } catch (_e) {
+      clearAuthRestoring();
+    }
     return;
+  }
+
+  /* First-time / logged-out auth screen must paint Welcome */
+  if (onAuth && !hasUsableSession()) {
+    clearAuthRestoring();
   }
 
   window.__AP_NATIVE_HOME__ = homeUrl;

@@ -60,9 +60,31 @@
     /* Chat page must never be hidden at boot — caused blank/stuck Messages tab in WebView */
   }
 
-  if (!onAuth && !localStorage.getItem('user') && !localStorage.getItem('token')) {
+  function hasUsableSession() {
+    if (window.ApSession && typeof window.ApSession.hasUsableSession === 'function') {
+      return window.ApSession.hasUsableSession();
+    }
+    try {
+      const user = localStorage.getItem('user');
+      const token = localStorage.getItem('token');
+      const refresh = localStorage.getItem('ap_refresh_token');
+      return Boolean(user && (token || refresh));
+    } catch (_e) {
+      return false;
+    }
+  }
+
+  if (!onAuth && !hasUsableSession()) {
     if (path.endsWith('/explore.html')) {
       document.documentElement.classList.add('auth-restoring');
+      try {
+        window.ApSession?.scheduleAuthRestoringClear?.();
+      } catch (_e) {}
+      setTimeout(function () {
+        try {
+          document.documentElement.classList.remove('auth-restoring');
+        } catch (_e2) {}
+      }, 1200);
       location.replace('/app-auth.html?app=1&source=expo-app');
       return;
     }

@@ -436,6 +436,10 @@
   let reconnectRejoinTimer = null;
   let partyVoiceSkipped = false;
   let cameraFacing = 'user';
+  /** null = auto (front = mirror on); true/false = host override from tools */
+  let hostMirrorOverride = null;
+  /** Display state — ANS/AEC applied at mic create; in-room toggling doesn't rebuild tracks */
+  let noiseReductionUiOn = true;
   let videoFilterId = 'none';
   try {
     // One-time: older builds defaulted to "natural" without the user picking a look.
@@ -3903,6 +3907,17 @@
           if (payload?.agoraUid != null) {
             window.__apAgoraUidMap = window.__apAgoraUidMap || {};
             window.__apAgoraUidMap[String(payload.agoraUid)] = uid;
+            const did = payload.displayId != null ? String(payload.displayId) : '';
+            if (
+              payload.quietDevice ||
+              accountKeyMatchesQuiet(uid) ||
+              accountKeyMatchesQuiet(did)
+            ) {
+              try {
+                window.__apQuietAgoraUids = window.__apQuietAgoraUids || {};
+                window.__apQuietAgoraUids[String(payload.agoraUid)] = true;
+              } catch (_q) { }
+            }
           }
           renderGuestRail();
         }
@@ -6448,6 +6463,13 @@
       });
 
       await normalizeLocalMicLevel();
+      if (isQuietDevicePublisherMe()) {
+        /* Extra re-assert: Minal seat path was inaudible on hardware mics */
+        scheduleQuietDeviceMicBoost(getLocalAudioTrack());
+        try {
+          getLocalAudioTrack()?.setVolume?.(QUIET_DEVICE_SEND_VOLUME);
+        } catch (_qv) { }
+      }
       syncLiveMediaPublisherMode();
       boostRemoteAudioVolumes();
       await ensureRemoteAudioPlaying().catch(() => { });
@@ -6458,6 +6480,8 @@
           userId: user.id,
           agoraUid: liveDebugState.agoraUid,
           hasVideo: false,
+          quietDevice: isQuietDevicePublisherMe(),
+          displayId: user.display_id || user.displayId || null,
         });
         setTimeout(() => {
           try {
@@ -6466,6 +6490,8 @@
               userId: user.id,
               agoraUid: liveDebugState.agoraUid,
               hasVideo: false,
+              quietDevice: isQuietDevicePublisherMe(),
+              displayId: user.display_id || user.displayId || null,
             });
           } catch (_e2) { }
         }, 1500);
@@ -7405,12 +7431,25 @@
 
   function applyHostPreviewMirror(localBox, facing) {
     if (!localBox) return;
-    const wantMirror = facing === 'user';
+    const wantMirror =
+      hostMirrorOverride != null ? Boolean(hostMirrorOverride) : facing === 'user';
     localBox.classList.toggle('live-local-host-mirror', wantMirror);
     localBox.querySelectorAll('video').forEach((v) => {
       // Force override Agora/browser inline transforms so flip can't stick.
       v.style.setProperty('transform', wantMirror ? 'scaleX(-1)' : 'none', 'important');
     });
+  }
+
+  function toggleHostMirrorPreview() {
+    const box = document.getElementById('liveLocalHost');
+    if (!box || broadcastMode === 'audio') {
+      toast('Mirror is available on video livestreams', 'info');
+      return;
+    }
+    const currently = box.classList.contains('live-local-host-mirror');
+    hostMirrorOverride = !currently;
+    applyHostPreviewMirror(box, cameraFacing);
+    toast(hostMirrorOverride ? 'Mirror on (local preview)' : 'Mirror off', 'success');
   }
 
   function playLocalHostPreview(videoTrack) {
@@ -7686,23 +7725,27 @@
   }
 
   /**
-   * Mic / remote volumes — equal for host and seats, same on every device.
+   * Mic / remote volumes — equal for host and seats by default.
    *
    * INVARIANT: never scale by participant / seat count.
-   * Host and seats use the SAME fixed send level so uplink matches.
-   * Playback stays Agora default 100 for everyone (no role/device boosts).
+   * Minal (4429133) + Veena (7337852) device accounts only:
+   * - higher uplink (send) so others hear them as host or seat
+   * - listeners who share those accounts boost host playback as before
    */
   const LIVE_TRACK_VOLUME = 100;
   const LIVE_PUBLISHER_SEND_VOLUME = 140;
-  /* Minal (4429133) + Veena (7337852) phones only: host sounds a bit quiet on their devices.
-   * Do not apply to anyone else — keeps flat 100 playback for the rest of the room. */
-  const QUIET_PHONE_HOST_LISTENERS = new Set([
-    '4429133',
-    '7337852',
+  const QUIET_DEVICE_ACCOUNTS = new Set([
+    '4429133', /* Minal */
+    '7337852', /* Veena */
     '42a3da61-ae9f-473f-8faf-1fbef5e9dd10',
     'db419b3a-a715-4d08-830c-b30592ae1b89',
   ]);
-  const QUIET_PHONE_HOST_PLAYBACK_VOLUME = 200;
+  /* Send level when THIS device account is publishing (host or seat) */
+  const QUIET_DEVICE_SEND_VOLUME = 320;
+  /* How loud others hear a quiet-device publisher (host or seat remote track) */
+  const QUIET_DEVICE_REMOTE_PLAYBACK = 280;
+  /* How loud a quiet-device listener hears the room host (existing behavior) */
+  const QUIET_PHONE_HOST_PLAYBACK_VOLUME = 240;
 
   function isAndroidHostMicRisk() {
     try {
@@ -7727,12 +7770,93 @@
     return isOemHostMicRisk();
   }
 
-  function isQuietPhoneHostListener() {
+  function accountKeyMatchesQuiet(idOrDisplay) {
+    if (idOrDisplay == null || idOrDisplay === '') return false;
+    return QUIET_DEVICE_ACCOUNTS.has(String(idOrDisplay).trim());
+  }
+
+  /** True only when the logged-in user is Minal/Veena (local device path). */
+  function isQuietDevicePublisherMe() {
     try {
       const { id, displayId } = currentUserIds();
-      if (displayId && QUIET_PHONE_HOST_LISTENERS.has(String(displayId))) return true;
-      if (id && QUIET_PHONE_HOST_LISTENERS.has(String(id))) return true;
+      return accountKeyMatchesQuiet(displayId) || accountKeyMatchesQuiet(id);
+    } catch (_e) {
+      return false;
+    }
+  }
+
+  function isQuietPhoneHostListener() {
+    return isQuietDevicePublisherMe();
+  }
+
+  function appUserIdForAgoraUid(agoraUid) {
+    if (agoraUid == null) return null;
+    try {
+      const map = window.__apAgoraUidMap || {};
+      const v = map[String(agoraUid)];
+      if (v) return String(v);
     } catch (_e) { }
+    return null;
+  }
+
+  function collectRoomPeople() {
+    const out = [];
+    try {
+      if (roomState?.hostId || roomState?.hostName) {
+        out.push({
+          userId: roomState.hostId,
+          displayId: roomState.hostDisplayId || roomState.host_display_id,
+          agoraUid: roomState.hostAgoraUid,
+        });
+      }
+    } catch (_h) { }
+    for (const key of ['members', 'seats', 'guests', 'speakers']) {
+      try {
+        const raw = roomState?.[key];
+        if (!raw) continue;
+        const list = Array.isArray(raw) ? raw : Object.values(raw);
+        for (const m of list) {
+          if (m && typeof m === 'object') out.push(m);
+        }
+      } catch (_e) { }
+    }
+    return out;
+  }
+
+  function personIsQuietDevice(m) {
+    if (!m || typeof m !== 'object') return false;
+    return (
+      accountKeyMatchesQuiet(m.userId || m.user_id || m.id) ||
+      accountKeyMatchesQuiet(m.display_id || m.displayId || m.displayid)
+    );
+  }
+
+  function isQuietDevicePublisherUid(agoraUid) {
+    if (agoraUid == null) return false;
+    try {
+      if (window.__apQuietAgoraUids && window.__apQuietAgoraUids[String(agoraUid)]) {
+        return true;
+      }
+    } catch (_z) { }
+    const appId = appUserIdForAgoraUid(agoraUid);
+    if (appId && accountKeyMatchesQuiet(appId)) return true;
+    const people = collectRoomPeople();
+    for (const m of people) {
+      if (!personIsQuietDevice(m)) continue;
+      const uid = m.userId || m.user_id || m.id;
+      if (appId && uid != null && String(uid) === String(appId)) return true;
+      const aUid = m.agoraUid != null ? m.agoraUid : m.agora_uid;
+      if (aUid != null && String(aUid) === String(agoraUid)) return true;
+    }
+    /* Map resolved UUID → check if that user has quiet display_id in room */
+    if (appId) {
+      for (const m of people) {
+        const uid = m.userId || m.user_id || m.id;
+        if (uid != null && String(uid) === String(appId) && personIsQuietDevice(m)) {
+          return true;
+        }
+      }
+    }
     return false;
   }
 
@@ -7747,18 +7871,24 @@
   }
 
   function localMicSendVolume() {
-    /* Same fixed send for host AND seats — never depends on remote count or OEM */
+    if (isQuietDevicePublisherMe() && (isHost() || hasSpeakerSeat)) {
+      return QUIET_DEVICE_SEND_VOLUME;
+    }
     if (isHost() || hasSpeakerSeat) return LIVE_PUBLISHER_SEND_VOLUME;
     return LIVE_TRACK_VOLUME;
   }
 
   function remotePlaybackVolume(userOrUid) {
-    if (!isQuietPhoneHostListener()) return LIVE_TRACK_VOLUME;
     const uid =
       userOrUid != null && typeof userOrUid === 'object'
         ? userOrUid.uid
         : userOrUid;
-    /* Boost host track only; if uid map not ready yet, boost so they still hear host. */
+    /* Everyone: hear Minal/Veena louder when they host or take a seat */
+    if (uid != null && isQuietDevicePublisherUid(uid)) {
+      return QUIET_DEVICE_REMOTE_PLAYBACK;
+    }
+    if (!isQuietPhoneHostListener()) return LIVE_TRACK_VOLUME;
+    /* Minal/Veena listening: boost room host */
     if (uid == null || isAgoraUidRoomHost(uid)) return QUIET_PHONE_HOST_PLAYBACK_VOLUME;
     try {
       const map = window.__apAgoraUidMap || {};
@@ -7898,13 +8028,14 @@
 
     disposeHostMicBoostGraph();
     /*
-     * Use OS default mic for everyone — picking different device IDs per role/OEM
-     * caused some phones loud and others quiet. Equal path = equal voice.
+     * Default path for everyone. Minal/Veena only: turn AGC on so quiet hardware
+     * uplink is more audible when they host or sit on a seat — never for other users.
      */
+    const quietPub = isQuietDevicePublisherMe();
     const opts = {
       AEC: true,
-      ANS: false,
-      AGC: false,
+      ANS: quietPub,
+      AGC: quietPub,
       encoderConfig: 'speech_standard',
     };
 
@@ -7920,8 +8051,8 @@
       audioTrack = await withTimeout(
         rtc.createMicrophoneAudioTrack({
           AEC: true,
-          ANS: false,
-          AGC: false,
+          ANS: quietPub,
+          AGC: quietPub,
         }),
         25000,
         'Microphone access'
@@ -7929,8 +8060,35 @@
     }
 
     await normalizeLocalMicLevel(audioTrack);
-    /* Single level apply at create — do not re-setVolume on timers (AEC adapts). */
+    if (quietPub && (hostLike || seatLike)) {
+      scheduleQuietDeviceMicBoost(audioTrack);
+    }
     return audioTrack;
+  }
+
+  let __quietDeviceMicBoostTimer = null;
+  function scheduleQuietDeviceMicBoost(track) {
+    try {
+      clearInterval(__quietDeviceMicBoostTimer);
+    } catch (_e) { }
+    if (!isQuietDevicePublisherMe()) return;
+    let n = 0;
+    __quietDeviceMicBoostTimer = setInterval(() => {
+      n += 1;
+      if (!isQuietDevicePublisherMe() || (!isHost() && !hasSpeakerSeat) || n > 12) {
+        clearInterval(__quietDeviceMicBoostTimer);
+        __quietDeviceMicBoostTimer = null;
+        return;
+      }
+      try {
+        const audio = track || getLocalAudioTrack();
+        if (!audio) return;
+        if (micMuted) return;
+        audio.setVolume?.(QUIET_DEVICE_SEND_VOLUME);
+        if (typeof audio.setEnabled === 'function') audio.setEnabled(true);
+        if (typeof audio.setMuted === 'function') audio.setMuted(false);
+      } catch (_e2) { }
+    }, 1500);
   }
 
   async function normalizeLocalMicLevel(track) {
@@ -13391,6 +13549,7 @@
     const openNow = () => {
       if (!sheet) return;
       sheet.classList.add('open');
+      sheet.setAttribute('aria-hidden', 'false');
       sheet.style.display = 'flex';
       sheet.style.pointerEvents = 'auto';
       sheet.style.visibility = 'visible';
@@ -13399,9 +13558,232 @@
       if (sheet.parentElement !== document.body) document.body.appendChild(sheet);
       syncLiveOverlayClass();
       clearMessageBadge();
+      /* Host tools is DOM-only — never rejoin Agora */
     };
     /* Defer so the opening tap cannot hit the backdrop and close instantly */
     requestAnimationFrame(() => requestAnimationFrame(openNow));
+  }
+
+  function closeToolsSheetOnly() {
+    const sheet = document.getElementById('partyToolsSheet');
+    if (!sheet) return;
+    sheet.classList.remove('open');
+    sheet.setAttribute('aria-hidden', 'true');
+    sheet.style.pointerEvents = 'none';
+    sheet.style.display = 'none';
+    syncLiveOverlayClass();
+  }
+
+  async function openHostLiveDataSheet() {
+    let sheet = document.getElementById('apHostDataSheet');
+    if (!sheet) {
+      document.body.insertAdjacentHTML(
+        'beforeend',
+        `<div class="ap-host-data-sheet" id="apHostDataSheet" aria-hidden="true">
+          <div class="ap-host-data-panel" role="dialog" aria-label="Live data">
+            <h3>Live Data</h3>
+            <div class="ap-host-data-grid" id="apHostDataGrid">
+              <div class="cell"><span>Viewers now</span><strong id="apHdViewers">—</strong></div>
+              <div class="cell"><span>Likes</span><strong id="apHdLikes">—</strong></div>
+              <div class="cell"><span>Live hours (today)</span><strong id="apHdLiveH">—</strong></div>
+              <div class="cell"><span>Gift points (today)</span><strong id="apHdPts">—</strong></div>
+              <div class="cell"><span>New followers</span><strong id="apHdFollowers">—</strong></div>
+              <div class="cell"><span>Peak audiences (last)</span><strong id="apHdPeak">—</strong></div>
+            </div>
+            <p id="apHdNote" style="font-size:12px;opacity:.65;margin:12px 0 0"></p>
+            <button type="button" class="ap-host-data-close" id="apHostDataClose">Close</button>
+          </div>
+        </div>`
+      );
+      sheet = document.getElementById('apHostDataSheet');
+      document.getElementById('apHostDataClose')?.addEventListener('click', () => {
+        sheet?.classList.remove('open');
+        sheet?.setAttribute('aria-hidden', 'true');
+      });
+      sheet?.addEventListener('click', (ev) => {
+        if (ev.target === sheet) {
+          sheet.classList.remove('open');
+          sheet.setAttribute('aria-hidden', 'true');
+        }
+      });
+    }
+    sheet.classList.add('open');
+    sheet.setAttribute('aria-hidden', 'false');
+    const set = (id, v) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = v;
+    };
+    set(
+      'apHdViewers',
+      String(
+        roomState?.viewerCount ??
+          document.getElementById('liveViewerCount')?.textContent ??
+          '0'
+      )
+    );
+    set('apHdLikes', String(roomState?.likeCount ?? roomState?.likes ?? '—'));
+    set('apHdNote', 'Loading host analytics…');
+    try {
+      if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken().catch(() => {});
+      const res = await API.get('/live/streamer-stats?period=today');
+      const data = res?.data || {};
+      set(
+        'apHdLiveH',
+        data.liveHoursLabel ||
+          (typeof formatHoursShort === 'function'
+            ? formatHoursShort(data.liveSeconds)
+            : String(data.liveSeconds || '0'))
+      );
+      set(
+        'apHdPts',
+        typeof formatPts === 'function'
+          ? formatPts(data.giftCoins)
+          : String(data.giftCoins ?? 0)
+      );
+      set('apHdFollowers', String(data.newFollowers ?? 0));
+      set('apHdPeak', String(data.lastSession?.peakViewers ?? '—'));
+      set('apHdNote', 'Today’s streamer stats. Room stays live — this is display only.');
+    } catch (err) {
+      set('apHdNote', 'Could not load host analytics. Check connection and try again.');
+    }
+  }
+
+  function openHostLiveManagement() {
+    closeToolsSheetOnly();
+    openJoinedSheetReliable();
+    toast('Manage viewers, admins, and seat requests here', 'info');
+  }
+
+  function bindHostToolsPanel() {
+    if (window.__apHostToolsBound) return;
+    window.__apHostToolsBound = true;
+
+    const closeThen = (fn) => () => {
+      closeToolsSheetOnly();
+      try {
+        fn();
+      } catch (err) {
+        console.warn('[host-tools]', err);
+        toast(err?.message || 'Action failed', 'error');
+      }
+    };
+
+    document.getElementById('hostToolAdmins')?.addEventListener(
+      'click',
+      closeThen(() => {
+        openJoinedSheetReliable();
+        toast('Tap a viewer profile → Make admin', 'info');
+      })
+    );
+    document.getElementById('hostToolTextBubble')?.addEventListener(
+      'click',
+      closeThen(() => {
+        focusChatCompose();
+        toast('Text bubbles send with chat messages', 'info');
+      })
+    );
+    document.getElementById('hostToolFanClub')?.addEventListener(
+      'click',
+      closeThen(() => {
+        toast('Fan Club is not available yet for this room', 'info');
+      })
+    );
+    document.getElementById('hostToolLiveData')?.addEventListener(
+      'click',
+      closeThen(() => {
+        openHostLiveDataSheet();
+      })
+    );
+    document.getElementById('hostToolLiveMgmt')?.addEventListener('click', () => openHostLiveManagement());
+    document.getElementById('hostToolAmbient')?.addEventListener(
+      'click',
+      closeThen(() => {
+        openPartyMusicSheet();
+      })
+    );
+    document.getElementById('hostToolScreenRec')?.addEventListener(
+      'click',
+      closeThen(() => {
+        /* Product policy + WebView: getDisplayMedia is unreliable/unavailable; live is capture-protected */
+        const canDisplay =
+          typeof navigator !== 'undefined' &&
+          navigator.mediaDevices &&
+          typeof navigator.mediaDevices.getDisplayMedia === 'function';
+        toast(
+          canDisplay
+            ? 'Screen recording is blocked during live for privacy. Captures stay off.'
+            : 'Screen recording is not available in this app WebView.',
+          'info'
+        );
+      })
+    );
+    document.getElementById('hostToolIntro')?.addEventListener(
+      'click',
+      closeThen(() => {
+        openEditLivePresentation();
+      })
+    );
+    document.getElementById('partyBtnToolsMessage')?.addEventListener(
+      'click',
+      closeThen(() => {
+        focusChatCompose();
+        toast('Type your message below', 'info');
+      })
+    );
+    document.getElementById('hostToolMirror')?.addEventListener(
+      'click',
+      closeThen(() => {
+        toggleHostMirrorPreview();
+      })
+    );
+    document.getElementById('hostToolNoise')?.addEventListener(
+      'click',
+      closeThen(() => {
+        noiseReductionUiOn = !noiseReductionUiOn;
+        const badge = document.getElementById('hostNoiseBadge');
+        if (badge) {
+          badge.textContent = noiseReductionUiOn ? 'On' : 'Off';
+          badge.classList.toggle('ap-tool-badge--on', noiseReductionUiOn);
+          badge.classList.toggle('ap-tool-badge--off', !noiseReductionUiOn);
+        }
+        toast(
+          noiseReductionUiOn
+            ? 'Noise reduction (ANS/AEC) stays active for this publish. Restart stream to re-apply device processing.'
+            : 'Noise reduction marked off (current track unchanged until you restart mic publish).',
+          'info'
+        );
+      })
+    );
+    document.getElementById('partyBtnGiftCenter')?.addEventListener(
+      'click',
+      closeThen(() => {
+        openGiftSheet();
+      })
+    );
+    document.getElementById('partyBtnBackpack')?.addEventListener(
+      'click',
+      closeThen(() => {
+        toast('Backpack is not available yet', 'info');
+      })
+    );
+    document.getElementById('partyBtnLuckyBox')?.addEventListener(
+      'click',
+      closeThen(() => {
+        openGiftSheet();
+        const luckyTab = document.querySelector(
+          '#giftSheet [data-cat="lucky"], #giftSheet [data-category="lucky"], .gift-cat[data-key="lucky"]'
+        );
+        if (luckyTab) luckyTab.click();
+        else toast('Open the Lucky gift tab to send lucky gifts', 'info');
+      })
+    );
+    document.getElementById('partyBtnCoinsTrading')?.addEventListener(
+      'click',
+      closeThen(() => {
+        openTopupSheet();
+        toast('Coin trading is not available — use Rewards to recharge', 'info');
+      })
+    );
   }
 
   function openGiftSheetReliable(e) {
@@ -14955,6 +15337,7 @@
     bindGiftSheet();
     bindImmersiveToolLinks();
     bindEmojiPicker();
+    bindHostToolsPanel();
     setupKeyboardOffset();
     syncToolBadges();
 

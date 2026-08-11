@@ -485,8 +485,8 @@ body[data-live-page='live-room'] .party-tools-panel {
 }
 
 body[data-live-page='live-room'] .party-tools-grid .ico {
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.06) !important;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08) !important;
   border: 1px solid var(--live-pro-border);
   box-shadow: var(--live-pro-shadow-inset);
 }

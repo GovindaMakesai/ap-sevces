@@ -474,12 +474,16 @@ async function sharePost(postId) {
   return { share_count: res.rows[0]?.share_count || 0 };
 }
 
-async function deletePost(postId, userId) {
-  const res = await db.query(
-    `DELETE FROM social_posts WHERE id = $1 AND user_id = $2 RETURNING id`,
-    [postId, userId]
-  );
-  if (!res.rows[0]) throw new Error('Post not found');
+async function deletePost(postId, userId, { role = null } = {}) {
+  const row = await db.query(`SELECT id, user_id FROM social_posts WHERE id = $1`, [postId]);
+  if (!row.rows[0]) throw new Error('Post not found');
+  const owner = String(row.rows[0].user_id);
+  const me = String(userId);
+  const isAdmin = COMMENT_ADMIN_ROLES.has(String(role || '').toLowerCase());
+  if (me !== owner && !isAdmin) {
+    throw new Error('Not allowed to delete this post');
+  }
+  await db.query(`DELETE FROM social_posts WHERE id = $1`, [postId]);
   return { deleted: true };
 }
 

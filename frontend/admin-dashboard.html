@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard - AP Services</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <!-- build: 20260804-agora-nav -->
     
     <!-- Font Awesome 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -1391,8 +1394,8 @@
         }
     </style>
     <link rel="stylesheet" href="dashboard-mobile.css?v=20260714-withdrawals">
-    <link rel="stylesheet" href="admin-mobile-app.css?v=20260714-withdrawals">
-    <link rel="stylesheet" href="admin-mobile-cards.css?v=20260714-withdrawals">
+    <link rel="stylesheet" href="admin-mobile-app.css?v=20260804-agora-nav">
+    <link rel="stylesheet" href="admin-mobile-cards.css?v=20260804-agora-nav">
     <link rel="stylesheet" href="admin-shared.css?v=20260714-withdrawals">
     <script>
       if (window.ReactNativeWebView) document.documentElement.classList.add('ap-expo-app');
@@ -1440,6 +1443,9 @@
                     <div class="sidebar-nav">
                         <button class="nav-item active" data-section="overview">
                             <i class="fas fa-home"></i> Overview
+                        </button>
+                        <button class="nav-item" data-section="platform" id="platformToolsNav">
+                            <i class="fas fa-satellite-dish"></i> Agora &amp; Tools
                         </button>
                         <button class="nav-item" data-section="users">
                             <i class="fas fa-users"></i> Users
@@ -2225,6 +2231,33 @@
                             <button class="btn-primary" onclick="saveSettings()">Save Settings</button>
                         </div>
                     </div>
+
+                    <!-- Platform owner tools (Agora) -->
+                    <div class="dashboard-section" id="platform-section">
+                        <div class="section-header">
+                            <h2><i class="fas fa-satellite-dish"></i> Agora Live Credentials</h2>
+                        </div>
+                        <div class="settings-form" style="max-width:560px">
+                            <p style="color:#6b7280;margin-bottom:16px;font-size:14px">
+                                Update App ID and Primary Certificate without SSH. Changes apply immediately to live/party voice.
+                            </p>
+                            <div class="form-group">
+                                <label class="form-label">App ID</label>
+                                <input type="text" class="form-control" id="agoraAppId" placeholder="32-char App ID" maxlength="64" autocomplete="off">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Primary Certificate</label>
+                                <input type="text" class="form-control" id="agoraAppCertificate" placeholder="Paste new Primary Certificate" maxlength="64" autocomplete="off">
+                                <small id="agoraCertHint" style="color:#6b7280">Current certificate is hidden. Paste a new one to replace.</small>
+                            </div>
+                            <div class="alert alert-warning" id="agoraStatusBox" style="margin-bottom:16px">
+                                <i class="fas fa-info-circle"></i> <span id="agoraStatusText">Loading…</span>
+                            </div>
+                            <button type="button" class="btn-primary" id="agoraSaveBtn" onclick="saveAgoraConfig()">
+                                <i class="fas fa-save"></i> Save Agora credentials
+                            </button>
+                        </div>
+                    </div>
                 </main>
             </div>
         </div>
@@ -2266,6 +2299,19 @@
                     <div class="form-group">
                         <label class="form-label">Password</label>
                         <input type="text" class="form-control" id="newUserPassword" value="Welcome@123">
+                    </div>
+                    <div id="platformWalletFields" style="display:none;border-top:1px solid #e5e7eb;margin-top:12px;padding-top:12px">
+                        <p style="font-size:13px;color:#6b7280;margin:0 0 10px">Set absolute balances (platform owner). Leave blank to skip.</p>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Coins</label>
+                                <input type="number" class="form-control" id="editUserCoins" min="0" step="1" placeholder="Coin balance">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Points</label>
+                                <input type="number" class="form-control" id="editUserPoints" min="0" step="1" placeholder="Gift points">
+                            </div>
+                        </div>
                     </div>
                 </form>
             </div>
@@ -2406,10 +2452,29 @@
                 return;
             }
 
+            /* Whole admin dashboard is admin-only — Agora tools for all allowed roles. */
+            window.__apIsPlatformOwner = true;
+            (function showPlatformToolsNav() {
+                const nav = document.getElementById('platformToolsNav');
+                if (!nav) return;
+                nav.hidden = false;
+                nav.removeAttribute('hidden');
+                nav.style.setProperty('display', 'flex', 'important');
+                nav.style.visibility = 'visible';
+                nav.style.opacity = '1';
+            })();
+
             // Update admin info
             document.getElementById('adminName').textContent = `${user.first_name} ${user.last_name}`;
             document.getElementById('adminEmail').textContent = user.email;
             document.getElementById('adminInitials').textContent = user.first_name?.[0] || 'A';
+            try {
+                const roleEl = document.getElementById('adminRole');
+                if (roleEl) {
+                    const r = String(user.role || 'admin').replace(/_/g, ' ');
+                    roleEl.textContent = r.replace(/\b\w/g, (c) => c.toUpperCase());
+                }
+            } catch (_r) {}
 
             function adminProfilePicUrl(u) {
                 if (!u?.profile_pic) return null;
@@ -3615,6 +3680,8 @@
             document.getElementById('userModalSaveBtn').textContent = 'Create User';
             document.getElementById('addUserForm').reset();
             document.getElementById('newUserPassword').value = 'Welcome@123';
+            const walletBox = document.getElementById('platformWalletFields');
+            if (walletBox) walletBox.style.display = 'none';
             document.getElementById('addUserModal').classList.add('show');
         };
 
@@ -3649,6 +3716,14 @@
                 document.getElementById('newUserPhone').value = user.phone || '';
                 document.getElementById('newUserRole').value = user.role || 'customer';
                 document.getElementById('newUserPassword').value = '';
+                const walletBox = document.getElementById('platformWalletFields');
+                if (walletBox) {
+                    walletBox.style.display = window.__apIsPlatformOwner ? 'block' : 'none';
+                    document.getElementById('editUserCoins').value =
+                        user.coin_balance != null ? String(user.coin_balance) : '';
+                    document.getElementById('editUserPoints').value =
+                        user.star_balance != null ? String(user.star_balance) : '';
+                }
                 document.getElementById('addUserModal').classList.add('show');
             } catch (error) {
                 Toast.show('Failed to load user details', 'error');
@@ -3681,12 +3756,79 @@
                     ? await API.put(`/admin/users/${editingUserId}`, userData)
                     : await API.post('/auth/register', userData);
                 if (response.success) {
+                    if (editingUserId && window.__apIsPlatformOwner) {
+                        const coinsRaw = document.getElementById('editUserCoins')?.value;
+                        const pointsRaw = document.getElementById('editUserPoints')?.value;
+                        const payload = {};
+                        if (coinsRaw !== '' && coinsRaw != null) payload.coin_balance = Number(coinsRaw);
+                        if (pointsRaw !== '' && pointsRaw != null) payload.star_balance = Number(pointsRaw);
+                        if (Object.keys(payload).length) {
+                            try {
+                                await API.put(`/admin/users/${editingUserId}/wallet`, payload);
+                            } catch (wErr) {
+                                Toast.show(wErr?.message || 'User saved but wallet update failed', 'error');
+                                loadUsers();
+                                return;
+                            }
+                        }
+                    }
                     Toast.show(editingUserId ? 'User updated successfully!' : 'User created successfully!', 'success');
                     closeModal('addUserModal');
                     loadUsers();
                 }
             } catch (error) {
                 Toast.show(error?.message || 'Failed to save user', 'error');
+            }
+        };
+
+        async function loadAgoraConfig() {
+            if (!window.__apIsPlatformOwner) return;
+            const status = document.getElementById('agoraStatusText');
+            try {
+                const res = await API.get('/admin/platform/agora');
+                const d = res?.data || {};
+                document.getElementById('agoraAppId').value = d.app_id || '';
+                document.getElementById('agoraAppCertificate').value = '';
+                document.getElementById('agoraAppCertificate').placeholder = d.certificate_masked
+                    ? `Current: ${d.certificate_masked} — paste new to replace`
+                    : 'Paste Primary Certificate';
+                if (status) {
+                    status.textContent = d.ready
+                        ? `Ready · App ID ${d.app_id || '—'}`
+                        : 'Not ready — set both App ID and Primary Certificate';
+                }
+            } catch (e) {
+                if (status) status.textContent = e?.message || 'Failed to load Agora config';
+            }
+        }
+
+        window.saveAgoraConfig = async function () {
+            if (!window.__apIsPlatformOwner) {
+                Toast.show('Access denied', 'error');
+                return;
+            }
+            const app_id = (document.getElementById('agoraAppId').value || '').trim();
+            const app_certificate = (document.getElementById('agoraAppCertificate').value || '').trim();
+            if (!app_id || !app_certificate) {
+                Toast.show('Enter both App ID and Primary Certificate', 'warning');
+                return;
+            }
+            const btn = document.getElementById('agoraSaveBtn');
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = 'Saving…';
+            }
+            try {
+                const res = await API.put('/admin/platform/agora', { app_id, app_certificate });
+                Toast.show(res?.message || 'Agora credentials saved', 'success');
+                await loadAgoraConfig();
+            } catch (e) {
+                Toast.show(e?.message || 'Failed to save Agora credentials', 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-save"></i> Save Agora credentials';
+                }
             }
         };
 
@@ -3745,6 +3887,7 @@
             if (section === 'notifications') loadAdminNotifications();
             if (section === 'reviews') loadReviews();
             if (section === 'users') loadUsers(currentUserPage || 1);
+            if (section === 'platform') loadAgoraConfig();
         }
 
         // ==================== FILTERS ====================

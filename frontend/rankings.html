@@ -66,10 +66,10 @@
   <div id="social-bottom-nav-mount"></div>
 
   <script src="app.js?v=20260729-perf2"></script>
-  <script src="social-ui.js?v=20260702-follow-fix"></script>
+  <script src="social-ui.js?v=20260802-rank-avatars"></script>
   <script src="social-interactions.js?v=20260717-block-hide"></script>
   <script src="ap-soft-nav.js?v=20260730-fastnav4"></script>
-  <script src="social-shell.js?v=20260730-fastnav4"></script>
+  <script src="social-shell.js?v=20260802-rank-avatars"></script>
   <script src="social-nav.js"></script>
   <script defer src="social-fx.js"></script>
   <script>
@@ -105,7 +105,19 @@
     let rankVisible = 20;
 
     function ranksCacheKey(period, tab) {
-      return `ap_ranks_v1_${period}_${tab}`;
+      return `ap_ranks_v2_${period}_${tab}`;
+    }
+
+    function escapeHtml(s) {
+      return String(s || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function escapeAttr(s) {
+      return escapeHtml(s).replace(/'/g, '&#39;');
     }
 
     function readRanksCache(period, tab) {
@@ -170,8 +182,38 @@
     }
 
     function avatarUrl(row) {
-      if (row.pic) return row.pic;
-      return `https://ui-avatars.com/api/?name=${(window.SocialUI?.safeEncodeURIComponent || encodeURIComponent)(String(row.n || 'U').replace(/[\uD800-\uDFFF]/g, '').slice(0, 2) || 'U')}&background=c9a227&color=fff`;
+      const name = row.n || 'User';
+      const pic = row.pic || null;
+      try {
+        if (window.SocialShell?.getImageUrl && pic) {
+          const abs = SocialShell.getImageUrl(pic);
+          if (window.SocialUI?.avatarUrl) return SocialUI.avatarUrl(name, abs || pic);
+          if (abs) return abs;
+        }
+        if (window.SocialUI?.avatarUrl) return SocialUI.avatarUrl(name, pic);
+        if (pic) {
+          if (/^https?:\/\//i.test(pic) || pic.startsWith('data:') || pic.startsWith('blob:')) return pic;
+          const base = (window.CONFIG?.BACKEND_URL || '').replace(/\/$/, '');
+          return base ? base + (pic.startsWith('/') ? pic : '/' + pic) : pic;
+        }
+      } catch (_e) { /* fall through to local initials */ }
+      if (window.SocialUI?.avatarUrl) return SocialUI.avatarUrl(name);
+      return pic || '';
+    }
+
+    function bindRankAvatarFallbacks(root) {
+      if (!root) return;
+      root.querySelectorAll('img').forEach((img) => {
+        if (img.dataset.rankAvBound) return;
+        img.dataset.rankAvBound = '1';
+        const name = img.dataset.name || img.alt || 'User';
+        img.addEventListener('error', () => {
+          img.onerror = null;
+          try {
+            img.src = window.SocialUI?.avatarUrl ? SocialUI.avatarUrl(name) : img.src;
+          } catch (_e) { /* keep broken src */ }
+        });
+      });
     }
 
     async function refreshRanks() {
@@ -218,8 +260,8 @@
       return `<div class="social-rank-podium">${order.map((r, i) => `
         <div class="social-rank-podium-item rank-${ranks[i]}">
           ${ranks[i] === 1 ? '<span class="podium-crown">👑</span>' : ''}
-          <img class="podium-av" src="${avatarUrl(r)}" alt="" onerror="this.src='https://ui-avatars.com/api/?name=AP&background=c9a227&color=fff'">
-          <strong>${r.n}</strong><br><small>${r.s}</small>
+          <img class="podium-av" src="${escapeAttr(avatarUrl(r))}" alt="" data-name="${escapeAttr(r.n || 'User')}" decoding="async">
+          <strong>${escapeHtml(r.n)}</strong><br><small>${escapeHtml(r.s)}</small>
         </div>`).join('')}</div>`;
     }
 
@@ -238,15 +280,17 @@
             (r, i) => `
         <div class="social-rank-row" style="animation-delay:${(i + 3) * 0.06}s">
           <span class="rank-num">${i + 4}</span>
-          <img src="${avatarUrl(r)}" alt="" loading="lazy" decoding="async" onerror="this.src='https://ui-avatars.com/api/?name=AP&background=c9a227&color=fff'">
-          <div class="rank-info"><strong>${r.n}</strong> 🇮🇳<br><small>${r.s}</small></div>
-          <button type="button" class="social-rank-follow ap-pressable" data-user-id="${r.id || ''}">Follow</button>
+          <img src="${escapeAttr(avatarUrl(r))}" alt="" data-name="${escapeAttr(r.n || 'User')}" loading="lazy" decoding="async">
+          <div class="rank-info"><strong>${escapeHtml(r.n)}</strong> 🇮🇳<br><small>${escapeHtml(r.s)}</small></div>
+          <button type="button" class="social-rank-follow ap-pressable" data-user-id="${escapeAttr(r.id || '')}">Follow</button>
         </div>`
           )
           .join('') +
         (hasMore
           ? '<button type="button" class="social-rank-load-more" id="rankLoadMore">Load more</button>'
           : '');
+      bindRankAvatarFallbacks(el);
+      window.SocialUI?.bindAvatarFallbacks?.(el);
       el.querySelector('#rankLoadMore')?.addEventListener('click', () => {
         rankVisible += 20;
         renderRankList(id, rankCache.slice(0, rankVisible), rankCache.length > rankVisible);

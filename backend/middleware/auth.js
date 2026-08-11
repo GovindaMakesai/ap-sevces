@@ -5,7 +5,7 @@ const { getAccessTokenFromRequest } = require('../services/authTokenService');
 async function attachUserFromToken(req, token) {
   const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
   const userRes = await db.query(
-    `SELECT id, role, is_active, deleted_at, first_name, last_name FROM users WHERE id = $1`,
+    `SELECT id, role, email, is_active, deleted_at, first_name, last_name FROM users WHERE id = $1`,
     [decoded.userId]
   );
   const user = userRes.rows[0];
@@ -14,6 +14,7 @@ async function attachUserFromToken(req, token) {
   if (user.is_active === false) return { error: { status: 403, message: 'Your account has been deactivated' } };
   req.userId = String(user.id);
   req.userRole = user.role;
+  req.userEmail = user.email;
   req.userFirstName = user.first_name;
   return { ok: true };
 }

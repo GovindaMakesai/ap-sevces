@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#c9a227">
   <title>Square - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-theme.css?v=20260802-square-glow">
-  <link rel="stylesheet" href="social-features.css?v=20260802-square-glow">
+  <link rel="stylesheet" href="social-theme.css?v=20260802-square-sticky">
+  <link rel="stylesheet" href="social-features.css?v=20260802-post-delete">
   <link rel="stylesheet" href="social-creator-polish.css?v=20260802-thumb-fix3">
   <style>
     /* Square-only atmosphere — brighter gold theme, not flat dull cream */
@@ -17,6 +17,8 @@
       --square-glow-a: rgba(245, 158, 11, 0.28);
       --square-glow-b: rgba(201, 162, 39, 0.22);
       --square-glow-c: rgba(255, 214, 102, 0.35);
+      /* Main tabs + For You / Following / Latest — keep content below fixed header */
+      --social-video-tabs-h: calc(102px + env(safe-area-inset-top, 0px));
       background-color: #fff6e4;
       background-image:
         radial-gradient(ellipse 90% 55% at 12% -8%, var(--square-glow-c) 0%, transparent 58%),
@@ -27,8 +29,14 @@
       background-attachment: fixed;
     }
     body.social-square-page .social-top {
+      /* Keep above rails/feed — glow rule must not flatten header stacking */
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 200;
       background:
-        linear-gradient(180deg, rgba(255, 250, 235, 0.94) 0%, rgba(255, 244, 214, 0.88) 100%);
+        linear-gradient(180deg, rgba(255, 250, 235, 0.96) 0%, rgba(255, 244, 214, 0.94) 100%);
       border-bottom-color: rgba(201, 162, 39, 0.22);
       backdrop-filter: blur(10px);
       -webkit-backdrop-filter: blur(10px);
@@ -77,7 +85,8 @@
           radial-gradient(circle at 85% 30%, rgba(245, 158, 11, 0.12) 0%, transparent 32%);
         animation: ap-square-glow 14s ease-in-out infinite alternate;
       }
-      body.social-square-page > * {
+      /* Raise page content above the glow layer, but never the sticky header / bottom nav */
+      body.social-square-page > *:not(.social-top):not(.social-bottom-nav):not(#social-bottom-nav-mount) {
         position: relative;
         z-index: 1;
       }
@@ -118,7 +127,7 @@
   <script src="live-emoji-data.js?v=20260730-gifts" defer></script>
   <script src="social-fx.js?v=20260730-cx2" defer></script>
   <script src="social-discovery-rails.js?v=20260802-thumb-fix3" defer></script>
-  <script src="social-interactions.js?v=20260802-comment-avatar"></script>
+  <script src="social-interactions.js?v=20260802-post-delete"></script>
   <script src="social-banner-slider.js?v=20260723-policy-full" defer></script>
   <script src="social-create-post.js?v=20260802-video-60s" defer></script>
   <script src="ap-soft-nav.js?v=20260730-fastnav4"></script>

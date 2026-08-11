@@ -1553,6 +1553,37 @@
     );
   }
 
+  function canDeletePost(p) {
+    const me = window.Auth?.getUser?.() || window.Auth?.user || null;
+    if (!me || !p) return false;
+    const myId = String(me.id || '');
+    const myEmail = String(me.email || '');
+    const role = String(me.role || '').toLowerCase();
+    const isAdmin = ['admin', 'super_admin', 'founder', 'ceo'].includes(role);
+    if (isAdmin) return true;
+    if (!myId && !myEmail) return false;
+    const owner = String(p.userId || p.user_id || '');
+    return (
+      (myId && (owner === myId || owner === 'me')) ||
+      (myEmail && owner === myEmail)
+    );
+  }
+
+  async function confirmAndDeletePost(postId, { onDone } = {}) {
+    const id = String(postId || '').trim();
+    if (!id) return false;
+    if (!confirm('Delete this post? This cannot be undone.')) return false;
+    try {
+      await deletePostRemote(id);
+      toast('Post deleted');
+      if (typeof onDone === 'function') await onDone(id);
+      return true;
+    } catch (e) {
+      toast(e?.message || 'Could not delete post', 'error');
+      return false;
+    }
+  }
+
   function formatCommentText(text) {
     /* Highlight @Name (incl. first+last) — not numeric display ids */
     return escapeHtml(text).replace(
@@ -2521,6 +2552,13 @@
     if (cc) cc.textContent = formatCount(item.comments);
     if (gc) gc.textContent = formatCount(item.gifts);
     if (sc) sc.textContent = formatCount(item.shares);
+
+    const delBtn = document.querySelector('#reelActions [data-action="delete"]');
+    if (delBtn) {
+      const showDelete = !!(item.postId && canDeletePost({ userId: item.userId, id: item.postId }));
+      delBtn.hidden = !showDelete;
+      delBtn.style.display = showDelete ? '' : 'none';
+    }
   }
 
   function formatCount(n) {
@@ -2990,6 +3028,41 @@
         }
         updateReelUI(item);
       })();
+      return;
+    }
+
+    if (action === 'delete') {
+      if (!item.postId || !canDeletePost({ userId: item.userId, id: item.postId })) {
+        toast('You cannot delete this post', 'error');
+        return;
+      }
+      await confirmAndDeletePost(item.postId, {
+        onDone: async (id) => {
+          const scroll = document.getElementById('reelsScroll');
+          const removedIdx = reelItems.findIndex((r) => String(r.postId) === String(id));
+          reelItems = reelItems.filter((r) => String(r.postId) !== String(id));
+          if (scroll && removedIdx >= 0) {
+            const slides = [...scroll.querySelectorAll('.social-reel-slide')];
+            slides[removedIdx]?.remove();
+            [...scroll.querySelectorAll('.social-reel-slide')].forEach((s, i) => {
+              s.dataset.index = String(i);
+            });
+          }
+          if (!reelItems.length) {
+            if (history.length > 1) history.back();
+            else location.href = '/square.html?app=1';
+            return;
+          }
+          reelIndex = Math.min(Math.max(0, removedIdx === -1 ? reelIndex : removedIdx), reelItems.length - 1);
+          updateReelUI(reelItems[reelIndex]);
+          const next = scroll?.querySelector(`.social-reel-slide[data-index="${reelIndex}"]`);
+          try {
+            next?.scrollIntoView({ behavior: 'instant', block: 'nearest' });
+          } catch (_e) {
+            next?.scrollIntoView(true);
+          }
+        },
+      });
     }
   }
 
@@ -3089,9 +3162,7 @@
         let thumbUrl = !isPlaceholderThumb(p.thumb) ? p.thumb : '';
         if (!thumbUrl && !postIsVideo(p) && url && !isPlaceholderThumb(url)) thumbUrl = url;
         const user = window.Auth?.getUser?.();
-        const isOwner =
-          user &&
-          (String(p.userId) === String(user.id) || p.userId === 'me' || String(p.userId) === String(user.email));
+        const canDelete = canDeletePost(p);
         const hasMedia = !!(url || thumbUrl);
         const media = !hasMedia
           ? `<div class="social-post-text-only">${formatCaptionHtml(p.caption || p.text || '')}</div>`
@@ -3114,7 +3185,7 @@
           ${hasMedia && postIsVideo(p) ? '<span class="play-badge play-badge--fullscreen"><i class="fas fa-expand"></i></span>' : ''}
           ${hasMedia && !postIsVideo(p) ? '<span class="play-badge play-badge--photo"><i class="fas fa-expand"></i></span>' : ''}
           ${p.visibility === 'private' ? '<span class="social-post-private-badge"><i class="fas fa-lock"></i> Private</span>' : ''}
-          ${isOwner ? `<button type="button" class="social-post-delete" data-delete-post="${p.id}" aria-label="Delete post"><i class="fas fa-times"></i></button>` : ''}
+          ${canDelete ? `<button type="button" class="social-post-delete" data-delete-post="${p.id}" aria-label="Delete post" title="Delete post"><i class="fas fa-trash"></i></button>` : ''}
         </div>
         <div class="social-post-meta">${escapeHtml(when)}</div>
         <div class="social-post-actions">
@@ -3122,6 +3193,7 @@
           <button type="button" class="social-act-btn" data-act="comment" data-id="${p.id}"><i class="far fa-comment"></i> <span>${p.comments || 0}</span></button>
           <button type="button" class="social-act-btn" data-act="gift" data-id="${p.id}"><i class="fas fa-gift"></i> <span>${p.gifts || 0}</span></button>
           <button type="button" class="social-act-btn" data-act="share" data-id="${p.id}"><i class="far fa-paper-plane"></i> <span>${p.shares || 0}</span></button>
+          ${canDelete ? `<button type="button" class="social-act-btn social-act-btn--danger" data-delete-post="${p.id}" aria-label="Delete post"><i class="fas fa-trash"></i> <span>Delete</span></button>` : ''}
         </div>
         <div class="social-post-user">
           ${
@@ -3207,14 +3279,11 @@
         e.preventDefault();
         e.stopPropagation();
         const id = btn.dataset.deletePost;
-        if (!confirm('Delete this post?')) return;
-        try {
-          await deletePostRemote(id);
-          await renderSquareFeed(feed, { ...feed._squareFeedOpts, append: false });
-          toast('Post deleted');
-        } catch (_err) {
-          toast('Could not delete post', 'error');
-        }
+        await confirmAndDeletePost(id, {
+          onDone: async () => {
+            await renderSquareFeed(feed, { ...feed._squareFeedOpts, append: false });
+          },
+        });
       });
     });
     qs('.social-post-media video, .social-post-media img').forEach((el) => markMediaOrientation(el));
@@ -3525,6 +3594,8 @@
     openReelViewer,
     toggleLikePost,
     deletePostRemote,
+    canDeletePost,
+    confirmAndDeletePost,
     bookmarkPost,
     currentFeedScope,
     setFeedScope,

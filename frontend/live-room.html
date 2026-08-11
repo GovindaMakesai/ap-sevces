@@ -12,7 +12,7 @@
   <link rel="preload" href="https://download.agora.io/sdk/release/AgoraRTC_N-4.22.0.js" as="script">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" media="print" onload="this.media='all'">
   <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"></noscript>
-  <link rel="stylesheet" href="social-live.css?v=20260723-gift-smooth">
+  <link rel="stylesheet" href="social-live.css?v=20260811-host-tools">
   <link rel="stylesheet" href="social-live-session.css?v=20260723-mini-close">
   <link rel="stylesheet" href="social-live-ref-ui.css?v=20260718-fast-join">
   <link rel="stylesheet" href="social-fx.css?v=20260723-gift-smooth">
@@ -344,64 +344,132 @@
     </div>
   </div>
 
-  <div class="party-tools-sheet" id="partyToolsSheet">
-    <div class="party-tools-panel party-tools-panel-ref">
-      <h3 class="party-tools-title">Basic Tools</h3>
-      <div class="party-tools-grid party-tools-grid-4">
-        <a href="/chat.html?app=1" class="ap-tool-msg"><span class="ico msg"><i class="fas fa-envelope"></i><span
-              class="ap-notify-dot"></span></span>Message</a>
-        <button type="button" id="partyBtnSound"><span class="ico sound"><i
-              class="fas fa-volume-up"></i></span>Sound</button>
-        <button type="button" id="partyBtnMusic"><span class="ico music"><i
-              class="fas fa-music"></i></span>Music</button>
-        <button type="button" id="partyBtnShare"><span class="ico share"><i
-              class="fas fa-share"></i></span>Share</button>
-        <button type="button" id="partyBtnReport" class="ap-tool-end"><span class="ico report"><i
-              class="fas fa-exclamation-circle"></i></span>Report</button>
-      </div>
-      <div class="party-tools-grid party-tools-grid-4 party-tools-row2">
-        <button type="button" id="partyBtnEffects"><span class="ico effects"><i
-              class="fas fa-sliders-h"></i></span>Effect&amp;Msg</button>
-        <button type="button" id="partyBtnMinimize"><span class="ico minimize"><i
-              class="fas fa-compress"></i></span>Minimize</button>
-        <button type="button" id="partyBtnBackground" class="host-only-tool"><span class="ico bg"><i
-              class="fas fa-image"></i></span>Background</button>
-        <button type="button" id="partyToolsFlipCam" class="host-only-tool"><span class="ico"><i
-              class="fas fa-sync-alt"></i></span>Flip cam</button>
-        <button type="button" id="partyToolsFilters" class="host-only-tool"><span class="ico"><i
-              class="fas fa-magic"></i></span>Filters</button>
-        <button type="button" id="partyToolsModeVideo" class="host-only-tool" data-mode="video"><span class="ico"><i
-              class="fas fa-video"></i></span>Video</button>
-        <button type="button" id="partyToolsModeAudio" class="host-only-tool" data-mode="audio"><span class="ico"><i
-              class="fas fa-microphone"></i></span>Audio</button>
-        <button type="button" id="partyToolsMuteAllChat" class="mod-only-tool"><span class="ico"><i
-              class="fas fa-comment-slash"></i></span>Mute all chat</button>
-        <button type="button" id="partyToolsClearChat" class="mod-only-tool"><span class="ico"><i
-              class="fas fa-eraser"></i></span>Clear chat</button>
-      </div>
-      <h3 class="party-tools-title party-tools-title--games">Games</h3>
-      <div class="party-tools-grid party-tools-grid-4">
-        <button type="button" class="ap-tool-game" data-game="/games/crazy-fruit.html"><span class="ico" style="background:linear-gradient(135deg,#f59e0b,#b45309)">🍒</span>Crazy Fruit</button>
-        <button type="button" class="ap-tool-game" data-game="/games/greedy.html"><span class="ico" style="background:linear-gradient(135deg,#7c3aed,#4c1d95)">💎</span>Krazy Khazana</button>
-        <button type="button" class="ap-tool-game" data-game="/games/teen-patti.html"><span class="ico" style="background:linear-gradient(135deg,#8b5cf6,#4c1d95)">🃏</span>Teen Patti</button>
-      </div>
-      <h3 class="party-tools-title party-tools-title--features">Features Centre</h3>
-      <div class="party-tools-grid party-tools-grid-4">
-        <a href="/rankings.html?app=1"><span class="ico rank"><i class="fas fa-trophy"></i></span>Rank</a>
-        <a href="/coins-recharge.html?app=1"><span class="ico coins"><i class="fas fa-coins"></i></span>Rewards</a>
-        <a href="/store.html?app=1"><span class="ico store"><i class="fas fa-shopping-bag"></i></span>Store</a>
-        <a href="/vip.html?app=1"><span class="ico vip"><i class="fas fa-gem"></i></span>VIP</a>
-      </div>
-      <div class="party-tools-grid party-tools-grid-4 party-tools-row2">
-        <button type="button" id="partyBtnGiftTools"><span class="ico gallery"><i class="fas fa-gift"></i></span>Gift
-          Gallery</button>
-        <button type="button" id="partyBtnGiftCollection"><span class="ico collection"><i
-              class="fas fa-star"></i></span>Gift Collection</button>
-        <button type="button" id="partyBtnGiftWish"><span class="ico wish"><i class="fas fa-star"></i></span>Gift
-          wish</button>
-      </div>
+  <div class="party-tools-sheet" id="partyToolsSheet" aria-hidden="true">
+    <div class="party-tools-panel party-tools-panel-ref party-host-tools-panel">
       <button type="button" id="partyToolsClose" class="ap-tool-close-fab" aria-label="Close tools"><i
           class="fas fa-times"></i></button>
+
+      <!-- Host Tools: pure UI overlay — never touches Agora channel -->
+      <section class="host-only-tools-section host-only-tool" id="hostToolsSection" data-tools-section="host">
+        <h3 class="party-tools-title">Host Tools</h3>
+        <div class="party-tools-grid party-tools-grid-4">
+          <button type="button" id="hostToolAdmins" class="host-tool-btn" data-host-tool="admins">
+            <span class="ico admins"><i class="fas fa-user-shield"></i></span>Admins
+          </button>
+          <button type="button" id="hostToolTextBubble" class="host-tool-btn" data-host-tool="text-bubble">
+            <span class="ico bubble"><i class="fas fa-comment-dots"></i></span>Text Bubble
+          </button>
+          <button type="button" id="hostToolFanClub" class="host-tool-btn" data-host-tool="fan-club">
+            <span class="ico fan"><i class="fas fa-heart"></i></span>Fan Club
+          </button>
+          <button type="button" id="hostToolLiveData" class="host-tool-btn" data-host-tool="live-data">
+            <span class="ico livedata"><i class="fas fa-chart-line"></i></span>Live Data
+          </button>
+          <button type="button" id="hostToolLiveMgmt" class="host-tool-btn" data-host-tool="live-mgmt">
+            <span class="ico management"><i class="fas fa-cog"></i></span>Live Management
+          </button>
+          <button type="button" id="hostToolAmbient" class="host-tool-btn" data-host-tool="ambient">
+            <span class="ico ambient"><i class="fas fa-music"></i></span>Ambient Sound
+          </button>
+          <button type="button" id="hostToolScreenRec" class="host-tool-btn" data-host-tool="screen-rec">
+            <span class="ico record"><i class="fas fa-record-vinyl"></i><span class="ap-tool-badge ap-tool-badge--off"
+                id="hostScreenRecBadge">Off</span></span>Screen Recording
+          </button>
+          <button type="button" id="hostToolIntro" class="host-tool-btn" data-host-tool="intro">
+            <span class="ico intro"><i class="fas fa-id-card"></i></span>Live Stream Introduction
+          </button>
+        </div>
+      </section>
+
+      <section data-tools-section="basic">
+        <h3 class="party-tools-title">Basic Tools</h3>
+        <div class="party-tools-grid party-tools-grid-4">
+          <button type="button" id="partyBtnToolsMessage" class="ap-tool-msg host-tool-btn" data-host-tool="message">
+            <span class="ico msg"><i class="fas fa-envelope"></i><span class="ap-notify-dot" id="apToolsMsgDot"
+                hidden></span></span>Message
+          </button>
+          <button type="button" id="partyToolsFlipCam" class="host-only-tool host-tool-btn" data-host-tool="flip-cam">
+            <span class="ico flip"><i class="fas fa-sync-alt"></i></span>Switch Camera
+          </button>
+          <button type="button" id="partyToolsFilters" class="host-only-tool host-tool-btn" data-host-tool="beauty">
+            <span class="ico beauty"><i class="fas fa-magic"></i></span>Beauty
+          </button>
+          <button type="button" id="hostToolMirror" class="host-only-tool host-tool-btn" data-host-tool="mirror">
+            <span class="ico mirror"><i class="fas fa-clone"></i></span>Mirror
+          </button>
+          <button type="button" id="partyBtnShare" class="host-tool-btn" data-host-tool="share">
+            <span class="ico share"><i class="fas fa-share"></i></span>Share
+          </button>
+          <button type="button" id="partyBtnEffects" class="host-tool-btn" data-host-tool="effects">
+            <span class="ico effects"><i class="fas fa-sliders-h"></i></span>Effect &amp; Msg
+          </button>
+          <button type="button" id="hostToolNoise" class="host-only-tool host-tool-btn" data-host-tool="noise">
+            <span class="ico noise"><i class="fas fa-wave-square"></i><span class="ap-tool-badge ap-tool-badge--on"
+                id="hostNoiseBadge">On</span></span>Noise Reduction (3A)
+          </button>
+          <button type="button" id="partyBtnSound"><span class="ico sound"><i
+                class="fas fa-volume-up"></i></span>Sound</button>
+          <button type="button" id="partyBtnMusic"><span class="ico music"><i
+                class="fas fa-music"></i></span>Music</button>
+          <button type="button" id="partyBtnMinimize"><span class="ico minimize"><i
+                class="fas fa-compress"></i></span>Minimize</button>
+          <button type="button" id="partyBtnBackground" class="host-only-tool"><span class="ico bg"><i
+                class="fas fa-image"></i></span>Background</button>
+          <button type="button" id="partyToolsModeVideo" class="host-only-tool" data-mode="video"><span class="ico"><i
+                class="fas fa-video"></i></span>Video</button>
+          <button type="button" id="partyToolsModeAudio" class="host-only-tool" data-mode="audio"><span class="ico"><i
+                class="fas fa-microphone"></i></span>Audio</button>
+          <button type="button" id="partyToolsMuteAllChat" class="mod-only-tool"><span class="ico"><i
+                class="fas fa-comment-slash"></i></span>Mute all chat</button>
+          <button type="button" id="partyToolsClearChat" class="mod-only-tool"><span class="ico"><i
+                class="fas fa-eraser"></i></span>Clear chat</button>
+          <button type="button" id="partyBtnReport" class="ap-tool-end"><span class="ico report"><i
+                class="fas fa-exclamation-circle"></i></span>Report</button>
+        </div>
+      </section>
+
+      <section data-tools-section="features">
+        <h3 class="party-tools-title party-tools-title--features">Features Center</h3>
+        <div class="party-tools-grid party-tools-grid-4">
+          <a href="/rankings.html?app=1" class="host-tool-link" data-host-tool="rank"><span class="ico rank"><i
+                class="fas fa-trophy"></i></span>Rank</a>
+          <button type="button" id="liveBtnPk" class="host-tool-btn host-only-tool" data-host-tool="pk"><span
+              class="ico pk"><i class="fas fa-bolt"></i></span>PK</button>
+          <a href="/coins-recharge.html?app=1" class="host-tool-link" data-host-tool="rewards"><span
+              class="ico coins"><i class="fas fa-coins"></i></span>Rewards</a>
+          <a href="/store.html?app=1" class="host-tool-link" data-host-tool="store"><span class="ico store"><i
+                class="fas fa-shopping-bag"></i></span>Store</a>
+          <a href="/vip.html?app=1" class="host-tool-link" data-host-tool="vip"><span class="ico vip"><i
+                class="fas fa-gem"></i></span>VIP</a>
+          <button type="button" id="partyBtnGiftCenter" class="host-tool-btn" data-host-tool="gift-center"><span
+              class="ico giftc"><i class="fas fa-gift"></i></span>Gift Center</button>
+          <button type="button" id="partyBtnBackpack" class="host-tool-btn" data-host-tool="backpack"><span
+              class="ico backpack"><i class="fas fa-shopping-bag"></i></span>Backpack</button>
+          <button type="button" id="partyBtnGiftTools" class="host-tool-btn" data-host-tool="gift-gallery"><span
+              class="ico gallery"><i class="fas fa-gift"></i></span>Gift Gallery</button>
+          <button type="button" id="partyBtnLuckyBox" class="host-tool-btn" data-host-tool="lucky-box"><span
+              class="ico lucky"><i class="fas fa-box-open"></i></span>Lucky Box</button>
+          <button type="button" id="partyBtnGiftCollection" class="host-tool-btn"
+            data-host-tool="gift-collection"><span class="ico collection"><i class="fas fa-book-open"></i></span>Gift
+            Collection</button>
+          <button type="button" id="partyBtnCoinsTrading" class="host-tool-btn" data-host-tool="coins-trading"><span
+              class="ico trade"><i class="fas fa-exchange-alt"></i></span>Coins Trading</button>
+          <button type="button" id="partyBtnGiftWish" class="host-tool-btn" data-host-tool="gift-wish"><span
+              class="ico wish"><i class="fas fa-star"></i></span>Gift Wish</button>
+        </div>
+      </section>
+
+      <section data-tools-section="games">
+        <h3 class="party-tools-title party-tools-title--games">Games</h3>
+        <div class="party-tools-grid party-tools-grid-4">
+          <button type="button" class="ap-tool-game" data-game="/games/crazy-fruit.html"><span class="ico"
+              style="background:linear-gradient(135deg,#f59e0b,#b45309)">🍒</span>Crazy Fruit</button>
+          <button type="button" class="ap-tool-game" data-game="/games/greedy.html"><span class="ico"
+              style="background:linear-gradient(135deg,#7c3aed,#4c1d95)">💎</span>Krazy Khazana</button>
+          <button type="button" class="ap-tool-game" data-game="/games/teen-patti.html"><span class="ico"
+              style="background:linear-gradient(135deg,#8b5cf6,#4c1d95)">🃏</span>Teen Patti</button>
+        </div>
+      </section>
     </div>
   </div>
 
@@ -434,7 +502,7 @@
   <script src="voice-soak-metrics.js?v=20260724-phase1-life"></script>
   <!-- TEMPORARY investigation only — inert unless localStorage.ap_voice_route_debug=1 -->
   <script src="voice-route-debug.js?v=temp-route-debug"></script>
-  <script src="social-live.js?v=20260802-minal-veena-host"></script>
+  <script src="social-live.js?v=20260811-host-tools"></script>
   <script src="social-live-interactions.js"></script>
   <script src="social-nav.js?v=20260720-back-fix"></script>
 </body>

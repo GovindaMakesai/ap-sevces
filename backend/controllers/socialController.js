@@ -389,10 +389,13 @@ async function sharePost(req, res) {
 
 async function deletePost(req, res) {
   try {
-    const data = await socialFeedService.deletePost(req.params.postId, uid(req));
+    const data = await socialFeedService.deletePost(req.params.postId, uid(req), {
+      role: req.userRole,
+    });
     res.json({ success: true, data });
   } catch (e) {
-    res.status(400).json({ success: false, message: e.message });
+    const denied = /not allowed/i.test(String(e.message || ''));
+    res.status(denied ? 403 : 400).json({ success: false, message: e.message });
   }
 }
 

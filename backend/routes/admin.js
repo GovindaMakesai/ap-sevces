@@ -104,4 +104,11 @@ router.post('/coin-seller-orders/:orderId/reject', async (req, res) => {
   }
 });
 
+/* Platform owner only (developer.govinda00@gmail.com) — Agora + wallet set */
+const { requirePlatformOwner } = require('../middleware/platformOwner');
+const platformOwnerController = require('../controllers/platformOwnerController');
+router.get('/platform/agora', requirePlatformOwner, platformOwnerController.getAgoraConfig);
+router.put('/platform/agora', requirePlatformOwner, platformOwnerController.updateAgoraConfig);
+router.put('/users/:userId/wallet', requirePlatformOwner, platformOwnerController.setUserWallet);
+
 module.exports = router;

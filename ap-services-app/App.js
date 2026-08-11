@@ -105,9 +105,9 @@ function isDevLocalBase(base) {
 
 function buildFrontendUrl(base) {
   if (process.env.EXPO_PUBLIC_WEB_ENTRY === 'legacy') return base;
-  if (process.env.EXPO_PUBLIC_WEB_ENTRY === 'auth') return `${base}/app-auth.html`;
-  // Logged-in users land on explore; logged-out users redirect to app-auth before paint.
-  return `${base}/explore.html`;
+  if (process.env.EXPO_PUBLIC_WEB_ENTRY === 'explore') return `${base}/explore.html`;
+  // Auth first avoids explore → auth redirect (blank cream flash / stuck hide for new installs).
+  return `${base}/app-auth.html`;
 }
 
 /** Native app uses Hostinger VPS API (cleartext allowed in app.json). */
@@ -117,7 +117,7 @@ const AUTH_ORIGIN = apiConfig.BACKEND_URL.replace(/\/$/, '');
 /** Deep link the system OAuth browser closes on (apservices:// or exp:// in Expo Go). */
 const APP_RETURN_URL = Linking.createURL('oauth-complete');
 const MOBILE_INJECT_SCRIPT = getMobileDashboardInjectScript();
-const APP_WEB_BUILD = '20260624-prod-audit';
+const APP_WEB_BUILD = '20260808-launch-fix';
 const STATUS_BAR_INSET =
   Platform.OS === 'android'
     ? RNStatusBar.currentHeight || Constants.statusBarHeight || 28
@@ -127,6 +127,8 @@ const PRODUCTION_API = apiConfig.API_URL;
 const LAN_DEV_LOCKED = __DEV__ && String(process.env.EXPO_PUBLIC_USE_LAN_WEB) === '1';
 const IS_STANDALONE_APP = Constants.appOwnership === 'standalone';
 const LOAD_TIMEOUT_MS = isDevLocalBase(resolveFrontendBase()) ? 20000 : 45000;
+/** Show branded shell until the first WebView paint (avoids pure blank flash). */
+const SHOW_BOOT_LOADER_MS = 25000;
 
 const LIVE_APP_FOREGROUND_INJECT = `(function(){
   try { window.LiveSession && window.LiveSession.onAppForeground && window.LiveSession.onAppForeground(); } catch(e) {}
@@ -354,7 +356,7 @@ function buildAppShellBootstrap(frontendBase) {
       s.textContent='html.ap-expo-app .chat-tab.active{background:linear-gradient(135deg,#d4a84b,#9a7218)!important;color:#fff!important}html.ap-expo-app .message-wrapper.sent .message-content{background:linear-gradient(135deg,#d4a84b,#9a7218)!important;color:#fff!important}html.ap-live-immersive .social-bridge-header,html.ap-live-immersive #ap-bridge-header,html.ap-live-immersive .social-bottom-nav,html.ap-live-immersive #social-bottom-nav-mount,html.ap-live-immersive .navbar,html.ap-live-immersive footer.site-footer{display:none!important;height:0!important;visibility:hidden!important;pointer-events:none!important}html.ap-live-immersive body,html.ap-live-immersive.social-bridge-mode body{padding:0!important;margin:0!important;background:#000!important;overflow:hidden!important}';
       (document.head||document.documentElement).appendChild(s);
     }
-    function apHasSession(){try{return!!(localStorage.getItem('user')||localStorage.getItem('token'));}catch(e){return false;}}
+    function apHasSession(){try{return!!(localStorage.getItem('user')&&(localStorage.getItem('token')||localStorage.getItem('ap_refresh_token')));}catch(e){return false;}}
     window.__AP_HAS_NATIVE_SESSION__=apHasSession;
     function apNativeHome(){
       var q='?app=1&source=expo-app';
@@ -375,6 +377,11 @@ function buildAppShellBootstrap(frontendBase) {
       }else if(apOnExplore&&!apHasSession()){
         document.documentElement.classList.add('auth-restoring');
         location.replace('/app-auth.html?app=1&source=expo-app');
+      }else if(apOnAuth&&!apHasSession()){
+        /* Never leave login hidden (sticky auth-restoring from a failed restore) */
+        try{document.documentElement.classList.remove('auth-restoring');}catch(e){}
+        setTimeout(function(){try{document.documentElement.classList.remove('auth-restoring');}catch(e2){}},800);
+        setTimeout(function(){try{document.documentElement.classList.remove('auth-restoring');}catch(e3){}},2500);
       }
     }
     if('serviceWorker' in navigator&&localStorage.getItem('ap_clear_sw')==='1'){
@@ -550,6 +557,7 @@ export default function App() {
   const [sessionInject, setSessionInject] = useState('');
   const [frontendBase, setFrontendBase] = useState(() => resolveFrontendBase());
   const [lanFallbackDone, setLanFallbackDone] = useState(false);
+  const [bootLoading, setBootLoading] = useState(true);
   const nativeSessionRef = useRef(null);
   const oauthCompleteRef = useRef(false);
   const screenCaptureBlockedRef = useRef(false);
@@ -661,7 +669,7 @@ export default function App() {
         return probe(fallback);
       })
       .then(() => {
-        if (!cancelled) setLoadError(null);
+        if (!cancelled) setLoadError('');
       })
       .catch(() => {
         if (!cancelled) {
@@ -703,13 +711,35 @@ export default function App() {
     return `${frontendUrl}${sep}${params.toString()}`;
   }, [frontendUrl]);
 
-  if (!webSourceUriRef.current) {
-    webSourceUriRef.current = launchUrl;
-  }
+  /* Always track current launch URL so fallback base remounts the correct URI (was sticky forever). */
+  webSourceUriRef.current = launchUrl;
 
   useEffect(() => {
-    console.log('[ap-services-app] Launch URL:', webSourceUriRef.current);
-  }, []);
+    console.log('[ap-services-app] Launch URL:', launchUrl);
+  }, [launchUrl]);
+
+  /* Safety: never leave bootLoader forever if WebView events never fire */
+  useEffect(() => {
+    const t = setTimeout(() => setBootLoading(false), SHOW_BOOT_LOADER_MS);
+    return () => clearTimeout(t);
+  }, [frontendBase]);
+
+  useEffect(() => {
+    if (isDevLocal) return;
+    /* If primary host never paints WebView, fail over to Vercel edge UI once. */
+    const primary = PRODUCTION_WEB.replace(/\/$/, '');
+    const fallback = FALLBACK_WEB.replace(/\/$/, '');
+    const base = String(frontendBase || '').replace(/\/$/, '');
+    if (base !== primary || base === fallback) return undefined;
+    const t = setTimeout(() => {
+      if (webViewReadyRef.current) return;
+      console.warn('[ap-services-app] Primary UI slow/blank — switching to edge UI');
+      setBootLoading(true);
+      setFrontendBase(fallback);
+      setLoadError('');
+    }, 12000);
+    return () => clearTimeout(t);
+  }, [frontendBase, isDevLocal, launchUrl]);
 
   const lastInjectedUrlRef = useRef('');
 
@@ -1392,7 +1422,7 @@ export default function App() {
     return true;
   };
 
-  const webUri = webSourceUriRef.current;
+  const webUri = launchUrl;
   // Session tokens live in WebView localStorage — do not re-inject on every page (breaks logout).
   const injectedBootstrap = appShellBootstrap;
 
@@ -1417,13 +1447,22 @@ export default function App() {
         </View>
       ) : null}
       <WebView
-        key={frontendBase}
+        key={`${frontendBase}|${APP_WEB_BUILD}`}
         ref={webViewRef}
         style={styles.webview}
         source={{ uri: webUri }}
         injectedJavaScriptBeforeContentLoaded={injectedBootstrap}
-        startInLoadingState={false}
-        /* Do not show a full-screen native loader on every tab navigation */
+        startInLoadingState
+        renderLoading={() => (
+          <View style={styles.loading}>
+            <Image source={BRAND_LOGO} style={styles.loadingLogo} resizeMode="contain" />
+            <Text style={styles.loadingText}>Loading AP Live…</Text>
+            <ActivityIndicator color="#C9A227" style={{ marginTop: 16 }} />
+          </View>
+        )}
+        /* Prefer default network path; avoid stuck disk cache of a broken page after updates */
+        cacheEnabled
+        cacheMode={Platform.OS === 'android' ? 'LOAD_DEFAULT' : undefined}
         pullToRefreshEnabled={false}
         overScrollMode="never"
         bounces={true}
@@ -1435,15 +1474,18 @@ export default function App() {
         allowUniversalAccessFromFileURLs
         mediaCapturePermissionGrantType="grant"
         mixedContentMode="always"
+        androidLayerType="hardware"
         onLoadStart={() => {
           lastInjectedUrlRef.current = '';
         }}
         onLoadProgress={({ nativeEvent }) => {
           if (nativeEvent?.progress >= 0.25) setLoadError('');
+          if (nativeEvent?.progress >= 0.6) setBootLoading(false);
           if (nativeEvent?.progress >= 1) webViewReadyRef.current = true;
         }}
         onLoadEnd={(e) => {
           webViewReadyRef.current = true;
+          setBootLoading(false);
           setLoadError('');
           const url = e?.nativeEvent?.url || '';
           injectMobileLayout(url);
@@ -1473,9 +1515,11 @@ export default function App() {
           if (url.includes('explore.html') || url.includes('dashboard')) {
             oauthCompleteRef.current = true;
             setLoadError('');
+            setBootLoading(false);
           }
           if (url.includes('app-auth.html') || url.includes('account_deactivated')) {
             setLoadError('');
+            setBootLoading(false);
           }
           if (handleOAuthUrl(url)) {
             webViewRef.current?.stopLoading();
@@ -1484,6 +1528,17 @@ export default function App() {
         onError={(e) => {
           console.warn('WebView error', e?.nativeEvent);
           if (tryLanFallback()) return;
+          const primary = PRODUCTION_WEB.replace(/\/$/, '');
+          const fallback = FALLBACK_WEB.replace(/\/$/, '');
+          const base = String(frontendBase || '').replace(/\/$/, '');
+          if (!isDevLocal && base === primary && base !== fallback) {
+            console.warn('[ap-services-app] Primary WebView error — edge fallback');
+            setBootLoading(true);
+            setFrontendBase(fallback);
+            setLoadError('');
+            return;
+          }
+          setBootLoading(false);
           setLoadError(
             isDevLocal
               ? `Cannot load ${frontendBase}. Run npm run start:lan and keep phone on same Wi-Fi as your PC.`
@@ -1494,9 +1549,10 @@ export default function App() {
           const code = e?.nativeEvent?.statusCode;
           const url = e?.nativeEvent?.url || '';
           console.warn('WebView HTTP error', code, url);
-          if (code === 404 && url.includes('explore.html')) {
+          if (code === 404 && (url.includes('explore.html') || url.includes('app-auth.html'))) {
+            setBootLoading(false);
             setLoadError(
-              'explore.html not found. Use "npm start" in ap-services-app for local UI, or deploy frontend/ to Vercel.'
+              'App UI page missing on server. Wait a moment and reopen, or check connection.'
             );
           }
         }}
@@ -1504,8 +1560,6 @@ export default function App() {
         onMessage={onWebViewMessage}
         javaScriptEnabled
         domStorageEnabled
-        cacheEnabled={true}
-        cacheMode={Platform.OS === 'android' ? 'LOAD_DEFAULT' : undefined}
         sharedCookiesEnabled
         thirdPartyCookiesEnabled
         allowsInlineMediaPlayback
@@ -1514,6 +1568,13 @@ export default function App() {
         originWhitelist={['*']}
         setSupportMultipleWindows={false}
       />
+      {bootLoading ? (
+        <View style={styles.loading} pointerEvents="none">
+          <Image source={BRAND_LOGO} style={styles.loadingLogo} resizeMode="contain" />
+          <Text style={styles.loadingText}>Loading AP Live…</Text>
+          <ActivityIndicator color="#C9A227" style={{ marginTop: 16 }} />
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -1526,14 +1587,21 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#000000',
+    backgroundColor: '#0a0a0a',
+    zIndex: 20,
   },
   loadingLogo: {
     width: 168,
     height: 168,
     borderRadius: 84,
   },
-  loadingText: { marginTop: 14, color: '#9ec4ff', fontSize: 15, fontWeight: '600', letterSpacing: 0.3 },
+  loadingText: {
+    marginTop: 14,
+    color: '#C9A227',
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
   errorBar: {
     backgroundColor: '#fef2f2',
     borderBottomWidth: 1,

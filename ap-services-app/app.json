@@ -3,7 +3,7 @@
     "name": "AP Live Service",
     "slug": "ap-services-app",
     "scheme": "apservices",
-    "version": "1.0.34",
+    "version": "1.0.36",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -23,7 +23,7 @@
     "android": {
       "package": "com.apservices.app",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 50,
+      "versionCode": 52,
       "usesCleartextTraffic": true,
       "permissions": [
         "android.permission.CAMERA",
@@ -81,9 +81,9 @@
             "compileSdkVersion": 36,
             "targetSdkVersion": 36,
             "buildToolsVersion": "36.0.0",
-            "enableMinifyInReleaseBuilds": true,
-            "enableShrinkResourcesInReleaseBuilds": true,
-            "extraProguardRules": "-keep class com.facebook.react.** { *; }\n-keep class com.facebook.hermes.** { *; }\n-keep class com.swmansion.** { *; }\n-keep class expo.modules.** { *; }\n-keep class com.reactnativecommunity.webview.** { *; }\n-keepclassmembers class * { @com.facebook.react.uimanager.annotations.ReactProp <methods>; }\n-keepclassmembers class * { @com.facebook.react.uimanager.annotations.ReactPropGroup <methods>; }\n-dontwarn com.facebook.react.**\n-dontwarn expo.modules.**\n"
+            "enableMinifyInReleaseBuilds": false,
+            "enableShrinkResourcesInReleaseBuilds": false,
+            "extraProguardRules": "-keep class com.facebook.react.** { *; }\n-keep class com.facebook.hermes.** { *; }\n-keep class com.swmansion.** { *; }\n-keep class expo.modules.** { *; }\n-keep class com.reactnativecommunity.webview.** { *; }\n-keep class com.facebook.react.bridge.** { *; }\n-keep class com.facebook.react.uimanager.** { *; }\n-keep class com.facebook.react.views.** { *; }\n-keep class com.facebook.jni.** { *; }\n-keep class expo.modules.notifications.** { *; }\n-keep class expo.modules.av.** { *; }\n-keep class com.apservices.** { *; }\n-keepclassmembers class * { @com.facebook.react.uimanager.annotations.ReactProp <methods>; }\n-keepclassmembers class * { @com.facebook.react.uimanager.annotations.ReactPropGroup <methods>; }\n-dontwarn com.facebook.react.**\n-dontwarn expo.modules.**\n-dontwarn com.google.firebase.**\n-dontwarn com.google.android.gms.**\n"
           }
         }
       ]

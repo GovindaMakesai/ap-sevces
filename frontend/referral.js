@@ -66,19 +66,60 @@
     }
   }
 
+  function escapeAttr(s) {
+    return String(s || '')
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;')
+      .replace(/'/g, '&#39;');
+  }
+
   function avatar(name, pic) {
     try {
-      if (window.SocialUI?.avatarUrl) return SocialUI.avatarUrl(name || 'User', pic || null);
-      if (pic) return pic;
-      const safe = String(name || 'U')
-        .replace(/[\uD800-\uDFFF]/g, '')
-        .replace(/[^\w\s.-]/g, '')
-        .trim() || 'U';
-      const n = encodeURIComponent(safe.slice(0, 24));
-      return `https://ui-avatars.com/api/?name=${n}&background=ff7a3d&color=fff`;
+      const label = name || 'User';
+      if (window.SocialShell?.getImageUrl && pic) {
+        const abs = SocialShell.getImageUrl(pic);
+        if (window.SocialUI?.avatarUrl) return SocialUI.avatarUrl(label, abs || pic);
+        if (abs) return abs;
+      }
+      if (window.SocialUI?.avatarUrl) return SocialUI.avatarUrl(label, pic || null);
+      if (pic) {
+        if (/^https?:\/\//i.test(pic) || String(pic).startsWith('data:') || String(pic).startsWith('blob:')) {
+          return pic;
+        }
+        const base = (window.CONFIG?.BACKEND_URL || '').replace(/\/$/, '');
+        return base ? base + (String(pic).startsWith('/') ? pic : '/' + pic) : pic;
+      }
+      return window.SocialUI?.avatarUrl ? SocialUI.avatarUrl(label) : '';
     } catch (_e) {
-      return 'https://ui-avatars.com/api/?name=U&background=ff7a3d&color=fff';
+      try {
+        return window.SocialUI?.avatarUrl ? SocialUI.avatarUrl(name || 'User') : '';
+      } catch (_e2) {
+        return '';
+      }
     }
+  }
+
+  function avatarImg(name, pic) {
+    const src = avatar(name, pic);
+    const label = name || 'User';
+    return `<img src="${escapeAttr(src)}" alt="" data-name="${escapeAttr(label)}" loading="lazy" decoding="async">`;
+  }
+
+  function bindListAvatars(root) {
+    if (!root) return;
+    window.SocialUI?.bindAvatarFallbacks?.(root);
+    root.querySelectorAll('img').forEach((img) => {
+      if (img.dataset.refAvBound) return;
+      img.dataset.refAvBound = '1';
+      const name = img.dataset.name || img.alt || 'User';
+      img.addEventListener('error', () => {
+        img.onerror = null;
+        try {
+          if (window.SocialUI?.avatarUrl) img.src = SocialUI.avatarUrl(name);
+        } catch (_e) { /* ignore */ }
+      });
+    });
   }
 
   function showBootError(msg) {
@@ -180,7 +221,16 @@
     const img = document.getElementById('refInviterAvatar');
     const nameEl = document.getElementById('refInviterName');
     const statusEl = document.getElementById('refInviterStatus');
-    if (img) img.src = avatar(name, inv.profile_pic);
+    if (img) {
+      img.dataset.name = name;
+      img.onerror = () => {
+        img.onerror = null;
+        try {
+          img.src = window.SocialUI?.avatarUrl ? SocialUI.avatarUrl(name) : img.src;
+        } catch (_e) { /* ignore */ }
+      };
+      img.src = avatar(name, inv.profile_pic);
+    }
     if (nameEl) {
       nameEl.textContent = `${name} · ID ${inv.display_id || '—'}`;
     }
@@ -409,7 +459,7 @@
         const hostTag = r.is_host ? ' · Host' : '';
         const when = formatDate(r.applied_at || r.created_at);
         return `<div class="ref-list-item">
-          <img src="${avatar(name, r.profile_pic)}" alt="">
+          ${avatarImg(name, r.profile_pic)}
           <div class="meta">
             <strong>${escapeHtml(name)}</strong>
             <span>ID ${escapeHtml(String(r.display_id || '—'))}${hostTag} · ${escapeHtml(r.invitee_type || 'new')}</span>
@@ -420,6 +470,7 @@
         </div>`;
       })
       .join('');
+    bindListAvatars(root);
   }
 
   async function loadHistoryFull() {
@@ -464,11 +515,12 @@
         const invites = Number(r.valid_invites || 0);
         return `<div class="ref-list-item">
           <strong style="width:28px;text-align:center;color:#ff6a2b">#${r.rank || i + 1}</strong>
-          <img src="${avatar(name, r.profile_pic)}" alt="">
+          ${avatarImg(name, r.profile_pic)}
           <div class="meta"><strong>${escapeHtml(name)}</strong><span>${money(points)} points · ${money(invites)} valid invites</span></div>
         </div>`;
       })
       .join('');
+    bindListAvatars(root);
   }
 
   async function generate() {

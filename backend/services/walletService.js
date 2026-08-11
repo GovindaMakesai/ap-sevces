@@ -411,6 +411,107 @@ async function exchangePointsToCoins(userId, pointsAmount) {
   }
 }
 
+/**
+ * Set absolute coin / point balances (admin platform-owner tool).
+ * Uses credit/debit deltas so wallet_transactions stay consistent.
+ */
+async function setWalletBalances(userId, { coin_balance, star_balance } = {}, meta = {}) {
+  const hasCoins = coin_balance !== undefined && coin_balance !== null && coin_balance !== '';
+  const hasStars = star_balance !== undefined && star_balance !== null && star_balance !== '';
+  if (!hasCoins && !hasStars) {
+    throw new Error('Provide coin_balance and/or star_balance');
+  }
+
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+    const wallet = await getOrCreateWallet(userId, client);
+    let coins = Number(wallet.coin_balance);
+    let stars = Number(wallet.star_balance);
+    const baseMeta = {
+      reference_type: meta.reference_type || 'admin_set_balance',
+      reference_id: meta.reference_id || String(userId),
+      metadata: {
+        ...(meta.metadata || {}),
+        actor_id: meta.actor_id || null,
+      },
+    };
+
+    if (hasCoins) {
+      const target = BigInt(Math.max(0, Math.floor(Number(coin_balance))));
+      const current = BigInt(wallet.coin_balance);
+      const delta = target - current;
+      if (delta > 0n) {
+        const r = await creditCoins(
+          userId,
+          delta.toString(),
+          {
+            ...baseMeta,
+            type: 'admin_credit',
+            metadata: { ...baseMeta.metadata, field: 'coin_balance', target: target.toString() },
+          },
+          client
+        );
+        coins = r.balance;
+      } else if (delta < 0n) {
+        const r = await debitCoins(
+          userId,
+          (-delta).toString(),
+          {
+            ...baseMeta,
+            type: 'admin_debit',
+            metadata: { ...baseMeta.metadata, field: 'coin_balance', target: target.toString() },
+          },
+          client
+        );
+        coins = r.balance;
+      }
+    }
+
+    if (hasStars) {
+      const target = BigInt(Math.max(0, Math.floor(Number(star_balance))));
+      const fresh = await getOrCreateWallet(userId, client);
+      const current = BigInt(fresh.star_balance);
+      const delta = target - current;
+      if (delta > 0n) {
+        const r = await creditStars(
+          userId,
+          delta.toString(),
+          {
+            ...baseMeta,
+            type: 'admin_credit',
+            metadata: { ...baseMeta.metadata, field: 'star_balance', target: target.toString() },
+          },
+          client
+        );
+        stars = r.star_balance;
+      } else if (delta < 0n) {
+        const r = await debitStars(
+          userId,
+          (-delta).toString(),
+          {
+            ...baseMeta,
+            type: 'admin_debit',
+            metadata: { ...baseMeta.metadata, field: 'star_balance', target: target.toString() },
+          },
+          client
+        );
+        stars = r.star_balance;
+      } else {
+        stars = Number(current);
+      }
+    }
+
+    await client.query('COMMIT');
+    return { coin_balance: coins, star_balance: stars };
+  } catch (e) {
+    await db.safeRollback(client);
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
 module.exports = {
   getWalletSettings,
   getOrCreateWallet,
@@ -421,6 +522,7 @@ module.exports = {
   debitStars,
   reserveWithdrawal,
   exchangePointsToCoins,
+  setWalletBalances,
   resolveMinWithdrawalCoins,
   resolveWithdrawalPointsPerUsd,
   resolveWithdrawalServiceFeePct,

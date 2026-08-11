@@ -87,8 +87,8 @@ class User {
             if (v) allowed.first_name = v;
         }
         if (fields.last_name !== undefined) {
-            const v = String(fields.last_name || '').trim().slice(0, 100);
-            if (v) allowed.last_name = v;
+            /* Allow clearing last name (empty string) — previously skipped empty values so last name could never be removed/replaced when the client sent "". */
+            allowed.last_name = String(fields.last_name || '').trim().slice(0, 100);
         }
         if (fields.phone !== undefined) {
             const digits = String(fields.phone || '').replace(/\D/g, '');

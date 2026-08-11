@@ -176,14 +176,13 @@
 
   function bindThumbFallbacks(root) {
     root.querySelectorAll('img.ap-discover-thumb[data-ap-thumb]').forEach((img) => {
-      const wrap = img.closest('.ap-discover-thumb-wrap');
       const name = img.getAttribute('alt') || 'Creator';
       const primary = img.getAttribute('src') || '';
-      const profileGuess =
-        wrap?.parentElement?.querySelector?.('.ap-discover-name')?.textContent || name;
+      const mid = img.getAttribute('data-fallback') || '';
+      const init = initialsSvg(name);
       const chain = [];
       if (primary) chain.push(primary);
-      const init = initialsSvg(profileGuess);
+      if (mid && mid !== primary) chain.push(mid);
       if (!chain.includes(init)) chain.push(init);
       FALLBACK_CHAIN.set(img, { i: 0, chain });
 

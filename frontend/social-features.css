@@ -586,6 +586,20 @@ html.social-video-immersive .social-reels-wrap {
   backdrop-filter: blur(4px);
 }
 
+.social-post-delete:active,
+.social-act-btn--danger:active,
+.social-reel-action--danger:active {
+  transform: scale(0.94);
+}
+
+.social-act-btn--danger {
+  color: #b91c1c !important;
+}
+
+.social-reel-action--danger .social-reel-action-icon {
+  background: rgba(185, 28, 28, 0.85);
+}
+
 .social-post-private-badge {
   position: absolute;
   top: 10px;

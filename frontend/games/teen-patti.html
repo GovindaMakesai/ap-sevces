@@ -560,7 +560,7 @@
     </div>
   </div>
 
-<script>
+  <script>
 (function () {
   var AREAS = ['blue', 'red', 'pair', 'color', 'sequence', 'pure_seq', 'set'];
   var ODDS = { blue: 1.95, red: 1.95, pair: 3.5, color: 10, sequence: 15, pure_seq: 100, set: 100 };
@@ -585,11 +585,11 @@
   var muted = false;
   var pools = {};
 
-  function post(o) {
-    try {
+    function post(o) {
+      try {
       if (window.parent && window.parent !== window) window.parent.postMessage(o, '*');
-      if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
-        window.ReactNativeWebView.postMessage(JSON.stringify(o));
+        if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+          window.ReactNativeWebView.postMessage(JSON.stringify(o));
       }
     } catch (_e) {}
   }
@@ -698,8 +698,8 @@
   function cardBack() {
     var d = document.createElement('div');
     d.className = 'pcard back';
-    return d;
-  }
+      return d;
+    }
 
   function renderFacedown() {
     ['blueCards', 'redCards'].forEach(function (id) {
@@ -986,8 +986,8 @@
       setStatus('Not enough coins');
       roundLocked = false;
       setTimeout(resetRound, 1200);
-      return;
-    }
+        return;
+      }
     lastBets = Object.assign({}, bets);
     coins = Math.max(0, coins - wager);
     updateCoins();
@@ -1066,6 +1066,6 @@
   }).catch(function () {});
   resetRound();
 })();
-</script>
+  </script>
 </body>
 </html>

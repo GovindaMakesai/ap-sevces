@@ -72,9 +72,9 @@ if (-not $Debug) {
     $_ -notmatch '^android\.enableShrinkResourcesInReleaseBuilds='
   }
   $lines += @(
-    "reactNativeArchitectures=arm64-v8a",
-    "android.enableMinifyInReleaseBuilds=true",
-    "android.enableShrinkResourcesInReleaseBuilds=true",
+    "reactNativeArchitectures=armeabi-v7a,arm64-v8a,x86_64",
+    "android.enableMinifyInReleaseBuilds=false",
+    "android.enableShrinkResourcesInReleaseBuilds=false",
     "MYAPP_UPLOAD_STORE_FILE=upload.jks",
     "MYAPP_UPLOAD_KEY_ALIAS=$alias",
     "MYAPP_UPLOAD_STORE_PASSWORD=$storePass",

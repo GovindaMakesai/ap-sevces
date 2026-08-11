@@ -421,13 +421,14 @@ const API = {
         const method = String(options.method || 'GET').toUpperCase();
         const pathOnly = String(url || '').split('?')[0];
         /* Public GETs must never wait on token refresh — Live feed first paint */
+        /* /auth/me is NOT public — needs bearer after ensureAccessToken (capped race below).
+           Public GETs must never wait on token refresh — Live feed first paint */
         const isPublicGet =
             method === 'GET' &&
             (/\/live\/rooms(?:\/|$)/i.test(pathOnly) ||
                 /\/v1\/leaderboards(?:\/|$)/i.test(pathOnly) ||
                 /\/social\/gifts\/catalog(?:\/|$)/i.test(pathOnly) ||
-                /\/messages\/unread-count(?:\/|$)/i.test(pathOnly) ||
-                /\/auth\/me(?:\/|$)/i.test(pathOnly));
+                /\/messages\/unread-count(?:\/|$)/i.test(pathOnly));
 
         if (!isPublicGet && typeof Auth !== 'undefined' && Auth.ensureAccessToken) {
             try {
@@ -2276,7 +2277,15 @@ console.log('Γ£à App.js initialized');
 /** Prevent blank screens when session restore or profile paint stalls (native WebView). */
 (function apSessionRecoveryBoot() {
     function clearStuckUiLocks() {
-        document.documentElement.classList.remove('auth-restoring', 'auth-locked');
+        try {
+            if (window.ApSession?.clearAuthRestoring) {
+                window.ApSession.clearAuthRestoring();
+            } else {
+                document.documentElement.classList.remove('auth-restoring', 'auth-locked');
+            }
+        } catch (_e) {
+            document.documentElement.classList.remove('auth-restoring', 'auth-locked');
+        }
         document.documentElement.classList.add('profile-ready');
         const bar = document.getElementById('profileLoadingBar');
         if (bar) bar.remove();
@@ -2285,9 +2294,18 @@ console.log('Γ£à App.js initialized');
             explore.style.removeProperty('opacity');
             explore.style.removeProperty('pointer-events');
         }
+        /* Hide pure boot loaders if any leftover spinner covers the page */
+        document.querySelectorAll('.ap-boot-spinner, #apGlobalBootLoader, [data-ap-boot-loader]').forEach((el) => {
+            try {
+                el.style.display = 'none';
+            } catch (_e) {}
+        });
     }
-    [1800, 3500].forEach((ms) => setTimeout(clearStuckUiLocks, ms));
+    [400, 1000, 1800, 3500].forEach((ms) => setTimeout(clearStuckUiLocks, ms));
     window.addEventListener('pageshow', clearStuckUiLocks);
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') clearStuckUiLocks();
+    });
     window.addEventListener('error', () => {
         clearStuckUiLocks();
     });

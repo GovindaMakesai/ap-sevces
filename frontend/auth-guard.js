@@ -75,7 +75,19 @@
   }
 
   function isLoggedIn() {
-    return Boolean(localStorage.getItem('user') || localStorage.getItem('token'));
+    if (window.ApSession && typeof window.ApSession.hasUsableSession === 'function') {
+      return window.ApSession.hasUsableSession();
+    }
+    try {
+      const user = localStorage.getItem('user');
+      const token = localStorage.getItem('token');
+      const refresh = localStorage.getItem('ap_refresh_token');
+      /* Prefer usable session; still accept bare token so mid-inject still works */
+      if (user && (token || refresh)) return true;
+      return Boolean(token || refresh);
+    } catch (_e) {
+      return false;
+    }
   }
 
   function getUser() {
@@ -156,58 +168,79 @@
       }
     } catch (_e) {}
 
-    try {
-      if (window.Auth && typeof Auth.refreshSession === 'function') {
-        const ok = await Auth.refreshSession();
-        if (ok) {
+    const runValidate = async () => {
+      try {
+        if (window.Auth && typeof Auth.refreshSession === 'function') {
+          const ok = await Auth.refreshSession();
+          if (ok) {
+            lastSessionOkAt = Date.now();
+            try {
+              sessionStorage.setItem('ap_session_ok_at', String(lastSessionOkAt));
+            } catch (_e) {}
+            return true;
+          }
+          if (!localStorage.getItem('user')) return false;
+          /* Offline-tolerant: keep shell open with cached profile */
+          return Boolean(cachedUser || getUser());
+        }
+        const api = (window.normalizeApiUrl || ((u) => u || 'https://api.apservices.in/api'))(
+          (typeof window.__AP_API_URL__ === 'string' && window.__AP_API_URL__) ||
+            (window.CONFIG && CONFIG.API_URL) ||
+            (window.AP_CONFIG && AP_CONFIG.PRODUCTION_API_URL) ||
+            'https://api.apservices.in/api'
+        );
+        const headers = {};
+        try {
+          const tok = localStorage.getItem('token');
+          if (tok) headers.Authorization = 'Bearer ' + tok;
+        } catch (_e) {}
+        const res = await fetch(api + '/auth/me', { credentials: 'include', headers });
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 403) {
+          const msg = data.message || '';
+          if (msg.toLowerCase().includes('deactivat') || msg.toLowerCase().includes('inactive')) {
+            try {
+              localStorage.removeItem('user');
+              localStorage.removeItem('token');
+              localStorage.removeItem('ap_refresh_token');
+            } catch (_e) {}
+            markGuestUi();
+            const dest = '/app-auth.html?app=1&error=account_deactivated';
+            window.location.replace(dest);
+            return false;
+          }
+        }
+        if (res.status === 401) {
+          if (cachedUser || getUser()) return true;
+          localStorage.removeItem('user');
+          return false;
+        }
+        if (res.ok && data.success && data.data?.user) {
+          localStorage.setItem('user', JSON.stringify(data.data.user));
+          if (window.AppState) AppState.user = data.data.user;
           lastSessionOkAt = Date.now();
           try {
             sessionStorage.setItem('ap_session_ok_at', String(lastSessionOkAt));
           } catch (_e) {}
           return true;
         }
-        if (!localStorage.getItem('user')) return false;
         return Boolean(cachedUser || getUser());
+      } catch (_e) {
+        /* Network down must not blank the app for logged-in users */
+        return Boolean(localStorage.getItem('user') && (cachedUser || getUser()));
       }
-      const api = (window.normalizeApiUrl || ((u) => u || 'https://api.apservices.in/api'))(
-        (typeof window.__AP_API_URL__ === 'string' && window.__AP_API_URL__) ||
-          (window.CONFIG && CONFIG.API_URL) ||
-          (window.AP_CONFIG && AP_CONFIG.PRODUCTION_API_URL) ||
-          'https://api.apservices.in/api'
-      );
-      const res = await fetch(api + '/auth/me', { credentials: 'include' });
-      const data = await res.json().catch(() => ({}));
-      if (res.status === 403) {
-        const msg = data.message || '';
-        if (msg.toLowerCase().includes('deactivat') || msg.toLowerCase().includes('inactive')) {
-          try {
-            localStorage.removeItem('user');
-            localStorage.removeItem('token');
-            localStorage.removeItem('ap_refresh_token');
-          } catch (_e) {}
-          markGuestUi();
-          const dest = '/app-auth.html?app=1&error=account_deactivated';
-          window.location.replace(dest);
-          return false;
-        }
-      }
-      if (res.status === 401) {
-        if (cachedUser || getUser()) return true;
-        localStorage.removeItem('user');
-        return false;
-      }
-      if (res.ok && data.success && data.data?.user) {
-        localStorage.setItem('user', JSON.stringify(data.data.user));
-        if (window.AppState) AppState.user = data.data.user;
-        lastSessionOkAt = Date.now();
-        try {
-          sessionStorage.setItem('ap_session_ok_at', String(lastSessionOkAt));
-        } catch (_e) {}
-        return true;
-      }
-      return Boolean(cachedUser || getUser());
+    };
+
+    /* Hard bound — hung /auth/me or refresh must not leave cream screen forever */
+    try {
+      return await Promise.race([
+        runValidate(),
+        new Promise((resolve) =>
+          setTimeout(() => resolve(Boolean(cachedUser || getUser() || isLoggedIn())), 5000)
+        ),
+      ]);
     } catch (_e) {
-      return Boolean(localStorage.getItem('user') && (cachedUser || getUser()));
+      return Boolean(cachedUser || getUser() || isLoggedIn());
     }
   }
 
@@ -258,24 +291,36 @@
     if (isAuthPage()) {
       if (isLoggedIn()) {
         document.documentElement.classList.add('auth-restoring');
-        const restoreTimer = setTimeout(clearAuthRestoring, 2500);
-        validateSession().then((ok) => {
-          clearTimeout(restoreTimer);
-          clearAuthRestoring();
-          if (ok) {
-            completeLoginAndEnterApp(getUser());
-            return;
-          }
-          try {
-            localStorage.removeItem('user');
-            localStorage.removeItem('token');
-            localStorage.removeItem('ap_refresh_token');
-          } catch (_e) {}
-          markGuestUi();
-          bindAuthNavLinks();
-        });
+        try {
+          window.ApSession?.scheduleAuthRestoringClear?.();
+        } catch (_e) {}
+        /* Max 1s hide — better brief Welcome flash than blank forever */
+        const restoreTimer = setTimeout(clearAuthRestoring, 1000);
+        validateSession()
+          .then((ok) => {
+            clearTimeout(restoreTimer);
+            clearAuthRestoring();
+            if (ok) {
+              completeLoginAndEnterApp(getUser());
+              return;
+            }
+            try {
+              localStorage.removeItem('user');
+              localStorage.removeItem('token');
+              localStorage.removeItem('ap_refresh_token');
+            } catch (_e) {}
+            markGuestUi();
+            bindAuthNavLinks();
+          })
+          .catch(() => {
+            clearTimeout(restoreTimer);
+            clearAuthRestoring();
+            markGuestUi();
+            bindAuthNavLinks();
+          });
         return;
       }
+      clearAuthRestoring();
       markGuestUi();
       bindAuthNavLinks();
       return;
@@ -283,6 +328,7 @@
 
     if (!isLoggedIn()) {
       markGuestUi();
+      clearAuthRestoring();
       window.location.replace('/app-auth.html?app=1');
       return;
     }

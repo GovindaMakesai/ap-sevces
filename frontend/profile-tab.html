@@ -222,10 +222,14 @@
       </div>
       <form id="profileEditForm">
         <div class="social-profile-edit-field">
-          <label for="editDisplayName">Name</label>
-          <input type="text" id="editDisplayName" name="name" autocomplete="name" maxlength="120" required>
-          <p class="social-profile-name-hint" id="editNameChangeHint">2 free name changes per month. 3rd+ costs 10,000 coins.</p>
+          <label for="editFirstName">First name</label>
+          <input type="text" id="editFirstName" name="first_name" autocomplete="given-name" maxlength="100" required>
         </div>
+        <div class="social-profile-edit-field">
+          <label for="editLastName">Last name</label>
+          <input type="text" id="editLastName" name="last_name" autocomplete="family-name" maxlength="100" placeholder="Optional">
+        </div>
+        <p class="social-profile-name-hint" id="editNameChangeHint">2 free name changes per month. 3rd+ costs 10,000 coins.</p>
         <div class="social-profile-edit-field">
           <label for="editPhone">Phone</label>
           <input type="tel" id="editPhone" name="phone" autocomplete="tel" inputmode="tel" maxlength="15" placeholder="Your mobile number">
@@ -438,8 +442,8 @@
           location.href = '/login.html?redirect=' + encodeURIComponent('/profile-tab.html?app=1');
           return;
         }
-        document.getElementById('editDisplayName').value =
-          `${user.first_name || ''} ${user.last_name || ''}`.trim();
+        document.getElementById('editFirstName').value = user.first_name || '';
+        document.getElementById('editLastName').value = user.last_name || '';
         document.getElementById('editPhone').value = user.phone || '';
         paintNameChangeHint(nameChangeQuota);
         refreshNameChangeQuota();
@@ -520,17 +524,15 @@
         document.getElementById('profileEditForm')?.addEventListener('submit', async (e) => {
           e.preventDefault();
           if (!user) return;
-          const fullName = document.getElementById('editDisplayName').value.trim();
+          const first_name = document.getElementById('editFirstName').value.trim();
+          const last_name = document.getElementById('editLastName').value.trim();
           const phone = document.getElementById('editPhone').value.trim();
-          if (!fullName) {
-            SocialUI?.toast?.('Name is required', 'warning');
+          if (!first_name) {
+            SocialUI?.toast?.('First name is required', 'warning');
             return;
           }
-          const space = fullName.indexOf(' ');
-          const first_name = space === -1 ? fullName : fullName.slice(0, space);
-          const last_name = space === -1 ? '' : fullName.slice(space + 1).trim();
           const prevName = `${user.first_name || ''} ${user.last_name || ''}`.trim().replace(/\s+/g, ' ');
-          const nextName = fullName.replace(/\s+/g, ' ');
+          const nextName = `${first_name} ${last_name}`.trim().replace(/\s+/g, ' ');
           const nameChanging = prevName !== nextName;
           if (nameChanging) {
             const q = nameChangeQuota || (await refreshNameChangeQuota());
