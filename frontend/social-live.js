@@ -387,16 +387,137 @@
   }
 
   function showPkOverlay(show) {
+    ensurePkBattleChrome();
     const overlay = document.getElementById('apPkOverlay');
     if (!overlay) return;
     if (show) {
       overlay.removeAttribute('aria-hidden');
       document.body.classList.add('is-pk-mode');
+      document.documentElement.classList.add('is-pk-mode');
+      syncPkStageUi();
     } else {
       overlay.setAttribute('aria-hidden', 'true');
       document.body.classList.remove('is-pk-mode');
+      document.documentElement.classList.remove('is-pk-mode');
       setPkStatus('');
+      const wait = document.getElementById('apPkWaitingR');
+      if (wait) wait.hidden = true;
     }
+  }
+
+  function ensurePkBattleChrome() {
+    const root = document.getElementById('liveRoomRoot') || document.querySelector('.party-room');
+    if (!root) return;
+    const existing = document.getElementById('apPkOverlay');
+    if (existing && !existing.querySelector('.ap-pk-stage')) {
+      existing.remove();
+    }
+    if (document.getElementById('apPkOverlay')) return;
+    root.insertAdjacentHTML(
+      'beforeend',
+      `<div class="ap-pk-overlay" id="apPkOverlay" aria-hidden="true">
+        <div class="ap-pk-score-wrap">
+          <div class="ap-pk-bar" aria-hidden="true">
+            <div class="ap-pk-bar-left" id="apPkBarLeft" style="width:50%"></div>
+            <span class="ap-pk-score ap-pk-score-l" id="apPkScoreLeft">0</span>
+            <span class="ap-pk-score ap-pk-score-r" id="apPkScoreRight">0</span>
+          </div>
+          <div class="ap-pk-timer-pill" id="apPkTimer">04:00</div>
+        </div>
+        <div class="ap-pk-stage">
+          <div class="ap-pk-side ap-pk-side-l">
+            <div class="ap-pk-side-topline">
+              <span class="ap-pk-win ap-pk-win-l" id="apPkWinL">Win x0</span>
+              <span class="ap-pk-rank-chip" id="apPkRankL">No Rank</span>
+            </div>
+            <div class="ap-pk-emblem" id="apPkEmblemL" aria-hidden="true">🦁</div>
+            <div class="ap-pk-side-name" id="apPkNameL">Host</div>
+          </div>
+          <div class="ap-pk-bolt" aria-hidden="true">
+            <span class="ap-pk-bolt-icon">⚡</span>
+          </div>
+          <div class="ap-pk-side ap-pk-side-r">
+            <div class="ap-pk-side-topline">
+              <span class="ap-pk-win ap-pk-win-r" id="apPkWinR">Win x0</span>
+              <span class="ap-pk-rank-chip" id="apPkRankR">Rival</span>
+            </div>
+            <div class="ap-pk-emblem" id="apPkEmblemR" aria-hidden="true">🦁</div>
+            <div class="ap-pk-side-name" id="apPkNameR">Opponent</div>
+            <div class="ap-pk-waiting" id="apPkWaitingR" hidden>
+              <div class="ap-pk-waiting-ring"></div>
+              <span>Waiting for rival…</span>
+            </div>
+          </div>
+        </div>
+        <p class="ap-pk-status" id="apPkStatus"></p>
+      </div>`
+    );
+  }
+
+  function syncPkStageUi(snapshot) {
+    ensurePkBattleChrome();
+    const hostName =
+      roomState?.hostName ||
+      document.getElementById('liveHostName')?.textContent ||
+      displayName(currentUser()) ||
+      'Host';
+    const teams = snapshot?.teams || snapshot?.participants || [];
+    const rival =
+      snapshot?.rivalName ||
+      snapshot?.opponentName ||
+      teams[1]?.display_name ||
+      teams[1]?.name ||
+      'Opponent';
+    const nameL = document.getElementById('apPkNameL');
+    const nameR = document.getElementById('apPkNameR');
+    if (nameL) nameL.textContent = hostName;
+    if (nameR) nameR.textContent = rival;
+
+    const remote = document.getElementById('liveRemoteHost');
+    const hasRemoteVideo = Boolean(remote?.querySelector('video'));
+    const wait = document.getElementById('apPkWaitingR');
+    if (wait) wait.hidden = hasRemoteVideo;
+
+    const bar = document.getElementById('apPkBarLeft');
+    if (bar && !bar.style.width) bar.style.width = '50%';
+  }
+
+  function postPkSystemChat(lines) {
+    const list = Array.isArray(lines) ? lines : [lines];
+    list.forEach((text, idx) => {
+      const t = String(text || '').trim();
+      if (!t) return;
+      const msg = {
+        id: 'pk-sys-' + Date.now() + '-' + idx,
+        type: 'system',
+        text: t,
+        at: Date.now(),
+        scope: 'room',
+      };
+      if (liveSocket?.connected) {
+        liveSocket.emit('live:chat', {
+          channel: channelId(),
+          type: 'system',
+          text: t,
+          scope: 'room',
+        });
+      } else {
+        try {
+          rememberChatMessage?.(msg);
+        } catch (_e) {}
+      }
+    });
+    try {
+      ensureChatTabShowsMessages?.();
+      renderChatFeed?.();
+    } catch (_e) {}
+  }
+
+  function formatPkClock(sec) {
+    const s = Math.max(0, Number(sec) || 0);
+    const m = Math.floor(s / 60);
+    const r = s % 60;
+    return `${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`;
   }
 
   /** Selection sheet must never sit on top of an active PK battle. */
@@ -593,7 +714,6 @@
           dismissPkSelectionUi();
           const snap = res.battle || res;
           beginPkBattle(snap);
-          toast('PK battle started!', 'success');
         } else {
           setPkMatching(false);
           setPkStatus('');
@@ -606,6 +726,7 @@
   function beginPkBattle(snapshot) {
     /* Critical: never leave PK Types / tools covering the live PK UI */
     dismissPkSelectionUi();
+    ensurePkBattleChrome();
     pkBattleActive = true;
     pkEndRequested = false;
     pkStartInFlight = false;
@@ -613,18 +734,24 @@
     applyPkTeamsFromSnapshot(snapshot);
     pkTimerSec = pkSecsRemaining(snapshot);
     showPkOverlay(true);
+    syncPkStageUi(snapshot);
     updatePkBar();
-    const m = Math.floor(pkTimerSec / 60);
-    const s = pkTimerSec % 60;
     const timerEl = document.getElementById('apPkTimer');
-    if (timerEl) {
-      timerEl.textContent = `PK ${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-    }
+    if (timerEl) timerEl.textContent = formatPkClock(pkTimerSec);
     setPkStatus('Get ready…');
-    window.SocialFX?.pkCountdown?.(5, () => {
+
+    const hostName =
+      roomState?.hostName || document.getElementById('liveHostName')?.textContent || 'Host';
+    postPkSystemChat([
+      'Click gifts to increase PK scores!',
+      `${hostName} started PK — cheer for them!`,
+      'Decapitation play: when either side leads 10× and PK value ≥ 100000, host may end PK early for that victory.',
+    ]);
+
+    window.SocialFX?.pkCountdown?.(3, () => {
       setPkStatus('PK LIVE — send gifts to score!');
       updatePkBar();
-      toast('PK battle started — send gifts to add score', 'success');
+      toast('PK battle live — send gifts to score', 'success');
     });
   }
 
@@ -640,6 +767,11 @@
     setPkStatus('Battle ended');
     window.SocialFX?.pkWinner?.(won ? 'winner' : 'loser', snapshot?.winnerName || roomState?.hostName);
     window.SocialFX?.pkScoreUpdate?.(left, right);
+    postPkSystemChat(
+      won
+        ? `PK ended — ${roomState?.hostName || 'Host'} side leads ${left} : ${right}`
+        : `PK ended — final score ${left} : ${right}`
+    );
     setTimeout(() => showPkOverlay(false), 4500);
   }
   let heartbeatTimer = null;
@@ -9404,23 +9536,26 @@
   function updatePkBar() {
     if (window.SocialFX?.pkScoreUpdate) {
       SocialFX.pkScoreUpdate(pkScoreLeft, pkScoreRight);
-      return;
     }
     const total = pkScoreLeft + pkScoreRight || 1;
-    const leftPct = Math.round((pkScoreLeft / total) * 100);
+    const leftPct = Math.max(8, Math.min(92, Math.round((pkScoreLeft / total) * 100)));
     const bar = document.getElementById('apPkBarLeft');
     const scoreL = document.getElementById('apPkScoreLeft');
     const scoreR = document.getElementById('apPkScoreRight');
-    if (bar) bar.style.width = leftPct + '%';
+    if (bar) {
+      bar.classList.add('ap-pk-bar-fill');
+      bar.style.width = leftPct + '%';
+    }
     if (scoreL) scoreL.textContent = String(pkScoreLeft);
     if (scoreR) scoreR.textContent = String(pkScoreRight);
+    syncPkStageUi();
   }
 
   function tickPkTimer() {
     const el = document.getElementById('apPkTimer');
     if (!el || !document.body.classList.contains('is-pk-mode')) return;
     if (pkTimerSec <= 0) {
-      el.textContent = 'PK 00:00';
+      el.textContent = '00:00';
       setPkStatus('Time is up — ending battle…');
       if (!pkEndRequested && isHost() && liveSocket?.connected) {
         pkEndRequested = true;
@@ -9429,10 +9564,7 @@
       return;
     }
     pkTimerSec = Math.max(0, pkTimerSec - 1);
-    const m = Math.floor(pkTimerSec / 60);
-    const s = pkTimerSec % 60;
-    el.textContent = 'PK ' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
-    updatePkBar();
+    el.textContent = formatPkClock(pkTimerSec);
   }
 
   function renderTopGifters() {
@@ -11584,21 +11716,7 @@
       );
     }
     if (!document.getElementById('apPkOverlay') && (isPartyRoomPage() || isLiveRoomPage())) {
-      const root = document.getElementById('liveRoomRoot') || document.querySelector('.party-room');
-      if (root) {
-        root.insertAdjacentHTML(
-          'afterbegin',
-          `<div class="ap-pk-overlay" id="apPkOverlay" aria-hidden="true">
-            <div class="ap-pk-bar">
-              <div class="ap-pk-bar-left" id="apPkBarLeft" style="width:50%"></div>
-              <span class="ap-pk-score ap-pk-score-l" id="apPkScoreLeft">0</span>
-              <span class="ap-pk-timer" id="apPkTimer">PK 05:00</span>
-              <span class="ap-pk-score ap-pk-score-r" id="apPkScoreRight">0</span>
-            </div>
-            <p class="ap-pk-status" id="apPkStatus">Send gifts to score in PK</p>
-          </div>`
-        );
-      }
+      ensurePkBattleChrome();
     }
     if (!document.getElementById('apGuestRail')) {
       const overlay = document.querySelector('.live-overlay') || document.querySelector('.party-room');
