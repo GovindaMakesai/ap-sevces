@@ -399,12 +399,227 @@
     }
   }
 
+  /** Selection sheet must never sit on top of an active PK battle. */
+  function dismissPkSelectionUi() {
+    const types = document.getElementById('apPkTypesSheet');
+    if (types) {
+      types.classList.remove('open', 'is-matching');
+      types.setAttribute('aria-hidden', 'true');
+      types.style.display = 'none';
+      types.style.pointerEvents = 'none';
+    }
+    try {
+      closeToolsSheetOnly?.();
+    } catch (_e) {
+      document.getElementById('partyToolsSheet')?.classList.remove('open');
+    }
+    document.getElementById('partyToolsSheet')?.classList.remove('open');
+    const tools = document.getElementById('partyToolsSheet');
+    if (tools) {
+      tools.style.display = 'none';
+      tools.style.pointerEvents = 'none';
+      tools.setAttribute('aria-hidden', 'true');
+    }
+  }
+
+  let pkSelectedType = 'random';
+  let pkStartInFlight = false;
+
+  function ensurePkTypesSheet() {
+    if (document.getElementById('apPkTypesSheet')) return;
+    document.body.insertAdjacentHTML(
+      'beforeend',
+      `<div class="ap-pk-types-sheet" id="apPkTypesSheet" aria-hidden="true">
+        <div class="ap-pk-types-panel" role="dialog" aria-label="PK Types">
+          <header class="ap-pk-types-head">
+            <h3>PK Types</h3>
+            <button type="button" class="ap-pk-types-close" id="apPkTypesClose" aria-label="Close"><i class="fas fa-times"></i></button>
+          </header>
+          <div class="ap-pk-types-rank">
+            <span class="ap-pk-types-rank-badge" aria-hidden="true">◎</span>
+            <span>No Rank</span>
+          </div>
+          <div class="ap-pk-type-cards" role="listbox" aria-label="PK mode">
+            <button type="button" class="ap-pk-type-card" data-pk-type="friend" role="option">
+              <span class="ap-pk-type-tag">1V1</span>
+              <span class="ap-pk-type-art ap-pk-type-art--friend" aria-hidden="true"><i class="fas fa-user-friends"></i></span>
+              <span class="ap-pk-type-name">Friend PK</span>
+            </button>
+            <button type="button" class="ap-pk-type-card is-selected" data-pk-type="random" role="option" aria-selected="true">
+              <span class="ap-pk-type-tag">1V1</span>
+              <span class="ap-pk-type-art ap-pk-type-art--random" aria-hidden="true"><i class="fas fa-gift"></i></span>
+              <span class="ap-pk-type-name">Random PK</span>
+            </button>
+            <button type="button" class="ap-pk-type-card" data-pk-type="team" role="option">
+              <span class="ap-pk-type-tag">Team</span>
+              <span class="ap-pk-type-new">New</span>
+              <span class="ap-pk-type-art ap-pk-type-art--team" aria-hidden="true"><i class="fas fa-users"></i></span>
+              <span class="ap-pk-type-name">Team PK</span>
+            </button>
+          </div>
+          <div class="ap-pk-match-radar" id="apPkMatchRadar" hidden aria-hidden="true">
+            <div class="ap-pk-radar-ring"></div>
+            <div class="ap-pk-radar-sweep"></div>
+            <p class="ap-pk-match-label">Matching opponent…</p>
+          </div>
+          <label class="ap-pk-types-check">
+            <input type="checkbox" id="apPkAllowParty" checked />
+            <span>Allow Matching with Party</span>
+          </label>
+          <button type="button" class="ap-pk-confirm-btn" id="apPkConfirmStart">PK</button>
+        </div>
+      </div>`
+    );
+    const sheet = document.getElementById('apPkTypesSheet');
+    document.getElementById('apPkTypesClose')?.addEventListener('click', () => closePkTypesSheet());
+    sheet?.addEventListener('click', (e) => {
+      if (e.target === sheet) closePkTypesSheet();
+    });
+    sheet?.querySelector('.ap-pk-types-panel')?.addEventListener('click', (e) => e.stopPropagation());
+    sheet?.querySelectorAll('[data-pk-type]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (pkStartInFlight) return;
+        selectPkType(btn.getAttribute('data-pk-type') || 'random');
+      });
+    });
+    document.getElementById('apPkConfirmStart')?.addEventListener('click', () => confirmStartPk());
+  }
+
+  function selectPkType(type) {
+    const t = type === 'friend' || type === 'team' ? type : 'random';
+    pkSelectedType = t;
+    document.querySelectorAll('#apPkTypesSheet [data-pk-type]').forEach((btn) => {
+      const on = btn.getAttribute('data-pk-type') === t;
+      btn.classList.toggle('is-selected', on);
+      btn.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+  }
+
+  function setPkMatching(on) {
+    const sheet = document.getElementById('apPkTypesSheet');
+    const radar = document.getElementById('apPkMatchRadar');
+    const startBtn = document.getElementById('apPkConfirmStart');
+    sheet?.classList.toggle('is-matching', Boolean(on));
+    if (radar) {
+      radar.hidden = !on;
+      radar.setAttribute('aria-hidden', on ? 'false' : 'true');
+    }
+    if (startBtn) {
+      startBtn.disabled = Boolean(on);
+      startBtn.textContent = on ? 'Matching…' : 'PK';
+    }
+  }
+
+  function closePkTypesSheet() {
+    /* Cancel in-flight matching if host backs out */
+    pkStartInFlight = false;
+    setPkMatching(false);
+    const sheet = document.getElementById('apPkTypesSheet');
+    if (!sheet) return;
+    sheet.classList.remove('open');
+    sheet.setAttribute('aria-hidden', 'true');
+    sheet.style.display = 'none';
+    sheet.style.pointerEvents = 'none';
+    syncLiveOverlayClass();
+  }
+
+  function openPkTypesSheet() {
+    if (!isHost() && !clientClaimsHost?.()) {
+      toast('Only the host can start PK', 'warning');
+      return;
+    }
+    if (pkBattleActive || document.body.classList.contains('is-pk-mode')) {
+      dismissPkSelectionUi();
+      showPkOverlay(true);
+      toast('PK is already live — send gifts to score', 'info');
+      return;
+    }
+    ensurePkTypesSheet();
+    try {
+      closeToolsSheetOnly?.();
+    } catch (_e) {
+      document.getElementById('partyToolsSheet')?.classList.remove('open');
+    }
+    const tools = document.getElementById('partyToolsSheet');
+    if (tools) {
+      tools.classList.remove('open');
+      tools.style.display = 'none';
+      tools.style.pointerEvents = 'none';
+    }
+    pkStartInFlight = false;
+    setPkMatching(false);
+    selectPkType(pkSelectedType || 'random');
+    const sheet = document.getElementById('apPkTypesSheet');
+    if (!sheet) return;
+    sheet.classList.add('open');
+    sheet.setAttribute('aria-hidden', 'false');
+    sheet.style.display = 'flex';
+    sheet.style.pointerEvents = 'auto';
+    if (sheet.parentElement !== document.body) document.body.appendChild(sheet);
+    syncLiveOverlayClass();
+  }
+
+  function confirmStartPk() {
+    if (pkStartInFlight) return;
+    if (pkBattleActive) {
+      dismissPkSelectionUi();
+      return;
+    }
+    if (pkSelectedType === 'team') {
+      toast('Team PK is coming soon — choose Friend or Random 1V1', 'info');
+      return;
+    }
+    if (!liveSocket?.connected) {
+      toast('Not connected to live server', 'error');
+      return;
+    }
+    pkStartInFlight = true;
+    setPkMatching(true);
+    setPkStatus('Matching…');
+    const payload = {
+      channel: channelId(),
+      durationSeconds: 300,
+      format: '1v1',
+      mode: pkSelectedType,
+      allowParty: Boolean(document.getElementById('apPkAllowParty')?.checked),
+    };
+    /* Short “matching” beat so UI does not jump; then start via server */
+    const startAfter = pkSelectedType === 'random' ? 900 : 250;
+    window.setTimeout(() => {
+      liveSocket.emit('pk:start', payload, (res) => {
+        pkStartInFlight = false;
+        if (res?.ok) {
+          /* Battle UI takes over — selection must be fully gone */
+          dismissPkSelectionUi();
+          const snap = res.battle || res;
+          beginPkBattle(snap);
+          toast('PK battle started!', 'success');
+        } else {
+          setPkMatching(false);
+          setPkStatus('');
+          toast(res?.message || 'Could not start PK', 'error');
+        }
+      });
+    }, startAfter);
+  }
+
   function beginPkBattle(snapshot) {
+    /* Critical: never leave PK Types / tools covering the live PK UI */
+    dismissPkSelectionUi();
     pkBattleActive = true;
     pkEndRequested = false;
+    pkStartInFlight = false;
+    setPkMatching(false);
     applyPkTeamsFromSnapshot(snapshot);
     pkTimerSec = pkSecsRemaining(snapshot);
     showPkOverlay(true);
+    updatePkBar();
+    const m = Math.floor(pkTimerSec / 60);
+    const s = pkTimerSec % 60;
+    const timerEl = document.getElementById('apPkTimer');
+    if (timerEl) {
+      timerEl.textContent = `PK ${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
     setPkStatus('Get ready…');
     window.SocialFX?.pkCountdown?.(5, () => {
       setPkStatus('PK LIVE — send gifts to score!');
@@ -415,6 +630,8 @@
 
   function endPkBattle(snapshot) {
     pkBattleActive = false;
+    pkStartInFlight = false;
+    dismissPkSelectionUi();
     applyPkTeamsFromSnapshot(snapshot);
     const teams = snapshot?.teams || [];
     const left = Number(teams[0]?.team_score ?? pkScoreLeft);
@@ -4088,6 +4305,7 @@
       });
 
       liveSocket.on('pk:start', (snapshot) => {
+        /* Always collapse selection UI once the server says battle is live */
         beginPkBattle(snapshot);
       });
 
@@ -10901,6 +11119,15 @@
     if (except !== 'requests') closePartyRequestsSheet();
     if (except !== 'music') closePartyMusicSheet();
     if (except !== 'chat') closeChatPanelOnly();
+    if (except !== 'pkTypes' && !pkStartInFlight) {
+      const types = document.getElementById('apPkTypesSheet');
+      if (types) {
+        types.classList.remove('open', 'is-matching');
+        types.setAttribute('aria-hidden', 'true');
+        types.style.display = 'none';
+        types.style.pointerEvents = 'none';
+      }
+    }
     document.getElementById('apEmojiPopover')?.classList.remove('is-open');
     syncLiveOverlayClass();
   }
@@ -10996,7 +11223,7 @@
       return true;
     }
     const openSheet = document.querySelector(
-      '.party-tools-sheet.open, .gift-sheet.open, .party-requests-sheet.open, .social-broadcast-sheet-wrap.is-open, .ap-modal-overlay.open, .ap-modal-overlay.show'
+      '.party-tools-sheet.open, .gift-sheet.open, .party-requests-sheet.open, .social-broadcast-sheet-wrap.is-open, .ap-modal-overlay.open, .ap-modal-overlay.show, .ap-pk-types-sheet.open'
     );
     const emojiOpen = document.getElementById('apEmojiPopover')?.classList.contains('is-open');
     if (openSheet || emojiOpen) {
@@ -12847,18 +13074,8 @@
     });
 
     document.getElementById('liveBtnPk')?.addEventListener('click', () => {
-      if (!liveSocket?.connected) {
-        toast('Not connected to live server', 'error');
-        return;
-      }
-      liveSocket.emit(
-        'pk:start',
-        { channel: channelId(), durationSeconds: 300, format: '1v1' },
-        (res) => {
-          if (res?.ok) toast('PK battle started!', 'success');
-          else toast(res?.message || 'Could not start PK', 'error');
-        }
-      );
+      /* Open PK Types first — do NOT start battle until host confirms */
+      openPkTypesSheet();
     });
 
     document.getElementById('liveBtnHostMute')?.addEventListener('click', () => toggleMic());

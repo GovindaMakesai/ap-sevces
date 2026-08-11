@@ -5346,6 +5346,244 @@ body.is-pk-mode .live-room .live-fallback-video {
   right: 0;
 }
 
+.ap-pk-types-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 16050;
+  display: none;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+
+.ap-pk-types-sheet.open {
+  display: flex !important;
+  pointer-events: auto !important;
+}
+
+.ap-pk-types-panel {
+  width: min(100%, 440px);
+  max-height: min(86dvh, 680px);
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 18px 18px 0 0;
+  background: linear-gradient(180deg, #1a1d28 0%, #0e1016 100%);
+  padding: 14px 14px calc(18px + env(safe-area-inset-bottom, 0));
+  color: #fff;
+  position: relative;
+  box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.45);
+}
+
+.ap-pk-types-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.ap-pk-types-head h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.ap-pk-types-close {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  cursor: pointer;
+}
+
+.ap-pk-types-rank {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 14px;
+}
+
+.ap-pk-types-rank-badge {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(148, 163, 184, 0.25);
+  color: #e2e8f0;
+  font-size: 14px;
+}
+
+.ap-pk-type-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.ap-pk-type-card {
+  position: relative;
+  border: 2px solid transparent;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  padding: 12px 6px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ap-pk-type-card.is-selected {
+  border-color: #f97316;
+  background: rgba(249, 115, 22, 0.12);
+  box-shadow: 0 0 0 1px rgba(249, 115, 22, 0.35);
+}
+
+.ap-pk-type-tag {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.ap-pk-type-new {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  font-size: 9px;
+  font-weight: 800;
+  color: #fbbf24;
+}
+
+.ap-pk-type-art {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  margin-top: 8px;
+}
+
+.ap-pk-type-art--friend {
+  background: linear-gradient(145deg, #fbbf24, #d97706);
+}
+
+.ap-pk-type-art--random {
+  background: linear-gradient(145deg, #fb7185, #db2777);
+}
+
+.ap-pk-type-art--team {
+  background: linear-gradient(145deg, #60a5fa, #2563eb);
+}
+
+.ap-pk-type-name {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ap-pk-match-radar {
+  position: relative;
+  width: min(220px, 60vw);
+  height: min(220px, 60vw);
+  margin: 8px auto 16px;
+  border-radius: 50%;
+  background: radial-gradient(circle at center, rgba(249, 115, 22, 0.35), rgba(14, 16, 22, 0.2) 55%, transparent 70%);
+}
+
+.ap-pk-radar-ring {
+  position: absolute;
+  inset: 12%;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 0 0 18px rgba(255, 255, 255, 0.04),
+    0 0 0 36px rgba(255, 255, 255, 0.03);
+}
+
+.ap-pk-radar-sweep {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, transparent 0deg, rgba(251, 113, 133, 0.55) 50deg, transparent 90deg);
+  animation: ap-pk-radar-spin 1.4s linear infinite;
+}
+
+@keyframes ap-pk-radar-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.ap-pk-match-label {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+  z-index: 2;
+  pointer-events: none;
+}
+
+.ap-pk-types-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.85);
+  margin: 4px 0 14px;
+  cursor: pointer;
+}
+
+.ap-pk-types-check input {
+  width: 18px;
+  height: 18px;
+  accent-color: #f97316;
+}
+
+.ap-pk-confirm-btn {
+  width: 100%;
+  border: none;
+  border-radius: 999px;
+  padding: 14px 16px;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: linear-gradient(90deg, #f97316, #ea580c);
+  box-shadow: 0 8px 24px rgba(249, 115, 22, 0.35);
+  cursor: pointer;
+}
+
+.ap-pk-confirm-btn:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+/* Once PK is live, hard-hide the types sheet even if a class is stuck */
+body.is-pk-mode #apPkTypesSheet,
+body.is-pk-mode .ap-pk-types-sheet {
+  display: none !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+}
+
 .ap-pk-bar {
   position: relative;
   height: 22px;
