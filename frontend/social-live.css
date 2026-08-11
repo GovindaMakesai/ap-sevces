@@ -5329,19 +5329,45 @@ html.is-pk-mode .ap-pk-overlay {
   visibility: visible !important;
 }
 
-/* —— PK split stage: host LEFT, rival RIGHT —— */
+/* —— PK stage: no mid-body cut without rival video —— */
 body.is-pk-mode .live-room {
-  --ap-pk-stage-top: calc(92px + env(safe-area-inset-top, 0px));
-  --ap-pk-stage-bottom: calc(42% + env(safe-area-inset-bottom, 0px));
+  --ap-pk-stage-top: calc(88px + env(safe-area-inset-top, 0px));
+  --ap-pk-stage-bottom: calc(38% + env(safe-area-inset-bottom, 0px));
 }
 
 body.is-pk-mode .live-room .live-bg {
-  opacity: 0.35;
+  opacity: 0.45;
 }
 
-body.is-pk-mode .live-room .live-remote-video,
-body.is-pk-mode .live-room .live-local-video,
-body.is-pk-mode .live-room .live-fallback-video {
+/* No rival: keep host camera FULL (fixes the ugly middle cut on Random PK) */
+body.is-pk-mode.ap-is-host:not(.ap-pk-has-rival) .live-room .live-local-video,
+body.is-pk-mode.ap-is-host:not(.ap-pk-has-rival) .live-room .live-fallback-video {
+  left: 0 !important;
+  right: 0 !important;
+  width: 100% !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  z-index: 2 !important;
+  display: block !important;
+  visibility: visible !important;
+}
+
+body.is-pk-mode.ap-is-host:not(.ap-pk-has-rival) .live-room .live-remote-video {
+  display: none !important;
+}
+
+body.is-pk-mode.ap-is-host:not(.ap-pk-has-rival) .ap-pk-side-r {
+  background: linear-gradient(165deg, rgba(30, 27, 75, 0.92), rgba(15, 23, 42, 0.96));
+}
+
+body.is-pk-mode.ap-is-host:not(.ap-pk-has-rival) .ap-pk-side-l {
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.28), transparent 72%);
+}
+
+/* Rival present: true 50/50 split of video layers */
+body.is-pk-mode.ap-pk-has-rival .live-room .live-remote-video,
+body.is-pk-mode.ap-pk-has-rival .live-room .live-local-video,
+body.is-pk-mode.ap-pk-has-rival .live-room .live-fallback-video {
   top: var(--ap-pk-stage-top) !important;
   bottom: var(--ap-pk-stage-bottom) !important;
   height: auto !important;
@@ -5350,9 +5376,8 @@ body.is-pk-mode .live-room .live-fallback-video {
   background: #12141c !important;
 }
 
-/* Host perspective: yourself left, rival right */
-body.is-pk-mode.ap-is-host .live-room .live-local-video,
-body.is-pk-mode.ap-is-host .live-room .live-fallback-video {
+body.is-pk-mode.ap-pk-has-rival.ap-is-host .live-room .live-local-video,
+body.is-pk-mode.ap-pk-has-rival.ap-is-host .live-room .live-fallback-video {
   left: 0 !important;
   right: auto !important;
   z-index: 3 !important;
@@ -5360,24 +5385,26 @@ body.is-pk-mode.ap-is-host .live-room .live-fallback-video {
   visibility: visible !important;
 }
 
-body.is-pk-mode.ap-is-host .live-room .live-remote-video {
+body.is-pk-mode.ap-pk-has-rival.ap-is-host .live-room .live-remote-video {
   left: 50% !important;
   right: 0 !important;
   z-index: 2 !important;
+  display: block !important;
 }
 
-/* Audience: primary host feed left; second stream / empty right */
 body.is-pk-mode:not(.ap-is-host) .live-room .live-remote-video {
   left: 0 !important;
-  right: auto !important;
-  z-index: 3 !important;
+  width: 50% !important;
+  top: var(--ap-pk-stage-top) !important;
+  bottom: var(--ap-pk-stage-bottom) !important;
 }
 
 body.is-pk-mode:not(.ap-is-host) .live-room .live-local-video,
 body.is-pk-mode:not(.ap-is-host) .live-room .live-fallback-video {
   left: 50% !important;
-  right: 0 !important;
-  z-index: 2 !important;
+  width: 50% !important;
+  top: var(--ap-pk-stage-top) !important;
+  bottom: var(--ap-pk-stage-bottom) !important;
 }
 
 body.is-pk-mode .live-room .live-remote-video video,
@@ -5392,21 +5419,21 @@ body.is-pk-mode .live-room .live-fallback-video {
   position: absolute;
   left: 0;
   right: 0;
-  top: calc(72px + env(safe-area-inset-top, 0px));
-  z-index: 12;
+  top: calc(68px + env(safe-area-inset-top, 0px));
+  z-index: 14;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  padding: 0 0 4px;
+  padding: 0;
 }
 
 .ap-pk-bar {
   position: relative;
   width: 100%;
-  height: 20px;
+  height: 18px;
   margin: 0;
-  background: linear-gradient(90deg, #3b82f6 0%, #3b82f6 100%);
+  background: #3b82f6;
   overflow: hidden;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
 }
@@ -5420,7 +5447,6 @@ body.is-pk-mode .live-room .live-fallback-video {
   background: linear-gradient(90deg, #ec4899, #f472b6);
   transition: width 0.35s ease;
   z-index: 1;
-  box-shadow: 2px 0 8px rgba(236, 72, 153, 0.45);
 }
 
 .ap-pk-score {
@@ -5450,11 +5476,11 @@ body.is-pk-mode .live-room .live-fallback-video {
   left: auto;
   top: auto;
   transform: none;
-  z-index: 13;
+  z-index: 15;
   min-width: 72px;
   text-align: center;
-  background: rgba(0, 0, 0, 0.72);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.22);
   padding: 4px 14px;
   border-radius: 999px;
   font-size: 13px;
@@ -5462,16 +5488,15 @@ body.is-pk-mode .live-room .live-fallback-video {
   color: #fff;
   letter-spacing: 0.04em;
   font-variant-numeric: tabular-nums;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
 }
 
 .ap-pk-stage {
   position: absolute;
   left: 0;
   right: 0;
-  top: var(--ap-pk-stage-top, calc(92px + env(safe-area-inset-top, 0px)));
-  bottom: var(--ap-pk-stage-bottom, 42%);
-  z-index: 10;
+  top: var(--ap-pk-stage-top, calc(88px + env(safe-area-inset-top, 0px)));
+  bottom: var(--ap-pk-stage-bottom, 38%);
+  z-index: 11;
   display: flex;
   pointer-events: none;
 }
@@ -5483,8 +5508,9 @@ body.is-pk-mode .live-room .live-fallback-video {
   flex-direction: column;
   align-items: center;
   justify-content: flex-end;
-  padding: 8px 6px 10px;
+  padding: 8px 6px 12px;
   gap: 4px;
+  min-width: 0;
 }
 
 .ap-pk-side-topline {
@@ -5519,7 +5545,7 @@ body.is-pk-mode .live-room .live-fallback-video {
 }
 
 .ap-pk-emblem {
-  font-size: 36px;
+  font-size: 34px;
   line-height: 1;
   filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.45));
   margin-bottom: 2px;
@@ -5534,19 +5560,20 @@ body.is-pk-mode .live-room .live-fallback-video {
   font-weight: 700;
   color: #fff;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.75);
-  background: rgba(0, 0, 0, 0.35);
+  background: rgba(0, 0, 0, 0.4);
   padding: 2px 10px;
   border-radius: 999px;
 }
 
+/* Soft center seam — not a hard cut through the face */
 .ap-pk-bolt {
   position: absolute;
   left: 50%;
-  top: 0;
-  bottom: 0;
-  width: 28px;
-  margin-left: -14px;
-  z-index: 11;
+  top: 10%;
+  bottom: 10%;
+  width: 22px;
+  margin-left: -11px;
+  z-index: 12;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -5559,39 +5586,86 @@ body.is-pk-mode .live-room .live-fallback-video {
   left: 50%;
   top: 0;
   bottom: 0;
-  width: 3px;
-  margin-left: -1.5px;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 2px;
   background: linear-gradient(
     180deg,
     transparent 0%,
-    #38bdf8 12%,
-    #a78bfa 50%,
-    #38bdf8 88%,
+    rgba(56, 189, 248, 0.8) 18%,
+    rgba(167, 139, 250, 0.9) 50%,
+    rgba(56, 189, 248, 0.8) 82%,
     transparent 100%
   );
-  box-shadow:
-    0 0 12px rgba(56, 189, 248, 0.85),
-    0 0 24px rgba(167, 139, 250, 0.55);
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
 }
 
 .ap-pk-bolt-icon {
   position: relative;
   z-index: 2;
-  font-size: 26px;
+  font-size: 22px;
   line-height: 1;
-  filter: drop-shadow(0 0 10px rgba(56, 189, 248, 0.95));
-  animation: ap-pk-bolt-pulse 1.4s ease-in-out infinite;
+  filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.9));
+}
+
+.ap-pk-friend-pick {
+  margin: 4px 0 12px;
+}
+
+.ap-pk-friend-pick-title {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 600;
+}
+
+.ap-pk-friend-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-height: 140px;
+  overflow: auto;
+}
+
+.ap-pk-friend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  border-radius: 999px;
+  padding: 6px 10px 6px 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ap-pk-friend-chip img {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.ap-pk-friend-chip.is-selected {
+  border-color: #f97316;
+  background: rgba(249, 115, 22, 0.18);
+}
+
+.ap-pk-friend-empty {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #fbbf24;
+  line-height: 1.35;
 }
 
 @keyframes ap-pk-bolt-pulse {
   0%,
   100% {
     transform: scale(1);
-    filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.8));
   }
   50% {
-    transform: scale(1.12);
-    filter: drop-shadow(0 0 16px rgba(167, 139, 250, 1));
+    transform: scale(1.06);
   }
 }
 

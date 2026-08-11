@@ -397,8 +397,8 @@
       syncPkStageUi();
     } else {
       overlay.setAttribute('aria-hidden', 'true');
-      document.body.classList.remove('is-pk-mode');
-      document.documentElement.classList.remove('is-pk-mode');
+      document.body.classList.remove('is-pk-mode', 'ap-pk-has-rival');
+      document.documentElement.classList.remove('is-pk-mode', 'ap-pk-has-rival');
       setPkStatus('');
       const wait = document.getElementById('apPkWaitingR');
       if (wait) wait.hidden = true;
@@ -456,18 +456,23 @@
 
   function syncPkStageUi(snapshot) {
     ensurePkBattleChrome();
+    const parts = snapshot?.participants || [];
+    const teams = snapshot?.teams || [];
+    const leftParts = parts.filter((p) => Number(p.team) === 1);
+    const rightParts = parts.filter((p) => Number(p.team) === 2);
     const hostName =
+      snapshot?.hostName ||
+      leftParts[0]?.display_name ||
       roomState?.hostName ||
       document.getElementById('liveHostName')?.textContent ||
       displayName(currentUser()) ||
       'Host';
-    const teams = snapshot?.teams || snapshot?.participants || [];
     const rival =
       snapshot?.rivalName ||
       snapshot?.opponentName ||
-      teams[1]?.display_name ||
-      teams[1]?.name ||
-      'Opponent';
+      rightParts[0]?.display_name ||
+      (pkModeActive === 'random' ? 'Random Rival' : 'Waiting…');
+
     const nameL = document.getElementById('apPkNameL');
     const nameR = document.getElementById('apPkNameR');
     if (nameL) nameL.textContent = hostName;
@@ -475,9 +480,34 @@
 
     const remote = document.getElementById('liveRemoteHost');
     const hasRemoteVideo = Boolean(remote?.querySelector('video'));
-    const wait = document.getElementById('apPkWaitingR');
-    if (wait) wait.hidden = hasRemoteVideo;
+    /* Only hard-split camera when a real second track exists (avoids mid-face cut) */
+    document.body.classList.toggle('ap-pk-has-rival', hasRemoteVideo);
+    document.documentElement.classList.toggle('ap-pk-has-rival', hasRemoteVideo);
 
+    const wait = document.getElementById('apPkWaitingR');
+    if (wait) {
+      wait.hidden = hasRemoteVideo;
+      const label = wait.querySelector('span');
+      if (label && !hasRemoteVideo) {
+        label.textContent =
+          rightParts.length > 0
+            ? `${rightParts[0].display_name || 'Rival'} · gift war`
+            : pkModeActive === 'random'
+              ? 'Random PK · gift war'
+              : 'Waiting for rival…';
+      }
+    }
+
+    const rankR = document.getElementById('apPkRankR');
+    if (rankR) {
+      rankR.textContent = rightParts.length ? 'Rival' : pkModeActive === 'team' ? 'Team B' : 'Open';
+    }
+    const rankL = document.getElementById('apPkRankL');
+    if (rankL) rankL.textContent = pkModeActive === 'team' ? 'Team A' : 'Host';
+
+    if (teams.length) {
+      applyPkTeamsFromSnapshot(snapshot);
+    }
     const bar = document.getElementById('apPkBarLeft');
     if (bar && !bar.style.width) bar.style.width = '50%';
   }
@@ -545,6 +575,41 @@
 
   let pkSelectedType = 'random';
   let pkStartInFlight = false;
+  let pkFriendPick = null; /* { userId, name } for friend / team rival */
+  let pkModeActive = 'random';
+
+  function listPkInviteCandidates() {
+    const me = String(currentUser()?.id || '');
+    const hostId = String(roomState?.hostId || me);
+    const seen = new Set();
+    const out = [];
+    const push = (m) => {
+      const uid = String(m?.userId || m?.id || '');
+      if (!uid || uid === me || uid === hostId || seen.has(uid)) return;
+      seen.add(uid);
+      out.push({
+        userId: uid,
+        name: m.name || m.displayName || m.user || 'Guest',
+        profilePic: m.profilePic || m.profile_pic || null,
+      });
+    };
+    try {
+      (getPartyRoomMembers?.() || []).forEach(push);
+    } catch (_e) {}
+    try {
+      (getPartyAudienceMembers?.() || []).forEach(push);
+    } catch (_e) {}
+    try {
+      (roomState?.members || roomState?.viewersList || []).forEach((m) =>
+        push({
+          userId: m.userId || m.id,
+          name: m.name || m.displayName,
+          profilePic: m.profilePic || m.profile_pic,
+        })
+      );
+    } catch (_e) {}
+    return out.slice(0, 40);
+  }
 
   function ensurePkTypesSheet() {
     if (document.getElementById('apPkTypesSheet')) return;
@@ -578,10 +643,15 @@
               <span class="ap-pk-type-name">Team PK</span>
             </button>
           </div>
+          <div class="ap-pk-friend-pick" id="apPkFriendPick" hidden>
+            <p class="ap-pk-friend-pick-title" id="apPkFriendPickTitle">Pick a friend in this room</p>
+            <div class="ap-pk-friend-list" id="apPkFriendList"></div>
+            <p class="ap-pk-friend-empty" id="apPkFriendEmpty" hidden>No friends online in this room yet — share the live so they can join, then start Friend PK.</p>
+          </div>
           <div class="ap-pk-match-radar" id="apPkMatchRadar" hidden aria-hidden="true">
             <div class="ap-pk-radar-ring"></div>
             <div class="ap-pk-radar-sweep"></div>
-            <p class="ap-pk-match-label">Matching opponent…</p>
+            <p class="ap-pk-match-label" id="apPkMatchLabel">Matching opponent…</p>
           </div>
           <label class="ap-pk-types-check">
             <input type="checkbox" id="apPkAllowParty" checked />
@@ -606,33 +676,86 @@
     document.getElementById('apPkConfirmStart')?.addEventListener('click', () => confirmStartPk());
   }
 
+  function renderPkFriendPicker() {
+    const wrap = document.getElementById('apPkFriendPick');
+    const list = document.getElementById('apPkFriendList');
+    const empty = document.getElementById('apPkFriendEmpty');
+    const title = document.getElementById('apPkFriendPickTitle');
+    if (!wrap || !list) return;
+    const needPick = pkSelectedType === 'friend' || pkSelectedType === 'team';
+    wrap.hidden = !needPick;
+    if (!needPick) return;
+    if (title) {
+      title.textContent =
+        pkSelectedType === 'team'
+          ? 'Optional: pick a rival now (others can join team after start)'
+          : 'Pick a friend in this room';
+    }
+    const candidates = listPkInviteCandidates();
+    if (!candidates.length) {
+      list.innerHTML = '';
+      if (empty) empty.hidden = false;
+      return;
+    }
+    if (empty) empty.hidden = true;
+    list.innerHTML = candidates
+      .map((c) => {
+        const sel = pkFriendPick && String(pkFriendPick.userId) === String(c.userId);
+        return `<button type="button" class="ap-pk-friend-chip${sel ? ' is-selected' : ''}" data-pk-uid="${escapeHtml(
+          String(c.userId)
+        )}" data-pk-name="${escapeAttr(c.name)}">
+          <img src="${avatarUrl(c.name, c.profilePic)}" alt="">
+          <span>${escapeHtml(String(c.name).slice(0, 14))}</span>
+        </button>`;
+      })
+      .join('');
+    list.querySelectorAll('.ap-pk-friend-chip').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        pkFriendPick = {
+          userId: btn.getAttribute('data-pk-uid'),
+          name: btn.getAttribute('data-pk-name') || 'Friend',
+        };
+        renderPkFriendPicker();
+      });
+    });
+    window.SocialUI?.bindAvatarFallbacks?.(list);
+  }
+
   function selectPkType(type) {
     const t = type === 'friend' || type === 'team' ? type : 'random';
     pkSelectedType = t;
+    if (t === 'random') pkFriendPick = null;
     document.querySelectorAll('#apPkTypesSheet [data-pk-type]').forEach((btn) => {
       const on = btn.getAttribute('data-pk-type') === t;
       btn.classList.toggle('is-selected', on);
       btn.setAttribute('aria-selected', on ? 'true' : 'false');
     });
+    renderPkFriendPicker();
+    const startBtn = document.getElementById('apPkConfirmStart');
+    if (startBtn && !pkStartInFlight) {
+      startBtn.textContent =
+        t === 'friend' ? 'Start Friend PK' : t === 'team' ? 'Start Team PK' : 'Start Random PK';
+    }
   }
 
-  function setPkMatching(on) {
+  function setPkMatching(on, label) {
     const sheet = document.getElementById('apPkTypesSheet');
     const radar = document.getElementById('apPkMatchRadar');
     const startBtn = document.getElementById('apPkConfirmStart');
+    const matchLabel = document.getElementById('apPkMatchLabel');
     sheet?.classList.toggle('is-matching', Boolean(on));
     if (radar) {
       radar.hidden = !on;
       radar.setAttribute('aria-hidden', on ? 'false' : 'true');
     }
+    if (matchLabel && label) matchLabel.textContent = label;
     if (startBtn) {
       startBtn.disabled = Boolean(on);
-      startBtn.textContent = on ? 'Matching…' : 'PK';
+      if (on) startBtn.textContent = 'Starting…';
     }
   }
 
   function closePkTypesSheet() {
-    /* Cancel in-flight matching if host backs out */
     pkStartInFlight = false;
     setPkMatching(false);
     const sheet = document.getElementById('apPkTypesSheet');
@@ -686,37 +809,66 @@
       dismissPkSelectionUi();
       return;
     }
-    if (pkSelectedType === 'team') {
-      toast('Team PK is coming soon — choose Friend or Random 1V1', 'info');
-      return;
-    }
     if (!liveSocket?.connected) {
       toast('Not connected to live server', 'error');
       return;
     }
+
+    if (pkSelectedType === 'friend' && !pkFriendPick?.userId) {
+      toast('Pick a friend from the list for Friend PK', 'warning');
+      renderPkFriendPicker();
+      return;
+    }
+
     pkStartInFlight = true;
-    setPkMatching(true);
-    setPkStatus('Matching…');
+    const mode = pkSelectedType || 'random';
+    setPkMatching(
+      true,
+      mode === 'random' ? 'Matching opponent…' : mode === 'team' ? 'Starting Team PK…' : 'Starting Friend PK…'
+    );
+    setPkStatus('Starting PK…');
+
     const payload = {
       channel: channelId(),
       durationSeconds: 300,
-      format: '1v1',
-      mode: pkSelectedType,
+      mode,
+      format: mode === 'team' ? '1v2' : '1v1',
       allowParty: Boolean(document.getElementById('apPkAllowParty')?.checked),
+      hostName:
+        roomState?.hostName ||
+        document.getElementById('liveHostName')?.textContent ||
+        displayName(currentUser()) ||
+        'Host',
     };
-    /* Short “matching” beat so UI does not jump; then start via server */
-    const startAfter = pkSelectedType === 'random' ? 900 : 250;
+    if (pkFriendPick?.userId) {
+      payload.opponentUserId = pkFriendPick.userId;
+      payload.opponentName = pkFriendPick.name || 'Rival';
+      /* Tell friend they are challenged */
+      liveSocket.emit('pk:invite', {
+        channel: channelId(),
+        userId: pkFriendPick.userId,
+        mode,
+      });
+    }
+
+    const startAfter = mode === 'random' ? 700 : 200;
     window.setTimeout(() => {
       liveSocket.emit('pk:start', payload, (res) => {
         pkStartInFlight = false;
         if (res?.ok) {
-          /* Battle UI takes over — selection must be fully gone */
           dismissPkSelectionUi();
           const snap = res.battle || res;
+          if (snap) snap.mode = mode;
           beginPkBattle(snap);
+          if (mode === 'friend' && pkFriendPick?.name) {
+            toast(`Friend PK vs ${pkFriendPick.name}`, 'success');
+          } else if (mode === 'team') {
+            toast('Team PK live — invite guests to join sides', 'success');
+          }
         } else {
           setPkMatching(false);
           setPkStatus('');
+          selectPkType(pkSelectedType);
           toast(res?.message || 'Could not start PK', 'error');
         }
       });
@@ -730,6 +882,7 @@
     pkBattleActive = true;
     pkEndRequested = false;
     pkStartInFlight = false;
+    pkModeActive = snapshot?.mode || pkSelectedType || 'random';
     setPkMatching(false);
     applyPkTeamsFromSnapshot(snapshot);
     pkTimerSec = pkSecsRemaining(snapshot);
@@ -741,17 +894,23 @@
     setPkStatus('Get ready…');
 
     const hostName =
-      roomState?.hostName || document.getElementById('liveHostName')?.textContent || 'Host';
+      snapshot?.hostName ||
+      roomState?.hostName ||
+      document.getElementById('liveHostName')?.textContent ||
+      'Host';
+    const rival = snapshot?.rivalName || snapshot?.opponentName;
+    const modeLabel =
+      pkModeActive === 'friend' ? 'Friend PK' : pkModeActive === 'team' ? 'Team PK' : 'Random PK';
     postPkSystemChat([
       'Click gifts to increase PK scores!',
-      `${hostName} started PK — cheer for them!`,
-      'Decapitation play: when either side leads 10× and PK value ≥ 100000, host may end PK early for that victory.',
+      rival
+        ? `${hostName} vs ${rival} — ${modeLabel} started! Cheer for them!`
+        : `${hostName} started ${modeLabel} — cheer for your side!`,
     ]);
 
     window.SocialFX?.pkCountdown?.(3, () => {
       setPkStatus('PK LIVE — send gifts to score!');
       updatePkBar();
-      toast('PK battle live — send gifts to score', 'success');
     });
   }
 
@@ -4439,6 +4598,38 @@
       liveSocket.on('pk:start', (snapshot) => {
         /* Always collapse selection UI once the server says battle is live */
         beginPkBattle(snapshot);
+      });
+
+      liveSocket.on('pk:join', (snapshot) => {
+        if (!pkBattleActive) beginPkBattle(snapshot);
+        else {
+          applyPkTeamsFromSnapshot(snapshot);
+          syncPkStageUi(snapshot);
+          updatePkBar();
+        }
+      });
+
+      liveSocket.on('pk:invite', (payload) => {
+        const me = String(currentUser()?.id || '');
+        if (payload?.targetUserId && String(payload.targetUserId) !== me) return;
+        if (isHost() || clientClaimsHost?.()) return;
+        toast(`${payload?.fromName || 'Host'} invited you to PK — joining…`, 'info');
+        if (liveSocket?.connected && !pkBattleActive) {
+          liveSocket.emit(
+            'pk:join',
+            {
+              channel: channelId() || payload?.channel,
+              team: 2,
+              displayName: displayName(currentUser()),
+            },
+            (res) => {
+              if (res?.ok) {
+                beginPkBattle(res.battle || res);
+                toast('You joined the PK!', 'success');
+              }
+            }
+          );
+        }
       });
 
       liveSocket.on('pk:score', (snapshot) => {

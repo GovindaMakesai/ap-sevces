@@ -11,7 +11,9 @@ async function createBattle({ channel, liveRoomId, format = '1v1', durationSecon
     [channel, liveRoomId || null, format, durationSeconds]
   );
   if (liveRoomId) {
-    await db.query(`UPDATE live_rooms SET pk_status = 'pending', updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [liveRoomId]);
+    await db.query(`UPDATE live_rooms SET pk_status = 'pending', updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [
+      liveRoomId,
+    ]);
   }
   return res.rows[0];
 }
@@ -20,17 +22,23 @@ async function joinBattle(battleId, userId, team, displayName) {
   const battle = await getBattle(battleId);
   if (!battle || battle.status === 'ended') throw new Error('Battle not available');
 
-  const maxPerTeam = FORMAT_TEAM_SIZE[battle.format];
+  const maxPerTeam = FORMAT_TEAM_SIZE[battle.format] || 1;
   const count = await db.query(
     `SELECT COUNT(*)::int AS c FROM pk_participants WHERE battle_id = $1 AND team = $2`,
     [battleId, team]
   );
-  if (count.rows[0].c >= maxPerTeam) throw new Error('Team full');
+  if (count.rows[0].c >= maxPerTeam) {
+    const existing = await db.query(
+      `SELECT team FROM pk_participants WHERE battle_id = $1 AND user_id = $2`,
+      [battleId, userId]
+    );
+    if (!existing.rows[0]) throw new Error('Team full');
+  }
 
   await db.query(
     `INSERT INTO pk_participants (battle_id, user_id, team, display_name) VALUES ($1, $2, $3, $4)
-     ON CONFLICT (battle_id, user_id) DO UPDATE SET team = EXCLUDED.team`,
-    [battleId, userId, team, displayName]
+     ON CONFLICT (battle_id, user_id) DO UPDATE SET team = EXCLUDED.team, display_name = EXCLUDED.display_name`,
+    [battleId, userId, team, displayName || 'User']
   );
   await db.query(
     `INSERT INTO pk_scores (battle_id, user_id, score, gift_coins) VALUES ($1, $2, 0, 0)
@@ -40,9 +48,46 @@ async function joinBattle(battleId, userId, team, displayName) {
   return getBattleSnapshot(battleId);
 }
 
+/**
+ * Seed sides so score bar + gifts work after start.
+ * Host → team 1. Optional friend/team rivals → team 2.
+ */
+async function seedBattleSides(
+  battleId,
+  {
+    hostUserId,
+    hostName = 'Host',
+    opponentUserId = null,
+    opponentName = 'Rival',
+    teammateUserIds = [],
+  } = {}
+) {
+  if (!hostUserId) throw new Error('Host required for PK');
+  await joinBattle(battleId, hostUserId, 1, hostName);
+
+  const mates = Array.isArray(teammateUserIds) ? teammateUserIds : [];
+  for (const mate of mates) {
+    const uid = mate?.userId || mate?.id || mate;
+    if (!uid || String(uid) === String(hostUserId)) continue;
+    const name = mate?.name || mate?.displayName || 'Teammate';
+    try {
+      await joinBattle(battleId, uid, 1, name);
+    } catch (_e) {
+      /* team full */
+    }
+  }
+
+  if (opponentUserId && String(opponentUserId) !== String(hostUserId)) {
+    await joinBattle(battleId, opponentUserId, 2, opponentName || 'Rival');
+  }
+
+  return getBattleSnapshot(battleId);
+}
+
 async function startBattle(battleId) {
   const battle = await getBattle(battleId);
   if (!battle) throw new Error('Battle not found');
+  if (battle.status === 'active') return battle;
   const endsAt = new Date(Date.now() + battle.duration_seconds * 1000);
   const res = await db.query(
     `UPDATE pk_battles SET status = 'active', started_at = CURRENT_TIMESTAMP, ends_at = $2
@@ -52,17 +97,31 @@ async function startBattle(battleId) {
   if (battle.live_room_id) {
     await db.query(`UPDATE live_rooms SET pk_status = 'active' WHERE id = $1`, [battle.live_room_id]);
   }
-  return res.rows[0];
+  return res.rows[0] || battle;
 }
 
 async function addGiftScore(battleId, userId, coinAmount) {
   const battle = await getBattle(battleId);
   if (!battle || battle.status !== 'active') return null;
+  const amount = Math.max(0, Number(coinAmount) || 0);
+  if (!amount || !userId) return null;
+
+  await db.query(
+    `INSERT INTO pk_participants (battle_id, user_id, team, display_name)
+     VALUES ($1, $2, 1, 'Player')
+     ON CONFLICT (battle_id, user_id) DO NOTHING`,
+    [battleId, userId]
+  );
+  await db.query(
+    `INSERT INTO pk_scores (battle_id, user_id, score, gift_coins) VALUES ($1, $2, 0, 0)
+     ON CONFLICT (battle_id, user_id) DO NOTHING`,
+    [battleId, userId]
+  );
 
   const res = await db.query(
     `UPDATE pk_scores SET score = score + $3, gift_coins = gift_coins + $3, updated_at = CURRENT_TIMESTAMP
      WHERE battle_id = $1 AND user_id = $2 RETURNING *`,
-    [battleId, userId, coinAmount]
+    [battleId, userId, amount]
   );
   return res.rows[0];
 }
@@ -75,7 +134,11 @@ async function getTeamScores(battleId) {
      WHERE p.battle_id = $1 GROUP BY p.team ORDER BY p.team`,
     [battleId]
   );
-  return res.rows;
+  const byTeam = new Map(res.rows.map((r) => [Number(r.team), Number(r.team_score) || 0]));
+  return [
+    { team: 1, team_score: byTeam.get(1) || 0 },
+    { team: 2, team_score: byTeam.get(2) || 0 },
+  ];
 }
 
 async function endBattle(battleId) {
@@ -86,7 +149,8 @@ async function endBattle(battleId) {
   const teams = await getTeamScores(battleId);
   let winnerTeam = null;
   if (teams.length >= 2) {
-    winnerTeam = Number(teams[0].team_score) >= Number(teams[1].team_score) ? teams[0].team : teams[1].team;
+    winnerTeam =
+      Number(teams[0].team_score) >= Number(teams[1].team_score) ? teams[0].team : teams[1].team;
   } else if (teams.length === 1) {
     winnerTeam = teams[0].team;
   }
@@ -152,12 +216,22 @@ async function getBattleSnapshot(battleId) {
     [battleId]
   );
   const teams = await getTeamScores(battleId);
-  return { battle, participants: participants.rows, teams };
+  const left = participants.rows.filter((p) => Number(p.team) === 1);
+  const right = participants.rows.filter((p) => Number(p.team) === 2);
+  return {
+    battle,
+    participants: participants.rows,
+    teams,
+    hostName: left[0]?.display_name || null,
+    rivalName: right[0]?.display_name || null,
+    opponentName: right[0]?.display_name || null,
+  };
 }
 
 module.exports = {
   createBattle,
   joinBattle,
+  seedBattleSides,
   startBattle,
   addGiftScore,
   endBattle,
