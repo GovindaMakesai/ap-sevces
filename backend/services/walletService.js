@@ -413,27 +413,39 @@ async function lookupPointsTransferRecipient(accountId) {
 }
 
 async function countPointsTransfersToday(senderId) {
-  const { ensurePointsTransferSchema } = require('../config/ensurePointsTransferSchema');
-  await ensurePointsTransferSchema();
-  const res = await db.query(
-    `SELECT COUNT(*)::int AS n FROM points_transfers
-     WHERE sender_id = $1 AND created_at >= date_trunc('day', NOW() AT TIME ZONE 'UTC')`,
-    [senderId]
-  );
-  return res.rows[0]?.n || 0;
+  const ok = await require('../config/ensurePointsTransferSchema').ensurePointsTransferSchema();
+  if (!ok) return 0;
+  try {
+    const res = await db.query(
+      `SELECT COUNT(*)::int AS n FROM points_transfers
+       WHERE sender_id = $1 AND created_at >= date_trunc('day', NOW() AT TIME ZONE 'UTC')`,
+      [senderId]
+    );
+    return res.rows[0]?.n || 0;
+  } catch (err) {
+    if (/points_transfers|does not exist/i.test(err.message || '')) return 0;
+    throw err;
+  }
 }
 
 async function listPointsTransfers(senderId, { limit = 30 } = {}) {
-  const res = await db.query(
-    `SELECT t.*, u.first_name, u.last_name, u.profile_pic, u.display_id
-     FROM points_transfers t
-     JOIN users u ON u.id = t.recipient_id
-     WHERE t.sender_id = $1
-     ORDER BY t.created_at DESC
-     LIMIT $2`,
-    [senderId, limit]
-  );
-  return res.rows;
+  const ok = await require('../config/ensurePointsTransferSchema').ensurePointsTransferSchema();
+  if (!ok) return [];
+  try {
+    const res = await db.query(
+      `SELECT t.*, u.first_name, u.last_name, u.profile_pic, u.display_id
+       FROM points_transfers t
+       JOIN users u ON u.id = t.recipient_id
+       WHERE t.sender_id = $1
+       ORDER BY t.created_at DESC
+       LIMIT $2`,
+      [senderId, limit]
+    );
+    return res.rows;
+  } catch (err) {
+    if (/points_transfers|does not exist/i.test(err.message || '')) return [];
+    throw err;
+  }
 }
 
 async function transferPointsToRecipient(senderId, { recipientId, points: pointsRaw }) {

@@ -87,6 +87,9 @@ if [ "$needs_api_restart" = true ]; then
   fi
   pm2 save
 
+  echo "==> Ensure points_transfers schema"
+  node backend/scripts/ensure-points-transfer-schema.js || echo "WARN: points_transfers schema ensure failed"
+
   echo "==> Health check"
   sleep 5
   for i in 1 2 3 4 5; do
