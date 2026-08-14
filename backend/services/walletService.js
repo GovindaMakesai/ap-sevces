@@ -389,36 +389,32 @@ function computePointsTransferFee(points, settings) {
   return Math.floor((Number(points) * pct) / 100);
 }
 
+function pointsToSellerCoins(netPoints, settings) {
+  const coinsPer10k = Number(settings?.exchange_coins_per_10k_points) || 7000;
+  const pts = Math.floor(Number(netPoints) || 0);
+  if (pts <= 0) return 0;
+  return Math.floor((pts / 10000) * coinsPer10k);
+}
+
 async function lookupPointsTransferRecipient(accountId) {
   const coinSellerService = require('./coinSellerService');
   const user = await coinSellerService.lookupRecipient(accountId);
   if (!user) return null;
 
-  const agencyRes = await db.query(
-    `SELECT id, name FROM agencies WHERE owner_user_id = $1 AND status = 'active' LIMIT 1`,
-    [user.id]
-  );
-  if (agencyRes.rows[0]) {
-    return {
-      ...user,
-      recipient_type: 'agency',
-      agency_name: agencyRes.rows[0].name,
-    };
-  }
-
   const sellerRes = await db.query(
-    `SELECT user_id FROM coin_seller_profiles WHERE user_id = $1 AND is_active = TRUE LIMIT 1`,
+    `SELECT user_id, is_active FROM coin_seller_profiles WHERE user_id = $1 LIMIT 1`,
     [user.id]
   );
-  const privileged = ['coin_seller', 'agency'].includes(user.role);
-  if (sellerRes.rows[0] || privileged) {
-    return { ...user, recipient_type: 'coin_seller' };
-  }
+  const isActiveSeller = sellerRes.rows[0]?.is_active === true;
+  const isCoinSellerRole = String(user.role || '').toLowerCase() === 'coin_seller';
+  if (!isActiveSeller && !isCoinSellerRole) return null;
 
-  return null;
+  return { ...user, recipient_type: 'coin_seller' };
 }
 
 async function countPointsTransfersToday(senderId) {
+  const { ensurePointsTransferSchema } = require('../config/ensurePointsTransferSchema');
+  await ensurePointsTransferSchema();
   const res = await db.query(
     `SELECT COUNT(*)::int AS n FROM points_transfers
      WHERE sender_id = $1 AND created_at >= date_trunc('day', NOW() AT TIME ZONE 'UTC')`,
@@ -441,6 +437,12 @@ async function listPointsTransfers(senderId, { limit = 30 } = {}) {
 }
 
 async function transferPointsToRecipient(senderId, { recipientId, points: pointsRaw }) {
+  const { ensurePointsTransferSchema } = require('../config/ensurePointsTransferSchema');
+  const schemaOk = await ensurePointsTransferSchema();
+  if (!schemaOk) {
+    throw new Error('Transfer service is starting up. Please try again in a moment.');
+  }
+
   const settings = await getWalletSettings();
   const block = resolvePointsTransferBlock(settings);
   const dailyLimit = Number(settings.points_transfer_daily_limit) || 5;
@@ -453,7 +455,7 @@ async function transferPointsToRecipient(senderId, { recipientId, points: points
 
   const recipient = await lookupPointsTransferRecipient(recipientId);
   if (!recipient) {
-    throw new Error('Recipient must be an active Agency or Coin Seller');
+    throw new Error('Recipient must be an active Coin Seller');
   }
   if (String(recipient.id) === String(senderId)) {
     throw new Error('You cannot transfer points to yourself');
@@ -468,6 +470,11 @@ async function transferPointsToRecipient(senderId, { recipientId, points: points
   const netPoints = points - serviceFee;
   if (netPoints <= 0) throw new Error('Transfer amount too small after service fee');
 
+  const coinsCredited = pointsToSellerCoins(netPoints, settings);
+  if (coinsCredited <= 0) {
+    throw new Error('Transfer amount too small to convert to seller coins');
+  }
+
   const platformService = require('./platformService');
   const client = await db.pool.connect();
   try {
@@ -480,27 +487,38 @@ async function transferPointsToRecipient(senderId, { recipientId, points: points
         reference_type: 'points_transfer',
         metadata: {
           recipient_id: recipient.id,
-          recipient_type: recipient.recipient_type,
+          recipient_type: 'coin_seller',
           service_fee: serviceFee,
           net_points: netPoints,
+          coins_credited: coinsCredited,
         },
       },
       client
     );
-    await creditStars(
-      recipient.id,
-      netPoints,
-      {
-        type: 'points_transfer_in',
-        reference_type: 'points_transfer',
-        metadata: {
-          sender_id: senderId,
-          gross_points: points,
-          service_fee: serviceFee,
-        },
-      },
-      client
+
+    await client.query(
+      `INSERT INTO coin_seller_profiles (user_id, display_name, inventory_coins, is_active)
+       VALUES (
+         $1,
+         COALESCE(
+           (SELECT NULLIF(TRIM(CONCAT(COALESCE(first_name, ''), ' ', COALESCE(last_name, ''))), '')
+            FROM users WHERE id = $1),
+           'Coin Seller'
+         ),
+         0,
+         TRUE
+       )
+       ON CONFLICT (user_id) DO NOTHING`,
+      [recipient.id]
     );
+    await client.query(
+      `UPDATE coin_seller_profiles
+       SET inventory_coins = inventory_coins + $2,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE user_id = $1`,
+      [recipient.id, coinsCredited]
+    );
+
     if (serviceFee > 0) {
       const treasuryUserId = await platformService.getOrCreateTreasuryUserId(client);
       await creditStars(
@@ -515,9 +533,9 @@ async function transferPointsToRecipient(senderId, { recipientId, points: points
       );
     }
     const row = await client.query(
-      `INSERT INTO points_transfers (sender_id, recipient_id, points, service_fee, net_points, recipient_type)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [senderId, recipient.id, points, serviceFee, netPoints, recipient.recipient_type]
+      `INSERT INTO points_transfers (sender_id, recipient_id, points, service_fee, net_points, coins_credited, recipient_type)
+       VALUES ($1, $2, $3, $4, $5, $6, 'coin_seller') RETURNING *`,
+      [senderId, recipient.id, points, serviceFee, netPoints, coinsCredited]
     );
     await client.query('COMMIT');
     const bal = await getBalance(senderId);
@@ -528,17 +546,20 @@ async function transferPointsToRecipient(senderId, { recipientId, points: points
         display_id: recipient.display_id,
         first_name: recipient.first_name,
         last_name: recipient.last_name,
-        recipient_type: recipient.recipient_type,
-        agency_name: recipient.agency_name || null,
+        recipient_type: 'coin_seller',
       },
       points,
       serviceFee,
       netPoints,
+      coinsCredited,
       balance: bal,
       transfersRemainingToday: Math.max(0, dailyLimit - usedToday - 1),
     };
   } catch (e) {
     await db.safeRollback(client);
+    if (/points_transfers|does not exist/i.test(e.message || '')) {
+      throw new Error('Transfer tables are being set up. Please try again in a minute.');
+    }
     throw e;
   } finally {
     client.release();

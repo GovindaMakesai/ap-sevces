@@ -183,12 +183,14 @@ exports.exchangePoints = async (req, res) => {
 
 exports.lookupPointsTransferRecipient = async (req, res) => {
   try {
+    const { ensurePointsTransferSchema } = require('../config/ensurePointsTransferSchema');
+    await ensurePointsTransferSchema();
     const accountId = req.params.accountId || req.query.accountId;
     const user = await walletService.lookupPointsTransferRecipient(accountId);
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found or not an Agency / Coin Seller',
+        message: 'User not found or not an active Coin Seller',
       });
     }
     res.json({
@@ -199,8 +201,7 @@ exports.lookupPointsTransferRecipient = async (req, res) => {
         first_name: user.first_name,
         last_name: user.last_name,
         profile_pic: user.profile_pic,
-        recipient_type: user.recipient_type,
-        agency_name: user.agency_name || null,
+        recipient_type: 'coin_seller',
       },
     });
   } catch (err) {
@@ -210,6 +211,8 @@ exports.lookupPointsTransferRecipient = async (req, res) => {
 
 exports.listPointsTransfers = async (req, res) => {
   try {
+    const { ensurePointsTransferSchema } = require('../config/ensurePointsTransferSchema');
+    await ensurePointsTransferSchema();
     const limit = Math.min(parseInt(req.query.limit, 10) || 30, 100);
     const rows = await walletService.listPointsTransfers(req.userId, { limit });
     const settings = await walletService.getWalletSettings();
@@ -225,12 +228,6 @@ exports.listPointsTransfers = async (req, res) => {
       },
     });
   } catch (err) {
-    if (/points_transfers|does not exist/i.test(err.message || '')) {
-      return res.status(503).json({
-        success: false,
-        message: 'Transfer history is temporarily unavailable. Please try again shortly.',
-      });
-    }
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -245,16 +242,10 @@ exports.transferPoints = async (req, res) => {
       `#${data.recipient.display_id || ''}`;
     res.json({
       success: true,
-      message: `Transferred ${data.netPoints.toLocaleString()} points to ${name} (${data.serviceFee.toLocaleString()} fee)`,
+      message: `Transferred ${data.netPoints.toLocaleString()} points → ${data.coinsCredited.toLocaleString()} seller coins to ${name} (${data.serviceFee.toLocaleString()} fee)`,
       data,
     });
   } catch (err) {
-    if (/points_transfers|does not exist/i.test(err.message || '')) {
-      return res.status(503).json({
-        success: false,
-        message: 'Point transfers are being enabled on the server. Try again in a minute.',
-      });
-    }
     const code = err.code === 'INSUFFICIENT_BALANCE' ? 400 : 400;
     res.status(code).json({ success: false, message: err.message });
   }

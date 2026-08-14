@@ -52,7 +52,7 @@
     </div>
 
     <div class="wd-flow-help wd-transfer-intro" id="transferHelp" hidden>
-      You can transfer your points to your <strong>Agency</strong> or any <strong>Coin Seller</strong> you trust.
+      Transfer points to an active <strong>Coin Seller</strong> only. They receive <strong>seller coins</strong> in their stock (same rate as Exchange: 10k points → 7k coins, after fee).
       Service charge: <strong id="transferFeePctLabel">3%</strong>
     </div>
 
@@ -126,8 +126,8 @@
           <span><span class="wd-bean-icon" aria-hidden="true">🫘</span> <strong id="transferFeeDisplay">—</strong></span>
         </div>
         <div class="wd-transfer-calc-row">
-          <span>Received</span>
-          <span><span class="wd-bean-icon" aria-hidden="true">🫘</span> <strong id="transferNetDisplay">—</strong></span>
+          <span>Seller receives</span>
+          <span><strong id="transferCoinsDisplay">—</strong> coins</span>
         </div>
       </div>
       <p class="wd-hint" id="transferDailyHint">Daily transfer times: 5</p>
@@ -197,7 +197,7 @@
   <input type="file" id="qrFile" accept="image/jpeg,image/png,image/webp" tabindex="-1" aria-hidden="true">
 
   <script src="app.js"></script>
-  <script src="social-wallet.js?v=20260814-transfer-fix"></script>
+  <script src="social-wallet.js?v=20260814-transfer-coins"></script>
   <script src="auth-guard.js"></script>
   <script src="social-ui.js"></script>
   <script>
@@ -257,23 +257,31 @@
       return Math.floor(n / transferBlock) * transferBlock;
     }
 
+    function estimateTransferCoins(netPoints) {
+      const pts = Number(netPoints) || 0;
+      if (!pts) return 0;
+      return Math.floor((pts / 10000) * coinsPer10k);
+    }
+
     function updateTransferCalc() {
       const amt = parseInt(document.getElementById('transferAmount')?.value, 10);
       const feeEl = document.getElementById('transferFeeDisplay');
-      const netEl = document.getElementById('transferNetDisplay');
-      if (!feeEl || !netEl) return;
+      const coinsEl = document.getElementById('transferCoinsDisplay');
+      if (!feeEl || !coinsEl) return;
       if (!amt) {
         feeEl.textContent = '—';
-        netEl.textContent = '—';
+        coinsEl.textContent = '—';
         return;
       }
       if (amt % transferBlock !== 0) {
         feeEl.textContent = '—';
-        netEl.textContent = '—';
+        coinsEl.textContent = '—';
         return;
       }
-      feeEl.textContent = formatPoints(estimateTransferFee(amt));
-      netEl.textContent = formatPoints(estimateTransferNet(amt));
+      const fee = estimateTransferFee(amt);
+      const net = amt - fee;
+      feeEl.textContent = formatPoints(fee);
+      coinsEl.textContent = formatPoints(estimateTransferCoins(net));
     }
 
     function showTransferRecipient(user) {
@@ -286,9 +294,7 @@
       const avatar = document.getElementById('transferRecipientAvatar');
       const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || `User #${user.display_id || ''}`;
       nameEl.textContent = fullName;
-      const typeLabel = user.recipient_type === 'agency'
-        ? (user.agency_name ? `Agency · ${user.agency_name}` : 'Agency')
-        : 'Coin Seller';
+      const typeLabel = 'Coin Seller';
       metaEl.textContent = `${typeLabel} · ID ${user.display_id || '—'}`;
       if (user.profile_pic) {
         avatar.src = SocialWallet.resolveUploadUrl(user.profile_pic);
@@ -469,7 +475,9 @@
         }
         if (hint) {
           if (amountOk) {
-            hint.textContent = `Ready — ${formatPoints(amt)} pts → recipient gets ${formatPoints(estimateTransferNet(amt))}`;
+            const net = amt - estimateTransferFee(amt);
+            const coins = estimateTransferCoins(net);
+            hint.textContent = `Ready — ${formatPoints(amt)} pts → seller gets ${formatPoints(coins)} coins`;
             hint.className = 'wd-submit-hint is-ready';
           } else {
             hint.className = 'wd-submit-hint';
@@ -550,7 +558,7 @@
 
       if (isTr) {
         document.getElementById('infoBannerText').textContent =
-          `Transfer points to Agency or Coin Seller (${transferFeePct}% service fee)`;
+          `Transfer points to Coin Seller only (${transferFeePct}% fee → seller stock coins)`;
       } else {
         document.getElementById('infoBannerText').textContent = isEx
           ? 'Exchange converts points to NR coins instantly (70% rate)'
