@@ -121,27 +121,166 @@ body[data-live-page='party-room'] .party-viewers {
   display: none;
 }
 
-/* Seat grid ref */
+body[data-live-page='party-room'] .party-room-grid-floor {
+  display: none !important;
+}
+
+/* Small stage cylinder (replaces flat grid rectangle) */
+body[data-live-page='party-room'] .party-ref-stage-cylinder {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  transform: translate(-50%, -50%);
+  width: 44px;
+  height: 20px;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 28%, rgba(200, 160, 255, 0.55), rgba(100, 50, 180, 0.25) 70%);
+  box-shadow:
+    0 0 20px rgba(124, 58, 237, 0.35),
+    inset 0 -4px 8px rgba(60, 20, 120, 0.4);
+}
+
+body[data-live-page='party-room'] .party-ref-stage-cylinder::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 6px;
+  transform: translateX(-50%);
+  width: 34px;
+  height: 26px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, rgba(140, 90, 220, 0.5), rgba(70, 30, 140, 0.65));
+  box-shadow: inset 0 2px 6px rgba(255, 255, 255, 0.15);
+}
+
+body[data-live-page='party-room'] .party-ref-stage-cylinder::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -14px;
+  transform: translateX(-50%);
+  width: 48px;
+  height: 14px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(124, 58, 237, 0.45), transparent 70%);
+  filter: blur(2px);
+}
+
 body[data-live-page='party-room'] .party-room-body {
+  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  padding: 4px 8px 0;
+  padding: 2px 6px 0;
   min-height: 0;
   overflow: hidden;
 }
 
 body[data-live-page='party-room'] .party-seats-wrap {
   flex: 1;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  padding-bottom: 8px;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-bottom: calc(48px + env(safe-area-inset-bottom, 0));
 }
 
 body[data-live-page='party-room'] .party-seats-ref {
-  gap: 6px;
-  padding: 0 4px;
+  gap: 4px;
+  padding: 0 2px;
+  transform-origin: top center;
+  will-change: transform;
+  position: relative;
+  z-index: 1;
+}
+
+body[data-live-page='party-room'] .party-seats-ref .party-seat-row {
+  gap: 4px 5px;
+}
+
+body[data-live-page='party-room'] .party-seats-ref .party-seat-row--lg {
+  gap: 8px;
+}
+
+body[data-live-page='party-room'] .party-seats-ref .seat-tier-lg .seat-avatar {
+  width: 58px;
+  height: 58px;
+}
+
+body[data-live-page='party-room'] .party-seats-ref .seat-tier-md .seat-avatar {
+  width: 48px;
+  height: 48px;
+}
+
+body[data-live-page='party-room'] .party-seats-ref .seat-tier-sm .seat-avatar {
+  width: 40px;
+  height: 40px;
+}
+
+body[data-live-page='party-room'] .party-seats-ref .party-seat.is-host .seat-avatar {
+  width: 64px;
+  height: 64px;
+}
+
+body[data-live-page='party-room'] .party-seats-ref .seat-gifts,
+body[data-live-page='party-room'] .party-seats-ref .seat-tier-sm .seat-name {
+  font-size: 7px;
+}
+
+/* Seat move pick mode */
+body[data-live-page='party-room'].ap-seat-move-pick .party-seat:not(.is-host) {
+  cursor: pointer;
+  animation: ap-seat-move-pulse 1.2s ease-in-out infinite;
+}
+
+body[data-live-page='party-room'].ap-seat-move-pick .party-seat.is-move-target {
+  outline: 2px dashed #fbbf24;
+  outline-offset: 3px;
+  border-radius: 12px;
+}
+
+@keyframes ap-seat-move-pulse {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.25);
+  }
+}
+
+.party-seat-move-banner {
+  position: fixed;
+  left: 50%;
+  top: calc(52px + env(safe-area-inset-top, 0));
+  transform: translateX(-50%);
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px 8px 14px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.78);
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+}
+
+.party-seat-move-banner button {
+  border: none;
+  border-radius: 999px;
+  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
 }
 
 body[data-live-page='party-room'] .party-seat.is-empty .seat-avatar--empty {
@@ -209,81 +348,8 @@ body[data-live-page='party-room'] .party-seat.is-host .seat-crown {
   display: none;
 }
 
-/* Full-width comment + gift strip (above bottom bar) */
-.party-ref-compose-strip {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: calc(56px + env(safe-area-inset-bottom, 0));
-  z-index: 45;
-  display: flex;
-  align-items: stretch;
-  gap: 8px;
-  padding: 0 10px 6px;
-  box-sizing: border-box;
-  pointer-events: none;
-}
-
-.party-ref-compose-strip > * {
-  pointer-events: auto;
-}
-
-.party-ref-compose-field {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.45);
-  color: rgba(255, 255, 255, 0.75);
-  font-size: 13px;
-  cursor: pointer;
-  text-align: left;
-}
-
-.party-ref-compose-field span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.party-ref-compose-gift {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 10px 14px;
-  border: none;
-  border-radius: 999px;
-  background: linear-gradient(135deg, #a855f7, #7c3aed);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 700;
-  white-space: nowrap;
-  box-shadow: 0 4px 16px rgba(124, 58, 237, 0.35);
-  cursor: pointer;
-}
-
-.party-ref-compose-gift span {
-  display: none;
-}
-
-@media (min-width: 360px) {
-  .party-ref-compose-gift span {
-    display: inline;
-  }
-}
-
-body[data-live-page='party-room'].ap-chat-compose-open .party-ref-compose-strip {
-  opacity: 0;
-  pointer-events: none;
-}
-
-/* Legacy floating pill — hidden */
-.party-ref-gift-pill {
+/* Hide duplicate floating compose strip — use bottom bar chat + gift */
+body[data-live-page='party-room'] .party-ref-compose-strip {
   display: none !important;
 }
 
@@ -292,8 +358,8 @@ body[data-live-page='party-room'] .party-chat-row {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: calc(108px + env(safe-area-inset-bottom, 0));
-  max-height: 32vh;
+  bottom: calc(56px + env(safe-area-inset-bottom, 0));
+  max-height: 34vh;
   pointer-events: none;
   z-index: 30;
 }
@@ -405,10 +471,6 @@ body[data-live-page='party-room'].ap-chat-compose-open #liveChatCompose {
   display: flex;
 }
 
-body[data-live-page='party-room'] #partyBtnGift {
-  display: none;
-}
-
 body[data-live-page='party-room'] .party-bottom-actions {
   display: contents;
 }
@@ -420,9 +482,12 @@ body[data-live-page='party-room'] .party-btn-gift.ap-btn-gift-hero {
   font-size: 18px;
 }
 
-/* Floating chat fab */
+body[data-live-page='party-room'] #partyBtnGift {
+  display: inline-flex !important;
+}
+
 body[data-live-page='party-room'] .live-show-chat-fab {
-  bottom: calc(108px + env(safe-area-inset-bottom, 0));
+  bottom: calc(64px + env(safe-area-inset-bottom, 0));
   right: 12px;
 }
 
@@ -515,7 +580,7 @@ body[data-live-page='party-room'] .live-show-chat-fab {
 }
 
 .ap-party-layout-preview {
-  height: 100px;
+  height: 88px;
   border-radius: 12px;
   background: rgba(0, 0, 0, 0.35);
   margin-bottom: 16px;
@@ -524,6 +589,33 @@ body[data-live-page='party-room'] .live-show-chat-fab {
   justify-content: center;
   color: rgba(255, 255, 255, 0.4);
   font-size: 12px;
+  position: relative;
+  overflow: hidden;
+}
+
+.ap-party-layout-preview::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -35%);
+  width: 28px;
+  height: 12px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 30%, rgba(180, 140, 255, 0.6), rgba(88, 28, 180, 0.3));
+  box-shadow: 0 6px 14px rgba(124, 58, 237, 0.35);
+}
+
+.ap-party-layout-preview::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, 10%);
+  width: 22px;
+  height: 18px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, rgba(140, 90, 220, 0.45), rgba(70, 30, 140, 0.55));
 }
 
 .ap-party-field-label {
@@ -641,11 +733,21 @@ body[data-live-page='party-room'] .live-show-chat-fab {
   cursor: pointer;
 }
 
-/* Edit Info modal */
+/* Edit Info modal — centered dialog */
+.ap-modal-overlay.align-center {
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
 .ap-party-edit-modal .ap-party-edit-panel {
   background: #151929;
-  border-radius: 20px 20px 0 0;
-  padding: 20px 16px calc(24px + env(safe-area-inset-bottom, 0));
+  border-radius: 20px;
+  padding: 20px 16px 24px;
+  width: min(400px, 100%);
+  max-height: min(85vh, 640px);
+  overflow-y: auto;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
 }
 
 .ap-party-edit-photo {

@@ -46,6 +46,10 @@ body:not([data-live-page='live-room']) .live-room::before {
   pointer-events: none;
 }
 
+body[data-live-page='party-room'] .party-room-grid-floor {
+  display: none !important;
+}
+
 .party-room > *:not(.party-room-grid-floor),
 .live-room .live-overlay {
   position: relative;

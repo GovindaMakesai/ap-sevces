@@ -93,6 +93,9 @@
     { id: 'ludo', label: 'Ludo', emoji: '🎲', game: '/games/greedy.html' },
   ];
   let partySeatMenuCtx = null;
+  let partySeatMoveUserId = null;
+  let partySeatMoveUserName = '';
+  let partySeatsFitTimer = null;
   let lastPartySeatsStructureKey = '';
   let quickChipsExpanded = false;
   let chatRegionFilter = 'room';
@@ -4288,9 +4291,9 @@
       document.getElementById('apProfileSheet')?.classList.remove('open');
     });
     menu.querySelector('[data-mod="move"]')?.addEventListener('click', () => {
-      const seat = window.prompt('Seat number (1–15):', String(seatNum || 3));
-      if (seat) moveUserSeat(userId, Number(seat));
+      startPartySeatMovePick(userId, seatNum, name);
       menu.remove();
+      document.getElementById('apProfileSheet')?.classList.remove('open');
     });
     menu.querySelector('[data-mod="demote"]')?.addEventListener('click', () => {
       demoteUserFromSeat(userId);
@@ -11153,6 +11156,32 @@
     if (canModerateRoom()) bindSeatDragDrop(container);
     window.SocialUI?.bindAvatarFallbacks?.(container);
     paintHostAvatarImg(document.getElementById('partyHostAvatar'), hostName);
+    scheduleFitPartySeatsToViewport();
+  }
+
+  function scheduleFitPartySeatsToViewport() {
+    if (!isPartyRoomPage()) return;
+    if (partySeatsFitTimer) clearTimeout(partySeatsFitTimer);
+    partySeatsFitTimer = setTimeout(() => {
+      partySeatsFitTimer = null;
+      fitPartySeatsToViewport();
+    }, 50);
+  }
+
+  function fitPartySeatsToViewport() {
+    if (!isPartyRoomPage()) return;
+    const wrap = document.querySelector('body[data-live-page="party-room"] .party-seats-wrap');
+    const grid = document.getElementById('partySeats');
+    if (!wrap || !grid) return;
+    grid.style.transform = 'none';
+    grid.style.marginBottom = '0';
+    const available = wrap.clientHeight;
+    const needed = grid.scrollHeight;
+    if (available > 0 && needed > available) {
+      const scale = Math.max(0.52, Math.min(1, available / needed));
+      grid.style.transform = `scale(${scale})`;
+      grid.style.marginBottom = `${Math.round((needed * (scale - 1)) / 2)}px`;
+    }
   }
 
   function formatGiftCount(n) {
@@ -18685,6 +18714,33 @@
       }
     );
     hidePartySeatMenu();
+    cancelPartySeatMovePick();
+  }
+
+  function cancelPartySeatMovePick() {
+    partySeatMoveUserId = null;
+    partySeatMoveUserName = '';
+    document.body.classList.remove('ap-seat-move-pick');
+    document.getElementById('partySeats')?.querySelectorAll('.party-seat.is-move-target').forEach((el) => {
+      el.classList.remove('is-move-target');
+    });
+    const banner = document.getElementById('partySeatMoveBanner');
+    if (banner) banner.hidden = true;
+  }
+
+  function startPartySeatMovePick(userId, fromSeatNum, userName) {
+    if (!canModerateRoom() || !userId) return;
+    cancelPartySeatMovePick();
+    partySeatMoveUserId = String(userId);
+    partySeatMoveUserName = userName || 'Guest';
+    document.body.classList.add('ap-seat-move-pick');
+    const banner = document.getElementById('partySeatMoveBanner');
+    const label = document.getElementById('partySeatMoveBannerText');
+    if (label) {
+      label.textContent = `Tap a seat to move ${partySeatMoveUserName}${fromSeatNum ? ` (from #${fromSeatNum})` : ''}`;
+    }
+    if (banner) banner.hidden = false;
+    toast('Tap any seat to move them there', 'info');
   }
 
   function hidePartySeatMenu() {
@@ -18731,10 +18787,8 @@
         else if (action === 'mute' && c.uid) muteRemoteUser(c.uid, true);
         else if (action === 'unmute' && c.uid) muteRemoteUser(c.uid, false);
         else if (action === 'demote' && c.uid) demoteUserFromSeat(c.uid);
-        else if (action === 'move' && c.uid) {
-          const seat = window.prompt('Seat number:', String(c.seatNum || 3));
-          if (seat) moveUserSeat(c.uid, Number(seat));
-        } else if (action === 'more' && c.uid) openModerationMenu(c.name, c.uid, c.seatNum);
+        else if (action === 'move' && c.uid) startPartySeatMovePick(c.uid, c.seatNum, c.name);
+        else if (action === 'more' && c.uid) openModerationMenu(c.name, c.uid, c.seatNum);
       };
     });
   }
@@ -18745,6 +18799,23 @@
     const uid = btn.dataset.userId || '';
     const seatNum = Number(btn.dataset.seat || btn.dataset.seatNum) || 0;
     const isHostSeat = btn.classList.contains('is-host');
+
+    if (partySeatMoveUserId && canModerateRoom()) {
+      if (isHostSeat) {
+        toast('Cannot move guest to the host seat', 'warning');
+        return;
+      }
+      if (!seatNum) return;
+      if (String(uid) === String(partySeatMoveUserId) && seatNum) {
+        cancelPartySeatMovePick();
+        return;
+      }
+      btn.classList.add('is-move-target');
+      moveUserSeat(partySeatMoveUserId, seatNum);
+      cancelPartySeatMovePick();
+      return;
+    }
+
     if (btn.hasAttribute('data-join-seat')) {
       if (isHost()) openSeatSheet(btn.dataset.seatNum);
       else requestSeatJoin();
@@ -18887,6 +18958,16 @@
 
     applyRoomBackground(roomState?.roomStyle?.backgroundId || 'lakeside');
     bindPartySeatDelegation();
+
+    document.getElementById('partySeatMoveCancel')?.addEventListener('click', cancelPartySeatMovePick);
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && partySeatMoveUserId) cancelPartySeatMovePick();
+    });
+    if (!window.__apPartySeatsResizeBound) {
+      window.__apPartySeatsResizeBound = true;
+      window.addEventListener('resize', scheduleFitPartySeatsToViewport);
+      window.addEventListener('orientationchange', scheduleFitPartySeatsToViewport);
+    }
 
     document.getElementById('partyRefComposeTap')?.addEventListener('click', () => {
       document.body.classList.add('ap-chat-compose-open');

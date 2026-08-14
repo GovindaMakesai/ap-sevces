@@ -28,7 +28,7 @@
 
   <link rel="stylesheet" href="social-live-ref-ui.css?v=20260814-gift-glow">
 
-  <link rel="stylesheet" href="social-party-ref.css?v=20260814-party-fix">
+  <link rel="stylesheet" href="social-party-ref.css?v=20260814-party-layout">
 
   <link rel="stylesheet" href="social-fx.css?v=20260814-gift-glow">
 
@@ -240,11 +240,23 @@
 
     <div class="party-room-body">
 
+      <div class="party-ref-stage-cylinder" aria-hidden="true"></div>
+
       <div class="party-seats-wrap">
 
         <div class="party-seats party-seats-ref" id="partySeats"></div>
 
       </div>
+
+    </div>
+
+
+
+    <div class="party-seat-move-banner" id="partySeatMoveBanner" hidden>
+
+      <span id="partySeatMoveBannerText">Tap a seat to move guest</span>
+
+      <button type="button" id="partySeatMoveCancel">Cancel</button>
 
     </div>
 
@@ -260,16 +272,7 @@
 
 
 
-    <div class="party-ref-compose-strip" id="partyRefComposeStrip">
-      <button type="button" class="party-ref-compose-field" id="partyRefComposeTap" aria-label="Write a comment">
-        <i class="far fa-smile"></i>
-        <span>Say something…</span>
-      </button>
-      <button type="button" class="party-ref-compose-gift" id="partyRefGiftPill" aria-label="Send a gift">
-        <i class="fas fa-gift"></i>
-        <span>Send a gift!</span>
-      </button>
-    </div>
+    <div class="party-ref-compose-strip" id="partyRefComposeStrip" hidden aria-hidden="true">
 
 
 
@@ -449,7 +452,7 @@
 
   <!-- Edit Info modal -->
 
-  <div class="ap-modal-overlay align-bottom ap-party-edit-modal" id="apPartyEditInfoModal">
+  <div class="ap-modal-overlay align-center ap-party-edit-modal" id="apPartyEditInfoModal">
 
     <div class="ap-party-edit-panel">
 
@@ -662,7 +665,7 @@
 
   <script src="agora-lifecycle.js?v=20260724-phase1-life"></script>
 
-  <script src="social-live.js?v=20260814-party-fix"></script>
+  <script src="social-live.js?v=20260814-party-layout"></script>
 
   <script src="social-nav.js?v=20260720-back-fix"></script>
 
