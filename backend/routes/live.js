@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const router = express.Router();
 const { verifyToken, optionalAuth } = require('../middleware/auth');
+const { chatImageUpload } = require('../middleware/chatUpload');
 const liveController = require('../controllers/liveController');
 const liveAccessService = require('../services/liveAccessService');
 
@@ -48,5 +49,19 @@ router.get('/my-analytics', verifyToken, liveController.myAnalytics);
 router.post('/verify/identity', verifyToken, liveController.confirmIdentityStep);
 router.post('/verify/face', verifyToken, faceUpload.single('photo'), liveController.submitFaceVerification);
 router.post('/party-music', verifyToken, partyMusicUpload.single('music'), liveController.uploadPartyMusic);
+
+function liveChatUploadMiddleware(req, res, next) {
+  chatImageUpload.single('image')(req, res, (err) => {
+    if (err) {
+      return res.status(400).json({
+        success: false,
+        message: err.message || 'Photo upload failed',
+      });
+    }
+    next();
+  });
+}
+
+router.post('/chat/media', verifyToken, liveChatUploadMiddleware, liveController.uploadChatMedia);
 
 module.exports = router;

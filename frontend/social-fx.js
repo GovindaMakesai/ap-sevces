@@ -193,6 +193,7 @@
     if (combo >= 100) el.classList.add('is-legendary');
     el.innerHTML = `
       <div class="ap-cinematic-trail"></div>
+      <div class="ap-cinematic-glow-ring"></div>
       <div class="ap-cinematic-orb">${emoji}</div>
       <div class="ap-cinematic-bloom"></div>`;
     fxRoot.appendChild(el);
@@ -320,7 +321,7 @@
     for (let i = 0; i < n; i += 1) {
       setTimeout(() => {
         const el = document.createElement('div');
-        el.className = 'ap-float-gift';
+        el.className = 'ap-float-gift' + (tier && tier !== 'small' ? ' is-tier-' + tier : '');
         el.textContent = emoji || '❤️';
         const x = 20 + Math.random() * (window.innerWidth - 60);
         const y = window.innerHeight * (0.45 + Math.random() * 0.25);

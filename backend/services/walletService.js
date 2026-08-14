@@ -16,6 +16,10 @@ const DEFAULT_SETTINGS = {
   exchange_points_block: 100000,
   /** Coins credited per 10,000 points (Zero seller rate = 70%). */
   exchange_coins_per_10k_points: 7000,
+  /** Points transfer to agency / coin seller — multiples only. */
+  points_transfer_block: 100000,
+  points_transfer_service_fee_pct: 3,
+  points_transfer_daily_limit: 5,
 };
 
 function resolveWithdrawalPointsPerUsd(settings) {
@@ -86,6 +90,17 @@ async function getWalletSettings() {
     exchange_points_block: Number.isFinite(block) && block > 0 ? block : 100000,
     exchange_coins_per_10k_points:
       Number.isFinite(coinsPer10k) && coinsPer10k > 0 ? coinsPer10k : 7000,
+    points_transfer_block:
+      Number(merged.points_transfer_block) > 0 ? Number(merged.points_transfer_block) : 100000,
+    points_transfer_service_fee_pct:
+      Number.isFinite(Number(merged.points_transfer_service_fee_pct)) &&
+      Number(merged.points_transfer_service_fee_pct) >= 0
+        ? Number(merged.points_transfer_service_fee_pct)
+        : 3,
+    points_transfer_daily_limit:
+      Number(merged.points_transfer_daily_limit) > 0
+        ? Number(merged.points_transfer_daily_limit)
+        : 5,
   };
 }
 
@@ -357,8 +372,181 @@ async function reserveWithdrawal(userId, amount, { qr_image_url, qr_asset_id, me
 }
 
 /**
+ * Points transfer to agency / coin seller.
+ */
+function resolvePointsTransferBlock(settings) {
+  const block = Number(settings?.points_transfer_block);
+  return Number.isFinite(block) && block > 0 ? block : 100000;
+}
+
+function resolvePointsTransferFeePct(settings) {
+  const pct = Number(settings?.points_transfer_service_fee_pct);
+  return Number.isFinite(pct) && pct >= 0 && pct < 100 ? pct : 3;
+}
+
+function computePointsTransferFee(points, settings) {
+  const pct = resolvePointsTransferFeePct(settings);
+  return Math.floor((Number(points) * pct) / 100);
+}
+
+async function lookupPointsTransferRecipient(accountId) {
+  const coinSellerService = require('./coinSellerService');
+  const user = await coinSellerService.lookupRecipient(accountId);
+  if (!user) return null;
+
+  const agencyRes = await db.query(
+    `SELECT id, name FROM agencies WHERE owner_user_id = $1 AND status = 'active' LIMIT 1`,
+    [user.id]
+  );
+  if (agencyRes.rows[0]) {
+    return {
+      ...user,
+      recipient_type: 'agency',
+      agency_name: agencyRes.rows[0].name,
+    };
+  }
+
+  const sellerRes = await db.query(
+    `SELECT user_id FROM coin_seller_profiles WHERE user_id = $1 AND is_active = TRUE LIMIT 1`,
+    [user.id]
+  );
+  const privileged = ['coin_seller', 'agency'].includes(user.role);
+  if (sellerRes.rows[0] || privileged) {
+    return { ...user, recipient_type: 'coin_seller' };
+  }
+
+  return null;
+}
+
+async function countPointsTransfersToday(senderId) {
+  const res = await db.query(
+    `SELECT COUNT(*)::int AS n FROM points_transfers
+     WHERE sender_id = $1 AND created_at >= date_trunc('day', NOW() AT TIME ZONE 'UTC')`,
+    [senderId]
+  );
+  return res.rows[0]?.n || 0;
+}
+
+async function listPointsTransfers(senderId, { limit = 30 } = {}) {
+  const res = await db.query(
+    `SELECT t.*, u.first_name, u.last_name, u.profile_pic, u.display_id
+     FROM points_transfers t
+     JOIN users u ON u.id = t.recipient_id
+     WHERE t.sender_id = $1
+     ORDER BY t.created_at DESC
+     LIMIT $2`,
+    [senderId, limit]
+  );
+  return res.rows;
+}
+
+async function transferPointsToRecipient(senderId, { recipientId, points: pointsRaw }) {
+  const settings = await getWalletSettings();
+  const block = resolvePointsTransferBlock(settings);
+  const dailyLimit = Number(settings.points_transfer_daily_limit) || 5;
+  const points = parseInt(pointsRaw, 10);
+
+  if (!points || points < block || points % block !== 0) {
+    throw new Error(`Amount must be a multiple of ${block.toLocaleString('en-US')} points (1 lakh, 2 lakh, …)`);
+  }
+  if (!recipientId) throw new Error('Recipient ID is required');
+
+  const recipient = await lookupPointsTransferRecipient(recipientId);
+  if (!recipient) {
+    throw new Error('Recipient must be an active Agency or Coin Seller');
+  }
+  if (String(recipient.id) === String(senderId)) {
+    throw new Error('You cannot transfer points to yourself');
+  }
+
+  const usedToday = await countPointsTransfersToday(senderId);
+  if (usedToday >= dailyLimit) {
+    throw new Error(`Daily transfer limit reached (${dailyLimit} per day)`);
+  }
+
+  const serviceFee = computePointsTransferFee(points, settings);
+  const netPoints = points - serviceFee;
+  if (netPoints <= 0) throw new Error('Transfer amount too small after service fee');
+
+  const platformService = require('./platformService');
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+    await debitStars(
+      senderId,
+      points,
+      {
+        type: 'points_transfer_out',
+        reference_type: 'points_transfer',
+        metadata: {
+          recipient_id: recipient.id,
+          recipient_type: recipient.recipient_type,
+          service_fee: serviceFee,
+          net_points: netPoints,
+        },
+      },
+      client
+    );
+    await creditStars(
+      recipient.id,
+      netPoints,
+      {
+        type: 'points_transfer_in',
+        reference_type: 'points_transfer',
+        metadata: {
+          sender_id: senderId,
+          gross_points: points,
+          service_fee: serviceFee,
+        },
+      },
+      client
+    );
+    if (serviceFee > 0) {
+      const treasuryUserId = await platformService.getOrCreateTreasuryUserId(client);
+      await creditStars(
+        treasuryUserId,
+        serviceFee,
+        {
+          type: 'points_transfer_fee',
+          reference_type: 'points_transfer',
+          metadata: { sender_id: senderId, recipient_id: recipient.id, gross_points: points },
+        },
+        client
+      );
+    }
+    const row = await client.query(
+      `INSERT INTO points_transfers (sender_id, recipient_id, points, service_fee, net_points, recipient_type)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [senderId, recipient.id, points, serviceFee, netPoints, recipient.recipient_type]
+    );
+    await client.query('COMMIT');
+    const bal = await getBalance(senderId);
+    return {
+      transfer: row.rows[0],
+      recipient: {
+        id: recipient.id,
+        display_id: recipient.display_id,
+        first_name: recipient.first_name,
+        last_name: recipient.last_name,
+        recipient_type: recipient.recipient_type,
+        agency_name: recipient.agency_name || null,
+      },
+      points,
+      serviceFee,
+      netPoints,
+      balance: bal,
+      transfersRemainingToday: Math.max(0, dailyLimit - usedToday - 1),
+    };
+  } catch (e) {
+    await db.safeRollback(client);
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+/**
  * Normal-user exchange: points (stars) → spendable NR coin_balance.
- * Same block size as seller beans exchange; rate uses Zero-level conversion (not seller inventory).
  */
 async function exchangePointsToCoins(userId, pointsAmount) {
   const settings = await getWalletSettings();
@@ -522,6 +710,13 @@ module.exports = {
   debitStars,
   reserveWithdrawal,
   exchangePointsToCoins,
+  lookupPointsTransferRecipient,
+  listPointsTransfers,
+  countPointsTransfersToday,
+  transferPointsToRecipient,
+  computePointsTransferFee,
+  resolvePointsTransferBlock,
+  resolvePointsTransferFeePct,
   setWalletBalances,
   resolveMinWithdrawalCoins,
   resolveWithdrawalPointsPerUsd,

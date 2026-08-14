@@ -118,6 +118,9 @@
         inr_per_usd: 94,
         exchange_points_block: 100000,
         exchange_coins_per_10k_points: 7000,
+        points_transfer_block: 100000,
+        points_transfer_service_fee_pct: 3,
+        points_transfer_daily_limit: 5,
       };
     }
   }
@@ -248,6 +251,25 @@
     return res;
   }
 
+  async function lookupPointsTransferRecipient(accountId) {
+    const id = encodeURIComponent(String(accountId || '').trim());
+    return API.get(`/wallet/transfer-points/lookup/${id}`);
+  }
+
+  async function listPointsTransfers(limit) {
+    const q = limit ? `?limit=${encodeURIComponent(limit)}` : '';
+    return API.get(`/wallet/transfer-points/history${q}`);
+  }
+
+  async function transferPoints(recipientId, points) {
+    const res = await API.post('/wallet/transfer-points', {
+      recipientId,
+      points: Number(points),
+    });
+    await fetchBalance(true);
+    return res;
+  }
+
   window.SocialWallet = {
     fetchBalance,
     invalidateBalance,
@@ -269,6 +291,9 @@
     getWithdrawal,
     confirmWithdrawal,
     exchangePointsToCoins,
+    lookupPointsTransferRecipient,
+    listPointsTransfers,
+    transferPoints,
     resolveUploadUrl,
   };
 

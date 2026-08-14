@@ -545,18 +545,65 @@ body[data-live-page='live-room'] .party-tools-grid .ico.report {
 }
 
 /* —— Gift sheet (live) —— */
-body[data-live-page='live-room'] .gift-sheet-panel {
-  background: linear-gradient(165deg, rgba(42, 32, 22, 0.98) 0%, rgba(22, 16, 28, 0.98) 50%, rgba(16, 14, 24, 0.99) 100%);
-  border: 1px solid var(--live-pro-border);
+body[data-live-page='live-room'] .gift-sheet {
+  background: rgba(7, 8, 12, 0.52);
+}
+
+body[data-live-page='live-room'] .gift-sheet-panel,
+body[data-live-page='live-room'] .gift-sheet--lux .gift-sheet-panel {
+  background: linear-gradient(
+    165deg,
+    rgba(22, 24, 32, 0.98) 0%,
+    rgba(14, 16, 24, 0.99) 55%,
+    rgba(10, 12, 18, 1) 100%
+  ) !important;
+  border: 1px solid var(--live-pro-border-strong);
   border-bottom: none;
+  border-top: 1px solid rgba(59, 130, 246, 0.22);
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
   font-family: var(--live-pro-font);
 }
 
-body[data-live-page='live-room'] .gift-grid button {
+body[data-live-page='live-room'] .gift-sheet--lux .gift-send-label {
+  background: linear-gradient(90deg, #93c5fd, #3b82f6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+body[data-live-page='live-room'] .gift-sheet--lux .gift-sheet-tabs button.active {
+  color: var(--live-pro-accent) !important;
+  border-bottom-color: var(--live-pro-accent) !important;
+  text-shadow: 0 0 12px var(--live-pro-accent-soft);
+}
+
+body[data-live-page='live-room'] .gift-sheet--lux .gift-search-input {
+  border-color: var(--live-pro-border-strong);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+body[data-live-page='live-room'] .gift-sheet--lux .gift-search-input:focus {
+  border-color: rgba(59, 130, 246, 0.55);
+  box-shadow: 0 0 0 2px var(--live-pro-accent-soft);
+}
+
+body[data-live-page='live-room'] .gift-grid button,
+body[data-live-page='live-room'] .gift-sheet--lux .gift-grid button.gift-card {
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--live-pro-border);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+body[data-live-page='live-room'] .gift-sheet--lux .gift-send-btn {
+  background: linear-gradient(135deg, #3b82f6, #2563eb 55%, #1d4ed8) !important;
+  box-shadow: 0 4px 18px rgba(59, 130, 246, 0.42) !important;
+}
+
+body[data-live-page='live-room'] .gift-sheet--lux .gift-balance-btn {
+  border-color: rgba(59, 130, 246, 0.28);
+  background: rgba(59, 130, 246, 0.1);
+  color: #93c5fd;
 }
 
 body[data-live-page='live-room'] .gift-grid small,
@@ -567,6 +614,38 @@ body[data-live-page='live-room'] .gift-grid .gift-coin-cost {
 
 body[data-live-page='live-room'] .gift-balance {
   color: var(--live-pro-muted);
+}
+
+body[data-live-page='live-room'] .ap-gift-fly {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: var(--live-pro-radius-pill);
+  background: var(--live-pro-surface-elevated);
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 0 20px rgba(251, 191, 36, 0.22), var(--live-pro-shadow);
+}
+
+body[data-live-page='live-room'] .ap-gift-fly.is-visible {
+  animation: ap-gift-fly-in 0.4s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+body[data-live-page='live-room'] .ap-cinematic-overlay .ap-cinematic-bg {
+  background: radial-gradient(
+    ellipse at 50% 40%,
+    rgba(59, 130, 246, 0.14),
+    rgba(7, 8, 12, 0.52) 75%
+  ) !important;
+}
+
+body[data-live-page='live-room'].is-pk-mode .ap-pk-bar {
+  background: #3b82f6;
+}
+
+body[data-live-page='live-room'].is-pk-mode .ap-pk-bar-left {
+  background: linear-gradient(90deg, #ec4899, #f472b6);
+  box-shadow: 0 0 12px rgba(236, 72, 153, 0.35);
 }
 
 /* —— Win banner: subtle —— */
@@ -640,17 +719,6 @@ body[data-live-page='live-room'] .ap-3d-ripple {
   }
 }
 
-body[data-live-page='live-room'] .ap-gift-fly {
-  font-size: 12px;
-  font-weight: 600;
-  padding: 8px 14px;
-  border-radius: var(--live-pro-radius-pill);
-  background: var(--live-pro-surface-elevated);
-  border: 1px solid var(--live-pro-border-strong);
-  backdrop-filter: blur(12px);
-  box-shadow: var(--live-pro-shadow);
-}
-
 /* —— FX layer: mature notifications —— */
 body[data-live-page='live-room'] .ap-activity-item {
   font-size: 11px;
@@ -718,7 +786,6 @@ body[data-live-page='live-room'] .ap-entry-banner.vip .ap-entry-text {
 }
 
 body[data-live-page='live-room'] .ap-float-gift {
-  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.5));
   animation: live-pro-float-gift 1.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
@@ -740,12 +807,20 @@ body[data-live-page='live-room'] .ap-float-gift {
 }
 
 body[data-live-page='live-room'] .ap-premium-gift {
-  background: radial-gradient(ellipse at center, rgba(7, 8, 12, 0.7) 0%, rgba(7, 8, 12, 0.95) 100%);
+  background: radial-gradient(
+    ellipse at center,
+    rgba(59, 130, 246, 0.1) 0%,
+    rgba(7, 8, 12, 0.72) 50%,
+    rgba(7, 8, 12, 0.92) 100%
+  );
 }
 
 body[data-live-page='live-room'] .ap-premium-gift .ap-premium-emoji {
-  animation: live-pro-premium-pop 0.55s cubic-bezier(0.34, 1.45, 0.64, 1) forwards;
-  filter: drop-shadow(0 12px 32px rgba(0, 0, 0, 0.6));
+  animation: live-pro-premium-pop 0.55s cubic-bezier(0.34, 1.45, 0.64, 1) forwards, ap-gift-emoji-glow 1.8s ease-in-out infinite 0.45s;
+  filter:
+    drop-shadow(0 0 20px rgba(251, 191, 36, 0.8))
+    drop-shadow(0 0 40px rgba(251, 191, 36, 0.45))
+    drop-shadow(0 12px 32px rgba(0, 0, 0, 0.55));
 }
 
 @keyframes live-pro-premium-pop {

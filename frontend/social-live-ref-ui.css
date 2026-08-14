@@ -3,14 +3,13 @@
  * (Bigo/Chamet-style layouts from product screenshots)
  */
 
-/* —— Starry party / live backdrop —— */
-.party-room,
-.live-room {
+/* —— Starry party backdrop (live-room uses social-live-pro dark theme) —— */
+.party-room {
   background: linear-gradient(165deg, #06040f 0%, #0f0824 35%, #1a0f3a 70%, #12082a 100%) !important;
 }
 
 .party-room::after,
-.live-room::before {
+body:not([data-live-page='live-room']) .live-room::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -283,15 +282,15 @@ body.is-pk-mode .live-room .party-header-center {
   display: flex !important;
 }
 
-/* —— Gift sheet (white reference panel) —— */
-body.ap-ref-ui .gift-sheet-panel {
+/* —— Gift sheet (white reference panel — party room only) —— */
+body.ap-ref-ui:not([data-live-page='live-room']) .gift-sheet-panel {
   background: #fff !important;
   color: #1a1a1a;
   border-radius: 20px 20px 0 0;
   max-height: min(68vh, 540px);
 }
 
-body.ap-ref-ui .gift-send-header {
+body.ap-ref-ui:not([data-live-page='live-room']) .gift-send-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -299,13 +298,13 @@ body.ap-ref-ui .gift-send-header {
   flex-shrink: 0;
 }
 
-body.ap-ref-ui .gift-send-label {
+body.ap-ref-ui:not([data-live-page='live-room']) .gift-send-label {
   font-size: 15px;
   font-weight: 800;
   color: #111;
 }
 
-body.ap-ref-ui .gift-all-toggle {
+body.ap-ref-ui:not([data-live-page='live-room']) .gift-all-toggle {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -315,81 +314,81 @@ body.ap-ref-ui .gift-all-toggle {
   cursor: pointer;
 }
 
-body.ap-ref-ui .gift-all-toggle input {
+body.ap-ref-ui:not([data-live-page='live-room']) .gift-all-toggle input {
   width: 44px;
   height: 24px;
   accent-color: #f59e0b;
 }
 
-body.ap-ref-ui .gift-rtp-banner {
+body.ap-ref-ui:not([data-live-page='live-room']) .gift-rtp-banner {
   background: #fef3c7;
   color: #92400e;
   border-radius: 8px;
   margin-bottom: 8px;
 }
 
-body.ap-ref-ui .gift-rtp-banner span {
+body.ap-ref-ui:not([data-live-page='live-room']) .gift-rtp-banner span {
   animation: none;
   padding-left: 8px;
 }
 
-body.ap-ref-ui .gift-sheet-tabs button[data-cat] {
+body.ap-ref-ui:not([data-live-page='live-room']) .gift-sheet-tabs button[data-cat] {
   color: #9ca3af !important;
 }
 
-body.ap-ref-ui .gift-sheet-tabs button.active {
+body.ap-ref-ui:not([data-live-page='live-room']) .gift-sheet-tabs button.active {
   color: #d97706 !important;
   border-bottom-color: #f59e0b !important;
 }
 
-body.ap-ref-ui .gift-grid button {
+body.ap-ref-ui:not([data-live-page='live-room']) .gift-grid button {
   background: #f9fafb !important;
   border: 2px solid transparent !important;
   color: #111 !important;
 }
 
-body.ap-ref-ui .gift-grid button.is-selected {
+body.ap-ref-ui:not([data-live-page='live-room']) .gift-grid button.is-selected {
   border-color: #fbbf24 !important;
   background: #fffbeb !important;
   box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.4) !important;
 }
 
-body.ap-ref-ui .gift-grid small,
-body.ap-ref-ui .gift-grid .gift-coin-cost {
+body.ap-ref-ui:not([data-live-page='live-room']) .gift-grid small,
+body.ap-ref-ui:not([data-live-page='live-room']) .gift-grid .gift-coin-cost {
   color: #b45309 !important;
   font-weight: 800 !important;
 }
 
-body.ap-ref-ui .gift-qty-btns button {
+body.ap-ref-ui:not([data-live-page='live-room']) .gift-qty-btns button {
   background: #f3f4f6 !important;
   color: #374151 !important;
 }
 
-body.ap-ref-ui .gift-qty-btns button.active {
+body.ap-ref-ui:not([data-live-page='live-room']) .gift-qty-btns button.active {
   background: #fde68a !important;
   color: #78350f !important;
 }
 
-body.ap-ref-ui .gift-send-btn {
+body.ap-ref-ui:not([data-live-page='live-room']) .gift-send-btn {
   background: linear-gradient(90deg, #fb923c, #f59e0b) !important;
   color: #fff !important;
   min-width: 110px !important;
 }
 
-body.ap-ref-ui .gift-balance-btn {
+body.ap-ref-ui:not([data-live-page='live-room']) .gift-balance-btn {
   color: #d97706 !important;
 }
 
-body.ap-ref-ui .gift-xp-row {
+body.ap-ref-ui:not([data-live-page='live-room']) .gift-xp-row {
   border-bottom-color: #e5e7eb;
   color: #6b7280;
 }
 
-body.ap-ref-ui .gift-recipient span {
+body.ap-ref-ui:not([data-live-page='live-room']) .gift-recipient span {
   color: #374151;
 }
 
-body.ap-ref-ui .gift-gallery-hint {
+body.ap-ref-ui:not([data-live-page='live-room']) .gift-gallery-hint {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -400,7 +399,7 @@ body.ap-ref-ui .gift-gallery-hint {
   margin-bottom: 6px;
 }
 
-body.ap-ref-ui .gift-gallery-hint button {
+body.ap-ref-ui:not([data-live-page='live-room']) .gift-gallery-hint button {
   border: none;
   background: #f3f4f6;
   padding: 4px 10px;

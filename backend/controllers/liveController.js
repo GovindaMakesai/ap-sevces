@@ -194,3 +194,19 @@ exports.uploadPartyMusic = async (req, res) => {
     res.status(500).json({ success: false, message: error.message || 'Upload failed' });
   }
 };
+
+exports.uploadChatMedia = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No photo uploaded' });
+    }
+    const url = `/uploads/chat/${req.file.filename}`;
+    res.json({
+      success: true,
+      data: { url },
+    });
+  } catch (error) {
+    console.error('[live] chat media upload', error);
+    res.status(500).json({ success: false, message: error.message || 'Upload failed' });
+  }
+};

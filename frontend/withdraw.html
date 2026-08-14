@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#5b67f6">
   <title>Withdraw - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-withdraw.css?v=20260714-wd-tabs">
+  <link rel="stylesheet" href="social-withdraw.css?v=20260814-transfer">
   <link rel="stylesheet" href="mobile-app.css">
 </head>
 <body class="withdraw-app">
@@ -21,12 +21,15 @@
       </div>
     </header>
 
-    <div class="wd-mode-tabs" role="tablist" aria-label="Choose action">
+    <div class="wd-mode-tabs wd-mode-tabs--three" role="tablist" aria-label="Choose action">
       <button type="button" class="wd-mode-tab is-active" id="modeCashBtn" data-mode="cash" role="tab" aria-selected="true">
-        <i class="fas fa-money-bill-wave"></i> Cash withdraw
+        <i class="fas fa-money-bill-wave"></i> Cash out
       </button>
       <button type="button" class="wd-mode-tab" id="modeExchangeBtn" data-mode="exchange" role="tab" aria-selected="false">
-        <i class="fas fa-sync-alt"></i> Exchange to coins
+        <i class="fas fa-sync-alt"></i> Exchange
+      </button>
+      <button type="button" class="wd-mode-tab" id="modeTransferBtn" data-mode="transfer" role="tab" aria-selected="false">
+        <i class="fas fa-paper-plane"></i> Transfer
       </button>
     </div>
 
@@ -46,6 +49,16 @@
         <li>You instantly get NR coins in your wallet (70% rate)</li>
         <li>Use coins for gifts, live, and top-ups — no admin approval needed</li>
       </ol>
+    </div>
+
+    <div class="wd-flow-help wd-transfer-intro" id="transferHelp" hidden>
+      You can transfer your points to your <strong>Agency</strong> or any <strong>Coin Seller</strong> you trust.
+      Service charge: <strong id="transferFeePctLabel">3%</strong>
+    </div>
+
+    <div class="wd-alert-banner wd-transfer-warn" id="transferWarnBanner" hidden>
+      <i class="fas fa-exclamation-circle"></i>
+      <span>Confirm details before transacting. The platform isn't liable for disputes.</span>
     </div>
 
     <div class="wd-steps" id="cashSteps" aria-label="Withdrawal steps">
@@ -77,12 +90,51 @@
       </div>
     </div>
 
-    <div class="wd-card">
-      <h3>Amount</h3>
+    <div class="wd-card" id="amountCard">
+      <h3 id="amountCardTitle">Amount</h3>
       <input type="number" class="wd-amount-input" id="withdrawAmount" placeholder="100000" min="100000" step="100000" inputmode="numeric">
       <p class="wd-hint">Available: <strong id="withdrawableHint">0</strong> points</p>
       <p class="wd-hint" id="payoutEstimate">Payout estimate: —</p>
       <p class="wd-hint" id="exchangeEstimate" hidden>You receive: — NR coins</p>
+    </div>
+
+    <div class="wd-card wd-transfer-panel" id="transferPanel" hidden>
+      <div class="wd-transfer-row-head">
+        <h3>Coinseller ID</h3>
+        <button type="button" class="wd-link-btn" id="transferHistoryBtn">History</button>
+      </div>
+      <div class="wd-transfer-id-row">
+        <input type="text" class="wd-text-input" id="transferRecipientId" placeholder="Please input the user id" inputmode="numeric" autocomplete="off">
+        <button type="button" class="wd-check-btn" id="transferCheckBtn">Check</button>
+      </div>
+      <div class="wd-recipient-card" id="transferRecipientCard" hidden>
+        <img id="transferRecipientAvatar" alt="" hidden>
+        <div>
+          <strong id="transferRecipientName">—</strong>
+          <span id="transferRecipientMeta">—</span>
+        </div>
+      </div>
+
+      <h3 class="wd-transfer-amount-title">Transfer</h3>
+      <div class="wd-transfer-amount-row">
+        <span class="wd-bean-icon" aria-hidden="true">🫘</span>
+        <input type="number" class="wd-amount-input wd-amount-input--plain" id="transferAmount" placeholder="please enter a multiple of 100000" min="100000" step="100000" inputmode="numeric">
+      </div>
+      <div class="wd-transfer-calc">
+        <div class="wd-transfer-calc-row">
+          <span>Service fee</span>
+          <span><span class="wd-bean-icon" aria-hidden="true">🫘</span> <strong id="transferFeeDisplay">—</strong></span>
+        </div>
+        <div class="wd-transfer-calc-row">
+          <span>Received</span>
+          <span><span class="wd-bean-icon" aria-hidden="true">🫘</span> <strong id="transferNetDisplay">—</strong></span>
+        </div>
+      </div>
+      <p class="wd-hint" id="transferDailyHint">Daily transfer times: 5</p>
+      <div class="wd-transfer-history" id="transferHistoryPanel" hidden>
+        <h4>Recent transfers</h4>
+        <ul id="transferHistoryList"></ul>
+      </div>
     </div>
 
     <div class="wd-card wd-card-qr" id="cashQrCard">
@@ -135,6 +187,9 @@
       <button type="button" class="wd-btn-primary" id="submitExchange" hidden disabled style="display:none">
         <i class="fas fa-sync-alt"></i> Exchange to coins
       </button>
+      <button type="button" class="wd-btn-primary wd-btn-transfer" id="submitTransfer" hidden disabled style="display:none">
+        Transfer <span class="wd-bean-icon" aria-hidden="true">🫘</span>
+      </button>
       <p class="wd-submit-hint" id="submitHint">Enter amount · upload QR · submit</p>
     </footer>
   </div>
@@ -142,15 +197,21 @@
   <input type="file" id="qrFile" accept="image/jpeg,image/png,image/webp" tabindex="-1" aria-hidden="true">
 
   <script src="app.js"></script>
-  <script src="social-wallet.js?v=20260714-exchange-v2"></script>
+  <script src="social-wallet.js?v=20260814-transfer"></script>
   <script src="auth-guard.js"></script>
   <script src="social-ui.js"></script>
   <script>
     let selectedFile = null;
     let minCoins = 100000;
     let exchangeBlock = 100000;
+    let transferBlock = 100000;
+    let transferFeePct = 3;
+    let transferDailyLimit = 5;
+    let transfersRemainingToday = 5;
     let coinsPer10k = 7000;
     let currentMode = 'cash';
+    let transferRecipient = null;
+    let transferRecipientChecked = false;
     let walletSettings = {
       min_withdrawal_usd: 10,
       min_withdrawal_coins: 100000,
@@ -159,6 +220,9 @@
       inr_per_usd: 94,
       exchange_points_block: 100000,
       exchange_coins_per_10k_points: 7000,
+      points_transfer_block: 100000,
+      points_transfer_service_fee_pct: 3,
+      points_transfer_daily_limit: 5,
     };
     let withdrawable = 0;
 
@@ -169,6 +233,78 @@
     function serviceFeePct() {
       const pct = Number(walletSettings.withdrawal_service_fee_pct);
       return Number.isFinite(pct) && pct >= 0 ? pct : 8;
+    }
+
+    function estimateTransferFee(points) {
+      const pts = Number(points) || 0;
+      if (!pts) return 0;
+      return Math.floor(pts * (transferFeePct / 100));
+    }
+
+    function estimateTransferNet(points) {
+      const pts = Number(points) || 0;
+      if (!pts) return 0;
+      return pts - estimateTransferFee(pts);
+    }
+
+    function formatPoints(n) {
+      return Number(n || 0).toLocaleString();
+    }
+
+    function snapToTransferBlock(raw) {
+      const n = parseInt(raw, 10);
+      if (!n || n < transferBlock) return transferBlock;
+      return Math.floor(n / transferBlock) * transferBlock;
+    }
+
+    function updateTransferCalc() {
+      const amt = parseInt(document.getElementById('transferAmount')?.value, 10);
+      const feeEl = document.getElementById('transferFeeDisplay');
+      const netEl = document.getElementById('transferNetDisplay');
+      if (!feeEl || !netEl) return;
+      if (!amt) {
+        feeEl.textContent = '—';
+        netEl.textContent = '—';
+        return;
+      }
+      if (amt % transferBlock !== 0) {
+        feeEl.textContent = '—';
+        netEl.textContent = '—';
+        return;
+      }
+      feeEl.textContent = formatPoints(estimateTransferFee(amt));
+      netEl.textContent = formatPoints(estimateTransferNet(amt));
+    }
+
+    function showTransferRecipient(user) {
+      transferRecipient = user;
+      transferRecipientChecked = true;
+      const card = document.getElementById('transferRecipientCard');
+      const nameEl = document.getElementById('transferRecipientName');
+      const metaEl = document.getElementById('transferRecipientMeta');
+      const avatar = document.getElementById('transferRecipientAvatar');
+      const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || `User #${user.display_id || ''}`;
+      nameEl.textContent = fullName;
+      const typeLabel = user.recipient_type === 'agency'
+        ? (user.agency_name ? `Agency · ${user.agency_name}` : 'Agency')
+        : 'Coin Seller';
+      metaEl.textContent = `${typeLabel} · ID ${user.display_id || '—'}`;
+      if (user.profile_pic) {
+        avatar.src = SocialWallet.resolveUploadUrl(user.profile_pic);
+        avatar.hidden = false;
+      } else {
+        avatar.hidden = true;
+        avatar.removeAttribute('src');
+      }
+      card.hidden = false;
+      updateSubmitState();
+    }
+
+    function clearTransferRecipient() {
+      transferRecipient = null;
+      transferRecipientChecked = false;
+      document.getElementById('transferRecipientCard').hidden = true;
+      updateSubmitState();
     }
 
     function estimatePayout(points) {
@@ -203,6 +339,10 @@
     }
 
     function updatePayoutEstimate() {
+      if (currentMode === 'transfer') {
+        updateTransferCalc();
+        return;
+      }
       const amt = parseInt(document.getElementById('withdrawAmount').value, 10);
       const cashEl = document.getElementById('payoutEstimate');
       const exEl = document.getElementById('exchangeEstimate');
@@ -233,10 +373,26 @@
 
     function amountValidForMode(amt) {
       if (!amt || amt > withdrawable) return false;
+      if (currentMode === 'transfer') {
+        return (
+          transferRecipientChecked &&
+          transferRecipient &&
+          transfersRemainingToday > 0 &&
+          amt >= transferBlock &&
+          amt % transferBlock === 0
+        );
+      }
       if (currentMode === 'exchange') {
         return amt >= exchangeBlock && amt % exchangeBlock === 0;
       }
       return amt >= minCoins;
+    }
+
+    function getActiveAmount() {
+      if (currentMode === 'transfer') {
+        return parseInt(document.getElementById('transferAmount')?.value, 10);
+      }
+      return parseInt(document.getElementById('withdrawAmount')?.value, 10);
     }
 
     function updateSteps() {
@@ -270,30 +426,67 @@
       }
     }
 
-    function setFooterMode(isExchange) {
+    function setFooterMode(mode) {
       const cashBtn = document.getElementById('submitWithdraw');
       const cashInline = document.getElementById('submitWithdrawInline');
       const exBtn = document.getElementById('submitExchange');
-      if (isExchange) {
-        if (cashBtn) { cashBtn.hidden = true; cashBtn.style.display = 'none'; }
-        if (cashInline) { cashInline.hidden = true; cashInline.style.display = 'none'; }
-        if (exBtn) { exBtn.hidden = false; exBtn.style.display = ''; }
-      } else {
-        if (exBtn) { exBtn.hidden = true; exBtn.style.display = 'none'; }
-        if (cashBtn) { cashBtn.hidden = false; cashBtn.style.display = ''; }
+      const trBtn = document.getElementById('submitTransfer');
+      const isExchange = mode === 'exchange';
+      const isTransfer = mode === 'transfer';
+      if (cashBtn) {
+        cashBtn.hidden = isExchange || isTransfer;
+        cashBtn.style.display = isExchange || isTransfer ? 'none' : '';
+      }
+      if (cashInline) {
+        cashInline.hidden = isExchange || isTransfer || !selectedFile;
+        cashInline.style.display = isExchange || isTransfer || !selectedFile ? 'none' : '';
+      }
+      if (exBtn) {
+        exBtn.hidden = !isExchange;
+        exBtn.style.display = isExchange ? '' : 'none';
+      }
+      if (trBtn) {
+        trBtn.hidden = !isTransfer;
+        trBtn.style.display = isTransfer ? '' : 'none';
       }
     }
 
     function updateSubmitState() {
-      const amt = parseInt(document.getElementById('withdrawAmount').value, 10);
+      const amt = getActiveAmount();
       const amountOk = amountValidForMode(amt);
       const cashBtn = document.getElementById('submitWithdraw');
       const cashInline = document.getElementById('submitWithdrawInline');
       const exBtn = document.getElementById('submitExchange');
+      const trBtn = document.getElementById('submitTransfer');
       const hint = document.getElementById('submitHint');
 
+      if (currentMode === 'transfer') {
+        setFooterMode('transfer');
+        if (trBtn) {
+          trBtn.disabled = !amountOk;
+          trBtn.classList.toggle('is-ready', amountOk);
+        }
+        if (hint) {
+          if (amountOk) {
+            hint.textContent = `Ready — ${formatPoints(amt)} pts → recipient gets ${formatPoints(estimateTransferNet(amt))}`;
+            hint.className = 'wd-submit-hint is-ready';
+          } else {
+            hint.className = 'wd-submit-hint';
+            const missing = [];
+            if (transfersRemainingToday <= 0) missing.push('daily limit reached');
+            if (!transferRecipientChecked) missing.push('check recipient ID');
+            if (withdrawable < transferBlock) missing.push(`need ${formatPoints(transferBlock)}+ points`);
+            else if (!amt) missing.push('enter transfer amount');
+            else if (amt > withdrawable) missing.push('amount too high');
+            else if (amt % transferBlock !== 0) missing.push(`multiples of ${formatPoints(transferBlock)} only (1L, 2L…)`);
+            hint.textContent = missing.length ? missing.join(' · ') : 'Enter transfer details';
+          }
+        }
+        return;
+      }
+
       if (currentMode === 'exchange') {
-        setFooterMode(true);
+        setFooterMode('exchange');
         if (exBtn) {
           exBtn.disabled = !amountOk;
           exBtn.classList.toggle('is-ready', amountOk);
@@ -315,7 +508,7 @@
         return;
       }
 
-      setFooterMode(false);
+      setFooterMode('cash');
       const ready = amountOk && Boolean(selectedFile);
       if (cashBtn) {
         cashBtn.disabled = !ready;
@@ -332,33 +525,58 @@
     }
 
     function setMode(mode) {
-      currentMode = mode === 'exchange' ? 'exchange' : 'cash';
+      currentMode = mode === 'exchange' ? 'exchange' : mode === 'transfer' ? 'transfer' : 'cash';
       document.getElementById('modeCashBtn')?.classList.toggle('is-active', currentMode === 'cash');
       document.getElementById('modeExchangeBtn')?.classList.toggle('is-active', currentMode === 'exchange');
+      document.getElementById('modeTransferBtn')?.classList.toggle('is-active', currentMode === 'transfer');
       document.getElementById('modeCashBtn')?.setAttribute('aria-selected', currentMode === 'cash' ? 'true' : 'false');
       document.getElementById('modeExchangeBtn')?.setAttribute('aria-selected', currentMode === 'exchange' ? 'true' : 'false');
+      document.getElementById('modeTransferBtn')?.setAttribute('aria-selected', currentMode === 'transfer' ? 'true' : 'false');
 
       const isEx = currentMode === 'exchange';
-      document.getElementById('cashHelp').hidden = isEx;
+      const isTr = currentMode === 'transfer';
+      document.getElementById('cashHelp').hidden = isEx || isTr;
       document.getElementById('exchangeHelp').hidden = !isEx;
-      document.getElementById('cashSteps').hidden = isEx;
-      document.getElementById('cashQrCard').hidden = isEx;
-      document.getElementById('cashRulesCard').hidden = isEx;
+      document.getElementById('transferHelp').hidden = !isTr;
+      document.getElementById('transferWarnBanner').hidden = !isTr;
+      document.getElementById('cashSteps').hidden = isEx || isTr;
+      document.getElementById('cashQrCard').hidden = isEx || isTr;
+      document.getElementById('cashRulesCard').hidden = isEx || isTr;
       document.getElementById('exchangeRulesCard').hidden = !isEx;
-      document.getElementById('infoBannerText').textContent = isEx
-        ? 'Exchange converts points to NR coins instantly (70% rate)'
-        : 'Upload your UPI/bank QR — admin pays after review';
+      document.getElementById('amountCard').hidden = isTr;
+      document.getElementById('transferPanel').hidden = !isTr;
+      document.getElementById('withdrawInfoBanner').hidden = isTr;
 
-      const minLabel = isEx ? exchangeBlock : minCoins;
+      if (isTr) {
+        document.getElementById('infoBannerText').textContent =
+          `Transfer points to Agency or Coin Seller (${transferFeePct}% service fee)`;
+      } else {
+        document.getElementById('infoBannerText').textContent = isEx
+          ? 'Exchange converts points to NR coins instantly (70% rate)'
+          : 'Upload your UPI/bank QR — admin pays after review';
+      }
+
+      const minLabel = isTr ? transferBlock : isEx ? exchangeBlock : minCoins;
       document.getElementById('minCoins').textContent = Number(minLabel).toLocaleString();
       const input = document.getElementById('withdrawAmount');
       input.min = String(minLabel);
       input.step = String(isEx ? exchangeBlock : 1);
       input.placeholder = String(minLabel);
-      if (!input.value || Number(input.value) < minLabel) {
+      if (!isTr && (!input.value || Number(input.value) < minLabel)) {
         input.value = withdrawable >= minLabel ? String(minLabel) : '';
       }
-      setFooterMode(isEx);
+
+      const transferInput = document.getElementById('transferAmount');
+      if (isTr && transferInput) {
+        transferInput.min = String(transferBlock);
+        transferInput.step = String(transferBlock);
+        transferInput.placeholder = `please enter a multiple of ${transferBlock}`;
+        if (!transferInput.value || Number(transferInput.value) < transferBlock) {
+          transferInput.value = withdrawable >= transferBlock ? String(transferBlock) : '';
+        }
+      }
+
+      setFooterMode(currentMode);
       updatePayoutEstimate();
       updateSubmitState();
     }
@@ -391,6 +609,10 @@
       walletSettings = { ...walletSettings, ...settings };
       minCoins = settings.min_withdrawal_coins || 100000;
       exchangeBlock = settings.exchange_points_block || 100000;
+      transferBlock = settings.points_transfer_block || 100000;
+      transferFeePct = Number(settings.points_transfer_service_fee_pct);
+      if (!Number.isFinite(transferFeePct) || transferFeePct < 0) transferFeePct = 3;
+      transferDailyLimit = Number(settings.points_transfer_daily_limit) || 5;
       coinsPer10k = settings.exchange_coins_per_10k_points || 7000;
       const ratePts = Number(settings.withdrawal_points_per_usd) || 10000;
       document.getElementById('minCoins').textContent = Number(minCoins).toLocaleString();
@@ -405,6 +627,21 @@
       document.getElementById('ruleExBlock').textContent = `${Number(exchangeBlock).toLocaleString()} points (multiples)`;
       document.getElementById('ruleExRate').textContent =
         `${Number(exchangeBlock).toLocaleString()} points → ${Number(estimateExchange(exchangeBlock)).toLocaleString()} NR coins (${coinsPer10k.toLocaleString()} per 10k)`;
+      document.getElementById('transferFeePctLabel').textContent = `${transferFeePct}%`;
+      document.getElementById('transferDailyHint').textContent =
+        `Daily transfer times: ${transferDailyLimit}`;
+
+      try {
+        const hist = await SocialWallet.listPointsTransfers(5);
+        const meta = hist.meta || {};
+        transfersRemainingToday = meta.remaining_today != null
+          ? meta.remaining_today
+          : Math.max(0, transferDailyLimit - (meta.used_today || 0));
+        document.getElementById('transferDailyHint').textContent =
+          `Daily transfer times: ${transferDailyLimit} (${transfersRemainingToday} left today)`;
+      } catch (_e) {
+        transfersRemainingToday = transferDailyLimit;
+      }
 
       const bal = await SocialWallet.fetchBalance(true);
       withdrawable = bal.star_balance || 0;
@@ -417,10 +654,12 @@
       if (withdrawable < Math.min(minCoins, exchangeBlock) && zeroBanner) zeroBanner.hidden = false;
 
       const params = new URLSearchParams(location.search);
-      setMode(params.get('mode') === 'exchange' ? 'exchange' : 'cash');
+      const modeParam = params.get('mode');
+      setMode(modeParam === 'exchange' ? 'exchange' : modeParam === 'transfer' ? 'transfer' : 'cash');
 
       document.getElementById('modeCashBtn')?.addEventListener('click', () => setMode('cash'));
       document.getElementById('modeExchangeBtn')?.addEventListener('click', () => setMode('exchange'));
+      document.getElementById('modeTransferBtn')?.addEventListener('click', () => setMode('transfer'));
 
       const zone = document.getElementById('qrUploadZone');
       const input = document.getElementById('qrFile');
@@ -447,6 +686,79 @@
       document.getElementById('withdrawAmount').addEventListener('input', () => {
         updatePayoutEstimate();
         updateSubmitState();
+      });
+
+      document.getElementById('transferAmount')?.addEventListener('input', (e) => {
+        const raw = e.target.value;
+        if (raw && parseInt(raw, 10) % transferBlock !== 0) {
+          e.target.setCustomValidity(`Enter round figures only: ${formatPoints(transferBlock)}, ${formatPoints(transferBlock * 2)}…`);
+        } else {
+          e.target.setCustomValidity('');
+        }
+        updateTransferCalc();
+        updateSubmitState();
+      });
+
+      document.getElementById('transferAmount')?.addEventListener('blur', (e) => {
+        const snapped = snapToTransferBlock(e.target.value);
+        if (e.target.value && parseInt(e.target.value, 10) !== snapped) {
+          e.target.value = withdrawable >= snapped ? String(snapped) : '';
+          updateTransferCalc();
+          updateSubmitState();
+        }
+      });
+
+      document.getElementById('transferRecipientId')?.addEventListener('input', () => {
+        clearTransferRecipient();
+      });
+
+      document.getElementById('transferCheckBtn')?.addEventListener('click', async () => {
+        const accountId = document.getElementById('transferRecipientId')?.value?.trim();
+        if (!accountId) {
+          SocialUI?.toast?.('Enter Coinseller / Agency user ID') || alert('Enter recipient ID');
+          return;
+        }
+        const btn = document.getElementById('transferCheckBtn');
+        btn.disabled = true;
+        btn.textContent = '…';
+        try {
+          const res = await SocialWallet.lookupPointsTransferRecipient(accountId);
+          showTransferRecipient(res.data || res);
+          SocialUI?.toast?.('Recipient verified') || null;
+        } catch (e) {
+          clearTransferRecipient();
+          SocialUI?.toast?.(e.message || 'Not found') || alert(e.message || 'Recipient not found');
+        } finally {
+          btn.disabled = false;
+          btn.textContent = 'Check';
+        }
+      });
+
+      document.getElementById('transferHistoryBtn')?.addEventListener('click', async () => {
+        const panel = document.getElementById('transferHistoryPanel');
+        const list = document.getElementById('transferHistoryList');
+        if (!panel || !list) return;
+        if (!panel.hidden) {
+          panel.hidden = true;
+          return;
+        }
+        list.innerHTML = '<li>Loading…</li>';
+        panel.hidden = false;
+        try {
+          const res = await SocialWallet.listPointsTransfers(20);
+          const rows = res.data || [];
+          if (!rows.length) {
+            list.innerHTML = '<li class="wd-empty">No transfers yet</li>';
+            return;
+          }
+          list.innerHTML = rows.map((r) => {
+            const name = `${r.first_name || ''} ${r.last_name || ''}`.trim() || `#${r.display_id || ''}`;
+            const when = r.created_at ? new Date(r.created_at).toLocaleDateString() : '';
+            return `<li><strong>${name}</strong> · ${formatPoints(r.points)} pts · ${when}</li>`;
+          }).join('');
+        } catch (e) {
+          list.innerHTML = `<li class="wd-empty">${e.message || 'Failed to load'}</li>`;
+        }
       });
 
       async function doSubmitWithdraw() {
@@ -513,9 +825,48 @@
         }
       }
 
+      async function doSubmitTransfer() {
+        const amount = parseInt(document.getElementById('transferAmount')?.value, 10);
+        if (!transferRecipient?.id) {
+          SocialUI?.toast?.('Check recipient ID first') || alert('Check recipient ID first');
+          return;
+        }
+        if (!amountValidForMode(amount)) {
+          SocialUI?.toast?.(`Enter multiples of ${formatPoints(transferBlock)} only (1 lakh, 2 lakh…)`) ||
+            alert('Invalid amount');
+          return;
+        }
+        const btn = document.getElementById('submitTransfer');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Transferring…';
+        try {
+          const res = await SocialWallet.transferPoints(transferRecipient.id, amount);
+          withdrawable = res.data?.balance?.star_balance ?? Math.max(0, withdrawable - amount);
+          document.getElementById('withdrawableDisplay').textContent = formatPoints(withdrawable);
+          document.getElementById('withdrawableHint').textContent = formatPoints(withdrawable);
+          transfersRemainingToday = res.data?.transfersRemainingToday ?? Math.max(0, transfersRemainingToday - 1);
+          document.getElementById('transferDailyHint').textContent =
+            `Daily transfer times: ${transferDailyLimit} (${transfersRemainingToday} left today)`;
+          SocialUI?.toast?.(res.message || 'Transfer complete') || alert('Transfer complete');
+          clearTransferRecipient();
+          document.getElementById('transferRecipientId').value = '';
+          document.getElementById('transferAmount').value = withdrawable >= transferBlock ? String(transferBlock) : '';
+          updateTransferCalc();
+          updateSubmitState();
+          btn.disabled = false;
+          btn.innerHTML = 'Transfer <span class="wd-bean-icon" aria-hidden="true">🫘</span>';
+        } catch (e) {
+          SocialUI?.toast?.(e.message) || alert(e.message || 'Transfer failed');
+          btn.disabled = false;
+          btn.innerHTML = 'Transfer <span class="wd-bean-icon" aria-hidden="true">🫘</span>';
+          updateSubmitState();
+        }
+      }
+
       document.getElementById('submitWithdraw').addEventListener('click', doSubmitWithdraw);
       document.getElementById('submitWithdrawInline')?.addEventListener('click', doSubmitWithdraw);
       document.getElementById('submitExchange')?.addEventListener('click', doSubmitExchange);
+      document.getElementById('submitTransfer')?.addEventListener('click', doSubmitTransfer);
     });
   </script>
 </body>

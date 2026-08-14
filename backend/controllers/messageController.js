@@ -186,7 +186,9 @@ exports.sendMessage = async (req, res) => {
         let text = typeof req.body.text === 'string' ? req.body.text : '';
 
         if (req.file) {
-            text = `__IMG__:/uploads/chat/${req.file.filename}`;
+            const prefix =
+                req.file.mimetype && req.file.mimetype.startsWith('video/') ? '__VID__:' : '__IMG__:';
+            text = `${prefix}/uploads/chat/${req.file.filename}`;
         }
 
         text = text.trim();
@@ -302,7 +304,7 @@ exports.getMessages = async (req, res) => {
                 otherLastReadAt: otherReadAt,
                 messages: messages.map((msg) => {
                     const bodyStr = msg.body != null ? String(msg.body) : '';
-                    const { text, imageUrl } = splitMessageBody(bodyStr);
+                    const { text, imageUrl, videoUrl, mediaType } = splitMessageBody(bodyStr);
                     return {
                         id: String(msg.id),
                         conversationId: String(msg.conversation_id),
@@ -311,6 +313,8 @@ exports.getMessages = async (req, res) => {
                         text,
                         body: bodyStr,
                         imageUrl,
+                        videoUrl,
+                        mediaType,
                         createdAt: msg.created_at
                     };
                 })

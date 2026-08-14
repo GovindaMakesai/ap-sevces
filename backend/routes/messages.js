@@ -20,7 +20,7 @@ function sendUploadMiddleware(req, res, next) {
         if (err) {
             return res.status(400).json({
                 success: false,
-                message: err.message || 'Image upload failed'
+                message: err.message || 'Media upload failed'
             });
         }
         next();

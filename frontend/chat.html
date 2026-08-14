@@ -696,6 +696,15 @@
             margin-top: var(--spacing-xs);
         }
 
+        .message-video {
+            display: block;
+            max-width: min(260px, 100%);
+            max-height: 220px;
+            border-radius: var(--radius-lg);
+            margin-top: var(--spacing-xs);
+            background: #000;
+        }
+
         /* File Attachments */
         .file-attachment {
             display: flex;
@@ -1418,7 +1427,7 @@
                                     <button class="chat-input-action attach-btn" onclick="triggerFileUpload()">
                                         <i class="fas fa-paperclip"></i>
                                     </button>
-                                    <input type="file" id="fileUpload" style="display: none;" multiple onchange="handleFileUpload(this)">
+                                    <input type="file" id="fileUpload" accept="image/*,video/*" style="display: none;" multiple onchange="handleFileUpload(this)">
                                 </div>
                                 <textarea 
                                     id="messageInput" 
@@ -2171,6 +2180,7 @@
             const raw = String(text || '').trim();
             if (!raw) return 'No messages yet';
             if (raw.startsWith('__IMG__:')) return '📷 Photo';
+            if (raw.startsWith('__VID__:')) return '🎬 Video';
             if (raw.includes('__AGENCY_HOST_INVITE__:')) return 'Agency host invite';
             if (raw.includes('__AGENCY_NETWORK_INVITE__:')) return 'Agency invite';
             if (raw.includes('__BECOME_AGENCY_REQUEST__:')) return 'Become Agency request';
@@ -2709,11 +2719,17 @@
             const me = getMyUserId();
             let rawText = messageTextFromServer(msg);
             let imagePath = msg.imageUrl || msg.image || null;
+            let videoPath = msg.videoUrl || msg.video || null;
             if (!imagePath && rawText.startsWith('__IMG__:')) {
                 imagePath = rawText.slice('__IMG__:'.length);
                 rawText = '';
             }
+            if (!videoPath && rawText.startsWith('__VID__:')) {
+                videoPath = rawText.slice('__VID__:'.length);
+                rawText = '';
+            }
             const image = imagePath ? absoluteUploadUrl(imagePath) : null;
+            const video = videoPath ? absoluteUploadUrl(videoPath) : null;
             const type = String(msg.senderId || '').toLowerCase() === me ? 'sent' : 'received';
             const status = type === 'sent' ? deriveMessageStatus({ type, status: msg.status, createdAt: msg.createdAt }, readAtIso) : 'read';
             return {
@@ -2721,6 +2737,7 @@
                 type,
                 text: rawText,
                 image,
+                video,
                 status,
                 time: formatTime(msg.createdAt),
                 createdAt: msg.createdAt
@@ -2728,7 +2745,7 @@
         }
 
         function renderMessageStatusIcon(msg) {
-            if (msg.type !== 'sent' || (!msg.text && !msg.image)) return '';
+            if (msg.type !== 'sent' || (!msg.text && !msg.image && !msg.video)) return '';
             if (msg.status === 'sending') return '<i class="fas fa-clock sending"></i>';
             if (msg.status === 'failed') return '<i class="fas fa-exclamation-circle failed"></i>';
             if (msg.status === 'read') return '<i class="fas fa-check-double read"></i>';
@@ -3570,7 +3587,7 @@
                     content.appendChild(buildRoomInviteCard(roomInvite));
                 } else if (bodyText) {
                     content.textContent = bodyText;
-                } else if (!msg.image) {
+                } else if (!msg.image && !msg.video) {
                     const ph = document.createElement('span');
                     ph.className = 'msg-empty-placeholder';
                     ph.textContent = 'Message unavailable';
@@ -3584,6 +3601,15 @@
                     img.src = msg.image;
                     img.addEventListener('click', () => openImageModal(msg.image));
                     content.appendChild(img);
+                }
+                if (msg.video) {
+                    const vid = document.createElement('video');
+                    vid.className = 'message-video';
+                    vid.controls = true;
+                    vid.playsInline = true;
+                    vid.preload = 'metadata';
+                    vid.src = msg.video;
+                    content.appendChild(vid);
                 }
                 bubble.appendChild(content);
                 const moreBtn = document.createElement('button');
@@ -3672,7 +3698,7 @@
                       </div>`
                     : bodyText
                     ? escapeHtml(bodyText)
-                    : (msg.image ? '' : '<span class="msg-empty-placeholder">Message unavailable</span>');
+                    : (msg.image || msg.video ? '' : '<span class="msg-empty-placeholder">Message unavailable</span>');
                 const bubbleType = msg.type === 'sent' ? 'sent' : 'received';
                 const peerName = currentChatPeer?.name || 'User';
                 const peerInitials = initialsFromName(peerName.split(' ')[0], peerName.split(' ').slice(1).join(' '));
@@ -3689,6 +3715,7 @@
                             <div class="message-content">
                                 ${bodyHtml}
                                 ${msg.image ? `<img src="${escapeAttr(msg.image)}" class="message-image" alt="Photo" loading="lazy" onclick='openImageModal(${JSON.stringify(msg.image)})'>` : ''}
+                                ${msg.video ? `<video src="${escapeAttr(msg.video)}" class="message-video" controls playsinline preload="metadata"></video>` : ''}
                             </div>
                             <button type="button" class="message-more-btn" aria-label="Message options"><i class="fas fa-ellipsis-v" aria-hidden="true"></i></button>
                             <div class="message-time">
@@ -4047,7 +4074,9 @@
                         body: payload.body,
                         message: payload.message,
                         imageUrl: payload.imageUrl,
+                        videoUrl: payload.videoUrl,
                         image: payload.image,
+                        video: payload.video,
                         status: isMine ? 'sent' : undefined,
                     }, otherLastReadAt);
                     if (localIdx >= 0) {
@@ -4202,8 +4231,18 @@
             const auth = getChatToken() ? { Authorization: `Bearer ${getChatToken()}` } : {};
 
             for (const file of Array.from(files)) {
-                if (!file.type.startsWith('image/')) {
-                    Toast.show('Only image files can be sent in chat', 'warning');
+                const isImage = file.type.startsWith('image/');
+                const isVideo = file.type.startsWith('video/');
+                if (!isImage && !isVideo) {
+                    Toast.show('Only photos and videos can be sent in chat', 'warning');
+                    continue;
+                }
+                if (isImage && file.size > 5 * 1024 * 1024) {
+                    Toast.show('Photos must be under 5 MB', 'warning');
+                    continue;
+                }
+                if (isVideo && file.size > 40 * 1024 * 1024) {
+                    Toast.show('Videos must be under 40 MB', 'warning');
                     continue;
                 }
                 const fd = new FormData();
@@ -4214,7 +4253,7 @@
                     await loadMessages(currentChatId);
                     await loadConversations();
                 } catch (e) {
-                    Toast.show(e?.response?.data?.message || e.message || 'Failed to send image', 'error');
+                    Toast.show(e?.response?.data?.message || e.message || 'Failed to send media', 'error');
                 }
             }
 

@@ -31,6 +31,12 @@ function sanitizeChannel(raw) {
     .slice(0, 64);
 }
 
+function sanitizeChatMediaUrl(raw) {
+  const url = String(raw || '').trim();
+  if (!/^\/uploads\/chat\/[\w.-]+$/i.test(url)) return null;
+  return url;
+}
+
 async function isRoomHost(socket, channel) {
   return liveRoomService.isRoomOwner(channel, socket.userId);
 }
@@ -574,7 +580,8 @@ function registerLiveSocket(io) {
           .replace(/<[^>]*>/g, '')
           .trim()
           .slice(0, 280);
-        if (!text) {
+        const imageUrl = sanitizeChatMediaUrl(payload?.imageUrl);
+        if (!text && !imageUrl) {
           if (ack) ack({ ok: false, message: 'Empty message' });
           return;
         }
@@ -583,6 +590,7 @@ function registerLiveSocket(io) {
         const isMod = await isRoomModerator(socket, channel);
 
         /* Auto-moderate abusive / sexual language — applies to everyone including hosts */
+        if (text) {
         const scan = chatModerationService.scanMessage(text);
         if (scan.blocked) {
           /* Hosts/admins: block the message only (never mute/kick themselves out of their room) */
@@ -672,11 +680,13 @@ function registerLiveSocket(io) {
           }
           return;
         }
+        }
 
         const profilePic = await liveRoomService.getMemberProfilePic(socket.userId);
         const eventId = await liveRoomService.logChatEvent(room.id, socket.userId, {
           user: displayName,
           text,
+          imageUrl,
           lvl: payload?.lvl || 1,
           profilePic,
         });
@@ -690,6 +700,7 @@ function registerLiveSocket(io) {
           role: socket.userRole || null,
           lvl: payload?.lvl || 1,
           text,
+          imageUrl,
           at: Date.now(),
         };
 
@@ -1308,6 +1319,10 @@ function registerLiveSocket(io) {
         }
         const style = await liveRoomService.setRoomStyle(channel, {
           backgroundId: payload?.backgroundId,
+          micCount: payload?.micCount,
+          announcement: payload?.announcement,
+          gameType: payload?.gameType,
+          applyMode: payload?.applyMode,
         });
         io.to(`live:${channel}`).emit('live:room_style', style);
         if (ack) ack({ ok: true, data: style });

@@ -200,6 +200,14 @@ async function sendGift({
 
     await client.query('COMMIT');
 
+    try {
+      const cpService = require('./cpService');
+      const coinAmt = Number(amount);
+      if (coinAmt > 0) {
+        await cpService.addSupportPoints(senderId, receiverId, Math.floor(coinAmt / 10));
+      }
+    } catch (_cp) { /* non-fatal */ }
+
     const giftRow = {
       ...gift.rows[0],
       platform_fee: String(platformShare),

@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#38bdf8">
+  <title>Level - AP Services</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    body { margin: 0; font-family: system-ui, sans-serif; background: #f8fafc; }
+    .lvl-header {
+      background: linear-gradient(180deg, #38bdf8, #0ea5e9);
+      color: #fff; padding: calc(12px + env(safe-area-inset-top)) 16px 24px;
+    }
+    .lvl-top { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+    .lvl-top button { border: none; background: none; color: #fff; font-size: 18px; }
+    .lvl-tabs { display: flex; gap: 20px; justify-content: center; }
+    .lvl-tabs button {
+      border: none; background: none; color: rgba(255,255,255,0.65); font-size: 15px; padding: 8px 0;
+      border-bottom: 2px solid transparent;
+    }
+    .lvl-tabs button.active { color: #fff; border-bottom-color: #fff; font-weight: 700; }
+    .lvl-hero { text-align: center; padding: 8px 0 0; }
+    .lvl-hero img { width: 72px; height: 72px; border-radius: 50%; border: 3px solid #fff; object-fit: cover; }
+    .lvl-badge {
+      display: inline-block; margin-top: -14px; padding: 4px 12px; border-radius: 8px;
+      background: linear-gradient(135deg, #2563eb, #1d4ed8); font-weight: 800; font-size: 13px;
+      transform: rotate(-6deg);
+    }
+    .lvl-bar-wrap { padding: 16px; }
+    .lvl-bar { height: 8px; background: rgba(255,255,255,0.35); border-radius: 999px; overflow: hidden; }
+    .lvl-bar i { display: block; height: 100%; background: #fbbf24; border-radius: 999px; }
+    .lvl-bar-labels { display: flex; justify-content: space-between; font-size: 12px; margin-top: 6px; opacity: 0.9; }
+    .lvl-card { background: #fff; margin: 12px; border-radius: 16px; padding: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
+    .lvl-card h3 { margin: 0 0 12px; font-size: 16px; }
+    .lvl-benefit { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
+    .lvl-benefit .ico {
+      width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px;
+    }
+    .lvl-way { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+    .room-header { background: linear-gradient(180deg, #a855f7, #7c3aed); }
+  </style>
+</head>
+<body>
+  <div class="lvl-header" id="lvlHeader">
+    <div class="lvl-top">
+      <button type="button" onclick="history.back()"><i class="fas fa-chevron-left"></i></button>
+      <div class="lvl-tabs" style="flex:1">
+        <button type="button" class="active" data-tab="personal">Personal Level</button>
+        <button type="button" data-tab="room">Room Level</button>
+      </div>
+      <span style="width:24px"></span>
+    </div>
+    <div class="lvl-hero">
+      <img id="lvlAvatar" src="" alt="">
+      <div><span class="lvl-badge" id="lvlBadge">Lv.1</span></div>
+    </div>
+    <div class="lvl-bar-wrap">
+      <div class="lvl-bar"><i id="lvlBarFill" style="width:0%"></i></div>
+      <div class="lvl-bar-labels">
+        <span id="lvlCur">Lv.1</span>
+        <span id="lvlExp">0/1000 EXP</span>
+        <span id="lvlNext">Lv.2</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="lvl-card" id="panelPersonal">
+    <h3>Benefits of Level</h3>
+    <div class="lvl-benefit"><div class="ico" style="background:#fce7f3">👑</div><div><strong>Headwear</strong><br><small>Reach Lv.1</small></div></div>
+    <div class="lvl-benefit"><div class="ico" style="background:#fef3c7">🏠</div><div><strong>Create a room</strong><br><small>Reach Lv.2</small></div></div>
+    <div class="lvl-benefit"><div class="ico" style="background:#dbeafe">🖼️</div><div><strong>Unlimited photo</strong><br><small>Reach Lv.5</small></div></div>
+    <h3 style="margin-top:16px">Ways to level up</h3>
+    <div class="lvl-way"><span>Send gift (25 coins = 1 EXP)</span><span id="giftExp">—</span></div>
+    <div class="lvl-way"><span>Stay in room (5 min = 10 EXP)</span><span>20/300</span></div>
+    <div class="lvl-way"><span>Buy Store goods</span><span>0</span></div>
+  </div>
+
+  <div class="lvl-card" id="panelRoom" hidden>
+    <h3>Benefits of Room Level</h3>
+    <div class="lvl-benefit"><div class="ico" style="background:#fce7f3">🔒</div><div><strong>Use room password</strong><br><small>Reach Lv.1</small></div></div>
+    <div class="lvl-benefit"><div class="ico" style="background:#e5e7eb">👤</div><div><strong>Admin up to 2</strong><br><small>Reach Lv.2</small></div></div>
+    <div class="lvl-benefit"><div class="ico" style="background:#dbeafe">🛋️</div><div><strong>Unlock 10 room mic</strong><br><small>Reach Lv.5</small></div></div>
+    <div class="lvl-benefit"><div class="ico" style="background:#d1fae5">🎨</div><div><strong>Use room theme</strong><br><small>Reach Lv.9</small></div></div>
+    <h3 style="margin-top:16px">Ways to level up</h3>
+    <div class="lvl-way"><span>Stay on mic (10 min = 20 EXP)</span><span>0/6000</span></div>
+    <div class="lvl-way"><span>Send gift (10 coins = 1 EXP)</span><span id="roomGiftExp">—</span></div>
+  </div>
+
+  <script src="app.js"></script>
+  <script>
+    let tab = 'personal';
+    async function loadLevel() {
+      const token = localStorage.getItem('token');
+      const path = tab === 'room' ? '/levels/room' : '/levels/personal';
+      const res = await fetch(joinApiUrl('/cp' + path), {
+        headers: token ? { Authorization: 'Bearer ' + token } : {},
+        credentials: 'include',
+      });
+      const json = await res.json();
+      const d = json.data || {};
+      document.getElementById('lvlBadge').textContent = 'Lv.' + d.level;
+      document.getElementById('lvlCur').textContent = 'Lv.' + d.level;
+      document.getElementById('lvlNext').textContent = 'Lv.' + (d.level + 1);
+      document.getElementById('lvlExp').textContent = `${d.progress || 0}/${d.nextLevelExp || 1000} EXP`;
+      const pct = d.nextLevelExp ? Math.min(100, (d.progress / d.nextLevelExp) * 100) : 0;
+      document.getElementById('lvlBarFill').style.width = pct + '%';
+      document.getElementById('giftExp').textContent = String(d.exp || 0);
+      document.getElementById('roomGiftExp').textContent = String(d.exp || 0);
+    }
+    document.querySelectorAll('.lvl-tabs button').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        tab = btn.dataset.tab;
+        document.querySelectorAll('.lvl-tabs button').forEach((b) => b.classList.toggle('active', b === btn));
+        document.getElementById('lvlHeader').classList.toggle('room-header', tab === 'room');
+        document.getElementById('panelPersonal').hidden = tab !== 'personal';
+        document.getElementById('panelRoom').hidden = tab !== 'room';
+        loadLevel();
+      });
+    });
+    document.addEventListener('DOMContentLoaded', loadLevel);
+  </script>
+</body>
+</html>

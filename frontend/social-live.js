@@ -56,6 +56,13 @@
     '\u{1F917}', '\u{1F618}', '\u{1F48B}', '\u{1F970}', '\u{1F495}', '\u{1FAF6}', '\u{1F60D}', '\u2764\uFE0F',
   ];
   const PARTY_BACKGROUNDS = [
+    {
+      id: 'lakeside',
+      label: 'Lakeside',
+      premium: false,
+      css:
+        'linear-gradient(180deg, rgba(8,12,28,0.2), rgba(8,12,28,0.45)), url("https://images.unsplash.com/photo-1478131143081-801f4ae78442?auto=format&fit=crop&w=1200&q=80") center/cover no-repeat',
+    },
     { id: 'cosmic', label: 'Cosmic', premium: false, css: 'radial-gradient(ellipse at 30% 20%, #4c1d95 0%, #1e1033 45%, #0a0612 100%)' },
     { id: 'neon', label: 'Neon', premium: false, css: 'linear-gradient(160deg, #0f172a 0%, #581c87 40%, #be185d 100%)' },
     { id: 'sunset', label: 'Sunset', premium: false, css: 'linear-gradient(180deg, #7c2d12 0%, #c2410c 35%, #1c1917 100%)' },
@@ -67,6 +74,25 @@
     { id: 'aurora', label: 'Aurora', premium: true, css: 'linear-gradient(135deg, #064e3b 0%, #7c3aed 50%, #0f172a 100%)' },
     { id: 'royal', label: 'Royal', premium: true, css: 'linear-gradient(160deg, #4a044e 0%, #7e22ce 40%, #1e1b4b 100%)' },
   ];
+  const PARTY_GAME_TYPES = [
+    { id: 'none', label: 'None', emoji: '⬜' },
+    { id: 'jungle', label: 'Krazy Jungle', emoji: '🦁', game: '/games/crazy-fruit.html' },
+    { id: 'circus', label: 'Krazy Circus', emoji: '🎪', game: '/games/greedy.html' },
+    { id: 'battle', label: 'Royal Battle', emoji: '🃏', game: '/games/teen-patti.html' },
+    { id: 'ocean', label: 'Ocean Slot', emoji: '🐠', game: '/games/greedy.html' },
+    { id: 'khazana', label: 'Khazana', emoji: '💎', game: '/games/greedy.html' },
+    { id: 'panda', label: 'Jungle Delight', emoji: '🐼', game: '/games/crazy-fruit.html' },
+    { id: 'candy', label: 'Candy Slot', emoji: '🍭', game: '/games/greedy.html' },
+    { id: 'magic', label: 'Magic Slot', emoji: '🧙', game: '/games/greedy.html' },
+    { id: 'halloween', label: 'Halloween Slot', emoji: '🎃', game: '/games/greedy.html' },
+    { id: 'football', label: 'Football Slot', emoji: '⚽', game: '/games/greedy.html' },
+    { id: 'christmas', label: 'Christmas Slot', emoji: '🎅', game: '/games/greedy.html' },
+    { id: 'scratch', label: 'Scratch Card', emoji: '🎫', game: '/games/greedy.html' },
+    { id: 'kards', label: 'Krazy Kards', emoji: '🐘', game: '/games/teen-patti.html' },
+    { id: 'shark', label: 'Shark Tank', emoji: '🦈', game: '/games/greedy.html' },
+    { id: 'ludo', label: 'Ludo', emoji: '🎲', game: '/games/greedy.html' },
+  ];
+  let partySeatMenuCtx = null;
   let quickChipsExpanded = false;
   let chatRegionFilter = 'room';
   let sessionGiftCoins = 0;
@@ -5016,6 +5042,10 @@
       toast('Only the host can edit live name and picture', 'warning');
       return;
     }
+    if (isPartyRoomPage()) {
+      openPartyEditInfoModal();
+      return;
+    }
     const currentName = roomState?.hostName || displayName(currentUser());
     const nextName = window.prompt('Live stream name (does not change your profile name):', currentName);
     if (nextName == null) return;
@@ -6407,8 +6437,10 @@
 
       liveSocket.on('live:room_style', (payload) => {
         if (!roomState) return;
-        roomState.roomStyle = payload || roomState.roomStyle;
+        roomState.roomStyle = { ...(roomState.roomStyle || {}), ...(payload || {}) };
         applyRoomBackground(payload?.backgroundId || roomState.roomStyle?.backgroundId);
+        syncPartyAnnouncement();
+        if (isPartyRoomPage()) renderPartySeats(roomState?.hostName);
       });
 
       liveSocket.on('live:room_lock', (payload) => {
@@ -10582,7 +10614,7 @@
     }
     const atMs = msg?.at ? new Date(msg.at).getTime() : Number(msg?.at) || 0;
     const bucket = atMs ? Math.floor(atMs / 8000) : 0;
-    return `${msg?.type || 'chat'}|${msg?.userId || msg?.user || ''}|${String(msg?.text || '').trim()}|${bucket}`;
+    return `${msg?.type || 'chat'}|${msg?.userId || msg?.user || ''}|${String(msg?.text || '').trim()}|${msg?.imageUrl || ''}|${bucket}`;
   }
 
   function findExistingGiftMessage(msg) {
@@ -10653,6 +10685,7 @@
         (m) =>
           String(m.id || '').startsWith('local-') &&
           m.text === msg.text &&
+          (m.imageUrl || '') === (msg.imageUrl || '') &&
           (m.user === msg.user || String(m.userId) === String(msg.userId))
       );
       if (pendingIdx >= 0) chatMessages.splice(pendingIdx, 1);
@@ -10842,7 +10875,11 @@
           `<span class="user${admin ? ' is-admin-name' : ''}">${escapeHtml(msg.user)}</span></button>` +
           `${canModerateRoom() ? `<button type="button" class="party-chat-mod-btn" aria-label="Moderate message" data-msg-id="${escapeAttr(String(msg.id || ''))}"><i class="fas fa-ellipsis-v" aria-hidden="true"></i></button>` : ''}` +
           `</div>` +
-          `<span class="party-chat-text">${escapeHtml(msg.text)}</span></div>`;
+          (msg.text ? `<span class="party-chat-text">${escapeHtml(msg.text)}</span>` : '') +
+          (msg.imageUrl
+            ? `<div class="party-chat-media"><img src="${escapeAttr(resolveMediaUrl(msg.imageUrl))}" alt="Photo" class="party-chat-image" loading="lazy" decoding="async"></div>`
+            : '') +
+          `</div>`;
         const img = div.querySelector('.party-chat-avatar-btn img');
         if (img) {
           img.onerror = () => {
@@ -10915,9 +10952,10 @@
 
   function renderSeatButton(s, seatNum, tierCls) {
     if (!s || s.empty) {
+      const emptyLabel = isPartyRoomPage() ? `No.${seatNum}` : 'Open';
       return `<button type="button" class="party-seat is-empty ${tierCls}" data-join-seat data-seat-num="${seatNum}">
         <div class="seat-avatar seat-avatar--empty"><span class="seat-num">${seatNum}</span><span class="seat-plus">+</span></div>
-        <span class="seat-name">Open</span></button>`;
+        <span class="seat-name">${emptyLabel}</span></button>`;
     }
     const hostCls = s.host ? ' is-host' : '';
     const speaking = s.speaking ? ' is-speaking' : '';
@@ -11013,21 +11051,22 @@
       return true;
     });
 
-    const slots = new Array(PARTY_MAX_SEATS).fill(null);
-    slots[PARTY_HOST_SLOT] = host;
+    const maxSeats = partyMaxSeats();
+    const slots = new Array(maxSeats).fill(null);
+    slots[PARTY_HOST_SLOT - 1] = host;
     const unplaced = [];
     guests.forEach((g) => {
       const idx =
         g.seatIndex != null ? Number(g.seatIndex) - 1 : g.seat_index != null ? Number(g.seat_index) - 1 : -1;
-      if (idx >= 0 && idx < PARTY_MAX_SEATS && idx !== PARTY_HOST_SLOT && !slots[idx]) {
+      if (idx >= 0 && idx < maxSeats && idx !== PARTY_HOST_SLOT - 1 && !slots[idx]) {
         slots[idx] = { ...g, host: false };
       } else {
         unplaced.push({ ...g, host: false });
       }
     });
     let guestIdx = 0;
-    for (let i = 0; i < PARTY_MAX_SEATS; i += 1) {
-      if (i === PARTY_HOST_SLOT || slots[i]) continue;
+    for (let i = 0; i < maxSeats; i += 1) {
+      if (i === PARTY_HOST_SLOT - 1 || slots[i]) continue;
       const next = unplaced[guestIdx];
       if (next) {
         slots[i] = next;
@@ -11037,26 +11076,12 @@
       }
     }
 
-    const tiers = [
-      { cls: 'seat-tier-lg', indices: [0, 1, 2] },
-      { cls: 'seat-tier-md', indices: [3, 4, 5] },
-      { cls: 'seat-tier-md', indices: [6, 7, 8] },
-      { cls: 'seat-tier-sm', indices: [9, 10, 11] },
-      { cls: 'seat-tier-sm', indices: [12, 13, 14] },
-    ];
-
-    const rowClass = [
-      'party-seat-row--lg',
-      'party-seat-row--md',
-      'party-seat-row--md',
-      'party-seat-row--sm',
-      'party-seat-row--sm',
-    ];
+    const tiers = getPartySeatLayout(maxSeats);
 
     container.innerHTML = tiers
       .map(
-        (tier, rowI) => `
-      <div class="party-seat-row ${rowClass[rowI]}">
+        (tier) => `
+      <div class="party-seat-row ${tier.row || 'party-seat-row--md'}">
         ${tier.indices.map((idx) => renderSeatButton(slots[idx], idx + 1, tier.cls)).join('')}
       </div>`
       )
@@ -11069,15 +11094,31 @@
         const uid = btn.dataset.userId || '';
         const seatNum = Number(btn.dataset.seat) || 0;
         if (canModerateRoom() && uid && !btn.classList.contains('is-host')) {
-          openModerationMenu(name, uid, seatNum);
+          if (isPartyRoomPage()) openPartySeatMenu(btn, { name, uid, seatNum });
+          else openModerationMenu(name, uid, seatNum);
           return;
         }
         if (canModerateRoom() && btn.classList.contains('is-empty')) {
-          openAvailableUsersForSeat(seatNum);
+          if (isPartyRoomPage()) openPartySeatMenu(btn, { name: '', uid: '', seatNum, empty: true });
+          else openAvailableUsersForSeat(seatNum);
           return;
         }
         openProfileSheet(name, uid);
       });
+      if (isPartyRoomPage() && canModerateRoom()) {
+        btn.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          const name = btn.dataset.user || '';
+          const uid = btn.dataset.userId || '';
+          const seatNum = Number(btn.dataset.seat) || 0;
+          openPartySeatMenu(btn, {
+            name,
+            uid,
+            seatNum,
+            empty: btn.classList.contains('is-empty'),
+          });
+        });
+      }
     });
     container.querySelectorAll('[data-join-seat]').forEach((btn) => {
       btn.addEventListener('click', (e) => {
@@ -11253,6 +11294,7 @@
     syncHostBarUi();
     syncJoinRequestsFromState();
     if (roomState?.roomStyle?.backgroundId) applyRoomBackground(roomState.roomStyle.backgroundId);
+    syncPartyAnnouncement();
     bindRoomAvatars();
   }
 
@@ -12648,16 +12690,64 @@
     return base ? `${base}${u.startsWith('/') ? '' : '/'}${u}` : u;
   }
 
+  function partyMaxSeats() {
+    if (!isPartyRoomPage()) return PARTY_MAX_SEATS;
+    const n = Number(roomState?.roomStyle?.micCount) || 15;
+    return Math.max(5, Math.min(30, n));
+  }
+
+  function getPartySeatLayout(count) {
+    const n = Math.max(5, Math.min(30, Number(count) || 15));
+    const all = Array.from({ length: n }, (_, i) => i);
+    if (n <= 5) {
+      return [
+        { cls: 'seat-tier-lg', row: 'party-seat-row--lg', indices: [0] },
+        { cls: 'seat-tier-md', row: 'party-seat-row--md', indices: all.slice(1) },
+      ];
+    }
+    if (n <= 10) {
+      return [
+        { cls: 'seat-tier-lg', row: 'party-seat-row--lg', indices: [0, 1] },
+        { cls: 'seat-tier-md', row: 'party-seat-row--md', indices: [2, 3, 4, 5] },
+        { cls: 'seat-tier-md', row: 'party-seat-row--md', indices: [6, 7, 8, 9] },
+      ];
+    }
+    const perRow = n <= 15 ? 3 : 5;
+    const tiers = [];
+    for (let r = 0; r < Math.ceil(n / perRow); r += 1) {
+      const start = r * perRow;
+      tiers.push({
+        cls: r === 0 ? 'seat-tier-lg' : r < 2 ? 'seat-tier-md' : 'seat-tier-sm',
+        row: r === 0 ? 'party-seat-row--lg' : r < 2 ? 'party-seat-row--md' : 'party-seat-row--sm',
+        indices: all.slice(start, Math.min(start + perRow, n)),
+      });
+    }
+    return tiers;
+  }
+
+  function syncPartyAnnouncement() {
+    if (!isPartyRoomPage()) return;
+    const wrap = document.getElementById('partyAnnouncement');
+    const textEl = document.getElementById('partyAnnouncementText');
+    const profEl = document.getElementById('apPartyProfileAnnouncement');
+    const ann = String(roomState?.roomStyle?.announcement || '').trim();
+    if (textEl) textEl.textContent = ann;
+    if (profEl) profEl.textContent = ann || 'No announcement yet';
+    if (wrap) wrap.classList.toggle('is-empty', !ann);
+  }
+
   function applyRoomBackground(backgroundId) {
     const bg = PARTY_BACKGROUNDS.find((b) => b.id === backgroundId) || PARTY_BACKGROUNDS[0];
+    const refBg = document.getElementById('partyRefBg');
     const floor = document.querySelector('.party-room-grid-floor');
     const roomRoot = document.querySelector('.party-room') || document.querySelector('.live-room');
-    const target = floor || roomRoot;
+    const target = refBg || floor || roomRoot;
     if (target && bg?.css) {
       target.style.background = bg.css;
       target.style.backgroundSize = 'cover';
+      target.style.backgroundPosition = 'center';
     }
-    if (roomRoot && !floor) {
+    if (roomRoot && !floor && !refBg) {
       roomRoot.style.background = bg.css;
     }
   }
@@ -13804,7 +13894,8 @@
         if (e.target.id === 'apSurpriseShop') e.target.classList.remove('open');
       });
     }
-    document.body.classList.add('ap-ref-ui');
+    /* Reference white gift panel + starry chrome — party room only; live-room uses pro dark theme */
+    if (isPartyRoomPage()) document.body.classList.add('ap-ref-ui');
     if (isPartyRoomPage() && qs('pk') === '1') {
       document.body.classList.add('is-pk-mode');
       document.getElementById('apPkOverlay')?.removeAttribute('aria-hidden');
@@ -15685,6 +15776,10 @@
     e?.preventDefault?.();
     e?.stopPropagation?.();
     if (typeof e?.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+    if (isPartyRoomPage() && document.getElementById('apPartyRoomSettings')) {
+      openPartyRoomSettings();
+      return;
+    }
     const now = Date.now();
     if (now < (Number(window.__apToolsOpenBusyUntil) || 0)) return;
     window.__apToolsOpenBusyUntil = now + 700;
@@ -16787,13 +16882,65 @@
   function sendChat(text) {
     const t = String(text || '').trim();
     if (!t) return;
+    sendChatMedia({ text: t });
+  }
+
+  async function uploadLiveChatImage(file) {
+    const token = (window.Auth?.getToken?.() || localStorage.getItem('token') || '').trim();
+    if (!token) throw new Error('Sign in to send photos');
+    const fd = new FormData();
+    fd.append('image', file);
+    const endpoint =
+      typeof window.joinApiUrl === 'function'
+        ? joinApiUrl('/live/chat/media')
+        : '/api/live/chat/media';
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { Authorization: `Bearer ${token}` },
+      body: fd,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.success || !data.data?.url) {
+      throw new Error(data.message || 'Could not upload photo');
+    }
+    return data.data.url;
+  }
+
+  async function sendChatPhoto(file) {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast('Only photos can be sent in live chat', 'warning');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast('Photo must be under 5 MB', 'warning');
+      return;
+    }
     if (isLocallyChatMuted()) {
       toast('You are muted from chat by the host', 'warning');
       syncChatMuteUi();
       return;
     }
-    /* Client-side filter (matches server) — blocks sex/abuse for everyone including hosts */
-    if (clientChatLooksBlocked(t)) {
+    try {
+      toast('Uploading photo…', 'info');
+      const imageUrl = await uploadLiveChatImage(file);
+      sendChatMedia({ imageUrl });
+    } catch (err) {
+      toast(err?.message || 'Could not send photo', 'error');
+    }
+  }
+
+  function sendChatMedia({ text, imageUrl } = {}) {
+    const t = String(text || '').trim();
+    const img = imageUrl ? String(imageUrl).trim() : '';
+    if (!t && !img) return;
+    if (isLocallyChatMuted()) {
+      toast('You are muted from chat by the host', 'warning');
+      syncChatMuteUi();
+      return;
+    }
+    if (t && clientChatLooksBlocked(t)) {
       toast(
         'This message was blocked. Sexual / abusive language is not allowed in live chat.',
         'warning'
@@ -16812,6 +16959,7 @@
       role: me?.role || null,
       lvl: lvlInfo.level,
       text: t,
+      imageUrl: img || null,
       at: Date.now(),
       scope,
       broadcast: chatRegionFilter === 'broadcast',
@@ -16833,6 +16981,7 @@
       {
         channel: channelId(),
         text: t,
+        imageUrl: img || undefined,
         lvl: lvlInfo.level,
         scope,
         broadcast: chatRegionFilter === 'broadcast',
@@ -16851,6 +17000,19 @@
         }
       }
     );
+  }
+
+  function bindLiveChatPhotoUpload() {
+    const btn = document.getElementById('liveChatPhotoBtn');
+    const input = document.getElementById('liveChatPhotoInput');
+    if (!btn || !input || btn.dataset.bound) return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', () => input.click());
+    input.addEventListener('change', () => {
+      const file = input.files?.[0];
+      input.value = '';
+      if (file) void sendChatPhoto(file);
+    });
   }
 
   function bindChatTabs() {
@@ -17503,6 +17665,7 @@
 
     bindChatTabs();
     bindGiftSheet();
+    bindLiveChatPhotoUpload();
     bindImmersiveToolLinks();
     bindEmojiPicker();
     bindHostToolsPanel();
@@ -18485,6 +18648,311 @@
     }
   }
 
+  function openPartyRoomSettings() {
+    closePartyRefModals('settings');
+    document.getElementById('apPartyRoomSettings')?.classList.add('open');
+    syncLiveOverlayClass();
+  }
+
+  function closePartyRefModals(except) {
+    ['apPartyRoomSettings', 'apPartySettingModal', 'apPartyEditInfoModal', 'apPartyRoomProfile'].forEach(
+      (id) => {
+        if (except && id.includes(except)) return;
+        document.getElementById(id)?.classList.remove('open');
+      }
+    );
+    hidePartySeatMenu();
+  }
+
+  function hidePartySeatMenu() {
+    const menu = document.getElementById('apPartySeatMenu');
+    if (menu) menu.hidden = true;
+    partySeatMenuCtx = null;
+  }
+
+  function openPartySeatMenu(anchor, ctx) {
+    if (!canModerateRoom()) return;
+    const menu = document.getElementById('apPartySeatMenu');
+    if (!menu) return;
+    partySeatMenuCtx = ctx;
+    const items = [];
+    if (ctx.empty) {
+      items.push({ id: 'invite', icon: 'fa-user-plus', label: 'Invite to mic' });
+      items.push({ id: 'lock', icon: 'fa-lock', label: 'Lock' });
+    } else if (ctx.uid) {
+      items.push({ id: 'invite', icon: 'fa-user-plus', label: 'Invite to mic' });
+      items.push({ id: 'lock', icon: 'fa-lock', label: 'Lock' });
+      items.push({ id: 'mute', icon: 'fa-microphone-slash', label: 'Turn off' });
+      items.push({ id: 'take', icon: 'fa-microphone', label: 'Take mic' });
+    }
+    menu.innerHTML = items
+      .map(
+        (it) =>
+          `<button type="button" data-action="${it.id}"><i class="fas ${it.icon}"></i>${escapeHtml(it.label)}</button>`
+      )
+      .join('');
+    const rect = anchor.getBoundingClientRect();
+    menu.style.left = `${Math.min(rect.left, window.innerWidth - 200)}px`;
+    menu.style.top = `${Math.max(8, rect.top - 8)}px`;
+    menu.hidden = false;
+    menu.querySelectorAll('button').forEach((btn) => {
+      btn.onclick = () => {
+        const action = btn.dataset.action;
+        const c = partySeatMenuCtx;
+        hidePartySeatMenu();
+        if (!c) return;
+        if (action === 'invite') openAvailableUsersForSeat(c.seatNum);
+        else if (action === 'lock') toast('Seat lock coming soon', 'info');
+        else if (action === 'mute' && c.uid) {
+          liveSocket?.emit('live:mute', { channel: channelId(), userId: c.uid, muted: true });
+        } else if (action === 'take' && c.uid) openModerationMenu(c.name, c.uid, c.seatNum);
+      };
+    });
+  }
+
+  function openPartyEditInfoModal() {
+    closePartyRefModals('edit');
+    const name = roomState?.hostName || displayName(currentUser());
+    const cover = getStreamCoverUrl(name) || '';
+    document.getElementById('partyEditNameInput').value = name;
+    document.getElementById('partyEditAnnouncementInput').value =
+      roomState?.roomStyle?.announcement || '';
+    const prev = document.getElementById('partyEditPhotoPreview');
+    if (prev) prev.src = cover || avatarUrl(name, null);
+    document.getElementById('apPartyEditInfoModal')?.classList.add('open');
+    syncLiveOverlayClass();
+  }
+
+  function openPartyRoomProfile() {
+    closePartyRefModals('profile');
+    const name = roomState?.hostName || 'Room';
+    const ch = channelId();
+    document.getElementById('apPartyProfileName').textContent = name;
+    document.getElementById('apPartyProfileId').textContent = 'ID: ' + ch.slice(-8);
+    document.getElementById('apPartyProfileOwner').textContent = name;
+    document.getElementById('apPartyProfileAnnouncement').textContent =
+      roomState?.roomStyle?.announcement || 'No announcement yet';
+    const cover = getStreamCoverUrl(name);
+    const img = document.getElementById('apPartyProfileCover');
+    if (img) img.src = cover || avatarUrl(name, roomState?.hostProfilePic);
+    const memberTab = document.getElementById('apPartyProfileTabMember');
+    if (memberTab) {
+      const members = roomState?.onlineMembers || [];
+      memberTab.innerHTML =
+        members.length > 0
+          ? members
+              .map(
+                (m) =>
+                  `<div style="padding:8px 0;color:#fff;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.08)">${escapeHtml(m.displayName || m.name || 'User')}</div>`
+              )
+              .join('')
+          : '<p style="color:rgba(255,255,255,0.5)">No members online</p>';
+    }
+    document.getElementById('apPartyRoomProfile')?.classList.add('open');
+    syncLiveOverlayClass();
+  }
+
+  function emitPartyRoomStyle(partial, onDone) {
+    if (!liveSocket?.connected) {
+      toast('Not connected', 'warning');
+      return;
+    }
+    liveSocket.emit(
+      'live:room_style',
+      { channel: channelId(), ...partial },
+      (res) => {
+        if (res?.ok) {
+          if (res.data) roomState.roomStyle = { ...(roomState.roomStyle || {}), ...res.data };
+          renderRoomState();
+          onDone?.(res);
+        } else toast(res?.message || 'Could not save settings', 'error');
+      }
+    );
+  }
+
+  function paintPartyGameTypeGrid() {
+    const grid = document.getElementById('partyGameTypeGrid');
+    if (!grid) return;
+    const selected = roomState?.roomStyle?.gameType || 'none';
+    grid.innerHTML = PARTY_GAME_TYPES.map(
+      (g) =>
+        `<button type="button" data-game-id="${g.id}" class="${g.id === selected ? 'is-selected' : ''}"><span class="game-ico">${g.emoji}</span>${escapeHtml(g.label)}</button>`
+    ).join('');
+    grid.querySelectorAll('button').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        grid.querySelectorAll('button').forEach((b) => b.classList.remove('is-selected'));
+        btn.classList.add('is-selected');
+      });
+    });
+  }
+
+  function syncPartyMicCountUi() {
+    const n = Number(roomState?.roomStyle?.micCount) || 15;
+    document.querySelectorAll('#partyMicCountOptions button').forEach((btn) => {
+      btn.classList.toggle('is-selected', Number(btn.dataset.mics) === n);
+    });
+    const preview = document.getElementById('partySettingLayoutPreview');
+    if (preview) preview.textContent = `${n} mic layout · ${n <= 10 ? 'compact' : 'grid'} mode`;
+    const toggle = document.getElementById('partyApplyModeToggle');
+    if (toggle) toggle.classList.toggle('is-on', roomState?.roomStyle?.applyMode !== false);
+  }
+
+  function bindPartyRefUi() {
+    if (!isPartyRoomPage()) return;
+    if (document.body.dataset.partyRefBound) return;
+    document.body.dataset.partyRefBound = '1';
+
+    applyRoomBackground(roomState?.roomStyle?.backgroundId || 'lakeside');
+
+    document.getElementById('partyRefGiftPill')?.addEventListener('click', () => openGiftSheet());
+    document.getElementById('partyRefPromoBtn')?.addEventListener('click', () => {
+      location.href = '/coins-recharge.html?app=1';
+    });
+    document.getElementById('partyRefGamesBtn')?.addEventListener('click', () => {
+      const gt = PARTY_GAME_TYPES.find((g) => g.id === (roomState?.roomStyle?.gameType || 'none'));
+      if (gt?.game) openGameOverlay(gt.game);
+      else toast('Select a game in Settings → Setting', 'info');
+    });
+
+    document.getElementById('partyRefChatBtn')?.addEventListener('click', () => {
+      document.body.classList.toggle('ap-chat-compose-open');
+      document.getElementById('partyRefChatBtn')?.classList.toggle(
+        'is-active',
+        document.body.classList.contains('ap-chat-compose-open')
+      );
+      if (document.body.classList.contains('ap-chat-compose-open')) {
+        document.getElementById('liveChatInput')?.focus();
+      }
+    });
+    document.getElementById('partyRefEmojiBtn')?.addEventListener('click', () => {
+      document.getElementById('apChatEmojiBtn')?.click();
+    });
+
+    document.getElementById('partyRefHostTap')?.addEventListener('click', () => openPartyRoomProfile());
+    document.getElementById('apPartySettingsClose')?.addEventListener('click', () => closePartyRefModals());
+
+    document.getElementById('partySettingOpenModal')?.addEventListener('click', () => {
+      document.getElementById('apPartyRoomSettings')?.classList.remove('open');
+      paintPartyGameTypeGrid();
+      syncPartyMicCountUi();
+      document.getElementById('apPartySettingModal')?.classList.add('open');
+    });
+    document.getElementById('partySettingEditInfo')?.addEventListener('click', () => {
+      document.getElementById('apPartyRoomSettings')?.classList.remove('open');
+      openPartyEditInfoModal();
+    });
+    document.getElementById('partySettingTheme')?.addEventListener('click', () => {
+      document.getElementById('apPartyRoomSettings')?.classList.remove('open');
+      openRoomBackgroundPicker();
+    });
+    document.getElementById('partySettingPassword')?.addEventListener('click', () => {
+      document.getElementById('apPartyRoomSettings')?.classList.remove('open');
+      document.getElementById('partyBtnLock')?.click();
+    });
+    document.getElementById('partySettingRoomData')?.addEventListener('click', () => {
+      document.getElementById('apPartyRoomSettings')?.classList.remove('open');
+      openHostLiveDataSheet();
+    });
+    document.getElementById('partySettingFanBadge')?.addEventListener('click', () => {
+      toast('Fan Badge — coming soon', 'info');
+    });
+    document.getElementById('partySettingRoomAdmin')?.addEventListener('click', () => {
+      document.getElementById('apPartyRoomSettings')?.classList.remove('open');
+      openPartyRequestsSheet();
+    });
+    document.getElementById('partySettingMusic')?.addEventListener('click', () => {
+      document.getElementById('apPartyRoomSettings')?.classList.remove('open');
+      document.getElementById('partyBtnMusic')?.click();
+    });
+
+    document.querySelectorAll('#partyMicCountOptions button').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (!isHost()) {
+          toast('Only host can change mic count', 'warning');
+          return;
+        }
+        document.querySelectorAll('#partyMicCountOptions button').forEach((b) => b.classList.remove('is-selected'));
+        btn.classList.add('is-selected');
+      });
+    });
+    document.getElementById('partyApplyModeToggle')?.addEventListener('click', (e) => {
+      e.currentTarget.classList.toggle('is-on');
+    });
+    document.getElementById('partySettingConvert')?.addEventListener('click', () => {
+      if (!isHost()) {
+        toast('Only host can apply settings', 'warning');
+        return;
+      }
+      const micBtn = document.querySelector('#partyMicCountOptions button.is-selected');
+      const micCount = Number(micBtn?.dataset.mics) || 15;
+      const gameBtn = document.querySelector('#partyGameTypeGrid button.is-selected');
+      const gameType = gameBtn?.dataset.gameId || 'none';
+      const applyMode = document.getElementById('partyApplyModeToggle')?.classList.contains('is-on');
+      emitPartyRoomStyle({ micCount, gameType, applyMode }, () => {
+        toast('Room settings applied', 'success');
+        document.getElementById('apPartySettingModal')?.classList.remove('open');
+        renderPartySeats(roomState?.hostName);
+      });
+    });
+
+    document.getElementById('partyEditPhotoInput')?.addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      try {
+        const url = await uploadLiveChatImage(file);
+        document.getElementById('partyEditPhotoPreview').src = resolveMediaUrl(url);
+        document.getElementById('partyEditPhotoPreview').dataset.uploadUrl = url;
+      } catch (err) {
+        toast(err?.message || 'Upload failed', 'error');
+      }
+      e.target.value = '';
+    });
+    document.getElementById('partyEditInfoSubmit')?.addEventListener('click', () => {
+      const trimmed = String(document.getElementById('partyEditNameInput')?.value || '').trim().slice(0, 48);
+      const announcement = String(document.getElementById('partyEditAnnouncementInput')?.value || '')
+        .trim()
+        .slice(0, 280);
+      if (!trimmed) {
+        toast('Room name cannot be empty', 'warning');
+        return;
+      }
+      const coverUrl = document.getElementById('partyEditPhotoPreview')?.dataset.uploadUrl;
+      const payload = { channel: channelId(), streamTitle: trimmed };
+      if (coverUrl) payload.streamCoverUrl = coverUrl;
+      liveSocket?.emit('live:update_presentation', payload, (res) => {
+        if (!res?.ok) {
+          toast(res?.message || 'Could not update room', 'error');
+          return;
+        }
+        emitPartyRoomStyle({ announcement }, () => {
+          toast('Room info updated', 'success');
+          document.getElementById('apPartyEditInfoModal')?.classList.remove('open');
+        });
+      });
+    });
+
+    document.querySelectorAll('.ap-party-room-profile-tabs button').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.ap-party-room-profile-tabs button').forEach((b) => b.classList.remove('is-active'));
+        btn.classList.add('is-active');
+        const tab = btn.dataset.tab;
+        document.getElementById('apPartyProfileTabProfile').hidden = tab !== 'profile';
+        document.getElementById('apPartyProfileTabMember').hidden = tab !== 'member';
+      });
+    });
+
+    ['apPartyRoomSettings', 'apPartySettingModal', 'apPartyEditInfoModal', 'apPartyRoomProfile'].forEach(
+      (id) => {
+        document.getElementById(id)?.addEventListener('click', (e) => {
+          if (e.target.id === id) closePartyRefModals();
+        });
+      }
+    );
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('#apPartySeatMenu')) hidePartySeatMenu();
+    });
+  }
+
   async function initPartyRoom() {
     bindScreenCaptureLifecycle();
     if (!isNativeApApp() && !clientClaimsHost()) {
@@ -18497,6 +18965,7 @@
     injectModals();
     injectGiftSheet();
     bindGiftSheet();
+    bindPartyRefUi();
     prepareLiveUiShell();
     const profileRefresh = refreshLiveUserProfile();
     const user = currentUser();

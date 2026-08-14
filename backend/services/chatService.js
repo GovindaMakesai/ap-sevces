@@ -219,10 +219,10 @@ async function appendMessage(conversationId, senderId, receiverId, text) {
     if (!raw) throw new Error('Empty message');
     let body = raw;
     if (body.length > 2000) body = body.slice(0, 2000);
-    if (body.startsWith('__IMG__:')) {
-        const imgPath = body.slice(8);
-        if (!/^\/uploads\/chat\/[\w.-]+$/i.test(imgPath)) {
-            throw new Error('Invalid image attachment');
+    if (body.startsWith('__IMG__:') || body.startsWith('__VID__:')) {
+        const mediaPath = body.slice(8);
+        if (!/^\/uploads\/chat\/[\w.-]+$/i.test(mediaPath)) {
+            throw new Error('Invalid media attachment');
         }
     } else {
         body = body.replace(/<[^>]*>/g, '');
@@ -233,7 +233,11 @@ async function appendMessage(conversationId, senderId, receiverId, text) {
          RETURNING id, conversation_id, sender_id, receiver_id, body, created_at`,
         [conversationId, senderId, receiverId, body]
     );
-    const preview = body.startsWith('__IMG__:') ? '📷 Photo' : body;
+    const preview = body.startsWith('__IMG__:')
+        ? '📷 Photo'
+        : body.startsWith('__VID__:')
+          ? '🎬 Video'
+          : body;
     await db.query(
         `UPDATE conversations
          SET last_message_text = $1, last_message_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP

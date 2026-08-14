@@ -106,15 +106,44 @@
   100% { opacity: 0; transform: translateX(-20%); }
 }
 
-/* Floating gift particles */
+/* Floating gift particles — realistic glow (Bigo-style) */
 .ap-float-gift {
   position: fixed;
   font-size: 28px;
   z-index: 9020;
   pointer-events: none;
-  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5));
+  filter:
+    drop-shadow(0 0 14px rgba(251, 191, 36, 0.85))
+    drop-shadow(0 0 28px rgba(251, 191, 36, 0.45))
+    drop-shadow(0 4px 12px rgba(0, 0, 0, 0.55));
   animation: ap-float-up 1.8s ease-out forwards;
-  will-change: transform, opacity;
+  will-change: transform, opacity, filter;
+}
+
+.ap-float-gift.is-tier-medium {
+  filter:
+    drop-shadow(0 0 16px rgba(168, 85, 247, 0.8))
+    drop-shadow(0 0 32px rgba(168, 85, 247, 0.4))
+    drop-shadow(0 4px 12px rgba(0, 0, 0, 0.55));
+}
+
+.ap-float-gift.is-tier-premium,
+.ap-float-gift.is-tier-vip {
+  filter:
+    drop-shadow(0 0 18px rgba(251, 191, 36, 0.95))
+    drop-shadow(0 0 36px rgba(245, 158, 11, 0.55))
+    drop-shadow(0 0 48px rgba(251, 191, 36, 0.25))
+    drop-shadow(0 6px 16px rgba(0, 0, 0, 0.5));
+  font-size: 36px;
+}
+
+.ap-float-gift.is-tier-legendary {
+  filter:
+    drop-shadow(0 0 22px rgba(244, 114, 182, 0.9))
+    drop-shadow(0 0 40px rgba(251, 191, 36, 0.65))
+    drop-shadow(0 0 56px rgba(168, 85, 247, 0.35))
+    drop-shadow(0 8px 20px rgba(0, 0, 0, 0.55));
+  font-size: 42px;
 }
 
 @keyframes ap-float-up {
@@ -143,8 +172,12 @@
 
 .ap-premium-gift .ap-premium-emoji {
   font-size: clamp(72px, 22vw, 140px);
-  animation: ap-premium-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-  filter: drop-shadow(0 0 40px rgba(251, 191, 36, 0.6));
+  animation: ap-premium-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards, ap-gift-emoji-glow 1.8s ease-in-out infinite 0.5s;
+  filter:
+    drop-shadow(0 0 24px rgba(251, 191, 36, 0.75))
+    drop-shadow(0 0 48px rgba(251, 191, 36, 0.45))
+    drop-shadow(0 0 72px rgba(245, 158, 11, 0.25))
+    drop-shadow(0 8px 24px rgba(0, 0, 0, 0.45));
 }
 
 .ap-premium-gift .ap-premium-meta {
@@ -700,8 +733,38 @@ body.ap-screen-shake {
 
 .ap-cinematic-gift .ap-cinematic-orb {
   font-size: clamp(42px, 12vw, 72px);
-  filter: drop-shadow(0 0 24px rgba(251, 191, 36, 0.75)) drop-shadow(0 8px 20px rgba(0, 0, 0, 0.45));
-  animation: ap-orb-spin 1.05s ease-out forwards;
+  position: relative;
+  z-index: 2;
+  filter:
+    drop-shadow(0 0 20px rgba(251, 191, 36, 0.9))
+    drop-shadow(0 0 40px rgba(251, 191, 36, 0.5))
+    drop-shadow(0 8px 20px rgba(0, 0, 0, 0.45));
+  animation: ap-orb-spin 1.05s ease-out forwards, ap-gift-emoji-glow 1.4s ease-in-out infinite;
+}
+
+.ap-cinematic-glow-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 88px;
+  height: 88px;
+  margin: -44px 0 0 -44px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(251, 191, 36, 0.55) 0%, rgba(251, 191, 36, 0.15) 45%, transparent 70%);
+  box-shadow: 0 0 32px rgba(251, 191, 36, 0.65), 0 0 64px rgba(245, 158, 11, 0.25);
+  animation: ap-glow-ring-pulse 1.05s ease-out forwards;
+  z-index: 1;
+}
+
+@keyframes ap-gift-emoji-glow {
+  0%, 100% { filter: drop-shadow(0 0 16px rgba(251, 191, 36, 0.75)) drop-shadow(0 0 32px rgba(251, 191, 36, 0.4)); }
+  50% { filter: drop-shadow(0 0 28px rgba(251, 191, 36, 1)) drop-shadow(0 0 56px rgba(245, 158, 11, 0.55)) drop-shadow(0 0 80px rgba(251, 191, 36, 0.25)); }
+}
+
+@keyframes ap-glow-ring-pulse {
+  0% { opacity: 0; transform: scale(0.3); }
+  35% { opacity: 1; transform: scale(1.15); }
+  100% { opacity: 0; transform: scale(1.6); }
 }
 
 .ap-cinematic-gift .ap-cinematic-trail {
@@ -1033,6 +1096,137 @@ body.ap-combo-zoom #apFxRoot {
 .gift-grid button[data-tier="legendary"] {
   border-color: rgba(244, 114, 182, 0.55);
   box-shadow: 0 0 18px rgba(244, 114, 182, 0.28);
+}
+
+/* —— Gift grid: alive cards with rim glow (Bigo / Tango style) —— */
+.gift-card--alive {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  --gift-glow: rgba(251, 191, 36, 0.45);
+  --gift-rim: rgba(251, 191, 36, 0.55);
+}
+
+.gift-card--alive[data-tier="small"] {
+  --gift-glow: rgba(255, 255, 255, 0.22);
+  --gift-rim: rgba(255, 255, 255, 0.28);
+}
+
+.gift-card--alive[data-tier="medium"] {
+  --gift-glow: rgba(168, 85, 247, 0.42);
+  --gift-rim: rgba(168, 85, 247, 0.55);
+}
+
+.gift-card--alive[data-tier="premium"],
+.gift-card--alive[data-tier="vip"] {
+  --gift-glow: rgba(251, 191, 36, 0.5);
+  --gift-rim: rgba(251, 191, 36, 0.72);
+}
+
+.gift-card--alive[data-tier="legendary"] {
+  --gift-glow: rgba(244, 114, 182, 0.48);
+  --gift-rim: rgba(251, 191, 36, 0.85);
+}
+
+.gift-card--alive .gift-card-glow {
+  position: absolute;
+  inset: -35% -25% -45%;
+  background: radial-gradient(circle at 50% 85%, var(--gift-glow), transparent 68%);
+  pointer-events: none;
+  z-index: 0;
+  animation: gift-card-glow-pulse 2.1s ease-in-out infinite;
+  filter: blur(7px);
+  opacity: 0.92;
+}
+
+.gift-card--alive .gift-card-shine {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background: linear-gradient(
+    108deg,
+    transparent 38%,
+    rgba(255, 255, 255, 0.08) 44%,
+    rgba(255, 255, 255, 0.32) 50%,
+    rgba(255, 255, 255, 0.08) 56%,
+    transparent 62%
+  );
+  transform: translateX(-130%);
+  animation: gift-card-shine-sweep 3.8s ease-in-out infinite;
+}
+
+.gift-card--alive .gift-card-rim {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 4;
+  box-shadow: inset 0 0 0 1px var(--gift-rim), inset 0 -8px 20px var(--gift-glow);
+  opacity: 0.85;
+}
+
+.gift-card--alive .gift-card-sparkles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.gift-card--alive .gift-card-sparkles i {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 6px var(--gift-rim), 0 0 10px var(--gift-glow);
+  animation: gift-sparkle-twinkle 2.2s ease-in-out infinite;
+}
+
+.gift-card--alive .gift-card-sparkles i:nth-child(1) { top: 18%; left: 22%; animation-delay: 0s; }
+.gift-card--alive .gift-card-sparkles i:nth-child(2) { top: 28%; right: 18%; animation-delay: 0.7s; }
+.gift-card--alive .gift-card-sparkles i:nth-child(3) { bottom: 32%; left: 38%; animation-delay: 1.3s; }
+
+.gift-card--alive .g {
+  position: relative;
+  z-index: 1;
+  animation: gift-emoji-bob 2.8s ease-in-out infinite;
+  filter:
+    drop-shadow(0 0 10px var(--gift-glow))
+    drop-shadow(0 0 18px var(--gift-rim))
+    drop-shadow(0 4px 10px rgba(0, 0, 0, 0.45));
+}
+
+.gift-card--alive.is-selected {
+  box-shadow:
+    0 0 0 1px var(--gift-rim),
+    0 0 20px var(--gift-glow),
+    0 8px 24px rgba(0, 0, 0, 0.35) !important;
+}
+
+.gift-card--alive.is-selected .gift-card-glow {
+  animation-duration: 1.6s;
+  opacity: 1;
+}
+
+@keyframes gift-card-glow-pulse {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.06); }
+}
+
+@keyframes gift-card-shine-sweep {
+  0%, 72%, 100% { transform: translateX(-130%); }
+  88% { transform: translateX(130%); }
+}
+
+@keyframes gift-emoji-bob {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-3px) scale(1.06); }
+}
+
+@keyframes gift-sparkle-twinkle {
+  0%, 100% { opacity: 0.2; transform: scale(0.6); }
+  50% { opacity: 1; transform: scale(1.2); }
 }
 
 @media (prefers-reduced-motion: reduce) {

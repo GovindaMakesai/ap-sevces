@@ -1,0 +1,760 @@
+/* Party room — reference UI (Bigo/Tango style) */
+body[data-live-page='party-room'] .party-room {
+  position: relative;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #0a0e1a;
+}
+
+body[data-live-page='party-room'] .party-ref-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background: #0a0e1a center/cover no-repeat;
+  pointer-events: none;
+}
+
+body[data-live-page='party-room'] .party-ref-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(8, 12, 28, 0.35) 0%, rgba(8, 12, 28, 0.15) 40%, rgba(8, 12, 28, 0.55) 100%);
+}
+
+body[data-live-page='party-room'] .party-room > *:not(.party-ref-bg) {
+  position: relative;
+  z-index: 1;
+}
+
+/* Hide legacy chrome in ref mode */
+body[data-live-page='party-room'] .party-stats-bar,
+body[data-live-page='party-room'] .party-widgets,
+body[data-live-page='party-room'] .party-invite-row,
+body[data-live-page='party-room'] .party-host-bar,
+body[data-live-page='party-room'] .party-header-center,
+body[data-live-page='party-room'] .party-room-grid-floor,
+body[data-live-page='party-room'] .party-win-banner {
+  display: none !important;
+}
+
+/* Ref header */
+body[data-live-page='party-room'] .party-header {
+  padding: calc(8px + env(safe-area-inset-top, 0)) 12px 6px;
+  background: transparent;
+  border: none;
+  align-items: flex-start;
+}
+
+body[data-live-page='party-room'] .party-host {
+  flex: 1;
+  min-width: 0;
+  gap: 8px;
+}
+
+body[data-live-page='party-room'] .party-host > img {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  object-fit: cover;
+}
+
+body[data-live-page='party-room'] .party-host-meta .name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  max-width: 120px;
+}
+
+body[data-live-page='party-room'] .party-host-meta .sub {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+body[data-live-page='party-room'] .party-host-meta .heart-stat {
+  display: none;
+}
+
+body[data-live-page='party-room'] #partyHostLabel {
+  display: none;
+}
+
+body[data-live-page='party-room'] .party-room-id {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.55);
+  font-weight: 500;
+}
+
+body[data-live-page='party-room'] .party-header-right {
+  gap: 6px;
+  align-items: center;
+}
+
+body[data-live-page='party-room'] .party-ref-crown-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  background: rgba(0, 0, 0, 0.35);
+  color: #fbbf24;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+body[data-live-page='party-room'] .party-users-btn,
+body[data-live-page='party-room'] .party-minimize-btn,
+body[data-live-page='party-room'] .party-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  font-size: 14px;
+}
+
+body[data-live-page='party-room'] .party-viewers {
+  display: none;
+}
+
+/* Seat grid ref */
+body[data-live-page='party-room'] .party-room-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  padding: 4px 8px 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+body[data-live-page='party-room'] .party-seats-wrap {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 8px;
+}
+
+body[data-live-page='party-room'] .party-seats-ref {
+  gap: 6px;
+  padding: 0 4px;
+}
+
+body[data-live-page='party-room'] .party-seat.is-empty .seat-avatar--empty {
+  background: rgba(255, 255, 255, 0.08);
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  box-shadow: inset 0 0 12px rgba(255, 255, 255, 0.06);
+}
+
+body[data-live-page='party-room'] .party-seat.is-empty .seat-plus {
+  display: none;
+}
+
+body[data-live-page='party-room'] .party-seat.is-empty .seat-avatar--empty::before {
+  content: '\f4c0';
+  font-family: 'Font Awesome 6 Free';
+  font-weight: 900;
+  font-size: 18px;
+  color: #fbbf24;
+  opacity: 0.85;
+}
+
+body[data-live-page='party-room'] .party-seat.is-empty .seat-name {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+body[data-live-page='party-room'] .party-seat.is-host .seat-avatar {
+  border: 3px solid #fbbf24;
+  box-shadow: 0 0 16px rgba(251, 191, 36, 0.45), 0 0 32px rgba(251, 191, 36, 0.2);
+}
+
+body[data-live-page='party-room'] .party-seat.is-host .seat-crown {
+  font-size: 14px;
+  top: -6px;
+}
+
+/* Announcement strip */
+.party-ref-announcement {
+  margin: 0 12px 8px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.42);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(8px);
+  max-width: 92%;
+}
+
+.party-ref-announcement-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  font-family: Georgia, 'Times New Roman', serif;
+  margin-bottom: 2px;
+}
+
+.party-ref-announcement-text {
+  display: block;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.88);
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.party-ref-announcement.is-empty {
+  display: none;
+}
+
+/* Send gift pill */
+.party-ref-gift-pill {
+  position: fixed;
+  left: 12px;
+  bottom: calc(72px + env(safe-area-inset-bottom, 0));
+  z-index: 40;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #a855f7, #7c3aed);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 0 4px 20px rgba(124, 58, 237, 0.45);
+  cursor: pointer;
+}
+
+.party-ref-gift-pill i {
+  font-size: 16px;
+}
+
+/* Chat overlay ref */
+body[data-live-page='party-room'] .party-chat-row {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(64px + env(safe-area-inset-bottom, 0));
+  max-height: 38vh;
+  pointer-events: none;
+  z-index: 30;
+}
+
+body[data-live-page='party-room'] .party-chat-zone {
+  pointer-events: auto;
+  max-width: 78%;
+}
+
+body[data-live-page='party-room'] .party-chat-feed {
+  max-height: 28vh;
+}
+
+body[data-live-page='party-room'] .live-chat-ticker,
+body[data-live-page='party-room'] .ap-room-status-strip {
+  display: none;
+}
+
+/* Bottom bar ref */
+body[data-live-page='party-room'] .party-bottom-bar.ap-bottom-ref {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0));
+  background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.55));
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+body[data-live-page='party-room'] .party-ref-bottom-left,
+body[data-live-page='party-room'] .party-ref-bottom-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+body[data-live-page='party-room'] .party-ref-bar-btn {
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.4);
+  color: #fff;
+  font-size: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+}
+
+body[data-live-page='party-room'] .party-ref-bar-btn.is-active {
+  background: rgba(59, 130, 246, 0.35);
+  color: #93c5fd;
+}
+
+body[data-live-page='party-room'] .party-ref-bar-btn.ap-btn-grid {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+}
+
+body[data-live-page='party-room'] .party-ref-promo-badge {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid #fbbf24;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fbbf24;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1.1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  cursor: pointer;
+}
+
+body[data-live-page='party-room'] #liveChatCompose {
+  display: none;
+  position: fixed;
+  left: 8px;
+  right: 8px;
+  bottom: calc(64px + env(safe-area-inset-bottom, 0));
+  z-index: 55;
+}
+
+body[data-live-page='party-room'].ap-chat-compose-open #liveChatCompose {
+  display: flex;
+}
+
+body[data-live-page='party-room'] .party-bottom-actions {
+  display: contents;
+}
+
+body[data-live-page='party-room'] .party-btn-gift.ap-btn-gift-hero {
+  width: 48px;
+  height: 48px;
+  font-size: 20px;
+}
+
+/* Floating chat fab */
+body[data-live-page='party-room'] .live-show-chat-fab {
+  bottom: calc(72px + env(safe-area-inset-bottom, 0));
+  right: 12px;
+}
+
+/* Room Settings hub */
+.ap-party-settings-sheet .ap-party-settings-panel {
+  background: linear-gradient(180deg, #1a1f35 0%, #12162a 100%);
+  border-radius: 20px 20px 0 0;
+  padding: 20px 16px calc(24px + env(safe-area-inset-bottom, 0));
+  max-height: 72vh;
+  overflow-y: auto;
+}
+
+.ap-party-settings-sheet h3 {
+  color: #fff;
+  font-size: 18px;
+  margin: 0 0 16px;
+  text-align: center;
+}
+
+.ap-party-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.ap-party-settings-grid button,
+.ap-party-settings-grid a {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 6px;
+  border: none;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font-size: 11px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.ap-party-settings-grid .ico {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+
+/* Setting modal (mic count / game type) */
+.ap-party-setting-modal .ap-party-setting-panel {
+  background: #151929;
+  border-radius: 20px 20px 0 0;
+  padding: 16px 16px calc(20px + env(safe-area-inset-bottom, 0));
+  max-height: 88vh;
+  overflow-y: auto;
+}
+
+.ap-party-setting-modal h3 {
+  text-align: center;
+  color: #fff;
+  margin: 0 0 12px;
+  font-size: 17px;
+}
+
+.ap-party-mode-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.ap-party-mode-tabs button {
+  flex: 1;
+  padding: 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.ap-party-mode-tabs button.is-active {
+  border-color: #3b82f6;
+  color: #fff;
+  background: rgba(59, 130, 246, 0.15);
+}
+
+.ap-party-layout-preview {
+  height: 100px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.35);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 12px;
+}
+
+.ap-party-field-label {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+
+.ap-party-mic-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.ap-party-mic-options button {
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.ap-party-mic-options button.is-selected {
+  border-color: #ec4899;
+  box-shadow: 0 0 0 1px #ec4899;
+}
+
+.ap-party-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  color: #fff;
+  font-size: 14px;
+}
+
+.ap-party-toggle {
+  width: 48px;
+  height: 28px;
+  border-radius: 999px;
+  border: none;
+  background: rgba(255, 255, 255, 0.2);
+  position: relative;
+  cursor: pointer;
+}
+
+.ap-party-toggle.is-on {
+  background: #ec4899;
+}
+
+.ap-party-toggle::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.2s;
+}
+
+.ap-party-toggle.is-on::after {
+  transform: translateX(20px);
+}
+
+.ap-party-game-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.ap-party-game-grid button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 4px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: #fff;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.ap-party-game-grid button.is-selected {
+  border-color: #ec4899;
+}
+
+.ap-party-game-grid .game-ico {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+}
+
+.ap-party-convert-btn {
+  width: 100%;
+  padding: 14px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ec4899, #db2777);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* Edit Info modal */
+.ap-party-edit-modal .ap-party-edit-panel {
+  background: #151929;
+  border-radius: 20px 20px 0 0;
+  padding: 20px 16px calc(24px + env(safe-area-inset-bottom, 0));
+}
+
+.ap-party-edit-photo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.ap-party-edit-photo img {
+  width: 88px;
+  height: 88px;
+  border-radius: 14px;
+  object-fit: cover;
+}
+
+.ap-party-edit-photo label {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.ap-party-edit-field {
+  margin-bottom: 14px;
+}
+
+.ap-party-edit-field label {
+  display: block;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.ap-party-edit-field input,
+.ap-party-edit-field textarea {
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  border: none;
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.ap-party-edit-field textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.ap-party-edit-submit {
+  width: 100%;
+  padding: 14px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ec4899, #db2777);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  margin-top: 8px;
+  cursor: pointer;
+}
+
+/* Seat context menu */
+.ap-party-seat-menu {
+  position: fixed;
+  z-index: 200;
+  min-width: 180px;
+  padding: 8px 0;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+}
+
+.ap-party-seat-menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 16px;
+  border: none;
+  background: transparent;
+  color: #1f2937;
+  font-size: 14px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.ap-party-seat-menu button:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.ap-party-seat-menu button i {
+  width: 20px;
+  color: #6b7280;
+}
+
+/* Room profile drawer */
+.ap-party-room-profile .ap-party-room-profile-panel {
+  background: linear-gradient(180deg, #1a1f35 0%, #0f1220 100%);
+  border-radius: 20px 20px 0 0;
+  padding: 16px 16px calc(24px + env(safe-area-inset-bottom, 0));
+  max-height: 75vh;
+  overflow-y: auto;
+}
+
+.ap-party-room-profile-hero {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.ap-party-room-profile-hero img {
+  width: 72px;
+  height: 72px;
+  border-radius: 12px;
+  object-fit: cover;
+}
+
+.ap-party-room-profile-tabs {
+  display: flex;
+  gap: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 12px;
+}
+
+.ap-party-room-profile-tabs button {
+  padding: 8px 0;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 14px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.ap-party-room-profile-tabs button.is-active {
+  color: #fff;
+  border-bottom-color: #fff;
+}
+
+.ap-party-room-profile-section h4 {
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 12px;
+  margin: 0 0 8px;
+}
+
+.ap-party-room-profile-section p {
+  color: #fff;
+  font-size: 14px;
+  margin: 0;
+}
+
+.ap-party-settings-sheet,
+.ap-party-setting-modal,
+.ap-party-edit-modal,
+.ap-party-room-profile {
+  z-index: 16000;
+}
+
+.ap-party-settings-sheet .ap-tool-close-fab,
+.ap-party-setting-modal .ap-party-setting-panel,
+.ap-party-edit-modal .ap-party-edit-panel {
+  position: relative;
+}
+
+.ap-party-settings-sheet .ap-tool-close-fab {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  cursor: pointer;
+}
+
+body[data-live-page='party-room'] .party-ref-heart-badge {
+  color: #ec4899;
+  font-size: 14px;
+  margin-left: 2px;
+}

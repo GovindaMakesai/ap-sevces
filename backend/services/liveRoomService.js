@@ -459,6 +459,7 @@ async function buildSnapshot(channel, { bypassCache = false } = {}) {
         userId: e.user_id,
         user: p.user || 'User',
         text: p.text || '',
+        imageUrl: p.imageUrl || null,
         lvl: p.lvl || 1,
         profilePic: p.profilePic || (e.user_id ? profileByUser.get(String(e.user_id)) || null : null),
         at: e.created_at,
@@ -713,8 +714,10 @@ async function muteAllMembersChat({ liveRoomId, muted, excludeUserIds = [] }) {
 
 function maxSpeakersForRoom(room) {
   if (!room) return 14;
-  /* Live: host + 5 guests = 6 on stream. Party: host + 14 guests. */
-  return room.room_type === 'live' ? 5 : 14;
+  if (room.room_type === 'live') return 5;
+  const style = getRoomStyle(room.channel);
+  const micCount = Number(style.micCount) || 15;
+  return Math.max(1, Math.min(30, micCount)) - 1;
 }
 
 async function countActiveStageGuests(liveRoomId, excludeUserId, client) {
@@ -1500,11 +1503,33 @@ async function verifyRoomPassword(channel, password) {
 }
 
 function getRoomStyle(channel) {
-  return roomStyleByChannel.get(channel) || { backgroundId: 'cosmic' };
+  return (
+    roomStyleByChannel.get(channel) || {
+      backgroundId: 'lakeside',
+      micCount: 15,
+      announcement: '',
+      gameType: 'none',
+      applyMode: true,
+    }
+  );
 }
 
-async function setRoomStyle(channel, { backgroundId } = {}) {
-  const style = { backgroundId: backgroundId || 'cosmic', at: Date.now() };
+async function setRoomStyle(
+  channel,
+  { backgroundId, micCount, announcement, gameType, applyMode } = {}
+) {
+  const prev = getRoomStyle(channel);
+  const style = {
+    backgroundId: backgroundId || prev.backgroundId || 'lakeside',
+    micCount:
+      micCount != null
+        ? Math.max(5, Math.min(30, Number(micCount) || 15))
+        : prev.micCount || 15,
+    announcement: announcement !== undefined ? String(announcement).slice(0, 280) : prev.announcement || '',
+    gameType: gameType !== undefined ? String(gameType).slice(0, 48) : prev.gameType || 'none',
+    applyMode: applyMode !== undefined ? Boolean(applyMode) : prev.applyMode !== false,
+    at: Date.now(),
+  };
   roomStyleByChannel.set(channel, style);
   const room = await findByChannel(channel);
   if (room) {

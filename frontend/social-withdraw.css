@@ -846,6 +846,10 @@ body.withdraw-app .wd-mode-tab {
   border-radius: 10px;
 }
 
+.wd-mode-tabs--three {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
 .wd-mode-tab {
   border: none;
   background: transparent;
@@ -877,6 +881,207 @@ body.withdraw-app .wd-mode-tab {
   background: linear-gradient(135deg, #6366f1, #4f46e5);
   color: #fff;
   box-shadow: 0 2px 8px rgba(79, 70, 229, 0.28);
+}
+
+.wd-mode-tab[data-mode="transfer"].is-active {
+  background: linear-gradient(135deg, #fb7185, #ec4899);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(236, 72, 153, 0.28);
+}
+
+.wd-transfer-intro {
+  background: #fff;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #374151;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.wd-transfer-warn {
+  background: #fff1f2 !important;
+  color: #9f1239 !important;
+  border: 1px solid #fecdd3;
+  margin-bottom: 10px;
+}
+
+.wd-transfer-panel h3 {
+  margin: 0 0 10px;
+  font-size: 15px;
+}
+
+.wd-transfer-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.wd-transfer-row-head h3 {
+  margin: 0;
+}
+
+.wd-link-btn {
+  border: none;
+  background: none;
+  color: #ec4899;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.wd-transfer-id-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.wd-text-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 10px 0;
+  font-size: 14px;
+  background: transparent;
+  outline: none;
+}
+
+.wd-text-input:focus {
+  border-bottom-color: #ec4899;
+}
+
+.wd-check-btn {
+  border: none;
+  background: none;
+  color: #9ca3af;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 8px 4px;
+  flex-shrink: 0;
+}
+
+.wd-check-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.wd-recipient-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #fdf2f8;
+  border-radius: 12px;
+  margin-bottom: 14px;
+}
+
+.wd-recipient-card img {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.wd-recipient-card strong {
+  display: block;
+  font-size: 14px;
+  color: #111827;
+}
+
+.wd-recipient-card span {
+  display: block;
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 2px;
+}
+
+.wd-transfer-amount-title {
+  margin-top: 4px !important;
+  padding-top: 12px;
+  border-top: 1px solid #f3f4f6;
+}
+
+.wd-transfer-amount-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 8px;
+}
+
+.wd-bean-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.wd-amount-input--plain {
+  border: none !important;
+  box-shadow: none !important;
+  padding-left: 0 !important;
+  background: transparent !important;
+}
+
+.wd-transfer-calc {
+  margin-top: 14px;
+}
+
+.wd-transfer-calc-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  font-size: 14px;
+  color: #374151;
+}
+
+.wd-transfer-calc-row strong {
+  color: #111827;
+}
+
+.wd-transfer-history {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #f3f4f6;
+}
+
+.wd-transfer-history h4 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.wd-transfer-history ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.wd-transfer-history li {
+  font-size: 13px;
+  padding: 8px 0;
+  border-bottom: 1px solid #f3f4f6;
+  color: #374151;
+}
+
+.wd-transfer-history li.wd-empty {
+  color: #9ca3af;
+}
+
+.wd-btn-transfer {
+  background: linear-gradient(135deg, #fb7185, #ec4899) !important;
+  box-shadow: 0 8px 20px rgba(236, 72, 153, 0.28);
+}
+
+.wd-btn-transfer.is-ready {
+  transform: translateY(-1px);
 }
 
 /* Removed duplicate shortcut row — keep CSS inert if cached HTML remains */

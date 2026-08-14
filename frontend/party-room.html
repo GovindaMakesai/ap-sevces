@@ -1,383 +1,668 @@
 <!DOCTYPE html>
+
 <html lang="en">
+
 <head>
+
   <meta charset="UTF-8">
+
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <meta name="theme-color" content="#1a0f3a">
+
+  <meta name="theme-color" content="#0a0e1a">
+
   <title>Party Room - AP Services</title>
+
   <link rel="preconnect" href="https://download.agora.io" crossorigin>
+
   <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+
   <link rel="preload" href="https://download.agora.io/sdk/release/AgoraRTC_N-4.22.0.js" as="script">
+
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" media="print" onload="this.media='all'">
+
   <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"></noscript>
-  <link rel="stylesheet" href="social-live.css?v=20260723-gift-smooth">
+
+  <link rel="stylesheet" href="social-live.css?v=20260814-party-ref">
+
   <link rel="stylesheet" href="social-live-session.css?v=20260723-mini-close">
-  <link rel="stylesheet" href="social-live-ref-ui.css?v=20260718-safety">
-  <link rel="stylesheet" href="social-fx.css?v=20260723-gift-smooth">
+
+  <link rel="stylesheet" href="social-live-ref-ui.css?v=20260814-gift-glow">
+
+  <link rel="stylesheet" href="social-party-ref.css?v=20260814-party-ref">
+
+  <link rel="stylesheet" href="social-fx.css?v=20260814-gift-glow">
+
   <style id="ap-immersive-critical">
+
     html.ap-live-immersive .social-bridge-header,
+
     html.ap-live-immersive #ap-bridge-header,
+
     html.ap-live-immersive .social-bottom-nav,
+
     html.ap-live-immersive #social-bottom-nav-mount,
+
     html.ap-live-immersive .navbar,
+
     html.ap-live-immersive footer.site-footer,
+
     body[data-live-page] .social-bridge-header,
+
     body[data-live-page] #ap-bridge-header,
+
     body[data-live-page] .social-bottom-nav,
+
     body[data-live-page] #social-bottom-nav-mount,
+
     body[data-live-page] .navbar { display: none !important; height: 0 !important; visibility: hidden !important; pointer-events: none !important; }
+
     html.ap-live-immersive body,
+
     html.ap-live-immersive.social-bridge-mode body,
+
     body[data-live-page] { padding: 0 !important; margin: 0 !important; background: #000 !important; overflow: hidden !important; }
-    .party-host-name-row {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      min-width: 0;
-    }
-    .party-host-name-row .name {
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .live-edit-presentation-btn {
-      flex: 0 0 auto;
-      width: 26px;
-      height: 26px;
-      border: 0;
-      border-radius: 50%;
-      background: rgba(255, 255, 255, 0.16);
-      color: #fff;
-      font-size: 11px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      padding: 0;
-    }
+
   </style>
+
   <script>
+
     document.documentElement.classList.add('ap-live-immersive');
+
     (function () {
+
       function stripAppChrome() {
+
         document.documentElement.classList.remove('social-bridge-mode');
+
         document.getElementById('ap-bridge-header')?.remove();
+
         document.querySelectorAll('.social-bottom-nav, #social-bottom-nav-mount, .social-bridge-header, .navbar, footer.site-footer, header.site-header').forEach(function (el) {
+
           el.remove();
+
         });
+
       }
+
       document.addEventListener('DOMContentLoaded', stripAppChrome);
+
       setTimeout(stripAppChrome, 0);
+
       [100, 500, 1500].forEach(function (ms) { setTimeout(stripAppChrome, ms); });
+
     })();
-    (function apBlockScreenshots() {
-      function enable() {
-        try {
-          if (window.ReactNativeWebView) {
-            window.ReactNativeWebView.postMessage(
-              JSON.stringify({ type: 'screen_capture', block: true, enable: true })
-            );
-          }
-        } catch (_e) {}
-      }
-      function hardenDom() {
-        try {
-          document.documentElement.classList.add('ap-secure-live');
-          document.body && document.body.classList.add('ap-secure-live');
-        } catch (_e2) {}
-      }
-      enable();
-      hardenDom();
-      document.addEventListener('DOMContentLoaded', function () {
-        enable();
-        hardenDom();
-      });
-      [200, 800, 2000, 5000, 10000].forEach(function (ms) {
-        setTimeout(enable, ms);
-      });
-      setInterval(enable, 12000);
-      document.addEventListener('visibilitychange', function () {
-        enable();
-        hardenDom();
-      });
-      window.addEventListener('focus', enable);
-      window.addEventListener('pageshow', enable);
-      document.addEventListener(
-        'keydown',
-        function (e) {
-          if (e.key === 'PrintScreen' || (e.metaKey && e.shiftKey && (e.key === '3' || e.key === '4'))) {
-            enable();
-          }
-        },
-        true
-      );
-      document.addEventListener(
-        'contextmenu',
-        function (e) {
-          if (e.target && (e.target.closest('video') || e.target.closest('.party-room-stage') || e.target.closest('.live-room-stage'))) {
-            e.preventDefault();
-          }
-        },
-        true
-      );
-    })();
-  </script>
-</head>
-<body class="live-dark ap-live-immersive" data-live-page="party-room">
-  <div id="apLiveLoader" class="ap-live-loader" aria-live="polite">
-    <div class="ap-live-loader-cover" id="apLiveLoaderCover" aria-hidden="true"></div>
-    <div class="ap-live-loader-scrim" aria-hidden="true"></div>
-    <div class="ap-live-loader-inner">
-      <img id="apLiveLoaderAvatar" class="ap-live-loader-avatar" alt="" hidden>
-      <p id="apLiveLoaderText" class="ap-live-loader-label">Connecting?</p>
-      <span class="ap-live-loader-pulse" aria-hidden="true">Party</span>
-      <button type="button" class="ap-live-loader-skip" id="apLiveLoaderSkip">Enter room now</button>
-    </div>
-  </div>
-  <script>
-    (function apLoaderHotfix() {
-      function dismiss() {
-        var l = document.getElementById('apLiveLoader');
-        if (l) {
-          l.classList.add('is-hidden');
-          l.style.display = 'none';
-          l.style.visibility = 'hidden';
-          l.style.pointerEvents = 'none';
-        }
-        document.body.classList.add('ap-room-active');
-      }
-      document.getElementById('apLiveLoaderSkip')?.addEventListener('click', function (e) {
-        e.preventDefault();
-        dismiss();
-      });
-      setTimeout(dismiss, 2500);
-      setTimeout(dismiss, 5000);
-    })();
+
   </script>
 
-  <div class="party-room">
-    <div class="party-room-grid-floor" aria-hidden="true"></div>
+</head>
+
+<body class="live-dark ap-live-immersive" data-live-page="party-room">
+
+  <div id="apLiveLoader" class="ap-live-loader" aria-live="polite">
+
+    <div class="ap-live-loader-cover" id="apLiveLoaderCover" aria-hidden="true"></div>
+
+    <div class="ap-live-loader-scrim" aria-hidden="true"></div>
+
+    <div class="ap-live-loader-inner">
+
+      <img id="apLiveLoaderAvatar" class="ap-live-loader-avatar" alt="" hidden>
+
+      <p id="apLiveLoaderText" class="ap-live-loader-label">Connecting…</p>
+
+      <span class="ap-live-loader-pulse" aria-hidden="true">Party</span>
+
+      <button type="button" class="ap-live-loader-skip" id="apLiveLoaderSkip">Enter room now</button>
+
+    </div>
+
+  </div>
+
+  <script>
+
+    (function apLoaderHotfix() {
+
+      function dismiss() {
+
+        var l = document.getElementById('apLiveLoader');
+
+        if (l) {
+
+          l.classList.add('is-hidden');
+
+          l.style.display = 'none';
+
+        }
+
+        document.body.classList.add('ap-room-active');
+
+      }
+
+      document.getElementById('apLiveLoaderSkip')?.addEventListener('click', dismiss);
+
+      setTimeout(dismiss, 2500);
+
+      setTimeout(dismiss, 5000);
+
+    })();
+
+  </script>
+
+
+
+  <div class="party-room party-room-ref">
+
+    <div class="party-ref-bg" id="partyRefBg" aria-hidden="true"></div>
+
+
+
     <header class="party-header">
-      <div class="party-host">
+
+      <div class="party-host" id="partyRefHostTap" role="button" tabindex="0" aria-label="Room profile">
+
         <img id="partyHostAvatar" alt="Host">
+
         <div class="party-host-meta">
+
           <div class="party-host-name-row">
+
             <div class="name" id="partyHostName">Host</div>
-            <button type="button" class="live-edit-presentation-btn" id="liveEditPresentationBtn" hidden title="Edit party name &amp; picture">
+
+            <button type="button" class="live-edit-presentation-btn host-only-tool" id="liveEditPresentationBtn" hidden title="Edit room info">
+
               <i class="fas fa-pen"></i>
+
             </button>
+
           </div>
-          <div class="sub"><span class="heart-stat">?? <span id="partyHearts">0</span></span> <span id="partyHostLabel">Voice party</span></div>
+
+          <div class="sub"><span class="party-room-id" id="partyRoomId">ID: —</span></div>
+
         </div>
-        <button type="button" class="party-follow-btn" id="partyHostFollow" aria-label="Follow">+</button>
+
+        <span class="party-ref-heart-badge" aria-hidden="true"><i class="fas fa-heart"></i></span>
+
       </div>
-      <div class="party-header-center">
-        <span class="party-rank-badge party-rank-heart" aria-hidden="true"><i class="fas fa-heart"></i></span>
-        <span class="party-rank-badge party-rank-crown" aria-hidden="true"><i class="fas fa-crown"></i></span>
-      </div>
+
+      <div class="party-header-center" aria-hidden="true"></div>
+
       <div class="party-header-right">
+
+        <button type="button" class="party-ref-crown-btn" id="partyRefCrownBtn" aria-label="Room rank"><i class="fas fa-crown"></i> <span id="partyPopScore">0</span></button>
+
         <button type="button" class="party-users-btn" id="partyBtnUsersAll" aria-label="People in room"><i class="fas fa-users"></i><span id="partyReqCountFloat" class="party-req-badge" hidden>0</span></button>
-        <div class="party-viewers" id="partyViewerAvatars">
-          <span class="party-viewer-count" id="liveViewerCount">1</span>
-        </div>
+
+        <div class="party-viewers" id="partyViewerAvatars"><span class="party-viewer-count" id="liveViewerCount">1</span></div>
+
         <button type="button" class="party-minimize-btn" id="partyMinimizeBtn" aria-label="Minimize"><i class="fas fa-compress"></i></button>
+
+        <button type="button" id="partyBtnShare" class="party-users-btn" aria-label="Share"><i class="fas fa-share"></i></button>
+
         <button type="button" class="party-close" id="partyClose" aria-label="Leave"><i class="fas fa-times"></i></button>
+
       </div>
+
     </header>
 
-    <div class="party-stats-bar">
-      <span class="party-stat party-hour-badge"><i class="fas fa-trophy"></i> Hour <strong id="partyHourNo">No.50</strong></span>
-      <span class="party-stat"><i class="fas fa-fire"></i> Pop <strong id="partyPopScore">100+</strong></span>
-      <span class="party-stat party-music-bar"><i class="fas fa-music"></i> <strong id="partyMusicScore">14</strong> <span class="party-stat-pct" id="partyPopPct">64.17%</span></span>
-      <button type="button" class="party-rule-btn" id="partyRuleBtn"><i class="fas fa-clipboard-list"></i> Rule</button>
-      <span class="party-room-id" id="partyRoomId">ID: ?</span>
+
+
+    <!-- Legacy elements kept for JS compatibility (hidden by ref CSS) -->
+
+    <div class="party-stats-bar" aria-hidden="true">
+
+      <span class="party-stat"><strong id="partyHourNo">No.50</strong></span>
+
+      <span class="party-stat party-music-bar"><strong id="partyMusicScore">0</strong> <span id="partyPopPct">0%</span></span>
+
+      <button type="button" id="partyRuleBtn" hidden></button>
+
     </div>
 
-    <div class="party-widgets">
-      <div class="party-widget party-widget-wish">
-        <div class="wish-row">
-          <span class="wish-ico">??</span>
-          <div>
-            <strong>Wish <span id="partyTeamProgress">0/11</span></strong>
-            <div class="bar"><i id="partyTeamBar" style="width:0%"></i></div>
-          </div>
-        </div>
-      </div>
-      <div class="party-widget party-widget-chest">
-        <span class="chest-ico">??</span>
-        <span id="partyChestTimer">05:00</span>
-      </div>
+    <div class="party-widgets" aria-hidden="true">
+
+      <div class="party-widget"><strong id="partyTeamProgress">0/11</strong><i id="partyTeamBar"></i></div>
+
+      <span id="partyChestTimer" hidden></span>
+
     </div>
 
-    <div class="party-win-banner" id="partyWinBanner"></div>
+    <div class="party-host-bar" id="partyHostBar" hidden></div>
 
-    <!-- Host bar removed from layout — manage via people icon + Basic Tools -->
-    <div class="party-host-bar" id="partyHostBar" hidden aria-hidden="true" style="display:none!important">
-      <button type="button" class="party-host-action mod-tool" id="partyBtnRequests" hidden><i class="fas fa-users"></i> Users <span id="partyReqCount" class="party-req-badge" hidden>0</span></button>
-      <button type="button" class="party-host-action mod-tool" id="partyBtnMuteAllChat" hidden><i class="fas fa-comment-slash"></i> Mute all chat</button>
-      <button type="button" class="party-host-action mod-tool" id="partyBtnClearChat" hidden><i class="fas fa-eraser"></i> Clear chat</button>
-    </div>
+    <div class="party-invite-row" aria-hidden="true"><button type="button" id="partyInvitePill" hidden></button></div>
 
-    <div class="party-invite-row">
-      <button type="button" class="party-event-pill" id="partyInvitePill">
-        <span class="pill-title"><i class="fas fa-user-plus"></i> Invite friends</span>
-        <span class="pill-sub">Tap to pick from your follows</span>
-      </button>
-    </div>
+    <div class="party-room-grid-floor" aria-hidden="true"></div>
+
+    <div class="party-win-banner" id="partyWinBanner" hidden></div>
+
+    <button type="button" class="party-follow-btn" id="partyHostFollow" hidden></button>
+
+
 
     <div class="party-room-body">
+
       <div class="party-seats-wrap">
+
         <div class="party-seats party-seats-ref" id="partySeats"></div>
+
       </div>
+
     </div>
 
-    <div class="party-chat-row" id="partyChatRow">
-      <div class="party-chat-controls">
-        <button type="button" id="liveBtnHideChat" class="party-chat-hide-btn party-chat-hide-btn--solo" aria-label="Hide chat" title="Hide chat">
-          <i class="fas fa-eye-slash" aria-hidden="true"></i>
-          <span>Hide</span>
-        </button>
-      </div>
-      <div class="party-chat-zone">
-        <div class="ap-room-status-strip" id="apRoomStatusStrip" aria-live="polite">
-          <span class="live-status-badge" id="liveStatusBadge" style="display:none">Connecting?</span>
-        </div>
-        <div class="live-chat-ticker" id="liveTicker" aria-live="polite"></div>
-        <div class="party-chat-feed" id="partyChatFeed"></div>
-      </div>
+
+
+    <div class="party-ref-announcement is-empty" id="partyAnnouncement">
+
+      <span class="party-ref-announcement-label">Announcement</span>
+
+      <span class="party-ref-announcement-text" id="partyAnnouncementText"></span>
+
     </div>
-    <button type="button" class="live-show-chat-fab" id="liveBtnShowChat" hidden aria-label="Show chat">
-      <i class="fas fa-comments" aria-hidden="true"></i>
-      <span>Chat</span>
+
+
+
+    <button type="button" class="party-ref-gift-pill" id="partyRefGiftPill" aria-label="Send a gift">
+
+      <i class="fas fa-gift"></i> Send a gift!
+
     </button>
 
+
+
+    <div class="party-chat-row" id="partyChatRow">
+
+      <div class="party-chat-controls">
+
+        <button type="button" id="liveBtnHideChat" class="party-chat-hide-btn party-chat-hide-btn--solo" aria-label="Hide chat"><i class="fas fa-eye-slash"></i></button>
+
+      </div>
+
+      <div class="party-chat-zone">
+
+        <div class="ap-room-status-strip" id="apRoomStatusStrip"><span class="live-status-badge" id="liveStatusBadge" style="display:none"></span></div>
+
+        <div class="live-chat-ticker" id="liveTicker"></div>
+
+        <div class="party-chat-feed" id="partyChatFeed"></div>
+
+      </div>
+
+    </div>
+
+    <button type="button" class="live-show-chat-fab" id="liveBtnShowChat" hidden aria-label="Show chat"><i class="fas fa-comments"></i></button>
+
   </div>
+
+
 
   <footer class="party-bottom-bar ap-bottom-ref" id="partyBottomBar">
+
+    <div class="party-ref-bottom-left">
+
+      <button type="button" class="party-ref-bar-btn" id="liveBtnMic" aria-label="Microphone"><i class="fas fa-microphone"></i></button>
+
+      <button type="button" class="party-ref-bar-btn" id="partyBtnSound" aria-label="Sound"><i class="fas fa-volume-up"></i></button>
+
+      <button type="button" class="party-ref-bar-btn" id="partyRefChatBtn" aria-label="Chat"><i class="fas fa-comment"></i></button>
+
+      <button type="button" class="party-ref-bar-btn" id="partyRefEmojiBtn" aria-label="Emoji"><i class="far fa-smile"></i></button>
+
+    </div>
+
     <div class="live-chat-compose ap-compose-inline" id="liveChatCompose">
-      <span class="ap-char-count is-empty" id="apCharCount" aria-hidden="true"></span>
+
+      <button type="button" class="ap-chat-photo-btn" id="liveChatPhotoBtn" aria-label="Send photo"><i class="fas fa-image"></i></button>
+
+      <input type="file" id="liveChatPhotoInput" accept="image/*" hidden>
+
       <button type="button" class="ap-chat-emoji-btn" id="apChatEmojiBtn" aria-label="Emoji"><i class="far fa-smile"></i></button>
-      <input type="text" id="liveChatInput" placeholder="Say something?" maxlength="280" autocomplete="off" enterkeyhint="send">
+
+      <input type="text" id="liveChatInput" placeholder="Say something…" maxlength="280" autocomplete="off" enterkeyhint="send">
+
       <button type="button" id="liveChatSend" class="ap-chat-send-btn" aria-label="Send"><i class="fas fa-paper-plane"></i></button>
+
+      <span class="ap-char-count is-empty" id="apCharCount" aria-hidden="true"></span>
+
     </div>
-    <button type="button" class="party-btn-follow ap-btn-follow-hidden" id="partyBtnFollow" aria-hidden="true">Follow +</button>
-    <button type="button" class="party-btn-join-seat" id="partyBtnJoinSeat" hidden aria-hidden="true" style="display:none">Request mic</button>
-    <div class="party-bottom-actions">
-      <button type="button" id="partyBtnTools" class="ap-btn-grid" aria-label="Tools"><i class="fas fa-th"></i><span class="ap-notify-dot" id="apToolsNotifyDot" hidden></span></button>
-      <button type="button" id="liveBtnMic" class="ap-btn-mic-ring" aria-label="Request mic"><i class="fas fa-microphone"></i></button>
-      <button type="button" id="partyBtnGift" class="party-btn-gift ap-btn-gift-hero" aria-label="Gifts"><span class="ap-gift-glow"></span><i class="fas fa-gift"></i></button>
+
+    <div class="party-ref-bottom-right">
+
+      <button type="button" id="partyBtnTools" class="party-ref-bar-btn ap-btn-grid" aria-label="Room settings"><i class="fas fa-th"></i><span class="ap-notify-dot" id="apToolsNotifyDot" hidden></span></button>
+
+      <button type="button" class="party-ref-bar-btn" id="partyRefGamesBtn" aria-label="Games"><i class="fas fa-gamepad"></i></button>
+
+      <button type="button" class="party-ref-promo-badge" id="partyRefPromoBtn" aria-label="Recharge offer">70%<br>OFF</button>
+
+      <button type="button" id="partyBtnGift" class="party-btn-gift ap-btn-gift-hero party-ref-bar-btn" aria-label="Gifts"><span class="ap-gift-glow"></span><i class="fas fa-gift"></i></button>
+
     </div>
+
+    <button type="button" class="party-btn-follow ap-btn-follow-hidden" id="partyBtnFollow" hidden>Follow +</button>
+
+    <button type="button" class="party-btn-join-seat" id="partyBtnJoinSeat" hidden>Request mic</button>
+
+    <div class="party-bottom-actions" hidden aria-hidden="true">
+
+      <button type="button" id="liveBtnGift" hidden></button>
+
+    </div>
+
   </footer>
 
-  <div class="ap-modal-overlay" id="apMicLinkModal">
-    <div class="ap-miclink-modal">
-      <div id="apMicLinkWaiting">
-        <div class="ap-miclink-head">On the mic link list</div>
-        <div class="ap-miclink-body">
-          <p>You're on the link list. Wait for host's approval.</p>
-          <button type="button" class="ap-miclink-primary" id="apMicLinkContinue">Confirm</button>
-        </div>
-        <button type="button" class="ap-miclink-cancel" id="apMicLinkCancel">Cancel the mic link</button>
+
+
+  <!-- Room Settings hub (reference) -->
+
+  <div class="ap-modal-overlay align-bottom ap-party-settings-sheet" id="apPartyRoomSettings">
+
+    <div class="ap-party-settings-panel">
+
+      <h3>Room Settings</h3>
+
+      <div class="ap-party-settings-grid">
+
+        <button type="button" id="partySettingOpenModal"><span class="ico"><i class="fas fa-cog"></i></span>Setting</button>
+
+        <button type="button" id="partySettingEditInfo"><span class="ico"><i class="fas fa-pen"></i></span>Edit Info</button>
+
+        <button type="button" id="partySettingTheme"><span class="ico"><i class="fas fa-palette"></i></span>Theme</button>
+
+        <button type="button" id="partySettingPassword" class="host-only-tool"><span class="ico"><i class="fas fa-lock"></i></span>Password</button>
+
+        <button type="button" id="partySettingRoomData" class="host-only-tool"><span class="ico"><i class="fas fa-chart-line"></i></span>Room Data</button>
+
+        <button type="button" id="partySettingFanBadge" class="host-only-tool"><span class="ico"><i class="fas fa-heart"></i></span>Fan Badge</button>
+
+        <button type="button" id="partySettingRoomAdmin" class="mod-only-tool"><span class="ico"><i class="fas fa-user-shield"></i></span>Room Admin</button>
+
+        <button type="button" id="partySettingMusic"><span class="ico"><i class="fas fa-music"></i></span>Music</button>
+
       </div>
-      <div id="apMicLinkRejected" style="display:none">
-        <div class="ap-miclink-head">On the mic link list</div>
-        <div class="ap-miclink-body ap-miclink-rejected">
-          <p><strong>Request declined</strong><br>You're still on the link list. Wait for host's approval.</p>
-          <button type="button" class="ap-miclink-primary" id="apMicLinkConfirm">Confirm</button>
-        </div>
-        <button type="button" class="ap-miclink-cancel" id="apMicLinkCancel2">Cancel the mic link</button>
-      </div>
+
+      <button type="button" class="ap-tool-close-fab" id="apPartySettingsClose" aria-label="Close"><i class="fas fa-times"></i></button>
+
     </div>
+
   </div>
+
+
+
+  <!-- Setting modal: mic count, game type, convert -->
+
+  <div class="ap-modal-overlay align-bottom ap-party-setting-modal" id="apPartySettingModal">
+
+    <div class="ap-party-setting-panel">
+
+      <h3>Setting</h3>
+
+      <div class="ap-party-mode-tabs">
+
+        <button type="button" data-mode="live" id="partySettingTabLive"><i class="fas fa-broadcast-tower"></i> Live</button>
+
+        <button type="button" data-mode="chat" class="is-active" id="partySettingTabChat"><i class="fas fa-comment"></i> Chat</button>
+
+      </div>
+
+      <div class="ap-party-layout-preview" id="partySettingLayoutPreview">Layout preview</div>
+
+      <p class="ap-party-field-label">Number of Mic</p>
+
+      <div class="ap-party-mic-options" id="partyMicCountOptions">
+
+        <button type="button" data-mics="5">5 Mic</button>
+
+        <button type="button" data-mics="10">10 Mic</button>
+
+        <button type="button" data-mics="15" class="is-selected">15 Mic</button>
+
+        <button type="button" data-mics="20">20 Mic</button>
+
+        <button type="button" data-mics="25">25 Mic</button>
+
+        <button type="button" data-mics="30">30 Mic</button>
+
+      </div>
+
+      <div class="ap-party-toggle-row">
+
+        <span>Apply Mode</span>
+
+        <button type="button" class="ap-party-toggle is-on" id="partyApplyModeToggle" aria-label="Apply mode"></button>
+
+      </div>
+
+      <p class="ap-party-field-label">Game Type <i class="fas fa-info-circle" style="opacity:0.5;font-size:12px"></i></p>
+
+      <div class="ap-party-game-grid" id="partyGameTypeGrid"></div>
+
+      <button type="button" class="ap-party-convert-btn" id="partySettingConvert">Convert</button>
+
+    </div>
+
+  </div>
+
+
+
+  <!-- Edit Info modal -->
+
+  <div class="ap-modal-overlay align-bottom ap-party-edit-modal" id="apPartyEditInfoModal">
+
+    <div class="ap-party-edit-panel">
+
+      <h3 style="text-align:center;color:#fff;margin:0 0 16px">Edit Info</h3>
+
+      <div class="ap-party-edit-photo">
+
+        <img id="partyEditPhotoPreview" src="" alt="Room photo">
+
+        <label for="partyEditPhotoInput">Edit room photo</label>
+
+        <input type="file" id="partyEditPhotoInput" accept="image/*" hidden>
+
+      </div>
+
+      <div class="ap-party-edit-field">
+
+        <label for="partyEditNameInput">Room Name</label>
+
+        <input type="text" id="partyEditNameInput" maxlength="48" placeholder="Room name">
+
+      </div>
+
+      <div class="ap-party-edit-field">
+
+        <label for="partyEditAnnouncementInput">Announcement</label>
+
+        <textarea id="partyEditAnnouncementInput" maxlength="280" placeholder="Room announcement…"></textarea>
+
+      </div>
+
+      <button type="button" class="ap-party-edit-submit" id="partyEditInfoSubmit">Submit</button>
+
+    </div>
+
+  </div>
+
+
+
+  <!-- Room profile drawer -->
+
+  <div class="ap-modal-overlay align-bottom ap-party-room-profile" id="apPartyRoomProfile">
+
+    <div class="ap-party-room-profile-panel">
+
+      <div class="ap-party-room-profile-hero">
+
+        <img id="apPartyProfileCover" src="" alt="">
+
+        <div>
+
+          <h3 id="apPartyProfileName" style="color:#fff;margin:0 0 4px">Room</h3>
+
+          <p id="apPartyProfileId" style="color:rgba(255,255,255,0.55);font-size:12px;margin:0">ID: —</p>
+
+          <span style="display:inline-block;margin-top:6px;padding:2px 8px;border-radius:999px;background:rgba(251,191,36,0.2);color:#fbbf24;font-size:11px">Chat</span>
+
+        </div>
+
+      </div>
+
+      <div class="ap-party-room-profile-tabs">
+
+        <button type="button" class="is-active" data-tab="profile">Profile</button>
+
+        <button type="button" data-tab="member">Member</button>
+
+      </div>
+
+      <div id="apPartyProfileTabProfile">
+
+        <div class="ap-party-room-profile-section">
+
+          <h4>Room owner</h4>
+
+          <p id="apPartyProfileOwner">—</p>
+
+        </div>
+
+        <div class="ap-party-room-profile-section" style="margin-top:16px">
+
+          <h4>Announcement</h4>
+
+          <p id="apPartyProfileAnnouncement">—</p>
+
+        </div>
+
+      </div>
+
+      <div id="apPartyProfileTabMember" hidden></div>
+
+    </div>
+
+  </div>
+
+
+
+  <div class="ap-party-seat-menu" id="apPartySeatMenu" hidden role="menu"></div>
+
+
+
+  <div class="ap-modal-overlay" id="apMicLinkModal">
+
+    <div class="ap-miclink-modal">
+
+      <div id="apMicLinkWaiting">
+
+        <div class="ap-miclink-head">On the mic link list</div>
+
+        <div class="ap-miclink-body"><p>Wait for host approval.</p><button type="button" class="ap-miclink-primary" id="apMicLinkContinue">Confirm</button></div>
+
+        <button type="button" class="ap-miclink-cancel" id="apMicLinkCancel">Cancel</button>
+
+      </div>
+
+      <div id="apMicLinkRejected" style="display:none">
+
+        <div class="ap-miclink-head">Request declined</div>
+
+        <div class="ap-miclink-body"><button type="button" class="ap-miclink-primary" id="apMicLinkConfirm">Confirm</button></div>
+
+        <button type="button" class="ap-miclink-cancel" id="apMicLinkCancel2">Cancel</button>
+
+      </div>
+
+    </div>
+
+  </div>
+
+
 
   <div class="party-requests-sheet" id="partyRequestsSheet">
+
     <div class="party-requests-panel">
-      <div class="party-requests-head">
-        <h3>Join requests</h3>
-        <button type="button" id="partyRequestsClose"><i class="fas fa-times"></i></button>
-      </div>
-      <p class="party-requests-hint">Guests listening in the room appear below. Accept mic requests to put them on a seat.</p>
+
+      <div class="party-requests-head"><h3>People in room</h3><button type="button" id="partyRequestsClose"><i class="fas fa-times"></i></button></div>
+
       <div id="partyRequestsList" class="party-requests-list"></div>
-      <h4 class="party-requests-subtitle">In room (online)</h4>
+
       <div id="partyAvailableList" class="party-requests-list"></div>
-      <h4 class="party-requests-subtitle">Room gift totals</h4>
+
       <div id="partyRoomGiftAnalytics" class="party-gift-analytics"></div>
-      <h4 class="party-requests-subtitle">Gift history</h4>
+
       <div id="partyGiftHistoryList" class="party-gift-history"></div>
+
     </div>
+
   </div>
 
-  <div class="party-tools-sheet" id="partyToolsSheet">
-    <div class="party-tools-panel party-tools-panel-ref">
-      <h3 class="party-tools-title">Basic Tools</h3>
-      <div class="party-tools-grid party-tools-grid-4">
-        <a href="/chat.html?app=1" class="ap-tool-msg"><span class="ico msg"><i class="fas fa-envelope"></i><span class="ap-notify-dot"></span></span>Message</a>
-        <button type="button" id="partyBtnSound"><span class="ico sound"><i class="fas fa-volume-up"></i></span>Sound</button>
-        <button type="button" id="partyBtnMusic"><span class="ico music"><i class="fas fa-music"></i></span>Music</button>
-        <button type="button" id="partyBtnShare"><span class="ico share"><i class="fas fa-share"></i></span>Share</button>
-        <button type="button" id="partyBtnReport" class="ap-tool-end"><span class="ico report"><i class="fas fa-exclamation-circle"></i></span>Report</button>
-      </div>
-      <div class="party-tools-grid party-tools-grid-4 party-tools-row2">
-        <button type="button" id="partyBtnEffects"><span class="ico effects"><i class="fas fa-sliders-h"></i></span>Effect&amp;Msg</button>
-        <button type="button" id="partyBtnMinimize"><span class="ico minimize"><i class="fas fa-compress"></i></span>Minimize</button>
-        <button type="button" id="partyBtnBackground" class="host-only-tool"><span class="ico bg"><i class="fas fa-image"></i></span>Background</button>
-        <button type="button" id="partyBtnLock" class="host-only-tool"><span class="ico lock"><i class="fas fa-lock"></i></span><span class="party-lock-label">Lock room</span></button>
-        <button type="button" id="partyToolsMuteAllChat" class="mod-only-tool"><span class="ico"><i class="fas fa-comment-slash"></i></span>Mute all chat</button>
-        <button type="button" id="partyToolsClearChat" class="mod-only-tool"><span class="ico"><i class="fas fa-eraser"></i></span>Clear chat</button>
-      </div>
-      <h3 class="party-tools-title party-tools-title--games">Games</h3>
-      <div class="party-tools-grid party-tools-grid-4">
-        <button type="button" class="ap-tool-game" data-game="/games/crazy-fruit.html"><span class="ico" style="background:linear-gradient(135deg,#f59e0b,#b45309)">🍒</span>Crazy Fruit</button>
-        <button type="button" class="ap-tool-game" data-game="/games/greedy.html"><span class="ico" style="background:linear-gradient(135deg,#7c3aed,#4c1d95)">💎</span>Krazy Khazana</button>
-        <button type="button" class="ap-tool-game" data-game="/games/teen-patti.html"><span class="ico" style="background:linear-gradient(135deg,#8b5cf6,#4c1d95)">🃏</span>Teen Patti</button>
-      </div>
-      <h3 class="party-tools-title party-tools-title--features">Features Centre</h3>
-      <div class="party-tools-grid party-tools-grid-4">
-        <a href="/rankings.html?app=1"><span class="ico rank"><i class="fas fa-trophy"></i></span>Rank</a>
-        <a href="/coins-recharge.html?app=1"><span class="ico coins"><i class="fas fa-coins"></i></span>Rewards</a>
-        <a href="/store.html?app=1"><span class="ico store"><i class="fas fa-shopping-bag"></i></span>Store</a>
-        <a href="/vip.html?app=1"><span class="ico vip"><i class="fas fa-gem"></i></span>VIP</a>
-      </div>
-      <div class="party-tools-grid party-tools-grid-4 party-tools-row2">
-        <button type="button" id="partyBtnGiftTools"><span class="ico gallery"><i class="fas fa-gift"></i></span>Gift Gallery</button>
-        <button type="button" id="partyBtnGiftCollection"><span class="ico collection"><i class="fas fa-star"></i></span>Gift Collection</button>
-        <button type="button" id="partyBtnGiftWish"><span class="ico wish"><i class="fas fa-star"></i></span>Gift wish</button>
-      </div>
-      <button type="button" id="partyToolsClose" class="ap-tool-close-fab" aria-label="Close tools"><i class="fas fa-times"></i></button>
-    </div>
+
+
+  <div class="party-tools-sheet" id="partyToolsSheet" hidden aria-hidden="true">
+
+    <div class="party-tools-panel"><button type="button" id="partyToolsClose"></button></div>
+
   </div>
 
-  <audio id="partyBgMusic" loop preload="none" style="display:none" aria-hidden="true"></audio>
+
+
+  <audio id="partyBgMusic" loop preload="none" style="display:none"></audio>
+
   <div class="party-music-sheet" id="partyMusicSheet" aria-hidden="true">
+
     <div class="party-music-panel">
+
       <h3>Party music</h3>
-      <p>Listen while you chat ? this plays on your device and does not interrupt voice.</p>
+
       <div id="partyMusicList"></div>
-      <div class="party-music-actions">
-        <button type="button" class="party-music-stop" id="partyMusicStop">Stop</button>
-        <button type="button" class="party-music-close" id="partyMusicClose">Close</button>
-      </div>
+
+      <button type="button" id="partyMusicStop">Stop</button>
+
+      <button type="button" id="partyMusicClose">Close</button>
+
     </div>
+
   </div>
+
+
+
+  <button type="button" id="partyBtnLock" hidden aria-hidden="true"></button>
+  <button type="button" id="partyBtnMusic" hidden aria-hidden="true"></button>
+  <button type="button" id="partyBtnBackground" hidden aria-hidden="true"></button>
+  <button type="button" id="partyBtnReport" hidden aria-hidden="true"></button>
+  <button type="button" id="partyBtnEffects" hidden aria-hidden="true"></button>
+  <button type="button" id="partyBtnMinimize" hidden aria-hidden="true"></button>
 
   <script src="/socket.io/socket.io.js"></script>
+
   <script src="ap-config.js"></script>
+
   <script src="app.js?v=20260802-push-sync"></script>
+
   <script src="social-wallet.js?v=20260718-perf"></script>
+
   <script src="social-ui.js?v=20260718-perf"></script>
+
   <script src="social-interactions.js?v=20260718-perf"></script>
+
   <script src="auth-guard.js"></script>
-  <script src="social-fx.js?v=20260723-gift-hero-fx"></script>
+
+  <script src="social-fx.js?v=20260814-gift-glow"></script>
+
   <script src="live-emoji-data.js?v=20260726-send-gift-200"></script>
+
   <script src="social-shell.js?v=20260727-perf"></script>
+
   <script src="live-session-provider.js?v=20260723-mini-close"></script>
+
   <script src="live-media-engine.js?v=20260802-flat-volume"></script>
+
   <script src="agora-lifecycle.js?v=20260724-phase1-life"></script>
-  <script src="voice-soak-metrics.js?v=20260724-phase1-life"></script>
-  <!-- TEMPORARY investigation only — inert unless localStorage.ap_voice_route_debug=1 -->
-  <script src="voice-route-debug.js?v=temp-route-debug"></script>
-  <script src="social-live.js?v=20260804-minal-uplink"></script>
+
+  <script src="social-live.js?v=20260814-party-ref"></script>
+
   <script src="social-nav.js?v=20260720-back-fix"></script>
+
 </body>
+
 </html>
+
+

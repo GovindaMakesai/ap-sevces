@@ -5586,7 +5586,7 @@ body.is-pk-mode .ap-pk-bar {
   width: 100%;
   height: 22px !important;
   margin: 0 !important;
-  background: #2563eb;
+  background: #3b82f6;
   overflow: visible;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
   border-radius: 0 !important;
@@ -7137,6 +7137,34 @@ body.is-pk-mode .ap-pk-types-sheet {
   width: 32px;
   height: 32px;
   color: rgba(255, 255, 255, 0.75);
+}
+
+.ap-compose-inline .ap-chat-photo-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 15px;
+  cursor: pointer;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.party-chat-media {
+  margin-top: 4px;
+}
+
+.party-chat-image {
+  display: block;
+  max-width: min(180px, 100%);
+  max-height: 140px;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .ap-compose-inline .ap-chat-send-btn {

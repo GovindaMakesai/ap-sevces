@@ -181,6 +181,73 @@ exports.exchangePoints = async (req, res) => {
   }
 };
 
+exports.lookupPointsTransferRecipient = async (req, res) => {
+  try {
+    const accountId = req.params.accountId || req.query.accountId;
+    const user = await walletService.lookupPointsTransferRecipient(accountId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found or not an Agency / Coin Seller',
+      });
+    }
+    res.json({
+      success: true,
+      data: {
+        id: user.id,
+        display_id: user.display_id,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        profile_pic: user.profile_pic,
+        recipient_type: user.recipient_type,
+        agency_name: user.agency_name || null,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+exports.listPointsTransfers = async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit, 10) || 30, 100);
+    const rows = await walletService.listPointsTransfers(req.userId, { limit });
+    const settings = await walletService.getWalletSettings();
+    const usedToday = await walletService.countPointsTransfersToday(req.userId);
+    const dailyLimit = Number(settings.points_transfer_daily_limit) || 5;
+    res.json({
+      success: true,
+      data: rows,
+      meta: {
+        daily_limit: dailyLimit,
+        used_today: usedToday,
+        remaining_today: Math.max(0, dailyLimit - usedToday),
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+exports.transferPoints = async (req, res) => {
+  try {
+    const points = parseInt(req.body.points || req.body.amount, 10);
+    const recipientId = req.body.recipientId || req.body.recipient_id || req.body.accountId;
+    const data = await walletService.transferPointsToRecipient(req.userId, { recipientId, points });
+    const name =
+      `${data.recipient.first_name || ''} ${data.recipient.last_name || ''}`.trim() ||
+      `#${data.recipient.display_id || ''}`;
+    res.json({
+      success: true,
+      message: `Transferred ${data.netPoints.toLocaleString()} points to ${name} (${data.serviceFee.toLocaleString()} fee)`,
+      data,
+    });
+  } catch (err) {
+    const code = err.code === 'INSUFFICIENT_BALANCE' ? 400 : 400;
+    res.status(code).json({ success: false, message: err.message });
+  }
+};
+
 exports.getWithdrawal = async (req, res) => {
   try {
     const row = await transactionService.getWithdrawalById(req.params.id, req.userId);
