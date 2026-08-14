@@ -276,6 +276,21 @@ body[data-live-page='party-room'] .party-seats-wrap {
   align-items: flex-start;
   justify-content: center;
   padding-bottom: calc(48px + env(safe-area-inset-bottom, 0));
+  position: relative;
+}
+
+body[data-live-page='party-room'] .party-cp-seat-ring {
+  position: absolute;
+  z-index: 12;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(0 4px 14px rgba(236, 72, 153, 0.55));
+}
+
+body[data-live-page='party-room'] .party-seat.is-cp-partner .seat-avatar {
+  box-shadow:
+    0 0 0 2px rgba(244, 114, 182, 0.95),
+    0 0 14px rgba(236, 72, 153, 0.45);
 }
 
 body[data-live-page='party-room'] .party-seats-ref {

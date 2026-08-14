@@ -11133,39 +11133,60 @@
     }
   }
 
-  function renderPartyCpBanner() {
+  function renderPartyCpOnSeats() {
     const banner = document.getElementById('partyCpBanner');
-    const couple = document.getElementById('partyCpCouple');
-    if (!banner || !couple || !isPartyRoomPage()) return;
-    const pairs = roomState?.cpInRoom || [];
-    if (!pairs.length) {
+    if (banner) {
       banner.hidden = true;
       banner.setAttribute('aria-hidden', 'true');
-      couple.innerHTML = '';
-      return;
     }
-    const pair = pairs[0];
-    const ringEmoji = pair.ring?.emoji || '💎';
-    const ringId = pair.ring?.id || pair.ringId || 'cp';
-    const slotHtml = (user) =>
-      `<div class="party-cp-slot">
-        <img class="party-cp-avatar" src="${avatarUrl(user.name, user.profilePic)}" alt="" data-name="${escapeAttr(user.name || 'User')}" loading="lazy">
-        <span class="party-cp-name">${escapeHtml(user.name || 'User')}</span>
-      </div>`;
-    couple.innerHTML =
-      slotHtml(pair.userA) +
-      `<span class="party-cp-ring-badge party-cp-badge" title="CP couple" data-ring-id="${escapeAttr(ringId)}">` +
-      `<span class="party-cp-ring-slot"></span><span class="party-cp-label">CP</span></span>` +
-      slotHtml(pair.userB);
-    const ringSlot = couple.querySelector('.party-cp-ring-slot');
-    if (ringSlot && global.CpRings) {
-      global.CpRings.mount(ringSlot, ringId, 'sm');
-    } else if (ringSlot) {
-      ringSlot.textContent = ringEmoji;
-    }
-    banner.hidden = false;
-    banner.removeAttribute('aria-hidden');
-    window.SocialUI?.bindAvatarFallbacks?.(couple);
+    const wrap = document.querySelector('body[data-live-page="party-room"] .party-seats-wrap');
+    const grid = document.getElementById('partySeats');
+    if (!wrap || !grid || !isPartyRoomPage()) return;
+
+    wrap.querySelectorAll('.party-cp-seat-ring').forEach((el) => el.remove());
+    grid.querySelectorAll('.party-seat.is-cp-partner').forEach((el) => el.classList.remove('is-cp-partner'));
+
+    const pairs = roomState?.cpInRoom || [];
+    if (!pairs.length) return;
+
+    pairs.forEach((pair) => {
+      const idA = String(pair.userA?.userId || '');
+      const idB = String(pair.userB?.userId || '');
+      const ringId = pair.ring?.id || pair.ringId || 'ruby';
+      if (!idA || !idB) return;
+
+      const seatA = idA ? grid.querySelector(`.party-seat[data-user-id="${CSS.escape(idA)}"]:not(.is-empty)`) : null;
+      const seatB = idB ? grid.querySelector(`.party-seat[data-user-id="${CSS.escape(idB)}"]:not(.is-empty)`) : null;
+      const seated = [seatA, seatB].filter(Boolean);
+      if (!seated.length) return;
+
+      seated.forEach((seat) => seat.classList.add('is-cp-partner'));
+
+      const bridge = document.createElement('div');
+      bridge.className = 'party-cp-seat-ring';
+      bridge.setAttribute('aria-hidden', 'true');
+      bridge.title = pair.ring?.name ? `CP · ${pair.ring.name}` : 'CP couple';
+      bridge.innerHTML = '<span class="party-cp-seat-ring-slot"></span>';
+      wrap.appendChild(bridge);
+
+      const rectWrap = wrap.getBoundingClientRect();
+      let cx;
+      let cy;
+      if (seatA && seatB) {
+        const rA = seatA.getBoundingClientRect();
+        const rB = seatB.getBoundingClientRect();
+        cx = (rA.left + rA.right + rB.left + rB.right) / 4 - rectWrap.left;
+        cy = (rA.top + rA.bottom + rB.top + rB.bottom) / 4 - rectWrap.top;
+      } else {
+        const r = seated[0].getBoundingClientRect();
+        cx = (r.left + r.right) / 2 - rectWrap.left;
+        cy = r.top - rectWrap.top - 8;
+      }
+
+      bridge.style.left = `${Math.round(cx)}px`;
+      bridge.style.top = `${Math.round(cy)}px`;
+      global.CpRings?.mount?.(bridge.querySelector('.party-cp-seat-ring-slot'), ringId, seatA && seatB ? 'md' : 'sm');
+    });
   }
 
   function renderPartySeats(hostName) {
@@ -11177,6 +11198,7 @@
     if (structureKey === lastPartySeatsStructureKey) {
       patchPartySeatActivity(slots);
       paintHostAvatarImg(document.getElementById('partyHostAvatar'), hostName);
+      renderPartyCpOnSeats();
       return;
     }
     lastPartySeatsStructureKey = structureKey;
@@ -11197,6 +11219,7 @@
     window.SocialUI?.bindAvatarFallbacks?.(container);
     paintHostAvatarImg(document.getElementById('partyHostAvatar'), hostName);
     scheduleFitPartySeatsToViewport();
+    renderPartyCpOnSeats();
   }
 
   function scheduleFitPartySeatsToViewport() {
@@ -11222,6 +11245,7 @@
       grid.style.transform = `scale(${scale})`;
       grid.style.marginBottom = `${Math.round((needed * (scale - 1)) / 2)}px`;
     }
+    renderPartyCpOnSeats();
   }
 
   function formatGiftCount(n) {
@@ -11336,8 +11360,8 @@
     if (hearts) hearts.textContent = String(roomState?.gifts?.length || 0);
 
     if (document.getElementById('partySeats')) {
-      renderPartyCpBanner();
       renderPartySeats(hostName);
+      renderPartyCpOnSeats();
     }
     renderChatFromState();
     hydrateGiftHistoryFromState(roomState);
