@@ -15,6 +15,12 @@ exports.getHome = async (req, res) => {
       },
     });
   } catch (err) {
+    if (/cp_|user_cp_support|does not exist/i.test(err.message || '')) {
+      return res.status(503).json({
+        success: false,
+        message: 'CP module is being enabled. Please try again shortly.',
+      });
+    }
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -31,6 +37,12 @@ exports.getSupport = async (req, res) => {
       },
     });
   } catch (err) {
+    if (/cp_|user_cp_support|does not exist/i.test(err.message || '')) {
+      return res.status(503).json({
+        success: false,
+        message: 'CP module is being enabled. Please try again shortly.',
+      });
+    }
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -90,6 +102,12 @@ exports.personalLevel = async (req, res) => {
     const data = await cpService.getPersonalLevel(req.userId);
     res.json({ success: true, data });
   } catch (err) {
+    if (/cp_|user_cp_support|does not exist/i.test(err.message || '')) {
+      return res.status(503).json({
+        success: false,
+        message: 'CP module is being enabled. Please try again shortly.',
+      });
+    }
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -99,6 +117,12 @@ exports.roomLevel = async (req, res) => {
     const data = await cpService.getRoomLevel(req.userId);
     res.json({ success: true, data });
   } catch (err) {
+    if (/cp_|user_cp_support|does not exist/i.test(err.message || '')) {
+      return res.status(503).json({
+        success: false,
+        message: 'CP module is being enabled. Please try again shortly.',
+      });
+    }
     res.status(500).json({ success: false, message: err.message });
   }
 };

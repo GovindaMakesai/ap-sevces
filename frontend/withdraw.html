@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#5b67f6">
   <title>Withdraw - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-withdraw.css?v=20260814-transfer">
+  <link rel="stylesheet" href="social-withdraw.css?v=20260814-transfer-fix">
   <link rel="stylesheet" href="mobile-app.css">
 </head>
 <body class="withdraw-app">
@@ -197,7 +197,7 @@
   <input type="file" id="qrFile" accept="image/jpeg,image/png,image/webp" tabindex="-1" aria-hidden="true">
 
   <script src="app.js"></script>
-  <script src="social-wallet.js?v=20260814-transfer"></script>
+  <script src="social-wallet.js?v=20260814-transfer-fix"></script>
   <script src="auth-guard.js"></script>
   <script src="social-ui.js"></script>
   <script>
@@ -277,6 +277,7 @@
     }
 
     function showTransferRecipient(user) {
+      if (!user || !user.id) return;
       transferRecipient = user;
       transferRecipientChecked = true;
       const card = document.getElementById('transferRecipientCard');
@@ -723,11 +724,14 @@
         btn.textContent = '…';
         try {
           const res = await SocialWallet.lookupPointsTransferRecipient(accountId);
-          showTransferRecipient(res.data || res);
+          const user = res?.data?.id ? res.data : res?.data || res;
+          if (!user?.id) throw new Error('Recipient not found — enter Agency or Coin Seller ID');
+          showTransferRecipient(user);
           SocialUI?.toast?.('Recipient verified') || null;
         } catch (e) {
           clearTransferRecipient();
-          SocialUI?.toast?.(e.message || 'Not found') || alert(e.message || 'Recipient not found');
+          const msg = e.message || 'Recipient not found';
+          SocialUI?.toast?.(msg) || alert(msg);
         } finally {
           btn.disabled = false;
           btn.textContent = 'Check';

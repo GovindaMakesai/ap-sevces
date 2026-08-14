@@ -104,7 +104,11 @@
         document.querySelector('.social-banner h2').textContent = 'CP Rings';
         let rings = [];
         try {
-          const res = await fetch((CONFIG.API_URL || '/api') + '/cp/rings', { credentials: 'include' });
+          const token = localStorage.getItem('token');
+          const res = await fetch(joinApiUrl('/cp/rings'), {
+            credentials: 'include',
+            headers: token ? { Authorization: 'Bearer ' + token, Accept: 'application/json' } : { Accept: 'application/json' },
+          });
           const data = await res.json();
           if (data.success) rings = data.data;
         } catch (_e) {}
@@ -123,7 +127,7 @@
             if (!ringId || !confirm('Buy ' + el.dataset.name + ' for ' + el.dataset.price + ' coins?')) return;
             try {
               const token = localStorage.getItem('token');
-              const res = await fetch((CONFIG.API_URL || '/api') + '/cp/rings/purchase', {
+              const res = await fetch(joinApiUrl('/cp/rings/purchase'), {
                 method: 'POST',
                 credentials: 'include',
                 headers: {

@@ -167,11 +167,19 @@
       document.getElementById('cpRingBtn').textContent = cp.ring?.emoji || '💍';
 
       try {
-        const me = await API.get('/users/me');
-        const u = me.data || me.user || me;
+        const me = await API.get('/auth/me');
+        const u = me.data?.user || me.data || me.user || me;
         const myName = `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'You';
         document.getElementById('cpMeName').textContent = myName;
         document.getElementById('cpMeAvatar').src = avatarUrl(myName, u.profile_pic);
+        document.getElementById('cpMeAvatar').onerror = function () {
+          this.onerror = null;
+          this.src = avatarUrl(myName, null);
+        };
+        document.getElementById('cpPartnerAvatar').onerror = function () {
+          this.onerror = null;
+          this.src = avatarUrl(cp.partnerName, null);
+        };
       } catch (_e) {}
     }
 

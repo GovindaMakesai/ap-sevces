@@ -21,7 +21,10 @@
     }
     .lvl-tabs button.active { color: #fff; border-bottom-color: #fff; font-weight: 700; }
     .lvl-hero { text-align: center; padding: 8px 0 0; }
-    .lvl-hero img { width: 72px; height: 72px; border-radius: 50%; border: 3px solid #fff; object-fit: cover; }
+    .lvl-hero img {
+      width: 72px; height: 72px; border-radius: 50%; border: 3px solid #fff; object-fit: cover;
+      background: rgba(255,255,255,0.25);
+    }
     .lvl-badge {
       display: inline-block; margin-top: -14px; padding: 4px 12px; border-radius: 8px;
       background: linear-gradient(135deg, #2563eb, #1d4ed8); font-weight: 800; font-size: 13px;
@@ -39,6 +42,7 @@
     }
     .lvl-way { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
     .room-header { background: linear-gradient(180deg, #a855f7, #7c3aed); }
+    .lvl-error { margin: 16px; padding: 14px; border-radius: 12px; background: #fef2f2; color: #b91c1c; font-size: 14px; }
   </style>
 </head>
 <body>
@@ -52,7 +56,7 @@
       <span style="width:24px"></span>
     </div>
     <div class="lvl-hero">
-      <img id="lvlAvatar" src="" alt="">
+      <img id="lvlAvatar" src="https://ui-avatars.com/api/?name=You&background=0ea5e9&color=fff" alt="Your avatar">
       <div><span class="lvl-badge" id="lvlBadge">Lv.1</span></div>
     </div>
     <div class="lvl-bar-wrap">
@@ -64,6 +68,8 @@
       </div>
     </div>
   </div>
+
+  <div id="lvlError" class="lvl-error" hidden></div>
 
   <div class="lvl-card" id="panelPersonal">
     <h3>Benefits of Level</h3>
@@ -88,26 +94,72 @@
   </div>
 
   <script src="app.js"></script>
+  <script src="social-shell.js"></script>
+  <script src="auth-guard.js"></script>
   <script>
     let tab = 'personal';
+
+    function avatarUrl(name, pic) {
+      if (pic) {
+        if (window.SocialShell?.getImageUrl) return SocialShell.getImageUrl(pic);
+        if (window.SocialWallet?.resolveUploadUrl) return SocialWallet.resolveUploadUrl(pic);
+        const base = (window.CONFIG?.BACKEND_URL || '').replace(/\/$/, '');
+        const rel = String(pic).startsWith('/') ? pic : '/' + pic;
+        if (base) return base + rel;
+      }
+      return `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'You')}&background=0ea5e9&color=fff`;
+    }
+
+    async function loadProfileAvatar() {
+      try {
+        const res = await API.get('/auth/me');
+        const u = res?.data?.user || res?.data || res?.user || {};
+        const name = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email?.split('@')[0] || 'You';
+        const img = document.getElementById('lvlAvatar');
+        if (img) {
+          img.src = avatarUrl(name, u.profile_pic);
+          img.alt = name;
+          img.onerror = () => {
+            img.onerror = null;
+            img.src = avatarUrl(name, null);
+          };
+        }
+      } catch (_e) { /* keep default avatar */ }
+    }
+
+    function showLevelError(msg) {
+      const el = document.getElementById('lvlError');
+      if (!el || !msg) return;
+      el.textContent = msg;
+      el.hidden = false;
+    }
+
     async function loadLevel() {
       const token = localStorage.getItem('token');
+      if (!token) {
+        location.href = '/login.html?redirect=' + encodeURIComponent('/levels.html?app=1');
+        return;
+      }
       const path = tab === 'room' ? '/levels/room' : '/levels/personal';
       const res = await fetch(joinApiUrl('/cp' + path), {
-        headers: token ? { Authorization: 'Bearer ' + token } : {},
+        headers: { Authorization: 'Bearer ' + token, Accept: 'application/json' },
         credentials: 'include',
       });
-      const json = await res.json();
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json.success === false) {
+        throw new Error(json.message || 'Could not load level data');
+      }
       const d = json.data || {};
-      document.getElementById('lvlBadge').textContent = 'Lv.' + d.level;
-      document.getElementById('lvlCur').textContent = 'Lv.' + d.level;
-      document.getElementById('lvlNext').textContent = 'Lv.' + (d.level + 1);
+      document.getElementById('lvlBadge').textContent = 'Lv.' + (d.level || 1);
+      document.getElementById('lvlCur').textContent = 'Lv.' + (d.level || 1);
+      document.getElementById('lvlNext').textContent = 'Lv.' + ((d.level || 1) + 1);
       document.getElementById('lvlExp').textContent = `${d.progress || 0}/${d.nextLevelExp || 1000} EXP`;
-      const pct = d.nextLevelExp ? Math.min(100, (d.progress / d.nextLevelExp) * 100) : 0;
+      const pct = d.nextLevelExp ? Math.min(100, ((d.progress || 0) / d.nextLevelExp) * 100) : 0;
       document.getElementById('lvlBarFill').style.width = pct + '%';
       document.getElementById('giftExp').textContent = String(d.exp || 0);
       document.getElementById('roomGiftExp').textContent = String(d.exp || 0);
     }
+
     document.querySelectorAll('.lvl-tabs button').forEach((btn) => {
       btn.addEventListener('click', () => {
         tab = btn.dataset.tab;
@@ -115,10 +167,14 @@
         document.getElementById('lvlHeader').classList.toggle('room-header', tab === 'room');
         document.getElementById('panelPersonal').hidden = tab !== 'personal';
         document.getElementById('panelRoom').hidden = tab !== 'room';
-        loadLevel();
+        loadLevel().catch((e) => showLevelError(e.message));
       });
     });
-    document.addEventListener('DOMContentLoaded', loadLevel);
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadProfileAvatar();
+      loadLevel().catch((e) => showLevelError(e.message || 'Sign in to view levels'));
+    });
   </script>
 </body>
 </html>

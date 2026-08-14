@@ -253,12 +253,23 @@
 
   async function lookupPointsTransferRecipient(accountId) {
     const id = encodeURIComponent(String(accountId || '').trim());
-    return API.get(`/wallet/transfer-points/lookup/${id}`);
+    const res = await API.getFresh(`/wallet/transfer-points/lookup/${id}`);
+    if (!res?.success && !res?.data?.id) {
+      throw new Error(res?.message || 'Recipient not found');
+    }
+    return res;
   }
 
   async function listPointsTransfers(limit) {
     const q = limit ? `?limit=${encodeURIComponent(limit)}` : '';
-    return API.get(`/wallet/transfer-points/history${q}`);
+    try {
+      return await API.getFresh(`/wallet/transfer-points/history${q}`);
+    } catch (e) {
+      if (/points_transfers|does not exist/i.test(e.message || '')) {
+        return { success: true, data: [], meta: { remaining_today: 5, used_today: 0 } };
+      }
+      throw e;
+    }
   }
 
   async function transferPoints(recipientId, points) {
@@ -266,6 +277,9 @@
       recipientId,
       points: Number(points),
     });
+    if (res?.success === false) {
+      throw new Error(res.message || 'Transfer failed');
+    }
     await fetchBalance(true);
     return res;
   }

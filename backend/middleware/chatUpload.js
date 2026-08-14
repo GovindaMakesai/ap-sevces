@@ -7,7 +7,7 @@ if (!fs.existsSync(chatDir)) {
     fs.mkdirSync(chatDir, { recursive: true });
 }
 
-const IMAGE_EXTS = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+const IMAGE_EXTS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif'];
 const VIDEO_EXTS = ['.mp4', '.webm', '.mov', '.m4v', '.3gp'];
 
 function safeExt(originalname, allowed, fallback) {
@@ -30,8 +30,10 @@ const chatImageUpload = multer({
     storage,
     limits: { fileSize: 5 * 1024 * 1024 },
     fileFilter: (_req, file, cb) => {
-        if (file.mimetype && file.mimetype.startsWith('image/')) cb(null, true);
-        else cb(new Error('Only image uploads are allowed'));
+        const mime = file.mimetype || '';
+        if (mime.startsWith('image/') || /heic|heif/i.test(mime) || /heic|heif/i.test(file.originalname || '')) {
+            cb(null, true);
+        } else cb(new Error('Only image uploads are allowed'));
     }
 });
 
@@ -40,8 +42,15 @@ const chatUpload = multer({
     limits: { fileSize: 40 * 1024 * 1024 },
     fileFilter: (_req, file, cb) => {
         const mime = file.mimetype || '';
-        if (mime.startsWith('image/') || mime.startsWith('video/')) cb(null, true);
-        else cb(new Error('Only photo and video uploads are allowed'));
+        const name = file.originalname || '';
+        if (
+            mime.startsWith('image/') ||
+            mime.startsWith('video/') ||
+            /heic|heif/i.test(mime) ||
+            /heic|heif/i.test(name)
+        ) {
+            cb(null, true);
+        } else cb(new Error('Only photo and video uploads are allowed'));
     }
 });
 

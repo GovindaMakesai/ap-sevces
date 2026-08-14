@@ -4231,7 +4231,7 @@
             const auth = getChatToken() ? { Authorization: `Bearer ${getChatToken()}` } : {};
 
             for (const file of Array.from(files)) {
-                const isImage = file.type.startsWith('image/');
+                const isImage = file.type.startsWith('image/') || /heic|heif/i.test(file.name || '');
                 const isVideo = file.type.startsWith('video/');
                 if (!isImage && !isVideo) {
                     Toast.show('Only photos and videos can be sent in chat', 'warning');

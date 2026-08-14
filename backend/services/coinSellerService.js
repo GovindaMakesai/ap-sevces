@@ -338,7 +338,7 @@ async function listTransfers(sellerId, { limit = 30 } = {}) {
 async function lookupRecipient(accountId) {
   const id = String(accountId || '').trim();
   if (!id) return null;
-  const displayId = /^\d{6,8}$/.test(id) ? Number(id) : null;
+  const displayId = /^\d{4,10}$/.test(id) ? Number(id) : null;
   const res = await db.query(
     `SELECT id, first_name, last_name, profile_pic, role, display_id FROM users
      WHERE id::text = $1

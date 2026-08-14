@@ -225,6 +225,12 @@ exports.listPointsTransfers = async (req, res) => {
       },
     });
   } catch (err) {
+    if (/points_transfers|does not exist/i.test(err.message || '')) {
+      return res.status(503).json({
+        success: false,
+        message: 'Transfer history is temporarily unavailable. Please try again shortly.',
+      });
+    }
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -243,6 +249,12 @@ exports.transferPoints = async (req, res) => {
       data,
     });
   } catch (err) {
+    if (/points_transfers|does not exist/i.test(err.message || '')) {
+      return res.status(503).json({
+        success: false,
+        message: 'Point transfers are being enabled on the server. Try again in a minute.',
+      });
+    }
     const code = err.code === 'INSUFFICIENT_BALANCE' ? 400 : 400;
     res.status(code).json({ success: false, message: err.message });
   }

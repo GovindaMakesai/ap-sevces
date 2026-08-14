@@ -297,12 +297,18 @@ async function startServer() {
     await ensureClientMetricsSchema();
   }
 
-  /* Push tables are lightweight + required for FCM even when full schema ensure is skipped */
+  /* Lightweight idempotent migrations — always run (even when full schema ensure is skipped) */
   try {
     const { ensurePushNotificationsSchema } = require('./config/ensurePushNotificationsSchema');
     await ensurePushNotificationsSchema();
   } catch (err) {
     logger.warn('Push schema ensure failed', { message: err.message });
+  }
+  try {
+    await ensurePointsTransferSchema();
+    await ensureCpSchema();
+  } catch (err) {
+    logger.warn('Points transfer / CP schema ensure failed', { message: err.message });
   }
 
   await referralModule.boot();

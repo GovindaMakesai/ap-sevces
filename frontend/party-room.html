@@ -28,7 +28,7 @@
 
   <link rel="stylesheet" href="social-live-ref-ui.css?v=20260814-gift-glow">
 
-  <link rel="stylesheet" href="social-party-ref.css?v=20260814-party-ref">
+  <link rel="stylesheet" href="social-party-ref.css?v=20260814-party-fix">
 
   <link rel="stylesheet" href="social-fx.css?v=20260814-gift-glow">
 
@@ -260,11 +260,16 @@
 
 
 
-    <button type="button" class="party-ref-gift-pill" id="partyRefGiftPill" aria-label="Send a gift">
-
-      <i class="fas fa-gift"></i> Send a gift!
-
-    </button>
+    <div class="party-ref-compose-strip" id="partyRefComposeStrip">
+      <button type="button" class="party-ref-compose-field" id="partyRefComposeTap" aria-label="Write a comment">
+        <i class="far fa-smile"></i>
+        <span>Say something…</span>
+      </button>
+      <button type="button" class="party-ref-compose-gift" id="partyRefGiftPill" aria-label="Send a gift">
+        <i class="fas fa-gift"></i>
+        <span>Send a gift!</span>
+      </button>
+    </div>
 
 
 
@@ -657,7 +662,7 @@
 
   <script src="agora-lifecycle.js?v=20260724-phase1-life"></script>
 
-  <script src="social-live.js?v=20260814-party-ref"></script>
+  <script src="social-live.js?v=20260814-party-fix"></script>
 
   <script src="social-nav.js?v=20260720-back-fix"></script>
 

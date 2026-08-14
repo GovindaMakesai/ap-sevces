@@ -93,6 +93,7 @@
     { id: 'ludo', label: 'Ludo', emoji: '🎲', game: '/games/greedy.html' },
   ];
   let partySeatMenuCtx = null;
+  let lastPartySeatsStructureKey = '';
   let quickChipsExpanded = false;
   let chatRegionFilter = 'room';
   let sessionGiftCoins = 0;
@@ -10496,6 +10497,19 @@
       toggleMic();
       return;
     }
+    if (isPartyRoomPage() && isHost()) {
+      if (!publishSucceeded) {
+        if (isLanHttpInNativeWebView()) {
+          toast('Voice needs HTTPS — run npm start in ap-services-app', 'warning');
+          return;
+        }
+        partyVoiceSkipped = false;
+        resumeHostBroadcastIfNeeded();
+        return;
+      }
+      toggleMic();
+      return;
+    }
     if (hasSpeakerSeat) {
       toggleMic();
       return;
@@ -10974,7 +10988,7 @@
           ${crown}
           ${adminBadge}
           ${adminAvatarTagHtml(admin)}
-          <img src="${avatarUrl(s.name, s.profilePic || liveProfilePic(s.userId, s.host ? resolveHostProfilePic() : null))}" alt="" data-name="${escapeAttr(s.name || 'User')}" loading="eager" decoding="async">
+          <img src="${avatarUrl(s.name, s.profilePic || liveProfilePic(s.userId, s.host ? resolveHostProfilePic() : null))}" alt="" data-name="${escapeAttr(s.name || 'User')}" loading="lazy" decoding="async">
           ${waveBars}
         </div>
         <span class="seat-name">${escapeHtml(s.name)}</span>
@@ -11021,10 +11035,7 @@
     return countStageGuests();
   }
 
-  function renderPartySeats(hostName) {
-    const container = document.getElementById('partySeats');
-    if (!container) return;
-
+  function buildPartySeatsSlots(hostName) {
     const me = displayName(currentUser());
     const meId = currentUser()?.id ? String(currentUser().id) : '';
     const hosting = isHost();
@@ -11075,6 +11086,57 @@
         slots[i] = { empty: true, seatNum: i + 1 };
       }
     }
+    return { slots, maxSeats, host };
+  }
+
+  function partySeatsStructureKey(slots, maxSeats) {
+    return JSON.stringify({
+      n: maxSeats,
+      s: slots.map((slot, i) => {
+        if (!slot || slot.empty) return ['e', i + 1];
+        return [
+          slot.host ? 'h' : 'g',
+          String(slot.userId || ''),
+          slot.name || '',
+          Number(slot.gifts) || 0,
+          memberIsAdminMarked(slot) || isAdminUserId(slot.userId) ? 1 : 0,
+        ];
+      }),
+    });
+  }
+
+  function patchPartySeatActivity(slots) {
+    const container = document.getElementById('partySeats');
+    if (!container) return;
+    slots.forEach((slot, idx) => {
+      if (!slot || slot.empty) return;
+      const uid = String(slot.userId || '');
+      if (!uid) return;
+      container.querySelectorAll(`.party-seat[data-user-id="${uid}"]`).forEach((btn) => {
+        btn.classList.toggle('is-muted', Boolean(slot.muted));
+        btn.classList.toggle('is-speaking', Boolean(slot.speaking) && !slot.muted);
+      });
+    });
+    if (isHost()) {
+      container.querySelectorAll('.party-seat.is-host').forEach((btn) => {
+        btn.classList.toggle('is-muted', micMuted);
+        btn.classList.toggle('is-speaking', !micMuted);
+      });
+    }
+  }
+
+  function renderPartySeats(hostName) {
+    const container = document.getElementById('partySeats');
+    if (!container) return;
+
+    const { slots, maxSeats, host } = buildPartySeatsSlots(hostName);
+    const structureKey = partySeatsStructureKey(slots, maxSeats);
+    if (structureKey === lastPartySeatsStructureKey) {
+      patchPartySeatActivity(slots);
+      paintHostAvatarImg(document.getElementById('partyHostAvatar'), hostName);
+      return;
+    }
+    lastPartySeatsStructureKey = structureKey;
 
     const tiers = getPartySeatLayout(maxSeats);
 
@@ -11087,46 +11149,7 @@
       )
       .join('');
 
-    container.querySelectorAll('.party-seat[data-seat]').forEach((btn) => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const name = btn.dataset.user || btn.querySelector('.seat-name')?.textContent;
-        const uid = btn.dataset.userId || '';
-        const seatNum = Number(btn.dataset.seat) || 0;
-        if (canModerateRoom() && uid && !btn.classList.contains('is-host')) {
-          if (isPartyRoomPage()) openPartySeatMenu(btn, { name, uid, seatNum });
-          else openModerationMenu(name, uid, seatNum);
-          return;
-        }
-        if (canModerateRoom() && btn.classList.contains('is-empty')) {
-          if (isPartyRoomPage()) openPartySeatMenu(btn, { name: '', uid: '', seatNum, empty: true });
-          else openAvailableUsersForSeat(seatNum);
-          return;
-        }
-        openProfileSheet(name, uid);
-      });
-      if (isPartyRoomPage() && canModerateRoom()) {
-        btn.addEventListener('contextmenu', (e) => {
-          e.preventDefault();
-          const name = btn.dataset.user || '';
-          const uid = btn.dataset.userId || '';
-          const seatNum = Number(btn.dataset.seat) || 0;
-          openPartySeatMenu(btn, {
-            name,
-            uid,
-            seatNum,
-            empty: btn.classList.contains('is-empty'),
-          });
-        });
-      }
-    });
-    container.querySelectorAll('[data-join-seat]').forEach((btn) => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (isHost()) openSeatSheet(btn.dataset.seatNum);
-        else requestSeatJoin();
-      });
-    });
+    bindPartySeatDelegation();
     if (canModerateRoom()) bindSeatDragDrop(container);
     window.SocialUI?.bindAvatarFallbacks?.(container);
     paintHostAvatarImg(document.getElementById('partyHostAvatar'), hostName);
@@ -16909,7 +16932,7 @@
 
   async function sendChatPhoto(file) {
     if (!file) return;
-    if (!file.type.startsWith('image/')) {
+    if (!file.type.startsWith('image/') && !/heic|heif/i.test(file.name || '')) {
       toast('Only photos can be sent in live chat', 'warning');
       return;
     }
@@ -18678,13 +18701,15 @@
     const items = [];
     if (ctx.empty) {
       items.push({ id: 'invite', icon: 'fa-user-plus', label: 'Invite to mic' });
-      items.push({ id: 'lock', icon: 'fa-lock', label: 'Lock' });
-    } else if (ctx.uid) {
-      items.push({ id: 'invite', icon: 'fa-user-plus', label: 'Invite to mic' });
-      items.push({ id: 'lock', icon: 'fa-lock', label: 'Lock' });
-      items.push({ id: 'mute', icon: 'fa-microphone-slash', label: 'Turn off' });
-      items.push({ id: 'take', icon: 'fa-microphone', label: 'Take mic' });
+      items.push({ id: 'lock', icon: 'fa-lock', label: 'Lock seat' });
+    } else if (ctx.uid && !ctx.isHost) {
+      items.push({ id: 'mute', icon: 'fa-microphone-slash', label: 'Mute mic' });
+      items.push({ id: 'unmute', icon: 'fa-microphone', label: 'Unmute mic' });
+      items.push({ id: 'demote', icon: 'fa-user-minus', label: 'Remove from seat' });
+      items.push({ id: 'move', icon: 'fa-exchange-alt', label: 'Move seat…' });
+      items.push({ id: 'more', icon: 'fa-ellipsis-h', label: 'More actions' });
     }
+    if (!items.length) return;
     menu.innerHTML = items
       .map(
         (it) =>
@@ -18692,8 +18717,8 @@
       )
       .join('');
     const rect = anchor.getBoundingClientRect();
-    menu.style.left = `${Math.min(rect.left, window.innerWidth - 200)}px`;
-    menu.style.top = `${Math.max(8, rect.top - 8)}px`;
+    menu.style.left = `${Math.min(Math.max(8, rect.left), window.innerWidth - 196)}px`;
+    menu.style.top = `${Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - items.length * 46 - 16))}px`;
     menu.hidden = false;
     menu.querySelectorAll('button').forEach((btn) => {
       btn.onclick = () => {
@@ -18703,10 +18728,68 @@
         if (!c) return;
         if (action === 'invite') openAvailableUsersForSeat(c.seatNum);
         else if (action === 'lock') toast('Seat lock coming soon', 'info');
-        else if (action === 'mute' && c.uid) {
-          liveSocket?.emit('live:mute', { channel: channelId(), userId: c.uid, muted: true });
-        } else if (action === 'take' && c.uid) openModerationMenu(c.name, c.uid, c.seatNum);
+        else if (action === 'mute' && c.uid) muteRemoteUser(c.uid, true);
+        else if (action === 'unmute' && c.uid) muteRemoteUser(c.uid, false);
+        else if (action === 'demote' && c.uid) demoteUserFromSeat(c.uid);
+        else if (action === 'move' && c.uid) {
+          const seat = window.prompt('Seat number:', String(c.seatNum || 3));
+          if (seat) moveUserSeat(c.uid, Number(seat));
+        } else if (action === 'more' && c.uid) openModerationMenu(c.name, c.uid, c.seatNum);
       };
+    });
+  }
+
+  function handlePartySeatTap(btn) {
+    if (!btn) return;
+    const name = btn.dataset.user || btn.querySelector('.seat-name')?.textContent || '';
+    const uid = btn.dataset.userId || '';
+    const seatNum = Number(btn.dataset.seat || btn.dataset.seatNum) || 0;
+    const isHostSeat = btn.classList.contains('is-host');
+    if (btn.hasAttribute('data-join-seat')) {
+      if (isHost()) openSeatSheet(btn.dataset.seatNum);
+      else requestSeatJoin();
+      return;
+    }
+    if (isHostSeat && isHost()) {
+      handleMicButton();
+      return;
+    }
+    if (canModerateRoom() && btn.classList.contains('is-empty')) {
+      openPartySeatMenu(btn, { name: '', uid: '', seatNum, empty: true });
+      return;
+    }
+    if (canModerateRoom() && uid && !isHostSeat) {
+      openPartySeatMenu(btn, { name, uid, seatNum, isHost: false });
+      return;
+    }
+    openProfileSheet(name, uid);
+  }
+
+  function bindPartySeatDelegation() {
+    const container = document.getElementById('partySeats');
+    if (!container || container.dataset.delegateBound === '1') return;
+    container.dataset.delegateBound = '1';
+    container.addEventListener('click', (e) => {
+      const btn = e.target.closest('.party-seat, [data-join-seat]');
+      if (!btn || !container.contains(btn)) return;
+      e.stopPropagation();
+      handlePartySeatTap(btn);
+    });
+    container.addEventListener('contextmenu', (e) => {
+      if (!canModerateRoom()) return;
+      const btn = e.target.closest('.party-seat');
+      if (!btn || !container.contains(btn)) return;
+      e.preventDefault();
+      const name = btn.dataset.user || '';
+      const uid = btn.dataset.userId || '';
+      const seatNum = Number(btn.dataset.seat || btn.dataset.seatNum) || 0;
+      openPartySeatMenu(btn, {
+        name,
+        uid,
+        seatNum,
+        empty: btn.classList.contains('is-empty'),
+        isHost: btn.classList.contains('is-host'),
+      });
     });
   }
 
@@ -18803,7 +18886,13 @@
     document.body.dataset.partyRefBound = '1';
 
     applyRoomBackground(roomState?.roomStyle?.backgroundId || 'lakeside');
+    bindPartySeatDelegation();
 
+    document.getElementById('partyRefComposeTap')?.addEventListener('click', () => {
+      document.body.classList.add('ap-chat-compose-open');
+      document.getElementById('partyRefChatBtn')?.classList.add('is-active');
+      document.getElementById('liveChatInput')?.focus();
+    });
     document.getElementById('partyRefGiftPill')?.addEventListener('click', () => openGiftSheet());
     document.getElementById('partyRefPromoBtn')?.addEventListener('click', () => {
       location.href = '/coins-recharge.html?app=1';
