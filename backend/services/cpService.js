@@ -786,7 +786,7 @@ async function getCpRankings(viewerUserId, period = 'week', limit = 50) {
        )
        AND gt.created_at >= GREATEST(r.started_at, NOW() - INTERVAL '7 days')
        WHERE r.status = 'active'
-       GROUP BY r.user_a, r.user_b, r.ring_id,
+       GROUP BY r.user_a, r.user_b, r.ring_id, r.started_at,
                 ua.first_name, ua.last_name, ua.profile_pic,
                 ub.first_name, ub.last_name, ub.profile_pic
        ORDER BY intimacy DESC, r.started_at ASC
