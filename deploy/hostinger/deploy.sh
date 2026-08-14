@@ -90,6 +90,9 @@ if [ "$needs_api_restart" = true ]; then
   echo "==> Ensure points_transfers schema"
   node backend/scripts/ensure-points-transfer-schema.js || echo "WARN: points_transfers schema ensure failed"
 
+  echo "==> Ensure CP module schema"
+  node backend/scripts/ensure-cp-schema.js || echo "WARN: CP schema ensure failed"
+
   echo "==> Health check"
   sleep 5
   for i in 1 2 3 4 5; do
@@ -109,6 +112,7 @@ if [ "$needs_api_restart" = true ]; then
 else
   echo "==> Static frontend updated (nginx serves frontend/ — no API restart)"
   if pm2 describe ap-api >/dev/null 2>&1; then
+    node backend/scripts/ensure-cp-schema.js || echo "WARN: CP schema ensure failed"
     curl -sf "http://127.0.0.1:${PORT:-5000}/api/health" && echo "" || echo "WARN: API health check failed — run: pm2 restart ap-api"
   fi
 fi
