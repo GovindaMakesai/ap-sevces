@@ -22,7 +22,7 @@
 .ap-cp-ring--sm { width: 36px; height: 36px; }
 .ap-cp-ring--md { width: 56px; height: 56px; }
 .ap-cp-ring--lg { width: 88px; height: 88px; }
-.ap-cp-ring--xl { width: 120px; height: 120px; }
+.ap-cp-ring--xl { width: 140px; height: 140px; }
 
 .ap-cp-ring-stage {
   position: relative;
@@ -170,6 +170,71 @@
 .ap-cp-ring--aura .ap-cp-ring-orbit {
   animation-duration: 3.5s;
   box-shadow: 0 0 24px var(--ring-glow), 0 0 40px rgba(56, 189, 248, 0.25);
+}
+
+/* Reference archetypes: pearl / gold / diamond */
+.ap-cp-ring--style-pearl {
+  --ring-band: linear-gradient(135deg, #f8fafc, #cbd5e1, #e2e8f0, #94a3b8, #f1f5f9);
+  --ring-gem: radial-gradient(circle at 35% 30%, #fff 0%, #f8fafc 25%, #e2e8f0 55%, #cbd5e1 100%);
+  --ring-glow: rgba(226, 232, 240, 0.65);
+  --ring-orbit: rgba(203, 213, 225, 0.4);
+}
+
+.ap-cp-ring--style-pearl .ap-cp-ring-gem {
+  clip-path: circle(50% at 50% 50%);
+  border-radius: 50%;
+}
+
+.ap-cp-ring--style-pearl .ap-cp-ring-prongs {
+  clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+  opacity: 0.85;
+}
+
+.ap-cp-ring--style-gold {
+  --ring-band: linear-gradient(135deg, #fff7d6, #ffd700 20%, #d4af37 45%, #fff8dc 60%, #b8860b 80%, #ffd700);
+  --ring-gem: linear-gradient(145deg, #fda4af 0%, #f472b6 35%, #ec4899 55%, #be185d 100%);
+  --ring-glow: rgba(244, 114, 182, 0.55);
+}
+
+.ap-cp-ring--style-gold .ap-cp-ring-band {
+  width: 82%;
+  height: 82%;
+}
+
+.ap-cp-ring--style-diamond {
+  --ring-band: linear-gradient(135deg, #fff3b0, #ffd700 15%, #c9a227 35%, #ffeaa0 50%, #b8860b 70%, #ffd700 85%, #fff8dc);
+  --ring-gem: linear-gradient(145deg, #f0abfc 0%, #e879f9 20%, #d946ef 40%, #c026d3 60%, #86198f 100%);
+  --ring-glow: rgba(217, 70, 239, 0.6);
+}
+
+.ap-cp-ring--style-diamond .ap-cp-ring-band::before {
+  content: '';
+  position: absolute;
+  inset: 8%;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 20% 80%, rgba(251, 191, 36, 0.5) 0%, transparent 35%),
+    radial-gradient(circle at 80% 20%, rgba(251, 191, 36, 0.45) 0%, transparent 35%);
+  pointer-events: none;
+}
+
+.ap-cp-ring--style-diamond .ap-cp-ring-gem {
+  width: 38%;
+  height: 38%;
+  margin-left: -19%;
+  clip-path: polygon(50% 0%, 80% 22%, 92% 55%, 75% 100%, 25% 100%, 8% 55%, 20% 22%);
+}
+
+.ap-cp-ring--style-diamond .ap-cp-ring-spark {
+  width: 8px;
+  height: 8px;
+}
+
+.ap-cp-ring--style-diamond .ap-cp-ring-spark--1 { left: 8%; top: 5%; }
+.ap-cp-ring--style-diamond .ap-cp-ring-spark--2 { right: 6%; top: 15%; }
+
+.ap-cp-ring--style-diamond .ap-cp-ring-orbit {
+  box-shadow: 0 0 22px var(--ring-glow), 0 0 36px rgba(251, 191, 36, 0.2);
 }
 
 @keyframes apCpRingFloat {

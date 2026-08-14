@@ -408,6 +408,37 @@ body.lh-sheet-open {
   margin-bottom: 8px;
 }
 
+.lh-tips-box {
+  max-height: min(78vh, 520px);
+  overflow-y: auto;
+  text-align: left;
+  position: relative;
+}
+
+.lh-tips-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  border: none;
+  background: rgba(0, 0, 0, 0.08);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.lh-tips-list {
+  margin: 0 0 16px;
+  padding-left: 20px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: #4b5563;
+}
+
+.lh-tips-list strong {
+  color: #be185d;
+}
+
 .lh-modal-box h3 {
   margin: 0 0 8px;
   font-size: 20px;

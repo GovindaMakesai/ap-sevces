@@ -7,7 +7,8 @@
   <title>Store - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-theme.css">
-  <link rel="stylesheet" href="cp-rings.css?v=20260814-cpflow3">
+  <link rel="stylesheet" href="cp-rings.css?v=20260814-cpprofile">
+  <link rel="stylesheet" href="cp-store-rings.css?v=20260814-cpprofile">
 </head>
 <body class="social-store-page">
   <header class="social-store-header">
@@ -65,7 +66,7 @@
     </div>
   </div>
 
-  <script src="cp-rings.js?v=20260814-cpflow3"></script>
+  <script src="cp-rings.js?v=20260814-cpprofile"></script>
   <script src="app.js"></script>
   <script src="social-wallet.js"></script>
   <script src="social-shell.js"></script>
@@ -89,7 +90,7 @@
       return `<a class="social-store-item" href="#" data-name="${it.name}" data-emoji="${it.emoji}" data-price="${it.price}"${pkg}${it.ringId ? ` data-ring-id="${it.ringId}"` : ''}>
         ${img}
         <h4>${it.name}</h4>
-        <div class="price">${it.ticket ? '🎫' : '🪙'} ${it.price}</div>
+        <div class="price">${it.ticket ? '🎫' : it.ringId ? '💎' : '🪙'} ${it.price}</div>
       </a>`;
     }
     function paintSheetPreview(el, ringId, emoji) {
@@ -98,7 +99,7 @@
       if (ringId && window.CpRings) {
         box.className = 'cp-ring-sheet-preview';
         box.removeAttribute('style');
-        CpRings.mount(box, ringId, 'lg');
+        CpRings.mount(box, ringId, 'xl');
       } else {
         box.className = '';
         box.style.cssText = 'text-align:center;padding:20px;background:#f0f9ff;border-radius:12px;margin-bottom:16px;font-size:64px';
@@ -107,7 +108,7 @@
     }
     function mountRingPreviews(root) {
       (root || document).querySelectorAll('[data-ring-mount]').forEach((el) => {
-        CpRings?.mount?.(el, el.dataset.ringMount, 'md');
+        CpRings?.mount?.(el, el.dataset.ringMount, 'lg');
       });
     }
     document.addEventListener('DOMContentLoaded', async () => {
@@ -123,9 +124,26 @@
       });
 
       if (cat === 'rings') {
+        document.body.classList.add('cp-rings-store');
+        document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '#0a0e1f');
         document.querySelector('h1').textContent = 'Store';
         document.querySelector('.social-banner h2').textContent = 'Rhythm Party — CP Rings';
+        const h3s = document.querySelectorAll('h3');
+        if (h3s[0]) h3s[0].style.display = 'none';
+        if (h3s[1]) {
+          h3s[1].textContent = 'Rings';
+          h3s[1].style.color = 'rgba(255,255,255,0.85)';
+        }
+        document.getElementById('storeGridNew').style.display = 'none';
+        document.querySelector('.social-pill-tag')?.closest('div')?.style && (document.querySelector('.social-pill-tag').closest('div').style.display = 'none');
         document.querySelector('.social-cat-item[href*="cat=rings"]')?.classList.add('active');
+        if (!document.getElementById('cpStoreLevelRow')) {
+          const row = document.createElement('div');
+          row.id = 'cpStoreLevelRow';
+          row.className = 'cp-store-top-row';
+          row.innerHTML = '<a href="/levels.html?app=1" class="cp-store-level-btn">Level <i class="fas fa-chevron-down"></i></a>';
+          document.querySelector('.social-cat-scroll')?.insertAdjacentElement('afterend', row);
+        }
         let rings = [];
         try {
           const token = localStorage.getItem('token');
@@ -145,14 +163,23 @@
         }));
         document.getElementById('storeGridNew').innerHTML = '';
         document.getElementById('storeGrid').innerHTML = ringItems.map(renderItem).join('');
-        mountRingPreviews();
+        mountRingPreviews(document.getElementById('storeGrid'));
         const fromCp = new URLSearchParams(location.search).get('from') === 'cp';
+        let validityEl = document.getElementById('cpRingValidity');
+        if (!validityEl) {
+          validityEl = document.createElement('span');
+          validityEl.id = 'cpRingValidity';
+          validityEl.className = 'cp-ring-validity';
+          validityEl.textContent = 'Permanent · yours to keep';
+          document.getElementById('sheetPrice')?.before(validityEl);
+        }
         document.querySelectorAll('.social-store-item').forEach((el) => {
           el.addEventListener('click', (e) => {
             e.preventDefault();
             document.getElementById('sheetTitle').textContent = el.dataset.name;
             paintSheetPreview(el, el.dataset.ringId, el.dataset.emoji);
-            document.getElementById('sheetPrice').textContent = el.dataset.price + ' 🪙';
+            document.getElementById('sheetPrice').textContent = '💎 ' + el.dataset.price;
+            validityEl.hidden = false;
             document.getElementById('itemSheet').classList.add('open');
             const buyBtn = document.getElementById('ringBuyBtn');
             if (buyBtn) {

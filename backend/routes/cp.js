@@ -16,5 +16,6 @@ router.get('/levels/personal', verifyToken, cpController.personalLevel);
 router.get('/levels/room', verifyToken, cpController.roomLevel);
 router.get('/lookup/:displayId', verifyToken, cpController.lookupUser);
 router.get('/my-rings', verifyToken, cpController.myRings);
+router.get('/profile/:userId', cpController.getProfile);
 
 module.exports = router;

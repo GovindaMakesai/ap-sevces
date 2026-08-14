@@ -7,16 +7,17 @@
   <title>Love House - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-theme.css">
-  <link rel="stylesheet" href="cp-love-house.css?v=20260814-cpflow3">
-  <link rel="stylesheet" href="cp-rings.css?v=20260814-cpflow3">
+  <link rel="stylesheet" href="cp-love-house.css?v=20260814-cpprofile">
+  <link rel="stylesheet" href="cp-rings.css?v=20260814-cpprofile">
 </head>
 <body class="love-house-page">
   <header class="love-house-header">
     <button type="button" class="lh-icon-btn" onclick="history.back()" aria-label="Back"><i class="fas fa-chevron-left"></i></button>
     <h1>Love House</h1>
     <div style="display:flex;gap:6px">
+      <a href="/levels.html?app=1" class="lh-icon-btn" aria-label="Level" title="Level"><i class="fas fa-shield-alt"></i></a>
       <a href="/rankings.html?app=1" class="lh-icon-btn" aria-label="Rankings"><i class="fas fa-trophy"></i></a>
-      <a href="/cp-tips.html?app=1" class="lh-icon-btn" aria-label="CP guide"><i class="fas fa-book"></i></a>
+      <button type="button" class="lh-icon-btn" id="lhOpenTipsBtn" aria-label="CP guide"><i class="fas fa-book"></i></button>
     </div>
   </header>
 
@@ -105,9 +106,26 @@
     </div>
   </div>
 
+  <!-- CP Instructions sheet (book icon) -->
+  <div class="lh-overlay align-center" id="lhTipsSheet">
+    <div class="lh-modal-box lh-tips-box">
+      <button type="button" class="lh-sheet-close lh-tips-close" id="lhTipsClose" aria-label="Close"><i class="fas fa-times"></i></button>
+      <h3><i class="fas fa-book" style="color:#fbbf24;margin-right:6px"></i> CP Instructions</h3>
+      <ol class="lh-tips-list">
+        <li>Love House shows your CP ring on your profile and in party rooms when you sit together.</li>
+        <li>Unlock Love House with intimacy <strong>≥ 20,000</strong>, or accept a CP invite.</li>
+        <li>Send a CP invite at intimacy <strong>≥ 50,000</strong> with a ring from Store → Rings.</li>
+        <li>Invites last <strong>48 hours</strong>. Declined invites have a <strong>48h</strong> cooldown.</li>
+        <li>Tap your ring on Love House to change it or break up.</li>
+        <li>Level up by sending gifts — tap the shield icon for Level benefits.</li>
+      </ol>
+      <a href="/store.html?cat=rings&app=1&from=cp" class="lh-buy-btn" style="display:block;text-decoration:none;text-align:center">Buy a ring</a>
+    </div>
+  </div>
+
   <div id="social-bottom-nav-mount"></div>
 
-  <script src="cp-rings.js?v=20260814-cpflow3"></script>
+  <script src="cp-rings.js?v=20260814-cpprofile"></script>
   <script src="app.js"></script>
   <script src="social-shell.js"></script>
   <script>
@@ -334,6 +352,9 @@
       document.getElementById('lhRingPicker').hidden = true;
       syncLhSheetLock();
     });
+
+    document.getElementById('lhOpenTipsBtn')?.addEventListener('click', () => openSheet('lhTipsSheet'));
+    document.getElementById('lhTipsClose')?.addEventListener('click', () => closeSheet('lhTipsSheet'));
 
     document.addEventListener('DOMContentLoaded', () => {
       SocialShell?.initPage?.({ activeNav: 'profile' });

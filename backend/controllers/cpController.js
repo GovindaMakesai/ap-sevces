@@ -153,3 +153,18 @@ exports.myRings = async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
+
+exports.getProfile = async (req, res) => {
+  try {
+    const data = await cpService.getCpProfilePublic(req.params.userId);
+    res.json({ success: true, data });
+  } catch (err) {
+    if (/cp_|user_cp_support|does not exist/i.test(err.message || '')) {
+      return res.status(503).json({
+        success: false,
+        message: 'CP module is being enabled. Please try again shortly.',
+      });
+    }
+    res.status(500).json({ success: false, message: err.message });
+  }
+};

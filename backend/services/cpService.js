@@ -458,6 +458,37 @@ async function getRoomLevel(userId) {
   return { level, exp, nextLevelExp: need, progress: cur, roomId };
 }
 
+async function getCpProfilePublic(userId) {
+  const uid = String(userId || '').trim();
+  if (!uid) return null;
+  const cp = await getActiveCp(uid);
+  if (!cp) return null;
+  const meRes = await db.query(
+    `SELECT id, first_name, last_name, profile_pic, display_id FROM users WHERE id = $1`,
+    [uid]
+  );
+  const u = meRes.rows[0];
+  if (!u) return null;
+  return {
+    user: {
+      userId: String(u.id),
+      name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'User',
+      profilePic: u.profile_pic || null,
+      displayId: u.display_id != null ? String(u.display_id) : null,
+    },
+    partner: {
+      userId: cp.partnerId,
+      name: cp.partnerName,
+      profilePic: cp.partnerPic,
+      displayId: cp.partnerDisplayId != null ? String(cp.partnerDisplayId) : null,
+    },
+    ringId: cp.ringId,
+    ring: cp.ring,
+    daysTogether: cp.daysTogether,
+    startedAt: cp.startedAt,
+  };
+}
+
 module.exports = {
   CP_SUPPORT_UNLOCK,
   CP_SUPPORT_INVITE,
@@ -481,4 +512,5 @@ module.exports = {
   userHasAnyRing,
   lookupUserForInvite,
   getCpPairsInRoom,
+  getCpProfilePublic,
 };

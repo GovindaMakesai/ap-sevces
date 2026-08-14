@@ -1,0 +1,142 @@
+/* CP couple card — profile & creator profile (reference-style) */
+.cp-profile-card {
+  margin: 12px 16px 0;
+  padding: 14px 14px 12px;
+  border-radius: 18px;
+  background: linear-gradient(160deg, rgba(88, 28, 135, 0.35), rgba(30, 20, 60, 0.92));
+  border: 1px solid rgba(251, 191, 36, 0.28);
+  box-shadow: 0 8px 28px rgba(236, 72, 153, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.cp-profile-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.cp-profile-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #fbcfe8;
+  letter-spacing: 0.04em;
+}
+
+.cp-profile-label i {
+  color: #f472b6;
+}
+
+.cp-profile-head-link {
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.72);
+  text-decoration: none;
+}
+
+.cp-profile-head-link i {
+  font-size: 9px;
+  opacity: 0.7;
+}
+
+.cp-profile-couple {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.cp-profile-slot {
+  flex: 0 0 72px;
+  text-align: center;
+  text-decoration: none;
+  color: #fff;
+}
+
+.cp-profile-slot img {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(255, 255, 255, 0.92);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  display: block;
+  margin: 0 auto 4px;
+}
+
+.cp-profile-slot span {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  max-width: 72px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.92;
+}
+
+.cp-profile-ring {
+  flex: 0 0 64px;
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cp-profile-ring .ap-cp-ring {
+  width: 64px;
+  height: 64px;
+}
+
+.cp-profile-days {
+  margin: 10px 0 0;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(251, 191, 36, 0.95);
+}
+
+/* My profile hero variant */
+.social-profile-hero .cp-profile-card {
+  margin: 14px auto 0;
+  max-width: min(360px, calc(100% - 24px));
+  width: 100%;
+}
+
+.social-profile-page .cp-profile-empty {
+  margin: 12px 16px 0;
+  padding: 14px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #fdf2f8, #fce7f3);
+  border: 1px dashed #f9a8d4;
+  text-align: center;
+}
+
+.social-profile-page .cp-profile-empty p {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: #9d174d;
+  font-weight: 600;
+}
+
+.social-profile-page .cp-profile-empty a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ec4899, #db2777);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+/* Creator profile on light bg */
+.creator-hero + .cp-profile-card,
+#creatorCpMount .cp-profile-card {
+  margin: 0 16px 12px;
+}

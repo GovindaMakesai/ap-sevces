@@ -1,0 +1,149 @@
+/* Ring store — dark reference-style grid */
+body.social-store-page.cp-rings-store {
+  background: #0a0e1f;
+  color: #fff;
+}
+
+body.cp-rings-store .social-store-header {
+  background: transparent;
+}
+
+body.cp-rings-store .social-store-header h1 {
+  color: #fff;
+}
+
+body.cp-rings-store .social-cat-scroll {
+  background: #0a0e1f;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+body.cp-rings-store .social-cat-item {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+body.cp-rings-store .social-cat-item.active {
+  color: #fbbf24;
+}
+
+body.cp-rings-store .social-banner {
+  background: linear-gradient(135deg, #4c1d95, #7c3aed 45%, #db2777) !important;
+  border-radius: 14px;
+  margin: 0 12px;
+}
+
+body.cp-rings-store .social-banner h2 {
+  color: #fff !important;
+}
+
+body.cp-rings-store h3 {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+body.cp-rings-store .social-store-grid {
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  padding: 0 12px 12px;
+}
+
+body.cp-rings-store .social-store-item {
+  background: linear-gradient(180deg, rgba(40, 32, 72, 0.95), rgba(18, 14, 36, 0.98));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 10px 8px 12px;
+  text-decoration: none;
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.06);
+}
+
+body.cp-rings-store .social-store-item .img.cp-ring-preview {
+  min-height: 110px;
+  margin-bottom: 6px;
+  background:
+    radial-gradient(circle at 50% 35%, rgba(80, 60, 120, 0.35), transparent 55%),
+    repeating-linear-gradient(0deg, transparent, transparent 8px, rgba(255, 255, 255, 0.03) 8px, rgba(255, 255, 255, 0.03) 9px),
+    #12101f;
+  border-radius: 10px;
+}
+
+body.cp-rings-store .social-store-item h4 {
+  font-size: 13px;
+  font-weight: 800;
+  margin: 4px 0 2px;
+  color: #fff;
+}
+
+body.cp-rings-store .social-store-item .price {
+  color: #f472b6;
+  font-weight: 800;
+  font-size: 12px;
+}
+
+body.cp-rings-store .social-wallet-bar {
+  background: #12101f;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+body.cp-rings-store .cp-store-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 14px 8px;
+  gap: 8px;
+}
+
+body.cp-rings-store .cp-store-level-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  background: rgba(251, 191, 36, 0.1);
+  color: #fde68a;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+body.cp-rings-store #itemSheet .social-sheet {
+  background: linear-gradient(180deg, #1e1638, #0f0a1e);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  border-radius: 20px 20px 0 0;
+  color: #fff;
+}
+
+body.cp-rings-store #itemSheet .cp-ring-sheet-preview {
+  min-height: 160px;
+  border: 1px solid rgba(251, 191, 36, 0.2);
+  background:
+    radial-gradient(circle at 50% 40%, rgba(60, 40, 90, 0.5), rgba(8, 6, 18, 0.98));
+}
+
+body.cp-rings-store #itemSheet #sheetTitle {
+  color: #fff;
+}
+
+body.cp-rings-store #itemSheet #sheetPrice {
+  color: #f472b6;
+}
+
+body.cp-rings-store #itemSheet .cp-ring-validity {
+  display: inline-block;
+  margin: 8px 0 12px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(244, 114, 182, 0.5);
+  color: #fbcfe8;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+body.cp-rings-store #ringBuyBtn {
+  background: linear-gradient(135deg, #ec4899, #db2777) !important;
+  border: none;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: 16px;
+  padding: 14px;
+}

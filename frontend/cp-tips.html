@@ -3,32 +3,86 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>CP Tips - AP Services</title>
+  <meta name="theme-color" content="#be185d">
+  <title>CP Guide - AP Services</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-theme.css">
+  <link rel="stylesheet" href="cp-love-house.css?v=20260814-cpprofile">
   <style>
-    body { margin: 0; font-family: system-ui, sans-serif; background: #fff; color: #111; }
-    header { display: flex; align-items: center; padding: 14px 12px; border-bottom: 1px solid #eee; }
-    header h1 { flex: 1; text-align: center; font-size: 17px; margin: 0; }
-    header button { width: 36px; border: none; background: none; font-size: 18px; }
-    ol { padding: 16px 20px 32px 28px; line-height: 1.55; font-size: 15px; }
-    li { margin-bottom: 14px; }
+    body.cp-tips-page {
+      margin: 0;
+      min-height: 100vh;
+      background: linear-gradient(180deg, #831843 0%, #500724 40%, #1e1033 100%);
+      color: #fff;
+      font-family: system-ui, sans-serif;
+    }
+    .cp-tips-header {
+      display: flex;
+      align-items: center;
+      padding: calc(10px + env(safe-area-inset-top)) 12px 10px;
+      gap: 8px;
+    }
+    .cp-tips-header h1 {
+      flex: 1;
+      text-align: center;
+      margin: 0;
+      font-size: 17px;
+      font-weight: 800;
+    }
+    .cp-tips-header button {
+      width: 36px;
+      height: 36px;
+      border: none;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.12);
+      color: #fff;
+      cursor: pointer;
+    }
+    .cp-tips-body {
+      padding: 8px 18px calc(24px + env(safe-area-inset-bottom));
+    }
+    .cp-tips-body ol {
+      margin: 0;
+      padding-left: 22px;
+      line-height: 1.6;
+      font-size: 15px;
+    }
+    .cp-tips-body li {
+      margin-bottom: 16px;
+      color: rgba(255, 255, 255, 0.92);
+    }
+    .cp-tips-body strong {
+      color: #fde68a;
+    }
+    .cp-tips-note {
+      margin-top: 20px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid rgba(251, 191, 36, 0.25);
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.8);
+    }
   </style>
 </head>
-<body>
-  <header>
-    <button type="button" onclick="history.back()">←</button>
-    <h1>Tip</h1>
+<body class="cp-tips-page">
+  <header class="cp-tips-header">
+    <button type="button" onclick="history.back()" aria-label="Back"><i class="fas fa-chevron-left"></i></button>
+    <h1>CP Instructions</h1>
     <span style="width:36px"></span>
   </header>
-  <ol>
-    <li>CP Home is a testimony of a couple's love.</li>
-    <li>To unlock CP Home you need <strong>2,000 support points</strong> with someone or accept a CP invitation.</li>
-    <li>When support points reach <strong>6,000</strong> and you are friends, you can send a CP invitation with a ring.</li>
-    <li>Rings are purchased in the Store. If an invitation fails, the ring returns to your bag.</li>
-    <li>An invitation is valid for <strong>48 hours</strong>. If it expires, resend it.</li>
-    <li>If rejected, you cannot invite that person again for <strong>48 hours</strong>.</li>
-    <li>Once in CP, tap the ring on CP Home to change it or take it off to break up.</li>
-    <li>Couples can break up voluntarily or one person can force a break-up.</li>
-  </ol>
+  <div class="cp-tips-body">
+    <ol>
+      <li>Love House is a testimony of a couple's love — your CP ring shows on your <strong>profile</strong>, Love House, and in party rooms when you sit together.</li>
+      <li>To unlock Love House you need intimacy value <strong>≥ 20,000</strong> (2,000 support points) with someone, or accept a CP invitation.</li>
+      <li>When intimacy reaches <strong>≥ 50,000</strong> and you are mutual friends, you can send a CP invitation with a ring you bought from the Store.</li>
+      <li>Rings are purchased in <strong>Store → Rings</strong>. If an invitation is declined or expires, the ring returns to your bag.</li>
+      <li>An invitation is valid for <strong>48 hours</strong>. If it expires, send it again.</li>
+      <li>If rejected, you cannot invite that person again for <strong>48 hours</strong>.</li>
+      <li>Once CP, tap your ring on Love House to change it or break up. Both partners see the same ring on profiles.</li>
+      <li>Level up by sending gifts — open <strong>Level</strong> from Store or your profile menu for benefits.</li>
+    </ol>
+    <p class="cp-tips-note"><i class="fas fa-heart" style="color:#f472b6"></i> Tip: Sit next to your partner in a party room to show your ring between your seats.</p>
+  </div>
 </body>
 </html>
