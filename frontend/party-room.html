@@ -28,7 +28,7 @@
 
   <link rel="stylesheet" href="social-live-ref-ui.css?v=20260814-gift-glow">
 
-  <link rel="stylesheet" href="social-party-ref.css?v=20260814-party-layout">
+  <link rel="stylesheet" href="social-party-ref.css?v=20260814-cpflow">
 
   <link rel="stylesheet" href="social-fx.css?v=20260814-gift-glow">
 
@@ -230,8 +230,6 @@
 
     <div class="party-invite-row" aria-hidden="true"><button type="button" id="partyInvitePill" hidden></button></div>
 
-    <div class="party-room-grid-floor" aria-hidden="true"></div>
-
     <div class="party-win-banner" id="partyWinBanner" hidden></div>
 
     <button type="button" class="party-follow-btn" id="partyHostFollow" hidden></button>
@@ -240,7 +238,11 @@
 
     <div class="party-room-body">
 
-      <div class="party-ref-stage-cylinder" aria-hidden="true"></div>
+      <div class="party-cp-banner" id="partyCpBanner" hidden aria-hidden="true">
+
+        <div class="party-cp-couple" id="partyCpCouple"></div>
+
+      </div>
 
       <div class="party-seats-wrap">
 
@@ -272,9 +274,7 @@
 
 
 
-    <div class="party-ref-compose-strip" id="partyRefComposeStrip" hidden aria-hidden="true">
-
-
+    <div class="party-ref-compose-strip" id="partyRefComposeStrip" hidden aria-hidden="true"></div>
 
     <div class="party-chat-row" id="partyChatRow">
 
@@ -554,7 +554,7 @@
 
 
 
-  <div class="ap-modal-overlay" id="apMicLinkModal">
+  <div class="ap-modal-overlay" id="apMicLinkModal" hidden aria-hidden="true">
 
     <div class="ap-miclink-modal">
 
@@ -665,7 +665,7 @@
 
   <script src="agora-lifecycle.js?v=20260724-phase1-life"></script>
 
-  <script src="social-live.js?v=20260814-party-layout"></script>
+  <script src="social-live.js?v=20260814-cpflow"></script>
 
   <script src="social-nav.js?v=20260720-back-fix"></script>
 

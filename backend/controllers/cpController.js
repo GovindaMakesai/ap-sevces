@@ -12,6 +12,10 @@ exports.getHome = async (req, res) => {
         pendingInvites: pending,
         unlockPoints: cpService.CP_SUPPORT_UNLOCK,
         invitePoints: cpService.CP_SUPPORT_INVITE,
+        intimacyInviteMin: cpService.INTIMACY_INVITE_MIN,
+        intimacyDisplayMult: cpService.INTIMACY_DISPLAY_MULT,
+        ownedRings: await cpService.listUserOwnedRings(userId),
+        hasRing: await cpService.userHasAnyRing(userId),
       },
     });
   } catch (err) {
@@ -32,6 +36,8 @@ exports.getSupport = async (req, res) => {
       success: true,
       data: {
         points,
+        intimacyValue: points * cpService.INTIMACY_DISPLAY_MULT,
+        intimacyInviteMin: cpService.INTIMACY_INVITE_MIN,
         canUnlockHome: points >= cpService.CP_SUPPORT_UNLOCK,
         canInvite: points >= cpService.CP_SUPPORT_INVITE,
       },
@@ -123,6 +129,27 @@ exports.roomLevel = async (req, res) => {
         message: 'CP module is being enabled. Please try again shortly.',
       });
     }
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+exports.lookupUser = async (req, res) => {
+  try {
+    const data = await cpService.lookupUserForInvite(req.userId, req.params.displayId);
+    res.json({ success: true, data });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+};
+
+exports.myRings = async (req, res) => {
+  try {
+    const rings = await cpService.listUserOwnedRings(req.userId);
+    res.json({
+      success: true,
+      data: { rings, hasRing: rings.length > 0 },
+    });
+  } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 };

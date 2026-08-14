@@ -3,118 +3,113 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#f9a8d4">
-  <title>CP Home - AP Services</title>
+  <meta name="theme-color" content="#be185d">
+  <title>Love House - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-theme.css">
-  <style>
-    body { margin: 0; font-family: system-ui, sans-serif; background: #ffc8dd; min-height: 100dvh; }
-    .cp-header {
-      position: sticky; top: 0; z-index: 10;
-      display: flex; align-items: center; justify-content: space-between;
-      padding: calc(10px + env(safe-area-inset-top)) 12px 10px;
-      color: #fff;
-    }
-    .cp-header h1 { flex: 1; text-align: center; font-size: 17px; margin: 0; }
-    .cp-back, .cp-help {
-      width: 36px; height: 36px; border: none; border-radius: 50%;
-      background: rgba(0,0,0,0.2); color: #fff; font-size: 16px;
-    }
-    .cp-days-pill {
-      margin: 0 auto 12px; display: block; width: fit-content;
-      padding: 8px 16px; border-radius: 999px;
-      background: rgba(0,0,0,0.35); color: #fff; font-size: 13px;
-    }
-    .cp-couple {
-      display: flex; align-items: center; justify-content: center; gap: 8px;
-      padding: 12px 16px 20px;
-    }
-    .cp-avatar-wrap { text-align: center; color: #fff; font-size: 12px; max-width: 100px; }
-    .cp-avatar {
-      width: 72px; height: 72px; border-radius: 50%; border: 3px solid #fff;
-      object-fit: cover; background: #ddd;
-    }
-    .cp-ring-link {
-      width: 56px; height: 56px; border-radius: 50%;
-      background: radial-gradient(circle, #86efac, #22c55e);
-      border: 3px solid #fff; display: flex; align-items: center; justify-content: center;
-      font-size: 28px; box-shadow: 0 4px 16px rgba(34,197,94,0.4); cursor: pointer;
-    }
-    .cp-scene {
-      min-height: 55vh;
-      background: url('https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=800&q=80') center bottom/cover no-repeat;
-      border-radius: 24px 24px 0 0;
-      margin-top: 8px;
-    }
-    .cp-empty {
-      text-align: center; padding: 24px 16px; color: #831843;
-    }
-    .cp-empty a { color: #db2777; font-weight: 700; }
-    .cp-modal {
-      position: fixed; inset: 0; background: rgba(0,0,0,0.45);
-      display: none; align-items: center; justify-content: center; z-index: 50; padding: 16px;
-    }
-    .cp-modal.open { display: flex; }
-    .cp-modal-box {
-      background: #fff; border-radius: 16px; padding: 20px; width: min(320px, 100%);
-      text-align: center;
-    }
-    .cp-modal-box h3 { margin: 0 0 8px; }
-    .cp-modal-actions { display: flex; gap: 10px; margin-top: 16px; }
-    .cp-modal-actions button {
-      flex: 1; padding: 12px; border: none; border-radius: 999px; font-weight: 700; cursor: pointer;
-    }
-    .cp-btn-grey { background: #f3f4f6; color: #374151; }
-    .cp-btn-teal { background: #14b8a6; color: #fff; }
-    .cp-invite-card {
-      margin: 12px 16px; padding: 12px; border-radius: 12px; background: rgba(255,255,255,0.85);
-    }
-  </style>
+  <link rel="stylesheet" href="cp-love-house.css?v=20260814-cpflow">
 </head>
-<body>
-  <header class="cp-header">
-    <button type="button" class="cp-back" onclick="history.back()"><i class="fas fa-chevron-left"></i></button>
-    <h1>CP Home</h1>
-    <a href="/cp-tips.html?app=1" class="cp-help" aria-label="Tips"><i class="fas fa-question"></i></a>
+<body class="love-house-page">
+  <header class="love-house-header">
+    <button type="button" class="lh-icon-btn" onclick="history.back()" aria-label="Back"><i class="fas fa-chevron-left"></i></button>
+    <h1>Love House</h1>
+    <div style="display:flex;gap:6px">
+      <a href="/rankings.html?app=1" class="lh-icon-btn" aria-label="Rankings"><i class="fas fa-trophy"></i></a>
+      <a href="/cp-tips.html?app=1" class="lh-icon-btn" aria-label="CP guide"><i class="fas fa-book"></i></a>
+    </div>
   </header>
 
-  <div id="cpContent">
-    <span class="cp-days-pill" id="cpDaysPill" hidden>We have been CP for 0 days</span>
-    <div class="cp-couple" id="cpCouple" hidden>
-      <div class="cp-avatar-wrap">
-        <img class="cp-avatar" id="cpMeAvatar" alt="">
-        <div id="cpMeName">You</div>
-      </div>
-      <button type="button" class="cp-ring-link" id="cpRingBtn" aria-label="Ring">💍</button>
-      <div class="cp-avatar-wrap">
-        <img class="cp-avatar" id="cpPartnerAvatar" alt="">
-        <div id="cpPartnerName">Partner</div>
-      </div>
+  <section class="lh-hero">
+    <h2 class="lh-hero-title" id="lhHeroTitle">Go Find True Love.</h2>
+    <button type="button" class="lh-invite-main-btn" id="lhOpenInviteBtn">Send CP Invitation</button>
+  </section>
+
+  <span class="lh-days-pill" id="lhDaysPill" hidden></span>
+
+  <div class="lh-couple-card" id="lhCoupleCard">
+    <div class="lh-avatar-slot">
+      <img class="lh-avatar" id="lhMeAvatar" alt="">
+      <div class="lh-avatar-name" id="lhMeName">You</div>
     </div>
-    <div class="cp-empty" id="cpEmpty">
-      <p>No CP partner yet.</p>
-      <p>Reach <strong>2,000</strong> support points with someone, or accept a CP invitation to unlock CP Home.</p>
-      <p><a href="/store.html?cat=rings&app=1">Buy a ring in Store</a> · <a href="/cp-tips.html?app=1">How CP works</a></p>
+    <div class="lh-heart-gem" id="lhHeartGem">💎</div>
+    <div class="lh-avatar-slot" id="lhPartnerSlot">
+      <button type="button" class="lh-add-partner" id="lhAddPartnerBtn" aria-label="Invite CP partner">+</button>
+      <div class="lh-avatar-name">Partner</div>
     </div>
-    <div id="cpInviteList"></div>
-    <div class="cp-scene" aria-hidden="true"></div>
   </div>
 
-  <div class="cp-modal" id="cpRingModal">
-    <div class="cp-modal-box">
-      <div style="font-size:48px;margin-bottom:8px" id="cpModalRingEmoji">💍</div>
-      <p>You want to</p>
-      <div class="cp-modal-actions">
-        <button type="button" class="cp-btn-grey" id="cpTakeOffBtn">Take off the ring</button>
-        <button type="button" class="cp-btn-teal" id="cpChangeRingBtn">Change the ring</button>
+  <div id="lhInvitePendingList"></div>
+
+  <section class="lh-privilege-card">
+    <div class="lh-privilege-head"><span>🌹</span> CP Privilege <span>🌹</span></div>
+    <div class="lh-level-row">
+      <div class="lh-level-item"><span>💙</span>LV1-20</div>
+      <div class="lh-level-item"><span>🤍</span>LV21-40</div>
+      <div class="lh-level-item"><span>💜</span>LV41-60</div>
+    </div>
+    <div class="lh-perk-grid">
+      <div class="lh-perk"><div class="lh-perk-ico">🎖️</div>CP Medal</div>
+      <div class="lh-perk"><div class="lh-perk-ico">💳</div>CP Card</div>
+      <div class="lh-perk"><div class="lh-perk-ico">🏠</div>CP House</div>
+      <div class="lh-perk"><div class="lh-perk-ico">👥</div>CP together profile</div>
+      <div class="lh-perk"><div class="lh-perk-ico">👕</div>CP House Theme</div>
+      <div class="lh-perk"><div class="lh-perk-ico">💕</div>CP Online Effect</div>
+      <div class="lh-perk is-locked"><div class="lh-perk-ico">🎁</div>Room Gift Notification</div>
+      <div class="lh-perk is-locked"><div class="lh-perk-ico">🔥</div>Platform Gift Notification</div>
+      <div class="lh-perk is-locked"><div class="lh-perk-ico">✨</div>More coming soon</div>
+    </div>
+  </section>
+
+  <!-- Send CP Invitation sheet -->
+  <div class="lh-overlay" id="lhInviteSheet">
+    <div class="lh-sheet">
+      <div class="lh-sheet-head">
+        <h2>Send CP Invitation</h2>
+        <button type="button" class="lh-sheet-close" id="lhInviteSheetClose" aria-label="Close"><i class="fas fa-times"></i></button>
       </div>
-      <button type="button" style="margin-top:12px;border:none;background:none;color:#6b7280" id="cpModalClose">Cancel</button>
+      <div class="lh-search-row">
+        <input type="text" id="lhSearchId" inputmode="numeric" placeholder="Enter user ID" autocomplete="off">
+        <button type="button" class="lh-check-btn" id="lhCheckBtn">Check</button>
+      </div>
+      <p class="lh-hint" id="lhIntimacyHint">Intimacy value &gt;= 50,000 to become CP~</p>
+      <div class="lh-user-result" id="lhUserResult">
+        <img id="lhResultAvatar" alt="">
+        <div class="lh-user-meta">
+          <strong id="lhResultName">—</strong>
+          <small id="lhResultId">ID: —</small>
+          <div class="lh-intimacy"><i class="fas fa-heart"></i> Intimacy Value: <span id="lhResultIntimacy">0</span></div>
+        </div>
+        <button type="button" class="lh-apply-btn" id="lhApplyBtn" disabled>Apply</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- No Ring modal -->
+  <div class="lh-overlay align-center" id="lhNoRingModal">
+    <div class="lh-modal-box">
+      <div class="ring-art">💍</div>
+      <h3>No Ring</h3>
+      <p>You need to own a ring to propose</p>
+      <button type="button" class="lh-buy-btn" id="lhToBuyBtn">To Buy</button>
+      <button type="button" class="lh-modal-cancel" id="lhNoRingClose">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Ring picker (when user owns multiple) -->
+  <div class="lh-overlay align-center" id="lhRingPicker" hidden>
+    <div class="lh-modal-box">
+      <h3>Choose a ring</h3>
+      <div id="lhRingPickerList" style="display:flex;flex-direction:column;gap:8px;margin:12px 0"></div>
+      <button type="button" class="lh-modal-cancel" id="lhRingPickerClose">Cancel</button>
     </div>
   </div>
 
   <script src="app.js"></script>
   <script src="social-shell.js"></script>
   <script>
+    let cpState = { ownedRings: [], hasRing: false, intimacyInviteMin: 50000 };
+    let lookupTarget = null;
+
     async function cpFetch(path, opts = {}) {
       const token = localStorage.getItem('token');
       const res = await fetch(joinApiUrl('/cp' + path), {
@@ -136,86 +131,187 @@
       return `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'U')}&background=ec4899&color=fff`;
     }
 
-    async function loadCpHome() {
-      const data = await cpFetch('/home');
-      const cp = data.cp;
-      const pending = data.pendingInvites || [];
+    function openSheet(id) {
+      document.getElementById(id)?.classList.add('open');
+    }
+    function closeSheet(id) {
+      document.getElementById(id)?.classList.remove('open');
+    }
 
-      const list = document.getElementById('cpInviteList');
-      list.innerHTML = pending.map((inv) => `
-        <div class="cp-invite-card">
+    function openInviteFlow() {
+      lookupTarget = null;
+      document.getElementById('lhUserResult')?.classList.remove('is-visible');
+      document.getElementById('lhApplyBtn').disabled = true;
+      document.getElementById('lhSearchId').value = '';
+      openSheet('lhInviteSheet');
+    }
+
+    function showPartner(cp) {
+      const slot = document.getElementById('lhPartnerSlot');
+      slot.innerHTML = `
+        <img class="lh-avatar" id="lhPartnerAvatar" alt="">
+        <div class="lh-avatar-name" id="lhPartnerName">${cp.partnerName || 'Partner'}</div>`;
+      const img = document.getElementById('lhPartnerAvatar');
+      img.src = avatarUrl(cp.partnerName, cp.partnerPic);
+      img.onerror = () => { img.onerror = null; img.src = avatarUrl(cp.partnerName, null); };
+      document.getElementById('lhHeartGem').textContent = cp.ring?.emoji || '💎';
+      document.getElementById('lhHeroTitle').textContent = 'Together Forever.';
+      document.getElementById('lhOpenInviteBtn').hidden = true;
+      document.getElementById('lhDaysPill').hidden = false;
+      document.getElementById('lhDaysPill').textContent = `We have been CP for ${cp.daysTogether} days`;
+    }
+
+    function showEmptyPartner() {
+      const slot = document.getElementById('lhPartnerSlot');
+      slot.innerHTML = `
+        <button type="button" class="lh-add-partner" id="lhAddPartnerBtn" aria-label="Invite CP partner">+</button>
+        <div class="lh-avatar-name">Partner</div>`;
+      document.getElementById('lhAddPartnerBtn')?.addEventListener('click', openInviteFlow);
+      document.getElementById('lhHeroTitle').textContent = 'Go Find True Love.';
+      document.getElementById('lhOpenInviteBtn').hidden = false;
+      document.getElementById('lhDaysPill').hidden = true;
+      document.getElementById('lhHeartGem').textContent = '💎';
+    }
+
+    async function loadLoveHouse() {
+      const data = await cpFetch('/home');
+      cpState.ownedRings = data.ownedRings || [];
+      cpState.hasRing = Boolean(data.hasRing);
+      cpState.intimacyInviteMin = data.intimacyInviteMin || 50000;
+      document.getElementById('lhIntimacyHint').textContent =
+        `Intimacy value >= ${Number(cpState.intimacyInviteMin).toLocaleString()} to become CP~`;
+
+      const pending = data.pendingInvites || [];
+      document.getElementById('lhInvitePendingList').innerHTML = pending.map((inv) => `
+        <div class="lh-invite-pending">
           <strong>${inv.fromName}</strong> sent a CP invite (${inv.ring?.name || 'Ring'})
-          <div style="margin-top:8px;display:flex;gap:8px">
-            <button type="button" onclick="respondInvite('${inv.id}', true)" style="flex:1;padding:8px;border:none;border-radius:999px;background:#14b8a6;color:#fff">Accept</button>
-            <button type="button" onclick="respondInvite('${inv.id}', false)" style="flex:1;padding:8px;border:none;border-radius:999px;background:#f3f4f6">Decline</button>
+          <div class="lh-invite-pending-actions">
+            <button type="button" class="lh-btn-accept" data-id="${inv.id}" data-accept="1">Accept</button>
+            <button type="button" class="lh-btn-decline" data-id="${inv.id}" data-accept="0">Decline</button>
           </div>
         </div>`).join('');
 
-      if (!cp) {
-        document.getElementById('cpEmpty').hidden = false;
-        document.getElementById('cpCouple').hidden = true;
-        document.getElementById('cpDaysPill').hidden = true;
-        return;
-      }
-
-      document.getElementById('cpEmpty').hidden = true;
-      document.getElementById('cpCouple').hidden = false;
-      document.getElementById('cpDaysPill').hidden = false;
-      document.getElementById('cpDaysPill').textContent = `We have been CP for ${cp.daysTogether} days`;
-      document.getElementById('cpPartnerName').textContent = cp.partnerName;
-      document.getElementById('cpPartnerAvatar').src = avatarUrl(cp.partnerName, cp.partnerPic);
-      document.getElementById('cpRingBtn').textContent = cp.ring?.emoji || '💍';
+      document.querySelectorAll('[data-id][data-accept]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          try {
+            await cpFetch('/invite/' + btn.dataset.id + '/respond', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ accept: btn.dataset.accept === '1' }),
+            });
+            loadLoveHouse();
+          } catch (e) { alert(e.message); }
+        });
+      });
 
       try {
         const me = await API.get('/auth/me');
         const u = me.data?.user || me.data || me.user || me;
         const myName = `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'You';
-        document.getElementById('cpMeName').textContent = myName;
-        document.getElementById('cpMeAvatar').src = avatarUrl(myName, u.profile_pic);
-        document.getElementById('cpMeAvatar').onerror = function () {
-          this.onerror = null;
-          this.src = avatarUrl(myName, null);
-        };
-        document.getElementById('cpPartnerAvatar').onerror = function () {
-          this.onerror = null;
-          this.src = avatarUrl(cp.partnerName, null);
-        };
+        document.getElementById('lhMeName').textContent = myName;
+        const meImg = document.getElementById('lhMeAvatar');
+        meImg.src = avatarUrl(myName, u.profile_pic);
+        meImg.onerror = () => { meImg.onerror = null; meImg.src = avatarUrl(myName, null); };
       } catch (_e) {}
+
+      if (data.cp) showPartner(data.cp);
+      else showEmptyPartner();
     }
 
-    window.respondInvite = async (id, accept) => {
+    async function checkUser() {
+      const id = document.getElementById('lhSearchId').value.trim();
+      if (!id) return alert('Enter a user ID');
       try {
-        await cpFetch('/invite/' + id + '/respond', {
+        const user = await cpFetch('/lookup/' + encodeURIComponent(id));
+        lookupTarget = user;
+        document.getElementById('lhResultAvatar').src = avatarUrl(user.name, user.profilePic);
+        document.getElementById('lhResultName').textContent = user.name;
+        document.getElementById('lhResultId').textContent = 'ID: ' + user.displayId;
+        document.getElementById('lhResultIntimacy').textContent = Number(user.intimacyValue || 0).toLocaleString();
+        const applyBtn = document.getElementById('lhApplyBtn');
+        applyBtn.disabled = !user.canInvite;
+        if (!user.canInvite) {
+          applyBtn.textContent = 'Need intimacy';
+        } else {
+          applyBtn.textContent = 'Apply';
+        }
+        document.getElementById('lhUserResult').classList.add('is-visible');
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    async function applyInvite() {
+      if (!lookupTarget?.userId) return;
+      if (!lookupTarget.canInvite) {
+        return alert(`Need intimacy value >= ${cpState.intimacyInviteMin.toLocaleString()}`);
+      }
+      if (!cpState.hasRing || !cpState.ownedRings.length) {
+        closeSheet('lhInviteSheet');
+        openSheet('lhNoRingModal');
+        return;
+      }
+      if (cpState.ownedRings.length === 1) {
+        return sendInviteWithRing(cpState.ownedRings[0].id);
+      }
+      const list = document.getElementById('lhRingPickerList');
+      list.innerHTML = cpState.ownedRings.map((r) =>
+        `<button type="button" class="lh-buy-btn" style="font-size:14px" data-ring="${r.id}">${r.emoji} ${r.name} (×${r.quantity})</button>`
+      ).join('');
+      document.getElementById('lhRingPicker').hidden = false;
+      document.getElementById('lhRingPicker').classList.add('open');
+      list.querySelectorAll('[data-ring]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          document.getElementById('lhRingPicker').classList.remove('open');
+          document.getElementById('lhRingPicker').hidden = true;
+          sendInviteWithRing(btn.dataset.ring);
+        });
+      });
+    }
+
+    async function sendInviteWithRing(ringId) {
+      try {
+        await cpFetch('/invite', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ accept }),
+          body: JSON.stringify({ toUserId: lookupTarget.userId, ringId }),
         });
-        loadCpHome();
-      } catch (e) { alert(e.message); }
-    };
+        closeSheet('lhInviteSheet');
+        alert('CP invitation sent!');
+        loadLoveHouse();
+      } catch (e) {
+        if (/own.*ring|buy/i.test(e.message || '')) {
+          closeSheet('lhInviteSheet');
+          openSheet('lhNoRingModal');
+        } else {
+          alert(e.message);
+        }
+      }
+    }
 
-    document.getElementById('cpRingBtn')?.addEventListener('click', () => {
-      document.getElementById('cpRingModal').classList.add('open');
+    document.getElementById('lhOpenInviteBtn')?.addEventListener('click', openInviteFlow);
+    document.getElementById('lhInviteSheetClose')?.addEventListener('click', () => closeSheet('lhInviteSheet'));
+    document.getElementById('lhCheckBtn')?.addEventListener('click', checkUser);
+    document.getElementById('lhSearchId')?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') checkUser();
     });
-    document.getElementById('cpModalClose')?.addEventListener('click', () => {
-      document.getElementById('cpRingModal').classList.remove('open');
+    document.getElementById('lhApplyBtn')?.addEventListener('click', applyInvite);
+    document.getElementById('lhToBuyBtn')?.addEventListener('click', () => {
+      location.href = '/store.html?cat=rings&app=1&from=cp';
     });
-    document.getElementById('cpTakeOffBtn')?.addEventListener('click', async () => {
-      if (!confirm('Break up with your CP partner?')) return;
-      try {
-        await cpFetch('/break', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
-        document.getElementById('cpRingModal').classList.remove('open');
-        loadCpHome();
-      } catch (e) { alert(e.message); }
-    });
-    document.getElementById('cpChangeRingBtn')?.addEventListener('click', () => {
-      location.href = '/store.html?cat=rings&app=1';
+    document.getElementById('lhNoRingClose')?.addEventListener('click', () => closeSheet('lhNoRingModal'));
+    document.getElementById('lhRingPickerClose')?.addEventListener('click', () => {
+      document.getElementById('lhRingPicker').classList.remove('open');
+      document.getElementById('lhRingPicker').hidden = true;
     });
 
     document.addEventListener('DOMContentLoaded', () => {
       SocialShell?.initPage?.({ activeNav: 'profile' });
-      loadCpHome().catch((e) => {
-        document.getElementById('cpEmpty').innerHTML = `<p>${e.message || 'Sign in to view CP Home'}</p>`;
+      document.getElementById('lhCoupleCard')?.addEventListener('click', (e) => {
+        if (e.target.closest('#lhAddPartnerBtn')) openInviteFlow();
+      });
+      loadLoveHouse().catch((e) => {
+        document.querySelector('.lh-hero-title').textContent = e.message || 'Sign in to open Love House';
       });
     });
   </script>

@@ -1,0 +1,422 @@
+/* Love House — CP flow (reference-style) */
+.love-house-page {
+  margin: 0;
+  min-height: 100dvh;
+  font-family: system-ui, -apple-system, sans-serif;
+  color: #fff;
+  background:
+    linear-gradient(180deg, rgba(80, 20, 60, 0.55), rgba(40, 10, 50, 0.85)),
+    url('https://images.unsplash.com/photo-1518895949257-7621c3c786d4?auto=format&fit=crop&w=900&q=80') center/cover no-repeat;
+}
+
+.love-house-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(10px + env(safe-area-inset-top, 0)) 14px 8px;
+}
+
+.love-house-header h1 {
+  flex: 1;
+  margin: 0;
+  text-align: center;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.lh-icon-btn {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.25);
+  color: #fcd34d;
+  font-size: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.lh-hero {
+  text-align: center;
+  padding: 8px 20px 16px;
+}
+
+.lh-hero-title {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  font-size: clamp(28px, 7vw, 36px);
+  font-weight: 700;
+  margin: 0 0 14px;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+}
+
+.lh-invite-main-btn {
+  display: inline-block;
+  padding: 10px 28px;
+  border-radius: 999px;
+  border: 2px solid #fcd34d;
+  background: linear-gradient(180deg, rgba(120, 40, 140, 0.9), rgba(60, 20, 90, 0.95));
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+}
+
+.lh-couple-card {
+  margin: 0 16px 16px;
+  padding: 16px 12px;
+  border-radius: 16px;
+  border: 2px solid #fcd34d;
+  background:
+    linear-gradient(180deg, rgba(255, 120, 180, 0.35), rgba(180, 60, 140, 0.45)),
+    url('https://images.unsplash.com/photo-1490750967868-88aa4486c946?auto=format&fit=crop&w=600&q=60') center/cover;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 110px;
+}
+
+.lh-avatar-slot {
+  text-align: center;
+  flex: 0 0 72px;
+}
+
+.lh-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  object-fit: cover;
+  background: rgba(255, 255, 255, 0.2);
+  display: block;
+  margin: 0 auto 4px;
+}
+
+.lh-avatar-name {
+  font-size: 11px;
+  max-width: 72px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lh-heart-gem {
+  width: 56px;
+  height: 56px;
+  flex: 0 0 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36px;
+  filter: drop-shadow(0 4px 12px rgba(236, 72, 153, 0.6));
+}
+
+.lh-add-partner {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-size: 28px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 4px;
+}
+
+.lh-privilege-card {
+  margin: 0 12px calc(80px + env(safe-area-inset-bottom, 0));
+  padding: 16px 14px 20px;
+  border-radius: 20px 20px 0 0;
+  background: linear-gradient(180deg, #fff 0%, #fdf2f8 100%);
+  color: #374151;
+  border: 2px solid #fcd34d;
+  border-bottom: none;
+}
+
+.lh-privilege-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 800;
+  color: #831843;
+  margin-bottom: 14px;
+}
+
+.lh-level-row {
+  display: flex;
+  justify-content: space-around;
+  margin-bottom: 16px;
+}
+
+.lh-level-item {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #6b7280;
+}
+
+.lh-level-item span {
+  display: block;
+  font-size: 28px;
+  margin-bottom: 4px;
+}
+
+.lh-perk-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px 8px;
+}
+
+.lh-perk {
+  text-align: center;
+  font-size: 10px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.lh-perk-ico {
+  width: 44px;
+  height: 44px;
+  margin: 0 auto 6px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #fce7f3, #fbcfe8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+}
+
+.lh-perk.is-locked .lh-perk-ico {
+  opacity: 0.45;
+  filter: grayscale(0.6);
+}
+
+.lh-days-pill {
+  display: block;
+  width: fit-content;
+  margin: 0 auto 10px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.35);
+  font-size: 12px;
+}
+
+.lh-invite-pending {
+  margin: 0 16px 12px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #374151;
+  font-size: 13px;
+}
+
+.lh-invite-pending-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.lh-invite-pending-actions button {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  border-radius: 999px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.lh-btn-accept { background: #ec4899; color: #fff; }
+.lh-btn-decline { background: #f3f4f6; color: #374151; }
+
+/* Sheets & modals */
+.lh-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.5);
+  display: none;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.lh-overlay.align-center {
+  align-items: center;
+  padding: 16px;
+}
+
+.lh-overlay.open {
+  display: flex;
+}
+
+.lh-sheet {
+  width: 100%;
+  max-width: 480px;
+  background: #fff;
+  border-radius: 20px 20px 0 0;
+  padding: 16px 16px calc(20px + env(safe-area-inset-bottom, 0));
+  color: #1f2937;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
+.lh-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.lh-sheet-head h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.lh-sheet-close {
+  border: none;
+  background: none;
+  font-size: 20px;
+  color: #9ca3af;
+  cursor: pointer;
+}
+
+.lh-search-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.lh-search-row input {
+  flex: 1;
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  font-size: 15px;
+}
+
+.lh-check-btn {
+  padding: 0 18px;
+  border: none;
+  border-radius: 999px;
+  background: #fce7f3;
+  color: #db2777;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.lh-hint {
+  font-size: 12px;
+  color: #9ca3af;
+  margin: 0 0 14px;
+}
+
+.lh-user-result {
+  display: none;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid #f3f4f6;
+}
+
+.lh-user-result.is-visible {
+  display: flex;
+}
+
+.lh-user-result img {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.lh-user-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.lh-user-meta strong {
+  display: block;
+  font-size: 14px;
+}
+
+.lh-user-meta small {
+  color: #9ca3af;
+  font-size: 11px;
+}
+
+.lh-intimacy {
+  font-size: 12px;
+  color: #ec4899;
+  font-weight: 700;
+  margin-top: 2px;
+}
+
+.lh-apply-btn {
+  padding: 10px 18px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #f472b6, #ec4899);
+  color: #fff;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.lh-apply-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.lh-modal-box {
+  background: #fff;
+  border-radius: 20px;
+  padding: 24px 20px 20px;
+  width: min(320px, 100%);
+  text-align: center;
+  color: #1f2937;
+}
+
+.lh-modal-box .ring-art {
+  font-size: 72px;
+  margin-bottom: 8px;
+}
+
+.lh-modal-box h3 {
+  margin: 0 0 8px;
+  font-size: 20px;
+}
+
+.lh-modal-box p {
+  margin: 0 0 18px;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.lh-buy-btn {
+  width: 100%;
+  padding: 14px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #f472b6, #ec4899);
+  color: #fff;
+  font-weight: 800;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.lh-modal-cancel {
+  margin-top: 12px;
+  border: none;
+  background: none;
+  color: #9ca3af;
+  font-size: 14px;
+  cursor: pointer;
+}

@@ -121,51 +121,131 @@ body[data-live-page='party-room'] .party-viewers {
   display: none;
 }
 
-body[data-live-page='party-room'] .party-room-grid-floor {
+.party-seat-move-banner[hidden] {
   display: none !important;
 }
 
-/* Small stage cylinder (replaces flat grid rectangle) */
+/* No invisible hit pads / grid floor / stage props in ref party room */
+body[data-live-page='party-room'] #apGiftHitPad,
+body[data-live-page='party-room'] #apJoinedHitPad {
+  display: none !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+}
+
+body[data-live-page='party-room'] .ap-tap-for-sound {
+  left: 10px;
+  right: auto;
+  bottom: calc(52px + env(safe-area-inset-bottom, 0));
+  transform: none;
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  max-width: calc(100vw - 120px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  animation: none;
+  z-index: 48;
+}
+
+body[data-live-page='party-room'] .ap-tap-for-sound.is-visible {
+  display: inline-flex;
+}
+
+body[data-live-page='party-room'] .party-room-grid-floor,
 body[data-live-page='party-room'] .party-ref-stage-cylinder {
-  position: absolute;
-  left: 50%;
-  top: 42%;
-  transform: translate(-50%, -50%);
-  width: 44px;
-  height: 20px;
-  z-index: 0;
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+body[data-live-page='party-room'] #apMicLinkModal,
+body[data-live-page='party-room'] #apMicLinkModal.open {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+}
+
+body[data-live-page='party-room'] #partyBtnJoinSeat,
+body[data-live-page='party-room'] .party-btn-join-seat {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+body[data-live-page='party-room'] #liveChatCompose {
+  background: rgba(12, 14, 24, 0.92);
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+body[data-live-page='party-room'] .party-cp-banner {
+  position: relative;
+  z-index: 6;
+  display: flex;
+  justify-content: center;
+  padding: 4px 12px 0;
   pointer-events: none;
-  border-radius: 50%;
-  background: radial-gradient(ellipse at 50% 28%, rgba(200, 160, 255, 0.55), rgba(100, 50, 180, 0.25) 70%);
-  box-shadow:
-    0 0 20px rgba(124, 58, 237, 0.35),
-    inset 0 -4px 8px rgba(60, 20, 120, 0.4);
 }
 
-body[data-live-page='party-room'] .party-ref-stage-cylinder::before {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: 6px;
-  transform: translateX(-50%);
-  width: 34px;
-  height: 26px;
-  border-radius: 50%;
-  background: linear-gradient(180deg, rgba(140, 90, 220, 0.5), rgba(70, 30, 140, 0.65));
-  box-shadow: inset 0 2px 6px rgba(255, 255, 255, 0.15);
+body[data-live-page='party-room'] .party-cp-banner[hidden] {
+  display: none !important;
 }
 
-body[data-live-page='party-room'] .party-ref-stage-cylinder::after {
-  content: '';
+body[data-live-page='party-room'] .party-cp-couple {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+}
+
+body[data-live-page='party-room'] .party-cp-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  object-fit: cover;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+body[data-live-page='party-room'] .party-cp-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #f472b6, #c026d3);
+  border: 2px solid #fcd34d;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  box-shadow: 0 2px 12px rgba(236, 72, 153, 0.45);
+}
+
+body[data-live-page='party-room'] .party-cp-name {
   position: absolute;
-  left: 50%;
   bottom: -14px;
+  left: 50%;
   transform: translateX(-50%);
-  width: 48px;
-  height: 14px;
-  border-radius: 50%;
-  background: radial-gradient(ellipse, rgba(124, 58, 237, 0.45), transparent 70%);
-  filter: blur(2px);
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.85);
+  white-space: nowrap;
+  max-width: 72px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+body[data-live-page='party-room'] .party-cp-slot {
+  position: relative;
+  text-align: center;
+  padding-bottom: 12px;
 }
 
 body[data-live-page='party-room'] .party-room-body {
@@ -348,13 +428,14 @@ body[data-live-page='party-room'] .party-seat.is-host .seat-crown {
   display: none;
 }
 
-/* Hide duplicate floating compose strip — use bottom bar chat + gift */
+/* Hide duplicate floating compose strip — chat row is a sibling, not inside this wrapper */
 body[data-live-page='party-room'] .party-ref-compose-strip {
   display: none !important;
 }
 
 /* Chat overlay ref */
 body[data-live-page='party-room'] .party-chat-row {
+  display: flex;
   position: fixed;
   left: 0;
   right: 0;

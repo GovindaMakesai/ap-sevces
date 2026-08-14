@@ -566,6 +566,14 @@ async function buildSnapshot(channel, { bypassCache = false } = {}) {
     pkBattle = null;
   }
 
+  let cpInRoom = [];
+  try {
+    const cpService = require('./cpService');
+    cpInRoom = await cpService.getCpPairsInRoom(members.map((m) => m.user_id));
+  } catch (_cp) {
+    cpInRoom = [];
+  }
+
   const state = {
     channel: room.channel,
     type: room.room_type,
@@ -589,6 +597,7 @@ async function buildSnapshot(channel, { bypassCache = false } = {}) {
     chatLocked: Boolean(room.is_chat_locked),
     updatedAt: room.updated_at,
     roomStyle: getRoomStyle(room.channel),
+    cpInRoom,
   };
   cacheSnapshot(channel, state);
   return state;

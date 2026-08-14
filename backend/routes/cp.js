@@ -14,5 +14,7 @@ router.post('/break', verifyToken, cpController.breakUp);
 router.post('/change-ring', verifyToken, cpController.changeRing);
 router.get('/levels/personal', verifyToken, cpController.personalLevel);
 router.get('/levels/room', verifyToken, cpController.roomLevel);
+router.get('/lookup/:displayId', verifyToken, cpController.lookupUser);
+router.get('/my-rings', verifyToken, cpController.myRings);
 
 module.exports = router;

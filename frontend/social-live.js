@@ -3252,7 +3252,7 @@
       clearTimeout(micRequestWatchdog);
       micRequestWatchdog = null;
     }
-    document.getElementById('apMicLinkModal')?.classList.remove('open');
+    hideMicLinkModal();
     syncMicButtonUi();
     syncLiveOverlayClass();
   }
@@ -3264,7 +3264,7 @@
       if (hasSpeakerSeat || isHost()) return;
       if (!micLinkPending) return;
       micLinkPending = false;
-      document.getElementById('apMicLinkModal')?.classList.remove('open');
+      hideMicLinkModal();
       syncMicButtonUi();
       syncLiveOverlayClass();
       toast('Host did not respond — tap the mic button to try again', 'warning');
@@ -10478,6 +10478,11 @@
   }
 
   function handleMicButton() {
+    if (isPartyRoomPage() && !isHost() && micLinkPending && !hasSpeakerSeat) {
+      clearMicRequestState();
+      toast('Seat request cancelled', 'info');
+      return;
+    }
     if (isLiveRoomPage() && !isHost() && !hasSpeakerSeat) {
       closeLiveOverlays('mic');
       requestSeatJoin();
@@ -11128,6 +11133,33 @@
     }
   }
 
+  function renderPartyCpBanner() {
+    const banner = document.getElementById('partyCpBanner');
+    const couple = document.getElementById('partyCpCouple');
+    if (!banner || !couple || !isPartyRoomPage()) return;
+    const pairs = roomState?.cpInRoom || [];
+    if (!pairs.length) {
+      banner.hidden = true;
+      banner.setAttribute('aria-hidden', 'true');
+      couple.innerHTML = '';
+      return;
+    }
+    const pair = pairs[0];
+    const ringEmoji = pair.ring?.emoji || '💎';
+    const slotHtml = (user) =>
+      `<div class="party-cp-slot">
+        <img class="party-cp-avatar" src="${avatarUrl(user.name, user.profilePic)}" alt="" data-name="${escapeAttr(user.name || 'User')}" loading="lazy">
+        <span class="party-cp-name">${escapeHtml(user.name || 'User')}</span>
+      </div>`;
+    couple.innerHTML =
+      slotHtml(pair.userA) +
+      `<span class="party-cp-badge" title="CP couple">${ringEmoji} CP</span>` +
+      slotHtml(pair.userB);
+    banner.hidden = false;
+    banner.removeAttribute('aria-hidden');
+    window.SocialUI?.bindAvatarFallbacks?.(couple);
+  }
+
   function renderPartySeats(hostName) {
     const container = document.getElementById('partySeats');
     if (!container) return;
@@ -11295,7 +11327,10 @@
     const hearts = document.getElementById('partyHearts');
     if (hearts) hearts.textContent = String(roomState?.gifts?.length || 0);
 
-    if (document.getElementById('partySeats')) renderPartySeats(hostName);
+    if (document.getElementById('partySeats')) {
+      renderPartyCpBanner();
+      renderPartySeats(hostName);
+    }
     renderChatFromState();
     hydrateGiftHistoryFromState(roomState);
     renderRoomGiftPanels();
@@ -11567,9 +11602,15 @@
   }
 
   function showMicLinkModal(mode) {
+    if (isPartyRoomPage()) {
+      syncMicButtonUi();
+      return;
+    }
     const modal = document.getElementById('apMicLinkModal');
     if (!modal) return;
     closeLiveOverlays('mic');
+    modal.hidden = false;
+    modal.removeAttribute('aria-hidden');
     const waiting = document.getElementById('apMicLinkWaiting');
     const rejected = document.getElementById('apMicLinkRejected');
     if (waiting) waiting.style.display = mode === 'waiting' ? '' : 'none';
@@ -11580,8 +11621,12 @@
   }
 
   function hideMicLinkModal() {
-    document.getElementById('apMicLinkModal')?.classList.remove('open');
-    micLinkPending = false;
+    const modal = document.getElementById('apMicLinkModal');
+    modal?.classList.remove('open');
+    if (modal) {
+      modal.hidden = true;
+      modal.setAttribute('aria-hidden', 'true');
+    }
     syncMicButtonUi();
     syncLiveOverlayClass();
   }
@@ -11908,7 +11953,7 @@
         el.style.pointerEvents = 'none';
         el.style.display = 'none';
       });
-      document.getElementById('apMicLinkModal')?.classList.remove('open');
+      hideMicLinkModal();
       document.getElementById('partyMusicSheet')?.classList.remove('open');
       document.getElementById('apInAppShareSheet')?.classList.remove('open');
       document.getElementById('apTopupSheet')?.classList.remove('open');
@@ -11919,7 +11964,7 @@
 
     if (!document.querySelector(openSel)) {
       document.body.classList.remove('ap-live-overlay-open', 'party-requests-open', 'ap-sheet-open');
-      document.getElementById('apMicLinkModal')?.classList.remove('open');
+      hideMicLinkModal();
     } else {
       syncLiveOverlayClass();
     }
@@ -12440,7 +12485,7 @@
     recoverStuckLiveUi({ forceGift: true });
     /* Clear any full-screen ghosts that swallow Accept / Add taps */
     document.getElementById('giftSheet')?.classList.remove('open');
-    document.getElementById('apMicLinkModal')?.classList.remove('open');
+    hideMicLinkModal();
     document.getElementById('apInAppShareSheet')?.classList.remove('open');
     document.getElementById('apTopupSheet')?.classList.remove('open');
     document.getElementById('partyToolsSheet')?.classList.remove('open');
@@ -12791,15 +12836,14 @@
   function applyRoomBackground(backgroundId) {
     const bg = PARTY_BACKGROUNDS.find((b) => b.id === backgroundId) || PARTY_BACKGROUNDS[0];
     const refBg = document.getElementById('partyRefBg');
-    const floor = document.querySelector('.party-room-grid-floor');
     const roomRoot = document.querySelector('.party-room') || document.querySelector('.live-room');
-    const target = refBg || floor || roomRoot;
+    const target = refBg || roomRoot;
     if (target && bg?.css) {
       target.style.background = bg.css;
       target.style.backgroundSize = 'cover';
       target.style.backgroundPosition = 'center';
     }
-    if (roomRoot && !floor && !refBg) {
+    if (roomRoot && !refBg) {
       roomRoot.style.background = bg.css;
     }
   }
@@ -13204,7 +13248,7 @@
   function closeLiveOverlays(except) {
     if (except !== 'tools') document.getElementById('partyToolsSheet')?.classList.remove('open');
     if (except !== 'gift') document.getElementById('giftSheet')?.classList.remove('open');
-    if (except !== 'mic') document.getElementById('apMicLinkModal')?.classList.remove('open');
+    if (except !== 'mic') hideMicLinkModal();
     if (except !== 'hostMic') document.getElementById('apHostMicInviteModal')?.classList.remove('open');
     if (except !== 'share') document.getElementById('apInAppShareSheet')?.classList.remove('open');
     if (except !== 'requests') closePartyRequestsSheet();
@@ -13604,11 +13648,11 @@
     if (window.__apMicModalBound) return;
     window.__apMicModalBound = true;
     document.getElementById('apMicLinkContinue')?.addEventListener('click', () => toast('Waiting for host approval…'));
-    document.getElementById('apMicLinkCancel')?.addEventListener('click', hideMicLinkModal);
-    document.getElementById('apMicLinkCancel2')?.addEventListener('click', hideMicLinkModal);
+    document.getElementById('apMicLinkCancel')?.addEventListener('click', clearMicRequestState);
+    document.getElementById('apMicLinkCancel2')?.addEventListener('click', clearMicRequestState);
     document.getElementById('apMicLinkConfirm')?.addEventListener('click', hideMicLinkModal);
     document.getElementById('apMicLinkModal')?.addEventListener('click', (e) => {
-      if (e.target.id === 'apMicLinkModal') hideMicLinkModal();
+      if (e.target.id === 'apMicLinkModal') clearMicRequestState();
     });
   }
 
@@ -13708,7 +13752,7 @@
     if (!document.getElementById('apMicLinkModal') && (isPartyRoomPage() || isLiveRoomPage())) {
       document.body.insertAdjacentHTML(
         'beforeend',
-        `<div class="ap-modal-overlay" id="apMicLinkModal">
+        `<div class="ap-modal-overlay" id="apMicLinkModal" hidden aria-hidden="true">
           <div class="ap-miclink-modal">
             <div id="apMicLinkWaiting">
               <div class="ap-miclink-head">On the mic link list</div>
@@ -15099,8 +15143,7 @@
     const name = displayName(user);
     const id = String(user.id);
     if (micLinkPending) {
-      toast('Request pending — waiting for host', 'info');
-      showMicLinkModal('waiting');
+      toast('Request pending — tap mic to cancel', 'info');
       return;
     }
     if (hasSpeakerSeat) {
@@ -15125,11 +15168,9 @@
       userId: id,
       name,
     });
-    /* No system chat line — host already gets Agree/Decline in chat via live:seat_request */
     micLinkPending = true;
     startMicRequestWatchdog();
-    showMicLinkModal('waiting');
-    toast(isLiveRoomPage() ? 'Request sent to host' : 'Request sent to host');
+    toast(isPartyRoomPage() ? 'Seat request sent — tap mic to cancel' : 'Request sent to host', 'info');
   }
 
   function bindHostControls(pageType) {
@@ -16154,7 +16195,7 @@
     function syncPad() {
       const btn = giftBtn();
       const pad = ensurePad();
-      if (!btn || !document.body?.dataset?.livePage) {
+      if (isPartyRoomPage() || !btn || !document.body?.dataset?.livePage) {
         pad.style.display = 'none';
         return;
       }
@@ -16273,7 +16314,7 @@
     function syncPad() {
       const btn = joinedBtn();
       const pad = ensurePad();
-      if (!btn || !document.body?.dataset?.livePage) {
+      if (isPartyRoomPage() || !btn || !document.body?.dataset?.livePage) {
         pad.style.display = 'none';
         return;
       }
@@ -16395,7 +16436,7 @@
     document.getElementById('apInRoomWebPanel')?.classList.remove('open');
     document.getElementById('apInAppShareSheet')?.classList.remove('open');
     document.getElementById('apEmojiPopover')?.classList.remove('is-open');
-    document.getElementById('apMicLinkModal')?.classList.remove('open');
+    hideMicLinkModal();
     document.getElementById('apHostMicInviteModal')?.classList.remove('open');
     document.body.classList.remove('party-requests-open');
     document.getElementById('partyRequestsSheet')?.classList.remove('open');
@@ -18958,6 +18999,9 @@
 
     applyRoomBackground(roomState?.roomStyle?.backgroundId || 'lakeside');
     bindPartySeatDelegation();
+    hideMicLinkModal();
+    cancelPartySeatMovePick();
+    hideTapForSoundHint();
 
     document.getElementById('partySeatMoveCancel')?.addEventListener('click', cancelPartySeatMovePick);
     document.addEventListener('keydown', (e) => {

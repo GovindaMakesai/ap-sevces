@@ -3,7 +3,9 @@ const followService = require('./followService');
 const walletService = require('./walletService');
 
 const CP_SUPPORT_UNLOCK = 2000;
-const CP_SUPPORT_INVITE = 6000;
+const CP_SUPPORT_INVITE = 5000;
+const INTIMACY_DISPLAY_MULT = 10;
+const INTIMACY_INVITE_MIN = CP_SUPPORT_INVITE * INTIMACY_DISPLAY_MULT;
 const INVITE_TTL_MS = 48 * 60 * 60 * 1000;
 const REJECT_COOLDOWN_MS = 48 * 60 * 60 * 1000;
 
@@ -110,6 +112,86 @@ async function getUserRingQty(userId, ringId) {
   return Number(res.rows[0]?.quantity || 0);
 }
 
+async function listUserOwnedRings(userId) {
+  const res = await db.query(
+    `SELECT ring_id, quantity FROM cp_user_rings WHERE user_id = $1 AND quantity > 0 ORDER BY updated_at DESC`,
+    [userId]
+  );
+  return res.rows
+    .map((row) => {
+      const ring = ringById(row.ring_id);
+      if (!ring) return null;
+      return { ...ring, quantity: Number(row.quantity || 0) };
+    })
+    .filter(Boolean);
+}
+
+async function userHasAnyRing(userId) {
+  const res = await db.query(
+    `SELECT 1 FROM cp_user_rings WHERE user_id = $1 AND quantity > 0 LIMIT 1`,
+    [userId]
+  );
+  return Boolean(res.rows[0]);
+}
+
+async function lookupUserForInvite(viewerId, displayIdRaw) {
+  const displayId = String(displayIdRaw || '').trim();
+  if (!displayId) throw new Error('Enter a user ID');
+  const res = await db.query(
+    `SELECT id, first_name, last_name, profile_pic, display_id, gender
+     FROM users WHERE CAST(display_id AS TEXT) = $1 LIMIT 1`,
+    [displayId]
+  );
+  const u = res.rows[0];
+  if (!u) throw new Error('User not found');
+  if (String(u.id) === String(viewerId)) throw new Error('Cannot invite yourself');
+  const support = await getSupportPoints(viewerId, u.id);
+  const intimacyValue = support * INTIMACY_DISPLAY_MULT;
+  return {
+    userId: String(u.id),
+    displayId: u.display_id != null ? String(u.display_id) : displayId,
+    name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'User',
+    profilePic: u.profile_pic || null,
+    gender: u.gender || null,
+    supportPoints: support,
+    intimacyValue,
+    canInvite: support >= CP_SUPPORT_INVITE,
+    intimacyInviteMin: INTIMACY_INVITE_MIN,
+  };
+}
+
+async function getCpPairsInRoom(userIds) {
+  const ids = [...new Set((userIds || []).map((id) => String(id)).filter(Boolean))];
+  if (ids.length < 2) return [];
+  const res = await db.query(
+    `SELECT r.user_a, r.user_b, r.ring_id,
+            ua.first_name AS a_fn, ua.last_name AS a_ln, ua.profile_pic AS a_pic, ua.display_id AS a_did,
+            ub.first_name AS b_fn, ub.last_name AS b_ln, ub.profile_pic AS b_pic, ub.display_id AS b_did
+     FROM cp_relationships r
+     JOIN users ua ON ua.id = r.user_a
+     JOIN users ub ON ub.id = r.user_b
+     WHERE r.status = 'active'
+       AND r.user_a::text = ANY($1::text[])
+       AND r.user_b::text = ANY($1::text[])`,
+    [ids]
+  );
+  return res.rows.map((row) => ({
+    userA: {
+      userId: String(row.user_a),
+      name: `${row.a_fn || ''} ${row.a_ln || ''}`.trim() || 'User',
+      profilePic: row.a_pic || null,
+      displayId: row.a_did != null ? String(row.a_did) : null,
+    },
+    userB: {
+      userId: String(row.user_b),
+      name: `${row.b_fn || ''} ${row.b_ln || ''}`.trim() || 'User',
+      profilePic: row.b_pic || null,
+      displayId: row.b_did != null ? String(row.b_did) : null,
+    },
+    ring: ringById(row.ring_id),
+  }));
+}
+
 async function sendInvite(fromUserId, toUserId, ringId) {
   if (String(fromUserId) === String(toUserId)) throw new Error('Cannot invite yourself');
   const existing = await getActiveCp(fromUserId);
@@ -119,7 +201,9 @@ async function sendInvite(fromUserId, toUserId, ringId) {
 
   const support = await getSupportPoints(fromUserId, toUserId);
   if (support < CP_SUPPORT_INVITE) {
-    throw new Error(`Need ${CP_SUPPORT_INVITE} support points (you have ${support})`);
+    throw new Error(
+      `Need intimacy value >= ${INTIMACY_INVITE_MIN.toLocaleString()} (you have ${(support * INTIMACY_DISPLAY_MULT).toLocaleString()})`
+    );
   }
 
   const mutual =
@@ -299,6 +383,8 @@ async function getRoomLevel(userId) {
 module.exports = {
   CP_SUPPORT_UNLOCK,
   CP_SUPPORT_INVITE,
+  INTIMACY_DISPLAY_MULT,
+  INTIMACY_INVITE_MIN,
   CP_RINGS,
   addSupportPoints,
   getSupportPoints,
@@ -313,4 +399,8 @@ module.exports = {
   getPersonalLevel,
   getRoomLevel,
   getUserRingQty,
+  listUserOwnedRings,
+  userHasAnyRing,
+  lookupUserForInvite,
+  getCpPairsInRoom,
 };

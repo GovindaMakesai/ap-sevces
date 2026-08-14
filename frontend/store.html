@@ -101,7 +101,8 @@
 
       if (cat === 'rings') {
         document.querySelector('h1').textContent = 'Store';
-        document.querySelector('.social-banner h2').textContent = 'CP Rings';
+        document.querySelector('.social-banner h2').textContent = 'Rhythm Party — CP Rings';
+        document.querySelector('.social-cat-item[href*="cat=rings"]')?.classList.add('active');
         let rings = [];
         try {
           const token = localStorage.getItem('token');
@@ -117,37 +118,73 @@
           emoji: r.emoji,
           price: Number(r.price).toLocaleString(),
           ringId: r.id,
+          rawPrice: r.price,
         }));
         document.getElementById('storeGridNew').innerHTML = '';
         document.getElementById('storeGrid').innerHTML = ringItems.map(renderItem).join('');
+        const fromCp = new URLSearchParams(location.search).get('from') === 'cp';
         document.querySelectorAll('.social-store-item').forEach((el) => {
-          el.addEventListener('click', async (e) => {
+          el.addEventListener('click', (e) => {
             e.preventDefault();
-            const ringId = el.dataset.ringId;
-            if (!ringId || !confirm('Buy ' + el.dataset.name + ' for ' + el.dataset.price + ' coins?')) return;
-            try {
-              const token = localStorage.getItem('token');
-              const res = await fetch(joinApiUrl('/cp/rings/purchase'), {
-                method: 'POST',
-                credentials: 'include',
-                headers: {
-                  'Content-Type': 'application/json',
-                  ...(token ? { Authorization: 'Bearer ' + token } : {}),
-                },
-                body: JSON.stringify({ ringId }),
-              });
-              const data = await res.json();
-              if (!data.success) throw new Error(data.message);
-              alert('Ring added to your bag! Use it when sending a CP invite.');
-              if (SocialWallet) {
-                const b = await SocialWallet.fetchBalance();
-                coinsEl.textContent = String(b.coin_balance || 0);
-              }
-            } catch (err) {
-              alert(err.message || 'Purchase failed');
+            document.getElementById('sheetTitle').textContent = el.dataset.name;
+            document.getElementById('sheetEmoji').textContent = el.dataset.emoji;
+            document.getElementById('sheetPrice').textContent = el.dataset.price + ' 🪙';
+            document.getElementById('itemSheet').classList.add('open');
+            const buyBtn = document.getElementById('ringBuyBtn');
+            if (buyBtn) {
+              buyBtn.dataset.ringId = el.dataset.ringId || '';
+              buyBtn.dataset.ringName = el.dataset.name || '';
             }
           });
         });
+        let ringBuyBtn = document.getElementById('ringBuyBtn');
+        if (!ringBuyBtn) {
+          const sheet = document.querySelector('#itemSheet .social-sheet');
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.id = 'ringBuyBtn';
+          btn.className = 'social-btn-orange';
+          btn.style.cssText = 'width:100%;margin-top:12px;border:none;cursor:pointer';
+          btn.textContent = 'Buy';
+          sheet?.insertBefore(btn, sheet.querySelector('button[onclick]'));
+          ringBuyBtn = btn;
+        }
+        ringBuyBtn.textContent = 'Buy';
+        ringBuyBtn.onclick = async () => {
+          const ringId = ringBuyBtn.dataset.ringId;
+          if (!ringId) return;
+          ringBuyBtn.disabled = true;
+          ringBuyBtn.textContent = 'Buying…';
+          try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(joinApiUrl('/cp/rings/purchase'), {
+              method: 'POST',
+              credentials: 'include',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: 'Bearer ' + token } : {}),
+              },
+              body: JSON.stringify({ ringId }),
+            });
+            const data = await res.json();
+            if (!data.success) throw new Error(data.message);
+            document.getElementById('itemSheet').classList.remove('open');
+            alert('Ring added to your bag! You can now send a CP invitation.');
+            if (SocialWallet) {
+              const b = await SocialWallet.fetchBalance();
+              coinsEl.textContent = String(b.coin_balance || 0);
+            }
+            if (fromCp) location.href = '/cp-home.html?app=1';
+          } catch (err) {
+            alert(err.message || 'Purchase failed');
+          } finally {
+            ringBuyBtn.disabled = false;
+            ringBuyBtn.textContent = 'Buy';
+          }
+        };
+        if (fromCp && ringItems.length) {
+          document.querySelector('.social-store-item')?.click();
+        }
         return;
       }
 
