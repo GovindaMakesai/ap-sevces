@@ -198,6 +198,21 @@
       let following = window.SocialInteractions?.isFollowing
         ? SocialInteractions.isFollowing(followKey, name)
         : false;
+
+      if (userId) {
+        try {
+          const me = JSON.parse(localStorage.getItem('user') || '{}');
+          const token = localStorage.getItem('token') || localStorage.getItem('access_token');
+          if (token && me?.id && String(me.id) !== String(userId)) {
+            fetch(joinApiUrl('/social/profile/' + encodeURIComponent(userId) + '/visit'), {
+              method: 'POST',
+              credentials: 'include',
+              headers: { Accept: 'application/json', Authorization: 'Bearer ' + token },
+            }).catch(() => {});
+          }
+        } catch (_e) { /* ignore */ }
+      }
+
       const followBtn = document.getElementById('creatorFollow');
       const syncFollowBtn = () => {
         followBtn.textContent = following ? 'Following' : 'Follow';

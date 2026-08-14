@@ -1,0 +1,182 @@
+/* Profile visitors — SVIP perk list */
+body.visitors-page {
+  margin: 0;
+  min-height: 100vh;
+  background: #fdf9f0;
+  color: #1f2937;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  padding-bottom: calc(72px + env(safe-area-inset-bottom, 0));
+}
+
+.visitors-header {
+  display: flex;
+  align-items: center;
+  padding: 14px 16px;
+  background: #fdf9f0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  border-bottom: 1px solid rgba(201, 162, 39, 0.2);
+}
+
+.visitors-header h1 {
+  flex: 1;
+  margin: 0;
+  text-align: center;
+  font-size: 17px;
+  font-weight: 800;
+  color: #6b4f10;
+}
+
+.visitors-back {
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  color: #6b4f10;
+  font-size: 17px;
+  cursor: pointer;
+}
+
+.visitors-summary {
+  margin: 14px 16px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.18), rgba(168, 85, 247, 0.12));
+  border: 1px solid rgba(201, 162, 39, 0.28);
+}
+
+.visitors-summary strong {
+  display: block;
+  font-size: 28px;
+  color: #92400e;
+  line-height: 1.1;
+}
+
+.visitors-summary span {
+  font-size: 12px;
+  color: #8b6914;
+  font-weight: 700;
+}
+
+.visitors-summary small {
+  display: block;
+  margin-top: 8px;
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.4;
+}
+
+.visitors-upsell {
+  margin: 16px;
+  padding: 16px;
+  border-radius: 16px;
+  background: linear-gradient(160deg, #2e1065, #1e1b4b);
+  color: #fff;
+  text-align: center;
+}
+
+.visitors-upsell h2 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.visitors-upsell p {
+  margin: 0 0 14px;
+  font-size: 13px;
+  opacity: 0.9;
+  line-height: 1.45;
+}
+
+.visitors-upsell a {
+  display: inline-block;
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #fde68a, #f59e0b);
+  color: #1a1028;
+  font-weight: 800;
+  text-decoration: none;
+  font-size: 13px;
+}
+
+.visitors-list {
+  padding: 0 16px 16px;
+}
+
+.visitors-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(201, 162, 39, 0.15);
+  text-decoration: none;
+  color: inherit;
+}
+
+.visitors-row:last-child {
+  border-bottom: none;
+}
+
+.visitors-row img,
+.visitors-row .visitors-avatar-ph {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 2px solid rgba(251, 191, 36, 0.45);
+}
+
+.visitors-avatar-ph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #e9d5ff, #fbcfe8);
+  color: #6b21a8;
+  font-size: 18px;
+}
+
+.visitors-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.visitors-meta strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  color: #374151;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.visitors-meta span {
+  display: block;
+  font-size: 12px;
+  color: #9ca3af;
+  margin-top: 2px;
+}
+
+.visitors-count-badge {
+  font-size: 11px;
+  font-weight: 800;
+  color: #92400e;
+  background: rgba(251, 191, 36, 0.25);
+  padding: 4px 8px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.visitors-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: #9ca3af;
+  font-size: 14px;
+}
+
+.visitors-loading {
+  text-align: center;
+  padding: 40px 16px;
+  color: #9ca3af;
+}

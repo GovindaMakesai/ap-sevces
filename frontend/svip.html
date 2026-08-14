@@ -137,16 +137,20 @@
       }).join('');
 
       const privItems = svipData.privileges || [];
+      const privLinks = { visitors: '/visitors.html?app=1', svip_gifts: '/store.html?app=1' };
       const privUnlocked = privItems.filter((x) => userLevel >= x.minLevel).length;
       document.getElementById('svipPrivCount').textContent = `${privUnlocked}/${privItems.length}`;
 
       document.getElementById('svipPrivGrid').innerHTML = privItems.map((item) => {
         const locked = userLevel < item.minLevel;
-        return `<article class="svip-priv-item${locked ? ' is-locked' : ''}">
+        const link = !locked && privLinks[item.id] ? privLinks[item.id] : null;
+        const tag = link ? 'a' : 'article';
+        const href = link ? ` href="${link}"` : '';
+        return `<${tag} class="svip-priv-item${locked ? ' is-locked' : ''}"${href} data-priv="${item.id}">
           <span class="svip-priv-badge">SVIP ${item.minLevel}</span>
           <i class="fas ${item.icon}"></i>
           <span>${item.name}</span>
-        </article>`;
+        </${tag}>`;
       }).join('');
     }
 

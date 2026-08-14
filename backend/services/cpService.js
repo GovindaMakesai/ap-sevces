@@ -248,6 +248,24 @@ async function sendInvite(fromUserId, toUserId, ringId) {
   const invite = res.rows[0];
   setImmediate(() => {
     try {
+      const { cpQuoteLine } = require('./cpQuotes');
+      const { buildCpInviteMessage, sendCpDirectMessage } = require('./cpChatMessages');
+      const ring = ringById(ringId);
+      db.query(`SELECT first_name, last_name FROM users WHERE id = $1`, [fromUserId])
+        .then((nameRes) => {
+          const u = nameRes.rows[0];
+          const fromName = u ? `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'User' : 'User';
+          const body = buildCpInviteMessage({
+            fromName,
+            inviteId: invite.id,
+            ringId,
+            ringName: ring?.name,
+            ringEmoji: ring?.emoji,
+            quoteLine: cpQuoteLine('invitation_received'),
+          });
+          return sendCpDirectMessage(fromUserId, toUserId, body);
+        })
+        .catch(() => {});
       const systemMessageService = require('./systemMessageService');
       systemMessageService
         .notifyCpInviteSent({
@@ -461,8 +479,23 @@ async function requestBreakUp(userId) {
   const row = res.rows[0];
   setImmediate(() => {
     try {
+      const { cpQuoteLine } = require('./cpQuotes');
+      const { buildCpActionMessage, sendCpDirectMessage } = require('./cpChatMessages');
+      db.query(`SELECT first_name, last_name FROM users WHERE id = $1`, [userId])
+        .then((nameRes) => {
+          const u = nameRes.rows[0];
+          const fromName = u ? `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'User' : 'User';
+          const body = buildCpActionMessage({
+            fromName,
+            actionId: row.id,
+            type: 'break',
+            quoteLine: cpQuoteLine('removal_request'),
+          });
+          return sendCpDirectMessage(userId, cp.partnerId, body);
+        })
+        .catch(() => {});
       require('./systemMessageService')
-        .notifyCpBreakRequest({ fromUserId: userId, toUserId: cp.partnerId })
+        .notifyCpBreakRequest({ fromUserId: userId, toUserId: cp.partnerId, actionId: row.id })
         .catch(() => {});
     } catch (_e) {
       /* non-fatal */
@@ -518,11 +551,30 @@ async function requestRingChange(userId, ringId) {
   const row = res.rows[0];
   setImmediate(() => {
     try {
+      const { cpQuoteLine } = require('./cpQuotes');
+      const { buildCpActionMessage, sendCpDirectMessage } = require('./cpChatMessages');
+      db.query(`SELECT first_name, last_name FROM users WHERE id = $1`, [userId])
+        .then((nameRes) => {
+          const u = nameRes.rows[0];
+          const fromName = u ? `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'User' : 'User';
+          const body = buildCpActionMessage({
+            fromName,
+            actionId: row.id,
+            type: 'ring_change',
+            ringId,
+            ringName: ring.name,
+            ringEmoji: ring.emoji,
+            quoteLine: cpQuoteLine('ring_change_request'),
+          });
+          return sendCpDirectMessage(userId, cp.partnerId, body);
+        })
+        .catch(() => {});
       require('./systemMessageService')
         .notifyCpRingChangeRequest({
           fromUserId: userId,
           toUserId: cp.partnerId,
           ringId,
+          actionId: row.id,
         })
         .catch(() => {});
     } catch (_e) {

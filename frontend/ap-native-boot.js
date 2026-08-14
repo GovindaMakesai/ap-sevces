@@ -19,7 +19,7 @@
   const path = (window.location.pathname || '').toLowerCase();
   const SOCIAL_SHELL_PAGES = [
     '/explore.html', '/party.html', '/video.html', '/square.html', '/topics.html',
-    '/store.html', '/vip.html', '/svip.html', '/svip-intro.html', '/svip-settings.html',
+    '/store.html', '/vip.html', '/svip.html', '/svip-intro.html', '/svip-settings.html', '/visitors.html',
     '/rankings.html', '/cp-rankings.html', '/cp-home.html', '/cp-tips.html',
     '/profile-tab.html', '/privileges.html',
     '/points.html', '/withdraw.html', '/chat.html', '/streamer-center.html',

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { verifyToken, optionalAuth } = require('../middleware/auth');
 const social = require('../controllers/socialController');
+const profileVisitorController = require('../controllers/profileVisitorController');
 const roleApplicationController = require('../controllers/roleApplicationController');
 const privateUpload = require('../middleware/privateUpload');
 const socialMediaUpload = require('../middleware/socialMediaUpload');
@@ -14,6 +15,8 @@ router.post('/client-metrics', optionalAuth, social.clientMetrics);
 router.get('/creators/:userId/engagement', optionalAuth, social.creatorEngagement);
 router.get('/stats/:userId', optionalAuth, social.followStats);
 router.get('/posts', optionalAuth, social.listPosts);
+
+router.post('/profile/:userId/visit', verifyToken, profileVisitorController.recordVisit);
 
 router.use(verifyToken);
 
@@ -31,6 +34,9 @@ router.get('/following/live', social.liveFollowing);
 router.get('/followers', social.userFollowers);
 router.get('/followers/:userId', social.userFollowers);
 router.get('/stats', social.followStats);
+
+router.get('/visitors/summary', profileVisitorController.getSummary);
+router.get('/visitors', profileVisitorController.listMine);
 
 router.post('/coin-sellers/:sellerId/buy', social.buyFromSeller);
 router.get('/coin-seller-orders', social.mySellerOrders);

@@ -290,6 +290,16 @@ body.svip-page {
   color: #ddd6fe;
 }
 
+a.svip-priv-item {
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+a.svip-priv-item:active {
+  transform: scale(0.97);
+}
+
 .svip-footer {
   position: fixed;
   left: 0;

@@ -298,17 +298,26 @@ function scheduleCpPush(fn) {
   });
 }
 
-async function notifyCpInviteSent({ fromUserId, toUserId, ringId }) {
+async function notifyCpInviteSent({ fromUserId, toUserId, ringId, inviteId }) {
   if (!fromUserId || !toUserId) return null;
   const fromName = await userDisplayName(fromUserId);
   const toName = await userDisplayName(toUserId);
   const ring = cpRingLabel(ringId);
+  const ringParts = ring.match(/^(\S+)\s+(.+)$/);
+  const ringEmoji = ringParts ? ringParts[1] : '💍';
+  const ringName = ringParts ? ringParts[2] : ring;
 
-  await sendSystemChatMessage(
-    toUserId,
-    `💕 CP invitation\n\n${fromName} sent you a CP invitation with ${ring}.${cpQuoteLine('invitation_received')}\n\nOpen CP House to accept or decline.`,
-    { skipPush: true }
-  );
+  const { buildCpInviteMessage } = require('./cpChatMessages');
+  const inviteBody = buildCpInviteMessage({
+    fromName,
+    inviteId: inviteId || 'unknown',
+    ringId,
+    ringName,
+    ringEmoji,
+    quoteLine: cpQuoteLine('invitation_received'),
+  });
+
+  await sendSystemChatMessage(toUserId, inviteBody, { skipPush: true });
   await sendSystemChatMessage(
     fromUserId,
     `✅ CP invitation sent\n\nYour invitation (${ring}) was sent to ${toName}.${cpQuoteLine('invitation_sent')}\n\nWe'll message you when they respond.`,
@@ -394,16 +403,20 @@ async function notifyCpBreakUp({ initiatorId, partnerId, instant = false, penalt
   return true;
 }
 
-async function notifyCpBreakRequest({ fromUserId, toUserId }) {
+async function notifyCpBreakRequest({ fromUserId, toUserId, actionId }) {
   if (!fromUserId || !toUserId) return null;
   const fromName = await userDisplayName(fromUserId);
   const toName = await userDisplayName(toUserId);
 
-  await sendSystemChatMessage(
-    toUserId,
-    `💔 CP break-up request\n\n${fromName} asked to end your CP relationship.${cpQuoteLine('removal_request')}\n\nOpen CP House to accept or decline within 48 hours.`,
-    { skipPush: true }
-  );
+  const { buildCpActionMessage } = require('./cpChatMessages');
+  const body = buildCpActionMessage({
+    fromName,
+    actionId: actionId || 'unknown',
+    type: 'break',
+    quoteLine: cpQuoteLine('removal_request'),
+  });
+
+  await sendSystemChatMessage(toUserId, body, { skipPush: true });
   await sendSystemChatMessage(
     fromUserId,
     `📤 Break-up request sent\n\nWe asked ${toName} to confirm ending your CP.${cpQuoteLine('removal_request_sent')}`,
@@ -423,17 +436,27 @@ async function notifyCpBreakRequest({ fromUserId, toUserId }) {
   return true;
 }
 
-async function notifyCpRingChangeRequest({ fromUserId, toUserId, ringId }) {
+async function notifyCpRingChangeRequest({ fromUserId, toUserId, ringId, actionId }) {
   if (!fromUserId || !toUserId) return null;
   const fromName = await userDisplayName(fromUserId);
   const toName = await userDisplayName(toUserId);
   const ring = cpRingLabel(ringId);
+  const ringParts = ring.match(/^(\S+)\s+(.+)$/);
+  const ringEmoji = ringParts ? ringParts[1] : '💍';
+  const ringName = ringParts ? ringParts[2] : ring;
 
-  await sendSystemChatMessage(
-    toUserId,
-    `💍 CP ring change request\n\n${fromName} wants to change your CP ring to ${ring}.${cpQuoteLine('ring_change_request')}\n\nOpen CP House to accept or decline within 48 hours.`,
-    { skipPush: true }
-  );
+  const { buildCpActionMessage } = require('./cpChatMessages');
+  const body = buildCpActionMessage({
+    fromName,
+    actionId: actionId || 'unknown',
+    type: 'ring_change',
+    ringId,
+    ringName,
+    ringEmoji,
+    quoteLine: cpQuoteLine('ring_change_request'),
+  });
+
+  await sendSystemChatMessage(toUserId, body, { skipPush: true });
   await sendSystemChatMessage(
     fromUserId,
     `📤 Ring change sent\n\nYour request to wear ${ring} with ${toName} is waiting for their answer.`,
