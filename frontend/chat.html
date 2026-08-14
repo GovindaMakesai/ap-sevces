@@ -1249,6 +1249,21 @@
             animation: messageSlide 0.3s ease;
         }
 
+        .message-wrapper.message-highlight .message-bubble {
+            outline: 2px solid var(--primary-500, #6366f1);
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.25);
+            animation: messageHighlightPulse 1.2s ease 2;
+        }
+
+        @keyframes messageHighlightPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+        }
+
+        .chat-input-action.attach-btn {
+            color: #6366f1;
+        }
+
         @keyframes pulse {
             0% {
                 transform: scale(1);
@@ -1424,10 +1439,10 @@
                                         </button>
                                         <div class="emoji-picker" id="emojiPicker"></div>
                                     </div>
-                                    <button class="chat-input-action attach-btn" onclick="triggerFileUpload()">
-                                        <i class="fas fa-paperclip"></i>
+                                    <button type="button" class="chat-input-action attach-btn" onclick="triggerFileUpload()" title="Send photo or video" aria-label="Send photo or video">
+                                        <i class="fas fa-photo-film"></i>
                                     </button>
-                                    <input type="file" id="fileUpload" accept="image/*,video/*" style="display: none;" multiple onchange="handleFileUpload(this)">
+                                    <input type="file" id="fileUpload" accept="image/*,video/*,.heic,.heif" style="display: none;" multiple onchange="handleFileUpload(this)">
                                 </div>
                                 <textarea 
                                     id="messageInput" 
@@ -1788,6 +1803,8 @@
             });
             const urlParams = new URLSearchParams(window.location.search);
             const chatParam = urlParams.get('conversation') || urlParams.get('id') || urlParams.get('worker');
+            const messageParam = urlParams.get('message');
+            if (messageParam) pendingHighlightMessageId = String(messageParam).trim();
             if (chatParam) await openChatFromUrlParam(chatParam.trim());
             try { ensureChatPaneNotBlank(); } catch (_e) { /* ignore */ }
         }
@@ -1952,6 +1969,7 @@
 
         // ==================== STATE ====================
         let currentChatId = null;
+        let pendingHighlightMessageId = null;
         let currentChatPeer = null;
         let isTyping = false;
         let typingTimeout;
@@ -3519,7 +3537,37 @@
                 messagesContainer.innerHTML =
                     '<div class="chat-thread-empty"><i class="fas fa-exclamation-circle"></i><p>Could not display messages</p><button type="button" class="btn-open" onclick="loadMessages(getActiveChatId())">Retry</button></div>';
             }
-            scrollToBottom();
+            if (pendingHighlightMessageId) {
+                const targetId = pendingHighlightMessageId;
+                pendingHighlightMessageId = null;
+                highlightMessageById(targetId);
+            } else {
+                scrollToBottom();
+            }
+        }
+
+        function highlightMessageById(messageId) {
+            const container = document.getElementById('messagesContainer');
+            if (!container || !messageId) {
+                scrollToBottom();
+                return;
+            }
+            const safeId = CSS.escape(String(messageId));
+            const tryHighlight = (attempt) => {
+                const el = container.querySelector(`[data-msg-id="${safeId}"]`);
+                if (el) {
+                    el.scrollIntoView({ behavior: attempt > 0 ? 'auto' : 'smooth', block: 'center' });
+                    el.classList.add('message-highlight');
+                    setTimeout(() => el.classList.remove('message-highlight'), 2800);
+                    return;
+                }
+                if (attempt < 4) {
+                    setTimeout(() => tryHighlight(attempt + 1), 120);
+                } else {
+                    scrollToBottom();
+                }
+            };
+            tryHighlight(0);
         }
 
         function paintMessages(container, messages) {
@@ -4857,6 +4905,7 @@
         window.toggleEmojiPicker = toggleEmojiPicker;
         window.triggerFileUpload = triggerFileUpload;
         window.handleFileUpload = handleFileUpload;
+        window.highlightMessageById = highlightMessageById;
         window.openImageModal = openImageModal;
         window.closeImageModal = closeImageModal;
         window.showCallModal = showCallModal;

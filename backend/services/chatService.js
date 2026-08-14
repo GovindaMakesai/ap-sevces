@@ -305,7 +305,7 @@ async function sendBetweenUsers(senderUserId, receiverRawId, text, options = {})
             }
           } else {
             pushNotificationService
-              .notifyNewMessage(receiverUserId, senderUserId, conv.id, text)
+              .notifyNewMessage(receiverUserId, senderUserId, conv.id, text, row.id)
               .catch(() => {});
           }
         } catch (_e) {

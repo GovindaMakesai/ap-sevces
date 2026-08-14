@@ -28,8 +28,15 @@ function agencyDeepLink() {
   return deepLink('agency');
 }
 
-function chatDeepLink(conversationId) {
-  return deepLink(`chat/${encodeURIComponent(String(conversationId || ''))}`);
+function chatDeepLink(conversationId, messageId) {
+  const conv = encodeURIComponent(String(conversationId || ''));
+  const msg = messageId ? encodeURIComponent(String(messageId)) : '';
+  if (msg) return deepLink(`chat/${conv}?message=${msg}`);
+  return deepLink(`chat/${conv}`);
+}
+
+function transferDeepLink() {
+  return deepLink('withdraw/transfer');
 }
 
 function walletDeepLink() {
@@ -196,11 +203,12 @@ const TEMPLATES = {
     };
   },
 
-  new_message(senderName, conversationId, preview) {
+  new_message(senderName, conversationId, preview, messageId) {
     const who = senderName || 'Someone';
     let body = String(preview || '').trim();
     if (!body) body = 'Sent you a message';
     if (body.startsWith('__IMG__:')) body = '📷 Sent a photo';
+    if (body.startsWith('__VID__:')) body = '🎬 Sent a video';
     if (body.length > 100) body = `${body.slice(0, 97)}…`;
     return {
       type: 'new_message',
@@ -209,9 +217,41 @@ const TEMPLATES = {
       data: {
         type: 'new_message',
         conversationId: String(conversationId || ''),
-        deepLink: chatDeepLink(conversationId),
+        messageId: String(messageId || ''),
+        deepLink: chatDeepLink(conversationId, messageId),
       },
       preferenceKey: 'message_notifications',
+    };
+  },
+
+  points_transfer_received(senderName, points, coinsCredited) {
+    const who = senderName || 'Someone';
+    const pts = Number(points) || 0;
+    const coins = Number(coinsCredited) || 0;
+    return {
+      type: 'points_transfer_received',
+      title: 'Points transfer received',
+      body: `${who} sent ${pts.toLocaleString()} points — ${coins.toLocaleString()} seller coins added to your inventory.`,
+      data: {
+        type: 'points_transfer_received',
+        deepLink: transferDeepLink(),
+      },
+      preferenceKey: 'wallet_notifications',
+    };
+  },
+
+  points_transfer_sent(recipientName, points) {
+    const who = recipientName || 'Coin Seller';
+    const pts = Number(points) || 0;
+    return {
+      type: 'points_transfer_sent',
+      title: 'Transfer completed',
+      body: `${pts.toLocaleString()} points sent to ${who}.`,
+      data: {
+        type: 'points_transfer_sent',
+        deepLink: transferDeepLink(),
+      },
+      preferenceKey: 'wallet_notifications',
     };
   },
 
@@ -278,6 +318,7 @@ module.exports = {
   postDeepLink,
   agencyDeepLink,
   chatDeepLink,
+  transferDeepLink,
   walletDeepLink,
   withdrawDeepLink,
   adminDeepLink,

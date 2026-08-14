@@ -550,6 +550,20 @@ async function transferPointsToRecipient(senderId, { recipientId, points: points
       [senderId, recipient.id, points, serviceFee, netPoints, coinsCredited]
     );
     await client.query('COMMIT');
+    setImmediate(() => {
+      try {
+        require('./pushNotificationService')
+          .notifyPointsTransfer({
+            senderId,
+            recipientId: recipient.id,
+            points,
+            coinsCredited,
+          })
+          .catch(() => {});
+      } catch (_e) {
+        /* non-fatal */
+      }
+    });
     const bal = await getBalance(senderId);
     return {
       transfer: row.rows[0],

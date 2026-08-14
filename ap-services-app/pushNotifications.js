@@ -166,8 +166,19 @@ export function resolvePushDeepLink(urlOrData, frontendBase) {
   const body = (aplive || apservices)?.[1] || '';
 
   if (body) {
-    const [kind, id] = body.split('/').filter(Boolean);
-    const roomId = id ? decodeURIComponent(id) : '';
+    const [kind, idPart] = body.split('/').filter(Boolean);
+    const qIdx = idPart ? idPart.indexOf('?') : -1;
+    const roomId = idPart
+      ? decodeURIComponent(qIdx >= 0 ? idPart.slice(0, qIdx) : idPart)
+      : '';
+    let queryMessageId = '';
+    if (qIdx >= 0 && idPart) {
+      try {
+        queryMessageId = new URLSearchParams(idPart.slice(qIdx + 1)).get('message') || '';
+      } catch (_e) {
+        /* ignore */
+      }
+    }
     if (kind === 'live' && roomId) {
       path = `/live-room.html?channel=${encodeURIComponent(roomId)}&app=1`;
     } else if (kind === 'party' && roomId) {
@@ -180,6 +191,9 @@ export function resolvePushDeepLink(urlOrData, frontendBase) {
       path = roomId
         ? `/chat.html?app=1&conversation=${encodeURIComponent(roomId)}`
         : `/chat.html?app=1`;
+      if (queryMessageId) {
+        path += `&message=${encodeURIComponent(queryMessageId)}`;
+      }
     } else if (kind === 'agency') {
       path = `/agency-center.html?app=1`;
     } else if (kind === 'streamer') {
@@ -187,7 +201,10 @@ export function resolvePushDeepLink(urlOrData, frontendBase) {
     } else if (kind === 'wallet') {
       path = `/wallet.html?app=1`;
     } else if (kind === 'withdraw') {
-      path = `/withdraw.html?app=1`;
+      path =
+        roomId === 'transfer'
+          ? `/withdraw.html?app=1&mode=transfer`
+          : `/withdraw.html?app=1`;
     } else if (kind === 'admin') {
       const section = roomId || 'notifications';
       path = `/admin-dashboard.html?app=1#${encodeURIComponent(section)}`;
@@ -201,14 +218,23 @@ export function resolvePushDeepLink(urlOrData, frontendBase) {
     const type = String(urlOrData.type || '');
     const roomId = urlOrData.roomId || urlOrData.channel || '';
     const conversationId = urlOrData.conversationId || '';
+    const messageId = urlOrData.messageId || '';
     if ((type === 'live_started' || type === 'host_live') && roomId) {
       path = `/live-room.html?channel=${encodeURIComponent(roomId)}&app=1`;
     } else if (type === 'party_started' && roomId) {
       path = `/party-room.html?channel=${encodeURIComponent(roomId)}&app=1`;
     } else if (type === 'new_message' && conversationId) {
       path = `/chat.html?app=1&conversation=${encodeURIComponent(conversationId)}`;
-    } else if (type === 'withdrawal_update') {
-      path = `/withdraw.html?app=1`;
+      if (messageId) path += `&message=${encodeURIComponent(messageId)}`;
+    } else if (
+      type === 'points_transfer_received' ||
+      type === 'points_transfer_sent' ||
+      type === 'withdrawal_update'
+    ) {
+      path =
+        type === 'points_transfer_received' || type === 'points_transfer_sent'
+          ? `/withdraw.html?app=1&mode=transfer`
+          : `/withdraw.html?app=1`;
     } else if (type === 'wallet_update') {
       path = `/wallet.html?app=1`;
     } else if (type === 'admin_alert') {

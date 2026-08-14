@@ -609,12 +609,30 @@ async function notifyCommissionReceived(ownerUserId, amount, currencyType) {
   });
 }
 
-async function notifyNewMessage(receiverId, senderId, conversationId, preview) {
+async function notifyNewMessage(receiverId, senderId, conversationId, preview, messageId) {
   if (!receiverId || !senderId || String(receiverId) === String(senderId)) return false;
   const name = await displayNameFor(senderId);
-  return queuePush(receiverId, TEMPLATES.new_message(name, conversationId, preview), {
-    dedupeKey: `msg:${conversationId}:${Date.now() - (Date.now() % 15000)}`,
+  const msgKey = messageId ? String(messageId) : Date.now();
+  return queuePush(receiverId, TEMPLATES.new_message(name, conversationId, preview, messageId), {
+    dedupeKey: `msg:${conversationId}:${msgKey}`,
   });
+}
+
+async function notifyPointsTransfer({ senderId, recipientId, points, coinsCredited }) {
+  if (!senderId || !recipientId) return false;
+  const senderName = await displayNameFor(senderId);
+  const recipientName = await displayNameFor(recipientId);
+  await queuePush(
+    recipientId,
+    TEMPLATES.points_transfer_received(senderName, points, coinsCredited),
+    { dedupeKey: `xfer_in:${recipientId}:${senderId}:${Date.now() - (Date.now() % 60000)}` }
+  );
+  await queuePush(
+    senderId,
+    TEMPLATES.points_transfer_sent(recipientName, points),
+    { dedupeKey: `xfer_out:${senderId}:${recipientId}:${Date.now() - (Date.now() % 60000)}` }
+  );
+  return true;
 }
 
 async function notifyWalletUpdate(userId, title, body, deepLink) {
@@ -667,6 +685,7 @@ module.exports = {
   notifyNewHostJoined,
   notifyCommissionReceived,
   notifyNewMessage,
+  notifyPointsTransfer,
   notifyWalletUpdate,
   notifyWithdrawalUpdate,
   notifyAgencyApplication,
