@@ -141,6 +141,70 @@ async function notifyRechargeRejected(userId, { reason } = {}) {
 }
 
 /**
+ * Points transfer to coin seller — inbox message + push for sender and recipient.
+ */
+async function notifyPointsTransferCompleted({
+  senderId,
+  recipientId,
+  points,
+  serviceFee,
+  netPoints,
+  coinsCredited,
+  recipientDisplayId,
+} = {}) {
+  const pts = Number(points) || 0;
+  const fee = Number(serviceFee) || 0;
+  const net = Number(netPoints) || 0;
+  const coins = Number(coinsCredited) || 0;
+  if (!senderId || !recipientId || !pts) return null;
+
+  let recipientName = 'Coin Seller';
+  let senderName = 'User';
+  try {
+    const User = require('../models/User');
+    const [sender, recipient] = await Promise.all([
+      User.findById(senderId),
+      User.findById(recipientId),
+    ]);
+    senderName =
+      `${sender?.first_name || ''} ${sender?.last_name || ''}`.trim() ||
+      (sender?.display_id ? `User #${sender.display_id}` : 'User');
+    recipientName =
+      `${recipient?.first_name || ''} ${recipient?.last_name || ''}`.trim() ||
+      (recipientDisplayId ? `Coin Seller #${recipientDisplayId}` : 'Coin Seller');
+  } catch (_e) {
+    /* use defaults */
+  }
+
+  const fmt = (n) => Number(n).toLocaleString('en-IN');
+  const transferDeep = 'aplive://withdraw/transfer';
+
+  await sendSystemChatMessage(
+    senderId,
+    `✅ Points transfer sent\n\nYou sent ${fmt(pts)} points to ${recipientName}.\nService fee: ${fmt(fee)} points\nSeller received: ${fmt(coins)} inventory coins.`,
+    {
+      title: 'Transfer sent',
+      body: `${fmt(pts)} points sent to ${recipientName}`,
+      kind: 'wallet',
+      deepLink: transferDeep,
+    }
+  );
+
+  await sendSystemChatMessage(
+    recipientId,
+    `💰 Points transfer received\n\n${senderName} sent you ${fmt(pts)} points.\nAfter ${fmt(fee)} fee → ${fmt(coins)} seller coins added to your inventory.`,
+    {
+      title: 'Transfer received',
+      body: `${fmt(coins)} seller coins credited`,
+      kind: 'wallet',
+      deepLink: transferDeep,
+    }
+  );
+
+  return true;
+}
+
+/**
  * After a coin seller sells/transfers coins — notify the buyer in chat + inbox.
  */
 async function notifyCoinsReceivedFromSeller(recipientUserId, coins, { sellerId, sellerName } = {}) {
@@ -212,6 +276,7 @@ module.exports = {
   notifyWithdrawalCompleted,
   notifyWithdrawalRejected,
   notifyRechargeRejected,
+  notifyPointsTransferCompleted,
   isOfficialRole,
   OFFICIAL_ROLES,
 };

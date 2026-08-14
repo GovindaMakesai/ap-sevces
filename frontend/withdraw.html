@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#5b67f6">
   <title>Withdraw - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-withdraw.css?v=20260814-transfer-fix">
+  <link rel="stylesheet" href="social-withdraw.css?v=20260814-transfer-net">
   <link rel="stylesheet" href="mobile-app.css">
 </head>
 <body class="withdraw-app">
@@ -126,8 +126,8 @@
           <span><span class="wd-bean-icon" aria-hidden="true">🫘</span> <strong id="transferFeeDisplay">—</strong></span>
         </div>
         <div class="wd-transfer-calc-row">
-          <span>Seller receives</span>
-          <span><strong id="transferCoinsDisplay">—</strong> coins</span>
+          <span>Seller receives (after fee)</span>
+          <span><strong id="transferCoinsDisplay">—</strong> seller coins</span>
         </div>
       </div>
       <p class="wd-hint" id="transferDailyHint">Daily transfer times: 5</p>
@@ -260,7 +260,8 @@
     function estimateTransferCoins(netPoints) {
       const pts = Number(netPoints) || 0;
       if (!pts) return 0;
-      return Math.floor((pts / 10000) * coinsPer10k);
+      /* 1:1 with net points after transfer fee */
+      return Math.floor(pts);
     }
 
     function updateTransferCalc() {
@@ -558,7 +559,7 @@
 
       if (isTr) {
         document.getElementById('infoBannerText').textContent =
-          `Transfer points to Coin Seller only (${transferFeePct}% fee → seller stock coins)`;
+          `Transfer to Coin Seller only — ${transferFeePct}% fee, seller gets the rest as inventory coins (1:1 after fee)`;
       } else {
         document.getElementById('infoBannerText').textContent = isEx
           ? 'Exchange converts points to NR coins instantly (70% rate)'

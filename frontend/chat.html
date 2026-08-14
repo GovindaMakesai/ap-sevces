@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#fff9f0">
     <script src="/ap-native-boot.js"></script>
     <link rel="stylesheet" href="/social-theme.css?v=20260729-perf2">
-    <link rel="stylesheet" href="/social-chat.css?v=20260729-perf2">
+    <link rel="stylesheet" href="/social-chat.css?v=20260814-media">
     
     <!-- Font Awesome — non-blocking -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" media="print" onload="this.media='all'">
@@ -1262,6 +1262,13 @@
 
         .chat-input-action.attach-btn {
             color: #6366f1;
+            width: 36px;
+            height: 36px;
+            font-size: 1.05rem;
+        }
+
+        .chat-input-action.attach-btn--video {
+            color: #7c3aed;
         }
 
         @keyframes pulse {
@@ -1439,8 +1446,11 @@
                                         </button>
                                         <div class="emoji-picker" id="emojiPicker"></div>
                                     </div>
-                                    <button type="button" class="chat-input-action attach-btn" onclick="triggerFileUpload()" title="Send photo or video" aria-label="Send photo or video">
-                                        <i class="fas fa-photo-film"></i>
+                                    <button type="button" class="chat-input-action attach-btn attach-btn--photo" onclick="triggerFileUpload('image/*,video/*,.heic,.heif')" title="Send photo or video" aria-label="Send photo or video">
+                                        <i class="fas fa-image"></i>
+                                    </button>
+                                    <button type="button" class="chat-input-action attach-btn attach-btn--video" onclick="triggerFileUpload('video/*')" title="Send video" aria-label="Send video">
+                                        <i class="fas fa-video"></i>
                                     </button>
                                     <input type="file" id="fileUpload" accept="image/*,video/*,.heic,.heif" style="display: none;" multiple onchange="handleFileUpload(this)">
                                 </div>
@@ -4255,8 +4265,11 @@
         }
 
         // ==================== FILE UPLOAD ====================
-        function triggerFileUpload() {
-            document.getElementById('fileUpload').click();
+        function triggerFileUpload(accept) {
+            const input = document.getElementById('fileUpload');
+            if (!input) return;
+            if (accept) input.accept = accept;
+            input.click();
         }
 
         async function handleFileUpload(input) {

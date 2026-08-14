@@ -390,10 +390,10 @@ function computePointsTransferFee(points, settings) {
 }
 
 function pointsToSellerCoins(netPoints, settings) {
-  const coinsPer10k = Number(settings?.exchange_coins_per_10k_points) || 7000;
   const pts = Math.floor(Number(netPoints) || 0);
   if (pts <= 0) return 0;
-  return Math.floor((pts / 10000) * coinsPer10k);
+  /* Transfer credits seller inventory 1:1 with net points (after fee). E.g. 1L − 3% → 97,000 coins. */
+  return pts;
 }
 
 async function lookupPointsTransferRecipient(accountId) {
@@ -552,12 +552,16 @@ async function transferPointsToRecipient(senderId, { recipientId, points: points
     await client.query('COMMIT');
     setImmediate(() => {
       try {
-        require('./pushNotificationService')
-          .notifyPointsTransfer({
+        const systemMessageService = require('./systemMessageService');
+        systemMessageService
+          .notifyPointsTransferCompleted({
             senderId,
             recipientId: recipient.id,
             points,
+            serviceFee,
+            netPoints,
             coinsCredited,
+            recipientDisplayId: recipient.display_id,
           })
           .catch(() => {});
       } catch (_e) {

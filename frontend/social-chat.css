@@ -1065,7 +1065,15 @@ html.ap-expo-app .chat-input-wrapper textarea {
 }
 
 html.ap-expo-app .chat-input-actions .attach-btn {
-  display: none;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+html.ap-expo-app .chat-input-actions .attach-btn .fa-image,
+html.ap-expo-app .chat-input-actions .attach-btn .fa-video {
+  font-size: 1rem;
 }
 
 html.ap-expo-app .sidebar-header--legacy {
