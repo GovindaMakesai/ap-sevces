@@ -859,6 +859,83 @@
     return { ...item, tier };
   }
 
+  function resumeGiftCardAnimations(root) {
+    const scope = root || document.getElementById('giftGrid');
+    if (!scope) return;
+    scope.querySelectorAll('.gift-card--alive').forEach((card) => {
+      card
+        .querySelectorAll('.gift-card-glow, .gift-card-shine, .g, .gift-card-sparkles i')
+        .forEach((el) => {
+          el.style.animation = 'none';
+          void el.offsetHeight;
+          el.style.removeProperty('animation');
+        });
+    });
+  }
+
+  function resumeLayerAnimations() {
+    if (fxRoot) {
+      fxRoot.querySelectorAll('.ap-cinematic-gift, .ap-float-gift, .ap-lux-rain, .ap-premium-gift').forEach((el) => {
+        [el, ...el.querySelectorAll('*')].forEach((node) => {
+          node.getAnimations?.().forEach((anim) => {
+            if (anim.playState === 'paused') {
+              try {
+                anim.play();
+              } catch (_e) {}
+            }
+          });
+        });
+      });
+    }
+    resumeGiftCardAnimations();
+  }
+
+  function bindGiftGridScrollFix() {
+    const grid = document.getElementById('giftGrid');
+    if (!grid || grid.dataset.scrollFxBound === '1') return;
+    grid.dataset.scrollFxBound = '1';
+    let scrollEndTimer;
+    const onScrollEnd = () => {
+      grid.classList.remove('is-scrolling');
+      resumeGiftCardAnimations(grid);
+      resumeLayerAnimations();
+    };
+    grid.addEventListener(
+      'scroll',
+      () => {
+        grid.classList.add('is-scrolling');
+        clearTimeout(scrollEndTimer);
+        scrollEndTimer = setTimeout(onScrollEnd, 120);
+      },
+      { passive: true }
+    );
+    grid.addEventListener(
+      'touchend',
+      () => {
+        clearTimeout(scrollEndTimer);
+        scrollEndTimer = setTimeout(onScrollEnd, 160);
+      },
+      { passive: true }
+    );
+  }
+
+  function bindScrollAnimationResume() {
+    if (document.body.dataset.fxScrollResumeBound === '1') return;
+    document.body.dataset.fxScrollResumeBound = '1';
+    let timer;
+    const bump = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => resumeLayerAnimations(), 140);
+    };
+    document.getElementById('partyChatFeed')?.addEventListener('scroll', bump, { passive: true });
+    window.addEventListener('scroll', bump, { passive: true, capture: true });
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    bindGiftGridScrollFix();
+    bindScrollAnimationResume();
+  });
+
   window.SocialFX = {
     init: ensureRoot,
     playGift,
@@ -886,5 +963,8 @@
     screenShake,
     haptic,
     getComboMultiplier: () => comboState.multiplier,
+    bindGiftGridScrollFix,
+    resumeGiftCardAnimations,
+    resumeLayerAnimations,
   };
 })();

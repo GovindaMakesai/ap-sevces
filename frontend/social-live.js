@@ -15873,6 +15873,7 @@
       });
     });
     updateGiftMeta();
+    window.SocialFX?.bindGiftGridScrollFix?.();
   }
 
   function isSheetReallyOpen(el) {
@@ -16443,6 +16444,7 @@
     hideMicRequestActionBar();
     injectGiftSheet();
     bindGiftSheet();
+    window.SocialFX?.bindGiftGridScrollFix?.();
     pinFixedOverlaysToBody();
     window.__apGiftSending = false;
     window.__apGiftSendingAt = 0;
@@ -16925,6 +16927,7 @@
         updateGiftMeta();
       });
     });
+    window.SocialFX?.bindGiftGridScrollFix?.();
   }
 
   function ensureChatTabShowsMessages() {
@@ -17790,6 +17793,7 @@
 
     bindChatTabs();
     bindGiftSheet();
+    window.SocialFX?.bindGiftGridScrollFix?.();
     bindLiveChatPhotoUpload();
     bindImmersiveToolLinks();
     bindEmojiPicker();
@@ -19211,6 +19215,7 @@
     injectModals();
     injectGiftSheet();
     bindGiftSheet();
+    window.SocialFX?.bindGiftGridScrollFix?.();
     bindPartyRefUi();
     prepareLiveUiShell();
     const profileRefresh = refreshLiveUserProfile();
@@ -19552,6 +19557,7 @@
     injectModals();
     injectGiftSheet();
     bindGiftSheet();
+    window.SocialFX?.bindGiftGridScrollFix?.();
     const user = currentUser();
     if (!user) {
       toast('Please log in to watch live');
@@ -19631,6 +19637,7 @@
     injectModals();
     injectGiftSheet();
     bindGiftSheet();
+    window.SocialFX?.bindGiftGridScrollFix?.();
     prepareLiveUiShell();
     const profileRefresh = refreshLiveUserProfile();
     const user = currentUser();

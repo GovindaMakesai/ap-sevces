@@ -16,6 +16,8 @@
   pointer-events: none !important;
   z-index: 9000;
   overflow: hidden;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
 }
 
 #apFxConfetti {
@@ -1103,6 +1105,10 @@ body.ap-combo-zoom #apFxRoot {
   position: relative;
   overflow: hidden;
   isolation: isolate;
+  transform: translate3d(0, 0, 0);
+  -webkit-transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
   --gift-glow: rgba(251, 191, 36, 0.45);
   --gift-rim: rgba(251, 191, 36, 0.55);
 }
@@ -1144,6 +1150,8 @@ body.ap-combo-zoom #apFxRoot {
   inset: 0;
   z-index: 3;
   pointer-events: none;
+  width: 55%;
+  left: -80%;
   background: linear-gradient(
     108deg,
     transparent 38%,
@@ -1152,7 +1160,7 @@ body.ap-combo-zoom #apFxRoot {
     rgba(255, 255, 255, 0.08) 56%,
     transparent 62%
   );
-  transform: translateX(-130%);
+  transform: none;
   animation: gift-card-shine-sweep 3.8s ease-in-out infinite;
 }
 
@@ -1210,13 +1218,13 @@ body.ap-combo-zoom #apFxRoot {
 }
 
 @keyframes gift-card-glow-pulse {
-  0%, 100% { opacity: 0.55; transform: scale(1); }
-  50% { opacity: 1; transform: scale(1.06); }
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
 }
 
 @keyframes gift-card-shine-sweep {
-  0%, 72%, 100% { transform: translateX(-130%); }
-  88% { transform: translateX(130%); }
+  0%, 72%, 100% { left: -80%; }
+  88% { left: 120%; }
 }
 
 @keyframes gift-emoji-bob {
@@ -1225,8 +1233,20 @@ body.ap-combo-zoom #apFxRoot {
 }
 
 @keyframes gift-sparkle-twinkle {
-  0%, 100% { opacity: 0.2; transform: scale(0.6); }
-  50% { opacity: 1; transform: scale(1.2); }
+  0%, 100% { opacity: 0.2; }
+  50% { opacity: 1; }
+}
+
+.gift-sheet-panel .gift-grid {
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  overscroll-behavior: contain;
+  overflow-anchor: none;
+}
+
+.gift-sheet-panel .gift-grid.is-scrolling .gift-card--alive,
+.gift-sheet-panel .gift-grid.is-scrolling .gift-card--alive * {
+  animation-play-state: paused !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
