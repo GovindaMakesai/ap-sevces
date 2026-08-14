@@ -1,0 +1,64 @@
+/* CP invite / action cards in personal messages */
+.cp-msg-card {
+  min-width: 220px;
+  max-width: 300px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: linear-gradient(160deg, rgba(236, 72, 153, 0.14), rgba(168, 85, 247, 0.1));
+  border: 1px solid rgba(236, 72, 153, 0.35);
+}
+
+.cp-msg-card strong {
+  display: block;
+  font-size: 14px;
+  color: #831843;
+  margin-bottom: 6px;
+}
+
+.cp-msg-card-desc {
+  font-size: 13px;
+  line-height: 1.4;
+  color: #374151;
+  margin-bottom: 10px;
+  white-space: pre-wrap;
+}
+
+.cp-msg-card-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cp-msg-btn {
+  border: none;
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.cp-msg-btn--accept {
+  background: linear-gradient(180deg, #f472b6, #db2777);
+  color: #fff;
+}
+
+.cp-msg-btn--decline {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.cp-msg-card-note {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 4px;
+}
+
+.cp-msg-card.is-resolved {
+  opacity: 0.75;
+}
+
+.message-bubble .cp-msg-card {
+  margin: 2px 0;
+}
