@@ -107,14 +107,14 @@
 }
 
 .lh-heart-gem {
-  width: 56px;
-  height: 56px;
-  flex: 0 0 56px;
+  width: 64px;
+  height: 64px;
+  flex: 0 0 64px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 36px;
-  filter: drop-shadow(0 4px 12px rgba(236, 72, 153, 0.6));
+  font-size: 0;
+  filter: drop-shadow(0 6px 16px rgba(236, 72, 153, 0.45));
 }
 
 .lh-add-partner {
@@ -400,7 +400,11 @@ body.lh-sheet-open {
 }
 
 .lh-modal-box .ring-art {
-  font-size: 72px;
+  font-size: 0;
+  min-height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   margin-bottom: 8px;
 }
 

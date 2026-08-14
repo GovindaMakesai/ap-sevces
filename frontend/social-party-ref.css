@@ -212,13 +212,15 @@ body[data-live-page='party-room'] .party-cp-avatar {
   background: rgba(255, 255, 255, 0.15);
 }
 
-body[data-live-page='party-room'] .party-cp-badge {
+body[data-live-page='party-room'] .party-cp-badge,
+body[data-live-page='party-room'] .party-cp-ring-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 36px;
-  height: 28px;
-  padding: 0 8px;
+  gap: 2px;
+  min-width: 44px;
+  height: 32px;
+  padding: 0 6px;
   border-radius: 999px;
   background: linear-gradient(135deg, #f472b6, #c026d3);
   border: 2px solid #fcd34d;
@@ -227,6 +229,13 @@ body[data-live-page='party-room'] .party-cp-badge {
   font-weight: 900;
   letter-spacing: 0.04em;
   box-shadow: 0 2px 12px rgba(236, 72, 153, 0.45);
+}
+
+body[data-live-page='party-room'] .party-cp-ring-badge .party-cp-ring-slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
 }
 
 body[data-live-page='party-room'] .party-cp-name {

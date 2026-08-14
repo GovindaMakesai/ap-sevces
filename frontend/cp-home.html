@@ -7,7 +7,8 @@
   <title>Love House - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-theme.css">
-  <link rel="stylesheet" href="cp-love-house.css?v=20260814-cpflow2">
+  <link rel="stylesheet" href="cp-love-house.css?v=20260814-cpflow3">
+  <link rel="stylesheet" href="cp-rings.css?v=20260814-cpflow3">
 </head>
 <body class="love-house-page">
   <header class="love-house-header">
@@ -31,7 +32,7 @@
       <img class="lh-avatar" id="lhMeAvatar" alt="">
       <div class="lh-avatar-name" id="lhMeName">You</div>
     </div>
-    <div class="lh-heart-gem" id="lhHeartGem">💎</div>
+    <div class="lh-heart-gem" id="lhHeartGem"></div>
     <div class="lh-avatar-slot" id="lhPartnerSlot">
       <button type="button" class="lh-add-partner" id="lhAddPartnerBtn" aria-label="Invite CP partner">+</button>
       <div class="lh-avatar-name">Partner</div>
@@ -43,9 +44,9 @@
   <section class="lh-privilege-card">
     <div class="lh-privilege-head"><span>🌹</span> CP Privilege <span>🌹</span></div>
     <div class="lh-level-row">
-      <div class="lh-level-item"><span>💙</span>LV1-20</div>
-      <div class="lh-level-item"><span>🤍</span>LV21-40</div>
-      <div class="lh-level-item"><span>💜</span>LV41-60</div>
+      <div class="lh-level-item"><span class="lh-level-ring" data-ring="ruby"></span>LV1-20</div>
+      <div class="lh-level-item"><span class="lh-level-ring" data-ring="celeste"></span>LV21-40</div>
+      <div class="lh-level-item"><span class="lh-level-ring" data-ring="mystique"></span>LV41-60</div>
     </div>
     <div class="lh-perk-grid">
       <div class="lh-perk"><div class="lh-perk-ico">🎖️</div>CP Medal</div>
@@ -87,7 +88,7 @@
   <!-- No Ring modal -->
   <div class="lh-overlay align-center" id="lhNoRingModal">
     <div class="lh-modal-box">
-      <div class="ring-art">💍</div>
+      <div class="ring-art" id="lhNoRingArt"></div>
       <h3>No Ring</h3>
       <p>You need to own a ring to propose</p>
       <button type="button" class="lh-buy-btn" id="lhToBuyBtn">To Buy</button>
@@ -106,6 +107,7 @@
 
   <div id="social-bottom-nav-mount"></div>
 
+  <script src="cp-rings.js?v=20260814-cpflow3"></script>
   <script src="app.js"></script>
   <script src="social-shell.js"></script>
   <script>
@@ -154,6 +156,16 @@
       openSheet('lhInviteSheet');
     }
 
+    function paintCenterRing(ringId) {
+      CpRings?.mount?.(document.getElementById('lhHeartGem'), ringId || 'ruby', 'md');
+    }
+
+    function paintLevelRings() {
+      document.querySelectorAll('.lh-level-ring').forEach((el) => {
+        CpRings?.mount?.(el, el.dataset.ring || 'ruby', 'sm');
+      });
+    }
+
     function showPartner(cp) {
       const slot = document.getElementById('lhPartnerSlot');
       slot.innerHTML = `
@@ -162,7 +174,8 @@
       const img = document.getElementById('lhPartnerAvatar');
       img.src = avatarUrl(cp.partnerName, cp.partnerPic);
       img.onerror = () => { img.onerror = null; img.src = avatarUrl(cp.partnerName, null); };
-      document.getElementById('lhHeartGem').textContent = cp.ring?.emoji || '💎';
+      document.getElementById('lhHeartGem').textContent = '';
+      paintCenterRing(cp.ringId || cp.ring?.id || 'cp');
       document.getElementById('lhHeroTitle').textContent = 'Together Forever.';
       document.getElementById('lhOpenInviteBtn').hidden = true;
       document.getElementById('lhDaysPill').hidden = false;
@@ -178,7 +191,7 @@
       document.getElementById('lhHeroTitle').textContent = 'Go Find True Love.';
       document.getElementById('lhOpenInviteBtn').hidden = false;
       document.getElementById('lhDaysPill').hidden = true;
-      document.getElementById('lhHeartGem').textContent = '💎';
+      paintCenterRing('ruby');
     }
 
     async function loadLoveHouse() {
@@ -264,12 +277,15 @@
       }
       const list = document.getElementById('lhRingPickerList');
       list.innerHTML = cpState.ownedRings.map((r) =>
-        `<button type="button" class="lh-buy-btn" style="font-size:14px" data-ring="${r.id}">${r.emoji} ${r.name} (×${r.quantity})</button>`
+        `<button type="button" class="lh-ring-picker-btn" data-ring="${r.id}">
+          <span class="lh-ring-picker-ico"></span>
+          <span>${r.name} (×${r.quantity})</span>
+        </button>`
       ).join('');
-      document.getElementById('lhRingPicker').hidden = false;
-      document.getElementById('lhRingPicker').classList.add('open');
-      syncLhSheetLock();
-      list.querySelectorAll('[data-ring]').forEach((btn) => {
+      list.querySelectorAll('.lh-ring-picker-ico').forEach((el, i) => {
+        CpRings?.mount?.(el, cpState.ownedRings[i]?.id, 'sm');
+      });
+      list.querySelectorAll('.lh-ring-picker-btn').forEach((btn) => {
         btn.addEventListener('click', () => {
           document.getElementById('lhRingPicker').classList.remove('open');
           document.getElementById('lhRingPicker').hidden = true;
@@ -277,6 +293,9 @@
           sendInviteWithRing(btn.dataset.ring);
         });
       });
+      document.getElementById('lhRingPicker').hidden = false;
+      document.getElementById('lhRingPicker').classList.add('open');
+      syncLhSheetLock();
     }
 
     async function sendInviteWithRing(ringId) {
@@ -318,6 +337,8 @@
 
     document.addEventListener('DOMContentLoaded', () => {
       SocialShell?.initPage?.({ activeNav: 'profile' });
+      paintLevelRings();
+      CpRings?.mount?.(document.getElementById('lhNoRingArt'), 'ruby', 'lg');
       document.getElementById('lhCoupleCard')?.addEventListener('click', (e) => {
         if (e.target.closest('#lhAddPartnerBtn')) openInviteFlow();
       });

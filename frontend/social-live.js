@@ -11146,6 +11146,7 @@
     }
     const pair = pairs[0];
     const ringEmoji = pair.ring?.emoji || '💎';
+    const ringId = pair.ring?.id || pair.ringId || 'cp';
     const slotHtml = (user) =>
       `<div class="party-cp-slot">
         <img class="party-cp-avatar" src="${avatarUrl(user.name, user.profilePic)}" alt="" data-name="${escapeAttr(user.name || 'User')}" loading="lazy">
@@ -11153,8 +11154,15 @@
       </div>`;
     couple.innerHTML =
       slotHtml(pair.userA) +
-      `<span class="party-cp-badge" title="CP couple">${ringEmoji} CP</span>` +
+      `<span class="party-cp-ring-badge party-cp-badge" title="CP couple" data-ring-id="${escapeAttr(ringId)}">` +
+      `<span class="party-cp-ring-slot"></span><span class="party-cp-label">CP</span></span>` +
       slotHtml(pair.userB);
+    const ringSlot = couple.querySelector('.party-cp-ring-slot');
+    if (ringSlot && global.CpRings) {
+      global.CpRings.mount(ringSlot, ringId, 'sm');
+    } else if (ringSlot) {
+      ringSlot.textContent = ringEmoji;
+    }
     banner.hidden = false;
     banner.removeAttribute('aria-hidden');
     window.SocialUI?.bindAvatarFallbacks?.(couple);

@@ -1,0 +1,316 @@
+/* 3D animated CP rings — realistic band + gem with orbit sparkle */
+.ap-cp-ring {
+  --ring-band: linear-gradient(
+    135deg,
+    #ffeaa0 0%,
+    #ffd700 18%,
+    #c9a227 42%,
+    #fff8dc 58%,
+    #b8860b 78%,
+    #ffd700 100%
+  );
+  --ring-gem: linear-gradient(145deg, #ff6b9d 0%, #e11d48 35%, #fb7185 55%, #881337 100%);
+  --ring-glow: rgba(244, 63, 94, 0.55);
+  --ring-orbit: rgba(251, 191, 36, 0.35);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ap-cp-ring--sm { width: 36px; height: 36px; }
+.ap-cp-ring--md { width: 56px; height: 56px; }
+.ap-cp-ring--lg { width: 88px; height: 88px; }
+.ap-cp-ring--xl { width: 120px; height: 120px; }
+
+.ap-cp-ring-stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  perspective: 520px;
+  transform-style: preserve-3d;
+  animation: apCpRingFloat 3.6s ease-in-out infinite;
+}
+
+.ap-cp-ring-orbit {
+  position: absolute;
+  inset: -8%;
+  border-radius: 50%;
+  border: 1px solid var(--ring-orbit);
+  box-shadow: 0 0 18px var(--ring-glow);
+  transform: rotateX(72deg);
+  animation: apCpRingOrbit 5s linear infinite;
+  opacity: 0.85;
+}
+
+.ap-cp-ring-band {
+  position: absolute;
+  left: 50%;
+  top: 54%;
+  width: 78%;
+  height: 78%;
+  margin-left: -39%;
+  margin-top: -39%;
+  border-radius: 50%;
+  background: var(--ring-band);
+  box-shadow:
+    inset 0 2px 6px rgba(255, 255, 255, 0.55),
+    inset 0 -3px 8px rgba(0, 0, 0, 0.35),
+    0 4px 14px rgba(0, 0, 0, 0.35);
+  transform: rotateX(68deg) rotateZ(0deg);
+  animation: apCpRingSpin 7s linear infinite;
+}
+
+.ap-cp-ring-band::after {
+  content: '';
+  position: absolute;
+  inset: 22%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(0, 0, 0, 0.15) 0%, transparent 70%);
+}
+
+.ap-cp-ring-prongs {
+  position: absolute;
+  left: 50%;
+  top: 22%;
+  width: 46%;
+  height: 46%;
+  margin-left: -23%;
+  transform: translateZ(14px);
+  background:
+    radial-gradient(circle at 50% 85%, #e5e7eb 0%, #9ca3af 45%, transparent 46%),
+    linear-gradient(180deg, transparent 55%, rgba(212, 175, 55, 0.9) 55%, rgba(180, 140, 40, 0.95) 100%);
+  clip-path: polygon(50% 0%, 62% 38%, 100% 42%, 68% 62%, 78% 100%, 50% 78%, 22% 100%, 32% 62%, 0% 42%, 38% 38%);
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.25));
+}
+
+.ap-cp-ring-gem {
+  position: absolute;
+  left: 50%;
+  top: 18%;
+  width: 34%;
+  height: 34%;
+  margin-left: -17%;
+  transform: translateZ(22px) rotateX(8deg);
+  clip-path: polygon(50% 0%, 82% 28%, 68% 100%, 32% 100%, 18% 28%);
+  background: var(--ring-gem);
+  box-shadow:
+    inset 0 -4px 10px rgba(0, 0, 0, 0.35),
+    inset 0 4px 8px rgba(255, 255, 255, 0.45),
+    0 0 16px var(--ring-glow);
+  animation: apCpGemPulse 2.4s ease-in-out infinite;
+}
+
+.ap-cp-ring-shine {
+  position: absolute;
+  left: 50%;
+  top: 22%;
+  width: 12%;
+  height: 18%;
+  margin-left: -2%;
+  transform: translateZ(26px) rotate(-18deg);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), transparent);
+  border-radius: 50%;
+  filter: blur(0.5px);
+  animation: apCpShineMove 2.8s ease-in-out infinite;
+}
+
+.ap-cp-ring-spark {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 8px #fff, 0 0 14px var(--ring-glow);
+  opacity: 0;
+  animation: apCpSpark 2.2s ease-in-out infinite;
+}
+
+.ap-cp-ring-spark--1 { left: 18%; top: 8%; animation-delay: 0.2s; }
+.ap-cp-ring-spark--2 { right: 12%; top: 20%; animation-delay: 1.1s; }
+
+/* Ring variants */
+.ap-cp-ring--ruby {
+  --ring-gem: linear-gradient(145deg, #fda4af 0%, #e11d48 40%, #fb7185 60%, #9f1239 100%);
+  --ring-glow: rgba(244, 63, 94, 0.6);
+}
+
+.ap-cp-ring--wings {
+  --ring-band: linear-gradient(135deg, #fef08a, #eab308, #ca8a04, #fde047, #a16207);
+  --ring-gem: linear-gradient(145deg, #6ee7b7 0%, #10b981 40%, #34d399 70%, #047857 100%);
+  --ring-glow: rgba(52, 211, 153, 0.55);
+}
+
+.ap-cp-ring--cp {
+  --ring-band: linear-gradient(135deg, #fde68a, #f59e0b, #d97706, #fcd34d, #b45309);
+  --ring-gem: linear-gradient(145deg, #a5f3fc 0%, #22d3ee 35%, #06b6d4 60%, #0e7490 100%);
+  --ring-glow: rgba(34, 211, 238, 0.55);
+}
+
+.ap-cp-ring--celeste {
+  --ring-band: linear-gradient(135deg, #e2e8f0, #94a3b8, #cbd5e1, #64748b, #f1f5f9);
+  --ring-gem: linear-gradient(145deg, #c4b5fd 0%, #818cf8 40%, #6366f1 70%, #312e81 100%);
+  --ring-glow: rgba(129, 140, 248, 0.55);
+}
+
+.ap-cp-ring--mystique {
+  --ring-band: linear-gradient(135deg, #fbcfe8, #f472b6, #db2777, #fce7f3, #be185d);
+  --ring-gem: linear-gradient(145deg, #f0abfc 0%, #d946ef 35%, #a855f7 65%, #581c87 100%);
+  --ring-glow: rgba(217, 70, 239, 0.55);
+}
+
+.ap-cp-ring--aura {
+  --ring-band: linear-gradient(135deg, #bfdbfe, #60a5fa, #2563eb, #93c5fd, #1d4ed8);
+  --ring-gem: linear-gradient(145deg, #e0f2fe 0%, #38bdf8 30%, #0ea5e9 55%, #0369a1 100%);
+  --ring-glow: rgba(56, 189, 248, 0.65);
+  animation: apCpAuraExtra 4s ease-in-out infinite;
+}
+
+.ap-cp-ring--aura .ap-cp-ring-orbit {
+  animation-duration: 3.5s;
+  box-shadow: 0 0 24px var(--ring-glow), 0 0 40px rgba(56, 189, 248, 0.25);
+}
+
+@keyframes apCpRingFloat {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-3px) scale(1.03); }
+}
+
+@keyframes apCpRingSpin {
+  from { transform: rotateX(68deg) rotateZ(0deg); }
+  to { transform: rotateX(68deg) rotateZ(360deg); }
+}
+
+@keyframes apCpRingOrbit {
+  from { transform: rotateX(72deg) rotateZ(0deg); }
+  to { transform: rotateX(72deg) rotateZ(-360deg); }
+}
+
+@keyframes apCpGemPulse {
+  0%, 100% { filter: brightness(1); transform: translateZ(22px) rotateX(8deg) scale(1); }
+  50% { filter: brightness(1.22); transform: translateZ(24px) rotateX(8deg) scale(1.06); }
+}
+
+@keyframes apCpShineMove {
+  0%, 100% { opacity: 0.75; transform: translateZ(26px) rotate(-18deg) translateX(0); }
+  50% { opacity: 1; transform: translateZ(28px) rotate(-12deg) translateX(2px); }
+}
+
+@keyframes apCpSpark {
+  0%, 100% { opacity: 0; transform: scale(0.4); }
+  45% { opacity: 1; transform: scale(1.2); }
+  70% { opacity: 0; transform: scale(0.2); }
+}
+
+@keyframes apCpAuraExtra {
+  0%, 100% { filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.4)); }
+  50% { filter: drop-shadow(0 0 16px rgba(56, 189, 248, 0.75)); }
+}
+
+/* Love House center slot */
+.lh-level-item .lh-level-ring {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  margin: 0 auto 4px;
+}
+
+.lh-heart-gem {
+  width: 64px;
+  height: 64px;
+  flex: 0 0 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0;
+  filter: drop-shadow(0 6px 16px rgba(236, 72, 153, 0.45));
+}
+
+.lh-heart-gem .ap-cp-ring {
+  width: 64px;
+  height: 64px;
+}
+
+.lh-modal-box .ring-art {
+  font-size: 0;
+  min-height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
+.lh-ring-picker-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #fce7f3;
+  border-radius: 14px;
+  background: #fff;
+  cursor: pointer;
+  font-weight: 700;
+  color: #374151;
+}
+
+.lh-ring-picker-btn:active {
+  background: #fdf2f8;
+}
+
+/* Store ring grid */
+.social-store-item .img.cp-ring-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 88px;
+  background: radial-gradient(circle at 50% 40%, rgba(30, 20, 50, 0.95), rgba(10, 8, 20, 0.98));
+  border-radius: 12px;
+  font-size: 0;
+}
+
+.social-sheet .cp-ring-sheet-preview {
+  min-height: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at 50% 45%, rgba(40, 24, 60, 0.95), rgba(8, 6, 18, 0.98));
+  border-radius: 16px;
+  margin-bottom: 16px;
+  font-size: 0;
+}
+
+/* Party room CP badge */
+.party-cp-ring-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 2px 6px;
+  min-width: 44px;
+}
+
+.party-cp-ring-badge .ap-cp-ring--sm {
+  width: 28px;
+  height: 28px;
+}
+
+.party-cp-ring-badge .party-cp-label {
+  font-size: 10px;
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: 0.06em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ap-cp-ring-stage,
+  .ap-cp-ring-band,
+  .ap-cp-ring-orbit,
+  .ap-cp-ring-gem,
+  .ap-cp-ring-shine,
+  .ap-cp-ring-spark {
+    animation: none !important;
+  }
+}

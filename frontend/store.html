@@ -7,6 +7,7 @@
   <title>Store - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-theme.css">
+  <link rel="stylesheet" href="cp-rings.css?v=20260814-cpflow3">
 </head>
 <body class="social-store-page">
   <header class="social-store-header">
@@ -64,6 +65,7 @@
     </div>
   </div>
 
+  <script src="cp-rings.js?v=20260814-cpflow3"></script>
   <script src="app.js"></script>
   <script src="social-wallet.js"></script>
   <script src="social-shell.js"></script>
@@ -81,11 +83,32 @@
     ];
     function renderItem(it) {
       const pkg = it.packageId ? ` data-package-id="${it.packageId}"` : '';
+      const img = it.ringId
+        ? `<div class="img cp-ring-preview" data-ring-mount="${it.ringId}"></div>`
+        : `<div class="img">${it.emoji}</div>`;
       return `<a class="social-store-item" href="#" data-name="${it.name}" data-emoji="${it.emoji}" data-price="${it.price}"${pkg}${it.ringId ? ` data-ring-id="${it.ringId}"` : ''}>
-        <div class="img">${it.emoji}</div>
+        ${img}
         <h4>${it.name}</h4>
         <div class="price">${it.ticket ? '🎫' : '🪙'} ${it.price}</div>
       </a>`;
+    }
+    function paintSheetPreview(el, ringId, emoji) {
+      const box = document.getElementById('sheetEmoji');
+      if (!box) return;
+      if (ringId && window.CpRings) {
+        box.className = 'cp-ring-sheet-preview';
+        box.removeAttribute('style');
+        CpRings.mount(box, ringId, 'lg');
+      } else {
+        box.className = '';
+        box.style.cssText = 'text-align:center;padding:20px;background:#f0f9ff;border-radius:12px;margin-bottom:16px;font-size:64px';
+        box.textContent = emoji || '🪙';
+      }
+    }
+    function mountRingPreviews(root) {
+      (root || document).querySelectorAll('[data-ring-mount]').forEach((el) => {
+        CpRings?.mount?.(el, el.dataset.ringMount, 'md');
+      });
     }
     document.addEventListener('DOMContentLoaded', async () => {
       const cat = new URLSearchParams(location.search).get('cat');
@@ -122,12 +145,13 @@
         }));
         document.getElementById('storeGridNew').innerHTML = '';
         document.getElementById('storeGrid').innerHTML = ringItems.map(renderItem).join('');
+        mountRingPreviews();
         const fromCp = new URLSearchParams(location.search).get('from') === 'cp';
         document.querySelectorAll('.social-store-item').forEach((el) => {
           el.addEventListener('click', (e) => {
             e.preventDefault();
             document.getElementById('sheetTitle').textContent = el.dataset.name;
-            document.getElementById('sheetEmoji').textContent = el.dataset.emoji;
+            paintSheetPreview(el, el.dataset.ringId, el.dataset.emoji);
             document.getElementById('sheetPrice').textContent = el.dataset.price + ' 🪙';
             document.getElementById('itemSheet').classList.add('open');
             const buyBtn = document.getElementById('ringBuyBtn');
