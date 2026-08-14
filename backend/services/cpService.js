@@ -101,6 +101,15 @@ async function purchaseRing(userId, ringId) {
      DO UPDATE SET quantity = cp_user_rings.quantity + 1, updated_at = CURRENT_TIMESTAMP`,
     [userId, ringId]
   );
+  setImmediate(() => {
+    try {
+      require('./systemMessageService')
+        .notifyCpRingPurchased({ userId, ringId })
+        .catch(() => {});
+    } catch (_e) {
+      /* non-fatal */
+    }
+  });
   return ring;
 }
 
@@ -233,7 +242,24 @@ async function sendInvite(fromUserId, toUserId, ringId) {
     [fromUserId, ringId]
   );
 
-  return res.rows[0];
+  const invite = res.rows[0];
+  setImmediate(() => {
+    try {
+      const systemMessageService = require('./systemMessageService');
+      systemMessageService
+        .notifyCpInviteSent({
+          fromUserId,
+          toUserId,
+          ringId,
+          inviteId: invite.id,
+        })
+        .catch(() => {});
+    } catch (_e) {
+      /* non-fatal */
+    }
+  });
+
+  return invite;
 }
 
 async function respondInvite(userId, inviteId, accept) {
@@ -262,6 +288,19 @@ async function respondInvite(userId, inviteId, accept) {
        ON CONFLICT (from_user_id, to_user_id) DO UPDATE SET until_at = EXCLUDED.until_at`,
       [inv.from_user_id, inv.to_user_id, new Date(Date.now() + REJECT_COOLDOWN_MS).toISOString()]
     );
+    setImmediate(() => {
+      try {
+        require('./systemMessageService')
+          .notifyCpInviteDeclined({
+            inviterId: inv.from_user_id,
+            declinerId: inv.to_user_id,
+            ringId: inv.ring_id,
+          })
+          .catch(() => {});
+      } catch (_e) {
+        /* non-fatal */
+      }
+    });
     return { accepted: false };
   }
 
@@ -275,6 +314,19 @@ async function respondInvite(userId, inviteId, accept) {
     `UPDATE cp_invitations SET status = 'accepted', responded_at = NOW() WHERE id = $1`,
     [inviteId]
   );
+  setImmediate(() => {
+    try {
+      require('./systemMessageService')
+        .notifyCpInviteAccepted({
+          inviterId: inv.from_user_id,
+          accepterId: inv.to_user_id,
+          ringId: inv.ring_id,
+        })
+        .catch(() => {});
+    } catch (_e) {
+      /* non-fatal */
+    }
+  });
   return { accepted: true };
 }
 
@@ -296,6 +348,18 @@ async function breakUp(userId, { forced = false } = {}) {
     `UPDATE cp_relationships SET status = 'ended' WHERE user_a = $1 AND user_b = $2 AND status = 'active'`,
     [user_a, user_b]
   );
+  setImmediate(() => {
+    try {
+      require('./systemMessageService')
+        .notifyCpBreakUp({
+          initiatorId: userId,
+          partnerId: cp.partnerId,
+        })
+        .catch(() => {});
+    } catch (_e) {
+      /* non-fatal */
+    }
+  });
   return { ok: true, forced };
 }
 
@@ -314,7 +378,21 @@ async function changeRing(userId, ringId) {
     `UPDATE cp_user_rings SET quantity = quantity - 1 WHERE user_id = $1 AND ring_id = $2 AND quantity > 0`,
     [userId, ringId]
   );
-  return ringById(ringId);
+  const ring = ringById(ringId);
+  setImmediate(() => {
+    try {
+      require('./systemMessageService')
+        .notifyCpRingChanged({
+          changerId: userId,
+          partnerId: cp.partnerId,
+          ringId,
+        })
+        .catch(() => {});
+    } catch (_e) {
+      /* non-fatal */
+    }
+  });
+  return ring;
 }
 
 async function listPendingInvites(userId) {

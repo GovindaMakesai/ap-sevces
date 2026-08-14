@@ -205,6 +205,13 @@ export function resolvePushDeepLink(urlOrData, frontendBase) {
         roomId === 'transfer'
           ? `/withdraw.html?app=1&mode=transfer`
           : `/withdraw.html?app=1`;
+    } else if (kind === 'cp') {
+      path = `/cp-home.html?app=1`;
+    } else if (kind === 'store') {
+      path =
+        roomId === 'rings'
+          ? `/store.html?app=1&cat=rings`
+          : `/store.html?app=1`;
     } else if (kind === 'admin') {
       const section = roomId || 'notifications';
       path = `/admin-dashboard.html?app=1#${encodeURIComponent(section)}`;
@@ -237,6 +244,17 @@ export function resolvePushDeepLink(urlOrData, frontendBase) {
           : `/withdraw.html?app=1`;
     } else if (type === 'wallet_update') {
       path = `/wallet.html?app=1`;
+    } else if (
+      type === 'cp_invite_received' ||
+      type === 'cp_invite_sent' ||
+      type === 'cp_invite_accepted' ||
+      type === 'cp_invite_declined' ||
+      type === 'cp_breakup' ||
+      type === 'cp_ring_changed'
+    ) {
+      path = `/cp-home.html?app=1`;
+    } else if (type === 'cp_ring_purchased') {
+      path = `/store.html?app=1&cat=rings`;
     } else if (type === 'admin_alert') {
       path = `/admin-dashboard.html?app=1`;
     }

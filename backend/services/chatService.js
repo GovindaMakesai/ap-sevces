@@ -300,6 +300,11 @@ async function sendBetweenUsers(senderUserId, receiverRawId, text, options = {})
             const kind = options.systemPushKind || 'wallet';
             if (kind === 'withdrawal') {
               pushNotificationService.notifyWithdrawalUpdate(receiverUserId, title, body).catch(() => {});
+            } else if (kind === 'cp') {
+              const cpType = options.systemPushCpType || 'cp_update';
+              pushNotificationService
+                .notifyCpEvent(receiverUserId, cpType, title, body, deep)
+                .catch(() => {});
             } else {
               pushNotificationService.notifyWalletUpdate(receiverUserId, title, body, deep).catch(() => {});
             }

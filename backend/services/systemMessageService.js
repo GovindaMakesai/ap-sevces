@@ -39,12 +39,15 @@ async function sendSystemChatMessage(recipientUserId, text, pushMeta = null) {
     if (!senderId || senderId === recipient) return null;
 
     const opts = { skipAdminNotify: true, skipQuota: true };
-    if (pushMeta) {
+    if (pushMeta?.skipPush) {
+      opts.skipPush = true;
+    } else if (pushMeta) {
       opts.systemPush = true;
       opts.systemPushTitle = pushMeta.title || 'AP Live';
       opts.systemPushBody = pushMeta.body || body.split('\n').filter(Boolean)[1] || body.slice(0, 100);
       opts.systemPushKind = pushMeta.kind || 'wallet';
       opts.systemPushDeepLink = pushMeta.deepLink || null;
+      opts.systemPushCpType = pushMeta.cpType || null;
     } else {
       /* Still push a short wallet/system alert by default */
       opts.systemPush = true;
@@ -261,6 +264,170 @@ async function notifyCoinsReceivedFromSeller(recipientUserId, coins, { sellerId,
   return true;
 }
 
+async function userDisplayName(userId) {
+  try {
+    const User = require('../models/User');
+    const u = await User.findById(userId);
+    return (
+      `${u?.first_name || ''} ${u?.last_name || ''}`.trim() ||
+      (u?.display_id ? `User #${u.display_id}` : 'User')
+    );
+  } catch (_e) {
+    return 'User';
+  }
+}
+
+function cpRingLabel(ringId) {
+  try {
+    const { CP_RINGS } = require('./cpService');
+    const r = CP_RINGS.find((x) => x.id === ringId);
+    return r ? `${r.emoji} ${r.name}` : 'a ring';
+  } catch (_e) {
+    return 'a ring';
+  }
+}
+
+function scheduleCpPush(fn) {
+  setImmediate(() => {
+    try {
+      Promise.resolve(fn()).catch(() => {});
+    } catch (_e) {
+      /* ignore */
+    }
+  });
+}
+
+async function notifyCpInviteSent({ fromUserId, toUserId, ringId }) {
+  if (!fromUserId || !toUserId) return null;
+  const fromName = await userDisplayName(fromUserId);
+  const toName = await userDisplayName(toUserId);
+  const ring = cpRingLabel(ringId);
+
+  await sendSystemChatMessage(
+    toUserId,
+    `💕 CP invitation\n\n${fromName} sent you a CP invitation with ${ring}.\n\nOpen Love House to accept or decline.`,
+    { skipPush: true }
+  );
+  await sendSystemChatMessage(
+    fromUserId,
+    `✅ CP invitation sent\n\nYour invitation (${ring}) was sent to ${toName}. We'll message you when they respond.`,
+    { skipPush: true }
+  );
+
+  scheduleCpPush(async () => {
+    const push = require('./pushNotificationService');
+    await push.notifyCpInviteReceived(toUserId, fromUserId, ring);
+    await push.notifyCpInviteSent(fromUserId, toUserId, ring);
+  });
+  return true;
+}
+
+async function notifyCpInviteAccepted({ inviterId, accepterId, ringId }) {
+  if (!inviterId || !accepterId) return null;
+  const inviterName = await userDisplayName(inviterId);
+  const accepterName = await userDisplayName(accepterId);
+  const ring = cpRingLabel(ringId);
+
+  await sendSystemChatMessage(
+    inviterId,
+    `💑 CP accepted!\n\n${accepterName} accepted your CP invitation. You're now partners with ${ring}.`,
+    { skipPush: true }
+  );
+  await sendSystemChatMessage(
+    accepterId,
+    `💑 You're CP now!\n\nYou and ${inviterName} are CP partners with ${ring}. Open Love House to see your couple card.`,
+    { skipPush: true }
+  );
+
+  scheduleCpPush(async () => {
+    const push = require('./pushNotificationService');
+    await push.notifyCpInviteAccepted(inviterId, accepterId, ring);
+  });
+  return true;
+}
+
+async function notifyCpInviteDeclined({ inviterId, declinerId, ringId }) {
+  if (!inviterId || !declinerId) return null;
+  const declinerName = await userDisplayName(declinerId);
+  const ring = cpRingLabel(ringId);
+
+  await sendSystemChatMessage(
+    inviterId,
+    `💔 CP invitation declined\n\n${declinerName} declined your CP invitation. ${ring} was returned to your bag.`,
+    { skipPush: true }
+  );
+
+  scheduleCpPush(async () => {
+    const push = require('./pushNotificationService');
+    await push.notifyCpInviteDeclined(inviterId, declinerId);
+  });
+  return true;
+}
+
+async function notifyCpBreakUp({ initiatorId, partnerId }) {
+  if (!initiatorId || !partnerId) return null;
+  const initiatorName = await userDisplayName(initiatorId);
+  const partnerName = await userDisplayName(partnerId);
+
+  await sendSystemChatMessage(
+    partnerId,
+    `💔 CP ended\n\n${initiatorName} ended your CP relationship.`,
+    { skipPush: true }
+  );
+  await sendSystemChatMessage(
+    initiatorId,
+    `💔 CP ended\n\nYou ended your CP relationship with ${partnerName}.`,
+    { skipPush: true }
+  );
+
+  scheduleCpPush(async () => {
+    const push = require('./pushNotificationService');
+    await push.notifyCpBreakUp(partnerId, initiatorId, false);
+    await push.notifyCpBreakUp(initiatorId, partnerId, true);
+  });
+  return true;
+}
+
+async function notifyCpRingChanged({ changerId, partnerId, ringId }) {
+  if (!changerId || !partnerId) return null;
+  const changerName = await userDisplayName(changerId);
+  const ring = cpRingLabel(ringId);
+
+  await sendSystemChatMessage(
+    partnerId,
+    `💍 CP ring updated\n\n${changerName} changed your CP ring to ${ring}.`,
+    { skipPush: true }
+  );
+  await sendSystemChatMessage(
+    changerId,
+    `💍 Ring changed\n\nYou updated your CP ring to ${ring}.`,
+    { skipPush: true }
+  );
+
+  scheduleCpPush(async () => {
+    const push = require('./pushNotificationService');
+    await push.notifyCpRingChanged(partnerId, changerId, ring);
+  });
+  return true;
+}
+
+async function notifyCpRingPurchased({ userId, ringId }) {
+  if (!userId) return null;
+  const ring = cpRingLabel(ringId);
+
+  await sendSystemChatMessage(
+    userId,
+    `💍 Ring purchased\n\n${ring} was added to your bag.\n\nOpen Love House → Send CP Invitation when you're ready to propose.`,
+    { skipPush: true }
+  );
+
+  scheduleCpPush(async () => {
+    const push = require('./pushNotificationService');
+    await push.notifyCpRingPurchased(userId, ring);
+  });
+  return true;
+}
+
 function isOfficialRole(role) {
   return OFFICIAL_ROLES.has(String(role || ''));
 }
@@ -277,6 +444,12 @@ module.exports = {
   notifyWithdrawalRejected,
   notifyRechargeRejected,
   notifyPointsTransferCompleted,
+  notifyCpInviteSent,
+  notifyCpInviteAccepted,
+  notifyCpInviteDeclined,
+  notifyCpBreakUp,
+  notifyCpRingChanged,
+  notifyCpRingPurchased,
   isOfficialRole,
   OFFICIAL_ROLES,
 };

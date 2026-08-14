@@ -635,6 +635,77 @@ async function notifyPointsTransfer({ senderId, recipientId, points, coinsCredit
   return true;
 }
 
+async function notifyCpEvent(userId, cpType, title, body, deepLink) {
+  if (!userId) return false;
+  const { cpDeepLink } = require('./notificationTemplates');
+  const payload = {
+    type: cpType || 'cp_update',
+    title: title || 'Love House',
+    body: body || 'Your CP status changed.',
+    data: {
+      type: cpType || 'cp_update',
+      deepLink: deepLink || cpDeepLink(),
+    },
+    preferenceKey: 'message_notifications',
+  };
+  return queuePush(userId, payload, {
+    dedupeKey: `cp:${cpType}:${userId}:${Date.now() - (Date.now() % 30000)}`,
+  });
+}
+
+async function notifyCpInviteReceived(toUserId, fromUserId, ringLabel) {
+  const fromName = await displayNameFor(fromUserId);
+  return queuePush(toUserId, TEMPLATES.cp_invite_received(fromName, ringLabel), {
+    dedupeKey: `cp_inv_in:${toUserId}:${fromUserId}:${Date.now() - (Date.now() % 60000)}`,
+  });
+}
+
+async function notifyCpInviteSent(fromUserId, toUserId, ringLabel) {
+  const toName = await displayNameFor(toUserId);
+  return queuePush(fromUserId, TEMPLATES.cp_invite_sent(toName, ringLabel), {
+    dedupeKey: `cp_inv_out:${fromUserId}:${toUserId}:${Date.now() - (Date.now() % 60000)}`,
+  });
+}
+
+async function notifyCpInviteAccepted(inviterId, accepterId, ringLabel) {
+  const accepterName = await displayNameFor(accepterId);
+  const inviterName = await displayNameFor(inviterId);
+  await queuePush(inviterId, TEMPLATES.cp_invite_accepted(accepterName, ringLabel), {
+    dedupeKey: `cp_acc:${inviterId}:${accepterId}:${Date.now() - (Date.now() % 60000)}`,
+  });
+  await queuePush(accepterId, TEMPLATES.cp_invite_accepted_self(inviterName, ringLabel), {
+    dedupeKey: `cp_acc_self:${accepterId}:${inviterId}:${Date.now() - (Date.now() % 60000)}`,
+  });
+  return true;
+}
+
+async function notifyCpInviteDeclined(inviterId, declinerId) {
+  const declinerName = await displayNameFor(declinerId);
+  return queuePush(inviterId, TEMPLATES.cp_invite_declined(declinerName), {
+    dedupeKey: `cp_dec:${inviterId}:${declinerId}:${Date.now() - (Date.now() % 60000)}`,
+  });
+}
+
+async function notifyCpBreakUp(userId, partnerId, initiatedBySelf) {
+  const partnerName = await displayNameFor(partnerId);
+  return queuePush(userId, TEMPLATES.cp_breakup(partnerName, initiatedBySelf), {
+    dedupeKey: `cp_break:${userId}:${partnerId}:${Date.now() - (Date.now() % 60000)}`,
+  });
+}
+
+async function notifyCpRingChanged(partnerId, changerId, ringLabel) {
+  const changerName = await displayNameFor(changerId);
+  return queuePush(partnerId, TEMPLATES.cp_ring_changed(changerName, ringLabel), {
+    dedupeKey: `cp_ring:${partnerId}:${changerId}:${Date.now() - (Date.now() % 60000)}`,
+  });
+}
+
+async function notifyCpRingPurchased(userId, ringLabel) {
+  return queuePush(userId, TEMPLATES.cp_ring_purchased(ringLabel), {
+    dedupeKey: `cp_buy:${userId}:${Date.now() - (Date.now() % 60000)}`,
+  });
+}
+
 async function notifyWalletUpdate(userId, title, body, deepLink) {
   if (!userId) return false;
   return queuePush(userId, TEMPLATES.wallet_update(title, body, deepLink), {
@@ -686,6 +757,14 @@ module.exports = {
   notifyCommissionReceived,
   notifyNewMessage,
   notifyPointsTransfer,
+  notifyCpEvent,
+  notifyCpInviteReceived,
+  notifyCpInviteSent,
+  notifyCpInviteAccepted,
+  notifyCpInviteDeclined,
+  notifyCpBreakUp,
+  notifyCpRingChanged,
+  notifyCpRingPurchased,
   notifyWalletUpdate,
   notifyWithdrawalUpdate,
   notifyAgencyApplication,

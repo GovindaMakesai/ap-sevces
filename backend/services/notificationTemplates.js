@@ -47,6 +47,14 @@ function withdrawDeepLink() {
   return deepLink('withdraw');
 }
 
+function cpDeepLink() {
+  return deepLink('cp');
+}
+
+function storeRingsDeepLink() {
+  return deepLink('store/rings');
+}
+
 function adminDeepLink(section) {
   const s = String(section || 'notifications').replace(/^\//, '');
   return deepLink(`admin/${encodeURIComponent(s)}`);
@@ -307,6 +315,125 @@ const TEMPLATES = {
       preferenceKey: null,
     };
   },
+
+  cp_invite_received(fromName, ringLabel) {
+    const who = fromName || 'Someone';
+    const ring = ringLabel || 'a ring';
+    return {
+      type: 'cp_invite_received',
+      title: '💕 CP invitation',
+      body: `${who} sent you a CP invitation with ${ring}. Open Love House to respond.`,
+      data: {
+        type: 'cp_invite_received',
+        deepLink: cpDeepLink(),
+      },
+      preferenceKey: 'message_notifications',
+    };
+  },
+
+  cp_invite_sent(toName, ringLabel) {
+    const who = toName || 'User';
+    const ring = ringLabel || 'a ring';
+    return {
+      type: 'cp_invite_sent',
+      title: 'Invitation sent',
+      body: `Your CP invitation (${ring}) was sent to ${who}. Waiting for their response.`,
+      data: {
+        type: 'cp_invite_sent',
+        deepLink: cpDeepLink(),
+      },
+      preferenceKey: 'message_notifications',
+    };
+  },
+
+  cp_invite_accepted(partnerName, ringLabel) {
+    const who = partnerName || 'Your partner';
+    const ring = ringLabel || 'a ring';
+    return {
+      type: 'cp_invite_accepted',
+      title: '💑 You are CP now!',
+      body: `${who} accepted your CP invitation. You're partners with ${ring}.`,
+      data: {
+        type: 'cp_invite_accepted',
+        deepLink: cpDeepLink(),
+      },
+      preferenceKey: 'message_notifications',
+    };
+  },
+
+  cp_invite_accepted_self(partnerName, ringLabel) {
+    const who = partnerName || 'Your partner';
+    const ring = ringLabel || 'a ring';
+    return {
+      type: 'cp_invite_accepted',
+      title: '💑 CP confirmed',
+      body: `You and ${who} are now CP partners with ${ring}!`,
+      data: {
+        type: 'cp_invite_accepted',
+        deepLink: cpDeepLink(),
+      },
+      preferenceKey: 'message_notifications',
+    };
+  },
+
+  cp_invite_declined(partnerName) {
+    const who = partnerName || 'User';
+    return {
+      type: 'cp_invite_declined',
+      title: 'CP invitation declined',
+      body: `${who} declined your CP invitation. Your ring was returned to your bag.`,
+      data: {
+        type: 'cp_invite_declined',
+        deepLink: cpDeepLink(),
+      },
+      preferenceKey: 'message_notifications',
+    };
+  },
+
+  cp_breakup(partnerName, initiatedBySelf) {
+    const who = partnerName || 'Your partner';
+    return {
+      type: 'cp_breakup',
+      title: 'CP ended',
+      body: initiatedBySelf
+        ? `You ended your CP relationship with ${who}.`
+        : `${who} ended your CP relationship.`,
+      data: {
+        type: 'cp_breakup',
+        deepLink: cpDeepLink(),
+      },
+      preferenceKey: 'message_notifications',
+    };
+  },
+
+  cp_ring_changed(partnerName, ringLabel) {
+    const who = partnerName || 'Your CP';
+    const ring = ringLabel || 'a new ring';
+    return {
+      type: 'cp_ring_changed',
+      title: 'CP ring updated',
+      body: `${who} changed your CP ring to ${ring}.`,
+      data: {
+        type: 'cp_ring_changed',
+        deepLink: cpDeepLink(),
+      },
+      preferenceKey: 'message_notifications',
+    };
+  },
+
+  cp_ring_purchased(ringLabel) {
+    const ring = ringLabel || 'a ring';
+    return {
+      type: 'cp_ring_purchased',
+      title: 'Ring purchased',
+      body: `${ring} was added to your bag. Send a CP invitation from Love House.`,
+      data: {
+        type: 'cp_ring_purchased',
+        deepLink: storeRingsDeepLink(),
+      },
+      preferenceKey: 'wallet_notifications',
+    };
+  },
 };
 
 module.exports = {
@@ -322,4 +449,6 @@ module.exports = {
   walletDeepLink,
   withdrawDeepLink,
   adminDeepLink,
+  cpDeepLink,
+  storeRingsDeepLink,
 };
