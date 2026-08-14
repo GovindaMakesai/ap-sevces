@@ -361,28 +361,36 @@ body[data-live-page='live-room'] .live-chat-ticker {
 
 /* —— Bottom bar —— */
 body[data-live-page='live-room'] .party-bottom-bar {
-  padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0));
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  padding: 8px 12px 10px;
   background: linear-gradient(180deg, transparent, rgba(7, 8, 12, 0.92) 24%);
   border-top: 1px solid var(--live-pro-border);
   backdrop-filter: blur(20px) saturate(1.15);
   -webkit-backdrop-filter: blur(20px) saturate(1.15);
-  gap: 10px;
+  gap: 8px;
   z-index: 14000 !important;
   pointer-events: auto !important;
+  overflow: visible !important;
+  bottom: max(12px, env(safe-area-inset-bottom, 0px)) !important;
 }
 
-body[data-live-page='live-room'] .ap-compose-inline {
-  flex: 1 1 auto;
-  min-width: 0;
-  max-width: 100%;
-  overflow: hidden;
-  position: relative;
-  z-index: 1;
+/* Compose may shrink; NEVER cover gift / tools */
+body[data-live-page='live-room'] .ap-compose-inline,
+body[data-live-page='live-room'] #liveChatCompose {
+  flex: 1 1 0% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  overflow: hidden !important;
+  position: relative !important;
+  z-index: 1 !important;
   padding: 4px 4px 4px 12px;
   border-radius: var(--live-pro-radius-pill);
   background: var(--live-pro-surface-elevated);
   border: 1px solid var(--live-pro-border-strong);
   box-shadow: var(--live-pro-shadow-inset), 0 4px 16px rgba(0, 0, 0, 0.2);
+  pointer-events: auto !important;
 }
 
 body[data-live-page='live-room'] .ap-compose-inline input {
@@ -396,16 +404,45 @@ body[data-live-page='live-room'] .ap-compose-inline input {
 }
 
 body[data-live-page='live-room'] .party-bottom-actions {
-  flex: 0 0 auto;
-  position: relative;
-  z-index: 12610;
+  flex: 0 0 auto !important;
+  flex-shrink: 0 !important;
+  position: relative !important;
+  z-index: 5 !important;
   pointer-events: auto !important;
+  margin-left: 0 !important;
+  align-items: center !important;
+}
+
+body[data-live-page='live-room'] #liveBtnGift,
+body[data-live-page='live-room'] .party-btn-gift.ap-btn-gift-hero {
+  flex-shrink: 0 !important;
+  position: relative !important;
+  z-index: 6 !important;
+  pointer-events: auto !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 48px !important;
+  height: 48px !important;
+  padding: 0 !important;
+}
+
+body[data-live-page='live-room'] #liveBtnGift i,
+body[data-live-page='live-room'] .party-btn-gift i {
+  line-height: 1 !important;
+  margin: 0 !important;
 }
 
 body[data-live-page='live-room'] #partyBtnTools {
   pointer-events: auto !important;
   position: relative;
-  z-index: 12620 !important;
+  z-index: 5 !important;
+  flex-shrink: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
 }
 
 body[data-live-page='live-room'] .ap-compose-inline input::placeholder {
@@ -509,7 +546,7 @@ body[data-live-page='live-room'] .party-tools-grid .ico.report {
 
 /* —— Gift sheet (live) —— */
 body[data-live-page='live-room'] .gift-sheet-panel {
-  background: rgba(14, 16, 22, 0.98);
+  background: linear-gradient(165deg, rgba(42, 32, 22, 0.98) 0%, rgba(22, 16, 28, 0.98) 50%, rgba(16, 14, 24, 0.99) 100%);
   border: 1px solid var(--live-pro-border);
   border-bottom: none;
   font-family: var(--live-pro-font);

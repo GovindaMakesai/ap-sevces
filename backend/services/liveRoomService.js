@@ -557,6 +557,14 @@ async function buildSnapshot(channel, { bypassCache = false } = {}) {
 
   const seatRequests = await listSeatRequests(channel, members);
 
+  let pkBattle = null;
+  try {
+    const pkBattleService = require('./pkBattleService');
+    pkBattle = await pkBattleService.getActiveBattleSnapshotForChannel(channel);
+  } catch (_pk) {
+    pkBattle = null;
+  }
+
   const state = {
     channel: room.channel,
     type: room.room_type,
@@ -569,7 +577,8 @@ async function buildSnapshot(channel, { bypassCache = false } = {}) {
     hostIsPlatformAdmin,
     hostUserRole,
     viewers: room.viewer_count,
-    pkStatus: room.pk_status,
+    pkStatus: room.pk_status || (pkBattle ? 'active' : null),
+    pkBattle,
     messages,
     gifts,
     seats,

@@ -1015,9 +1015,9 @@ html.ap-secure-live .party-room-stage {
 
 .live-chat-compose.ap-compose-inline {
   display: flex !important;
-  flex: 1 1 auto;
+  flex: 1 1 0%;
   min-width: 0;
-  max-width: calc(100% - 140px);
+  max-width: none;
   overflow: hidden;
   position: relative;
   z-index: 1;
@@ -1055,8 +1055,8 @@ html.ap-secure-live .party-room-stage {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: 0;
-  /* Above FX (9000) and guest chrome so gift/tools/joined stay tappable in busy rooms */
+  bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  /* Above FX (9000) and chat; BELOW gift/tools sheets (32000) */
   z-index: 14000;
   flex-shrink: 0;
   display: flex;
@@ -1064,7 +1064,7 @@ html.ap-secure-live .party-room-stage {
   justify-content: space-between;
   gap: 8px;
   min-height: var(--ap-bottom-bar-h);
-  padding: 6px 10px calc(6px + env(safe-area-inset-bottom, 0));
+  padding: 8px 10px 10px;
   background: linear-gradient(0deg, rgba(0, 0, 0, 0.97), rgba(0, 0, 0, 0.88));
   pointer-events: auto !important;
   overflow: visible;
@@ -1081,6 +1081,19 @@ html.ap-secure-live .party-room-stage {
   z-index: 14250 !important;
   pointer-events: auto !important;
   touch-action: manipulation;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+}
+
+#partyBottomBar .party-btn-gift i,
+#liveBtnGift i,
+#partyBtnGift i,
+.party-btn-gift.ap-btn-gift-hero i {
+  line-height: 1 !important;
+  margin: 0 !important;
+  display: block !important;
 }
 
 .party-bottom-actions {
@@ -2213,12 +2226,12 @@ body[data-live-page='live-room'] .live-room {
 .party-tools-sheet {
   position: fixed;
   inset: 0;
-  /* Above bottom bar (14000) / FX so tools panel & dismiss work */
-  z-index: 15000;
+  /* Above bottom bar so PK / tools stay tappable */
+  z-index: 32000;
   display: none;
   align-items: flex-end;
   justify-content: center;
-  padding: env(safe-area-inset-top, 0) 0 env(safe-area-inset-bottom, 0);
+  padding: env(safe-area-inset-top, 0) 0 max(12px, env(safe-area-inset-bottom, 0));
   background: rgba(0, 0, 0, 0.45);
   overflow: hidden;
   pointer-events: none;
@@ -2232,13 +2245,13 @@ body[data-live-page='live-room'] .live-room {
 
 .party-tools-sheet .party-tools-panel {
   width: min(100%, 420px);
-  max-height: min(82dvh, 640px);
+  max-height: min(78dvh, 600px);
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   border-radius: 20px 20px 0 0;
   margin: 0 auto;
   background: rgba(14, 14, 18, 0.94);
-  padding: 14px 12px calc(22px + env(safe-area-inset-bottom, 0));
+  padding: 14px 12px calc(28px + env(safe-area-inset-bottom, 0px));
   position: relative;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -2373,7 +2386,33 @@ body[data-live-page='live-room'] .live-room {
 }
 
 .party-tools-grid .ico.pk {
-  background: linear-gradient(145deg, #f97316, #dc2626);
+  background: linear-gradient(145deg, #ff4d9a, #5b6cff);
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  font-size: 15px;
+  overflow: hidden;
+}
+
+.party-tools-grid .ico.pk .ap-pk-ico-mark {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0;
+  line-height: 1;
+}
+
+.party-tools-grid .ico.pk .ap-pk-ico-mark b {
+  color: #ff6bb5;
+  font-style: normal;
+}
+
+.party-tools-grid .ico.pk .ap-pk-ico-mark i {
+  color: #7dd3fc;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.party-tools-grid .ico.games {
+  background: linear-gradient(145deg, #60a5fa, #2563eb);
 }
 
 .party-tools-grid .ico.giftc,
@@ -2578,10 +2617,12 @@ body:not(.ap-is-host) .host-only-tools-section {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow: hidden;
   /* Empty overlay pads (incl. above bottom bar) must not steal gift/tools taps */
   pointer-events: none;
   background: linear-gradient(180deg, rgba(0, 0, 0, 0.28) 0%, transparent 14%, transparent 78%, rgba(0, 0, 0, 0.3) 100%);
-  padding-bottom: calc(var(--ap-bottom-bar-h) + env(safe-area-inset-bottom, 0));
+  /* Extra gap so last chat lines never sit under "Say something" / gift bar */
+  padding-bottom: calc(var(--ap-bottom-bar-h, 58px) + env(safe-area-inset-bottom, 0px) + 12px);
 }
 
 .live-room .live-overlay > * {
@@ -2632,23 +2673,29 @@ body:not(.ap-is-host) .host-only-tools-section {
 }
 
 .live-room .party-chat-row {
-  flex-shrink: 0;
-  max-height: min(38vh, 300px);
-  min-height: 120px;
+  flex: 0 1 auto;
+  flex-shrink: 1;
+  max-height: min(34vh, 260px);
+  min-height: 96px;
+  margin-bottom: 2px;
+  /* Chat paints under bottom bar z-index; clearance is padding on overlay */
+  position: relative;
+  z-index: 20;
 }
 
 .live-room .party-chat-zone {
-  max-height: min(38vh, 300px);
-  overflow: visible;
+  max-height: min(34vh, 260px);
+  overflow: hidden;
   touch-action: pan-y;
 }
 
 .live-room .party-chat-feed {
-  max-height: min(38vh, 300px);
+  max-height: min(32vh, 240px);
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
   overscroll-behavior: contain;
+  padding-bottom: 14px !important;
 }
 
 .live-room .live-chat-compose {
@@ -3726,8 +3773,8 @@ body:not(.ap-is-host) .host-only-tools-section {
 .gift-sheet {
   position: fixed;
   inset: 0;
-  z-index: 15000;
-  background: rgba(0, 0, 0, 0.55);
+  z-index: 32000;
+  background: rgba(0, 0, 0, 0.45);
   display: none;
   flex-direction: column;
   justify-content: flex-end;
@@ -3741,6 +3788,13 @@ body:not(.ap-is-host) .host-only-tools-section {
   pointer-events: auto;
 }
 
+.gift-sheet:not(.open) {
+  display: none !important;
+  background: transparent !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+}
+
 .gift-sheet-panel {
   display: flex;
   flex-direction: column;
@@ -3748,7 +3802,7 @@ body:not(.ap-is-host) .host-only-tools-section {
   max-height: min(62vh, 520px);
   min-height: 280px;
   overflow: hidden;
-  background: #0f0f14;
+  background: #14121c;
   border-radius: 16px 16px 0 0;
   padding: 12px 12px calc(12px + env(safe-area-inset-bottom, 0));
   position: relative;
@@ -5329,82 +5383,133 @@ html.is-pk-mode .ap-pk-overlay {
   visibility: visible !important;
 }
 
-/* —— PK stage: no mid-body cut without rival video —— */
+/* —— Classic PK arena: upper video slots + score under arena + chat under score —— */
+body.is-pk-mode {
+  --pk-arena-top: calc(78px + env(safe-area-inset-top, 0px));
+  --pk-arena-h: min(30vh, 260px);
+  --pk-party-dock-h: 56px;
+}
+
 body.is-pk-mode .live-room {
-  --ap-pk-stage-top: calc(88px + env(safe-area-inset-top, 0px));
-  --ap-pk-stage-bottom: calc(38% + env(safe-area-inset-bottom, 0px));
+  --pk-arena-top: calc(78px + env(safe-area-inset-top, 0px));
+  --pk-arena-h: min(30vh, 260px);
+  --pk-party-dock-h: 56px;
+  --ap-pk-stage-top: var(--pk-arena-top);
+  --ap-pk-stage-bottom: auto;
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(251, 191, 36, 0.18), transparent 55%),
+    linear-gradient(165deg, #1a1030 0%, #0b1220 45%, #111827 100%) !important;
 }
 
-body.is-pk-mode .live-room .live-bg {
-  opacity: 0.45;
+body.is-pk-mode[data-pk-slots='2'] .live-room {
+  background:
+    radial-gradient(100% 70% at 20% 10%, rgba(236, 72, 153, 0.28), transparent 50%),
+    radial-gradient(100% 70% at 80% 10%, rgba(59, 130, 246, 0.28), transparent 50%),
+    linear-gradient(180deg, #1e1b4b 0%, #0f172a 55%, #020617 100%) !important;
 }
 
-/* No rival: keep host camera FULL (fixes the ugly middle cut on Random PK) */
-body.is-pk-mode.ap-is-host:not(.ap-pk-has-rival) .live-room .live-local-video,
-body.is-pk-mode.ap-is-host:not(.ap-pk-has-rival) .live-room .live-fallback-video {
-  left: 0 !important;
-  right: 0 !important;
+body.is-pk-mode[data-pk-slots='3'] .live-room {
+  background:
+    radial-gradient(90% 60% at 15% 12%, rgba(168, 85, 247, 0.3), transparent 48%),
+    radial-gradient(90% 60% at 50% 8%, rgba(34, 197, 94, 0.18), transparent 48%),
+    radial-gradient(90% 60% at 85% 12%, rgba(56, 189, 248, 0.28), transparent 48%),
+    linear-gradient(180deg, #0f172a 0%, #111827 100%) !important;
+}
+
+body.is-pk-mode[data-pk-slots='4'] .live-room,
+body.is-pk-mode[data-pk-slots='6'] .live-room {
+  background:
+    radial-gradient(circle at 15% 18%, rgba(251, 113, 133, 0.25), transparent 40%),
+    radial-gradient(circle at 50% 12%, rgba(250, 204, 21, 0.18), transparent 40%),
+    radial-gradient(circle at 85% 18%, rgba(96, 165, 250, 0.28), transparent 40%),
+    linear-gradient(180deg, #0c1222 0%, #020617 100%) !important;
+}
+
+body.is-pk-mode .live-room #liveBg.live-bg {
+  opacity: 0.35;
+  filter: saturate(0.9);
+}
+
+/* Rival dual-Agora video (right slot) */
+.ap-pk-rival-media {
+  position: absolute;
+  top: var(--pk-arena-top);
+  left: 50%;
+  width: 50%;
+  height: var(--pk-arena-h);
+  z-index: 6;
+  display: none;
+  overflow: hidden;
+  border-radius: 0 0 12px 0;
+  background: #0f172a;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  pointer-events: none;
+}
+
+body.is-pk-mode.ap-pk-has-rival .ap-pk-rival-media,
+body.is-pk-mode .ap-pk-rival-media:not([aria-hidden='true']) {
+  display: block !important;
+}
+
+.ap-pk-rival-media video,
+.ap-pk-rival-media canvas,
+.ap-pk-rival-media > div {
   width: 100% !important;
-  top: 0 !important;
-  bottom: 0 !important;
-  z-index: 2 !important;
+  height: 100% !important;
+  object-fit: cover !important;
+}
+
+/* Upper arena video slots — NEVER full-screen during PK */
+body.is-pk-mode .live-room .live-local-video,
+body.is-pk-mode .live-room .live-fallback-video,
+body.is-pk-mode .live-room .live-remote-video {
   display: block !important;
   visibility: visible !important;
+  opacity: 1 !important;
+  bottom: auto !important;
+  height: var(--pk-arena-h) !important;
+  top: var(--pk-arena-top) !important;
+  overflow: hidden !important;
+  border-radius: 0 0 12px 12px;
+  background: #0f172a !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
-body.is-pk-mode.ap-is-host:not(.ap-pk-has-rival) .live-room .live-remote-video {
+/* Host: always left slot(s) */
+body.is-pk-mode.ap-is-host .live-room .live-local-video,
+body.is-pk-mode.ap-is-host .live-room .live-fallback-video {
+  left: 0 !important;
+  right: auto !important;
+  width: 50% !important;
+  z-index: 5 !important;
+}
+
+body.is-pk-mode.ap-is-host:not(.ap-pk-has-rival) .live-room .live-remote-video:empty {
   display: none !important;
 }
 
-body.is-pk-mode.ap-is-host:not(.ap-pk-has-rival) .ap-pk-side-r {
-  background: linear-gradient(165deg, rgba(30, 27, 75, 0.92), rgba(15, 23, 42, 0.96));
-}
-
-body.is-pk-mode.ap-is-host:not(.ap-pk-has-rival) .ap-pk-side-l {
-  background: linear-gradient(90deg, rgba(0, 0, 0, 0.28), transparent 72%);
-}
-
-/* Rival present: true 50/50 split of video layers */
-body.is-pk-mode.ap-pk-has-rival .live-room .live-remote-video,
-body.is-pk-mode.ap-pk-has-rival .live-room .live-local-video,
-body.is-pk-mode.ap-pk-has-rival .live-room .live-fallback-video {
-  top: var(--ap-pk-stage-top) !important;
-  bottom: var(--ap-pk-stage-bottom) !important;
-  height: auto !important;
-  width: 50% !important;
-  overflow: hidden !important;
-  background: #12141c !important;
-}
-
-body.is-pk-mode.ap-pk-has-rival.ap-is-host .live-room .live-local-video,
-body.is-pk-mode.ap-pk-has-rival.ap-is-host .live-room .live-fallback-video {
-  left: 0 !important;
-  right: auto !important;
-  z-index: 3 !important;
-  display: block !important;
-  visibility: visible !important;
-}
-
-body.is-pk-mode.ap-pk-has-rival.ap-is-host .live-room .live-remote-video {
-  left: 50% !important;
-  right: 0 !important;
-  z-index: 2 !important;
-  display: block !important;
-}
-
+/* Audience: host stream in left slot */
 body.is-pk-mode:not(.ap-is-host) .live-room .live-remote-video {
   left: 0 !important;
   width: 50% !important;
-  top: var(--ap-pk-stage-top) !important;
-  bottom: var(--ap-pk-stage-bottom) !important;
+  z-index: 5 !important;
 }
 
-body.is-pk-mode:not(.ap-is-host) .live-room .live-local-video,
-body.is-pk-mode:not(.ap-is-host) .live-room .live-fallback-video {
+body.is-pk-mode:not(.ap-is-host):not(.ap-pk-has-rival) .live-room .live-local-video,
+body.is-pk-mode:not(.ap-is-host):not(.ap-pk-has-rival) .live-room .live-fallback-video {
+  width: 0 !important;
+  height: 0 !important;
+  opacity: 0 !important;
+  overflow: hidden !important;
+  pointer-events: none !important;
+}
+
+/* Avoid using main remote host for dual rival when we have dedicated box */
+body.is-pk-mode.ap-pk-has-rival.ap-is-host .live-room .live-remote-video:not(:empty) {
   left: 50% !important;
   width: 50% !important;
-  top: var(--ap-pk-stage-top) !important;
-  bottom: var(--ap-pk-stage-bottom) !important;
+  z-index: 4 !important;
+  display: block !important;
 }
 
 body.is-pk-mode .live-room .live-remote-video video,
@@ -5413,19 +5518,412 @@ body.is-pk-mode .live-room .live-fallback-video {
   object-fit: cover !important;
   width: 100% !important;
   height: 100% !important;
+  opacity: 1 !important;
+  visibility: visible !important;
 }
 
-.ap-pk-score-wrap {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: calc(68px + env(safe-area-inset-top, 0px));
-  z-index: 14;
+/* Label frame over the arena */
+.ap-pk-stage {
+  position: absolute !important;
+  left: 0 !important;
+  right: 0 !important;
+  top: var(--pk-arena-top) !important;
+  height: var(--pk-arena-h) !important;
+  bottom: auto !important;
+  z-index: 8 !important;
+  display: flex !important;
+  pointer-events: none !important;
+}
+
+body.is-pk-mode .ap-pk-side-r {
+  background: linear-gradient(165deg, rgba(30, 27, 75, 0.2), rgba(15, 23, 42, 0.35));
+}
+
+body.is-pk-mode .ap-pk-side-l {
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.12), transparent 65%);
+}
+
+body.is-pk-mode .ap-pk-waiting {
+  background: linear-gradient(160deg, rgba(30, 27, 75, 0.55) 0%, rgba(15, 23, 42, 0.65) 100%);
+}
+
+/*
+ * PK score/party bar sits DIRECTLY under the live arena (under video, above chat),
+ * NOT fixed behind the chat near the bottom controls.
+ */
+.ap-pk-score-wrap,
+.ap-pk-party-dock {
+  position: absolute !important;
+  left: 0 !important;
+  right: 0 !important;
+  top: calc(var(--pk-arena-top) + var(--pk-arena-h) + 2px) !important;
+  bottom: auto !important;
+  z-index: 45 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 4px !important;
+  padding: 0 0 4px !important;
+  pointer-events: none;
+  margin: 0 !important;
+  background: linear-gradient(180deg, rgba(2, 6, 23, 0.55), rgba(2, 6, 23, 0.15));
+}
+
+.ap-pk-overlay {
+  z-index: 30 !important;
+}
+
+.ap-pk-party-dock-meta {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: 0;
+  justify-content: center;
+  gap: 10px;
+  pointer-events: none;
+}
+
+body.is-pk-mode .ap-pk-bar {
+  position: relative;
+  width: 100%;
+  height: 22px !important;
+  margin: 0 !important;
+  background: #2563eb;
+  overflow: visible;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+  border-radius: 0 !important;
+}
+
+body.is-pk-mode .ap-pk-bar::before {
+  display: none !important;
+}
+
+.ap-pk-center-badge {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 6;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 900;
+  color: #1a1000;
+  background: linear-gradient(135deg, #fde047, #f59e0b);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+}
+
+body.is-pk-mode .ap-pk-timer-pill,
+body.is-pk-mode #apPkTimer {
+  position: relative !important;
+  left: auto !important;
+  top: auto !important;
+  transform: none !important;
+  margin: 0 !important;
+}
+
+body.is-pk-mode .ap-pk-status {
+  position: static !important;
+  left: auto !important;
+  transform: none !important;
+  bottom: auto !important;
+  max-width: none;
+  margin: 0;
+  padding: 2px 10px 0;
+  background: transparent;
+  font-size: 11px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+body.is-pk-mode .ap-pk-stop-btn {
+  pointer-events: auto;
+}
+
+/* Chat + compose stay usable during PK — never crush layout or block taps */
+body.is-pk-mode .live-room .live-overlay {
+  z-index: 40 !important;
+  pointer-events: none !important;
+  overflow: hidden !important;
+  /* Clear fixed bottom bar so messages never sit under "Say something" / gift */
+  padding-bottom: calc(var(--ap-bottom-bar-h, 64px) + env(safe-area-inset-bottom, 0px) + 16px) !important;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.22) 0%,
+    transparent 12%,
+    transparent 48%,
+    rgba(0, 0, 0, 0.18) 78%,
+    rgba(0, 0, 0, 0.35) 100%
+  ) !important;
+}
+
+body.is-pk-mode .live-room .live-overlay > * {
+  pointer-events: none;
+}
+
+/* Only interactive chat chrome receives taps inside the overlay */
+body.is-pk-mode .live-room .live-overlay .party-header,
+body.is-pk-mode .live-room .live-overlay .party-header-right,
+body.is-pk-mode .live-room .live-overlay .party-host,
+body.is-pk-mode .live-room .live-overlay .party-close,
+body.is-pk-mode .live-room .live-overlay .party-minimize-btn,
+body.is-pk-mode .live-room .live-overlay .party-follow-btn,
+body.is-pk-mode .live-room .live-overlay .party-users-btn,
+body.is-pk-mode .live-room .live-overlay .party-event-pill,
+body.is-pk-mode .live-room .live-overlay .party-chat-controls,
+body.is-pk-mode .live-room .live-overlay .party-chat-zone,
+body.is-pk-mode .live-room .live-overlay .party-chat-feed,
+body.is-pk-mode .live-room .live-overlay .party-chat-msg,
+body.is-pk-mode .live-room .live-overlay .party-chat-hide-btn,
+body.is-pk-mode .live-room .live-overlay .party-chat-tabs,
+body.is-pk-mode .live-room .live-overlay .party-chat-tabs button,
+body.is-pk-mode .live-room .live-overlay .live-show-chat-fab {
+  pointer-events: auto !important;
+}
+
+/* Spacer fills remaining room; can shrink so chat never overflows into bottom bar */
+body.is-pk-mode .live-spacer {
+  flex: 1 1 0% !important;
+  min-height: min(var(--pk-arena-h) + var(--pk-party-dock-h) + 4px, 42vh) !important;
+  height: auto !important;
+  max-height: none !important;
+  pointer-events: none !important;
+}
+
+/* Chat stays ABOVE bottom bar (layout + z-index), not under gift/compose */
+body.is-pk-mode .party-chat-row,
+body.is-pk-mode #partyChatRow {
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  flex: 0 1 auto !important;
+  flex-shrink: 1 !important;
+  min-height: 100px !important;
+  max-height: min(28vh, 220px) !important;
+  height: auto !important;
+  margin: 0 8px 0 !important;
+  padding-bottom: 0 !important;
+  position: relative !important;
+  z-index: 25 !important;
+  pointer-events: none !important;
+  overflow: hidden !important;
+}
+
+body.is-pk-mode .party-chat-zone,
+body.is-pk-mode #partyChatZone {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  max-height: min(28vh, 220px) !important;
+  overflow: hidden !important;
+  pointer-events: auto !important;
+}
+
+/* CRITICAL: keep flex column — display:block broke message bubbles & scroll */
+body.is-pk-mode .party-chat-feed,
+body.is-pk-mode #partyChatFeed {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: flex-start !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  flex: 1 1 auto !important;
+  min-height: 80px !important;
+  height: min(24vh, 200px) !important;
+  max-height: min(24vh, 200px) !important;
+  overflow-x: hidden !important;
+  overflow-y: scroll !important;
+  -webkit-overflow-scrolling: touch !important;
+  touch-action: pan-y !important;
+  pointer-events: auto !important;
+  gap: 6px !important;
+  padding: 4px 10px 12px 0 !important;
+}
+
+body.is-pk-mode .party-chat-feed::before {
+  content: '' !important;
+  flex: 1 1 0 !important;
+  min-height: 0 !important;
+  pointer-events: none !important;
+  display: block !important;
+}
+
+body.is-pk-mode .party-chat-msg {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  flex: 0 0 auto !important;
+  height: auto !important;
+  max-width: 92% !important;
+  color: #f8fafc !important;
+  pointer-events: auto !important;
+}
+
+/* Bottom bar: gift always visible to the RIGHT of compose — never stacked over/under it */
+body.is-pk-mode #partyBottomBar,
+body.is-pk-mode .party-bottom-bar {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  z-index: 14000 !important;
+  pointer-events: auto !important;
+  position: fixed !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: max(12px, env(safe-area-inset-bottom, 0px)) !important;
+  overflow: visible !important;
+  gap: 8px !important;
+  isolation: isolate !important;
+}
+
+body.is-pk-mode #partyBottomBar > *,
+body.is-pk-mode .party-bottom-bar > * {
+  pointer-events: auto !important;
+}
+
+/* Compose shrinks; gift/tools never get covered */
+body.is-pk-mode .live-chat-compose,
+body.is-pk-mode #liveChatCompose,
+body.is-pk-mode .live-chat-compose.ap-compose-inline {
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  position: relative !important;
+  z-index: 1 !important;
+  flex: 1 1 0% !important;
+  flex-shrink: 1 !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  overflow: hidden !important;
+}
+
+body.is-pk-mode .party-bottom-actions {
+  display: flex !important;
+  flex: 0 0 auto !important;
+  flex-shrink: 0 !important;
+  gap: 6px !important;
+  position: relative !important;
+  z-index: 5 !important;
+  pointer-events: auto !important;
+  margin-left: 0 !important;
+}
+
+body.is-pk-mode #liveBtnGift,
+body.is-pk-mode .party-btn-gift,
+body.is-pk-mode .ap-btn-gift-hero {
+  pointer-events: auto !important;
+  z-index: 6 !important;
+  position: relative !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  flex-shrink: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 46px !important;
+  height: 46px !important;
+  min-width: 46px !important;
+  padding: 0 !important;
+}
+
+body.is-pk-mode #liveBtnGift i,
+body.is-pk-mode .party-btn-gift i {
+  line-height: 1 !important;
+  margin: 0 !important;
+  display: block !important;
+}
+
+body.is-pk-mode #partyBtnTools,
+body.is-pk-mode #liveBtnMic {
+  pointer-events: auto !important;
+  z-index: 5 !important;
+  position: relative !important;
+  flex-shrink: 0 !important;
+  display: flex !important;
+}
+
+body.is-pk-mode .live-chat-compose input,
+body.is-pk-mode #liveChatInput {
+  pointer-events: auto !important;
+  color: #fff !important;
+  background: rgba(255, 255, 255, 0.14) !important;
+  -webkit-user-select: text !important;
+  user-select: text !important;
+  min-width: 0 !important;
+}
+
+body.is-pk-mode .live-chat-compose button,
+body.is-pk-mode #liveChatSend,
+body.is-pk-mode #apChatEmojiBtn {
+  pointer-events: auto !important;
+  flex-shrink: 0 !important;
+}
+
+/* PK labels/dock stay under chat + bottom bar so typing is never blocked */
+body.is-pk-mode .ap-pk-overlay {
+  z-index: 18 !important;
+  pointer-events: none !important;
+}
+
+body.is-pk-mode .ap-pk-score-wrap,
+body.is-pk-mode .ap-pk-party-dock {
+  z-index: 20 !important;
+  pointer-events: none !important;
+}
+
+body.is-pk-mode .ap-pk-stop-btn {
+  pointer-events: auto !important;
+  z-index: 21 !important;
+}
+
+body.is-pk-mode .ap-pk-rival-media {
+  z-index: 6 !important;
+  pointer-events: none !important;
+}
+
+body.is-pk-mode .party-chat-msg.is-pk-home {
+  border-left: 3px solid #ec4899 !important;
+  background: rgba(236, 72, 153, 0.14) !important;
+}
+
+body.is-pk-mode .party-chat-msg.is-pk-away {
+  border-left: 3px solid #3b82f6 !important;
+  background: rgba(59, 130, 246, 0.14) !important;
+}
+
+body.is-pk-mode .party-chat-pk-tag {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-radius: 4px;
+  padding: 1px 5px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+body.is-pk-mode .party-chat-pk-tag.home {
+  color: #fce7f3;
+  background: rgba(236, 72, 153, 0.55);
+}
+
+body.is-pk-mode .party-chat-pk-tag.away {
+  color: #dbeafe;
+  background: rgba(59, 130, 246, 0.55);
+}
+
+.ap-pk-winner-overlay.draw .ap-pk-winner-text {
+  background: linear-gradient(90deg, #94a3b8, #e2e8f0);
+  -webkit-background-clip: text;
+  background-clip: text;
 }
 
 .ap-pk-bar {
@@ -5494,9 +5992,10 @@ body.is-pk-mode .live-room .live-fallback-video {
   position: absolute;
   left: 0;
   right: 0;
-  top: var(--ap-pk-stage-top, calc(88px + env(safe-area-inset-top, 0px)));
-  bottom: var(--ap-pk-stage-bottom, 38%);
-  z-index: 11;
+  top: var(--pk-arena-top, calc(78px + env(safe-area-inset-top, 0px)));
+  height: var(--pk-arena-h, min(40vh, 340px));
+  bottom: auto;
+  z-index: 8;
   display: flex;
   pointer-events: none;
 }
@@ -5608,8 +6107,95 @@ body.is-pk-mode .live-room .live-fallback-video {
   filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.9));
 }
 
-.ap-pk-friend-pick {
-  margin: 4px 0 12px;
+.ap-pk-friend-chip {
+  position: relative;
+}
+
+.ap-pk-friend-chip.is-live {
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.7);
+}
+
+.ap-pk-friend-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  font-size: 8px;
+  font-weight: 800;
+  font-style: normal;
+  letter-spacing: 0.04em;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: #ef4444;
+  color: #fff;
+}
+
+.ap-pk-friend-chip:not(.is-live) .ap-pk-friend-badge {
+  background: rgba(15, 23, 42, 0.75);
+}
+
+.ap-pk-challenge-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 17000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.55);
+  pointer-events: auto;
+}
+
+.ap-pk-challenge-sheet.open {
+  display: flex !important;
+}
+
+.ap-pk-challenge-panel {
+  width: min(360px, 100%);
+  border-radius: 18px;
+  padding: 18px 16px 14px;
+  background: linear-gradient(165deg, #1e293b, #0f172a);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #fff;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+}
+
+.ap-pk-challenge-panel h3 {
+  margin: 0 0 8px;
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.ap-pk-challenge-panel p {
+  margin: 0 0 16px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.ap-pk-challenge-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.ap-pk-challenge-decline,
+.ap-pk-challenge-accept {
+  flex: 1;
+  min-height: 44px;
+  border: 0;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.ap-pk-challenge-decline {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.ap-pk-challenge-accept {
+  background: linear-gradient(135deg, #f97316, #ef4444);
+  color: #fff;
 }
 
 .ap-pk-friend-pick-title {
@@ -5677,12 +6263,44 @@ body.is-pk-mode .live-room .live-fallback-video {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  background: linear-gradient(160deg, #1e1b4b 0%, #0f172a 55%, #111827 100%);
+  background: linear-gradient(160deg, rgba(30, 27, 75, 0.72) 0%, rgba(15, 23, 42, 0.78) 55%, rgba(17, 24, 39, 0.8) 100%);
   color: rgba(255, 255, 255, 0.88);
   font-size: 12px;
   font-weight: 700;
   text-align: center;
   padding: 12px;
+}
+
+.ap-pk-rival-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid rgba(251, 191, 36, 0.85);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  background: #1e293b;
+}
+
+.ap-pk-rival-avatar[hidden] {
+  display: none !important;
+}
+
+.ap-pk-match-cancel {
+  pointer-events: auto;
+  margin-top: 14px;
+  min-height: 36px;
+  padding: 8px 20px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.75);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ap-pk-match-cancel:active {
+  transform: scale(0.97);
 }
 
 .ap-pk-waiting[hidden] {
@@ -5700,12 +6318,12 @@ body.is-pk-mode .live-room .live-fallback-video {
 }
 
 .ap-pk-status {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: calc(var(--ap-pk-stage-bottom, 42%) + 6px);
+  position: static;
+  left: auto;
+  transform: none;
+  bottom: auto;
   margin: 0;
-  max-width: 92%;
+  max-width: none;
   text-align: center;
   font-size: 11px;
   font-weight: 700;
@@ -5714,15 +6332,59 @@ body.is-pk-mode .live-room .live-fallback-video {
   line-height: 1.35;
   pointer-events: none;
   z-index: 12;
-  background: rgba(0, 0, 0, 0.4);
-  padding: 4px 12px;
-  border-radius: 999px;
+  background: transparent;
+  padding: 2px 10px 0;
+  border-radius: 0;
 }
 
 /* Highlight tools PK control while in battle */
 body.is-pk-mode #liveBtnPk .ico,
 body.is-pk-mode #liveBtnPk {
   box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.85);
+}
+
+body.is-pk-mode #liveBtnPk.is-pk-stop .ico {
+  background: linear-gradient(135deg, #dc2626, #ea580c);
+}
+
+/* Host Stop PK — sits under timer (pointer-events on; rest of overlay is none) */
+.ap-pk-stop-btn {
+  pointer-events: auto;
+  margin-top: 2px;
+  min-height: 32px;
+  padding: 6px 16px;
+  border: 0;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #fff;
+  background: linear-gradient(135deg, #ef4444, #ea580c);
+  box-shadow: 0 4px 14px rgba(220, 38, 38, 0.4);
+  cursor: pointer;
+  z-index: 16;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ap-pk-stop-btn[hidden] {
+  display: none !important;
+}
+
+.ap-pk-stop-btn:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.ap-pk-stop-btn:not([hidden]):active {
+  transform: scale(0.97);
+}
+
+body:not(.ap-pk-can-end) .ap-pk-stop-btn {
+  display: none !important;
+}
+
+body.ap-pk-can-end .ap-pk-stop-btn:not([hidden]) {
+  display: inline-flex !important;
 }
 
 /* Once PK is live, hard-hide the types sheet even if a class is stuck */
@@ -5733,17 +6395,18 @@ body.is-pk-mode .ap-pk-types-sheet {
   visibility: hidden !important;
 }
 
-/* Legacy win labels removed from old bar layout */
-
+/* —— Room PK sheet (reference design) —— */
+.ap-pk-types-sheet.ap-pk-room-sheet,
 .ap-pk-types-sheet {
   position: fixed;
   inset: 0;
-  z-index: 16050;
+  z-index: 33000;
   display: none;
   align-items: flex-end;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(0, 0, 0, 0.5);
   pointer-events: none;
+  padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
 }
 
 .ap-pk-types-sheet.open {
@@ -5751,68 +6414,161 @@ body.is-pk-mode .ap-pk-types-sheet {
   pointer-events: auto !important;
 }
 
-.ap-pk-types-panel {
+.ap-pk-room-panel.ap-pk-types-panel,
+.ap-pk-types-panel.ap-pk-room-panel {
   width: min(100%, 440px);
-  max-height: min(86dvh, 680px);
-  overflow: auto;
+  max-height: min(78dvh, 640px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   -webkit-overflow-scrolling: touch;
-  border-radius: 18px 18px 0 0;
-  background: linear-gradient(180deg, #1a1d28 0%, #0e1016 100%);
-  padding: 14px 14px calc(18px + env(safe-area-inset-bottom, 0));
+  border-radius: 20px 20px 0 0;
+  background: linear-gradient(180deg, #2a2d3a 0%, #1a1c26 55%, #12141c 100%);
+  padding: 16px 16px calc(18px + env(safe-area-inset-bottom, 0));
   color: #fff;
   position: relative;
-  box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.5);
 }
 
-.ap-pk-types-head {
+.ap-pk-room-panel .ap-pk-view {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.ap-pk-room-panel .ap-pk-view[hidden] {
+  display: none !important;
+}
+
+.ap-pk-logo {
+  display: inline-flex;
+  align-items: baseline;
+  font-weight: 900;
+  font-size: 20px;
+  letter-spacing: -0.06em;
+  line-height: 1;
+}
+
+.ap-pk-logo b {
+  color: #ff5ea8;
+  font-style: normal;
+}
+
+.ap-pk-logo i {
+  color: #6ec8ff;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.ap-pk-room-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 10px;
+  gap: 10px;
+  margin-bottom: 22px;
 }
 
-.ap-pk-types-head h3 {
-  margin: 0;
-  font-size: 17px;
-  font-weight: 700;
-}
-
-.ap-pk-types-close {
-  width: 32px;
-  height: 32px;
-  border: none;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
-  cursor: pointer;
-}
-
-.ap-pk-types-rank {
+.ap-pk-room-title {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.7);
-  margin-bottom: 14px;
 }
 
-.ap-pk-types-rank-badge {
-  width: 28px;
-  height: 28px;
+.ap-pk-room-title h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.ap-pk-room-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ap-pk-invitation-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 4px;
+}
+
+.ap-pk-invitation-btn .fas {
+  display: none;
+}
+
+.ap-pk-swords {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.ap-pk-help-btn {
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.45);
+  background: transparent;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: rgba(148, 163, 184, 0.25);
-  color: #e2e8f0;
-  font-size: 14px;
+}
+
+.ap-pk-time-block {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 28px;
+}
+
+.ap-pk-time-label {
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.88);
+  min-width: 36px;
+}
+
+.ap-pk-time-options {
+  display: flex;
+  flex: 1;
+  gap: 10px;
+}
+
+.ap-pk-time-chip {
+  flex: 1;
+  border: none;
+  border-radius: 999px;
+  padding: 10px 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.88);
+  background: rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ap-pk-time-chip.is-selected {
+  background: linear-gradient(90deg, #ff4fa3, #7b5cff);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(255, 79, 163, 0.35);
 }
 
 .ap-pk-type-cards {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
 
 .ap-pk-type-card {
@@ -5831,9 +6587,9 @@ body.is-pk-mode .ap-pk-types-sheet {
 }
 
 .ap-pk-type-card.is-selected {
-  border-color: #f97316;
-  background: rgba(249, 115, 22, 0.12);
-  box-shadow: 0 0 0 1px rgba(249, 115, 22, 0.35);
+  border-color: #ff4fa3;
+  background: rgba(255, 79, 163, 0.14);
+  box-shadow: 0 0 0 1px rgba(255, 79, 163, 0.3);
 }
 
 .ap-pk-type-tag {
@@ -5856,13 +6612,13 @@ body.is-pk-mode .ap-pk-types-sheet {
 }
 
 .ap-pk-type-art {
-  width: 52px;
-  height: 52px;
+  width: 48px;
+  height: 48px;
   border-radius: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 22px;
+  font-size: 20px;
   margin-top: 8px;
 }
 
@@ -5883,67 +6639,77 @@ body.is-pk-mode .ap-pk-types-sheet {
   font-weight: 600;
 }
 
-.ap-pk-match-radar {
-  position: relative;
-  width: min(220px, 60vw);
-  height: min(220px, 60vw);
-  margin: 8px auto 16px;
-  border-radius: 50%;
-  background: radial-gradient(circle at center, rgba(249, 115, 22, 0.35), rgba(14, 16, 22, 0.2) 55%, transparent 70%);
+.ap-pk-friend-pick {
+  margin: 0 0 12px;
+  max-height: min(28vh, 200px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.ap-pk-radar-ring {
-  position: absolute;
-  inset: 12%;
-  border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.12);
-  box-shadow:
-    0 0 0 18px rgba(255, 255, 255, 0.04),
-    0 0 0 36px rgba(255, 255, 255, 0.03);
+.ap-pk-friend-pick[hidden] {
+  display: none !important;
 }
 
-.ap-pk-radar-sweep {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background: conic-gradient(from 0deg, transparent 0deg, rgba(251, 113, 133, 0.55) 50deg, transparent 90deg);
-  animation: ap-pk-radar-spin 1.4s linear infinite;
-}
-
-@keyframes ap-pk-radar-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.ap-pk-match-label {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
+.ap-pk-friend-pick-title {
   margin: 0;
   font-size: 12px;
-  font-weight: 700;
-  text-align: center;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
-  z-index: 2;
-  pointer-events: none;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
 }
 
-.ap-pk-types-check {
+.ap-pk-friend-list {
   display: flex;
-  align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.85);
-  margin: 4px 0 14px;
-  cursor: pointer;
+  overflow-y: auto;
+  max-height: min(22vh, 160px);
+  -webkit-overflow-scrolling: touch;
 }
 
-.ap-pk-types-check input {
-  width: 18px;
-  height: 18px;
-  accent-color: #f97316;
+.ap-pk-friend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.28);
+  color: #fff;
+  padding: 5px 10px 5px 5px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.ap-pk-friend-chip.is-selected {
+  border-color: #ff4fa3;
+  background: rgba(255, 79, 163, 0.18);
+}
+
+.ap-pk-friend-chip.is-live {
+  box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.45);
+}
+
+.ap-pk-friend-chip img {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.ap-pk-friend-badge {
+  font-style: normal;
+  font-size: 9px;
+  font-weight: 800;
+  color: #fda4af;
+  text-transform: uppercase;
+}
+
+.ap-pk-friend-empty,
+.ap-pk-friend-loading {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+  margin: 0;
 }
 
 .ap-pk-confirm-btn {
@@ -5951,13 +6717,17 @@ body.is-pk-mode .ap-pk-types-sheet {
   border: none;
   border-radius: 999px;
   padding: 14px 16px;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 800;
-  letter-spacing: 0.04em;
   color: #fff;
-  background: linear-gradient(90deg, #f97316, #ea580c);
-  box-shadow: 0 8px 24px rgba(249, 115, 22, 0.35);
+  background: linear-gradient(90deg, #ff4fa3, #6b7bff);
+  box-shadow: 0 8px 24px rgba(107, 123, 255, 0.3);
   cursor: pointer;
+  margin-top: 4px;
+}
+
+.ap-pk-confirm-btn[hidden] {
+  display: none !important;
 }
 
 .ap-pk-confirm-btn:disabled {
@@ -5965,12 +6735,294 @@ body.is-pk-mode .ap-pk-types-sheet {
   cursor: wait;
 }
 
-/* Once PK is live, hard-hide the types sheet even if a class is stuck */
-body.is-pk-mode #apPkTypesSheet,
-body.is-pk-mode .ap-pk-types-sheet {
+.ap-pk-room-cta[hidden] {
   display: none !important;
-  pointer-events: none !important;
-  visibility: hidden !important;
+}
+
+.ap-pk-room-cta {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
+  gap: 12px;
+  margin-top: 4px;
+  margin-bottom: 8px;
+}
+
+.ap-pk-random-btn {
+  border: none;
+  border-radius: 999px;
+  min-height: 52px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  color: #fff;
+  background: linear-gradient(90deg, #ff4fa3 0%, #6b7bff 100%);
+  box-shadow: 0 8px 22px rgba(107, 123, 255, 0.35);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ap-pk-random-title {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.ap-pk-random-sub {
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.ap-pk-invite-room-btn {
+  border: none;
+  border-radius: 999px;
+  min-height: 52px;
+  padding: 12px 10px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  background: #3d2f66;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ap-pk-invite-room-btn:active,
+.ap-pk-random-btn:active {
+  transform: scale(0.98);
+}
+
+/* Invite a room */
+.ap-pk-invite-head {
+  display: grid;
+  grid-template-columns: 36px 1fr 36px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.ap-pk-invite-head h3 {
+  margin: 0;
+  text-align: center;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.ap-pk-invite-back {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ap-pk-invite-head-spacer {
+  width: 36px;
+  height: 36px;
+}
+
+.ap-pk-room-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.35);
+  margin-bottom: 12px;
+}
+
+.ap-pk-room-search i {
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 13px;
+}
+
+.ap-pk-room-search input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: #fff;
+  font-size: 14px;
+}
+
+.ap-pk-room-search input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.ap-pk-room-invite-list {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  max-height: min(48vh, 360px);
+  padding-bottom: 8px;
+}
+
+.ap-pk-room-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 2px;
+}
+
+.ap-pk-room-avatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #333;
+  flex-shrink: 0;
+}
+
+.ap-pk-room-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ap-pk-room-name {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ap-pk-room-viewers {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.ap-pk-room-invite-cta {
+  border: none;
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  background: #5b3fcc;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.ap-pk-room-invite-empty,
+.ap-pk-room-invite-loading {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 13px;
+  padding: 24px 8px;
+}
+
+/* Matching circle */
+.ap-pk-match-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.ap-pk-match-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.ap-pk-match-dur {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.75);
+  font-weight: 600;
+}
+
+.ap-pk-match-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 0 8px;
+  gap: 16px;
+}
+
+.ap-pk-match-circle {
+  position: relative;
+  width: 168px;
+  height: 168px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ap-pk-match-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.ap-pk-match-ring-bg {
+  stroke: rgba(255, 255, 255, 0.1);
+}
+
+.ap-pk-match-ring-fg {
+  stroke: url(#none);
+  stroke: #6b7bff;
+  stroke: url(#apPkRingGrad);
+  /* solid fallback + CSS gradient via stroke */
+  stroke: #a855f7;
+  filter: drop-shadow(0 0 6px rgba(168, 85, 247, 0.45));
+  transition: stroke-dashoffset 0.9s linear;
+  stroke-dasharray: 339.292;
+  stroke-dashoffset: 0;
+}
+
+.ap-pk-match-circle::before {
+  content: '';
+  position: absolute;
+  inset: 10px;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, rgba, rgba);
+  pointer-events: none;
+}
+
+.ap-pk-match-secs {
+  position: relative;
+  z-index: 1;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  background: linear-gradient(90deg, #60a5fa, #f472b6);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.ap-pk-match-hint {
+  margin: 0;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+  text-align: center;
+  min-height: 1.2em;
+}
+
+.ap-pk-match-cancel {
+  width: min(100%, 280px);
+  border: none;
+  border-radius: 999px;
+  padding: 13px 18px;
+  font-size: 15px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.14);
+  cursor: pointer;
 }
 
 /* legacy score styles superseded by .ap-pk-score-wrap block above */
@@ -6576,6 +7628,7 @@ body[data-live-page="party-room"] .ap-guest-rail:not(:empty) {
   flex-shrink: 0;
   padding-top: 8px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: transparent;
 }
 
 .gift-sheet-tabs button.active {
@@ -9028,12 +10081,12 @@ html.ap-expo-app .ap-chip {
 /* ——— Premium luxury gift sheet (UI only) ——— */
 .gift-sheet--lux .gift-sheet-panel {
   background:
-    linear-gradient(165deg, rgba(36, 28, 18, 0.97) 0%, rgba(12, 10, 18, 0.98) 45%, rgba(8, 8, 14, 0.99) 100%);
+    linear-gradient(165deg, rgba(42, 32, 22, 0.98) 0%, rgba(22, 16, 28, 0.98) 45%, rgba(16, 14, 24, 0.99) 100%);
   border-top: 1px solid rgba(251, 191, 36, 0.28);
-  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(22px) saturate(1.2);
-  -webkit-backdrop-filter: blur(22px) saturate(1.2);
-  max-height: min(68vh, 560px);
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(18px) saturate(1.15);
+  -webkit-backdrop-filter: blur(18px) saturate(1.15);
+  max-height: min(62vh, 520px);
 }
 
 .gift-sheet--lux .gift-send-label {
@@ -9164,4 +10217,185 @@ html.ap-expo-app .ap-chip {
   border: 1px solid rgba(251, 191, 36, 0.25);
   background: rgba(251, 191, 36, 0.08);
   border-radius: 999px;
+}
+
+
+/* ===== Live chrome stack: bar below sheets; gift/tools/PK above and tappable ===== */
+#partyBottomBar.party-bottom-bar,
+body[data-live-page='live-room'] #partyBottomBar,
+.party-bottom-bar#partyBottomBar {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  gap: 8px !important;
+  overflow: visible !important;
+  z-index: 14000 !important;
+  pointer-events: auto !important;
+  position: fixed !important;
+  left: 0 !important;
+  right: 0 !important;
+  /* Lift above home indicator / gesture bar */
+  bottom: max(12px, env(safe-area-inset-bottom, 0px)) !important;
+  padding: 8px 10px 10px !important;
+  min-height: 56px !important;
+}
+
+/* When gift / tools / PK sheets open, keep bar UNDER them so Send + PK work */
+body:has(#giftSheet.open) #partyBottomBar,
+body:has(#partyToolsSheet.open) #partyBottomBar,
+body:has(.ap-pk-types-sheet.open) #partyBottomBar,
+body:has(.party-requests-sheet.open) #partyBottomBar,
+body.ap-live-overlay-open #partyBottomBar {
+  z-index: 12000 !important;
+  pointer-events: none !important;
+}
+
+#giftSheet,
+.gift-sheet {
+  z-index: 32000 !important;
+}
+#giftSheet.open,
+.gift-sheet.open {
+  z-index: 32000 !important;
+  pointer-events: auto !important;
+}
+
+#partyToolsSheet,
+.party-tools-sheet {
+  z-index: 32000 !important;
+}
+#partyToolsSheet.open,
+.party-tools-sheet.open {
+  z-index: 32000 !important;
+  pointer-events: auto !important;
+}
+
+.ap-pk-types-sheet,
+.ap-pk-types-sheet.open {
+  z-index: 33000 !important;
+}
+
+#partyBottomBar #liveChatCompose,
+#partyBottomBar .live-chat-compose.ap-compose-inline {
+  flex: 1 1 0% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  overflow: hidden !important;
+  z-index: 1 !important;
+  position: relative !important;
+}
+
+#partyBottomBar .party-bottom-actions {
+  flex: 0 0 auto !important;
+  flex-shrink: 0 !important;
+  z-index: 5 !important;
+  position: relative !important;
+  pointer-events: auto !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+#partyBottomBar #liveBtnGift,
+#partyBottomBar .party-btn-gift,
+#partyBottomBar .ap-btn-gift-hero {
+  flex-shrink: 0 !important;
+  z-index: 6 !important;
+  position: relative !important;
+  pointer-events: auto !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 48px !important;
+  height: 48px !important;
+  min-width: 48px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  line-height: 1 !important;
+  text-align: center !important;
+}
+
+#partyBottomBar #liveBtnGift i,
+#partyBottomBar .party-btn-gift i,
+#partyBottomBar .ap-btn-gift-hero i {
+  line-height: 1 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  display: block !important;
+  position: relative !important;
+  top: 0 !important;
+  left: 0 !important;
+  transform: none !important;
+}
+
+#partyBottomBar #partyBtnTools,
+#partyBottomBar #liveBtnMic {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+}
+
+/* Send gift row */
+.gift-sheet .gift-qty-row,
+.gift-sheet--send-safe .gift-qty-row {
+  flex-shrink: 0 !important;
+  position: relative !important;
+  z-index: 6 !important;
+  background: transparent !important;
+  padding-top: 10px !important;
+  pointer-events: auto !important;
+}
+.gift-sheet .gift-send-btn,
+#giftSendBtn {
+  pointer-events: auto !important;
+  z-index: 7 !important;
+  position: relative !important;
+  min-height: 44px !important;
+}
+
+/* Closed gift sheet MUST not paint over the live theme */
+.gift-sheet:not(.open),
+#giftSheet:not(.open) {
+  display: none !important;
+  background: transparent !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+}
+
+/* Open dim — soft only; panel keeps luxury gold theme (do not force flat black) */
+#giftSheet.open,
+.gift-sheet.open {
+  background: rgba(0, 0, 0, 0.4) !important;
+}
+
+#giftSheet.open .gift-sheet-panel,
+.gift-sheet.open .gift-sheet-panel {
+  /* Let lux theme show through — only a soft fallback if lux class missing */
+  background:
+    linear-gradient(165deg, rgba(42, 32, 22, 0.98) 0%, rgba(22, 16, 28, 0.98) 50%, rgba(16, 14, 24, 0.99) 100%) !important;
+  margin-bottom: 0 !important;
+}
+
+.live-room .live-overlay {
+  padding-bottom: calc(var(--ap-bottom-bar-h, 58px) + max(12px, env(safe-area-inset-bottom, 0px)) + 12px) !important;
+  overflow: hidden !important;
+}
+
+.live-room .party-chat-feed,
+#partyChatFeed {
+  padding-bottom: 12px !important;
+}
+
+.live-room .party-chat-row {
+  z-index: 20 !important;
+  pointer-events: none !important;
+}
+.live-room .party-chat-zone,
+.live-room .party-chat-feed,
+.live-room .party-chat-msg {
+  pointer-events: auto !important;
 }

@@ -12,11 +12,11 @@
   <link rel="preload" href="https://download.agora.io/sdk/release/AgoraRTC_N-4.22.0.js" as="script">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" media="print" onload="this.media='all'">
   <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"></noscript>
-  <link rel="stylesheet" href="social-live.css?v=20260811-pk-modes">
+  <link rel="stylesheet" href="social-live.css?v=20260811-theme-restore">
   <link rel="stylesheet" href="social-live-session.css?v=20260723-mini-close">
-  <link rel="stylesheet" href="social-live-ref-ui.css?v=20260718-fast-join">
-  <link rel="stylesheet" href="social-fx.css?v=20260723-gift-smooth">
-  <link rel="stylesheet" href="social-live-pro.css?v=20260718-fast-join">
+  <link rel="stylesheet" href="social-live-ref-ui.css?v=20260811-pk-arena">
+  <link rel="stylesheet" href="social-fx.css?v=20260811-theme-restore">
+  <link rel="stylesheet" href="social-live-pro.css?v=20260811-theme-restore">
   <link rel="stylesheet" href="beauty/ui/beauty-sheet.css?v=20260718-fast-join" media="print" onload="this.media='all'">
   <style id="ap-immersive-critical">
     /* Host controls bar removed — permanently hidden for everyone */
@@ -381,6 +381,26 @@
         </div>
       </section>
 
+      <!-- Room Play near top so Room PK is always reach/tappable -->
+      <section data-tools-section="room-play" class="host-only-tool">
+        <h3 class="party-tools-title party-tools-title--room-play">Room Play</h3>
+        <div class="party-tools-grid party-tools-grid-4">
+          <button type="button" id="liveBtnPk" class="host-tool-btn host-only-tool" data-host-tool="pk">
+            <span class="ico pk"><span class="ap-pk-ico-mark" aria-hidden="true"><b>P</b><i>K</i></span></span>
+            <span class="ap-pk-tool-label">Room PK</span>
+          </button>
+          <button type="button" id="partyBtnLuckyBox" class="host-tool-btn" data-host-tool="lucky-box">
+            <span class="ico lucky"><i class="fas fa-box-open"></i></span>Lucky Packet
+          </button>
+          <button type="button" class="ap-tool-game host-tool-btn" data-game="/games/greedy.html" data-host-tool="game-pk">
+            <span class="ico games"><i class="fas fa-gamepad"></i></span>Game PK
+          </button>
+          <button type="button" id="partyBtnGiftCenter" class="host-tool-btn" data-host-tool="gift-center">
+            <span class="ico giftc"><i class="fas fa-gift"></i></span>Gifts
+          </button>
+        </div>
+      </section>
+
       <section data-tools-section="basic">
         <h3 class="party-tools-title">Basic Tools</h3>
         <div class="party-tools-grid party-tools-grid-4">
@@ -433,22 +453,16 @@
         <div class="party-tools-grid party-tools-grid-4">
           <a href="/rankings.html?app=1" class="host-tool-link" data-host-tool="rank"><span class="ico rank"><i
                 class="fas fa-trophy"></i></span>Rank</a>
-          <button type="button" id="liveBtnPk" class="host-tool-btn host-only-tool" data-host-tool="pk"><span
-              class="ico pk"><i class="fas fa-bolt"></i></span>PK</button>
           <a href="/coins-recharge.html?app=1" class="host-tool-link" data-host-tool="rewards"><span
               class="ico coins"><i class="fas fa-coins"></i></span>Rewards</a>
           <a href="/store.html?app=1" class="host-tool-link" data-host-tool="store"><span class="ico store"><i
                 class="fas fa-shopping-bag"></i></span>Store</a>
           <a href="/vip.html?app=1" class="host-tool-link" data-host-tool="vip"><span class="ico vip"><i
                 class="fas fa-gem"></i></span>VIP</a>
-          <button type="button" id="partyBtnGiftCenter" class="host-tool-btn" data-host-tool="gift-center"><span
-              class="ico giftc"><i class="fas fa-gift"></i></span>Gift Center</button>
           <button type="button" id="partyBtnBackpack" class="host-tool-btn" data-host-tool="backpack"><span
               class="ico backpack"><i class="fas fa-shopping-bag"></i></span>Backpack</button>
           <button type="button" id="partyBtnGiftTools" class="host-tool-btn" data-host-tool="gift-gallery"><span
               class="ico gallery"><i class="fas fa-gift"></i></span>Gift Gallery</button>
-          <button type="button" id="partyBtnLuckyBox" class="host-tool-btn" data-host-tool="lucky-box"><span
-              class="ico lucky"><i class="fas fa-box-open"></i></span>Lucky Box</button>
           <button type="button" id="partyBtnGiftCollection" class="host-tool-btn"
             data-host-tool="gift-collection"><span class="ico collection"><i class="fas fa-book-open"></i></span>Gift
             Collection</button>
@@ -502,7 +516,7 @@
   <script src="voice-soak-metrics.js?v=20260724-phase1-life"></script>
   <!-- TEMPORARY investigation only — inert unless localStorage.ap_voice_route_debug=1 -->
   <script src="voice-route-debug.js?v=temp-route-debug"></script>
-  <script src="social-live.js?v=20260811-pk-modes"></script>
+  <script src="social-live.js?v=20260811-theme-restore"></script>
   <script src="social-live-interactions.js"></script>
   <script src="social-nav.js?v=20260720-back-fix"></script>
 </body>

@@ -368,6 +368,367 @@
   let lastCoinBalance = null;
   let pkBattleActive = false;
   let pkEndRequested = false;
+  /** User ids who can end this battle (PK hosts / participants) */
+  let pkEnderIds = new Set();
+  let pkRivalAgoraClient = null;
+  let pkRivalChannelJoined = '';
+  let pkLinkedChannels = [];
+  let pkViewSwapped = false;
+  let pkRivalWatchTimer = null;
+  let pkActiveBattleId = null;
+
+  function isPkViewSwapped(snapshot) {
+    const me = String(currentUser()?.id || '');
+    const mine = String(channelId() || '');
+    if (!me && !mine) return false;
+    if (snapshot?.rivalChannel && String(snapshot.rivalChannel) === mine) return true;
+    if (snapshot?.challengerChannel && String(snapshot.challengerChannel) === mine) return false;
+    if (snapshot?.rivalUserId && String(snapshot.rivalUserId) === me) return true;
+    if (snapshot?.challengerUserId && String(snapshot.challengerUserId) === me) return false;
+    return (snapshot?.participants || []).some(
+      (p) => String(p.user_id || p.userId) === me && Number(p.team) === 2
+    );
+  }
+
+  function resolvePkRivalChannel(snapshot) {
+    const mine = String(channelId() || '');
+    const linked = Array.isArray(snapshot?.linkedChannels)
+      ? snapshot.linkedChannels.map(String)
+      : Array.isArray(pkLinkedChannels)
+        ? pkLinkedChannels.map(String)
+        : [];
+    /* Always pick the OTHER linked channel relative to this room */
+    if (pkViewSwapped || (snapshot && isPkViewSwapped(snapshot))) {
+      if (snapshot?.challengerChannel && String(snapshot.challengerChannel) !== mine) {
+        return String(snapshot.challengerChannel);
+      }
+    }
+    if (snapshot?.rivalChannel && String(snapshot.rivalChannel) !== mine) {
+      return String(snapshot.rivalChannel);
+    }
+    if (snapshot?.challengerChannel && String(snapshot.challengerChannel) !== mine) {
+      return String(snapshot.challengerChannel);
+    }
+    const other = linked.find((c) => c && c !== mine);
+    if (other) return other;
+    if (pkMatchedRivalMeta?.channel && String(pkMatchedRivalMeta.channel) !== mine) {
+      return String(pkMatchedRivalMeta.channel);
+    }
+    return '';
+  }
+
+  function ensurePkRivalMediaBox() {
+    const root = document.getElementById('liveRoomRoot') || document.querySelector('.party-room');
+    if (!root) return null;
+    let box = document.getElementById('apPkRivalMedia');
+    if (!box) {
+      root.insertAdjacentHTML(
+        'beforeend',
+        `<div id="apPkRivalMedia" class="ap-pk-rival-media" aria-hidden="true"></div>`
+      );
+      box = document.getElementById('apPkRivalMedia');
+    }
+    return box;
+  }
+
+  let pkRivalJoinPromise = null;
+  /** Agora uid of the rival room HOST — only their A/V is played from rival channel */
+  let pkRivalHostAgoraUid = null;
+  /** Last PK snapshot for orientation on end */
+  let pkLastSnapshot = null;
+
+  function pkMyTeamFromSnapshot(snapshot) {
+    const mine = String(channelId() || '');
+    const me = String(currentUser()?.id || '');
+    if (snapshot?.rivalChannel && String(snapshot.rivalChannel) === mine) return 2;
+    if (snapshot?.challengerChannel && String(snapshot.challengerChannel) === mine) return 1;
+    if (snapshot?.rivalUserId && String(snapshot.rivalUserId) === me) return 2;
+    if (snapshot?.challengerUserId && String(snapshot.challengerUserId) === me) return 1;
+    if ((snapshot?.participants || []).some((p) => String(p.user_id || p.userId) === me && Number(p.team) === 2)) {
+      return 2;
+    }
+    return 1;
+  }
+
+  function resolvePkSideNames(snapshot) {
+    const mine = String(channelId() || '');
+    const thisRoomHost =
+      roomState?.hostName ||
+      document.getElementById('liveHostName')?.textContent ||
+      (isHost?.() || clientClaimsHost?.() ? displayName(currentUser()) : null) ||
+      'Host';
+    const challenger =
+      snapshot?.hostName ||
+      (snapshot?.participants || []).find((p) => Number(p.team) === 1)?.display_name ||
+      'Host';
+    const rival =
+      snapshot?.rivalName ||
+      snapshot?.opponentName ||
+      pkMatchedRivalMeta?.name ||
+      (snapshot?.participants || []).find((p) => Number(p.team) === 2)?.display_name ||
+      'Rival';
+
+    /* Left slot = THIS room host video. Right = other PK host. Never swap by raw team labels. */
+    if (snapshot?.challengerChannel && String(snapshot.challengerChannel) === mine) {
+      return { labelL: challenger || thisRoomHost, labelR: rival, myTeam: 1 };
+    }
+    if (snapshot?.rivalChannel && String(snapshot.rivalChannel) === mine) {
+      return { labelL: rival || thisRoomHost, labelR: challenger, myTeam: 2 };
+    }
+    if (isHost?.() || clientClaimsHost?.()) {
+      const me = String(currentUser()?.id || '');
+      if (snapshot?.challengerUserId && String(snapshot.challengerUserId) === me) {
+        return { labelL: challenger || thisRoomHost, labelR: rival, myTeam: 1 };
+      }
+      if (snapshot?.rivalUserId && String(snapshot.rivalUserId) === me) {
+        return { labelL: rival || thisRoomHost, labelR: challenger, myTeam: 2 };
+      }
+    }
+    /* Audience: this room host left, their PK rival right */
+    const thisHostId = String(roomState?.hostId || '');
+    if (thisHostId && snapshot?.rivalUserId && thisHostId === String(snapshot.rivalUserId)) {
+      return { labelL: rival || thisRoomHost, labelR: challenger, myTeam: 2 };
+    }
+    if (thisHostId && snapshot?.challengerUserId && thisHostId === String(snapshot.challengerUserId)) {
+      return { labelL: challenger || thisRoomHost, labelR: rival, myTeam: 1 };
+    }
+    return {
+      labelL: thisRoomHost,
+      labelR: pkMatchedRivalMeta?.name || rival,
+      myTeam: pkMyTeamFromSnapshot(snapshot),
+    };
+  }
+
+  function resolveRivalHostAgoraUid(snapshot, rivalCh) {
+    if (!snapshot) return null;
+    const ch = String(rivalCh || '');
+    if (snapshot.rivalChannel && ch === String(snapshot.rivalChannel) && snapshot.rivalAgoraUid != null) {
+      return Number(snapshot.rivalAgoraUid);
+    }
+    if (
+      snapshot.challengerChannel &&
+      ch === String(snapshot.challengerChannel) &&
+      snapshot.challengerAgoraUid != null
+    ) {
+      return Number(snapshot.challengerAgoraUid);
+    }
+    if (snapshot.rivalAgoraUid != null && ch === String(snapshot.rivalChannel || '')) {
+      return Number(snapshot.rivalAgoraUid);
+    }
+    if (snapshot.challengerAgoraUid != null && ch === String(snapshot.challengerChannel || '')) {
+      return Number(snapshot.challengerAgoraUid);
+    }
+    /* Prefer the rival meta user if we have only one side */
+    if (pkMatchedRivalMeta?.userId && window.__apAgoraUidMap) {
+      const map = window.__apAgoraUidMap;
+      for (const [aUid, uId] of Object.entries(map)) {
+        if (String(uId) === String(pkMatchedRivalMeta.userId)) return Number(aUid);
+      }
+    }
+    return null;
+  }
+
+  function isPkRivalHostAgoraUser(user) {
+    if (!user) return false;
+    if (pkRivalHostAgoraUid != null && Number(user.uid) === Number(pkRivalHostAgoraUid)) return true;
+    if (pkRivalHostAgoraUid != null) return false;
+    /* Fallback: only first remote user with video (likely host) */
+    return Boolean(user.hasVideo || user.videoTrack);
+  }
+
+  async function stopPkRivalAgora() {
+    const box = document.getElementById('apPkRivalMedia');
+    if (box) {
+      box.innerHTML = '';
+      box.setAttribute('aria-hidden', 'true');
+    }
+    document.body.classList.remove('ap-pk-has-rival');
+    document.documentElement.classList.remove('ap-pk-has-rival');
+    const client = pkRivalAgoraClient;
+    pkRivalAgoraClient = null;
+    pkRivalChannelJoined = '';
+    pkRivalHostAgoraUid = null;
+    if (!client) return;
+    try {
+      client.removeAllListeners?.();
+    } catch (_e) {}
+    try {
+      await client.leave();
+    } catch (_e) {}
+  }
+
+  async function startPkRivalAgora(rivalChannel, snapshotHint) {
+    const ch = String(rivalChannel || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64);
+    if (!ch || ch === String(channelId() || '')) return;
+    const snap = snapshotHint || pkLastSnapshot;
+    pkRivalHostAgoraUid = resolveRivalHostAgoraUid(snap, ch);
+
+    if (pkRivalChannelJoined === ch && pkRivalAgoraClient) {
+      /* already linked — re-subscribe host media only */
+      try {
+        const box = ensurePkRivalMediaBox();
+        if (box && pkRivalAgoraClient.remoteUsers?.length) {
+          for (const user of pkRivalAgoraClient.remoteUsers) {
+            const isHostPub = isPkRivalHostAgoraUser(user);
+            if (user.hasVideo && isHostPub && !box.querySelector('video')) {
+              try {
+                await pkRivalAgoraClient.subscribe(user, 'video');
+                if (user.videoTrack) {
+                  box.innerHTML = '';
+                  box.setAttribute('aria-hidden', 'false');
+                  user.videoTrack.play(box, { fit: 'cover' });
+                  document.body.classList.add('ap-pk-has-rival');
+                  document.documentElement.classList.add('ap-pk-has-rival');
+                }
+              } catch (_e) {}
+            }
+            if (user.hasAudio) {
+              if (isHostPub) {
+                try {
+                  await pkRivalAgoraClient.subscribe(user, 'audio');
+                  user.audioTrack?.play?.();
+                  user.audioTrack?.setVolume?.(100);
+                } catch (_e) {}
+              } else {
+                try {
+                  user.audioTrack?.stop?.();
+                  user.audioTrack?.setVolume?.(0);
+                  await pkRivalAgoraClient.unsubscribe?.(user, 'audio');
+                } catch (_e) {}
+              }
+            }
+          }
+        }
+      } catch (_e) {}
+      return;
+    }
+    if (pkRivalJoinPromise) {
+      try {
+        await pkRivalJoinPromise;
+      } catch (_e) {}
+      if (pkRivalChannelJoined === ch && pkRivalAgoraClient) return;
+    }
+
+    pkRivalJoinPromise = (async () => {
+      await stopPkRivalAgora();
+      pkRivalHostAgoraUid = resolveRivalHostAgoraUid(snap, ch);
+      const box = ensurePkRivalMediaBox();
+      if (!box) return;
+
+      const AgoraRTC = await loadAgoraScript();
+      const res = await (window.API?.postFresh || window.API?.post)?.call(
+        window.API,
+        '/live/agora/token',
+        { channel: ch, role: 'audience' }
+      );
+      const appId = String(res?.appId || res?.data?.appId || '').trim();
+      const token = res?.token || res?.data?.token;
+      const uid = res?.uid != null ? res.uid : res?.data?.uid;
+      if (!appId || !token) {
+        console.warn('[pk] rival agora token missing', res);
+        toast('Could not connect rival stream', 'warning');
+        return;
+      }
+
+      const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
+      pkRivalAgoraClient = client;
+      pkRivalChannelJoined = ch;
+
+      const playUser = async (user, mediaType) => {
+        if (!pkRivalAgoraClient || pkRivalAgoraClient !== client) return;
+        const isHostPub = isPkRivalHostAgoraUser(user);
+        /* Guests on rival stream: no audio (and skip their video to keep host camera) */
+        if (!isHostPub) {
+          if (mediaType === 'audio') return;
+          if (mediaType === 'video' && box.querySelector('video')) return;
+          if (mediaType === 'video' && pkRivalHostAgoraUid != null) return;
+        }
+        try {
+          await client.subscribe(user, mediaType);
+        } catch (e) {
+          console.warn('[pk] rival subscribe', mediaType, e?.message || e);
+          return;
+        }
+        if (mediaType === 'video' && user.videoTrack && isHostPub) {
+          box.innerHTML = '';
+          box.setAttribute('aria-hidden', 'false');
+          user.videoTrack.play(box, { fit: 'cover' });
+          document.body.classList.add('ap-pk-has-rival');
+          document.documentElement.classList.add('ap-pk-has-rival');
+          try {
+            const wait = document.getElementById('apPkWaitingR');
+            if (wait) wait.hidden = true;
+          } catch (_e) {}
+          setPkStatus('PK LIVE — streams linked');
+        }
+        if (mediaType === 'audio' && user.audioTrack && isHostPub) {
+          try {
+            user.audioTrack.play();
+            user.audioTrack.setVolume?.(100);
+          } catch (_e) {}
+        } else if (mediaType === 'audio' && user.audioTrack && !isHostPub) {
+          try {
+            user.audioTrack.setVolume?.(0);
+            user.audioTrack.stop?.();
+          } catch (_e) {}
+        }
+      };
+
+      client.on('user-published', (user, mediaType) => {
+        playUser(user, mediaType).catch(() => {});
+      });
+      client.on('user-unpublished', (user, mediaType) => {
+        if (mediaType === 'video' && isPkRivalHostAgoraUser(user)) {
+          try {
+            user.videoTrack?.stop?.();
+          } catch (_e) {}
+        }
+      });
+
+      await client.join(appId, ch, token, uid != null ? Number(uid) || uid : null);
+
+      for (const user of client.remoteUsers || []) {
+        if (user.hasVideo) await playUser(user, 'video');
+        if (user.hasAudio) await playUser(user, 'audio');
+      }
+      if (box.querySelector('video')) setPkStatus('PK LIVE — streams linked');
+      else setPkStatus('Linking rival stream…');
+    })();
+
+    try {
+      await pkRivalJoinPromise;
+    } catch (e) {
+      console.error('[pk] rival agora join failed', e);
+      toast('Rival audio/video unavailable — gift war still active', 'warning');
+      await stopPkRivalAgora();
+    } finally {
+      pkRivalJoinPromise = null;
+    }
+  }
+
+  function rememberPkEnders(snapshot) {
+    const next = new Set();
+    (snapshot?.participants || []).forEach((p) => {
+      const id = String(p?.user_id || p?.userId || '');
+      if (id) next.add(id);
+    });
+    if (snapshot?.battle?.host_user_id) next.add(String(snapshot.battle.host_user_id));
+    if (pkMatchedRivalMeta?.userId) next.add(String(pkMatchedRivalMeta.userId));
+    const me = String(currentUser()?.id || '');
+    if (me && (pkBattleActive || snapshot)) next.add(me);
+    /* room host of this live always allowed */
+    if (roomState?.hostId) next.add(String(roomState.hostId));
+    pkEnderIds = next;
+  }
+
+  function canEndPkBattle() {
+    const me = String(currentUser()?.id || '');
+    if (!me) return false;
+    if (isHost?.() || clientClaimsHost?.()) return true;
+    if (pkEnderIds.has(me)) return true;
+    if (pkMatchedRivalMeta?.userId && String(pkMatchedRivalMeta.userId) === me) return true;
+    return false;
+  }
 
   function pkSecsRemaining(snapshot) {
     const endsAt = snapshot?.battle?.ends_at;
@@ -377,13 +738,109 @@
 
   function applyPkTeamsFromSnapshot(snapshot) {
     const teams = snapshot?.teams || snapshot?.teamScores || [];
-    pkScoreLeft = Number(teams[0]?.team_score ?? teams[0]?.score ?? 0);
-    pkScoreRight = Number(teams[1]?.team_score ?? teams[1]?.score ?? 0);
+    const byTeam = (n) => {
+      const hit = teams.find((t) => Number(t.team) === n);
+      if (hit) return Number(hit.team_score ?? hit.score ?? 0);
+      if (teams[n - 1] && Number(teams[n - 1].team) === n) {
+        return Number(teams[n - 1].team_score ?? teams[n - 1].score ?? 0);
+      }
+      return Number(teams[n - 1]?.team_score ?? teams[n - 1]?.score ?? 0);
+    };
+    const t1 = byTeam(1);
+    const t2 = byTeam(2);
+    const myTeam = pkMyTeamFromSnapshot(snapshot);
+    /* Left score always = this room's team (what's under your video) */
+    if (myTeam === 2) {
+      pkScoreLeft = t2;
+      pkScoreRight = t1;
+    } else {
+      pkScoreLeft = t1;
+      pkScoreRight = t2;
+    }
   }
 
   function setPkStatus(text) {
     const el = document.getElementById('apPkStatus');
     if (el) el.textContent = text || '';
+  }
+
+  function isPkLiveNow() {
+    return Boolean(pkBattleActive || document.body.classList.contains('is-pk-mode'));
+  }
+
+  function syncPkControlUi() {
+    const live = isPkLiveNow();
+    const canEnd = Boolean(live && canEndPkBattle());
+    document.body.classList.toggle('ap-pk-can-end', canEnd);
+    document.documentElement.classList.toggle('ap-pk-can-end', canEnd);
+    const stopBtn = document.getElementById('apPkStopBtn');
+    if (stopBtn) {
+      stopBtn.hidden = !canEnd;
+      stopBtn.disabled = Boolean(pkEndRequested);
+      stopBtn.setAttribute('aria-hidden', canEnd ? 'false' : 'true');
+      stopBtn.textContent = pkEndRequested ? 'Ending…' : 'End PK';
+      stopBtn.classList.remove('host-only-tool');
+    }
+    const toolBtn = document.getElementById('liveBtnPk');
+    if (toolBtn) {
+      const isRoomHost = Boolean(isHost?.() || clientClaimsHost?.());
+      const showStopOnTools = canEnd && isRoomHost;
+      toolBtn.classList.toggle('is-pk-stop', showStopOnTools);
+      toolBtn.setAttribute('aria-label', showStopOnTools ? 'End PK' : 'Start PK');
+      let label = toolBtn.querySelector('.ap-pk-tool-label');
+      if (!label) {
+        label = document.createElement('span');
+        label.className = 'ap-pk-tool-label';
+        toolBtn.appendChild(label);
+      }
+      label.textContent = showStopOnTools ? 'End PK' : 'Room PK';
+      if (!showStopOnTools) {
+        let ico = toolBtn.querySelector('.ico.pk');
+        if (ico && !ico.querySelector('.ap-pk-ico-mark')) {
+          ico.innerHTML = '<span class="ap-pk-ico-mark" aria-hidden="true"><b>P</b><i>K</i></span>';
+        }
+      }
+    }
+  }
+
+  function requestStopPk({ skipConfirm = false } = {}) {
+    if (!canEndPkBattle()) {
+      toast('Only PK hosts can end this battle', 'warning');
+      return;
+    }
+    if (!isPkLiveNow()) {
+      toast('No PK battle is running', 'info');
+      return;
+    }
+    if (pkEndRequested) {
+      toast('Ending PK…', 'info');
+      return;
+    }
+    if (!skipConfirm && !window.confirm('End PK now? This counts as forfeit — the other host wins.')) return;
+    if (!liveSocket?.connected) {
+      toast('Not connected — try again', 'error');
+      return;
+    }
+    pkEndRequested = true;
+    setPkStatus('Ending PK…');
+    syncPkControlUi();
+    liveSocket.emit(
+      'pk:end',
+      {
+        channel: channelId(),
+        reason: skipConfirm ? 'timeout' : 'forfeit',
+        natural: Boolean(skipConfirm),
+      },
+      (res) => {
+      if (res && res.ok === false) {
+        pkEndRequested = false;
+        setPkStatus('');
+        syncPkControlUi();
+        toast(res.message || 'Could not end PK', 'error');
+        return;
+      }
+      if (res?.battle) endPkBattle(res.battle);
+    });
   }
 
   function showPkOverlay(show) {
@@ -395,13 +852,19 @@
       document.body.classList.add('is-pk-mode');
       document.documentElement.classList.add('is-pk-mode');
       syncPkStageUi();
+      syncPkControlUi();
+      ensurePkMediaAlive('pk-show');
     } else {
       overlay.setAttribute('aria-hidden', 'true');
       document.body.classList.remove('is-pk-mode', 'ap-pk-has-rival');
       document.documentElement.classList.remove('is-pk-mode', 'ap-pk-has-rival');
+      document.body.removeAttribute('data-pk-slots');
+      document.documentElement.removeAttribute('data-pk-slots');
       setPkStatus('');
       const wait = document.getElementById('apPkWaitingR');
       if (wait) wait.hidden = true;
+      syncPkControlUi();
+      ensurePkMediaAlive('pk-hide');
     }
   }
 
@@ -409,22 +872,15 @@
     const root = document.getElementById('liveRoomRoot') || document.querySelector('.party-room');
     if (!root) return;
     const existing = document.getElementById('apPkOverlay');
-    if (existing && !existing.querySelector('.ap-pk-stage')) {
+    /* Force arena + bottom party dock layout */
+    if (existing && !existing.querySelector('.ap-pk-party-dock')) {
       existing.remove();
     }
-    if (document.getElementById('apPkOverlay')) return;
-    root.insertAdjacentHTML(
-      'beforeend',
-      `<div class="ap-pk-overlay" id="apPkOverlay" aria-hidden="true">
-        <div class="ap-pk-score-wrap">
-          <div class="ap-pk-bar" aria-hidden="true">
-            <div class="ap-pk-bar-left" id="apPkBarLeft" style="width:50%"></div>
-            <span class="ap-pk-score ap-pk-score-l" id="apPkScoreLeft">0</span>
-            <span class="ap-pk-score ap-pk-score-r" id="apPkScoreRight">0</span>
-          </div>
-          <div class="ap-pk-timer-pill" id="apPkTimer">04:00</div>
-        </div>
-        <div class="ap-pk-stage">
+    if (!document.getElementById('apPkOverlay')) {
+      root.insertAdjacentHTML(
+        'beforeend',
+        `<div class="ap-pk-overlay" id="apPkOverlay" aria-hidden="true">
+        <div class="ap-pk-stage" id="apPkStage" data-slots="2">
           <div class="ap-pk-side ap-pk-side-l">
             <div class="ap-pk-side-topline">
               <span class="ap-pk-win ap-pk-win-l" id="apPkWinL">Win x0</span>
@@ -443,44 +899,91 @@
             </div>
             <div class="ap-pk-emblem" id="apPkEmblemR" aria-hidden="true">🦁</div>
             <div class="ap-pk-side-name" id="apPkNameR">Opponent</div>
-            <div class="ap-pk-waiting" id="apPkWaitingR" hidden>
-              <div class="ap-pk-waiting-ring"></div>
+            <div class="ap-pk-waiting" id="apPkWaitingR">
+              <img class="ap-pk-rival-avatar" id="apPkRivalAvatar" alt="" hidden>
+              <div class="ap-pk-waiting-ring" id="apPkWaitingRing"></div>
               <span>Waiting for rival…</span>
             </div>
           </div>
         </div>
-        <p class="ap-pk-status" id="apPkStatus"></p>
+        <div class="ap-pk-score-wrap ap-pk-party-dock" id="apPkPartyDock">
+          <div class="ap-pk-bar" aria-hidden="true">
+            <div class="ap-pk-bar-left" id="apPkBarLeft" style="width:50%"></div>
+            <span class="ap-pk-score ap-pk-score-l" id="apPkScoreLeft">0</span>
+            <span class="ap-pk-center-badge" aria-hidden="true">PK</span>
+            <span class="ap-pk-score ap-pk-score-r" id="apPkScoreRight">0</span>
+          </div>
+          <div class="ap-pk-party-dock-meta">
+            <div class="ap-pk-timer-pill" id="apPkTimer">04:00</div>
+            <button type="button" class="ap-pk-stop-btn" id="apPkStopBtn" hidden aria-hidden="true">End PK</button>
+          </div>
+          <p class="ap-pk-status" id="apPkStatus"></p>
+        </div>
       </div>`
-    );
+      );
+    }
+    if (!document.getElementById('apPkStopBtn')) {
+      const wrap = document.querySelector('#apPkOverlay .ap-pk-party-dock-meta') ||
+        document.querySelector('#apPkOverlay .ap-pk-score-wrap');
+      if (wrap) {
+        wrap.insertAdjacentHTML(
+          'beforeend',
+          `<button type="button" class="ap-pk-stop-btn" id="apPkStopBtn" hidden aria-hidden="true">End PK</button>`
+        );
+      }
+    }
+    if (!document.getElementById('apPkRivalAvatar')) {
+      const wait = document.getElementById('apPkWaitingR');
+      if (wait && !wait.querySelector('.ap-pk-rival-avatar')) {
+        wait.insertAdjacentHTML(
+          'afterbegin',
+          `<img class="ap-pk-rival-avatar" id="apPkRivalAvatar" alt="" hidden>
+           <div class="ap-pk-waiting-ring" id="apPkWaitingRing"></div>`
+        );
+      }
+    }
+    const stopBtn = document.getElementById('apPkStopBtn');
+    if (stopBtn && !stopBtn.dataset.bound) {
+      stopBtn.dataset.bound = '1';
+      stopBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        requestStopPk();
+      });
+    }
+  }
+
+  function pkSlotCountFromSnapshot(snapshot) {
+    const parts = snapshot?.participants || [];
+    const n = Math.max(2, parts.length || 2, pkModeActive === 'team' ? 3 : 2);
+    if (n <= 2) return 2;
+    if (n <= 3) return 3;
+    if (n <= 4) return 4;
+    return 6;
   }
 
   function syncPkStageUi(snapshot) {
     ensurePkBattleChrome();
-    const parts = snapshot?.participants || [];
-    const teams = snapshot?.teams || [];
-    const leftParts = parts.filter((p) => Number(p.team) === 1);
-    const rightParts = parts.filter((p) => Number(p.team) === 2);
-    const hostName =
-      snapshot?.hostName ||
-      leftParts[0]?.display_name ||
-      roomState?.hostName ||
-      document.getElementById('liveHostName')?.textContent ||
-      displayName(currentUser()) ||
-      'Host';
-    const rival =
-      snapshot?.rivalName ||
-      snapshot?.opponentName ||
-      rightParts[0]?.display_name ||
-      (pkModeActive === 'random' ? 'Random Rival' : 'Waiting…');
+    const snap = snapshot || pkLastSnapshot;
+    const parts = snap?.participants || [];
+    const teams = snap?.teams || [];
+    const sides = resolvePkSideNames(snap);
+    pkViewSwapped = sides.myTeam === 2;
+    const labelL = sides.labelL;
+    const labelR = sides.labelR;
+
+    const slots = pkSlotCountFromSnapshot(snap);
+    document.body.setAttribute('data-pk-slots', String(slots));
+    document.documentElement.setAttribute('data-pk-slots', String(slots));
+    const stage = document.getElementById('apPkStage');
+    if (stage) stage.setAttribute('data-slots', String(slots));
 
     const nameL = document.getElementById('apPkNameL');
     const nameR = document.getElementById('apPkNameR');
-    if (nameL) nameL.textContent = hostName;
-    if (nameR) nameR.textContent = rival;
+    if (nameL) nameL.textContent = labelL;
+    if (nameR) nameR.textContent = labelR;
 
-    const remote = document.getElementById('liveRemoteHost');
-    const hasRemoteVideo = Boolean(remote?.querySelector('video'));
-    /* Only hard-split camera when a real second track exists (avoids mid-face cut) */
+    const hasRemoteVideo = hasUsablePkRivalVideo();
     document.body.classList.toggle('ap-pk-has-rival', hasRemoteVideo);
     document.documentElement.classList.toggle('ap-pk-has-rival', hasRemoteVideo);
 
@@ -488,26 +991,35 @@
     if (wait) {
       wait.hidden = hasRemoteVideo;
       const label = wait.querySelector('span');
+      const avatar = document.getElementById('apPkRivalAvatar');
+      const ring = document.getElementById('apPkWaitingRing');
+      const pic = snap?.rivalProfilePic || pkMatchedRivalMeta?.profilePic || null;
+      if (avatar) {
+        if (pic) {
+          avatar.src = avatarUrl(labelR, pic);
+          avatar.hidden = false;
+          avatar.alt = labelR || 'Rival';
+        } else {
+          avatar.removeAttribute('src');
+          avatar.hidden = true;
+        }
+      }
+      if (ring) ring.hidden = Boolean(pic);
       if (label && !hasRemoteVideo) {
-        label.textContent =
-          rightParts.length > 0
-            ? `${rightParts[0].display_name || 'Rival'} · gift war`
-            : pkModeActive === 'random'
-              ? 'Random PK · gift war'
-              : 'Waiting for rival…';
+        label.textContent = labelR || 'Rival';
       }
     }
 
     const rankR = document.getElementById('apPkRankR');
-    if (rankR) {
-      rankR.textContent = rightParts.length ? 'Rival' : pkModeActive === 'team' ? 'Team B' : 'Open';
-    }
+    if (rankR) rankR.textContent = 'Rival';
     const rankL = document.getElementById('apPkRankL');
-    if (rankL) rankL.textContent = pkModeActive === 'team' ? 'Team A' : 'Host';
+    if (rankL) rankL.textContent = 'You';
 
-    if (teams.length) {
-      applyPkTeamsFromSnapshot(snapshot);
+    if (teams.length || snap) {
+      applyPkTeamsFromSnapshot(snap);
     }
+    if (snap) rememberPkEnders(snap);
+    syncPkControlUi();
     const bar = document.getElementById('apPkBarLeft');
     if (bar && !bar.style.width) bar.style.width = '50%';
   }
@@ -517,25 +1029,18 @@
     list.forEach((text, idx) => {
       const t = String(text || '').trim();
       if (!t) return;
+      /* Local only — never emit to server (avoids bridge loops + multi-room spam) */
       const msg = {
-        id: 'pk-sys-' + Date.now() + '-' + idx,
+        id: 'pk-local-' + Date.now() + '-' + idx + '-' + Math.random().toString(36).slice(2, 6),
         type: 'system',
         text: t,
         at: Date.now(),
         scope: 'room',
+        pkLocal: true,
       };
-      if (liveSocket?.connected) {
-        liveSocket.emit('live:chat', {
-          channel: channelId(),
-          type: 'system',
-          text: t,
-          scope: 'room',
-        });
-      } else {
-        try {
-          rememberChatMessage?.(msg);
-        } catch (_e) {}
-      }
+      try {
+        rememberChatMessage?.(msg);
+      } catch (_e) {}
     });
     try {
       ensureChatTabShowsMessages?.();
@@ -552,6 +1057,7 @@
 
   /** Selection sheet must never sit on top of an active PK battle. */
   function dismissPkSelectionUi() {
+    stopPkMatchCountdown?.();
     const types = document.getElementById('apPkTypesSheet');
     if (types) {
       types.classList.remove('open', 'is-matching');
@@ -575,105 +1081,589 @@
 
   let pkSelectedType = 'random';
   let pkStartInFlight = false;
-  let pkFriendPick = null; /* { userId, name } for friend / team rival */
+  let pkFriendPick = null; /* { userId, name, profilePic?, channel? } */
   let pkModeActive = 'random';
+  let pkMatchSeq = 0;
+  let pkMatchedRivalMeta = null; /* last random-matched host card */
+  let pkPendingChallengeId = null;
+  let pkFriendCandidatesCache = [];
+  let pkFriendLoadInFlight = null;
+  let pkDurationSeconds = 300; /* 5 / 15 / 30 mins */
+  let pkMatchCountdownTimer = null;
+  let pkRoomInviteCache = [];
+  let pkSheetView = 'home'; /* home | invite | match */
 
-  function listPkInviteCandidates() {
+  function personLabel(u) {
+    if (!u) return 'User';
+    const n =
+      u.name ||
+      u.displayName ||
+      u.hostName ||
+      `${u.first_name || u.firstName || ''} ${u.last_name || u.lastName || ''}`.trim();
+    return n || 'User';
+  }
+
+  function pushPkCandidate(map, m, flags = {}) {
+    const uid = String(m?.userId || m?.id || m?.hostId || '').trim();
+    if (!uid) return;
     const me = String(currentUser()?.id || '');
     const hostId = String(roomState?.hostId || me);
-    const seen = new Set();
-    const out = [];
-    const push = (m) => {
-      const uid = String(m?.userId || m?.id || '');
-      if (!uid || uid === me || uid === hostId || seen.has(uid)) return;
-      seen.add(uid);
-      out.push({
-        userId: uid,
-        name: m.name || m.displayName || m.user || 'Guest',
-        profilePic: m.profilePic || m.profile_pic || null,
-      });
+    if (uid === me || uid === hostId) return;
+    const prev = map.get(uid) || {
+      userId: uid,
+      name: 'User',
+      profilePic: null,
+      channel: '',
+      inRoom: false,
+      live: false,
+      following: false,
+      follower: false,
     };
+    prev.name = personLabel(m) !== 'User' ? personLabel(m) : prev.name;
+    prev.profilePic =
+      m.profilePic ||
+      m.profile_pic ||
+      m.hostProfilePic ||
+      prev.profilePic ||
+      null;
+    prev.channel = m.channel || m.targetChannel || prev.channel || '';
+    if (flags.inRoom) prev.inRoom = true;
+    if (flags.live) prev.live = true;
+    if (flags.following) prev.following = true;
+    if (flags.follower) prev.follower = true;
+    map.set(uid, prev);
+  }
+
+  function listPkRoomCandidates() {
+    const map = new Map();
     try {
-      (getPartyRoomMembers?.() || []).forEach(push);
+      (getPartyRoomMembers?.() || []).forEach((m) => pushPkCandidate(map, m, { inRoom: true }));
     } catch (_e) {}
     try {
-      (getPartyAudienceMembers?.() || []).forEach(push);
+      (getPartyAudienceMembers?.() || []).forEach((m) => pushPkCandidate(map, m, { inRoom: true }));
     } catch (_e) {}
     try {
       (roomState?.members || roomState?.viewersList || []).forEach((m) =>
-        push({
-          userId: m.userId || m.id,
-          name: m.name || m.displayName,
-          profilePic: m.profilePic || m.profile_pic,
-        })
+        pushPkCandidate(
+          map,
+          {
+            userId: m.userId || m.id,
+            name: m.name || m.displayName,
+            profilePic: m.profilePic || m.profile_pic,
+          },
+          { inRoom: true }
+        )
       );
     } catch (_e) {}
-    return out.slice(0, 40);
+    return map;
+  }
+
+  async function loadPkFriendCandidates({ force = false } = {}) {
+    if (!force && pkFriendCandidatesCache.length) return pkFriendCandidatesCache;
+    if (pkFriendLoadInFlight) return pkFriendLoadInFlight;
+    pkFriendLoadInFlight = (async () => {
+      const map = listPkRoomCandidates();
+      const api = window.API;
+      if (api?.get) {
+        const get = api.getFresh || api.get;
+        try {
+          const [following, followers, liveFollowing] = await Promise.all([
+            get.call(api, '/social/following?limit=100').catch(() => null),
+            get.call(api, '/social/followers?limit=100').catch(() => null),
+            get.call(api, '/social/following/live').catch(() => null),
+          ]);
+          const fRows = Array.isArray(following?.data) ? following.data : [];
+          fRows.forEach((u) =>
+            pushPkCandidate(
+              map,
+              {
+                userId: u.id,
+                name: personLabel(u),
+                profilePic: u.profile_pic || u.profilePic,
+              },
+              { following: true }
+            )
+          );
+          const foRows = Array.isArray(followers?.data) ? followers.data : [];
+          foRows.forEach((u) =>
+            pushPkCandidate(
+              map,
+              {
+                userId: u.id,
+                name: personLabel(u),
+                profilePic: u.profile_pic || u.profilePic,
+              },
+              { follower: true }
+            )
+          );
+          const liveRows = Array.isArray(liveFollowing?.data) ? liveFollowing.data : [];
+          liveRows.forEach((u) =>
+            pushPkCandidate(
+              map,
+              {
+                userId: u.id,
+                name: u.name || personLabel(u),
+                channel: u.channel || '',
+              },
+              { live: true, following: true }
+            )
+          );
+        } catch (_e) {
+          /* keep room list */
+        }
+        try {
+          const rooms = await fetchPkLiveRoomCandidates();
+          rooms.forEach((r) =>
+            pushPkCandidate(
+              map,
+              {
+                userId: r.hostId || r.host_user_id,
+                name: r.hostName || r.host_display_name,
+                profilePic: r.hostProfilePic || r.hostStreamCover,
+                channel: r.channel,
+              },
+              { live: true }
+            )
+          );
+        } catch (_e) {}
+      }
+      const list = [...map.values()].sort((a, b) => {
+        const score = (x) => (x.live ? 8 : 0) + (x.inRoom ? 4 : 0) + (x.following ? 2 : 0) + (x.follower ? 1 : 0);
+        return score(b) - score(a) || String(a.name).localeCompare(String(b.name));
+      });
+      pkFriendCandidatesCache = list.slice(0, 80);
+      return pkFriendCandidatesCache;
+    })();
+    try {
+      return await pkFriendLoadInFlight;
+    } finally {
+      pkFriendLoadInFlight = null;
+    }
+  }
+
+  /** @deprecated use loadPkFriendCandidates — kept for sync room-only fallback */
+  function listPkInviteCandidates() {
+    return [...listPkRoomCandidates().values()].slice(0, 40);
+  }
+
+  function hasUsablePkRivalVideo() {
+    const riv = document.getElementById('apPkRivalMedia');
+    if (riv?.querySelector('video, canvas')) {
+      const v = riv.querySelector('video');
+      if (!v || (v.videoWidth > 0 && v.videoHeight > 0) || v.dataset.apPlaying === '1') return true;
+      if (v && Number(v.readyState || 0) >= 2) return true;
+    }
+    const container = document.getElementById('liveRemoteHost');
+    const vid = container?.querySelector?.('video');
+    if (!vid) return Boolean(pkRivalChannelJoined);
+    if (vid.videoWidth > 0 && vid.videoHeight > 0) return true;
+    if (vid.dataset.apPlaying === '1' && Number(vid.readyState || 0) >= 2) return true;
+    return Boolean(pkRivalChannelJoined);
+  }
+
+  async function fetchPkLiveRoomCandidates() {
+    const api = window.API;
+    if (!api?.get) return [];
+    const fetchFn = api.getFresh || api.get;
+    const me = String(currentUser()?.id || '');
+    const ch = String(channelId() || '');
+    const hostId = String(roomState?.hostId || me);
+    const all = [];
+    for (const type of ['live', 'party']) {
+      try {
+        const res = await fetchFn.call(api, `/live/rooms?type=${type}&limit=40&sort=trending`);
+        const rows = Array.isArray(res?.data) ? res.data : [];
+        all.push(...rows);
+      } catch (_e) {
+        /* ignore type */
+      }
+    }
+    const byHost = new Map();
+    all.forEach((r) => {
+      const uid = String(r.hostId || r.host_user_id || '');
+      if (!uid) return;
+      if (!byHost.has(uid)) byHost.set(uid, r);
+    });
+    return [...byHost.values()].filter((r) => {
+      const uid = String(r.hostId || r.host_user_id || '');
+      const rCh = String(r.channel || '');
+      if (!uid || uid === me || uid === hostId) return false;
+      if (rCh && rCh === ch) return false;
+      return true;
+    });
+  }
+
+  async function findRandomPkRivalOnce() {
+    const list = await fetchPkLiveRoomCandidates();
+    if (!list.length) return null;
+    list.sort((a, b) => Number(b.viewers || b.viewer_count || 0) - Number(a.viewers || a.viewer_count || 0));
+    const pool = list.slice(0, Math.max(3, Math.ceil(list.length / 2)));
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    return {
+      userId: String(pick.hostId || pick.host_user_id),
+      name: pick.hostName || pick.host_display_name || 'Rival host',
+      profilePic: pick.hostProfilePic || pick.hostStreamCover || pick.host_profile_pic || null,
+      channel: pick.channel || '',
+      viewers: Number(pick.viewers || pick.viewer_count || 0),
+    };
+  }
+
+  function delayMs(ms) {
+    return new Promise((resolve) => window.setTimeout(resolve, ms));
+  }
+
+  async function searchRandomPkRival(seq) {
+    const deadline = Date.now() + 7500;
+    let attempt = 0;
+    while (Date.now() < deadline) {
+      if (seq !== pkMatchSeq) return { cancelled: true };
+      attempt += 1;
+      setPkMatching(
+        true,
+        attempt === 1 ? 'Searching live streams…' : attempt < 4 ? 'Looking for hosts online…' : 'Still matching…'
+      );
+      try {
+        const rival = await findRandomPkRivalOnce();
+        if (seq !== pkMatchSeq) return { cancelled: true };
+        if (rival?.userId) return { rival };
+      } catch (_e) {
+        /* retry */
+      }
+      await delayMs(850);
+      if (seq !== pkMatchSeq) return { cancelled: true };
+    }
+    return { rival: null };
+  }
+
+  function cancelPkMatching(showToast = true) {
+    pkMatchSeq += 1;
+    pkStartInFlight = false;
+    if (pkPendingChallengeId && liveSocket?.connected) {
+      liveSocket.emit('pk:challenge:cancel', { challengeId: pkPendingChallengeId });
+    }
+    pkPendingChallengeId = null;
+    stopPkMatchCountdown();
+    setPkMatching(false);
+    setPkStatus('');
+    if (showToast) toast('PK matching cancelled', 'info');
+  }
+
+  function emitPkStartAfterMatch(mode, payload) {
+    liveSocket.emit('pk:start', payload, (res) => {
+      pkStartInFlight = false;
+      if (res?.ok) {
+        dismissPkSelectionUi();
+        const snap = res.battle || res;
+        if (snap) {
+          snap.mode = mode;
+          if (pkMatchedRivalMeta) {
+            snap.rivalName = pkMatchedRivalMeta.name;
+            snap.opponentName = pkMatchedRivalMeta.name;
+            snap.rivalProfilePic = pkMatchedRivalMeta.profilePic;
+          }
+        }
+        beginPkBattle(snap);
+        if (mode === 'friend' && pkFriendPick?.name) {
+          toast(`Friend PK vs ${pkFriendPick.name}`, 'success');
+        } else if (mode === 'team') {
+          toast('Team PK live — sides open for gifts', 'success');
+        } else if (mode === 'random' && pkMatchedRivalMeta?.name) {
+          toast(`Random PK vs ${pkMatchedRivalMeta.name}`, 'success');
+        }
+      } else {
+        setPkMatching(false);
+        setPkStatus('');
+        selectPkType(pkSelectedType);
+        toast(res?.message || 'Could not start PK', 'error');
+      }
+    });
+  }
+
+  function sendPkChallenge(opts) {
+    const {
+      userId,
+      name,
+      channel: targetChannel = '',
+      mode = 'friend',
+      profilePic = null,
+    } = opts || {};
+    return new Promise((resolve) => {
+      if (!liveSocket?.connected) {
+        resolve({ ok: false, message: 'Not connected' });
+        return;
+      }
+      const payload = {
+        channel: channelId(),
+        userId,
+        opponentUserId: userId,
+        opponentName: name || 'Rival',
+        targetChannel: targetChannel || '',
+        rivalChannel: targetChannel || '',
+        mode,
+        hostName:
+          roomState?.hostName ||
+          document.getElementById('liveHostName')?.textContent ||
+          displayName(currentUser()) ||
+          'Host',
+        durationSeconds: pkDurationSeconds || 300,
+      };
+      pkMatchedRivalMeta = { userId, name: name || 'Rival', profilePic, channel: targetChannel };
+      liveSocket.emit('pk:challenge', payload, (res) => {
+        if (res?.ok && res.challengeId) {
+          pkPendingChallengeId = res.challengeId;
+        }
+        resolve(res || { ok: false, message: 'No response' });
+      });
+    });
+  }
+
+  function pkDurationLabel(secs) {
+    const m = Math.round(Number(secs || 300) / 60) || 5;
+    return `${m}min${m === 1 ? '' : 's'}`;
+  }
+
+  function stopPkMatchCountdown() {
+    if (pkMatchCountdownTimer) {
+      clearInterval(pkMatchCountdownTimer);
+      pkMatchCountdownTimer = null;
+    }
+  }
+
+  function startPkMatchCountdown(totalSec) {
+    stopPkMatchCountdown();
+    let left = Math.max(1, Math.floor(Number(totalSec) || 300));
+    const el = document.getElementById('apPkMatchCountdown');
+    const ring = document.getElementById('apPkMatchRingProgress');
+    const total = left;
+    const circ = 2 * Math.PI * 54; /* r=54 */
+    const paint = () => {
+      if (el) el.textContent = `${left}s`;
+      if (ring) {
+        const ratio = Math.max(0, left / total);
+        ring.style.strokeDasharray = String(circ);
+        ring.style.strokeDashoffset = String(circ * (1 - ratio));
+      }
+    };
+    paint();
+    pkMatchCountdownTimer = setInterval(() => {
+      left -= 1;
+      if (left <= 0) {
+        stopPkMatchCountdown();
+        paint();
+        if (pkStartInFlight && !pkBattleActive) {
+          cancelPkMatching(false);
+          setPkSheetView('home');
+          toast('Matching timed out — try again', 'warning');
+        }
+        return;
+      }
+      paint();
+    }, 1000);
+  }
+
+  function setPkSheetView(view) {
+    pkSheetView = view || 'home';
+    const home = document.getElementById('apPkViewHome');
+    const invite = document.getElementById('apPkViewInvite');
+    const match = document.getElementById('apPkViewMatch');
+    const panel = document.querySelector('#apPkTypesSheet .ap-pk-room-panel');
+    if (home) home.hidden = pkSheetView !== 'home';
+    if (invite) invite.hidden = pkSheetView !== 'invite';
+    if (match) match.hidden = pkSheetView !== 'match';
+    panel?.setAttribute('data-view', pkSheetView);
+    document.getElementById('apPkTypesSheet')?.classList.toggle('is-matching', pkSheetView === 'match');
+  }
+
+  function setPkDurationMinutes(mins) {
+    const m = Number(mins) === 15 || Number(mins) === 30 ? Number(mins) : 5;
+    pkDurationSeconds = m * 60;
+    document.querySelectorAll('#apPkTypesSheet [data-pk-mins]').forEach((btn) => {
+      const on = Number(btn.getAttribute('data-pk-mins')) === m;
+      btn.classList.toggle('is-selected', on);
+    });
+    const rnd = document.getElementById('apPkRandomDur');
+    if (rnd) rnd.textContent = `${m}min`;
+    const matchDur = document.getElementById('apPkMatchDurLabel');
+    if (matchDur) matchDur.textContent = `${m}mins`;
   }
 
   function ensurePkTypesSheet() {
+    const existing = document.getElementById('apPkTypesSheet');
+    if (
+      existing &&
+      (!document.getElementById('apPkViewHome') ||
+        !document.getElementById('apPkFriendPick') ||
+        !document.querySelector('#apPkTypesSheet [data-pk-type]'))
+    ) {
+      existing.remove();
+    }
     if (document.getElementById('apPkTypesSheet')) return;
     document.body.insertAdjacentHTML(
       'beforeend',
-      `<div class="ap-pk-types-sheet" id="apPkTypesSheet" aria-hidden="true">
-        <div class="ap-pk-types-panel" role="dialog" aria-label="PK Types">
-          <header class="ap-pk-types-head">
-            <h3>PK Types</h3>
-            <button type="button" class="ap-pk-types-close" id="apPkTypesClose" aria-label="Close"><i class="fas fa-times"></i></button>
-          </header>
-          <div class="ap-pk-types-rank">
-            <span class="ap-pk-types-rank-badge" aria-hidden="true">◎</span>
-            <span>No Rank</span>
+      `<div class="ap-pk-types-sheet ap-pk-room-sheet" id="apPkTypesSheet" aria-hidden="true">
+        <div class="ap-pk-types-panel ap-pk-room-panel" role="dialog" aria-label="Room PK" data-view="home">
+          <!-- Home: time + random / invite -->
+          <div class="ap-pk-view ap-pk-view-home" id="apPkViewHome">
+            <header class="ap-pk-room-head">
+              <div class="ap-pk-room-title">
+                <span class="ap-pk-logo" aria-hidden="true"><b>P</b><i>K</i></span>
+                <h3>Room PK</h3>
+              </div>
+              <div class="ap-pk-room-head-actions">
+                <button type="button" class="ap-pk-invitation-btn" id="apPkOpenInvite" aria-label="Invitation">
+                  <span class="ap-pk-swords" aria-hidden="true">⚔</span>
+                  Invitation
+                </button>
+                <button type="button" class="ap-pk-help-btn" id="apPkHelp" aria-label="Help">?</button>
+              </div>
+            </header>
+            <div class="ap-pk-time-block">
+              <span class="ap-pk-time-label">Time</span>
+              <div class="ap-pk-time-options" role="group" aria-label="Battle duration">
+                <button type="button" class="ap-pk-time-chip is-selected" data-pk-mins="5">5mins</button>
+                <button type="button" class="ap-pk-time-chip" data-pk-mins="15">15mins</button>
+                <button type="button" class="ap-pk-time-chip" data-pk-mins="30">30mins</button>
+              </div>
+            </div>
+            <div class="ap-pk-type-cards" role="listbox" aria-label="PK mode">
+              <button type="button" class="ap-pk-type-card" data-pk-type="friend" role="option">
+                <span class="ap-pk-type-tag">1V1</span>
+                <span class="ap-pk-type-art ap-pk-type-art--friend" aria-hidden="true"><i class="fas fa-user-friends"></i></span>
+                <span class="ap-pk-type-name">Friend PK</span>
+              </button>
+              <button type="button" class="ap-pk-type-card is-selected" data-pk-type="random" role="option" aria-selected="true">
+                <span class="ap-pk-type-tag">1V1</span>
+                <span class="ap-pk-type-art ap-pk-type-art--random" aria-hidden="true"><i class="fas fa-random"></i></span>
+                <span class="ap-pk-type-name">Random PK</span>
+              </button>
+              <button type="button" class="ap-pk-type-card" data-pk-type="team" role="option">
+                <span class="ap-pk-type-tag">Team</span>
+                <span class="ap-pk-type-new">New</span>
+                <span class="ap-pk-type-art ap-pk-type-art--team" aria-hidden="true"><i class="fas fa-users"></i></span>
+                <span class="ap-pk-type-name">Team PK</span>
+              </button>
+            </div>
+            <div class="ap-pk-friend-pick" id="apPkFriendPick" hidden>
+              <p class="ap-pk-friend-pick-title" id="apPkFriendPickTitle">Pick a friend</p>
+              <div class="ap-pk-friend-list" id="apPkFriendList"></div>
+              <p class="ap-pk-friend-empty" id="apPkFriendEmpty" hidden>Loading friends…</p>
+            </div>
+            <div class="ap-pk-room-cta" id="apPkRoomCta">
+              <button type="button" class="ap-pk-random-btn" id="apPkRandomMatch">
+                <span class="ap-pk-random-title">Random Match</span>
+                <span class="ap-pk-random-sub" id="apPkRandomDur">5min</span>
+              </button>
+              <button type="button" class="ap-pk-invite-room-btn" id="apPkInviteRoom">Invite a room</button>
+            </div>
+            <button type="button" class="ap-pk-confirm-btn" id="apPkConfirmStart" hidden>Start PK</button>
           </div>
-          <div class="ap-pk-type-cards" role="listbox" aria-label="PK mode">
-            <button type="button" class="ap-pk-type-card" data-pk-type="friend" role="option">
-              <span class="ap-pk-type-tag">1V1</span>
-              <span class="ap-pk-type-art ap-pk-type-art--friend" aria-hidden="true"><i class="fas fa-user-friends"></i></span>
-              <span class="ap-pk-type-name">Friend PK</span>
-            </button>
-            <button type="button" class="ap-pk-type-card is-selected" data-pk-type="random" role="option" aria-selected="true">
-              <span class="ap-pk-type-tag">1V1</span>
-              <span class="ap-pk-type-art ap-pk-type-art--random" aria-hidden="true"><i class="fas fa-gift"></i></span>
-              <span class="ap-pk-type-name">Random PK</span>
-            </button>
-            <button type="button" class="ap-pk-type-card" data-pk-type="team" role="option">
-              <span class="ap-pk-type-tag">Team</span>
-              <span class="ap-pk-type-new">New</span>
-              <span class="ap-pk-type-art ap-pk-type-art--team" aria-hidden="true"><i class="fas fa-users"></i></span>
-              <span class="ap-pk-type-name">Team PK</span>
-            </button>
+
+          <!-- Invite a room -->
+          <div class="ap-pk-view ap-pk-view-invite" id="apPkViewInvite" hidden>
+            <header class="ap-pk-invite-head">
+              <button type="button" class="ap-pk-invite-back" id="apPkInviteBack" aria-label="Back">
+                <i class="fas fa-chevron-left"></i>
+              </button>
+              <h3>Invite a room</h3>
+              <span class="ap-pk-invite-head-spacer"></span>
+            </header>
+            <label class="ap-pk-room-search">
+              <i class="fas fa-search" aria-hidden="true"></i>
+              <input type="search" id="apPkRoomSearch" placeholder="Search Room ID/User ID" autocomplete="off" enterkeyhint="search" />
+            </label>
+            <div class="ap-pk-room-invite-list" id="apPkRoomInviteList" role="list"></div>
+            <p class="ap-pk-room-invite-empty" id="apPkRoomInviteEmpty" hidden>Loading rooms…</p>
           </div>
-          <div class="ap-pk-friend-pick" id="apPkFriendPick" hidden>
-            <p class="ap-pk-friend-pick-title" id="apPkFriendPickTitle">Pick a friend in this room</p>
-            <div class="ap-pk-friend-list" id="apPkFriendList"></div>
-            <p class="ap-pk-friend-empty" id="apPkFriendEmpty" hidden>No friends online in this room yet — share the live so they can join, then start Friend PK.</p>
+
+          <!-- Matching -->
+          <div class="ap-pk-view ap-pk-view-match" id="apPkViewMatch" hidden>
+            <header class="ap-pk-match-head">
+              <div class="ap-pk-match-title">
+                <span class="ap-pk-logo" aria-hidden="true"><b>P</b><i>K</i></span>
+                <span>PK Matching..</span>
+              </div>
+              <span class="ap-pk-match-dur" id="apPkMatchDurLabel">5mins</span>
+            </header>
+            <div class="ap-pk-match-body">
+              <div class="ap-pk-match-circle" aria-hidden="true">
+                <svg viewBox="0 0 120 120" class="ap-pk-match-svg">
+                  <defs>
+                    <linearGradient id="apPkRingGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stop-color="#60a5fa"/>
+                      <stop offset="100%" stop-color="#f472b6"/>
+                    </linearGradient>
+                  </defs>
+                  <circle class="ap-pk-match-ring-bg" cx="60" cy="60" r="54" fill="none" stroke-width="8" />
+                  <circle id="apPkMatchRingProgress" class="ap-pk-match-ring-fg" cx="60" cy="60" r="54" fill="none" stroke="url(#apPkRingGrad)" stroke-width="8"
+                    stroke-linecap="round" transform="rotate(-90 60 60)" />
+                </svg>
+                <span class="ap-pk-match-secs" id="apPkMatchCountdown">300s</span>
+              </div>
+              <p class="ap-pk-match-hint" id="apPkMatchLabel">Finding a host…</p>
+              <button type="button" class="ap-pk-match-cancel" id="apPkMatchCancel">Cancel</button>
+            </div>
           </div>
-          <div class="ap-pk-match-radar" id="apPkMatchRadar" hidden aria-hidden="true">
-            <div class="ap-pk-radar-ring"></div>
-            <div class="ap-pk-radar-sweep"></div>
-            <p class="ap-pk-match-label" id="apPkMatchLabel">Matching opponent…</p>
-          </div>
-          <label class="ap-pk-types-check">
-            <input type="checkbox" id="apPkAllowParty" checked />
-            <span>Allow Matching with Party</span>
-          </label>
-          <button type="button" class="ap-pk-confirm-btn" id="apPkConfirmStart">PK</button>
         </div>
       </div>`
     );
     const sheet = document.getElementById('apPkTypesSheet');
-    document.getElementById('apPkTypesClose')?.addEventListener('click', () => closePkTypesSheet());
     sheet?.addEventListener('click', (e) => {
-      if (e.target === sheet) closePkTypesSheet();
+      if (e.target === sheet && pkSheetView !== 'match') closePkTypesSheet();
     });
-    sheet?.querySelector('.ap-pk-types-panel')?.addEventListener('click', (e) => e.stopPropagation());
-    sheet?.querySelectorAll('[data-pk-type]').forEach((btn) => {
+    sheet?.querySelector('.ap-pk-room-panel')?.addEventListener('click', (e) => e.stopPropagation());
+
+    document.querySelectorAll('#apPkTypesSheet [data-pk-mins]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (pkStartInFlight) return;
+        setPkDurationMinutes(btn.getAttribute('data-pk-mins'));
+      });
+    });
+
+    document.querySelectorAll('#apPkTypesSheet [data-pk-type]').forEach((btn) => {
       btn.addEventListener('click', () => {
         if (pkStartInFlight) return;
         selectPkType(btn.getAttribute('data-pk-type') || 'random');
       });
     });
-    document.getElementById('apPkConfirmStart')?.addEventListener('click', () => confirmStartPk());
+
+    document.getElementById('apPkRandomMatch')?.addEventListener('click', () => {
+      if (pkStartInFlight) return;
+      pkSelectedType = 'random';
+      pkFriendPick = null;
+      selectPkType('random');
+      confirmStartPk();
+    });
+
+    document.getElementById('apPkConfirmStart')?.addEventListener('click', () => {
+      if (pkStartInFlight) return;
+      confirmStartPk();
+    });
+
+    const openInvite = () => {
+      if (pkStartInFlight) return;
+      setPkSheetView('invite');
+      renderPkRoomInviteList('');
+    };
+    document.getElementById('apPkInviteRoom')?.addEventListener('click', openInvite);
+    document.getElementById('apPkOpenInvite')?.addEventListener('click', openInvite);
+    document.getElementById('apPkInviteBack')?.addEventListener('click', () => setPkSheetView('home'));
+    document.getElementById('apPkHelp')?.addEventListener('click', () => {
+      toast(
+        'Friend / Random / Team PK + time. Invite another live room or match randomly. Both streams show the competition when they Accept.',
+        'info'
+      );
+    });
+    document.getElementById('apPkRoomSearch')?.addEventListener('input', (e) => {
+      renderPkRoomInviteList(String(e.target?.value || ''));
+    });
+    document.getElementById('apPkMatchCancel')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      cancelPkMatching(true);
+      setPkSheetView('home');
+    });
+    setPkDurationMinutes(5);
+    selectPkType('random');
   }
 
   function renderPkFriendPicker() {
@@ -688,37 +1678,67 @@
     if (title) {
       title.textContent =
         pkSelectedType === 'team'
-          ? 'Optional: pick a rival now (others can join team after start)'
-          : 'Pick a friend in this room';
+          ? 'Pick a rival (optional) — friends, followers & live hosts'
+          : 'Pick someone — friends, followers, in-room, or live hosts';
     }
-    const candidates = listPkInviteCandidates();
-    if (!candidates.length) {
-      list.innerHTML = '';
-      if (empty) empty.hidden = false;
-      return;
+    if (empty) {
+      empty.hidden = false;
+      empty.textContent = 'Loading friends & followers…';
     }
-    if (empty) empty.hidden = true;
-    list.innerHTML = candidates
-      .map((c) => {
-        const sel = pkFriendPick && String(pkFriendPick.userId) === String(c.userId);
-        return `<button type="button" class="ap-pk-friend-chip${sel ? ' is-selected' : ''}" data-pk-uid="${escapeHtml(
-          String(c.userId)
-        )}" data-pk-name="${escapeAttr(c.name)}">
+    list.innerHTML = `<div class="ap-pk-friend-loading">Loading…</div>`;
+
+    loadPkFriendCandidates({ force: true }).then((candidates) => {
+      if (pkSelectedType !== 'friend' && pkSelectedType !== 'team') return;
+      if (!candidates.length) {
+        list.innerHTML = '';
+        if (empty) {
+          empty.hidden = false;
+          empty.textContent =
+            'No friends or followers found. Follow creators or Invite a room for live hosts.';
+        }
+        return;
+      }
+      if (empty) empty.hidden = true;
+      list.innerHTML = candidates
+        .map((c) => {
+          const sel = pkFriendPick && String(pkFriendPick.userId) === String(c.userId);
+          const badge = c.live
+            ? 'LIVE'
+            : c.inRoom
+              ? 'Here'
+              : c.following
+                ? 'Friend'
+                : c.follower
+                  ? 'Follower'
+                  : '';
+          return `<button type="button" class="ap-pk-friend-chip${sel ? ' is-selected' : ''}${
+            c.live ? ' is-live' : ''
+          }" data-pk-uid="${escapeHtml(String(c.userId))}" data-pk-name="${escapeAttr(c.name)}" data-pk-pic="${escapeAttr(
+            c.profilePic || ''
+          )}" data-pk-channel="${escapeAttr(c.channel || '')}">
           <img src="${avatarUrl(c.name, c.profilePic)}" alt="">
-          <span>${escapeHtml(String(c.name).slice(0, 14))}</span>
+          <span class="ap-pk-friend-chip-text">${escapeHtml(String(c.name).slice(0, 14))}</span>
+          ${badge ? `<em class="ap-pk-friend-badge">${badge}</em>` : ''}
         </button>`;
-      })
-      .join('');
-    list.querySelectorAll('.ap-pk-friend-chip').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        pkFriendPick = {
-          userId: btn.getAttribute('data-pk-uid'),
-          name: btn.getAttribute('data-pk-name') || 'Friend',
-        };
-        renderPkFriendPicker();
+        })
+        .join('');
+      list.querySelectorAll('.ap-pk-friend-chip').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          pkFriendPick = {
+            userId: btn.getAttribute('data-pk-uid'),
+            name: btn.getAttribute('data-pk-name') || 'Friend',
+            profilePic: btn.getAttribute('data-pk-pic') || null,
+            channel: btn.getAttribute('data-pk-channel') || '',
+          };
+          list.querySelectorAll('.ap-pk-friend-chip').forEach((b) => {
+            const on =
+              pkFriendPick && String(pkFriendPick.userId) === String(b.getAttribute('data-pk-uid'));
+            b.classList.toggle('is-selected', Boolean(on));
+          });
+        });
       });
+      window.SocialUI?.bindAvatarFallbacks?.(list);
     });
-    window.SocialUI?.bindAvatarFallbacks?.(list);
   }
 
   function selectPkType(type) {
@@ -731,36 +1751,141 @@
       btn.setAttribute('aria-selected', on ? 'true' : 'false');
     });
     renderPkFriendPicker();
+    const cta = document.getElementById('apPkRoomCta');
     const startBtn = document.getElementById('apPkConfirmStart');
-    if (startBtn && !pkStartInFlight) {
-      startBtn.textContent =
-        t === 'friend' ? 'Start Friend PK' : t === 'team' ? 'Start Team PK' : 'Start Random PK';
+    if (cta) cta.hidden = t !== 'random';
+    if (startBtn) {
+      if (t === 'random') {
+        startBtn.hidden = true;
+      } else {
+        startBtn.hidden = false;
+        startBtn.textContent =
+          t === 'friend'
+            ? pkFriendPick
+              ? `Challenge ${String(pkFriendPick.name || 'friend').slice(0, 12)}`
+              : 'Pick a friend then Start'
+            : 'Start Team PK';
+        startBtn.disabled = Boolean(pkStartInFlight);
+      }
     }
   }
 
-  function setPkMatching(on, label) {
-    const sheet = document.getElementById('apPkTypesSheet');
-    const radar = document.getElementById('apPkMatchRadar');
-    const startBtn = document.getElementById('apPkConfirmStart');
-    const matchLabel = document.getElementById('apPkMatchLabel');
-    sheet?.classList.toggle('is-matching', Boolean(on));
-    if (radar) {
-      radar.hidden = !on;
-      radar.setAttribute('aria-hidden', on ? 'false' : 'true');
+  function roomInviteDisplayName(r) {
+    return (
+      r.host_display_name ||
+      r.hostName ||
+      r.title ||
+      r.roomName ||
+      r.host_displayName ||
+      'Live room'
+    );
+  }
+
+  async function renderPkRoomInviteList(query) {
+    const list = document.getElementById('apPkRoomInviteList');
+    const empty = document.getElementById('apPkRoomInviteEmpty');
+    if (!list) return;
+    const q = String(query || '').trim().toLowerCase();
+    list.innerHTML = `<div class="ap-pk-room-invite-loading">Loading…</div>`;
+    if (empty) {
+      empty.hidden = false;
+      empty.textContent = 'Loading rooms…';
     }
-    if (matchLabel && label) matchLabel.textContent = label;
-    if (startBtn) {
-      startBtn.disabled = Boolean(on);
-      if (on) startBtn.textContent = 'Starting…';
+
+    let rooms = pkRoomInviteCache;
+    if (!rooms.length || !q) {
+      try {
+        rooms = await fetchPkLiveRoomCandidates();
+        pkRoomInviteCache = rooms;
+      } catch (_e) {
+        rooms = [];
+      }
+    }
+
+    const filtered = rooms.filter((r) => {
+      if (!q) return true;
+      const name = roomInviteDisplayName(r).toLowerCase();
+      const ch = String(r.channel || '').toLowerCase();
+      const uid = String(r.hostId || r.host_user_id || '').toLowerCase();
+      const displayId = String(r.hostDisplayId || r.display_id || r.host_display_id || '').toLowerCase();
+      return name.includes(q) || ch.includes(q) || uid.includes(q) || displayId.includes(q);
+    });
+
+    if (!filtered.length) {
+      list.innerHTML = '';
+      if (empty) {
+        empty.hidden = false;
+        empty.textContent = q
+          ? 'No rooms match that search'
+          : 'No other live rooms right now — try Random Match';
+      }
+      return;
+    }
+    if (empty) empty.hidden = true;
+
+    list.innerHTML = filtered
+      .map((r) => {
+        const uid = String(r.hostId || r.host_user_id || '');
+        const name = roomInviteDisplayName(r);
+        const pic = r.hostProfilePic || r.hostStreamCover || r.host_profile_pic || r.stream_cover_url || null;
+        const viewers = Number(r.viewers || r.viewer_count || 0);
+        const ch = String(r.channel || '');
+        return `<div class="ap-pk-room-row" role="listitem">
+          <img class="ap-pk-room-avatar" src="${avatarUrl(name, pic)}" alt="">
+          <div class="ap-pk-room-meta">
+            <span class="ap-pk-room-name">${escapeHtml(String(name).slice(0, 28))}</span>
+            <span class="ap-pk-room-viewers"><i class="fas fa-user"></i> ${viewers}</span>
+          </div>
+          <button type="button" class="ap-pk-room-invite-cta" data-pk-uid="${escapeAttr(uid)}"
+            data-pk-name="${escapeAttr(name)}" data-pk-pic="${escapeAttr(pic || '')}" data-pk-channel="${escapeAttr(ch)}">Invite</button>
+        </div>`;
+      })
+      .join('');
+
+    list.querySelectorAll('.ap-pk-room-invite-cta').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (pkStartInFlight) return;
+        pkFriendPick = {
+          userId: btn.getAttribute('data-pk-uid'),
+          name: btn.getAttribute('data-pk-name') || 'Rival',
+          profilePic: btn.getAttribute('data-pk-pic') || null,
+          channel: btn.getAttribute('data-pk-channel') || '',
+        };
+        pkSelectedType = 'friend';
+        confirmStartPk();
+      });
+    });
+    window.SocialUI?.bindAvatarFallbacks?.(list);
+  }
+
+  function setPkMatching(on, label) {
+    const matchLabel = document.getElementById('apPkMatchLabel');
+    if (on) {
+      if (pkSheetView !== 'match') {
+        setPkSheetView('match');
+        startPkMatchCountdown(pkDurationSeconds || 300);
+      } else {
+        setPkSheetView('match');
+      }
+      if (matchLabel && label) matchLabel.textContent = label;
+    } else {
+      stopPkMatchCountdown();
+      if (pkSheetView === 'match') setPkSheetView('home');
+      if (matchLabel && !label) matchLabel.textContent = 'Finding a host…';
     }
   }
 
   function closePkTypesSheet() {
+    if (pkStartInFlight && !pkBattleActive) {
+      cancelPkMatching(false);
+    }
     pkStartInFlight = false;
+    stopPkMatchCountdown();
     setPkMatching(false);
+    setPkSheetView('home');
     const sheet = document.getElementById('apPkTypesSheet');
     if (!sheet) return;
-    sheet.classList.remove('open');
+    sheet.classList.remove('open', 'is-matching');
     sheet.setAttribute('aria-hidden', 'true');
     sheet.style.display = 'none';
     sheet.style.pointerEvents = 'none';
@@ -772,10 +1897,10 @@
       toast('Only the host can start PK', 'warning');
       return;
     }
-    if (pkBattleActive || document.body.classList.contains('is-pk-mode')) {
+    if (isPkLiveNow()) {
       dismissPkSelectionUi();
       showPkOverlay(true);
-      toast('PK is already live — send gifts to score', 'info');
+      requestStopPk();
       return;
     }
     ensurePkTypesSheet();
@@ -791,8 +1916,12 @@
       tools.style.pointerEvents = 'none';
     }
     pkStartInFlight = false;
+    pkRoomInviteCache = [];
+    stopPkMatchCountdown();
     setPkMatching(false);
+    setPkDurationMinutes(Math.round((pkDurationSeconds || 300) / 60));
     selectPkType(pkSelectedType || 'random');
+    setPkSheetView('home');
     const sheet = document.getElementById('apPkTypesSheet');
     if (!sheet) return;
     sheet.classList.add('open');
@@ -815,122 +1944,418 @@
     }
 
     if (pkSelectedType === 'friend' && !pkFriendPick?.userId) {
-      toast('Pick a friend from the list for Friend PK', 'warning');
-      renderPkFriendPicker();
+      toast('Pick a room to invite', 'warning');
+      setPkSheetView('invite');
+      renderPkRoomInviteList('');
       return;
     }
 
     pkStartInFlight = true;
     const mode = pkSelectedType || 'random';
-    setPkMatching(
-      true,
-      mode === 'random' ? 'Matching opponent…' : mode === 'team' ? 'Starting Team PK…' : 'Starting Friend PK…'
-    );
-    setPkStatus('Starting PK…');
+    const durationSeconds = pkDurationSeconds || 300;
 
+    /* Random + Invite room: challenge and wait — battle only after they accept */
+    if (mode === 'random' || mode === 'friend' || (mode === 'team' && pkFriendPick?.userId)) {
+      const seq = ++pkMatchSeq;
+      const run = async () => {
+        let rival = null;
+        if (mode === 'random') {
+          pkMatchedRivalMeta = null;
+          setPkMatching(true, 'Searching live streams…');
+          setPkStatus('Searching…');
+          const result = await searchRandomPkRival(seq);
+          if (seq !== pkMatchSeq) return;
+          if (result.cancelled) {
+            pkStartInFlight = false;
+            return;
+          }
+          if (!result.rival) {
+            pkStartInFlight = false;
+            setPkMatching(false);
+            setPkStatus('');
+            setPkSheetView('home');
+            toast('No other live hosts online to challenge right now', 'warning');
+            return;
+          }
+          rival = result.rival;
+        } else {
+          rival = {
+            userId: pkFriendPick.userId,
+            name: pkFriendPick.name || 'Rival',
+            profilePic: pkFriendPick.profilePic || null,
+            channel: pkFriendPick.channel || '',
+          };
+        }
+
+        setPkMatching(true, `Waiting for ${rival.name}…`);
+        setPkStatus(`Waiting for ${rival.name}`);
+        const res = await sendPkChallenge({
+          userId: rival.userId,
+          name: rival.name,
+          channel: rival.channel || '',
+          mode: mode === 'team' ? 'friend' : mode,
+          profilePic: rival.profilePic,
+        });
+        if (seq !== pkMatchSeq) return;
+        if (!res?.ok) {
+          pkStartInFlight = false;
+          pkPendingChallengeId = null;
+          setPkMatching(false);
+          setPkStatus('');
+          setPkSheetView(mode === 'friend' ? 'invite' : 'home');
+          toast(res?.message || 'Could not send PK challenge', 'error');
+          return;
+        }
+        setPkMatching(true, `Waiting for ${rival.name} to accept…`);
+        toast(`Challenge sent to ${rival.name}`, 'info');
+      };
+      run();
+      return;
+    }
+
+    /* Team alone (no rival): open sides for gift war */
+    setPkMatching(true, 'Starting Team PK…');
+    setPkStatus('Starting PK…');
     const payload = {
       channel: channelId(),
-      durationSeconds: 300,
-      mode,
-      format: mode === 'team' ? '1v2' : '1v1',
-      allowParty: Boolean(document.getElementById('apPkAllowParty')?.checked),
+      durationSeconds,
+      mode: 'team',
+      format: '1v2',
+      forceStart: true,
       hostName:
         roomState?.hostName ||
         document.getElementById('liveHostName')?.textContent ||
         displayName(currentUser()) ||
         'Host',
     };
-    if (pkFriendPick?.userId) {
-      payload.opponentUserId = pkFriendPick.userId;
-      payload.opponentName = pkFriendPick.name || 'Rival';
-      /* Tell friend they are challenged */
-      liveSocket.emit('pk:invite', {
-        channel: channelId(),
-        userId: pkFriendPick.userId,
-        mode,
-      });
-    }
-
-    const startAfter = mode === 'random' ? 700 : 200;
     window.setTimeout(() => {
-      liveSocket.emit('pk:start', payload, (res) => {
+      if (!liveSocket?.connected) {
         pkStartInFlight = false;
-        if (res?.ok) {
-          dismissPkSelectionUi();
-          const snap = res.battle || res;
-          if (snap) snap.mode = mode;
-          beginPkBattle(snap);
-          if (mode === 'friend' && pkFriendPick?.name) {
-            toast(`Friend PK vs ${pkFriendPick.name}`, 'success');
-          } else if (mode === 'team') {
-            toast('Team PK live — invite guests to join sides', 'success');
+        setPkMatching(false);
+        toast('Not connected to live server', 'error');
+        return;
+      }
+      emitPkStartAfterMatch('team', payload);
+    }, 200);
+  }
+
+  function ensurePkMediaAlive(reason) {
+    try {
+      /* Never leave tracks muted/hidden after PK chrome mounts */
+      (localTracks || []).forEach((t) => {
+        try {
+          if (t && typeof t.setEnabled === 'function') t.setEnabled(true);
+        } catch (_e) {}
+        try {
+          if (t && typeof t.setMuted === 'function' && t.trackMediaType === 'audio' && !micMuted) {
+            t.setMuted(false);
           }
-        } else {
-          setPkMatching(false);
-          setPkStatus('');
-          selectPkType(pkSelectedType);
-          toast(res?.message || 'Could not start PK', 'error');
-        }
+        } catch (_e) {}
       });
-    }, startAfter);
+    } catch (_e) {}
+
+    try {
+      document
+        .querySelectorAll('#liveLocalHost video, #liveLocalVideo, #liveLocalHost canvas')
+        .forEach((el) => {
+          el.style.opacity = '1';
+          el.style.visibility = 'visible';
+          el.style.display = '';
+          if (el.tagName === 'VIDEO') {
+            el.muted = true;
+            el.playsInline = true;
+            const p = el.play?.();
+            if (p && typeof p.catch === 'function') p.catch(() => {});
+          }
+        });
+      document.querySelectorAll('#liveRemoteHost video').forEach((el) => {
+        el.style.opacity = '1';
+        el.style.visibility = 'visible';
+        el.style.display = '';
+        const p = el.play?.();
+        if (p && typeof p.catch === 'function') p.catch(() => {});
+      });
+    } catch (_e) {}
+
+    try {
+      kickstartRemoteAudio?.(reason || 'pk-media');
+    } catch (_e) {}
+    try {
+      setLiveStreamVisible?.(true);
+    } catch (_e) {}
+    try {
+      if (isHost() || clientClaimsHost?.()) {
+        resumeHostBroadcastIfNeeded?.();
+      }
+    } catch (_e) {}
+  }
+
+  function showPkChallengeSheet(payload) {
+    ensurePkChallengeSheet();
+    const sheet = document.getElementById('apPkChallengeSheet');
+    if (!sheet || !payload?.challengeId) return;
+    sheet.dataset.challengeId = String(payload.challengeId);
+    sheet.dataset.fromName = payload.fromName || 'Host';
+    sheet.dataset.mode = payload.mode || 'friend';
+    const title = document.getElementById('apPkChallengeTitle');
+    const body = document.getElementById('apPkChallengeBody');
+    const mode =
+      payload.mode === 'random' ? 'Random PK' : payload.mode === 'team' ? 'Team PK' : 'Friend PK';
+    if (title) title.textContent = `${payload.fromName || 'Host'} challenges you`;
+    if (body) body.textContent = `${mode} — Accept to start. Your voice & video stay live.`;
+    sheet.classList.add('open');
+    sheet.setAttribute('aria-hidden', 'false');
+    sheet.style.display = 'flex';
+  }
+
+  function hidePkChallengeSheet() {
+    const sheet = document.getElementById('apPkChallengeSheet');
+    if (!sheet) return;
+    sheet.classList.remove('open');
+    sheet.setAttribute('aria-hidden', 'true');
+    sheet.style.display = 'none';
+  }
+
+  function ensurePkChallengeSheet() {
+    if (document.getElementById('apPkChallengeSheet')) return;
+    document.body.insertAdjacentHTML(
+      'beforeend',
+      `<div class="ap-pk-challenge-sheet" id="apPkChallengeSheet" aria-hidden="true" style="display:none">
+        <div class="ap-pk-challenge-panel" role="dialog" aria-label="PK challenge">
+          <h3 id="apPkChallengeTitle">PK Challenge</h3>
+          <p id="apPkChallengeBody">Someone challenged you to PK.</p>
+          <div class="ap-pk-challenge-actions">
+            <button type="button" class="ap-pk-challenge-decline" id="apPkChallengeDecline">Decline</button>
+            <button type="button" class="ap-pk-challenge-accept" id="apPkChallengeAccept">Accept PK</button>
+          </div>
+        </div>
+      </div>`
+    );
+    const respond = (accept) => {
+      const sheet = document.getElementById('apPkChallengeSheet');
+      const challengeId = sheet?.dataset?.challengeId;
+      hidePkChallengeSheet();
+      if (!challengeId || !liveSocket?.connected) return;
+      liveSocket.emit(
+        'pk:challenge:respond',
+        {
+          challengeId,
+          accept: Boolean(accept),
+          displayName: displayName(currentUser()),
+          channel: channelId(),
+          targetChannel: channelId(),
+        },
+        (res) => {
+          if (!accept) {
+            toast('PK declined', 'info');
+            return;
+          }
+          if (res?.ok && res.battle) {
+            beginPkBattle(res.battle);
+            ensurePkMediaAlive('pk-accept');
+            toast('PK started — mutual link on!', 'success');
+          } else {
+            toast(res?.message || 'Could not join PK', 'error');
+          }
+        }
+      );
+    };
+    document.getElementById('apPkChallengeAccept')?.addEventListener('click', () => respond(true));
+    document.getElementById('apPkChallengeDecline')?.addEventListener('click', () => respond(false));
   }
 
   function beginPkBattle(snapshot) {
+    if (!snapshot) return;
+    const battleId = snapshot?.battle?.id || snapshot?.id || null;
+    /* Refresh only if same mutual battle already running (dedupe multi-emit) */
+    if (pkBattleActive && battleId && pkActiveBattleId && String(battleId) === String(pkActiveBattleId)) {
+      pkLastSnapshot = snapshot;
+      if (Array.isArray(snapshot?.linkedChannels)) {
+        pkLinkedChannels = snapshot.linkedChannels.map(String);
+      }
+      pkViewSwapped = resolvePkSideNames(snapshot).myTeam === 2;
+      applyPkTeamsFromSnapshot(snapshot);
+      syncPkStageUi(snapshot);
+      updatePkBar();
+      rememberPkEnders(snapshot);
+      syncPkControlUi();
+      const rivalCh = resolvePkRivalChannel(snapshot);
+      pkRivalHostAgoraUid = resolveRivalHostAgoraUid(snapshot, rivalCh);
+      if (rivalCh) startPkRivalAgora(rivalCh, snapshot).catch(() => {});
+      return;
+    }
+
     /* Critical: never leave PK Types / tools covering the live PK UI */
     dismissPkSelectionUi();
+    hidePkChallengeSheet();
     ensurePkBattleChrome();
+    ensurePkRivalMediaBox();
     pkBattleActive = true;
     pkEndRequested = false;
     pkStartInFlight = false;
+    pkPendingChallengeId = null;
+    pkActiveBattleId = battleId;
     pkModeActive = snapshot?.mode || pkSelectedType || 'random';
+    pkLastSnapshot = snapshot;
+    const sides = resolvePkSideNames(snapshot);
+    pkViewSwapped = sides.myTeam === 2;
+    if (Array.isArray(snapshot?.linkedChannels)) {
+      pkLinkedChannels = snapshot.linkedChannels.map(String);
+    } else {
+      const pair = [snapshot?.challengerChannel, snapshot?.rivalChannel].filter(Boolean).map(String);
+      if (pair.length) pkLinkedChannels = pair;
+    }
+    const otherCh = resolvePkRivalChannel(snapshot);
+    const otherName = sides.labelR;
+    const otherId =
+      sides.myTeam === 2
+        ? snapshot.challengerUserId
+        : snapshot.rivalUserId || pkMatchedRivalMeta?.userId;
+    pkMatchedRivalMeta = {
+      ...(pkMatchedRivalMeta || {}),
+      name: otherName,
+      profilePic: snapshot.rivalProfilePic || pkMatchedRivalMeta?.profilePic || null,
+      userId: otherId || pkMatchedRivalMeta?.userId || null,
+      channel: otherCh || pkMatchedRivalMeta?.channel || null,
+    };
+    pkRivalHostAgoraUid = resolveRivalHostAgoraUid(snapshot, otherCh);
+    rememberPkEnders(snapshot);
     setPkMatching(false);
     applyPkTeamsFromSnapshot(snapshot);
     pkTimerSec = pkSecsRemaining(snapshot);
     showPkOverlay(true);
     syncPkStageUi(snapshot);
     updatePkBar();
+    syncPkControlUi();
     const timerEl = document.getElementById('apPkTimer');
     if (timerEl) timerEl.textContent = formatPkClock(pkTimerSec);
-    setPkStatus('Get ready…');
+    setPkStatus(otherCh ? 'PK starting — linking streams…' : 'Get ready…');
+    ensurePkMediaAlive('pk-start');
+    window.setTimeout(() => ensurePkMediaAlive('pk-start-late'), 400);
+    window.setTimeout(() => ensurePkMediaAlive('pk-start-retry'), 1200);
 
-    const hostName =
-      snapshot?.hostName ||
-      roomState?.hostName ||
-      document.getElementById('liveHostName')?.textContent ||
-      'Host';
-    const rival = snapshot?.rivalName || snapshot?.opponentName;
+    /* Dual-host PK: both sides join the OTHER room as audience for A/V */
+    if (otherCh) {
+      if (pkMatchedRivalMeta) pkMatchedRivalMeta.channel = otherCh;
+      startPkRivalAgora(otherCh, snapshot).catch((e) => console.warn('[pk] rival start', e));
+      if (pkRivalWatchTimer) clearInterval(pkRivalWatchTimer);
+      pkRivalWatchTimer = setInterval(() => {
+        if (!pkBattleActive) {
+          clearInterval(pkRivalWatchTimer);
+          pkRivalWatchTimer = null;
+          return;
+        }
+        const hasVid = Boolean(document.querySelector('#apPkRivalMedia video'));
+        if (!pkRivalChannelJoined || !hasVid) {
+          startPkRivalAgora(otherCh, pkLastSnapshot).catch(() => {});
+        }
+      }, 4000);
+    }
+
+    const localName = sides.labelL;
     const modeLabel =
       pkModeActive === 'friend' ? 'Friend PK' : pkModeActive === 'team' ? 'Team PK' : 'Random PK';
     postPkSystemChat([
-      'Click gifts to increase PK scores!',
-      rival
-        ? `${hostName} vs ${rival} — ${modeLabel} started! Cheer for them!`
-        : `${hostName} started ${modeLabel} — cheer for your side!`,
+      'PK is mutual — chats & gifts are shared on both sides!',
+      `${localName} vs ${otherName} — ${modeLabel}`,
     ]);
 
     window.SocialFX?.pkCountdown?.(3, () => {
-      setPkStatus('PK LIVE — send gifts to score!');
+      setPkStatus(otherCh ? 'PK LIVE — streams linked' : 'PK LIVE — send gifts to score!');
       updatePkBar();
+      ensurePkMediaAlive('pk-countdown-done');
+      syncPkControlUi();
+      if (otherCh) startPkRivalAgora(otherCh, pkLastSnapshot).catch(() => {});
     });
   }
 
   function endPkBattle(snapshot) {
+    /* Dedupe multi-emit (ack + broadcast + both link rooms) */
+    if (!pkBattleActive && !pkActiveBattleId) return;
+    const snap = snapshot || pkLastSnapshot || {};
+    const myTeam = pkMyTeamFromSnapshot(snap);
+    const sides = resolvePkSideNames(snap);
+    const teams = snap?.teams || [];
+    const scoreOf = (n) => {
+      const hit = teams.find((t) => Number(t.team) === n);
+      if (hit) return Number(hit.team_score ?? hit.score ?? 0);
+      return Number(teams[n - 1]?.team_score ?? teams[n - 1]?.score ?? 0);
+    };
+    let t1 = scoreOf(1);
+    let t2 = scoreOf(2);
+    if (!teams.length) {
+      /* fall back to last bar orientation */
+      if (myTeam === 2) {
+        t2 = pkScoreLeft;
+        t1 = pkScoreRight;
+      } else {
+        t1 = pkScoreLeft;
+        t2 = pkScoreRight;
+      }
+    }
+    let winnerTeam =
+      snap?.winnerTeam != null
+        ? Number(snap.winnerTeam)
+        : snap?.battle?.winner_team != null
+          ? Number(snap.battle.winner_team)
+          : null;
+    if (winnerTeam == null && !snap?.isDraw) {
+      if (t1 === t2) winnerTeam = null;
+      else winnerTeam = t1 > t2 ? 1 : 2;
+    }
+    const left = myTeam === 2 ? t2 : t1;
+    const right = myTeam === 2 ? t1 : t2;
+    const iWon = winnerTeam != null && Number(winnerTeam) === myTeam;
+    const isDraw = Boolean(snap?.isDraw) && !snap?.forfeit && winnerTeam == null;
+    const winnerName = snap?.winnerName || (winnerTeam === 1 ? sides.labelL : sides.labelR);
+    const forfeitLoss = Boolean(snap?.forfeit) && !iWon;
+
     pkBattleActive = false;
     pkStartInFlight = false;
+    pkEndRequested = false;
+    pkMatchedRivalMeta = null;
+    pkEnderIds = new Set();
+    pkLinkedChannels = [];
+    pkViewSwapped = false;
+    pkActiveBattleId = null;
+    pkRivalHostAgoraUid = null;
+    pkLastSnapshot = null;
+    if (pkRivalWatchTimer) {
+      clearInterval(pkRivalWatchTimer);
+      pkRivalWatchTimer = null;
+    }
+    document.body.classList.remove('ap-pk-can-end');
+    document.documentElement.classList.remove('ap-pk-can-end');
+    stopPkRivalAgora().catch(() => {});
     dismissPkSelectionUi();
-    applyPkTeamsFromSnapshot(snapshot);
-    const teams = snapshot?.teams || [];
-    const left = Number(teams[0]?.team_score ?? pkScoreLeft);
-    const right = Number(teams[1]?.team_score ?? pkScoreRight);
-    const won = left >= right;
-    setPkStatus('Battle ended');
-    window.SocialFX?.pkWinner?.(won ? 'winner' : 'loser', snapshot?.winnerName || roomState?.hostName);
+    pkScoreLeft = left;
+    pkScoreRight = right;
+    if (isDraw) {
+      setPkStatus('Draw!');
+      window.SocialFX?.pkWinner?.('draw', 'Draw');
+      postPkSystemChat(`PK ended in a draw — ${left} : ${right}`);
+    } else if (iWon) {
+      setPkStatus(snap?.forfeit ? 'Rival left — you win!' : 'You win!');
+      window.SocialFX?.pkWinner?.('winner', sides.labelL || roomState?.hostName || 'You');
+      postPkSystemChat(
+        snap?.forfeit
+          ? `Rival left PK — you win! ${left} : ${right}`
+          : `You win PK! Final ${left} : ${right}`
+      );
+    } else {
+      setPkStatus(forfeitLoss ? 'You left — Defeat' : 'You lost');
+      window.SocialFX?.pkWinner?.(
+        'loser',
+        winnerName || sides.labelR || 'Rival'
+      );
+      postPkSystemChat(
+        forfeitLoss
+          ? `You left PK — rival wins. Final ${left} : ${right}`
+          : `You lost PK — final ${left} : ${right}`
+      );
+    }
     window.SocialFX?.pkScoreUpdate?.(left, right);
-    postPkSystemChat(
-      won
-        ? `PK ended — ${roomState?.hostName || 'Host'} side leads ${left} : ${right}`
-        : `PK ended — final score ${left} : ${right}`
-    );
+    syncPkControlUi();
     setTimeout(() => showPkOverlay(false), 4500);
   }
   let heartbeatTimer = null;
@@ -4373,6 +5798,20 @@
         roomState = mergeRoomState(state);
         seedChatProfileCacheFromState(roomState);
         hydrateGiftHistoryFromState(roomState);
+        /* Mutual PK: apply battle UI on both rooms + late joiners */
+        try {
+          const pkSnap = state?.pkBattle;
+          if (pkSnap && pkSnap.battle?.status === 'active') {
+            beginPkBattle(pkSnap);
+          } else if (
+            pkBattleActive &&
+            (state?.pkStatus === 'ended' || state?.pkStatus === 'none' || state?.pkStatus === null) &&
+            !pkSnap
+          ) {
+            /* only clear if backend clear marks ended — don't kill mid-battle if field missing */
+            if (state?.pkStatus === 'ended') endPkBattle(state);
+          }
+        } catch (_pkState) {}
         if (state?.viewers != null && state.viewers !== prevViewers) {
           window.SocialFX?.onViewerCountChange?.(state.viewers, prevViewers);
         }
@@ -4596,7 +6035,8 @@
       });
 
       liveSocket.on('pk:start', (snapshot) => {
-        /* Always collapse selection UI once the server says battle is live */
+        pkPendingChallengeId = null;
+        pkStartInFlight = false;
         beginPkBattle(snapshot);
       });
 
@@ -4609,12 +6049,66 @@
         }
       });
 
+      liveSocket.on('pk:challenge', (payload) => {
+        const me = String(currentUser()?.id || '');
+        const target = String(payload?.targetUserId || '');
+        if (target && target !== me) return;
+        if (payload?.fromUserId && String(payload.fromUserId) === me) return;
+        if (pkBattleActive) return;
+        if (payload?.challengeId && window.__apPkChallengeSeen?.has?.(payload.challengeId)) return;
+        window.__apPkChallengeSeen = window.__apPkChallengeSeen || new Set();
+        window.__apPkChallengeSeen.add(payload.challengeId);
+        /* In-app sheet (confirm is unreliable in WebView) */
+        showPkChallengeSheet(payload);
+      });
+
+      liveSocket.on('pk:challenge:declined', (payload) => {
+        if (!pkPendingChallengeId || String(payload?.challengeId) !== String(pkPendingChallengeId)) {
+          if (pkStartInFlight && pkPendingChallengeId) {
+            /* still ours */
+          } else if (payload?.targetUserId && pkMatchedRivalMeta?.userId) {
+            /* ok */
+          } else {
+            return;
+          }
+        }
+        pkPendingChallengeId = null;
+        pkStartInFlight = false;
+        setPkMatching(false);
+        setPkStatus('');
+        selectPkType(pkSelectedType || 'random');
+        toast(`${payload?.fromName || 'Opponent'} declined the PK`, 'warning');
+      });
+
+      liveSocket.on('pk:challenge:timeout', (payload) => {
+        if (pkPendingChallengeId && String(payload?.challengeId) !== String(pkPendingChallengeId)) return;
+        pkPendingChallengeId = null;
+        pkStartInFlight = false;
+        setPkMatching(false);
+        setPkStatus('');
+        selectPkType(pkSelectedType || 'random');
+        toast('PK challenge timed out — try again', 'warning');
+      });
+
+      liveSocket.on('pk:challenge:accepted', (payload) => {
+        pkPendingChallengeId = null;
+        pkStartInFlight = false;
+        if (payload?.battle) beginPkBattle(payload.battle);
+      });
+
       liveSocket.on('pk:invite', (payload) => {
+        /* Legacy invite — convert to confirm for same-room guests */
         const me = String(currentUser()?.id || '');
         if (payload?.targetUserId && String(payload.targetUserId) !== me) return;
-        if (isHost() || clientClaimsHost?.()) return;
-        toast(`${payload?.fromName || 'Host'} invited you to PK — joining…`, 'info');
-        if (liveSocket?.connected && !pkBattleActive) {
+        if (payload?.fromUserId && String(payload.fromUserId) === me) return;
+        if (pkBattleActive) return;
+        if (isHost() || clientClaimsHost?.()) {
+          /* hosts use pk:challenge now */
+          return;
+        }
+        const fromName = payload?.fromName || 'Host';
+        if (!window.confirm(`${fromName} invited you to PK. Accept?`)) return;
+        if (liveSocket?.connected) {
           liveSocket.emit(
             'pk:join',
             {
@@ -9079,10 +10573,16 @@
         return `gift|${fp}|${Math.floor(atMs / 8000)}`;
       }
     }
-    if (msg?.id && !String(msg.id).startsWith('local-')) return String(msg.id);
+    /* Stable id: strip PK bridge suffix so original + bridged don't both land */
+    if (msg?.id && !String(msg.id).startsWith('local-') && !String(msg.id).startsWith('pk-local-')) {
+      return String(msg.id).replace(/-pk$/i, '');
+    }
+    if (msg?.type === 'system') {
+      return `system|${String(msg.text || '').trim().toLowerCase()}`;
+    }
     const atMs = msg?.at ? new Date(msg.at).getTime() : Number(msg?.at) || 0;
-    const bucket = atMs ? Math.floor(atMs / 3000) : 0;
-    return `${msg?.type || 'chat'}|${msg?.userId || msg?.user || ''}|${msg?.text || ''}|${bucket}`;
+    const bucket = atMs ? Math.floor(atMs / 8000) : 0;
+    return `${msg?.type || 'chat'}|${msg?.userId || msg?.user || ''}|${String(msg?.text || '').trim()}|${bucket}`;
   }
 
   function findExistingGiftMessage(msg) {
@@ -9110,6 +10610,18 @@
     });
   }
 
+  function pkChatSideForMsg(msg) {
+    if (!pkBattleActive && !document.body.classList.contains('is-pk-mode')) return '';
+    const mine = String(channelId() || '');
+    if (!mine) return '';
+    const from = String(msg?.fromChannel || msg?.channel || '');
+    if (msg?.pkBridge || (from && from !== mine)) return 'away';
+    if (from && from === mine) return 'home';
+    /* local / own room traffic */
+    if (!from && !msg?.pkBridge) return 'home';
+    return 'home';
+  }
+
   function rememberChatMessage(msg) {
     if (!msg) return;
     const text = String(msg.text || '');
@@ -9120,6 +10632,17 @@
       /requested to join|requested mic|wants to join (on mic|the (live|stream)|a seat)/i.test(text)
     ) {
       return;
+    }
+    /* Deduplicate PK start / mutual spam if beginPkBattle re-fires */
+    if (
+      msg.type === 'system' &&
+      /pk is mutual|click gifts to increase|vs .* — (friend|team|random) pk/i.test(text)
+    ) {
+      const soft = String(text).trim().toLowerCase();
+      const already = chatMessages.some(
+        (m) => m.type === 'system' && String(m.text || '').trim().toLowerCase() === soft
+      );
+      if (already) return;
     }
     const me = currentUser();
     const isMine =
@@ -9135,7 +10658,12 @@
       if (pendingIdx >= 0) chatMessages.splice(pendingIdx, 1);
     }
     const pic = getChatProfilePic(msg);
-    const enriched = { ...msg, profilePic: pic || msg.profilePic || null };
+    const side = pkChatSideForMsg(msg);
+    const enriched = {
+      ...msg,
+      profilePic: pic || msg.profilePic || null,
+      pkSide: side || msg.pkSide || null,
+    };
     if (enriched.userId && enriched.profilePic) cacheChatProfile(enriched.userId, enriched.profilePic);
     const giftIdx = findExistingGiftMessage(enriched);
     if (giftIdx >= 0) {
@@ -9146,6 +10674,7 @@
         id: enriched.id || prev.id,
         gift: { ...(prev.gift || {}), ...(enriched.gift || {}) },
         profilePic: enriched.profilePic || prev.profilePic || null,
+        pkSide: enriched.pkSide || prev.pkSide || null,
       };
       return;
     }
@@ -9153,12 +10682,34 @@
     const existingIdx = chatMessages.findIndex((m) => chatMsgKey(m) === key);
     if (existingIdx >= 0) {
       const prev = chatMessages[existingIdx];
-      chatMessages[existingIdx] = {
-        ...prev,
-        ...enriched,
-        profilePic: enriched.profilePic || prev.profilePic || null,
-      };
+      /* Prefer non-bridged copy so we don't thrash in place repeatedly */
+      if (prev.pkBridge && !enriched.pkBridge) {
+        chatMessages[existingIdx] = {
+          ...prev,
+          ...enriched,
+          profilePic: enriched.profilePic || prev.profilePic || null,
+          pkSide: enriched.pkSide || prev.pkSide || null,
+        };
+      } else {
+        chatMessages[existingIdx] = {
+          ...prev,
+          profilePic: enriched.profilePic || prev.profilePic || null,
+          pkSide: enriched.pkSide || prev.pkSide || null,
+        };
+      }
       return;
+    }
+    /* Soft text+user dedupe within 12s for regular chat */
+    if (msg.type !== 'gift' && msg.type !== 'mic_invite' && text) {
+      const now = Date.now();
+      const softDup = chatMessages.findIndex((m) => {
+        if ((m.type || 'chat') !== (msg.type || 'chat')) return false;
+        if (String(m.text || '') !== text) return false;
+        if (String(m.userId || m.user || '') !== String(msg.userId || msg.user || '')) return false;
+        const a = m.at ? new Date(m.at).getTime() : 0;
+        return !a || Math.abs(now - a) < 12000;
+      });
+      if (softDup >= 0) return;
     }
     if (chatMessages.some((m) => chatMsgKey(m) === key)) return;
     chatMessages.push(enriched);
@@ -9258,7 +10809,13 @@
           else if (fromId) openProfileSheet(fromName, fromId);
         });
       } else {
-        div.className = 'party-chat-msg';
+        const pkSide = msg.pkSide || pkChatSideForMsg(msg);
+        div.className =
+          'party-chat-msg' +
+          (pkSide === 'away' ? ' is-pk-away' : '') +
+          (pkSide === 'home' && (pkBattleActive || document.body.classList.contains('is-pk-mode'))
+            ? ' is-pk-home'
+            : '');
         const uid = msg.userId || '';
         const pic = msg.profilePic || getChatProfilePic(msg);
         const avatarSrc = avatarUrl(msg.user, pic);
@@ -9270,11 +10827,17 @@
           : `<span class="lvl">${msg.lvl || 1}</span>`;
         const admin = uid && isAdminUserId(uid);
         const adminBadge = admin ? '<span class="party-chat-admin-badge">Admin</span>' : '';
+        const sideTag =
+          pkSide === 'away'
+            ? '<span class="party-chat-pk-tag away">Rival</span>'
+            : pkSide === 'home' && (pkBattleActive || document.body.classList.contains('is-pk-mode'))
+              ? '<span class="party-chat-pk-tag home">Us</span>'
+              : '';
         div.innerHTML =
           `<button type="button" class="party-chat-avatar-btn${adminAvatarFrameClass(admin)}" data-chat-user="${escapeAttr(msg.user || 'User')}" data-chat-uid="${escapeHtml(String(uid))}">` +
           `<img src="${escapeAttr(avatarSrc)}" alt="" data-name="${escapeAttr(msg.user || 'User')}" data-avatar-src="${escapeAttr(pic || '')}" loading="lazy" decoding="async" fetchpriority="low">${adminAvatarTagHtml(admin)}</button>` +
           `<div class="party-chat-body">` +
-          `<div class="party-chat-meta">${badge}${adminBadge}` +
+          `<div class="party-chat-meta">${badge}${adminBadge}${sideTag}` +
           `<button type="button" class="party-chat-user-btn" data-chat-user="${escapeAttr(msg.user || 'User')}" data-chat-uid="${escapeHtml(String(uid))}">` +
           `<span class="user${admin ? ' is-admin-name' : ''}">${escapeHtml(msg.user)}</span></button>` +
           `${canModerateRoom() ? `<button type="button" class="party-chat-mod-btn" aria-label="Moderate message" data-msg-id="${escapeAttr(String(msg.id || ''))}"><i class="fas fa-ellipsis-v" aria-hidden="true"></i></button>` : ''}` +
@@ -9748,9 +11311,8 @@
     if (pkTimerSec <= 0) {
       el.textContent = '00:00';
       setPkStatus('Time is up — ending battle…');
-      if (!pkEndRequested && isHost() && liveSocket?.connected) {
-        pkEndRequested = true;
-        liveSocket.emit('pk:end', { channel: channelId() });
+      if (!pkEndRequested && canEndPkBattle() && liveSocket?.connected) {
+        requestStopPk({ skipConfirm: true });
       }
       return;
     }
@@ -10185,12 +11747,16 @@
       document.getElementById('partyBgPickerSheet')?.classList.contains('open') ||
       document.getElementById('apInAppShareSheet')?.classList.contains('open') ||
       document.getElementById('apSurpriseShop')?.classList.contains('open') ||
-      document.getElementById('apFilterSheet')?.classList.contains('open')
+      document.getElementById('apFilterSheet')?.classList.contains('open') ||
+      document.querySelector('.ap-pk-types-sheet.open')
     );
     document.body.classList.toggle('ap-live-overlay-open', open);
     if (!document.getElementById('partyRequestsSheet')?.classList.contains('open')) {
       document.body.classList.remove('party-requests-open');
     }
+    try {
+      syncBottomBarHeightVar();
+    } catch (_e) {}
   }
 
   /** Clear ghost overlays / frozen Sending state that block gifts & bottom buttons */
@@ -10264,26 +11830,86 @@
       syncLiveOverlayClass();
     }
 
-    /* Always keep gift / bottom bar interactive unless requests sheet is truly open */
+    /* Always keep gift / bottom bar interactive unless a sheet is open on top */
     const bar = document.getElementById('partyBottomBar');
-    if (bar && !reqSheet?.classList.contains('open')) {
-      bar.style.pointerEvents = 'auto';
+    const sheetOnTop = Boolean(
+      document.querySelector(
+        '#giftSheet.open, #partyToolsSheet.open, .ap-pk-types-sheet.open, #partyRequestsSheet.open'
+      )
+    );
+    if (bar) {
       bar.style.visibility = 'visible';
       bar.style.opacity = '1';
       bar.style.removeProperty('transform');
+      bar.style.pointerEvents = sheetOnTop ? 'none' : 'auto';
+      bar.style.zIndex = sheetOnTop ? '12000' : '14000';
     }
     ['liveBtnGift', 'partyBtnGift'].forEach((id) => {
       const giftBtn = document.getElementById(id);
       if (!giftBtn) return;
-      giftBtn.style.pointerEvents = 'auto';
+      giftBtn.style.pointerEvents = sheetOnTop ? 'none' : 'auto';
       giftBtn.removeAttribute('disabled');
       giftBtn.setAttribute('aria-disabled', 'false');
     });
+    try {
+      syncBottomBarHeightVar();
+    } catch (_e) {}
   }
 
   function syncBottomBarHeightVar() {
     const bar = document.getElementById('partyBottomBar');
     if (!bar) return;
+    /* Keep compose from swallowing gift/tools; bar stays UNDER open sheets (gift/tools/PK) */
+    try {
+      const compose = document.getElementById('liveChatCompose');
+      const actions = bar.querySelector('.party-bottom-actions');
+      const gift = document.getElementById('liveBtnGift') || document.getElementById('partyBtnGift');
+      const sheetOpen = Boolean(
+        document.querySelector(
+          '#giftSheet.open, #partyToolsSheet.open, .ap-pk-types-sheet.open, .party-requests-sheet.open'
+        )
+      );
+      bar.style.display = 'flex';
+      bar.style.flexWrap = 'nowrap';
+      bar.style.alignItems = 'center';
+      bar.style.overflow = 'visible';
+      /* Below gift/tools (32000); above chat/PK overlays */
+      bar.style.zIndex = sheetOpen ? '12000' : '14000';
+      bar.style.pointerEvents = sheetOpen ? 'none' : 'auto';
+      /* Lift above system home / gesture nav */
+      bar.style.bottom = 'max(12px, env(safe-area-inset-bottom, 0px))';
+      if (compose) {
+        compose.style.flex = '1 1 0%';
+        compose.style.minWidth = '0';
+        compose.style.maxWidth = 'none';
+        compose.style.overflow = 'hidden';
+        compose.style.position = 'relative';
+        compose.style.zIndex = '1';
+      }
+      if (actions) {
+        actions.style.flex = '0 0 auto';
+        actions.style.flexShrink = '0';
+        actions.style.position = 'relative';
+        actions.style.zIndex = '5';
+        actions.style.pointerEvents = sheetOpen ? 'none' : 'auto';
+        actions.style.display = 'flex';
+        actions.style.alignItems = 'center';
+      }
+      if (gift) {
+        gift.style.flexShrink = '0';
+        gift.style.position = 'relative';
+        gift.style.zIndex = '6';
+        gift.style.pointerEvents = sheetOpen ? 'none' : 'auto';
+        gift.style.opacity = '1';
+        gift.style.visibility = 'visible';
+        gift.style.display = 'inline-flex';
+        gift.style.alignItems = 'center';
+        gift.style.justifyContent = 'center';
+        gift.removeAttribute('disabled');
+      }
+    } catch (_e) {
+      /* non-fatal */
+    }
     let h = Math.ceil(bar.getBoundingClientRect().height || 58);
     /* Cap — a bloated height pushes sticky bars into the invite/joined hit zone */
     if (!Number.isFinite(h) || h < 48) h = 58;
@@ -13383,7 +15009,16 @@
     });
 
     document.getElementById('liveBtnPk')?.addEventListener('click', () => {
-      /* Open PK Types first — do NOT start battle until host confirms */
+      /* Live PK → stop; otherwise open PK Types (start only after confirm) */
+      if (isPkLiveNow()) {
+        try {
+          closeToolsSheetOnly?.();
+        } catch (_e) {
+          document.getElementById('partyToolsSheet')?.classList.remove('open');
+        }
+        requestStopPk();
+        return;
+      }
       openPkTypesSheet();
     });
 
@@ -14649,13 +16284,15 @@
     renderGiftGrid();
     refreshCoinDisplay().then(() => updateGiftMeta()).catch(() => updateGiftMeta());
     updateGiftMeta();
-    sheet.style.zIndex = '15000';
+    sheet.style.zIndex = '32000';
     sheet.style.removeProperty('pointer-events');
     sheet.style.removeProperty('display');
     sheet.style.removeProperty('visibility');
+    sheet.style.removeProperty('background');
+    sheet.style.removeProperty('opacity');
     sheet.style.visibility = 'visible';
     sheet.style.pointerEvents = 'auto';
-    sheet.classList.add('open');
+    sheet.classList.add('open', 'gift-sheet--lux', 'gift-sheet--send-safe');
     if (sheet.parentElement !== document.body) document.body.appendChild(sheet);
     syncLiveOverlayClass();
     /* Block accidental backdrop-close / Send from the same finger tap that opened the sheet */
@@ -14869,6 +16506,11 @@
       setGiftSendError('');
       toast('Gift sent!', 'success');
       sheet.classList.remove('open');
+      sheet.style.display = 'none';
+      sheet.style.pointerEvents = 'none';
+      sheet.style.visibility = 'hidden';
+      sheet.style.background = 'transparent';
+      sheet.style.opacity = '0';
       syncLiveOverlayClass();
       /* Refresh balance AFTER unlock so a hang never freezes Send */
       Promise.resolve()

@@ -1,7 +1,61 @@
 const db = require('../config/database');
 const walletService = require('./walletService');
+const { uidFromUserId } = require('../lib/agoraUid');
 
 const FORMAT_TEAM_SIZE = { '1v1': 1, '1v2': 2, '1v4': 4, '1v8': 8 };
+
+/** In-memory map so gifts on either host stream score the shared PK battle. */
+const channelBattleLinks = new Map();
+/** Dual-host meta kept while battle is active (channels, names, mode). */
+const battleExtras = new Map();
+
+function linkChannelToBattle(channel, battleId) {
+  const ch = String(channel || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64);
+  if (!ch || !battleId) return;
+  channelBattleLinks.set(ch, battleId);
+}
+
+function clearBattleChannelLinks(battleId) {
+  if (!battleId) return;
+  for (const [ch, id] of [...channelBattleLinks.entries()]) {
+    if (String(id) === String(battleId)) channelBattleLinks.delete(ch);
+  }
+  battleExtras.delete(String(battleId));
+}
+
+function listChannelsForBattle(battleId) {
+  const out = [];
+  if (!battleId) return out;
+  for (const [ch, id] of channelBattleLinks.entries()) {
+    if (String(id) === String(battleId)) out.push(ch);
+  }
+  return out;
+}
+
+function setBattleExtras(battleId, extras = {}) {
+  if (!battleId) return;
+  const prev = battleExtras.get(String(battleId)) || {};
+  battleExtras.set(String(battleId), { ...prev, ...extras });
+}
+
+function getBattleExtras(battleId) {
+  if (!battleId) return {};
+  return battleExtras.get(String(battleId)) || {};
+}
+
+async function setChannelsPkStatus(channels, status) {
+  const list = [...new Set((channels || []).filter(Boolean))];
+  for (const ch of list) {
+    try {
+      await db.query(
+        `UPDATE live_rooms SET pk_status = $2, updated_at = CURRENT_TIMESTAMP WHERE channel = $1`,
+        [String(ch), status]
+      );
+    } catch (_e) {
+      /* ignore missing rooms */
+    }
+  }
+}
 
 async function createBattle({ channel, liveRoomId, format = '1v1', durationSeconds = 300 }) {
   if (!FORMAT_TEAM_SIZE[format]) throw new Error('Invalid PK format');
@@ -141,18 +195,65 @@ async function getTeamScores(battleId) {
   ];
 }
 
-async function endBattle(battleId) {
+async function endBattle(battleId, opts = {}) {
+  const forfeitingUserId = opts.forfeitingUserId || opts.leavingUserId || null;
+  const reason = String(opts.reason || (forfeitingUserId ? 'forfeit' : 'score'));
+
   const battle = await getBattle(battleId);
   if (!battle) throw new Error('Battle not found');
-  if (battle.status === 'ended') return getBattleSnapshot(battleId);
+  if (battle.status === 'ended') {
+    const snap = await getBattleSnapshot(battleId);
+    if (snap) {
+      snap.winnerTeam = battle.winner_team != null ? Number(battle.winner_team) : null;
+      snap.endReason = reason;
+    }
+    clearBattleChannelLinks(battleId);
+    return snap;
+  }
+
+  /* Keep dual-host meta for the end payload (clients need channel/team orientation) */
+  const extrasBefore = getBattleExtras(battleId);
+  const linkedBefore = listChannelsForBattle(battleId);
 
   const teams = await getTeamScores(battleId);
   let winnerTeam = null;
-  if (teams.length >= 2) {
-    winnerTeam =
-      Number(teams[0].team_score) >= Number(teams[1].team_score) ? teams[0].team : teams[1].team;
-  } else if (teams.length === 1) {
-    winnerTeam = teams[0].team;
+  let isDraw = false;
+  let forfeit = false;
+
+  if (forfeitingUserId) {
+    /* Quitting / leaving / early stop = loss for that host (even if scores equal) */
+    forfeit = true;
+    const parts = await db.query(
+      `SELECT user_id, team FROM pk_participants WHERE battle_id = $1`,
+      [battleId]
+    );
+    const mePart = parts.rows.find((p) => String(p.user_id) === String(forfeitingUserId));
+    let loserTeam = mePart ? Number(mePart.team) : null;
+    if (loserTeam == null) {
+      if (String(extrasBefore.challengerUserId) === String(forfeitingUserId)) loserTeam = 1;
+      else if (String(extrasBefore.rivalUserId) === String(forfeitingUserId)) loserTeam = 2;
+    }
+    if (loserTeam === 1) winnerTeam = 2;
+    else if (loserTeam === 2) winnerTeam = 1;
+    else if (teams.length >= 2) {
+      /* unknown team — fall through to scores */
+      forfeit = false;
+    }
+  }
+
+  if (!forfeit) {
+    if (teams.length >= 2) {
+      const s0 = Number(teams[0].team_score);
+      const s1 = Number(teams[1].team_score);
+      if (s0 === s1) {
+        winnerTeam = null;
+        isDraw = true;
+      } else {
+        winnerTeam = s0 > s1 ? teams[0].team : teams[1].team;
+      }
+    } else if (teams.length === 1) {
+      winnerTeam = teams[0].team;
+    }
   }
 
   await db.query(
@@ -167,30 +268,66 @@ async function endBattle(battleId) {
   const settingsRes = await db.query(`SELECT value FROM platform_settings WHERE key = 'pk' LIMIT 1`);
   const rewardPct = settingsRes.rows[0]?.value?.winner_reward_pct || 5;
 
-  const winners = await db.query(
-    `SELECT p.user_id, s.score FROM pk_participants p
+  if (winnerTeam != null) {
+    const winners = await db.query(
+      `SELECT p.user_id, s.score FROM pk_participants p
      JOIN pk_scores s ON s.battle_id = p.battle_id AND s.user_id = p.user_id
      WHERE p.battle_id = $1 AND p.team = $2`,
-    [battleId, winnerTeam]
-  );
-
-  const totalPool = winners.rows.reduce((sum, w) => sum + Number(w.score || 0), 0);
-  for (const w of winners.rows) {
-    if (totalPool <= 0) continue;
-    const reward = Math.floor((Number(w.score) / totalPool) * totalPool * (rewardPct / 100));
-    if (reward <= 0) continue;
-    const credit = await walletService.creditStars(w.user_id, reward, {
-      type: 'pk_reward',
-      reference_type: 'pk_battle',
-      reference_id: battleId,
-    });
-    await db.query(
-      `INSERT INTO pk_rewards (battle_id, user_id, reward_coins, wallet_transaction_id) VALUES ($1, $2, $3, $4)`,
-      [battleId, w.user_id, reward, credit.transaction.id]
+      [battleId, winnerTeam]
     );
+
+    const totalPool = winners.rows.reduce((sum, w) => sum + Number(w.score || 0), 0);
+    for (const w of winners.rows) {
+      if (totalPool <= 0) continue;
+      const reward = Math.floor((Number(w.score) / totalPool) * totalPool * (rewardPct / 100));
+      if (reward <= 0) continue;
+      const credit = await walletService.creditStars(w.user_id, reward, {
+        type: 'pk_reward',
+        reference_type: 'pk_battle',
+        reference_id: battleId,
+      });
+      await db.query(
+        `INSERT INTO pk_rewards (battle_id, user_id, reward_coins, wallet_transaction_id) VALUES ($1, $2, $3, $4)`,
+        [battleId, w.user_id, reward, credit.transaction.id]
+      );
+    }
   }
 
-  return getBattleSnapshot(battleId);
+  /* Build snapshot BEFORE clearing extras/links so dual-host UI stays oriented */
+  const snapshot = await getBattleSnapshot(battleId);
+  if (snapshot) {
+    snapshot.winnerTeam = winnerTeam != null ? Number(winnerTeam) : null;
+    snapshot.isDraw = Boolean(isDraw && !forfeit);
+    snapshot.forfeit = forfeit;
+    snapshot.endReason = forfeit ? 'forfeit' : isDraw ? 'draw' : reason || 'score';
+    snapshot.forfeitingUserId = forfeitingUserId || null;
+    snapshot.linkedChannels = linkedBefore.length
+      ? linkedBefore
+      : [extrasBefore.challengerChannel || battle.channel, extrasBefore.rivalChannel].filter(Boolean);
+    if (extrasBefore.challengerChannel) snapshot.challengerChannel = extrasBefore.challengerChannel;
+    if (extrasBefore.rivalChannel) snapshot.rivalChannel = extrasBefore.rivalChannel;
+    if (extrasBefore.challengerUserId) snapshot.challengerUserId = extrasBefore.challengerUserId;
+    if (extrasBefore.rivalUserId) snapshot.rivalUserId = extrasBefore.rivalUserId;
+    if (extrasBefore.hostName) snapshot.hostName = extrasBefore.hostName;
+    if (extrasBefore.rivalName) {
+      snapshot.rivalName = extrasBefore.rivalName;
+      snapshot.opponentName = extrasBefore.rivalName;
+    }
+    const t1Name = snapshot.hostName || 'Host';
+    const t2Name = snapshot.rivalName || 'Rival';
+    if (snapshot.isDraw) {
+      snapshot.winnerName = 'Draw';
+    } else if (Number(winnerTeam) === 1) {
+      snapshot.winnerName = t1Name;
+    } else if (Number(winnerTeam) === 2) {
+      snapshot.winnerName = t2Name;
+    } else {
+      snapshot.winnerName = null;
+    }
+  }
+
+  clearBattleChannelLinks(battleId);
+  return snapshot;
 }
 
 async function getBattle(battleId) {
@@ -199,11 +336,20 @@ async function getBattle(battleId) {
 }
 
 async function getActiveBattleByChannel(channel) {
+  const ch = String(channel || '');
+  if (!ch) return null;
   const res = await db.query(
     `SELECT * FROM pk_battles WHERE channel = $1 AND status IN ('pending','active') ORDER BY created_at DESC LIMIT 1`,
-    [channel]
+    [ch]
   );
-  return res.rows[0] || null;
+  if (res.rows[0]) return res.rows[0];
+  /* Linked dual-host PK: gifts on either stream feed the same battle */
+  const linkedId = channelBattleLinks.get(ch);
+  if (!linkedId) return null;
+  const battle = await getBattle(linkedId);
+  if (battle && (battle.status === 'active' || battle.status === 'pending')) return battle;
+  channelBattleLinks.delete(ch);
+  return null;
 }
 
 async function getBattleSnapshot(battleId) {
@@ -218,14 +364,39 @@ async function getBattleSnapshot(battleId) {
   const teams = await getTeamScores(battleId);
   const left = participants.rows.filter((p) => Number(p.team) === 1);
   const right = participants.rows.filter((p) => Number(p.team) === 2);
-  return {
+  const extras = getBattleExtras(battleId);
+  const linked = listChannelsForBattle(battleId);
+  const snapshot = {
     battle,
     participants: participants.rows,
     teams,
-    hostName: left[0]?.display_name || null,
-    rivalName: right[0]?.display_name || null,
-    opponentName: right[0]?.display_name || null,
+    hostName: extras.hostName || left[0]?.display_name || null,
+    rivalName: extras.rivalName || right[0]?.display_name || null,
+    opponentName: extras.rivalName || extras.opponentName || right[0]?.display_name || null,
+    mode: extras.mode || null,
+    challengerUserId: extras.challengerUserId || left[0]?.user_id || null,
+    rivalUserId: extras.rivalUserId || right[0]?.user_id || null,
+    challengerChannel: extras.challengerChannel || battle.channel || null,
+    rivalChannel: extras.rivalChannel || null,
+    linkedChannels: linked.length
+      ? linked
+      : [extras.challengerChannel || battle.channel, extras.rivalChannel].filter(Boolean),
+    mutual: Boolean(extras.mutual || (linked && linked.length > 1)),
+    challengerAgoraUid: null,
+    rivalAgoraUid: null,
   };
+  const cUid = snapshot.challengerUserId;
+  const rUid = snapshot.rivalUserId;
+  if (cUid) snapshot.challengerAgoraUid = uidFromUserId(cUid);
+  if (rUid) snapshot.rivalAgoraUid = uidFromUserId(rUid);
+  return snapshot;
+}
+
+/** Full battle UI payload for a channel (primary or linked dual host). */
+async function getActiveBattleSnapshotForChannel(channel) {
+  const battle = await getActiveBattleByChannel(channel);
+  if (!battle || battle.status !== 'active') return null;
+  return getBattleSnapshot(battle.id);
 }
 
 module.exports = {
@@ -238,4 +409,11 @@ module.exports = {
   getBattle,
   getActiveBattleByChannel,
   getBattleSnapshot,
+  getActiveBattleSnapshotForChannel,
+  linkChannelToBattle,
+  clearBattleChannelLinks,
+  listChannelsForBattle,
+  setBattleExtras,
+  getBattleExtras,
+  setChannelsPkStatus,
 };

@@ -254,42 +254,25 @@
   color: #bbf7d0;
 }
 
-/* —— PK battle (split live) —— */
 body.is-pk-mode .ap-pk-bar {
-  margin-top: calc(96px + env(safe-area-inset-top, 0));
-  height: 26px;
+  margin-top: 0 !important;
+  height: 22px;
   border-radius: 0;
 }
 
 body.is-pk-mode .ap-pk-bar::before {
-  content: 'PK';
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 5;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #fde047, #f59e0b);
-  color: #1a1000;
-  font-size: 11px;
-  font-weight: 900;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+  display: none !important;
 }
 
 body.is-pk-mode .ap-pk-timer {
-  top: calc(100% + 4px);
+  top: auto;
   background: rgba(0, 0, 0, 0.65);
   font-size: 11px;
   padding: 3px 12px;
 }
 
 body.is-pk-mode .ap-pk-win {
-  top: calc(128px + env(safe-area-inset-top, 0));
+  top: auto;
   background: rgba(0, 0, 0, 0.45);
   padding: 3px 8px;
   border-radius: 8px;

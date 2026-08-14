@@ -123,7 +123,7 @@
   100% { opacity: 0; transform: translate(var(--dx2, 40px), -220px) scale(0.8) rotate(-8deg); }
 }
 
-/* Premium gift fullscreen */
+/* Premium gift fullscreen — thematic dim (stream still readable) */
 .ap-premium-gift {
   position: fixed;
   inset: 0;
@@ -132,7 +132,11 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0.88) 100%);
+  background: radial-gradient(
+    ellipse at center,
+    rgba(40, 28, 12, 0.35) 0%,
+    rgba(0, 0, 0, 0.5) 70%
+  );
   animation: ap-premium-in 0.35s ease-out forwards;
   pointer-events: none;
 }
@@ -343,7 +347,8 @@ body.ap-screen-shake {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.65);
+  /* Keep stream visible under countdown — was 0.65 blackout */
+  background: rgba(0, 0, 0, 0.28);
   pointer-events: none;
 }
 
@@ -811,24 +816,24 @@ body.ap-screen-shake {
 .ap-cinematic-overlay .ap-cinematic-bg {
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse at 50% 40%, rgba(251, 191, 36, 0.22), rgba(0, 0, 0, 0.88) 70%);
+  background: radial-gradient(ellipse at 50% 40%, rgba(251, 191, 36, 0.2), rgba(12, 8, 20, 0.55) 75%);
   animation: ap-premium-in 0.4s ease-out;
 }
 
 .ap-cinematic-overlay.is-legendary .ap-cinematic-bg {
-  background: radial-gradient(ellipse at 50% 35%, rgba(251, 191, 36, 0.35), rgba(120, 20, 60, 0.35), rgba(0, 0, 0, 0.92) 75%);
+  background: radial-gradient(ellipse at 50% 35%, rgba(251, 191, 36, 0.3), rgba(80, 20, 40, 0.35), rgba(8, 6, 14, 0.58) 80%);
 }
 
 .ap-cinematic-overlay.is-vip .ap-cinematic-bg {
-  background: radial-gradient(ellipse at 50% 40%, rgba(168, 85, 247, 0.28), rgba(0, 0, 0, 0.9) 72%);
+  background: radial-gradient(ellipse at 50% 40%, rgba(168, 85, 247, 0.22), rgba(12, 8, 24, 0.55) 75%);
 }
 
-.ap-scene-dragon { background: radial-gradient(ellipse at 40% 50%, rgba(239, 68, 68, 0.35), rgba(0, 0, 0, 0.9)) !important; }
-.ap-scene-vehicle { background: radial-gradient(ellipse at 60% 55%, rgba(251, 191, 36, 0.3), rgba(15, 23, 42, 0.92)) !important; }
-.ap-scene-cosmos { background: radial-gradient(ellipse at 50% 40%, rgba(99, 102, 241, 0.4), rgba(2, 6, 23, 0.95)) !important; }
-.ap-scene-beast { background: radial-gradient(ellipse at 50% 45%, rgba(245, 158, 11, 0.32), rgba(0, 0, 0, 0.9)) !important; }
-.ap-scene-festive { background: radial-gradient(ellipse at 50% 40%, rgba(244, 114, 182, 0.3), rgba(0, 0, 0, 0.88)) !important; }
-.ap-scene-royal { background: radial-gradient(ellipse at 50% 40%, rgba(212, 175, 55, 0.35), rgba(30, 10, 50, 0.92)) !important; }
+.ap-scene-dragon { background: radial-gradient(ellipse at 40% 50%, rgba(239, 68, 68, 0.28), rgba(12, 6, 10, 0.55)) !important; }
+.ap-scene-vehicle { background: radial-gradient(ellipse at 60% 55%, rgba(251, 191, 36, 0.24), rgba(12, 14, 24, 0.55)) !important; }
+.ap-scene-cosmos { background: radial-gradient(ellipse at 50% 40%, rgba(99, 102, 241, 0.28), rgba(6, 8, 22, 0.55)) !important; }
+.ap-scene-beast { background: radial-gradient(ellipse at 50% 45%, rgba(245, 158, 11, 0.24), rgba(12, 8, 6, 0.55)) !important; }
+.ap-scene-festive { background: radial-gradient(ellipse at 50% 40%, rgba(244, 114, 182, 0.24), rgba(14, 6, 16, 0.55)) !important; }
+.ap-scene-royal { background: radial-gradient(ellipse at 50% 40%, rgba(212, 175, 55, 0.28), rgba(20, 10, 30, 0.55)) !important; }
 
 .ap-cinematic-hero {
   position: relative;

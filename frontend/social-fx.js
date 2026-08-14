@@ -759,12 +759,16 @@
   function pkWinner(winnerSide, winnerName) {
     ensureRoot();
     const overlay = document.createElement('div');
-    overlay.className = 'ap-pk-winner-overlay' + (winnerSide === 'loser' ? ' loser' : '');
+    const isLoser = winnerSide === 'loser';
+    const isDraw = winnerSide === 'draw';
+    overlay.className =
+      'ap-pk-winner-overlay' + (isLoser ? ' loser' : '') + (isDraw ? ' draw' : '');
+    const title = isDraw ? 'DRAW' : isLoser ? 'Defeat' : 'WINNER';
     overlay.innerHTML = `
-      <div class="ap-pk-winner-crown">${winnerSide === 'loser' ? '😢' : '👑'}</div>
-      <div class="ap-pk-winner-text">${winnerSide === 'loser' ? 'Defeat' : 'WINNER'}${winnerName ? ' · ' + escapeHtml(winnerName) : ''}</div>`;
+      <div class="ap-pk-winner-crown">${isDraw ? '🤝' : isLoser ? '😢' : '👑'}</div>
+      <div class="ap-pk-winner-text">${title}${winnerName ? ' · ' + escapeHtml(winnerName) : ''}</div>`;
     fxRoot.appendChild(overlay);
-    if (winnerSide !== 'loser') {
+    if (!isLoser && !isDraw) {
       confetti({ count: 100 });
       haptic([30, 20, 40]);
       playSound('gift-premium');

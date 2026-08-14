@@ -309,6 +309,10 @@ function registerLiveSocket(io) {
             io.to(`live:${channel}`).emit('live:viewer_count', { viewers: state.viewers || 0 });
             /* Full state to joiner; room gets viewer count + join chat already */
             socket.emit('live:state', state);
+            /* Active dual-host PK: late joiners (and reloads) must enter PK UI */
+            if (state.pkBattle && state.pkBattle.battle?.status === 'active') {
+              socket.emit('pk:start', state.pkBattle);
+            }
             socket.to(`live:${channel}`).emit('live:members_sync', {
               viewers: state.viewers || 0,
               onlineMembers: state.onlineMembers || [],
@@ -690,6 +694,33 @@ function registerLiveSocket(io) {
         };
 
         io.to(`live:${channel}`).emit('live:chat', msg);
+        /* Bridge chat across dual-host PK rooms so both sides share the feed */
+        try {
+          const pkBattleService = require('../services/pkBattleService');
+          const battle = await pkBattleService.getActiveBattleByChannel(channel);
+          if (battle?.status === 'active') {
+            const linked = pkBattleService.listChannelsForBattle(battle.id) || [];
+            /* Always also include battle's primary channel + any known link slots */
+            const dests = new Set(
+              [battle.channel, channel, ...linked]
+                .map((c) => sanitizeChannel(c))
+                .filter(Boolean)
+            );
+            const bridgeMsg = {
+              ...msg,
+              pkBridge: true,
+              fromChannel: channel,
+              id: `${msg.id}-pk`,
+            };
+            for (const dest of dests) {
+              if (dest !== channel) {
+                io.to(`live:${dest}`).emit('live:chat', bridgeMsg);
+              }
+            }
+          }
+        } catch (_pkChat) {
+          /* non-fatal */
+        }
         if (ack) ack({ ok: true, id: msg.id });
       } catch (err) {
         console.error('live:chat', err.message);
@@ -968,7 +999,24 @@ function registerLiveSocket(io) {
           const battle = await pkBattleService.getActiveBattleByChannel(channel);
           if (battle?.status === 'active') {
             const pkSnapshot = await pkBattleService.getBattleSnapshot(battle.id);
-            io.to(`live:${channel}`).emit('pk:score', pkSnapshot);
+            const channels = new Set([
+              channel,
+              battle.channel,
+              ...(pkBattleService.listChannelsForBattle?.(battle.id) || []),
+            ]);
+            for (const ch of channels) {
+              const dest = sanitizeChannel(ch);
+              if (!dest) continue;
+              if (dest !== channel) {
+                /* Mutual PK: show gifts on the other host's room too */
+                io.to(`live:${dest}`).emit('live:gift', {
+                  ...gift,
+                  pkBridge: true,
+                  fromChannel: channel,
+                });
+              }
+              io.to(`live:${dest}`).emit('pk:score', pkSnapshot);
+            }
           }
         } catch (_pkErr) {}
 
@@ -1275,6 +1323,33 @@ function registerLiveSocket(io) {
           if (ack) ack({ ok: false, message: 'Only host can end room' });
           return;
         }
+        /* Host ending live mid-PK = forfeit (they lose) */
+        try {
+          const pkBattleService = require('../services/pkBattleService');
+          const battle = await pkBattleService.getActiveBattleByChannel(channel);
+          if (battle?.status === 'active') {
+            const snapPre = await pkBattleService.getBattleSnapshot(battle.id);
+            const linked = pkBattleService.listChannelsForBattle(battle.id) || [];
+            const channels = new Set(
+              [battle.channel, channel, ...linked].map(sanitizeChannel).filter(Boolean)
+            );
+            const pkSnap = await pkBattleService.endBattle(battle.id, {
+              forfeitingUserId: socket.userId,
+              reason: 'leave',
+            });
+            try {
+              await pkBattleService.setChannelsPkStatus([...channels], 'ended');
+            } catch (_e) {}
+            for (const ch of channels) {
+              io.to(`live:${ch}`).emit('pk:end', pkSnap);
+            }
+            for (const p of snapPre?.participants || []) {
+              if (p?.user_id) io.to(`user:${p.user_id}`).emit('pk:end', pkSnap);
+            }
+          }
+        } catch (_pkEnd) {
+          /* non-fatal */
+        }
         await liveRoomService.endRoom(channel);
         io.to(`live:${channel}`).emit('live:ended', { channel });
         if (ack) ack({ ok: true });
@@ -1283,16 +1358,52 @@ function registerLiveSocket(io) {
       }
     });
 
+    const forfeitActivePkOnChannel = async (channel, userId) => {
+      try {
+        const pkBattleService = require('../services/pkBattleService');
+        const battle = await pkBattleService.getActiveBattleByChannel(channel);
+        if (!battle || battle.status !== 'active') return;
+        const snapPre = await pkBattleService.getBattleSnapshot(battle.id);
+        const isPkHost =
+          String(snapPre?.challengerUserId) === String(userId) ||
+          String(snapPre?.rivalUserId) === String(userId) ||
+          (snapPre?.participants || []).some((p) => String(p.user_id) === String(userId));
+        if (!isPkHost) return;
+        const linked = pkBattleService.listChannelsForBattle(battle.id) || [];
+        const channels = new Set(
+          [battle.channel, channel, ...linked].map(sanitizeChannel).filter(Boolean)
+        );
+        const pkSnap = await pkBattleService.endBattle(battle.id, {
+          forfeitingUserId: userId,
+          reason: 'leave',
+        });
+        try {
+          await pkBattleService.setChannelsPkStatus([...channels], 'ended');
+        } catch (_e) {}
+        for (const ch of channels) {
+          io.to(`live:${ch}`).emit('pk:end', pkSnap);
+        }
+        for (const p of snapPre?.participants || []) {
+          if (p?.user_id) io.to(`user:${p.user_id}`).emit('pk:end', pkSnap);
+        }
+      } catch (_e) {
+        /* non-fatal */
+      }
+    };
+
     const handleLeave = async ({ intentional = false } = {}) => {
       if (!currentChannel) return;
       const channel = currentChannel;
       const wasHost = Boolean(socket.data.isHost);
+      const leavingUserId = socket.userId;
       currentChannel = null;
       socket.data.liveChannel = null;
       socket.leave(`live:${channel}`);
 
       try {
         if (wasHost) {
+          /* Leave or hard disconnect mid-PK = forfeit (leaver loses) */
+          await forfeitActivePkOnChannel(channel, leavingUserId);
           if (intentional) {
             const result = await liveRoomService.hostStepAway({
               channel,
@@ -1354,12 +1465,21 @@ function registerLiveSocket(io) {
       if (!currentChannel) return;
       const channel = currentChannel;
       const wasHost = Boolean(socket.data.isHost);
+      const leavingUserId = socket.userId;
       currentChannel = null;
       socket.data.liveChannel = null;
       socket.leave(`live:${channel}`);
 
       if (wasHost) {
-        // Host drop: room stays live; heartbeat prune + rejoin handles recovery.
+        // Host drop: room stays live for recovery; mid-PK wait briefly then forfeit if still offline.
+        setTimeout(async () => {
+          try {
+            if (socket.connected) return;
+            await forfeitActivePkOnChannel(channel, leavingUserId);
+          } catch (_e) {
+            /* non-fatal */
+          }
+        }, 8000);
         return;
       }
 
