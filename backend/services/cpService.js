@@ -283,38 +283,102 @@ async function sendInvite(fromUserId, toUserId, ringId) {
   return invite;
 }
 
-async function respondInvite(userId, inviteId, accept) {
-  const res = await db.query(`SELECT * FROM cp_invitations WHERE id = $1`, [inviteId]);
-  const inv = res.rows[0];
-  if (!inv) throw new Error('Invitation not found');
-  if (String(inv.to_user_id) !== String(userId)) throw new Error('Not your invitation');
-  if (inv.status !== 'pending') throw new Error('Invitation already handled');
-  if (new Date(inv.expires_at).getTime() < Date.now()) {
-    await db.query(`UPDATE cp_invitations SET status = 'expired', responded_at = NOW() WHERE id = $1`, [
-      inviteId,
-    ]);
-    await returnRingToBag(inv.from_user_id, inv.ring_id);
-    throw new Error('Invitation expired');
-  }
+async function getActiveCpPartnerId(userId, client = db) {
+  const q = client.query ? client.query.bind(client) : db.query;
+  const res = await q(
+    `SELECT CASE WHEN r.user_a = $1 THEN r.user_b ELSE r.user_a END AS partner_id
+     FROM cp_relationships r
+     WHERE (r.user_a = $1 OR r.user_b = $1) AND r.status = 'active'
+     LIMIT 1`,
+    [String(userId)]
+  );
+  return res.rows[0]?.partner_id ? String(res.rows[0].partner_id) : null;
+}
 
-  if (!accept) {
-    await db.query(
-      `UPDATE cp_invitations SET status = 'rejected', responded_at = NOW() WHERE id = $1`,
+async function upsertActiveCpRelationship(userId, partnerId, ringId, client = db) {
+  const q = client.query ? client.query.bind(client) : db.query;
+  const [user_a, user_b] = pairKey(userId, partnerId);
+  await q(
+    `INSERT INTO cp_relationships (user_a, user_b, ring_id, started_at, status)
+     VALUES ($1, $2, $3, CURRENT_TIMESTAMP, 'active')
+     ON CONFLICT (user_a, user_b)
+     DO UPDATE SET
+       ring_id = EXCLUDED.ring_id,
+       started_at = CURRENT_TIMESTAMP,
+       status = 'active'`,
+    [user_a, user_b, ringId]
+  );
+}
+
+async function respondInvite(userId, inviteId, accept) {
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+    const res = await client.query(`SELECT * FROM cp_invitations WHERE id = $1 FOR UPDATE`, [inviteId]);
+    const inv = res.rows[0];
+    if (!inv) throw new Error('Invitation not found');
+    if (String(inv.to_user_id) !== String(userId)) throw new Error('Not your invitation');
+    if (inv.status !== 'pending') throw new Error('Invitation already handled');
+    if (new Date(inv.expires_at).getTime() < Date.now()) {
+      await client.query(`UPDATE cp_invitations SET status = 'expired', responded_at = NOW() WHERE id = $1`, [
+        inviteId,
+      ]);
+      await client.query('COMMIT');
+      await returnRingToBag(inv.from_user_id, inv.ring_id);
+      throw new Error('Invitation expired');
+    }
+
+    if (!accept) {
+      await client.query(
+        `UPDATE cp_invitations SET status = 'rejected', responded_at = NOW() WHERE id = $1`,
+        [inviteId]
+      );
+      await client.query(
+        `INSERT INTO cp_invite_cooldowns (from_user_id, to_user_id, until_at)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (from_user_id, to_user_id) DO UPDATE SET until_at = EXCLUDED.until_at`,
+        [inv.from_user_id, inv.to_user_id, new Date(Date.now() + REJECT_COOLDOWN_MS).toISOString()]
+      );
+      await client.query('COMMIT');
+      await returnRingToBag(inv.from_user_id, inv.ring_id);
+      setImmediate(() => {
+        try {
+          require('./systemMessageService')
+            .notifyCpInviteDeclined({
+              inviterId: inv.from_user_id,
+              declinerId: inv.to_user_id,
+              ringId: inv.ring_id,
+            })
+            .catch(() => {});
+        } catch (_e) {
+          /* non-fatal */
+        }
+      });
+      return { accepted: false };
+    }
+
+    const inviterPartner = await getActiveCpPartnerId(inv.from_user_id, client);
+    const accepterPartner = await getActiveCpPartnerId(inv.to_user_id, client);
+    if (inviterPartner && inviterPartner !== String(inv.to_user_id)) {
+      throw new Error('Inviter already has a CP partner');
+    }
+    if (accepterPartner && accepterPartner !== String(inv.from_user_id)) {
+      throw new Error('You already have a CP partner');
+    }
+
+    await upsertActiveCpRelationship(inv.from_user_id, inv.to_user_id, inv.ring_id, client);
+    await client.query(
+      `UPDATE cp_invitations SET status = 'accepted', responded_at = NOW() WHERE id = $1`,
       [inviteId]
     );
-    await returnRingToBag(inv.from_user_id, inv.ring_id);
-    await db.query(
-      `INSERT INTO cp_invite_cooldowns (from_user_id, to_user_id, until_at)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (from_user_id, to_user_id) DO UPDATE SET until_at = EXCLUDED.until_at`,
-      [inv.from_user_id, inv.to_user_id, new Date(Date.now() + REJECT_COOLDOWN_MS).toISOString()]
-    );
+    await client.query('COMMIT');
+
     setImmediate(() => {
       try {
         require('./systemMessageService')
-          .notifyCpInviteDeclined({
+          .notifyCpInviteAccepted({
             inviterId: inv.from_user_id,
-            declinerId: inv.to_user_id,
+            accepterId: inv.to_user_id,
             ringId: inv.ring_id,
           })
           .catch(() => {});
@@ -322,33 +386,17 @@ async function respondInvite(userId, inviteId, accept) {
         /* non-fatal */
       }
     });
-    return { accepted: false };
-  }
-
-  const [user_a, user_b] = pairKey(inv.from_user_id, inv.to_user_id);
-  await db.query(
-    `INSERT INTO cp_relationships (user_a, user_b, ring_id, started_at, status)
-     VALUES ($1, $2, $3, CURRENT_TIMESTAMP, 'active')`,
-    [user_a, user_b, inv.ring_id]
-  );
-  await db.query(
-    `UPDATE cp_invitations SET status = 'accepted', responded_at = NOW() WHERE id = $1`,
-    [inviteId]
-  );
-  setImmediate(() => {
-    try {
-      require('./systemMessageService')
-        .notifyCpInviteAccepted({
-          inviterId: inv.from_user_id,
-          accepterId: inv.to_user_id,
-          ringId: inv.ring_id,
-        })
-        .catch(() => {});
-    } catch (_e) {
-      /* non-fatal */
+    return { accepted: true };
+  } catch (err) {
+    await db.safeRollback(client);
+    const msg = String(err.message || '');
+    if (/duplicate key|unique constraint|cp_relationships/i.test(msg)) {
+      throw new Error('Could not accept — you may already be CP. Refresh CP House and check your status.');
     }
-  });
-  return { accepted: true };
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 async function returnRingToBag(userId, ringId) {
