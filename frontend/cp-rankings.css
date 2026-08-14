@@ -1,0 +1,390 @@
+/* CP Rankings — reference-style lovers leaderboard */
+.cp-rank-page {
+  margin: 0;
+  min-height: 100dvh;
+  font-family: system-ui, -apple-system, sans-serif;
+  color: #4a1942;
+  background: linear-gradient(180deg, #ffe4f0 0%, #ffc8e8 35%, #ffb8dc 100%);
+  padding-bottom: calc(88px + env(safe-area-inset-bottom, 0));
+  box-sizing: border-box;
+}
+
+.cp-rank-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(10px + env(safe-area-inset-top, 0)) 14px 8px;
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(8px);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.cp-rank-header h1 {
+  flex: 1;
+  margin: 0;
+  text-align: center;
+  font-size: 17px;
+  font-weight: 800;
+  color: #1f2937;
+}
+
+.cp-rank-back {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.8);
+  color: #374151;
+  font-size: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.cp-rank-hero {
+  margin: 0 12px 10px;
+  padding: 18px 12px 14px;
+  border-radius: 16px;
+  text-align: center;
+  background:
+    linear-gradient(180deg, rgba(255, 120, 180, 0.35), rgba(180, 40, 120, 0.5)),
+    url('https://images.unsplash.com/photo-1518895949257-7621c3c786d4?auto=format&fit=crop&w=800&q=70') center/cover;
+  color: #fff;
+  box-shadow: 0 6px 24px rgba(190, 24, 93, 0.25);
+}
+
+.cp-rank-hero-emblem {
+  font-size: 42px;
+  line-height: 1;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.25));
+}
+
+.cp-rank-hero-title {
+  margin: 6px 0 0;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  font-size: clamp(22px, 6vw, 28px);
+  font-weight: 700;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.cp-rank-banner {
+  margin: 0 16px 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  text-align: center;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(90deg, #ec4899, #db2777, #ec4899);
+  border: 2px solid #fcd34d;
+  box-shadow: 0 4px 14px rgba(219, 39, 119, 0.35);
+}
+
+.cp-rank-rules {
+  margin: 0 16px 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.65);
+  font-size: 12px;
+  line-height: 1.45;
+  color: #6b2148;
+}
+
+.cp-rank-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 0 16px 14px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.cp-rank-tab {
+  flex: 1;
+  border: none;
+  border-radius: 999px;
+  padding: 10px 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  background: transparent;
+  color: #9d174d;
+  transition: background 0.2s, color 0.2s;
+}
+
+.cp-rank-tab.is-active {
+  background: linear-gradient(180deg, #f472b6, #db2777);
+  color: #fff;
+  box-shadow: 0 3px 12px rgba(219, 39, 119, 0.4);
+}
+
+.cp-rank-podium-wrap {
+  margin: 0 8px 12px;
+  padding: 12px 6px 0;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.cp-rank-podium {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 6px;
+  min-height: 200px;
+}
+
+.cp-rank-podium-slot {
+  flex: 1;
+  max-width: 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.cp-rank-podium-slot.order-2 { order: -1; }
+
+.cp-rank-podium-badge {
+  font-size: 11px;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(180deg, #f472b6, #be185d);
+  padding: 2px 10px;
+  border-radius: 999px;
+  margin-bottom: 4px;
+}
+
+.cp-rank-podium-slot.rank-1 .cp-rank-podium-badge {
+  background: linear-gradient(180deg, #fcd34d, #f59e0b);
+  color: #78350f;
+}
+
+.cp-rank-podium-score {
+  font-size: 12px;
+  font-weight: 700;
+  color: #be185d;
+  margin-bottom: 6px;
+}
+
+.cp-rank-podium-score i {
+  color: #ec4899;
+}
+
+.cp-rank-couple-av {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 6px;
+}
+
+.cp-rank-couple-av img {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.cp-rank-podium-slot.rank-1 .cp-rank-couple-av img {
+  width: 52px;
+  height: 52px;
+  border-color: #fcd34d;
+}
+
+.cp-rank-couple-av .cp-rank-heart {
+  margin: 0 -6px;
+  z-index: 1;
+  font-size: 16px;
+  color: #ec4899;
+  filter: drop-shadow(0 0 4px rgba(236, 72, 153, 0.6));
+}
+
+.cp-rank-podium-slot.rank-1 .cp-rank-heart {
+  font-size: 20px;
+}
+
+.cp-rank-podium-names {
+  font-size: 10px;
+  font-weight: 600;
+  color: #4a1942;
+  line-height: 1.25;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cp-rank-podium-names span {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cp-rank-podium-pedestal {
+  width: 100%;
+  margin-top: 8px;
+  border-radius: 8px 8px 0 0;
+  background: linear-gradient(180deg, #f9a8d4, #ec4899);
+}
+
+.cp-rank-podium-slot.rank-1 .cp-rank-podium-pedestal { height: 56px; }
+.cp-rank-podium-slot.rank-2 .cp-rank-podium-pedestal { height: 40px; opacity: 0.92; }
+.cp-rank-podium-slot.rank-3 .cp-rank-podium-pedestal { height: 32px; opacity: 0.85; }
+
+.cp-rank-list {
+  margin: 0 12px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.75);
+}
+
+.cp-rank-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(236, 72, 153, 0.15);
+}
+
+.cp-rank-row:last-child { border-bottom: none; }
+
+.cp-rank-num {
+  width: 24px;
+  font-size: 15px;
+  font-weight: 800;
+  color: #db2777;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.cp-rank-row .cp-rank-couple-av img {
+  width: 36px;
+  height: 36px;
+}
+
+.cp-rank-row-names {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  line-height: 1.3;
+}
+
+.cp-rank-row-names span {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cp-rank-row-score {
+  font-size: 13px;
+  font-weight: 700;
+  color: #be185d;
+  white-space: nowrap;
+}
+
+.cp-rank-empty {
+  padding: 32px 16px;
+  text-align: center;
+  color: #9d174d;
+  font-size: 14px;
+}
+
+.cp-rank-loading {
+  padding: 24px;
+  text-align: center;
+  color: #9d174d;
+  font-size: 13px;
+}
+
+.cp-rank-me {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0));
+  background: linear-gradient(180deg, #fce7f3, #fbcfe8);
+  border-top: 2px solid #f472b6;
+  box-shadow: 0 -4px 20px rgba(190, 24, 93, 0.2);
+}
+
+.cp-rank-me-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 64px;
+  max-width: 90px;
+}
+
+.cp-rank-me-slot img {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+.cp-rank-me-slot span {
+  margin-top: 2px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #4a1942;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cp-rank-me-center {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.cp-rank-me-heart {
+  font-size: 28px;
+  color: #ec4899;
+  filter: drop-shadow(0 0 6px rgba(236, 72, 153, 0.5));
+}
+
+.cp-rank-me-rank {
+  font-size: 11px;
+  font-weight: 700;
+  color: #9d174d;
+}
+
+.cp-rank-me-waiting {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #d1d5db;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6b7280;
+  font-size: 18px;
+}
+
+.cp-rank-me-waiting-label {
+  font-size: 10px;
+  color: #6b7280;
+  font-weight: 600;
+}

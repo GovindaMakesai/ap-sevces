@@ -1,6 +1,7 @@
 const db = require('../config/database');
 const chatService = require('./chatService');
 const { normalizeOutgoingChatMessage } = require('../utils/chatMessageFormat');
+const { cpQuoteLine } = require('./cpQuotes');
 
 let socketIo = null;
 let cachedNotifierId = null;
@@ -305,12 +306,12 @@ async function notifyCpInviteSent({ fromUserId, toUserId, ringId }) {
 
   await sendSystemChatMessage(
     toUserId,
-    `💕 CP invitation\n\n${fromName} sent you a CP invitation with ${ring}.\n\nOpen Love House to accept or decline.`,
+    `💕 CP invitation\n\n${fromName} sent you a CP invitation with ${ring}.${cpQuoteLine('invitation_received')}\n\nOpen CP House to accept or decline.`,
     { skipPush: true }
   );
   await sendSystemChatMessage(
     fromUserId,
-    `✅ CP invitation sent\n\nYour invitation (${ring}) was sent to ${toName}. We'll message you when they respond.`,
+    `✅ CP invitation sent\n\nYour invitation (${ring}) was sent to ${toName}.${cpQuoteLine('invitation_sent')}\n\nWe'll message you when they respond.`,
     { skipPush: true }
   );
 
@@ -330,12 +331,12 @@ async function notifyCpInviteAccepted({ inviterId, accepterId, ringId }) {
 
   await sendSystemChatMessage(
     inviterId,
-    `💑 CP accepted!\n\n${accepterName} accepted your CP invitation. You're now partners with ${ring}.`,
+    `💑 CP accepted!\n\n${accepterName} accepted your CP invitation. You're now partners with ${ring}.${cpQuoteLine('invitation_accepted')}`,
     { skipPush: true }
   );
   await sendSystemChatMessage(
     accepterId,
-    `💑 You're CP now!\n\nYou and ${inviterName} are CP partners with ${ring}. Open Love House to see your couple card.`,
+    `💑 You're CP now!\n\nYou and ${inviterName} are CP partners with ${ring}. Open CP House to see your couple card.${cpQuoteLine('invitation_accepted_self')}`,
     { skipPush: true }
   );
 
@@ -353,7 +354,7 @@ async function notifyCpInviteDeclined({ inviterId, declinerId, ringId }) {
 
   await sendSystemChatMessage(
     inviterId,
-    `💔 CP invitation declined\n\n${declinerName} declined your CP invitation. ${ring} was returned to your bag.`,
+    `💔 CP invitation declined\n\n${declinerName} declined your CP invitation. ${ring} was returned to your bag.${cpQuoteLine('invitation_declined')}`,
     { skipPush: true }
   );
 
@@ -364,19 +365,24 @@ async function notifyCpInviteDeclined({ inviterId, declinerId, ringId }) {
   return true;
 }
 
-async function notifyCpBreakUp({ initiatorId, partnerId }) {
+async function notifyCpBreakUp({ initiatorId, partnerId, instant = false, penalty = false }) {
   if (!initiatorId || !partnerId) return null;
   const initiatorName = await userDisplayName(initiatorId);
   const partnerName = await userDisplayName(partnerId);
+  const modeNote = instant
+    ? ' (instant break-up fee paid)'
+    : penalty
+      ? ' (inactive partner penalty fee paid)'
+      : '';
 
   await sendSystemChatMessage(
     partnerId,
-    `💔 CP ended\n\n${initiatorName} ended your CP relationship.`,
+    `💔 CP ended\n\n${initiatorName} ended your CP relationship${modeNote}.${cpQuoteLine('removal_confirmed')}`,
     { skipPush: true }
   );
   await sendSystemChatMessage(
     initiatorId,
-    `💔 CP ended\n\nYou ended your CP relationship with ${partnerName}.`,
+    `💔 CP ended\n\nYou ended your CP relationship with ${partnerName}${modeNote}.${cpQuoteLine('removal_confirmed_initiator')}`,
     { skipPush: true }
   );
 
@@ -384,6 +390,104 @@ async function notifyCpBreakUp({ initiatorId, partnerId }) {
     const push = require('./pushNotificationService');
     await push.notifyCpBreakUp(partnerId, initiatorId, false);
     await push.notifyCpBreakUp(initiatorId, partnerId, true);
+  });
+  return true;
+}
+
+async function notifyCpBreakRequest({ fromUserId, toUserId }) {
+  if (!fromUserId || !toUserId) return null;
+  const fromName = await userDisplayName(fromUserId);
+  const toName = await userDisplayName(toUserId);
+
+  await sendSystemChatMessage(
+    toUserId,
+    `💔 CP break-up request\n\n${fromName} asked to end your CP relationship.${cpQuoteLine('removal_request')}\n\nOpen CP House to accept or decline within 48 hours.`,
+    { skipPush: true }
+  );
+  await sendSystemChatMessage(
+    fromUserId,
+    `📤 Break-up request sent\n\nWe asked ${toName} to confirm ending your CP.${cpQuoteLine('removal_request_sent')}`,
+    { skipPush: true }
+  );
+
+  scheduleCpPush(async () => {
+    const push = require('./pushNotificationService');
+    await push.notifyCpEvent(
+      toUserId,
+      'cp_break_request',
+      'CP break-up request',
+      `${fromName} asked to end your CP. Open CP House to respond.`,
+      require('./notificationTemplates').cpDeepLink()
+    );
+  });
+  return true;
+}
+
+async function notifyCpRingChangeRequest({ fromUserId, toUserId, ringId }) {
+  if (!fromUserId || !toUserId) return null;
+  const fromName = await userDisplayName(fromUserId);
+  const toName = await userDisplayName(toUserId);
+  const ring = cpRingLabel(ringId);
+
+  await sendSystemChatMessage(
+    toUserId,
+    `💍 CP ring change request\n\n${fromName} wants to change your CP ring to ${ring}.${cpQuoteLine('ring_change_request')}\n\nOpen CP House to accept or decline within 48 hours.`,
+    { skipPush: true }
+  );
+  await sendSystemChatMessage(
+    fromUserId,
+    `📤 Ring change sent\n\nYour request to wear ${ring} with ${toName} is waiting for their answer.`,
+    { skipPush: true }
+  );
+
+  scheduleCpPush(async () => {
+    const push = require('./pushNotificationService');
+    await push.notifyCpEvent(
+      toUserId,
+      'cp_ring_change_request',
+      'CP ring change',
+      `${fromName} wants to change your CP ring to ${ring}.`,
+      require('./notificationTemplates').cpDeepLink()
+    );
+  });
+  return true;
+}
+
+async function notifyCpActionDeclined({ fromUserId, toUserId, type }) {
+  if (!fromUserId || !toUserId) return null;
+  const responderName = await userDisplayName(toUserId);
+
+  if (type === 'break') {
+    await sendSystemChatMessage(
+      fromUserId,
+      `💕 CP stays together\n\n${responderName} declined your break-up request. Your CP relationship continues.${cpQuoteLine('removal_request_declined')}`,
+      { skipPush: true }
+    );
+  } else if (type === 'ring_change') {
+    await sendSystemChatMessage(
+      fromUserId,
+      `💍 Ring change declined\n\n${responderName} declined your ring change request.${cpQuoteLine('ring_change_declined')}`,
+      { skipPush: true }
+    );
+  }
+
+  return true;
+}
+
+async function notifyCpRingChangeAccepted({ fromUserId, toUserId, ringId }) {
+  if (!fromUserId || !toUserId) return null;
+  const accepterName = await userDisplayName(toUserId);
+  const ring = cpRingLabel(ringId);
+
+  await sendSystemChatMessage(
+    fromUserId,
+    `💍 Ring change accepted\n\n${accepterName} accepted your ring change. You're now wearing ${ring}.${cpQuoteLine('ring_change_accepted')}`,
+    { skipPush: true }
+  );
+
+  scheduleCpPush(async () => {
+    const push = require('./pushNotificationService');
+    await push.notifyCpRingChanged(toUserId, fromUserId, ring);
   });
   return true;
 }
@@ -417,7 +521,7 @@ async function notifyCpRingPurchased({ userId, ringId }) {
 
   await sendSystemChatMessage(
     userId,
-    `💍 Ring purchased\n\n${ring} was added to your bag.\n\nOpen Love House → Send CP Invitation when you're ready to propose.`,
+    `💍 Ring purchased\n\n${ring} was added to your bag.\n\nOpen CP House → Send CP Invitation when you're ready to propose.`,
     { skipPush: true }
   );
 
@@ -448,6 +552,10 @@ module.exports = {
   notifyCpInviteAccepted,
   notifyCpInviteDeclined,
   notifyCpBreakUp,
+  notifyCpBreakRequest,
+  notifyCpRingChangeRequest,
+  notifyCpActionDeclined,
+  notifyCpRingChangeAccepted,
   notifyCpRingChanged,
   notifyCpRingPurchased,
   isOfficialRole,

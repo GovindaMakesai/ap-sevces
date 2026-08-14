@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#be185d">
-  <title>CP Guide - AP Services</title>
+  <title>CP Instructions - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-theme.css">
-  <link rel="stylesheet" href="cp-love-house.css?v=20260814-cpprofile">
+  <link rel="stylesheet" href="cp-love-house.css?v=20260814-cphouse">
   <style>
     body.cp-tips-page {
       margin: 0;
@@ -29,7 +29,7 @@
       font-size: 17px;
       font-weight: 800;
     }
-    .cp-tips-header button {
+    .cp-tips-header button, .cp-tips-header a {
       width: 36px;
       height: 36px;
       border: none;
@@ -37,9 +37,21 @@
       background: rgba(255, 255, 255, 0.12);
       color: #fff;
       cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      text-decoration: none;
     }
     .cp-tips-body {
       padding: 8px 18px calc(24px + env(safe-area-inset-bottom));
+    }
+    .cp-tips-section {
+      margin: 18px 0 8px;
+      font-size: 13px;
+      font-weight: 800;
+      color: #fde68a;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
     }
     .cp-tips-body ol {
       margin: 0;
@@ -48,20 +60,27 @@
       font-size: 15px;
     }
     .cp-tips-body li {
-      margin-bottom: 16px;
+      margin-bottom: 14px;
       color: rgba(255, 255, 255, 0.92);
     }
     .cp-tips-body strong {
       color: #fde68a;
     }
-    .cp-tips-note {
+    .cp-tips-links {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
       margin-top: 20px;
-      padding: 12px 14px;
-      border-radius: 14px;
-      background: rgba(0, 0, 0, 0.25);
-      border: 1px solid rgba(251, 191, 36, 0.25);
-      font-size: 13px;
-      color: rgba(255, 255, 255, 0.8);
+    }
+    .cp-tips-links a {
+      display: block;
+      padding: 12px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+      text-decoration: none;
+      font-weight: 700;
+      text-align: center;
     }
   </style>
 </head>
@@ -69,20 +88,33 @@
   <header class="cp-tips-header">
     <button type="button" onclick="history.back()" aria-label="Back"><i class="fas fa-chevron-left"></i></button>
     <h1>CP Instructions</h1>
-    <span style="width:36px"></span>
+    <a href="/levels.html?app=1" aria-label="Level"><i class="fas fa-shield-alt"></i></a>
   </header>
   <div class="cp-tips-body">
+    <p class="cp-tips-section">CP House</p>
     <ol>
-      <li>Love House is a testimony of a couple's love — your CP ring shows on your <strong>profile</strong>, Love House, and in party rooms when you sit together.</li>
-      <li>To unlock Love House you need intimacy value <strong>≥ 20,000</strong> (2,000 support points) with someone, or accept a CP invitation.</li>
-      <li>When intimacy reaches <strong>≥ 50,000</strong> and you are mutual friends, you can send a CP invitation with a ring you bought from the Store.</li>
-      <li>Rings are purchased in <strong>Store → Rings</strong>. If an invitation is declined or expires, the ring returns to your bag.</li>
-      <li>An invitation is valid for <strong>48 hours</strong>. If it expires, send it again.</li>
-      <li>If rejected, you cannot invite that person again for <strong>48 hours</strong>.</li>
-      <li>Once CP, tap your ring on Love House to change it or break up. Both partners see the same ring on profiles.</li>
-      <li>Level up by sending gifts — open <strong>Level</strong> from Store or your profile menu for benefits.</li>
+      <li>CP House is a testimony of a couple's love. Your CP ring shows on your <strong>profile</strong>, CP House, and in party rooms when you sit together.</li>
+      <li>Unlock CP House with intimacy <strong>≥ 20,000</strong>, or accept a CP invitation.</li>
+      <li>Send a CP invite at intimacy <strong>≥ 50,000</strong> when you are mutual friends and own a ring from Store → Rings.</li>
+      <li>Rings return to your bag if an invite is declined or expires.</li>
+      <li>Invites last <strong>48 hours</strong>. Rejected invites have a <strong>48h</strong> cooldown.</li>
+      <li>Tap your ring on CP House to change it or take it off (break up).</li>
     </ol>
-    <p class="cp-tips-note"><i class="fas fa-heart" style="color:#f472b6"></i> Tip: Sit next to your partner in a party room to show your ring between your seats.</p>
+    <p class="cp-tips-section">Break up &amp; ring change</p>
+    <ol>
+      <li><strong>Take off the ring:</strong> ask partner to agree (free), pay <strong>75,000 coins</strong> for instant break, or use inactive-partner break after <strong>30 days</strong> of no activity.</li>
+      <li><strong>Change the ring:</strong> choose a ring you own — partner must accept within 48 hours.</li>
+    </ol>
+    <p class="cp-tips-section">Level &amp; rankings</p>
+    <ol>
+      <li>Level up by sending gifts. Open <strong>Level</strong> from the shield icon for benefits.</li>
+      <li>CP Rankings rank couples by gift intimacy after becoming CP. <strong>1 💎 = 1 💖</strong></li>
+    </ol>
+    <div class="cp-tips-links">
+      <a href="/levels.html?app=1"><i class="fas fa-shield-alt"></i> Level benefits</a>
+      <a href="/cp-rankings.html?app=1"><i class="fas fa-trophy"></i> CP Rankings</a>
+      <a href="/store.html?cat=rings&app=1&from=cp"><i class="fas fa-ring"></i> Buy a ring</a>
+    </div>
   </div>
 </body>
 </html>

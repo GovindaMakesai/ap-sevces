@@ -15,6 +15,10 @@ exports.getHome = async (req, res) => {
         intimacyInviteMin: cpService.INTIMACY_INVITE_MIN,
         intimacyDisplayMult: cpService.INTIMACY_DISPLAY_MULT,
         ownedRings: await cpService.listUserOwnedRings(userId),
+        actionRequests: await cpService.listActionRequests(userId),
+        breakInstantFee: cpService.CP_BREAK_INSTANT_FEE,
+        inactiveDays: cpService.CP_INACTIVE_DAYS,
+        partnerInactive: cp ? await cpService.isPartnerInactive(cp.partnerId) : false,
         hasRing: await cpService.userHasAnyRing(userId),
       },
     });
@@ -87,7 +91,17 @@ exports.respondInvite = async (req, res) => {
 
 exports.breakUp = async (req, res) => {
   try {
-    const result = await cpService.breakUp(req.userId, { forced: Boolean(req.body?.forced) });
+    const mode = String(req.body?.mode || 'request').toLowerCase();
+    let result;
+    if (mode === 'instant') {
+      result = await cpService.breakUp(req.userId, { instant: true });
+    } else if (mode === 'penalty') {
+      result = await cpService.breakUp(req.userId, { penalty: true });
+    } else if (req.body?.forced) {
+      result = await cpService.breakUp(req.userId, { forced: true });
+    } else {
+      result = await cpService.breakUp(req.userId);
+    }
     res.json({ success: true, data: result });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
@@ -157,6 +171,33 @@ exports.myRings = async (req, res) => {
 exports.getProfile = async (req, res) => {
   try {
     const data = await cpService.getCpProfilePublic(req.params.userId);
+    res.json({ success: true, data });
+  } catch (err) {
+    if (/cp_|user_cp_support|does not exist/i.test(err.message || '')) {
+      return res.status(503).json({
+        success: false,
+        message: 'CP module is being enabled. Please try again shortly.',
+      });
+    }
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+exports.respondAction = async (req, res) => {
+  try {
+    const accept = req.body?.accept !== false && req.body?.accept !== 'false';
+    const result = await cpService.respondActionRequest(req.userId, req.params.requestId, accept);
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+};
+
+exports.getRankings = async (req, res) => {
+  try {
+    const period = req.query.period === 'total' ? 'total' : 'week';
+    const limit = req.query.limit;
+    const data = await cpService.getCpRankings(req.userId, period, limit);
     res.json({ success: true, data });
   } catch (err) {
     if (/cp_|user_cp_support|does not exist/i.test(err.message || '')) {

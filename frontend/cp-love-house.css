@@ -115,6 +115,15 @@
   justify-content: center;
   font-size: 0;
   filter: drop-shadow(0 6px 16px rgba(236, 72, 153, 0.45));
+  cursor: default;
+}
+
+.lh-heart-gem.is-clickable {
+  cursor: pointer;
+}
+
+.lh-heart-gem.is-clickable:active {
+  transform: scale(0.96);
 }
 
 .lh-add-partner {
@@ -439,6 +448,112 @@ body.lh-sheet-open {
   color: #be185d;
 }
 
+.lh-tips-section {
+  margin: 14px 0 0;
+  font-size: 13px;
+  font-weight: 800;
+  color: #831843;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.lh-tips-box .lh-tips-level-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #db2777;
+  text-decoration: none;
+}
+
+.lh-ring-action-box {
+  text-align: center;
+  padding-top: 28px;
+  position: relative;
+}
+
+.lh-ring-action-close {
+  position: absolute;
+  top: -12px;
+  right: -4px;
+  z-index: 2;
+}
+
+.lh-ring-action-prompt {
+  margin: 0 0 16px;
+  color: #6b7280;
+  font-size: 15px;
+}
+
+.lh-ring-action-btns {
+  display: flex;
+  gap: 10px;
+}
+
+.lh-btn-takeoff,
+.lh-btn-change {
+  flex: 1;
+  padding: 12px 8px;
+  border: none;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.lh-btn-takeoff {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.lh-btn-change {
+  background: linear-gradient(180deg, #22d3ee, #0891b2);
+  color: #fff;
+}
+
+.lh-break-opt {
+  display: block;
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 12px 14px;
+  border: 1px solid #fce7f3;
+  border-radius: 12px;
+  background: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  color: #374151;
+  cursor: pointer;
+  text-align: left;
+}
+
+.lh-break-opt--penalty {
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
+.lh-action-pending {
+  margin: 0 16px 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(252, 211, 77, 0.35);
+  color: #fff;
+  font-size: 13px;
+}
+
+.lh-action-pending strong {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.lh-action-pending-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
 .lh-modal-box h3 {
   margin: 0 0 8px;
   font-size: 20px;
@@ -469,4 +584,58 @@ body.lh-sheet-open {
   color: #9ca3af;
   font-size: 14px;
   cursor: pointer;
+}
+
+.lh-rankings-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 16px 14px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 2px solid #fcd34d;
+  background: linear-gradient(135deg, rgba(236, 72, 153, 0.35), rgba(190, 24, 93, 0.5));
+  color: #fff;
+  text-decoration: none;
+  box-shadow: 0 4px 18px rgba(190, 24, 93, 0.28);
+}
+
+.lh-rankings-card:active {
+  transform: scale(0.98);
+}
+
+.lh-rankings-card-ico {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(252, 211, 77, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: #fcd34d;
+  flex-shrink: 0;
+}
+
+.lh-rankings-card-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lh-rankings-card-text strong {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.lh-rankings-card-text small {
+  font-size: 11px;
+  opacity: 0.9;
+}
+
+.lh-rankings-card-arrow {
+  font-size: 13px;
+  opacity: 0.85;
 }

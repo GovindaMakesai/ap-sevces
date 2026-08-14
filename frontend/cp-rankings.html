@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#fbcfe8">
+  <title>CP Ranking - AP Services</title>
+  <script src="ap-native-boot.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="social-theme.css">
+  <link rel="stylesheet" href="cp-rankings.css?v=20260814-cprank2">
+</head>
+<body class="cp-rank-page">
+  <header class="cp-rank-header">
+    <button type="button" class="cp-rank-back" onclick="history.back()" aria-label="Back"><i class="fas fa-chevron-left"></i></button>
+    <h1>CP Ranking</h1>
+    <a href="/cp-home.html?app=1" class="cp-rank-back" aria-label="CP Home" title="CP Home"><i class="fas fa-heart"></i></a>
+  </header>
+
+  <section class="cp-rank-hero">
+    <div class="cp-rank-hero-emblem">💕</div>
+    <h2 class="cp-rank-hero-title">AP Couple</h2>
+  </section>
+
+  <div class="cp-rank-banner">Lovers Ranking</div>
+
+  <p class="cp-rank-rules">
+    CPs are ranked by accumulated intimacy from gift-giving. Love points count after becoming CPs.
+    <strong>1 💎 = 1 💖</strong>
+  </p>
+
+  <div class="cp-rank-tabs" role="tablist">
+    <button type="button" class="cp-rank-tab is-active" data-period="week" role="tab">Week Ranking</button>
+    <button type="button" class="cp-rank-tab" data-period="total" role="tab">Total Ranking</button>
+  </div>
+
+  <div class="cp-rank-podium-wrap" id="cpRankPodiumWrap" hidden>
+    <div class="cp-rank-podium" id="cpRankPodium"></div>
+  </div>
+
+  <div class="cp-rank-list" id="cpRankList">
+    <div class="cp-rank-loading">Loading rankings…</div>
+  </div>
+
+  <footer class="cp-rank-me" id="cpRankMe" hidden></footer>
+
+  <script src="ap-config.js"></script>
+  <script src="app.js"></script>
+  <script src="social-shell.js"></script>
+  <script>
+    let currentPeriod = 'week';
+    let rankData = null;
+
+    function authToken() {
+      return (
+        localStorage.getItem('token') ||
+        localStorage.getItem('access_token') ||
+        (window.Auth?.getToken?.() || '')
+      );
+    }
+
+    async function cpFetch(path) {
+      const token = authToken();
+      const res = await fetch(joinApiUrl('/cp' + path), {
+        credentials: 'include',
+        headers: {
+          Accept: 'application/json',
+          ...(token ? { Authorization: 'Bearer ' + token } : {}),
+        },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || 'Request failed');
+      return data.data;
+    }
+
+    function avatarUrl(name, pic) {
+      if (pic && window.SocialShell?.getImageUrl) return SocialShell.getImageUrl(pic);
+      return `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'U')}&background=ec4899&color=fff`;
+    }
+
+    function esc(s) {
+      return String(s || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function formatIntimacy(n) {
+      const v = Number(n || 0);
+      if (v >= 1e6) return (v / 1e6).toFixed(1) + 'M';
+      if (v >= 1e3) return (v / 1e3).toFixed(1) + 'K';
+      return String(Math.round(v));
+    }
+
+    function coupleAvatars(row) {
+      const a = row.userA;
+      const b = row.userB;
+      return (
+        `<div class="cp-rank-couple-av">` +
+        `<img src="${esc(avatarUrl(a.name, a.profilePic))}" alt="" loading="lazy" data-name="${esc(a.name)}">` +
+        `<span class="cp-rank-heart"><i class="fas fa-heart"></i></span>` +
+        `<img src="${esc(avatarUrl(b.name, b.profilePic))}" alt="" loading="lazy" data-name="${esc(b.name)}">` +
+        `</div>`
+      );
+    }
+
+    function bindAvatarFallbacks(root) {
+      root?.querySelectorAll('img[data-name]').forEach((img) => {
+        if (img.dataset.avBound) return;
+        img.dataset.avBound = '1';
+        const name = img.dataset.name || 'User';
+        img.addEventListener('error', () => {
+          img.onerror = null;
+          img.src = avatarUrl(name, null);
+        });
+      });
+    }
+
+    function renderPodium(top3) {
+      const wrap = document.getElementById('cpRankPodiumWrap');
+      const el = document.getElementById('cpRankPodium');
+      if (!top3.length) {
+        wrap.hidden = true;
+        return;
+      }
+      wrap.hidden = false;
+      const order = [top3[1], top3[0], top3[2]].filter(Boolean);
+      const ranks = [2, 1, 3];
+      el.innerHTML = order.map((row, i) => {
+        const r = ranks[i];
+        const orderClass = r === 2 ? ' order-2' : '';
+        return (
+          `<div class="cp-rank-podium-slot rank-${r}${orderClass}">` +
+          `<div class="cp-rank-podium-badge">TOP ${r}</div>` +
+          `<div class="cp-rank-podium-score"><i class="fas fa-heart"></i> ${formatIntimacy(row.intimacy)}</div>` +
+          coupleAvatars(row) +
+          `<div class="cp-rank-podium-names">` +
+          `<span>${esc(row.userA.name)}</span>` +
+          `<span>${esc(row.userB.name)}</span>` +
+          `</div>` +
+          `<div class="cp-rank-podium-pedestal"></div>` +
+          `</div>`
+        );
+      }).join('');
+      bindAvatarFallbacks(el);
+    }
+
+    function renderList(rows) {
+      const el = document.getElementById('cpRankList');
+      const rest = rows.slice(3);
+      if (!rows.length) {
+        el.innerHTML = '<div class="cp-rank-empty">No CP couples ranked yet. Send gifts to climb the board!</div>';
+        return;
+      }
+      if (!rest.length) {
+        el.innerHTML = '<div class="cp-rank-empty" style="padding:12px">Top couples shown on the podium above.</div>';
+        return;
+      }
+      el.innerHTML = rest.map((row) =>
+        `<div class="cp-rank-row">` +
+        `<div class="cp-rank-num">${row.rank}</div>` +
+        coupleAvatars(row) +
+        `<div class="cp-rank-row-names">` +
+        `<span>${esc(row.userA.name)}</span>` +
+        `<span>${esc(row.userB.name)}</span>` +
+        `</div>` +
+        `<div class="cp-rank-row-score"><i class="fas fa-heart"></i> ${formatIntimacy(row.intimacy)}</div>` +
+        `</div>`
+      ).join('');
+      bindAvatarFallbacks(el);
+    }
+
+    function renderMe(status) {
+      const el = document.getElementById('cpRankMe');
+      if (!status?.user) {
+        el.hidden = true;
+        return;
+      }
+      el.hidden = false;
+      const me = status.user;
+      if (!status.hasCp) {
+        el.innerHTML =
+          `<div class="cp-rank-me-slot">` +
+          `<img src="${esc(avatarUrl(me.name, me.profilePic))}" alt="" data-name="${esc(me.name)}">` +
+          `<span>${esc(me.name)}</span></div>` +
+          `<div class="cp-rank-me-center"><span class="cp-rank-me-heart"><i class="fas fa-heart"></i></span></div>` +
+          `<div class="cp-rank-me-slot">` +
+          `<div class="cp-rank-me-waiting"><i class="fas fa-user"></i></div>` +
+          `<span class="cp-rank-me-waiting-label">Waiting</span></div>`;
+        bindAvatarFallbacks(el);
+        return;
+      }
+      const partner = status.partner;
+      const rankTxt = status.rank ? `#${status.rank}` : 'Unranked';
+      const scoreTxt = formatIntimacy(status.intimacy || 0);
+      el.innerHTML =
+        `<div class="cp-rank-me-slot">` +
+        `<img src="${esc(avatarUrl(me.name, me.profilePic))}" alt="" data-name="${esc(me.name)}">` +
+        `<span>${esc(me.name)}</span></div>` +
+        `<div class="cp-rank-me-center">` +
+        `<span class="cp-rank-me-heart"><i class="fas fa-heart"></i></span>` +
+        `<span class="cp-rank-me-rank">${rankTxt} · <i class="fas fa-heart"></i> ${scoreTxt}</span>` +
+        `</div>` +
+        `<div class="cp-rank-me-slot">` +
+        `<img src="${esc(avatarUrl(partner.name, partner.profilePic))}" alt="" data-name="${esc(partner.name)}">` +
+        `<span>${esc(partner.name)}</span></div>`;
+      bindAvatarFallbacks(el);
+    }
+
+    function paintRankings(data) {
+      rankData = data;
+      const rows = data.rankings || [];
+      renderPodium(rows.slice(0, 3));
+      renderList(rows);
+      renderMe(data.myStatus);
+    }
+
+    async function loadRankings() {
+      const list = document.getElementById('cpRankList');
+      list.innerHTML = '<div class="cp-rank-loading">Loading rankings…</div>';
+      document.getElementById('cpRankPodiumWrap').hidden = true;
+      try {
+        const data = await cpFetch('/rankings?period=' + encodeURIComponent(currentPeriod));
+        paintRankings(data);
+      } catch (e) {
+        list.innerHTML = `<div class="cp-rank-empty">${esc(e.message || 'Could not load rankings')}</div>`;
+        document.getElementById('cpRankMe').hidden = true;
+      }
+    }
+
+    document.querySelectorAll('.cp-rank-tab').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (btn.dataset.period === currentPeriod) return;
+        document.querySelectorAll('.cp-rank-tab').forEach((b) => b.classList.toggle('is-active', b === btn));
+        currentPeriod = btn.dataset.period || 'week';
+        loadRankings();
+      });
+    });
+
+    const urlPeriod = new URLSearchParams(location.search).get('period');
+    if (urlPeriod === 'total' || urlPeriod === 'week') {
+      currentPeriod = urlPeriod;
+      document.querySelectorAll('.cp-rank-tab').forEach((b) => {
+        b.classList.toggle('is-active', b.dataset.period === currentPeriod);
+      });
+    }
+
+    loadRankings();
+  </script>
+</body>
+</html>

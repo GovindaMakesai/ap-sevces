@@ -322,7 +322,7 @@ const TEMPLATES = {
     return {
       type: 'cp_invite_received',
       title: '💕 CP invitation',
-      body: `${who} sent you a CP invitation with ${ring}. Open Love House to respond.`,
+      body: `${who} sent you a CP invitation with ${ring}. Open CP House to respond.`,
       data: {
         type: 'cp_invite_received',
         deepLink: cpDeepLink(),
@@ -426,7 +426,7 @@ const TEMPLATES = {
     return {
       type: 'cp_ring_purchased',
       title: 'Ring purchased',
-      body: `${ring} was added to your bag. Send a CP invitation from Love House.`,
+      body: `${ring} was added to your bag. Send a CP invitation from CP House.`,
       data: {
         type: 'cp_ring_purchased',
         deepLink: storeRingsDeepLink(),

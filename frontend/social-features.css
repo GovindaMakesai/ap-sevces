@@ -1979,6 +1979,14 @@ html.ap-expo-app .social-rank-page--gold .social-rank-sticky-top {
   padding-bottom: 4px;
 }
 .social-rank-main-tab.active { color: var(--gold-800); border-bottom: 2px solid var(--gold-600); }
+.social-rank-main-tab--cp {
+  color: #db2777;
+  font-weight: 700;
+}
+.social-rank-main-tab--cp:hover,
+.social-rank-main-tab--cp:focus {
+  color: #be185d;
+}
 .social-rank-page--gold .social-rank-promo {
   background: linear-gradient(90deg, #fef3c7, #fde68a);
   color: var(--gold-800);

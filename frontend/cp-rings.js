@@ -1,5 +1,5 @@
 /**
- * CSS 3D animated CP rings — replaces flat emoji diamonds in Love House / Store / Party.
+ * CSS 3D CP rings — finger-worn perspective (no spinner orbit).
  */
 (function (global) {
   const RING_IDS = ['ruby', 'wings', 'cp', 'celeste', 'mystique', 'aura'];
@@ -21,28 +21,50 @@
     return RING_STYLE[normalizeRingId(ringId)] || 'diamond';
   }
 
-  function render(ringId, size) {
+  function render(ringId, size, mode) {
     const id = normalizeRingId(ringId);
     const style = ringStyle(id);
     const sz = size || 'md';
+    const worn = mode === 'worn';
+    const modeClass = worn ? ' ap-cp-ring--worn' : ' ap-cp-ring--preview';
     return (
-      `<div class="ap-cp-ring ap-cp-ring--${id} ap-cp-ring--style-${style} ap-cp-ring--${sz}" role="img" aria-label="CP ring">` +
+      `<div class="ap-cp-ring ap-cp-ring--${id} ap-cp-ring--style-${style} ap-cp-ring--${sz}${modeClass}" role="img" aria-label="CP ring">` +
       `<div class="ap-cp-ring-stage">` +
-      `<div class="ap-cp-ring-orbit"></div>` +
+      `<div class="ap-cp-ring-view">` +
+      `<div class="ap-cp-ring-band-wrap">` +
       `<div class="ap-cp-ring-band"></div>` +
+      `<div class="ap-cp-ring-band-edge"></div>` +
+      `<div class="ap-cp-ring-band-hole"></div>` +
+      `</div>` +
+      `<div class="ap-cp-ring-crown">` +
       `<div class="ap-cp-ring-prongs"></div>` +
       `<div class="ap-cp-ring-gem"></div>` +
       `<div class="ap-cp-ring-shine"></div>` +
-      `<div class="ap-cp-ring-spark ap-cp-ring-spark--1"></div>` +
-      `<div class="ap-cp-ring-spark ap-cp-ring-spark--2"></div>` +
+      `</div>` +
+      `</div>` +
       `</div></div>`
     );
   }
 
+  /** Store / buy sheet — subtle gem glint only */
   function mount(el, ringId, size) {
     if (!el) return;
-    el.innerHTML = render(ringId, size);
+    el.innerHTML = render(ringId, size, 'preview');
   }
 
-  global.CpRings = { render, mount, normalizeRingId, ringStyle, RING_IDS, RING_STYLE };
+  /** CP home, profile, party — static worn 3D ring */
+  function mountWorn(el, ringId, size) {
+    if (!el) return;
+    el.innerHTML = render(ringId, size, 'worn');
+  }
+
+  global.CpRings = {
+    render,
+    mount,
+    mountWorn,
+    normalizeRingId,
+    ringStyle,
+    RING_IDS,
+    RING_STYLE,
+  };
 })(typeof window !== 'undefined' ? window : global);

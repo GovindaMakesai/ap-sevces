@@ -11185,7 +11185,8 @@
 
       bridge.style.left = `${Math.round(cx)}px`;
       bridge.style.top = `${Math.round(cy)}px`;
-      global.CpRings?.mount?.(bridge.querySelector('.party-cp-seat-ring-slot'), ringId, seatA && seatB ? 'md' : 'sm');
+      global.CpRings?.mountWorn?.(bridge.querySelector('.party-cp-seat-ring-slot'), ringId, seatA && seatB ? 'md' : 'sm')
+        || global.CpRings?.mount?.(bridge.querySelector('.party-cp-seat-ring-slot'), ringId, seatA && seatB ? 'md' : 'sm');
     });
   }
 

@@ -4,19 +4,20 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#be185d">
-  <title>Love House - AP Services</title>
+  <title>CP House - AP Services</title>
+  <script src="ap-native-boot.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-theme.css">
-  <link rel="stylesheet" href="cp-love-house.css?v=20260814-cpprofile">
-  <link rel="stylesheet" href="cp-rings.css?v=20260814-cpprofile">
+  <link rel="stylesheet" href="cp-love-house.css?v=20260814-cphouse">
+  <link rel="stylesheet" href="cp-rings.css?v=20260814-ring3d">
 </head>
 <body class="love-house-page">
   <header class="love-house-header">
     <button type="button" class="lh-icon-btn" onclick="history.back()" aria-label="Back"><i class="fas fa-chevron-left"></i></button>
-    <h1>Love House</h1>
+    <h1>CP House</h1>
     <div style="display:flex;gap:6px">
       <a href="/levels.html?app=1" class="lh-icon-btn" aria-label="Level" title="Level"><i class="fas fa-shield-alt"></i></a>
-      <a href="/rankings.html?app=1" class="lh-icon-btn" aria-label="Rankings"><i class="fas fa-trophy"></i></a>
+      <a href="/cp-rankings.html?app=1" class="lh-icon-btn" aria-label="CP Rankings"><i class="fas fa-trophy"></i></a>
       <button type="button" class="lh-icon-btn" id="lhOpenTipsBtn" aria-label="CP guide"><i class="fas fa-book"></i></button>
     </div>
   </header>
@@ -41,6 +42,17 @@
   </div>
 
   <div id="lhInvitePendingList"></div>
+
+  <div id="lhActionRequests"></div>
+
+  <a href="/cp-rankings.html?app=1" class="lh-rankings-card" id="lhRankingsCard">
+    <span class="lh-rankings-card-ico"><i class="fas fa-trophy"></i></span>
+    <span class="lh-rankings-card-text">
+      <strong>CP Rankings</strong>
+      <small>Week &amp; total lovers leaderboard</small>
+    </span>
+    <i class="fas fa-chevron-right lh-rankings-card-arrow"></i>
+  </a>
 
   <section class="lh-privilege-card">
     <div class="lh-privilege-head"><span>🌹</span> CP Privilege <span>🌹</span></div>
@@ -106,34 +118,113 @@
     </div>
   </div>
 
+  <!-- Ring action: take off / change -->
+  <div class="lh-overlay align-center" id="lhRingActionModal" hidden>
+    <div class="lh-modal-box lh-ring-action-box">
+      <button type="button" class="lh-sheet-close lh-ring-action-close" id="lhRingActionClose" aria-label="Close"><i class="fas fa-times"></i></button>
+      <div class="ring-art" id="lhRingActionArt"></div>
+      <p class="lh-ring-action-prompt">you want to</p>
+      <div class="lh-ring-action-btns">
+        <button type="button" class="lh-btn-takeoff" id="lhTakeOffBtn">Take off the ring</button>
+        <button type="button" class="lh-btn-change" id="lhChangeRingBtn">Change the ring</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Break up method -->
+  <div class="lh-overlay align-center" id="lhBreakModal" hidden>
+    <div class="lh-modal-box">
+      <h3>Take off the ring</h3>
+      <p>Choose how to end your CP relationship.</p>
+      <button type="button" class="lh-break-opt" id="lhBreakConsentBtn">Ask partner to agree (free, 48h)</button>
+      <button type="button" class="lh-break-opt" id="lhBreakInstantBtn">Instant break — <span id="lhBreakFee">75,000</span> coins</button>
+      <button type="button" class="lh-break-opt lh-break-opt--penalty" id="lhBreakPenaltyBtn" hidden>Inactive partner — <span id="lhBreakPenaltyFee">75,000</span> coins</button>
+      <button type="button" class="lh-modal-cancel" id="lhBreakCancel">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Change CP ring (when already CP) -->
+  <div class="lh-overlay align-center" id="lhChangeRingPicker" hidden>
+    <div class="lh-modal-box">
+      <h3>Change the ring</h3>
+      <p>Your partner must accept within 48 hours.</p>
+      <div id="lhChangeRingList" style="display:flex;flex-direction:column;gap:8px;margin:12px 0"></div>
+      <button type="button" class="lh-modal-cancel" id="lhChangeRingClose">Cancel</button>
+    </div>
+  </div>
+
   <!-- CP Instructions sheet (book icon) -->
   <div class="lh-overlay align-center" id="lhTipsSheet">
     <div class="lh-modal-box lh-tips-box">
       <button type="button" class="lh-sheet-close lh-tips-close" id="lhTipsClose" aria-label="Close"><i class="fas fa-times"></i></button>
       <h3><i class="fas fa-book" style="color:#fbbf24;margin-right:6px"></i> CP Instructions</h3>
+      <p class="lh-tips-section">CP House</p>
       <ol class="lh-tips-list">
-        <li>Love House shows your CP ring on your profile and in party rooms when you sit together.</li>
-        <li>Unlock Love House with intimacy <strong>≥ 20,000</strong>, or accept a CP invite.</li>
-        <li>Send a CP invite at intimacy <strong>≥ 50,000</strong> with a ring from Store → Rings.</li>
-        <li>Invites last <strong>48 hours</strong>. Declined invites have a <strong>48h</strong> cooldown.</li>
-        <li>Tap your ring on Love House to change it or break up.</li>
-        <li>Level up by sending gifts — tap the shield icon for Level benefits.</li>
+        <li>CP House is a testimony of a couple's love. Your CP ring shows on your <strong>profile</strong>, CP House, and in party rooms when you sit together.</li>
+        <li>Unlock CP House with intimacy <strong>≥ 20,000</strong>, or accept a CP invitation.</li>
+        <li>Send a CP invite when intimacy is <strong>≥ 50,000</strong>, you are mutual friends, and you own a ring from Store → Rings.</li>
+        <li>Rings are bought in the store. If an invite is declined or expires, the ring returns to your bag.</li>
+        <li>Invites last <strong>48 hours</strong>. If rejected, you cannot invite that person again for <strong>48 hours</strong>.</li>
+        <li>Tap the ring on CP House to <strong>change it</strong> or <strong>take it off</strong> (break up).</li>
       </ol>
-      <a href="/store.html?cat=rings&app=1&from=cp" class="lh-buy-btn" style="display:block;text-decoration:none;text-align:center">Buy a ring</a>
+      <p class="lh-tips-section">Break up &amp; ring change</p>
+      <ol class="lh-tips-list">
+        <li><strong>Take off the ring:</strong> ask your partner to agree (free), pay <strong>75,000 coins</strong> for an instant break, or use the inactive-partner option if they have not been active for <strong>30 days</strong>.</li>
+        <li><strong>Change the ring:</strong> pick a ring you own — your partner must accept within 48 hours.</li>
+        <li>Incoming requests appear on CP House with Accept / Decline buttons.</li>
+      </ol>
+      <p class="lh-tips-section">Level &amp; rankings</p>
+      <ol class="lh-tips-list">
+        <li>Level up by sending gifts. Tap the <strong>shield</strong> icon for Level benefits and perks.</li>
+        <li>CP Rankings list couples by intimacy from gifts after becoming CP. <strong>1 💎 = 1 💖</strong></li>
+        <li>Week ranking counts gifts in the last 7 days; Total ranking is all-time intimacy.</li>
+      </ol>
+      <a href="/levels.html?app=1" class="lh-tips-level-link"><i class="fas fa-shield-alt"></i> Open Level benefits</a>
+      <a href="/cp-tips.html?app=1" class="lh-tips-level-link" style="margin-top:8px"><i class="fas fa-book"></i> Full CP guide</a>
+      <a href="/store.html?cat=rings&app=1&from=cp" class="lh-buy-btn" style="display:block;text-decoration:none;text-align:center;margin-top:14px">Buy a ring</a>
     </div>
   </div>
 
   <div id="social-bottom-nav-mount"></div>
 
-  <script src="cp-rings.js?v=20260814-cpprofile"></script>
+  <script src="ap-config.js"></script>
+  <script src="cp-rings.js?v=20260814-ring3d"></script>
   <script src="app.js"></script>
   <script src="social-shell.js"></script>
   <script>
-    let cpState = { ownedRings: [], hasRing: false, intimacyInviteMin: 50000 };
+    let cpState = {
+      ownedRings: [],
+      hasRing: false,
+      intimacyInviteMin: 50000,
+      cp: null,
+      actionRequests: [],
+      breakInstantFee: 75000,
+      inactiveDays: 30,
+      partnerInactive: false,
+    };
     let lookupTarget = null;
 
+    function openModal(id) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.hidden = false;
+      el.classList.add('open');
+      syncLhSheetLock();
+    }
+
+    function closeModal(id) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.classList.remove('open');
+      el.hidden = true;
+      syncLhSheetLock();
+    }
+
     async function cpFetch(path, opts = {}) {
-      const token = localStorage.getItem('token');
+      const token =
+        localStorage.getItem('token') ||
+        localStorage.getItem('access_token') ||
+        (window.Auth?.getToken?.() || '');
       const res = await fetch(joinApiUrl('/cp' + path), {
         credentials: 'include',
         headers: {
@@ -175,7 +266,8 @@
     }
 
     function paintCenterRing(ringId) {
-      CpRings?.mount?.(document.getElementById('lhHeartGem'), ringId || 'ruby', 'md');
+      const fn = CpRings?.mountWorn || CpRings?.mount;
+      fn?.(document.getElementById('lhHeartGem'), ringId || 'ruby', 'md');
     }
 
     function paintLevelRings() {
@@ -185,6 +277,7 @@
     }
 
     function showPartner(cp) {
+      cpState.cp = cp;
       const slot = document.getElementById('lhPartnerSlot');
       slot.innerHTML = `
         <img class="lh-avatar" id="lhPartnerAvatar" alt="">
@@ -194,6 +287,10 @@
       img.onerror = () => { img.onerror = null; img.src = avatarUrl(cp.partnerName, null); };
       document.getElementById('lhHeartGem').textContent = '';
       paintCenterRing(cp.ringId || cp.ring?.id || 'cp');
+      const gem = document.getElementById('lhHeartGem');
+      gem.classList.add('is-clickable');
+      gem.setAttribute('role', 'button');
+      gem.setAttribute('aria-label', 'Manage CP ring');
       document.getElementById('lhHeroTitle').textContent = 'Together Forever.';
       document.getElementById('lhOpenInviteBtn').hidden = true;
       document.getElementById('lhDaysPill').hidden = false;
@@ -201,6 +298,11 @@
     }
 
     function showEmptyPartner() {
+      cpState.cp = null;
+      const gem = document.getElementById('lhHeartGem');
+      gem.classList.remove('is-clickable');
+      gem.removeAttribute('role');
+      gem.removeAttribute('aria-label');
       const slot = document.getElementById('lhPartnerSlot');
       slot.innerHTML = `
         <button type="button" class="lh-add-partner" id="lhAddPartnerBtn" aria-label="Invite CP partner">+</button>
@@ -212,11 +314,131 @@
       paintCenterRing('ruby');
     }
 
-    async function loadLoveHouse() {
+    function renderActionRequests(requests) {
+      const box = document.getElementById('lhActionRequests');
+      if (!box) return;
+      const incoming = (requests || []).filter((r) => r.incoming);
+      if (!incoming.length) {
+        box.innerHTML = '';
+        return;
+      }
+      box.innerHTML = incoming.map((r) => {
+        const label =
+          r.type === 'break'
+            ? `${r.fromName} asked to end your CP`
+            : `${r.fromName} wants to change your ring to ${r.newRing?.name || 'a new ring'}`;
+        return (
+          `<div class="lh-action-pending">` +
+          `<strong>${label}</strong>` +
+          `<div class="lh-action-pending-actions">` +
+          `<button type="button" class="lh-btn-accept" data-action-id="${r.id}" data-action-accept="1">Accept</button>` +
+          `<button type="button" class="lh-btn-decline" data-action-id="${r.id}" data-action-accept="0">Decline</button>` +
+          `</div></div>`
+        );
+      }).join('');
+      box.querySelectorAll('[data-action-id]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          try {
+            await cpFetch('/action/' + btn.dataset.actionId + '/respond', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ accept: btn.dataset.actionAccept === '1' }),
+            });
+            loadCpHouse();
+          } catch (e) {
+            alert(e.message);
+          }
+        });
+      });
+    }
+
+    function openRingActionModal() {
+      if (!cpState.cp) return;
+      const ringId = cpState.cp.ringId || cpState.cp.ring?.id || 'cp';
+      CpRings?.mountWorn?.(document.getElementById('lhRingActionArt'), ringId, 'lg');
+      openModal('lhRingActionModal');
+    }
+
+    function openBreakModal() {
+      closeModal('lhRingActionModal');
+      const fee = Number(cpState.breakInstantFee || 75000);
+      document.getElementById('lhBreakFee').textContent = fee.toLocaleString();
+      document.getElementById('lhBreakPenaltyFee').textContent = fee.toLocaleString();
+      const penaltyBtn = document.getElementById('lhBreakPenaltyBtn');
+      if (cpState.partnerInactive) {
+        penaltyBtn.hidden = false;
+        penaltyBtn.textContent = `Inactive partner (${cpState.inactiveDays}d+) — ${fee.toLocaleString()} coins`;
+      } else {
+        penaltyBtn.hidden = true;
+      }
+      openModal('lhBreakModal');
+    }
+
+    function openChangeRingPicker() {
+      closeModal('lhRingActionModal');
+      const rings = cpState.ownedRings || [];
+      if (!rings.length) {
+        alert('You need to own a ring in your bag. Buy one from the Store.');
+        location.href = '/store.html?cat=rings&app=1&from=cp';
+        return;
+      }
+      const list = document.getElementById('lhChangeRingList');
+      list.innerHTML = rings.map((r) =>
+        `<button type="button" class="lh-ring-picker-btn" data-change-ring="${r.id}">
+          <span class="lh-ring-picker-ico"></span>
+          <span>${r.name} (×${r.quantity})</span>
+        </button>`
+      ).join('');
+      list.querySelectorAll('.lh-ring-picker-ico').forEach((el, i) => {
+        CpRings?.mount?.(el, rings[i]?.id, 'sm');
+      });
+      list.querySelectorAll('[data-change-ring]').forEach((btn) => {
+        btn.addEventListener('click', () => submitChangeRing(btn.dataset.changeRing));
+      });
+      openModal('lhChangeRingPicker');
+    }
+
+    async function submitBreak(mode) {
+      try {
+        await cpFetch('/break', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode }),
+        });
+        closeModal('lhBreakModal');
+        if (mode === 'request') alert('Break-up request sent. Your partner has 48 hours to respond.');
+        else alert('CP relationship ended.');
+        loadCpHouse();
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    async function submitChangeRing(ringId) {
+      try {
+        await cpFetch('/change-ring', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ringId }),
+        });
+        closeModal('lhChangeRingPicker');
+        alert('Ring change request sent. Your partner must accept within 48 hours.');
+        loadCpHouse();
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    async function loadCpHouse() {
       const data = await cpFetch('/home');
       cpState.ownedRings = data.ownedRings || [];
       cpState.hasRing = Boolean(data.hasRing);
       cpState.intimacyInviteMin = data.intimacyInviteMin || 50000;
+      cpState.actionRequests = data.actionRequests || [];
+      cpState.breakInstantFee = data.breakInstantFee || 75000;
+      cpState.inactiveDays = data.inactiveDays || 30;
+      cpState.partnerInactive = Boolean(data.partnerInactive);
+      cpState.cp = data.cp || null;
       document.getElementById('lhIntimacyHint').textContent =
         `Intimacy value >= ${Number(cpState.intimacyInviteMin).toLocaleString()} to become CP~`;
 
@@ -238,10 +460,12 @@
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ accept: btn.dataset.accept === '1' }),
             });
-            loadLoveHouse();
+            loadCpHouse();
           } catch (e) { alert(e.message); }
         });
       });
+
+      renderActionRequests(cpState.actionRequests);
 
       try {
         const me = await API.get('/auth/me');
@@ -325,7 +549,7 @@
         });
         closeSheet('lhInviteSheet');
         alert('CP invitation sent!');
-        loadLoveHouse();
+        loadCpHouse();
       } catch (e) {
         if (/own.*ring|buy/i.test(e.message || '')) {
           closeSheet('lhInviteSheet');
@@ -356,15 +580,35 @@
     document.getElementById('lhOpenTipsBtn')?.addEventListener('click', () => openSheet('lhTipsSheet'));
     document.getElementById('lhTipsClose')?.addEventListener('click', () => closeSheet('lhTipsSheet'));
 
+    document.getElementById('lhRingActionClose')?.addEventListener('click', () => closeModal('lhRingActionModal'));
+    document.getElementById('lhTakeOffBtn')?.addEventListener('click', openBreakModal);
+    document.getElementById('lhChangeRingBtn')?.addEventListener('click', openChangeRingPicker);
+    document.getElementById('lhBreakConsentBtn')?.addEventListener('click', () => submitBreak('request'));
+    document.getElementById('lhBreakInstantBtn')?.addEventListener('click', () => {
+      if (!confirm(`Pay ${Number(cpState.breakInstantFee || 75000).toLocaleString()} coins to break up instantly?`)) return;
+      submitBreak('instant');
+    });
+    document.getElementById('lhBreakPenaltyBtn')?.addEventListener('click', () => {
+      if (!confirm(`Pay ${Number(cpState.breakInstantFee || 75000).toLocaleString()} coins (inactive partner fee)?`)) return;
+      submitBreak('penalty');
+    });
+    document.getElementById('lhBreakCancel')?.addEventListener('click', () => closeModal('lhBreakModal'));
+    document.getElementById('lhChangeRingClose')?.addEventListener('click', () => closeModal('lhChangeRingPicker'));
+
+    document.getElementById('lhHeartGem')?.addEventListener('click', () => {
+      if (cpState.cp) openRingActionModal();
+    });
+
     document.addEventListener('DOMContentLoaded', () => {
       SocialShell?.initPage?.({ activeNav: 'profile' });
       paintLevelRings();
       CpRings?.mount?.(document.getElementById('lhNoRingArt'), 'ruby', 'lg');
       document.getElementById('lhCoupleCard')?.addEventListener('click', (e) => {
         if (e.target.closest('#lhAddPartnerBtn')) openInviteFlow();
+        if (e.target.closest('#lhHeartGem') && cpState.cp) openRingActionModal();
       });
-      loadLoveHouse().catch((e) => {
-        document.querySelector('.lh-hero-title').textContent = e.message || 'Sign in to open Love House';
+      loadCpHouse().catch((e) => {
+        document.querySelector('.lh-hero-title').textContent = e.message || 'Sign in to open CP House';
       });
     });
   </script>

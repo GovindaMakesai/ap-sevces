@@ -8,6 +8,9 @@ const INTIMACY_DISPLAY_MULT = 10;
 const INTIMACY_INVITE_MIN = CP_SUPPORT_INVITE * INTIMACY_DISPLAY_MULT;
 const INVITE_TTL_MS = 48 * 60 * 60 * 1000;
 const REJECT_COOLDOWN_MS = 48 * 60 * 60 * 1000;
+const CP_BREAK_INSTANT_FEE = 75000;
+const CP_INACTIVE_DAYS = 30;
+const CP_ACTION_TTL_MS = 48 * 60 * 60 * 1000;
 
 const CP_RINGS = [
   { id: 'ruby', name: 'Ruby Ring', price: 45000, emoji: '💎', color: '#f472b6' },
@@ -340,30 +343,48 @@ async function returnRingToBag(userId, ringId) {
   );
 }
 
-async function breakUp(userId, { forced = false } = {}) {
-  const cp = await getActiveCp(userId);
-  if (!cp) throw new Error('No active CP relationship');
-  const [user_a, user_b] = pairKey(userId, cp.partnerId);
+async function partnerLastActive(partnerId) {
+  const res = await db.query(
+    `SELECT COALESCE(last_login, updated_at, created_at) AS ts FROM users WHERE id = $1`,
+    [partnerId]
+  );
+  return res.rows[0]?.ts ? new Date(res.rows[0].ts) : null;
+}
+
+async function isPartnerInactive(partnerId) {
+  const ts = await partnerLastActive(partnerId);
+  if (!ts) return true;
+  return Date.now() - ts.getTime() > CP_INACTIVE_DAYS * 86400000;
+}
+
+async function endCpRelationship(userId, partnerId, meta = {}) {
+  const [user_a, user_b] = pairKey(userId, partnerId);
   await db.query(
     `UPDATE cp_relationships SET status = 'ended' WHERE user_a = $1 AND user_b = $2 AND status = 'active'`,
     [user_a, user_b]
+  );
+  await db.query(
+    `UPDATE cp_action_requests SET status = 'cancelled', responded_at = NOW()
+     WHERE status = 'pending' AND ((from_user_id = $1 AND to_user_id = $2) OR (from_user_id = $2 AND to_user_id = $1))`,
+    [userId, partnerId]
   );
   setImmediate(() => {
     try {
       require('./systemMessageService')
         .notifyCpBreakUp({
           initiatorId: userId,
-          partnerId: cp.partnerId,
+          partnerId,
+          instant: Boolean(meta.instant),
+          penalty: Boolean(meta.penalty),
         })
         .catch(() => {});
     } catch (_e) {
       /* non-fatal */
     }
   });
-  return { ok: true, forced };
 }
 
-async function changeRing(userId, ringId) {
+async function applyRingChange(userId, ringId) {
   const cp = await getActiveCp(userId);
   if (!cp) throw new Error('No CP relationship');
   const qty = await getUserRingQty(userId, ringId);
@@ -393,6 +414,198 @@ async function changeRing(userId, ringId) {
     }
   });
   return ring;
+}
+
+async function listActionRequests(userId) {
+  const res = await db.query(
+    `SELECT r.*,
+            fu.first_name AS f_fn, fu.last_name AS f_ln,
+            tu.first_name AS t_fn, tu.last_name AS t_ln
+     FROM cp_action_requests r
+     JOIN users fu ON fu.id = r.from_user_id
+     JOIN users tu ON tu.id = r.to_user_id
+     WHERE r.status = 'pending' AND r.expires_at > NOW()
+       AND (r.from_user_id = $1 OR r.to_user_id = $1)
+     ORDER BY r.created_at DESC`,
+    [userId]
+  );
+  return res.rows.map((r) => ({
+    id: r.id,
+    type: r.type,
+    fromUserId: String(r.from_user_id),
+    toUserId: String(r.to_user_id),
+    fromName: `${r.f_fn || ''} ${r.f_ln || ''}`.trim() || 'User',
+    toName: `${r.t_fn || ''} ${r.t_ln || ''}`.trim() || 'User',
+    newRingId: r.new_ring_id,
+    newRing: r.new_ring_id ? ringById(r.new_ring_id) : null,
+    expiresAt: r.expires_at,
+    incoming: String(r.to_user_id) === String(userId),
+  }));
+}
+
+async function requestBreakUp(userId) {
+  const cp = await getActiveCp(userId);
+  if (!cp) throw new Error('No active CP relationship');
+  const dup = await db.query(
+    `SELECT id FROM cp_action_requests
+     WHERE from_user_id = $1 AND type = 'break' AND status = 'pending' AND expires_at > NOW()`,
+    [userId]
+  );
+  if (dup.rows[0]) throw new Error('Break-up request already pending');
+  const expires = new Date(Date.now() + CP_ACTION_TTL_MS);
+  const res = await db.query(
+    `INSERT INTO cp_action_requests (from_user_id, to_user_id, type, status, expires_at)
+     VALUES ($1, $2, 'break', 'pending', $3) RETURNING *`,
+    [userId, cp.partnerId, expires.toISOString()]
+  );
+  const row = res.rows[0];
+  setImmediate(() => {
+    try {
+      require('./systemMessageService')
+        .notifyCpBreakRequest({ fromUserId: userId, toUserId: cp.partnerId })
+        .catch(() => {});
+    } catch (_e) {
+      /* non-fatal */
+    }
+  });
+  return { id: row.id, expiresAt: row.expires_at };
+}
+
+async function instantBreakUp(userId) {
+  const cp = await getActiveCp(userId);
+  if (!cp) throw new Error('No active CP relationship');
+  await walletService.debitCoins(userId, CP_BREAK_INSTANT_FEE, {
+    type: 'cp_break_instant',
+    metadata: { partner_id: cp.partnerId },
+  });
+  await endCpRelationship(userId, cp.partnerId, { instant: true });
+  return { ok: true, fee: CP_BREAK_INSTANT_FEE };
+}
+
+async function penaltyBreakUp(userId) {
+  const cp = await getActiveCp(userId);
+  if (!cp) throw new Error('No active CP relationship');
+  if (!(await isPartnerInactive(cp.partnerId))) {
+    throw new Error(`Partner was active within ${CP_INACTIVE_DAYS} days — use consent or pay ${CP_BREAK_INSTANT_FEE.toLocaleString()} coins`);
+  }
+  await walletService.debitCoins(userId, CP_BREAK_INSTANT_FEE, {
+    type: 'cp_break_penalty',
+    metadata: { partner_id: cp.partnerId, inactive: true },
+  });
+  await endCpRelationship(userId, cp.partnerId, { penalty: true });
+  return { ok: true, fee: CP_BREAK_INSTANT_FEE, penalty: true };
+}
+
+async function requestRingChange(userId, ringId) {
+  const cp = await getActiveCp(userId);
+  if (!cp) throw new Error('No active CP relationship');
+  const ring = ringById(ringId);
+  if (!ring) throw new Error('Ring not found');
+  const qty = await getUserRingQty(userId, ringId);
+  if (qty < 1) throw new Error('You do not own this ring');
+  const dup = await db.query(
+    `SELECT id FROM cp_action_requests
+     WHERE from_user_id = $1 AND type = 'ring_change' AND status = 'pending' AND expires_at > NOW()`,
+    [userId]
+  );
+  if (dup.rows[0]) throw new Error('Ring change request already pending');
+  const expires = new Date(Date.now() + CP_ACTION_TTL_MS);
+  const res = await db.query(
+    `INSERT INTO cp_action_requests (from_user_id, to_user_id, type, new_ring_id, status, expires_at)
+     VALUES ($1, $2, 'ring_change', $3, 'pending', $4) RETURNING *`,
+    [userId, cp.partnerId, ringId, expires.toISOString()]
+  );
+  const row = res.rows[0];
+  setImmediate(() => {
+    try {
+      require('./systemMessageService')
+        .notifyCpRingChangeRequest({
+          fromUserId: userId,
+          toUserId: cp.partnerId,
+          ringId,
+        })
+        .catch(() => {});
+    } catch (_e) {
+      /* non-fatal */
+    }
+  });
+  return { id: row.id, ring, expiresAt: row.expires_at };
+}
+
+async function respondActionRequest(userId, requestId, accept) {
+  const res = await db.query(
+    `SELECT * FROM cp_action_requests
+     WHERE id = $1 AND to_user_id = $2 AND status = 'pending' AND expires_at > NOW()`,
+    [requestId, userId]
+  );
+  const req = res.rows[0];
+  if (!req) throw new Error('Request not found or expired');
+
+  if (!accept) {
+    await db.query(`UPDATE cp_action_requests SET status = 'declined', responded_at = NOW() WHERE id = $1`, [
+      requestId,
+    ]);
+    setImmediate(() => {
+      try {
+        require('./systemMessageService')
+          .notifyCpActionDeclined({
+            fromUserId: req.from_user_id,
+            toUserId: req.to_user_id,
+            type: req.type,
+          })
+          .catch(() => {});
+      } catch (_e) {
+        /* non-fatal */
+      }
+    });
+    return { accepted: false, type: req.type };
+  }
+
+  if (req.type === 'break') {
+    await endCpRelationship(req.from_user_id, req.to_user_id);
+  } else if (req.type === 'ring_change') {
+    await applyRingChange(req.from_user_id, req.new_ring_id);
+  } else {
+    throw new Error('Unknown request type');
+  }
+
+  await db.query(`UPDATE cp_action_requests SET status = 'accepted', responded_at = NOW() WHERE id = $1`, [
+    requestId,
+  ]);
+
+  if (req.type === 'ring_change') {
+    setImmediate(() => {
+      try {
+        require('./systemMessageService')
+          .notifyCpRingChangeAccepted({
+            fromUserId: req.from_user_id,
+            toUserId: req.to_user_id,
+            ringId: req.new_ring_id,
+          })
+          .catch(() => {});
+      } catch (_e) {
+        /* non-fatal */
+      }
+    });
+  }
+
+  return { accepted: true, type: req.type };
+}
+
+async function breakUp(userId, { forced = false, instant = false, penalty = false } = {}) {
+  if (instant) return instantBreakUp(userId);
+  if (penalty) return penaltyBreakUp(userId);
+  if (forced) {
+    const cp = await getActiveCp(userId);
+    if (!cp) throw new Error('No active CP relationship');
+    await endCpRelationship(userId, cp.partnerId, { forced: true });
+    return { ok: true, forced: true };
+  }
+  return requestBreakUp(userId);
+}
+
+async function changeRing(userId, ringId) {
+  return requestRingChange(userId, ringId);
 }
 
 async function listPendingInvites(userId) {
@@ -489,12 +702,182 @@ async function getCpProfilePublic(userId) {
   };
 }
 
+async function coupleWeekIntimacy(userA, userB) {
+  const res = await db.query(
+    `SELECT COALESCE(SUM(gt.coin_amount), 0)::bigint AS intimacy
+     FROM cp_relationships r
+     LEFT JOIN gift_transactions gt ON (
+       (gt.sender_id = r.user_a AND gt.receiver_id = r.user_b)
+       OR (gt.sender_id = r.user_b AND gt.receiver_id = r.user_a)
+     )
+     AND gt.created_at >= GREATEST(r.started_at, NOW() - INTERVAL '7 days')
+     WHERE r.status = 'active' AND r.user_a = $1 AND r.user_b = $2`,
+    [userA, userB]
+  );
+  return Number(res.rows[0]?.intimacy || 0);
+}
+
+async function coupleRankPosition(userA, userB, period, intimacy) {
+  if (period === 'week') {
+    const res = await db.query(
+      `SELECT COUNT(*)::int + 1 AS rank
+       FROM (
+         SELECT r.user_a, r.user_b, COALESCE(SUM(gt.coin_amount), 0)::bigint AS score
+         FROM cp_relationships r
+         LEFT JOIN gift_transactions gt ON (
+           (gt.sender_id = r.user_a AND gt.receiver_id = r.user_b)
+           OR (gt.sender_id = r.user_b AND gt.receiver_id = r.user_a)
+         )
+         AND gt.created_at >= GREATEST(r.started_at, NOW() - INTERVAL '7 days')
+         WHERE r.status = 'active'
+         GROUP BY r.user_a, r.user_b
+         HAVING COALESCE(SUM(gt.coin_amount), 0) > $3
+       ) ranked`,
+      [userA, userB, intimacy]
+    );
+    return Number(res.rows[0]?.rank || 0) || null;
+  }
+  const res = await db.query(
+    `SELECT COUNT(*)::int + 1 AS rank
+     FROM cp_relationships r
+     LEFT JOIN user_cp_support s ON s.user_a = r.user_a AND s.user_b = r.user_b
+     WHERE r.status = 'active'
+       AND COALESCE(s.points, 0) * $1 > $2`,
+    [INTIMACY_DISPLAY_MULT, intimacy]
+  );
+  return Number(res.rows[0]?.rank || 0) || null;
+}
+
+function mapCpRankRow(row, rank) {
+  return {
+    rank,
+    intimacy: Number(row.intimacy || 0),
+    ringId: row.ring_id,
+    userA: {
+      userId: String(row.user_a),
+      name: `${row.a_fn || ''} ${row.a_ln || ''}`.trim() || 'User',
+      profilePic: row.a_pic || null,
+    },
+    userB: {
+      userId: String(row.user_b),
+      name: `${row.b_fn || ''} ${row.b_ln || ''}`.trim() || 'User',
+      profilePic: row.b_pic || null,
+    },
+  };
+}
+
+async function getCpRankings(viewerUserId, period = 'week', limit = 50) {
+  const lim = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 100);
+  const isWeek = period === 'week';
+  let rows;
+
+  if (isWeek) {
+    const res = await db.query(
+      `SELECT r.user_a, r.user_b, r.ring_id,
+              ua.first_name AS a_fn, ua.last_name AS a_ln, ua.profile_pic AS a_pic,
+              ub.first_name AS b_fn, ub.last_name AS b_ln, ub.profile_pic AS b_pic,
+              COALESCE(SUM(gt.coin_amount), 0)::bigint AS intimacy
+       FROM cp_relationships r
+       JOIN users ua ON ua.id = r.user_a AND ua.is_active = TRUE
+       JOIN users ub ON ub.id = r.user_b AND ub.is_active = TRUE
+       LEFT JOIN gift_transactions gt ON (
+         (gt.sender_id = r.user_a AND gt.receiver_id = r.user_b)
+         OR (gt.sender_id = r.user_b AND gt.receiver_id = r.user_a)
+       )
+       AND gt.created_at >= GREATEST(r.started_at, NOW() - INTERVAL '7 days')
+       WHERE r.status = 'active'
+       GROUP BY r.user_a, r.user_b, r.ring_id,
+                ua.first_name, ua.last_name, ua.profile_pic,
+                ub.first_name, ub.last_name, ub.profile_pic
+       ORDER BY intimacy DESC, r.started_at ASC
+       LIMIT $1`,
+      [lim]
+    );
+    rows = res.rows;
+  } else {
+    const res = await db.query(
+      `SELECT r.user_a, r.user_b, r.ring_id,
+              ua.first_name AS a_fn, ua.last_name AS a_ln, ua.profile_pic AS a_pic,
+              ub.first_name AS b_fn, ub.last_name AS b_ln, ub.profile_pic AS b_pic,
+              (COALESCE(s.points, 0) * $2)::bigint AS intimacy
+       FROM cp_relationships r
+       JOIN users ua ON ua.id = r.user_a AND ua.is_active = TRUE
+       JOIN users ub ON ub.id = r.user_b AND ub.is_active = TRUE
+       LEFT JOIN user_cp_support s ON s.user_a = r.user_a AND s.user_b = r.user_b
+       WHERE r.status = 'active'
+       ORDER BY intimacy DESC, r.started_at ASC
+       LIMIT $1`,
+      [lim, INTIMACY_DISPLAY_MULT]
+    );
+    rows = res.rows;
+  }
+
+  const rankings = rows.map((row, i) => mapCpRankRow(row, i + 1));
+
+  let myStatus = null;
+  const uid = viewerUserId ? String(viewerUserId) : null;
+  if (uid) {
+    const cp = await getActiveCp(uid);
+    const meRes = await db.query(
+      `SELECT id, first_name, last_name, profile_pic FROM users WHERE id = $1`,
+      [uid]
+    );
+    const me = meRes.rows[0];
+    if (me) {
+      const meUser = {
+        userId: uid,
+        name: `${me.first_name || ''} ${me.last_name || ''}`.trim() || 'User',
+        profilePic: me.profile_pic || null,
+      };
+      if (cp) {
+        const [ua, ub] = pairKey(uid, cp.partnerId);
+        const inList = rankings.find(
+          (r) =>
+            (r.userA.userId === ua && r.userB.userId === ub) ||
+            (r.userA.userId === ub && r.userB.userId === ua)
+        );
+        let intimacy = inList?.intimacy ?? 0;
+        let rank = inList?.rank ?? null;
+        if (!inList) {
+          intimacy = isWeek
+            ? await coupleWeekIntimacy(ua, ub)
+            : (await getSupportPoints(ua, ub)) * INTIMACY_DISPLAY_MULT;
+          rank = await coupleRankPosition(ua, ub, isWeek ? 'week' : 'total', intimacy);
+        }
+        myStatus = {
+          hasCp: true,
+          user: meUser,
+          partner: {
+            userId: cp.partnerId,
+            name: cp.partnerName,
+            profilePic: cp.partnerPic,
+          },
+          ringId: cp.ringId,
+          rank,
+          intimacy,
+        };
+      } else {
+        myStatus = { hasCp: false, user: meUser };
+      }
+    }
+  }
+
+  return {
+    period: isWeek ? 'week' : 'total',
+    intimacyDisplayMult: INTIMACY_DISPLAY_MULT,
+    rankings,
+    myStatus,
+  };
+}
+
 module.exports = {
   CP_SUPPORT_UNLOCK,
   CP_SUPPORT_INVITE,
   INTIMACY_DISPLAY_MULT,
   INTIMACY_INVITE_MIN,
   CP_RINGS,
+  CP_BREAK_INSTANT_FEE,
+  CP_INACTIVE_DAYS,
   addSupportPoints,
   getSupportPoints,
   getActiveCp,
@@ -513,4 +896,12 @@ module.exports = {
   lookupUserForInvite,
   getCpPairsInRoom,
   getCpProfilePublic,
+  listActionRequests,
+  respondActionRequest,
+  isPartnerInactive,
+  requestBreakUp,
+  instantBreakUp,
+  penaltyBreakUp,
+  requestRingChange,
+  getCpRankings,
 };

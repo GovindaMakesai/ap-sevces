@@ -95,6 +95,25 @@ async function createCpTables() {
       PRIMARY KEY (from_user_id, to_user_id)
     )
   `);
+
+  await runSafe(`
+    CREATE TABLE IF NOT EXISTS cp_action_requests (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      from_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      to_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      type VARCHAR(24) NOT NULL,
+      new_ring_id VARCHAR(48),
+      status VARCHAR(16) NOT NULL DEFAULT 'pending',
+      expires_at TIMESTAMPTZ NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      responded_at TIMESTAMPTZ,
+      CHECK (type IN ('break', 'ring_change'))
+    )
+  `);
+  await runSafe(`
+    CREATE INDEX IF NOT EXISTS idx_cp_action_requests_to_pending
+      ON cp_action_requests (to_user_id, status) WHERE status = 'pending'
+  `);
 }
 
 /**
@@ -109,6 +128,8 @@ async function ensureCpSchema() {
     if (!usersOk.rows.length) return false;
 
     if (!(await tableExists('user_cp_support'))) {
+      await createCpTables();
+    } else if (!(await tableExists('cp_action_requests'))) {
       await createCpTables();
     }
     return await tableExists('user_cp_support');

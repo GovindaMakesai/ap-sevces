@@ -41,6 +41,22 @@
   opacity: 0.7;
 }
 
+.cp-profile-head-links {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.cp-profile-head-link--rank {
+  color: #fcd34d;
+}
+
+.cp-profile-head-link--rank i {
+  font-size: 10px;
+  opacity: 1;
+}
+
 .cp-profile-couple {
   display: flex;
   align-items: center;

@@ -35,7 +35,10 @@
     const days = Number(data.daysTogether || 0);
     const daysHtml = days > 0 ? `<p class="cp-profile-days">Together ${days} day${days === 1 ? '' : 's'}</p>` : '';
     const headLink = o.showLoveHouseLink !== false
-      ? `<a href="/cp-home.html?app=1" class="cp-profile-head-link">Love House <i class="fas fa-chevron-right"></i></a>`
+      ? `<div class="cp-profile-head-links">` +
+        `<a href="/cp-home.html?app=1" class="cp-profile-head-link">CP House <i class="fas fa-chevron-right"></i></a>` +
+        `<a href="/cp-rankings.html?app=1" class="cp-profile-head-link cp-profile-head-link--rank">Rankings <i class="fas fa-trophy"></i></a>` +
+        `</div>`
       : '';
 
     return (
@@ -64,7 +67,8 @@
     container.innerHTML = render(data, opts);
     const ringEl = container.querySelector('.cp-profile-ring');
     if (ringEl && global.CpRings) {
-      CpRings.mount(ringEl, ringEl.dataset.ringId, opts?.ringSize || 'md');
+      const fn = CpRings.mountWorn || CpRings.mount;
+      fn(ringEl, ringEl.dataset.ringId, opts?.ringSize || 'md');
     }
     global.SocialUI?.bindAvatarFallbacks?.(container);
   }

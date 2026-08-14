@@ -640,7 +640,7 @@ async function notifyCpEvent(userId, cpType, title, body, deepLink) {
   const { cpDeepLink } = require('./notificationTemplates');
   const payload = {
     type: cpType || 'cp_update',
-    title: title || 'Love House',
+    title: title || 'CP House',
     body: body || 'Your CP status changed.',
     data: {
       type: cpType || 'cp_update',

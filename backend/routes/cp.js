@@ -1,5 +1,5 @@
 const express = require('express');
-const { verifyToken } = require('../middleware/auth');
+const { verifyToken, optionalAuth } = require('../middleware/auth');
 const cpController = require('../controllers/cpController');
 
 const router = express.Router();
@@ -16,6 +16,8 @@ router.get('/levels/personal', verifyToken, cpController.personalLevel);
 router.get('/levels/room', verifyToken, cpController.roomLevel);
 router.get('/lookup/:displayId', verifyToken, cpController.lookupUser);
 router.get('/my-rings', verifyToken, cpController.myRings);
+router.post('/action/:requestId/respond', verifyToken, cpController.respondAction);
 router.get('/profile/:userId', cpController.getProfile);
+router.get('/rankings', optionalAuth, cpController.getRankings);
 
 module.exports = router;
