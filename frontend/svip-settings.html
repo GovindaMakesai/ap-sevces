@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0a0a0a">
+  <title>Privilege Setting - AP Services</title>
+  <script src="ap-native-boot.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="svip.css?v=20260814-svip1">
+</head>
+<body class="svip-settings-page">
+  <header class="svip-settings-header">
+    <button type="button" class="svip-icon-btn" onclick="history.back()" aria-label="Back"><i class="fas fa-chevron-left"></i></button>
+    <h1>Privilege Setting</h1>
+    <span style="width:36px"></span>
+  </header>
+
+  <div id="svipSettingsList">
+    <div class="svip-loading" style="padding:40px 16px;color:#9ca3af">Loading…</div>
+  </div>
+
+  <script src="ap-config.js"></script>
+  <script src="app.js"></script>
+  <script>
+    const PRIV_DESC = {
+      block_strangers: 'Block private messages from strangers.',
+      anon_visitor: "Visit someone's profile without letting them know who you are.",
+      hide_gifts: 'You can hide received gifts if you prefer not to share them with other users.',
+      rank_stealth: 'Activate stealth mode to remain invisible in rankings.',
+      invisible_svip: 'Disappear from the room unnoticed with complete invisibility.',
+      anti_kick: "You can't be kicked out of the room.",
+      msg_ban_shield: 'You will not be banned from sending public messages in the room.',
+    };
+
+    let settingsState = {};
+    let userLevel = 0;
+    let togglePrivs = [];
+
+    function authToken() {
+      return localStorage.getItem('token') || localStorage.getItem('access_token') || (window.Auth?.getToken?.() || '');
+    }
+
+    function renderList() {
+      const el = document.getElementById('svipSettingsList');
+      if (!togglePrivs.length) {
+        el.innerHTML = '<div class="svip-loading" style="padding:40px 16px;color:#9ca3af">No toggle privileges configured.</div>';
+        return;
+      }
+      el.innerHTML = togglePrivs.map((p) => {
+        const locked = userLevel < p.minLevel;
+        const on = Boolean(settingsState[p.id]);
+        return `<div class="svip-setting-row${locked ? ' is-locked' : ''}" data-id="${p.id}">
+          <span class="svip-setting-badge">SVIP${p.minLevel}</span>
+          <div class="svip-setting-copy">
+            <strong>${p.name}</strong>
+            <small>${PRIV_DESC[p.id] || 'SVIP exclusive privilege.'}</small>
+          </div>
+          <label class="svip-toggle">
+            <input type="checkbox" ${on ? 'checked' : ''} ${locked ? 'disabled' : ''} data-id="${p.id}">
+            <span></span>
+          </label>
+        </div>`;
+      }).join('');
+
+      el.querySelectorAll('input[type=checkbox]').forEach((input) => {
+        input.addEventListener('change', () => saveToggle(input.dataset.id, input.checked));
+      });
+    }
+
+    async function saveToggle(id, value) {
+      settingsState[id] = value;
+      try {
+        const res = await fetch(joinApiUrl('/svip/settings'), {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer ' + authToken(),
+          },
+          body: JSON.stringify({ settings: { [id]: value } }),
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(json.message || 'Save failed');
+        if (json.data?.settings) settingsState = json.data.settings;
+      } catch (err) {
+        alert(err.message || 'Could not save setting');
+        renderList();
+      }
+    }
+
+    async function boot() {
+      if (!authToken()) {
+        location.href = '/login.html?redirect=' + encodeURIComponent('/svip-settings.html?app=1');
+        return;
+      }
+      try {
+        const res = await fetch(joinApiUrl('/svip/settings'), {
+          credentials: 'include',
+          headers: { Accept: 'application/json', Authorization: 'Bearer ' + authToken() },
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(json.message || 'Failed to load');
+        settingsState = json.data.settings || {};
+        userLevel = json.data.level || 0;
+        togglePrivs = json.data.privileges || [];
+        renderList();
+      } catch (err) {
+        document.getElementById('svipSettingsList').innerHTML =
+          `<div class="svip-loading" style="padding:40px 16px;color:#9ca3af">${err.message}</div>`;
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', boot);
+  </script>
+</body>
+</html>

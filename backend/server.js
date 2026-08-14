@@ -68,6 +68,7 @@ const notificationRoutes = require('./routes/notifications');
 const messageRoutes = require('./routes/messages');
 const liveRoutes = require('./routes/live');
 const cpRoutes = require('./routes/cp');
+const svipRoutes = require('./routes/svip');
 const platformRoutes = require('./routes/platform');
 const socialRoutes = require('./routes/social');
 const storeRoutes = require('./routes/store');
@@ -191,6 +192,7 @@ app.use('/api/push', require('./routes/push'));
 app.use('/api/messages', messageRoutes);
 app.use('/api/live', liveRoutes);
 app.use('/api/cp', cpRoutes);
+app.use('/api/svip', svipRoutes);
 app.use('/api/wallet', walletLimiter, walletRoutes);
 app.use('/api/social', socialRoutes);
 app.use('/api/store', storeRoutes);
@@ -275,6 +277,8 @@ async function startServer() {
     await ensureWithdrawalQrSchema();
     await ensurePointsTransferSchema();
     await ensureCpSchema();
+    const { ensureSvipSchema } = require('./config/ensureSvipSchema');
+    await ensureSvipSchema();
     await ensureSocialProductionSchema();
     await ensureSecurityHardeningSchema();
     await ensureProductionReadinessSchema();
@@ -307,8 +311,10 @@ async function startServer() {
   try {
     await ensurePointsTransferSchema();
     await ensureCpSchema();
+    const { ensureSvipSchema } = require('./config/ensureSvipSchema');
+    await ensureSvipSchema();
   } catch (err) {
-    logger.warn('Points transfer / CP schema ensure failed', { message: err.message });
+    logger.warn('Points transfer / CP / SVIP schema ensure failed', { message: err.message });
   }
 
   await referralModule.boot();

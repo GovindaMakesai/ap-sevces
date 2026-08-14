@@ -14,7 +14,7 @@
 
   g.AP_CONFIG = Object.freeze({
     USE_HTTPS_DOMAIN: USE_HTTPS,
-    BUILD_TAG: '20260702-follow-fix',
+    BUILD_TAG: '20260814-cp-svip-deploy',
     PRODUCTION_BACKEND_URL: BACKEND,
     PRODUCTION_API_URL: BACKEND.replace(/\/$/, '') + '/api',
     PRODUCTION_FRONTEND_URL: FRONTEND,

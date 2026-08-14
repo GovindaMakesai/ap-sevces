@@ -25,8 +25,26 @@
   letter-spacing: 0.04em;
 }
 
-.cp-profile-label i {
-  color: #f472b6;
+.cp-profile-label-link {
+  text-decoration: none;
+  color: inherit;
+}
+
+.cp-profile-ring-link {
+  cursor: pointer;
+}
+
+.cp-profile-ring-link .ap-cp-ring,
+.cp-profile-ring-link .ap-cp-ring * {
+  pointer-events: none;
+}
+
+.cp-profile-card--clickable {
+  cursor: pointer;
+}
+
+.cp-profile-card--clickable:active {
+  transform: scale(0.99);
 }
 
 .cp-profile-head-link {

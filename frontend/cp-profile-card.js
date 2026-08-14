@@ -30,7 +30,9 @@
     if (!data?.user || !data?.partner) return '';
     const ringId = data.ringId || data.ring?.id || 'cp';
     const style = RING_STYLE[ringId] || 'diamond';
-    const meLink = o.meLink ? `/creator-profile.html?userId=${encodeURIComponent(data.user.userId)}&app=1` : '#';
+    const meLink = o.meLink !== false
+      ? `/creator-profile.html?userId=${encodeURIComponent(data.user.userId)}&app=1`
+      : '/profile-tab.html?app=1';
     const partnerLink = `/creator-profile.html?userId=${encodeURIComponent(data.partner.userId)}&app=1`;
     const days = Number(data.daysTogether || 0);
     const daysHtml = days > 0 ? `<p class="cp-profile-days">Together ${days} day${days === 1 ? '' : 's'}</p>` : '';
@@ -42,13 +44,13 @@
       : '';
 
     return (
-      `<section class="cp-profile-card" aria-label="CP couple">` +
-      `<div class="cp-profile-head"><span class="cp-profile-label"><i class="fas fa-heart"></i> CP</span>${headLink}</div>` +
+      `<section class="cp-profile-card${o.clickable !== false ? ' cp-profile-card--clickable' : ''}" aria-label="CP couple">` +
+      `<div class="cp-profile-head"><a href="/cp-home.html?app=1" class="cp-profile-label cp-profile-label-link"><i class="fas fa-heart"></i> CP</a>${headLink}</div>` +
       `<div class="cp-profile-couple">` +
       `<a class="cp-profile-slot" href="${meLink}">` +
       `<img src="${avatarUrl(data.user.name, data.user.profilePic)}" alt="" loading="lazy">` +
       `<span>${esc(data.user.name)}</span></a>` +
-      `<div class="cp-profile-ring ap-cp-ring-slot" data-ring-id="${esc(ringId)}" data-ring-style="${style}"></div>` +
+      `<div class="cp-profile-ring ap-cp-ring-slot cp-profile-ring-link" data-ring-id="${esc(ringId)}" data-ring-style="${style}" role="button" tabindex="0" aria-label="Open CP House"></div>` +
       `<a class="cp-profile-slot" href="${partnerLink}">` +
       `<img src="${avatarUrl(data.partner.name, data.partner.profilePic)}" alt="" loading="lazy">` +
       `<span>${esc(data.partner.name)}</span></a>` +
@@ -70,6 +72,21 @@
       const fn = CpRings.mountWorn || CpRings.mount;
       fn(ringEl, ringEl.dataset.ringId, opts?.ringSize || 'md');
     }
+    if (opts?.ringLink !== false) {
+      const goCp = () => { location.href = '/cp-home.html?app=1'; };
+      ringEl?.addEventListener('click', goCp);
+      ringEl?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          goCp();
+        }
+      });
+    }
+    container.querySelector('.cp-profile-card')?.addEventListener('click', (e) => {
+      if (opts?.clickable === false) return;
+      if (e.target.closest('a, .cp-profile-ring-link, button')) return;
+      location.href = '/cp-home.html?app=1';
+    });
     global.SocialUI?.bindAvatarFallbacks?.(container);
   }
 

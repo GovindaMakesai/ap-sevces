@@ -93,6 +93,9 @@ if [ "$needs_api_restart" = true ]; then
   echo "==> Ensure CP module schema"
   node backend/scripts/ensure-cp-schema.js || echo "WARN: CP schema ensure failed"
 
+  echo "==> Ensure SVIP schema"
+  node -e "require('./backend/config/ensureSvipSchema').ensureSvipSchema().then(()=>process.exit(0)).catch(e=>{console.error(e);process.exit(1)})" || echo "WARN: SVIP schema ensure failed"
+
   echo "==> Health check"
   sleep 5
   for i in 1 2 3 4 5; do

@@ -8,7 +8,7 @@
   <script src="ap-native-boot.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-theme.css">
-  <link rel="stylesheet" href="cp-love-house.css?v=20260814-cphouse">
+  <link rel="stylesheet" href="cp-love-house.css?v=20260814-cphouse2">
   <link rel="stylesheet" href="cp-rings.css?v=20260814-ring3d">
 </head>
 <body class="love-house-page">
@@ -61,16 +61,16 @@
       <div class="lh-level-item"><span class="lh-level-ring" data-ring="celeste"></span>LV21-40</div>
       <div class="lh-level-item"><span class="lh-level-ring" data-ring="mystique"></span>LV41-60</div>
     </div>
-    <div class="lh-perk-grid">
-      <div class="lh-perk"><div class="lh-perk-ico">🎖️</div>CP Medal</div>
-      <div class="lh-perk"><div class="lh-perk-ico">💳</div>CP Card</div>
-      <div class="lh-perk"><div class="lh-perk-ico">🏠</div>CP House</div>
-      <div class="lh-perk"><div class="lh-perk-ico">👥</div>CP together profile</div>
-      <div class="lh-perk"><div class="lh-perk-ico">👕</div>CP House Theme</div>
-      <div class="lh-perk"><div class="lh-perk-ico">💕</div>CP Online Effect</div>
-      <div class="lh-perk is-locked"><div class="lh-perk-ico">🎁</div>Room Gift Notification</div>
-      <div class="lh-perk is-locked"><div class="lh-perk-ico">🔥</div>Platform Gift Notification</div>
-      <div class="lh-perk is-locked"><div class="lh-perk-ico">✨</div>More coming soon</div>
+    <div class="lh-perk-grid" id="lhPerkGrid">
+      <button type="button" class="lh-perk" data-perk="medal"><div class="lh-perk-ico">🎖️</div>CP Medal</button>
+      <button type="button" class="lh-perk" data-perk="card"><div class="lh-perk-ico">💳</div>CP Card</button>
+      <button type="button" class="lh-perk" data-perk="house"><div class="lh-perk-ico">🏠</div>CP House</button>
+      <button type="button" class="lh-perk" data-perk="together"><div class="lh-perk-ico">👥</div>CP together profile</button>
+      <button type="button" class="lh-perk" data-perk="theme"><div class="lh-perk-ico">👕</div>CP House Theme</button>
+      <button type="button" class="lh-perk" data-perk="online"><div class="lh-perk-ico">💕</div>CP Online Effect</button>
+      <button type="button" class="lh-perk is-locked" data-perk="room_gift" data-locked="1"><div class="lh-perk-ico">🎁</div>Room Gift Notification</button>
+      <button type="button" class="lh-perk is-locked" data-perk="platform_gift" data-locked="1"><div class="lh-perk-ico">🔥</div>Platform Gift Notification</button>
+      <button type="button" class="lh-perk is-locked" data-perk="soon" data-locked="1"><div class="lh-perk-ico">✨</div>More coming soon</button>
     </div>
   </section>
 
@@ -182,6 +182,17 @@
       <a href="/levels.html?app=1" class="lh-tips-level-link"><i class="fas fa-shield-alt"></i> Open Level benefits</a>
       <a href="/cp-tips.html?app=1" class="lh-tips-level-link" style="margin-top:8px"><i class="fas fa-book"></i> Full CP guide</a>
       <a href="/store.html?cat=rings&app=1&from=cp" class="lh-buy-btn" style="display:block;text-decoration:none;text-align:center;margin-top:14px">Buy a ring</a>
+    </div>
+  </div>
+
+  <!-- CP perk preview -->
+  <div class="lh-overlay align-center" id="lhPerkModal" hidden>
+    <div class="lh-modal-box lh-perk-preview-box">
+      <button type="button" class="lh-sheet-close lh-perk-preview-close" id="lhPerkModalClose" aria-label="Close"><i class="fas fa-times"></i></button>
+      <div class="lh-perk-preview-art" id="lhPerkPreviewArt"></div>
+      <h3 id="lhPerkPreviewTitle">CP Medal</h3>
+      <p id="lhPerkPreviewDesc"></p>
+      <button type="button" class="lh-buy-btn" id="lhPerkPreviewAction" hidden>Go</button>
     </div>
   </div>
 
@@ -560,6 +571,91 @@
       }
     }
 
+    const CP_PERKS = {
+      medal: {
+        title: 'CP Medal',
+        desc: 'A golden CP medal badge shown on your profile and in rooms when you are CP.',
+        art: '🎖️',
+        needsCp: true,
+      },
+      card: {
+        title: 'CP Card',
+        desc: 'A decorated couple card with both avatars and your CP ring — visible on profile and CP House.',
+        art: '💳',
+        needsCp: true,
+      },
+      house: {
+        title: 'CP House',
+        desc: 'Your couple home page with ring, days together, invites, and rankings.',
+        art: '🏠',
+        action: () => window.scrollTo({ top: 0, behavior: 'smooth' }),
+        actionLabel: 'View CP House',
+      },
+      together: {
+        title: 'CP Together Profile',
+        desc: 'Your couple strip appears on both partners’ profiles with avatars and ring.',
+        art: '👥',
+        needsCp: true,
+        action: () => {
+          if (cpState.cp?.partnerId) {
+            location.href = '/creator-profile.html?userId=' + encodeURIComponent(cpState.cp.partnerId) + '&app=1';
+          }
+        },
+        actionLabel: 'View partner profile',
+      },
+      theme: {
+        title: 'CP House Theme',
+        desc: 'Unlock themed CP House backgrounds as your CP level grows (LV21+).',
+        art: '👕',
+        needsCp: true,
+      },
+      online: {
+        title: 'CP Online Effect',
+        desc: 'When you and your CP are online together, a special heart effect may appear in rooms.',
+        art: '💕',
+        needsCp: true,
+      },
+      room_gift: { title: 'Room Gift Notification', desc: 'Coming soon — broadcast when you gift your CP in a room.', art: '🎁', locked: true },
+      platform_gift: { title: 'Platform Gift Notification', desc: 'Coming soon — platform-wide CP gift announcements.', art: '🔥', locked: true },
+      soon: { title: 'More privileges', desc: 'Stay tuned for more CP perks.', art: '✨', locked: true },
+    };
+
+    function openPerkPreview(perkId) {
+      const meta = CP_PERKS[perkId];
+      if (!meta) return;
+      if (meta.locked) {
+        alert(meta.desc || 'This perk is coming soon.');
+        return;
+      }
+      if (meta.needsCp && !cpState.cp) {
+        alert('Become CP first to unlock this perk. Send a CP invitation when intimacy ≥ 50,000.');
+        openInviteFlow();
+        return;
+      }
+      document.getElementById('lhPerkPreviewTitle').textContent = meta.title;
+      document.getElementById('lhPerkPreviewDesc').textContent = meta.desc;
+      document.getElementById('lhPerkPreviewArt').textContent = meta.art;
+      const actBtn = document.getElementById('lhPerkPreviewAction');
+      if (meta.action) {
+        actBtn.hidden = false;
+        actBtn.textContent = meta.actionLabel || 'Open';
+        actBtn.onclick = () => {
+          closeModal('lhPerkModal');
+          meta.action();
+        };
+      } else {
+        actBtn.hidden = true;
+        actBtn.onclick = null;
+      }
+      openModal('lhPerkModal');
+    }
+
+    function bindPerkClicks() {
+      document.querySelectorAll('#lhPerkGrid [data-perk]').forEach((btn) => {
+        btn.addEventListener('click', () => openPerkPreview(btn.dataset.perk));
+      });
+    }
+
     document.getElementById('lhOpenInviteBtn')?.addEventListener('click', openInviteFlow);
     document.getElementById('lhInviteSheetClose')?.addEventListener('click', () => closeSheet('lhInviteSheet'));
     document.getElementById('lhCheckBtn')?.addEventListener('click', checkUser);
@@ -594,6 +690,7 @@
     });
     document.getElementById('lhBreakCancel')?.addEventListener('click', () => closeModal('lhBreakModal'));
     document.getElementById('lhChangeRingClose')?.addEventListener('click', () => closeModal('lhChangeRingPicker'));
+    document.getElementById('lhPerkModalClose')?.addEventListener('click', () => closeModal('lhPerkModal'));
 
     document.getElementById('lhHeartGem')?.addEventListener('click', () => {
       if (cpState.cp) openRingActionModal();
@@ -602,6 +699,7 @@
     document.addEventListener('DOMContentLoaded', () => {
       SocialShell?.initPage?.({ activeNav: 'profile' });
       paintLevelRings();
+      bindPerkClicks();
       CpRings?.mount?.(document.getElementById('lhNoRingArt'), 'ruby', 'lg');
       document.getElementById('lhCoupleCard')?.addEventListener('click', (e) => {
         if (e.target.closest('#lhAddPartnerBtn')) openInviteFlow();

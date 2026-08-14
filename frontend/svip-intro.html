@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0d0d12">
+  <title>SVIP Introduction - AP Services</title>
+  <script src="ap-native-boot.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="svip.css?v=20260814-svip1">
+</head>
+<body class="svip-intro-page">
+  <header class="svip-intro-header">
+    <button type="button" class="svip-icon-btn" onclick="history.back()" aria-label="Back"><i class="fas fa-chevron-left"></i></button>
+    <h1>SVIP Introduction</h1>
+    <span style="width:36px"></span>
+  </header>
+
+  <div class="svip-intro-body" id="svipIntroBody">
+    <div class="svip-loading">Loading…</div>
+  </div>
+
+  <script src="ap-config.js"></script>
+  <script src="app.js"></script>
+  <script>
+    function fmtRange(min, max, minF, maxF) {
+      if (max == null) return `${minF}+`;
+      return `${minF} - ${maxF}`;
+    }
+
+    function render(data) {
+      const levelsRows = (data.levels || []).map((r) =>
+        `<tr><td>SVIP ${r.level}</td><td>${fmtRange(r.min, r.max, r.minFormatted, r.maxFormatted)}</td></tr>`
+      ).join('');
+
+      const maintRows = (data.maintenance || []).map((r) =>
+        `<tr><td>SVIP ${r.level}</td><td>${r.days}</td><td>${Number(r.points).toLocaleString()}</td></tr>`
+      ).join('');
+
+      const validity = (data.validityRules || []).map((t, i) => `<li>${t}</li>`).join('');
+      const notice = (data.notice || []).map((t, i) => `<li>${i + 1}. ${t}</li>`).join('');
+
+      document.getElementById('svipIntroBody').innerHTML = `
+        <h2>SVIP Points</h2>
+        <p>${data.pointRule || ''}</p>
+
+        <h2>SVIP Level</h2>
+        <div class="svip-table-wrap">
+          <table class="svip-table">
+            <thead><tr><th>SVIP Level</th><th>SVIP Points</th></tr></thead>
+            <tbody>${levelsRows}</tbody>
+          </table>
+        </div>
+
+        <h2>SVIP Validity</h2>
+        <ol>${validity}</ol>
+
+        <div class="svip-table-wrap">
+          <table class="svip-table">
+            <thead><tr><th>Level</th><th>Maintenance Days</th><th>SVIP Points</th></tr></thead>
+            <tbody>${maintRows}</tbody>
+          </table>
+        </div>
+
+        <h2>Notice</h2>
+        <ul>${notice}</ul>
+      `;
+    }
+
+    async function boot() {
+      try {
+        const res = await fetch(joinApiUrl('/svip/intro'), { headers: { Accept: 'application/json' } });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(json.message || 'Failed to load');
+        render(json.data);
+      } catch (err) {
+        document.getElementById('svipIntroBody').innerHTML =
+          `<div class="svip-loading">${err.message || 'Could not load introduction'}</div>`;
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', boot);
+  </script>
+</body>
+</html>

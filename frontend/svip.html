@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#120818">
+  <title>AP SVIP - AP Services</title>
+  <script src="ap-native-boot.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="social-theme.css">
+  <link rel="stylesheet" href="svip.css?v=20260814-svip1">
+</head>
+<body class="svip-page">
+  <header class="svip-header">
+    <button type="button" class="svip-icon-btn" onclick="history.back()" aria-label="Back"><i class="fas fa-chevron-left"></i></button>
+    <h1>AP SVIP</h1>
+    <a href="/svip-settings.html?app=1" class="svip-icon-btn" title="Privilege settings" aria-label="Settings"><i class="fas fa-crown"></i></a>
+    <a href="/svip-intro.html?app=1" class="svip-icon-btn" title="SVIP Introduction" aria-label="Help"><i class="far fa-circle-question"></i></a>
+  </header>
+
+  <div class="svip-tier-tabs" id="svipTierTabs" role="tablist"></div>
+
+  <section class="svip-hero">
+    <div class="svip-emblem" id="svipEmblem">
+      <span class="svip-emblem-label" id="svipEmblemLabel">SVIP</span>
+    </div>
+  </section>
+
+  <div class="svip-section-head">
+    <span class="wing">✦</span>
+    <span>SVIP Identification</span>
+    <span class="wing">✦</span>
+  </div>
+  <p class="svip-section-count" id="svipIdCount">—</p>
+  <div class="svip-grid" id="svipIdGrid">
+    <div class="svip-loading">Loading…</div>
+  </div>
+
+  <div class="svip-section-head">
+    <span class="wing">✦</span>
+    <span>Exclusive Privileges</span>
+    <span class="wing">✦</span>
+  </div>
+  <p class="svip-section-count" id="svipPrivCount">—</p>
+  <div class="svip-grid svip-grid--priv" id="svipPrivGrid"></div>
+
+  <button type="button" class="svip-fab" onclick="location.href='/coins-recharge.html?app=1'">Task</button>
+
+  <footer class="svip-footer" id="svipFooter" hidden>
+    <div class="svip-footer-row">
+      <img class="svip-footer-avatar" id="svipAvatar" alt="" width="36" height="36">
+      <div class="svip-footer-meta">
+        <div class="svip-footer-status" id="svipStatus">—</div>
+        <div class="svip-progress-wrap">
+          <div class="svip-progress-bar"><div class="svip-progress-fill" id="svipProgressFill"></div></div>
+          <span class="svip-progress-text" id="svipProgressText">—</span>
+        </div>
+      </div>
+      <button type="button" class="svip-level-up" onclick="location.href='/coins-recharge.html?app=1'">Level Up</button>
+    </div>
+    <p class="svip-footer-hint" id="svipHint"></p>
+  </footer>
+
+  <script src="ap-config.js"></script>
+  <script src="app.js"></script>
+  <script src="social-shell.js"></script>
+  <script>
+    let svipData = null;
+    let activeTierGroup = '1-2';
+
+    function authToken() {
+      return localStorage.getItem('token') || localStorage.getItem('access_token') || (window.Auth?.getToken?.() || '');
+    }
+
+    async function svipFetch(path) {
+      const res = await fetch(joinApiUrl('/svip' + path), {
+        credentials: 'include',
+        headers: {
+          Accept: 'application/json',
+          ...(authToken() ? { Authorization: 'Bearer ' + authToken() } : {}),
+        },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.message || 'Failed to load SVIP');
+      return json.data;
+    }
+
+    function avatarUrl(name, pic) {
+      if (pic && SocialShell?.getImageUrl) return SocialShell.getImageUrl(pic);
+      return `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'U')}&background=6d28d9&color=fbbf24`;
+    }
+
+    function tierMaxLevel(groupId) {
+      const g = svipData?.tierGroups?.find((x) => x.id === groupId);
+      return g ? Math.max(...g.levels) : 2;
+    }
+
+    function renderTierTabs() {
+      const el = document.getElementById('svipTierTabs');
+      if (!svipData?.tierGroups?.length) return;
+      el.innerHTML = svipData.tierGroups.map((g) =>
+        `<button type="button" class="svip-tier-tab${g.id === activeTierGroup ? ' is-active' : ''}" data-group="${g.id}" role="tab">${g.label}</button>`
+      ).join('');
+      el.querySelectorAll('.svip-tier-tab').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          activeTierGroup = btn.dataset.group;
+          renderTierTabs();
+          renderGrids();
+          updateEmblem();
+        });
+      });
+    }
+
+    function updateEmblem() {
+      const maxLv = tierMaxLevel(activeTierGroup);
+      document.getElementById('svipEmblemLabel').textContent = `SVIP ${maxLv}`;
+    }
+
+    function renderGrids() {
+      const userLevel = svipData?.level || 0;
+      const viewLevel = tierMaxLevel(activeTierGroup);
+
+      const idItems = (svipData.identification || []).filter((x) => x.minLevel <= viewLevel + 1 || x.minLevel <= viewLevel);
+      const idUnlocked = idItems.filter((x) => userLevel >= x.minLevel).length;
+      document.getElementById('svipIdCount').textContent = `${idUnlocked}/${idItems.length}`;
+
+      document.getElementById('svipIdGrid').innerHTML = idItems.map((item) => {
+        const locked = userLevel < item.minLevel;
+        const preview = item.id === 'tag'
+          ? `<span class="svip-tag-preview"><i class="fas fa-crown"></i> SVIP ${Math.max(item.minLevel, viewLevel)}</span>`
+          : `<i class="fas ${item.icon}"></i>`;
+        return `<article class="svip-card${locked ? ' is-locked' : ''}">
+          ${item.animated ? '<span class="svip-card-play"><i class="fas fa-play"></i></span>' : ''}
+          <div class="svip-card-preview">${preview}</div>
+          <div class="svip-card-name">${item.name}</div>
+        </article>`;
+      }).join('');
+
+      const privItems = svipData.privileges || [];
+      const privUnlocked = privItems.filter((x) => userLevel >= x.minLevel).length;
+      document.getElementById('svipPrivCount').textContent = `${privUnlocked}/${privItems.length}`;
+
+      document.getElementById('svipPrivGrid').innerHTML = privItems.map((item) => {
+        const locked = userLevel < item.minLevel;
+        return `<article class="svip-priv-item${locked ? ' is-locked' : ''}">
+          <span class="svip-priv-badge">SVIP ${item.minLevel}</span>
+          <i class="fas ${item.icon}"></i>
+          <span>${item.name}</span>
+        </article>`;
+      }).join('');
+    }
+
+    function renderFooter() {
+      const footer = document.getElementById('svipFooter');
+      footer.hidden = false;
+      const u = svipData.user || {};
+      document.getElementById('svipAvatar').src = avatarUrl(u.name, u.profilePic);
+      document.getElementById('svipAvatar').alt = u.name || 'You';
+
+      const status = svipData.isSvip
+        ? `You are ${svipData.levelLabel}`
+        : 'You are not an SVIP yet';
+      document.getElementById('svipStatus').textContent = status;
+
+      const p = svipData.progress || {};
+      document.getElementById('svipProgressFill').style.width = (p.percent || 0) + '%';
+      document.getElementById('svipProgressText').textContent =
+        `${p.currentFormatted || 0} / ${p.maxFormatted || 0}`;
+
+      const hint = svipData.nextLevel
+        ? `Need ${svipData.pointsToNextFormatted} points to upgrade to ${svipData.nextLevelLabel}.`
+        : 'You have reached the highest SVIP tier.';
+      document.getElementById('svipHint').textContent = hint;
+    }
+
+    async function boot() {
+      try {
+        if (!authToken()) {
+          location.href = '/login.html?redirect=' + encodeURIComponent('/svip.html?app=1');
+          return;
+        }
+        svipData = await svipFetch('/home');
+        renderTierTabs();
+        updateEmblem();
+        renderGrids();
+        renderFooter();
+      } catch (err) {
+        document.getElementById('svipIdGrid').innerHTML =
+          `<div class="svip-loading">${err.message || 'Could not load SVIP'}</div>`;
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      SocialShell?.initPage?.({ activeNav: 'profile' });
+      boot();
+    });
+  </script>
+</body>
+</html>
