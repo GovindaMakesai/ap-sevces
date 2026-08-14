@@ -4,6 +4,8 @@
   min-height: 100dvh;
   font-family: system-ui, -apple-system, sans-serif;
   color: #fff;
+  padding-bottom: calc(var(--social-bottom-nav-h, 62px) + env(safe-area-inset-bottom, 0) + 8px);
+  box-sizing: border-box;
   background:
     linear-gradient(180deg, rgba(80, 20, 60, 0.55), rgba(40, 10, 50, 0.85)),
     url('https://images.unsplash.com/photo-1518895949257-7621c3c786d4?auto=format&fit=crop&w=900&q=80') center/cover no-repeat;
@@ -237,15 +239,32 @@
 .lh-btn-accept { background: #ec4899; color: #fff; }
 .lh-btn-decline { background: #f3f4f6; color: #374151; }
 
-/* Sheets & modals */
+/* Sheets & modals — above social bottom nav (z-index 200) and bridge chrome */
 .lh-overlay {
   position: fixed;
   inset: 0;
-  z-index: 100;
+  z-index: 1200;
   background: rgba(0, 0, 0, 0.5);
   display: none;
   align-items: flex-end;
   justify-content: center;
+  pointer-events: none;
+}
+
+.lh-overlay.open {
+  display: flex;
+  pointer-events: auto;
+}
+
+body.lh-sheet-open .social-bottom-nav,
+body.lh-sheet-open #social-bottom-nav-mount,
+body.lh-sheet-open .social-wallet-bar {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+body.lh-sheet-open {
+  overflow: hidden;
 }
 
 .lh-overlay.align-center {
@@ -253,16 +272,12 @@
   padding: 16px;
 }
 
-.lh-overlay.open {
-  display: flex;
-}
-
 .lh-sheet {
   width: 100%;
   max-width: 480px;
   background: #fff;
   border-radius: 20px 20px 0 0;
-  padding: 16px 16px calc(20px + env(safe-area-inset-bottom, 0));
+  padding: 16px 16px calc(24px + env(safe-area-inset-bottom, 0));
   color: #1f2937;
   max-height: 85vh;
   overflow-y: auto;

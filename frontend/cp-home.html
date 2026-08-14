@@ -7,7 +7,7 @@
   <title>Love House - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-theme.css">
-  <link rel="stylesheet" href="cp-love-house.css?v=20260814-cpflow">
+  <link rel="stylesheet" href="cp-love-house.css?v=20260814-cpflow2">
 </head>
 <body class="love-house-page">
   <header class="love-house-header">
@@ -104,6 +104,8 @@
     </div>
   </div>
 
+  <div id="social-bottom-nav-mount"></div>
+
   <script src="app.js"></script>
   <script src="social-shell.js"></script>
   <script>
@@ -133,9 +135,15 @@
 
     function openSheet(id) {
       document.getElementById(id)?.classList.add('open');
+      syncLhSheetLock();
     }
     function closeSheet(id) {
       document.getElementById(id)?.classList.remove('open');
+      syncLhSheetLock();
+    }
+    function syncLhSheetLock() {
+      const anyOpen = Boolean(document.querySelector('.lh-overlay.open'));
+      document.body.classList.toggle('lh-sheet-open', anyOpen);
     }
 
     function openInviteFlow() {
@@ -260,10 +268,12 @@
       ).join('');
       document.getElementById('lhRingPicker').hidden = false;
       document.getElementById('lhRingPicker').classList.add('open');
+      syncLhSheetLock();
       list.querySelectorAll('[data-ring]').forEach((btn) => {
         btn.addEventListener('click', () => {
           document.getElementById('lhRingPicker').classList.remove('open');
           document.getElementById('lhRingPicker').hidden = true;
+          syncLhSheetLock();
           sendInviteWithRing(btn.dataset.ring);
         });
       });
@@ -303,6 +313,7 @@
     document.getElementById('lhRingPickerClose')?.addEventListener('click', () => {
       document.getElementById('lhRingPicker').classList.remove('open');
       document.getElementById('lhRingPicker').hidden = true;
+      syncLhSheetLock();
     });
 
     document.addEventListener('DOMContentLoaded', () => {
