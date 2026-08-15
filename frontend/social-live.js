@@ -10425,7 +10425,9 @@
   }
 
   function bindEmojiPicker() {
-    const btn = document.getElementById('apChatEmojiBtn');
+    const btn =
+      document.getElementById('apChatEmojiBtn') ||
+      (isPartyRoomPage() ? document.getElementById('partyRefEmojiBtn') : null);
     if (!btn || btn.dataset.bound) return;
     btn.dataset.bound = '1';
     let pop = document.getElementById('apEmojiPopover');
@@ -13592,12 +13594,13 @@
     compose.classList.add('ap-compose-inline');
     const actions = bar.querySelector('.party-bottom-actions');
     const anchor = bar.querySelector('.party-ref-bottom-right') || actions;
-    if (compose.parentElement !== bar) {
+    if (isPartyRoomPage()) {
+      if (compose.parentElement !== bar) bar.appendChild(compose);
+      if (bar.firstElementChild !== compose) bar.insertBefore(compose, bar.firstElementChild);
+      document.body.classList.add('ap-chat-compose-open');
+    } else if (compose.parentElement !== bar) {
       if (anchor) bar.insertBefore(compose, anchor);
       else bar.appendChild(compose);
-    }
-    if (isPartyRoomPage()) {
-      document.body.classList.add('ap-chat-compose-open');
     }
   }
 
@@ -19110,9 +19113,6 @@
 
     document.getElementById('partyRefChatBtn')?.addEventListener('click', () => {
       focusChatCompose();
-    });
-    document.getElementById('partyRefEmojiBtn')?.addEventListener('click', () => {
-      document.getElementById('apChatEmojiBtn')?.click();
     });
 
     document.getElementById('partyRefHostTap')?.addEventListener('click', (e) => {
