@@ -30,10 +30,6 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-        // Phone APK only — avoids x86 emulator libs that conflict under OneDrive/parallel builds.
-        ndk {
-            abiFilters += listOf("armeabi-v7a", "arm64-v8a")
-        }
     }
 
     packaging {
