@@ -14975,6 +14975,7 @@
   }
 
   function showTapForSoundHint() {
+    if (isPartyRoomPage()) return;
     if (isHost() && !hasSpeakerSeat) {
       /* Hosts publishing usually don't need this; still allow if they want guest audio */
     }
