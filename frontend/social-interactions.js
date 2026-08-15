@@ -3487,6 +3487,7 @@
   function initRankingsPage() {
     const tab = new URLSearchParams(location.search).get('tab') || 'host';
     document.querySelectorAll('.social-rank-main-tab').forEach((a) => {
+      if (a.dataset.externalRank || a.classList.contains('social-rank-main-tab--cp')) return;
       a.classList.toggle('active', a.dataset.tab === tab);
         a.addEventListener('click', (e) => {
         e.preventDefault();

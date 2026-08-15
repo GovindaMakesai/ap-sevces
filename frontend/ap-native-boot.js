@@ -17,10 +17,12 @@
   }
   const html = document.documentElement;
   const path = (window.location.pathname || '').toLowerCase();
+  const CP_GUIDE_PAGES = ['/cp-rules.html', '/cp-tips.html', '/cp-full-guide.html'];
+  const isCpGuidePage = CP_GUIDE_PAGES.some(function (p) { return path.endsWith(p); });
   const SOCIAL_SHELL_PAGES = [
     '/explore.html', '/party.html', '/video.html', '/square.html', '/topics.html',
     '/store.html', '/vip.html', '/svip.html', '/svip-intro.html', '/svip-settings.html', '/visitors.html',
-    '/rankings.html', '/cp-rankings.html', '/cp-home.html', '/cp-tips.html',
+    '/rankings.html', '/cp-rankings.html', '/cp-home.html', '/cp-tips.html', '/cp-rules.html', '/cp-full-guide.html',
     '/profile-tab.html', '/privileges.html',
     '/points.html', '/withdraw.html', '/chat.html', '/streamer-center.html',
     '/discover-creators.html', '/coins-recharge.html', '/coin-seller-center.html', '/coin-seller-recharge.html',
@@ -44,7 +46,9 @@
     const style = document.createElement('style');
     style.id = 'ap-native-critical';
     style.textContent = [
-      'html.ap-expo-app,html.ap-expo-app body{background:#faf6ee!important;color:#6b4f10!important}',
+      isCpGuidePage
+        ? 'html.ap-expo-app body.cp-rules-page,html.ap-expo-app body.cp-tips-page,html.ap-expo-app body.cp-full-guide-page{background:linear-gradient(180deg,#fce7f3 0%,#f3e8ff 45%,#ede9fe 100%)!important;color:#1f2937!important}'
+        : 'html.ap-expo-app,html.ap-expo-app body{background:#faf6ee!important;color:#6b4f10!important}',
       'html.ap-expo-app .chat-page{background:#faf6ee!important;padding:0!important}',
       'html.ap-expo-app .chat-layout{border-color:rgba(201,162,39,.2)!important;box-shadow:0 4px 16px rgba(107,79,16,.08)!important}',
       'html.ap-expo-app .chat-tab.active{background:linear-gradient(135deg,#d4a84b,#9a7218)!important;color:#fff!important}',
@@ -96,19 +100,26 @@
     return;
   }
 
-  ['/social-theme.css', '/social-nav.js'].forEach(function (href) {
-    if (href.endsWith('.js')) {
-      if (document.querySelector('script[src="' + href + '"]')) return;
-      const script = document.createElement('script');
-      script.src = href;
-      script.defer = true;
-      (document.head || html).appendChild(script);
-      return;
-    }
-    if (document.querySelector('link[href="' + href + '"]')) return;
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = href;
-    (document.head || html).appendChild(link);
-  });
+  if (!isCpGuidePage) {
+    ['/social-theme.css', '/social-nav.js'].forEach(function (href) {
+      if (href.endsWith('.js')) {
+        if (document.querySelector('script[src="' + href + '"]')) return;
+        const script = document.createElement('script');
+        script.src = href;
+        script.defer = true;
+        (document.head || html).appendChild(script);
+        return;
+      }
+      if (document.querySelector('link[href="' + href + '"]')) return;
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = href;
+      (document.head || html).appendChild(link);
+    });
+  } else {
+    var guideFix = document.createElement('link');
+    guideFix.rel = 'stylesheet';
+    guideFix.href = '/cp-guide-readability.css?v=20260815-cpguide';
+    (document.head || html).appendChild(guideFix);
+  }
 })();

@@ -13493,6 +13493,10 @@
   function closeChatUi() {
     closeChatPanelOnly();
     document.body.classList.remove('ap-keyboard-open', 'ap-live-overlay-open');
+    if (isPartyRoomPage()) {
+      document.body.classList.remove('ap-chat-compose-open');
+      document.getElementById('partyRefChatBtn')?.classList.remove('is-active');
+    }
     document.documentElement.style.setProperty('--ap-kb-offset', '0px');
     chatTab = 'all';
     document.querySelectorAll('.party-chat-tabs button').forEach((b) => {
@@ -13507,6 +13511,10 @@
   function focusChatCompose() {
     const input = document.getElementById('liveChatInput');
     if (input) {
+      if (isPartyRoomPage()) {
+        document.body.classList.add('ap-chat-compose-open');
+        document.getElementById('partyRefChatBtn')?.classList.add('is-active');
+      }
       input.focus();
       /* Keep full room history visible while composing (do not filter to chat-only) */
       chatTab = 'all';
@@ -13583,9 +13591,13 @@
     document.getElementById('apSayHiPill')?.remove();
     compose.classList.add('ap-compose-inline');
     const actions = bar.querySelector('.party-bottom-actions');
+    const anchor = bar.querySelector('.party-ref-bottom-right') || actions;
     if (compose.parentElement !== bar) {
-      if (actions) bar.insertBefore(compose, actions);
+      if (anchor) bar.insertBefore(compose, anchor);
       else bar.appendChild(compose);
+    }
+    if (isPartyRoomPage()) {
+      document.body.classList.add('ap-chat-compose-open');
     }
   }
 
@@ -15793,6 +15805,8 @@
       .join('');
     row.querySelectorAll('.gift-recipient').forEach((btn) => {
       btn.addEventListener('click', () => {
+        const allCb = document.getElementById('giftSendAll');
+        if (allCb?.checked) allCb.checked = false;
         row.querySelectorAll('.gift-recipient').forEach((b) => b.classList.remove('is-active'));
         btn.classList.add('is-active');
         const sheet = document.getElementById('giftSheet');
@@ -15820,6 +15834,25 @@
         delete sheet.dataset.toUserId;
       }
     }
+    if (document.getElementById('giftSendAll')?.checked) applyGiftSendAllMode(true);
+  }
+
+  function applyGiftSendAllMode(checked) {
+    const row = document.getElementById('giftRecipients');
+    const meId = String(currentUser()?.id || '');
+    if (!row) return;
+    if (checked) {
+      row.querySelectorAll('.gift-recipient').forEach((b) => {
+        b.classList.toggle('is-active', String(b.dataset.userId || '') !== meId);
+      });
+      return;
+    }
+    const sheet = document.getElementById('giftSheet');
+    const preferred = String(sheet?.dataset?.toUserId || '');
+    row.querySelectorAll('.gift-recipient').forEach((b, i) => {
+      const uid = String(b.dataset.userId || '');
+      b.classList.toggle('is-active', preferred ? uid === preferred : i === 0);
+    });
   }
 
   function renderGiftGrid() {
@@ -16928,6 +16961,14 @@
         updateGiftMeta();
       });
     });
+    const giftSendAll = document.getElementById('giftSendAll');
+    if (giftSendAll && !giftSendAll.dataset.bound) {
+      giftSendAll.dataset.bound = '1';
+      giftSendAll.addEventListener('change', (e) => {
+        applyGiftSendAllMode(!!e.target.checked);
+        updateGiftMeta();
+      });
+    }
     window.SocialFX?.bindGiftGridScrollFix?.();
   }
 
@@ -17626,7 +17667,9 @@
     document.getElementById('partyBtnFollow')?.addEventListener('click', toggleFollow);
     document.getElementById('partyHostFollow')?.addEventListener('click', toggleFollow);
     document.getElementById('liveBtnFollow')?.addEventListener('click', toggleFollow);
-    document.getElementById('liveEditPresentationBtn')?.addEventListener('click', () => {
+    document.getElementById('liveEditPresentationBtn')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       openEditLivePresentation();
     });
 
@@ -18653,6 +18696,17 @@
         );
         delete document.getElementById('giftSheet')?.dataset.bound;
       }
+      const panelHdr = document.querySelector('#giftSheet .gift-sheet-panel');
+      if (panelHdr && !document.getElementById('giftSendAll')) {
+        const hdr = document.createElement('div');
+        hdr.className = 'gift-send-header';
+        hdr.innerHTML =
+          '<span class="gift-send-label">Send Gift</span><label class="gift-all-toggle"><span>ALL</span><input type="checkbox" id="giftSendAll" aria-label="Send gift to everyone on stage"></label>';
+        const recipientsRow = document.getElementById('giftRecipients');
+        if (recipientsRow) panelHdr.insertBefore(hdr, recipientsRow);
+        else panelHdr.insertBefore(hdr, panelHdr.firstChild?.nextSibling || null);
+        delete document.getElementById('giftSheet')?.dataset.bound;
+      }
       document.getElementById('giftSheet')?.classList.add('gift-sheet--lux', 'gift-sheet--send-safe');
       return;
     }
@@ -18664,7 +18718,7 @@
           <button type="button" class="gift-sheet-close" id="giftSheetClose" aria-label="Close gifts">&times;</button>
           <div class="gift-send-header">
             <span class="gift-send-label">Send Gift</span>
-            <label class="gift-all-toggle"><span>ALL</span><input type="checkbox" id="giftSendAll"></label>
+            <label class="gift-all-toggle"><span>ALL</span><input type="checkbox" id="giftSendAll" aria-label="Send gift to everyone on stage"></label>
           </div>
           <div class="gift-recipients" id="giftRecipients"></div>
           <div class="gift-rtp-banner" id="giftRtpBanner" hidden><span>Select a gift to see details</span></div>
@@ -18694,18 +18748,6 @@
     );
     const balBtn = document.getElementById('giftBalanceBtn');
     if (balBtn) balBtn.innerHTML = `🎁 <span id="giftCoinsBal">0</span> gift &gt;`;
-    document.getElementById('giftSendAll')?.addEventListener('change', (e) => {
-      const row = document.getElementById('giftRecipients');
-      const meId = String(currentUser()?.id || '');
-      if (!row) return;
-      if (e.target.checked) {
-        row.querySelectorAll('.gift-recipient').forEach((b) => {
-          b.classList.toggle('is-active', String(b.dataset.userId || '') !== meId);
-        });
-      } else {
-        row.querySelectorAll('.gift-recipient').forEach((b, i) => b.classList.toggle('is-active', i === 0));
-      }
-    });
     document.getElementById('giftGalleryBtn')?.addEventListener('click', () => openSurpriseShop());
     giftQty = 1;
     renderGiftGrid();
@@ -18779,15 +18821,15 @@
   }
 
   function openPartyRoomSettings() {
-    closePartyRefModals('settings');
+    closePartyRefModals('apPartyRoomSettings');
     document.getElementById('apPartyRoomSettings')?.classList.add('open');
     syncLiveOverlayClass();
   }
 
-  function closePartyRefModals(except) {
+  function closePartyRefModals(exceptId) {
     ['apPartyRoomSettings', 'apPartySettingModal', 'apPartyEditInfoModal', 'apPartyRoomProfile'].forEach(
       (id) => {
-        if (except && id.includes(except)) return;
+        if (exceptId && id === exceptId) return;
         document.getElementById(id)?.classList.remove('open');
       }
     );
@@ -18943,7 +18985,7 @@
   }
 
   function openPartyEditInfoModal() {
-    closePartyRefModals('edit');
+    closePartyRefModals('apPartyEditInfoModal');
     const name = roomState?.hostName || displayName(currentUser());
     const cover = getStreamCoverUrl(name) || '';
     document.getElementById('partyEditNameInput').value = name;
@@ -18951,12 +18993,13 @@
       roomState?.roomStyle?.announcement || '';
     const prev = document.getElementById('partyEditPhotoPreview');
     if (prev) prev.src = cover || avatarUrl(name, null);
+    window.__apPartyModalOpenedAt = Date.now();
     document.getElementById('apPartyEditInfoModal')?.classList.add('open');
     syncLiveOverlayClass();
   }
 
   function openPartyRoomProfile() {
-    closePartyRefModals('profile');
+    closePartyRefModals('apPartyRoomProfile');
     const name = roomState?.hostName || 'Room';
     const ch = channelId();
     document.getElementById('apPartyProfileName').textContent = name;
@@ -19066,20 +19109,16 @@
     });
 
     document.getElementById('partyRefChatBtn')?.addEventListener('click', () => {
-      document.body.classList.toggle('ap-chat-compose-open');
-      document.getElementById('partyRefChatBtn')?.classList.toggle(
-        'is-active',
-        document.body.classList.contains('ap-chat-compose-open')
-      );
-      if (document.body.classList.contains('ap-chat-compose-open')) {
-        document.getElementById('liveChatInput')?.focus();
-      }
+      focusChatCompose();
     });
     document.getElementById('partyRefEmojiBtn')?.addEventListener('click', () => {
       document.getElementById('apChatEmojiBtn')?.click();
     });
 
-    document.getElementById('partyRefHostTap')?.addEventListener('click', () => openPartyRoomProfile());
+    document.getElementById('partyRefHostTap')?.addEventListener('click', (e) => {
+      if (e.target.closest('#liveEditPresentationBtn, .live-edit-presentation-btn')) return;
+      openPartyRoomProfile();
+    });
     document.getElementById('apPartySettingsClose')?.addEventListener('click', () => closePartyRefModals());
 
     document.getElementById('partySettingOpenModal')?.addEventListener('click', () => {
@@ -19158,6 +19197,7 @@
       }
       e.target.value = '';
     });
+    document.getElementById('partyEditInfoClose')?.addEventListener('click', () => closePartyRefModals());
     document.getElementById('partyEditInfoSubmit')?.addEventListener('click', () => {
       const trimmed = String(document.getElementById('partyEditNameInput')?.value || '').trim().slice(0, 48);
       const announcement = String(document.getElementById('partyEditAnnouncementInput')?.value || '')
@@ -19194,9 +19234,14 @@
 
     ['apPartyRoomSettings', 'apPartySettingModal', 'apPartyEditInfoModal', 'apPartyRoomProfile'].forEach(
       (id) => {
-        document.getElementById(id)?.addEventListener('click', (e) => {
-          if (e.target.id === id) closePartyRefModals();
+        const overlay = document.getElementById(id);
+        overlay?.addEventListener('click', (e) => {
+          if (e.target !== overlay) return;
+          if (Date.now() - (Number(window.__apPartyModalOpenedAt) || 0) < 280) return;
+          closePartyRefModals();
         });
+        overlay?.querySelector('.ap-party-edit-panel, .ap-party-settings-panel, .ap-party-setting-panel, .ap-party-room-profile-panel')
+          ?.addEventListener('click', (e) => e.stopPropagation());
       }
     );
     document.addEventListener('click', (e) => {

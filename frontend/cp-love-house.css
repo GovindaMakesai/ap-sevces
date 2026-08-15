@@ -1,4 +1,13 @@
 /* Love House — CP flow (reference-style) */
+html.social-app body.love-house-page,
+html.social-bridge-mode body.love-house-page,
+html.ap-expo-app body.love-house-page {
+  background:
+    linear-gradient(180deg, rgba(80, 20, 60, 0.55), rgba(40, 10, 50, 0.85)),
+    url('https://images.unsplash.com/photo-1518895949257-7621c3c786d4?auto=format&fit=crop&w=900&q=80') center/cover no-repeat !important;
+  color: #fff !important;
+}
+
 .love-house-page {
   margin: 0;
   min-height: 100dvh;
@@ -178,6 +187,13 @@
   font-size: 11px;
   font-weight: 700;
   color: #6b7280;
+  text-decoration: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.lh-level-item:active {
+  opacity: 0.75;
 }
 
 .lh-level-item span {
@@ -427,6 +443,20 @@ body.lh-sheet-open {
   color: #1f2937;
 }
 
+/* CP House page is white text — force readable colours inside modals */
+.love-house-page .lh-modal-box,
+.love-house-page .lh-modal-box h3,
+.love-house-page .lh-modal-box p,
+.love-house-page .lh-modal-box li {
+  color: #1f2937;
+}
+
+.lh-tips-box h3 {
+  color: #111827;
+  font-size: 18px;
+  font-weight: 800;
+}
+
 .lh-modal-box .ring-art {
   font-size: 0;
   min-height: 100px;
@@ -453,6 +483,8 @@ body.lh-sheet-open {
   height: 32px;
   border-radius: 50%;
   cursor: pointer;
+  color: #374151;
+  font-size: 14px;
 }
 
 .lh-tips-list {
@@ -460,6 +492,10 @@ body.lh-sheet-open {
   padding-left: 20px;
   font-size: 14px;
   line-height: 1.55;
+  color: #4b5563;
+}
+
+.lh-tips-list li {
   color: #4b5563;
 }
 
@@ -578,7 +614,7 @@ body.lh-sheet-open {
   font-size: 20px;
 }
 
-.lh-modal-box p {
+.lh-modal-box p:not(.lh-tips-section) {
   margin: 0 0 18px;
   color: #6b7280;
   font-size: 14px;
@@ -676,3 +712,75 @@ body.lh-sheet-open {
   top: 8px;
   right: 8px;
 }
+
+/* Beat social-theme cream/white overrides — modals must stay readable */
+html.social-app body.love-house-page .lh-overlay .lh-modal-box,
+html.social-bridge-mode body.love-house-page .lh-overlay .lh-modal-box,
+html.ap-expo-app body.love-house-page .lh-overlay .lh-modal-box {
+  background: #fff !important;
+  color: #1f2937 !important;
+}
+
+html.social-app body.love-house-page .lh-tips-box h3,
+html.social-bridge-mode body.love-house-page .lh-tips-box h3,
+html.ap-expo-app body.love-house-page .lh-tips-box h3 {
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+}
+
+html.social-app body.love-house-page .lh-tips-box .lh-tips-section,
+html.social-bridge-mode body.love-house-page .lh-tips-box .lh-tips-section,
+html.ap-expo-app body.love-house-page .lh-tips-box .lh-tips-section {
+  color: #831843 !important;
+  -webkit-text-fill-color: #831843 !important;
+}
+
+html.social-app body.love-house-page .lh-tips-box .lh-tips-list,
+html.social-app body.love-house-page .lh-tips-box .lh-tips-list li,
+html.social-bridge-mode body.love-house-page .lh-tips-box .lh-tips-list,
+html.social-bridge-mode body.love-house-page .lh-tips-box .lh-tips-list li,
+html.ap-expo-app body.love-house-page .lh-tips-box .lh-tips-list,
+html.ap-expo-app body.love-house-page .lh-tips-box .lh-tips-list li {
+  color: #374151 !important;
+  -webkit-text-fill-color: #374151 !important;
+}
+
+html.social-app body.love-house-page .lh-tips-box .lh-tips-list strong,
+html.social-bridge-mode body.love-house-page .lh-tips-box .lh-tips-list strong,
+html.ap-expo-app body.love-house-page .lh-tips-box .lh-tips-list strong {
+  color: #be185d !important;
+  -webkit-text-fill-color: #be185d !important;
+}
+
+html.social-app body.love-house-page .lh-tips-box .lh-tips-level-link,
+html.social-bridge-mode body.love-house-page .lh-tips-box .lh-tips-level-link,
+html.ap-expo-app body.love-house-page .lh-tips-box .lh-tips-level-link {
+  color: #db2777 !important;
+  -webkit-text-fill-color: #db2777 !important;
+}
+
+html.social-app body.love-house-page .lh-tips-box .lh-tips-close,
+html.social-app body.love-house-page .lh-tips-box .lh-sheet-close,
+html.social-bridge-mode body.love-house-page .lh-tips-box .lh-tips-close,
+html.social-bridge-mode body.love-house-page .lh-tips-box .lh-sheet-close,
+html.ap-expo-app body.love-house-page .lh-tips-box .lh-tips-close,
+html.ap-expo-app body.love-house-page .lh-tips-box .lh-sheet-close {
+  color: #374151 !important;
+  -webkit-text-fill-color: #374151 !important;
+}
+
+html.social-app body.love-house-page .lh-overlay .lh-modal-box h3,
+html.social-app body.love-house-page .lh-overlay .lh-modal-box p,
+html.social-app body.love-house-page .lh-overlay .lh-modal-box li,
+html.social-app body.love-house-page .lh-overlay .lh-modal-box span,
+html.social-bridge-mode body.love-house-page .lh-overlay .lh-modal-box h3,
+html.social-bridge-mode body.love-house-page .lh-overlay .lh-modal-box p,
+html.social-bridge-mode body.love-house-page .lh-overlay .lh-modal-box li,
+html.social-bridge-mode body.love-house-page .lh-overlay .lh-modal-box span,
+html.ap-expo-app body.love-house-page .lh-overlay .lh-modal-box h3,
+html.ap-expo-app body.love-house-page .lh-overlay .lh-modal-box p,
+html.ap-expo-app body.love-house-page .lh-overlay .lh-modal-box li,
+html.ap-expo-app body.love-house-page .lh-overlay .lh-modal-box span {
+  -webkit-text-fill-color: currentColor !important;
+}
+

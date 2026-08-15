@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#fce7f3">
+  <title>CP Rules - AP Services</title>
+  <script src="ap-native-boot.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="cp-rules.css?v=20260815-cprules2">
+  <link rel="stylesheet" href="cp-guide-readability.css?v=20260815-cpguide">
+</head>
+<body class="cp-rules-page">
+  <header class="cp-rules-header">
+    <button type="button" onclick="history.back()" aria-label="Back"><i class="fas fa-chevron-left"></i></button>
+    <h1>CP Rules</h1>
+    <span style="width:36px"></span>
+  </header>
+
+  <div class="cp-rules-wrap">
+    <div class="cp-rules-card">
+      <div class="cp-rules-tabs" id="cpRulesTabs"></div>
+      <div class="cp-rules-table-head">
+        <span>Level</span>
+        <span>EXP</span>
+      </div>
+      <div class="cp-rules-table-body" id="cpRulesTable"></div>
+
+      <div class="cp-rules-extra">
+        <section>
+          <h2>Remove CP</h2>
+          <p>There are two ways to remove CP:</p>
+          <ul>
+            <li><strong>a.</strong> Free CP cancellation application requires the consent of both parties before CP can be canceled;</li>
+            <li><strong>b.</strong> If you pay to cancel the CP, you cancel the CP immediately without the consent of the other party. A part of the Coins spent will be given to the other party as compensation for canceling the CP;</li>
+            <li>After CP is lifted, the intimacy value will be cleared and re-calculated;</li>
+          </ul>
+        </section>
+        <section>
+          <h2>Notice</h2>
+          <ul>
+            <li>The final interpretation is owned by AP Services.</li>
+            <li>More CP privileges will be coming soon.</li>
+          </ul>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <script src="cp-levels-data.js?v=20260815-cprules"></script>
+  <script>
+    (function () {
+      const bands = CpLevelsData.CP_LEVEL_BANDS;
+      let activeBand = new URLSearchParams(location.search).get('band') || '0-20';
+      if (!bands.some((b) => b.id === activeBand)) activeBand = '0-20';
+
+      const tabsEl = document.getElementById('cpRulesTabs');
+      const tableEl = document.getElementById('cpRulesTable');
+
+      function renderTable() {
+        const rows = CpLevelsData.rowsForBand(activeBand);
+        tableEl.innerHTML = rows
+          .map(
+            (r) =>
+              `<div class="cp-rules-row"><span class="lvl">${r.level}</span><span class="exp">${r.exp}</span></div>`
+          )
+          .join('');
+      }
+
+      function setBand(id) {
+        activeBand = id;
+        tabsEl.querySelectorAll('.cp-rules-tab').forEach((btn) => {
+          btn.classList.toggle('active', btn.dataset.band === id);
+        });
+        renderTable();
+      }
+
+      tabsEl.innerHTML = bands
+        .map(
+          (b) =>
+            `<button type="button" class="cp-rules-tab${b.id === activeBand ? ' active' : ''}" data-band="${b.id}">${b.label}</button>`
+        )
+        .join('');
+
+      tabsEl.querySelectorAll('.cp-rules-tab').forEach((btn) => {
+        btn.addEventListener('click', () => setBand(btn.dataset.band));
+      });
+
+      renderTable();
+    })();
+  </script>
+</body>
+</html>

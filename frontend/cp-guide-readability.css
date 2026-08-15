@@ -1,0 +1,144 @@
+/**
+ * CP guide pages must stay readable in native app (ap-expo-app + social-theme overrides).
+ * Load this stylesheet LAST on cp-rules, cp-tips, and cp-home.
+ */
+html.ap-expo-app body.cp-rules-page,
+html.social-app body.cp-rules-page,
+html.ap-expo-app body.cp-tips-page,
+html.social-app body.cp-tips-page,
+html.ap-expo-app body.cp-full-guide-page,
+html.social-app body.cp-full-guide-page {
+  background: linear-gradient(180deg, #fce7f3 0%, #f3e8ff 45%, #ede9fe 100%) !important;
+  color: #1f2937 !important;
+  -webkit-text-fill-color: #1f2937 !important;
+}
+
+html.ap-expo-app body.cp-rules-page .cp-rules-card,
+html.social-app body.cp-rules-page .cp-rules-card,
+html.ap-expo-app body.cp-tips-page .cp-tips-card,
+html.social-app body.cp-tips-page .cp-tips-card {
+  background: #fff !important;
+  color: #374151 !important;
+}
+
+html.ap-expo-app body.cp-rules-page .cp-rules-header h1,
+html.social-app body.cp-rules-page .cp-rules-header h1,
+html.ap-expo-app body.cp-tips-page .cp-tips-header h1,
+html.social-app body.cp-tips-page .cp-tips-header h1 {
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+}
+
+html.ap-expo-app body.cp-rules-page .cp-rules-tab,
+html.social-app body.cp-rules-page .cp-rules-tab {
+  color: #9ca3af !important;
+  -webkit-text-fill-color: #9ca3af !important;
+}
+
+html.ap-expo-app body.cp-rules-page .cp-rules-tab.active,
+html.social-app body.cp-rules-page .cp-rules-tab.active {
+  color: #ec4899 !important;
+  -webkit-text-fill-color: #ec4899 !important;
+}
+
+html.ap-expo-app body.cp-rules-page .cp-rules-table-head,
+html.social-app body.cp-rules-page .cp-rules-table-head {
+  color: #6b7280 !important;
+  background: #fff !important;
+  -webkit-text-fill-color: #6b7280 !important;
+}
+
+html.ap-expo-app body.cp-rules-page .cp-rules-row .lvl,
+html.social-app body.cp-rules-page .cp-rules-row .lvl {
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+}
+
+html.ap-expo-app body.cp-rules-page .cp-rules-row .exp,
+html.social-app body.cp-rules-page .cp-rules-row .exp,
+html.ap-expo-app body.cp-rules-page .cp-rules-extra h2,
+html.social-app body.cp-rules-page .cp-rules-extra h2 {
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+}
+
+html.ap-expo-app body.cp-rules-page .cp-rules-extra p,
+html.ap-expo-app body.cp-rules-page .cp-rules-extra li,
+html.social-app body.cp-rules-page .cp-rules-extra p,
+html.social-app body.cp-rules-page .cp-rules-extra li {
+  color: #4b5563 !important;
+  -webkit-text-fill-color: #4b5563 !important;
+}
+
+html.ap-expo-app body.cp-tips-page .cp-tips-section,
+html.social-app body.cp-tips-page .cp-tips-section {
+  color: #831843 !important;
+  -webkit-text-fill-color: #831843 !important;
+}
+
+html.ap-expo-app body.cp-tips-page .cp-tips-card li,
+html.social-app body.cp-tips-page .cp-tips-card li {
+  color: #374151 !important;
+  -webkit-text-fill-color: #374151 !important;
+}
+
+html.ap-expo-app body.cp-tips-page .cp-tips-card strong,
+html.social-app body.cp-tips-page .cp-tips-card strong {
+  color: #be185d !important;
+  -webkit-text-fill-color: #be185d !important;
+}
+
+html.ap-expo-app body.cp-tips-page .cp-tips-links a,
+html.social-app body.cp-tips-page .cp-tips-links a {
+  color: #db2777 !important;
+  -webkit-text-fill-color: #db2777 !important;
+  background: #fdf2f8 !important;
+}
+
+/* CP House instructions modal */
+html.ap-expo-app body.love-house-page .lh-overlay .lh-tips-box,
+html.social-app body.love-house-page .lh-overlay .lh-tips-box {
+  background: #fff !important;
+  color: #374151 !important;
+  -webkit-text-fill-color: #374151 !important;
+  max-height: min(85vh, 560px) !important;
+  width: min(360px, calc(100vw - 32px)) !important;
+}
+
+html.ap-expo-app body.love-house-page .lh-tips-box h3,
+html.social-app body.love-house-page .lh-tips-box h3 {
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+}
+
+html.ap-expo-app body.love-house-page .lh-tips-box .lh-tips-section,
+html.social-app body.love-house-page .lh-tips-box .lh-tips-section {
+  color: #831843 !important;
+  -webkit-text-fill-color: #831843 !important;
+}
+
+html.ap-expo-app body.love-house-page .lh-tips-box .lh-tips-list li,
+html.social-app body.love-house-page .lh-tips-box .lh-tips-list li {
+  color: #374151 !important;
+  -webkit-text-fill-color: #374151 !important;
+}
+
+html.ap-expo-app body.love-house-page .lh-tips-box .lh-tips-list strong,
+html.social-app body.love-house-page .lh-tips-box .lh-tips-list strong {
+  color: #be185d !important;
+  -webkit-text-fill-color: #be185d !important;
+}
+
+html.ap-expo-app body.love-house-page .lh-tips-box .lh-tips-level-link,
+html.social-app body.love-house-page .lh-tips-box .lh-tips-level-link {
+  color: #db2777 !important;
+  -webkit-text-fill-color: #db2777 !important;
+}
+
+html.ap-expo-app body.love-house-page .lh-tips-box .lh-tips-close,
+html.ap-expo-app body.love-house-page .lh-tips-box .lh-sheet-close,
+html.social-app body.love-house-page .lh-tips-box .lh-tips-close,
+html.social-app body.love-house-page .lh-tips-box .lh-sheet-close {
+  color: #374151 !important;
+  -webkit-text-fill-color: #374151 !important;
+}

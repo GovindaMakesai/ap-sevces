@@ -7,7 +7,7 @@
   <title>Me - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" media="print" onload="this.media='all'">
   <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"></noscript>
-  <link rel="stylesheet" href="social-theme.css?v=20260815-profile">
+  <link rel="stylesheet" href="social-theme.css?v=20260815-profile-stats">
   <link rel="stylesheet" href="social-features.css?v=20260729-instant">
   <link rel="stylesheet" href="cp-rings.css?v=20260814-ring3d">
   <link rel="stylesheet" href="cp-profile-card.css?v=20260814-cpprofile2">
@@ -16,15 +16,29 @@
     html .social-menu-list { opacity: 1; }
     .profile-loading-bar { display: none !important; }
     #profileStats {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      display: flex;
+      flex-direction: column;
       gap: 8px;
       width: 100%;
-      max-width: min(360px, 100%);
+      max-width: min(420px, 100%);
       margin-left: auto;
       margin-right: auto;
       box-sizing: border-box;
       padding: 0 4px;
+    }
+    .profile-stats-row {
+      display: grid;
+      gap: 8px;
+      width: 100%;
+    }
+    .profile-stats-row--follow {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .profile-stats-row--wallet {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .profile-stats-row--wallet.has-gift-coins {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
     }
     #profileStats .social-stat-pill {
       min-width: 0;
@@ -43,26 +57,7 @@
       font-size: 10px;
       letter-spacing: 0.02em;
     }
-    /* Sellers: follow row, then wallet row of 3 equal cards */
-    #profileStats.has-gift-coins {
-      grid-template-columns: repeat(6, minmax(0, 1fr));
-      max-width: min(420px, 100%);
-      gap: 8px;
-    }
-    #profileStats.has-gift-coins > :nth-child(1),
-    #profileStats.has-gift-coins > :nth-child(2) {
-      grid-column: span 3;
-    }
-    #profileStats.has-gift-coins > :nth-child(3),
-    #profileStats.has-gift-coins > :nth-child(4) {
-      grid-column: span 3;
-    }
-    #profileStats.has-gift-coins > :nth-child(5) {
-      grid-column: span 6;
-    }
-    #profileStats.has-gift-coins > :nth-child(3) strong,
-    #profileStats.has-gift-coins > :nth-child(4) strong,
-    #profileStats.has-gift-coins > :nth-child(5) strong {
+    .profile-stats-row--wallet.has-gift-coins .social-stat-pill strong {
       font-size: clamp(10px, 2.8vw, 13px);
     }
     #profileWalletActions .social-profile-actions-row {
@@ -176,26 +171,30 @@
       <button type="button" class="social-copy-id-btn" id="profileCopyId" aria-label="Copy user ID"><i class="fas fa-copy"></i></button>
     </div>
     <div class="social-profile-stats" id="profileStats" style="display:none">
-      <button type="button" class="social-stat-pill" id="statFollowingBtn" aria-label="View following">
-        <strong id="statFollowing">0</strong>
-        <span>Following</span>
-      </button>
-      <button type="button" class="social-stat-pill" id="statFollowersBtn" aria-label="View followers">
-        <strong id="statFollowers">0</strong>
-        <span>Followers</span>
-      </button>
-      <a href="/store.html?app=1" class="social-stat-pill social-stat-coins">
-        <strong id="statCoins">0</strong>
-        <span>Coins</span>
-      </a>
-      <a href="/points.html?app=1" class="social-stat-pill social-stat-points">
-        <strong id="statPoints">0</strong>
-        <span>Points</span>
-      </a>
-      <a href="/coin-seller-center.html?app=1" class="social-stat-pill social-stat-gift-coins" id="statGiftCoinsLink" style="display:none" aria-hidden="true">
-        <strong id="statGiftCoins">0</strong>
-        <span>Gift coins</span>
-      </a>
+      <div class="profile-stats-row profile-stats-row--follow">
+        <button type="button" class="social-stat-pill" id="statFollowingBtn" aria-label="View following">
+          <strong id="statFollowing">0</strong>
+          <span>Following</span>
+        </button>
+        <button type="button" class="social-stat-pill" id="statFollowersBtn" aria-label="View followers">
+          <strong id="statFollowers">0</strong>
+          <span>Followers</span>
+        </button>
+      </div>
+      <div class="profile-stats-row profile-stats-row--wallet" id="profileWalletStats">
+        <a href="/store.html?app=1" class="social-stat-pill social-stat-coins">
+          <strong id="statCoins">0</strong>
+          <span>Coins</span>
+        </a>
+        <a href="/points.html?app=1" class="social-stat-pill social-stat-points">
+          <strong id="statPoints">0</strong>
+          <span>Points</span>
+        </a>
+        <a href="/coin-seller-center.html?app=1" class="social-stat-pill social-stat-gift-coins" id="statGiftCoinsLink" style="display:none" aria-hidden="true">
+          <strong id="statGiftCoins">0</strong>
+          <span>Gift coins</span>
+        </a>
+      </div>
     </div>
     <div class="social-profile-actions" id="profileWalletActions">
       <div class="social-profile-actions-row">
@@ -738,7 +737,8 @@
             SocialShell.redirectToDashboard();
           });
         }
-        statsEl.style.display = 'grid';
+        statsEl.style.display = 'flex';
+        const walletStatsRow = document.getElementById('profileWalletStats');
         const walletActs = document.getElementById('profileWalletActions');
         if (walletActs) walletActs.classList.add('is-visible');
         /* Show gift coins shell immediately for coin_seller role (balance fills in next) */
@@ -749,7 +749,7 @@
             giftLinkEarly.setAttribute('aria-hidden', 'false');
             giftLinkEarly.style.removeProperty('display');
             giftLinkEarly.href = '/coin-seller-center.html?app=1';
-            statsEl.classList.add('has-gift-coins');
+            walletStatsRow?.classList.add('has-gift-coins');
           }
         }
         if (window.SocialWallet) {
@@ -795,7 +795,7 @@
               giftLink.setAttribute('aria-hidden', showGiftCoins ? 'false' : 'true');
               giftLink.style.removeProperty('display');
               if (!showGiftCoins) giftLink.style.display = 'none';
-              statsEl.classList.toggle('has-gift-coins', showGiftCoins);
+              walletStatsRow?.classList.toggle('has-gift-coins', showGiftCoins);
               if (showGiftCoins) {
                 giftLink.href = '/coin-seller-center.html?app=1';
                 if (giftEl) {

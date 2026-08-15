@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#fce7f3">
+  <title>CP Full Guide - AP Services</title>
+  <script src="ap-native-boot.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="cp-tips.css?v=20260815-cptips3">
+  <link rel="stylesheet" href="cp-rules.css?v=20260815-cprules2">
+  <link rel="stylesheet" href="cp-guide-readability.css?v=20260815-cpguide">
+  <style>
+    body.cp-full-guide-page { padding-bottom: 8px; }
+    .cp-full-guide-page .cp-rules-wrap { padding-top: 0; }
+    .cp-full-guide-page .cp-tips-wrap { padding-bottom: 0; }
+    .cp-full-guide-page .cp-tips-card { margin-bottom: 12px; }
+    .cp-full-guide-page .cp-rules-card { margin-bottom: 0; }
+  </style>
+</head>
+<body class="cp-tips-page cp-full-guide-page">
+  <header class="cp-tips-header">
+    <button type="button" onclick="history.back()" aria-label="Back"><i class="fas fa-chevron-left"></i></button>
+    <h1>CP Full Guide</h1>
+    <a href="/cp-home.html?app=1" aria-label="CP Home"><i class="fas fa-heart"></i></a>
+  </header>
+
+  <div class="cp-tips-wrap">
+    <div class="cp-tips-card">
+      <p class="cp-tips-section">CP House</p>
+      <ol>
+        <li>CP House is a testimony of a couple's love. Your CP ring shows on your <strong>profile</strong>, CP House, and in party rooms when you sit together.</li>
+        <li>Unlock CP House with intimacy <strong>≥ 20,000</strong>, or accept a CP invitation.</li>
+        <li>Send a CP invite at intimacy <strong>≥ 50,000</strong> when you are mutual friends and own a ring from Store → Rings.</li>
+        <li>Rings return to your bag if an invite is declined or expires.</li>
+        <li>Invites last <strong>48 hours</strong>. Rejected invites have a <strong>48h</strong> cooldown.</li>
+        <li>Tap your ring on CP House to change it or take it off (break up).</li>
+      </ol>
+      <p class="cp-tips-section">Break up &amp; ring change</p>
+      <ol>
+        <li><strong>Take off the ring:</strong> ask partner to agree (free), pay <strong>75,000 coins</strong> for instant break, or use inactive-partner break after <strong>30 days</strong>.</li>
+        <li><strong>Change the ring:</strong> choose a ring you own — partner must accept within 48 hours.</li>
+      </ol>
+      <p class="cp-tips-section">Level &amp; rankings</p>
+      <ol>
+        <li>Level up by sending gifts. Open <strong>Level</strong> from the shield icon for personal benefits.</li>
+        <li>CP Rankings rank couples by gift intimacy after becoming CP. <strong>1 💎 = 1 💖</strong></li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="cp-rules-wrap">
+    <div class="cp-rules-card">
+      <div class="cp-rules-tabs" id="cpRulesTabs"></div>
+      <div class="cp-rules-table-head">
+        <span>Level</span>
+        <span>EXP</span>
+      </div>
+      <div class="cp-rules-table-body" id="cpRulesTable"></div>
+      <div class="cp-rules-extra">
+        <section>
+          <h2>Remove CP</h2>
+          <p>There are two ways to remove CP:</p>
+          <ul>
+            <li><strong>a.</strong> Free CP cancellation application requires the consent of both parties before CP can be canceled;</li>
+            <li><strong>b.</strong> If you pay to cancel the CP, you cancel the CP immediately without the consent of the other party. A part of the Coins spent will be given to the other party as compensation for canceling the CP;</li>
+            <li>After CP is lifted, the intimacy value will be cleared and re-calculated;</li>
+          </ul>
+        </section>
+        <section>
+          <h2>Notice</h2>
+          <ul>
+            <li>The final interpretation is owned by AP Services.</li>
+            <li>More CP privileges will be coming soon.</li>
+          </ul>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <script src="cp-levels-data.js?v=20260815-cprules"></script>
+  <script>
+    (function () {
+      const bands = CpLevelsData.CP_LEVEL_BANDS;
+      let activeBand = new URLSearchParams(location.search).get('band') || '0-20';
+      if (!bands.some((b) => b.id === activeBand)) activeBand = '0-20';
+      const tabsEl = document.getElementById('cpRulesTabs');
+      const tableEl = document.getElementById('cpRulesTable');
+      function renderTable() {
+        tableEl.innerHTML = CpLevelsData.rowsForBand(activeBand)
+          .map((r) => `<div class="cp-rules-row"><span class="lvl">${r.level}</span><span class="exp">${r.exp}</span></div>`)
+          .join('');
+      }
+      function setBand(id) {
+        activeBand = id;
+        tabsEl.querySelectorAll('.cp-rules-tab').forEach((btn) => {
+          btn.classList.toggle('active', btn.dataset.band === id);
+        });
+        renderTable();
+      }
+      tabsEl.innerHTML = bands
+        .map((b) => `<button type="button" class="cp-rules-tab${b.id === activeBand ? ' active' : ''}" data-band="${b.id}">${b.label}</button>`)
+        .join('');
+      tabsEl.querySelectorAll('.cp-rules-tab').forEach((btn) => {
+        btn.addEventListener('click', () => setBand(btn.dataset.band));
+      });
+      renderTable();
+    })();
+  </script>
+</body>
+</html>

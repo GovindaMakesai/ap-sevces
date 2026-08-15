@@ -8,7 +8,8 @@
   <script src="ap-native-boot.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-theme.css">
-  <link rel="stylesheet" href="cp-love-house.css?v=20260814-cphouse2">
+  <link rel="stylesheet" href="cp-love-house.css?v=20260815-cphouse5">
+  <link rel="stylesheet" href="cp-guide-readability.css?v=20260815-cpguide">
   <link rel="stylesheet" href="cp-rings.css?v=20260814-ring3d">
   <link rel="stylesheet" href="cp-chat-cards.css?v=20260814-cpchat">
 </head>
@@ -58,9 +59,9 @@
   <section class="lh-privilege-card">
     <div class="lh-privilege-head"><span>🌹</span> CP Privilege <span>🌹</span></div>
     <div class="lh-level-row">
-      <div class="lh-level-item"><span class="lh-level-ring" data-ring="ruby"></span>LV1-20</div>
-      <div class="lh-level-item"><span class="lh-level-ring" data-ring="celeste"></span>LV21-40</div>
-      <div class="lh-level-item"><span class="lh-level-ring" data-ring="mystique"></span>LV41-60</div>
+      <a href="/cp-rules.html?band=0-20&app=1" class="lh-level-item"><span class="lh-level-ring" data-ring="ruby"></span>LV1-20</a>
+      <a href="/cp-rules.html?band=21-40&app=1" class="lh-level-item"><span class="lh-level-ring" data-ring="celeste"></span>LV21-40</a>
+      <a href="/cp-rules.html?band=41-60&app=1" class="lh-level-item"><span class="lh-level-ring" data-ring="mystique"></span>LV41-60</a>
     </div>
     <div class="lh-perk-grid" id="lhPerkGrid">
       <button type="button" class="lh-perk" data-perk="medal"><div class="lh-perk-ico">🎖️</div>CP Medal</button>
@@ -156,7 +157,7 @@
 
   <!-- CP Instructions sheet (book icon) -->
   <div class="lh-overlay align-center" id="lhTipsSheet">
-    <div class="lh-modal-box lh-tips-box">
+    <div class="lh-modal-box lh-tips-box" style="background:#fff;color:#374151">
       <button type="button" class="lh-sheet-close lh-tips-close" id="lhTipsClose" aria-label="Close"><i class="fas fa-times"></i></button>
       <h3><i class="fas fa-book" style="color:#fbbf24;margin-right:6px"></i> CP Instructions</h3>
       <p class="lh-tips-section">CP House</p>
@@ -180,8 +181,9 @@
         <li>CP Rankings list couples by intimacy from gifts after becoming CP. <strong>1 💎 = 1 💖</strong></li>
         <li>Week ranking counts gifts in the last 7 days; Total ranking is all-time intimacy.</li>
       </ol>
-      <a href="/levels.html?app=1" class="lh-tips-level-link"><i class="fas fa-shield-alt"></i> Open Level benefits</a>
-      <a href="/cp-tips.html?app=1" class="lh-tips-level-link" style="margin-top:8px"><i class="fas fa-book"></i> Full CP guide</a>
+      <a href="/cp-full-guide.html?app=1" class="lh-tips-level-link"><i class="fas fa-book-open"></i> Full CP guide</a>
+      <a href="/cp-rules.html?app=1" class="lh-tips-level-link" style="margin-top:8px"><i class="fas fa-list"></i> CP Rules &amp; levels only</a>
+      <a href="/levels.html?app=1" class="lh-tips-level-link" style="margin-top:8px"><i class="fas fa-shield-alt"></i> Personal level benefits</a>
       <a href="/store.html?cat=rings&app=1&from=cp" class="lh-buy-btn" style="display:block;text-decoration:none;text-align:center;margin-top:14px">Buy a ring</a>
     </div>
   </div>
@@ -343,8 +345,8 @@
           `<div class="lh-action-pending">` +
           `<strong>${label}</strong>` +
           `<div class="lh-action-pending-actions">` +
-          `<button type="button" class="lh-btn-accept" data-action-id="${r.id}" data-action-accept="1">Accept</button>` +
-          `<button type="button" class="lh-btn-decline" data-action-id="${r.id}" data-action-accept="0">Decline</button>` +
+          `<button type="button" class="cp-msg-btn cp-msg-btn--accept lh-btn-accept" data-action-id="${r.id}" data-action-accept="1">Accept</button>` +
+          `<button type="button" class="cp-msg-btn cp-msg-btn--decline lh-btn-decline" data-action-id="${r.id}" data-action-accept="0">Decline</button>` +
           `</div></div>`
         );
       }).join('');
@@ -459,8 +461,8 @@
         <div class="lh-invite-pending">
           <strong>${inv.fromName}</strong> sent a CP invite (${inv.ring?.name || 'Ring'})
           <div class="lh-invite-pending-actions">
-            <button type="button" class="lh-btn-accept" data-id="${inv.id}" data-accept="1">Accept</button>
-            <button type="button" class="lh-btn-decline" data-id="${inv.id}" data-accept="0">Decline</button>
+            <button type="button" class="cp-msg-btn cp-msg-btn--accept lh-btn-accept" data-id="${inv.id}" data-accept="1">Accept</button>
+            <button type="button" class="cp-msg-btn cp-msg-btn--decline lh-btn-decline" data-id="${inv.id}" data-accept="0">Decline</button>
           </div>
         </div>`).join('');
 

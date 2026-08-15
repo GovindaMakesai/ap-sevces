@@ -1130,7 +1130,7 @@
     countdownTimer = setInterval(function () {
       if (spinning) return;
       countdown--;
-      updateTimer();
+        updateTimer();
       if (countdown <= 0) {
         clearCountdown();
         finalizeRound();
@@ -1309,7 +1309,7 @@
     }
     var wagerTotal = totalBet();
     if (wagerTotal > coins) {
-      setWaiting();
+    setWaiting();
       spinning = false;
       roundLocked = false;
       updateTimer();
@@ -1396,9 +1396,9 @@
       return;
     }
     if (lbMode === 'players') {
-      root.innerHTML = rows.map(function (row, idx) {
+    root.innerHTML = rows.map(function (row, idx) {
         return '<div class="card leader-row"><div style="display:flex;align-items:center;gap:10px"><div class="rank-badge">' + (idx + 1) + '</div><div><div style="font-weight:900">' + (row.display_name || ('ID ' + row.display_id)) + '</div><div class="muted" style="font-size:.72rem">' + fmt(row.win_rounds || 0) + ' wins · best ' + fmt(row.best_win || 0) + '</div></div></div><div style="text-align:right"><div style="font-weight:900;color:#fde68a">❤️ ' + fmt(row.total_won || 0) + '</div></div></div>';
-      }).join('');
+    }).join('');
       return;
     }
     root.innerHTML = rows.map(function (row, idx) {
