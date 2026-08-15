@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../config/theme.dart';
 import '../../models/live_room.dart';
 import '../../services/live_service.dart';
+import '../../widgets/glowcast_ui.dart';
 import '../../widgets/loading_view.dart';
 import '../../widgets/room_card.dart';
 
@@ -100,23 +101,29 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
         children: [
           FloatingActionButton.extended(
             heroTag: 'party',
-            backgroundColor: GlowTheme.purple500,
+            backgroundColor: GlowTheme.accentParty,
             onPressed: () => Navigator.pushNamed(context, '/go-live'),
-            icon: const Icon(Icons.groups),
+            icon: const Icon(Icons.groups_rounded),
             label: const Text('Party'),
           ),
           const SizedBox(height: 10),
           FloatingActionButton.extended(
             heroTag: 'live',
+            backgroundColor: GlowTheme.accentLive,
             onPressed: () => Navigator.pushNamed(context, '/go-live'),
-            icon: const Icon(Icons.videocam),
+            icon: const Icon(Icons.videocam_rounded),
             label: const Text('Go Live'),
           ),
         ],
       ),
       body: SafeArea(
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const GlowPageHeader(
+              title: 'Discover',
+              subtitle: 'Live rooms, party rooms & creators near you',
+            ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
               child: TextField(
@@ -136,9 +143,6 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
             TabBar(
               controller: _tabs,
               isScrollable: true,
-              labelColor: GlowTheme.gold500,
-              unselectedLabelColor: GlowTheme.textSecondary,
-              indicatorColor: GlowTheme.gold500,
               tabs: const [
                 Tab(text: 'Following'),
                 Tab(text: 'Live'),
@@ -150,7 +154,7 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
             Expanded(
               child: RefreshIndicator(
                 onRefresh: _loadRooms,
-                color: GlowTheme.gold500,
+                color: GlowTheme.brand,
                 child: _buildBody(),
               ),
             ),
@@ -166,11 +170,11 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
       return ErrorView(message: _error!, onRetry: _loadRooms);
     }
     if (_rooms.isEmpty) {
-      return ListView(
-        children: const [
-          SizedBox(height: 80),
-          Center(child: Text('No live rooms right now', style: TextStyle(color: GlowTheme.textSecondary))),
-        ],
+      return GlowEmptyState(
+        icon: Icons.live_tv_outlined,
+        message: 'No live rooms right now',
+        actionLabel: 'Refresh',
+        onAction: _loadRooms,
       );
     }
     return GridView.builder(

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../config/theme.dart';
 import '../../models/wallet.dart';
 import '../../services/wallet_service.dart';
+import '../../widgets/glowcast_ui.dart';
 import '../../widgets/loading_view.dart';
 
 class RankingsScreen extends StatefulWidget {
@@ -87,8 +88,6 @@ class _RankingsScreenState extends State<RankingsScreen> with TickerProviderStat
         bottom: TabBar(
           controller: _mainTabs,
           isScrollable: true,
-          labelColor: GlowTheme.gold500,
-          indicatorColor: GlowTheme.gold500,
           tabs: const [
             Tab(text: 'Host'),
             Tab(text: 'Rich'),
@@ -101,8 +100,6 @@ class _RankingsScreenState extends State<RankingsScreen> with TickerProviderStat
         children: [
           TabBar(
             controller: _periodTabs,
-            labelColor: GlowTheme.gold600,
-            indicatorColor: GlowTheme.gold500,
             tabs: const [
               Tab(text: 'Daily'),
               Tab(text: 'Weekly'),
@@ -113,7 +110,7 @@ class _RankingsScreenState extends State<RankingsScreen> with TickerProviderStat
           Expanded(
             child: RefreshIndicator(
               onRefresh: _load,
-              color: GlowTheme.gold500,
+              color: GlowTheme.brand,
               child: _buildList(),
             ),
           ),
@@ -124,32 +121,17 @@ class _RankingsScreenState extends State<RankingsScreen> with TickerProviderStat
 
   Widget _promoBanner() {
     final labels = ['Top hosts by gifts & live time', 'Top coin spenders', 'Most gifts sent', 'Top video creators'];
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.all(12),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [GlowTheme.gold500, GlowTheme.orangeCta]),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Text(
-        labels[_mainTabs.index],
-        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-      ),
-    );
+    return GlowPromoBanner(text: labels[_mainTabs.index]);
   }
 
   Widget _buildList() {
     if (_loading) return const LoadingView(message: 'Loading rankings…');
     if (_error != null) return ErrorView(message: _error!, onRetry: _load);
     if (_entries.isEmpty) {
-      return ListView(children: const [
-        SizedBox(height: 60),
-        Center(child: Text('No rankings yet', style: TextStyle(color: GlowTheme.textSecondary))),
-      ]);
+      return const GlowEmptyState(icon: Icons.leaderboard_outlined, message: 'No rankings yet');
     }
     return ListView.separated(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(16),
       itemCount: _entries.length,
       separatorBuilder: (_, __) => const SizedBox(height: 8),
       itemBuilder: (_, i) => _rankTile(_entries[i]),
@@ -157,22 +139,26 @@ class _RankingsScreenState extends State<RankingsScreen> with TickerProviderStat
   }
 
   Widget _rankTile(LeaderboardEntry entry) {
-    final medal = entry.rank <= 3 ? ['🥇', '🥈', '🥉'][entry.rank - 1] : '#${entry.rank}';
-    return Card(
-      elevation: 0,
-      color: Colors.white,
+    return Container(
+      decoration: BoxDecoration(
+        color: GlowTheme.creamSurface,
+        borderRadius: GlowTheme.radiusMd,
+        border: Border.all(color: GlowTheme.border),
+        boxShadow: GlowTheme.cardShadow,
+      ),
       child: ListTile(
-        leading: SizedBox(
-          width: 48,
-          child: Text(medal, style: const TextStyle(fontSize: 20), textAlign: TextAlign.center),
-        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        leading: GlowRankBadge(rank: entry.rank),
         title: Text(entry.displayName, style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: Text('Score: ${entry.score}'),
+        subtitle: Text('Score: ${entry.score}', style: const TextStyle(color: GlowTheme.textSecondary)),
         trailing: entry.profilePic != null
             ? CircleAvatar(backgroundImage: CachedNetworkImageProvider(entry.profilePic!))
             : CircleAvatar(
-                backgroundColor: GlowTheme.gold100,
-                child: Text(entry.displayName.isNotEmpty ? entry.displayName[0] : '?'),
+                backgroundColor: GlowTheme.brandLight,
+                child: Text(
+                  entry.displayName.isNotEmpty ? entry.displayName[0] : '?',
+                  style: const TextStyle(color: GlowTheme.brand, fontWeight: FontWeight.w700),
+                ),
               ),
       ),
     );

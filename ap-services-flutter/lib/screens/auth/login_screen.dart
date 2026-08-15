@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 
 import '../../app.dart';
 import '../../config/app_config.dart';
+import '../../config/theme.dart';
 import '../../services/auth_service.dart';
+import '../../widgets/glowcast_ui.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -63,52 +65,53 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Sign in')),
-      body: Padding(
+      body: ListView(
         padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            TextField(
-              controller: _email,
-              keyboardType: TextInputType.emailAddress,
-              decoration: const InputDecoration(labelText: 'Email'),
-            ),
+        children: [
+          const SizedBox(height: 8),
+          const GlowBrandMark(size: 64),
+          const SizedBox(height: 8),
+          Text(
+            'Welcome back',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 24),
+          TextField(
+            controller: _email,
+            keyboardType: TextInputType.emailAddress,
+            decoration: const InputDecoration(labelText: 'Email address'),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _password,
+            obscureText: true,
+            decoration: const InputDecoration(labelText: 'Password'),
+          ),
+          if (_error != null) ...[
             const SizedBox(height: 12),
-            TextField(
-              controller: _password,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'Password'),
-            ),
-            if (_error != null) ...[
-              const SizedBox(height: 12),
-              Text(_error!, style: const TextStyle(color: Colors.red)),
-            ],
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: _loading ? null : _submit,
-              child: _loading
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                    )
-                  : const Text('Sign in'),
-            ),
-            if (AppConfig.guestTestingEnabled) ...[
-              const SizedBox(height: 16),
-              OutlinedButton.icon(
-                onPressed: _loading ? null : _guestLogin,
-                icon: const Icon(Icons.person_outline),
-                label: const Text('Continue as guest tester'),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Uses ${AppConfig.guestTestEmail} (read-only browse)',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-              ),
-            ],
+            Text(_error!, style: const TextStyle(color: GlowTheme.accentLive)),
           ],
-        ),
+          const SizedBox(height: 24),
+          ElevatedButton(
+            onPressed: _loading ? null : _submit,
+            child: _loading
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  )
+                : const Text('Sign in'),
+          ),
+          if (AppConfig.guestTestingEnabled) ...[
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: _loading ? null : _guestLogin,
+              icon: const Icon(Icons.person_outline),
+              label: const Text('Quick demo login'),
+            ),
+          ],
+        ],
       ),
     );
   }

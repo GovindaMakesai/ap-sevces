@@ -19,7 +19,7 @@ class RoomCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: GlowTheme.radiusMd,
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -30,8 +30,8 @@ class RoomCard extends StatelessWidget {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.transparent,
-                    Colors.black.withValues(alpha: 0.75),
+                    Colors.black.withValues(alpha: 0.08),
+                    Colors.black.withValues(alpha: 0.82),
                   ],
                 ),
               ),
@@ -39,26 +39,41 @@ class RoomCard extends StatelessWidget {
             Positioned(
               top: 10,
               left: 10,
-              child: _badge(room.isParty ? 'Party' : 'Live'),
+              child: _badge(
+                room.isParty ? 'Party' : 'LIVE',
+                gradient: room.isParty ? GlowTheme.brandGradient : GlowTheme.liveGradient,
+              ),
             ),
             Positioned(
               top: 10,
               right: 10,
-              child: _badge('${room.viewers}'),
+              child: _badge('${room.viewers} watching', solid: true),
             ),
             Positioned(
               left: 12,
               right: 12,
               bottom: 12,
-              child: Text(
-                room.hostName,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 15,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    room.hostName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                    ),
+                  ),
+                  if ((room.title ?? '').isNotEmpty)
+                    Text(
+                      room.title!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: Colors.white.withValues(alpha: 0.75), fontSize: 12),
+                    ),
+                ],
               ),
             ),
           ],
@@ -70,7 +85,7 @@ class RoomCard extends StatelessWidget {
   Widget _coverImage() {
     if (room.coverImage.isEmpty) {
       return Container(
-        color: GlowTheme.purple500.withValues(alpha: 0.35),
+        decoration: const BoxDecoration(gradient: GlowTheme.brandGradient),
         child: const Center(
           child: Icon(Icons.videocam_rounded, color: Colors.white54, size: 40),
         ),
@@ -79,24 +94,25 @@ class RoomCard extends StatelessWidget {
     return CachedNetworkImage(
       imageUrl: room.coverImage,
       fit: BoxFit.cover,
-      placeholder: (_, __) => Container(color: GlowTheme.gold500.withValues(alpha: 0.2)),
+      placeholder: (_, __) => Container(color: GlowTheme.surfaceMuted),
       errorWidget: (_, __, ___) => Container(
-        color: GlowTheme.purple500.withValues(alpha: 0.35),
-        child: const Icon(Icons.person, color: Colors.white54, size: 40),
+        decoration: const BoxDecoration(gradient: GlowTheme.brandGradient),
+        child: const Icon(Icons.person_rounded, color: Colors.white54, size: 40),
       ),
     );
   }
 
-  Widget _badge(String label) {
+  Widget _badge(String label, {LinearGradient? gradient, bool solid = false}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.45),
+        gradient: gradient,
+        color: solid ? Colors.black.withValues(alpha: 0.45) : null,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
         label,
-        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+        style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700),
       ),
     );
   }

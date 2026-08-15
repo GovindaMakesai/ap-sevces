@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../config/theme.dart';
 import '../../models/conversation.dart';
 import '../../services/chat_service.dart';
+import '../../widgets/glowcast_ui.dart';
 import '../../widgets/loading_view.dart';
 
 class ChatListScreen extends StatefulWidget {
@@ -53,44 +54,45 @@ class _ChatListScreenState extends State<ChatListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Messages')),
-      body: RefreshIndicator(
-        onRefresh: _load,
-        color: GlowTheme.gold500,
-        child: _loading
-            ? const LoadingView(message: 'Loading conversations…')
-            : _error != null
-                ? ErrorView(message: _error!, onRetry: _load)
-                : _conversations.isEmpty
-                    ? ListView(
-                        children: const [
-                          SizedBox(height: 80),
-                          Center(child: Text('No messages yet', style: TextStyle(color: GlowTheme.textSecondary))),
-                        ],
-                      )
-                    : ListView.separated(
-                        itemCount: _conversations.length,
-                        separatorBuilder: (_, __) => const Divider(height: 1),
-                        itemBuilder: (_, i) {
-                          final c = _conversations[i];
-                          return ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: GlowTheme.gold500.withValues(alpha: 0.2),
-                              child: Text(c.otherUserName.isNotEmpty ? c.otherUserName[0].toUpperCase() : '?'),
-                            ),
-                            title: Text(c.otherUserName, style: const TextStyle(fontWeight: FontWeight.w600)),
-                            subtitle: Text(c.lastMessage ?? 'Start chatting'),
-                            trailing: c.unreadCount > 0
-                                ? CircleAvatar(
-                                    radius: 12,
-                                    backgroundColor: GlowTheme.orangeCta,
-                                    child: Text('${c.unreadCount}', style: const TextStyle(fontSize: 11, color: Colors.white)),
-                                  )
-                                : null,
-                            onTap: () => _open(c),
-                          );
-                        },
-                      ),
+      backgroundColor: GlowTheme.creamBg,
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const GlowPageHeader(
+              title: 'Messages',
+              subtitle: 'Chat with creators and friends',
+            ),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: _load,
+                color: GlowTheme.brand,
+                child: _loading
+                    ? const LoadingView(message: 'Loading conversations…')
+                    : _error != null
+                        ? ErrorView(message: _error!, onRetry: _load)
+                        : _conversations.isEmpty
+                            ? const GlowEmptyState(
+                                icon: Icons.chat_bubble_outline_rounded,
+                                message: 'No messages yet',
+                              )
+                            : ListView.builder(
+                                padding: const EdgeInsets.only(bottom: 16),
+                                itemCount: _conversations.length,
+                                itemBuilder: (_, i) {
+                                  final c = _conversations[i];
+                                  return GlowChatTile(
+                                    name: c.otherUserName,
+                                    preview: c.lastMessage ?? 'Start chatting',
+                                    unread: c.unreadCount,
+                                    onTap: () => _open(c),
+                                  );
+                                },
+                              ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

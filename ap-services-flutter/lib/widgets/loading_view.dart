@@ -13,7 +13,7 @@ class LoadingView extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const CircularProgressIndicator(color: GlowTheme.gold500),
+          const CircularProgressIndicator(color: GlowTheme.brand),
           const SizedBox(height: 16),
           Text(message, style: const TextStyle(color: GlowTheme.textSecondary)),
         ],
@@ -40,7 +40,7 @@ class ErrorView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline, color: GlowTheme.orangeCta, size: 48),
+            const Icon(Icons.error_outline, color: GlowTheme.accentLive, size: 48),
             const SizedBox(height: 12),
             Text(
               message,

@@ -3,15 +3,15 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../config/app_config.dart';
-import '../../config/app_scope.dart';
 import '../../config/theme.dart';
 import '../../models/user.dart';
 import '../../models/wallet.dart';
 import '../../services/auth_service.dart';
 import '../../services/wallet_service.dart';
+import '../../widgets/glowcast_ui.dart';
 import '../../widgets/loading_view.dart';
 
-/// Profile tab — social/live menu only. No workers or services marketplace links.
+/// Profile hub — live social only. Workers, marketplace & booking are not included.
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
@@ -54,132 +54,200 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     return Scaffold(
       backgroundColor: GlowTheme.creamBg,
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: _load,
-          color: GlowTheme.gold500,
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-            children: [
-              _hero(user),
-              const SizedBox(height: 16),
-              if (_loading) const LoadingView(message: 'Loading wallet…') else _walletRow(_balance ?? const WalletBalance()),
-              const SizedBox(height: 20),
-              _section('Live & Social'),
-              _menu(Icons.card_giftcard, 'Invite — Earn \$14/person', '/referral', highlight: true),
-              _menu(Icons.video_camera_front, 'Host / Streamer Center', '/streamer-center'),
-              _menu(Icons.photo_library, 'My posts & videos', '/creator', args: user?.id),
-              _menu(Icons.verified_user, 'Live verification & selfie', '/live-verify'),
-              _menu(Icons.star, 'Host earning policies', '/streamer-center'),
-              _menu(Icons.person_add, 'Apply for Host / Agency', '/role-apply'),
-              const SizedBox(height: 12),
-              _section('Wallet & Store'),
-              _menu(Icons.account_balance_wallet, 'Wallet & Recharge', '/recharge'),
-              _menu(Icons.stars, 'Points', '/points'),
-              _menu(Icons.payments, 'Withdraw / Exchange', '/withdraw'),
-              _menu(Icons.storefront, 'Store', '/store'),
-              _menu(Icons.workspace_premium, 'VIP Privileges', '/vip'),
-              const SizedBox(height: 12),
-              _section('Community'),
-              _menu(Icons.emoji_events, 'Rankings', null, onTap: () {}),
-              _menu(Icons.people, 'Discover Creators', '/discover'),
-              _menu(Icons.chat, 'Messages', null, onTap: () {}),
-              _menu(Icons.notifications, 'Notification settings', '/notifications'),
-              _menu(Icons.edit, 'Edit profile', '/edit-profile'),
-              if (AppConfig.showScreenExplorer)
-                _menu(Icons.developer_mode, 'Screen explorer (test all pages)', '/screen-explorer'),
-              _menu(Icons.help_outline, 'Help', null, onTap: () {}),
-              const SizedBox(height: 16),
-              OutlinedButton(onPressed: _logout, child: const Text('Sign out')),
-              const SizedBox(height: 8),
-              Text(
-                'Native Flutter · ${AppScope.excludedModules.length} legacy modules removed',
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 11, color: GlowTheme.textSecondary),
+      body: RefreshIndicator(
+        onRefresh: _load,
+        color: GlowTheme.brand,
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            SliverToBoxAdapter(child: _hero(user)),
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+              sliver: SliverList(
+                delegate: SliverChildListDelegate([
+                  if (_loading)
+                    const LoadingView(message: 'Loading wallet…')
+                  else
+                    _walletRow(_balance ?? const WalletBalance()),
+                  const SizedBox(height: 20),
+                  const GlowSectionTitle('Live & Social'),
+                  GlowMenuTile(
+                    icon: Icons.card_giftcard_outlined,
+                    title: 'Invite friends — earn rewards',
+                    highlight: true,
+                    onTap: () => Navigator.pushNamed(context, '/referral'),
+                  ),
+                  GlowMenuTile(
+                    icon: Icons.videocam_outlined,
+                    title: 'Streamer center',
+                    onTap: () => Navigator.pushNamed(context, '/streamer-center'),
+                  ),
+                  GlowMenuTile(
+                    icon: Icons.photo_library_outlined,
+                    title: 'My posts & videos',
+                    onTap: () => Navigator.pushNamed(context, '/creator', arguments: user?.id),
+                  ),
+                  GlowMenuTile(
+                    icon: Icons.verified_outlined,
+                    title: 'Live verification',
+                    onTap: () => Navigator.pushNamed(context, '/live-verify'),
+                  ),
+                  GlowMenuTile(
+                    icon: Icons.person_add_alt_1_outlined,
+                    title: 'Apply for host / agency',
+                    onTap: () => Navigator.pushNamed(context, '/role-apply'),
+                  ),
+                  const SizedBox(height: 8),
+                  const GlowSectionTitle('Wallet & Store'),
+                  GlowMenuTile(
+                    icon: Icons.account_balance_wallet_outlined,
+                    title: 'Wallet & recharge',
+                    onTap: () => Navigator.pushNamed(context, '/recharge'),
+                  ),
+                  GlowMenuTile(
+                    icon: Icons.stars_rounded,
+                    title: 'Points',
+                    onTap: () => Navigator.pushNamed(context, '/points'),
+                  ),
+                  GlowMenuTile(
+                    icon: Icons.payments_outlined,
+                    title: 'Withdraw',
+                    onTap: () => Navigator.pushNamed(context, '/withdraw'),
+                  ),
+                  GlowMenuTile(
+                    icon: Icons.storefront_outlined,
+                    title: 'Store',
+                    onTap: () => Navigator.pushNamed(context, '/store'),
+                  ),
+                  GlowMenuTile(
+                    icon: Icons.workspace_premium_outlined,
+                    title: 'VIP privileges',
+                    onTap: () => Navigator.pushNamed(context, '/vip'),
+                  ),
+                  const SizedBox(height: 8),
+                  const GlowSectionTitle('Community'),
+                  GlowMenuTile(
+                    icon: Icons.people_outline_rounded,
+                    title: 'Discover creators',
+                    onTap: () => Navigator.pushNamed(context, '/discover'),
+                  ),
+                  GlowMenuTile(
+                    icon: Icons.notifications_outlined,
+                    title: 'Notification settings',
+                    onTap: () => Navigator.pushNamed(context, '/notifications'),
+                  ),
+                  GlowMenuTile(
+                    icon: Icons.edit_outlined,
+                    title: 'Edit profile',
+                    onTap: () => Navigator.pushNamed(context, '/edit-profile'),
+                  ),
+                  if (AppConfig.showScreenExplorer)
+                    GlowMenuTile(
+                      icon: Icons.developer_mode_outlined,
+                      title: 'Screen explorer',
+                      onTap: () => Navigator.pushNamed(context, '/screen-explorer'),
+                    ),
+                  const SizedBox(height: 16),
+                  OutlinedButton(onPressed: _logout, child: const Text('Sign out')),
+                  const SizedBox(height: 12),
+                  Center(
+                    child: Text(
+                      AppConfig.appName,
+                      style: const TextStyle(fontSize: 12, color: GlowTheme.textMuted),
+                    ),
+                  ),
+                ]),
               ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _hero(AppUser? user) {
-    return Column(
-      children: [
-        GestureDetector(
-          onTap: () => Navigator.pushNamed(context, '/edit-profile'),
-          child: CircleAvatar(
-            radius: 44,
-            backgroundColor: GlowTheme.gold500.withValues(alpha: 0.2),
-            child: Text(
-              (user?.displayName.isNotEmpty ?? false) ? user!.displayName[0].toUpperCase() : '?',
-              style: const TextStyle(fontSize: 32, color: GlowTheme.gold600, fontWeight: FontWeight.bold),
             ),
-          ),
-        ),
-        const SizedBox(height: 10),
-        Text(user?.displayName ?? 'Guest', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-        Text(user?.email ?? '', style: const TextStyle(color: GlowTheme.textSecondary)),
-        if (user != null)
-          TextButton(
-            onPressed: () => Clipboard.setData(ClipboardData(text: user.id)),
-            child: Text('ID: ${user.id}', style: const TextStyle(fontSize: 12)),
-          ),
-      ],
-    );
-  }
-
-  Widget _walletRow(WalletBalance balance) {
-    return Row(
-      children: [
-        Expanded(child: _pill('Coins', '${balance.coins}', () => Navigator.pushNamed(context, '/recharge'))),
-        const SizedBox(width: 8),
-        Expanded(child: _pill('Points', '${balance.points}', () => Navigator.pushNamed(context, '/points'))),
-      ],
-    );
-  }
-
-  Widget _pill(String label, String value, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8)],
-        ),
-        child: Column(
-          children: [
-            Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
-            Text(label, style: const TextStyle(color: GlowTheme.textSecondary, fontSize: 12)),
           ],
         ),
       ),
     );
   }
 
-  Widget _section(String title) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8, top: 4),
-      child: Text(title, style: const TextStyle(fontWeight: FontWeight.w700, color: GlowTheme.textSecondary, fontSize: 13)),
+  Widget _hero(AppUser? user) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
+      decoration: BoxDecoration(
+        gradient: GlowTheme.brandGradient,
+        borderRadius: GlowTheme.radiusLg,
+        boxShadow: [
+          BoxShadow(
+            color: GlowTheme.brand.withValues(alpha: 0.25),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          GestureDetector(
+            onTap: () => Navigator.pushNamed(context, '/edit-profile'),
+            child: CircleAvatar(
+              radius: 42,
+              backgroundColor: Colors.white.withValues(alpha: 0.2),
+              child: Text(
+                (user?.displayName.isNotEmpty ?? false) ? user!.displayName[0].toUpperCase() : '?',
+                style: const TextStyle(fontSize: 30, color: Colors.white, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            user?.displayName ?? 'Guest',
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: Colors.white),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            user?.email ?? '',
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 13),
+          ),
+          if (user != null)
+            TextButton(
+              onPressed: () => Clipboard.setData(ClipboardData(text: user.id)),
+              child: Text(
+                'Tap to copy ID',
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 12),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
-  Widget _menu(IconData icon, String title, String? route, {Object? args, VoidCallback? onTap, bool highlight = false}) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 6),
-      elevation: 0,
-      color: highlight ? GlowTheme.gold500.withValues(alpha: 0.08) : Colors.white,
-      child: ListTile(
-        leading: Icon(icon, color: GlowTheme.gold500),
-        title: Text(title, style: TextStyle(fontWeight: highlight ? FontWeight.w600 : FontWeight.normal)),
-        trailing: const Icon(Icons.chevron_right, size: 20),
-        onTap: onTap ?? () {
-          if (route != null) Navigator.pushNamed(context, route, arguments: args);
-        },
+  Widget _walletRow(WalletBalance balance) {
+    return Row(
+      children: [
+        Expanded(child: _statCard('Coins', '${balance.coins}', () => Navigator.pushNamed(context, '/recharge'))),
+        const SizedBox(width: 10),
+        Expanded(child: _statCard('Points', '${balance.points}', () => Navigator.pushNamed(context, '/points'))),
+      ],
+    );
+  }
+
+  Widget _statCard(String label, String value, VoidCallback onTap) {
+    return Material(
+      color: GlowTheme.creamSurface,
+      borderRadius: GlowTheme.radiusMd,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: GlowTheme.radiusMd,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          decoration: BoxDecoration(
+            borderRadius: GlowTheme.radiusMd,
+            border: Border.all(color: GlowTheme.border),
+          ),
+          child: Column(
+            children: [
+              Text(value, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18, color: GlowTheme.textPrimary)),
+              const SizedBox(height: 4),
+              Text(label, style: const TextStyle(color: GlowTheme.textSecondary, fontSize: 12)),
+            ],
+          ),
+        ),
       ),
     );
   }

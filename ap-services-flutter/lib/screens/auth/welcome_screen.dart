@@ -6,6 +6,7 @@ import '../../app.dart';
 import '../../config/app_config.dart';
 import '../../config/theme.dart';
 import '../../services/auth_service.dart';
+import '../../widgets/glowcast_ui.dart';
 import '../../widgets/read_only_banner.dart';
 
 class WelcomeScreen extends StatefulWidget {
@@ -70,98 +71,113 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            const ReadOnlyBanner(),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  children: _welcomeBody(context),
+      body: Container(
+        decoration: const BoxDecoration(gradient: GlowTheme.splashGradient),
+        child: SafeArea(
+          child: Column(
+            children: [
+              const ReadOnlyBanner(),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 24),
+                      const GlowBrandMark(size: 88, showLabel: true),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Live social, reimagined',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.78),
+                          fontSize: 15,
+                          height: 1.4,
+                        ),
+                      ),
+                      const SizedBox(height: 36),
+                      _AuthCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (_error != null)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: Text(_error!, style: const TextStyle(color: GlowTheme.accentLive)),
+                              ),
+                            _OAuthButton(
+                              label: 'Continue with Google',
+                              icon: Icons.g_mobiledata_rounded,
+                              onPressed: _busy ? null : () => _oauth('google'),
+                            ),
+                            const SizedBox(height: 10),
+                            _OAuthButton(
+                              label: 'Continue with Facebook',
+                              icon: Icons.facebook_rounded,
+                              tint: const Color(0xFF1877F2),
+                              onPressed: _busy ? null : () => _oauth('facebook'),
+                            ),
+                            const SizedBox(height: 10),
+                            _OAuthButton(
+                              label: 'Continue with GitHub',
+                              icon: Icons.code_rounded,
+                              tint: const Color(0xFF24292F),
+                              onPressed: _busy ? null : () => _oauth('github'),
+                            ),
+                            const SizedBox(height: 16),
+                            OutlinedButton(
+                              onPressed: _busy ? null : () => Navigator.of(context).pushNamed('/login'),
+                              child: const Text('Sign in with email'),
+                            ),
+                            if (AppConfig.guestTestingEnabled) ...[
+                              const SizedBox(height: 12),
+                              ElevatedButton.icon(
+                                onPressed: _busy ? null : _guestLogin,
+                                icon: const Icon(Icons.play_arrow_rounded),
+                                label: const Text('Quick demo login'),
+                              ),
+                            ],
+                            if (_busy) ...[
+                              const SizedBox(height: 20),
+                              const Center(
+                                child: CircularProgressIndicator(color: GlowTheme.brand),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        'Live · Party · Chat · Gifts · Creators',
+                        style: TextStyle(color: Colors.white.withValues(alpha: 0.55), fontSize: 12),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
+}
 
-  List<Widget> _welcomeBody(BuildContext context) {
-    return [
-              const SizedBox(height: 32),
-              Image.asset('assets/images/logo.png', width: 96, height: 96,
-                  errorBuilder: (_, __, ___) => const Icon(Icons.live_tv, size: 96, color: GlowTheme.gold500)),
-              const SizedBox(height: 16),
-              Text(
-                AppConfig.appName,
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: GlowTheme.textPrimary,
-                    ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Go live, join party rooms, send gifts & connect.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: GlowTheme.textSecondary),
-              ),
-              const SizedBox(height: 32),
-              if (_error != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: Text(_error!, style: const TextStyle(color: Colors.red)),
-                ),
-              _OAuthButton(
-                label: 'Continue with Google',
-                icon: Icons.g_mobiledata_rounded,
-                color: Colors.white,
-                textColor: Colors.black87,
-                onPressed: _busy ? null : () => _oauth('google'),
-              ),
-              const SizedBox(height: 12),
-              _OAuthButton(
-                label: 'Continue with Facebook',
-                icon: Icons.facebook,
-                color: const Color(0xFF1877F2),
-                onPressed: _busy ? null : () => _oauth('facebook'),
-              ),
-              const SizedBox(height: 12),
-              _OAuthButton(
-                label: 'Continue with GitHub',
-                icon: Icons.code,
-                color: const Color(0xFF24292F),
-                onPressed: _busy ? null : () => _oauth('github'),
-              ),
-              const SizedBox(height: 24),
-              OutlinedButton(
-                onPressed: _busy ? null : () => Navigator.of(context).pushNamed('/login'),
-                child: const Text('Sign in with email'),
-              ),
-              if (AppConfig.guestTestingEnabled) ...[
-                const SizedBox(height: 12),
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: GlowTheme.gold500,
-                    foregroundColor: Colors.white,
-                  ),
-                  onPressed: _busy ? null : _guestLogin,
-                  icon: const Icon(Icons.play_arrow_rounded),
-                  label: const Text('Guest test login'),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Email login pre-filled · browse all screens safely',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 12, color: GlowTheme.textSecondary),
-                ),
-              ],
-              if (_busy) ...[
-                const SizedBox(height: 24),
-                const CircularProgressIndicator(color: GlowTheme.gold500),
-              ],
-    ];
+class _AuthCard extends StatelessWidget {
+  const _AuthCard({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: GlowTheme.creamSurface,
+        borderRadius: GlowTheme.radiusLg,
+        boxShadow: GlowTheme.cardShadow,
+      ),
+      child: child,
+    );
   }
 }
 
@@ -169,30 +185,30 @@ class _OAuthButton extends StatelessWidget {
   const _OAuthButton({
     required this.label,
     required this.icon,
-    required this.color,
     required this.onPressed,
-    this.textColor = Colors.white,
+    this.tint,
   });
 
   final String label;
   final IconData icon;
-  final Color color;
-  final Color textColor;
   final VoidCallback? onPressed;
+  final Color? tint;
 
   @override
   Widget build(BuildContext context) {
+    final color = tint ?? GlowTheme.textPrimary;
     return SizedBox(
       width: double.infinity,
-      child: ElevatedButton.icon(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: color,
-          foregroundColor: textColor,
-          elevation: color == Colors.white ? 1 : 0,
+      height: 48,
+      child: OutlinedButton.icon(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: color,
+          side: BorderSide(color: tint?.withValues(alpha: 0.25) ?? GlowTheme.border),
+          backgroundColor: tint != null ? tint!.withValues(alpha: 0.06) : GlowTheme.surfaceMuted,
         ),
         onPressed: onPressed,
-        icon: Icon(icon),
-        label: Text(label),
+        icon: Icon(icon, size: 22),
+        label: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
       ),
     );
   }

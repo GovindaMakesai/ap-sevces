@@ -21,11 +21,11 @@ class _StoreScreenState extends State<StoreScreen> {
   String _category = 'popular';
 
   static const categories = [
-    ('popular', '🔥 Popular'),
-    ('honor', '🛡️ Honor'),
-    ('ride', '🚗 Ride'),
-    ('frame', '🖼️ Frame'),
-    ('bubble', '💬 Bubble'),
+    ('popular', 'Popular'),
+    ('honor', 'Honor'),
+    ('ride', 'Ride'),
+    ('frame', 'Frame'),
+    ('bubble', 'Bubble'),
   ];
 
   @override
@@ -54,11 +54,13 @@ class _StoreScreenState extends State<StoreScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: GlowTheme.creamBg,
       appBar: AppBar(
         title: const Text('Store'),
         actions: [
           IconButton(
             icon: const Icon(Icons.emoji_events_outlined),
+            tooltip: 'Home',
             onPressed: () => Navigator.pushNamed(context, '/home'),
           ),
         ],
@@ -77,7 +79,12 @@ class _StoreScreenState extends State<StoreScreen> {
                   child: ChoiceChip(
                     label: Text(c.$2),
                     selected: selected,
-                    selectedColor: GlowTheme.gold500.withValues(alpha: 0.2),
+                    selectedColor: GlowTheme.brandLight,
+                    labelStyle: TextStyle(
+                      color: selected ? GlowTheme.brand : GlowTheme.textSecondary,
+                      fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                    ),
+                    side: BorderSide(color: selected ? GlowTheme.brand : GlowTheme.border),
                     onSelected: (_) {
                       setState(() => _category = c.$1);
                       _load();
@@ -139,7 +146,13 @@ class _StoreItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    return Container(
+      decoration: BoxDecoration(
+        color: GlowTheme.creamSurface,
+        borderRadius: GlowTheme.radiusMd,
+        border: Border.all(color: GlowTheme.border),
+        boxShadow: GlowTheme.cardShadow,
+      ),
       child: InkWell(
         onTap: () => showModalBottomSheet(
           context: context,
@@ -166,7 +179,7 @@ class _StoreItem extends StatelessWidget {
           children: [
             Text(pkg.emoji, style: const TextStyle(fontSize: 36)),
             Text(pkg.name, textAlign: TextAlign.center, maxLines: 2),
-            Text('${pkg.totalCoins} 🪙', style: const TextStyle(fontWeight: FontWeight.bold, color: GlowTheme.gold600)),
+            Text('${pkg.totalCoins} coins', style: const TextStyle(fontWeight: FontWeight.bold, color: GlowTheme.brand)),
           ],
         ),
       ),
@@ -183,14 +196,17 @@ class _WalletBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      color: Colors.white,
+      decoration: const BoxDecoration(
+        color: GlowTheme.creamSurface,
+        border: Border(top: BorderSide(color: GlowTheme.border)),
+      ),
       child: Row(
         children: [
-          Text('🪙 $coins', style: const TextStyle(fontWeight: FontWeight.bold)),
+          Text('$coins coins', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
           const Spacer(),
           IconButton(
             onPressed: () => Navigator.pushNamed(context, '/recharge'),
-            icon: const Icon(Icons.add_circle, color: GlowTheme.gold500),
+            icon: const Icon(Icons.add_circle_rounded, color: GlowTheme.brand),
           ),
           TextButton(
             onPressed: () => Navigator.pushNamed(context, '/withdraw'),

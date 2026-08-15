@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'config/app_config.dart';
 import 'config/app_nav.dart';
 import 'config/theme.dart';
+import 'widgets/glowcast_ui.dart';
 import 'models/live_room.dart';
 import 'screens/dev/screen_explorer_screen.dart';
 import 'screens/auth/login_screen.dart';
@@ -238,19 +239,26 @@ class _SplashGateState extends State<_SplashGate> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: GlowTheme.creamBg,
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.live_tv_rounded, size: 72, color: GlowTheme.gold500),
-            const SizedBox(height: 16),
-            Text(AppConfig.appName, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            const Text('Live social — go live, party rooms, gifts & chat', style: TextStyle(color: GlowTheme.textSecondary)),
-            const SizedBox(height: 24),
-            const CircularProgressIndicator(color: GlowTheme.gold500),
-          ],
+      body: Container(
+        decoration: const BoxDecoration(gradient: GlowTheme.splashGradient),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const GlowBrandMark(size: 96, showLabel: true),
+              const SizedBox(height: 12),
+              Text(
+                'Loading your experience…',
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.65), fontSize: 14),
+              ),
+              const SizedBox(height: 28),
+              const SizedBox(
+                width: 28,
+                height: 28,
+                child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+              ),
+            ],
+          ),
         ),
       ),
     );

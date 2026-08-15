@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
 import '../../config/theme.dart';
-import '../../services/wallet_service.dart';
 
 class VipScreen extends StatelessWidget {
   const VipScreen({super.key});
@@ -25,9 +23,6 @@ class VipScreen extends StatelessWidget {
           foregroundColor: Colors.white,
           title: const Text('VIP Privileges'),
           bottom: const TabBar(
-            labelColor: GlowTheme.gold500,
-            unselectedLabelColor: Colors.white54,
-            indicatorColor: GlowTheme.gold500,
             tabs: [
               Tab(text: 'Guardian'),
               Tab(text: 'VIP'),
@@ -50,15 +45,29 @@ class VipScreen extends StatelessWidget {
       children: [
         Wrap(
           spacing: 8,
-          children: tiers.map((t) => Chip(label: Text(t), backgroundColor: GlowTheme.vipCard, labelStyle: const TextStyle(color: Colors.white))).toList(),
+          runSpacing: 8,
+          children: tiers
+              .map(
+                (t) => Chip(
+                  label: Text(t),
+                  backgroundColor: GlowTheme.vipCard,
+                  side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+                  labelStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+                ),
+              )
+              .toList(),
         ),
         const SizedBox(height: 16),
         ...privileges.map(
-          (p) => Card(
-            color: GlowTheme.vipCard,
+          (p) => Container(
             margin: const EdgeInsets.only(bottom: 8),
+            decoration: BoxDecoration(
+              color: GlowTheme.vipCard,
+              borderRadius: GlowTheme.radiusMd,
+              border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+            ),
             child: ListTile(
-              leading: const Icon(Icons.check_circle, color: GlowTheme.gold500),
+              leading: const Icon(Icons.check_circle_rounded, color: GlowTheme.brand),
               title: Text(p, style: const TextStyle(color: Colors.white)),
             ),
           ),
