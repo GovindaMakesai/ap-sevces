@@ -24,8 +24,11 @@
         var softRetries = 0;
         function stillLoading() {
           var list = document.getElementById('chatList');
-          var title = (list && list.querySelector('.ap-msg-empty p') && list.querySelector('.ap-msg-empty p').textContent) || '';
-          return /loading messages/i.test(title);
+          if (!list) return false;
+          var title = (list.querySelector('.ap-msg-empty p') && list.querySelector('.ap-msg-empty p').textContent) || '';
+          if (/loading messages/i.test(title)) return true;
+          if (list.querySelector('.ap-chat-skeleton-row')) return true;
+          return false;
         }
         function softRetry() {
           if (!stillLoading()) return;
@@ -2213,14 +2216,14 @@
             if (raw.includes('__AGENCY_HOST_INVITE__:')) return 'Agency host invite';
             if (raw.includes('__AGENCY_NETWORK_INVITE__:')) return 'Agency invite';
             if (raw.includes('__BECOME_AGENCY_REQUEST__:')) return 'Become Agency request';
+            if (raw.includes('__CP_INVITE__:')) return '💍 CP invitation';
+            if (raw.includes('__CP_ACTION__:')) return '💍 CP request';
             if (parseRoomInvite(raw)) return '🎥 Live / party invite';
             return raw.length > 120 ? `${raw.slice(0, 117)}…` : raw;
         }
 
         const AGENCY_HOST_INVITE_PREFIX = '__AGENCY_HOST_INVITE__:';
         const AGENCY_NETWORK_INVITE_PREFIX = '__AGENCY_NETWORK_INVITE__:';
-        const BECOME_AGENCY_REQUEST_PREFIX = '__BECOME_AGENCY_REQUEST__:';
-
         const BECOME_AGENCY_REQUEST_PREFIX = '__BECOME_AGENCY_REQUEST__:';
         const CP_INVITE_PREFIX = '__CP_INVITE__:';
         const CP_ACTION_PREFIX = '__CP_ACTION__:';

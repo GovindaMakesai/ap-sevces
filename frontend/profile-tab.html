@@ -182,10 +182,6 @@
         <strong id="statFollowers">0</strong>
         <span>Followers</span>
       </button>
-      <a href="/visitors.html?app=1" class="social-stat-pill" id="statVisitorsLink" title="Profile visitors (SVIP)">
-        <strong id="statVisitors">0</strong>
-        <span>Visitors</span>
-      </a>
       <a href="/store.html?app=1" class="social-stat-pill social-stat-coins">
         <strong id="statCoins">0</strong>
         <span>Coins</span>
@@ -278,9 +274,9 @@
     <a href="/cp-home.html?app=1" class="social-menu-item"><i class="fas fa-heart" style="color:#ec4899"></i><span>CP House</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/cp-rankings.html?app=1" class="social-menu-item"><i class="fas fa-trophy" style="color:#db2777"></i><span>CP Rankings</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/levels.html?app=1" class="social-menu-item"><i class="fas fa-shield-alt" style="color:#374151"></i><span>Level</span><i class="fas fa-chevron-right chevron"></i></a>
+    <a href="/visitors.html?app=1" class="social-menu-item"><i class="fas fa-eye" style="color:#111827"></i><span>Visitors</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/vip.html" class="social-menu-item"><i class="fas fa-crown"></i><span>VIP Privileges</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/svip.html?app=1" class="social-menu-item"><i class="fas fa-gem" style="color:#a855f7"></i><span>AP SVIP</span><i class="fas fa-chevron-right chevron"></i></a>
-    <a href="/visitors.html?app=1" class="social-menu-item"><i class="fas fa-eye" style="color:#7c3aed"></i><span>Visitors</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/rankings.html" class="social-menu-item"><i class="fas fa-trophy"></i><span>Rankings</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/chat.html" class="social-menu-item"><i class="fas fa-comments"></i><span>Messages</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/become-a-pro.html" class="social-menu-item"><i class="fas fa-user-tie"></i><span>Become a Pro</span><i class="fas fa-chevron-right chevron"></i></a>
@@ -843,21 +839,6 @@
               }
             } catch (_e) { /* ignore */ }
           });
-          if (user?.id) {
-            const vToken = localStorage.getItem('token') || localStorage.getItem('access_token') || (window.Auth?.getToken?.() || '');
-            if (vToken) {
-              fetch(joinApiUrl('/social/visitors/summary'), {
-                credentials: 'include',
-                headers: { Accept: 'application/json', Authorization: 'Bearer ' + vToken },
-              })
-                .then((r) => r.json())
-                .then((json) => {
-                  const n = json?.data?.totalVisitors;
-                  if (n != null) document.getElementById('statVisitors').textContent = Number(n).toLocaleString();
-                })
-                .catch(() => {});
-            }
-          }
         }
         document.getElementById('statFollowingBtn')?.addEventListener('click', async (e) => {
           e.preventDefault();
