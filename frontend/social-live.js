@@ -13520,6 +13520,7 @@
       if (isPartyRoomPage()) {
         document.body.classList.add('ap-chat-compose-open');
         document.getElementById('partyRefChatBtn')?.classList.add('is-active');
+        window.setLiveChatHidden?.(false);
       }
       input.focus();
       /* Keep full room history visible while composing (do not filter to chat-only) */
@@ -13604,7 +13605,10 @@
     } else if (anchor && compose.nextElementSibling !== anchor && compose.compareDocumentPosition(anchor) & Node.DOCUMENT_POSITION_FOLLOWING) {
       bar.insertBefore(compose, anchor);
     }
-    if (isPartyRoomPage()) document.body.classList.add('ap-chat-compose-open');
+    if (isPartyRoomPage()) {
+      if (bar.firstElementChild !== compose) bar.insertBefore(compose, bar.firstElementChild);
+      document.body.classList.add('ap-chat-compose-open');
+    }
   }
 
   function navigateToUserProfile(userId, name) {
@@ -17235,7 +17239,10 @@
       chatInputEl.addEventListener('blur', () => {
         setTimeout(() => {
           chatInputFocused = document.activeElement === chatInputEl;
-          if (!chatInputFocused) document.body.classList.remove('ap-chat-open');
+          if (!chatInputFocused) {
+            document.body.classList.remove('ap-chat-open');
+            if (isPartyRoomPage()) window.setLiveChatHidden?.(true);
+          }
         }, 150);
       });
     }
@@ -17322,10 +17329,12 @@
     }
 
     try {
-      if (localStorage.getItem('ap_live_chat_hidden') === '1') setLiveChatHidden(true);
+      if (isPartyRoomPage()) {
+        setLiveChatHidden(true);
+      } else if (localStorage.getItem('ap_live_chat_hidden') === '1') setLiveChatHidden(true);
       else setLiveChatHidden(false);
     } catch (_e) {
-      setLiveChatHidden(false);
+      setLiveChatHidden(isPartyRoomPage() ? true : false);
     }
 
     /* Click-only show/hide — do NOT hide chat on scroll/swipe (was closing while reading). */
