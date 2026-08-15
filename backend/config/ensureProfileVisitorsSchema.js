@@ -25,6 +25,10 @@ async function ensureProfileVisitorsSchema() {
     CREATE INDEX IF NOT EXISTS idx_profile_visits_profile_time
       ON profile_visits (profile_user_id, visited_at DESC)
   `);
+  await runSafe(`
+    CREATE INDEX IF NOT EXISTS idx_profile_visits_visitor_time
+      ON profile_visits (visitor_user_id, visited_at DESC)
+  `);
 }
 
 module.exports = { ensureProfileVisitorsSchema };

@@ -30,3 +30,15 @@ exports.listMine = async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
+
+exports.listVisited = async (req, res) => {
+  try {
+    const data = await profileVisitorService.listVisitedByMe(req.userId, {
+      limit: req.query.limit,
+      offset: req.query.offset,
+    });
+    res.json({ success: true, data });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};

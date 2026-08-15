@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#fdf9f0">
+  <meta name="theme-color" content="#ffffff">
   <title>Visitors - AP Services</title>
   <script src="ap-native-boot.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-theme.css">
-  <link rel="stylesheet" href="visitors.css?v=20260814-visitors">
+  <link rel="stylesheet" href="visitors.css?v=20260815-visitors3">
 </head>
 <body class="visitors-page">
   <header class="visitors-header">
@@ -17,6 +17,17 @@
     <span style="width:36px"></span>
   </header>
 
+  <div class="visitors-tabs" role="tablist">
+    <button type="button" class="visitors-tab is-active" data-tab="mine" role="tab" aria-selected="true">My Visitors</button>
+    <button type="button" class="visitors-tab" data-tab="visited" role="tab" aria-selected="false">Who I have visited</button>
+  </div>
+
+  <div id="visitorsAnonBanner" class="visitors-anon-banner" hidden>
+    <span class="visitors-spy" aria-hidden="true">🕵️</span>
+    <p>Visit profiles anonymously</p>
+    <a href="/svip-settings.html?app=1" id="visitorsAnonSetting">Setting</a>
+  </div>
+
   <div id="visitorsRoot">
     <div class="visitors-loading">Loading…</div>
   </div>
@@ -24,30 +35,222 @@
   <div id="social-bottom-nav-mount"></div>
 
   <script src="ap-config.js"></script>
-  <script src="app.js"></script>
+  <script src="app.js?v=20260815-visitors3"></script>
+  <script src="social-ui.js"></script>
+  <script src="ap-soft-nav.js"></script>
   <script src="social-shell.js"></script>
   <script>
+    const state = {
+      tab: 'mine',
+      summary: null,
+      mine: [],
+      visited: [],
+      loadedMine: false,
+      loadedVisited: false,
+    };
+
     function authToken() {
       return localStorage.getItem('token') || localStorage.getItem('access_token') || (window.Auth?.getToken?.() || '');
     }
 
-    function timeAgo(iso) {
-      const d = new Date(iso);
-      const sec = Math.floor((Date.now() - d.getTime()) / 1000);
-      if (sec < 60) return 'Just now';
-      if (sec < 3600) return Math.floor(sec / 60) + 'm ago';
-      if (sec < 86400) return Math.floor(sec / 3600) + 'h ago';
-      if (sec < 604800) return Math.floor(sec / 86400) + 'd ago';
-      return d.toLocaleDateString();
+    function esc(s) {
+      return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function escAttr(s) {
+      return esc(s).replace(/"/g, '&quot;');
+    }
+
+    function withApp(url) {
+      const u = String(url || '');
+      if (u.includes('app=1')) return u;
+      return u + (u.includes('?') ? '&' : '?') + 'app=1';
+    }
+
+    function navigate(url) {
+      const dest = withApp(url);
+      if (window.ApSoftNav?.go) {
+        ApSoftNav.go(dest);
+        return;
+      }
+      window.location.assign(dest);
+    }
+
+    function openProfile(userId, name) {
+      const uid = String(userId || '').trim();
+      if (!uid) return;
+      const q = new URLSearchParams({ userId: uid, app: '1' });
+      const n = String(name || '').trim();
+      if (n) q.set('name', n);
+      navigate('/creator-profile.html?' + q.toString());
+    }
+
+    function openChat(userId) {
+      const uid = String(userId || '').trim();
+      if (!uid) return;
+      navigate('/chat.html?id=' + encodeURIComponent(uid));
     }
 
     function avatarUrl(name, pic) {
       if (pic && SocialShell?.getImageUrl) return SocialShell.getImageUrl(pic);
-      return `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'U')}&background=a855f7&color=fff`;
+      return `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'U')}&background=e5e7eb&color=374151`;
     }
 
-    function esc(s) {
-      return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    function formatVisitTime(iso) {
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return '';
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const hh = String(d.getHours()).padStart(2, '0');
+      const min = String(d.getMinutes()).padStart(2, '0');
+      return `${dd}/${mm} ${hh}:${min}`;
+    }
+
+    function visitSubline(v) {
+      const when = formatVisitTime(v.visitedAt);
+      const n = Number(v.visitCount || 1);
+      const times = n === 1 ? 'time' : 'times';
+      return `${when} | View ${n} ${times}`;
+    }
+
+    function genderIcon(g) {
+      const g2 = String(g || '').toLowerCase();
+      if (g2 === 'male' || g2 === 'm') return '<i class="visitors-gender visitors-gender--m" aria-label="Male">♂</i>';
+      if (g2 === 'female' || g2 === 'f') return '<i class="visitors-gender visitors-gender--f" aria-label="Female">♀</i>';
+      return '';
+    }
+
+    function renderRow(v) {
+      const uid = v.userId ? String(v.userId) : '';
+      const clickable = uid && !v.isAnonymous;
+      const rowClass = 'visitors-row' + (clickable ? ' visitors-row--clickable' : '');
+      const avatarInner = v.isAnonymous
+        ? `<div class="visitors-avatar-ph"><i class="fas fa-user-secret"></i></div>`
+        : `<img src="${escAttr(avatarUrl(v.name, v.profilePic))}" alt="" loading="lazy">`;
+      const chatBtn = clickable
+        ? `<button type="button" class="visitors-chat-btn" data-chat-user-id="${escAttr(uid)}" aria-label="Message"><i class="fas fa-comment"></i></button>`
+        : '';
+      return (
+        `<div class="${rowClass}"` +
+        (clickable ? ` data-user-id="${escAttr(uid)}" data-user-name="${escAttr(v.name || '')}" role="button" tabindex="0"` : '') +
+        `>` +
+        `<div class="visitors-avatar-wrap">${avatarInner}</div>` +
+        `<div class="visitors-meta">` +
+        `<div class="visitors-name-row"><strong>${esc(v.name)}</strong>${genderIcon(v.gender)}</div>` +
+        `<span>${esc(visitSubline(v))}</span>` +
+        `</div>` +
+        chatBtn +
+        `</div>`
+      );
+    }
+
+    function bindRowActions(root) {
+      if (!root) return;
+      root.querySelectorAll('.visitors-row--clickable[data-user-id]').forEach((row) => {
+        const go = () => openProfile(row.dataset.userId, row.dataset.userName);
+        row.addEventListener('click', (e) => {
+          if (e.target.closest('.visitors-chat-btn')) return;
+          go();
+        });
+        row.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            if (!e.target.closest('.visitors-chat-btn')) go();
+          }
+        });
+      });
+      root.querySelectorAll('.visitors-chat-btn[data-chat-user-id]').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          openChat(btn.dataset.chatUserId);
+        });
+      });
+    }
+
+    function renderUpsell() {
+      return (
+        `<div class="visitors-upsell">` +
+        `<h2><i class="fas fa-eye"></i> SVIP Visitors</h2>` +
+        `<p>See who viewed your profile, when they visited, and how many times — SVIP ${state.summary?.svipRequired || 1}+ perk.</p>` +
+        `<a href="/svip.html?app=1">Upgrade to SVIP</a>` +
+        `</div>`
+      );
+    }
+
+    function renderList(items, emptyText) {
+      if (!items.length) {
+        return `<div class="visitors-empty">${esc(emptyText)}</div>`;
+      }
+      return `<div class="visitors-list">${items.map((v) => renderRow(v)).join('')}</div>`;
+    }
+
+    function paintAnonBanner() {
+      const banner = document.getElementById('visitorsAnonBanner');
+      if (!banner) return;
+      const show = state.tab === 'visited';
+      banner.hidden = !show;
+      if (show && state.summary) {
+        const on = state.summary.anonEnabled;
+        const can = state.summary.canAnon;
+        banner.querySelector('p').textContent = can
+          ? on
+            ? 'Anonymous visits are ON'
+            : 'Visit profiles anonymously'
+          : `Visit profiles anonymously (SVIP ${state.summary.anonMinSvip || 5}+)`;
+      }
+    }
+
+    function paint() {
+      const root = document.getElementById('visitorsRoot');
+      paintAnonBanner();
+
+      if (state.tab === 'mine') {
+        if (!state.summary?.canView) {
+          root.innerHTML = renderUpsell();
+          return;
+        }
+        root.innerHTML = renderList(state.mine, 'No visitors yet. Share your profile to get noticed!');
+      } else {
+        root.innerHTML = renderList(state.visited, 'You have not visited any profiles yet.');
+      }
+      bindRowActions(root);
+      SocialUI?.bindAvatarFallbacks?.(root);
+    }
+
+    function setTab(tab) {
+      state.tab = tab;
+      document.querySelectorAll('.visitors-tab').forEach((btn) => {
+        const active = btn.dataset.tab === tab;
+        btn.classList.toggle('is-active', active);
+        btn.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
+      paint();
+      if (tab === 'visited' && !state.loadedVisited) loadVisited();
+    }
+
+    async function apiGet(path) {
+      const res = await fetch(joinApiUrl(path), {
+        credentials: 'include',
+        headers: { Accept: 'application/json', Authorization: 'Bearer ' + authToken() },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.message || 'Request failed');
+      return json.data || {};
+    }
+
+    async function loadVisited() {
+      try {
+        const data = await apiGet('/social/visitors/visited');
+        state.visited = data.visited || [];
+        state.loadedVisited = true;
+        if (state.tab === 'visited') paint();
+      } catch (err) {
+        if (state.tab === 'visited') {
+          document.getElementById('visitorsRoot').innerHTML =
+            `<div class="visitors-empty">${esc(err.message || 'Could not load')}</div>`;
+        }
+      }
     }
 
     async function boot() {
@@ -55,70 +258,30 @@
         location.href = '/login.html?redirect=' + encodeURIComponent('/visitors.html?app=1');
         return;
       }
-      const root = document.getElementById('visitorsRoot');
       try {
-        const headers = { Accept: 'application/json', Authorization: 'Bearer ' + authToken() };
-        const [sumRes, listRes] = await Promise.all([
-          fetch(joinApiUrl('/social/visitors/summary'), { credentials: 'include', headers }),
-          fetch(joinApiUrl('/social/visitors'), { credentials: 'include', headers }),
+        const [summary, mineData] = await Promise.all([
+          apiGet('/social/visitors/summary'),
+          apiGet('/social/visitors'),
         ]);
-        const sumJson = await sumRes.json().catch(() => ({}));
-        const listJson = await listRes.json().catch(() => ({}));
-        if (!sumRes.ok) throw new Error(sumJson.message || 'Failed to load');
-        const summary = sumJson.data || {};
-        const list = listJson.data || {};
-
-        if (!summary.canView) {
-          root.innerHTML =
-            `<div class="visitors-summary">` +
-            `<strong>${summary.totalVisitors || 0}</strong>` +
-            `<span>people visited your profile</span>` +
-            `<small>Unlock the full visitor list with SVIP ${summary.svipRequired || 1}+.</small>` +
-            `</div>` +
-            `<div class="visitors-upsell">` +
-            `<h2><i class="fas fa-users"></i> SVIP Visitors</h2>` +
-            `<p>See who viewed your profile, when they visited, and how many times — an exclusive SVIP perk.</p>` +
-            `<a href="/svip.html?app=1">Upgrade to SVIP</a>` +
-            `</div>`;
-          return;
-        }
-
-        const visitors = list.visitors || [];
-        let html =
-          `<div class="visitors-summary">` +
-          `<strong>${summary.totalVisitors || 0}</strong>` +
-          `<span>unique visitors · ${summary.totalVisits || 0} total views</span>` +
-          `<small>${summary.weekVisitors || 0} visited in the last 7 days</small>` +
-          `</div>`;
-
-        if (!visitors.length) {
-          html += `<div class="visitors-empty"><i class="fas fa-eye" style="font-size:32px;opacity:.35;display:block;margin-bottom:10px"></i>No visitors yet. Share your profile to get noticed!</div>`;
-        } else {
-          html += `<div class="visitors-list">` + visitors.map((v) => {
-            const sub = `${timeAgo(v.visitedAt)}${v.visitCount > 1 ? ' · ' + v.visitCount + ' visits' : ''}`;
-            const href = v.userId ? `/creator-profile.html?userId=${encodeURIComponent(v.userId)}&app=1` : '#';
-            const avatar = v.isAnonymous
-              ? `<div class="visitors-avatar-ph"><i class="fas fa-user-secret"></i></div>`
-              : `<img src="${avatarUrl(v.name, v.profilePic)}" alt="" loading="lazy">`;
-            const badge = v.visitCount > 1 ? `<span class="visitors-count-badge">${v.visitCount}×</span>` : '';
-            return (
-              `<a class="visitors-row" href="${href}">` +
-              avatar +
-              `<div class="visitors-meta"><strong>${esc(v.name)}</strong><span>${esc(sub)}</span></div>` +
-              badge +
-              `</a>`
-            );
-          }).join('') + `</div>`;
-        }
-        root.innerHTML = html;
-        SocialUI?.bindAvatarFallbacks?.(root);
+        state.summary = summary;
+        state.mine = mineData.visitors || [];
+        state.loadedMine = true;
+        paint();
       } catch (err) {
-        root.innerHTML = `<div class="visitors-empty">${esc(err.message || 'Could not load visitors')}</div>`;
+        document.getElementById('visitorsRoot').innerHTML =
+          `<div class="visitors-empty">${esc(err.message || 'Could not load visitors')}</div>`;
       }
     }
 
     document.addEventListener('DOMContentLoaded', () => {
       SocialShell?.initPage?.({ activeNav: 'profile' });
+      document.querySelectorAll('.visitors-tab').forEach((btn) => {
+        btn.addEventListener('click', () => setTab(btn.dataset.tab));
+      });
+      document.getElementById('visitorsAnonSetting')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        navigate('/svip-settings.html');
+      });
       boot();
     });
   </script>

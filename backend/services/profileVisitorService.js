@@ -43,8 +43,27 @@ async function recordVisit(visitorUserId, profileUserId) {
   return { recorded: true, isAnonymous };
 }
 
+function mapVisitorRow(r, { hideIdentity = false } = {}) {
+  const anonymous = hideIdentity || Boolean(r.is_anonymous);
+  const name = anonymous
+    ? 'Anonymous visitor'
+    : `${r.first_name || ''} ${r.last_name || ''}`.trim() || 'User';
+  return {
+    userId: anonymous ? null : String(r.user_id),
+    name,
+    profilePic: anonymous ? null : r.profile_pic || null,
+    displayId: anonymous ? null : r.display_id || null,
+    gender: anonymous ? null : r.gender || null,
+    visitedAt: r.visited_at,
+    visitCount: Number(r.visit_count || 1),
+    isAnonymous: anonymous,
+  };
+}
+
 async function getSummary(profileUserId) {
-  const canView = await canViewVisitors(profileUserId);
+  const home = await svipService.getSvipHome(profileUserId);
+  const level = home.level || 0;
+  const canView = level >= VISITORS_MIN_SVIP;
   const res = await db.query(
     `SELECT
        COUNT(*)::int AS total_visitors,
@@ -57,7 +76,11 @@ async function getSummary(profileUserId) {
   const row = res.rows[0] || {};
   return {
     canView,
+    svipLevel: level,
     svipRequired: VISITORS_MIN_SVIP,
+    canAnon: level >= ANON_MIN_SVIP,
+    anonMinSvip: ANON_MIN_SVIP,
+    anonEnabled: Boolean(home.settings?.anon_visitor),
     totalVisitors: Number(row.total_visitors || 0),
     totalVisits: Number(row.total_visits || 0),
     weekVisitors: Number(row.week_visitors || 0),
@@ -86,7 +109,7 @@ async function listVisitors(profileUserId, { limit = 50, offset = 0 } = {}) {
 
   const res = await db.query(
     `SELECT pv.visited_at, pv.visit_count, pv.is_anonymous,
-            u.id AS user_id, u.first_name, u.last_name, u.profile_pic, u.display_id
+            u.id AS user_id, u.first_name, u.last_name, u.profile_pic, u.display_id, u.gender
      FROM profile_visits pv
      JOIN users u ON u.id = pv.visitor_user_id AND u.is_active = TRUE
      WHERE pv.profile_user_id = $1
@@ -95,29 +118,43 @@ async function listVisitors(profileUserId, { limit = 50, offset = 0 } = {}) {
     [profileUserId, lim, off]
   );
 
-  const visitors = res.rows.map((r) => {
-    const anonymous = Boolean(r.is_anonymous);
-    const name = anonymous
-      ? 'Anonymous visitor'
-      : `${r.first_name || ''} ${r.last_name || ''}`.trim() || 'User';
-    return {
-      userId: anonymous ? null : String(r.user_id),
-      name,
-      profilePic: anonymous ? null : r.profile_pic || null,
-      displayId: anonymous ? null : r.display_id || null,
-      visitedAt: r.visited_at,
-      visitCount: Number(r.visit_count || 1),
-      isAnonymous: anonymous,
-    };
-  });
+  const visitors = res.rows.map((r) => mapVisitorRow(r));
 
   return { canView: true, svipRequired: VISITORS_MIN_SVIP, visitors, total };
 }
 
+async function listVisitedByMe(visitorUserId, { limit = 50, offset = 0 } = {}) {
+  const lim = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 100);
+  const off = Math.max(parseInt(offset, 10) || 0, 0);
+
+  const countRes = await db.query(
+    `SELECT COUNT(*)::int AS c FROM profile_visits WHERE visitor_user_id = $1`,
+    [visitorUserId]
+  );
+  const total = Number(countRes.rows[0]?.c || 0);
+
+  const res = await db.query(
+    `SELECT pv.visited_at, pv.visit_count, pv.is_anonymous,
+            u.id AS user_id, u.first_name, u.last_name, u.profile_pic, u.display_id, u.gender
+     FROM profile_visits pv
+     JOIN users u ON u.id = pv.profile_user_id AND u.is_active = TRUE
+     WHERE pv.visitor_user_id = $1
+     ORDER BY pv.visited_at DESC
+     LIMIT $2 OFFSET $3`,
+    [visitorUserId, lim, off]
+  );
+
+  const visited = res.rows.map((r) => mapVisitorRow(r));
+
+  return { visited, total };
+}
+
 module.exports = {
   VISITORS_MIN_SVIP,
+  ANON_MIN_SVIP,
   recordVisit,
   getSummary,
   listVisitors,
+  listVisitedByMe,
   canViewVisitors,
 };
