@@ -463,7 +463,7 @@ body[data-live-page='party-room'] .party-chat-row {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: calc(92px + env(safe-area-inset-bottom, 0));
+  bottom: calc(104px + env(safe-area-inset-bottom, 0));
   max-height: 34vh;
   pointer-events: none;
   z-index: 30;
@@ -1084,36 +1084,12 @@ body[data-live-page='party-room'] .party-chat-hide-btn--solo {
   box-shadow: none !important;
 }
 
-/* Floating chat compose — compact pill above toolbar, not full-width */
-body[data-live-page='party-room'] #liveChatCompose,
-body[data-live-page='party-room'] #partyBottomBar #liveChatCompose,
-body[data-live-page='party-room'] #partyBottomBar .live-chat-compose.ap-compose-inline {
-  position: fixed !important;
-  left: 10px !important;
-  right: auto !important;
-  bottom: calc(50px + env(safe-area-inset-bottom, 0)) !important;
-  width: min(272px, calc(100vw - 92px)) !important;
-  max-width: 272px !important;
-  min-width: 0 !important;
-  min-height: 40px !important;
-  margin: 0 !important;
-  flex: none !important;
-  display: flex !important;
-  align-items: center !important;
-  overflow: hidden !important;
-  pointer-events: auto !important;
-  padding: 4px 6px 4px 4px !important;
-  gap: 5px !important;
-  z-index: 55 !important;
-  background: rgba(22, 24, 36, 0.94) !important;
-  border-radius: 22px !important;
-  border: 1px solid rgba(255, 255, 255, 0.14) !important;
-  box-sizing: border-box !important;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35) !important;
-}
-
+/* Floating chat compose — wide readable bar: photo · emoji · type · send */
+body[data-live-page='party-room'] .ap-chat-file-offscreen,
 body[data-live-page='party-room'] #liveChatPhotoInput {
-  position: absolute !important;
+  position: fixed !important;
+  left: -9999px !important;
+  top: auto !important;
   width: 1px !important;
   height: 1px !important;
   opacity: 0 !important;
@@ -1123,59 +1099,102 @@ body[data-live-page='party-room'] #liveChatPhotoInput {
   border: 0 !important;
   padding: 0 !important;
   margin: 0 !important;
+  display: none !important;
+}
+
+body[data-live-page='party-room'] #liveChatCompose,
+body[data-live-page='party-room'] #partyBottomBar #liveChatCompose,
+body[data-live-page='party-room'] .live-chat-compose.ap-compose-float {
+  position: fixed !important;
+  left: 10px !important;
+  right: 10px !important;
+  bottom: calc(52px + env(safe-area-inset-bottom, 0)) !important;
+  width: auto !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  min-height: 46px !important;
+  margin: 0 !important;
+  flex: none !important;
+  display: flex !important;
+  align-items: center !important;
+  overflow: visible !important;
+  pointer-events: auto !important;
+  padding: 5px 8px 5px 6px !important;
+  gap: 6px !important;
+  z-index: 55 !important;
+  background: rgba(18, 20, 32, 0.96) !important;
+  border-radius: 24px !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  box-sizing: border-box !important;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.4) !important;
 }
 
 body[data-live-page='party-room'] #liveChatInput {
-  flex: 1 1 auto !important;
-  min-width: 0 !important;
-  width: 100% !important;
+  flex: 1 1 0% !important;
+  min-width: 80px !important;
+  width: auto !important;
   max-width: none !important;
+  height: 36px !important;
   border: none !important;
-  border-radius: 16px !important;
-  padding: 9px 12px !important;
-  background: rgba(255, 255, 255, 0.12) !important;
+  border-radius: 18px !important;
+  padding: 0 14px !important;
+  background: rgba(255, 255, 255, 0.14) !important;
   color: #fff !important;
   -webkit-text-fill-color: #fff !important;
   caret-color: #fbbf24 !important;
   font-size: 15px !important;
-  line-height: 1.35 !important;
+  line-height: 36px !important;
   opacity: 1 !important;
   pointer-events: auto !important;
   box-sizing: border-box !important;
+  position: relative !important;
+  z-index: 2 !important;
 }
 
 body[data-live-page='party-room'] #liveChatInput::placeholder {
-  color: rgba(255, 255, 255, 0.5) !important;
+  color: rgba(255, 255, 255, 0.55) !important;
   opacity: 1 !important;
 }
 
-body[data-live-page='party-room'] .ap-chat-photo-btn,
-body[data-live-page='party-room'] .ap-chat-emoji-btn {
-  width: 32px !important;
-  height: 32px !important;
-  min-width: 32px !important;
-  min-height: 32px !important;
+body[data-live-page='party-room'] .live-chat-compose button.ap-chat-photo-btn,
+body[data-live-page='party-room'] .live-chat-compose button.ap-chat-emoji-btn {
+  width: 36px !important;
+  height: 36px !important;
+  min-width: 36px !important;
+  min-height: 36px !important;
   border: none !important;
   border-radius: 50% !important;
-  background: transparent !important;
-  color: rgba(255, 255, 255, 0.82) !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: rgba(255, 255, 255, 0.9) !important;
   flex-shrink: 0 !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
   padding: 0 !important;
   cursor: pointer !important;
+  position: relative !important;
+  z-index: 3 !important;
+  font-size: 16px !important;
+  box-shadow: none !important;
 }
 
-body[data-live-page='party-room'] .ap-chat-send-btn {
-  width: 34px !important;
-  height: 34px !important;
-  min-width: 34px !important;
+body[data-live-page='party-room'] .live-chat-compose button.ap-chat-send-btn {
+  width: 36px !important;
+  height: 36px !important;
+  min-width: 36px !important;
+  min-height: 36px !important;
   flex-shrink: 0 !important;
   border-radius: 50% !important;
+  border: none !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
+  background: linear-gradient(135deg, #fbbf24, #d97706) !important;
+  color: #1a1000 !important;
+  font-size: 14px !important;
+  position: relative !important;
+  z-index: 3 !important;
+  padding: 0 !important;
 }
 
 body[data-live-page='party-room'] #liveChatCompose.ap-compose-hidden {

@@ -28,7 +28,7 @@
 
   <link rel="stylesheet" href="social-live-ref-ui.css?v=20260815-gift-all">
 
-  <link rel="stylesheet" href="social-party-ref.css?v=20260815-float-chat">
+  <link rel="stylesheet" href="social-party-ref.css?v=20260815-chatbar">
 
   <link rel="stylesheet" href="cp-rings.css?v=20260814-ring3d">
 
@@ -308,23 +308,23 @@
 
       <button type="button" class="party-ref-bar-btn" id="partyRefChatBtn" aria-label="Chat"><i class="fas fa-comment"></i></button>
 
-      <button type="button" class="party-ref-bar-btn" id="partyRefEmojiBtn" aria-label="Emoji"><i class="far fa-smile"></i></button>
-
     </div>
 
-    <div class="live-chat-compose ap-compose-inline" id="liveChatCompose">
+    <div class="live-chat-compose ap-compose-inline ap-compose-float" id="liveChatCompose" role="group" aria-label="Chat message">
 
-      <button type="button" class="ap-chat-photo-btn" id="liveChatPhotoBtn" aria-label="Send photo"><i class="fas fa-image"></i></button>
+      <button type="button" class="ap-chat-photo-btn" id="liveChatPhotoBtn" aria-label="Upload photo" title="Photo"><i class="fas fa-image"></i></button>
 
-      <input type="file" id="liveChatPhotoInput" accept="image/*" hidden>
+      <button type="button" class="ap-chat-emoji-btn" id="apChatEmojiBtn" aria-label="Emoji" title="Emoji"><i class="far fa-smile"></i></button>
 
-      <input type="text" id="liveChatInput" placeholder="Say something…" maxlength="280" autocomplete="off" enterkeyhint="send">
+      <input type="text" id="liveChatInput" placeholder="Type a message…" maxlength="280" autocomplete="off" enterkeyhint="send" aria-label="Type a message">
 
-      <button type="button" id="liveChatSend" class="ap-chat-send-btn" aria-label="Send"><i class="fas fa-paper-plane"></i></button>
+      <button type="button" id="liveChatSend" class="ap-chat-send-btn" aria-label="Send" title="Send"><i class="fas fa-paper-plane"></i></button>
 
       <span class="ap-char-count is-empty" id="apCharCount" aria-hidden="true"></span>
 
     </div>
+
+    <input type="file" id="liveChatPhotoInput" class="ap-chat-file-offscreen" accept="image/*" tabindex="-1" aria-hidden="true">
 
     <div class="party-ref-bottom-right">
 
@@ -663,7 +663,7 @@
 
   <script src="cp-rings.js?v=20260814-ring3d"></script>
 
-  <script src="social-live.js?v=20260815-float-chat"></script>
+  <script src="social-live.js?v=20260815-chatbar"></script>
 
   <script src="social-nav.js?v=20260720-back-fix"></script>
 

@@ -10425,9 +10425,7 @@
   }
 
   function bindEmojiPicker() {
-    const btn =
-      document.getElementById('apChatEmojiBtn') ||
-      (isPartyRoomPage() ? document.getElementById('partyRefEmojiBtn') : null);
+    const btn = document.getElementById('apChatEmojiBtn');
     if (!btn || btn.dataset.bound) return;
     btn.dataset.bound = '1';
     let pop = document.getElementById('apEmojiPopover');
@@ -17194,7 +17192,11 @@
     const input = document.getElementById('liveChatPhotoInput');
     if (!btn || !input || btn.dataset.bound) return;
     btn.dataset.bound = '1';
-    btn.addEventListener('click', () => input.click());
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      input.click();
+    });
     input.addEventListener('change', () => {
       const file = input.files?.[0];
       input.value = '';
