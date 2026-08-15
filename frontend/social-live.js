@@ -4676,7 +4676,14 @@
 
   let broadcastMode = 'video';
   function initBroadcastMode() {
-    broadcastMode = (qs('mode') || 'video').toLowerCase() === 'audio' ? 'audio' : 'video';
+    const modeQs = (qs('mode') || 'video').toLowerCase();
+    /* Solo live is video-only for hosts; viewers may still join legacy audio-only rooms. */
+    if (isLiveRoomPage() && isHost()) {
+      broadcastMode = 'video';
+      if (modeQs === 'audio') syncBroadcastModeInUrl('video');
+      return;
+    }
+    broadcastMode = modeQs === 'audio' ? 'audio' : 'video';
   }
 
   function syncBroadcastModeInUrl(mode) {
@@ -5473,8 +5480,7 @@
       if (agoraMode === 'party') {
         return partyVoiceSkipped ? 'Party live — voice off' : micMuted ? 'Party live — mic off' : 'Party voice live';
       }
-      if (broadcastMode === 'audio') return micMuted ? 'Audio live — mic off' : 'Audio live';
-      return micMuted ? 'Video live — mic off' : 'Video live';
+      return micMuted ? 'Live — mic off' : 'Live';
     }
     if (agoraStartInProgress) return 'Starting broadcast…';
     if (publishSucceeded && liveDebugState.agoraJoined) return 'Going live…';
@@ -15292,35 +15298,26 @@
     });
 
     const setMode = async (mode) => {
-      const next = mode === 'audio' ? 'audio' : 'video';
+      const next = 'video';
+      if (mode !== 'video') return;
       const changed = broadcastMode !== next;
       broadcastMode = next;
       syncBroadcastModeInUrl(next);
-      document.getElementById('liveBtnModeVideo')?.classList.toggle('is-active', next === 'video');
-      document.getElementById('liveBtnModeAudio')?.classList.toggle('is-active', next === 'audio');
-      if (next === 'video') clearAudioModeUi();
-      else applyLiveBackground('audio', roomState?.hostName || displayName(currentUser()));
-      if (changed) toast(next === 'video' ? 'Video mode' : 'Audio-only mode');
+      document.getElementById('liveBtnModeVideo')?.classList.toggle('is-active', true);
+      clearAudioModeUi();
+      if (changed) toast('Video mode');
       if (changed && isHost() && pageType === 'live') await restartAgoraForMode();
-      if (next === 'video') {
-        clearAudioModeUi();
-        ensureHostVideoVisible();
-      }
+      clearAudioModeUi();
+      ensureHostVideoVisible();
       syncLiveUiState();
     };
     document.getElementById('liveBtnModeVideo')?.addEventListener('click', () => setMode('video'));
-    document.getElementById('liveBtnModeAudio')?.addEventListener('click', () => setMode('audio'));
     document.getElementById('partyToolsModeVideo')?.addEventListener('click', () => {
       setMode('video');
       document.getElementById('partyToolsSheet')?.classList.remove('open');
     });
-    document.getElementById('partyToolsModeAudio')?.addEventListener('click', () => {
-      setMode('audio');
-      document.getElementById('partyToolsSheet')?.classList.remove('open');
-    });
     if (isHost() && pageType === 'live') {
       document.getElementById('liveBtnModeVideo')?.classList.toggle('is-active', broadcastMode === 'video');
-      document.getElementById('liveBtnModeAudio')?.classList.toggle('is-active', broadcastMode === 'audio');
     }
   }
 
@@ -19771,14 +19768,15 @@
       return;
     }
 
-    if (isHost() && broadcastMode === 'video') {
+    if (isHost()) {
+      clearAudioModeUi();
       const bg = document.getElementById('liveBg');
       if (bg) bg.style.display = 'none';
-    } else if (!isHost()) {
+    } else {
       applyLiveBackground(broadcastMode === 'audio' ? 'audio' : 'live', roomState?.hostName);
-    }
-    if (broadcastMode === 'audio') {
-      document.getElementById('liveRoomRoot')?.classList.add('is-audio-mode');
+      if (broadcastMode === 'audio') {
+        document.getElementById('liveRoomRoot')?.classList.add('is-audio-mode');
+      }
     }
     updateModeBadge(broadcastMode, false);
 

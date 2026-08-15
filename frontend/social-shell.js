@@ -2016,11 +2016,7 @@
           <div class="social-broadcast-options">
             <button type="button" class="social-broadcast-opt" data-go-live="video">
               <span class="ico video"><i class="fas fa-video"></i></span>
-              <div><strong>Video + audio</strong><span>Choose beauty filter, then go live</span></div>
-            </button>
-            <button type="button" class="social-broadcast-opt" data-go-live="audio">
-              <span class="ico audio"><i class="fas fa-microphone"></i></span>
-              <div><strong>Audio only</strong><span>Voice live — no camera</span></div>
+              <div><strong>Video live</strong><span>Camera + mic — choose beauty filter, then go live</span></div>
             </button>
           </div>
           <button type="button" class="social-broadcast-cancel" data-broadcast-cancel>Cancel</button>
@@ -2028,12 +2024,6 @@
       el.querySelector('[data-go-live="video"]')?.addEventListener('click', () => {
         collectStreamMetaFromSheet(el);
         openPreliveFilterStep(opts, el);
-      });
-      el.querySelector('[data-go-live="audio"]')?.addEventListener('click', () => {
-        collectStreamMetaFromSheet(el);
-        stopPrelivePreview(el);
-        el.classList.remove('is-open');
-        goStartLiveBroadcast({ ...(opts || {}), mode: 'audio' });
       });
       el.querySelector('[data-broadcast-cancel]')?.addEventListener('click', () => {
         stopPrelivePreview(el);
@@ -2059,11 +2049,7 @@
             </button>
             <button type="button" class="social-broadcast-opt" data-go-live="video">
               <span class="ico video"><i class="fas fa-video"></i></span>
-              <div><strong>Video live</strong><span>Beauty filter → camera broadcast</span></div>
-            </button>
-            <button type="button" class="social-broadcast-opt" data-go-live="audio">
-              <span class="ico audio"><i class="fas fa-microphone"></i></span>
-              <div><strong>Audio live</strong><span>Voice only — no camera</span></div>
+              <div><strong>Video live</strong><span>Camera + mic — beauty filter, then broadcast</span></div>
             </button>
           </div>
           <button type="button" class="social-broadcast-cancel" data-broadcast-cancel>Cancel</button>
@@ -2075,11 +2061,6 @@
     });
     el.querySelector('[data-go-live="video"]')?.addEventListener('click', () => {
       openPreliveFilterStep(opts, el);
-    });
-    el.querySelector('[data-go-live="audio"]')?.addEventListener('click', () => {
-      stopPrelivePreview(el);
-      el.classList.remove('is-open');
-      goStartLiveBroadcast({ ...(opts || {}), mode: 'audio' });
     });
     el.querySelector('[data-broadcast-cancel]')?.addEventListener('click', () => {
       stopPrelivePreview(el);
