@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -229,9 +231,24 @@ class _SplashGateState extends State<_SplashGate> {
   Future<void> _boot() async {
     final auth = context.read<AuthService>();
     final app = context.read<AppState>();
-    await app.push.initialize();
-    await auth.initialize();
-    if (auth.isLoggedIn) await app.syncPushToken();
+
+    // Push/FCM can hang on devices without Google Play Services — never block launch.
+    unawaited(
+      app.push.initialize().timeout(
+        const Duration(seconds: 6),
+        onTimeout: () {},
+      ),
+    );
+
+    try {
+      await auth.initialize().timeout(const Duration(seconds: 12));
+      if (auth.isLoggedIn) {
+        unawaited(app.syncPushToken());
+      }
+    } catch (_) {
+      /* proceed with cached or fresh session */
+    }
+
     if (!mounted) return;
     Navigator.of(context).pushReplacementNamed(auth.isLoggedIn ? '/home' : '/welcome');
   }

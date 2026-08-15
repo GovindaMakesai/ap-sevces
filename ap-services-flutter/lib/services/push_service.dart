@@ -68,17 +68,26 @@ class PushService {
       },
     );
 
-    final settings = await _messaging.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
-    if (settings.authorizationStatus == AuthorizationStatus.denied) {
-      debugPrint('[push] permission not granted');
+    try {
+      final settings = await _messaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      ).timeout(const Duration(seconds: 5));
+      if (settings.authorizationStatus == AuthorizationStatus.denied) {
+        debugPrint('[push] permission not granted');
+        return;
+      }
+    } catch (e) {
+      debugPrint('[push] permission skipped: $e');
       return;
     }
 
-    _deviceToken = await _messaging.getToken();
+    try {
+      _deviceToken = await _messaging.getToken().timeout(const Duration(seconds: 5));
+    } catch (e) {
+      debugPrint('[push] token skipped: $e');
+    }
     _messaging.onTokenRefresh.listen((token) {
       _deviceToken = token;
     });
