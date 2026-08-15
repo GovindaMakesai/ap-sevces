@@ -1101,7 +1101,7 @@ async function inviteHostToAgency(ownerUserId, userRef) {
     apply_path: `/role-apply.html?role=creator&promo=${inviteCode.code}&app=1`,
   };
   const messageBody =
-    `${agency.name || 'An agency'} invited you to become a Host on AP Services.\n` +
+    `${agency.name || 'An agency'} invited you to become a Host on Glowcast.\n` +
     `Tap Accept to join, or Reject to decline.\n` +
     `${AGENCY_HOST_INVITE_PREFIX}${JSON.stringify(payload)}`;
 
@@ -1405,7 +1405,7 @@ async function inviteAgencyToNetwork(ownerUserId, userRef) {
     code: inviteCode.code,
   };
   const messageBody =
-    `${agency.name || 'An agency'} invited you to become an Agency on AP Services.\n` +
+    `${agency.name || 'An agency'} invited you to become an Agency on Glowcast.\n` +
     `Tap Accept to join their network, or Reject to decline.\n` +
     `${AGENCY_NETWORK_INVITE_PREFIX}${JSON.stringify(payload)}`;
 

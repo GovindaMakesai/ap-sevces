@@ -128,7 +128,7 @@ async function seedPhase2Data(client) {
 
   await client.query(
     `INSERT INTO charity_campaigns (slug, title, description, goal_amount_inr, status)
-     VALUES ('default-fund', 'AP Services Community Fund', 'Platform charity pool from gift donations', 1000000, 'active')
+     VALUES ('default-fund', 'Glowcast Community Fund', 'Platform charity pool from gift donations', 1000000, 'active')
      ON CONFLICT (slug) DO NOTHING`
   );
 }

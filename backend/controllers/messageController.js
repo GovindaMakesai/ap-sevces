@@ -19,7 +19,7 @@ async function enrichConversation(conversation, currentUserId) {
     const { isOfficialRole } = require('../services/systemMessageService');
     const isOfficial = isOfficialRole(role) || role === 'worker';
     const displayName = isOfficial && OFFICIAL_DISPLAY_ROLES.has(role)
-      ? 'AP Services'
+      ? 'Glowcast'
       : `${otherUser?.first_name || 'User'} ${otherUser?.last_name || ''}`.trim();
 
     return {
@@ -78,7 +78,7 @@ exports.listConversations = async (req, res) => {
             const isOfficial = isOfficialRole(role) || role === 'worker';
             const displayName =
                 isOfficial && OFFICIAL_DISPLAY_ROLES.has(role)
-                    ? 'AP Services'
+                    ? 'Glowcast'
                     : `${otherUser?.first_name || 'User'} ${otherUser?.last_name || ''}`.trim();
             return {
                 id: String(conv.id),

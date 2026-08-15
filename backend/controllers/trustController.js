@@ -27,7 +27,7 @@ async function requestDeletion(req, res) {
 async function exportData(req, res) {
   try {
     const payload = await trustService.exportAccountData(req.userId);
-    res.setHeader('Content-Disposition', 'attachment; filename="ap-services-export.json"');
+    res.setHeader('Content-Disposition', 'attachment; filename="glowcast-export.json"');
     res.json({ success: true, data: payload });
   } catch (e) {
     res.status(500).json({ success: false, message: e.message });

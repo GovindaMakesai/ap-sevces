@@ -148,7 +148,7 @@ async function enrichLink(row) {
     ).catch(() => {});
   }
 
-  const shareMessage = `Join me on AP Services! Use my ID ${displayId} when you register`;
+  const shareMessage = `Join me on Glowcast! Use my ID ${displayId} when you register`;
   const shareText = `${shareMessage}: ${webLink}`;
   return {
     id: row.id,
