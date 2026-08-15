@@ -12051,22 +12051,17 @@
       /* Lift above system home / gesture nav */
       bar.style.bottom = 'max(12px, env(safe-area-inset-bottom, 0px))';
       if (compose) {
+        compose.style.flex = '1 1 0%';
+        compose.style.minWidth = '0';
+        compose.style.maxWidth = 'none';
+        compose.style.overflow = 'hidden';
+        compose.style.position = 'relative';
+        compose.style.zIndex = '1';
         if (isPartyRoomPage()) {
-          compose.style.removeProperty('flex');
-          compose.style.removeProperty('min-width');
-          compose.style.removeProperty('max-width');
-          compose.style.removeProperty('position');
-          compose.style.removeProperty('bottom');
           compose.style.removeProperty('left');
+          compose.style.removeProperty('right');
+          compose.style.removeProperty('bottom');
           compose.style.removeProperty('width');
-          compose.style.zIndex = '55';
-        } else {
-          compose.style.flex = '1 1 0%';
-          compose.style.minWidth = '0';
-          compose.style.maxWidth = 'none';
-          compose.style.overflow = 'hidden';
-          compose.style.position = 'relative';
-          compose.style.zIndex = '1';
         }
       }
       if (actions) {
@@ -13601,19 +13596,15 @@
     if (!bar || !compose) return;
     document.getElementById('apSayHiPill')?.remove();
     compose.classList.add('ap-compose-inline');
-    const actions = bar.querySelector('.party-bottom-actions');
-    const anchor = bar.querySelector('.party-ref-bottom-right') || actions;
-    if (isPartyRoomPage()) {
-      compose.classList.add('ap-compose-float');
-      if (compose.parentElement !== document.body) document.body.appendChild(compose);
-      document.body.classList.add('ap-chat-compose-open');
-    } else {
-      compose.classList.remove('ap-compose-float');
-      if (compose.parentElement !== bar) {
-        if (anchor) bar.insertBefore(compose, anchor);
-        else bar.appendChild(compose);
-      }
+    compose.classList.remove('ap-compose-float');
+    const anchor = bar.querySelector('.party-ref-bottom-right') || bar.querySelector('.party-bottom-actions');
+    if (compose.parentElement !== bar) {
+      if (anchor) bar.insertBefore(compose, anchor);
+      else bar.appendChild(compose);
+    } else if (anchor && compose.nextElementSibling !== anchor && compose.compareDocumentPosition(anchor) & Node.DOCUMENT_POSITION_FOLLOWING) {
+      bar.insertBefore(compose, anchor);
     }
+    if (isPartyRoomPage()) document.body.classList.add('ap-chat-compose-open');
   }
 
   function navigateToUserProfile(userId, name) {
