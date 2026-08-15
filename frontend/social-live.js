@@ -2879,8 +2879,6 @@
     if (ch) params.set('channel', ch);
     params.set('app', '1');
     // Viewer join only — never share host=1 / feed swipe mode
-    const modeQs = (qs('mode') || '').toLowerCase();
-    if (modeQs === 'audio') params.set('mode', 'audio');
     return `${location.origin}/${page}?${params.toString()}`;
   }
 
@@ -3056,11 +3054,9 @@
     if (!isHost() || !roomJoinCompleted || agoraStartInProgress) return;
     if (publishSucceeded) {
       // Already "live" but camera may have died after beauty/flip — recover video.
-      if (broadcastMode !== 'audio') {
-        await ensureHostVideoPublishing().catch((e) =>
-          liveDebugLog(`ensureHostVideo: ${e?.message || e}`)
-        );
-      }
+      await ensureHostVideoPublishing().catch((e) =>
+        liveDebugLog(`ensureHostVideo: ${e?.message || e}`)
+      );
       return;
     }
     const page = document.body.dataset.livePage;
@@ -4676,36 +4672,25 @@
 
   let broadcastMode = 'video';
   function initBroadcastMode() {
-    const modeQs = (qs('mode') || 'video').toLowerCase();
-    /* Solo live is video-only for hosts; viewers may still join legacy audio-only rooms. */
-    if (isLiveRoomPage() && isHost()) {
-      broadcastMode = 'video';
-      if (modeQs === 'audio') syncBroadcastModeInUrl('video');
-      return;
-    }
-    broadcastMode = modeQs === 'audio' ? 'audio' : 'video';
+    broadcastMode = 'video';
+    if (isLiveRoomPage()) syncBroadcastModeInUrl();
   }
 
-  function syncBroadcastModeInUrl(mode) {
+  function syncBroadcastModeInUrl() {
     if (!isLiveRoomPage()) return;
     try {
       const params = new URLSearchParams(location.search);
-      params.set('mode', mode === 'audio' ? 'audio' : 'video');
+      params.set('mode', 'video');
       history.replaceState(null, '', location.pathname + '?' + params.toString());
     } catch (_e) { }
   }
 
-  /** Exit voice-live chrome so camera preview is never covered by the audio stage. */
+  /** Hide poster chrome when camera stream is active. */
   function clearAudioModeUi() {
-    const root = document.getElementById('liveRoomRoot');
-    const audioStage = document.getElementById('liveAudioStage');
     const bg = document.getElementById('liveBg');
     const localBox = document.getElementById('liveLocalHost');
+    const root = document.getElementById('liveRoomRoot');
     if (root) root.classList.remove('is-audio-mode');
-    if (audioStage) {
-      audioStage.style.display = 'none';
-      audioStage.setAttribute('aria-hidden', 'true');
-    }
     if (localBox) localBox.style.display = '';
     if (bg) bg.style.display = 'none';
   }
@@ -5087,36 +5072,16 @@
     });
   }
 
-  function applyLiveBackground(mode, hostName) {
+  function applyLiveBackground(_mode, hostName) {
     const bg = document.getElementById('liveBg');
     const root = document.getElementById('liveRoomRoot');
-    const audioStage = document.getElementById('liveAudioStage');
-    const audioAvatar = document.getElementById('liveAudioAvatar');
-    const audioLabel = document.getElementById('liveAudioLabel');
     const name = hostName || roomState?.hostName || 'Streamer';
-    const isAudio = mode === 'audio';
     const hasVideoStream =
       Boolean(root?.classList.contains('ap-has-video-stream')) ||
       Boolean(document.body.classList.contains('ap-has-video-stream')) ||
       Boolean(getLocalVideoTrack?.() || rawCameraTrack);
-    if (root) root.classList.toggle('is-audio-mode', isAudio);
-    if (audioStage) {
-      audioStage.style.display = isAudio ? '' : 'none';
-      audioStage.setAttribute('aria-hidden', isAudio ? 'false' : 'true');
-    }
     if (bg) {
-      if (isAudio) {
-        bg.style.display = 'block';
-        bg.style.background = '';
-        const cover =
-          getStreamCoverUrl(name) ||
-          resolveStickyPosterUrl() ||
-          themeCover('audio', name);
-        bg.style.backgroundImage = cover ? `url('${cover}')` : `url('${themeCover('audio', name)}')`;
-        bg.style.backgroundSize = 'cover';
-        bg.style.backgroundPosition = 'center';
-      } else if (hasVideoStream && !isAudio) {
-        // Keep camera visible — don't re-cover with the audio/live poster.
+      if (hasVideoStream) {
         bg.style.display = 'none';
       } else {
         bg.style.display = 'block';
@@ -5135,18 +5100,12 @@
         }
       }
     }
-    if (audioAvatar) {
-      const cover = getStreamCoverUrl(name);
-      audioAvatar.src = cover || avatarUrl(name, roomState?.hostProfilePic);
-    }
-    if (audioLabel) audioLabel.textContent = isAudio ? 'Voice live' : 'Live';
     const backdrop = document.getElementById('liveFeedBackdrop');
     if (backdrop && document.body.classList.contains('live-feed-mode')) {
-      const feedCover =
-        getStreamCoverUrl(name) || themeCover(isAudio ? 'audio' : 'live', name);
+      const feedCover = getStreamCoverUrl(name) || themeCover('live', name);
       backdrop.style.backgroundImage = `url('${feedCover}')`;
     }
-    updateModeBadge(isAudio ? 'audio' : 'video', isHost() && isActuallyLive());
+    updateModeBadge('video', isHost() && isActuallyLive());
   }
 
   function updateModeBadge(mode, hosting) {
@@ -5159,13 +5118,9 @@
       return;
     }
     const showHosting = Boolean(hosting);
-    el.classList.toggle('is-audio', mode === 'audio' && !showHosting);
+    el.classList.remove('is-audio', 'is-host');
     el.classList.toggle('is-host', showHosting);
-    if (mode === 'audio') {
-      el.innerHTML = '<i class="fas fa-microphone"></i> VOICE LIVE';
-    } else {
-      el.innerHTML = '<i class="fas fa-video"></i> VIDEO LIVE';
-    }
+    el.innerHTML = '<i class="fas fa-video"></i> VIDEO LIVE';
     el.style.display = '';
   }
 
@@ -5385,7 +5340,7 @@
     await disposeAgoraClient(
       isPeerConnectionLimitError(msg) ? 'peerconnection_limit' : 'host_broadcast_failed'
     );
-    updateModeBadge(broadcastMode, false);
+    updateModeBadge('video', false);
     const isParty = document.body.dataset.livePage === 'party-room';
     if (isParty && reason === 'media_blocked' && isLanHttpInNativeWebView()) {
       partyVoiceSkipped = true;
@@ -5495,11 +5450,11 @@
     if (isHost()) {
       const sessionLive =
         sessionEstablished && publishSucceeded && liveDebugState.roomJoined && liveDebugState.socketConnected;
-      updateModeBadge(broadcastMode, isActuallyLive() || sessionLive);
+      updateModeBadge('video', isActuallyLive() || sessionLive);
       setLiveStatus(hostStatusLabel(), isActuallyLive() || sessionLive ? true : null);
       return;
     }
-    updateModeBadge(broadcastMode, false);
+    updateModeBadge('video', false);
     if (liveDebugState.agoraJoined && remoteUsers.size === 0) {
       setLiveStatus('Waiting for host stream…', null);
     } else if (remoteUsers.size > 0) {
@@ -6248,7 +6203,7 @@
         if (payload.hostStreamCover !== undefined) roomState.hostStreamCover = payload.hostStreamCover;
         if (payload.hostProfilePic !== undefined) roomState.hostProfilePic = payload.hostProfilePic;
         renderRoomState();
-        applyLiveBackground(broadcastMode, roomState.hostName);
+        applyLiveBackground('live', roomState.hostName);
       });
 
       liveSocket.on('live:seat_request', (req) => {
@@ -7168,7 +7123,7 @@
         } else {
           container.innerHTML = '';
           setLiveStreamVisible(false);
-          if (!isHost()) applyLiveBackground(broadcastMode === 'audio' ? 'audio' : 'live', roomState?.hostName);
+          if (!isHost()) applyLiveBackground('live', roomState?.hostName);
         }
       }
       syncLiveUiState();
@@ -7366,7 +7321,7 @@
   /** Host cover stays above video until first frame — kills black flash after loader */
   function ensureStickyLivePoster() {
     if (isHost() || !isLiveRoomPage()) return;
-    if (broadcastMode === 'audio') return;
+    if (broadcastMode !== 'video') return;
     if (hasPlayingRemoteVideo()) {
       clearStickyLivePoster(true);
       return;
@@ -7947,7 +7902,7 @@
       showApLoader(host ? 'Starting your broadcast…' : 'Connecting to live…', 2);
       setLiveStatus(host ? 'Starting camera & mic…' : 'Connecting to live…', null);
     }
-    updateModeBadge(broadcastMode, false);
+    updateModeBadge('video', false);
 
     const agoraDeadline = setTimeout(() => {
       if (publishSucceeded || partyVoiceSkipped) return;
@@ -8058,29 +8013,6 @@
               await onHostBroadcastFailed('publish_failed', `Publish failed: ${msg}`);
               return;
             }
-          } else if (broadcastMode === 'audio') {
-            const audioTrack = await createRoomMicrophoneTrack(AgoraRTC);
-            localTracks = [audioTrack];
-            try {
-              await lifePublish(audioTrack);
-              publishSucceeded = true;
-              liveDebugLog('Publish OK live audio');
-              forensicEvent('PUBLISH_SUCCESS', { channel: joined.channel, mode: 'audio' });
-              updateLiveDebug({ hostPublishing: true, publishSucceeded: true });
-              notifyLiveAudioRoute('enterPlayback', { reason: 'host_audio_publish' });
-              ensureRemoteAudioPlaying().then(() => boostRemoteAudioVolumes()).catch(() => { });
-              setTimeout(() => boostRemoteAudioVolumes(), 1000);
-            } catch (pubErr) {
-              const msg = pubErr?.message || String(pubErr);
-              console.error('[live] publish failed', pubErr);
-              await onHostBroadcastFailed('publish_failed', `Publish failed: ${msg}`);
-              return;
-            }
-            const localBox = document.getElementById('liveLocalHost');
-            if (localBox) localBox.style.display = 'none';
-            const fallback = document.getElementById('liveLocalVideo');
-            if (fallback) fallback.style.display = 'none';
-            applyLiveBackground('audio', displayName(currentUser()));
           } else {
             const root = document.getElementById('liveRoomRoot');
             if (root) root.classList.remove('is-audio-mode');
@@ -8193,7 +8125,7 @@
           syncLiveUiState();
         } else {
           onRoomReady();
-          applyLiveBackground(broadcastMode === 'audio' ? 'audio' : 'live', roomState?.hostName);
+          applyLiveBackground('live', roomState?.hostName);
           if (hasSpeakerSeat) {
             await publishGuestAudio().catch((e) =>
               liveDebugLog(`Guest publish after join: ${e?.message || e}`)
@@ -8226,183 +8158,6 @@
       clearTimeout(agoraDeadline);
       agoraStartInProgress = false;
     }
-  }
-
-  async function restartAgoraForMode() {
-    if (agoraModeSwitchInProgress) return;
-    agoraModeSwitchInProgress = true;
-    const mode = broadcastMode === 'audio' ? 'audio' : 'video';
-    try {
-      if (mode === 'video') clearAudioModeUi();
-      // Prefer in-place track switch so mic/camera don't get stuck after leave/rejoin.
-      if (agoraClient && publishSucceeded && isHost() && !isPartyRoomPage()) {
-        await switchHostBroadcastTracks(mode);
-        if (mode === 'video') {
-          clearAudioModeUi();
-          ensureHostVideoVisible();
-        }
-        syncLiveUiState();
-        return;
-      }
-      await stopAgora({ skipEndRoom: true });
-      await new Promise((r) => setTimeout(r, 250));
-      const page = document.body.dataset.livePage;
-      await startAgora(page === 'party-room' ? 'party' : 'live');
-      if (mode === 'video') {
-        clearAudioModeUi();
-        ensureHostVideoVisible();
-      }
-      syncLiveUiState();
-    } catch (e) {
-      liveDebugLog(`mode switch failed: ${e?.message || e}`);
-      toast('Could not switch mode — retrying…', 'warning');
-      try {
-        await stopAgora({ skipEndRoom: true });
-        await new Promise((r) => setTimeout(r, 400));
-        await startAgora(isPartyRoomPage() ? 'party' : 'live');
-        if (mode === 'video') {
-          clearAudioModeUi();
-          ensureHostVideoVisible();
-        }
-      } catch (e2) {
-        toast(e2?.message || 'Mode switch failed', 'error');
-      }
-      syncLiveUiState();
-    } finally {
-      agoraModeSwitchInProgress = false;
-    }
-  }
-
-  async function switchHostBroadcastTracks(mode) {
-    const AgoraRTC = window.AgoraRTC || (await loadAgoraScript());
-    const hostName = roomState?.hostName || displayName(currentUser());
-
-    if (mode === 'audio') {
-      if (beautyPipeline?.customTrack) {
-        try {
-          await lifeUnpublish([beautyPipeline.customTrack]);
-        } catch (_e) { }
-        stopBeautyPipeline();
-      }
-      const video = getLocalVideoTrack() || rawCameraTrack;
-      if (video) {
-        try {
-          await lifeUnpublish([video]);
-        } catch (_e) { }
-        try {
-          video.stop?.();
-          video.close?.();
-        } catch (_e) { }
-      }
-      localTracks = localTracks.filter((t) => {
-        const type = t.getTrackType?.() || t.trackMediaType;
-        return type !== 'video' && t !== video && t !== rawCameraTrack;
-      });
-      rawCameraTrack = null;
-
-      let audio = getLocalAudioTrack();
-      if (!audio) {
-        audio = await createRoomMicrophoneTrack(AgoraRTC);
-        await lifePublish(audio);
-        localTracks = [audio];
-      } else {
-        await normalizeLocalMicLevel(audio);
-        const published = agoraClient.localTracks || [];
-        if (!published.includes?.(audio)) {
-          try {
-            await lifePublish(audio);
-          } catch (_e) { }
-        }
-      }
-      micMuted = false;
-      publishSucceeded = true;
-
-      const localBox = document.getElementById('liveLocalHost');
-      if (localBox) {
-        localBox.innerHTML = '';
-        localBox.style.display = 'none';
-      }
-      const fallback = document.getElementById('liveLocalVideo');
-      if (fallback) fallback.style.display = 'none';
-      setLiveStreamVisible(false);
-      applyLiveBackground('audio', hostName);
-      syncBroadcastModeInUrl('audio');
-      syncMicButtonUi();
-      liveDebugLog('Switched to audio-only (in-place)');
-      return;
-    }
-
-    // video mode — leave audio chrome first, keep mic, always recreate camera
-    clearAudioModeUi();
-
-    let audio = getLocalAudioTrack();
-    if (!audio) {
-      audio = await createRoomMicrophoneTrack(AgoraRTC);
-      try {
-        await lifePublish(audio);
-      } catch (_e) { }
-      localTracks = [audio, ...localTracks.filter((t) => t !== audio)];
-    } else {
-      await normalizeLocalMicLevel(audio);
-    }
-    micMuted = false;
-
-    // Tear down any leftover / closed video (audio-only leave closes camera).
-    if (beautyPipeline?.customTrack) {
-      try {
-        await lifeUnpublish([beautyPipeline.customTrack]);
-      } catch (_e) { }
-      stopBeautyPipeline();
-    }
-    const staleVideos = [
-      ...localTracks.filter((t) => (t.getTrackType?.() || t.trackMediaType) === 'video'),
-      rawCameraTrack,
-    ].filter(Boolean);
-    const uniqueStale = [...new Set(staleVideos)];
-    for (const old of uniqueStale) {
-      try {
-        await lifeUnpublish([old]);
-      } catch (_e) { }
-      try {
-        old.stop?.();
-        old.close?.();
-      } catch (_e) { }
-    }
-    localTracks = localTracks.filter((t) => (t.getTrackType?.() || t.trackMediaType) !== 'video');
-    rawCameraTrack = null;
-
-    const video = await withTimeout(
-      AgoraRTC.createCameraVideoTrack({ facingMode: cameraFacing }),
-      30000,
-      'Camera access'
-    );
-    rawCameraTrack = video;
-    try {
-      await lifePublish(video);
-    } catch (pubErr) {
-      try {
-        video.stop?.();
-        video.close?.();
-      } catch (_e) { }
-      rawCameraTrack = null;
-      throw pubErr;
-    }
-    localTracks = audio ? [audio, video] : [video];
-
-    publishSucceeded = true;
-    clearAudioModeUi();
-    playLocalHostPreview(video);
-    setLiveStreamVisible(true);
-    applyLiveBackground('live', hostName);
-    ensureHostVideoVisible();
-    syncBroadcastModeInUrl('video');
-    syncMicButtonUi();
-    if (videoFilterId && videoFilterId !== 'none') {
-      setTimeout(() => {
-        syncPublishedBeautyTrack().catch((e) => liveDebugLog(`post-switch beauty: ${e?.message || e}`));
-      }, 400);
-    }
-    liveDebugLog('Switched to video (in-place)');
   }
 
   async function startLocalMicOnly() {
@@ -9041,7 +8796,7 @@
   }
 
   async function syncPublishedBeautyTrack() {
-    if (!agoraClient || !publishSucceeded || !isHost() || broadcastMode === 'audio') return;
+    if (!agoraClient || !publishSucceeded || !isHost()) return;
     if (beautySyncPromise) return beautySyncPromise;
     beautySyncPromise = (async () => {
       const audioTrack =
@@ -9221,7 +8976,7 @@
   }
 
   async function ensureHostVideoPublishing() {
-    if (!isHost() || broadcastMode === 'audio' || !agoraClient || !publishSucceeded) return;
+    if (!isHost() || !agoraClient || !publishSucceeded) return;
     if (!liveDebugState.agoraJoined) return;
 
     if (isLocalCameraHealthy() && getLocalVideoTrack()) {
@@ -9390,7 +9145,7 @@
   }
 
   async function openVideoFilterSheet() {
-    if (!isHost() || broadcastMode === 'audio') {
+    if (!isHost()) {
       toast('Filters are for video live only', 'info');
       return;
     }
@@ -9519,7 +9274,7 @@
 
   function toggleHostMirrorPreview() {
     const box = document.getElementById('liveLocalHost');
-    if (!box || broadcastMode === 'audio') {
+    if (!box) {
       toast('Mirror is available on video livestreams', 'info');
       return;
     }
@@ -9633,7 +9388,7 @@
   }
 
   async function switchCameraFacing() {
-    if (!isHost() || broadcastMode === 'audio') {
+    if (!isHost()) {
       toast('Camera flip is for video live only', 'info');
       return;
     }
@@ -9788,7 +9543,7 @@
     } catch (_e) {
       toast('Allow camera access to go live with video', 'warning');
       if (bg && !isHost()) {
-        applyLiveBackground(broadcastMode === 'audio' ? 'audio' : 'live', roomState?.hostName);
+        applyLiveBackground('live', roomState?.hostName);
       }
     }
   }
@@ -11386,8 +11141,6 @@
       if (lockLbl) lockLbl.textContent = roomState?.isLocked ? 'Unlock' : 'Lock room';
     }
 
-    const audioAvatar = document.getElementById('liveAudioAvatar');
-    if (audioAvatar) audioAvatar.src = avatarUrl(hostName);
 
     const ticker = document.getElementById('liveTicker');
     if (ticker) {
@@ -11411,7 +11164,7 @@
     if (rid) rid.textContent = 'ID ' + ch.slice(-10);
     const partyRid = document.getElementById('partyRoomId') || document.getElementById('partyRoomIdLive');
     if (partyRid) partyRid.textContent = 'ID:' + ch.slice(-10);
-    updateModeBadge(broadcastMode, isHost() && isActuallyLive());
+    updateModeBadge('video', isHost() && isActuallyLive());
     updateDynamicStats();
     syncToolBadges();
     renderQuickChips();
@@ -15054,7 +14807,7 @@
   }
 
   function ensureHostVideoVisible() {
-    if (broadcastMode === 'audio') return;
+    if (broadcastMode !== 'video') return;
     if (!publishSucceeded && !getLocalVideoTrack() && !rawCameraTrack) return;
     const root = document.getElementById('liveRoomRoot');
     const localBox = document.getElementById('liveLocalHost');
@@ -15296,29 +15049,6 @@
       openVideoFilterSheet();
       document.getElementById('partyToolsSheet')?.classList.remove('open');
     });
-
-    const setMode = async (mode) => {
-      const next = 'video';
-      if (mode !== 'video') return;
-      const changed = broadcastMode !== next;
-      broadcastMode = next;
-      syncBroadcastModeInUrl(next);
-      document.getElementById('liveBtnModeVideo')?.classList.toggle('is-active', true);
-      clearAudioModeUi();
-      if (changed) toast('Video mode');
-      if (changed && isHost() && pageType === 'live') await restartAgoraForMode();
-      clearAudioModeUi();
-      ensureHostVideoVisible();
-      syncLiveUiState();
-    };
-    document.getElementById('liveBtnModeVideo')?.addEventListener('click', () => setMode('video'));
-    document.getElementById('partyToolsModeVideo')?.addEventListener('click', () => {
-      setMode('video');
-      document.getElementById('partyToolsSheet')?.classList.remove('open');
-    });
-    if (isHost() && pageType === 'live') {
-      document.getElementById('liveBtnModeVideo')?.classList.toggle('is-active', broadcastMode === 'video');
-    }
   }
 
   function isValidGiftUserId(id) {
@@ -19437,7 +19167,7 @@
             channel: startChannel,
             hostName: 'Live host',
             viewers: 1,
-            mode: (qs('mode') || 'video').toLowerCase() === 'audio' ? 'audio' : 'video',
+            mode: 'video',
           });
         }
       }
@@ -19454,7 +19184,7 @@
         hostStreamCover: r.hostStreamCover || null,
         hostProfilePic: r.hostProfilePic || null,
         viewers: r.viewers || 0,
-        mode: String(r.channel || '').includes('audio') ? 'audio' : 'video',
+        mode: 'video',
       }));
       items = items.filter((it) => !it.hostId || !isLiveUserBlocked(it.hostId));
     } catch (_e) {
@@ -19470,7 +19200,7 @@
           channel: startChannel,
           hostName: 'Live host',
           viewers: 1,
-          mode: (qs('mode') || 'video').toLowerCase() === 'audio' ? 'audio' : 'video',
+          mode: 'video',
         });
       }
     }
@@ -19533,7 +19263,7 @@
       (item.hostStreamCover &&
         (resolveMediaUrl(item.hostStreamCover) || item.hostStreamCover)) ||
       (item.hostProfilePic && avatarUrl(item.hostName, item.hostProfilePic)) ||
-      themeCover(broadcastMode === 'audio' ? 'audio' : 'live', item.hostName);
+      themeCover('live', item.hostName);
     if (backdrop) {
       backdrop.style.backgroundImage = `url('${feedCover}')`;
     }
@@ -19544,7 +19274,7 @@
         (resolveMediaUrl(item.hostStreamCover) || item.hostStreamCover)) ||
       avatarUrl(item.hostName, item.hostProfilePic);
     document.getElementById('liveViewerCount').textContent = String(item.viewers || 0);
-    updateModeBadge(broadcastMode, false);
+    updateModeBadge('video', false);
 
     roomState = {
       hostName: item.hostName,
@@ -19602,7 +19332,7 @@
       setLiveStatus(e?.message || 'Could not join room', false);
       return;
     }
-    applyLiveBackground(broadcastMode === 'audio' ? 'audio' : 'live', item.hostName);
+    applyLiveBackground('live', item.hostName);
     await startAgora('live');
 
     try {
@@ -19650,7 +19380,7 @@
             String(item.hostStreamCover).replace(/'/g, '%27')) ||
           (item.hostProfilePic &&
             String(avatarUrl(item.hostName, item.hostProfilePic) || '').replace(/'/g, '%27')) ||
-          themeCover(item.mode === 'audio' ? 'audio' : 'live', item.hostName);
+          themeCover('live', item.hostName);
         return `
       <section class="live-feed-slide${i === 0 ? ' is-active' : ''}" data-index="${i}"
         style="background-image:url('${cover}')">
@@ -19773,12 +19503,9 @@
       const bg = document.getElementById('liveBg');
       if (bg) bg.style.display = 'none';
     } else {
-      applyLiveBackground(broadcastMode === 'audio' ? 'audio' : 'live', roomState?.hostName);
-      if (broadcastMode === 'audio') {
-        document.getElementById('liveRoomRoot')?.classList.add('is-audio-mode');
-      }
+      applyLiveBackground('live', roomState?.hostName);
     }
-    updateModeBadge(broadcastMode, false);
+    updateModeBadge('video', false);
 
     partyVoiceSkipped = false;
     /* Finish early Agora (or start if it failed), then ensure full media path */

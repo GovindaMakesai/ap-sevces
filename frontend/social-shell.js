@@ -1709,7 +1709,7 @@
       window.location.href = '/app-auth.html?app=1';
       return;
     }
-    const mode = opts?.mode || 'video';
+    const mode = 'video';
     const isParty = Boolean(opts?.party);
     if (!opts?.confirmed) {
       const label = isParty ? 'Start a voice party as host?' : 'Start a live broadcast as host?';
@@ -1777,7 +1777,7 @@
       window.location.href = '/app-auth.html?app=1';
       return;
     }
-    goStartLiveBroadcast({ ...(opts || {}), party: true, mode: 'audio' });
+    goStartLiveBroadcast({ ...(opts || {}), party: true });
   }
 
   function ensureBroadcastOverlay() {

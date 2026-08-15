@@ -24,7 +24,7 @@
     if (sessionMeta?.isVideo != null) return Boolean(sessionMeta.isVideo);
     const page = document.body?.dataset?.livePage;
     if (page === 'party-room') return false;
-    return !document.getElementById('liveRoomRoot')?.classList.contains('is-audio-mode');
+    return page === 'live-room';
   }
 
   function readStoredSession() {
@@ -223,7 +223,7 @@
     if (hostEl) hostEl.textContent = sessionMeta.host || 'Live';
     if (subEl) {
       subEl.textContent =
-        sessionMeta.type === 'party-room' ? 'Voice party' : sessionMeta.isVideo ? 'Live video' : 'Live audio';
+        sessionMeta.type === 'party-room' ? 'Voice party' : 'Live video';
     }
     if (viewersEl) viewersEl.textContent = getViewerCount();
     if (indEl) {

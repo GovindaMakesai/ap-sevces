@@ -201,12 +201,6 @@
     <div id="liveLocalHost" class="live-local-video is-host-only"></div>
     <video id="liveLocalVideo" class="live-bg live-fallback-video" playsinline muted></video>
 
-    <div class="live-audio-stage" id="liveAudioStage" aria-hidden="true">
-      <img class="live-audio-avatar" id="liveAudioAvatar" src="" alt="">
-      <div class="live-audio-waves"><span></span><span></span><span></span><span></span><span></span></div>
-      <div class="live-audio-label" id="liveAudioLabel">Voice live</div>
-    </div>
-
     <div class="live-overlay">
       <header class="party-header">
         <div class="party-host">
@@ -250,8 +244,6 @@
           <div class="live-host-bar-actions" id="liveHostBarActions" hidden>
             <button type="button" class="party-host-action mod-tool" id="partyBtnRequests" hidden><i class="fas fa-users"></i>
               Guests <span id="partyReqCount" class="party-req-badge" hidden>0</span></button>
-            <button type="button" class="party-host-action host-only-tool" id="liveBtnModeVideo" data-mode="video" hidden><i
-                class="fas fa-video"></i> Video</button>
             <button type="button" class="party-host-action host-only-tool" id="liveBtnHostMute" hidden><i
                 class="fas fa-microphone"></i> Mic</button>
             <button type="button" class="party-host-action host-only-tool" id="liveBtnFlipCam" title="Flip camera" hidden><i
@@ -436,8 +428,6 @@
                 class="fas fa-compress"></i></span>Minimize</button>
           <button type="button" id="partyBtnBackground" class="host-only-tool"><span class="ico bg"><i
                 class="fas fa-image"></i></span>Background</button>
-          <button type="button" id="partyToolsModeVideo" class="host-only-tool" data-mode="video"><span class="ico"><i
-                class="fas fa-video"></i></span>Video</button>
           <button type="button" id="partyToolsMuteAllChat" class="mod-only-tool"><span class="ico"><i
                 class="fas fa-comment-slash"></i></span>Mute all chat</button>
           <button type="button" id="partyToolsClearChat" class="mod-only-tool"><span class="ico"><i
