@@ -87,25 +87,52 @@ async function getSummary(profileUserId) {
   };
 }
 
+async function listVisitorPreview(profileUserId, { limit = 25 } = {}) {
+  const lim = Math.min(Math.max(parseInt(limit, 10) || 25, 1), 50);
+  const res = await db.query(
+    `SELECT pv.visited_at, pv.visit_count, pv.is_anonymous, u.gender, u.profile_pic
+     FROM profile_visits pv
+     JOIN users u ON u.id = pv.visitor_user_id AND u.is_active = TRUE
+     WHERE pv.profile_user_id = $1
+     ORDER BY pv.visited_at DESC
+     LIMIT $2`,
+    [profileUserId, lim]
+  );
+  return res.rows.map((r) => ({
+    userId: null,
+    name: '••••••',
+    profilePic: r.is_anonymous ? null : r.profile_pic || null,
+    displayId: null,
+    gender: r.is_anonymous ? null : r.gender || null,
+    visitedAt: r.visited_at,
+    visitCount: Number(r.visit_count || 1),
+    isAnonymous: Boolean(r.is_anonymous),
+    isBlurred: true,
+  }));
+}
+
 async function listVisitors(profileUserId, { limit = 50, offset = 0 } = {}) {
   const canView = await canViewVisitors(profileUserId);
-  if (!canView) {
-    return {
-      canView: false,
-      svipRequired: VISITORS_MIN_SVIP,
-      visitors: [],
-      total: 0,
-    };
-  }
-
-  const lim = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 100);
-  const off = Math.max(parseInt(offset, 10) || 0, 0);
 
   const countRes = await db.query(
     `SELECT COUNT(*)::int AS c FROM profile_visits WHERE profile_user_id = $1`,
     [profileUserId]
   );
   const total = Number(countRes.rows[0]?.c || 0);
+
+  if (!canView) {
+    const visitors = await listVisitorPreview(profileUserId, { limit });
+    return {
+      canView: false,
+      preview: true,
+      svipRequired: VISITORS_MIN_SVIP,
+      visitors,
+      total,
+    };
+  }
+
+  const lim = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 100);
+  const off = Math.max(parseInt(offset, 10) || 0, 0);
 
   const res = await db.query(
     `SELECT pv.visited_at, pv.visit_count, pv.is_anonymous,
@@ -120,7 +147,7 @@ async function listVisitors(profileUserId, { limit = 50, offset = 0 } = {}) {
 
   const visitors = res.rows.map((r) => mapVisitorRow(r));
 
-  return { canView: true, svipRequired: VISITORS_MIN_SVIP, visitors, total };
+  return { canView: true, svipRequired: VISITORS_MIN_SVIP, visitors, total, preview: false };
 }
 
 async function listVisitedByMe(visitorUserId, { limit = 50, offset = 0 } = {}) {

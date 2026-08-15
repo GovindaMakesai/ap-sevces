@@ -37,6 +37,7 @@ router.get('/stats', social.followStats);
 
 router.get('/visitors/summary', profileVisitorController.getSummary);
 router.get('/visitors/visited', profileVisitorController.listVisited);
+router.get('/visitors/outgoing', profileVisitorController.listVisited);
 router.get('/visitors', profileVisitorController.listMine);
 
 router.post('/coin-sellers/:sellerId/buy', social.buyFromSeller);

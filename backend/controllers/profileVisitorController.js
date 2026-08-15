@@ -21,6 +21,14 @@ exports.getSummary = async (req, res) => {
 
 exports.listMine = async (req, res) => {
   try {
+    const direction = String(req.query.direction || req.query.view || '').toLowerCase();
+    if (direction === 'visited' || direction === 'outgoing') {
+      const data = await profileVisitorService.listVisitedByMe(req.userId, {
+        limit: req.query.limit,
+        offset: req.query.offset,
+      });
+      return res.json({ success: true, data });
+    }
     const data = await profileVisitorService.listVisitors(req.userId, {
       limit: req.query.limit,
       offset: req.query.offset,

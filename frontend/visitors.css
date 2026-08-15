@@ -121,6 +121,80 @@ body.visitors-page {
   text-decoration: none;
 }
 
+.visitors-svip-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 12px 14px;
+  background: linear-gradient(90deg, #6b4f10 0%, #a67c2e 50%, #6b4f10 100%);
+  color: #fff;
+}
+
+.visitors-svip-stack {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.visitors-svip-stack-img {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  margin-left: -10px;
+  filter: blur(3px);
+}
+
+.visitors-svip-stack-img:first-child {
+  margin-left: 0;
+}
+
+.visitors-svip-stack-ph {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+.visitors-svip-banner p {
+  flex: 1;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.visitors-svip-viewall {
+  flex-shrink: 0;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #6b4f10;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.visitors-row--blurred {
+  pointer-events: none;
+  user-select: none;
+}
+
+.visitors-row--blurred .visitors-avatar-wrap img {
+  filter: blur(7px);
+  transform: scale(1.05);
+}
+
+.visitors-row--blurred .visitors-name-row strong {
+  filter: blur(5px);
+  letter-spacing: 0.12em;
+}
+
 .visitors-list {
   background: #fff;
 }
