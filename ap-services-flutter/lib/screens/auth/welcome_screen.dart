@@ -78,12 +78,14 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
             children: [
               const ReadOnlyBanner(),
               Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 24),
-                      const GlowBrandMark(size: 88, showLabel: true),
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 8),
+                        const GlowBrandMark(size: 72, showLabel: true),
                       const SizedBox(height: 12),
                       Text(
                         'Live social, reimagined',
@@ -153,6 +155,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                     ],
                   ),
                 ),
+              ),
               ),
             ],
           ),

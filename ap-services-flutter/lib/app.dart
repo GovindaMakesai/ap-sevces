@@ -7,7 +7,6 @@ import 'package:provider/provider.dart';
 import 'config/app_config.dart';
 import 'config/app_nav.dart';
 import 'config/theme.dart';
-import 'widgets/glowcast_ui.dart';
 import 'models/live_room.dart';
 import 'screens/dev/screen_explorer_screen.dart';
 import 'screens/auth/login_screen.dart';
@@ -94,6 +93,19 @@ class _GlowCastAppState extends State<GlowCastApp> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _listenDeepLinks();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _warmStart());
+  }
+
+  Future<void> _warmStart() async {
+    final auth = widget.appState.auth;
+    unawaited(auth.initialize());
+    if (AppConfig.enablePushOnStartup) {
+      unawaited(widget.appState.push.initialize());
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+    if (auth.isLoggedIn) {
+      rootNavigatorKey.currentState?.pushReplacementNamed('/home');
+    }
   }
 
   @override
@@ -147,7 +159,7 @@ class _GlowCastAppState extends State<GlowCastApp> with WidgetsBindingObserver {
         debugShowCheckedModeBanner: false,
         theme: GlowTheme.light(),
         onGenerateRoute: _onGenerateRoute,
-        home: const _SplashGate(),
+        home: const WelcomeScreen(),
       ),
     );
   }
@@ -210,100 +222,6 @@ class _GlowCastAppState extends State<GlowCastApp> with WidgetsBindingObserver {
     return MaterialPageRoute(
       builder: (_) => child,
       fullscreenDialog: fullscreen,
-    );
-  }
-}
-
-class _SplashGate extends StatefulWidget {
-  const _SplashGate();
-
-  @override
-  State<_SplashGate> createState() => _SplashGateState();
-}
-
-class _SplashGateState extends State<_SplashGate> {
-  bool _showSkip = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _boot();
-    Future<void>.delayed(const Duration(seconds: 2), () {
-      if (mounted) setState(() => _showSkip = true);
-    });
-  }
-
-  void _goNext() {
-    if (!mounted) return;
-    final auth = context.read<AuthService>();
-    Navigator.of(context).pushReplacementNamed(auth.isLoggedIn ? '/home' : '/welcome');
-  }
-
-  Future<void> _boot() async {
-    final auth = context.read<AuthService>();
-    final app = context.read<AppState>();
-
-    unawaited(
-      app.push.initialize().timeout(
-        const Duration(seconds: 4),
-        onTimeout: () {},
-      ),
-    );
-
-    try {
-      await auth.initialize().timeout(const Duration(seconds: 3));
-    } catch (_) {
-      /* proceed offline */
-    }
-
-    if (auth.isLoggedIn) {
-      unawaited(app.syncPushToken());
-      unawaited(auth.warmSessionInBackground());
-    }
-
-    // Hard cap — iQOO/Vivo must never stay on purple splash.
-    await Future<void>.delayed(const Duration(milliseconds: 800));
-    if (!mounted) return;
-    _goNext();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(gradient: GlowTheme.splashGradient),
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const GlowBrandMark(size: 96, showLabel: true),
-              const SizedBox(height: 12),
-              Text(
-                'Loading your experience…',
-                style: TextStyle(color: Colors.white.withValues(alpha: 0.65), fontSize: 14),
-              ),
-              const SizedBox(height: 28),
-              const SizedBox(
-                width: 28,
-                height: 28,
-                child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
-              ),
-              if (_showSkip) ...[
-                const SizedBox(height: 32),
-                OutlinedButton(
-                  onPressed: _goNext,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    side: const BorderSide(color: Colors.white54),
-                    padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
-                  ),
-                  child: const Text('Continue'),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

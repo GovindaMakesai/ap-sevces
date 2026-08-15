@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import 'api_client.dart';
+import '../config/app_config.dart';
 import 'deep_link_service.dart';
 
 @pragma('vm:entry-point')
@@ -33,6 +34,10 @@ class PushService {
 
   Future<void> initialize() async {
     if (kIsWeb) return;
+    if (!AppConfig.enablePushOnStartup) {
+      debugPrint('[push] skipped on startup (enable after login)');
+      return;
+    }
     try {
       await Firebase.initializeApp();
     } catch (e) {

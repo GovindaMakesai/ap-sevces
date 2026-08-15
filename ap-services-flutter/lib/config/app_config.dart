@@ -25,6 +25,9 @@ class AppConfig {
   /// Show a menu to jump to every screen without hunting through the app.
   static const bool showScreenExplorer = true;
 
+  /// Firebase push init can hang on iQOO — enable only after login.
+  static const bool enablePushOnStartup = false;
+
   static String oauthUrl(String provider) =>
       '$backendUrl/auth/$provider?role=customer&app_redirect=${Uri.encodeComponent(oauthReturnUrl)}';
 }

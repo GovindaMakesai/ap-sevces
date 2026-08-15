@@ -2,28 +2,22 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/app_config.dart';
 import '../models/user.dart';
 import 'api_client.dart';
 
+/// Session storage uses SharedPreferences only — flutter_secure_storage hangs on iQOO/Vivo.
 class AuthService extends ChangeNotifier {
   AuthService() {
     _api = ApiClient(tokenProvider: () async => _accessToken);
   }
 
-  static const _tokenKey = 'token';
-  static const _refreshKey = 'ap_refresh_token';
-  static const _userKey = 'user';
+  static const _tokenKey = 'glowcast_access_token';
+  static const _refreshKey = 'glowcast_refresh_token';
+  static const _userKey = 'glowcast_user';
 
-  static const _secure = FlutterSecureStorage(
-    aOptions: AndroidOptions(
-      encryptedSharedPreferences: true,
-      resetOnError: true,
-    ),
-  );
   late final ApiClient _api;
 
   AppUser? _user;
@@ -39,40 +33,29 @@ class AuthService extends ChangeNotifier {
 
   Future<void> initialize() async {
     try {
-      _accessToken = await _secure
-          .read(key: _tokenKey)
-          .timeout(const Duration(seconds: 2), onTimeout: () => null);
-      _refreshToken = await _secure
-          .read(key: _refreshKey)
-          .timeout(const Duration(seconds: 2), onTimeout: () => null);
-    } catch (_) {
-      _accessToken = null;
-      _refreshToken = null;
-    }
-
-    try {
-      final prefs = await SharedPreferences.getInstance()
-          .timeout(const Duration(seconds: 2));
+      final prefs = await SharedPreferences.getInstance();
+      _accessToken = prefs.getString(_tokenKey);
+      _refreshToken = prefs.getString(_refreshKey);
       final userJson = prefs.getString(_userKey);
       if (userJson != null) {
         _user = AppUser.fromJson(jsonDecode(userJson) as Map<String, dynamic>);
       }
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[auth] init error: $e');
       _user = null;
+      _accessToken = null;
+      _refreshToken = null;
     }
-
-    // Session refresh hits the network — never block cold start (iQOO/Vivo hang fix).
     _initialized = true;
     notifyListeners();
   }
 
-  /// Call after the first screen is visible.
   Future<void> warmSessionInBackground() async {
     if (_accessToken == null && _refreshToken == null) return;
     try {
       await refreshSession(silent: true).timeout(const Duration(seconds: 8));
-    } catch (_) {
-      /* keep cached credentials */
+    } catch (e) {
+      debugPrint('[auth] warm session skipped: $e');
     }
   }
 
@@ -85,11 +68,11 @@ class AuthService extends ChangeNotifier {
     _accessToken = accessToken;
     if (refreshToken != null) _refreshToken = refreshToken;
 
-    await _secure.write(key: _tokenKey, value: accessToken);
-    if (refreshToken != null) {
-      await _secure.write(key: _refreshKey, value: refreshToken);
-    }
     final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_tokenKey, accessToken);
+    if (refreshToken != null) {
+      await prefs.setString(_refreshKey, refreshToken);
+    }
     await prefs.setString(_userKey, jsonEncode(user.toJson()));
     notifyListeners();
   }
@@ -148,11 +131,12 @@ class AuthService extends ChangeNotifier {
         final token = data['accessToken']?.toString();
         if (token != null && token.isNotEmpty) {
           _accessToken = token;
-          await _secure.write(key: _tokenKey, value: token);
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(_tokenKey, token);
           final rt = data['refreshToken']?.toString();
           if (rt != null) {
             _refreshToken = rt;
-            await _secure.write(key: _refreshKey, value: rt);
+            await prefs.setString(_refreshKey, rt);
           }
           if (!silent) notifyListeners();
           return;
@@ -209,9 +193,9 @@ class AuthService extends ChangeNotifier {
     _user = null;
     _accessToken = null;
     _refreshToken = null;
-    await _secure.delete(key: _tokenKey);
-    await _secure.delete(key: _refreshKey);
     final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_tokenKey);
+    await prefs.remove(_refreshKey);
     await prefs.remove(_userKey);
     notifyListeners();
   }
