@@ -222,35 +222,49 @@ class _SplashGate extends StatefulWidget {
 }
 
 class _SplashGateState extends State<_SplashGate> {
+  bool _showSkip = false;
+
   @override
   void initState() {
     super.initState();
     _boot();
+    Future<void>.delayed(const Duration(seconds: 2), () {
+      if (mounted) setState(() => _showSkip = true);
+    });
+  }
+
+  void _goNext() {
+    if (!mounted) return;
+    final auth = context.read<AuthService>();
+    Navigator.of(context).pushReplacementNamed(auth.isLoggedIn ? '/home' : '/welcome');
   }
 
   Future<void> _boot() async {
     final auth = context.read<AuthService>();
     final app = context.read<AppState>();
 
-    // Push/FCM can hang on devices without Google Play Services — never block launch.
     unawaited(
       app.push.initialize().timeout(
-        const Duration(seconds: 6),
+        const Duration(seconds: 4),
         onTimeout: () {},
       ),
     );
 
     try {
-      await auth.initialize().timeout(const Duration(seconds: 12));
-      if (auth.isLoggedIn) {
-        unawaited(app.syncPushToken());
-      }
+      await auth.initialize().timeout(const Duration(seconds: 3));
     } catch (_) {
-      /* proceed with cached or fresh session */
+      /* proceed offline */
     }
 
+    if (auth.isLoggedIn) {
+      unawaited(app.syncPushToken());
+      unawaited(auth.warmSessionInBackground());
+    }
+
+    // Hard cap — iQOO/Vivo must never stay on purple splash.
+    await Future<void>.delayed(const Duration(milliseconds: 800));
     if (!mounted) return;
-    Navigator.of(context).pushReplacementNamed(auth.isLoggedIn ? '/home' : '/welcome');
+    _goNext();
   }
 
   @override
@@ -274,6 +288,18 @@ class _SplashGateState extends State<_SplashGate> {
                 height: 28,
                 child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
               ),
+              if (_showSkip) ...[
+                const SizedBox(height: 32),
+                OutlinedButton(
+                  onPressed: _goNext,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: const BorderSide(color: Colors.white54),
+                    padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
+                  ),
+                  child: const Text('Continue'),
+                ),
+              ],
             ],
           ),
         ),

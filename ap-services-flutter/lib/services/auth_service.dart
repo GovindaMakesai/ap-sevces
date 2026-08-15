@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -17,7 +18,12 @@ class AuthService extends ChangeNotifier {
   static const _refreshKey = 'ap_refresh_token';
   static const _userKey = 'user';
 
-  final _secure = const FlutterSecureStorage();
+  static const _secure = FlutterSecureStorage(
+    aOptions: AndroidOptions(
+      encryptedSharedPreferences: true,
+      resetOnError: true,
+    ),
+  );
   late final ApiClient _api;
 
   AppUser? _user;
@@ -32,22 +38,42 @@ class AuthService extends ChangeNotifier {
   ApiClient get api => _api;
 
   Future<void> initialize() async {
-    _accessToken = await _secure.read(key: _tokenKey);
-    _refreshToken = await _secure.read(key: _refreshKey);
-    final prefs = await SharedPreferences.getInstance();
-    final userJson = prefs.getString(_userKey);
-    if (userJson != null) {
-      _user = AppUser.fromJson(jsonDecode(userJson) as Map<String, dynamic>);
+    try {
+      _accessToken = await _secure
+          .read(key: _tokenKey)
+          .timeout(const Duration(seconds: 2), onTimeout: () => null);
+      _refreshToken = await _secure
+          .read(key: _refreshKey)
+          .timeout(const Duration(seconds: 2), onTimeout: () => null);
+    } catch (_) {
+      _accessToken = null;
+      _refreshToken = null;
     }
-    if (_accessToken != null) {
-      try {
-        await refreshSession(silent: true);
-      } catch (_) {
-        /* keep cached session */
+
+    try {
+      final prefs = await SharedPreferences.getInstance()
+          .timeout(const Duration(seconds: 2));
+      final userJson = prefs.getString(_userKey);
+      if (userJson != null) {
+        _user = AppUser.fromJson(jsonDecode(userJson) as Map<String, dynamic>);
       }
+    } catch (_) {
+      _user = null;
     }
+
+    // Session refresh hits the network — never block cold start (iQOO/Vivo hang fix).
     _initialized = true;
     notifyListeners();
+  }
+
+  /// Call after the first screen is visible.
+  Future<void> warmSessionInBackground() async {
+    if (_accessToken == null && _refreshToken == null) return;
+    try {
+      await refreshSession(silent: true).timeout(const Duration(seconds: 8));
+    } catch (_) {
+      /* keep cached credentials */
+    }
   }
 
   Future<void> _persistSession({
