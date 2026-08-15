@@ -12053,12 +12053,23 @@
       /* Lift above system home / gesture nav */
       bar.style.bottom = 'max(12px, env(safe-area-inset-bottom, 0px))';
       if (compose) {
-        compose.style.flex = '1 1 0%';
-        compose.style.minWidth = '0';
-        compose.style.maxWidth = 'none';
-        compose.style.overflow = 'hidden';
-        compose.style.position = 'relative';
-        compose.style.zIndex = '1';
+        if (isPartyRoomPage()) {
+          compose.style.removeProperty('flex');
+          compose.style.removeProperty('min-width');
+          compose.style.removeProperty('max-width');
+          compose.style.removeProperty('position');
+          compose.style.removeProperty('bottom');
+          compose.style.removeProperty('left');
+          compose.style.removeProperty('width');
+          compose.style.zIndex = '55';
+        } else {
+          compose.style.flex = '1 1 0%';
+          compose.style.minWidth = '0';
+          compose.style.maxWidth = 'none';
+          compose.style.overflow = 'hidden';
+          compose.style.position = 'relative';
+          compose.style.zIndex = '1';
+        }
       }
       if (actions) {
         actions.style.flex = '0 0 auto';
@@ -13595,12 +13606,15 @@
     const actions = bar.querySelector('.party-bottom-actions');
     const anchor = bar.querySelector('.party-ref-bottom-right') || actions;
     if (isPartyRoomPage()) {
-      if (compose.parentElement !== bar) bar.appendChild(compose);
-      if (bar.firstElementChild !== compose) bar.insertBefore(compose, bar.firstElementChild);
+      compose.classList.add('ap-compose-float');
+      if (compose.parentElement !== document.body) document.body.appendChild(compose);
       document.body.classList.add('ap-chat-compose-open');
-    } else if (compose.parentElement !== bar) {
-      if (anchor) bar.insertBefore(compose, anchor);
-      else bar.appendChild(compose);
+    } else {
+      compose.classList.remove('ap-compose-float');
+      if (compose.parentElement !== bar) {
+        if (anchor) bar.insertBefore(compose, anchor);
+        else bar.appendChild(compose);
+      }
     }
   }
 
@@ -18997,6 +19011,7 @@
     const prev = document.getElementById('partyEditPhotoPreview');
     if (prev) prev.src = cover || avatarUrl(name, null);
     window.__apPartyModalOpenedAt = Date.now();
+    window.__apPartyEditModalGuardUntil = Date.now() + 800;
     document.getElementById('apPartyEditInfoModal')?.classList.add('open');
     syncLiveOverlayClass();
   }
@@ -19127,9 +19142,11 @@
       syncPartyMicCountUi();
       document.getElementById('apPartySettingModal')?.classList.add('open');
     });
-    document.getElementById('partySettingEditInfo')?.addEventListener('click', () => {
+    document.getElementById('partySettingEditInfo')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       document.getElementById('apPartyRoomSettings')?.classList.remove('open');
-      openPartyEditInfoModal();
+      setTimeout(() => openPartyEditInfoModal(), 0);
     });
     document.getElementById('partySettingTheme')?.addEventListener('click', () => {
       document.getElementById('apPartyRoomSettings')?.classList.remove('open');
@@ -19232,18 +19249,19 @@
       });
     });
 
-    ['apPartyRoomSettings', 'apPartySettingModal', 'apPartyEditInfoModal', 'apPartyRoomProfile'].forEach(
-      (id) => {
-        const overlay = document.getElementById(id);
-        overlay?.addEventListener('click', (e) => {
-          if (e.target !== overlay) return;
-          if (Date.now() - (Number(window.__apPartyModalOpenedAt) || 0) < 280) return;
-          closePartyRefModals();
-        });
-        overlay?.querySelector('.ap-party-edit-panel, .ap-party-settings-panel, .ap-party-setting-panel, .ap-party-room-profile-panel')
-          ?.addEventListener('click', (e) => e.stopPropagation());
-      }
-    );
+    ['apPartyRoomSettings', 'apPartySettingModal', 'apPartyRoomProfile'].forEach((id) => {
+      const overlay = document.getElementById(id);
+      overlay?.addEventListener('click', (e) => {
+        if (e.target !== overlay) return;
+        if (Date.now() - (Number(window.__apPartyModalOpenedAt) || 0) < 400) return;
+        closePartyRefModals();
+      });
+      overlay?.querySelector(
+        '.ap-party-settings-panel, .ap-party-setting-panel, .ap-party-room-profile-panel'
+      )?.addEventListener('click', (e) => e.stopPropagation());
+    });
+    const editOverlay = document.getElementById('apPartyEditInfoModal');
+    editOverlay?.querySelector('.ap-party-edit-panel')?.addEventListener('click', (e) => e.stopPropagation());
     document.addEventListener('click', (e) => {
       if (!e.target.closest('#apPartySeatMenu')) hidePartySeatMenu();
     });
