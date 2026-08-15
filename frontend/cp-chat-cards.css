@@ -62,3 +62,29 @@
 .message-bubble .cp-msg-card {
   margin: 2px 0;
 }
+
+.message-bubble:has(.cp-msg-card) {
+  max-width: min(92vw, 320px);
+  overflow: visible;
+}
+
+.message-wrapper .message-content:has(.cp-msg-card) {
+  padding: 4px;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: inherit;
+}
+
+.message-wrapper.received .message-content:has(.cp-msg-card) {
+  background: transparent !important;
+}
+
+.message-wrapper.sent .message-content:has(.cp-msg-card) {
+  background: transparent !important;
+  color: inherit;
+}
+
+.cp-msg-card-actions .cp-msg-btn {
+  min-width: 88px;
+  flex: 1 1 auto;
+}

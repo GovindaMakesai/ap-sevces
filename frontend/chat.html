@@ -8,7 +8,7 @@
     <script src="/ap-native-boot.js"></script>
     <link rel="stylesheet" href="/social-theme.css?v=20260729-perf2">
     <link rel="stylesheet" href="/social-chat.css?v=20260815-chatfix">
-    <link rel="stylesheet" href="/cp-chat-cards.css?v=20260815-chatfix">
+    <link rel="stylesheet" href="/cp-chat-cards.css?v=20260815-cpmsg">
     
     <!-- Font Awesome — non-blocking -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" media="print" onload="this.media='all'">
@@ -2228,30 +2228,98 @@
         const CP_INVITE_PREFIX = '__CP_INVITE__:';
         const CP_ACTION_PREFIX = '__CP_ACTION__:';
 
+        let cpInboxCache = null;
+
+        async function fetchCpInboxCache(force) {
+            if (!force && cpInboxCache && Date.now() - cpInboxCache.at < 45000) return cpInboxCache;
+            try {
+                await Promise.race([
+                    typeof Auth?.ensureAccessToken === 'function' ? Auth.ensureAccessToken() : Promise.resolve(),
+                    new Promise((r) => setTimeout(r, 4000)),
+                ]);
+                const res = await API.get('/cp/home');
+                const data = res?.data?.data || res?.data || {};
+                cpInboxCache = {
+                    pendingInvites: Array.isArray(data.pendingInvites) ? data.pendingInvites : [],
+                    actionRequests: (Array.isArray(data.actionRequests) ? data.actionRequests : []).filter((r) => r.incoming),
+                    at: Date.now(),
+                };
+            } catch (_e) {
+                cpInboxCache = cpInboxCache || { pendingInvites: [], actionRequests: [], at: Date.now() };
+            }
+            return cpInboxCache;
+        }
+
+        function resolveCpInviteId(invite, peerUserId) {
+            if (invite?.invite_id) return String(invite.invite_id);
+            const list = cpInboxCache?.pendingInvites || [];
+            if (!list.length) return null;
+            const peer = String(peerUserId || '').toLowerCase();
+            const fromName = String(invite?.from_name || '').trim().toLowerCase();
+            let match = null;
+            if (peer) match = list.find((p) => String(p.fromUserId || '').toLowerCase() === peer);
+            if (!match && fromName) match = list.find((p) => String(p.fromName || '').trim().toLowerCase() === fromName);
+            if (!match && list.length === 1) match = list[0];
+            return match?.id ? String(match.id) : null;
+        }
+
+        function resolveCpActionId(action, peerUserId) {
+            if (action?.action_id) return String(action.action_id);
+            const list = cpInboxCache?.actionRequests || [];
+            if (!list.length) return null;
+            const peer = String(peerUserId || '').toLowerCase();
+            const type = action?.type || 'break';
+            let matches = list.filter((r) => r.type === type);
+            if (peer) matches = matches.filter((r) => String(r.fromUserId || '').toLowerCase() === peer);
+            if (matches.length >= 1) return String(matches[0].id);
+            return null;
+        }
+
+        function shouldShowCpInviteActions(msg, invite, peerUserId) {
+            if (msg?.type === 'sent') return false;
+            if (resolveCpInviteId(invite, peerUserId)) return true;
+            const text = String(invite?.visibleText || '');
+            return /CP invitation/i.test(text) || /sent you a CP invitation/i.test(text);
+        }
+
+        function shouldShowCpActionActions(msg, action, peerUserId) {
+            if (msg?.type === 'sent') return false;
+            if (resolveCpActionId(action, peerUserId)) return true;
+            const text = String(action?.visibleText || '');
+            return /CP break-up request/i.test(text) || /CP ring change/i.test(text) || /asked to end your CP/i.test(text);
+        }
+
         function parseCpInvite(text) {
             const raw = String(text || '');
             const idx = raw.indexOf(CP_INVITE_PREFIX);
-            if (idx < 0) return null;
-            try {
-                const data = JSON.parse(raw.slice(idx + CP_INVITE_PREFIX.length).trim());
-                if (!data?.invite_id) return null;
-                return { ...data, visibleText: raw.slice(0, idx).trim() };
-            } catch (_e) {
-                return null;
+            if (idx >= 0) {
+                try {
+                    const data = JSON.parse(raw.slice(idx + CP_INVITE_PREFIX.length).trim());
+                    if (data?.invite_id) return { ...data, visibleText: raw.slice(0, idx).trim() };
+                } catch (_e) { /* fall through to plain-text match */ }
             }
+            if (/💕\s*CP invitation/i.test(raw) || /sent you a CP invitation/i.test(raw)) {
+                return { invite_id: null, visibleText: raw.trim(), plain: true };
+            }
+            return null;
         }
 
         function parseCpAction(text) {
             const raw = String(text || '');
             const idx = raw.indexOf(CP_ACTION_PREFIX);
-            if (idx < 0) return null;
-            try {
-                const data = JSON.parse(raw.slice(idx + CP_ACTION_PREFIX.length).trim());
-                if (!data?.action_id) return null;
-                return { ...data, visibleText: raw.slice(0, idx).trim() };
-            } catch (_e) {
-                return null;
+            if (idx >= 0) {
+                try {
+                    const data = JSON.parse(raw.slice(idx + CP_ACTION_PREFIX.length).trim());
+                    if (data?.action_id) return { ...data, visibleText: raw.slice(0, idx).trim() };
+                } catch (_e) { /* fall through */ }
             }
+            if (/💔\s*CP break-up request/i.test(raw) || /asked to end your CP/i.test(raw)) {
+                return { action_id: null, type: 'break', visibleText: raw.trim(), plain: true };
+            }
+            if (/💍\s*CP ring change/i.test(raw) || /wants to change your CP ring/i.test(raw)) {
+                return { action_id: null, type: 'ring_change', visibleText: raw.trim(), plain: true };
+            }
+            return null;
         }
 
         function parseAgencyHostInvite(text) {
@@ -2546,10 +2614,23 @@
             return wrap;
         }
 
-        function buildCpInviteCard(invite, msg) {
+        async function handleCpInviteClick(invite, accept, wrap, peerUserId) {
+            await fetchCpInboxCache(true);
+            const inviteId = resolveCpInviteId(invite, peerUserId);
+            await respondCpInvite(inviteId, accept, wrap);
+        }
+
+        async function handleCpActionClick(action, accept, wrap, peerUserId, isBreak) {
+            await fetchCpInboxCache(true);
+            const actionId = resolveCpActionId(action, peerUserId);
+            await respondCpAction(actionId, accept, wrap, isBreak);
+        }
+
+        function buildCpInviteCard(invite, msg, peerUserId) {
             const wrap = document.createElement('div');
             wrap.className = 'cp-msg-card';
-            wrap.dataset.inviteId = invite.invite_id || '';
+            const inviteId = resolveCpInviteId(invite, peerUserId);
+            wrap.dataset.inviteId = inviteId || invite.invite_id || '';
             const title = document.createElement('strong');
             title.textContent = '💕 CP invitation';
             wrap.appendChild(title);
@@ -2560,31 +2641,33 @@
                 invite.visibleText ||
                 `${invite.from_name || 'Someone'} sent you a CP invitation with ${ringLabel}.`;
             wrap.appendChild(desc);
-            if (msg?.type !== 'sent') {
+            if (shouldShowCpInviteActions(msg, invite, peerUserId)) {
                 const actions = document.createElement('div');
                 actions.className = 'cp-msg-card-actions';
                 const accept = document.createElement('button');
                 accept.type = 'button';
                 accept.className = 'cp-msg-btn cp-msg-btn--accept';
                 accept.textContent = 'Accept';
+                if (inviteId) accept.setAttribute('data-cp-invite-id', inviteId);
                 accept.addEventListener('click', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    respondCpInvite(invite.invite_id, true, wrap);
+                    void handleCpInviteClick(invite, true, wrap, peerUserId);
                 });
                 const decline = document.createElement('button');
                 decline.type = 'button';
                 decline.className = 'cp-msg-btn cp-msg-btn--decline';
                 decline.textContent = 'Decline';
+                if (inviteId) decline.setAttribute('data-cp-invite-id', inviteId);
                 decline.addEventListener('click', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    respondCpInvite(invite.invite_id, false, wrap);
+                    void handleCpInviteClick(invite, false, wrap, peerUserId);
                 });
                 actions.appendChild(accept);
                 actions.appendChild(decline);
                 wrap.appendChild(actions);
-            } else {
+            } else if (msg?.type === 'sent') {
                 const note = document.createElement('div');
                 note.className = 'cp-msg-card-note';
                 note.textContent = 'Waiting for their response…';
@@ -2593,11 +2676,13 @@
             return wrap;
         }
 
-        function buildCpActionCard(action, msg) {
+        function buildCpActionCard(action, msg, peerUserId) {
             const wrap = document.createElement('div');
             wrap.className = 'cp-msg-card';
-            wrap.dataset.actionId = action.action_id || '';
             const isBreak = action.type === 'break';
+            const actionId = resolveCpActionId(action, peerUserId);
+            wrap.dataset.actionId = actionId || action.action_id || '';
+            wrap.dataset.cpBreak = isBreak ? '1' : '0';
             const title = document.createElement('strong');
             title.textContent = isBreak ? '💔 CP break-up request' : '💍 CP ring change';
             wrap.appendChild(title);
@@ -2607,31 +2692,33 @@
                 ? `${action.from_name || 'Your CP'} asked to end your CP relationship.`
                 : `${action.from_name || 'Your CP'} wants to change your ring.`);
             wrap.appendChild(desc);
-            if (msg?.type !== 'sent') {
+            if (shouldShowCpActionActions(msg, action, peerUserId)) {
                 const actions = document.createElement('div');
                 actions.className = 'cp-msg-card-actions';
                 const accept = document.createElement('button');
                 accept.type = 'button';
                 accept.className = 'cp-msg-btn cp-msg-btn--accept';
                 accept.textContent = 'Accept';
+                if (actionId) accept.setAttribute('data-cp-action-id', actionId);
                 accept.addEventListener('click', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    respondCpAction(action.action_id, true, wrap, isBreak);
+                    void handleCpActionClick(action, true, wrap, peerUserId, isBreak);
                 });
                 const decline = document.createElement('button');
                 decline.type = 'button';
                 decline.className = 'cp-msg-btn cp-msg-btn--decline';
                 decline.textContent = 'Decline';
+                if (actionId) decline.setAttribute('data-cp-action-id', actionId);
                 decline.addEventListener('click', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    respondCpAction(action.action_id, false, wrap, isBreak);
+                    void handleCpActionClick(action, false, wrap, peerUserId, isBreak);
                 });
                 actions.appendChild(accept);
                 actions.appendChild(decline);
                 wrap.appendChild(actions);
-            } else {
+            } else if (msg?.type === 'sent') {
                 const note = document.createElement('div');
                 note.className = 'cp-msg-card-note';
                 note.textContent = 'Waiting for their response…';
@@ -2642,11 +2729,13 @@
 
         async function respondCpInvite(inviteId, accept, cardEl) {
             if (!inviteId) {
-                alert('This invite is outdated. Open CP House for pending invites.');
+                alert('This invite may have expired. Open CP House to check pending invites.');
+                if (confirm('Open CP House now?')) location.href = '/cp-home.html?app=1';
                 return;
             }
             try {
                 await API.post('/cp/invite/' + inviteId + '/respond', { accept });
+                cpInboxCache = null;
                 if (cardEl) {
                     cardEl.classList.add('is-resolved');
                     cardEl.innerHTML =
@@ -2665,11 +2754,13 @@
 
         async function respondCpAction(actionId, accept, cardEl, isBreak) {
             if (!actionId) {
-                alert('This request is outdated. Open CP House to respond.');
+                alert('This request may have expired. Open CP House to respond.');
+                if (confirm('Open CP House now?')) location.href = '/cp-home.html?app=1';
                 return;
             }
             try {
                 await API.post('/cp/action/' + actionId + '/respond', { accept });
+                cpInboxCache = null;
                 if (cardEl) {
                     cardEl.classList.add('is-resolved');
                     let note = accept
@@ -3676,6 +3767,7 @@
                     (typeof Auth?.ensureAccessToken === 'function' ? Auth.ensureAccessToken() : Promise.resolve()),
                     chatRequestTimeout(5000),
                 ]).catch(() => {});
+                await fetchCpInboxCache();
                 const response = await Promise.race([
                     axiosClient.get(`/${encodeURIComponent(key)}`),
                     new Promise((_, reject) =>
@@ -3816,9 +3908,9 @@
                 } else if (becomeAgency) {
                     content.appendChild(buildBecomeAgencyRequestCard(becomeAgency, msg));
                 } else if (cpInvite) {
-                    content.appendChild(buildCpInviteCard(cpInvite, msg));
+                    content.appendChild(buildCpInviteCard(cpInvite, msg, currentChatPeer?.otherUserId));
                 } else if (cpAction) {
-                    content.appendChild(buildCpActionCard(cpAction, msg));
+                    content.appendChild(buildCpActionCard(cpAction, msg, currentChatPeer?.otherUserId));
                 } else if (roomInvite) {
                     content.appendChild(buildRoomInviteCard(roomInvite));
                 } else if (bodyText) {
@@ -3929,27 +4021,41 @@
                           : '<div style="font-size:12px;opacity:.8">Waiting for your agency to respond…</div>'}
                       </div>`
                     : cpInvite
-                    ? `<div class="cp-msg-card" data-invite-id="${escapeAttr(cpInvite.invite_id)}">
+                    ? (() => {
+                        const peerId = currentChatPeer?.otherUserId;
+                        const inviteId = resolveCpInviteId(cpInvite, peerId) || cpInvite.invite_id || '';
+                        const showActions = shouldShowCpInviteActions(msg, cpInvite, peerId);
+                        return `<div class="cp-msg-card" data-invite-id="${escapeAttr(inviteId)}">
                         <strong>💕 CP invitation</strong>
                         <div class="cp-msg-card-desc">${escapeHtml(cpInvite.visibleText || ((cpInvite.from_name || 'Someone') + ' sent a CP invitation.'))}</div>
-                        ${msg.type !== 'sent'
+                        ${showActions
                           ? `<div class="cp-msg-card-actions">
-                              <button type="button" class="cp-msg-btn cp-msg-btn--accept" data-cp-invite-id="${escapeAttr(cpInvite.invite_id)}">Accept</button>
-                              <button type="button" class="cp-msg-btn cp-msg-btn--decline" data-cp-invite-id="${escapeAttr(cpInvite.invite_id)}">Decline</button>
+                              <button type="button" class="cp-msg-btn cp-msg-btn--accept" data-cp-invite-id="${escapeAttr(inviteId)}">Accept</button>
+                              <button type="button" class="cp-msg-btn cp-msg-btn--decline" data-cp-invite-id="${escapeAttr(inviteId)}">Decline</button>
                             </div>`
-                          : '<div class="cp-msg-card-note">Waiting for their response…</div>'}
-                      </div>`
+                          : msg.type === 'sent'
+                            ? '<div class="cp-msg-card-note">Waiting for their response…</div>'
+                            : ''}
+                      </div>`;
+                      })()
                     : cpAction
-                    ? `<div class="cp-msg-card" data-action-id="${escapeAttr(cpAction.action_id)}" data-cp-break="${cpAction.type === 'break' ? '1' : '0'}">
+                    ? (() => {
+                        const peerId = currentChatPeer?.otherUserId;
+                        const actionId = resolveCpActionId(cpAction, peerId) || cpAction.action_id || '';
+                        const showActions = shouldShowCpActionActions(msg, cpAction, peerId);
+                        return `<div class="cp-msg-card" data-action-id="${escapeAttr(actionId)}" data-cp-break="${cpAction.type === 'break' ? '1' : '0'}">
                         <strong>${cpAction.type === 'break' ? '💔 CP break-up request' : '💍 CP ring change'}</strong>
                         <div class="cp-msg-card-desc">${escapeHtml(cpAction.visibleText || 'Your CP sent a request.')}</div>
-                        ${msg.type !== 'sent'
+                        ${showActions
                           ? `<div class="cp-msg-card-actions">
-                              <button type="button" class="cp-msg-btn cp-msg-btn--accept" data-cp-action-id="${escapeAttr(cpAction.action_id)}">Accept</button>
-                              <button type="button" class="cp-msg-btn cp-msg-btn--decline" data-cp-action-id="${escapeAttr(cpAction.action_id)}">Decline</button>
+                              <button type="button" class="cp-msg-btn cp-msg-btn--accept" data-cp-action-id="${escapeAttr(actionId)}">Accept</button>
+                              <button type="button" class="cp-msg-btn cp-msg-btn--decline" data-cp-action-id="${escapeAttr(actionId)}">Decline</button>
                             </div>`
-                          : '<div class="cp-msg-card-note">Waiting for their response…</div>'}
-                      </div>`
+                          : msg.type === 'sent'
+                            ? '<div class="cp-msg-card-note">Waiting for their response…</div>'
+                            : ''}
+                      </div>`;
+                      })()
                     : roomInvite
                     ? `<div class="room-invite-card">
                         <strong>${roomInvite.isParty ? 'Party room invite' : 'Live stream invite'}</strong>
@@ -4034,22 +4140,32 @@
             }
             const cpInviteAccept = e.target.closest?.('.cp-msg-btn--accept[data-cp-invite-id]');
             const cpInviteDecline = e.target.closest?.('.cp-msg-btn--decline[data-cp-invite-id]');
-            if (cpInviteAccept || cpInviteDecline) {
+            const cpInviteCardBtn =
+                !cpInviteAccept && !cpInviteDecline
+                    ? e.target.closest?.('.cp-msg-card[data-invite-id] .cp-msg-btn--accept, .cp-msg-card[data-invite-id] .cp-msg-btn--decline')
+                    : null;
+            if (cpInviteAccept || cpInviteDecline || cpInviteCardBtn) {
                 e.preventDefault();
-                const btn = cpInviteAccept || cpInviteDecline;
+                const btn = cpInviteAccept || cpInviteDecline || cpInviteCardBtn;
                 const card = btn.closest('.cp-msg-card');
-                respondCpInvite(btn.getAttribute('data-cp-invite-id'), Boolean(cpInviteAccept), card);
+                const inviteId = btn.getAttribute('data-cp-invite-id') || card?.dataset?.inviteId;
+                respondCpInvite(inviteId, Boolean(cpInviteAccept || (cpInviteCardBtn && cpInviteCardBtn.classList.contains('cp-msg-btn--accept'))), card);
                 return;
             }
             const cpActionAccept = e.target.closest?.('.cp-msg-btn--accept[data-cp-action-id]');
             const cpActionDecline = e.target.closest?.('.cp-msg-btn--decline[data-cp-action-id]');
-            if (cpActionAccept || cpActionDecline) {
+            const cpActionCardBtn =
+                !cpActionAccept && !cpActionDecline
+                    ? e.target.closest?.('.cp-msg-card[data-action-id] .cp-msg-btn--accept, .cp-msg-card[data-action-id] .cp-msg-btn--decline')
+                    : null;
+            if (cpActionAccept || cpActionDecline || cpActionCardBtn) {
                 e.preventDefault();
-                const btn = cpActionAccept || cpActionDecline;
+                const btn = cpActionAccept || cpActionDecline || cpActionCardBtn;
                 const card = btn.closest('.cp-msg-card');
+                const actionId = btn.getAttribute('data-cp-action-id') || card?.dataset?.actionId;
                 respondCpAction(
-                    btn.getAttribute('data-cp-action-id'),
-                    Boolean(cpActionAccept),
+                    actionId,
+                    Boolean(cpActionAccept || (cpActionCardBtn && cpActionCardBtn.classList.contains('cp-msg-btn--accept'))),
                     card,
                     card?.dataset?.cpBreak === '1'
                 );
