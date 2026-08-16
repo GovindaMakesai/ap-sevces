@@ -95,7 +95,7 @@ function formatCompact(n) {
   return String(Math.round(v));
 }
 
-/** SVIP points = approved wallet recharges + coins bought via coin sellers (1 coin = 1 point). */
+/** SVIP points = approved wallet recharges + coin seller purchases/transfers + seller stock top-ups. */
 async function getSvipPoints(userId) {
   const safeSum = async (sql, params) => {
     try {
@@ -106,38 +106,52 @@ async function getSvipPoints(userId) {
     }
   };
 
-  const [rechargePts, sellerTransferPts, sellerOrderPts] = await Promise.all([
-    safeSum(
-      `SELECT COALESCE(SUM(coins_credited), 0)::bigint AS pts
-       FROM recharges
-       WHERE user_id = $1 AND payment_status = 'approved'`,
-      [userId]
-    ),
-    safeSum(
-      `SELECT COALESCE(SUM(coins), 0)::bigint AS pts
-       FROM coin_seller_transfers
-       WHERE recipient_id = $1 AND transfer_type = 'user'`,
-      [userId]
-    ),
-    safeSum(
-      `SELECT COALESCE(SUM(coins), 0)::bigint AS pts
-       FROM coin_seller_orders
-       WHERE buyer_id = $1 AND status = 'completed'`,
-      [userId]
-    ),
-  ]);
+  const [rechargePts, sellerTransferPts, sellerOrderPts, sellerStockPts, walletRechargePts, walletTransferPts] =
+    await Promise.all([
+      safeSum(
+        `SELECT COALESCE(SUM(coins_credited), 0)::bigint AS pts
+         FROM recharges
+         WHERE user_id = $1 AND payment_status = 'approved'`,
+        [userId]
+      ),
+      safeSum(
+        `SELECT COALESCE(SUM(coins), 0)::bigint AS pts
+         FROM coin_seller_transfers
+         WHERE recipient_id = $1`,
+        [userId]
+      ),
+      safeSum(
+        `SELECT COALESCE(SUM(coins), 0)::bigint AS pts
+         FROM coin_seller_orders
+         WHERE buyer_id = $1 AND status = 'completed'`,
+        [userId]
+      ),
+      safeSum(
+        `SELECT COALESCE(SUM(package_coins), 0)::bigint AS pts
+         FROM coin_seller_recharges
+         WHERE seller_id = $1 AND status = 'approved'`,
+        [userId]
+      ),
+      safeSum(
+        `SELECT COALESCE(SUM(amount), 0)::bigint AS pts
+         FROM wallet_transactions
+         WHERE user_id = $1 AND type = 'recharge' AND amount > 0`,
+        [userId]
+      ),
+      safeSum(
+        `SELECT COALESCE(SUM(amount), 0)::bigint AS pts
+         FROM wallet_transactions
+         WHERE user_id = $1 AND amount > 0
+           AND type IN ('coin_seller_transfer', 'coin_seller_purchase')`,
+        [userId]
+      ),
+    ]);
 
-  let pts = rechargePts + sellerTransferPts + sellerOrderPts;
-
+  const transferPts = Math.max(sellerTransferPts, walletTransferPts);
+  let pts = rechargePts + transferPts + sellerOrderPts + sellerStockPts;
   if (pts === 0) {
-    pts = await safeSum(
-      `SELECT COALESCE(SUM(amount), 0)::bigint AS pts
-       FROM wallet_transactions
-       WHERE user_id = $1 AND type = 'recharge' AND amount > 0`,
-      [userId]
-    );
+    pts = walletRechargePts;
   }
-
   return pts;
 }
 
@@ -161,7 +175,7 @@ async function getQualifyingPointsSince(userId, since) {
     }
   };
 
-  const [rechargePts, sellerTransferPts, sellerOrderPts] = await Promise.all([
+  const [rechargePts, sellerTransferPts, sellerOrderPts, sellerStockPts, walletTransferPts] = await Promise.all([
     safeSum(
       `SELECT COALESCE(SUM(coins_credited), 0)::bigint AS pts
        FROM recharges
@@ -171,7 +185,7 @@ async function getQualifyingPointsSince(userId, since) {
     safeSum(
       `SELECT COALESCE(SUM(coins), 0)::bigint AS pts
        FROM coin_seller_transfers
-       WHERE recipient_id = $1 AND transfer_type = 'user' AND created_at >= $2`,
+       WHERE recipient_id = $1 AND created_at >= $2`,
       [userId, sinceIso]
     ),
     safeSum(
@@ -180,9 +194,24 @@ async function getQualifyingPointsSince(userId, since) {
        WHERE buyer_id = $1 AND status = 'completed' AND updated_at >= $2`,
       [userId, sinceIso]
     ),
+    safeSum(
+      `SELECT COALESCE(SUM(package_coins), 0)::bigint AS pts
+       FROM coin_seller_recharges
+       WHERE seller_id = $1 AND status = 'approved' AND updated_at >= $2`,
+      [userId, sinceIso]
+    ),
+    safeSum(
+      `SELECT COALESCE(SUM(amount), 0)::bigint AS pts
+       FROM wallet_transactions
+       WHERE user_id = $1 AND amount > 0
+         AND type IN ('coin_seller_transfer', 'coin_seller_purchase')
+         AND created_at >= $2`,
+      [userId, sinceIso]
+    ),
   ]);
 
-  let pts = rechargePts + sellerTransferPts + sellerOrderPts;
+  const transferPts = Math.max(sellerTransferPts, walletTransferPts);
+  let pts = rechargePts + transferPts + sellerOrderPts + sellerStockPts;
   if (pts === 0) {
     pts = await safeSum(
       `SELECT COALESCE(SUM(amount), 0)::bigint AS pts
@@ -351,6 +380,22 @@ async function saveSettings(userId, settings) {
   return getSettings(userId);
 }
 
+async function refreshSvipStatusForUser(userId) {
+  if (!userId) return null;
+  const points = await getSvipPoints(userId);
+  const pointsLevel = levelFromPoints(points).level;
+  return syncSvipStatus(userId, pointsLevel);
+}
+
+function scheduleSvipRefresh(userId) {
+  if (!userId) return;
+  setImmediate(() => {
+    refreshSvipStatusForUser(userId).catch((err) => {
+      console.warn('[svip] refresh failed', userId, err?.message || err);
+    });
+  });
+}
+
 async function getSvipHome(userId) {
   const points = userId ? await getSvipPoints(userId) : 0;
   const pointsTier = levelFromPoints(points);
@@ -480,7 +525,8 @@ async function getSvipHome(userId) {
 
 function getSvipIntro() {
   return {
-    pointRule: '1 diamond purchased = 1 SVIP Point. Refunded purchases deduct points.',
+    pointRule:
+      '1 purchased diamond (coin) = 1 SVIP point: approved wallet recharges, coins received from coin sellers, completed seller orders, and approved seller stock top-ups. Exchanging earned points to coins or moving sell coins → gift coins does not add SVIP points.',
     levels: SVIP_LEVELS.map((r) => ({
       level: r.level,
       min: r.min,
@@ -511,6 +557,8 @@ module.exports = {
   getSvipPoints,
   getQualifyingPointsSince,
   syncSvipStatus,
+  refreshSvipStatusForUser,
+  scheduleSvipRefresh,
   getSettings,
   saveSettings,
   levelFromPoints,

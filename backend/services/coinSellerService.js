@@ -146,6 +146,8 @@ async function completeOrder(orderId, approverId, { role = 'seller', rejectionRe
       entity_id: orderId,
       metadata: { role, coins: order.coins },
     });
+    const svipService = require('./svipService');
+    svipService.scheduleSvipRefresh(order.buyer_id);
     return upd.rows[0];
   } catch (e) {
     await db.safeRollback(client);
@@ -485,6 +487,9 @@ async function transferCoins(sellerId, { recipientId, coins, transferType = 'use
         metadata: { recipientId: recipient.id, coins: amount, fromInventory, fromWallet, selfSale: isSelfSale },
       })
       .catch(() => {});
+
+    const svipService = require('./svipService');
+    svipService.scheduleSvipRefresh(recipient.id);
 
     /* Notify buyer: chat + AP Services message + notification (skip noise for self-sale) */
     if (!isSelfSale) {
@@ -1078,6 +1083,9 @@ async function approveSellerRecharge(rechargeId, adminUserId, notes) {
   } catch (notifyErr) {
     console.error('approveSellerRecharge notifications:', notifyErr.message);
   }
+
+  const svipService = require('./svipService');
+  svipService.scheduleSvipRefresh(credited.seller_id);
 
   return credited;
 }

@@ -150,6 +150,9 @@ async function approveRecharge(rechargeId, adminUserId, notes) {
       source: 'recharge',
     });
 
+    const svipService = require('./svipService');
+    svipService.scheduleSvipRefresh(recharge.user_id);
+
     return { coins_credited: coins };
   } catch (e) {
     await client.query('ROLLBACK');
