@@ -11800,28 +11800,41 @@
           '#giftSheet.open, #partyToolsSheet.open, .ap-pk-types-sheet.open, .party-requests-sheet.open'
         )
       );
-      bar.style.display = 'flex';
-      bar.style.flexWrap = 'nowrap';
-      bar.style.alignItems = 'center';
-      bar.style.overflow = 'visible';
+      bar.style.display = isPartyRoomPage() ? 'grid' : 'flex';
+      if (isPartyRoomPage()) {
+        bar.style.gridTemplateColumns = '1fr auto';
+        bar.style.gridTemplateRows = 'auto auto';
+        bar.style.flexWrap = '';
+        bar.style.bottom = '0';
+      } else {
+        bar.style.flexWrap = 'nowrap';
+        bar.style.bottom = 'max(12px, env(safe-area-inset-bottom, 0px))';
+      }
       /* Below gift/tools (32000); above chat/PK overlays */
       bar.style.zIndex = sheetOpen ? '12000' : '14000';
       bar.style.pointerEvents = sheetOpen ? 'none' : 'auto';
-      /* Lift above system home / gesture nav */
-      bar.style.bottom = 'max(12px, env(safe-area-inset-bottom, 0px))';
+      bar.style.alignItems = 'center';
+      bar.style.overflow = 'visible';
       if (compose) {
-        compose.style.flex = '1 1 0%';
-        compose.style.minWidth = '0';
-        compose.style.maxWidth = 'none';
-        compose.style.overflow = 'hidden';
-        compose.style.position = 'relative';
-        compose.style.zIndex = '1';
         if (isPartyRoomPage()) {
+          compose.style.flex = '';
+          compose.style.display = 'grid';
+          compose.style.gridColumn = '1 / -1';
+          compose.style.gridRow = '1';
+          compose.style.width = '100%';
+          compose.style.minWidth = '0';
+          compose.style.maxWidth = '100%';
           compose.style.removeProperty('left');
           compose.style.removeProperty('right');
           compose.style.removeProperty('bottom');
-          compose.style.removeProperty('width');
+        } else {
+          compose.style.flex = '1 1 0%';
+          compose.style.minWidth = '0';
+          compose.style.maxWidth = 'none';
         }
+        compose.style.overflow = 'hidden';
+        compose.style.position = 'relative';
+        compose.style.zIndex = '1';
       }
       if (actions) {
         actions.style.flex = '0 0 auto';

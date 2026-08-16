@@ -10210,6 +10210,15 @@ html.ap-expo-app .ap-chip {
 
 
 /* ===== Live chrome stack: bar below sheets; gift/tools/PK above and tappable ===== */
+body[data-live-page='party-room'] #partyBottomBar.party-bottom-bar,
+body[data-live-page='party-room'] #partyBottomBar.party-bottom-bar.ap-bottom-ref {
+  display: grid !important;
+  grid-template-columns: 1fr auto !important;
+  grid-template-rows: auto auto !important;
+  flex-wrap: unset !important;
+  bottom: 0 !important;
+}
+
 #partyBottomBar.party-bottom-bar,
 body[data-live-page='live-room'] #partyBottomBar,
 .party-bottom-bar#partyBottomBar {
