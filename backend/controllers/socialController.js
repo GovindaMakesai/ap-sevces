@@ -132,6 +132,20 @@ async function creatorEngagement(req, res) {
   }
 }
 
+async function creatorProfilePanel(req, res) {
+  try {
+    const creatorProfilePanelService = require('../services/creatorProfilePanelService');
+    const data = await creatorProfilePanelService.getProfilePanel(req.params.userId);
+    if (!data) {
+      return res.status(404).json({ success: false, message: 'Profile not found' });
+    }
+    res.json({ success: true, data });
+  } catch (e) {
+    console.error('creatorProfilePanel error:', e);
+    res.status(500).json({ success: false, message: 'Failed to load profile panel' });
+  }
+}
+
 async function creatorBadges(req, res) {
   try {
     const profileBadgeService = require('../services/profileBadgeService');
@@ -554,6 +568,7 @@ module.exports = {
   discoverRails,
   clientMetrics,
   creatorEngagement,
+  creatorProfilePanel,
   creatorBadges,
   creatorAnalytics,
   listGiftCatalog,

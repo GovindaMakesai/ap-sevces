@@ -13,6 +13,7 @@ router.get('/discover/creators', optionalAuth, social.discoverCreators);
 router.get('/discover/rails', optionalAuth, social.discoverRails);
 router.post('/client-metrics', optionalAuth, social.clientMetrics);
 router.get('/creators/:userId/engagement', optionalAuth, social.creatorEngagement);
+router.get('/creators/:userId/profile-panel', optionalAuth, social.creatorProfilePanel);
 router.get('/creators/:userId/badges', optionalAuth, social.creatorBadges);
 router.get('/stats/:userId', optionalAuth, social.followStats);
 router.get('/posts', optionalAuth, social.listPosts);
