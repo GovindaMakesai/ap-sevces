@@ -2236,19 +2236,19 @@ window.formatRoleBadgeHtml = formatRoleBadgeHtml;
 window.HIERARCHY_BADGE_META = HIERARCHY_BADGE_META;
 
 /** Profile page: show all matching role chips (Host, Seller, Agency, etc.). */
-function formatProfileRoleBadgesHtml(user, { withEmoji = true } = {}) {
+function formatProfileRoleBadgesHtml(user, { withEmoji = true, skipAdmin = false } = {}) {
     if (!user) return '';
     const keys = [];
     const push = (k) => {
         if (k && HIERARCHY_BADGE_META[k] && !keys.includes(k)) keys.push(k);
     };
-    if (window.isPlatformAdminUser?.(user)) push('admin');
+    if (!skipAdmin && window.isPlatformAdminUser?.(user)) push('admin');
     const r = String(user.role || '').toLowerCase();
     if (r === 'bdm' || r === 'bd') push('bd');
     if (r === 'agency') push('agency');
     if (r === 'creator' || r === 'host') push('host');
     if (r === 'coin_seller' || r === 'seller' || user.is_coin_seller === true) push('seller');
-    if (['admin', 'super_admin', 'founder', 'ceo'].includes(r)) push('admin');
+    if (!skipAdmin && ['admin', 'super_admin', 'founder', 'ceo'].includes(r)) push('admin');
     /* Self profile only — viewer wallet must not add seller chip on other users */
     try {
         const uid = String(user.id || user.userId || user.user_id || '').trim();

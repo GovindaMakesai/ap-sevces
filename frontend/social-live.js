@@ -18281,25 +18281,45 @@
       '<div class="ap-profile-role-badges" id="apProfileRoleBadges" aria-label="Role badges"></div>';
   }
 
+  function liveProfileIsPlatformAdmin(userId, meta, data) {
+    const uid = String(userId || '');
+    if (!uid) return false;
+    if (isPlatformAdminUserId(uid)) return true;
+    return window.isPlatformAdminUser?.({
+      role: data?.role || meta?.userRole,
+      isPlatformAdmin: meta?.isPlatformAdmin,
+      is_admin: meta?.isPlatformAdmin,
+    });
+  }
+
   function buildLiveProfileRoleBadgesHtml(userId, meta, data) {
     const parts = [];
-    if (meta?.isRoomAdmin && !meta?.isAdmin) {
+    const platformAdmin = liveProfileIsPlatformAdmin(userId, meta, data);
+    const roomAdminOnly = Boolean(meta?.isRoomAdmin) && !platformAdmin;
+
+    if (roomAdminOnly) {
       parts.push(
-        `<span class="ap-role-badge ap-role-badge--admin">${roomAdminLabel().toUpperCase()}</span>`
+        `<span class="ap-role-badge ap-role-badge--mod" title="${roomAdminLabel()}">${roomAdminLabel().toUpperCase()}</span>`
       );
     }
-    if (meta?.isAdmin && isPlatformAdminUserId(userId)) {
+    if (platformAdmin) {
       parts.push(
         window.formatRoleBadgeHtml?.('admin', { withEmoji: true }) ||
           '<span class="ap-role-badge ap-role-badge--admin">ADMIN</span>'
       );
     }
+
     const user = {
       id: userId,
+      userId: userId,
       role: data?.role || meta?.userRole,
       is_coin_seller: Boolean(data?.is_coin_seller || data?.role === 'coin_seller' || meta?.is_coin_seller),
     };
-    const roleChips = window.formatProfileRoleBadgesHtml?.(user, { withEmoji: true }) || '';
+    const roleChips =
+      window.formatProfileRoleBadgesHtml?.(user, {
+        withEmoji: true,
+        skipAdmin: platformAdmin || roomAdminOnly,
+      }) || '';
     if (roleChips) parts.push(roleChips);
     return parts.join(' ');
   }
@@ -18478,11 +18498,16 @@
       activeProfileUser.displayId ||
       '';
     if (idEl) {
+      const platformAdminProfile = liveProfileIsPlatformAdmin(
+        resolvedId,
+        activeProfileUser,
+        { role: activeProfileUser.userRole }
+      );
       const idHtml =
-        window.formatAdminIdHtml?.(idDisplay, { isAdmin: activeProfileUser.isAdmin }) ||
+        window.formatAdminIdHtml?.(idDisplay, { isAdmin: platformAdminProfile }) ||
         `ID: ${idDisplay || '—'}`;
       idEl.innerHTML = `<span class="ap-profile-id-text">${idHtml}</span><button type="button" id="apProfileCopyId" aria-label="Copy ID"><i class="far fa-copy"></i></button>`;
-      idEl.classList.toggle('is-admin-id', activeProfileUser.isAdmin);
+      idEl.classList.toggle('is-admin-id', platformAdminProfile);
       document.getElementById('apProfileCopyId')?.addEventListener('click', () => {
         const full = idDisplay || activeProfileUser.displayId;
         if (!full) return;
