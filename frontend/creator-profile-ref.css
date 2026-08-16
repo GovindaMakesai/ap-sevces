@@ -33,15 +33,32 @@ body.creator-profile-ref {
 
 .cp-ref-top {
   position: relative;
+  z-index: 0;
 }
 
 .cp-ref-cover-zone {
   position: relative;
   height: 220px;
   background: linear-gradient(145deg, #0d4f4a, #061a1a 55%, #041212);
+  z-index: 1;
+  isolation: isolate;
+}
+
+.cp-ref-cover-zone::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 88px;
+  background: linear-gradient(180deg, transparent, rgba(6, 26, 26, 0.55), var(--cp-ref-bg2));
+  z-index: 2;
+  pointer-events: none;
 }
 
 .cp-ref-cover-track {
+  position: relative;
+  z-index: 1;
   display: flex;
   height: 100%;
   overflow-x: auto;
@@ -157,14 +174,24 @@ body.creator-profile-ref {
   top: 0;
   left: 0;
   right: 0;
-  z-index: 10;
+  z-index: 20;
   background: linear-gradient(180deg, rgba(0, 0, 0, 0.42), transparent);
   backdrop-filter: none;
 }
 
-.cp-ref-hero--overlap {
-  margin-top: -44px;
-  padding-top: 0;
+.cp-ref-avatar-stage {
+  position: relative;
+  z-index: 15;
+  margin-top: -52px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.cp-ref-hero {
+  position: relative;
+  z-index: 5;
+  text-align: center;
+  padding: 6px 16px 0;
 }
 
 .cp-ref-header-title {
@@ -213,19 +240,19 @@ body.creator-profile-ref {
   text-decoration: none;
 }
 
-.cp-ref-hero {
-  text-align: center;
-  padding: 8px 16px 0;
-}
-
 .cp-ref-avatar-wrap {
   width: 88px;
   height: 88px;
   margin: 0 auto 10px;
   border-radius: 50%;
   overflow: hidden;
-  border: 3px solid rgba(45, 212, 191, 0.45);
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  border: 3px solid rgba(45, 212, 191, 0.55);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
+  padding: 0;
+  background: var(--cp-ref-bg);
+  cursor: pointer;
+  pointer-events: auto;
+  display: block;
 }
 
 .cp-ref-avatar-wrap img {
@@ -233,7 +260,7 @@ body.creator-profile-ref {
   height: 100%;
   object-fit: cover;
   display: block;
-  cursor: pointer;
+  pointer-events: none;
 }
 
 .cp-ref-name-row {
@@ -948,8 +975,10 @@ body.creator-profile-ref {
 }
 
 .cp-ref-image-lightbox img {
-  max-width: 100%;
-  max-height: 100%;
+  max-width: min(100%, 520px);
+  max-height: min(92vh, 720px);
+  width: auto;
+  height: auto;
   object-fit: contain;
   border-radius: 8px;
   box-shadow: 0 12px 48px rgba(0, 0, 0, 0.55);

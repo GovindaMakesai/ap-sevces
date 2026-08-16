@@ -123,9 +123,12 @@
         '<a class="cp-ref-icon-btn" id="cpRefGiftLink" href="/store.html?app=1" aria-label="Gifts"><i class="fas fa-gift"></i></a>' +
         '<a class="cp-ref-edit-pill" id="cpRefEditPill" href="/profile-tab.html?app=1&edit=1" hidden><i class="fas fa-pen"></i> <span id="cpRefCompletion">0%</span></a>' +
         '</div></header>' +
+        '<div class="cp-ref-avatar-stage">' +
+        '<button type="button" class="cp-ref-avatar-wrap" id="cpRefAvatarBtn" aria-label="View profile photo">' +
+        '<img id="cpRefAvatar" alt="">' +
+        '</button></div>' +
         '</div>' +
-        '<section class="cp-ref-hero cp-ref-hero--overlap" id="cpRefHero">' +
-        '<div class="cp-ref-avatar-wrap"><img id="cpRefAvatar" alt=""></div>' +
+        '<section class="cp-ref-hero" id="cpRefHero">' +
         '<div class="cp-ref-name-row"><span class="cp-ref-name" id="cpRefName">' +
         esc(name) +
         '</span><span class="cp-ref-verified" id="cpRefVerified" hidden><i class="fas fa-check-circle"></i></span></div>' +
@@ -560,19 +563,23 @@
 
     bindAvatarLightbox(pic, displayName, panel) {
       const av = document.getElementById('cpRefAvatar');
+      const btn = document.getElementById('cpRefAvatarBtn');
       if (!av || av.dataset.lightboxBound) return;
       av.dataset.lightboxBound = '1';
       const fullSrc = pic
         ? window.SocialShell?.getImageUrl?.(pic, panel?.profileUpdatedAt || this.state.userId) ||
           window.SocialUI?.avatarUrl?.(displayName, pic)
         : '';
-      av.addEventListener('dblclick', (e) => {
+      if (fullSrc) av.dataset.fullSrc = fullSrc;
+      const open = (e) => {
         e.preventDefault();
         e.stopPropagation();
-        const src = fullSrc || av.src;
+        const src = av.dataset.fullSrc || fullSrc || av.src;
         if (!src) return;
         this.openImageLightbox(src, displayName);
-      });
+      };
+      if (btn) btn.addEventListener('click', open);
+      else av.addEventListener('click', open);
     },
 
     openImageLightbox(src, alt) {
