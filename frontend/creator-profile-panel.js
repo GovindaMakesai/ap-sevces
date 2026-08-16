@@ -90,6 +90,7 @@
       }
 
       this.paintShell(name);
+      this.markReady();
       this.bindTabs();
       this.bindActions();
 
@@ -256,36 +257,48 @@
         console.warn('[creator-profile]', e);
       }
 
-      this.state.panel = panel;
-      this.state.engagement = engagement;
+      try {
+        this.state.panel = panel;
+        this.state.engagement = engagement;
 
-      if (window.SocialInteractions?.isFollowing) {
-        this.state.following = SocialInteractions.isFollowing(this.state.userId, this.state.name);
-      } else if (engagement?.isFollowing) {
-        this.state.following = true;
+        if (window.SocialInteractions?.isFollowing) {
+          this.state.following = SocialInteractions.isFollowing(this.state.userId, this.state.name);
+        } else if (engagement?.isFollowing) {
+          this.state.following = true;
+        }
+
+        this.paintHeader(panel, engagement);
+        this.paintCover(panel);
+        this.paintStats(panel, engagement);
+        this.paintMedals(panel);
+        this.paintGiftGrid(document.getElementById('cpRefPanelGift'), panel);
+        this.paintDataTab(panel);
+        this.paintRelTab();
+        this.state.cpMounted = true;
+        this.updateTabCounts(panel, engagement);
+        this.syncFollowBtn();
+        this.switchTab(this.state.activeTab);
+
+        if (this.state.isSelf) {
+          document.getElementById('cpRefEditPill')?.removeAttribute('hidden');
+          document.getElementById('cpRefShare')?.removeAttribute('hidden');
+          document.getElementById('cpRefMood')?.removeAttribute('hidden');
+          document.getElementById('cpRefCoverAdd')?.removeAttribute('hidden');
+          document.getElementById('cpRefActions')?.setAttribute('hidden', '');
+          document.getElementById('cpRefGiftLink')?.setAttribute('hidden', '');
+          this.bindCoverAdd();
+        }
+      } catch (e) {
+        console.error('[creator-profile] paint failed', e);
+        this.showEmpty('Could not load this profile. Pull to refresh or try again.');
+      } finally {
+        this.markReady();
       }
+    },
 
-      this.paintHeader(panel, engagement);
-      this.paintCover(panel);
-      this.paintStats(panel, engagement);
-      this.paintMedals(panel);
-      this.paintGiftGrid(document.getElementById('cpRefPanelGift'), panel);
-      this.paintDataTab(panel);
-      this.paintRelTab();
-      this.state.cpMounted = true;
-      this.updateTabCounts(panel, engagement);
-      this.syncFollowBtn();
-      this.switchTab(this.state.activeTab);
-
-      if (this.state.isSelf) {
-        document.getElementById('cpRefEditPill')?.removeAttribute('hidden');
-        document.getElementById('cpRefShare')?.removeAttribute('hidden');
-        document.getElementById('cpRefMood')?.removeAttribute('hidden');
-        document.getElementById('cpRefCoverAdd')?.removeAttribute('hidden');
-        document.getElementById('cpRefActions')?.setAttribute('hidden', '');
-        document.getElementById('cpRefGiftLink')?.setAttribute('hidden', '');
-        this.bindCoverAdd();
-      }
+    markReady() {
+      const root = document.getElementById('cpRefRoot');
+      if (root) root.removeAttribute('aria-busy');
     },
 
     coverImageUrl(url, cacheKey) {
@@ -372,12 +385,14 @@
         this._coverScrollTimer = setTimeout(syncCoverUi, 60);
       };
 
-      dots?.onclick = (e) => {
-        const dot = e.target.closest('.cp-ref-cover-dot');
-        if (!dot) return;
-        const idx = Number(dot.dataset.idx || 0);
-        track.scrollTo({ left: idx * track.clientWidth, behavior: 'smooth' });
-      };
+      if (dots) {
+        dots.onclick = (e) => {
+          const dot = e.target.closest('.cp-ref-cover-dot');
+          if (!dot) return;
+          const idx = Number(dot.dataset.idx || 0);
+          track.scrollTo({ left: idx * track.clientWidth, behavior: 'smooth' });
+        };
+      }
 
       syncCoverUi();
     },
@@ -519,7 +534,7 @@
         }
         const lvl = panel?.personalLevel || panel?.badges?.personalLevel || engagement?.personalLevel;
         if (lvl) {
-          pills.push('<span class="cp-ref-level-chip"><i class="fas fa-gem"></i> ' + esc(lvl) + '</span>');
+          /* Level chip hidden on reference profile — badges row shows SVIP/VIP only */
         }
         const role = panel?.role || engagement?.role;
         if (role === 'agency' || engagement?.agencyName) {
@@ -537,7 +552,7 @@
       const badges = panel?.badges || engagement?.badges || engagement;
       const statusEl = document.getElementById('cpRefStatusBadges');
       if (statusEl && window.ProfileBadges?.paintBadges) {
-        window.ProfileBadges.paintBadges(statusEl, badges, { link: true });
+        window.ProfileBadges.paintBadges(statusEl, badges, { link: true, hideLevel: true });
       }
 
       const completion = panel?.profileCompletion;

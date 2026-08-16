@@ -2107,25 +2107,41 @@ html.ap-expo-app .social-rank-page--gold .social-rank-sticky-top {
   margin-bottom: 8px;
   border: 1px solid var(--gold-200);
 }
+.social-rank-podium-link {
+  text-decoration: none !important;
+  color: inherit;
+  display: block;
+  border: none;
+  outline: none;
+}
+
+.social-rank-podium-link:hover,
+.social-rank-podium-link:focus,
+.social-rank-podium-link:visited {
+  text-decoration: none !important;
+  color: inherit;
+}
+
+.social-rank-podium-link strong,
+.social-rank-podium-link small {
+  text-decoration: none;
+  color: inherit;
+}
+
+.social-rank-podium-link:active {
+  opacity: 0.9;
+}
+
 .social-rank-row-main {
   display: flex;
   align-items: center;
   gap: 12px;
   flex: 1;
   min-width: 0;
-  text-decoration: none;
-  color: inherit;
 }
+
 .social-rank-row-main:active {
   opacity: 0.88;
-}
-.social-rank-podium-link {
-  text-decoration: none;
-  color: inherit;
-  display: block;
-}
-.social-rank-podium-link:active {
-  opacity: 0.9;
 }
 .social-rank-row img { width: 44px; height: 44px; border-radius: 50%; }
 .social-rank-row .rank-num { font-weight: 800; color: var(--gold-600); width: 24px; }

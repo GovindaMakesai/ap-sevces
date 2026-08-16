@@ -8,8 +8,8 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" media="print" onload="this.media='all'">
   <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"></noscript>
   <link rel="stylesheet" href="social-theme.css?v=20260729-instant">
-  <link rel="stylesheet" href="social-features.css?v=20260729-instant">
-  <link rel="stylesheet" href="social-fx.css?v=20260702-follow-fix">
+  <link rel="stylesheet" href="social-features.css?v=20260816-fix">
+  <link rel="stylesheet" href="social-fx.css?v=20260816-fix">
   <style>
     @keyframes rankSkel { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
   </style>
@@ -272,15 +272,22 @@
       const ranks = top.length >= 3 ? [2, 1, 3] : top.map((_, i) => i + 1);
       return `<div class="social-rank-podium">${order.map((r, i) => {
         const href = profileHref(r);
-        const inner = `
-        <div class="social-rank-podium-item rank-${ranks[i]}">
-          ${ranks[i] === 1 ? '<span class="podium-crown">👑</span>' : ''}
-          <img class="podium-av" src="${escapeAttr(avatarUrl(r))}" alt="" data-name="${escapeAttr(r.n || 'User')}" decoding="async">
-          <strong>${escapeHtml(r.n)}</strong><br><small>${escapeHtml(r.s)}</small>
-        </div>`;
+        const cls = 'social-rank-podium-item rank-' + ranks[i] + (href ? ' social-rank-podium-link' : '');
+        const inner =
+          (ranks[i] === 1 ? '<span class="podium-crown">👑</span>' : '') +
+          '<img class="podium-av" src="' +
+          escapeAttr(avatarUrl(r)) +
+          '" alt="" data-name="' +
+          escapeAttr(r.n || 'User') +
+          '" decoding="async">' +
+          '<strong>' +
+          escapeHtml(r.n) +
+          '</strong><br><small>' +
+          escapeHtml(r.s) +
+          '</small>';
         return href
-          ? `<a href="${escapeAttr(href)}" class="social-rank-podium-link">${inner}</a>`
-          : inner;
+          ? '<a href="' + escapeAttr(href) + '" class="' + cls + '">' + inner + '</a>'
+          : '<div class="' + cls + '">' + inner + '</div>';
       }).join('')}</div>`;
     }
 

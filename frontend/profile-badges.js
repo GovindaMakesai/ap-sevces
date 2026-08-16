@@ -74,7 +74,8 @@
       return `<span class="ap-profile-badge ${cls}" title="${t}">${inner}</span>`;
     };
 
-    parts.push(chip('/levels.html?app=1', 'ap-profile-badge--level', `Lv.${b.personalLevel}`, `Level ${b.personalLevel}`));
+    if (!o.hideLevel) {
+      parts.push(chip('/levels.html?app=1', 'ap-profile-badge--level', `Lv.${b.personalLevel}`, `Level ${b.personalLevel}`));
     }
 
     if (b.isSvip && b.svipLevel > 0) {
