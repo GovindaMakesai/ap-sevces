@@ -532,10 +532,6 @@
             '<span class="cp-ref-pill cp-ref-pill--gender">' + esc(g.icon + age) + '</span>'
           );
         }
-        const lvl = panel?.personalLevel || panel?.badges?.personalLevel || engagement?.personalLevel;
-        if (lvl) {
-          /* Level chip hidden on reference profile — badges row shows SVIP/VIP only */
-        }
         const role = panel?.role || engagement?.role;
         if (role === 'agency' || engagement?.agencyName) {
           pills.push(
