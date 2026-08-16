@@ -2,6 +2,7 @@ const db = require('../config/database');
 const profileVisitorService = require('./profileVisitorService');
 const profileBadgeService = require('./profileBadgeService');
 const cpService = require('./cpService');
+const profileAlbumService = require('./profileAlbumService');
 
 async function countMutualFriends(userId) {
   const res = await db.query(
@@ -43,6 +44,72 @@ async function getGiftWall(receiverId, { limit = 64 } = {}) {
   }));
 }
 
+async function getGiftStats(userId, { period = 'monthly' } = {}) {
+  const id = String(userId || '').trim();
+  if (!id) return null;
+
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const periodLabel = monthStart.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+  const sinceIso = monthStart.toISOString();
+
+  const [receivedRes, sentRes, topSendersRes] = await Promise.all([
+    db.query(
+      `SELECT COUNT(*)::int AS gift_count,
+              COALESCE(SUM(coin_amount), 0)::bigint AS gift_coins
+       FROM gift_transactions
+       WHERE receiver_id = $1 AND created_at >= $2`,
+      [id, sinceIso]
+    ),
+    db.query(
+      `SELECT COUNT(*)::int AS gift_count,
+              COALESCE(SUM(coin_amount), 0)::bigint AS gift_coins
+       FROM gift_transactions
+       WHERE sender_id = $1 AND created_at >= $2`,
+      [id, sinceIso]
+    ),
+    db.query(
+      `SELECT gt.sender_id AS user_id,
+              COUNT(*)::int AS gift_count,
+              COALESCE(SUM(gt.coin_amount), 0)::bigint AS gift_coins,
+              u.first_name, u.last_name, u.profile_pic, u.display_id, u.updated_at
+       FROM gift_transactions gt
+       JOIN users u ON u.id = gt.sender_id AND u.is_active = TRUE
+       WHERE gt.receiver_id = $1 AND gt.created_at >= $2
+       GROUP BY gt.sender_id, u.first_name, u.last_name, u.profile_pic, u.display_id, u.updated_at
+       ORDER BY gift_coins DESC, gift_count DESC
+       LIMIT 15`,
+      [id, sinceIso]
+    ),
+  ]);
+
+  const buildName = (r) => `${r.first_name || ''} ${r.last_name || ''}`.trim() || 'User';
+
+  return {
+    period: 'monthly',
+    periodLabel,
+    monthStart: sinceIso,
+    received: {
+      giftCount: Number(receivedRes.rows[0]?.gift_count || 0),
+      giftCoins: Number(receivedRes.rows[0]?.gift_coins || 0),
+    },
+    sent: {
+      giftCount: Number(sentRes.rows[0]?.gift_count || 0),
+      giftCoins: Number(sentRes.rows[0]?.gift_coins || 0),
+    },
+    topSenders: topSendersRes.rows.map((r, i) => ({
+      rank: i + 1,
+      userId: String(r.user_id),
+      displayName: buildName(r),
+      profilePic: r.profile_pic || null,
+      profileUpdatedAt: r.updated_at || null,
+      displayId: r.display_id != null ? String(r.display_id) : null,
+      giftCount: Number(r.gift_count || 0),
+      giftCoins: Number(r.gift_coins || 0),
+    })),
+  };
+}
+
 function estimateAgeFromUser(row) {
   if (!row?.birth_date) return null;
   const d = new Date(row.birth_date);
@@ -54,7 +121,7 @@ function estimateAgeFromUser(row) {
   return age > 0 && age < 120 ? age : null;
 }
 
-function profileCompletionPct(user, links) {
+function profileCompletionPct(user, links, albumCount = 0) {
   let score = 0;
   const checks = [
     Boolean(user?.profile_pic),
@@ -62,21 +129,12 @@ function profileCompletionPct(user, links) {
     Boolean(user?.first_name),
     Boolean(links?.instagram || links?.youtube || links?.website || links?.x),
     Boolean(user?.gender),
+    Number(albumCount) > 0,
   ];
   checks.forEach((ok) => {
-    if (ok) score += 20;
+    if (ok) score += Math.floor(100 / checks.length);
   });
   return Math.min(100, score);
-}
-
-function wealthMilestoneBadges(totalCoins) {
-  const coins = Number(totalCoins) || 0;
-  const tiers = [
-    { min: 100000000, label: '100 Million', key: '100m' },
-    { min: 20000000, label: '20 Million', key: '20m' },
-    { min: 5000000, label: '5 Million', key: '5m' },
-  ];
-  return tiers.filter((t) => coins >= t.min);
 }
 
 async function getProfilePanel(userId) {
@@ -101,7 +159,7 @@ async function getProfilePanel(userId) {
     }
   }
 
-  const [badges, visitorSummary, friendsCount, visitorCount, giftWall, cpSummary, giftTotals] =
+  const [badges, visitorSummary, friendsCount, visitorCount, giftWall, cpSummary, giftTotals, album, giftStats] =
     await Promise.all([
       profileBadgeService.getProfileBadges(id),
       profileVisitorService.getSummary(id).catch(() => null),
@@ -115,6 +173,8 @@ async function getProfilePanel(userId) {
          FROM gift_transactions WHERE receiver_id = $1`,
         [id]
       ),
+      profileAlbumService.getAlbum(id),
+      getGiftStats(id, { period: 'monthly' }),
     ]);
 
   const giftCount = Number(giftTotals.rows[0]?.gift_count || 0);
@@ -142,8 +202,10 @@ async function getProfilePanel(userId) {
     giftCount,
     giftCoins,
     giftWall,
-    wealthMilestones: wealthMilestoneBadges(giftCoins),
-    profileCompletion: profileCompletionPct(user, socialLinks),
+    giftStats,
+    album,
+    albumCount: album.length,
+    profileCompletion: profileCompletionPct(user, socialLinks, album.length),
     cp: cpSummary
       ? {
           hasCp: Boolean(cpSummary.partner || cpSummary.cpLevel),
@@ -157,6 +219,7 @@ async function getProfilePanel(userId) {
 module.exports = {
   getProfilePanel,
   getGiftWall,
+  getGiftStats,
   countMutualFriends,
   countProfileVisitors,
 };

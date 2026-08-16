@@ -183,6 +183,14 @@ router.get('/me', verifyToken, authController.getMe);
 router.patch('/profile', verifyToken, authController.updateProfile);
 router.put('/profile', verifyToken, authController.updateProfile);
 router.post('/profile/photo', verifyToken, upload.single('photo'), authController.uploadProfilePhoto);
+router.get('/profile/album', verifyToken, authController.getProfileAlbum);
+router.post(
+    '/profile/album',
+    verifyToken,
+    upload.single('photo'),
+    authController.uploadProfileAlbumPhoto
+);
+router.delete('/profile/album/:photoId', verifyToken, authController.deleteProfileAlbumPhoto);
 if (isGoogleConfigured) {
     router.get('/google', (req, res, next) => {
         passport.authenticate('google', {

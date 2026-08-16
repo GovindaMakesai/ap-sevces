@@ -116,15 +116,22 @@
       sheet.querySelector('#socialFollowClose').addEventListener('click', () => sheet.classList.remove('open'));
       sheet.querySelector('.social-follow-panel')?.addEventListener('click', (e) => e.stopPropagation());
     }
-    document.getElementById('socialFollowTitle').textContent = kind === 'followers' ? 'Followers' : 'Following';
+    document.getElementById('socialFollowTitle').textContent =
+      kind === 'followers' ? 'Followers' : kind === 'likers' ? 'Likes' : 'Following';
     const list = document.getElementById('socialFollowList');
     if (!items.length) {
       list.innerHTML =
         '<div class="social-follow-empty"><i class="fas fa-user-friends"></i><p>' +
-        (kind === 'followers'
-          ? 'No followers yet. Go live and share your profile!'
-          : 'You are not following anyone yet.') +
-        '</p><a href="/discover-creators.html?app=1" class="social-follow-cta">Discover creators</a></div>';
+        (kind === 'likers'
+          ? 'No likes yet.'
+          : kind === 'followers'
+            ? 'No followers yet. Go live and share your profile!'
+            : 'You are not following anyone yet.') +
+        '</p>' +
+        (kind === 'likers'
+          ? ''
+          : '<a href="/discover-creators.html?app=1" class="social-follow-cta">Discover creators</a>') +
+        '</div>';
     } else {
       list.innerHTML = items
         .map(function (item) {
@@ -138,12 +145,24 @@
             ? SocialInteractions.isFollowing(uid, item.name)
             : false;
           const followLabel = following ? 'Following' : 'Follow';
-          const followBtn = uid
-            ? '<button type="button" class="social-follow-action' + (following ? ' is-on' : '') + '" data-follow-id="' + encodeURIComponent(uid) + '" data-follow-name="' + safeEncodeURIComponent(item.name || 'User') + '">' + followLabel + '</button>'
-            : '';
-          const msgBtn = uid
-            ? '<button type="button" class="social-follow-msg" data-msg-id="' + encodeURIComponent(uid) + '" aria-label="Message"><i class="fas fa-comment"></i></button>'
-            : '';
+          const followBtn =
+            uid && kind !== 'likers'
+              ? '<button type="button" class="social-follow-action' +
+                (following ? ' is-on' : '') +
+                '" data-follow-id="' +
+                encodeURIComponent(uid) +
+                '" data-follow-name="' +
+                safeEncodeURIComponent(item.name || 'User') +
+                '">' +
+                followLabel +
+                '</button>'
+              : '';
+          const msgBtn =
+            uid && kind !== 'likers'
+              ? '<button type="button" class="social-follow-msg" data-msg-id="' +
+                encodeURIComponent(uid) +
+                '" aria-label="Message"><i class="fas fa-comment"></i></button>'
+              : '';
           return (
             '<div class="social-follow-row">' +
             '<a class="social-follow-link" href="' + profileHref + '"><img src="' +

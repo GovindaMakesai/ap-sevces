@@ -385,6 +385,18 @@ async function likePost(req, res) {
   }
 }
 
+async function getPostLikes(req, res) {
+  try {
+    const data = await socialFeedService.listPostLikers(req.params.postId, {
+      limit: parseInt(req.query.limit, 10) || 50,
+      offset: parseInt(req.query.offset, 10) || 0,
+    });
+    res.json({ success: true, data });
+  } catch (e) {
+    res.status(400).json({ success: false, message: e.message || 'Failed to load likes' });
+  }
+}
+
 async function commentPost(req, res) {
   try {
     const data = await socialFeedService.addComment(req.params.postId, uid(req), req.body.body, {
@@ -601,6 +613,7 @@ module.exports = {
   createPost,
   uploadPostMedia,
   likePost,
+  getPostLikes,
   commentPost,
   getComments,
   likeComment,

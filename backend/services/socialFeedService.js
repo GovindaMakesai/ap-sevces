@@ -123,6 +123,7 @@ function mapPostRow(row, { liked = false, author = null } = {}) {
     comment_count: Number(row.comment_count || 0),
     share_count: Number(row.share_count || 0),
     liked: !!liked,
+    likers: Array.isArray(row.likers) ? row.likers : [],
     /* Extension points — clients ignore until features ship */
     bookmarks_supported: false,
     realtime_channel: null,
@@ -137,7 +138,7 @@ async function enrichPosts(posts, viewerId) {
   const ids = posts.map((p) => p.id);
   const userIds = [...new Set(posts.map((p) => p.user_id).filter(Boolean))];
 
-  const [usersRes, likesRes, commentsRes, likedRes] = await Promise.all([
+  const [usersRes, likesRes, commentsRes, likedRes, likersRes] = await Promise.all([
     userIds.length
       ? db.query(
           `SELECT id, first_name, last_name, profile_pic, display_id, role, is_verified
@@ -162,12 +163,40 @@ async function enrichPosts(posts, viewerId) {
           [ids, viewerId]
         )
       : Promise.resolve({ rows: [] }),
+    db.query(
+      `SELECT post_id, user_id, first_name, last_name, profile_pic, display_id
+       FROM (
+         SELECT spl.post_id,
+                u.id AS user_id,
+                u.first_name,
+                u.last_name,
+                u.profile_pic,
+                u.display_id,
+                ROW_NUMBER() OVER (PARTITION BY spl.post_id ORDER BY spl.created_at DESC) AS rn
+         FROM social_post_likes spl
+         JOIN users u ON u.id = spl.user_id AND u.is_active = TRUE
+         WHERE spl.post_id = ANY($1::uuid[])
+       ) ranked
+       WHERE rn <= 6`,
+      [ids]
+    ),
   ]);
 
   const authors = new Map(usersRes.rows.map((u) => [String(u.id), u]));
   const likeMap = new Map(likesRes.rows.map((r) => [String(r.post_id), r.c]));
   const commentMap = new Map(commentsRes.rows.map((r) => [String(r.post_id), r.c]));
   const likedSet = new Set(likedRes.rows.map((r) => String(r.post_id)));
+  const likerMap = new Map();
+  likersRes.rows.forEach((r) => {
+    const pid = String(r.post_id);
+    if (!likerMap.has(pid)) likerMap.set(pid, []);
+    likerMap.get(pid).push({
+      userId: String(r.user_id),
+      displayName: `${r.first_name || ''} ${r.last_name || ''}`.trim() || 'User',
+      profilePic: r.profile_pic || null,
+      displayId: r.display_id != null ? String(r.display_id) : null,
+    });
+  });
 
   return posts.map((p) =>
     mapPostRow(
@@ -175,6 +204,7 @@ async function enrichPosts(posts, viewerId) {
         ...p,
         like_count: likeMap.get(String(p.id)) || 0,
         comment_count: commentMap.get(String(p.id)) || 0,
+        likers: likerMap.get(String(p.id)) || [],
       },
       {
         liked: likedSet.has(String(p.id)),
@@ -320,6 +350,29 @@ async function toggleLike(postId, userId) {
     [postId, userId]
   );
   return { liked: true };
+}
+
+async function listPostLikers(postId, { limit = 50, offset = 0 } = {}) {
+  const id = String(postId || '').trim();
+  if (!id) return [];
+  const lim = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 100);
+  const off = Math.max(parseInt(offset, 10) || 0, 0);
+  const res = await db.query(
+    `SELECT u.id, u.first_name, u.last_name, u.profile_pic, u.display_id, spl.created_at
+     FROM social_post_likes spl
+     JOIN users u ON u.id = spl.user_id AND u.is_active = TRUE
+     WHERE spl.post_id = $1
+     ORDER BY spl.created_at DESC
+     LIMIT $2 OFFSET $3`,
+    [id, lim, off]
+  );
+  return res.rows.map((r) => ({
+    userId: String(r.id),
+    displayName: `${r.first_name || ''} ${r.last_name || ''}`.trim() || 'User',
+    profilePic: r.profile_pic || null,
+    displayId: r.display_id != null ? String(r.display_id) : null,
+    likedAt: r.created_at,
+  }));
 }
 
 async function addComment(postId, userId, body, { parentId = null } = {}) {
@@ -493,6 +546,7 @@ module.exports = {
   enrichPosts,
   getCreatorPostCounts,
   toggleLike,
+  listPostLikers,
   addComment,
   listComments,
   toggleCommentLike,

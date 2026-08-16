@@ -74,6 +74,7 @@ router.post(
   },
   social.uploadPostMedia
 );
+router.get('/posts/:postId/likes', optionalAuth, social.getPostLikes);
 router.post('/posts/:postId/like', social.likePost);
 router.post('/posts/:postId/comments', social.commentPost);
 router.get('/posts/:postId/comments', social.getComments);

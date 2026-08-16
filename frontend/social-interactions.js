@@ -318,6 +318,7 @@
       comments: p.comment_count || 0,
       shares: p.share_count || 0,
       liked: !!p.liked,
+      likers: Array.isArray(p.likers) ? p.likers : [],
       createdAt: p.created_at,
       visibility: p.visibility || 'public',
       fromApi: true,
@@ -2200,7 +2201,7 @@
   function profileUrl(item) {
     if (item.workerId) return '/worker-profile.html?id=' + encodeURIComponent(item.workerId) + '&app=1';
     const uid = item.userId || item.id;
-    const name = item.userName || item.name || 'Creator';
+    const name = item.userName || item.name || item.displayName || 'Creator';
     if (uid) {
       return (
         '/creator-profile.html?userId=' +
@@ -2211,6 +2212,67 @@
       );
     }
     return '/creator-profile.html?name=' + encodeURIComponent(name) + '&app=1';
+  }
+
+  function formatPostLikersHtml(p) {
+    const total = Number(p.likes || 0);
+    const likers = Array.isArray(p.likers) ? p.likers : [];
+    if (!total && !likers.length) return '';
+    const names = likers.map((l) => l.displayName || l.userName || l.name).filter(Boolean);
+    let label = '';
+    if (names.length === 0) {
+      label = total > 0 ? `${total} like${total === 1 ? '' : 's'}` : '';
+    } else if (total <= 1) {
+      label = `Liked by <strong>${escapeHtml(names[0])}</strong>`;
+    } else if (total === 2 && names.length >= 2) {
+      label = `Liked by <strong>${escapeHtml(names[0])}</strong> and <strong>${escapeHtml(names[1])}</strong>`;
+    } else {
+      const others = Math.max(0, total - 1);
+      label = `Liked by <strong>${escapeHtml(names[0])}</strong> and ${others} other${others === 1 ? '' : 's'}`;
+    }
+    const avatars = likers
+      .slice(0, 5)
+      .map((l) => {
+        const name = l.displayName || l.userName || l.name || 'User';
+        const src = l.profilePic
+          ? resolveMediaUrl(l.profilePic)
+          : SocialShell?.avatarFallback?.(name) || window.SocialUI?.avatarUrl?.(name) || '';
+        return `<img src="${escapeHtml(src)}" alt="" class="social-post-liker-av" loading="lazy">`;
+      })
+      .join('');
+    return (
+      '<button type="button" class="social-post-likers" data-likers-post="' +
+      escapeHtml(String(p.id)) +
+      '">' +
+      (avatars ? '<span class="social-post-liker-stack">' + avatars + '</span>' : '') +
+      '<span class="social-post-liker-label">' +
+      label +
+      '</span></button>'
+    );
+  }
+
+  async function openPostLikersSheet(postId, preview) {
+    const id = String(postId || '').trim();
+    if (!id) return;
+    let rows = (preview || []).map((l) => ({
+      userId: l.userId || l.id,
+      name: l.displayName || l.userName || l.name || 'User',
+      photo: l.profilePic || l.photo || null,
+    }));
+    if (!rows.length && window.API?.get) {
+      try {
+        await window.Auth?.ensureAccessToken?.();
+        const res = await API.get('/social/posts/' + encodeURIComponent(id) + '/likes');
+        rows = (res?.data || []).map((l) => ({
+          userId: l.userId,
+          name: l.displayName || 'User',
+          photo: l.profilePic || null,
+        }));
+      } catch (_e) {
+        rows = [];
+      }
+    }
+    window.SocialUI?.openFollowSheet?.('likers', rows);
   }
 
   function renderSquareSkeleton(count = 3) {
@@ -3195,6 +3257,7 @@
           <button type="button" class="social-act-btn" data-act="share" data-id="${p.id}"><i class="far fa-paper-plane"></i> <span>${p.shares || 0}</span></button>
           ${canDelete ? `<button type="button" class="social-act-btn social-act-btn--danger" data-delete-post="${p.id}" aria-label="Delete post"><i class="fas fa-trash"></i> <span>Delete</span></button>` : ''}
         </div>
+        ${formatPostLikersHtml(p)}
         <div class="social-post-user">
           ${
             window.SocialCreatorIdentity
@@ -3332,6 +3395,16 @@
         if (e.target.closest('[data-act], [data-delete-post], .social-post-user, button, a, .social-feed-sound-btn')) return;
         if (e.target.closest('video[data-social-feed-video]')) return;
         openReelViewer(card.dataset.postId);
+      });
+    });
+
+    qs('[data-likers-post]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const postId = btn.getAttribute('data-likers-post');
+        const p = feedPosts.find((x) => String(x.id) === String(postId));
+        openPostLikersSheet(postId, p?.likers);
       });
     });
 

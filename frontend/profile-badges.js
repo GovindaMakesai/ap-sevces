@@ -75,6 +75,7 @@
     };
 
     parts.push(chip('/levels.html?app=1', 'ap-profile-badge--level', `Lv.${b.personalLevel}`, `Level ${b.personalLevel}`));
+    }
 
     if (b.isSvip && b.svipLevel > 0) {
       const tierCls = svipTierClass(b.svipLevel);

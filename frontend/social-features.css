@@ -649,6 +649,45 @@ html.social-video-immersive .social-reels-wrap {
   gap: 6px;
 }
 
+.social-post-likers {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 12px 6px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 10px;
+  background: rgba(239, 68, 68, 0.06);
+  cursor: pointer;
+  width: calc(100% - 24px);
+  text-align: left;
+}
+
+.social-post-liker-stack {
+  display: flex;
+  flex-shrink: 0;
+}
+
+.social-post-liker-av {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #fffdf8;
+  margin-right: -6px;
+}
+
+.social-post-liker-label {
+  font-size: 12px;
+  line-height: 1.35;
+  color: #4b5563;
+}
+
+.social-post-liker-label strong {
+  color: #1f2937;
+  font-weight: 700;
+}
+
 .social-post-user {
   display: flex;
   align-items: center;
@@ -2067,6 +2106,26 @@ html.ap-expo-app .social-rank-page--gold .social-rank-sticky-top {
   border-radius: 14px;
   margin-bottom: 8px;
   border: 1px solid var(--gold-200);
+}
+.social-rank-row-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  text-decoration: none;
+  color: inherit;
+}
+.social-rank-row-main:active {
+  opacity: 0.88;
+}
+.social-rank-podium-link {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+.social-rank-podium-link:active {
+  opacity: 0.9;
 }
 .social-rank-row img { width: 44px; height: 44px; border-radius: 50%; }
 .social-rank-row .rank-num { font-weight: 800; color: var(--gold-600); width: 24px; }

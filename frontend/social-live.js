@@ -18413,6 +18413,20 @@
         roleBadgeEl.hidden = true;
       }
       applyProfileLevelFromData(data);
+      const idEl = document.getElementById('apProfileId');
+      if (idEl && String(activeProfileUser?.userId || '') === String(userId)) {
+        const idDisplay =
+          window.formatUserDisplayId?.(null, activeProfileUser.displayId) ||
+          activeProfileUser.displayId ||
+          '';
+        const platformAdminProfile = liveProfileIsPlatformAdmin(userId, activeProfileUser, data);
+        const idText = idEl.querySelector('.ap-profile-id-text');
+        const idHtml =
+          window.formatAdminIdHtml?.(idDisplay, { isAdmin: platformAdminProfile }) ||
+          `ID: ${idDisplay || '—'}`;
+        if (idText) idText.innerHTML = idHtml;
+        idEl.classList.toggle('is-admin-id', platformAdminProfile);
+      }
       return data;
     } catch (e) {
       console.warn('[live] profile engagement', e);

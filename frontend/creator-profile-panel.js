@@ -105,16 +105,25 @@
       const root = document.getElementById('cpRefRoot');
       if (!root) return;
       root.innerHTML =
-        '<header class="cp-ref-header">' +
+        '<div class="cp-ref-top">' +
+        '<div class="cp-ref-cover-zone" id="cpRefCoverZone">' +
+        '<div class="cp-ref-cover-track" id="cpRefCoverTrack"></div>' +
+        '<div class="cp-ref-cover-dots" id="cpRefCoverDots" hidden></div>' +
+        '<img class="cp-ref-cover-mini" id="cpRefCoverMini" alt="" hidden>' +
+        '<button type="button" class="cp-ref-cover-add" id="cpRefCoverAdd" hidden aria-label="Add background photo"><i class="fas fa-plus"></i></button>' +
+        '<input type="file" accept="image/*" id="cpRefCoverInput" hidden>' +
+        '</div>' +
+        '<header class="cp-ref-header cp-ref-header--overlay">' +
         '<button type="button" class="cp-ref-icon-btn" id="cpRefBack" aria-label="Back"><i class="fas fa-arrow-left"></i></button>' +
         '<div class="cp-ref-header-title" id="cpRefHeaderTitle">' +
         esc(name) +
         '</div>' +
         '<div class="cp-ref-header-actions">' +
         '<a class="cp-ref-icon-btn" id="cpRefGiftLink" href="/store.html?app=1" aria-label="Gifts"><i class="fas fa-gift"></i></a>' +
-        '<a class="cp-ref-edit-pill" id="cpRefEditPill" href="/profile-tab.html?app=1" hidden><i class="fas fa-pen"></i> <span id="cpRefCompletion">0%</span></a>' +
+        '<a class="cp-ref-edit-pill" id="cpRefEditPill" href="/profile-tab.html?app=1&edit=1" hidden><i class="fas fa-pen"></i> <span id="cpRefCompletion">0%</span></a>' +
         '</div></header>' +
-        '<section class="cp-ref-hero" id="cpRefHero">' +
+        '</div>' +
+        '<section class="cp-ref-hero cp-ref-hero--overlap" id="cpRefHero">' +
         '<div class="cp-ref-avatar-wrap"><img id="cpRefAvatar" alt=""></div>' +
         '<div class="cp-ref-name-row"><span class="cp-ref-name" id="cpRefName">' +
         esc(name) +
@@ -132,7 +141,15 @@
         '</div></section>' +
         '<a class="cp-ref-live-banner" id="cpRefLive" hidden></a>' +
         '<div class="cp-ref-stats" id="cpRefStats"></div>' +
-        '<a class="cp-ref-supporter-link" id="cpRefSupporterLink" href="#">Supporters · Top gifts</a>' +
+        '<a class="cp-ref-supporter-link" id="cpRefSupporterLink" href="#">' +
+        '<span class="cp-ref-supporter-glow" aria-hidden="true"></span>' +
+        '<span class="cp-ref-supporter-icon" aria-hidden="true"><i class="fas fa-trophy"></i></span>' +
+        '<span class="cp-ref-supporter-text">' +
+        '<strong>Supporters · Top gifts</strong>' +
+        '<span>See who sent the most this month</span>' +
+        '</span>' +
+        '<i class="fas fa-chevron-right cp-ref-supporter-chevron" aria-hidden="true"></i>' +
+        '</a>' +
         '<div class="cp-ref-medals" id="cpRefMedals"></div>' +
         '<nav class="cp-ref-tabs" id="cpRefTabs">' +
         '<button type="button" class="cp-ref-tab" data-tab="data">Data</button>' +
@@ -158,7 +175,7 @@
         location.href =
           '/supporter.html?userId=' +
           encodeURIComponent(this.state.userId) +
-          '&app=1';
+          '&period=monthly&app=1';
       });
     },
 
@@ -249,6 +266,7 @@
       }
 
       this.paintHeader(panel, engagement);
+      this.paintCover(panel);
       this.paintStats(panel, engagement);
       this.paintMedals(panel);
       this.paintGiftGrid(document.getElementById('cpRefPanelGift'), panel);
@@ -263,9 +281,182 @@
         document.getElementById('cpRefEditPill')?.removeAttribute('hidden');
         document.getElementById('cpRefShare')?.removeAttribute('hidden');
         document.getElementById('cpRefMood')?.removeAttribute('hidden');
+        document.getElementById('cpRefCoverAdd')?.removeAttribute('hidden');
         document.getElementById('cpRefActions')?.setAttribute('hidden', '');
         document.getElementById('cpRefGiftLink')?.setAttribute('hidden', '');
+        this.bindCoverAdd();
       }
+    },
+
+    coverImageUrl(url, cacheKey) {
+      if (!url) return '';
+      return (
+        window.SocialShell?.getImageUrl?.(url, cacheKey) ||
+        window.SocialUI?.avatarUrl?.('', url) ||
+        url
+      );
+    },
+
+    paintCover(panel) {
+      const track = document.getElementById('cpRefCoverTrack');
+      const dots = document.getElementById('cpRefCoverDots');
+      const mini = document.getElementById('cpRefCoverMini');
+      if (!track) return;
+
+      const album = panel?.album || [];
+      const cacheKey = panel?.profileUpdatedAt || this.state.userId;
+
+      if (!album.length) {
+        track.innerHTML = '<div class="cp-ref-cover-slide cp-ref-cover-slide--empty"></div>';
+        if (dots) {
+          dots.hidden = true;
+          dots.innerHTML = '';
+        }
+        if (mini) mini.hidden = true;
+        return;
+      }
+
+      track.innerHTML = album
+        .map((p, i) => {
+          const src = this.coverImageUrl(p.url, cacheKey);
+          return (
+            '<div class="cp-ref-cover-slide" data-idx="' +
+            i +
+            '"><img src="' +
+            esc(src) +
+            '" alt="" loading="' +
+            (i === 0 ? 'eager' : 'lazy') +
+            '"></div>'
+          );
+        })
+        .join('');
+
+      track.querySelectorAll('img').forEach((img) => {
+        img.onerror = () => {
+          img.onerror = null;
+          img.src = window.SocialUI?.avatarUrl?.('Photo');
+        };
+      });
+
+      if (dots) {
+        dots.hidden = album.length <= 1;
+        dots.innerHTML = album
+          .map(
+            (_, i) =>
+              '<button type="button" class="cp-ref-cover-dot' +
+              (i === 0 ? ' is-active' : '') +
+              '" data-idx="' +
+              i +
+              '" aria-label="Photo ' +
+              (i + 1) +
+              '"></button>'
+          )
+          .join('');
+      }
+
+      const syncCoverUi = () => {
+        const width = track.clientWidth || 1;
+        const idx = Math.max(0, Math.min(Math.round(track.scrollLeft / width), album.length - 1));
+        dots?.querySelectorAll('.cp-ref-cover-dot').forEach((d, i) => {
+          d.classList.toggle('is-active', i === idx);
+        });
+        const activeImg = track.querySelectorAll('.cp-ref-cover-slide img')[idx];
+        if (mini && activeImg?.src) {
+          mini.src = activeImg.src;
+          mini.hidden = album.length <= 1;
+        }
+      };
+
+      track.onscroll = () => {
+        clearTimeout(this._coverScrollTimer);
+        this._coverScrollTimer = setTimeout(syncCoverUi, 60);
+      };
+
+      dots?.onclick = (e) => {
+        const dot = e.target.closest('.cp-ref-cover-dot');
+        if (!dot) return;
+        const idx = Number(dot.dataset.idx || 0);
+        track.scrollTo({ left: idx * track.clientWidth, behavior: 'smooth' });
+      };
+
+      syncCoverUi();
+    },
+
+    bindCoverAdd() {
+      if (this._coverAddBound) return;
+      this._coverAddBound = true;
+      const addBtn = document.getElementById('cpRefCoverAdd');
+      const input = document.getElementById('cpRefCoverInput');
+      if (!addBtn || !input) return;
+
+      addBtn.addEventListener('click', () => {
+        const count = this.state.panel?.album?.length || 0;
+        if (count >= 6) {
+          window.SocialUI?.toast?.('Maximum 6 background photos', 'warning');
+          return;
+        }
+        input.click();
+      });
+
+      input.addEventListener('change', async () => {
+        const file = input.files?.[0];
+        input.value = '';
+        if (!file) return;
+        if (!String(file.type || '').startsWith('image/')) {
+          window.SocialUI?.toast?.('Please choose an image file', 'warning');
+          return;
+        }
+        addBtn.disabled = true;
+        try {
+          await window.Auth?.ensureAccessToken?.();
+          const fd = new FormData();
+          fd.append('photo', file);
+          const token = window.Auth?.getToken?.() || localStorage.getItem('token');
+          const res = await fetch(apiRoot() + '/auth/profile/album', {
+            method: 'POST',
+            credentials: 'include',
+            headers: token ? { Authorization: 'Bearer ' + token } : {},
+            body: fd,
+          }).then((r) => r.json());
+          if (!res?.success) {
+            window.SocialUI?.toast?.(res?.message || 'Upload failed', 'error');
+            return;
+          }
+          if (this.state.panel) {
+            this.state.panel.album = res.data?.album || [];
+            this.state.panel.albumCount = this.state.panel.album.length;
+          }
+          try {
+            const token2 = window.Auth?.getToken?.() || localStorage.getItem('token');
+            const panelRes = await fetch(
+              apiRoot() +
+                '/social/creators/' +
+                encodeURIComponent(this.state.userId) +
+                '/profile-panel',
+              {
+                credentials: 'include',
+                headers: token2
+                  ? { Authorization: 'Bearer ' + token2, Accept: 'application/json' }
+                  : { Accept: 'application/json' },
+              }
+            ).then((r) => r.json());
+            if (panelRes?.success) {
+              this.state.panel = panelRes.data;
+            }
+          } catch (_e) { /* keep local album */ }
+          this.paintCover(this.state.panel);
+          const compEl = document.getElementById('cpRefCompletion');
+          if (compEl && this.state.panel?.profileCompletion != null) {
+            compEl.textContent = this.state.panel.profileCompletion + '%';
+          }
+          window.SocialUI?.toast?.('Background photo added', 'success');
+        } catch (e) {
+          console.warn('[creator-profile] album upload', e);
+          window.SocialUI?.toast?.('Failed to upload photo', 'error');
+        } finally {
+          addBtn.disabled = false;
+        }
+      });
     },
 
     paintHeader(panel, engagement) {
@@ -352,6 +543,52 @@
       const completion = panel?.profileCompletion;
       const compEl = document.getElementById('cpRefCompletion');
       if (compEl && completion != null) compEl.textContent = completion + '%';
+
+      this.bindAvatarLightbox(pic, displayName, panel);
+    },
+
+    bindAvatarLightbox(pic, displayName, panel) {
+      const av = document.getElementById('cpRefAvatar');
+      if (!av || av.dataset.lightboxBound) return;
+      av.dataset.lightboxBound = '1';
+      const fullSrc = pic
+        ? window.SocialShell?.getImageUrl?.(pic, panel?.profileUpdatedAt || this.state.userId) ||
+          window.SocialUI?.avatarUrl?.(displayName, pic)
+        : '';
+      av.addEventListener('dblclick', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const src = fullSrc || av.src;
+        if (!src) return;
+        this.openImageLightbox(src, displayName);
+      });
+    },
+
+    openImageLightbox(src, alt) {
+      let lb = document.getElementById('cpRefImageLightbox');
+      if (!lb) {
+        lb = document.createElement('div');
+        lb.id = 'cpRefImageLightbox';
+        lb.className = 'cp-ref-image-lightbox';
+        lb.innerHTML =
+          '<button type="button" class="cp-ref-image-lightbox-close" aria-label="Close"><i class="fas fa-times"></i></button>' +
+          '<img alt="">';
+        document.body.appendChild(lb);
+        lb.addEventListener('click', (e) => {
+          if (e.target === lb || e.target.closest('.cp-ref-image-lightbox-close')) {
+            lb.classList.remove('is-open');
+          }
+        });
+        lb.querySelector('.cp-ref-image-lightbox-close')?.addEventListener('click', () => {
+          lb.classList.remove('is-open');
+        });
+      }
+      const img = lb.querySelector('img');
+      if (img) {
+        img.src = src;
+        img.alt = alt || 'Profile photo';
+      }
+      lb.classList.add('is-open');
     },
 
     paintStats(panel, engagement) {
@@ -388,18 +625,95 @@
             '</div></div>'
         );
       }
-      (panel?.wealthMilestones || []).forEach((m) => {
-        const cls = m.key === '100m' ? 'cp-ref-medal-art--wealth-teal' : 'cp-ref-medal-art--wealth';
-        parts.push(
-          '<div class="cp-ref-medal"><div class="cp-ref-medal-art ' +
-            cls +
-            '">' +
-            esc(m.label) +
-            '</div></div>'
-        );
-      });
       el.innerHTML = parts.join('') || '';
       el.hidden = !parts.length;
+    },
+
+    paintDataTab(panel) {
+      const el = document.getElementById('cpRefPanelData');
+      if (!el) return;
+      const stats = panel?.giftStats;
+      const periodLabel = stats?.periodLabel || 'This month';
+
+      const recv = stats?.received || { giftCount: 0, giftCoins: 0 };
+      const sent = stats?.sent || { giftCount: 0, giftCoins: 0 };
+      const top = stats?.topSenders || [];
+
+      const card = (label, count, coins, kind) =>
+        '<div class="cp-ref-data-card cp-ref-data-card--' +
+        kind +
+        '">' +
+        '<span class="cp-ref-data-card-label">' +
+        esc(label) +
+        '</span>' +
+        '<strong class="cp-ref-data-card-count">' +
+        fmt(count) +
+        ' gifts</strong>' +
+        '<span class="cp-ref-data-card-coins">' +
+        fmt(coins) +
+        ' coins</span>' +
+        '</div>';
+
+      let sendersHtml = '';
+      if (top.length) {
+        sendersHtml =
+          '<h4 class="cp-ref-data-sub">Top supporters this month</h4>' +
+          '<ul class="cp-ref-data-senders">' +
+          top
+            .map((s) => {
+              const pic = s.profilePic
+                ? this.coverImageUrl(s.profilePic, s.profileUpdatedAt || s.userId)
+                : window.SocialUI?.avatarUrl?.(s.displayName);
+              const profileHref =
+                '/creator-profile.html?userId=' +
+                encodeURIComponent(s.userId) +
+                '&name=' +
+                encodeURIComponent(s.displayName || 'User') +
+                '&app=1';
+              return (
+                '<li class="cp-ref-data-sender">' +
+                '<span class="cp-ref-data-sender-rank">#' +
+                s.rank +
+                '</span>' +
+                '<img class="cp-ref-data-sender-av" src="' +
+                esc(pic) +
+                '" alt="">' +
+                '<div class="cp-ref-data-sender-meta">' +
+                '<a href="' +
+                esc(profileHref) +
+                '">' +
+                esc(s.displayName) +
+                '</a>' +
+                '<span>' +
+                fmt(s.giftCount) +
+                ' gifts · ' +
+                fmt(s.giftCoins) +
+                ' coins</span>' +
+                '</div></li>'
+              );
+            })
+            .join('') +
+          '</ul>';
+      } else {
+        sendersHtml =
+          '<p class="cp-ref-data-empty">No gifts received this month yet.</p>';
+      }
+
+      el.innerHTML =
+        '<div class="cp-ref-data">' +
+        '<div class="cp-ref-data-head">' +
+        '<h3>Gift stats</h3>' +
+        '<span class="cp-ref-data-period">' +
+        esc(periodLabel) +
+        '</span>' +
+        '</div>' +
+        '<p class="cp-ref-data-note">Counts refresh monthly from the 1st.</p>' +
+        '<div class="cp-ref-data-cards">' +
+        card('Received', recv.giftCount, recv.giftCoins, 'recv') +
+        card('Sent', sent.giftCount, sent.giftCoins, 'sent') +
+        '</div>' +
+        sendersHtml +
+        '</div>';
     },
 
     paintGiftGrid(el, panel) {
@@ -424,10 +738,6 @@
         })
         .join('');
       el.innerHTML = '<div class="cp-ref-gift-grid">' + cells + '</div>';
-    },
-
-    paintDataTab(panel) {
-      this.paintGiftGrid(document.getElementById('cpRefPanelData'), panel);
     },
 
     paintRelTab() {
@@ -461,7 +771,8 @@
 
     updateTabCounts(panel, engagement) {
       const giftTotal = panel?.giftCount ?? engagement?.giftCount ?? 0;
-      const posts = engagement?.postsCount ?? 0;
+      const posts =
+        (engagement?.postsCount ?? 0) + (engagement?.videosCount ?? 0);
       const giftTab = document.querySelector('.cp-ref-tab[data-tab="gift"]');
       const postsTab = document.querySelector('.cp-ref-tab[data-tab="posts"]');
       if (giftTab) giftTab.textContent = 'Gift·' + fmt(giftTotal);
@@ -500,7 +811,7 @@
       if (!feed || !this.state.userId || !window.SocialInteractions?.renderSquareFeed) return;
       await SocialInteractions.renderSquareFeed(feed, {
         userId: this.state.userId,
-        mediaType: 'posts',
+        mediaType: 'all',
         feed: 'latest',
       });
     },

@@ -281,6 +281,8 @@ async function startServer() {
     await ensureSvipSchema();
     const { ensureProfileVisitorsSchema } = require('./config/ensureProfileVisitorsSchema');
     await ensureProfileVisitorsSchema();
+    const { ensureProfileAlbumSchema } = require('./config/ensureProfileAlbumSchema');
+    await ensureProfileAlbumSchema();
     await ensureSocialProductionSchema();
     await ensureSecurityHardeningSchema();
     await ensureProductionReadinessSchema();
@@ -317,6 +319,8 @@ async function startServer() {
     await ensureSvipSchema();
     const { ensureProfileVisitorsSchema } = require('./config/ensureProfileVisitorsSchema');
     await ensureProfileVisitorsSchema();
+    const { ensureProfileAlbumSchema } = require('./config/ensureProfileAlbumSchema');
+    await ensureProfileAlbumSchema();
   } catch (err) {
     logger.warn('Points transfer / CP / SVIP schema ensure failed', { message: err.message });
   }

@@ -526,6 +526,66 @@ const uploadProfilePhoto = async (req, res) => {
     }
 };
 
+const getProfileAlbum = async (req, res) => {
+    try {
+        const profileAlbumService = require('../services/profileAlbumService');
+        const album = await profileAlbumService.getAlbum(req.userId);
+        res.json({
+            success: true,
+            data: { album, max: profileAlbumService.MAX_ALBUM },
+        });
+    } catch (error) {
+        console.error('❌ Get profile album error:', error);
+        res.status(500).json({ success: false, message: 'Failed to load profile album' });
+    }
+};
+
+const uploadProfileAlbumPhoto = async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ success: false, message: 'Photo file is required' });
+        }
+        const profileAlbumService = require('../services/profileAlbumService');
+        const url = `/uploads/${req.file.filename}`;
+        const photo = await profileAlbumService.addPhoto(req.userId, url);
+        const album = await profileAlbumService.getAlbum(req.userId);
+        res.json({
+            success: true,
+            data: { photo, album, max: profileAlbumService.MAX_ALBUM },
+            message: 'Album photo added',
+        });
+    } catch (error) {
+        if (error.code === 'ALBUM_FULL') {
+            return res.status(400).json({ success: false, message: error.message, code: 'ALBUM_FULL' });
+        }
+        console.error('❌ Upload profile album error:', error);
+        res.status(500).json({ success: false, message: error.message || 'Failed to upload album photo' });
+    }
+};
+
+const deleteProfileAlbumPhoto = async (req, res) => {
+    try {
+        const photoId = String(req.params.photoId || '').trim();
+        if (!photoId) {
+            return res.status(400).json({ success: false, message: 'Photo id is required' });
+        }
+        const profileAlbumService = require('../services/profileAlbumService');
+        await profileAlbumService.deletePhoto(req.userId, photoId);
+        const album = await profileAlbumService.getAlbum(req.userId);
+        res.json({
+            success: true,
+            data: { album, max: profileAlbumService.MAX_ALBUM },
+            message: 'Album photo removed',
+        });
+    } catch (error) {
+        if (error.code === 'NOT_FOUND') {
+            return res.status(404).json({ success: false, message: error.message });
+        }
+        console.error('❌ Delete profile album error:', error);
+        res.status(500).json({ success: false, message: 'Failed to remove album photo' });
+    }
+};
+
 // Get Me
 const getMe = async (req, res) => {
     try {
@@ -824,6 +884,9 @@ module.exports = {
     getMe,
     updateProfile,
     uploadProfilePhoto,
+    getProfileAlbum,
+    uploadProfileAlbumPhoto,
+    deleteProfileAlbumPhoto,
     googleCallback,
     githubCallback,
     facebookCallback,
