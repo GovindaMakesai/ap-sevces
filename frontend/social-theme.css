@@ -2454,17 +2454,23 @@ html.ap-expo-app .social-profile-hero {
   pointer-events: none;
 }
 
-.social-profile-avatar-btn {
+.social-profile-avatar-stack {
   position: relative;
+  display: inline-block;
+  line-height: 0;
+}
+
+.social-profile-avatar-open {
   border: none;
   padding: 0;
   background: none;
   cursor: pointer;
   border-radius: 50%;
   line-height: 0;
+  display: block;
 }
 
-.social-profile-avatar-btn img {
+.social-profile-avatar-open img {
   margin-bottom: 0;
 }
 
@@ -2483,6 +2489,31 @@ html.ap-expo-app .social-profile-hero {
   font-size: 13px;
   border: 2px solid #fff;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  pointer-events: auto;
+  cursor: pointer;
+  padding: 0;
+}
+
+.social-profile-avatar-edit:disabled {
+  cursor: default;
+  opacity: 0.85;
+}
+
+.social-profile-avatar-btn {
+  position: relative;
+  border: none;
+  padding: 0;
+  background: none;
+  cursor: pointer;
+  border-radius: 50%;
+  line-height: 0;
+}
+
+.social-profile-avatar-btn img {
+  margin-bottom: 0;
+}
+
+.social-profile-avatar-btn .social-profile-avatar-edit {
   pointer-events: none;
 }
 

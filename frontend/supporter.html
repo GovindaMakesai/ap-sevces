@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#ffffff">
+  <title>Supporter - AP Services</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="supporter-ref.css?v=20260816-supporters">
+  <script src="native-session-restore.js"></script>
+  <script src="ap-config.js"></script>
+  <script src="ap-native-boot.js"></script>
+</head>
+<body class="supporter-page" id="supporterBody">
+  <header class="supporter-header">
+    <button type="button" class="supporter-back" id="supporterBack" aria-label="Back"><i class="fas fa-chevron-left"></i></button>
+    <h1 class="supporter-title" id="supporterTitle">Supporter</h1>
+  </header>
+
+  <nav class="supporter-period-tabs" id="supporterPeriodTabs" hidden>
+    <button type="button" class="supporter-period-tab" data-period="daily">Daily</button>
+    <button type="button" class="supporter-period-tab" data-period="weekly">Weekly</button>
+    <button type="button" class="supporter-period-tab is-active" data-period="monthly">Monthly</button>
+  </nav>
+
+  <div class="supporter-podium-wrap" id="supporterPodiumWrap">
+    <div class="supporter-podium" id="supporterPodium"></div>
+    <button type="button" class="supporter-list-btn" id="supporterOpenList">Supporter List &gt;</button>
+  </div>
+
+  <div class="supporter-rank-full" id="supporterRankFull">
+    <div class="supporter-rank-list" id="supporterRankList"></div>
+  </div>
+
+  <div class="supporter-recent-wrap" id="supporterRecentWrap">
+    <h2 class="supporter-section-title">Recently Received Gifts</h2>
+    <div class="supporter-recent-list" id="supporterRecentList"></div>
+  </div>
+
+  <script src="app.js?v=20260816-supporters"></script>
+  <script src="social-ui.js"></script>
+  <script src="live-emoji-data.js"></script>
+  <script>
+    (function () {
+      function esc(s) {
+        return String(s || '').replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
+      }
+      function apiRoot() {
+        return (window.AP_SERVICES_API_ROOT || 'https://api.apservices.in/api').replace(/\/+$/, '');
+      }
+      function buildGiftSlugMap() {
+        const map = new Map();
+        const catalog = window.AP_LIVE_EMOJI?.GIFT_CATALOG;
+        if (!catalog) return map;
+        Object.values(catalog).forEach((arr) => {
+          (arr || []).forEach((g) => {
+            const base = String(g.name || 'gift').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+            const slug = g.slug || `${base}_${g.cost || 0}`;
+            map.set(slug, g);
+            map.set(base, g);
+          });
+        });
+        return map;
+      }
+      function giftEmoji(giftType, map) {
+        const key = String(giftType || '').trim();
+        const g = map.get(key) || map.get(key.replace(/_\d+$/, ''));
+        return g?.emoji || '🎁';
+      }
+      function fmtTime(d) {
+        if (!d) return '';
+        const dt = new Date(d);
+        const mm = String(dt.getMonth() + 1).padStart(2, '0');
+        const dd = String(dt.getDate()).padStart(2, '0');
+        const hh = String(dt.getHours()).padStart(2, '0');
+        const mi = String(dt.getMinutes()).padStart(2, '0');
+        return `${mm}-${dd} ${hh}:${mi}`;
+      }
+      function avatarUrl(name, pic) {
+        return window.SocialUI?.avatarUrl?.(name, pic) || '';
+      }
+
+      const params = new URLSearchParams(location.search);
+      const userId = (params.get('userId') || params.get('id') || '').trim();
+      const view = (params.get('view') || '').toLowerCase() === 'list' ? 'list' : 'main';
+      let period = params.get('period') || 'monthly';
+      const slugMap = buildGiftSlugMap();
+
+      const body = document.getElementById('supporterBody');
+      const title = document.getElementById('supporterTitle');
+      const periodTabs = document.getElementById('supporterPeriodTabs');
+
+      function setView(mode) {
+        body.classList.toggle('supporter-view-list', mode === 'list');
+        body.classList.toggle('supporter-view-main', mode === 'main');
+        title.textContent = mode === 'list' ? 'Supporter List' : 'Supporter';
+        periodTabs.hidden = mode !== 'list';
+      }
+      setView(view);
+
+      document.getElementById('supporterBack').addEventListener('click', () => {
+        if (view === 'list') {
+          location.href = location.pathname + '?userId=' + encodeURIComponent(userId) + '&app=1';
+          return;
+        }
+        if (history.length > 1) history.back();
+        else location.href = '/profile-tab.html?app=1';
+      });
+
+      document.getElementById('supporterOpenList')?.addEventListener('click', () => {
+        location.href =
+          location.pathname +
+          '?userId=' +
+          encodeURIComponent(userId) +
+          '&view=list&period=' +
+          encodeURIComponent(period) +
+          '&app=1';
+      });
+
+      periodTabs?.addEventListener('click', (e) => {
+        const btn = e.target.closest('.supporter-period-tab');
+        if (!btn) return;
+        period = btn.dataset.period || 'monthly';
+        periodTabs.querySelectorAll('.supporter-period-tab').forEach((b) => {
+          b.classList.toggle('is-active', b === btn);
+        });
+        load();
+      });
+
+      function crownClass(rank) {
+        if (rank === 1) return 'supporter-crown supporter-crown--gold';
+        if (rank === 2) return 'supporter-crown supporter-crown--silver';
+        if (rank === 3) return 'supporter-crown supporter-crown--bronze';
+        return '';
+      }
+
+      function paintPodium(top) {
+        const el = document.getElementById('supporterPodium');
+        if (!el) return;
+        const order = [top[1], top[0], top[2]];
+        const slots = [2, 1, 3];
+        if (!top.length) {
+          el.innerHTML = '<div class="supporter-empty">No supporters yet this period.</div>';
+          return;
+        }
+        el.innerHTML = order
+          .map((row, i) => {
+            if (!row) return '<div></div>';
+            const rank = slots[i];
+            return (
+              '<div class="supporter-podium-card supporter-podium-card--' +
+              rank +
+              '">' +
+              '<div class="supporter-podium-watermark">TOP ' +
+              rank +
+              '</div>' +
+              (rank <= 3
+                ? '<div class="' +
+                  crownClass(rank) +
+                  '"><i class="fas fa-crown"></i></div>'
+                : '') +
+              '<img class="supporter-podium-avatar" src="' +
+              esc(avatarUrl(row.displayName, row.profilePic)) +
+              '" alt="">' +
+              '<div class="supporter-podium-name">' +
+              esc(row.displayName) +
+              '</div>' +
+              '<div class="supporter-podium-score"><i class="fas fa-star"></i>' +
+              esc(row.coins) +
+              '</div></div>'
+            );
+          })
+          .join('');
+      }
+
+      function paintRankList(top) {
+        const el = document.getElementById('supporterRankList');
+        if (!el) return;
+        if (!top.length) {
+          el.innerHTML = '<div class="supporter-empty">No supporters in this period.</div>';
+          return;
+        }
+        el.innerHTML = top
+          .map((row) => {
+            const crown =
+              row.rank <= 3
+                ? '<span class="' +
+                  crownClass(row.rank) +
+                  '"><i class="fas fa-crown"></i></span>'
+                : String(row.rank);
+            return (
+              '<div class="supporter-rank-row">' +
+              '<div class="supporter-rank-num">' +
+              crown +
+              '</div>' +
+              '<img class="supporter-rank-avatar" src="' +
+              esc(avatarUrl(row.displayName, row.profilePic)) +
+              '" alt="">' +
+              '<div class="supporter-rank-name">' +
+              esc(row.displayName) +
+              '</div>' +
+              '<div class="supporter-rank-score"><i class="fas fa-star"></i> ' +
+              esc(row.coins) +
+              '</div></div>'
+            );
+          })
+          .join('');
+      }
+
+      function paintRecent(recent) {
+        const el = document.getElementById('supporterRecentList');
+        if (!el) return;
+        if (!recent.length) {
+          el.innerHTML = '<div class="supporter-empty">No gifts received yet.</div>';
+          return;
+        }
+        el.innerHTML = recent
+          .map(
+            (r) =>
+              '<div class="supporter-recent-row">' +
+              '<img class="supporter-recent-avatar" src="' +
+              esc(avatarUrl(r.senderName, r.profilePic)) +
+              '" alt="">' +
+              '<div><div class="supporter-recent-name">' +
+              esc(r.senderName) +
+              '</div><div class="supporter-recent-time">' +
+              esc(fmtTime(r.createdAt)) +
+              '</div></div>' +
+              '<div class="supporter-recent-gift">' +
+              giftEmoji(r.giftType, slugMap) +
+              '</div></div>'
+          )
+          .join('');
+      }
+
+      async function load() {
+        if (!userId) {
+          document.getElementById('supporterPodium').innerHTML =
+            '<div class="supporter-empty">Missing user id.</div>';
+          return;
+        }
+        const headers = { Accept: 'application/json' };
+        const token = localStorage.getItem('token');
+        if (token) headers.Authorization = 'Bearer ' + token;
+        try {
+          const res = await fetch(
+            apiRoot() +
+              '/social/creators/' +
+              encodeURIComponent(userId) +
+              '/supporters?period=' +
+              encodeURIComponent(period),
+            { credentials: 'include', headers }
+          );
+          const json = await res.json();
+          if (!json.success) throw new Error(json.message || 'Failed');
+          const top = json.data?.top || [];
+          const recent = json.data?.recent || [];
+          paintPodium(top);
+          paintRankList(top);
+          if (view === 'main') paintRecent(recent);
+        } catch (e) {
+          const msg = esc(e.message || 'Could not load supporters');
+          document.getElementById('supporterPodium').innerHTML =
+            '<div class="supporter-empty">' + msg + '</div>';
+        }
+      }
+
+      load();
+    })();
+  </script>
+</body>
+</html>

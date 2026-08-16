@@ -7,7 +7,7 @@
   <title>Me - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" media="print" onload="this.media='all'">
   <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"></noscript>
-  <link rel="stylesheet" href="social-theme.css?v=20260815-profile-stats">
+  <link rel="stylesheet" href="social-theme.css?v=20260816-avatar-profile">
   <link rel="stylesheet" href="social-features.css?v=20260729-instant">
   <link rel="stylesheet" href="cp-rings.css?v=20260814-ring3d">
   <link rel="stylesheet" href="cp-profile-card.css?v=20260814-cpprofile2">
@@ -177,10 +177,14 @@
   <div class="profile-loading-bar" id="profileLoadingBar"></div>
   <div class="social-profile-hero">
     <div class="social-profile-avatar-wrap" id="profileAvatarWrap">
-      <button type="button" class="social-profile-avatar-btn" id="profileAvatarBtn" aria-label="Change profile picture">
-        <img id="profileAvatar" alt="Profile" data-profile-avatar="1" decoding="async">
-        <span class="social-profile-avatar-edit" aria-hidden="true"><i class="fas fa-camera"></i></span>
-      </button>
+      <div class="social-profile-avatar-stack" id="profileAvatarStack">
+        <button type="button" class="social-profile-avatar-open" id="profileAvatarOpen" aria-label="View your profile">
+          <img id="profileAvatar" alt="Profile" data-profile-avatar="1" decoding="async">
+        </button>
+        <button type="button" class="social-profile-avatar-edit" id="profileAvatarCamera" aria-label="Change profile picture">
+          <i class="fas fa-camera"></i>
+        </button>
+      </div>
       <span class="ap-admin-avatar-tag" id="profileAdminTag" hidden>ADMIN</span>
       <input type="file" id="profileAvatarInput" class="rc-file-input-hidden" accept="image/jpeg,image/png,image/webp,image/*" tabindex="-1" aria-hidden="true">
     </div>
@@ -555,12 +559,31 @@
       }
 
       function setupProfileEditing() {
-        const avatarBtn = document.getElementById('profileAvatarBtn');
+        const avatarOpen = document.getElementById('profileAvatarOpen');
+        const avatarCamera = document.getElementById('profileAvatarCamera');
         const avatarInput = document.getElementById('profileAvatarInput');
         const editBtn = document.getElementById('editProfileBtn');
         const editMenu = document.getElementById('editProfileMenuLink');
 
-        avatarBtn?.addEventListener('click', () => {
+        function openOwnProfile() {
+          if (!user) {
+            location.href = '/login.html?redirect=' + encodeURIComponent('/profile-tab.html?app=1');
+            return;
+          }
+          const name =
+            `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email || 'Me';
+          location.href =
+            '/creator-profile.html?userId=' +
+            encodeURIComponent(user.id) +
+            '&name=' +
+            encodeURIComponent(name) +
+            '&app=1';
+        }
+
+        avatarOpen?.addEventListener('click', openOwnProfile);
+
+        avatarCamera?.addEventListener('click', (e) => {
+          e.stopPropagation();
           if (!user) {
             location.href = '/login.html?redirect=' + encodeURIComponent('/profile-tab.html?app=1');
             return;
@@ -582,7 +605,7 @@
             if (img) img.src = e.target.result;
           };
           reader.readAsDataURL(file);
-          avatarBtn.disabled = true;
+          if (avatarCamera) avatarCamera.disabled = true;
           try {
             await Auth.ensureAccessToken?.();
             const fd = new FormData();
@@ -601,7 +624,7 @@
             SocialUI?.toast?.(error?.message || 'Failed to upload profile picture', 'error');
             paintProfileAvatar(user);
           } finally {
-            avatarBtn.disabled = false;
+            if (avatarCamera) avatarCamera.disabled = false;
             this.value = '';
           }
         });

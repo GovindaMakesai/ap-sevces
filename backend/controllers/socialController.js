@@ -146,6 +146,24 @@ async function creatorProfilePanel(req, res) {
   }
 }
 
+async function creatorSupporters(req, res) {
+  try {
+    const supporterService = require('../services/supporterService');
+    const period = req.query.period || 'monthly';
+    const [top, recent] = await Promise.all([
+      supporterService.getTopSupporters(req.params.userId, { period, limit: req.query.limit }),
+      supporterService.getRecentGifts(req.params.userId, { limit: req.query.recentLimit || 30 }),
+    ]);
+    res.json({
+      success: true,
+      data: { period, top, recent },
+    });
+  } catch (e) {
+    console.error('creatorSupporters error:', e);
+    res.status(500).json({ success: false, message: 'Failed to load supporters' });
+  }
+}
+
 async function creatorBadges(req, res) {
   try {
     const profileBadgeService = require('../services/profileBadgeService');
@@ -569,6 +587,7 @@ module.exports = {
   clientMetrics,
   creatorEngagement,
   creatorProfilePanel,
+  creatorSupporters,
   creatorBadges,
   creatorAnalytics,
   listGiftCatalog,

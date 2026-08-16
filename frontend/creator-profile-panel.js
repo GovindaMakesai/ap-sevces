@@ -132,6 +132,7 @@
         '</div></section>' +
         '<a class="cp-ref-live-banner" id="cpRefLive" hidden></a>' +
         '<div class="cp-ref-stats" id="cpRefStats"></div>' +
+        '<a class="cp-ref-supporter-link" id="cpRefSupporterLink" href="#">Supporters · Top gifts</a>' +
         '<div class="cp-ref-medals" id="cpRefMedals"></div>' +
         '<nav class="cp-ref-tabs" id="cpRefTabs">' +
         '<button type="button" class="cp-ref-tab" data-tab="data">Data</button>' +
@@ -149,6 +150,15 @@
       document.getElementById('cpRefBack')?.addEventListener('click', () => {
         if (history.length > 1) history.back();
         else location.href = '/video.html?app=1';
+      });
+
+      document.getElementById('cpRefSupporterLink')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (!this.state.userId) return;
+        location.href =
+          '/supporter.html?userId=' +
+          encodeURIComponent(this.state.userId) +
+          '&app=1';
       });
     },
 
