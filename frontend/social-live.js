@@ -18231,6 +18231,21 @@
     return avatarUrl(name, resolveMediaUrl(pic, cacheKey || pic) || pic);
   }
 
+  function formatProfileLevelLabel(level) {
+    const n = Math.max(1, Math.min(99, Math.floor(Number(level) || 1)));
+    return `Lv.${n}`;
+  }
+
+  function applyProfileLevelFromData(data) {
+    const lvlEl = document.getElementById('apProfileLvl');
+    if (!lvlEl || !data) return;
+    const pl = Number(data.personalLevel ?? data.badges?.personalLevel ?? data.level);
+    if (pl > 0) {
+      lvlEl.textContent = formatProfileLevelLabel(pl);
+      lvlEl.hidden = false;
+    }
+  }
+
   async function loadProfileEngagement(userId, name, img, nameEl) {
     if (!userId || !window.API?.get) return null;
     try {
@@ -18257,6 +18272,7 @@
         roleBadgeEl.hidden = !roleBadgeEl.innerHTML;
         if (activeProfileUser) activeProfileUser.userRole = data.role;
       }
+      applyProfileLevelFromData(data);
       return data;
     } catch (e) {
       console.warn('[live] profile engagement', e);
@@ -18364,7 +18380,11 @@
         toast('User ID copied', 'success');
       });
     }
-    if (lvl) lvl.textContent = 'Lv.' + (5 + ((idDisplay || '0').length % 20));
+    if (lvl) {
+      const preLevel = Number(seatHit?.lvl || seatHit?.level || 0);
+      lvl.textContent = preLevel > 0 ? formatProfileLevelLabel(preLevel) : 'Lv.1';
+      lvl.hidden = false;
+    }
     const followersEl = document.getElementById('apProfileFollowers');
     const followingEl = document.getElementById('apProfileFollowing');
     if (followersEl) followersEl.textContent = '0';
@@ -18420,8 +18440,8 @@
     bar.innerHTML =
       '<p class="ap-host-kick-bar-label">Kick streaming host</p>' +
       '<div class="ap-host-kick-bar-actions">' +
-      '<button type="button" data-hkick="2"><i class="fas fa-ban"></i> 2 hours</button>' +
-      '<button type="button" data-hkick="24"><i class="fas fa-ban"></i> 24 hours</button>' +
+      '<button type="button" class="ap-host-kick-btn" data-hkick="2"><i class="fas fa-ban"></i><span>2 hours</span></button>' +
+      '<button type="button" class="ap-host-kick-btn" data-hkick="24"><i class="fas fa-ban"></i><span>24 hours</span></button>' +
       '</div>';
     const giftBtn = document.getElementById('apProfileGiftBtn');
     if (giftBtn) panel.insertBefore(bar, giftBtn);

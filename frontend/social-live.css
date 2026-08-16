@@ -2007,6 +2007,87 @@ body:not(.ap-is-host):not(.ap-can-moderate) .mod-only-tool {
   cursor: pointer;
 }
 
+.ap-host-kick-bar {
+  margin: 10px 0 12px;
+  padding: 12px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 14px;
+}
+
+.ap-host-kick-bar-label {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #b91c1c;
+  letter-spacing: 0.02em;
+}
+
+.ap-host-kick-bar-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.ap-host-kick-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: none;
+  border-radius: 10px;
+  padding: 11px 10px;
+  background: linear-gradient(180deg, #ef4444, #b91c1c);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  touch-action: manipulation;
+  line-height: 1.2;
+}
+
+.ap-host-kick-btn i {
+  flex-shrink: 0;
+  font-size: 14px;
+}
+
+.ap-host-kick-btn span {
+  white-space: nowrap;
+}
+
+.ap-chat-mod-menu [data-cmod="kick2"],
+.ap-chat-mod-menu [data-cmod="kick24"],
+.ap-chat-mod-menu [data-cmod="kick-host-2"],
+.ap-chat-mod-menu [data-cmod="kick-host-24"] {
+  color: #fca5a5;
+}
+
+.ap-chat-mod-menu [data-cmod="kick2"] i,
+.ap-chat-mod-menu [data-cmod="kick24"] i,
+.ap-chat-mod-menu [data-cmod="kick-host-2"] i,
+.ap-chat-mod-menu [data-cmod="kick-host-24"] i {
+  color: #ef4444;
+}
+
+.ap-profile-more-menu button[data-mod="kick-host-2"],
+.ap-profile-more-menu button[data-mod="kick-host-24"],
+.ap-profile-more-menu button[data-mod="kick-host"] {
+  color: #b91c1c;
+}
+
+.ap-profile-more-menu button[data-mod="kick-host-2"] i,
+.ap-profile-more-menu button[data-mod="kick-host-24"] i,
+.ap-profile-more-menu button[data-mod="kick-host"] i {
+  color: #ef4444;
+}
+
+#apProfileLvl {
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  color: #111827;
+  font-weight: 800;
+}
+
 #partyBtnLock.is-active .ico {
   box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.45);
 }
