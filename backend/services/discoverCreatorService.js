@@ -392,6 +392,10 @@ async function getCreatorEngagement(userId, viewerId = null) {
     badges = null;
   }
 
+  const isCoinSeller = Boolean(
+    badges?.is_coin_seller || mapped.role === 'coin_seller'
+  );
+
   return {
     ...mapped,
     followers: Number(stats.followers) || mapped.followers,
@@ -406,6 +410,7 @@ async function getCreatorEngagement(userId, viewerId = null) {
     svipLabel: badges?.svipLabel ?? null,
     vipLevel: badges?.vipLevel ?? null,
     vipLabel: badges?.vipLabel ?? null,
+    is_coin_seller: isCoinSeller,
   };
 }
 

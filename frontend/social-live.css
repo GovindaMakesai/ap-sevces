@@ -2088,6 +2088,11 @@ body:not(.ap-is-host):not(.ap-can-moderate) .mod-only-tool {
   font-weight: 800;
 }
 
+.ap-profile-sheet-panel .ap-profile-badge {
+  font-size: 10px;
+  padding: 3px 9px;
+}
+
 #partyBtnLock.is-active .ico {
   box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.45);
 }
@@ -5014,11 +5019,30 @@ body.live-feed-mode .live-feed-rail {
 
 .ap-profile-badges {
   display: flex;
+  flex-direction: column;
   gap: 6px;
   margin-top: 6px;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-start;
   max-width: 100%;
+}
+
+.ap-profile-status-badges,
+.ap-profile-role-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  margin: 0;
+  min-height: 0;
+  padding: 0;
+}
+
+.ap-profile-role-badges .ap-role-badge {
+  font-size: 10px;
+  padding: 2px 8px;
 }
 
 .ap-profile-badges span {

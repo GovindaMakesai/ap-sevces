@@ -12,11 +12,13 @@
   }
 
   function normalizeBadges(src) {
-    if (!src) return { personalLevel: 1, svipLevel: 0, isSvip: false, vipLevel: null, vipLabel: null, svipLabel: null };
+    if (!src) return { personalLevel: 1, svipLevel: 0, isSvip: false, vipLevel: null, vipLabel: null, svipLabel: null, role: null, is_coin_seller: false };
     const personalLevel = Number(src.personalLevel ?? src.personal_level) || 0;
     const svipLevel = Number(src.svipLevel ?? src.svip_level) || 0;
     const vipLevel = src.vipLevel ?? src.vip_level;
     const isSvip = svipLevel > 0 && Boolean(src.isSvip ?? src.is_svip ?? svipLevel > 0);
+    const role = src.role || null;
+    const isCoinSeller = Boolean(src.is_coin_seller || role === 'coin_seller');
     return {
       personalLevel: personalLevel > 0 ? personalLevel : 1,
       svipLevel: isSvip ? svipLevel : 0,
@@ -24,7 +26,25 @@
       isSvip,
       vipLevel: vipLevel != null && Number(vipLevel) > 0 ? Number(vipLevel) : null,
       vipLabel: src.vipLabel || src.vip_label || null,
+      role,
+      is_coin_seller: isCoinSeller,
     };
+  }
+
+  function formatProfileRoleBadgesFromBadges(badges, opts) {
+    const b = normalizeBadges(badges);
+    const withEmoji = opts?.withEmoji !== false;
+    const user = {
+      role: b.role,
+      is_coin_seller: b.is_coin_seller,
+    };
+    return global.formatProfileRoleBadgesHtml?.(user, { withEmoji }) || '';
+  }
+
+  function formatLiveProfileBadgesHtml(badges, opts) {
+    const status = formatProfileStatusBadgesHtml(badges, opts);
+    const roles = formatProfileRoleBadgesFromBadges(badges, opts);
+    return [status, roles].filter(Boolean).join('');
   }
 
   function svipTierClass(level) {
@@ -122,6 +142,8 @@
   global.ProfileBadges = {
     normalizeBadges,
     formatProfileStatusBadgesHtml,
+    formatProfileRoleBadgesFromBadges,
+    formatLiveProfileBadgesHtml,
     svipTierClass,
     fetchBadges,
     paintBadges,

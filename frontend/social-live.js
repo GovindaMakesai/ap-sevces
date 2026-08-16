@@ -10946,12 +10946,39 @@
       });
   }
 
-  function paintPartyHostBadges() {
+  async function paintPartyHostBadges() {
     const el = document.getElementById('partyHostBadges');
     const hostId = roomState?.hostId ? String(roomState.hostId) : '';
-    if (!el || !hostId || !isPartyRoomPage()) return;
-    if (global.ProfileBadges?.fetchAndPaint) {
-      global.ProfileBadges.fetchAndPaint(el, hostId, { link: false });
+    if (!el || !hostId) return;
+    if (!isPartyRoomPage() && !isLiveRoomPage()) return;
+    try {
+      let html = '';
+      if (global.ProfileBadges?.fetchBadges) {
+        const badges = await global.ProfileBadges.fetchBadges(hostId);
+        if (global.ProfileBadges.formatLiveProfileBadgesHtml) {
+          html = global.ProfileBadges.formatLiveProfileBadgesHtml(badges, { link: false });
+        } else {
+          html = [
+            global.ProfileBadges.formatProfileStatusBadgesHtml?.(badges, { link: false }),
+            global.ProfileBadges.formatProfileRoleBadgesFromBadges?.(badges, { withEmoji: true }),
+          ]
+            .filter(Boolean)
+            .join('');
+        }
+      }
+      if (!html && global.ProfileBadges?.formatProfileStatusBadgesHtml) {
+        html = global.ProfileBadges.formatProfileStatusBadgesHtml({ personalLevel: 1, svipLevel: 0 }, { link: false });
+      }
+      el.innerHTML = html;
+      if (html) {
+        el.hidden = false;
+        el.removeAttribute('hidden');
+        el.style.display = 'flex';
+      } else {
+        el.hidden = true;
+      }
+    } catch (_e) {
+      el.hidden = true;
     }
   }
 
@@ -17901,8 +17928,9 @@
               <div class="ap-profile-head-info">
                 <h3 id="apProfileName">User</h3>
                 <div class="ap-profile-badges">
-                  <span id="apProfileRoleBadge"></span>
-                  <span id="apProfileLvl">Lv.18</span>
+                  <div class="ap-profile-status-badges profile-status-badges" id="apProfileStatusBadges" aria-label="Level and VIP badges"></div>
+                  <div class="ap-profile-role-badges" id="apProfileRoleBadges" aria-label="Role badges"></div>
+                  <span id="apProfileRoleBadge" hidden></span>
                 </div>
                 <p class="ap-profile-id-row" id="apProfileId">ID: — <button type="button" id="apProfileCopyId" aria-label="Copy ID"><i class="far fa-copy"></i></button></p>
                 <div class="ap-profile-social-stats" id="apProfileSocialStats">
@@ -18231,19 +18259,70 @@
     return avatarUrl(name, resolveMediaUrl(pic, cacheKey || pic) || pic);
   }
 
-  function formatProfileLevelLabel(level) {
-    const n = Math.max(1, Math.min(99, Math.floor(Number(level) || 1)));
-    return `Lv.${n}`;
+  function ensureProfileSheetBadgeLayout() {
+    const wrap = document.querySelector('#apProfileSheet .ap-profile-badges');
+    if (!wrap) return;
+    if (document.getElementById('apProfileStatusBadges')) return;
+    wrap.innerHTML =
+      '<div class="ap-profile-status-badges profile-status-badges" id="apProfileStatusBadges" aria-label="Level and VIP badges"></div>' +
+      '<div class="ap-profile-role-badges" id="apProfileRoleBadges" aria-label="Role badges"></div>';
+  }
+
+  function buildLiveProfileRoleBadgesHtml(userId, meta, data) {
+    const parts = [];
+    if (meta?.isRoomAdmin && !meta?.isAdmin) {
+      parts.push(
+        `<span class="ap-role-badge ap-role-badge--admin">${roomAdminLabel().toUpperCase()}</span>`
+      );
+    }
+    if (meta?.isAdmin && isPlatformAdminUserId(userId)) {
+      parts.push(
+        window.formatRoleBadgeHtml?.('admin', { withEmoji: true }) ||
+          '<span class="ap-role-badge ap-role-badge--admin">ADMIN</span>'
+      );
+    }
+    const user = {
+      id: userId,
+      role: data?.role || meta?.userRole,
+      is_coin_seller: Boolean(data?.is_coin_seller || data?.role === 'coin_seller' || meta?.is_coin_seller),
+    };
+    const roleChips = window.formatProfileRoleBadgesHtml?.(user, { withEmoji: true }) || '';
+    if (roleChips) parts.push(roleChips);
+    return parts.join(' ');
+  }
+
+  function paintLiveProfileSheetBadges(userId, meta, badgeSrc) {
+    ensureProfileSheetBadgeLayout();
+    const statusEl = document.getElementById('apProfileStatusBadges');
+    const roleEl = document.getElementById('apProfileRoleBadges');
+    const merged = {
+      personalLevel: badgeSrc?.personalLevel ?? badgeSrc?.badges?.personalLevel,
+      svipLevel: badgeSrc?.svipLevel ?? badgeSrc?.badges?.svipLevel,
+      svipLabel: badgeSrc?.svipLabel ?? badgeSrc?.badges?.svipLabel,
+      isSvip: badgeSrc?.isSvip ?? badgeSrc?.badges?.isSvip,
+      vipLevel: badgeSrc?.vipLevel ?? badgeSrc?.badges?.vipLevel,
+      vipLabel: badgeSrc?.vipLabel ?? badgeSrc?.badges?.vipLabel,
+      role: badgeSrc?.role ?? meta?.userRole,
+      is_coin_seller: badgeSrc?.is_coin_seller ?? badgeSrc?.badges?.is_coin_seller,
+    };
+    if (statusEl && window.ProfileBadges?.paintBadges) {
+      window.ProfileBadges.paintBadges(statusEl, merged, { link: false });
+    } else if (statusEl && window.ProfileBadges?.formatProfileStatusBadgesHtml) {
+      const html = window.ProfileBadges.formatProfileStatusBadgesHtml(merged, { link: false });
+      statusEl.innerHTML = html;
+      statusEl.hidden = !html;
+      if (html) statusEl.style.display = 'flex';
+    }
+    if (roleEl) {
+      const roleHtml = buildLiveProfileRoleBadgesHtml(userId, meta, merged);
+      roleEl.innerHTML = roleHtml;
+      roleEl.hidden = !roleHtml.trim();
+      if (roleHtml.trim()) roleEl.style.display = 'flex';
+    }
   }
 
   function applyProfileLevelFromData(data) {
-    const lvlEl = document.getElementById('apProfileLvl');
-    if (!lvlEl || !data) return;
-    const pl = Number(data.personalLevel ?? data.badges?.personalLevel ?? data.level);
-    if (pl > 0) {
-      lvlEl.textContent = formatProfileLevelLabel(pl);
-      lvlEl.hidden = false;
-    }
+    paintLiveProfileSheetBadges(activeProfileUser?.userId, activeProfileUser, data);
   }
 
   async function loadProfileEngagement(userId, name, img, nameEl) {
@@ -18266,11 +18345,14 @@
       const followingEl = document.getElementById('apProfileFollowing');
       if (followersEl) followersEl.textContent = formatProfileCount(data.followers);
       if (followingEl) followingEl.textContent = formatProfileCount(data.following);
+      if (activeProfileUser) {
+        if (data.role) activeProfileUser.userRole = data.role;
+        activeProfileUser.is_coin_seller = Boolean(data.is_coin_seller || data.role === 'coin_seller');
+      }
       const roleBadgeEl = document.getElementById('apProfileRoleBadge');
-      if (roleBadgeEl && data.role && !activeProfileUser?.isAdmin) {
-        roleBadgeEl.innerHTML = window.formatRoleBadgeHtml?.(data.role, { withEmoji: true }) || '';
-        roleBadgeEl.hidden = !roleBadgeEl.innerHTML;
-        if (activeProfileUser) activeProfileUser.userRole = data.role;
+      if (roleBadgeEl) {
+        roleBadgeEl.innerHTML = '';
+        roleBadgeEl.hidden = true;
       }
       applyProfileLevelFromData(data);
       return data;
@@ -18329,6 +18411,11 @@
       sheet.classList.toggle('is-admin-profile', activeProfileUser.isAdmin);
     }
 
+    const img = document.getElementById('apProfileAvatar');
+    const nm = document.getElementById('apProfileName');
+    const idEl = document.getElementById('apProfileId');
+    const initialPic = resolveLiveProfilePic(n, resolvedId);
+
     const avatarWrap = document.getElementById('apProfileAvatarWrap');
     const adminTag = document.getElementById('apProfileAdminTag');
     if (avatarWrap) avatarWrap.classList.remove('ap-admin-frame');
@@ -18336,25 +18423,18 @@
 
     const roleBadgeEl = document.getElementById('apProfileRoleBadge');
     if (roleBadgeEl) {
-      if (activeProfileUser.isRoomAdmin) {
-        const label = roomAdminLabel().toUpperCase();
-        roleBadgeEl.innerHTML = `<span class="ap-role-badge ap-role-badge--admin">${label}</span>`;
-      } else if (activeProfileUser.isAdmin && isPlatformAdminUserId(resolvedId)) {
-        roleBadgeEl.innerHTML =
-          window.formatRoleBadgeHtml?.('admin', { withEmoji: true }) ||
-          '<span class="ap-role-badge ap-role-badge--admin">ADMIN</span>';
-      } else {
-        roleBadgeEl.innerHTML =
-          window.formatRoleBadgeHtml?.(activeProfileUser.userRole, { withEmoji: true }) || '';
-      }
-      roleBadgeEl.hidden = !roleBadgeEl.innerHTML;
+      roleBadgeEl.innerHTML = '';
+      roleBadgeEl.hidden = true;
     }
-
-    const img = document.getElementById('apProfileAvatar');
-    const nm = document.getElementById('apProfileName');
-    const idEl = document.getElementById('apProfileId');
-    const lvl = document.getElementById('apProfileLvl');
-    const initialPic = resolveLiveProfilePic(n, resolvedId);
+    paintLiveProfileSheetBadges(
+      resolvedId,
+      activeProfileUser,
+      {
+        role: activeProfileUser.userRole,
+        is_coin_seller: activeProfileUser.userRole === 'coin_seller',
+        personalLevel: Number(seatHit?.lvl || seatHit?.level) || undefined,
+      }
+    );
     if (img) {
       img.src = avatarUrl(n, initialPic);
       img.dataset.userId = resolvedId || '';
@@ -18379,11 +18459,6 @@
         if (navigator.clipboard) navigator.clipboard.writeText(full).catch(() => { });
         toast('User ID copied', 'success');
       });
-    }
-    if (lvl) {
-      const preLevel = Number(seatHit?.lvl || seatHit?.level || 0);
-      lvl.textContent = preLevel > 0 ? formatProfileLevelLabel(preLevel) : 'Lv.1';
-      lvl.hidden = false;
     }
     const followersEl = document.getElementById('apProfileFollowers');
     const followingEl = document.getElementById('apProfileFollowing');
@@ -18413,7 +18488,13 @@
     syncLiveOverlayClass();
 
     if (resolvedId) {
-      await loadProfileEngagement(resolvedId, n, img, nm);
+      const eng = await loadProfileEngagement(resolvedId, n, img, nm);
+      if (!eng && window.ProfileBadges?.fetchBadges) {
+        try {
+          const badges = await window.ProfileBadges.fetchBadges(resolvedId);
+          paintLiveProfileSheetBadges(resolvedId, activeProfileUser, badges);
+        } catch (_e) { /* ignore */ }
+      }
     }
     const friendBtn = document.getElementById('apProfileAddFriend');
     if (friendBtn && resolvedId && window.SocialInteractions?.isFollowing) {
