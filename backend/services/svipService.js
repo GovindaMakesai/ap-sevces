@@ -95,30 +95,50 @@ function formatCompact(n) {
   return String(Math.round(v));
 }
 
+/** SVIP points = approved wallet recharges + coins bought via coin sellers (1 coin = 1 point). */
 async function getSvipPoints(userId) {
-  let pts = 0;
-  try {
-    const rec = await db.query(
+  const safeSum = async (sql, params) => {
+    try {
+      const res = await db.query(sql, params);
+      return Number(res.rows[0]?.pts || res.rows[0]?.v || 0);
+    } catch (_e) {
+      return 0;
+    }
+  };
+
+  const [rechargePts, sellerTransferPts, sellerOrderPts] = await Promise.all([
+    safeSum(
       `SELECT COALESCE(SUM(coins_credited), 0)::bigint AS pts
        FROM recharges
        WHERE user_id = $1 AND payment_status = 'approved'`,
       [userId]
-    );
-    pts = Number(rec.rows[0]?.pts || 0);
-  } catch (_e) {
-    pts = 0;
-  }
-  if (pts > 0) return pts;
+    ),
+    safeSum(
+      `SELECT COALESCE(SUM(coins), 0)::bigint AS pts
+       FROM coin_seller_transfers
+       WHERE recipient_id = $1 AND transfer_type = 'user'`,
+      [userId]
+    ),
+    safeSum(
+      `SELECT COALESCE(SUM(coins), 0)::bigint AS pts
+       FROM coin_seller_orders
+       WHERE buyer_id = $1 AND status = 'completed'`,
+      [userId]
+    ),
+  ]);
 
-  const res = await db.query(
-    `SELECT COALESCE(SUM(amount), 0)::bigint AS pts
-     FROM wallet_transactions
-     WHERE user_id = $1
-       AND type = 'recharge'
-       AND amount > 0`,
-    [userId]
-  );
-  return Number(res.rows[0]?.pts || 0);
+  let pts = rechargePts + sellerTransferPts + sellerOrderPts;
+
+  if (pts === 0) {
+    pts = await safeSum(
+      `SELECT COALESCE(SUM(amount), 0)::bigint AS pts
+       FROM wallet_transactions
+       WHERE user_id = $1 AND type = 'recharge' AND amount > 0`,
+      [userId]
+    );
+  }
+
+  return pts;
 }
 
 async function getSettings(userId) {
