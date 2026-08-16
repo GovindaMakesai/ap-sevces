@@ -2,10 +2,13 @@ const db = require('../config/database');
 const followService = require('./followService');
 const walletService = require('./walletService');
 
-const CP_SUPPORT_UNLOCK = 2000;
-const CP_SUPPORT_INVITE = 5000;
-const INTIMACY_DISPLAY_MULT = 10;
-const INTIMACY_INVITE_MIN = CP_SUPPORT_INVITE * INTIMACY_DISPLAY_MULT;
+const cpLevelService = require('./cpLevelService');
+
+const CP_SUPPORT_UNLOCK = 20000;
+const CP_SUPPORT_INVITE = 50000;
+const INTIMACY_DISPLAY_MULT = 1;
+const INTIMACY_INVITE_MIN = CP_SUPPORT_INVITE;
+const CP_INVITES_PER_DAY = 3;
 const INVITE_TTL_MS = 48 * 60 * 60 * 1000;
 const REJECT_COOLDOWN_MS = 48 * 60 * 60 * 1000;
 const CP_BREAK_INSTANT_FEE = 75000;
@@ -73,6 +76,8 @@ async function getActiveCp(userId) {
   const p = partner.rows[0];
   const started = new Date(row.started_at);
   const days = Math.max(0, Math.floor((Date.now() - started.getTime()) / 86400000));
+  const intimacy = await getSupportPoints(uid, partnerId);
+  const levelProgress = cpLevelService.getLevelProgress(intimacy);
   return {
     id: row.id,
     partnerId: String(partnerId),
@@ -83,6 +88,10 @@ async function getActiveCp(userId) {
     ring: ringById(row.ring_id),
     startedAt: row.started_at,
     daysTogether: days,
+    intimacy,
+    intimacyValue: intimacy * INTIMACY_DISPLAY_MULT,
+    cpLevel: levelProgress.level,
+    cpLevelProgress: levelProgress,
   };
 }
 
@@ -187,21 +196,30 @@ async function getCpPairsInRoom(userIds) {
        AND r.user_b::text = ANY($1::text[])`,
     [ids]
   );
-  return res.rows.map((row) => ({
-    userA: {
-      userId: String(row.user_a),
-      name: `${row.a_fn || ''} ${row.a_ln || ''}`.trim() || 'User',
-      profilePic: row.a_pic || null,
-      displayId: row.a_did != null ? String(row.a_did) : null,
-    },
-    userB: {
-      userId: String(row.user_b),
-      name: `${row.b_fn || ''} ${row.b_ln || ''}`.trim() || 'User',
-      profilePic: row.b_pic || null,
-      displayId: row.b_did != null ? String(row.b_did) : null,
-    },
-    ring: ringById(row.ring_id),
-  }));
+  return Promise.all(
+    res.rows.map(async (row) => {
+      const intimacy = await getSupportPoints(row.user_a, row.user_b);
+      const levelProgress = cpLevelService.getLevelProgress(intimacy);
+      return {
+        userA: {
+          userId: String(row.user_a),
+          name: `${row.a_fn || ''} ${row.a_ln || ''}`.trim() || 'User',
+          profilePic: row.a_pic || null,
+          displayId: row.a_did != null ? String(row.a_did) : null,
+        },
+        userB: {
+          userId: String(row.user_b),
+          name: `${row.b_fn || ''} ${row.b_ln || ''}`.trim() || 'User',
+          profilePic: row.b_pic || null,
+          displayId: row.b_did != null ? String(row.b_did) : null,
+        },
+        ringId: row.ring_id,
+        ring: ringById(row.ring_id),
+        cpLevel: levelProgress.level,
+        intimacy,
+      };
+    })
+  );
 }
 
 async function sendInvite(fromUserId, toUserId, ringId) {
@@ -216,6 +234,15 @@ async function sendInvite(fromUserId, toUserId, ringId) {
     throw new Error(
       `Need intimacy value >= ${INTIMACY_INVITE_MIN.toLocaleString()} (you have ${(support * INTIMACY_DISPLAY_MULT).toLocaleString()})`
     );
+  }
+
+  const sentToday = await db.query(
+    `SELECT COUNT(*)::int AS n FROM cp_invitations
+     WHERE from_user_id = $1 AND created_at >= date_trunc('day', NOW())`,
+    [fromUserId]
+  );
+  if (Number(sentToday.rows[0]?.n || 0) >= CP_INVITES_PER_DAY) {
+    throw new Error(`You can only send ${CP_INVITES_PER_DAY} CP invitations per day`);
   }
 
   const mutual =
@@ -799,7 +826,22 @@ async function getCpProfilePublic(userId) {
     ring: cp.ring,
     daysTogether: cp.daysTogether,
     startedAt: cp.startedAt,
+    intimacy: cp.intimacy,
+    intimacyValue: cp.intimacyValue,
+    cpLevel: cp.cpLevel,
+    cpLevelProgress: cp.cpLevelProgress,
   };
+}
+
+function getCpRules() {
+  return cpLevelService.getRulesPayload({
+    intimacyInviteMin: INTIMACY_INVITE_MIN,
+    intimacyUnlock: CP_SUPPORT_UNLOCK,
+    invitesPerDay: CP_INVITES_PER_DAY,
+    breakInstantFee: CP_BREAK_INSTANT_FEE,
+    inactiveDays: CP_INACTIVE_DAYS,
+    intimacyPerDiamond: 1,
+  });
 }
 
 async function coupleWeekIntimacy(userA, userB) {
@@ -1004,4 +1046,6 @@ module.exports = {
   penaltyBreakUp,
   requestRingChange,
   getCpRankings,
+  getCpRules,
+  CP_INVITES_PER_DAY,
 };

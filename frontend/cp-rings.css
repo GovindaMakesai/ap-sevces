@@ -23,6 +23,32 @@
   flex-shrink: 0;
 }
 
+.ap-cp-ring-level {
+  position: absolute;
+  left: 50%;
+  bottom: 2%;
+  transform: translateX(-50%);
+  z-index: 12;
+  min-width: 18px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1.25;
+  color: #1a1028;
+  background: linear-gradient(180deg, #fde68a 0%, #f59e0b 100%);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
+.ap-cp-ring--lg .ap-cp-ring-level,
+.ap-cp-ring--xl .ap-cp-ring-level {
+  font-size: 11px;
+  padding: 2px 8px;
+  bottom: 4%;
+}
+
 .ap-cp-ring--sm { width: 36px; height: 36px; }
 .ap-cp-ring--md { width: 56px; height: 56px; }
 .ap-cp-ring--lg { width: 88px; height: 88px; }

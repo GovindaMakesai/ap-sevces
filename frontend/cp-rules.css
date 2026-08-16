@@ -40,11 +40,39 @@ body.cp-rules-page {
   padding: 0 12px calc(20px + env(safe-area-inset-bottom));
 }
 
+.cp-rules-card--intro {
+  margin-bottom: 12px;
+}
+
+.cp-rules-intro h2 {
+  font-size: 15px;
+  font-weight: 800;
+  color: #831843;
+  margin: 14px 0 8px;
+}
+
+.cp-rules-intro h2:first-child {
+  margin-top: 0;
+}
+
+.cp-rules-intro p,
+.cp-rules-intro li {
+  font-size: 13px;
+  line-height: 1.45;
+  color: #4b5563;
+}
+
+.cp-rules-intro ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
 .cp-rules-card {
   background: #fff;
   border-radius: 16px;
   overflow: hidden;
   box-shadow: 0 4px 20px rgba(190, 24, 93, 0.08);
+  margin-bottom: 12px;
 }
 
 .cp-rules-tabs {

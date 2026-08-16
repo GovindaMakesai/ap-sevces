@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="social-theme.css">
   <link rel="stylesheet" href="cp-love-house.css?v=20260815-cphouse5">
   <link rel="stylesheet" href="cp-guide-readability.css?v=20260815-cpguide">
-  <link rel="stylesheet" href="cp-rings.css?v=20260814-ring3d">
+  <link rel="stylesheet" href="cp-rings.css?v=20260816-cplevel">
   <link rel="stylesheet" href="cp-chat-cards.css?v=20260814-cpchat">
 </head>
 <body class="love-house-page">
@@ -202,7 +202,7 @@
   <div id="social-bottom-nav-mount"></div>
 
   <script src="ap-config.js"></script>
-  <script src="cp-rings.js?v=20260814-ring3d"></script>
+  <script src="cp-rings.js?v=20260816-cplevel"></script>
   <script src="app.js"></script>
   <script src="social-shell.js"></script>
   <script>
@@ -279,9 +279,9 @@
       openSheet('lhInviteSheet');
     }
 
-    function paintCenterRing(ringId) {
+    function paintCenterRing(ringId, cpLevel) {
       const fn = CpRings?.mountWorn || CpRings?.mount;
-      fn?.(document.getElementById('lhHeartGem'), ringId || 'ruby', 'md');
+      fn?.(document.getElementById('lhHeartGem'), ringId || 'ruby', 'md', cpLevel || 0);
     }
 
     function paintLevelRings() {
@@ -300,7 +300,7 @@
       img.src = avatarUrl(cp.partnerName, cp.partnerPic);
       img.onerror = () => { img.onerror = null; img.src = avatarUrl(cp.partnerName, null); };
       document.getElementById('lhHeartGem').textContent = '';
-      paintCenterRing(cp.ringId || cp.ring?.id || 'cp');
+      paintCenterRing(cp.ringId || cp.ring?.id || 'cp', cp.cpLevel);
       const gem = document.getElementById('lhHeartGem');
       gem.classList.add('is-clickable');
       gem.setAttribute('role', 'button');
@@ -308,7 +308,8 @@
       document.getElementById('lhHeroTitle').textContent = 'Together Forever.';
       document.getElementById('lhOpenInviteBtn').hidden = true;
       document.getElementById('lhDaysPill').hidden = false;
-      document.getElementById('lhDaysPill').textContent = `We have been CP for ${cp.daysTogether} days`;
+      document.getElementById('lhDaysPill').textContent =
+        `CP Lv.${cp.cpLevel || 1} · Together ${cp.daysTogether} days`;
     }
 
     function showEmptyPartner() {
@@ -369,7 +370,7 @@
     function openRingActionModal() {
       if (!cpState.cp) return;
       const ringId = cpState.cp.ringId || cpState.cp.ring?.id || 'cp';
-      CpRings?.mountWorn?.(document.getElementById('lhRingActionArt'), ringId, 'lg');
+      CpRings?.mountWorn?.(document.getElementById('lhRingActionArt'), ringId, 'lg', cpState.cp.cpLevel);
       openModal('lhRingActionModal');
     }
 

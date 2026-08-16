@@ -10934,7 +10934,7 @@
           `<span class="party-cp-couple-mini-label">CP</span>`;
         const slot = couple.querySelector('.party-cp-ring-slot');
         if (slot && global.CpRings) {
-          (global.CpRings.mountWorn || global.CpRings.mount)(slot, ringId, 'sm');
+          (global.CpRings.mountWorn || global.CpRings.mount)(slot, ringId, 'sm', d.cpLevel || 0);
         }
         banner.hidden = false;
         banner.removeAttribute('aria-hidden');
@@ -11003,8 +11003,19 @@
 
       bridge.style.left = `${Math.round(cx)}px`;
       bridge.style.top = `${Math.round(cy)}px`;
-      global.CpRings?.mountWorn?.(bridge.querySelector('.party-cp-seat-ring-slot'), ringId, seatA && seatB ? 'md' : 'sm')
-        || global.CpRings?.mount?.(bridge.querySelector('.party-cp-seat-ring-slot'), ringId, seatA && seatB ? 'md' : 'sm');
+      const cpLevel = Number(pair.cpLevel) || 0;
+      global.CpRings?.mountWorn?.(
+        bridge.querySelector('.party-cp-seat-ring-slot'),
+        ringId,
+        seatA && seatB ? 'md' : 'sm',
+        cpLevel
+      ) ||
+        global.CpRings?.mount?.(
+          bridge.querySelector('.party-cp-seat-ring-slot'),
+          ringId,
+          seatA && seatB ? 'md' : 'sm',
+          cpLevel
+        );
     });
   }
 

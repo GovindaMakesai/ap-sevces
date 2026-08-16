@@ -70,7 +70,7 @@
     const ringEl = container.querySelector('.cp-profile-ring');
     if (ringEl && global.CpRings) {
       const fn = CpRings.mountWorn || CpRings.mount;
-      fn(ringEl, ringEl.dataset.ringId, opts?.ringSize || 'md');
+      fn(ringEl, ringEl.dataset.ringId, opts?.ringSize || 'md', data.cpLevel || 0);
     }
     if (opts?.ringLink !== false) {
       const goCp = () => { location.href = '/cp-home.html?app=1'; };

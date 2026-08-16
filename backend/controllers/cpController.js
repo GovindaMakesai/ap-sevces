@@ -14,6 +14,7 @@ exports.getHome = async (req, res) => {
         invitePoints: cpService.CP_SUPPORT_INVITE,
         intimacyInviteMin: cpService.INTIMACY_INVITE_MIN,
         intimacyDisplayMult: cpService.INTIMACY_DISPLAY_MULT,
+        invitesPerDay: cpService.CP_INVITES_PER_DAY,
         ownedRings: await cpService.listUserOwnedRings(userId),
         actionRequests: await cpService.listActionRequests(userId),
         breakInstantFee: cpService.CP_BREAK_INSTANT_FEE,
@@ -190,6 +191,15 @@ exports.respondAction = async (req, res) => {
     res.json({ success: true, data: result });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
+  }
+};
+
+exports.getRules = async (_req, res) => {
+  try {
+    const data = cpService.getCpRules();
+    res.json({ success: true, data });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
   }
 };
 

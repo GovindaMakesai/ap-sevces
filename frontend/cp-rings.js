@@ -21,14 +21,18 @@
     return RING_STYLE[normalizeRingId(ringId)] || 'diamond';
   }
 
-  function render(ringId, size, mode) {
+  function render(ringId, size, mode, cpLevel) {
     const id = normalizeRingId(ringId);
     const style = ringStyle(id);
     const sz = size || 'md';
     const worn = mode === 'worn';
     const modeClass = worn ? ' ap-cp-ring--worn' : ' ap-cp-ring--preview';
+    const lv = Number(cpLevel) || 0;
+    const levelBadge =
+      lv > 0 ? `<span class="ap-cp-ring-level" aria-label="CP level ${lv}">${lv}</span>` : '';
     return (
       `<div class="ap-cp-ring ap-cp-ring--${id} ap-cp-ring--style-${style} ap-cp-ring--${sz}${modeClass}" role="img" aria-label="CP ring">` +
+      levelBadge +
       `<div class="ap-cp-ring-stage">` +
       `<div class="ap-cp-ring-view">` +
       `<div class="ap-cp-ring-band-wrap">` +
@@ -47,15 +51,14 @@
   }
 
   /** Store / buy sheet — subtle gem glint only */
-  function mount(el, ringId, size) {
+  function mount(el, ringId, size, cpLevel) {
     if (!el) return;
-    el.innerHTML = render(ringId, size, 'preview');
+    el.innerHTML = render(ringId, size, 'preview', cpLevel);
   }
 
-  /** CP home, profile, party — static worn 3D ring */
-  function mountWorn(el, ringId, size) {
+  function mountWorn(el, ringId, size, cpLevel) {
     if (!el) return;
-    el.innerHTML = render(ringId, size, 'worn');
+    el.innerHTML = render(ringId, size, 'worn', cpLevel);
   }
 
   global.CpRings = {

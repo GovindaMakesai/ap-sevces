@@ -4,6 +4,7 @@ const cpController = require('../controllers/cpController');
 
 const router = express.Router();
 
+router.get('/rules', cpController.getRules);
 router.get('/home', verifyToken, cpController.getHome);
 router.get('/support/:otherUserId', verifyToken, cpController.getSupport);
 router.get('/rings', cpController.listRings);
