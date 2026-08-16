@@ -31,7 +31,7 @@ async function getProfileBadges(userId) {
     personalLevel: Number(levelRes.level) || 1,
     svipLevel,
     svipLabel: svipLevel > 0 ? svipHome.levelLabel || `SVIP ${svipLevel}` : null,
-    isSvip: Boolean(svipHome.isSvip),
+    isSvip: svipLevel > 0,
     svipPointsFormatted: svipHome.pointsFormatted || null,
     vipLevel: vipLevel != null && vipLevel > 0 ? vipLevel : null,
     vipLabel: vipLevel != null && vipLevel > 0 ? vipLabel : null,

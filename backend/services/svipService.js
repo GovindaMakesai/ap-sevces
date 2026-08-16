@@ -1,6 +1,6 @@
 const db = require('../config/database');
 
-/** 1 coin purchased (recharge credit) = 1 SVIP point */
+/** 1 diamond (coin) purchased via recharge = 1 SVIP point */
 const SVIP_LEVELS = [
   { level: 0, min: 0, max: 3000000 },
   { level: 1, min: 3000000, max: 4500000 },
@@ -96,20 +96,26 @@ function formatCompact(n) {
 }
 
 async function getSvipPoints(userId) {
+  let pts = 0;
+  try {
+    const rec = await db.query(
+      `SELECT COALESCE(SUM(coins_credited), 0)::bigint AS pts
+       FROM recharges
+       WHERE user_id = $1 AND payment_status = 'approved'`,
+      [userId]
+    );
+    pts = Number(rec.rows[0]?.pts || 0);
+  } catch (_e) {
+    pts = 0;
+  }
+  if (pts > 0) return pts;
+
   const res = await db.query(
     `SELECT COALESCE(SUM(amount), 0)::bigint AS pts
      FROM wallet_transactions
      WHERE user_id = $1
-       AND amount > 0
-       AND (
-         currency_type ILIKE '%coin%'
-         OR currency_type = 'nr'
-         OR currency_type IS NULL
-       )
-       AND type IN (
-         'recharge', 'credit', 'admin_credit', 'coins_credited',
-         'seller_inventory', 'points_exchange', 'cp_ring_purchase'
-       )`,
+       AND type = 'recharge'
+       AND amount > 0`,
     [userId]
   );
   return Number(res.rows[0]?.pts || 0);
@@ -191,7 +197,7 @@ async function getSvipHome(userId) {
 
 function getSvipIntro() {
   return {
-    pointRule: '1 coin purchased = 1 SVIP Point. Refunded purchases deduct points.',
+    pointRule: '1 diamond purchased = 1 SVIP Point. Refunded purchases deduct points.',
     levels: SVIP_LEVELS.map((r) => ({
       level: r.level,
       min: r.min,

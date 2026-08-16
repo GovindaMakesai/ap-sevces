@@ -4,42 +4,56 @@
   align-items: center;
   justify-content: center;
   gap: 3px;
-  padding: 3px 9px;
+  padding: 4px 10px;
   border-radius: 999px;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.03em;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
   line-height: 1.2;
   text-decoration: none;
   border: 1px solid transparent;
   vertical-align: middle;
   white-space: nowrap;
+  -webkit-font-smoothing: antialiased;
 }
 
 .ap-profile-badge--level {
   color: #1e3a8a;
   background: linear-gradient(135deg, #bfdbfe, #60a5fa);
-  border-color: rgba(37, 99, 235, 0.35);
+  border-color: rgba(37, 99, 235, 0.45);
 }
 
-.ap-profile-badge--svip {
-  color: #fae8ff;
-  background: linear-gradient(135deg, #7c3aed, #a855f7);
-  border-color: rgba(192, 132, 252, 0.45);
-  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.35);
+/* SVIP 1–6: gold chip, dark text (max readability) */
+.ap-profile-badge--svip-core {
+  color: #1c1917 !important;
+  background: linear-gradient(135deg, #fef08a 0%, #fbbf24 50%, #f59e0b 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.9) !important;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.22);
+  text-shadow: none;
 }
 
-.ap-profile-badge--svip-muted {
-  color: #e9d5ff;
-  background: rgba(124, 58, 237, 0.22);
-  border-color: rgba(192, 132, 252, 0.35);
-  box-shadow: none;
+/* SVIP 7–12: deep purple, white text, gold rim */
+.ap-profile-badge--svip-mid {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #4c1d95, #7c3aed) !important;
+  border: 1px solid #fcd34d !important;
+  box-shadow: 0 2px 8px rgba(76, 29, 149, 0.45);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+/* SVIP 13+: elite dark + gold */
+.ap-profile-badge--svip-elite {
+  color: #fef3c7 !important;
+  background: linear-gradient(135deg, #1e1b4b 0%, #581c87 45%, #92400e 100%) !important;
+  border: 1px solid #fbbf24 !important;
+  box-shadow: 0 2px 10px rgba(251, 191, 36, 0.4);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 
 .ap-profile-badge--vip {
   color: #78350f;
   background: linear-gradient(135deg, #fde68a, #fbbf24);
-  border-color: rgba(245, 158, 11, 0.45);
+  border-color: rgba(245, 158, 11, 0.55);
 }
 
 .profile-status-badges,

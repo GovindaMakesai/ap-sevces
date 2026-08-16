@@ -1,5 +1,6 @@
 /**
  * Level, SVIP, and VIP badge chips for profiles and live chrome.
+ * SVIP badge only when level >= 1 (3M+ recharge points per product rules).
  */
 (function (global) {
   function esc(s) {
@@ -15,14 +16,23 @@
     const personalLevel = Number(src.personalLevel ?? src.personal_level) || 0;
     const svipLevel = Number(src.svipLevel ?? src.svip_level) || 0;
     const vipLevel = src.vipLevel ?? src.vip_level;
+    const isSvip = svipLevel > 0 && Boolean(src.isSvip ?? src.is_svip ?? svipLevel > 0);
     return {
       personalLevel: personalLevel > 0 ? personalLevel : 1,
-      svipLevel,
-      svipLabel: src.svipLabel || src.svip_label || (svipLevel > 0 ? `SVIP ${svipLevel}` : null),
-      isSvip: Boolean(src.isSvip ?? src.is_svip ?? svipLevel > 0),
+      svipLevel: isSvip ? svipLevel : 0,
+      svipLabel: isSvip ? src.svipLabel || src.svip_label || `SVIP ${svipLevel}` : null,
+      isSvip,
       vipLevel: vipLevel != null && Number(vipLevel) > 0 ? Number(vipLevel) : null,
       vipLabel: src.vipLabel || src.vip_label || null,
     };
+  }
+
+  function svipTierClass(level) {
+    const lv = Number(level) || 0;
+    if (lv >= 13) return 'ap-profile-badge--svip-elite';
+    if (lv >= 7) return 'ap-profile-badge--svip-mid';
+    if (lv >= 1) return 'ap-profile-badge--svip-core';
+    return '';
   }
 
   function formatProfileStatusBadgesHtml(badges, opts) {
@@ -42,12 +52,16 @@
 
     parts.push(chip('/levels.html?app=1', 'ap-profile-badge--level', `Lv.${b.personalLevel}`, `Level ${b.personalLevel}`));
 
-    if (b.svipLevel > 0) {
+    if (b.isSvip && b.svipLevel > 0) {
+      const tierCls = svipTierClass(b.svipLevel);
       parts.push(
-        chip('/svip.html?app=1', 'ap-profile-badge--svip', `SVIP ${b.svipLevel}`, b.svipLabel || `SVIP ${b.svipLevel}`)
+        chip(
+          '/svip.html?app=1',
+          `ap-profile-badge--svip ${tierCls}`,
+          `SVIP ${b.svipLevel}`,
+          b.svipLabel || `SVIP ${b.svipLevel}`
+        )
       );
-    } else {
-      parts.push(chip('/svip.html?app=1', 'ap-profile-badge--svip ap-profile-badge--svip-muted', 'SVIP', 'Earn SVIP points by recharging'));
     }
 
     if (b.vipLevel) {
@@ -85,32 +99,6 @@
     return normalizeBadges(null);
   }
 
-  async function fetchSvipHome() {
-    if (!global.API?.get) return null;
-    try {
-      if (global.Auth?.ensureAccessToken) await global.Auth.ensureAccessToken();
-      const json = await global.API.get('/svip/home');
-      if (json?.success && json.data) {
-        return {
-          svipLevel: Number(json.data.level) || 0,
-          svipLabel: json.data.levelLabel,
-          isSvip: Boolean(json.data.isSvip),
-        };
-      }
-    } catch (_e) { /* ignore */ }
-    return null;
-  }
-
-  function mergeBadgeSources(base, svipHome) {
-    const b = normalizeBadges(base || {});
-    if (svipHome) {
-      b.svipLevel = Number(svipHome.svipLevel ?? svipHome.level) || b.svipLevel;
-      b.svipLabel = svipHome.svipLabel || svipHome.levelLabel || b.svipLabel;
-      b.isSvip = Boolean(svipHome.isSvip ?? b.isSvip);
-    }
-    return b;
-  }
-
   function paintBadges(container, badges, opts) {
     if (!container) return;
     const html = formatProfileStatusBadgesHtml(badges, opts);
@@ -126,18 +114,16 @@
 
   async function fetchAndPaint(container, userId, opts) {
     if (!container || !userId) return normalizeBadges(null);
-    const [badges, svipHome] = await Promise.all([fetchBadges(userId), fetchSvipHome()]);
-    const merged = mergeBadgeSources(badges, svipHome);
-    paintBadges(container, merged, opts);
-    return merged;
+    const badges = await fetchBadges(userId);
+    paintBadges(container, badges, opts);
+    return badges;
   }
 
   global.ProfileBadges = {
     normalizeBadges,
     formatProfileStatusBadgesHtml,
+    svipTierClass,
     fetchBadges,
-    fetchSvipHome,
-    mergeBadgeSources,
     paintBadges,
     fetchAndPaint,
   };

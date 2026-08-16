@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="social-features.css?v=20260729-instant">
   <link rel="stylesheet" href="cp-rings.css?v=20260814-ring3d">
   <link rel="stylesheet" href="cp-profile-card.css?v=20260814-cpprofile2">
-  <link rel="stylesheet" href="profile-badges.css?v=20260816-badges2">
+  <link rel="stylesheet" href="profile-badges.css?v=20260816-svip-fix">
   <style>
     html .social-profile-hero,
     html .social-menu-list { opacity: 1; }
@@ -316,7 +316,7 @@
   <script src="ap-soft-nav.js?v=20260730-fastnav4"></script>
   <script src="cp-rings.js?v=20260814-ring3d"></script>
   <script src="cp-profile-card.js?v=20260816-cpfix"></script>
-  <script src="profile-badges.js?v=20260816-badges2"></script>
+  <script src="profile-badges.js?v=20260816-svip-fix"></script>
   <script src="social-shell.js?v=20260730-fastnav4"></script>
   <script src="referral-hook.js?v=20260723-invite-on"></script>
   <script>
@@ -447,16 +447,9 @@
         paintBadgeRow(user, null);
         try {
           await Auth.ensureAccessToken?.();
-          let badges = user?.badges || null;
-          if (window.ProfileBadges?.fetchBadges) {
-            badges = await ProfileBadges.fetchBadges(uid);
-          }
-          if (window.ProfileBadges?.fetchSvipHome) {
-            const svip = await ProfileBadges.fetchSvipHome();
-            if (svip && window.ProfileBadges.mergeBadgeSources) {
-              badges = ProfileBadges.mergeBadgeSources(badges, svip);
-            }
-          }
+          const badges = window.ProfileBadges?.fetchBadges
+            ? await ProfileBadges.fetchBadges(uid)
+            : user?.badges || null;
           paintBadgeRow(user, badges);
         } catch (_e) {
           paintBadgeRow(user, { personalLevel: 1, svipLevel: 0 });
