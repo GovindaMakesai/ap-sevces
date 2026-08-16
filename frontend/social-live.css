@@ -10294,6 +10294,17 @@ body.ap-live-overlay-open #partyBottomBar {
   gap: 6px !important;
 }
 
+body[data-live-page='party-room'] #partyBottomBar .party-bottom-actions,
+body[data-live-page='party-room'] #partyBottomBar #liveBtnGift {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
+  opacity: 0 !important;
+}
+
 #partyBottomBar #liveBtnGift,
 #partyBottomBar .party-btn-gift,
 #partyBottomBar .ap-btn-gift-hero {

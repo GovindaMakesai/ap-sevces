@@ -76,6 +76,16 @@
         `<span class="ap-creator-level" title="Level">${esc(c.creatorLevel || c.vipLevel)}</span>`
       );
     }
+    const personalLevel = creator.personalLevel || creator.personal_level;
+    const svipLevel = creator.svipLevel || creator.svip_level;
+    const badgeSrc = creator.badges || creator;
+    const statusHtml = window.ProfileBadges?.formatProfileStatusBadgesHtml?.(
+      badgeSrc.personalLevel || badgeSrc.svipLevel || badgeSrc.vipLevel
+        ? badgeSrc
+        : { personalLevel, svipLevel, vipLevel: creator.vipLevel || creator.vip_level },
+      { link: variant !== 'compact' }
+    );
+    if (statusHtml) parts.push(statusHtml);
     if (c.isLive && c.liveHref) {
       parts.push(
         `<a class="social-live-pill" href="${esc(c.liveHref)}" onclick="event.stopPropagation()"><i class="fas fa-circle"></i> LIVE</a>`

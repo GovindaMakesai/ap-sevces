@@ -132,6 +132,17 @@ async function creatorEngagement(req, res) {
   }
 }
 
+async function creatorBadges(req, res) {
+  try {
+    const profileBadgeService = require('../services/profileBadgeService');
+    const data = await profileBadgeService.getProfileBadges(req.params.userId);
+    res.json({ success: true, data });
+  } catch (e) {
+    console.error('creatorBadges error:', e);
+    res.status(500).json({ success: false, message: 'Failed to load profile badges' });
+  }
+}
+
 async function discoverRails(req, res) {
   try {
     const creatorDiscoveryService = require('../services/creatorDiscoveryService');
@@ -543,6 +554,7 @@ module.exports = {
   discoverRails,
   clientMetrics,
   creatorEngagement,
+  creatorBadges,
   creatorAnalytics,
   listGiftCatalog,
   listCoinSellers,

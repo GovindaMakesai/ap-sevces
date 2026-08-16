@@ -1,0 +1,98 @@
+/* Level / SVIP / VIP chips — profile, party host, creator cards */
+.ap-profile-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  line-height: 1.2;
+  text-decoration: none;
+  border: 1px solid transparent;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.ap-profile-badge--level {
+  color: #1e3a8a;
+  background: linear-gradient(135deg, #bfdbfe, #60a5fa);
+  border-color: rgba(37, 99, 235, 0.35);
+}
+
+.ap-profile-badge--svip {
+  color: #fae8ff;
+  background: linear-gradient(135deg, #7c3aed, #a855f7);
+  border-color: rgba(192, 132, 252, 0.45);
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.35);
+}
+
+.ap-profile-badge--vip {
+  color: #78350f;
+  background: linear-gradient(135deg, #fde68a, #fbbf24);
+  border-color: rgba(245, 158, 11, 0.45);
+}
+
+.profile-status-badges,
+.party-host-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  align-items: center;
+  margin: 6px 0 0;
+  min-height: 22px;
+}
+
+.social-profile-hero .profile-status-badges {
+  max-width: min(360px, 100%);
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.party-host-badges {
+  justify-content: flex-start;
+  margin: 4px 0 0;
+}
+
+.party-host-name-row .party-host-badges {
+  margin-top: 2px;
+}
+
+.party-cp-banner:not([hidden]) {
+  display: flex !important;
+}
+
+.party-cp-couple-mini {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+}
+
+.party-cp-couple-mini img {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #fff;
+}
+
+.party-cp-couple-mini .party-cp-ring-slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+}
+
+.party-cp-couple-mini-label {
+  font-size: 10px;
+  font-weight: 800;
+  color: #fbcfe8;
+  letter-spacing: 0.04em;
+}

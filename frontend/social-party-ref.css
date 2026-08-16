@@ -1385,3 +1385,76 @@ body[data-live-page='party-room'] #apGiftHitPad {
   height: 0 !important;
   opacity: 0 !important;
 }
+
+/* === Party bottom chrome cleanup (black box + chat FAB stacking) === */
+body[data-live-page='party-room'] #partyBottomBar .party-bottom-actions,
+body[data-live-page='party-room'] #partyBottomBar #liveBtnGift {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  opacity: 0 !important;
+}
+
+body[data-live-page='party-room'] #partyBottomBar.party-bottom-bar,
+body[data-live-page='party-room'] #partyBottomBar.party-bottom-bar.ap-bottom-ref {
+  z-index: 60 !important;
+  background: linear-gradient(0deg, rgba(10, 14, 26, 0.72) 0%, rgba(10, 14, 26, 0.35) 55%, transparent 100%) !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+body[data-live-page='party-room'] .party-chat-row,
+body[data-live-page='party-room'] #partyChatRow {
+  z-index: 70 !important;
+  min-height: 0 !important;
+  max-height: min(26vh, 180px) !important;
+  pointer-events: none !important;
+}
+
+body[data-live-page='party-room'].ap-chat-open .party-chat-row,
+body[data-live-page='party-room'].ap-keyboard-open .party-chat-row,
+body[data-live-page='party-room'].ap-chat-open #partyChatRow,
+body[data-live-page='party-room'].ap-keyboard-open #partyChatRow {
+  min-height: 72px !important;
+  max-height: min(32vh, 220px) !important;
+}
+
+body[data-live-page='party-room'] .party-chat-controls {
+  z-index: 71 !important;
+  pointer-events: auto !important;
+}
+
+body[data-live-page='party-room'] .live-show-chat-fab {
+  z-index: 80 !important;
+  left: 12px !important;
+  right: auto !important;
+  bottom: calc(var(--ap-bottom-bar-h, 100px) + 10px + env(safe-area-inset-bottom, 0)) !important;
+  min-width: 48px !important;
+  width: 48px !important;
+  height: 48px !important;
+  padding: 0 !important;
+  background: rgba(0, 0, 0, 0.55) !important;
+  border: 1px solid rgba(255, 255, 255, 0.28) !important;
+}
+
+body[data-live-page='party-room'] .live-show-chat-fab span {
+  display: none !important;
+}
+
+body[data-live-page='party-room'] .party-chat-feed {
+  min-height: 0 !important;
+  height: auto !important;
+  max-height: min(24vh, 180px) !important;
+}
+
+body[data-live-page='party-room'].ap-chat-open .party-chat-feed,
+body[data-live-page='party-room'].ap-keyboard-open .party-chat-feed {
+  max-height: min(28vh, 200px) !important;
+}

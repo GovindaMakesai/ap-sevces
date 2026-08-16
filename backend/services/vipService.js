@@ -7,7 +7,7 @@ async function getLevels() {
 
 async function getMembership(userId) {
   const res = await db.query(
-    `SELECT vm.*, vl.name AS level_name, vl.perks, vl.badge_icon
+    `SELECT vm.*, vl.name AS level_name, vl.level AS vip_level_num, vl.perks, vl.badge_icon
      FROM vip_memberships vm JOIN vip_levels vl ON vl.id = vm.vip_level_id
      WHERE vm.user_id = $1`,
     [userId]

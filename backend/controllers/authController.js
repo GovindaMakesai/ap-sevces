@@ -559,10 +559,16 @@ const getMe = async (req, res) => {
             const nameChangeService = require('../services/nameChangeService');
             name_change = await nameChangeService.getNameChangeQuota(req.userId);
         } catch (_e) { /* schema may not be ready yet */ }
+        let badges = null;
+        try {
+            const profileBadgeService = require('../services/profileBadgeService');
+            badges = await profileBadgeService.getProfileBadges(req.userId);
+        } catch (_e) { /* non-fatal */ }
         res.json({
             success: true,
             data: {
-                user: publicUser(user, { self: true }),
+                user: { ...publicUser(user, { self: true }), badges },
+                badges,
                 name_change,
             },
         });

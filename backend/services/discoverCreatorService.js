@@ -384,6 +384,14 @@ async function getCreatorEngagement(userId, viewerId = null) {
     liveHoursTotal = null;
   }
 
+  let badges = null;
+  try {
+    const profileBadgeService = require('./profileBadgeService');
+    badges = await profileBadgeService.getProfileBadges(id);
+  } catch (_e) {
+    badges = null;
+  }
+
   return {
     ...mapped,
     followers: Number(stats.followers) || mapped.followers,
@@ -392,6 +400,12 @@ async function getCreatorEngagement(userId, viewerId = null) {
     videosCount: counts.videos_count,
     featuredVideo,
     liveHoursTotal,
+    badges,
+    personalLevel: badges?.personalLevel ?? null,
+    svipLevel: badges?.svipLevel ?? null,
+    svipLabel: badges?.svipLabel ?? null,
+    vipLevel: badges?.vipLevel ?? null,
+    vipLabel: badges?.vipLabel ?? null,
   };
 }
 

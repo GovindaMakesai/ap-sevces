@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="social-features.css?v=20260729-instant">
   <link rel="stylesheet" href="cp-rings.css?v=20260814-ring3d">
   <link rel="stylesheet" href="cp-profile-card.css?v=20260814-cpprofile2">
+  <link rel="stylesheet" href="profile-badges.css?v=20260816-badges">
   <style>
     html .social-profile-hero,
     html .social-menu-list { opacity: 1; }
@@ -165,6 +166,7 @@
       <input type="file" id="profileAvatarInput" class="rc-file-input-hidden" accept="image/jpeg,image/png,image/webp,image/*" tabindex="-1" aria-hidden="true">
     </div>
     <h2 id="profileName">&nbsp;</h2>
+    <div id="profileStatusBadges" class="profile-status-badges" hidden aria-label="Level and VIP badges"></div>
     <p id="profileRole" aria-live="polite">&nbsp;</p>
     <div class="social-profile-uid" id="profileUidRow" style="display:none">
       <span id="profileUidLabel">ID: <strong id="profileUserId">—</strong></span>
@@ -295,6 +297,7 @@
   <script src="ap-soft-nav.js?v=20260730-fastnav4"></script>
   <script src="cp-rings.js?v=20260814-ring3d"></script>
   <script src="cp-profile-card.js?v=20260814-cpprofile2"></script>
+  <script src="profile-badges.js?v=20260816-badges"></script>
   <script src="social-shell.js?v=20260730-fastnav4"></script>
   <script src="referral-hook.js?v=20260723-invite-on"></script>
   <script>
@@ -396,10 +399,24 @@
         return chips.join(' ');
       }
 
+      function paintStatusBadges(user) {
+        const el = document.getElementById('profileStatusBadges');
+        if (!el || !user) return;
+        const badges = user.badges || user.profileBadges;
+        if (badges && window.ProfileBadges?.paintBadges) {
+          ProfileBadges.paintBadges(el, badges);
+          return;
+        }
+        if (user.id && window.ProfileBadges?.fetchAndPaint) {
+          ProfileBadges.fetchAndPaint(el, user.id);
+        }
+      }
+
       function paintProfileHeader(user) {
         if (!user) return;
         const name = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email || 'User';
         document.getElementById('profileName').textContent = name;
+        paintStatusBadges(user);
         const roleEl = document.getElementById('profileRole');
         if (roleEl) {
           roleEl.innerHTML = buildProfileBadgesHtml(user) || '<span class="ap-role-badge ap-role-badge--customer">Customer</span>';
@@ -417,6 +434,7 @@
         const empty = document.getElementById('profileCpEmpty');
         if (!mount || !user?.id) return;
         const data = await window.CpProfileCard?.fetchAndMount?.(mount, user.id, { meLink: false, ringSize: 'md' });
+        mount.hidden = !data;
         if (empty) {
           empty.hidden = Boolean(data);
         }
@@ -628,10 +646,13 @@
             const meRes = await (API.getFresh || API.get)('/auth/me');
             const fresh = meRes?.data?.user || meRes?.data;
             if (fresh && fresh.id) {
-              localStorage.setItem('user', JSON.stringify(fresh));
-              if (window.AppState) AppState.user = fresh;
-              user = fresh;
-              paintProfileHeader(fresh);
+              const merged = meRes?.data?.badges
+                ? { ...fresh, badges: meRes.data.badges }
+                : fresh;
+              localStorage.setItem('user', JSON.stringify(merged));
+              if (window.AppState) AppState.user = merged;
+              user = merged;
+              paintProfileHeader(merged);
               paintAdminIdRow(fresh);
               paintProfileAvatar(fresh);
             }

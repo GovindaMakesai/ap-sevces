@@ -10894,12 +10894,69 @@
     }
   }
 
-  function renderPartyCpOnSeats() {
+  function renderPartyHostCpBanner() {
     const banner = document.getElementById('partyCpBanner');
-    if (banner) {
+    const couple = document.getElementById('partyCpCouple');
+    if (!banner || !couple || !isPartyRoomPage()) return;
+
+    const hostId = roomState?.hostId ? String(roomState.hostId) : '';
+    if (!hostId) {
       banner.hidden = true;
       banner.setAttribute('aria-hidden', 'true');
+      couple.innerHTML = '';
+      return;
     }
+
+    const join = global.joinApiUrl || ((p) => '/api' + p);
+    const headers = { Accept: 'application/json' };
+    const token = localStorage.getItem('token');
+    if (token) headers.Authorization = 'Bearer ' + token;
+
+    fetch(join('/cp/profile/' + encodeURIComponent(hostId)), { credentials: 'include', headers })
+      .then((res) => res.json().catch(() => ({})))
+      .then((json) => {
+        if (!json?.success || !json.data?.partner) {
+          banner.hidden = true;
+          banner.setAttribute('aria-hidden', 'true');
+          couple.innerHTML = '';
+          return;
+        }
+        const d = json.data;
+        const av = (name, pic) => {
+          if (global.CpProfileCard?.avatarUrl) return CpProfileCard.avatarUrl(name, pic);
+          return `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'U')}&background=ec4899&color=fff`;
+        };
+        const ringId = d.ringId || d.ring?.id || 'cp';
+        couple.innerHTML =
+          `<img src="${av(d.user.name, d.user.profilePic)}" alt="">` +
+          `<div class="party-cp-ring-badge"><span class="party-cp-ring-slot"></span></div>` +
+          `<img src="${av(d.partner.name, d.partner.profilePic)}" alt="">` +
+          `<span class="party-cp-couple-mini-label">CP</span>`;
+        const slot = couple.querySelector('.party-cp-ring-slot');
+        if (slot && global.CpRings) {
+          (global.CpRings.mountWorn || global.CpRings.mount)(slot, ringId, 'sm');
+        }
+        banner.hidden = false;
+        banner.removeAttribute('aria-hidden');
+      })
+      .catch(() => {
+        banner.hidden = true;
+        banner.setAttribute('aria-hidden', 'true');
+        couple.innerHTML = '';
+      });
+  }
+
+  function paintPartyHostBadges() {
+    const el = document.getElementById('partyHostBadges');
+    const hostId = roomState?.hostId ? String(roomState.hostId) : '';
+    if (!el || !hostId || !isPartyRoomPage()) return;
+    if (global.ProfileBadges?.fetchAndPaint) {
+      global.ProfileBadges.fetchAndPaint(el, hostId, { link: false });
+    }
+  }
+
+  function renderPartyCpOnSeats() {
+    renderPartyHostCpBanner();
     const wrap = document.querySelector('body[data-live-page="party-room"] .party-seats-wrap');
     const grid = document.getElementById('partySeats');
     if (!wrap || !grid || !isPartyRoomPage()) return;
@@ -11099,9 +11156,10 @@
     const hostImg = document.getElementById('partyHostAvatar') || document.getElementById('liveHostAvatar');
     if (hostEl) {
       const full = hostName || 'Host';
-      hostEl.innerHTML = escapeHtml(full);
+      hostEl.textContent = full;
       hostEl.title = full;
     }
+    paintPartyHostBadges();
     if (hostImg) {
       paintHostAvatarImg(hostImg, hostName, getStreamCoverUrl(hostName));
     }
@@ -11773,7 +11831,11 @@
       bar.style.opacity = '1';
       bar.style.removeProperty('transform');
       bar.style.pointerEvents = sheetOnTop ? 'none' : 'auto';
-      bar.style.zIndex = sheetOnTop ? '12000' : '14000';
+      if (isPartyRoomPage()) {
+        bar.style.zIndex = sheetOnTop ? '40' : '60';
+      } else {
+        bar.style.zIndex = sheetOnTop ? '12000' : '14000';
+      }
     }
     ['liveBtnGift', 'partyBtnGift'].forEach((id) => {
       const giftBtn = document.getElementById(id);
@@ -11811,7 +11873,11 @@
         bar.style.bottom = 'max(12px, env(safe-area-inset-bottom, 0px))';
       }
       /* Below gift/tools (32000); above chat/PK overlays */
-      bar.style.zIndex = sheetOpen ? '12000' : '14000';
+      if (isPartyRoomPage()) {
+        bar.style.zIndex = sheetOpen ? '40' : '60';
+      } else {
+        bar.style.zIndex = sheetOpen ? '12000' : '14000';
+      }
       bar.style.pointerEvents = sheetOpen ? 'none' : 'auto';
       bar.style.alignItems = 'center';
       bar.style.overflow = 'visible';
@@ -11836,26 +11902,55 @@
         compose.style.position = 'relative';
         compose.style.zIndex = '1';
       }
-      if (actions) {
-        actions.style.flex = '0 0 auto';
-        actions.style.flexShrink = '0';
-        actions.style.position = 'relative';
-        actions.style.zIndex = '5';
-        actions.style.pointerEvents = sheetOpen ? 'none' : 'auto';
-        actions.style.display = 'flex';
-        actions.style.alignItems = 'center';
-      }
-      if (gift) {
-        gift.style.flexShrink = '0';
-        gift.style.position = 'relative';
-        gift.style.zIndex = '6';
-        gift.style.pointerEvents = sheetOpen ? 'none' : 'auto';
-        gift.style.opacity = '1';
-        gift.style.visibility = 'visible';
-        gift.style.display = 'inline-flex';
-        gift.style.alignItems = 'center';
-        gift.style.justifyContent = 'center';
-        gift.removeAttribute('disabled');
+      if (isPartyRoomPage()) {
+        if (actions) {
+          actions.style.display = 'none';
+          actions.style.visibility = 'hidden';
+          actions.style.pointerEvents = 'none';
+          actions.hidden = true;
+        }
+        const legacyGift = document.getElementById('liveBtnGift');
+        if (legacyGift) {
+          legacyGift.style.display = 'none';
+          legacyGift.style.visibility = 'hidden';
+          legacyGift.style.pointerEvents = 'none';
+          legacyGift.hidden = true;
+        }
+        const partyGift = document.getElementById('partyBtnGift');
+        if (partyGift) {
+          partyGift.style.flexShrink = '0';
+          partyGift.style.position = 'relative';
+          partyGift.style.zIndex = '6';
+          partyGift.style.pointerEvents = sheetOpen ? 'none' : 'auto';
+          partyGift.style.opacity = '1';
+          partyGift.style.visibility = 'visible';
+          partyGift.style.display = 'inline-flex';
+          partyGift.style.alignItems = 'center';
+          partyGift.style.justifyContent = 'center';
+          partyGift.removeAttribute('disabled');
+        }
+      } else {
+        if (actions) {
+          actions.style.flex = '0 0 auto';
+          actions.style.flexShrink = '0';
+          actions.style.position = 'relative';
+          actions.style.zIndex = '5';
+          actions.style.pointerEvents = sheetOpen ? 'none' : 'auto';
+          actions.style.display = 'flex';
+          actions.style.alignItems = 'center';
+        }
+        if (gift) {
+          gift.style.flexShrink = '0';
+          gift.style.position = 'relative';
+          gift.style.zIndex = '6';
+          gift.style.pointerEvents = sheetOpen ? 'none' : 'auto';
+          gift.style.opacity = '1';
+          gift.style.visibility = 'visible';
+          gift.style.display = 'inline-flex';
+          gift.style.alignItems = 'center';
+          gift.style.justifyContent = 'center';
+          gift.removeAttribute('disabled');
+        }
       }
     } catch (_e) {
       /* non-fatal */
@@ -11863,7 +11958,11 @@
     let h = Math.ceil(bar.getBoundingClientRect().height || 58);
     /* Cap — a bloated height pushes sticky bars into the invite/joined hit zone */
     if (!Number.isFinite(h) || h < 48) h = 58;
-    if (h > 120) h = 72;
+    if (isPartyRoomPage()) {
+      if (h > 160) h = 112;
+    } else if (h > 120) {
+      h = 72;
+    }
     document.documentElement.style.setProperty('--ap-bottom-bar-h', `${h}px`);
   }
 
@@ -17026,6 +17125,11 @@
       } else if (fab.parentElement !== document.body) {
         // Escape live-overlay stacking so taps always hit the button
         document.body.appendChild(fab);
+      }
+      if (isPartyRoomPage()) {
+        fab.style.zIndex = '80';
+        fab.style.left = '12px';
+        fab.style.right = 'auto';
       }
       return fab;
     }
