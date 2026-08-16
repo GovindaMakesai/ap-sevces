@@ -251,9 +251,9 @@
       this.paintHeader(panel, engagement);
       this.paintStats(panel, engagement);
       this.paintMedals(panel);
-      this.paintGiftTab(panel);
-      this.paintDataTab(panel, engagement);
-      this.paintRelTab(panel, engagement);
+      this.paintGiftGrid(document.getElementById('cpRefPanelGift'), panel);
+      this.paintDataTab(panel);
+      this.paintRelTab();
       this.updateTabCounts(panel, engagement);
       this.syncFollowBtn();
       this.switchTab(this.state.activeTab);
@@ -331,7 +331,7 @@
         }
         const cpLvl = panel?.cp?.cpLevel;
         if (cpLvl) {
-          pills.push('<span class="cp-ref-level-chip">CP ' + esc(cpLvl) + '</span>');
+          /* CP details live on Relationship tab only */
         }
         const role = panel?.role || engagement?.role;
         if (role === 'agency' || engagement?.agencyName) {
@@ -405,8 +405,7 @@
       el.hidden = !parts.length;
     },
 
-    paintGiftTab(panel) {
-      const el = document.getElementById('cpRefPanelGift');
+    paintGiftGrid(el, panel) {
       if (!el) return;
       const wall = panel?.giftWall || [];
       if (!wall.length) {
@@ -430,68 +429,37 @@
       el.innerHTML = '<div class="cp-ref-gift-grid">' + cells + '</div>';
     },
 
-    paintDataTab(panel, engagement) {
-      const el = document.getElementById('cpRefPanelData');
-      if (!el) return;
-      const giftCoins = panel?.giftCoins ?? engagement?.giftEarnings ?? 0;
-      const giftCount = panel?.giftCount ?? engagement?.giftCount ?? 0;
-      const posts = engagement?.postsCount ?? 0;
-      const videos = engagement?.videosCount ?? 0;
-      const liveH = engagement?.liveHoursTotal;
-      el.innerHTML =
-        '<div class="cp-ref-data-grid">' +
-        '<div class="cp-ref-data-card"><strong>' +
-        fmt(giftCoins) +
-        '</strong><span>Gift coins received</span></div>' +
-        '<div class="cp-ref-data-card"><strong>' +
-        fmt(giftCount) +
-        '</strong><span>Gifts count</span></div>' +
-        '<div class="cp-ref-data-card"><strong>' +
-        fmt(posts) +
-        '</strong><span>Posts</span></div>' +
-        '<div class="cp-ref-data-card"><strong>' +
-        fmt(videos) +
-        '</strong><span>Videos</span></div>' +
-        (liveH != null
-          ? '<div class="cp-ref-data-card"><strong>' +
-            esc(String(liveH)) +
-            'h</strong><span>Live hours</span></div>'
-          : '') +
-        '<div class="cp-ref-data-card"><strong>Lv.' +
-        esc(panel?.personalLevel || 1) +
-        '</strong><span>Personal level</span></div></div>';
+    paintDataTab(panel) {
+      this.paintGiftGrid(document.getElementById('cpRefPanelData'), panel);
     },
 
-    paintRelTab(panel, engagement) {
+    paintRelTab() {
       const el = document.getElementById('cpRefPanelRel');
       if (!el) return;
-      const cp = panel?.cp;
-      let html = '';
-      if (cp?.hasCp && cp.partnerName) {
-        html +=
-          '<div class="cp-ref-rel-card"><h4>CP Partner</h4><p>💕 ' +
-          esc(cp.partnerName) +
-          (cp.cpLevel ? ' · CP Level ' + esc(cp.cpLevel) : '') +
-          '</p></div>';
-      } else {
-        html +=
-          '<div class="cp-ref-rel-card"><h4>CP</h4><p>No active CP couple yet.</p></div>';
+      el.innerHTML = '<div id="cpRefCpMount" class="cp-ref-cp-mount"></div>';
+      const mount = document.getElementById('cpRefCpMount');
+      const uid = this.state.userId;
+      if (!uid || !window.CpProfileCard?.fetchAndMount) {
+        if (mount) {
+          mount.innerHTML = '<div class="cp-ref-empty">No CP couple yet.</div>';
+        }
+        return;
       }
-      html +=
-        '<div class="cp-ref-rel-card"><h4>Social</h4><p>' +
-        fmt(engagement?.followers) +
-        ' followers · ' +
-        fmt(panel?.friendsCount) +
-        ' friends · ' +
-        fmt(panel?.visitorCount) +
-        ' profile visitors</p></div>';
-      if (engagement?.agencyName) {
-        html +=
-          '<div class="cp-ref-rel-card"><h4>Agency</h4><p>' +
-          esc(engagement.agencyName) +
-          '</p></div>';
-      }
-      el.innerHTML = html;
+      window.CpProfileCard.fetchAndMount(mount, uid, {
+        showLoveHouseLink: this.state.isSelf,
+        ringSize: 'md',
+        meLink: !this.state.isSelf,
+      }).then((data) => {
+        if (!data && mount) {
+          mount.innerHTML =
+            '<div class="cp-ref-rel-empty">' +
+            '<p>No CP partner yet.</p>' +
+            (this.state.isSelf
+              ? '<a href="/cp-home.html?app=1" class="cp-ref-rel-cta"><i class="fas fa-heart"></i> Open CP House</a>'
+              : '') +
+            '</div>';
+        }
+      });
     },
 
     updateTabCounts(panel, engagement) {
@@ -520,6 +488,10 @@
       document.getElementById('cpRefPanelRel').hidden = tab !== 'relationship';
       document.getElementById('cpRefPanelGift').hidden = tab !== 'gift';
       document.getElementById('cpRefPanelPosts').hidden = tab !== 'posts';
+      if (tab === 'relationship' && !this.state.cpMounted) {
+        this.state.cpMounted = true;
+        this.paintRelTab();
+      }
       if (tab === 'posts' && !this.state.postsLoaded) {
         this.loadPosts();
       }
