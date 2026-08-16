@@ -254,6 +254,7 @@
       this.paintGiftGrid(document.getElementById('cpRefPanelGift'), panel);
       this.paintDataTab(panel);
       this.paintRelTab();
+      this.state.cpMounted = true;
       this.updateTabCounts(panel, engagement);
       this.syncFollowBtn();
       this.switchTab(this.state.activeTab);
@@ -328,10 +329,6 @@
         const lvl = panel?.personalLevel || panel?.badges?.personalLevel || engagement?.personalLevel;
         if (lvl) {
           pills.push('<span class="cp-ref-level-chip"><i class="fas fa-gem"></i> ' + esc(lvl) + '</span>');
-        }
-        const cpLvl = panel?.cp?.cpLevel;
-        if (cpLvl) {
-          /* CP details live on Relationship tab only */
         }
         const role = panel?.role || engagement?.role;
         if (role === 'agency' || engagement?.agencyName) {
