@@ -92,20 +92,32 @@
 
   async function fetchAndMount(container, userId, opts) {
     if (!container || !userId) return null;
-    try {
+    const load = async () => {
+      if (global.API?.get) {
+        try {
+          if (global.Auth?.ensureAccessToken) await global.Auth.ensureAccessToken();
+          const json = await global.API.get('/cp/profile/' + encodeURIComponent(userId));
+          if (json?.success && json.data?.partner) return json.data;
+        } catch (_e) { /* fallback */ }
+      }
       const token = localStorage.getItem('token');
       const res = await fetch((global.joinApiUrl || ((p) => '/api' + p))('/cp/profile/' + encodeURIComponent(userId)), {
         credentials: 'include',
         headers: token ? { Authorization: 'Bearer ' + token, Accept: 'application/json' } : { Accept: 'application/json' },
       });
-      const json = await res.json();
-      if (!json.success || !json.data) {
+      const json = await res.json().catch(() => ({}));
+      if (json.success && json.data?.partner) return json.data;
+      return null;
+    };
+    try {
+      const data = await load();
+      if (!data) {
         container.innerHTML = '';
         container.hidden = true;
         return null;
       }
-      mount(container, json.data, opts);
-      return json.data;
+      mount(container, data, opts);
+      return data;
     } catch (_e) {
       container.hidden = true;
       return null;

@@ -11,7 +11,7 @@
   }
 
   function normalizeBadges(src) {
-    if (!src) return null;
+    if (!src) return { personalLevel: 1, svipLevel: 0, isSvip: false, vipLevel: null, vipLabel: null, svipLabel: null };
     const personalLevel = Number(src.personalLevel ?? src.personal_level) || 0;
     const svipLevel = Number(src.svipLevel ?? src.svip_level) || 0;
     const vipLevel = src.vipLevel ?? src.vip_level;
@@ -27,7 +27,6 @@
 
   function formatProfileStatusBadgesHtml(badges, opts) {
     const b = normalizeBadges(badges);
-    if (!b) return '';
     const o = opts || {};
     const link = o.link !== false;
     const parts = [];
@@ -41,14 +40,16 @@
       return `<span class="ap-profile-badge ${cls}" title="${t}">${inner}</span>`;
     };
 
-    if (b.personalLevel) {
-      parts.push(chip('/levels.html?app=1', 'ap-profile-badge--level', `Lv.${b.personalLevel}`, `Level ${b.personalLevel}`));
-    }
+    parts.push(chip('/levels.html?app=1', 'ap-profile-badge--level', `Lv.${b.personalLevel}`, `Level ${b.personalLevel}`));
+
     if (b.svipLevel > 0) {
       parts.push(
         chip('/svip.html?app=1', 'ap-profile-badge--svip', `SVIP ${b.svipLevel}`, b.svipLabel || `SVIP ${b.svipLevel}`)
       );
+    } else {
+      parts.push(chip('/svip.html?app=1', 'ap-profile-badge--svip ap-profile-badge--svip-muted', 'SVIP', 'Earn SVIP points by recharging'));
     }
+
     if (b.vipLevel) {
       const vipText = b.vipLabel && !/^vip/i.test(b.vipLabel) ? b.vipLabel : `VIP ${b.vipLevel}`;
       parts.push(chip('/vip.html?app=1', 'ap-profile-badge--vip', vipText, vipText));
@@ -58,7 +59,16 @@
 
   async function fetchBadges(userId) {
     const uid = String(userId || '').trim();
-    if (!uid) return null;
+    if (!uid) return normalizeBadges(null);
+
+    if (global.API?.get) {
+      try {
+        if (global.Auth?.ensureAccessToken) await global.Auth.ensureAccessToken();
+        const json = await global.API.get(`/social/creators/${encodeURIComponent(uid)}/badges`);
+        if (json?.success && json.data) return normalizeBadges(json.data);
+      } catch (_e) { /* fall through */ }
+    }
+
     const join = global.joinApiUrl || ((p) => '/api' + p);
     const headers = { Accept: 'application/json' };
     const token = global.localStorage?.getItem?.('token');
@@ -69,32 +79,65 @@
         headers,
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json.success) return null;
-      return normalizeBadges(json.data);
-    } catch (_e) {
-      return null;
+      if (res.ok && json.success && json.data) return normalizeBadges(json.data);
+    } catch (_e) { /* ignore */ }
+
+    return normalizeBadges(null);
+  }
+
+  async function fetchSvipHome() {
+    if (!global.API?.get) return null;
+    try {
+      if (global.Auth?.ensureAccessToken) await global.Auth.ensureAccessToken();
+      const json = await global.API.get('/svip/home');
+      if (json?.success && json.data) {
+        return {
+          svipLevel: Number(json.data.level) || 0,
+          svipLabel: json.data.levelLabel,
+          isSvip: Boolean(json.data.isSvip),
+        };
+      }
+    } catch (_e) { /* ignore */ }
+    return null;
+  }
+
+  function mergeBadgeSources(base, svipHome) {
+    const b = normalizeBadges(base || {});
+    if (svipHome) {
+      b.svipLevel = Number(svipHome.svipLevel ?? svipHome.level) || b.svipLevel;
+      b.svipLabel = svipHome.svipLabel || svipHome.levelLabel || b.svipLabel;
+      b.isSvip = Boolean(svipHome.isSvip ?? b.isSvip);
     }
+    return b;
   }
 
   function paintBadges(container, badges, opts) {
     if (!container) return;
     const html = formatProfileStatusBadgesHtml(badges, opts);
     container.innerHTML = html;
-    container.hidden = !html;
-    if (html) container.removeAttribute('hidden');
+    if (html) {
+      container.hidden = false;
+      container.removeAttribute('hidden');
+      container.style.display = 'flex';
+    } else {
+      container.hidden = true;
+    }
   }
 
   async function fetchAndPaint(container, userId, opts) {
-    if (!container || !userId) return null;
-    const badges = await fetchBadges(userId);
-    if (badges) paintBadges(container, badges, opts);
-    return badges;
+    if (!container || !userId) return normalizeBadges(null);
+    const [badges, svipHome] = await Promise.all([fetchBadges(userId), fetchSvipHome()]);
+    const merged = mergeBadgeSources(badges, svipHome);
+    paintBadges(container, merged, opts);
+    return merged;
   }
 
   global.ProfileBadges = {
     normalizeBadges,
     formatProfileStatusBadgesHtml,
     fetchBadges,
+    fetchSvipHome,
+    mergeBadgeSources,
     paintBadges,
     fetchAndPaint,
   };

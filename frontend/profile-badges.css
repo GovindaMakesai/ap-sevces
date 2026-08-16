@@ -29,6 +29,13 @@
   box-shadow: 0 2px 8px rgba(124, 58, 237, 0.35);
 }
 
+.ap-profile-badge--svip-muted {
+  color: #e9d5ff;
+  background: rgba(124, 58, 237, 0.22);
+  border-color: rgba(192, 132, 252, 0.35);
+  box-shadow: none;
+}
+
 .ap-profile-badge--vip {
   color: #78350f;
   background: linear-gradient(135deg, #fde68a, #fbbf24);
@@ -36,14 +43,19 @@
 }
 
 .profile-status-badges,
-.party-host-badges {
-  display: flex;
+.party-host-badges,
+.profile-badge-row {
+  display: flex !important;
   flex-wrap: wrap;
   gap: 6px;
   justify-content: center;
   align-items: center;
-  margin: 6px 0 0;
-  min-height: 22px;
+  margin: 8px auto 0;
+  min-height: 24px;
+  width: 100%;
+  max-width: min(420px, 100%);
+  padding: 0 8px;
+  box-sizing: border-box;
 }
 
 .social-profile-hero .profile-status-badges {

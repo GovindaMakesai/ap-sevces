@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="social-features.css?v=20260729-instant">
   <link rel="stylesheet" href="cp-rings.css?v=20260814-ring3d">
   <link rel="stylesheet" href="cp-profile-card.css?v=20260814-cpprofile2">
-  <link rel="stylesheet" href="profile-badges.css?v=20260816-badges">
+  <link rel="stylesheet" href="profile-badges.css?v=20260816-badges2">
   <style>
     html .social-profile-hero,
     html .social-menu-list { opacity: 1; }
@@ -105,6 +105,25 @@
       min-height: 22px;
     }
     #profileRole[hidden] { display: flex !important; }
+    #profileBadgeRow {
+      display: flex !important;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: center;
+      align-items: center;
+      margin: 8px auto 0;
+      width: 100%;
+      max-width: min(420px, 100%);
+      padding: 0 8px;
+      box-sizing: border-box;
+      min-height: 26px;
+    }
+    #profileCpMount:not([hidden]) {
+      display: block !important;
+    }
+    #profileCpEmpty:not([hidden]) {
+      display: block !important;
+    }
     #profileRole .ap-role-badge {
       display: inline-flex;
       align-items: center;
@@ -166,8 +185,13 @@
       <input type="file" id="profileAvatarInput" class="rc-file-input-hidden" accept="image/jpeg,image/png,image/webp,image/*" tabindex="-1" aria-hidden="true">
     </div>
     <h2 id="profileName">&nbsp;</h2>
-    <div id="profileStatusBadges" class="profile-status-badges" hidden aria-label="Level and VIP badges"></div>
-    <p id="profileRole" aria-live="polite">&nbsp;</p>
+    <div id="profileBadgeRow" class="profile-badge-row" aria-label="Level, VIP, and role badges"></div>
+    <p id="profileRole" class="profile-role-legacy" hidden aria-hidden="true">&nbsp;</p>
+    <div id="profileCpMount" hidden></div>
+    <div id="profileCpEmpty" class="cp-profile-empty" hidden>
+      <p>Find your CP and show your ring on your profile</p>
+      <a href="/cp-home.html?app=1"><i class="fas fa-heart"></i> Open CP House</a>
+    </div>
     <div class="social-profile-uid" id="profileUidRow" style="display:none">
       <span id="profileUidLabel">ID: <strong id="profileUserId">—</strong></span>
       <button type="button" class="social-copy-id-btn" id="profileCopyId" aria-label="Copy user ID"><i class="fas fa-copy"></i></button>
@@ -216,11 +240,6 @@
       </button>
     </div>
     <button type="button" class="social-btn-orange social-profile-cta" id="profileMainBtn">Sign In</button>
-    <div id="profileCpMount" hidden></div>
-    <div id="profileCpEmpty" class="cp-profile-empty" hidden>
-      <p>Find your CP and show your ring on your profile</p>
-      <a href="/cp-home.html?app=1"><i class="fas fa-heart"></i> Open CP House</a>
-    </div>
   </div>
 
   <div class="social-profile-edit-sheet" id="profileEditSheet" aria-hidden="true">
@@ -296,8 +315,8 @@
   <script src="social-interactions.js?v=20260624-profile-url-fix"></script>
   <script src="ap-soft-nav.js?v=20260730-fastnav4"></script>
   <script src="cp-rings.js?v=20260814-ring3d"></script>
-  <script src="cp-profile-card.js?v=20260814-cpprofile2"></script>
-  <script src="profile-badges.js?v=20260816-badges"></script>
+  <script src="cp-profile-card.js?v=20260816-cpfix"></script>
+  <script src="profile-badges.js?v=20260816-badges2"></script>
   <script src="social-shell.js?v=20260730-fastnav4"></script>
   <script src="referral-hook.js?v=20260723-invite-on"></script>
   <script>
@@ -399,16 +418,48 @@
         return chips.join(' ');
       }
 
-      function paintStatusBadges(user) {
-        const el = document.getElementById('profileStatusBadges');
-        if (!el || !user) return;
-        const badges = user.badges || user.profileBadges;
-        if (badges && window.ProfileBadges?.paintBadges) {
-          ProfileBadges.paintBadges(el, badges);
+      function resolveUserId(u) {
+        if (!u) return '';
+        return String(u.id || u.user_id || u.userId || '').trim();
+      }
+
+      function paintBadgeRow(user, statusBadges) {
+        const row = document.getElementById('profileBadgeRow');
+        if (!row) return;
+        const roleHtml = buildProfileBadgesHtml(user) || '';
+        let statusHtml = '';
+        if (statusBadges && window.ProfileBadges?.formatProfileStatusBadgesHtml) {
+          statusHtml = ProfileBadges.formatProfileStatusBadgesHtml(statusBadges);
+        } else if (window.ProfileBadges?.formatProfileStatusBadgesHtml) {
+          statusHtml = ProfileBadges.formatProfileStatusBadgesHtml({ personalLevel: 1, svipLevel: 0 });
+        }
+        row.innerHTML = [roleHtml, statusHtml].filter(Boolean).join(' ');
+        row.hidden = !row.innerHTML.trim();
+        if (!row.hidden) row.removeAttribute('hidden');
+      }
+
+      async function loadProfileStatus(user) {
+        const uid = resolveUserId(user);
+        if (!uid) {
+          paintBadgeRow(user, null);
           return;
         }
-        if (user.id && window.ProfileBadges?.fetchAndPaint) {
-          ProfileBadges.fetchAndPaint(el, user.id);
+        paintBadgeRow(user, null);
+        try {
+          await Auth.ensureAccessToken?.();
+          let badges = user?.badges || null;
+          if (window.ProfileBadges?.fetchBadges) {
+            badges = await ProfileBadges.fetchBadges(uid);
+          }
+          if (window.ProfileBadges?.fetchSvipHome) {
+            const svip = await ProfileBadges.fetchSvipHome();
+            if (svip && window.ProfileBadges.mergeBadgeSources) {
+              badges = ProfileBadges.mergeBadgeSources(badges, svip);
+            }
+          }
+          paintBadgeRow(user, badges);
+        } catch (_e) {
+          paintBadgeRow(user, { personalLevel: 1, svipLevel: 0 });
         }
       }
 
@@ -416,14 +467,7 @@
         if (!user) return;
         const name = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email || 'User';
         document.getElementById('profileName').textContent = name;
-        paintStatusBadges(user);
-        const roleEl = document.getElementById('profileRole');
-        if (roleEl) {
-          roleEl.innerHTML = buildProfileBadgesHtml(user) || '<span class="ap-role-badge ap-role-badge--customer">Customer</span>';
-          roleEl.hidden = false;
-          roleEl.removeAttribute('hidden');
-          roleEl.style.display = 'flex';
-        }
+        loadProfileStatus(user);
         paintProfileAvatar(user);
         paintAdminIdRow(user);
         loadProfileCp(user);
@@ -432,11 +476,26 @@
       async function loadProfileCp(user) {
         const mount = document.getElementById('profileCpMount');
         const empty = document.getElementById('profileCpEmpty');
-        if (!mount || !user?.id) return;
-        const data = await window.CpProfileCard?.fetchAndMount?.(mount, user.id, { meLink: false, ringSize: 'md' });
-        mount.hidden = !data;
-        if (empty) {
-          empty.hidden = Boolean(data);
+        const uid = resolveUserId(user);
+        if (!mount || !uid) return;
+        try {
+          await Auth.ensureAccessToken?.();
+        } catch (_e) { /* continue */ }
+        const data = await window.CpProfileCard?.fetchAndMount?.(mount, uid, { meLink: false, ringSize: 'md' });
+        if (data) {
+          mount.hidden = false;
+          mount.removeAttribute('hidden');
+          if (empty) {
+            empty.hidden = true;
+            empty.setAttribute('hidden', '');
+          }
+        } else {
+          mount.hidden = true;
+          mount.setAttribute('hidden', '');
+          if (empty) {
+            empty.hidden = false;
+            empty.removeAttribute('hidden');
+          }
         }
       }
 
@@ -635,6 +694,18 @@
       setupProfileEditing();
 
       if (user) {
+        if (!resolveUserId(user)) {
+          try {
+            await Auth.ensureAccessToken?.();
+            const me = await (API.getFresh || API.get)('/auth/me');
+            const fresh = me?.data?.user;
+            if (fresh) {
+              user = { ...fresh, badges: me?.data?.badges || fresh.badges };
+              localStorage.setItem('user', JSON.stringify(user));
+              if (window.AppState) AppState.user = user;
+            }
+          } catch (_e) { /* keep cached user */ }
+        }
         paintProfileHeader(user);
         document.getElementById('editProfileBtn').style.display = 'flex';
         document.getElementById('editProfileMenuLink').style.display = 'flex';
@@ -645,10 +716,11 @@
             await Auth.ensureAccessToken?.();
             const meRes = await (API.getFresh || API.get)('/auth/me');
             const fresh = meRes?.data?.user || meRes?.data;
-            if (fresh && fresh.id) {
-              const merged = meRes?.data?.badges
-                ? { ...fresh, badges: meRes.data.badges }
-                : fresh;
+            if (fresh && (fresh.id || fresh.user_id)) {
+              const merged = {
+                ...fresh,
+                badges: meRes?.data?.badges || fresh.badges || null,
+              };
               localStorage.setItem('user', JSON.stringify(merged));
               if (window.AppState) AppState.user = merged;
               user = merged;
@@ -882,13 +954,13 @@
         logout.onclick = (e) => { e.preventDefault(); Auth.logout(); };
       } else {
         document.getElementById('profileName').textContent = 'Guest';
-        const roleEl = document.getElementById('profileRole');
-        if (roleEl) {
-          roleEl.innerHTML = '<span class="ap-role-badge ap-role-badge--customer">Sign in to continue</span>';
-          roleEl.hidden = false;
-          roleEl.removeAttribute('hidden');
-          roleEl.style.display = 'flex';
+        const badgeRow = document.getElementById('profileBadgeRow');
+        if (badgeRow) {
+          badgeRow.innerHTML = '<span class="ap-role-badge ap-role-badge--customer">Sign in to continue</span>';
+          badgeRow.hidden = false;
         }
+        const roleEl = document.getElementById('profileRole');
+        if (roleEl) roleEl.innerHTML = '';
         document.getElementById('profileAvatar').src = SocialShell.avatarFallback('Guest');
         document.querySelector('.social-profile-avatar-edit')?.style.setProperty('display', 'none');
         document.getElementById('profileCpMount').hidden = true;
