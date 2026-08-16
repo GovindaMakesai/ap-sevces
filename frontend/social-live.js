@@ -206,7 +206,7 @@
       return sortGiftsCheapFirst(
         collectAllGifts().filter((g) => {
           const c = Number(g.cost) || 0;
-          return c >= 3000 && c < 100000;
+          return c >= 3000 && c < 1000000;
         })
       );
     }

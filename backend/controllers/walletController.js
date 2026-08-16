@@ -359,8 +359,13 @@ exports.sendGift = async (req, res) => {
     };
     res.json({ success: true, data: { ...result, balance } });
   } catch (err) {
-    const code = err.code === 'INSUFFICIENT_BALANCE' ? 400 : 500;
-    res.status(code).json({ success: false, message: err.message });
+    const code =
+      err.code === 'INSUFFICIENT_BALANCE'
+        ? 400
+        : err.code === 'GIFT_RATE_LIMIT'
+          ? 429
+          : 500;
+    res.status(code).json({ success: false, message: err.message, code: err.code || undefined });
   }
 };
 

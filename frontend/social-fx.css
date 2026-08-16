@@ -1244,6 +1244,11 @@ body.ap-combo-zoom #apFxRoot {
   overflow-anchor: none;
 }
 
+.gift-sheet-panel .gift-grid .gift-card--alive {
+  content-visibility: auto;
+  contain-intrinsic-size: 92px 108px;
+}
+
 .gift-sheet-panel .gift-grid.is-scrolling .gift-card--alive,
 .gift-sheet-panel .gift-grid.is-scrolling .gift-card--alive * {
   animation-play-state: paused !important;

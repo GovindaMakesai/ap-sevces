@@ -10,7 +10,7 @@ const db = require('../config/database');
 
 const RATE_WINDOW_MS = 10_000;
 const MAX_CHAT_PER_WINDOW = 20;
-const MAX_GIFT_PER_WINDOW = 15;
+const MAX_GIFT_PER_WINDOW = 40;
 
 function rateLimit(socket, bucket, max) {
   const now = Date.now();

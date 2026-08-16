@@ -896,9 +896,8 @@
     grid.dataset.scrollFxBound = '1';
     let scrollEndTimer;
     const onScrollEnd = () => {
+      /* Removing is-scrolling resumes CSS animations — no forced reflow on every card */
       grid.classList.remove('is-scrolling');
-      resumeGiftCardAnimations(grid);
-      resumeLayerAnimations();
     };
     grid.addEventListener(
       'scroll',

@@ -53,10 +53,12 @@ const authLimiter = rateLimit({
 
 const walletLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: isProduction ? 30 : 120,
+  max: isProduction ? 90 : 200,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: 'Too many wallet requests. Please slow down.' },
+  skip: (req) =>
+    req.method === 'OPTIONS' || /\/wallet\/gifts(?:\?|$)/.test(String(req.originalUrl || req.url || '')),
 });
 
 function applySecurityMiddleware(app) {

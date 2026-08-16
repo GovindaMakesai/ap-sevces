@@ -24,11 +24,22 @@ async function checkRechargeAbuse(userId) {
   return false;
 }
 
+/** Burst sends per minute — high enough for combo / send-all in live rooms. */
+const GIFT_BURST_MAX = Number(process.env.GIFT_BURST_MAX) || 120;
+/** Flag only — do not block legitimate whale gifts (yacht, castle, etc.). */
+const GIFT_FLAG_AMOUNT = Number(process.env.GIFT_FLAG_AMOUNT) || 50000000;
+
 async function checkGiftAbuse(senderId, amount) {
   const key = `gift:burst:${senderId}`;
   const count = await redis.incr(key, 60);
-  if (count > 30 || amount > 100000) {
-    await flagUser(senderId, 'gift_abuse', amount > 100000 ? 'critical' : 'medium', { count, amount });
+  const coinAmount = Number(amount) || 0;
+
+  if (coinAmount > GIFT_FLAG_AMOUNT) {
+    await flagUser(senderId, 'gift_high_value', 'medium', { count, amount: coinAmount });
+  }
+
+  if (count > GIFT_BURST_MAX) {
+    await flagUser(senderId, 'gift_abuse', 'medium', { count, amount: coinAmount });
     const err = new Error('Gift rate limit exceeded. Please try again later.');
     err.code = 'GIFT_RATE_LIMIT';
     throw err;
