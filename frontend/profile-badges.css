@@ -81,10 +81,18 @@
 .party-host-badges {
   justify-content: flex-start;
   margin: 4px 0 0;
+  width: 100%;
+  max-width: 100%;
+  flex: 1 1 100%;
+}
+
+.party-host-name-row {
+  flex-wrap: wrap;
 }
 
 .party-host-name-row .party-host-badges {
   margin-top: 2px;
+  order: 3;
 }
 
 .party-cp-banner:not([hidden]) {

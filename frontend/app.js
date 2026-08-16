@@ -2249,10 +2249,14 @@ function formatProfileRoleBadgesHtml(user, { withEmoji = true } = {}) {
     if (r === 'creator' || r === 'host') push('host');
     if (r === 'coin_seller' || r === 'seller' || user.is_coin_seller === true) push('seller');
     if (['admin', 'super_admin', 'founder', 'ceo'].includes(r)) push('admin');
-    /* Hosts who can also sell — wallet flag */
+    /* Self profile only — viewer wallet must not add seller chip on other users */
     try {
-        const bal = window.SocialWallet?.getCachedBalance?.();
-        if (bal?.is_coin_seller) push('seller');
+        const uid = String(user.id || user.userId || user.user_id || '').trim();
+        const selfId = String(window.currentUser?.()?.id || '').trim();
+        if (uid && selfId && uid === selfId) {
+            const bal = window.SocialWallet?.getCachedBalance?.();
+            if (bal?.is_coin_seller) push('seller');
+        }
     } catch (_e) {}
     if (!keys.length) {
         if (r === 'worker') {

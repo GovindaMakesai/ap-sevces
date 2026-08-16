@@ -3,6 +3,10 @@
  * SVIP badge only when level >= 1 (3M+ recharge points per product rules).
  */
 (function (global) {
+  const BADGE_CACHE_MS = 120000;
+  const badgeCache = new Map();
+  const badgeInflight = new Map();
+
   function esc(s) {
     return String(s || '')
       .replace(/&/g, '&amp;')
@@ -91,10 +95,12 @@
     return parts.join('');
   }
 
-  async function fetchBadges(userId) {
-    const uid = String(userId || '').trim();
-    if (!uid) return normalizeBadges(null);
+  function invalidateBadgeCache(userId) {
+    if (userId) badgeCache.delete(String(userId));
+    else badgeCache.clear();
+  }
 
+  async function fetchBadgesFromNetwork(uid) {
     if (global.API?.get) {
       try {
         if (global.Auth?.ensureAccessToken) await global.Auth.ensureAccessToken();
@@ -119,23 +125,58 @@
     return normalizeBadges(null);
   }
 
-  function paintBadges(container, badges, opts) {
+  async function fetchBadges(userId) {
+    const uid = String(userId || '').trim();
+    if (!uid) return normalizeBadges(null);
+
+    const cached = badgeCache.get(uid);
+    if (cached && Date.now() - cached.ts < BADGE_CACHE_MS) return cached.data;
+
+    if (badgeInflight.has(uid)) return badgeInflight.get(uid);
+
+    const task = fetchBadgesFromNetwork(uid)
+      .then((data) => {
+        badgeCache.set(uid, { data, ts: Date.now() });
+        return data;
+      })
+      .finally(() => badgeInflight.delete(uid));
+
+    badgeInflight.set(uid, task);
+    return task;
+  }
+
+  function applyBadgeHtml(container, html) {
     if (!container) return;
-    const html = formatProfileStatusBadgesHtml(badges, opts);
-    container.innerHTML = html;
-    if (html) {
+    const next = html || '';
+    if (container.dataset.badgeHtml === next) return;
+    container.dataset.badgeHtml = next;
+    container.innerHTML = next;
+    if (next) {
       container.hidden = false;
       container.removeAttribute('hidden');
       container.style.display = 'flex';
     } else {
       container.hidden = true;
+      delete container.dataset.badgeHtml;
     }
+  }
+
+  function paintBadges(container, badges, opts) {
+    if (!container) return;
+    applyBadgeHtml(container, formatProfileStatusBadgesHtml(badges, opts));
   }
 
   async function fetchAndPaint(container, userId, opts) {
     if (!container || !userId) return normalizeBadges(null);
     const badges = await fetchBadges(userId);
     paintBadges(container, badges, opts);
+    return badges;
+  }
+
+  async function fetchAndPaintLiveHost(container, userId, opts) {
+    if (!container || !userId) return null;
+    const badges = await fetchBadges(userId);
+    applyBadgeHtml(container, formatLiveProfileBadgesHtml(badges, opts));
     return badges;
   }
 
@@ -146,7 +187,10 @@
     formatLiveProfileBadgesHtml,
     svipTierClass,
     fetchBadges,
+    invalidateBadgeCache,
     paintBadges,
     fetchAndPaint,
+    fetchAndPaintLiveHost,
+    applyBadgeHtml,
   };
 })(typeof window !== 'undefined' ? window : global);

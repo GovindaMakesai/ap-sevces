@@ -10946,39 +10946,42 @@
       });
   }
 
-  async function paintPartyHostBadges() {
+  let hostBadgePaintSeq = 0;
+  let hostBadgePaintedId = '';
+
+  async function paintPartyHostBadges({ force = false } = {}) {
     const el = document.getElementById('partyHostBadges');
     const hostId = roomState?.hostId ? String(roomState.hostId) : '';
     if (!el || !hostId) return;
     if (!isPartyRoomPage() && !isLiveRoomPage()) return;
+    if (
+      !force &&
+      hostBadgePaintedId === hostId &&
+      el.dataset.badgeReady === '1' &&
+      (el.dataset.badgeHtml || el.innerHTML.trim())
+    ) {
+      return;
+    }
+    const seq = ++hostBadgePaintSeq;
     try {
-      let html = '';
-      if (global.ProfileBadges?.fetchBadges) {
+      if (global.ProfileBadges?.fetchAndPaintLiveHost) {
+        await global.ProfileBadges.fetchAndPaintLiveHost(el, hostId, { link: false });
+      } else if (global.ProfileBadges?.fetchBadges) {
         const badges = await global.ProfileBadges.fetchBadges(hostId);
-        if (global.ProfileBadges.formatLiveProfileBadgesHtml) {
-          html = global.ProfileBadges.formatLiveProfileBadgesHtml(badges, { link: false });
-        } else {
-          html = [
-            global.ProfileBadges.formatProfileStatusBadgesHtml?.(badges, { link: false }),
-            global.ProfileBadges.formatProfileRoleBadgesFromBadges?.(badges, { withEmoji: true }),
-          ]
-            .filter(Boolean)
-            .join('');
-        }
+        if (seq !== hostBadgePaintSeq) return;
+        const html = global.ProfileBadges.formatLiveProfileBadgesHtml
+          ? global.ProfileBadges.formatLiveProfileBadgesHtml(badges, { link: false })
+          : global.ProfileBadges.formatProfileStatusBadgesHtml?.(badges, { link: false }) || '';
+        global.ProfileBadges.applyBadgeHtml?.(el, html);
       }
-      if (!html && global.ProfileBadges?.formatProfileStatusBadgesHtml) {
-        html = global.ProfileBadges.formatProfileStatusBadgesHtml({ personalLevel: 1, svipLevel: 0 }, { link: false });
-      }
-      el.innerHTML = html;
-      if (html) {
-        el.hidden = false;
-        el.removeAttribute('hidden');
-        el.style.display = 'flex';
-      } else {
-        el.hidden = true;
-      }
+      if (seq !== hostBadgePaintSeq) return;
+      hostBadgePaintedId = hostId;
+      el.dataset.badgeReady = '1';
     } catch (_e) {
+      if (seq !== hostBadgePaintSeq) return;
       el.hidden = true;
+      delete el.dataset.badgeReady;
+      delete el.dataset.badgeHtml;
     }
   }
 
@@ -11192,6 +11195,16 @@
     const hostName = roomState?.hostName || displayName(user);
     const hostEl = document.getElementById('partyHostName') || document.getElementById('liveHostName');
     const hostImg = document.getElementById('partyHostAvatar') || document.getElementById('liveHostAvatar');
+    const hostIdNow = roomState?.hostId ? String(roomState.hostId) : '';
+    if (hostIdNow && hostIdNow !== hostBadgePaintedId) {
+      const hostBadgeEl = document.getElementById('partyHostBadges');
+      if (hostBadgeEl) {
+        hostBadgeEl.innerHTML = '';
+        hostBadgeEl.hidden = true;
+        delete hostBadgeEl.dataset.badgeReady;
+        delete hostBadgeEl.dataset.badgeHtml;
+      }
+    }
     if (hostEl) {
       const full = hostName || 'Host';
       hostEl.textContent = full;
@@ -18291,6 +18304,21 @@
     return parts.join(' ');
   }
 
+  function clearLiveProfileSheetBadges() {
+    const statusEl = document.getElementById('apProfileStatusBadges');
+    const roleEl = document.getElementById('apProfileRoleBadges');
+    if (statusEl) {
+      statusEl.innerHTML = '';
+      statusEl.hidden = true;
+      delete statusEl.dataset.badgeHtml;
+    }
+    if (roleEl) {
+      roleEl.innerHTML = '';
+      roleEl.hidden = true;
+      delete roleEl.dataset.badgeHtml;
+    }
+  }
+
   function paintLiveProfileSheetBadges(userId, meta, badgeSrc) {
     ensureProfileSheetBadgeLayout();
     const statusEl = document.getElementById('apProfileStatusBadges');
@@ -18305,19 +18333,29 @@
       role: badgeSrc?.role ?? meta?.userRole,
       is_coin_seller: badgeSrc?.is_coin_seller ?? badgeSrc?.badges?.is_coin_seller,
     };
-    if (statusEl && window.ProfileBadges?.paintBadges) {
-      window.ProfileBadges.paintBadges(statusEl, merged, { link: false });
-    } else if (statusEl && window.ProfileBadges?.formatProfileStatusBadgesHtml) {
-      const html = window.ProfileBadges.formatProfileStatusBadgesHtml(merged, { link: false });
-      statusEl.innerHTML = html;
-      statusEl.hidden = !html;
-      if (html) statusEl.style.display = 'flex';
+    const statusHtml =
+      window.ProfileBadges?.formatProfileStatusBadgesHtml?.(merged, { link: false }) || '';
+    const roleHtml = buildLiveProfileRoleBadgesHtml(userId, meta, merged);
+    if (statusEl) {
+      if (window.ProfileBadges?.applyBadgeHtml) {
+        window.ProfileBadges.applyBadgeHtml(statusEl, statusHtml);
+      } else {
+        if (statusEl.dataset.badgeHtml !== statusHtml) {
+          statusEl.dataset.badgeHtml = statusHtml;
+          statusEl.innerHTML = statusHtml;
+          statusEl.hidden = !statusHtml;
+          if (statusHtml) statusEl.style.display = 'flex';
+        }
+      }
     }
     if (roleEl) {
-      const roleHtml = buildLiveProfileRoleBadgesHtml(userId, meta, merged);
-      roleEl.innerHTML = roleHtml;
-      roleEl.hidden = !roleHtml.trim();
-      if (roleHtml.trim()) roleEl.style.display = 'flex';
+      const trimmed = roleHtml.trim();
+      if (roleEl.dataset.badgeHtml !== roleHtml) {
+        roleEl.dataset.badgeHtml = roleHtml;
+        roleEl.innerHTML = roleHtml;
+        roleEl.hidden = !trimmed;
+        if (trimmed) roleEl.style.display = 'flex';
+      }
     }
   }
 
@@ -18426,15 +18464,7 @@
       roleBadgeEl.innerHTML = '';
       roleBadgeEl.hidden = true;
     }
-    paintLiveProfileSheetBadges(
-      resolvedId,
-      activeProfileUser,
-      {
-        role: activeProfileUser.userRole,
-        is_coin_seller: activeProfileUser.userRole === 'coin_seller',
-        personalLevel: Number(seatHit?.lvl || seatHit?.level) || undefined,
-      }
-    );
+    clearLiveProfileSheetBadges();
     if (img) {
       img.src = avatarUrl(n, initialPic);
       img.dataset.userId = resolvedId || '';
@@ -18489,10 +18519,12 @@
 
     if (resolvedId) {
       const eng = await loadProfileEngagement(resolvedId, n, img, nm);
-      if (!eng && window.ProfileBadges?.fetchBadges) {
+      if (!eng?.personalLevel && window.ProfileBadges?.fetchBadges) {
         try {
           const badges = await window.ProfileBadges.fetchBadges(resolvedId);
-          paintLiveProfileSheetBadges(resolvedId, activeProfileUser, badges);
+          if (String(activeProfileUser?.userId || '') === String(resolvedId)) {
+            paintLiveProfileSheetBadges(resolvedId, activeProfileUser, badges);
+          }
         } catch (_e) { /* ignore */ }
       }
     }
