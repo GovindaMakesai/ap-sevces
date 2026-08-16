@@ -1154,9 +1154,13 @@ const Auth = {
             try {
                 const res = await API.get('/auth/me');
                 if (res.success && res.data && res.data.user) {
-                    AppState.user = res.data.user;
-                    localStorage.setItem('user', JSON.stringify(res.data.user));
-                    document.dispatchEvent(new CustomEvent('user:profile-updated', { detail: res.data.user }));
+                    const merged = {
+                        ...res.data.user,
+                        badges: res.data.badges || res.data.user.badges || null,
+                    };
+                    AppState.user = merged;
+                    localStorage.setItem('user', JSON.stringify(merged));
+                    document.dispatchEvent(new CustomEvent('user:profile-updated', { detail: merged }));
                     if (res.data.accessToken) {
                         localStorage.setItem('token', res.data.accessToken);
                     }
