@@ -150,6 +150,93 @@ body.svip-page {
   border-radius: 999px;
 }
 
+.svip-hero-points {
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--svip-gold);
+}
+
+.svip-maint-card {
+  margin: 0 14px 14px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  background: linear-gradient(145deg, rgba(76, 29, 149, 0.55) 0%, rgba(30, 27, 75, 0.9) 100%);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
+.svip-maint-card.is-met {
+  border-color: rgba(52, 211, 153, 0.45);
+}
+
+.svip-maint-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--svip-gold);
+  margin-bottom: 6px;
+}
+
+.svip-maint-head i {
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+.svip-maint-summary {
+  margin: 0 0 10px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #ddd6fe;
+}
+
+.svip-maint-progress-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.svip-maint-progress-bar {
+  flex: 1;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+
+.svip-maint-progress-fill {
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #f59e0b, var(--svip-gold));
+  transition: width 0.35s ease;
+}
+
+.svip-maint-card.is-met .svip-maint-progress-fill {
+  background: linear-gradient(90deg, #34d399, #6ee7b7);
+}
+
+.svip-maint-progress-text {
+  font-size: 11px;
+  font-weight: 700;
+  color: #fde68a;
+  white-space: nowrap;
+}
+
+.svip-maint-drop {
+  margin: 8px 0 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #fbbf24;
+  opacity: 0.9;
+}
+
+.svip-maint-card.is-met .svip-maint-drop {
+  color: #6ee7b7;
+}
+
 .svip-section-head {
   display: flex;
   align-items: center;

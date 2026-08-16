@@ -18,6 +18,15 @@ async function ensureSvipSchema() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  await runSafe(`
+    CREATE TABLE IF NOT EXISTS user_svip_status (
+      user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      level INT NOT NULL DEFAULT 0,
+      period_started_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      period_ends_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 }
 
 module.exports = { ensureSvipSchema };

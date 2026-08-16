@@ -8,7 +8,7 @@
   <script src="ap-native-boot.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-theme.css">
-  <link rel="stylesheet" href="svip.css?v=20260814-svip1">
+  <link rel="stylesheet" href="svip.css?v=20260816-svip-maint">
 </head>
 <body class="svip-page">
   <header class="svip-header">
@@ -24,6 +24,22 @@
     <div class="svip-emblem" id="svipEmblem">
       <span class="svip-emblem-label" id="svipEmblemLabel">SVIP</span>
     </div>
+    <p class="svip-hero-points" id="svipHeroPoints" hidden></p>
+  </section>
+
+  <section class="svip-maint-card" id="svipMaintCard" hidden aria-label="SVIP maintenance">
+    <div class="svip-maint-head">
+      <i class="fas fa-hourglass-half" aria-hidden="true"></i>
+      <strong id="svipMaintDays">—</strong>
+    </div>
+    <p class="svip-maint-summary" id="svipMaintSummary"></p>
+    <div class="svip-maint-progress-wrap">
+      <div class="svip-maint-progress-bar">
+        <div class="svip-maint-progress-fill" id="svipMaintFill"></div>
+      </div>
+      <span class="svip-maint-progress-text" id="svipMaintProgressText">—</span>
+    </div>
+    <p class="svip-maint-drop" id="svipMaintDrop"></p>
   </section>
 
   <div class="svip-section-head">
@@ -111,9 +127,39 @@
       });
     }
 
+    function pickTierGroupForLevel(level) {
+      const lv = Number(level) || 0;
+      const g = (svipData?.tierGroups || []).find((x) => x.levels.includes(lv));
+      return g?.id || '1-2';
+    }
+
     function updateEmblem() {
-      const maxLv = tierMaxLevel(activeTierGroup);
-      document.getElementById('svipEmblemLabel').textContent = `SVIP ${maxLv}`;
+      const userLv = Number(svipData?.level) || 0;
+      document.getElementById('svipEmblemLabel').textContent = userLv > 0 ? `SVIP ${userLv}` : 'SVIP';
+      const heroPts = document.getElementById('svipHeroPoints');
+      if (svipData?.pointsFormatted) {
+        heroPts.textContent = `${svipData.pointsFormatted} SVIP points`;
+        heroPts.hidden = false;
+      } else {
+        heroPts.hidden = true;
+      }
+    }
+
+    function renderMaintenance() {
+      const card = document.getElementById('svipMaintCard');
+      const m = svipData?.maintenance;
+      if (!m || !svipData?.isSvip) {
+        card.hidden = true;
+        return;
+      }
+      card.hidden = false;
+      document.getElementById('svipMaintDays').textContent = m.daysLabel || `${m.daysRemaining} days left`;
+      document.getElementById('svipMaintSummary').textContent = m.summary || '';
+      document.getElementById('svipMaintFill').style.width = `${m.progressPercent || 0}%`;
+      document.getElementById('svipMaintProgressText').textContent =
+        `${m.pointsEarnedFormatted || 0} / ${m.pointsRequiredFormatted || 0}`;
+      document.getElementById('svipMaintDrop').textContent = m.dropLabel || '';
+      card.classList.toggle('is-met', Boolean(m.isMet));
     }
 
     function renderGrids() {
@@ -171,10 +217,14 @@
       document.getElementById('svipProgressText').textContent =
         `${p.currentFormatted || 0} / ${p.maxFormatted || 0}`;
 
-      const hint = svipData.nextLevel
-        ? `Need ${svipData.pointsToNextFormatted} points to upgrade to ${svipData.nextLevelLabel}.`
-        : 'You have reached the highest SVIP tier.';
-      document.getElementById('svipHint').textContent = hint;
+      const hintParts = [];
+      if (svipData.maintenance?.summary) hintParts.push(svipData.maintenance.summary);
+      if (svipData.nextLevel) {
+        hintParts.push(`Need ${svipData.pointsToNextFormatted} points to upgrade to ${svipData.nextLevelLabel}.`);
+      } else if (svipData.isSvip) {
+        hintParts.push('You have reached the highest SVIP tier.');
+      }
+      document.getElementById('svipHint').textContent = hintParts.join(' ') || '';
     }
 
     async function boot() {
@@ -184,8 +234,10 @@
           return;
         }
         svipData = await svipFetch('/home');
+        activeTierGroup = pickTierGroupForLevel(svipData.level);
         renderTierTabs();
         updateEmblem();
+        renderMaintenance();
         renderGrids();
         renderFooter();
       } catch (err) {

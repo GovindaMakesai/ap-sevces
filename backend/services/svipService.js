@@ -141,6 +141,200 @@ async function getSvipPoints(userId) {
   return pts;
 }
 
+function maintenanceForLevel(level) {
+  const lv = Number(level) || 0;
+  return SVIP_MAINTENANCE.find((m) => m.level === lv) || null;
+}
+
+/** SVIP-qualifying purchases since a timestamp (same sources as lifetime points). */
+async function getQualifyingPointsSince(userId, since) {
+  const sinceIso =
+    since instanceof Date ? since.toISOString() : since ? String(since) : null;
+  if (!sinceIso) return 0;
+
+  const safeSum = async (sql, params) => {
+    try {
+      const res = await db.query(sql, params);
+      return Number(res.rows[0]?.pts || 0);
+    } catch (_e) {
+      return 0;
+    }
+  };
+
+  const [rechargePts, sellerTransferPts, sellerOrderPts] = await Promise.all([
+    safeSum(
+      `SELECT COALESCE(SUM(coins_credited), 0)::bigint AS pts
+       FROM recharges
+       WHERE user_id = $1 AND payment_status = 'approved' AND created_at >= $2`,
+      [userId, sinceIso]
+    ),
+    safeSum(
+      `SELECT COALESCE(SUM(coins), 0)::bigint AS pts
+       FROM coin_seller_transfers
+       WHERE recipient_id = $1 AND transfer_type = 'user' AND created_at >= $2`,
+      [userId, sinceIso]
+    ),
+    safeSum(
+      `SELECT COALESCE(SUM(coins), 0)::bigint AS pts
+       FROM coin_seller_orders
+       WHERE buyer_id = $1 AND status = 'completed' AND updated_at >= $2`,
+      [userId, sinceIso]
+    ),
+  ]);
+
+  let pts = rechargePts + sellerTransferPts + sellerOrderPts;
+  if (pts === 0) {
+    pts = await safeSum(
+      `SELECT COALESCE(SUM(amount), 0)::bigint AS pts
+       FROM wallet_transactions
+       WHERE user_id = $1 AND type = 'recharge' AND amount > 0 AND created_at >= $2`,
+      [userId, sinceIso]
+    );
+  }
+  return pts;
+}
+
+async function getStatusRow(userId) {
+  try {
+    const res = await db.query(`SELECT * FROM user_svip_status WHERE user_id = $1`, [userId]);
+    return res.rows[0] || null;
+  } catch (_e) {
+    return null;
+  }
+}
+
+function daysBetweenCeil(from, to) {
+  const ms = new Date(to).getTime() - new Date(from).getTime();
+  return Math.max(0, Math.ceil(ms / 86400000));
+}
+
+async function upsertStatus(userId, level, periodStarted, periodEnds) {
+  await db.query(
+    `INSERT INTO user_svip_status (user_id, level, period_started_at, period_ends_at, updated_at)
+     VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+     ON CONFLICT (user_id)
+     DO UPDATE SET
+       level = EXCLUDED.level,
+       period_started_at = EXCLUDED.period_started_at,
+       period_ends_at = EXCLUDED.period_ends_at,
+       updated_at = CURRENT_TIMESTAMP`,
+    [userId, level, periodStarted.toISOString(), periodEnds.toISOString()]
+  );
+  return getStatusRow(userId);
+}
+
+async function deleteStatus(userId) {
+  try {
+    await db.query(`DELETE FROM user_svip_status WHERE user_id = $1`, [userId]);
+  } catch (_e) {
+    /* non-fatal */
+  }
+}
+
+/**
+ * Reconcile maintained SVIP level vs lifetime points and maintenance windows.
+ * Returns status row or null when not SVIP.
+ */
+async function syncSvipStatus(userId, pointsLevel) {
+  const ptsLevel = Math.max(0, Number(pointsLevel) || 0);
+  if (!userId || ptsLevel <= 0) {
+    await deleteStatus(userId);
+    return null;
+  }
+
+  const now = new Date();
+  let row = await getStatusRow(userId);
+
+  if (!row) {
+    const maint = maintenanceForLevel(ptsLevel);
+    const days = maint?.days || 7;
+    const periodStarted = new Date(now);
+    periodStarted.setUTCHours(0, 0, 0, 0);
+    const ends = new Date(now.getTime() + days * 86400000);
+    return upsertStatus(userId, ptsLevel, periodStarted, ends);
+  }
+
+  let level = Number(row.level) || 0;
+  let periodStarted = new Date(row.period_started_at);
+  let periodEnds = new Date(row.period_ends_at);
+
+  if (ptsLevel > level) {
+    level = ptsLevel;
+    const maint = maintenanceForLevel(level);
+    const days = maint?.days || 7;
+    periodStarted = now;
+    periodEnds = new Date(now.getTime() + days * 86400000);
+    row = await upsertStatus(userId, level, periodStarted, periodEnds);
+    return row;
+  }
+
+  if (ptsLevel < level) {
+    level = ptsLevel;
+    if (level <= 0) {
+      await deleteStatus(userId);
+      return null;
+    }
+    const maint = maintenanceForLevel(level);
+    const days = maint?.days || 7;
+    periodStarted = now;
+    periodEnds = new Date(now.getTime() + days * 86400000);
+    row = await upsertStatus(userId, level, periodStarted, periodEnds);
+    return row;
+  }
+
+  while (level > 0 && periodEnds.getTime() <= now.getTime()) {
+    const maint = maintenanceForLevel(level);
+    const required = maint?.points || 0;
+    const earned = await getQualifyingPointsSince(userId, periodStarted);
+    if (earned >= required) {
+      const days = maint?.days || 7;
+      periodStarted = now;
+      periodEnds = new Date(now.getTime() + days * 86400000);
+      row = await upsertStatus(userId, level, periodStarted, periodEnds);
+      break;
+    }
+    level -= 1;
+    if (level <= 0) {
+      await deleteStatus(userId);
+      return null;
+    }
+    const nextMaint = maintenanceForLevel(level);
+    const days = nextMaint?.days || 7;
+    periodStarted = now;
+    periodEnds = new Date(now.getTime() + days * 86400000);
+    row = await upsertStatus(userId, level, periodStarted, periodEnds);
+  }
+
+  return row;
+}
+
+function buildMaintenancePayload(userId, statusRow) {
+  if (!statusRow || Number(statusRow.level) <= 0) {
+    return null;
+  }
+  const level = Number(statusRow.level);
+  const maint = maintenanceForLevel(level);
+  if (!maint) return null;
+
+  const now = new Date();
+  const periodStarted = new Date(statusRow.period_started_at);
+  const periodEnds = new Date(statusRow.period_ends_at);
+  const daysTotal = maint.days;
+  const daysRemaining = daysBetweenCeil(now, periodEnds);
+  const daysElapsed = Math.max(0, daysTotal - daysRemaining);
+
+  return {
+    level,
+    daysTotal,
+    daysRemaining,
+    daysElapsed,
+    periodStartedAt: periodStarted.toISOString(),
+    periodEndsAt: periodEnds.toISOString(),
+    pointsRequired: maint.points,
+    pointsRequiredFormatted: formatCompact(maint.points),
+  };
+}
+
 async function getSettings(userId) {
   const res = await db.query(`SELECT settings FROM user_svip_settings WHERE user_id = $1`, [userId]);
   return res.rows[0]?.settings || {};
@@ -159,8 +353,15 @@ async function saveSettings(userId, settings) {
 
 async function getSvipHome(userId) {
   const points = userId ? await getSvipPoints(userId) : 0;
-  const tier = levelFromPoints(points);
-  const next = SVIP_LEVELS.find((r) => r.level === tier.level + 1) || null;
+  const pointsTier = levelFromPoints(points);
+  const pointsLevel = pointsTier.level;
+
+  const statusRow = userId ? await syncSvipStatus(userId, pointsLevel) : null;
+  const effectiveLevel = statusRow ? Number(statusRow.level) || 0 : 0;
+  const tier =
+    SVIP_LEVELS.find((r) => r.level === effectiveLevel) ||
+    (effectiveLevel > 0 ? pointsTier : SVIP_LEVELS[0]);
+  const next = SVIP_LEVELS.find((r) => r.level === effectiveLevel + 1) || null;
   const settings = userId ? await getSettings(userId) : {};
 
   let profilePic = null;
@@ -174,18 +375,46 @@ async function getSvipHome(userId) {
     }
   }
 
-  const progressMin = tier.min;
+  const progressMin = effectiveLevel > 0 ? tier.min : pointsTier.min;
   const progressMax = next ? next.min : tier.max || tier.min + 1;
   const inTier = Math.max(0, points - progressMin);
   const tierSpan = Math.max(1, progressMax - progressMin);
   const pointsToNext = next ? Math.max(0, progressMax - points) : 0;
 
+  let maintenance = null;
+  if (statusRow && effectiveLevel > 0) {
+    const base = buildMaintenancePayload(userId, statusRow);
+    if (base) {
+      const earned = await getQualifyingPointsSince(userId, statusRow.period_started_at);
+      const required = base.pointsRequired;
+      const remainingPts = Math.max(0, required - earned);
+      maintenance = {
+        ...base,
+        pointsEarned: earned,
+        pointsEarnedFormatted: formatCompact(earned),
+        pointsRemaining: remainingPts,
+        pointsRemainingFormatted: formatCompact(remainingPts),
+        progressPercent: required > 0 ? Math.min(100, Math.round((earned / required) * 100)) : 100,
+        isMet: earned >= required,
+        daysLabel:
+          base.daysRemaining <= 0
+            ? 'Maintenance period ends today'
+            : `${base.daysRemaining} day${base.daysRemaining === 1 ? '' : 's'} left`,
+        dropLabel: `SVIP ${effectiveLevel} drops in ${base.daysRemaining} day${base.daysRemaining === 1 ? '' : 's'} if maintenance is not met`,
+        summary: earned >= required
+          ? `Maintenance met for SVIP ${effectiveLevel}. ${base.daysRemaining} day${base.daysRemaining === 1 ? '' : 's'} until the next period.`
+          : `Recharge ${formatCompact(remainingPts)} more SVIP points in ${base.daysRemaining} day${base.daysRemaining === 1 ? '' : 's'} to keep SVIP ${effectiveLevel}.`,
+      };
+    }
+  }
+
   return {
     points,
     pointsFormatted: formatCompact(points),
-    level: tier.level,
-    levelLabel: tier.level > 0 ? `SVIP ${tier.level}` : 'Not SVIP yet',
-    isSvip: tier.level > 0,
+    pointsLevel,
+    level: effectiveLevel,
+    levelLabel: effectiveLevel > 0 ? `SVIP ${effectiveLevel}` : 'Not SVIP yet',
+    isSvip: effectiveLevel > 0,
     nextLevel: next ? next.level : null,
     nextLevelLabel: next ? `SVIP ${next.level}` : null,
     pointsToNext,
@@ -197,6 +426,7 @@ async function getSvipHome(userId) {
       maxFormatted: formatCompact(tierSpan),
       percent: Math.min(100, Math.round((inTier / tierSpan) * 100)),
     },
+    maintenance,
     user: { name, profilePic },
     identification: IDENTIFICATION,
     privileges: PRIVILEGES,
@@ -246,8 +476,11 @@ module.exports = {
   getSvipHome,
   getSvipIntro,
   getSvipPoints,
+  getQualifyingPointsSince,
+  syncSvipStatus,
   getSettings,
   saveSettings,
   levelFromPoints,
+  maintenanceForLevel,
   formatCompact,
 };
