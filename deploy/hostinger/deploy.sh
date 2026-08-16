@@ -78,8 +78,13 @@ fi
 
 if [ "$needs_api_restart" = true ]; then
   echo "==> Restart API"
+  echo "==> Preflight: required modules"
+  node -e "require('./backend/services/cpLevelService'); require('./backend/services/cpService');" || {
+    echo "ERROR: backend module load failed — fix repo before restart"
+    exit 1
+  }
   if pm2 describe ap-api >/dev/null 2>&1; then
-    pm2 reload ecosystem.config.js --update-env || pm2 restart ap-api
+    pm2 reload ecosystem.config.js --update-env || pm2 restart ap-api --update-env
   elif [ -f ecosystem.config.js ]; then
     pm2 start ecosystem.config.js
   else
@@ -97,21 +102,28 @@ if [ "$needs_api_restart" = true ]; then
   node -e "require('./backend/config/ensureSvipSchema').ensureSvipSchema().then(()=>process.exit(0)).catch(e=>{console.error(e);process.exit(1)})" || echo "WARN: SVIP schema ensure failed"
 
   echo "==> Health check"
-  sleep 5
-  for i in 1 2 3 4 5; do
+  sleep 6
+  health_ok=false
+  for i in 1 2 3 4 5 6 8; do
     if curl -sf "http://127.0.0.1:${PORT:-5000}/api/health" >/dev/null; then
       curl -sf "http://127.0.0.1:${PORT:-5000}/api/health"
       echo ""
+      health_ok=true
       break
     fi
-    if [ "$i" -eq 5 ]; then
-      echo "ERROR: API not responding on port ${PORT:-5000}. Last logs:"
-      pm2 logs ap-api --err --lines 25 --nostream || true
-      exit 1
+    if [ "$i" -eq 4 ]; then
+      echo "Health check still failing — hard restart ap-api"
+      pm2 restart ap-api --update-env || pm2 start ecosystem.config.js
+      sleep 8
     fi
     echo "Health check attempt $i failed — retrying in 3s..."
     sleep 3
   done
+  if [ "$health_ok" != true ]; then
+    echo "ERROR: API not responding on port ${PORT:-5000}. Last logs:"
+    pm2 logs ap-api --err --lines 40 --nostream || true
+    exit 1
+  fi
 else
   echo "==> Static frontend updated (nginx serves frontend/ — no API restart)"
   if pm2 describe ap-api >/dev/null 2>&1; then

@@ -117,7 +117,7 @@ const AUTH_ORIGIN = apiConfig.BACKEND_URL.replace(/\/$/, '');
 /** Deep link the system OAuth browser closes on (apservices:// or exp:// in Expo Go). */
 const APP_RETURN_URL = Linking.createURL('oauth-complete');
 const MOBILE_INJECT_SCRIPT = getMobileDashboardInjectScript();
-const APP_WEB_BUILD = '20260808-launch-fix';
+const APP_WEB_BUILD = '20260816-502-fix';
 const STATUS_BAR_INSET =
   Platform.OS === 'android'
     ? RNStatusBar.currentHeight || Constants.statusBarHeight || 28
@@ -655,11 +655,13 @@ export default function App() {
     const fallback = FALLBACK_WEB.replace(/\/$/, '');
     const alreadyOnFallback = String(frontendBase || '').replace(/\/$/, '') === fallback;
 
-    const probe = (base) =>
-      fetch(`${base}/api/health`, { method: 'GET' }).then((res) => {
-        if (!res.ok) throw new Error(`status_${res.status}`);
-        return base;
-      });
+    const probe = async (base) => {
+      const edge = await fetch(`${base}/edge-health.json`, { method: 'GET', cache: 'no-store' });
+      if (edge.ok) return base;
+      const api = await fetch(`${base}/api/health`, { method: 'GET', cache: 'no-store' });
+      if (!api.ok) throw new Error(`status_${api.status}`);
+      return base;
+    };
 
     probe(alreadyOnFallback ? fallback : primary)
       .catch(() => {
@@ -1549,6 +1551,23 @@ export default function App() {
           const code = e?.nativeEvent?.statusCode;
           const url = e?.nativeEvent?.url || '';
           console.warn('WebView HTTP error', code, url);
+          if (code === 502 || code === 503) {
+            const primary = PRODUCTION_WEB.replace(/\/$/, '');
+            const fallback = FALLBACK_WEB.replace(/\/$/, '');
+            const base = String(frontendBase || '').replace(/\/$/, '');
+            if (!isDevLocal && base === fallback) {
+              console.warn('[ap-services-app] Edge UI 502 — retry primary VPS');
+              setBootLoading(true);
+              setFrontendBase(primary);
+              setLoadError('');
+              return;
+            }
+            setBootLoading(false);
+            setLoadError(
+              'Server is restarting — wait 30 seconds, then fully close and reopen the app.'
+            );
+            return;
+          }
           if (code === 404 && (url.includes('explore.html') || url.includes('app-auth.html'))) {
             setBootLoading(false);
             setLoadError(
