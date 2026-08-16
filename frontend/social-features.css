@@ -2107,31 +2107,6 @@ html.ap-expo-app .social-rank-page--gold .social-rank-sticky-top {
   margin-bottom: 8px;
   border: 1px solid var(--gold-200);
 }
-.social-rank-podium-link {
-  text-decoration: none !important;
-  color: inherit;
-  display: block;
-  border: none;
-  outline: none;
-}
-
-.social-rank-podium-link:hover,
-.social-rank-podium-link:focus,
-.social-rank-podium-link:visited {
-  text-decoration: none !important;
-  color: inherit;
-}
-
-.social-rank-podium-link strong,
-.social-rank-podium-link small {
-  text-decoration: none;
-  color: inherit;
-}
-
-.social-rank-podium-link:active {
-  opacity: 0.9;
-}
-
 .social-rank-row-main {
   display: flex;
   align-items: center;
@@ -2139,8 +2114,15 @@ html.ap-expo-app .social-rank-page--gold .social-rank-sticky-top {
   flex: 1;
   min-width: 0;
 }
-
-.social-rank-row-main:active {
+.social-rank-row-main[data-rank-profile],
+.social-rank-podium-item[data-rank-profile] {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  text-decoration: none;
+  color: inherit;
+}
+.social-rank-row-main[data-rank-profile]:active,
+.social-rank-podium-item[data-rank-profile]:active {
   opacity: 0.88;
 }
 .social-rank-row img { width: 44px; height: 44px; border-radius: 50%; }

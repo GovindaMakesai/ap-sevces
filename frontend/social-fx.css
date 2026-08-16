@@ -638,23 +638,9 @@ body.ap-screen-shake {
   animation: ap-crown-bob 2s ease-in-out infinite;
 }
 
-a.social-rank-podium-link {
-  text-decoration: none !important;
-  color: inherit;
+.social-rank-podium-item[data-rank-profile] {
+  cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-}
-
-a.social-rank-podium-link:hover,
-a.social-rank-podium-link:focus,
-a.social-rank-podium-link:visited {
-  text-decoration: none !important;
-  color: inherit;
-}
-
-a.social-rank-podium-link strong,
-a.social-rank-podium-link small {
-  text-decoration: none;
-  color: inherit;
 }
 
 @keyframes ap-crown-bob {

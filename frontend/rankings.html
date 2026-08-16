@@ -8,8 +8,8 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" media="print" onload="this.media='all'">
   <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"></noscript>
   <link rel="stylesheet" href="social-theme.css?v=20260729-instant">
-  <link rel="stylesheet" href="social-features.css?v=20260816-fix">
-  <link rel="stylesheet" href="social-fx.css?v=20260816-fix">
+  <link rel="stylesheet" href="social-features.css?v=20260816-rank-nav">
+  <link rel="stylesheet" href="social-fx.css?v=20260816-rank-nav">
   <style>
     @keyframes rankSkel { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
   </style>
@@ -214,6 +214,28 @@
       );
     }
 
+    function bindRankProfileNav(root) {
+      if (!root) return;
+      root.querySelectorAll('[data-rank-profile]').forEach((el) => {
+        if (el.dataset.rankNavBound) return;
+        el.dataset.rankNavBound = '1';
+        const go = () => {
+          const href = el.getAttribute('data-href');
+          if (href) location.href = href;
+        };
+        el.addEventListener('click', (e) => {
+          e.preventDefault();
+          go();
+        });
+        el.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            go();
+          }
+        });
+      });
+    }
+
     function bindRankAvatarFallbacks(root) {
       if (!root) return;
       root.querySelectorAll('img').forEach((img) => {
@@ -272,7 +294,7 @@
       const ranks = top.length >= 3 ? [2, 1, 3] : top.map((_, i) => i + 1);
       return `<div class="social-rank-podium">${order.map((r, i) => {
         const href = profileHref(r);
-        const cls = 'social-rank-podium-item rank-' + ranks[i] + (href ? ' social-rank-podium-link' : '');
+        const cls = 'social-rank-podium-item rank-' + ranks[i];
         const inner =
           (ranks[i] === 1 ? '<span class="podium-crown">👑</span>' : '') +
           '<img class="podium-av" src="' +
@@ -286,7 +308,7 @@
           escapeHtml(r.s) +
           '</small>';
         return href
-          ? '<a href="' + escapeAttr(href) + '" class="' + cls + '">' + inner + '</a>'
+          ? '<div class="' + cls + '" data-rank-profile data-href="' + escapeAttr(href) + '" role="link" tabindex="0">' + inner + '</div>'
           : '<div class="' + cls + '">' + inner + '</div>';
       }).join('')}</div>`;
     }
@@ -308,11 +330,11 @@
               return `
         <div class="social-rank-row" style="animation-delay:${(i + 3) * 0.06}s">
           ${href
-            ? `<a href="${escapeAttr(href)}" class="social-rank-row-main">
+            ? `<div class="social-rank-row-main" data-rank-profile data-href="${escapeAttr(href)}" role="link" tabindex="0">
           <span class="rank-num">${i + 4}</span>
           <img src="${escapeAttr(avatarUrl(r))}" alt="" data-name="${escapeAttr(r.n || 'User')}" loading="lazy" decoding="async">
           <div class="rank-info"><strong>${escapeHtml(r.n)}</strong> 🇮🇳<br><small>${escapeHtml(r.s)}</small></div>
-          </a>`
+          </div>`
             : `<div class="social-rank-row-main">
           <span class="rank-num">${i + 4}</span>
           <img src="${escapeAttr(avatarUrl(r))}" alt="" data-name="${escapeAttr(r.n || 'User')}" loading="lazy" decoding="async">
@@ -327,6 +349,7 @@
           ? '<button type="button" class="social-rank-load-more" id="rankLoadMore">Load more</button>'
           : '');
       bindRankAvatarFallbacks(el);
+      bindRankProfileNav(el);
       window.SocialUI?.bindAvatarFallbacks?.(el);
       el.querySelector('#rankLoadMore')?.addEventListener('click', () => {
         rankVisible += 20;
