@@ -381,6 +381,37 @@ async function getSvipHome(userId) {
   const tierSpan = Math.max(1, progressMax - progressMin);
   const pointsToNext = next ? Math.max(0, progressMax - points) : 0;
 
+  let upgradeProgress = null;
+  let upgradeHint = null;
+  if (next) {
+    const goal = next.min;
+    upgradeProgress = {
+      current: points,
+      max: goal,
+      currentFormatted: formatCompact(points),
+      maxFormatted: formatCompact(goal),
+      percent: Math.min(100, Math.round((points / goal) * 100)),
+      goalLevel: next.level,
+      goalLabel: `SVIP ${next.level}`,
+    };
+    upgradeHint = `Need ${pointsToNext.toLocaleString()} points to upgrade to SVIP ${next.level}.`;
+  } else if (effectiveLevel <= 0) {
+    const goal = SVIP_LEVELS[1]?.min || 3000000;
+    const remaining = Math.max(0, goal - points);
+    upgradeProgress = {
+      current: points,
+      max: goal,
+      currentFormatted: formatCompact(points),
+      maxFormatted: formatCompact(goal),
+      percent: Math.min(100, Math.round((points / goal) * 100)),
+      goalLevel: 1,
+      goalLabel: 'SVIP 1',
+    };
+    upgradeHint = `Need ${remaining.toLocaleString()} points to upgrade to SVIP 1.`;
+  } else {
+    upgradeHint = 'You have reached the highest SVIP tier.';
+  }
+
   let maintenance = null;
   if (statusRow && effectiveLevel > 0) {
     const base = buildMaintenancePayload(userId, statusRow);
@@ -419,7 +450,9 @@ async function getSvipHome(userId) {
     nextLevelLabel: next ? `SVIP ${next.level}` : null,
     pointsToNext,
     pointsToNextFormatted: formatCompact(pointsToNext),
-    progress: {
+    upgradeHint,
+    upgradeProgress,
+    progress: upgradeProgress || {
       current: inTier,
       max: tierSpan,
       currentFormatted: formatCompact(inTier),

@@ -8,7 +8,7 @@
   <script src="ap-native-boot.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-theme.css">
-  <link rel="stylesheet" href="svip.css?v=20260816-svip-maint">
+  <link rel="stylesheet" href="svip.css?v=20260816-svip-upgrade">
 </head>
 <body class="svip-page">
   <header class="svip-header">
@@ -67,14 +67,15 @@
       <img class="svip-footer-avatar" id="svipAvatar" alt="" width="36" height="36">
       <div class="svip-footer-meta">
         <div class="svip-footer-status" id="svipStatus">—</div>
-        <div class="svip-progress-wrap">
-          <div class="svip-progress-bar"><div class="svip-progress-fill" id="svipProgressFill"></div></div>
-          <span class="svip-progress-text" id="svipProgressText">—</span>
-        </div>
+        <p class="svip-footer-hint" id="svipUpgradeHint"></p>
+        <p class="svip-footer-maint" id="svipMaintHint" hidden></p>
       </div>
-      <button type="button" class="svip-level-up" onclick="location.href='/coins-recharge.html?app=1'">Level Up</button>
+      <div class="svip-footer-upgrade">
+        <span class="svip-progress-text" id="svipProgressText">—</span>
+        <div class="svip-progress-bar"><div class="svip-progress-fill" id="svipProgressFill"></div></div>
+        <button type="button" class="svip-level-up" onclick="location.href='/coins-recharge.html?app=1'">Level Up</button>
+      </div>
     </div>
-    <p class="svip-footer-hint" id="svipHint"></p>
   </footer>
 
   <script src="ap-config.js"></script>
@@ -207,24 +208,41 @@
       document.getElementById('svipAvatar').src = avatarUrl(u.name, u.profilePic);
       document.getElementById('svipAvatar').alt = u.name || 'You';
 
-      const status = svipData.isSvip
+      document.getElementById('svipStatus').textContent = svipData.isSvip
         ? `You are ${svipData.levelLabel}`
         : 'You are not an SVIP yet';
-      document.getElementById('svipStatus').textContent = status;
 
-      const p = svipData.progress || {};
-      document.getElementById('svipProgressFill').style.width = (p.percent || 0) + '%';
-      document.getElementById('svipProgressText').textContent =
-        `${p.currentFormatted || 0} / ${p.maxFormatted || 0}`;
-
-      const hintParts = [];
-      if (svipData.maintenance?.summary) hintParts.push(svipData.maintenance.summary);
-      if (svipData.nextLevel) {
-        hintParts.push(`Need ${svipData.pointsToNextFormatted} points to upgrade to ${svipData.nextLevelLabel}.`);
-      } else if (svipData.isSvip) {
-        hintParts.push('You have reached the highest SVIP tier.');
+      const up = svipData.upgradeProgress || svipData.progress || {};
+      const hasUpgrade = up.max > 0 && svipData.nextLevel;
+      const upgradeCol = document.querySelector('.svip-footer-upgrade');
+      if (hasUpgrade) {
+        upgradeCol.hidden = false;
+        document.getElementById('svipProgressFill').style.width = `${up.percent || 0}%`;
+        document.getElementById('svipProgressText').textContent =
+          `${up.currentFormatted || 0}/${up.maxFormatted || 0}`;
+      } else {
+        upgradeCol.hidden = true;
       }
-      document.getElementById('svipHint').textContent = hintParts.join(' ') || '';
+
+      document.getElementById('svipUpgradeHint').textContent =
+        svipData.upgradeHint ||
+        (svipData.nextLevel
+          ? `Need ${Number(svipData.pointsToNext || 0).toLocaleString()} points to upgrade to ${svipData.nextLevelLabel}.`
+          : svipData.isSvip
+            ? 'You have reached the highest SVIP tier.'
+            : 'Recharge coins to earn SVIP points and unlock SVIP 1.');
+
+      const maintHint = document.getElementById('svipMaintHint');
+      const m = svipData.maintenance;
+      if (m && svipData.isSvip) {
+        maintHint.hidden = false;
+        maintHint.textContent = m.isMet
+          ? `${m.daysLabel} · Maintenance met for SVIP ${m.level}`
+          : `${m.daysLabel} · ${m.summary}`;
+      } else {
+        maintHint.hidden = true;
+        maintHint.textContent = '';
+      }
     }
 
     async function boot() {
