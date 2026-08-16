@@ -20,7 +20,7 @@ class PushService {
   PushService(this._api);
 
   final ApiClient _api;
-  final _messaging = FirebaseMessaging.instance;
+  FirebaseMessaging? _messaging;
   final _local = FlutterLocalNotificationsPlugin();
 
   String? _deviceToken;
@@ -34,16 +34,21 @@ class PushService {
 
   Future<void> initialize() async {
     if (kIsWeb) return;
-    if (!AppConfig.enablePushOnStartup) {
-      debugPrint('[push] skipped on startup (enable after login)');
-      return;
-    }
     try {
       await Firebase.initializeApp();
+      _messaging = FirebaseMessaging.instance;
     } catch (e) {
       debugPrint('[push] Firebase init skipped: $e');
       return;
     }
+
+    if (!AppConfig.enablePushOnStartup) {
+      debugPrint('[push] token sync deferred until after login');
+      return;
+    }
+
+    final messaging = _messaging;
+    if (messaging == null) return;
 
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
@@ -74,7 +79,7 @@ class PushService {
     );
 
     try {
-      final settings = await _messaging.requestPermission(
+      final settings = await messaging.requestPermission(
         alert: true,
         badge: true,
         sound: true,
@@ -89,18 +94,18 @@ class PushService {
     }
 
     try {
-      _deviceToken = await _messaging.getToken().timeout(const Duration(seconds: 5));
+      _deviceToken = await messaging.getToken().timeout(const Duration(seconds: 5));
     } catch (e) {
       debugPrint('[push] token skipped: $e');
     }
-    _messaging.onTokenRefresh.listen((token) {
+    messaging.onTokenRefresh.listen((token) {
       _deviceToken = token;
     });
 
     FirebaseMessaging.onMessage.listen(_showForegroundNotification);
     FirebaseMessaging.onMessageOpenedApp.listen(_handleRemoteMessage);
 
-    final initial = await _messaging.getInitialMessage();
+    final initial = await messaging.getInitialMessage();
     if (initial != null) {
       _handleRemoteMessage(initial);
     }
