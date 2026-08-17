@@ -103,7 +103,7 @@
   let userXpProgress = 0;
   const GIFT_OPTIONS = GIFT_CATALOG.gift;
 
-  let giftCategory = 'popular';
+  let giftCategory = 'animated';
   let giftQty = 1;
   let selectedGiftIdx = 0;
   let giftSearchQuery = '';
@@ -117,7 +117,8 @@
 
   const GIFT_TAB_HTML = `
             <button type="button" data-cat="recent">Recent</button>
-            <button type="button" data-cat="popular" class="active">Popular</button>
+            <button type="button" data-cat="animated" class="active">Animated</button>
+            <button type="button" data-cat="popular">Popular</button>
             <button type="button" data-cat="premium">Premium</button>
             <button type="button" data-cat="vip">VIP</button>
             <button type="button" data-cat="flowers">Flowers</button>
@@ -195,23 +196,51 @@
     return out;
   }
 
+  function giftsForAnimatedTab() {
+    const bindings = window.AP_GIFT_ANIMATION?.GIFT_BINDINGS || [];
+    const bySlug = window.AP_GIFT_ANIMATION?.CATALOG_BY_SLUG || {};
+    if (!bindings.length) return [];
+    return bindings.map((b) => {
+      const cat = bySlug[b.slug] || b;
+      return {
+        emoji: cat.emoji || b.emoji,
+        name: cat.name || b.name,
+        cost: cat.cost || b.cost,
+        slug: b.slug,
+        tag: 'FX',
+      };
+    });
+  }
+
   function giftsForCategory(cat) {
+    if (cat === 'animated') return giftsForAnimatedTab();
     if (cat === 'recent') return readGiftMemory('recent');
     if (cat === 'favorites') return readGiftMemory('fav');
     if (cat === 'popular' || cat === 'gift' || cat === 'trending' || cat === 'new') {
-      /* Full list: free/cheap first → premium → VIP */
-      return sortGiftsCheapFirst(collectAllGifts());
+      /* Everyday gifts only — avoid rendering 90+ cards on Popular */
+      return sortGiftsCheapFirst(GIFT_CATALOG.gift || []);
     }
     if (cat === 'premium') {
-      return sortGiftsCheapFirst(
-        collectAllGifts().filter((g) => {
+      return sortGiftsCheapFirst([
+        ...(GIFT_CATALOG.gift || []).filter((g) => Number(g.cost) >= 3000),
+        ...(GIFT_CATALOG.flowers || []).filter((g) => Number(g.cost) >= 3000),
+        ...(GIFT_CATALOG.lucky || []).filter((g) => Number(g.cost) >= 3000),
+        ...(GIFT_CATALOG.seasonal || []).filter((g) => {
           const c = Number(g.cost) || 0;
           return c >= 3000 && c < 1000000;
-        })
-      );
+        }),
+        ...(GIFT_CATALOG.jewelry || []).filter((g) => Number(g.cost) < 1000000),
+      ]);
     }
     if (cat === 'vip' || cat === 'privilege') {
-      return sortGiftsCheapFirst(collectAllGifts().filter((g) => Number(g.cost) >= 10000));
+      return sortGiftsCheapFirst([
+        ...(GIFT_CATALOG.privilege || []),
+        ...(GIFT_CATALOG.jewelry || []).filter((g) => Number(g.cost) >= 100000),
+        ...(GIFT_CATALOG.cars || []),
+        ...(GIFT_CATALOG.fantasy || []),
+        ...(GIFT_CATALOG.cosmic || []),
+        ...(GIFT_CATALOG.lifestyle || []),
+      ]);
     }
     if (cat === 'island') return sortGiftsCheapFirst(GIFT_CATALOG.lifestyle || GIFT_CATALOG.gift || []);
     if (cat === 'cars') {
@@ -15770,9 +15799,26 @@
     });
   }
 
+  function bindGiftGridClicks() {
+    const grid = document.getElementById('giftGrid');
+    if (!grid || grid.dataset.delegateBound === '1') return;
+    grid.dataset.delegateBound = '1';
+    grid.addEventListener('click', (e) => {
+      const btn = e.target.closest?.('[data-gift-idx]');
+      if (!btn || !grid.contains(btn)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      selectedGiftIdx = parseInt(btn.dataset.giftIdx, 10) || 0;
+      grid.querySelectorAll('button.gift-card').forEach((b) => b.classList.remove('is-selected'));
+      btn.classList.add('is-selected');
+      updateGiftMeta();
+    });
+  }
+
   function renderGiftGrid() {
     const grid = document.getElementById('giftGrid');
     if (!grid) return;
+    bindGiftGridClicks();
     let items = giftsForCategory(giftCategory);
     const q = String(giftSearchQuery || '')
       .trim()
@@ -15791,15 +15837,22 @@
     }
     if (!items.length) {
       grid.innerHTML = `<div class="gift-grid-empty">No gifts in this collection yet</div>`;
+      grid.classList.remove('is-heavy');
       updateGiftMeta();
       return;
     }
+    const useLuxCard = giftCategory === 'animated' || items.length <= 16;
+    grid.classList.toggle('is-heavy', items.length > 20);
+    if (selectedGiftIdx >= items.length) selectedGiftIdx = 0;
     grid.innerHTML = items
       .map((g, i) => {
         const tier = window.SocialFX?.getGiftTier?.(g) || (Number(g.cost) >= 100000 ? 'vip' : Number(g.cost) >= 3000 ? 'medium' : 'small');
         const cost = Number(g.cost) || 0;
-        return `
-      <button type="button" data-gift-idx="${i}" data-gift="${g.emoji}" data-cost="${cost}" data-tier="${tier}" data-slug="${escapeAttr(g.slug || giftSlugFor(g))}" class="gift-card gift-card--alive ${i === selectedGiftIdx ? 'is-selected' : ''}">
+        const selected = i === selectedGiftIdx ? 'is-selected' : '';
+        const slug = escapeAttr(g.slug || giftSlugFor(g));
+        if (useLuxCard) {
+          return `
+      <button type="button" data-gift-idx="${i}" data-gift="${g.emoji}" data-cost="${cost}" data-tier="${tier}" data-slug="${slug}" class="gift-card gift-card--alive ${selected}">
         <span class="gift-card-glow" aria-hidden="true"></span>
         <span class="gift-card-shine" aria-hidden="true"></span>
         <span class="gift-card-sparkles" aria-hidden="true"><i></i><i></i><i></i></span>
@@ -15809,18 +15862,16 @@
         ${g.tag ? `<span class="gift-tag">${escapeHtml(g.tag)}</span>` : ''}
         <span class="gift-coin-cost" aria-label="${formatGiftCoinPrice(cost)}">${formatGiftCoinPrice(cost)}</span>
       </button>`;
+        }
+        return `
+      <button type="button" data-gift-idx="${i}" data-gift="${g.emoji}" data-cost="${cost}" data-tier="${tier}" data-slug="${slug}" class="gift-card gift-card--lite ${selected}">
+        <span class="g">${g.emoji}</span>
+        <span class="gift-name">${escapeHtml(g.name || 'Gift')}</span>
+        ${g.tag ? `<span class="gift-tag">${escapeHtml(g.tag)}</span>` : ''}
+        <span class="gift-coin-cost" aria-label="${formatGiftCoinPrice(cost)}">${formatGiftCoinPrice(cost)}</span>
+      </button>`;
       })
       .join('');
-    grid.querySelectorAll('[data-gift-idx]').forEach((btn) => {
-      btn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        selectedGiftIdx = parseInt(btn.dataset.giftIdx, 10) || 0;
-        grid.querySelectorAll('button').forEach((b) => b.classList.remove('is-selected'));
-        btn.classList.add('is-selected');
-        updateGiftMeta();
-      });
-    });
     updateGiftMeta();
     window.SocialFX?.bindGiftGridScrollFix?.();
   }
@@ -18735,10 +18786,10 @@
       giftSearchQuery = '';
       /* Upgrade tabs for cheap-first gift sheet */
       const tabs = document.getElementById('giftSheetTabs');
-      if (tabs && tabs.dataset.lux !== '4') {
-        tabs.dataset.lux = '4';
+      if (tabs && tabs.dataset.lux !== '5') {
+        tabs.dataset.lux = '5';
         tabs.innerHTML = GIFT_TAB_HTML;
-        giftCategory = 'popular';
+        giftCategory = 'animated';
         tabs.querySelectorAll('button[data-cat]').forEach((btn) => {
           btn.addEventListener('click', () => {
             tabs.querySelectorAll('button[data-cat]').forEach((b) => b.classList.remove('active'));
@@ -18792,9 +18843,10 @@
           </div>
           <div class="gift-recipients" id="giftRecipients"></div>
           <div class="gift-rtp-banner" id="giftRtpBanner" hidden><span>Select a gift to see details</span></div>
-          <div class="gift-sheet-tabs" id="giftSheetTabs" data-lux="4">
+          <div class="gift-sheet-tabs" id="giftSheetTabs" data-lux="5">
             <button type="button" data-cat="recent">Recent</button>
-            <button type="button" data-cat="popular" class="active">Popular</button>
+            <button type="button" data-cat="animated" class="active">Animated</button>
+            <button type="button" data-cat="popular">Popular</button>
             <button type="button" data-cat="premium">Premium</button>
             <button type="button" data-cat="vip">VIP</button>
             <button type="button" data-cat="flowers">Flowers</button>

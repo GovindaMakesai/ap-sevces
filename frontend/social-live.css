@@ -10239,6 +10239,28 @@ html.ap-expo-app .ap-chip {
 .gift-sheet--lux .gift-grid {
   gap: 8px;
   padding: 2px 0 6px;
+  max-height: min(42vh, 320px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  scroll-behavior: auto;
+}
+
+.gift-grid button.gift-card--lite {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  min-height: 88px;
+}
+
+.gift-grid.is-heavy .gift-card--alive,
+.gift-grid.is-heavy .gift-card--alive * {
+  animation: none !important;
+}
+
+.gift-sheet-tabs button[data-cat="animated"].active {
+  color: #c4b5fd !important;
+  border-bottom-color: #a78bfa;
 }
 
 .gift-sheet--lux .gift-grid button.gift-card {
