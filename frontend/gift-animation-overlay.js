@@ -1,14 +1,19 @@
 /**
- * GiftAnimationOverlay — AnimStream queue, dedupe, gift notification card.
+ * GiftAnimationOverlay — AnimStream iframe overlay (WebView live page).
  * Triggered only from confirmed live:gift events (social-live.js).
  */
 (function () {
   const LOG = '[Gift]';
+  const DBG = '[GiftAnimation DEBUG]';
+  const ASDBG = '[AnimStream DEBUG]';
   const cfg = window.AP_GIFT_ANIMATION || {};
   const MAP = cfg.GIFT_ANIMATION_MAP || {};
   const CATALOG = cfg.CATALOG_BY_SLUG || {};
   const DEFAULT_DURATION = Number(cfg.DEFAULT_DURATION_MS || 15000);
   const MAX_QUEUE = Number(cfg.MAX_QUEUE_SIZE || 8);
+  const ANIM1_URL =
+    cfg.ANIM1_TEST_URL ||
+    'https://animstream.com/embed/cmsx8mxo8aj0q01tjgn9ffq2r?loop=1';
 
   const processedGiftEvents = new Map();
   const PROCESSED_TTL_MS = 120000;
@@ -22,11 +27,49 @@
   let hideTimer = null;
   const queue = [];
 
+  function isDebugMode() {
+    try {
+      if (localStorage.getItem('ap_gift_anim_debug') === '1') return true;
+      if (/[?&]giftAnimDebug=1/i.test(String(location.search || ''))) return true;
+    } catch (_e) { /* */ }
+    return Boolean(cfg.DEBUG_MODE);
+  }
+
+  function debugLog(msg, detail) {
+    try {
+      if (detail !== undefined) console.log(DBG, msg, detail);
+      else console.log(DBG, msg);
+    } catch (_e) {}
+  }
+
+  function animLog(msg, detail) {
+    try {
+      if (detail !== undefined) console.log(ASDBG, msg, detail);
+      else console.log(ASDBG, msg);
+    } catch (_e) {}
+  }
+
   function log(msg, detail) {
     try {
       if (detail !== undefined) console.log(LOG, msg, detail);
       else console.log(LOG, msg);
     } catch (_e) {}
+  }
+
+  function logOverlayLayout() {
+    if (!rootEl) {
+      debugLog('overlay layout', 'root missing');
+      return;
+    }
+    const r = rootEl.getBoundingClientRect();
+    debugLog('overlay layout', {
+      width: Math.round(r.width),
+      height: Math.round(r.height),
+      top: Math.round(r.top),
+      left: Math.round(r.left),
+      zIndex: getComputedStyle(rootEl).zIndex,
+      visible: rootEl.classList.contains('is-visible'),
+    });
   }
 
   function pruneProcessed(now = Date.now()) {
@@ -87,6 +130,7 @@
   }
 
   function claimTransaction(gift) {
+    if (isDebugMode()) return true;
     pruneProcessed();
     const tx = transactionId(gift);
     if (!tx) return true;
@@ -98,29 +142,19 @@
     return true;
   }
 
-  function getMountEl() {
-    return (
-      document.getElementById('liveRoomRoot') ||
-      document.querySelector('.party-room') ||
-      document.body
-    );
-  }
-
   function ensureAnimRoot() {
-    const mount = getMountEl();
-    if (rootEl && rootEl.parentElement !== mount) {
-      mount.appendChild(rootEl);
+    if (rootEl && rootEl.parentElement !== document.body) {
+      document.body.appendChild(rootEl);
     }
     if (rootEl) return rootEl;
+
     rootEl = document.createElement('div');
     rootEl.id = 'apGiftAnimOverlay';
     rootEl.setAttribute('aria-hidden', 'true');
-    if (mount.id === 'liveRoomRoot' || mount.classList?.contains('party-room')) {
-      rootEl.classList.add('ap-gift-anim-in-room');
-    }
-    const overlay = mount.querySelector('.live-overlay');
-    if (overlay) mount.insertBefore(rootEl, overlay);
-    else mount.appendChild(rootEl);
+    rootEl.classList.add('ap-gift-anim-body-mount');
+    if (isDebugMode()) rootEl.classList.add('is-debug');
+    document.body.appendChild(rootEl);
+    debugLog('overlay mounted on body', new Date().toISOString());
     return rootEl;
   }
 
@@ -166,8 +200,13 @@
       rootEl.textContent = '';
       frameEl = null;
     }
-    if (playing) log('animation cleaned', reason || '');
+    if (playing) {
+      debugLog('overlay unmounted', reason || '');
+      animLog('overlay unmounted', reason || '');
+    }
     playing = false;
+    debugLog('overlay visible=false');
+    debugLog('queue length=', queue.length);
   }
 
   function showNotify(meta, gift) {
@@ -201,17 +240,24 @@
       .replace(/>/g, '&gt;');
   }
 
-  function playAnimation(meta) {
-    const url = String(meta.animationUrl || '').trim();
+  function playAnimation(meta, opts) {
+    const url = String(opts?.forceUrl || meta.animationUrl || '').trim();
     if (!url) {
-      finishCurrent();
+      finishCurrent('no-url');
       return;
     }
 
     ensureAnimRoot();
     rootEl.textContent = '';
     playing = true;
-    log('animation started', { label: meta.label, slug: meta.slug });
+
+    debugLog('triggering overlay');
+    debugLog('overlay visible=true');
+    debugLog('active animation=', meta.slug || meta.label || url);
+    debugLog('queue length=', queue.length);
+    debugLog('rendering WebView/iframe');
+    debugLog('animation URL=', url);
+    animLog('load URL', url);
 
     const stageEl = document.createElement('div');
     stageEl.className = 'ap-gift-anim-stage';
@@ -225,9 +271,13 @@
     frameEl.setAttribute('scrolling', 'no');
     frameEl.setAttribute('frameborder', '0');
 
+    frameEl.addEventListener('load', () => {
+      animLog('loaded', new Date().toISOString());
+      logOverlayLayout();
+    });
     frameEl.addEventListener('error', () => {
-      log('animation embed failed');
-      finishCurrent('iframe-error');
+      animLog('load error');
+      if (!isDebugMode()) finishCurrent('iframe-error');
     });
 
     stageEl.appendChild(frameEl);
@@ -235,24 +285,36 @@
     rootEl.classList.add('is-visible');
     rootEl.setAttribute('aria-hidden', 'false');
 
+    requestAnimationFrame(() => logOverlayLayout());
+
     try {
+      animLog('load started', new Date().toISOString());
       frameEl.src = url;
-    } catch (_e) {
-      log('animation embed failed');
-      finishCurrent('iframe-src-error');
+    } catch (e) {
+      animLog('load error', e?.message || String(e));
+      if (!isDebugMode()) finishCurrent('iframe-src-error');
       return;
     }
 
-    hideTimer = setTimeout(() => finishCurrent('duration'), meta.durationMs);
+    if (!isDebugMode() && !opts?.keepVisible) {
+      hideTimer = setTimeout(() => finishCurrent('duration'), meta.durationMs);
+    } else {
+      debugLog('auto-hide disabled (debug mode)');
+    }
   }
 
   function finishCurrent(reason) {
-    log('animation finished', reason || '');
+    debugLog('animation finished', reason || '');
     hideAnimation(reason);
-    pumpQueue();
+    if (!isDebugMode()) pumpQueue();
   }
 
   function enqueue(gift, meta) {
+    if (isDebugMode()) {
+      queue.length = 0;
+      queue.push({ gift, meta });
+      return;
+    }
     if (queue.length >= MAX_QUEUE) {
       log('queue full — dropping oldest');
       queue.shift();
@@ -273,24 +335,79 @@
     if (!gift) return;
     const tx = transactionId(gift);
     const meta = resolveMeta(gift);
-    log('received');
-    log('transactionId:', tx || '(none)');
-    log('giftId:', meta.slug || '(none)');
-    log('giftName:', meta.name);
-    log('coinValue:', meta.charged || meta.unitCost);
 
-    if (!hasAnimationForGift(gift)) return;
+    debugLog('gift event received');
+    debugLog('giftId=', meta.slug || '(none)');
+    debugLog('giftName=', meta.name);
+    debugLog('coinValue=', meta.charged || meta.unitCost);
+    debugLog('transactionId=', tx || '(none)');
+    debugLog('animation URL=', meta.animationUrl || '(not mapped)');
+
+    if (!hasAnimationForGift(gift)) {
+      debugLog('no animation mapped for slug', giftSlug(gift) || '(empty slug)');
+      return;
+    }
     if (!claimTransaction(gift)) return;
 
-    log('animation mapped:', meta.label || meta.slug);
+    debugLog('animation mapped:', meta.label || meta.slug);
     enqueue(gift, meta);
     pumpQueue();
+  }
+
+  function testAnimation1() {
+    debugLog('TEST ANIMSTREAM button pressed');
+    const meta = {
+      slug: 'imperial_bloom_10000',
+      name: 'Imperial Bloom',
+      emoji: '\u{1F33A}',
+      qty: 1,
+      unitCost: 10000,
+      charged: 10000,
+      animationUrl: ANIM1_URL,
+      durationMs: DEFAULT_DURATION,
+      label: 'Animation 1 TEST',
+    };
+    const gift = {
+      from: 'DEBUG',
+      giftSlug: 'imperial_bloom_10000',
+      giftName: 'Imperial Bloom',
+      amount: 10000,
+      emoji: '\u{1F33A}',
+    };
+    queue.length = 0;
+    if (playing) hideAnimation('test-restart');
+    showNotify(meta, gift);
+    playAnimation(meta, { forceUrl: ANIM1_URL, keepVisible: isDebugMode() });
+  }
+
+  function ensureTestButton() {
+    if (!isDebugMode()) return;
+    if (document.getElementById('apGiftAnimTestBtn')) return;
+    const btn = document.createElement('button');
+    btn.id = 'apGiftAnimTestBtn';
+    btn.type = 'button';
+    btn.textContent = 'TEST ANIMSTREAM';
+    btn.className = 'ap-gift-anim-test-btn';
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      testAnimation1();
+    });
+    document.body.appendChild(btn);
   }
 
   function cleanup() {
     queue.length = 0;
     hideAnimation('cleanup');
     processedGiftEvents.clear();
+    document.getElementById('apGiftAnimTestBtn')?.remove();
+  }
+
+  if (isDebugMode()) {
+    try {
+      ensureTestButton();
+      debugLog('debug mode ON — use TEST ANIMSTREAM button or ?giftAnimDebug=1');
+    } catch (_e) { /* */ }
   }
 
   window.GiftAnimationOverlay = {
@@ -300,5 +417,7 @@
     resolveMeta,
     transactionId,
     giftSlug,
+    testAnimation1,
+    isDebugMode,
   };
 })();

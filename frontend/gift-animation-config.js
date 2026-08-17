@@ -45,5 +45,6 @@
     /** Safety timeout while loop=1 embeds are used for testing */
     DEFAULT_DURATION_MS: 15000,
     MAX_QUEUE_SIZE: 8,
+    ANIM1_TEST_URL: 'https://animstream.com/embed/cmsx8mxo8aj0q01tjgn9ffq2r?loop=1',
   };
 })(typeof window !== 'undefined' ? window : global);

@@ -6053,6 +6053,14 @@
         /* One chat line only — skip WIN banner / fly banner (duplicate "sent to" notices) */
         const combo = window.SocialFX?.trackCombo?.(normalized?.emoji || 'gift', normalized?.qty || 1) || 1;
         const hasAnimStream = window.GiftAnimationOverlay?.hasAnimationForGift?.(normalized);
+        if (hasAnimStream) {
+          try {
+            console.log('[GiftAnimation DEBUG] social-live dispatching overlay', {
+              slug: normalized.giftSlug || normalized.giftType,
+              tx: normalized.gift_tx_id || normalized.id,
+            });
+          } catch (_lg) { /* */ }
+        }
         window.SocialFX?.playGift?.(normalized, {
           combo,
           skipActivity: true,
