@@ -8261,10 +8261,18 @@ body.ap-ref-ui .live-room .party-viewers span:not(.party-viewer-count):not(.ap-t
 }
 
 /* Solo video live: guest rail on right when guests are on stage */
+body[data-live-page="live-room"] .live-overlay > .ap-guest-rail,
 body[data-live-page="live-room"] .ap-guest-rail {
   display: none;
+  position: absolute !important;
+  right: 10px;
+  left: auto !important;
+  top: auto !important;
+  transform: none !important;
+  align-items: center;
 }
 
+body[data-live-page="live-room"].ap-has-live-guests .live-overlay > .ap-guest-rail,
 body[data-live-page="live-room"].ap-has-live-guests .ap-guest-rail {
   display: flex !important;
   right: 10px;

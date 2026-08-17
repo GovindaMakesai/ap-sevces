@@ -91,6 +91,39 @@ body[data-live-page='live-room'] .party-host img {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
 }
 
+body[data-live-page='live-room'] .party-host {
+  max-width: min(70vw, calc(100vw - 112px));
+  min-width: 0;
+}
+
+body[data-live-page='live-room'] .party-host-meta .name {
+  max-width: min(62vw, 240px);
+}
+
+body[data-live-page='live-room'] #liveRoomId,
+body[data-live-page='live-room'] .live-room-id-line {
+  max-width: none;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+body.ap-is-host #partyHostFollow {
+  display: none !important;
+}
+
+body[data-live-page='live-room'] .party-host-meta .sub {
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+body[data-live-page='live-room'] #liveSubLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
 body[data-live-page='live-room'] .party-host-meta .name {
   font-size: 13px;
   font-weight: 600;

@@ -7594,6 +7594,7 @@
   let apLoaderDismissed = false;
 
   function forceRevealRoomShell() {
+    primeLiveRoomChrome();
     ensureStickyLivePoster();
     apLoaderDismissed = true;
     document.body.classList.add('ap-room-active');
@@ -7611,15 +7612,15 @@
   }
 
   function scheduleLoaderForceDismiss(ms) {
-    const wait = ms || 3500;
+    const wait = ms || 9000;
     if (apLoaderForceTimer) clearTimeout(apLoaderForceTimer);
     apLoaderForceTimer = setTimeout(() => {
       apLoaderForceTimer = null;
+      primeLiveRoomChrome();
       forceRevealRoomShell();
       if (roomJoinCompleted && !sessionEstablished) onRoomReady();
-      else if (!sessionEstablished) {
-        sessionEstablished = true;
-        syncLiveUiState();
+      else if (!roomJoinCompleted) {
+        setLiveStatus('Still connecting to room…', null);
       }
     }, wait);
   }
@@ -7627,27 +7628,16 @@
   function installLoaderEscapeHatch() {
     if (window.__apLoaderEscapeInstalled) return;
     window.__apLoaderEscapeInstalled = true;
-    scheduleLoaderForceDismiss(2500);
-    setTimeout(() => {
-      forceRevealRoomShell();
-      if (roomJoinCompleted && !sessionEstablished) onRoomReady();
-      else if (!sessionEstablished) {
-        sessionEstablished = true;
-        syncLiveUiState();
-      }
-    }, 5000);
+    scheduleLoaderForceDismiss(9000);
   }
 
   function bindApLoaderDismiss() {
     const skip = document.getElementById('apLiveLoaderSkip');
     const loader = document.getElementById('apLiveLoader');
     const dismiss = () => {
+      primeLiveRoomChrome();
       forceRevealRoomShell();
       if (roomJoinCompleted && !sessionEstablished) onRoomReady();
-      else if (!sessionEstablished) {
-        sessionEstablished = true;
-        syncLiveUiState();
-      }
     };
     skip?.addEventListener('click', (e) => {
       e.preventDefault();
@@ -11341,7 +11331,7 @@
     const rid = document.getElementById('liveRoomId');
     const ch = channelId();
     const viewers = roomState?.viewers || 0;
-    if (rid) rid.textContent = 'ID ' + ch.slice(-10);
+    if (rid) rid.textContent = formatLiveRoomIdLine(ch);
     const partyRid = document.getElementById('partyRoomId') || document.getElementById('partyRoomIdLive');
     if (partyRid) partyRid.textContent = 'ID:' + ch.slice(-10);
     updateModeBadge('video', isHost() && isActuallyLive());
@@ -11500,7 +11490,7 @@
       return;
     }
     document.body.classList.add('ap-has-live-guests');
-    rail.style.display = 'flex';
+    rail.style.removeProperty('display');
     rail.innerHTML = guests
       .map((s) => {
         const uid = String(s.userId || '');
@@ -13752,6 +13742,7 @@
     chatRegionFilter = activeRegion?.dataset.region || 'room';
     syncToolBadges();
     updateCharCount();
+    primeLiveRoomChrome();
   }
 
   function pinBottomBarToBody() {
@@ -14053,9 +14044,14 @@
   function setLiveStreamVisible(visible) {
     const root = document.getElementById('liveRoomRoot');
     const hasFrames = hasPlayingRemoteVideo();
-    const hasVideoEl = Boolean(document.querySelector('#liveRemoteHost video'));
+    const hasVideoEl = Boolean(
+      document.querySelector(
+        '#liveRemoteHost video, #liveLocalHost video, #liveLocalHost canvas, .ap-guest-video video'
+      )
+    );
     /* Show as soon as video element is attached — don't wait on slow decode */
-    const on = Boolean(visible) && (hasFrames || hasVideoEl || isHost());
+    const on =
+      Boolean(visible) && (hasFrames || hasVideoEl || isHost() || clientClaimsHost());
     if (root) root.classList.toggle('ap-has-video-stream', on);
     document.body.classList.toggle('ap-has-video-stream', on);
     const backdrop = document.getElementById('liveFeedBackdrop');
@@ -18906,8 +18902,63 @@
     renderChatFeed();
   }
 
+  function formatLiveRoomIdLine(ch) {
+    const id = String(ch || channelId() || '')
+      .replace(/[^a-zA-Z0-9_-]/g, '')
+      .slice(-10);
+    return id ? 'ID ' + id : 'ID —';
+  }
+
+  /** Fill host name / room ID / avatar before socket join completes — avoids broken "Streamer" shell */
+  function primeLiveRoomChrome() {
+    if (!isLiveRoomPage() && !isPartyRoomPage()) return;
+    const user = currentUser();
+    const hosting = isHost() || clientClaimsHost();
+    syncHostBarUi();
+    const hostName = roomState?.hostName || (user ? displayName(user) : 'Streamer');
+    document.querySelectorAll('#partyHostName, #liveHostName').forEach((el) => {
+      const full = hostName || 'Host';
+      el.textContent = full;
+      el.title = full;
+    });
+    const ch = channelId();
+    const rid = document.getElementById('liveRoomId');
+    if (rid) rid.textContent = formatLiveRoomIdLine(ch);
+    const partyRid = document.getElementById('partyRoomId') || document.getElementById('partyRoomIdLive');
+    if (partyRid) partyRid.textContent = 'ID:' + String(ch).slice(-10);
+    const sub = document.getElementById('liveSubLabel');
+    if (sub) sub.textContent = hosting ? 'Hosting' : 'Live now';
+    const hostLabel = document.getElementById('partyHostLabel');
+    if (hostLabel && hosting) hostLabel.textContent = 'Hosting';
+    const hostFollow = document.getElementById('partyHostFollow');
+    if (hostFollow) hostFollow.style.display = hosting ? 'none' : '';
+    const hostImg = document.getElementById('partyHostAvatar') || document.getElementById('liveHostAvatar');
+    if (hostImg && user) {
+      try {
+        paintHostAvatarImg(hostImg, hostName, resolveHostProfilePic());
+      } catch (_e) {
+        try {
+          hostImg.src = avatarUrl(hostName, null);
+        } catch (_e2) { /* */ }
+      }
+    }
+    const editLiveBtn = document.getElementById('liveEditPresentationBtn');
+    if (editLiveBtn) {
+      const showEdit = hosting;
+      editLiveBtn.hidden = !showEdit;
+      editLiveBtn.style.display = showEdit ? '' : 'none';
+    }
+    const vc = document.getElementById('liveViewerCount');
+    if (vc && roomState?.viewers != null) {
+      const n = roomState.viewers || (hosting ? 1 : 0);
+      vc.textContent = isLiveRoomPage() ? `${n} joined` : String(n);
+    } else if (vc && hosting && isLiveRoomPage()) {
+      vc.textContent = '1 joined';
+    }
+  }
+
   function ensureHostChannelInUrl() {
-    if (!isHost() || qs('channel') || qs('room')) return;
+    if ((!clientClaimsHost() && !isHost()) || qs('channel') || qs('room')) return;
     const user = currentUser();
     if (!user) return;
     const page = document.body.dataset.livePage;
@@ -18925,6 +18976,7 @@
     } catch (_e) { }
     lastJoinMeta = null;
     forensicEvent('CHANNEL_GENERATED', { channel: ch, reason: 'missing_channel_param' });
+    primeLiveRoomChrome();
   }
 
   async function startLiveVoiceAsync() {
@@ -19423,6 +19475,7 @@
     initForensicLog();
     restoreChannelFromDurableSession();
     ensureHostChannelInUrl();
+    primeLiveRoomChrome();
     const restored = restoreJoinMeta();
     if (restored && !lastJoinMeta) lastJoinMeta = restored;
 
@@ -19852,6 +19905,7 @@
     initForensicLog();
     restoreChannelFromDurableSession();
     ensureHostChannelInUrl();
+    primeLiveRoomChrome();
     const restored = restoreJoinMeta();
     if (restored && !lastJoinMeta) lastJoinMeta = restored;
     initBroadcastMode();

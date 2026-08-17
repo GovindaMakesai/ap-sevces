@@ -56,16 +56,42 @@
     } catch (_e) {}
   }
 
-  function getLiveOverlayMount() {
-    const shell =
+  function getLiveShell() {
+    return (
       document.getElementById('liveRoomRoot') ||
-      document.querySelector('.party-room');
+      document.querySelector('.party-room') ||
+      null
+    );
+  }
+
+  /** Video layer mount — sibling before .live-overlay, not inside flex overlay column */
+  function getAnimMountParent() {
+    const shell = getLiveShell();
+    return shell || document.body;
+  }
+
+  function getNotifyMount() {
+    const shell = getLiveShell();
     if (!shell) return document.body;
     return (
       shell.querySelector('.live-overlay') ||
       shell.querySelector('.party-room-body') ||
       shell
     );
+  }
+
+  function insertAnimOverlay(el) {
+    const shell = getLiveShell();
+    if (!shell) {
+      document.body.appendChild(el);
+      return;
+    }
+    const uiLayer = shell.querySelector('.live-overlay') || shell.querySelector('.party-room-body');
+    if (uiLayer && uiLayer.parentElement === shell) {
+      shell.insertBefore(el, uiLayer);
+    } else {
+      shell.appendChild(el);
+    }
   }
 
   function pruneProcessed(now = Date.now()) {
@@ -80,10 +106,34 @@
     return s.replace(/^(gift-|evt-)/i, '');
   }
 
+  function slugFromNameCost(name, cost) {
+    const base = String(name || 'gift')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_|_$/g, '');
+    const n = Number(cost || 0);
+    return n > 0 ? `${base}_${n}` : base;
+  }
+
   function giftSlug(gift) {
-    return String(
+    const direct = String(
       gift?.giftSlug || gift?.giftType || gift?.gift_type || gift?.gift_type_slug || ''
     ).trim();
+    if (direct) return direct;
+    const name = gift?.giftName || gift?.name;
+    const cost = gift?.amount || gift?.coins || gift?.coin_amount;
+    if (name && cost) return slugFromNameCost(name, cost);
+    return '';
+  }
+
+  function lookupAnimation(slug, gift) {
+    if (slug && MAP[slug]?.animationUrl) return MAP[slug];
+    const derived = slugFromNameCost(
+      gift?.giftName || gift?.name,
+      gift?.amount || gift?.coins || gift?.coin_amount
+    );
+    if (derived && MAP[derived]?.animationUrl) return MAP[derived];
+    return null;
   }
 
   function transactionId(gift) {
@@ -93,7 +143,7 @@
   function resolveMeta(gift) {
     const slug = giftSlug(gift);
     const catalog = CATALOG[slug] || {};
-    const mapped = MAP[slug];
+    const mapped = lookupAnimation(slug, gift) || MAP[slug];
     const name =
       gift?.giftName ||
       gift?.name ||
@@ -121,7 +171,7 @@
 
   function hasAnimationForGift(gift) {
     const slug = giftSlug(gift);
-    return slug && MAP[slug]?.animationUrl;
+    return Boolean(lookupAnimation(slug, gift)?.animationUrl);
   }
 
   function claimTransaction(gift) {
@@ -138,11 +188,9 @@
   }
 
   function ensureAnimRoot() {
-    const mount = getLiveOverlayMount();
     if (rootEl) {
-      if (rootEl.parentElement !== mount) {
-        mount.insertBefore(rootEl, mount.firstChild || null);
-      }
+      const parent = getAnimMountParent();
+      if (rootEl.parentElement !== parent) insertAnimOverlay(rootEl);
       return rootEl;
     }
     rootEl = document.createElement('div');
@@ -150,13 +198,13 @@
     rootEl.setAttribute('aria-hidden', 'true');
     rootEl.classList.add('ap-gift-anim-in-room');
     if (isDebugMode()) rootEl.classList.add('is-debug');
-    mount.insertBefore(rootEl, mount.firstChild || null);
-    debugLog('overlay mounted in live shell', mount.className || mount.id || 'body');
+    insertAnimOverlay(rootEl);
+    debugLog('overlay mounted on video shell', rootEl.parentElement?.id || rootEl.parentElement?.className || 'body');
     return rootEl;
   }
 
   function ensureNotifyRoot() {
-    const mount = getLiveOverlayMount();
+    const mount = getNotifyMount();
     if (notifyRoot) {
       if (notifyRoot.parentElement !== mount) {
         mount.appendChild(notifyRoot);
