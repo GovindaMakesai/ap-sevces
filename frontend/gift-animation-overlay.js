@@ -13,7 +13,10 @@
   const MAX_QUEUE = Number(cfg.MAX_QUEUE_SIZE || 8);
   const ANIM1_URL =
     cfg.ANIM1_TEST_URL ||
+    cfg.ANIM_URLS?.anim1 ||
     'https://animstream.com/embed/cmsx8mxo8aj0q01tjgn9ffq2r?loop=1';
+  const TEST_ANIMATIONS = Array.isArray(cfg.TEST_ANIMATIONS) ? cfg.TEST_ANIMATIONS : [];
+  let testAnimIndex = 0;
 
   const processedGiftEvents = new Map();
   const PROCESSED_TTL_MS = 120000;
@@ -401,22 +404,36 @@
   }
 
   function testAnimation1() {
+    const preset =
+      TEST_ANIMATIONS[testAnimIndex] ||
+      TEST_ANIMATIONS[0] ||
+      CATALOG.imperial_bloom_10000 ||
+      {};
+    testAnimIndex = TEST_ANIMATIONS.length
+      ? (testAnimIndex + 1) % TEST_ANIMATIONS.length
+      : 0;
+    const slug = preset.slug || 'imperial_bloom_10000';
+    const name = preset.name || 'Imperial Bloom';
+    const cost = Number(preset.cost || 10000);
+    const emoji = preset.emoji || '\u{1F33A}';
+    const animationUrl = preset.animationUrl || ANIM1_URL;
     const meta = {
-      slug: 'imperial_bloom_10000',
-      name: 'Imperial Bloom',
-      emoji: '\u{1F33A}',
+      slug,
+      name,
+      emoji,
       qty: 1,
-      unitCost: 10000,
-      charged: 10000,
-      animationUrl: ANIM1_URL,
+      unitCost: cost,
+      charged: cost,
+      animationUrl,
       durationMs: DEFAULT_DURATION,
+      label: preset.label || '',
     };
     const gift = {
       from: 'DEBUG',
-      giftSlug: 'imperial_bloom_10000',
-      giftName: 'Imperial Bloom',
-      amount: 10000,
-      emoji: '\u{1F33A}',
+      giftSlug: slug,
+      giftName: name,
+      amount: cost,
+      emoji,
     };
     queue.length = 0;
     if (playing) hideAnimation('test-restart');
@@ -429,7 +446,7 @@
     const btn = document.createElement('button');
     btn.id = 'apGiftAnimTestBtn';
     btn.type = 'button';
-    btn.textContent = 'TEST ANIMSTREAM';
+    btn.textContent = TEST_ANIMATIONS.length > 1 ? 'TEST ANIM (6 gifts)' : 'TEST ANIMSTREAM';
     btn.className = 'ap-gift-anim-test-btn';
     btn.addEventListener('click', (e) => {
       e.preventDefault();
