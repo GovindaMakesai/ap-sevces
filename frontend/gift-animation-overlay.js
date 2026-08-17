@@ -66,12 +66,35 @@
     return false;
   }
 
+  function getMountEl() {
+    return (
+      document.getElementById('liveRoomRoot') ||
+      document.querySelector('.party-room') ||
+      document.body
+    );
+  }
+
   function ensureRoot() {
-    if (rootEl) return rootEl;
+    const mount = getMountEl();
+    if (rootEl) {
+      if (rootEl.parentElement !== mount) {
+        mount.appendChild(rootEl);
+      }
+      return rootEl;
+    }
     rootEl = document.createElement('div');
     rootEl.id = 'apGiftAnimOverlay';
     rootEl.setAttribute('aria-hidden', 'true');
-    document.body.appendChild(rootEl);
+    if (mount.id === 'liveRoomRoot' || mount.classList?.contains('party-room')) {
+      rootEl.classList.add('ap-gift-anim-in-room');
+    }
+    /* Above Agora video layers, below live-overlay chat + controls (z-index 12) */
+    const overlay = mount.querySelector('.live-overlay');
+    if (overlay) {
+      mount.insertBefore(rootEl, overlay);
+    } else {
+      mount.appendChild(rootEl);
+    }
     return rootEl;
   }
 
@@ -117,12 +140,16 @@
     playing = true;
     log('animation mounted');
 
+    const stageEl = document.createElement('div');
+    stageEl.className = 'ap-gift-anim-stage';
+
     frameEl = document.createElement('iframe');
     frameEl.className = 'ap-gift-anim-frame';
     frameEl.setAttribute('title', 'Gift animation');
     frameEl.setAttribute('loading', 'eager');
     frameEl.setAttribute('allow', 'autoplay; fullscreen');
     frameEl.setAttribute('referrerpolicy', 'no-referrer');
+    frameEl.setAttribute('scrolling', 'no');
 
     frameEl.addEventListener('error', () => {
       log('WebView/embed failed to load');
@@ -130,7 +157,8 @@
       if (meta?.onFinished) meta.onFinished();
     });
 
-    rootEl.appendChild(frameEl);
+    stageEl.appendChild(frameEl);
+    rootEl.appendChild(stageEl);
     rootEl.classList.add('is-visible');
     rootEl.setAttribute('aria-hidden', 'false');
 

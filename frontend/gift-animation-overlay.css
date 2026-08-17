@@ -1,17 +1,29 @@
-/* AnimStream gift overlay — non-interactive, above Agora video */
+/* AnimStream gift overlay — cinematic layer over live video, not a PIP cam window */
+#liveRoomRoot #apGiftAnimOverlay,
+.party-room #apGiftAnimOverlay,
 #apGiftAnimOverlay {
-  position: fixed;
-  left: 50%;
-  top: 26%;
-  transform: translateX(-50%);
-  width: min(92vw, 420px);
-  height: min(48vh, 360px);
-  z-index: 12050;
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 52px);
+  left: 0;
+  right: 0;
+  bottom: calc(var(--ap-bottom-bar-h, 58px) + env(safe-area-inset-bottom, 0px) + 72px);
+  z-index: 11;
   pointer-events: none;
   opacity: 0;
   visibility: hidden;
-  transition: opacity 0.25s ease;
+  transition: opacity 0.3s ease;
   background: transparent;
+  overflow: hidden;
+}
+
+/* Fallback when not inside live shell */
+body > #apGiftAnimOverlay:not(.ap-gift-anim-in-room) {
+  position: fixed;
+  top: 12%;
+  left: 0;
+  right: 0;
+  bottom: 22%;
+  z-index: 12050;
 }
 
 #apGiftAnimOverlay.is-visible {
@@ -19,10 +31,24 @@
   visibility: visible;
 }
 
-#apGiftAnimOverlay .ap-gift-anim-frame {
+#apGiftAnimOverlay .ap-gift-anim-stage {
   width: 100%;
   height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+#apGiftAnimOverlay .ap-gift-anim-frame {
+  width: 130%;
+  height: 130%;
+  min-width: 100%;
+  min-height: 100%;
   border: none;
   background: transparent;
   pointer-events: none;
+  transform: scale(1.35);
+  transform-origin: center center;
 }
