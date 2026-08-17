@@ -34,7 +34,9 @@
     return `${base}_${item?.cost || 0}`;
   }
   Object.keys(GIFT_CATALOG).forEach((cat) => {
-    GIFT_CATALOG[cat] = (GIFT_CATALOG[cat] || []).map((g) => ({ ...g, slug: giftSlugFor(g) }));
+    GIFT_CATALOG[cat] = capGiftList(
+      (GIFT_CATALOG[cat] || []).map((g) => ({ ...g, slug: giftSlugFor(g) }))
+    );
   });
 
   const QUICK_CHIP_DEFS = _liveEmoji.QUICK_CHIP_DEFS || [
@@ -102,6 +104,17 @@
   let sessionGiftCoins = 0;
   let userXpProgress = 0;
   const GIFT_OPTIONS = GIFT_CATALOG.gift;
+
+  /** Max single gift charge (catalog + send validation) */
+  const MAX_GIFT_COINS = 10000000;
+
+  function withinGiftCoinCap(g) {
+    return Number(g?.cost || 0) <= MAX_GIFT_COINS;
+  }
+
+  function capGiftList(list) {
+    return (list || []).filter(withinGiftCoinCap);
+  }
 
   let giftCategory = 'animated';
   let giftQty = 1;
@@ -209,19 +222,20 @@
         slug: b.slug,
         tag: 'FX',
       };
-    });
+    }).filter(withinGiftCoinCap);
   }
 
   function giftsForCategory(cat) {
     if (cat === 'animated') return giftsForAnimatedTab();
-    if (cat === 'recent') return readGiftMemory('recent');
-    if (cat === 'favorites') return readGiftMemory('fav');
+    if (cat === 'recent') return capGiftList(readGiftMemory('recent'));
+    if (cat === 'favorites') return capGiftList(readGiftMemory('fav'));
     if (cat === 'popular' || cat === 'gift' || cat === 'trending' || cat === 'new') {
       /* Everyday gifts only — avoid rendering 90+ cards on Popular */
-      return sortGiftsCheapFirst(GIFT_CATALOG.gift || []);
+      return capGiftList(sortGiftsCheapFirst(GIFT_CATALOG.gift || []));
     }
     if (cat === 'premium') {
-      return sortGiftsCheapFirst([
+      return capGiftList(
+        sortGiftsCheapFirst([
         ...(GIFT_CATALOG.gift || []).filter((g) => Number(g.cost) >= 3000),
         ...(GIFT_CATALOG.flowers || []).filter((g) => Number(g.cost) >= 3000),
         ...(GIFT_CATALOG.lucky || []).filter((g) => Number(g.cost) >= 3000),
@@ -230,30 +244,35 @@
           return c >= 3000 && c < 1000000;
         }),
         ...(GIFT_CATALOG.jewelry || []).filter((g) => Number(g.cost) < 1000000),
-      ]);
+        ])
+      );
     }
     if (cat === 'vip' || cat === 'privilege') {
-      return sortGiftsCheapFirst([
+      return capGiftList(
+        sortGiftsCheapFirst([
         ...(GIFT_CATALOG.privilege || []),
         ...(GIFT_CATALOG.jewelry || []).filter((g) => Number(g.cost) >= 100000),
         ...(GIFT_CATALOG.cars || []),
         ...(GIFT_CATALOG.fantasy || []),
         ...(GIFT_CATALOG.cosmic || []),
         ...(GIFT_CATALOG.lifestyle || []),
-      ]);
+        ])
+      );
     }
-    if (cat === 'island') return sortGiftsCheapFirst(GIFT_CATALOG.lifestyle || GIFT_CATALOG.gift || []);
+    if (cat === 'island') return capGiftList(sortGiftsCheapFirst(GIFT_CATALOG.lifestyle || GIFT_CATALOG.gift || []));
     if (cat === 'cars') {
-      return sortGiftsCheapFirst([
+      return capGiftList(
+        sortGiftsCheapFirst([
         ...(GIFT_CATALOG.cars || []),
         ...(GIFT_CATALOG.lifestyle || []),
         ...(GIFT_CATALOG.animals || []),
         ...(GIFT_CATALOG.fantasy || []),
         ...(GIFT_CATALOG.cosmic || []),
         ...(GIFT_CATALOG.jewelry || []),
-      ]);
+        ])
+      );
     }
-    return sortGiftsCheapFirst(GIFT_CATALOG[cat] || GIFT_CATALOG.gift || []);
+    return capGiftList(sortGiftsCheapFirst(GIFT_CATALOG[cat] || GIFT_CATALOG.gift || []));
   }
 
   let liveSocket = null;
@@ -15837,34 +15856,17 @@
     }
     if (!items.length) {
       grid.innerHTML = `<div class="gift-grid-empty">No gifts in this collection yet</div>`;
-      grid.classList.remove('is-heavy');
       updateGiftMeta();
       return;
     }
-    const useLuxCard = giftCategory === 'animated' || items.length <= 16;
-    grid.classList.toggle('is-heavy', items.length > 20);
     if (selectedGiftIdx >= items.length) selectedGiftIdx = 0;
     grid.innerHTML = items
       .map((g, i) => {
-        const tier = window.SocialFX?.getGiftTier?.(g) || (Number(g.cost) >= 100000 ? 'vip' : Number(g.cost) >= 3000 ? 'medium' : 'small');
         const cost = Number(g.cost) || 0;
         const selected = i === selectedGiftIdx ? 'is-selected' : '';
         const slug = escapeAttr(g.slug || giftSlugFor(g));
-        if (useLuxCard) {
-          return `
-      <button type="button" data-gift-idx="${i}" data-gift="${g.emoji}" data-cost="${cost}" data-tier="${tier}" data-slug="${slug}" class="gift-card gift-card--alive ${selected}">
-        <span class="gift-card-glow" aria-hidden="true"></span>
-        <span class="gift-card-shine" aria-hidden="true"></span>
-        <span class="gift-card-sparkles" aria-hidden="true"><i></i><i></i><i></i></span>
-        <span class="gift-card-rim" aria-hidden="true"></span>
-        <span class="g">${g.emoji}</span>
-        <span class="gift-name">${escapeHtml(g.name || 'Gift')}</span>
-        ${g.tag ? `<span class="gift-tag">${escapeHtml(g.tag)}</span>` : ''}
-        <span class="gift-coin-cost" aria-label="${formatGiftCoinPrice(cost)}">${formatGiftCoinPrice(cost)}</span>
-      </button>`;
-        }
         return `
-      <button type="button" data-gift-idx="${i}" data-gift="${g.emoji}" data-cost="${cost}" data-tier="${tier}" data-slug="${slug}" class="gift-card gift-card--lite ${selected}">
+      <button type="button" data-gift-idx="${i}" data-gift="${g.emoji}" data-cost="${cost}" data-slug="${slug}" class="gift-card gift-card--lite ${selected}">
         <span class="g">${g.emoji}</span>
         <span class="gift-name">${escapeHtml(g.name || 'Gift')}</span>
         ${g.tag ? `<span class="gift-tag">${escapeHtml(g.tag)}</span>` : ''}
@@ -16606,7 +16608,17 @@
       return;
     }
     const unitCost = parseInt(g.cost, 10) || 10;
+    if (unitCost > MAX_GIFT_COINS) {
+      setGiftSendError('Maximum gift is 10,000,000 coins');
+      toast('Maximum gift is 10,000,000 coins', 'warning');
+      return;
+    }
     const cost = unitCost * giftQty;
+    if (cost > MAX_GIFT_COINS) {
+      setGiftSendError('Reduce quantity — max 10,000,000 coins per send');
+      toast('Max 10,000,000 coins per gift send', 'warning');
+      return;
+    }
     const sendAll = document.getElementById('giftSendAll')?.checked;
     const recipients = getActiveGiftRecipients();
     if (!recipients.length) {

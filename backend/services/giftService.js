@@ -96,6 +96,9 @@ async function sendGift({
   toName = null,
 }) {
   const amount = BigInt(await resolveGiftAmount(giftType, coinAmount, qty));
+  if (Number(amount) > 10000000) {
+    throw new Error('Maximum gift is 10,000,000 coins');
+  }
   if (String(senderId) === String(receiverId)) throw new Error('Cannot gift yourself');
 
   await fraudService.checkGiftAbuse(senderId, Number(amount));

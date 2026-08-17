@@ -10248,9 +10248,14 @@ html.ap-expo-app .ap-chip {
 }
 
 .gift-grid button.gift-card--lite {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  min-height: 88px;
+  content-visibility: auto;
+  contain-intrinsic-size: 88px 96px;
+  animation: none !important;
+}
+
+.gift-grid button.gift-card--lite .g {
+  filter: none !important;
+  text-shadow: none !important;
 }
 
 .gift-grid.is-heavy .gift-card--alive,
@@ -10266,32 +10271,36 @@ html.ap-expo-app .ap-chip {
 .gift-sheet--lux .gift-grid button.gift-card {
   position: relative;
   border-radius: 14px;
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.03));
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   overflow: hidden;
-  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  animation: none !important;
+}
+
+.gift-sheet--lux .gift-grid .gift-card-glow,
+.gift-sheet--lux .gift-grid .gift-card-shine,
+.gift-sheet--lux .gift-grid .gift-card-sparkles,
+.gift-sheet--lux .gift-grid .gift-card-rim {
+  display: none !important;
 }
 
 .gift-sheet--lux .gift-grid button.gift-card .gift-card-glow {
-  position: absolute;
-  inset: auto -20% -40% -20%;
-  height: 70%;
-  background: radial-gradient(circle, rgba(251, 191, 36, 0.22), transparent 70%);
-  pointer-events: none;
-  opacity: 0.55;
+  display: none !important;
 }
 
 .gift-sheet--lux .gift-grid button.gift-card .g {
-  font-size: 32px;
-  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.4));
+  font-size: 30px;
+  filter: none;
   position: relative;
   z-index: 1;
 }
 
 .gift-sheet--lux .gift-grid button.gift-card.is-selected {
-  border-color: rgba(251, 191, 36, 0.7);
-  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.35), 0 8px 24px rgba(251, 191, 36, 0.18);
-  transform: translateY(-2px);
+  border-color: rgba(251, 191, 36, 0.65);
+  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.25);
+  transform: none;
+  background: rgba(251, 191, 36, 0.12);
 }
 
 .gift-sheet--lux .gift-grid button.gift-card .gift-fav-btn {

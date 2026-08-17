@@ -88,7 +88,6 @@
         { emoji: '\u{1F3D9}\uFE0F', name: 'Penthouse', cost: 1000000, tag: 'Legend' },
         { emoji: '\u{1F3F0}', name: 'Imperial Castle', cost: 5000000, tag: 'Legend' },
         { emoji: '\u{1F451}', name: 'King Throne', cost: 10000000, tag: 'Legend' },
-        { emoji: '\u{1F48E}', name: 'Diamond Kingdom', cost: 25000000, tag: 'Mythic' },
       ],
       animals: [
         { emoji: '\u{1F405}', name: 'White Tiger', cost: 100000, tag: 'VIP' },
@@ -116,8 +115,6 @@
         { emoji: '\u{1F409}', name: 'Golden Dragon', cost: 1000000, tag: 'Legend' },
         { emoji: '\u{1F6A2}', name: 'Yacht Voyage', cost: 2500000, tag: 'Legend' },
         { emoji: '\u{1F3F0}', name: 'Crystal Palace', cost: 10000000, tag: 'Mythic' },
-        { emoji: '\u{1F30C}', name: 'Romantic Nebula', cost: 50000000, tag: 'Mythic' },
-        { emoji: '\u{1F48E}', name: 'Eternal Empire', cost: 100000000, tag: 'Mythic' },
       ],
     },
     EMOJI_PICKS: [

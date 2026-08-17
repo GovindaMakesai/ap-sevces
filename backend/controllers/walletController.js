@@ -321,6 +321,10 @@ exports.sendGift = async (req, res) => {
     if (!coins || coins <= 0) {
       return res.status(400).json({ success: false, message: 'coin_amount must be positive' });
     }
+    const MAX_GIFT_COINS = 10000000;
+    if (coins > MAX_GIFT_COINS) {
+      return res.status(400).json({ success: false, message: 'Maximum gift is 10,000,000 coins' });
+    }
 
     const result = await giftService.sendGift({
       senderId: req.userId,

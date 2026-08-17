@@ -920,6 +920,12 @@ function registerLiveSocket(io) {
           safeAck(ack, answeredRef, { ok: false, message: 'Invalid gift amount' });
           return;
         }
+        const MAX_GIFT_COINS = 10000000;
+        if (coinAmount > MAX_GIFT_COINS) {
+          clearTimeout(giftTimer);
+          safeAck(ack, answeredRef, { ok: false, message: 'Maximum gift is 10,000,000 coins' });
+          return;
+        }
 
         let receiverId = String(payload?.toUserId || '').trim();
         const senderId = String(socket.userId);
