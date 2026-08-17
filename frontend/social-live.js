@@ -33,6 +33,18 @@
       .replace(/^_|_$/g, '');
     return `${base}_${item?.cost || 0}`;
   }
+
+  /** Max single gift charge (catalog + send validation) */
+  const MAX_GIFT_COINS = 10000000;
+
+  function withinGiftCoinCap(g) {
+    return Number(g?.cost || 0) <= MAX_GIFT_COINS;
+  }
+
+  function capGiftList(list) {
+    return (list || []).filter(withinGiftCoinCap);
+  }
+
   Object.keys(GIFT_CATALOG).forEach((cat) => {
     GIFT_CATALOG[cat] = capGiftList(
       (GIFT_CATALOG[cat] || []).map((g) => ({ ...g, slug: giftSlugFor(g) }))
@@ -104,17 +116,6 @@
   let sessionGiftCoins = 0;
   let userXpProgress = 0;
   const GIFT_OPTIONS = GIFT_CATALOG.gift;
-
-  /** Max single gift charge (catalog + send validation) */
-  const MAX_GIFT_COINS = 10000000;
-
-  function withinGiftCoinCap(g) {
-    return Number(g?.cost || 0) <= MAX_GIFT_COINS;
-  }
-
-  function capGiftList(list) {
-    return (list || []).filter(withinGiftCoinCap);
-  }
 
   let giftCategory = 'animated';
   let giftQty = 1;
