@@ -1,24 +1,11 @@
-/* AnimStream gift layer — full bleed over live video, below gift sheet (32000) */
-#liveRoomRoot > #apGiftAnimOverlay,
-.party-room > #apGiftAnimOverlay,
-#apGiftAnimOverlay.ap-gift-anim-in-shell {
-  position: absolute !important;
-  inset: 0 !important;
-  width: 100% !important;
-  height: 100% !important;
-  z-index: 8 !important;
-  pointer-events: none;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.25s ease;
-  background: transparent !important;
-  overflow: hidden;
-  isolation: isolate;
-}
-
-body > #apGiftAnimOverlay:not(.ap-gift-anim-in-shell) {
+/* AnimStream gift layer — fixed on body, above live UI, below gift sheet (32000) */
+body > #apGiftAnimOverlay,
+#apGiftAnimOverlay {
   position: fixed !important;
-  inset: 0 !important;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--ap-bottom-bar-h, 58px) + env(safe-area-inset-bottom, 0px));
   z-index: 20000 !important;
   pointer-events: none;
   opacity: 0;
@@ -41,32 +28,23 @@ body > #apGiftAnimOverlay:not(.ap-gift-anim-in-shell) {
 
 #apGiftAnimOverlay .ap-gift-anim-stage {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  transform: none;
-  max-width: none;
-  max-height: none;
-  min-height: 0;
-  display: block;
-  overflow: hidden;
+  top: 16%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(94vw, 480px);
+  height: min(58vh, 480px);
+  min-height: 240px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   pointer-events: none;
   background: transparent !important;
 }
 
 #apGiftAnimOverlay .ap-gift-anim-frame {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 100%;
-  height: 100%;
-  min-width: 100%;
-  min-height: 100%;
-  max-width: none;
-  max-height: none;
-  transform: translate(-50%, -50%);
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 220px;
   border: none !important;
   background: transparent !important;
   pointer-events: none;
