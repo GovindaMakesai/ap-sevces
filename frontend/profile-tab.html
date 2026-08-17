@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="social-features.css?v=20260729-instant">
   <link rel="stylesheet" href="cp-rings.css?v=20260814-ring3d">
   <link rel="stylesheet" href="cp-profile-card.css?v=20260814-cpprofile2">
-  <link rel="stylesheet" href="profile-badges.css?v=20260816-svip-fix">
+  <link rel="stylesheet" href="profile-badges.css?v=20260817-profile-fix">
   <style>
     html .social-profile-hero,
     html .social-menu-list { opacity: 1; }
@@ -117,6 +117,9 @@
       padding: 0 8px;
       box-sizing: border-box;
       min-height: 26px;
+    }
+    #profileBadgeRow[hidden] {
+      display: none !important;
     }
     #profileCpMount:not([hidden]) {
       display: block !important;
@@ -308,7 +311,7 @@
     <a href="/cp-home.html?app=1" class="social-menu-item"><i class="fas fa-heart" style="color:#ec4899"></i><span>CP House</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/cp-rankings.html?app=1" class="social-menu-item"><i class="fas fa-trophy" style="color:#db2777"></i><span>CP Rankings</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/levels.html?app=1" class="social-menu-item"><i class="fas fa-shield-alt" style="color:#374151"></i><span>Level</span><i class="fas fa-chevron-right chevron"></i></a>
-    <a href="/visitors.html?app=1" class="social-menu-item"><i class="fas fa-eye" style="color:#111827"></i><span>Visitors</span><i class="fas fa-chevron-right chevron"></i></a>
+    <a href="/visitors.html?app=1" class="social-menu-item" id="visitorsMenuLink"><i class="fas fa-eye" style="color:#111827"></i><span>Visitors</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/vip.html" class="social-menu-item"><i class="fas fa-crown"></i><span>VIP Privileges</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/svip.html?app=1" class="social-menu-item"><i class="fas fa-gem" style="color:#a855f7"></i><span>AP SVIP</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/rankings.html" class="social-menu-item"><i class="fas fa-trophy"></i><span>Rankings</span><i class="fas fa-chevron-right chevron"></i></a>
@@ -324,11 +327,11 @@
   <script src="app.js?v=20260729-perf2"></script>
   <script src="social-wallet.js?v=20260715-wallet-fix"></script>
   <script src="social-ui.js?v=20260624-profile-url-fix"></script>
-  <script src="social-interactions.js?v=20260624-profile-url-fix"></script>
+  <script src="social-interactions.js?v=20260817-profile-fix"></script>
   <script src="ap-soft-nav.js?v=20260730-fastnav4"></script>
   <script src="cp-rings.js?v=20260814-ring3d"></script>
   <script src="cp-profile-card.js?v=20260816-cpfix"></script>
-  <script src="profile-badges.js?v=20260816-svip-fix"></script>
+  <script src="profile-badges.js?v=20260817-profile-fix"></script>
   <script src="social-shell.js?v=20260730-fastnav4"></script>
   <script src="referral-hook.js?v=20260723-invite-on"></script>
   <script>
@@ -1089,6 +1092,16 @@
           e.stopPropagation();
           const rows = await (SocialInteractions.fetchFollowersList?.(user.id) || Promise.resolve(SocialInteractions.getFollowersList(user.id)));
           SocialUI.openFollowSheet('followers', rows);
+        });
+        document.getElementById('visitorsMenuLink')?.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const dest = '/visitors.html?app=1';
+          if (window.ApSoftNav?.go) {
+            ApSoftNav.go(dest);
+            return;
+          }
+          window.location.assign(dest);
         });
         /* Open Dashboard / My Dashboard removed from profile for social app */
         if (btn) btn.style.display = 'none';

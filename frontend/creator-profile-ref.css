@@ -293,11 +293,19 @@ body.creator-profile-ref {
 }
 
 .cp-ref-online {
-  display: inline-flex;
   align-items: center;
   gap: 5px;
   color: #4ade80;
   font-weight: 700;
+}
+
+.cp-ref-online:not([hidden]) {
+  display: inline-flex;
+}
+
+.cp-ref-online[hidden],
+#cpRefOnline[hidden] {
+  display: none !important;
 }
 
 .cp-ref-online i {
@@ -384,6 +392,21 @@ body.creator-profile-ref {
 .cp-ref-stat span {
   font-size: 11px;
   color: var(--cp-ref-muted);
+}
+
+.cp-ref-stat-btn {
+  border: 0;
+  background: transparent;
+  padding: 4px 2px;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  text-align: center;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.cp-ref-stat-btn:active {
+  opacity: 0.72;
 }
 
 .cp-ref-supporter-link {

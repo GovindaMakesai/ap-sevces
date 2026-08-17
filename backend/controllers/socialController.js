@@ -65,6 +65,12 @@ async function myFollowing(req, res) {
   res.json({ success: true, data });
 }
 
+async function userFollowing(req, res) {
+  const userId = req.params.userId || uid(req);
+  const data = await followService.getFollowing(userId, parseInt(req.query.limit, 10) || 50);
+  res.json({ success: true, data });
+}
+
 async function userFollowers(req, res) {
   const userId = req.params.userId || uid(req);
   const data = await followService.getFollowers(userId, parseInt(req.query.limit, 10) || 50);
@@ -591,6 +597,7 @@ module.exports = {
   blockStatus,
   myBlocked,
   myFollowing,
+  userFollowing,
   userFollowers,
   followStats,
   liveFollowing,

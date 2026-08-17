@@ -1275,6 +1275,31 @@
     };
   }
 
+  async function fetchUserFollowingList(userId) {
+    const uid = String(userId || window.Auth?.getUser?.()?.id || '').trim();
+    if (!hasAuth() || !isUuid(uid)) {
+      return fetchFollowingList().catch(() => getFollowingList().map(mapFollowEntry));
+    }
+    try {
+      await ensureFollowAuth();
+      const res = await apiSocial('GET', `/social/following/${encodeURIComponent(uid)}?limit=200`);
+      const rows = Array.isArray(res?.data) ? res.data : [];
+      return rows.map((u) => ({
+        key: String(u.id),
+        id: String(u.id),
+        name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'User',
+        photo: u.profile_pic || null,
+        userId: String(u.id),
+      }));
+    } catch (e) {
+      console.warn('SocialInteractions: user following API', e);
+      if (String(uid) === String(window.Auth?.getUser?.()?.id || '')) {
+        return fetchFollowingList();
+      }
+      return [];
+    }
+  }
+
   async function fetchFollowersList(userId) {
     const uid = String(userId || window.Auth?.getUser?.()?.id || '').trim();
     if (!hasAuth() || !isUuid(uid)) return getFollowersList(uid);
@@ -3650,6 +3675,7 @@
     getFollowStats,
     getFollowingList,
     fetchFollowingList,
+    fetchUserFollowingList,
     fetchFollowersList,
     getFollowersList,
     toggleFollow,

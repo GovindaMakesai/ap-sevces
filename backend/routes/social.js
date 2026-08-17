@@ -34,6 +34,7 @@ router.get('/block/:userId/status', social.blockStatus);
 router.get('/blocks', social.myBlocked);
 router.get('/following', social.myFollowing);
 router.get('/following/live', social.liveFollowing);
+router.get('/following/:userId', social.userFollowing);
 router.get('/followers', social.userFollowers);
 router.get('/followers/:userId', social.userFollowers);
 router.get('/stats', social.followStats);

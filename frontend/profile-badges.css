@@ -56,6 +56,12 @@
   border-color: rgba(245, 158, 11, 0.55);
 }
 
+.profile-badge-row[hidden],
+.profile-status-badges[hidden],
+#profileBadgeRow[hidden] {
+  display: none !important;
+}
+
 .profile-status-badges,
 .party-host-badges,
 .profile-badge-row {

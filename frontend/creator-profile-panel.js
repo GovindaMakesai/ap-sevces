@@ -133,7 +133,7 @@
         esc(name) +
         '</span><span class="cp-ref-verified" id="cpRefVerified" hidden><i class="fas fa-check-circle"></i></span></div>' +
         '<div class="cp-ref-online-row">' +
-        '<span class="cp-ref-online" id="cpRefOnline" hidden><i></i> Online</span>' +
+        '<span class="cp-ref-online" id="cpRefOnline" hidden><i></i> Live</span>' +
         '<span class="cp-ref-id">ID:<strong id="cpRefDisplayId">—</strong>' +
         '<button type="button" class="cp-ref-copy" id="cpRefCopyId" aria-label="Copy ID"><i class="far fa-copy"></i></button></span>' +
         '</div>' +
@@ -222,6 +222,51 @@
           window.SocialUI?.toast?.('User ID copied');
         } catch (_e) {
           alert('ID: ' + id);
+        }
+      });
+
+      this.bindStatsActions();
+    },
+
+    bindStatsActions() {
+      const el = document.getElementById('cpRefStats');
+      if (!el || el.dataset.statsBound) return;
+      el.dataset.statsBound = '1';
+      el.addEventListener('click', async (e) => {
+        const btn = e.target.closest('[data-stat-action]');
+        if (!btn) return;
+        e.preventDefault();
+        const action = btn.getAttribute('data-stat-action');
+        const uid = this.state.userId;
+        if (!uid) return;
+
+        if (action === 'visitors') {
+          if (!this.state.isSelf) return;
+          location.href = '/visitors.html?app=1';
+          return;
+        }
+
+        if (!window.SocialUI?.openFollowSheet) {
+          window.SocialUI?.toast?.('Please wait and try again', 'warning');
+          return;
+        }
+
+        if (action === 'followers') {
+          const rows = await (window.SocialInteractions?.fetchFollowersList?.(uid) ||
+            Promise.resolve(window.SocialInteractions?.getFollowersList?.(uid) || []));
+          SocialUI.openFollowSheet('followers', rows || []);
+          return;
+        }
+
+        if (action === 'following') {
+          let rows = [];
+          if (this.state.isSelf) {
+            rows = await (window.SocialInteractions?.fetchFollowingList?.() ||
+              Promise.resolve(window.SocialInteractions?.getFollowingList?.() || []));
+          } else if (window.SocialInteractions?.fetchUserFollowingList) {
+            rows = await window.SocialInteractions.fetchUserFollowingList(uid);
+          }
+          SocialUI.openFollowSheet('following', rows || []);
         }
       });
     },
@@ -550,8 +595,15 @@
 
       const badges = panel?.badges || engagement?.badges || engagement;
       const statusEl = document.getElementById('cpRefStatusBadges');
-      if (statusEl && window.ProfileBadges?.paintBadges) {
-        window.ProfileBadges.paintBadges(statusEl, badges, { link: true, hideLevel: true });
+      if (statusEl && window.ProfileBadges) {
+        const badgeHtml = ProfileBadges.formatLiveProfileBadgesHtml
+          ? ProfileBadges.formatLiveProfileBadgesHtml(badges, { link: true })
+          : '';
+        if (badgeHtml) {
+          ProfileBadges.applyBadgeHtml(statusEl, badgeHtml);
+        } else if (this.state.userId) {
+          ProfileBadges.fetchAndPaintLiveHost?.(statusEl, this.state.userId, { link: true });
+        }
       }
 
       const completion = panel?.profileCompletion;
@@ -616,19 +668,23 @@
       const following = engagement?.following ?? panel?.following ?? 0;
       const followers = engagement?.followers ?? panel?.followers ?? 0;
       const visitors = panel?.visitorCount ?? 0;
+      const visitorCell = this.state.isSelf
+        ? '<button type="button" class="cp-ref-stat cp-ref-stat-btn" data-stat-action="visitors"><strong>' +
+          fmt(visitors) +
+          '</strong><span>Visitor</span></button>'
+        : '<div class="cp-ref-stat"><strong>' + fmt(visitors) + '</strong><span>Visitor</span></div>';
+
       el.innerHTML =
         '<div class="cp-ref-stat"><strong>' +
         fmt(friends) +
         '</strong><span>Friends</span></div>' +
-        '<div class="cp-ref-stat"><strong>' +
+        '<button type="button" class="cp-ref-stat cp-ref-stat-btn" data-stat-action="following"><strong>' +
         fmt(following) +
-        '</strong><span>Following</span></div>' +
-        '<div class="cp-ref-stat"><strong>' +
+        '</strong><span>Following</span></button>' +
+        '<button type="button" class="cp-ref-stat cp-ref-stat-btn" data-stat-action="followers"><strong>' +
         fmt(followers) +
-        '</strong><span>Followers</span></div>' +
-        '<div class="cp-ref-stat"><strong>' +
-        fmt(visitors) +
-        '</strong><span>Visitor</span></div>';
+        '</strong><span>Followers</span></button>' +
+        visitorCell;
     },
 
     paintMedals(panel) {
