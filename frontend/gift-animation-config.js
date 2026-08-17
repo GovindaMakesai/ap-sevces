@@ -1,50 +1,40 @@
 /**
- * AnimStream gift animation mapping — presentation only (not used for coin logic).
- * Gift IDs are catalog slugs from live-emoji-data.js (giftSlugFor).
+ * AnimStream gift animation — single test mapping (Imperial Bloom 10k).
+ * Presentation only; not used for coin deduction.
  */
 (function (g) {
-  const ANIM_URLS = [
-    'https://animstream.com/embed/cmsx8mxo8aj0q01tjgn9ffq2r?loop=1',
-    'https://animstream.com/embed/cmsx9cxtyaljv01tj86aoe2ir?loop=1',
-    'https://animstream.com/embed/cmsx9carealj501tj3s259zej?loop=1',
-    'https://animstream.com/embed/cmsx9bj0galhu01tjw5rbph77?loop=1',
-    'https://animstream.com/embed/cmsx9asycalh401tj4ms9626k?loop=1',
-    'https://animstream.com/embed/cmsx993cralf401tjdts2sr27?loop=1',
-  ];
+  const IMPERIAL_BLOOM = {
+    slug: 'imperial_bloom_10000',
+    name: 'Imperial Bloom',
+    cost: 10000,
+    emoji: '\u{1F33A}',
+  };
 
-  /** Existing catalog gifts — slug = name_slug + _ + cost */
-  const GIFT_BINDINGS = [
-    { slug: 'imperial_bloom_10000', name: 'Imperial Bloom', cost: 10000, emoji: '\u{1F33A}' },
-    { slug: 'jackpot_gem_10000', name: 'Jackpot Gem', cost: 10000, emoji: '\u{1F48E}' },
-    { slug: 'royal_crown_10000', name: 'Royal Crown', cost: 10000, emoji: '\u{1F451}' },
-    { slug: 'christmas_star_25000', name: 'Christmas Star', cost: 25000, emoji: '\u{1F384}' },
-    { slug: 'diamond_watch_100000', name: 'Diamond Watch', cost: 100000, emoji: '\u231A' },
-    { slug: 'fire_dragon_1000000', name: 'Fire Dragon', cost: 1000000, emoji: '\u{1F432}' },
-  ];
+  const ANIM1_URL = 'https://animstream.com/embed/cmsx8mxo8aj0q01tjgn9ffq2r?loop=1';
 
-  const GIFT_ANIMATION_MAP = {};
-  const CATALOG_BY_SLUG = {};
+  const GIFT_BINDINGS = [IMPERIAL_BLOOM];
 
-  GIFT_BINDINGS.forEach((gift, i) => {
-    const animationUrl = ANIM_URLS[i] || '';
-    GIFT_ANIMATION_MAP[gift.slug] = {
-      animationUrl,
-      label: `Animation ${i + 1}`,
-      giftName: gift.name,
-      coinValue: gift.cost,
-      emoji: gift.emoji,
+  const GIFT_ANIMATION_MAP = {
+    [IMPERIAL_BLOOM.slug]: {
+      animationUrl: ANIM1_URL,
+      label: 'Animation 1',
+      giftName: IMPERIAL_BLOOM.name,
+      coinValue: IMPERIAL_BLOOM.cost,
+      emoji: IMPERIAL_BLOOM.emoji,
       durationMs: 15000,
-    };
-    CATALOG_BY_SLUG[gift.slug] = { ...gift };
-  });
+    },
+  };
+
+  const CATALOG_BY_SLUG = {
+    [IMPERIAL_BLOOM.slug]: { ...IMPERIAL_BLOOM },
+  };
 
   g.AP_GIFT_ANIMATION = {
     GIFT_ANIMATION_MAP,
     CATALOG_BY_SLUG,
     GIFT_BINDINGS,
-    /** Safety timeout while loop=1 embeds are used for testing */
     DEFAULT_DURATION_MS: 15000,
     MAX_QUEUE_SIZE: 8,
-    ANIM1_TEST_URL: 'https://animstream.com/embed/cmsx8mxo8aj0q01tjgn9ffq2r?loop=1',
+    ANIM1_TEST_URL: ANIM1_URL,
   };
 })(typeof window !== 'undefined' ? window : global);

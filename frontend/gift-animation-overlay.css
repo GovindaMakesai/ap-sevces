@@ -1,40 +1,19 @@
-/* AnimStream overlay — body-mounted above live UI (z-index above .live-overlay) */
-#apGiftAnimOverlay.ap-gift-anim-body-mount,
-body > #apGiftAnimOverlay {
-  position: fixed;
-  top: calc(env(safe-area-inset-top, 0px) + 52px);
+/* Live gift effect layer — inside .live-overlay, above Agora video, below header/chat controls */
+.live-overlay #apGiftAnimOverlay,
+.party-room-body #apGiftAnimOverlay,
+#liveRoomRoot #apGiftAnimOverlay {
+  position: absolute;
+  top: 0;
   left: 0;
   right: 0;
-  bottom: calc(var(--ap-bottom-bar-h, 58px) + env(safe-area-inset-bottom, 0px) + 72px);
-  z-index: 12040;
+  bottom: calc(var(--ap-bottom-bar-h, 58px) + env(safe-area-inset-bottom, 0px));
+  z-index: 0;
   pointer-events: none;
   opacity: 0;
   visibility: hidden;
-  transition: opacity 0.25s ease;
-  background: rgba(0, 0, 0, 0.02);
+  transition: opacity 0.35s ease;
+  background: transparent !important;
   overflow: hidden;
-}
-
-/* Legacy in-room mount (fallback) */
-#liveRoomRoot #apGiftAnimOverlay,
-.party-room #apGiftAnimOverlay {
-  position: fixed;
-  top: calc(env(safe-area-inset-top, 0px) + 52px);
-  left: 0;
-  right: 0;
-  bottom: calc(var(--ap-bottom-bar-h, 58px) + env(safe-area-inset-bottom, 0px) + 72px);
-  z-index: 12040;
-  pointer-events: none;
-  opacity: 0;
-  visibility: hidden;
-  background: rgba(0, 0, 0, 0.02);
-  overflow: hidden;
-}
-
-#apGiftAnimOverlay.is-debug {
-  border: 3px solid #fuchsia;
-  background: rgba(80, 0, 120, 0.12) !important;
-  box-shadow: inset 0 0 0 1px rgba(255, 0, 255, 0.35);
 }
 
 #apGiftAnimOverlay.is-visible {
@@ -42,30 +21,113 @@ body > #apGiftAnimOverlay {
   visibility: visible;
 }
 
+#apGiftAnimOverlay.is-debug {
+  border: 3px solid #fuchsia;
+  box-shadow: inset 0 0 0 1px rgba(255, 0, 255, 0.35);
+}
+
 #apGiftAnimOverlay .ap-gift-anim-stage {
-  width: 100%;
-  height: 100%;
+  position: absolute;
+  top: 18%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(88vw, 400px);
+  height: min(48vh, 360px);
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
   pointer-events: none;
-  background: transparent;
+  background: transparent !important;
 }
 
 #apGiftAnimOverlay .ap-gift-anim-frame {
   width: 100%;
   height: 100%;
-  min-width: 200px;
-  min-height: 200px;
   border: none;
-  background: #0a0612;
+  background: transparent !important;
   pointer-events: none;
+  opacity: 1;
 }
 
-#apGiftAnimOverlay.is-debug .ap-gift-anim-frame {
-  border: 2px solid rgba(0, 255, 200, 0.45);
-  background: #120818;
+.live-overlay > :not(#apGiftAnimOverlay):not(#apGiftNotifyRoot) {
+  position: relative;
+  z-index: 1;
+}
+
+.live-overlay #apGiftNotifyRoot {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--ap-bottom-bar-h, 58px) + env(safe-area-inset-bottom, 0px) + 96px);
+  transform: translateX(-50%);
+  z-index: 2;
+  pointer-events: none;
+  width: min(92vw, 340px);
+}
+
+.ap-gift-notify-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(12, 8, 24, 0.82), rgba(32, 16, 48, 0.78));
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.45);
+  color: #fff;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  backdrop-filter: blur(8px);
+}
+
+.ap-gift-notify-card.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.ap-gift-notify-card.is-out {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+.ap-gift-notify-thumb {
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 34px;
+  line-height: 1;
+  background: radial-gradient(circle at 30% 20%, rgba(251, 191, 36, 0.35), rgba(88, 28, 135, 0.5));
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+.ap-gift-notify-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.ap-gift-notify-sender {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.88);
+  margin-bottom: 2px;
+}
+
+.ap-gift-notify-name {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.ap-gift-notify-meta {
+  font-size: 13px;
+  color: #fbbf24;
+  font-weight: 600;
+  margin-top: 2px;
 }
 
 .ap-gift-anim-test-btn {
@@ -81,67 +143,4 @@ body > #apGiftAnimOverlay {
   border: 2px solid #fuchsia;
   background: rgba(20, 0, 40, 0.92);
   color: #fff;
-}
-
-#apGiftNotifyRoot {
-  position: fixed;
-  left: 12px;
-  bottom: calc(var(--ap-bottom-bar-h, 58px) + env(safe-area-inset-bottom, 0px) + 88px);
-  z-index: 12050;
-  pointer-events: none;
-  max-width: min(72vw, 280px);
-}
-
-.ap-gift-notify-card {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 12px 14px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, rgba(18, 12, 32, 0.88), rgba(40, 20, 60, 0.82));
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
-  color: #fff;
-  opacity: 0;
-  transform: translateY(8px);
-  transition: opacity 0.28s ease, transform 0.28s ease;
-}
-
-.ap-gift-notify-card.is-visible {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.ap-gift-notify-card.is-out {
-  opacity: 0;
-  transform: translateY(-6px);
-}
-
-.ap-gift-notify-sender {
-  font-size: 13px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.92);
-}
-
-.ap-gift-notify-icon {
-  font-size: 42px;
-  line-height: 1;
-  margin: 4px 0;
-}
-
-.ap-gift-notify-name {
-  font-size: 17px;
-  font-weight: 700;
-}
-
-.ap-gift-notify-coins {
-  font-size: 14px;
-  color: #fbbf24;
-  font-weight: 600;
-}
-
-.ap-gift-notify-qty {
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.75);
-  font-weight: 600;
 }

@@ -1,6 +1,6 @@
 /**
- * GiftAnimationOverlay — AnimStream iframe overlay (WebView live page).
- * Triggered only from confirmed live:gift events (social-live.js).
+ * GiftAnimationOverlay — AnimStream embed directly over Agora live video.
+ * Mounts inside .live-overlay (above video, below chat/controls).
  */
 (function () {
   const LOG = '[Gift]';
@@ -56,20 +56,16 @@
     } catch (_e) {}
   }
 
-  function logOverlayLayout() {
-    if (!rootEl) {
-      debugLog('overlay layout', 'root missing');
-      return;
-    }
-    const r = rootEl.getBoundingClientRect();
-    debugLog('overlay layout', {
-      width: Math.round(r.width),
-      height: Math.round(r.height),
-      top: Math.round(r.top),
-      left: Math.round(r.left),
-      zIndex: getComputedStyle(rootEl).zIndex,
-      visible: rootEl.classList.contains('is-visible'),
-    });
+  function getLiveOverlayMount() {
+    const shell =
+      document.getElementById('liveRoomRoot') ||
+      document.querySelector('.party-room');
+    if (!shell) return document.body;
+    return (
+      shell.querySelector('.live-overlay') ||
+      shell.querySelector('.party-room-body') ||
+      shell
+    );
   }
 
   function pruneProcessed(now = Date.now()) {
@@ -103,10 +99,9 @@
       gift?.name ||
       catalog.name ||
       mapped?.giftName ||
-      slug.replace(/_/g, ' ').replace(/\d+$/, '').trim() ||
       'Gift';
     const unitCost = Number(
-      catalog.cost || mapped?.coinValue || gift?.unitCost || gift?.unit_amount || 0
+      catalog.cost || mapped?.coinValue || gift?.unitCost || 0
     );
     const charged = Number(gift?.amount || gift?.coins || gift?.coin_amount || 0);
     const qty = Math.max(1, Number(gift?.qty || 1));
@@ -143,27 +138,35 @@
   }
 
   function ensureAnimRoot() {
-    if (rootEl && rootEl.parentElement !== document.body) {
-      document.body.appendChild(rootEl);
+    const mount = getLiveOverlayMount();
+    if (rootEl) {
+      if (rootEl.parentElement !== mount) {
+        mount.insertBefore(rootEl, mount.firstChild || null);
+      }
+      return rootEl;
     }
-    if (rootEl) return rootEl;
-
     rootEl = document.createElement('div');
     rootEl.id = 'apGiftAnimOverlay';
     rootEl.setAttribute('aria-hidden', 'true');
-    rootEl.classList.add('ap-gift-anim-body-mount');
+    rootEl.classList.add('ap-gift-anim-in-room');
     if (isDebugMode()) rootEl.classList.add('is-debug');
-    document.body.appendChild(rootEl);
-    debugLog('overlay mounted on body', new Date().toISOString());
+    mount.insertBefore(rootEl, mount.firstChild || null);
+    debugLog('overlay mounted in live shell', mount.className || mount.id || 'body');
     return rootEl;
   }
 
   function ensureNotifyRoot() {
-    if (notifyRoot) return notifyRoot;
+    const mount = getLiveOverlayMount();
+    if (notifyRoot) {
+      if (notifyRoot.parentElement !== mount) {
+        mount.appendChild(notifyRoot);
+      }
+      return notifyRoot;
+    }
     notifyRoot = document.createElement('div');
     notifyRoot.id = 'apGiftNotifyRoot';
     notifyRoot.setAttribute('aria-hidden', 'true');
-    document.body.appendChild(notifyRoot);
+    mount.appendChild(notifyRoot);
     return notifyRoot;
   }
 
@@ -205,8 +208,6 @@
       animLog('overlay unmounted', reason || '');
     }
     playing = false;
-    debugLog('overlay visible=false');
-    debugLog('queue length=', queue.length);
   }
 
   function showNotify(meta, gift) {
@@ -215,22 +216,24 @@
     notifyCard = document.createElement('div');
     notifyCard.className = 'ap-gift-notify-card';
     const sender = String(gift?.from || gift?.senderName || 'User');
-    const coinsLabel =
+    const coins =
       meta.charged > 0
         ? `${meta.charged.toLocaleString()} coins`
         : meta.unitCost > 0
           ? `${meta.unitCost.toLocaleString()} coins`
           : '';
+    const qtyLabel = meta.qty > 1 ? ` \u00d7${meta.qty}` : '';
     notifyCard.innerHTML = `
-      <div class="ap-gift-notify-sender">${escapeHtml(sender)}</div>
-      <div class="ap-gift-notify-icon">${meta.emoji}</div>
-      <div class="ap-gift-notify-name">${escapeHtml(meta.name)}</div>
-      <div class="ap-gift-notify-coins">${escapeHtml(coinsLabel)}</div>
-      ${meta.qty > 1 ? `<div class="ap-gift-notify-qty">\u00d7${meta.qty}</div>` : ''}`;
+      <div class="ap-gift-notify-thumb" aria-hidden="true">${meta.emoji}</div>
+      <div class="ap-gift-notify-body">
+        <div class="ap-gift-notify-sender">${escapeHtml(sender)} sent</div>
+        <div class="ap-gift-notify-name">${escapeHtml(meta.name)}</div>
+        <div class="ap-gift-notify-meta">${escapeHtml(coins)}${escapeHtml(qtyLabel)}</div>
+      </div>`;
     notifyRoot.appendChild(notifyCard);
     notifyRoot.setAttribute('aria-hidden', 'false');
     requestAnimationFrame(() => notifyCard.classList.add('is-visible'));
-    notifyTimer = setTimeout(() => hideNotify(), Math.min(meta.durationMs, 5000));
+    notifyTimer = setTimeout(() => hideNotify(), Math.min(meta.durationMs, 6000));
   }
 
   function escapeHtml(s) {
@@ -252,12 +255,8 @@
     playing = true;
 
     debugLog('triggering overlay');
-    debugLog('overlay visible=true');
-    debugLog('active animation=', meta.slug || meta.label || url);
-    debugLog('queue length=', queue.length);
-    debugLog('rendering WebView/iframe');
     debugLog('animation URL=', url);
-    animLog('load URL', url);
+    animLog('load started', url);
 
     const stageEl = document.createElement('div');
     stageEl.className = 'ap-gift-anim-stage';
@@ -270,10 +269,10 @@
     frameEl.setAttribute('referrerpolicy', 'no-referrer');
     frameEl.setAttribute('scrolling', 'no');
     frameEl.setAttribute('frameborder', '0');
+    frameEl.setAttribute('allowtransparency', 'true');
 
     frameEl.addEventListener('load', () => {
-      animLog('loaded', new Date().toISOString());
-      logOverlayLayout();
+      animLog('loaded');
     });
     frameEl.addEventListener('error', () => {
       animLog('load error');
@@ -285,10 +284,7 @@
     rootEl.classList.add('is-visible');
     rootEl.setAttribute('aria-hidden', 'false');
 
-    requestAnimationFrame(() => logOverlayLayout());
-
     try {
-      animLog('load started', new Date().toISOString());
       frameEl.src = url;
     } catch (e) {
       animLog('load error', e?.message || String(e));
@@ -298,8 +294,6 @@
 
     if (!isDebugMode() && !opts?.keepVisible) {
       hideTimer = setTimeout(() => finishCurrent('duration'), meta.durationMs);
-    } else {
-      debugLog('auto-hide disabled (debug mode)');
     }
   }
 
@@ -310,17 +304,14 @@
   }
 
   function enqueue(gift, meta) {
-    if (isDebugMode()) {
-      queue.length = 0;
+    if (playing) {
+      if (queue.length >= MAX_QUEUE) queue.shift();
       queue.push({ gift, meta });
+      log('queued', queue.length);
       return;
     }
-    if (queue.length >= MAX_QUEUE) {
-      log('queue full — dropping oldest');
-      queue.shift();
-    }
     queue.push({ gift, meta });
-    log('queued', { slug: meta.slug, queueLen: queue.length });
+    pumpQueue();
   }
 
   function pumpQueue() {
@@ -341,21 +332,17 @@
     debugLog('giftName=', meta.name);
     debugLog('coinValue=', meta.charged || meta.unitCost);
     debugLog('transactionId=', tx || '(none)');
-    debugLog('animation URL=', meta.animationUrl || '(not mapped)');
 
     if (!hasAnimationForGift(gift)) {
-      debugLog('no animation mapped for slug', giftSlug(gift) || '(empty slug)');
+      debugLog('no AnimStream mapping for slug', giftSlug(gift) || '(empty)');
       return;
     }
     if (!claimTransaction(gift)) return;
 
-    debugLog('animation mapped:', meta.label || meta.slug);
     enqueue(gift, meta);
-    pumpQueue();
   }
 
   function testAnimation1() {
-    debugLog('TEST ANIMSTREAM button pressed');
     const meta = {
       slug: 'imperial_bloom_10000',
       name: 'Imperial Bloom',
@@ -365,7 +352,6 @@
       charged: 10000,
       animationUrl: ANIM1_URL,
       durationMs: DEFAULT_DURATION,
-      label: 'Animation 1 TEST',
     };
     const gift = {
       from: 'DEBUG',
@@ -376,8 +362,7 @@
     };
     queue.length = 0;
     if (playing) hideAnimation('test-restart');
-    showNotify(meta, gift);
-    playAnimation(meta, { forceUrl: ANIM1_URL, keepVisible: isDebugMode() });
+    enqueue(gift, meta);
   }
 
   function ensureTestButton() {
@@ -403,12 +388,7 @@
     document.getElementById('apGiftAnimTestBtn')?.remove();
   }
 
-  if (isDebugMode()) {
-    try {
-      ensureTestButton();
-      debugLog('debug mode ON — use TEST ANIMSTREAM button or ?giftAnimDebug=1');
-    } catch (_e) { /* */ }
-  }
+  if (isDebugMode()) ensureTestButton();
 
   window.GiftAnimationOverlay = {
     hasAnimationForGift,
