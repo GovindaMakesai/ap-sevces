@@ -11479,8 +11479,32 @@
     window.SocialUI?.bindAvatarFallbacks?.(row);
   }
 
+  /** Live guest seats: mount on #liveRoomRoot (not flex overlay) so rail stays on the right */
+  function ensureGuestRailMount() {
+    let rail = document.getElementById('apGuestRail');
+    if (!rail) {
+      const shell =
+        document.getElementById('liveRoomRoot') ||
+        document.querySelector('.party-room') ||
+        document.querySelector('.live-overlay');
+      if (!shell) return null;
+      shell.insertAdjacentHTML(
+        'beforeend',
+        `<aside class="ap-guest-rail" id="apGuestRail" aria-label="Guests"></aside>`
+      );
+      rail = document.getElementById('apGuestRail');
+    }
+    if (isLiveRoomPage()) {
+      const shell = document.getElementById('liveRoomRoot');
+      if (shell && rail && rail.parentElement !== shell) {
+        shell.appendChild(rail);
+      }
+    }
+    return rail;
+  }
+
   function renderGuestRail() {
-    const rail = document.getElementById('apGuestRail');
+    const rail = ensureGuestRailMount();
     if (!rail) return;
     const guests = collectPartySeatGuests().slice(0, LIVE_MAX_GUESTS);
     if (!guests.length) {
@@ -13760,13 +13784,7 @@
     if (!document.getElementById('apPkOverlay') && (isPartyRoomPage() || isLiveRoomPage())) {
       ensurePkBattleChrome();
     }
-    if (!document.getElementById('apGuestRail')) {
-      const overlay = document.querySelector('.live-overlay') || document.querySelector('.party-room');
-      overlay?.insertAdjacentHTML(
-        'beforeend',
-        `<aside class="ap-guest-rail" id="apGuestRail" aria-label="Guests"></aside>`
-      );
-    }
+    ensureGuestRailMount();
     if (!document.getElementById('partyRequestsSheet') && isLiveRoomPage()) {
       document.body.insertAdjacentHTML(
         'beforeend',

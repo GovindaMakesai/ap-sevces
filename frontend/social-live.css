@@ -8260,25 +8260,28 @@ body.ap-ref-ui .live-room .party-viewers span:not(.party-viewer-count):not(.ap-t
   display: none;
 }
 
-/* Solo video live: guest rail on right when guests are on stage */
-body[data-live-page="live-room"] .live-overlay > .ap-guest-rail,
-body[data-live-page="live-room"] .ap-guest-rail {
-  display: none;
-  position: absolute !important;
-  right: 10px;
+/* Solo video live: guest seat rail pinned to screen right (outside flex overlay column) */
+body[data-live-page="live-room"] #liveRoomRoot > #apGuestRail,
+body[data-live-page="live-room"] #apGuestRail.ap-guest-rail {
+  display: none !important;
+  position: fixed !important;
+  right: 10px !important;
   left: auto !important;
   top: auto !important;
   transform: none !important;
+  margin: 0 !important;
+  width: auto !important;
+  max-width: 80px;
   align-items: center;
+  justify-content: flex-end;
+  z-index: 14050;
 }
 
-body[data-live-page="live-room"].ap-has-live-guests .live-overlay > .ap-guest-rail,
-body[data-live-page="live-room"].ap-has-live-guests .ap-guest-rail {
+body[data-live-page="live-room"].ap-has-live-guests #liveRoomRoot > #apGuestRail,
+body[data-live-page="live-room"].ap-has-live-guests #apGuestRail.ap-guest-rail {
   display: flex !important;
-  right: 10px;
   /* Keep clear of gift/tools/mic — rail used to grow into the action hit zone */
-  bottom: calc(var(--ap-bottom-bar-h, 58px) + 96px + env(safe-area-inset-bottom, 0px));
-  z-index: 45;
+  bottom: calc(var(--ap-bottom-bar-h, 58px) + 96px + env(safe-area-inset-bottom, 0px)) !important;
   pointer-events: none !important;
   max-height: min(36vh, 280px);
   overflow-x: hidden;

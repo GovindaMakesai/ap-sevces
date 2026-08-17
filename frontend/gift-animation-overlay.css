@@ -50,12 +50,7 @@
   opacity: 1;
 }
 
-/* Guest rail must stay absolute on the right — never flex-flow in the overlay column */
-.live-overlay > #apGuestRail,
-.party-room-body > #apGuestRail {
-  position: absolute !important;
-  z-index: 45;
-}
+/* Guest rail lives on #liveRoomRoot — do not reposition from overlay rules */
 
 .live-overlay #apGiftNotifyRoot,
 .party-room-body #apGiftNotifyRoot {
