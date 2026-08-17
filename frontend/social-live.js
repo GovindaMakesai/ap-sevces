@@ -6061,15 +6061,16 @@
               tx: normalized.gift_tx_id || normalized.id,
             });
           } catch (_lg) { /* */ }
+          try {
+            window.GiftAnimationOverlay?.onGiftReceived?.(normalized);
+          } catch (_giftAnimErr) { /* presentation only */ }
         }
         window.SocialFX?.playGift?.(normalized, {
           combo,
           skipActivity: true,
           skipCinematic: hasAnimStream,
+          skipSound: hasAnimStream,
         });
-        try {
-          if (hasAnimStream) window.GiftAnimationOverlay?.onGiftReceived?.(normalized);
-        } catch (_giftAnimErr) { /* presentation only */ }
         onGiftTeamProgress(normalized?.amount || normalized?.coins || 100);
         if (roomState) renderRoomState();
         renderRoomGiftPanels();
@@ -16586,12 +16587,17 @@
     if (isFresh) {
       const combo = window.SocialFX?.trackCombo?.(emoji, giftQty) || 1;
       const hasAnimStream = window.GiftAnimationOverlay?.hasAnimationForGift?.(giftEvt);
+      if (hasAnimStream) {
+        try {
+          window.GiftAnimationOverlay?.onGiftReceived?.(giftEvt);
+        } catch (_giftAnimErr) { /* */ }
+      }
       window.SocialFX?.playGift?.(giftEvt, {
         combo,
         skipActivity: true,
         skipCinematic: hasAnimStream,
+        skipSound: hasAnimStream,
       });
-      if (hasAnimStream) window.GiftAnimationOverlay?.onGiftReceived?.(giftEvt);
       onGiftTeamProgress(cost);
       const sendBtn = document.getElementById('giftSendBtn');
       const balEl = document.getElementById('giftCoinsBal');

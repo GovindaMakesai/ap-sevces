@@ -487,7 +487,7 @@
     if (opts?.skipCinematic) {
       activeGiftAnim = { key, combo, el: null, tier: 'small' };
       spawnFloaters(emoji, 4, 'small');
-      playSound('gift-small');
+      if (!opts?.skipSound) playSound('gift-small');
       return;
     }
 

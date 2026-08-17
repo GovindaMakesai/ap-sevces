@@ -81,16 +81,9 @@
   }
 
   function insertAnimOverlay(el) {
-    const shell = getLiveShell();
-    if (!shell) {
+    /* Body + fixed z-index — must sit above .live-overlay (z 12) so iframe video is visible */
+    if (el.parentElement !== document.body) {
       document.body.appendChild(el);
-      return;
-    }
-    const uiLayer = shell.querySelector('.live-overlay') || shell.querySelector('.party-room-body');
-    if (uiLayer && uiLayer.parentElement === shell) {
-      shell.insertBefore(el, uiLayer);
-    } else {
-      shell.appendChild(el);
     }
   }
 
@@ -133,6 +126,12 @@
       gift?.amount || gift?.coins || gift?.coin_amount
     );
     if (derived && MAP[derived]?.animationUrl) return MAP[derived];
+    /* Backend sometimes sends emoji / short type instead of catalog slug */
+    const amt = Number(gift?.amount || gift?.coins || gift?.coin_amount || 0);
+    const name = String(gift?.giftName || gift?.name || '').toLowerCase();
+    if (amt === 10000 && /imperial|bloom/.test(name)) {
+      return MAP.imperial_bloom_10000 || MAP['imperial_bloom_10000'];
+    }
     return null;
   }
 
@@ -313,11 +312,21 @@
     frameEl.className = 'ap-gift-anim-frame';
     frameEl.setAttribute('title', 'Gift animation');
     frameEl.setAttribute('loading', 'eager');
-    frameEl.setAttribute('allow', 'autoplay; fullscreen; encrypted-media');
+    frameEl.setAttribute(
+      'allow',
+      'autoplay; fullscreen; encrypted-media; picture-in-picture; web-share'
+    );
     frameEl.setAttribute('referrerpolicy', 'no-referrer');
     frameEl.setAttribute('scrolling', 'no');
     frameEl.setAttribute('frameborder', '0');
+    frameEl.setAttribute('allowfullscreen', 'true');
     frameEl.setAttribute('allowtransparency', 'true');
+    frameEl.style.width = '100%';
+    frameEl.style.height = '100%';
+    frameEl.style.minHeight = '220px';
+    frameEl.style.display = 'block';
+    frameEl.style.border = 'none';
+    frameEl.style.background = 'transparent';
 
     frameEl.addEventListener('load', () => {
       animLog('loaded');
@@ -331,6 +340,7 @@
     rootEl.appendChild(stageEl);
     rootEl.classList.add('is-visible');
     rootEl.setAttribute('aria-hidden', 'false');
+    rootEl.style.pointerEvents = 'none';
 
     try {
       frameEl.src = url;

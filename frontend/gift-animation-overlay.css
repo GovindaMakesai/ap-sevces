@@ -1,20 +1,19 @@
-/* Gift animation — sibling of .live-overlay, above Agora video (z 1–3), below UI chrome (z 12+) */
-#liveRoomRoot > #apGiftAnimOverlay,
-.party-room > #apGiftAnimOverlay,
-#liveRoomRoot #apGiftAnimOverlay,
-.party-room #apGiftAnimOverlay {
-  position: absolute;
+/* AnimStream gift layer — fixed on body, above live UI, below gift sheet (32000) */
+body > #apGiftAnimOverlay,
+#apGiftAnimOverlay {
+  position: fixed !important;
   top: 0;
   left: 0;
   right: 0;
   bottom: calc(var(--ap-bottom-bar-h, 58px) + env(safe-area-inset-bottom, 0px));
-  z-index: 11;
+  z-index: 20000 !important;
   pointer-events: none;
   opacity: 0;
   visibility: hidden;
-  transition: opacity 0.35s ease;
+  transition: opacity 0.25s ease;
   background: transparent !important;
   overflow: hidden;
+  isolation: isolate;
 }
 
 #apGiftAnimOverlay.is-visible {
@@ -29,11 +28,12 @@
 
 #apGiftAnimOverlay .ap-gift-anim-stage {
   position: absolute;
-  top: 18%;
+  top: 8%;
   left: 50%;
   transform: translateX(-50%);
-  width: min(88vw, 400px);
-  height: min(48vh, 360px);
+  width: min(94vw, 480px);
+  height: min(58vh, 480px);
+  min-height: 240px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -42,15 +42,15 @@
 }
 
 #apGiftAnimOverlay .ap-gift-anim-frame {
-  width: 100%;
-  height: 100%;
-  border: none;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 220px;
+  border: none !important;
   background: transparent !important;
   pointer-events: none;
   opacity: 1;
+  display: block;
 }
-
-/* Guest rail lives on #liveRoomRoot — do not reposition from overlay rules */
 
 .live-overlay #apGiftNotifyRoot,
 .party-room-body #apGiftNotifyRoot {
@@ -133,7 +133,7 @@
   position: fixed;
   top: calc(env(safe-area-inset-top, 0px) + 8px);
   right: 8px;
-  z-index: 12060;
+  z-index: 20050;
   pointer-events: auto;
   padding: 8px 10px;
   font-size: 11px;
