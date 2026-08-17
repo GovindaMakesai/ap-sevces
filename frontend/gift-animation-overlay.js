@@ -83,11 +83,19 @@
     );
   }
 
+  /** Mount inside live shell so animation matches full video bounds (above Agora, below UI chrome). */
   function insertAnimOverlay(el) {
-    /* Body + fixed z-index — must sit above .live-overlay (z 12) so iframe video is visible */
-    if (el.parentElement !== document.body) {
-      document.body.appendChild(el);
+    const shell = getLiveShell();
+    if (
+      shell &&
+      (shell.id === 'liveRoomRoot' || shell.classList.contains('party-room'))
+    ) {
+      el.classList.add('ap-gift-anim-in-shell');
+      if (el.parentElement !== shell) shell.appendChild(el);
+      return;
     }
+    el.classList.remove('ap-gift-anim-in-shell');
+    if (el.parentElement !== document.body) document.body.appendChild(el);
   }
 
   function pruneProcessed(now = Date.now()) {
@@ -326,7 +334,8 @@
     frameEl.setAttribute('allowtransparency', 'true');
     frameEl.style.width = '100%';
     frameEl.style.height = '100%';
-    frameEl.style.minHeight = '220px';
+    frameEl.style.minWidth = '100%';
+    frameEl.style.minHeight = '100%';
     frameEl.style.display = 'block';
     frameEl.style.border = 'none';
     frameEl.style.background = 'transparent';
