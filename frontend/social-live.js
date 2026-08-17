@@ -6004,9 +6004,14 @@
         }
         /* One chat line only — skip WIN banner / fly banner (duplicate "sent to" notices) */
         const combo = window.SocialFX?.trackCombo?.(normalized?.emoji || 'gift', normalized?.qty || 1) || 1;
-        window.SocialFX?.playGift?.(normalized, { combo, skipActivity: true });
+        const hasAnimStream = window.GiftAnimationOverlay?.hasAnimationForGift?.(normalized);
+        window.SocialFX?.playGift?.(normalized, {
+          combo,
+          skipActivity: true,
+          skipCinematic: hasAnimStream,
+        });
         try {
-          window.GiftAnimationOverlay?.onGiftReceived?.(normalized);
+          if (hasAnimStream) window.GiftAnimationOverlay?.onGiftReceived?.(normalized);
         } catch (_giftAnimErr) { /* presentation only */ }
         onGiftTeamProgress(normalized?.amount || normalized?.coins || 100);
         if (roomState) renderRoomState();
@@ -16480,7 +16485,7 @@
     el.classList.add('is-visible');
   }
 
-  async function sendGiftViaApi(receiverId, cost, emoji, toName, giftSlug) {
+  async function sendGiftViaApi(receiverId, cost, emoji, toName, giftSlug, giftName) {
     if (!window.SocialWallet) throw new Error('Wallet unavailable');
     await SocialWallet.sendGift({
       receiver_id: receiverId,
@@ -16495,6 +16500,8 @@
       to: toName,
       toUserId: receiverId || null,
       emoji,
+      giftSlug: giftSlug || '',
+      giftName: giftName || '',
       amount: cost,
       qty: giftQty,
     };
@@ -16502,7 +16509,13 @@
     pushRoomGift(giftEvt);
     if (isFresh) {
       const combo = window.SocialFX?.trackCombo?.(emoji, giftQty) || 1;
-      window.SocialFX?.playGift?.(giftEvt, { combo, skipActivity: true });
+      const hasAnimStream = window.GiftAnimationOverlay?.hasAnimationForGift?.(giftEvt);
+      window.SocialFX?.playGift?.(giftEvt, {
+        combo,
+        skipActivity: true,
+        skipCinematic: hasAnimStream,
+      });
+      if (hasAnimStream) window.GiftAnimationOverlay?.onGiftReceived?.(giftEvt);
       onGiftTeamProgress(cost);
       const sendBtn = document.getElementById('giftSendBtn');
       const balEl = document.getElementById('giftCoinsBal');
@@ -16707,7 +16720,7 @@
 
     const tryApi = async (reason) => {
       try {
-        await sendGiftViaApi(receiverId, cost, g.emoji, to, g.slug);
+        await sendGiftViaApi(receiverId, cost, g.emoji, to, g.slug, g.name);
         rememberGiftUse(g);
         renderRoomGiftPanels();
       } catch (e) {
@@ -16734,6 +16747,7 @@
             toUserId: String(target.id || ''),
             emoji: g.emoji,
             giftSlug: g.slug,
+            giftName: g.name,
             amount: cost,
             qty: giftQty,
           },

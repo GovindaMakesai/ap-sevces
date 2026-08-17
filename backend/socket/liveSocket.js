@@ -960,6 +960,7 @@ function registerLiveSocket(io) {
         const giftSlug = String(
           payload?.giftSlug || payload?.giftType || payload?.gift_type || ''
         ).trim();
+        const giftName = String(payload?.giftName || payload?.name || '').trim().slice(0, 64);
         const giftType = giftSlug || payload?.emoji || 'gift';
         const result = await giftService.sendGift({
           senderId: socket.userId,
@@ -984,6 +985,7 @@ function registerLiveSocket(io) {
           emoji: giftEmoji,
           giftSlug: giftSlug || String(result.gift.gift_type || giftType).slice(0, 64),
           giftType: String(result.gift.gift_type || giftType).slice(0, 64),
+          giftName: giftName || giftSlug || giftType,
           amount: charged,
           coins: charged,
           qty: payload?.qty || 1,

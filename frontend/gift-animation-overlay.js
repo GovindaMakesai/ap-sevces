@@ -1,19 +1,26 @@
 /**
- * GiftAnimationOverlay — reusable AnimStream / embed overlay for confirmed live gifts.
- * Presentation only; reacts to backend-confirmed live:gift events (via social-live.js).
+ * GiftAnimationOverlay — AnimStream queue, dedupe, gift notification card.
+ * Triggered only from confirmed live:gift events (social-live.js).
  */
 (function () {
-  const LOG = '[GiftAnimation]';
+  const LOG = '[Gift]';
   const cfg = window.AP_GIFT_ANIMATION || {};
+  const MAP = cfg.GIFT_ANIMATION_MAP || {};
+  const CATALOG = cfg.CATALOG_BY_SLUG || {};
+  const DEFAULT_DURATION = Number(cfg.DEFAULT_DURATION_MS || 15000);
+  const MAX_QUEUE = Number(cfg.MAX_QUEUE_SIZE || 8);
 
-  const processedGiftEventIds = new Map();
+  const processedGiftEvents = new Map();
   const PROCESSED_TTL_MS = 120000;
 
   let rootEl = null;
+  let notifyRoot = null;
+  let notifyCard = null;
+  let notifyTimer = null;
   let frameEl = null;
   let playing = false;
   let hideTimer = null;
-  let failTimer = null;
+  const queue = [];
 
   function log(msg, detail) {
     try {
@@ -23,8 +30,8 @@
   }
 
   function pruneProcessed(now = Date.now()) {
-    for (const [id, t] of processedGiftEventIds) {
-      if (now - t > PROCESSED_TTL_MS) processedGiftEventIds.delete(id);
+    for (const [id, t] of processedGiftEvents) {
+      if (now - t > PROCESSED_TTL_MS) processedGiftEvents.delete(id);
     }
   }
 
@@ -34,36 +41,61 @@
     return s.replace(/^(gift-|evt-)/i, '');
   }
 
-  function giftEventId(gift) {
-    const tx = normalizeTxId(gift?.gift_tx_id || gift?.id);
-    if (tx) return tx;
-    const from = String(gift?.fromUserId || '');
-    const to = String(gift?.toUserId || '');
-    const amt = Number(gift?.amount || gift?.coins || 0);
-    const at = Number(gift?.at || 0);
-    if (from && to && amt > 0) return `soft:${from}|${to}|${amt}|${at}`;
-    return '';
-  }
-
   function giftSlug(gift) {
     return String(
       gift?.giftSlug || gift?.giftType || gift?.gift_type || gift?.gift_type_slug || ''
     ).trim();
   }
 
-  function coinValue(gift) {
-    return Number(gift?.amount || gift?.coins || gift?.coin_amount || 0);
+  function transactionId(gift) {
+    return normalizeTxId(gift?.gift_tx_id || gift?.id);
   }
 
-  function matches10000Gift(gift) {
+  function resolveMeta(gift) {
     const slug = giftSlug(gift);
-    const targetSlug = String(cfg.GIFT_ANIMATION_10000_SLUG || '').trim();
-    if (targetSlug && slug === targetSlug) return true;
-    if (cfg.USE_COIN_VALUE_10000_FALLBACK) {
-      const targetCoins = Number(cfg.GIFT_ANIMATION_10000_COIN_VALUE || 10000);
-      return coinValue(gift) === targetCoins;
+    const catalog = CATALOG[slug] || {};
+    const mapped = MAP[slug];
+    const name =
+      gift?.giftName ||
+      gift?.name ||
+      catalog.name ||
+      mapped?.giftName ||
+      slug.replace(/_/g, ' ').replace(/\d+$/, '').trim() ||
+      'Gift';
+    const unitCost = Number(
+      catalog.cost || mapped?.coinValue || gift?.unitCost || gift?.unit_amount || 0
+    );
+    const charged = Number(gift?.amount || gift?.coins || gift?.coin_amount || 0);
+    const qty = Math.max(1, Number(gift?.qty || 1));
+    const emoji = gift?.emoji || catalog.emoji || mapped?.emoji || '\u{1F381}';
+    return {
+      slug,
+      name,
+      emoji,
+      qty,
+      unitCost: unitCost || (qty > 1 && charged ? Math.round(charged / qty) : charged),
+      charged,
+      animationUrl: mapped?.animationUrl || '',
+      durationMs: Number(mapped?.durationMs || DEFAULT_DURATION),
+      label: mapped?.label || '',
+    };
+  }
+
+  function hasAnimationForGift(gift) {
+    const slug = giftSlug(gift);
+    return slug && MAP[slug]?.animationUrl;
+  }
+
+  function claimTransaction(gift) {
+    pruneProcessed();
+    const tx = transactionId(gift);
+    if (!tx) return true;
+    if (processedGiftEvents.has(tx)) {
+      log('duplicate ignored', { transactionId: tx });
+      return false;
     }
-    return false;
+    processedGiftEvents.set(tx, Date.now());
+    return true;
   }
 
   function getMountEl() {
@@ -74,71 +106,112 @@
     );
   }
 
-  function ensureRoot() {
+  function ensureAnimRoot() {
     const mount = getMountEl();
-    if (rootEl) {
-      if (rootEl.parentElement !== mount) {
-        mount.appendChild(rootEl);
-      }
-      return rootEl;
+    if (rootEl && rootEl.parentElement !== mount) {
+      mount.appendChild(rootEl);
     }
+    if (rootEl) return rootEl;
     rootEl = document.createElement('div');
     rootEl.id = 'apGiftAnimOverlay';
     rootEl.setAttribute('aria-hidden', 'true');
     if (mount.id === 'liveRoomRoot' || mount.classList?.contains('party-room')) {
       rootEl.classList.add('ap-gift-anim-in-room');
     }
-    /* Above Agora video layers, below live-overlay chat + controls (z-index 12) */
     const overlay = mount.querySelector('.live-overlay');
-    if (overlay) {
-      mount.insertBefore(rootEl, overlay);
-    } else {
-      mount.appendChild(rootEl);
-    }
+    if (overlay) mount.insertBefore(rootEl, overlay);
+    else mount.appendChild(rootEl);
     return rootEl;
   }
 
-  function clearTimers() {
+  function ensureNotifyRoot() {
+    if (notifyRoot) return notifyRoot;
+    notifyRoot = document.createElement('div');
+    notifyRoot.id = 'apGiftNotifyRoot';
+    notifyRoot.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(notifyRoot);
+    return notifyRoot;
+  }
+
+  function clearAnimTimers() {
     if (hideTimer) {
       clearTimeout(hideTimer);
       hideTimer = null;
     }
-    if (failTimer) {
-      clearTimeout(failTimer);
-      failTimer = null;
+    if (notifyTimer) {
+      clearTimeout(notifyTimer);
+      notifyTimer = null;
     }
   }
 
-  function hide(reason) {
-    clearTimers();
+  function hideNotify() {
+    if (notifyCard) {
+      notifyCard.classList.remove('is-visible');
+      notifyCard.classList.add('is-out');
+      const el = notifyCard;
+      setTimeout(() => {
+        el.remove();
+        if (notifyCard === el) notifyCard = null;
+      }, 320);
+    }
+    if (notifyRoot) notifyRoot.setAttribute('aria-hidden', 'true');
+  }
+
+  function hideAnimation(reason) {
+    clearAnimTimers();
+    hideNotify();
     if (rootEl) {
       rootEl.classList.remove('is-visible');
       rootEl.setAttribute('aria-hidden', 'true');
-      if (frameEl) {
-        try {
-          frameEl.src = 'about:blank';
-        } catch (_e) {}
-        frameEl.remove();
-        frameEl = null;
-      }
+      rootEl.textContent = '';
+      frameEl = null;
     }
-    if (playing) log('animation unmounted', reason || '');
+    if (playing) log('animation cleaned', reason || '');
     playing = false;
   }
 
-  function show(animationUrl, meta) {
-    const url = String(animationUrl || '').trim();
-    if (!url) return;
+  function showNotify(meta, gift) {
+    ensureNotifyRoot();
+    hideNotify();
+    notifyCard = document.createElement('div');
+    notifyCard.className = 'ap-gift-notify-card';
+    const sender = String(gift?.from || gift?.senderName || 'User');
+    const coinsLabel =
+      meta.charged > 0
+        ? `${meta.charged.toLocaleString()} coins`
+        : meta.unitCost > 0
+          ? `${meta.unitCost.toLocaleString()} coins`
+          : '';
+    notifyCard.innerHTML = `
+      <div class="ap-gift-notify-sender">${escapeHtml(sender)}</div>
+      <div class="ap-gift-notify-icon">${meta.emoji}</div>
+      <div class="ap-gift-notify-name">${escapeHtml(meta.name)}</div>
+      <div class="ap-gift-notify-coins">${escapeHtml(coinsLabel)}</div>
+      ${meta.qty > 1 ? `<div class="ap-gift-notify-qty">\u00d7${meta.qty}</div>` : ''}`;
+    notifyRoot.appendChild(notifyCard);
+    notifyRoot.setAttribute('aria-hidden', 'false');
+    requestAnimationFrame(() => notifyCard.classList.add('is-visible'));
+    notifyTimer = setTimeout(() => hideNotify(), Math.min(meta.durationMs, 5000));
+  }
 
-    if (playing) {
-      log('animation already playing — ignoring duplicate trigger');
+  function escapeHtml(s) {
+    return String(s || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  function playAnimation(meta) {
+    const url = String(meta.animationUrl || '').trim();
+    if (!url) {
+      finishCurrent();
       return;
     }
 
-    ensureRoot();
-    hide('restart');
+    ensureAnimRoot();
+    rootEl.textContent = '';
     playing = true;
-    log('animation mounted');
+    log('animation started', { label: meta.label, slug: meta.slug });
 
     const stageEl = document.createElement('div');
     stageEl.className = 'ap-gift-anim-stage';
@@ -147,14 +220,14 @@
     frameEl.className = 'ap-gift-anim-frame';
     frameEl.setAttribute('title', 'Gift animation');
     frameEl.setAttribute('loading', 'eager');
-    frameEl.setAttribute('allow', 'autoplay; fullscreen');
+    frameEl.setAttribute('allow', 'autoplay; fullscreen; encrypted-media');
     frameEl.setAttribute('referrerpolicy', 'no-referrer');
     frameEl.setAttribute('scrolling', 'no');
+    frameEl.setAttribute('frameborder', '0');
 
     frameEl.addEventListener('error', () => {
-      log('WebView/embed failed to load');
-      hide('iframe-error');
-      if (meta?.onFinished) meta.onFinished();
+      log('animation embed failed');
+      finishCurrent('iframe-error');
     });
 
     stageEl.appendChild(frameEl);
@@ -165,70 +238,67 @@
     try {
       frameEl.src = url;
     } catch (_e) {
-      log('WebView/embed failed to load');
-      hide('iframe-src-error');
-      if (meta?.onFinished) meta.onFinished();
+      log('animation embed failed');
+      finishCurrent('iframe-src-error');
       return;
     }
 
-    const duration = Number(cfg.GIFT_ANIMATION_10000_DURATION_MS || 15000);
-    hideTimer = setTimeout(() => {
-      log('animation finished');
-      hide('duration');
-      if (meta?.onFinished) meta.onFinished();
-    }, duration);
-
-    failTimer = setTimeout(() => {
-      if (!frameEl) return;
-      try {
-        if (!frameEl.contentWindow) log('WebView/embed failed to load');
-      } catch (_e) {
-        log('WebView/embed failed to load');
-      }
-    }, 8000);
+    hideTimer = setTimeout(() => finishCurrent('duration'), meta.durationMs);
   }
 
-  function claimGiftAnimationEvent(gift) {
-    pruneProcessed();
-    const id = giftEventId(gift);
-    if (!id) return true;
-    if (processedGiftEventIds.has(id)) return false;
-    processedGiftEventIds.set(id, Date.now());
-    return true;
+  function finishCurrent(reason) {
+    log('animation finished', reason || '');
+    hideAnimation(reason);
+    pumpQueue();
+  }
+
+  function enqueue(gift, meta) {
+    if (queue.length >= MAX_QUEUE) {
+      log('queue full — dropping oldest');
+      queue.shift();
+    }
+    queue.push({ gift, meta });
+    log('queued', { slug: meta.slug, queueLen: queue.length });
+  }
+
+  function pumpQueue() {
+    if (playing) return;
+    const next = queue.shift();
+    if (!next) return;
+    showNotify(next.meta, next.gift);
+    playAnimation(next.meta);
   }
 
   function onGiftReceived(gift) {
     if (!gift) return;
-    log('gift received');
-    log('gift ID/value', {
-      id: normalizeTxId(gift.gift_tx_id || gift.id) || null,
-      slug: giftSlug(gift) || null,
-      coins: coinValue(gift),
-    });
+    const tx = transactionId(gift);
+    const meta = resolveMeta(gift);
+    log('received');
+    log('transactionId:', tx || '(none)');
+    log('giftId:', meta.slug || '(none)');
+    log('giftName:', meta.name);
+    log('coinValue:', meta.charged || meta.unitCost);
 
-    if (!matches10000Gift(gift)) return;
-    if (!claimGiftAnimationEvent(gift)) {
-      log('duplicate gift event ignored');
-      return;
-    }
+    if (!hasAnimationForGift(gift)) return;
+    if (!claimTransaction(gift)) return;
 
-    log('triggering 10000 coin animation');
-    show(cfg.ANIMSTREAM_10000_GIFT_URL, {
-      onFinished: () => log('animation finished'),
-    });
+    log('animation mapped:', meta.label || meta.slug);
+    enqueue(gift, meta);
+    pumpQueue();
   }
 
   function cleanup() {
-    hide('cleanup');
-    processedGiftEventIds.clear();
+    queue.length = 0;
+    hideAnimation('cleanup');
+    processedGiftEvents.clear();
   }
 
   window.GiftAnimationOverlay = {
-    show,
-    hide,
-    cleanup,
+    hasAnimationForGift,
     onGiftReceived,
-    matches10000Gift,
-    giftEventId,
+    cleanup,
+    resolveMeta,
+    transactionId,
+    giftSlug,
   };
 })();

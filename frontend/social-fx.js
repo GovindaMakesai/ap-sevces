@@ -483,6 +483,14 @@
       return;
     }
 
+    /* Mapped AnimStream gifts use GiftAnimationOverlay — skip competing full-screen cinematic */
+    if (opts?.skipCinematic) {
+      activeGiftAnim = { key, combo, el: null, tier: 'small' };
+      spawnFloaters(emoji, 4, 'small');
+      playSound('gift-small');
+      return;
+    }
+
     if (isCinematicTier(tier, amount)) {
       playPremiumOverlay(gift, { combo });
       if (combo < 5) cinematicTravel(gift, combo);
