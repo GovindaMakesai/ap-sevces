@@ -957,11 +957,15 @@ function registerLiveSocket(io) {
         const fromName = socket.data.liveDisplayName || socket.data.displayName || 'User';
         const toName = String(payload?.to || room.host_display_name || 'Host').slice(0, 32);
         const giftEmoji = payload?.emoji || '\u{1F381}';
+        const giftSlug = String(
+          payload?.giftSlug || payload?.giftType || payload?.gift_type || ''
+        ).trim();
+        const giftType = giftSlug || payload?.emoji || 'gift';
         const result = await giftService.sendGift({
           senderId: socket.userId,
           receiverId,
           liveRoomId: room.id,
-          giftType: payload?.giftSlug || payload?.giftType || payload?.emoji || 'gift',
+          giftType,
           coinAmount,
           qty: payload?.qty || 1,
           emoji: giftEmoji,
@@ -978,6 +982,8 @@ function registerLiveSocket(io) {
           to: toName,
           toUserId: receiverId,
           emoji: giftEmoji,
+          giftSlug: giftSlug || String(result.gift.gift_type || giftType).slice(0, 64),
+          giftType: String(result.gift.gift_type || giftType).slice(0, 64),
           amount: charged,
           coins: charged,
           qty: payload?.qty || 1,

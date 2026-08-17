@@ -6005,6 +6005,9 @@
         /* One chat line only — skip WIN banner / fly banner (duplicate "sent to" notices) */
         const combo = window.SocialFX?.trackCombo?.(normalized?.emoji || 'gift', normalized?.qty || 1) || 1;
         window.SocialFX?.playGift?.(normalized, { combo, skipActivity: true });
+        try {
+          window.GiftAnimationOverlay?.onGiftReceived?.(normalized);
+        } catch (_giftAnimErr) { /* presentation only */ }
         onGiftTeamProgress(normalized?.amount || normalized?.coins || 100);
         if (roomState) renderRoomState();
         renderRoomGiftPanels();
@@ -6547,6 +6550,9 @@
   }
 
   function leaveRoomOnly() {
+    try {
+      window.GiftAnimationOverlay?.cleanup?.();
+    } catch (_e) { /* */ }
     stopHeartbeat();
     stopPartyMusic();
     if (hostEndedRecoverTimer) {
@@ -6562,6 +6568,9 @@
   }
 
   function leaveSocket() {
+    try {
+      window.GiftAnimationOverlay?.cleanup?.();
+    } catch (_e) { /* */ }
     stopHeartbeat();
     if (hostEndedRecoverTimer) {
       clearTimeout(hostEndedRecoverTimer);
