@@ -117,7 +117,7 @@
   let userXpProgress = 0;
   const GIFT_OPTIONS = GIFT_CATALOG.gift;
 
-  let giftCategory = 'animated';
+  let giftCategory = 'popular';
   let giftQty = 1;
   let selectedGiftIdx = 0;
   let giftSearchQuery = '';
@@ -131,8 +131,7 @@
 
   const GIFT_TAB_HTML = `
             <button type="button" data-cat="recent">Recent</button>
-            <button type="button" data-cat="animated" class="active">Animated</button>
-            <button type="button" data-cat="popular">Popular</button>
+            <button type="button" data-cat="popular" class="active">Popular</button>
             <button type="button" data-cat="premium">Premium</button>
             <button type="button" data-cat="vip">VIP</button>
             <button type="button" data-cat="flowers">Flowers</button>
@@ -211,19 +210,8 @@
   }
 
   function giftsForAnimatedTab() {
-    const bindings = window.AP_GIFT_ANIMATION?.GIFT_BINDINGS || [];
-    const bySlug = window.AP_GIFT_ANIMATION?.CATALOG_BY_SLUG || {};
-    if (!bindings.length) return [];
-    return bindings.map((b) => {
-      const cat = bySlug[b.slug] || b;
-      return {
-        emoji: cat.emoji || b.emoji,
-        name: cat.name || b.name,
-        cost: cat.cost || b.cost,
-        slug: b.slug,
-        tag: 'FX',
-      };
-    }).filter(withinGiftCoinCap);
+    /* AnimStream tab disabled — fall back to everyday gifts */
+    return capGiftList(sortGiftsCheapFirst(GIFT_CATALOG.gift || []));
   }
 
   function giftsForCategory(cat) {
@@ -18830,7 +18818,7 @@
       if (tabs && tabs.dataset.lux !== '5') {
         tabs.dataset.lux = '5';
         tabs.innerHTML = GIFT_TAB_HTML;
-        giftCategory = 'animated';
+        giftCategory = 'popular';
         tabs.querySelectorAll('button[data-cat]').forEach((btn) => {
           btn.addEventListener('click', () => {
             tabs.querySelectorAll('button[data-cat]').forEach((b) => b.classList.remove('active'));
@@ -18886,8 +18874,7 @@
           <div class="gift-rtp-banner" id="giftRtpBanner" hidden><span>Select a gift to see details</span></div>
           <div class="gift-sheet-tabs" id="giftSheetTabs" data-lux="5">
             <button type="button" data-cat="recent">Recent</button>
-            <button type="button" data-cat="animated" class="active">Animated</button>
-            <button type="button" data-cat="popular">Popular</button>
+            <button type="button" data-cat="popular" class="active">Popular</button>
             <button type="button" data-cat="premium">Premium</button>
             <button type="button" data-cat="vip">VIP</button>
             <button type="button" data-cat="flowers">Flowers</button>
