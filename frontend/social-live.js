@@ -498,6 +498,58 @@
     return box;
   }
 
+  function ensurePkSelfMediaBox() {
+    const root = document.getElementById('liveRoomRoot') || document.querySelector('.party-room');
+    if (!root) return null;
+    let box = document.getElementById('apPkSelfMedia');
+    if (!box) {
+      const rival = document.getElementById('apPkRivalMedia');
+      const html = `<div id="apPkSelfMedia" class="ap-pk-self-media" aria-hidden="true"></div>`;
+      if (rival) rival.insertAdjacentHTML('beforebegin', html);
+      else root.insertAdjacentHTML('beforeend', html);
+      box = document.getElementById('apPkSelfMedia');
+    }
+    return box;
+  }
+
+  function resolveHostPreviewTrack() {
+    return (
+      beautyPipeline?.customTrack ||
+      rawCameraTrack ||
+      getLocalVideoTrack?.() ||
+      null
+    );
+  }
+
+  function paintPkSelfPreview(videoTrack) {
+    if (!isPkLiveNow()) return;
+    if (!isHost() && !clientClaimsHost?.()) return;
+    const track = videoTrack || resolveHostPreviewTrack();
+    const box = ensurePkSelfMediaBox();
+    if (!box || !track?.play) return;
+    try {
+      box.innerHTML = '';
+      box.removeAttribute('aria-hidden');
+      document.body.classList.add('ap-pk-has-self');
+      document.documentElement.classList.add('ap-pk-has-self');
+      track.play(box, { mirror: false, fit: 'cover' });
+      applyHostPreviewMirror(box, cameraFacing);
+      requestAnimationFrame(() => applyHostPreviewMirror(box, cameraFacing));
+    } catch (e) {
+      console.warn('[pk] self preview', e?.message || e);
+    }
+  }
+
+  function clearPkSelfMedia() {
+    const box = document.getElementById('apPkSelfMedia');
+    if (box) {
+      box.innerHTML = '';
+      box.setAttribute('aria-hidden', 'true');
+    }
+    document.body.classList.remove('ap-pk-has-self');
+    document.documentElement.classList.remove('ap-pk-has-self');
+  }
+
   let pkRivalJoinPromise = null;
   /** Agora uid of the rival room HOST — only their A/V is played from rival channel */
   let pkRivalHostAgoraUid = null;
@@ -918,13 +970,20 @@
       overlay.removeAttribute('aria-hidden');
       document.body.classList.add('is-pk-mode');
       document.documentElement.classList.add('is-pk-mode');
+      syncHostBarUi?.();
+      ensurePkSelfMediaBox();
       syncPkStageUi();
       syncPkControlUi();
       ensurePkMediaAlive('pk-show');
     } else {
       overlay.setAttribute('aria-hidden', 'true');
-      document.body.classList.remove('is-pk-mode', 'ap-pk-has-rival');
-      document.documentElement.classList.remove('is-pk-mode', 'ap-pk-has-rival');
+      document.body.classList.remove('is-pk-mode', 'ap-pk-has-rival', 'ap-pk-has-self');
+      document.documentElement.classList.remove('is-pk-mode', 'ap-pk-has-rival', 'ap-pk-has-self');
+      clearPkSelfMedia();
+      try {
+        const track = resolveHostPreviewTrack();
+        if (track?.play) playLocalHostPreview(track);
+      } catch (_e) {}
       document.body.removeAttribute('data-pk-slots');
       document.documentElement.removeAttribute('data-pk-slots');
       setPkStatus('');
@@ -2123,19 +2182,16 @@
 
     try {
       if (isHost() || clientClaimsHost?.()) {
-        const track =
-          getLocalVideoTrack?.() ||
-          rawCameraTrack ||
-          beautyPipeline?.customTrack ||
-          null;
-        if (track?.play) playLocalHostPreview(track);
+        paintPkSelfPreview(resolveHostPreviewTrack());
         ensureHostVideoVisible?.();
       }
     } catch (_e) {}
 
     try {
       document
-        .querySelectorAll('#liveLocalHost video, #liveLocalVideo, #liveLocalHost canvas')
+        .querySelectorAll(
+          '#apPkSelfMedia video, #apPkSelfMedia canvas, #liveLocalHost video, #liveLocalVideo, #liveLocalHost canvas'
+        )
         .forEach((el) => {
           el.style.opacity = '1';
           el.style.visibility = 'visible';
@@ -2269,6 +2325,7 @@
     hidePkChallengeSheet();
     ensurePkBattleChrome();
     ensurePkRivalMediaBox();
+    ensurePkSelfMediaBox();
     pkBattleActive = true;
     pkEndRequested = false;
     pkStartInFlight = false;
@@ -2327,6 +2384,10 @@
         const hasVid = Boolean(document.querySelector('#apPkRivalMedia video'));
         if (!pkRivalChannelJoined || !hasVid) {
           startPkRivalAgora(otherCh, pkLastSnapshot).catch(() => {});
+        }
+        const selfBox = document.getElementById('apPkSelfMedia');
+        if (!selfBox?.querySelector('video, canvas')) {
+          paintPkSelfPreview(resolveHostPreviewTrack());
         }
       }, 4000);
     }
@@ -2406,6 +2467,7 @@
     document.body.classList.remove('ap-pk-can-end');
     document.documentElement.classList.remove('ap-pk-can-end');
     stopPkRivalAgora().catch(() => {});
+    clearPkSelfMedia();
     dismissPkSelectionUi();
     pkScoreLeft = left;
     pkScoreRight = right;
@@ -9347,6 +9409,10 @@
   }
 
   function playLocalHostPreview(videoTrack) {
+    if (isPkLiveNow() && (isHost() || clientClaimsHost?.())) {
+      paintPkSelfPreview(videoTrack);
+      return;
+    }
     const localBox = document.getElementById('liveLocalHost');
     if (!localBox || !videoTrack?.play) return;
     localBox.innerHTML = '';

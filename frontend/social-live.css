@@ -5434,13 +5434,49 @@ body.is-pk-mode .live-room #liveBg.live-bg {
   left: 50%;
   width: 50%;
   height: var(--pk-arena-h);
-  z-index: 6;
+  z-index: 10;
   display: none;
   overflow: hidden;
   border-radius: 0 0 12px 0;
   background: #0f172a;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
   pointer-events: none;
+}
+
+/* Host self preview (left slot) — same mount strategy as rival */
+.ap-pk-self-media {
+  position: absolute;
+  top: var(--pk-arena-top);
+  left: 0;
+  width: 50%;
+  height: var(--pk-arena-h);
+  z-index: 10;
+  display: none;
+  overflow: hidden;
+  border-radius: 0 0 12px 0;
+  background: #0f172a;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  pointer-events: none;
+}
+
+body.is-pk-mode.ap-is-host .ap-pk-self-media,
+body.is-pk-mode.ap-pk-has-self .ap-pk-self-media {
+  display: block !important;
+}
+
+.ap-pk-self-media video,
+.ap-pk-self-media canvas,
+.ap-pk-self-media > div {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+}
+
+body.is-pk-mode.ap-is-host.ap-pk-has-self .live-room #liveLocalHost,
+body.is-pk-mode.ap-is-host.ap-pk-has-self .live-room .live-local-video.is-host-only {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
 body.is-pk-mode.ap-pk-has-rival .ap-pk-rival-media,
@@ -5546,16 +5582,13 @@ body.is-pk-mode .live-room .live-fallback-video {
   pointer-events: none !important;
 }
 
-body.is-pk-mode .ap-pk-side-r {
-  background: linear-gradient(165deg, rgba(30, 27, 75, 0.2), rgba(15, 23, 42, 0.35));
-}
-
+body.is-pk-mode .ap-pk-side-r,
 body.is-pk-mode .ap-pk-side-l {
-  background: linear-gradient(90deg, rgba(0, 0, 0, 0.12), transparent 65%);
+  background: transparent !important;
 }
 
 body.is-pk-mode .ap-pk-waiting {
-  background: linear-gradient(160deg, rgba(30, 27, 75, 0.55) 0%, rgba(15, 23, 42, 0.65) 100%);
+  background: rgba(15, 23, 42, 0.45) !important;
 }
 
 /*
