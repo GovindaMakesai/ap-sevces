@@ -5457,6 +5457,11 @@ body.is-pk-mode .ap-pk-rival-media:not([aria-hidden='true']) {
 }
 
 /* Upper arena video slots — NEVER full-screen during PK */
+body.is-pk-mode .live-room .live-overlay {
+  /* Chrome below arena video so host local preview is visible in left slot */
+  z-index: 4 !important;
+}
+
 body.is-pk-mode .live-room .live-local-video,
 body.is-pk-mode .live-room .live-fallback-video,
 body.is-pk-mode .live-room .live-remote-video {
@@ -5472,13 +5477,22 @@ body.is-pk-mode .live-room .live-remote-video {
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
+body.is-pk-mode .live-room .live-local-video video,
+body.is-pk-mode .live-room .live-local-video canvas,
+body.is-pk-mode .live-room .live-local-video > div,
+body.is-pk-mode .live-room .live-fallback-video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+}
+
 /* Host: always left slot(s) */
 body.is-pk-mode.ap-is-host .live-room .live-local-video,
 body.is-pk-mode.ap-is-host .live-room .live-fallback-video {
   left: 0 !important;
   right: auto !important;
   width: 50% !important;
-  z-index: 5 !important;
+  z-index: 10 !important;
 }
 
 body.is-pk-mode.ap-is-host:not(.ap-pk-has-rival) .live-room .live-remote-video:empty {
@@ -5863,9 +5877,19 @@ body.is-pk-mode #apChatEmojiBtn {
   flex-shrink: 0 !important;
 }
 
-/* PK labels/dock stay under chat + bottom bar so typing is never blocked */
+/* PK labels above video; transparent sides so camera shows through */
 body.is-pk-mode .ap-pk-overlay {
-  z-index: 18 !important;
+  z-index: 11 !important;
+  pointer-events: none !important;
+}
+
+body.is-pk-mode .ap-pk-side-l,
+body.is-pk-mode .ap-pk-side-r {
+  background: transparent !important;
+}
+
+body.is-pk-mode .ap-pk-rival-media {
+  z-index: 10 !important;
   pointer-events: none !important;
 }
 
@@ -5878,11 +5902,6 @@ body.is-pk-mode .ap-pk-party-dock {
 body.is-pk-mode .ap-pk-stop-btn {
   pointer-events: auto !important;
   z-index: 21 !important;
-}
-
-body.is-pk-mode .ap-pk-rival-media {
-  z-index: 6 !important;
-  pointer-events: none !important;
 }
 
 body.is-pk-mode .party-chat-msg.is-pk-home {

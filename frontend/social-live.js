@@ -2122,6 +2122,18 @@
     } catch (_e) {}
 
     try {
+      if (isHost() || clientClaimsHost?.()) {
+        const track =
+          getLocalVideoTrack?.() ||
+          rawCameraTrack ||
+          beautyPipeline?.customTrack ||
+          null;
+        if (track?.play) playLocalHostPreview(track);
+        ensureHostVideoVisible?.();
+      }
+    } catch (_e) {}
+
+    try {
       document
         .querySelectorAll('#liveLocalHost video, #liveLocalVideo, #liveLocalHost canvas')
         .forEach((el) => {
