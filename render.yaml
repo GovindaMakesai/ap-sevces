@@ -1,0 +1,47 @@
+# Render Blueprint — deploy from Dashboard: New > Blueprint > connect repo
+# Or create Web Service manually with the same build/start commands (root dir must be EMPTY).
+#
+# After first deploy succeeds, set SKIP_DB_SCHEMA_ENSURE=true in the Dashboard.
+# Run once in Render Shell: npm run db:seed:test
+
+services:
+  - type: web
+    name: lumoroom
+    runtime: node
+    plan: free
+    region: oregon
+    branch: main
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "5000"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: ACCESS_TOKEN_TTL
+        value: 7d
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: SKIP_DB_SCHEMA_ENSURE
+        value: "false"
+      - key: FORCE_SCHEMA_ENSURE
+        value: "true"
+      - key: PG_POOL_MAX
+        value: "10"
+      - key: LOG_LEVEL
+        value: info
+      - key: DISABLE_CRON
+        value: "false"
+      # Paste your Supabase/Neon Postgres URI in Render Dashboard when prompted:
+      - key: DATABASE_URL
+        sync: false
+      # Optional — add in Dashboard when testing live rooms:
+      - key: AGORA_APP_ID
+        sync: false
+      - key: AGORA_APP_CERTIFICATE
+        sync: false

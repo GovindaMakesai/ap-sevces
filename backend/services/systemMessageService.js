@@ -117,7 +117,7 @@ async function notifyWithdrawalPaid(userId, { amount, amountInr } = {}) {
 async function notifyWithdrawalCompleted(userId, { amount, amountInr } = {}) {
   const pts = Number(amount).toLocaleString('en-IN');
   const inr = amountInr != null ? ` (₹${Number(amountInr).toFixed(2)})` : '';
-  const text = `🎉 Withdrawal complete\n\nYour withdrawal of ${pts} points${inr} is finished. Thank you for using AP Services!`;
+  const text = `🎉 Withdrawal complete\n\nYour withdrawal of ${pts} points${inr} is finished. Thank you for using Glowcast!`;
   return sendSystemChatMessage(userId, text, {
     title: 'Withdrawal complete',
     body: `${pts} points withdrawn`,
@@ -239,7 +239,7 @@ async function notifyCoinsReceivedFromSeller(recipientUserId, coins, { sellerId,
     }
   }
 
-  /* 2) Official AP Services confirmation */
+  /* 2) Official Glowcast confirmation */
   const official =
     `✅ Coins received!\n\nYou received ${n} NR coins from ${from}. Open Profile → Coins to see your balance.`;
   await sendSystemChatMessage(recipient, official);

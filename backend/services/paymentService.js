@@ -70,7 +70,7 @@ async function createStripeSession(intentId, successUrl, cancelUrl, userId) {
     line_items: [{
       price_data: {
         currency: 'inr',
-        product_data: { name: 'AP Services Coins' },
+        product_data: { name: 'Glowcast Coins' },
         unit_amount: Math.round(Number(intent.amount_inr) * 100),
       },
       quantity: 1,

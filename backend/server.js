@@ -1,4 +1,4 @@
-// backend/server.js — AP Services production entry
+// backend/server.js — Glowcast API production entry
 
 const path = require('path');
 /* override:true so PM2 stale AGORA_* env cannot keep an old App ID after .env updates */
@@ -16,6 +16,7 @@ const { validateEnv } = require('./config/validateEnv');
 const { ensureChatSchema } = require('./config/ensureChatSchema');
 const { ensurePaymentSchema } = require('./config/ensurePaymentSchema');
 const { ensureFoundationSchema } = require('./config/ensureFoundationSchema');
+const { ensureBaseSchema } = require('./config/ensureBaseSchema');
 const { ensurePhase2Schema } = require('./config/ensurePhase2Schema');
 const { ensureSocialProductionSchema } = require('./config/ensureSocialProductionSchema');
 const { ensureSecurityHardeningSchema } = require('./config/ensureSecurityHardeningSchema');
@@ -101,6 +102,7 @@ const allowedOrigins = [
   'https://apservices.in',
   'https://www.apservices.in',
   'https://api.apservices.in',
+  'https://lumoroom.onrender.com',
 ];
 
 function isLanDevOrigin(origin) {
@@ -120,6 +122,7 @@ function isAllowedCorsOrigin(origin) {
   if (isProduction) {
     if (/^https:\/\/(www\.)?apservices\.in$/i.test(origin)) return true;
     if (/^https:\/\/api\.apservices\.in$/i.test(origin)) return true;
+    if (/^https:\/\/lumoroom\.onrender\.com$/i.test(origin)) return true;
     if (/^https:\/\/[\w-]+\.vercel\.app$/i.test(origin)) return true;
     return false;
   }
@@ -224,7 +227,7 @@ app.use('/api/reward', referralModule.rewardRoutes);
 app.use('/api', hierarchyRoutes);
 
 app.get('/', (_req, res) => {
-  res.json({ message: 'AP Services API is running', status: 'online', version: '2.0.0' });
+  res.json({ message: 'Glowcast API is running', status: 'online', version: '2.0.0', app: 'Glowcast' });
 });
 
 app.use(notFoundHandler);
@@ -270,6 +273,7 @@ async function startServer() {
   if (skipSchema) {
     logger.info('Skipping schema ensure on boot (set FORCE_SCHEMA_ENSURE=true to run)');
   } else {
+    await ensureBaseSchema();
     await ensureChatSchema();
     await ensurePaymentSchema();
     await ensureFoundationSchema();

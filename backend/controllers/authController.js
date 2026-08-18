@@ -160,7 +160,7 @@ const getFrontendBaseUrl = () =>
     process.env.OAUTH_CALLBACK_BASE ||
     'https://api.apservices.in';
 
-const isNativeAppRedirect = (value) => /^(exp|apservices):\/\//i.test(String(value || '').trim());
+const isNativeAppRedirect = (value) => /^(exp|apservices|glowcast):\/\//i.test(String(value || '').trim());
 
 const buildOAuthSuccessUrl = (_token, appRedirect = '') => {
     const safeRedirect = String(appRedirect || '').trim();
@@ -329,7 +329,7 @@ const register = async (req, res) => {
             const skillList = Array.isArray(skills) ? skills : [];
             const bio = skillList.length
                 ? `Services: ${skillList.join(', ')}`
-                : 'Professional on AP Services';
+                : 'Professional on Glowcast';
 
             await Worker.create({
                 user_id: newUser.id,
