@@ -1,6 +1,5 @@
 /**
- * GiftAnimationOverlay — AnimStream embed directly over Agora live video.
- * Mounts inside .live-overlay (above video, below chat/controls).
+ * GiftAnimationOverlay — AnimStream embed full-screen over live video (below chat UI).
  */
 (function () {
   const LOG = '[Gift]';
@@ -26,9 +25,22 @@
   let notifyCard = null;
   let notifyTimer = null;
   let frameEl = null;
+  let stageEl = null;
+  let debugPanelEl = null;
   let playing = false;
   let hideTimer = null;
+  let resizeBound = false;
   const queue = [];
+  const debugState = {
+    url: '',
+    webViewLoaded: false,
+    audioDetected: false,
+    visualDetected: false,
+    viewportW: 0,
+    viewportH: 0,
+    animW: 0,
+    animH: 0,
+  };
 
   function isDebugMode() {
     try {
@@ -67,10 +79,14 @@
     );
   }
 
-  /** Video layer mount — sibling before .live-overlay, not inside flex overlay column */
-  function getAnimMountParent() {
-    const shell = getLiveShell();
-    return shell || document.body;
+  function getAnimInsertBefore(shell) {
+    if (!shell) return null;
+    return (
+      shell.querySelector('.live-overlay') ||
+      shell.querySelector('.party-room-body') ||
+      shell.querySelector('.party-header') ||
+      null
+    );
   }
 
   function getNotifyMount() {
@@ -84,10 +100,94 @@
   }
 
   function insertAnimOverlay(el) {
-    /* Body + fixed z-index — must sit above .live-overlay (z 12) so iframe video is visible */
-    if (el.parentElement !== document.body) {
-      document.body.appendChild(el);
+    const shell = getLiveShell();
+    if (shell) {
+      const before = getAnimInsertBefore(shell);
+      if (el.parentElement !== shell) {
+        if (before) shell.insertBefore(el, before);
+        else shell.appendChild(el);
+      }
+      el.classList.add('ap-gift-anim-in-shell');
+      return;
     }
+    el.classList.remove('ap-gift-anim-in-shell');
+    if (el.parentElement !== document.body) document.body.appendChild(el);
+  }
+
+  function getOverlayViewport() {
+    const shell = getLiveShell();
+    if (shell) {
+      const rect = shell.getBoundingClientRect();
+      return {
+        width: Math.max(0, Math.round(rect.width)),
+        height: Math.max(0, Math.round(rect.height)),
+      };
+    }
+    return {
+      width: Math.max(0, Math.round(window.innerWidth)),
+      height: Math.max(
+        0,
+        Math.round(
+          window.innerHeight -
+            (Number.parseFloat(
+              getComputedStyle(document.documentElement).getPropertyValue('--ap-bottom-bar-h')
+            ) || 58)
+        )
+      ),
+    };
+  }
+
+  function syncOverlayViewport() {
+    if (!rootEl) return;
+    const vp = getOverlayViewport();
+    debugState.viewportW = vp.width;
+    debugState.viewportH = vp.height;
+    if (stageEl) {
+      const stageRect = stageEl.getBoundingClientRect();
+      debugState.animW = Math.round(stageRect.width);
+      debugState.animH = Math.round(stageRect.height);
+    }
+    rootEl.style.setProperty('--ap-gift-overlay-w', `${vp.width}px`);
+    rootEl.style.setProperty('--ap-gift-overlay-h', `${vp.height}px`);
+    updateDebugPanel();
+  }
+
+  function bindResizeSync() {
+    if (resizeBound) return;
+    resizeBound = true;
+    const onResize = () => syncOverlayViewport();
+    window.addEventListener('resize', onResize);
+    try {
+      const vv = window.visualViewport;
+      if (vv) {
+        vv.addEventListener('resize', onResize);
+        vv.addEventListener('scroll', onResize);
+      }
+    } catch (_e) { /* */ }
+  }
+
+  function ensureDebugPanel() {
+    if (!isDebugMode()) return null;
+    if (debugPanelEl) return debugPanelEl;
+    debugPanelEl = document.createElement('div');
+    debugPanelEl.id = 'apGiftAnimDebugPanel';
+    document.body.appendChild(debugPanelEl);
+    return debugPanelEl;
+  }
+
+  function updateDebugPanel() {
+    if (!isDebugMode()) return;
+    const panel = ensureDebugPanel();
+    if (!panel) return;
+    panel.hidden = false;
+    panel.innerHTML = [
+      `Live viewport: ${debugState.viewportW} × ${debugState.viewportH}`,
+      `Animation viewport: ${debugState.animW} × ${debugState.animH}`,
+      `Animation URL: ${debugState.url || '—'}`,
+      `WebView loaded: ${debugState.webViewLoaded ? 'YES' : 'NO'}`,
+      `Visual element detected: ${debugState.visualDetected ? 'YES' : 'NO'}`,
+      `Audio detected: ${debugState.audioDetected ? 'YES' : 'NO'}`,
+    ].join('<br>');
   }
 
   function pruneProcessed(now = Date.now()) {
@@ -129,7 +229,6 @@
       gift?.amount || gift?.coins || gift?.coin_amount
     );
     if (derived && MAP[derived]?.animationUrl) return MAP[derived];
-    /* Backend sometimes sends emoji / short type instead of catalog slug */
     const amt = Number(gift?.amount || gift?.coins || gift?.coin_amount || 0);
     const name = String(gift?.giftName || gift?.name || '').toLowerCase();
     if (amt === 10000 && /imperial|bloom/.test(name)) {
@@ -158,6 +257,8 @@
     const charged = Number(gift?.amount || gift?.coins || gift?.coin_amount || 0);
     const qty = Math.max(1, Number(gift?.qty || 1));
     const emoji = gift?.emoji || catalog.emoji || mapped?.emoji || '\u{1F381}';
+    const thumbnailUrl =
+      catalog.thumbnailUrl || mapped?.thumbnailUrl || cfg.getThumbnailUrl?.(slug) || '';
     return {
       slug,
       name,
@@ -165,7 +266,8 @@
       qty,
       unitCost: unitCost || (qty > 1 && charged ? Math.round(charged / qty) : charged),
       charged,
-      animationUrl: mapped?.animationUrl || '',
+      animationUrl: mapped?.animationEmbedUrl || mapped?.animationUrl || '',
+      thumbnailUrl,
       durationMs: Number(mapped?.durationMs || DEFAULT_DURATION),
       label: mapped?.label || '',
     };
@@ -191,26 +293,25 @@
 
   function ensureAnimRoot() {
     if (rootEl) {
-      const parent = getAnimMountParent();
-      if (rootEl.parentElement !== parent) insertAnimOverlay(rootEl);
+      insertAnimOverlay(rootEl);
+      syncOverlayViewport();
       return rootEl;
     }
     rootEl = document.createElement('div');
     rootEl.id = 'apGiftAnimOverlay';
     rootEl.setAttribute('aria-hidden', 'true');
-    rootEl.classList.add('ap-gift-anim-in-room');
     if (isDebugMode()) rootEl.classList.add('is-debug');
     insertAnimOverlay(rootEl);
-    debugLog('overlay mounted on video shell', rootEl.parentElement?.id || rootEl.parentElement?.className || 'body');
+    bindResizeSync();
+    syncOverlayViewport();
+    debugLog('overlay mounted in live shell', rootEl.parentElement?.id || rootEl.parentElement?.className || 'body');
     return rootEl;
   }
 
   function ensureNotifyRoot() {
     const mount = getNotifyMount();
     if (notifyRoot) {
-      if (notifyRoot.parentElement !== mount) {
-        mount.appendChild(notifyRoot);
-      }
+      if (notifyRoot.parentElement !== mount) mount.appendChild(notifyRoot);
       return notifyRoot;
     }
     notifyRoot = document.createElement('div');
@@ -252,12 +353,25 @@
       rootEl.setAttribute('aria-hidden', 'true');
       rootEl.textContent = '';
       frameEl = null;
+      stageEl = null;
     }
+    debugState.url = '';
+    debugState.webViewLoaded = false;
+    debugState.audioDetected = false;
+    debugState.visualDetected = false;
+    updateDebugPanel();
     if (playing) {
       debugLog('overlay unmounted', reason || '');
       animLog('overlay unmounted', reason || '');
     }
     playing = false;
+  }
+
+  function thumbNotifyHtml(meta) {
+    if (meta.thumbnailUrl) {
+      return `<img src="${escapeAttr(meta.thumbnailUrl)}" alt="" loading="lazy">`;
+    }
+    return meta.emoji;
   }
 
   function showNotify(meta, gift) {
@@ -274,7 +388,7 @@
           : '';
     const qtyLabel = meta.qty > 1 ? ` \u00d7${meta.qty}` : '';
     notifyCard.innerHTML = `
-      <div class="ap-gift-notify-thumb" aria-hidden="true">${meta.emoji}</div>
+      <div class="ap-gift-notify-thumb" aria-hidden="true">${thumbNotifyHtml(meta)}</div>
       <div class="ap-gift-notify-body">
         <div class="ap-gift-notify-sender">${escapeHtml(sender)} sent</div>
         <div class="ap-gift-notify-name">${escapeHtml(meta.name)}</div>
@@ -293,6 +407,10 @@
       .replace(/>/g, '&gt;');
   }
 
+  function escapeAttr(s) {
+    return escapeHtml(s).replace(/"/g, '&quot;');
+  }
+
   function playAnimation(meta, opts) {
     const url = String(opts?.forceUrl || meta.animationUrl || '').trim();
     if (!url) {
@@ -303,13 +421,20 @@
     ensureAnimRoot();
     rootEl.textContent = '';
     playing = true;
+    debugState.url = url;
+    debugState.webViewLoaded = false;
+    debugState.audioDetected = false;
+    debugState.visualDetected = false;
 
     debugLog('triggering overlay');
     debugLog('animation URL=', url);
     animLog('load started', url);
 
-    const stageEl = document.createElement('div');
+    stageEl = document.createElement('div');
     stageEl.className = 'ap-gift-anim-stage';
+
+    const frameWrap = document.createElement('div');
+    frameWrap.className = 'ap-gift-anim-frame-wrap';
 
     frameEl = document.createElement('iframe');
     frameEl.className = 'ap-gift-anim-frame';
@@ -324,26 +449,28 @@
     frameEl.setAttribute('frameborder', '0');
     frameEl.setAttribute('allowfullscreen', 'true');
     frameEl.setAttribute('allowtransparency', 'true');
-    frameEl.style.width = '100%';
-    frameEl.style.height = '100%';
-    frameEl.style.minHeight = '220px';
-    frameEl.style.display = 'block';
-    frameEl.style.border = 'none';
     frameEl.style.background = 'transparent';
 
     frameEl.addEventListener('load', () => {
+      debugState.webViewLoaded = true;
+      debugState.visualDetected = true;
       animLog('loaded');
+      syncOverlayViewport();
+      updateDebugPanel();
     });
     frameEl.addEventListener('error', () => {
       animLog('load error');
       if (!isDebugMode()) finishCurrent('iframe-error');
     });
 
-    stageEl.appendChild(frameEl);
+    frameWrap.appendChild(frameEl);
+    stageEl.appendChild(frameWrap);
     rootEl.appendChild(stageEl);
     rootEl.classList.add('is-visible');
     rootEl.setAttribute('aria-hidden', 'false');
     rootEl.style.pointerEvents = 'none';
+
+    syncOverlayViewport();
 
     try {
       frameEl.src = url;
@@ -403,6 +530,27 @@
     enqueue(gift, meta);
   }
 
+  function previewSlug(slug) {
+    const key = String(slug || '').trim();
+    if (!key || !MAP[key]) return false;
+    const meta = {
+      slug: key,
+      name: MAP[key].giftName || key,
+      emoji: MAP[key].emoji || '\u{1F381}',
+      qty: 1,
+      unitCost: MAP[key].coinValue || 0,
+      charged: MAP[key].coinValue || 0,
+      animationUrl: MAP[key].animationEmbedUrl || MAP[key].animationUrl,
+      thumbnailUrl: MAP[key].thumbnailUrl || '',
+      durationMs: Number(MAP[key].durationMs || DEFAULT_DURATION),
+    };
+    const gift = { from: 'Preview', giftSlug: key, giftName: meta.name, amount: meta.charged, emoji: meta.emoji };
+    queue.length = 0;
+    if (playing) hideAnimation('preview-restart');
+    enqueue(gift, meta);
+    return true;
+  }
+
   function testAnimation1() {
     const preset =
       TEST_ANIMATIONS[testAnimIndex] ||
@@ -413,31 +561,7 @@
       ? (testAnimIndex + 1) % TEST_ANIMATIONS.length
       : 0;
     const slug = preset.slug || 'imperial_bloom_10000';
-    const name = preset.name || 'Imperial Bloom';
-    const cost = Number(preset.cost || 10000);
-    const emoji = preset.emoji || '\u{1F33A}';
-    const animationUrl = preset.animationUrl || ANIM1_URL;
-    const meta = {
-      slug,
-      name,
-      emoji,
-      qty: 1,
-      unitCost: cost,
-      charged: cost,
-      animationUrl,
-      durationMs: DEFAULT_DURATION,
-      label: preset.label || '',
-    };
-    const gift = {
-      from: 'DEBUG',
-      giftSlug: slug,
-      giftName: name,
-      amount: cost,
-      emoji,
-    };
-    queue.length = 0;
-    if (playing) hideAnimation('test-restart');
-    enqueue(gift, meta);
+    previewSlug(slug);
   }
 
   function ensureTestButton() {
@@ -446,7 +570,7 @@
     const btn = document.createElement('button');
     btn.id = 'apGiftAnimTestBtn';
     btn.type = 'button';
-    btn.textContent = TEST_ANIMATIONS.length > 1 ? 'TEST ANIM (6 gifts)' : 'TEST ANIMSTREAM';
+    btn.textContent = TEST_ANIMATIONS.length > 1 ? 'TEST ANIM' : 'TEST ANIMSTREAM';
     btn.className = 'ap-gift-anim-test-btn';
     btn.addEventListener('click', (e) => {
       e.preventDefault();
@@ -454,6 +578,8 @@
       testAnimation1();
     });
     document.body.appendChild(btn);
+    ensureDebugPanel();
+    updateDebugPanel();
   }
 
   function cleanup() {
@@ -461,6 +587,10 @@
     hideAnimation('cleanup');
     processedGiftEvents.clear();
     document.getElementById('apGiftAnimTestBtn')?.remove();
+    if (debugPanelEl) {
+      debugPanelEl.remove();
+      debugPanelEl = null;
+    }
   }
 
   if (isDebugMode()) ensureTestButton();
@@ -473,6 +603,8 @@
     transactionId,
     giftSlug,
     testAnimation1,
+    previewSlug,
     isDebugMode,
+    syncOverlayViewport,
   };
 })();

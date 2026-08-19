@@ -210,8 +210,29 @@
   }
 
   function giftsForAnimatedTab() {
-    /* AnimStream tab disabled — fall back to everyday gifts */
+    const animated = GIFT_CATALOG.animated;
+    if (animated && animated.length) {
+      return capGiftList(
+        sortGiftsCheapFirst(
+          animated.map((g) => ({ ...g, slug: g.slug || giftSlugFor(g) }))
+        )
+      );
+    }
     return capGiftList(sortGiftsCheapFirst(GIFT_CATALOG.gift || []));
+  }
+
+  function giftThumbnailUrl(g) {
+    const slug = g?.slug || giftSlugFor(g);
+    if (g?.thumbnailUrl) return String(g.thumbnailUrl);
+    return String(window.AP_GIFT_ANIMATION?.getThumbnailUrl?.(slug) || '');
+  }
+
+  function giftCardVisualHtml(g) {
+    const thumb = giftThumbnailUrl(g);
+    if (thumb) {
+      return `<img class="gift-thumb-img" src="${escapeAttr(thumb)}" alt="" loading="lazy" decoding="async">`;
+    }
+    return `<span class="g">${g.emoji}</span>`;
   }
 
   function giftsForCategory(cat) {
@@ -225,6 +246,7 @@
     if (cat === 'premium') {
       return capGiftList(
         sortGiftsCheapFirst([
+        ...(GIFT_CATALOG.animated || []),
         ...(GIFT_CATALOG.gift || []).filter((g) => Number(g.cost) >= 3000),
         ...(GIFT_CATALOG.flowers || []).filter((g) => Number(g.cost) >= 3000),
         ...(GIFT_CATALOG.lucky || []).filter((g) => Number(g.cost) >= 3000),
@@ -10243,7 +10265,30 @@
     const g = items[selectedGiftIdx] || items[0];
     const banner = document.getElementById('giftRtpBanner');
     if (banner && g) {
-      banner.innerHTML = `<span>【${escapeHtml(g.name)}】Creators receive <strong>90%</strong> · Platform 10% · ${formatGiftCoinPrice(g.cost)} each</span>`;
+      const slug = g.slug || giftSlugFor(g);
+      const thumb = giftThumbnailUrl(g);
+      const thumbHtml = thumb
+        ? `<img class="gift-rtp-thumb" src="${escapeAttr(thumb)}" alt="" loading="lazy">`
+        : '';
+      const hasAnim = window.GiftAnimationOverlay?.hasAnimationForGift?.({
+        giftSlug: slug,
+        giftName: g.name,
+        amount: g.cost,
+      });
+      const previewBtn = hasAnim
+        ? `<button type="button" class="gift-anim-preview-btn" id="giftAnimPreviewBtn">Preview</button>`
+        : '';
+      banner.hidden = false;
+      banner.innerHTML = `<span>${thumbHtml}【${escapeHtml(g.name)}】Creators receive <strong>90%</strong> · Platform 10% · ${formatGiftCoinPrice(g.cost)} each${previewBtn}</span>`;
+      const previewEl = document.getElementById('giftAnimPreviewBtn');
+      if (previewEl && !previewEl.dataset.bound) {
+        previewEl.dataset.bound = '1';
+        previewEl.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          window.GiftAnimationOverlay?.previewSlug?.(slug);
+        });
+      }
     }
     const me = currentUser();
     const bal = lastCoinBalance != null ? lastCoinBalance : 0;
@@ -10609,6 +10654,7 @@
       pkSide: side || msg.pkSide || null,
     };
     if (enriched.userId && enriched.profilePic) cacheChatProfile(enriched.userId, enriched.profilePic);
+    if (enriched.userId && window.Cosmetics?.prefetchUsers) Cosmetics.prefetchUsers([enriched.userId]);
     const giftIdx = findExistingGiftMessage(enriched);
     if (giftIdx >= 0) {
       const prev = chatMessages[giftIdx];
@@ -10786,7 +10832,7 @@
           `<span class="user${admin ? ' is-admin-name' : ''}">${escapeHtml(msg.user)}</span></button>` +
           `${canModerateRoom() ? `<button type="button" class="party-chat-mod-btn" aria-label="Moderate message" data-msg-id="${escapeAttr(String(msg.id || ''))}"><i class="fas fa-ellipsis-v" aria-hidden="true"></i></button>` : ''}` +
           `</div>` +
-          (msg.text ? `<span class="party-chat-text">${escapeHtml(msg.text)}</span>` : '') +
+          (msg.text ? `<span class="party-chat-text${window.Cosmetics ? ' ' + Cosmetics.chatBubbleClasses(Cosmetics.getCachedForUser(uid)?.chatBubble) : ''}">${escapeHtml(msg.text)}</span>` : '') +
           (msg.imageUrl
             ? `<div class="party-chat-media"><img src="${escapeAttr(resolveMediaUrl(msg.imageUrl))}" alt="Photo" class="party-chat-image" loading="lazy" decoding="async"></div>`
             : '') +
@@ -11940,6 +11986,10 @@
       document.getElementById('apInAppShareSheet')?.classList.contains('open') ||
       document.getElementById('apSurpriseShop')?.classList.contains('open') ||
       document.getElementById('apFilterSheet')?.classList.contains('open') ||
+      document.getElementById('apPartyRoomSettings')?.classList.contains('open') ||
+      document.getElementById('apPartySettingModal')?.classList.contains('open') ||
+      document.getElementById('apPartyEditInfoModal')?.classList.contains('open') ||
+      document.getElementById('apPartyRoomProfile')?.classList.contains('open') ||
       document.querySelector('.ap-pk-types-sheet.open')
     );
     document.body.classList.toggle('ap-live-overlay-open', open);
@@ -11994,8 +12044,15 @@
       document.querySelectorAll('.ap-modal-overlay.open').forEach((el) => {
         if (el.id === 'apHostMicInviteModal') return;
         if (el.id === 'giftSheet' || el.classList.contains('gift-sheet')) return;
-        /* Never auto-kill profile / seat sheets — user opened them on purpose */
         if (el.id === 'apProfileSheet' || el.id === 'apSeatSheet') return;
+        if (
+          el.id === 'apPartyRoomSettings' ||
+          el.id === 'apPartySettingModal' ||
+          el.id === 'apPartyEditInfoModal' ||
+          el.id === 'apPartyRoomProfile'
+        ) {
+          return;
+        }
         el.classList.remove('open');
       });
       ['partyToolsSheet', 'giftSheet', 'partyRequestsSheet'].forEach((id) => {
@@ -12432,6 +12489,8 @@
       if (e.type !== 'click') return;
       if (e.button != null && e.button !== 0) return;
       if (Date.now() < lockUntil) return;
+      if (Date.now() < (Number(window.__apToolsOpenGuardUntil) || 0)) return;
+      if (Date.now() - (Number(window.__apPartyModalOpenedAt) || 0) < 700) return;
       const x = e.clientX ?? e.touches?.[0]?.clientX;
       const y = e.clientY ?? e.touches?.[0]?.clientY;
       if (x == null || y == null) return;
@@ -12452,6 +12511,13 @@
           '.gift-sheet, .party-tools-sheet, .party-requests-sheet, .ap-modal-overlay, .party-music-sheet'
         );
         if (sheet && sheet.classList.contains('open')) {
+          const partyModalIds = new Set([
+            'apPartyRoomSettings',
+            'apPartySettingModal',
+            'apPartyEditInfoModal',
+            'apPartyRoomProfile',
+          ]);
+          if (partyModalIds.has(sheet.id)) return;
           try {
             const cs = getComputedStyle(sheet);
             if (cs.opacity === '0' || cs.visibility === 'hidden' || sheet.style.pointerEvents === 'none') {
@@ -15955,9 +16021,10 @@
         const cost = Number(g.cost) || 0;
         const selected = i === selectedGiftIdx ? 'is-selected' : '';
         const slug = escapeAttr(g.slug || giftSlugFor(g));
+        const thumbClass = giftThumbnailUrl(g) ? 'gift-card--has-thumb' : '';
         return `
-      <button type="button" data-gift-idx="${i}" data-gift="${g.emoji}" data-cost="${cost}" data-slug="${slug}" class="gift-card gift-card--lite ${selected}">
-        <span class="g">${g.emoji}</span>
+      <button type="button" data-gift-idx="${i}" data-gift="${g.emoji}" data-cost="${cost}" data-slug="${slug}" class="gift-card gift-card--lite ${selected} ${thumbClass}">
+        ${giftCardVisualHtml(g)}
         <span class="gift-name">${escapeHtml(g.name || 'Gift')}</span>
         ${g.tag ? `<span class="gift-tag">${escapeHtml(g.tag)}</span>` : ''}
         <span class="gift-coin-cost" aria-label="${formatGiftCoinPrice(cost)}">${formatGiftCoinPrice(cost)}</span>
@@ -19106,7 +19173,11 @@
 
   function openPartyRoomSettings() {
     closePartyRefModals('apPartyRoomSettings');
-    document.getElementById('apPartyRoomSettings')?.classList.add('open');
+    const el = document.getElementById('apPartyRoomSettings');
+    if (!el) return;
+    el.classList.add('open');
+    window.__apPartyModalOpenedAt = Date.now();
+    window.__apToolsOpenGuardUntil = Date.now() + 900;
     syncLiveOverlayClass();
   }
 
@@ -19405,9 +19476,12 @@
 
     document.getElementById('partySettingOpenModal')?.addEventListener('click', () => {
       document.getElementById('apPartyRoomSettings')?.classList.remove('open');
+      window.__apPartyModalOpenedAt = Date.now();
       paintPartyGameTypeGrid();
       syncPartyMicCountUi();
+      window.__apPartyModalOpenedAt = Date.now();
       document.getElementById('apPartySettingModal')?.classList.add('open');
+      syncLiveOverlayClass();
     });
     document.getElementById('partySettingEditInfo')?.addEventListener('click', (e) => {
       e.preventDefault();

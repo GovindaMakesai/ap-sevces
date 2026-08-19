@@ -797,6 +797,13 @@
     const applySpeaking = (seat, uid, name) => {
       const isActive = speakingUsers.has(String(uid)) || speakingUsers.has(name);
       seat.classList.toggle('is-speaking', isActive);
+      const av = seat.querySelector('.seat-avatar, .ap-guest-avatar');
+      if (av && window.Cosmetics) {
+        const mic = Cosmetics.getCachedForUser(uid)?.micEffect;
+        const micCls = isActive && mic ? Cosmetics.micEffectClass(mic) : '';
+        av.classList.remove(...Array.from(av.classList).filter((c) => c.startsWith('ap-cosmetic-mic')));
+        if (micCls) av.classList.add(...micCls.split(/\s+/).filter(Boolean));
+      }
       let waves = seat.querySelector('.seat-wave-bars');
       if (isActive && !waves) {
         const av = seat.querySelector('.seat-avatar, .ap-guest-avatar');

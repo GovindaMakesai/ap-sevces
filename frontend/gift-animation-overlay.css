@@ -1,6 +1,21 @@
-/* AnimStream gift layer — fixed on body, above live UI, below gift sheet (32000) */
-body > #apGiftAnimOverlay,
-#apGiftAnimOverlay {
+/* AnimStream gift overlay — full live viewport, transparent, above video / below chat UI */
+.live-room > #apGiftAnimOverlay,
+.party-room > #apGiftAnimOverlay,
+.party-room-ref > #apGiftAnimOverlay {
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 11 !important;
+  pointer-events: none !important;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.25s ease;
+  background: transparent !important;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+/* Fallback if mounted on body (should not happen in live/party rooms) */
+body > #apGiftAnimOverlay {
   position: fixed !important;
   top: 0;
   left: 0;
@@ -28,12 +43,23 @@ body > #apGiftAnimOverlay,
 
 #apGiftAnimOverlay .ap-gift-anim-stage {
   position: absolute;
-  top: 16%;
-  left: 50%;
-  transform: translateX(-50%);
-  width: min(94vw, 480px);
-  height: min(58vh, 480px);
-  min-height: 240px;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  background: transparent !important;
+  overflow: hidden;
+}
+
+#apGiftAnimOverlay .ap-gift-anim-frame-wrap {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -42,18 +68,22 @@ body > #apGiftAnimOverlay,
 }
 
 #apGiftAnimOverlay .ap-gift-anim-frame {
-  width: 100% !important;
-  height: 100% !important;
-  min-height: 220px;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
   border: none !important;
   background: transparent !important;
   pointer-events: none;
-  opacity: 1;
+  opacity: 1 !important;
   display: block;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
 }
 
 .live-overlay #apGiftNotifyRoot,
-.party-room-body #apGiftNotifyRoot {
+.party-room-body #apGiftNotifyRoot,
+.party-room > #apGiftNotifyRoot {
   position: absolute;
   left: 50%;
   bottom: calc(var(--ap-bottom-bar-h, 58px) + env(safe-area-inset-bottom, 0px) + 96px);
@@ -102,6 +132,14 @@ body > #apGiftAnimOverlay,
   background: radial-gradient(circle at 30% 20%, rgba(251, 191, 36, 0.35), rgba(88, 28, 135, 0.5));
   border: 1px solid rgba(255, 255, 255, 0.2);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+
+.ap-gift-notify-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .ap-gift-notify-body {
@@ -142,4 +180,61 @@ body > #apGiftAnimOverlay,
   border: 2px solid #fuchsia;
   background: rgba(20, 0, 40, 0.92);
   color: #fff;
+}
+
+#apGiftAnimDebugPanel {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 44px);
+  left: 6px;
+  z-index: 20051;
+  pointer-events: none;
+  max-width: min(92vw, 360px);
+  padding: 8px 10px;
+  font-size: 10px;
+  line-height: 1.45;
+  font-family: ui-monospace, monospace;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.78);
+  border: 1px solid rgba(255, 0, 255, 0.5);
+  border-radius: 8px;
+}
+
+#apGiftAnimDebugPanel[hidden] {
+  display: none !important;
+}
+
+/* Gift store thumbnails — static poster per animation */
+.gift-grid .gift-thumb-img {
+  width: 52px;
+  height: 52px;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto 4px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.gift-grid button.gift-card--has-thumb .g {
+  display: none;
+}
+
+.gift-anim-preview-btn {
+  margin-left: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(124, 58, 237, 0.45);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  pointer-events: auto;
+}
+
+.gift-rtp-banner .gift-rtp-thumb {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  vertical-align: middle;
+  margin-right: 8px;
+  border-radius: 8px;
 }

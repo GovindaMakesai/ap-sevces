@@ -815,7 +815,8 @@ html.ap-secure-live .party-room-stage {
 
 /* Taller chat panel on solo live (class is on the zone in live-room.html) */
 .party-chat-zone.live-chat-tall .party-chat-feed {
-  max-height: min(42vh, 340px);
+  max-height: min(46vh, 380px);
+  min-height: 120px;
 }
 
 .live-chat-ticker {
