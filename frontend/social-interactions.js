@@ -152,10 +152,10 @@
         reject(new Error('Storage timed out — try again'));
       }, 4000);
       try {
-        const req = indexedDB.open(IDB_NAME, 1);
-        req.onupgradeneeded = () => {
+      const req = indexedDB.open(IDB_NAME, 1);
+      req.onupgradeneeded = () => {
           try {
-            req.result.createObjectStore(IDB_STORE);
+        req.result.createObjectStore(IDB_STORE);
           } catch (_e) { /* already exists */ }
         };
         req.onsuccess = () => {
@@ -195,8 +195,8 @@
         reject(new Error('Save timed out'));
       }, 8000);
       try {
-        const tx = db.transaction(IDB_STORE, 'readwrite');
-        tx.objectStore(IDB_STORE).put(blob, id);
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).put(blob, id);
         tx.oncomplete = () => {
           if (done) return;
           done = true;
@@ -380,13 +380,13 @@
         resolve(value || '');
       };
 
-      const video = document.createElement('video');
+        const video = document.createElement('video');
       video.preload = 'auto';
-      video.muted = true;
-      video.playsInline = true;
+        video.muted = true;
+        video.playsInline = true;
       video.setAttribute('playsinline', 'true');
       video.setAttribute('webkit-playsinline', 'true');
-      const url = URL.createObjectURL(file);
+        const url = URL.createObjectURL(file);
       const timer = setTimeout(() => finish(''), 2500);
 
       const capture = () => {
@@ -427,7 +427,7 @@
         try {
           if (typeof video.fastSeek === 'function') video.fastSeek(t);
           else video.currentTime = t;
-        } catch (_e) {
+      } catch (_e) {
           /* Some WebViews refuse seek — grab whatever frame is ready */
           setTimeout(capture, 120);
         }
@@ -650,8 +650,8 @@
     const byId = new Map();
     api.forEach((p) => byId.set(String(p.id), p));
     if (!paging && !opts.userId && opts.feed !== 'following') {
-      local.forEach((p) => {
-        const k = String(p.id);
+    local.forEach((p) => {
+      const k = String(p.id);
         if (!byId.has(k)) byId.set(k, p);
       });
     }
@@ -718,20 +718,20 @@
     const nextLiked = !wasLiked;
     setLike(postId, nextLiked);
     try {
-      if (post?.fromApi && window.API && hasAuth()) {
-        try {
-          if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken();
-          const res = await API.post(`/social/posts/${postId}/like`);
-          if (res?.success && res.data) {
-            setLike(postId, !!res.data.liked);
-            return { liked: !!res.data.liked, delta: res.data.liked ? (wasLiked ? 0 : 1) : wasLiked ? -1 : 0 };
-          }
-        } catch (_e) {
-          setLike(postId, wasLiked);
-          throw _e;
+    if (post?.fromApi && window.API && hasAuth()) {
+      try {
+        if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken();
+        const res = await API.post(`/social/posts/${postId}/like`);
+        if (res?.success && res.data) {
+          setLike(postId, !!res.data.liked);
+          return { liked: !!res.data.liked, delta: res.data.liked ? (wasLiked ? 0 : 1) : wasLiked ? -1 : 0 };
         }
+      } catch (_e) {
+        setLike(postId, wasLiked);
+        throw _e;
       }
-      return { liked: nextLiked, delta: nextLiked ? 1 : -1 };
+    }
+    return { liked: nextLiked, delta: nextLiked ? 1 : -1 };
     } finally {
       likeInFlight.delete(key);
     }
@@ -1888,8 +1888,8 @@
     let shared = false;
     try {
       shared = window.SocialUI?.shareLink
-        ? await SocialUI.shareLink({ title: 'AP Services', text, url })
-        : false;
+      ? await SocialUI.shareLink({ title: 'AP Services', text, url })
+      : false;
     } catch (_e) {
       shared = false;
     }
@@ -2697,7 +2697,7 @@
         empty.className = 'social-empty-state social-reel-empty';
         empty.style.cssText =
           'text-align:center;padding:48px 24px;pointer-events:auto;position:relative;z-index:2';
-        wrap.insertBefore(empty, uiLayer || null);
+      wrap.insertBefore(empty, uiLayer || null);
       }
       empty.innerHTML = window.SocialCreatorPolish
         ? SocialCreatorPolish.emptyStateHtml({
@@ -2734,9 +2734,9 @@
     let scroll = document.getElementById('reelsScroll');
     const keepIndex = soft ? reelIndex : 0;
     if (!scroll) {
-      scroll = document.createElement('div');
-      scroll.id = 'reelsScroll';
-      scroll.className = 'social-reels-scroll';
+    scroll = document.createElement('div');
+    scroll.id = 'reelsScroll';
+    scroll.className = 'social-reels-scroll';
       wrap.insertBefore(scroll, uiLayer || wrap.firstChild);
     }
     scroll.classList.remove('social-reels-scroll--skeleton');
@@ -2875,10 +2875,10 @@
     if (avatarBtn && !avatarBtn.dataset.bound) {
       avatarBtn.dataset.bound = '1';
       avatarBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const item = reelItems[reelIndex];
-        if (item) location.href = profileUrl(item);
-      });
+      e.stopPropagation();
+      const item = reelItems[reelIndex];
+      if (item) location.href = profileUrl(item);
+    });
     }
 
     const nameEl = document.getElementById('videoName');
@@ -2886,10 +2886,10 @@
       nameEl.dataset.bound = '1';
       nameEl.addEventListener('click', (e) => {
         if (e.target.closest('.social-live-pill')) return;
-        e.stopPropagation();
-        const item = reelItems[reelIndex];
-        if (item) location.href = profileUrl(item);
-      });
+      e.stopPropagation();
+      const item = reelItems[reelIndex];
+      if (item) location.href = profileUrl(item);
+    });
     }
 
     if (window.SocialUI) SocialUI.bindAvatarFallbacks(document);
@@ -3302,7 +3302,7 @@
               : `<a href="${profileUrl({ userName: p.userName, userId: p.userId })}"><img src="${avatarSrc}" alt=""><div class="social-post-user-name">${escapeHtml(p.userName)} ${liveBadgeHtml(p.authorLive)}</div></a>`
           }
           <div class="social-post-caption">${hasMedia ? formatCaptionHtml(p.caption || '') : ''}</div>
-        </div>
+          </div>
       </article>`;
       })
     );
@@ -3536,11 +3536,11 @@
       (typeof window.SocialTopicsProvider?.getTopics === 'function' &&
         window.SocialTopicsProvider.getTopics()) ||
       [
-        { title: '#Holi Video Collection Event', heat: 529819, ended: false },
-        { title: '#Jayfol Dance Challenge', heat: 412200, ended: false },
-        { title: '#Home Pro Tips', heat: 210440, ended: true },
-        { title: '#Live Party Moments', heat: 188900, ended: false },
-      ];
+      { title: '#Holi Video Collection Event', heat: 529819, ended: false },
+      { title: '#Jayfol Dance Challenge', heat: 412200, ended: false },
+      { title: '#Home Pro Tips', heat: 210440, ended: true },
+      { title: '#Live Party Moments', heat: 188900, ended: false },
+    ];
     const fallbackThumb = topicThumb(0, 'Topic');
     list.innerHTML = items
       .map(

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#8b5cf6">
+  <title>My Cosmetics - AP Services</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="social-theme.css">
+  <link rel="stylesheet" href="cosmetics.css?v=20260819-cosmetics">
+</head>
+<body class="social-store-page">
+  <header class="social-store-header">
+    <a href="/cosmetics-store.html?app=1" class="social-icon-btn" style="background:#f3f4f6;color:#374151"><i class="fas fa-arrow-left"></i></a>
+    <h1>My Cosmetics</h1>
+    <a href="/cosmetics-store.html?app=1" class="social-icon-btn" style="background:#ede9fe;color:#6d28d9"><i class="fas fa-store"></i></a>
+  </header>
+
+  <div class="ap-cosmetics-tabs" id="inventoryTabs"></div>
+  <div id="inventoryList" style="padding-bottom:80px"></div>
+
+  <div id="social-bottom-nav-mount"></div>
+
+  <script src="app.js"></script>
+  <script src="cosmetics.js?v=20260819-cosmetics"></script>
+  <script src="social-shell.js"></script>
+  <script>
+    const CATEGORIES = [
+      { key: '', label: 'All' },
+      { key: 'ENTRY_FRAME', label: 'Entry Frames' },
+      { key: 'CHAT_BUBBLE', label: 'Chat Bubbles' },
+      { key: 'PROFILE_TAG', label: 'Tags' },
+      { key: 'ID_EFFECT', label: 'ID Effects' },
+      { key: 'MIC_EFFECT', label: 'Mic Effects' },
+      { key: 'PROFILE_RING', label: 'Rings' },
+    ];
+    let activeCategory = '';
+    let items = [];
+
+    function paintTabs() {
+      const el = document.getElementById('inventoryTabs');
+      el.innerHTML = CATEGORIES.map((c) =>
+        `<button type="button" class="ap-cosmetics-tab${activeCategory === c.key ? ' is-active' : ''}" data-cat="${c.key}">${c.label}</button>`
+      ).join('');
+      el.querySelectorAll('.ap-cosmetics-tab').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          activeCategory = btn.dataset.cat || '';
+          paintTabs();
+          loadInventory();
+        });
+      });
+    }
+
+    function paintList() {
+      const el = document.getElementById('inventoryList');
+      if (!items.length) {
+        el.innerHTML = '<p style="padding:24px;text-align:center;color:#6b7280">No cosmetics yet. <a href="/cosmetics-store.html?app=1">Browse store</a></p>';
+        return;
+      }
+      el.innerHTML = items.map((it) => {
+        const c = it.cosmetic || {};
+        const badge = it.isEquipped
+          ? '<span class="ap-cosmetics-badge equipped">Equipped</span>'
+          : !it.isActive
+            ? '<span class="ap-cosmetics-badge expired">Expired</span>'
+            : '<span class="ap-cosmetics-badge">Owned</span>';
+        const expiry = it.expiresInLabel || '';
+        const btn = it.isActive && !it.isEquipped
+          ? `<button type="button" class="ap-cosmetics-btn ap-cosmetics-btn-primary" style="width:auto;padding:8px 14px;margin-top:8px" data-equip="${it.id}">Equip</button>`
+          : it.isEquipped
+            ? `<button type="button" class="ap-cosmetics-btn ap-cosmetics-btn-muted" style="width:auto;padding:8px 14px;margin-top:8px" data-unequip="${it.id}">Unequip</button>`
+            : '';
+        return `<div class="ap-cosmetics-inventory-item">
+          <div class="thumb">${c.tagLabel || c.name?.slice(0, 2) || '🎁'}</div>
+          <div style="flex:1">
+            <strong>${c.name || 'Item'}</strong> ${badge}
+            <div style="font-size:12px;color:#6b7280;margin-top:4px">${Cosmetics.CATEGORY_LABELS[c.category] || c.category} · ${expiry}</div>
+            ${btn}
+          </div>
+        </div>`;
+      }).join('');
+
+      el.querySelectorAll('[data-equip]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          try {
+            await Cosmetics.equip(btn.dataset.equip);
+            await loadInventory();
+          } catch (e) {
+            alert(e.message);
+          }
+        });
+      });
+      el.querySelectorAll('[data-unequip]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          try {
+            await Cosmetics.unequip(btn.dataset.unequip);
+            await loadInventory();
+          } catch (e) {
+            alert(e.message);
+          }
+        });
+      });
+    }
+
+    async function loadInventory() {
+      try {
+        items = await Cosmetics.fetchInventory(activeCategory || undefined);
+        paintList();
+      } catch (e) {
+        document.getElementById('inventoryList').innerHTML =
+          `<p style="padding:24px;color:#b91c1c">${e.message}</p>`;
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      SocialShell.initPage({ activeNav: 'explore' });
+      paintTabs();
+      await loadInventory();
+    });
+  </script>
+</body>
+</html>

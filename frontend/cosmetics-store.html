@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#8b5cf6">
+  <title>Cosmetics Store - AP Services</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="social-theme.css">
+  <link rel="stylesheet" href="cosmetics.css?v=20260819-cosmetics">
+</head>
+<body class="social-store-page">
+  <header class="social-store-header">
+    <a href="/store.html" class="social-icon-btn" style="background:#f3f4f6;color:#374151"><i class="fas fa-arrow-left"></i></a>
+    <h1>Cosmetics</h1>
+    <a href="/cosmetics-inventory.html?app=1" class="social-icon-btn" style="background:#ede9fe;color:#6d28d9" title="My Cosmetics"><i class="fas fa-box"></i></a>
+  </header>
+
+  <div class="ap-cosmetics-tabs" id="cosmeticsTabs"></div>
+
+  <div class="ap-cosmetics-store-grid" id="cosmeticsGrid"></div>
+
+  <div class="social-wallet-bar">
+    <span>🪙 <strong id="coins">0</strong></span>
+    <a href="/coins-recharge.html?app=1" style="background:linear-gradient(135deg,#e8c56a,#c9a227);color:#3d2e08;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;text-decoration:none;font-weight:800">+</a>
+  </div>
+
+  <div class="ap-cosmetics-sheet-overlay" id="buySheet">
+    <div class="ap-cosmetics-sheet">
+      <h2 id="sheetTitle">Item</h2>
+      <p id="sheetDesc" style="color:#6b7280;font-size:13px;margin:8px 0 16px"></p>
+      <div id="sheetPreview" class="ap-cosmetics-card-thumb" style="margin-bottom:16px"></div>
+      <p style="font-size:13px;margin-bottom:8px"><strong>Duration</strong></p>
+      <div id="variantList"></div>
+      <p style="font-size:13px;margin:12px 0 4px">Balance: <strong id="sheetBalance">0</strong> 🪙</p>
+      <button type="button" class="ap-cosmetics-btn ap-cosmetics-btn-primary" id="buyBtn" disabled>Buy</button>
+      <button type="button" class="ap-cosmetics-btn ap-cosmetics-btn-muted" id="closeSheetBtn">Cancel</button>
+    </div>
+  </div>
+
+  <div id="social-bottom-nav-mount"></div>
+
+  <script src="app.js"></script>
+  <script src="social-wallet.js"></script>
+  <script src="cosmetics.js?v=20260819-cosmetics"></script>
+  <script src="social-shell.js"></script>
+  <script>
+    const CATEGORIES = [
+      { key: '', label: 'All' },
+      { key: 'ENTRY_FRAME', label: 'Entry Frames' },
+      { key: 'CHAT_BUBBLE', label: 'Chat Bubbles' },
+      { key: 'PROFILE_TAG', label: 'Tags' },
+      { key: 'ID_EFFECT', label: 'ID Effects' },
+      { key: 'MIC_EFFECT', label: 'Mic Effects' },
+      { key: 'PROFILE_RING', label: 'Rings' },
+    ];
+
+    let products = [];
+    let selectedProduct = null;
+    let selectedVariant = null;
+    let balance = 0;
+    let activeCategory = new URLSearchParams(location.search).get('cat') || '';
+
+    function minPrice(p) {
+      const prices = (p.variants || []).map((v) => v.priceCoins).filter((n) => n > 0);
+      return prices.length ? Math.min(...prices) : 0;
+    }
+
+    function paintTabs() {
+      const el = document.getElementById('cosmeticsTabs');
+      el.innerHTML = CATEGORIES.map((c) =>
+        `<button type="button" class="ap-cosmetics-tab${activeCategory === c.key ? ' is-active' : ''}" data-cat="${c.key}">${c.label}</button>`
+      ).join('');
+      el.querySelectorAll('.ap-cosmetics-tab').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          activeCategory = btn.dataset.cat || '';
+          const u = new URL(location.href);
+          if (activeCategory) u.searchParams.set('cat', activeCategory);
+          else u.searchParams.delete('cat');
+          history.replaceState(null, '', u);
+          paintTabs();
+          loadProducts();
+        });
+      });
+    }
+
+    function paintGrid() {
+      const grid = document.getElementById('cosmeticsGrid');
+      if (!products.length) {
+        grid.innerHTML = '<p style="padding:24px;text-align:center;color:#6b7280">No items in this category yet.</p>';
+        return;
+      }
+      grid.innerHTML = products.map((p) => {
+        const thumb = p.thumbnailUrl
+          ? `<img src="${p.thumbnailUrl}" alt="">`
+          : (p.tagLabel || p.name || '🎁').slice(0, 2);
+        return `<button type="button" class="ap-cosmetics-card" data-id="${p.id}">
+          <div class="ap-cosmetics-card-thumb">${thumb}</div>
+          <h4>${p.name}</h4>
+          <div class="price">from ${minPrice(p).toLocaleString()} 🪙</div>
+        </button>`;
+      }).join('');
+      grid.querySelectorAll('.ap-cosmetics-card').forEach((btn) => {
+        btn.addEventListener('click', () => openSheet(btn.dataset.id));
+      });
+    }
+
+    async function loadProducts() {
+      try {
+        products = await Cosmetics.listProducts(activeCategory || undefined);
+        paintGrid();
+      } catch (e) {
+        document.getElementById('cosmeticsGrid').innerHTML =
+          `<p style="padding:24px;color:#b91c1c">${e.message}</p>`;
+      }
+    }
+
+    async function openSheet(id) {
+      selectedProduct = await Cosmetics.getProduct(id);
+      selectedVariant = (selectedProduct.variants || [])[0] || null;
+      document.getElementById('sheetTitle').textContent = selectedProduct.name;
+      document.getElementById('sheetDesc').textContent = selectedProduct.description || '';
+      const prev = document.getElementById('sheetPreview');
+      prev.textContent = selectedProduct.tagLabel || selectedProduct.name?.slice(0, 2) || '🎁';
+      if (selectedProduct.thumbnailUrl) {
+        prev.innerHTML = `<img src="${selectedProduct.thumbnailUrl}" alt="">`;
+      }
+      paintVariants();
+      if (window.SocialWallet) {
+        const b = await SocialWallet.fetchBalance(true);
+        balance = Number(b.coin_balance || 0);
+        document.getElementById('sheetBalance').textContent = balance.toLocaleString();
+      }
+      document.getElementById('buySheet').classList.add('open');
+      updateBuyBtn();
+    }
+
+    function paintVariants() {
+      const list = document.getElementById('variantList');
+      const variants = selectedProduct?.variants || [];
+      list.innerHTML = variants.map((v) =>
+        `<div class="ap-cosmetics-variant-row${selectedVariant?.id === v.id ? ' is-selected' : ''}" data-id="${v.id}">
+          <span>${Cosmetics.formatDurationLabel(v.durationType)}</span>
+          <strong>${Number(v.priceCoins).toLocaleString()} 🪙</strong>
+        </div>`
+      ).join('');
+      list.querySelectorAll('.ap-cosmetics-variant-row').forEach((row) => {
+        row.addEventListener('click', () => {
+          selectedVariant = variants.find((v) => v.id === row.dataset.id);
+          paintVariants();
+          updateBuyBtn();
+        });
+      });
+    }
+
+    function updateBuyBtn() {
+      const btn = document.getElementById('buyBtn');
+      if (!selectedVariant) {
+        btn.disabled = true;
+        btn.textContent = 'Select duration';
+        return;
+      }
+      const price = Number(selectedVariant.priceCoins);
+      btn.disabled = balance < price;
+      btn.textContent = balance < price
+        ? `Need ${price.toLocaleString()} 🪙`
+        : `Buy for ${price.toLocaleString()} 🪙`;
+    }
+
+    document.getElementById('closeSheetBtn').addEventListener('click', () => {
+      document.getElementById('buySheet').classList.remove('open');
+    });
+
+    document.getElementById('buySheet').addEventListener('click', (e) => {
+      if (e.target.id === 'buySheet') e.currentTarget.classList.remove('open');
+    });
+
+    document.getElementById('buyBtn').addEventListener('click', async () => {
+      if (!selectedProduct || !selectedVariant) return;
+      const price = Number(selectedVariant.priceCoins);
+      const ok = confirm(
+        `Buy ${selectedProduct.name} (${Cosmetics.formatDurationLabel(selectedVariant.durationType)}) for ${price.toLocaleString()} coins?\n\nBalance: ${balance.toLocaleString()}\nAfter: ${(balance - price).toLocaleString()}`
+      );
+      if (!ok) return;
+      const btn = document.getElementById('buyBtn');
+      btn.disabled = true;
+      btn.textContent = 'Processing…';
+      try {
+        const result = await Cosmetics.purchase(selectedProduct.id, selectedVariant.id);
+        balance = Number(result.coinBalance || result.balance?.coin_balance || 0);
+        document.getElementById('coins').textContent = balance.toLocaleString();
+        document.getElementById('sheetBalance').textContent = balance.toLocaleString();
+        alert('Purchase successful!');
+        const equipNow = confirm('Equip now?');
+        if (equipNow && result.ownership?.id) {
+          await Cosmetics.equip(result.ownership.id);
+        }
+        document.getElementById('buySheet').classList.remove('open');
+      } catch (e) {
+        alert(e.message || 'Purchase failed');
+        updateBuyBtn();
+      }
+    });
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      SocialShell.initPage({ activeNav: 'explore' });
+      paintTabs();
+      if (window.SocialWallet) {
+        const b = await SocialWallet.fetchBalance();
+        balance = Number(b.coin_balance || 0);
+        document.getElementById('coins').textContent = balance.toLocaleString();
+      }
+      await loadProducts();
+    });
+  </script>
+</body>
+</html>

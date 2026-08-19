@@ -8,6 +8,7 @@
     <script src="/ap-native-boot.js"></script>
     <link rel="stylesheet" href="/social-theme.css?v=20260729-perf2">
     <link rel="stylesheet" href="/social-chat.css?v=20260815-chatfix">
+    <link rel="stylesheet" href="/cosmetics.css?v=20260819-entry-dm">
     <link rel="stylesheet" href="/cp-chat-cards.css?v=20260815-cpmsg">
     
     <!-- Font Awesome — non-blocking -->
@@ -1557,6 +1558,7 @@
     <script src="social-interactions.js?v=20260717-block-hide"></script>
     <script src="social-wallet.js?v=20260714-gift-only"></script>
     <script src="live-emoji-data.js?v=20260726-gift-200"></script>
+    <script src="cosmetics.js?v=20260819-entry-dm"></script>
     <script src="social-fx.js"></script>
     <script src="ap-soft-nav.js?v=20260730-fastnav4"></script>
   <script src="social-shell.js?v=20260730-fastnav4"></script>
@@ -3734,6 +3736,12 @@
                     profilePic: chat.profile_pic || null,
                     role: chat.category || null,
                 };
+                if (window.Cosmetics) {
+                    try {
+                        await Cosmetics.fetchEquipped();
+                        if (chat.otherUserId) await Cosmetics.fetchEquippedForUser(chat.otherUserId);
+                    } catch (_e) { /* optional */ }
+                }
                 updatePeerPresence(chat.otherUserId);
 
             await loadMessages(currentChatId);
@@ -3844,6 +3852,16 @@
             tryHighlight(0);
         }
 
+        function dmChatBubbleExtraClass(msg) {
+            const C = window.Cosmetics;
+            if (!C) return '';
+            if (msg.type === 'sent') {
+                return C.dmChatBubbleClass(C.getSelfEquipped()?.chatBubble);
+            }
+            const peerId = currentChatPeer?.otherUserId;
+            return C.dmChatBubbleClass(C.getCachedForUser(peerId)?.chatBubble);
+        }
+
         function paintMessages(container, messages) {
             container.textContent = '';
             if (!messages || !messages.length) {
@@ -3891,7 +3909,7 @@
                     }
                 }
                 const bubble = document.createElement('div');
-                bubble.className = 'message-bubble ' + bubbleType;
+                bubble.className = 'message-bubble ' + bubbleType + dmChatBubbleExtraClass(msg);
                 const content = document.createElement('div');
                 content.className = 'message-content';
                 const agencyInvite = parseAgencyHostInvite(bodyText);
@@ -4066,6 +4084,7 @@
                     ? escapeHtml(bodyText)
                     : (msg.image || msg.video ? '' : '<span class="msg-empty-placeholder">Message unavailable</span>');
                 const bubbleType = msg.type === 'sent' ? 'sent' : 'received';
+                const bubbleExtra = dmChatBubbleExtraClass(msg);
                 const peerName = currentChatPeer?.name || 'User';
                 const peerInitials = initialsFromName(peerName.split(' ')[0], peerName.split(' ').slice(1).join(' '));
                 const peerAvatar =
@@ -4077,7 +4096,7 @@
                 html += `
                     <div class="message-wrapper ${bubbleType}" data-msg-id="${escapeAttr(String(msg.id || ''))}">
                         ${peerAvatar}
-                        <div class="message-bubble ${bubbleType}">
+                        <div class="message-bubble ${bubbleType}${bubbleExtra}">
                             <div class="message-content">
                                 ${bodyHtml}
                                 ${msg.image ? `<img src="${escapeAttr(msg.image)}" class="message-image" alt="Photo" loading="lazy" onclick='openImageModal(${JSON.stringify(msg.image)})'>` : ''}

@@ -221,69 +221,100 @@
     return capGiftList(sortGiftsCheapFirst(GIFT_CATALOG.gift || []));
   }
 
+  function uniqueBySlug(list) {
+    const seen = new Set();
+    const out = [];
+    (list || []).forEach((g) => {
+      const key = String(g?.slug || giftSlugFor(g) || '');
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      out.push(g);
+    });
+    return out;
+  }
+
+  function animatedSlugSet() {
+    const set = new Set();
+    (GIFT_CATALOG.animated || []).forEach((g) => set.add(String(g.slug || giftSlugFor(g))));
+    return set;
+  }
+
+  function excludeAnimated(list) {
+    const slugs = animatedSlugSet();
+    if (!slugs.size) return list || [];
+    return (list || []).filter((g) => !slugs.has(String(g.slug || giftSlugFor(g))));
+  }
+
+  function compactGiftThumbUrl(url) {
+    const compact = window.AP_GIFT_ANIMATION?.compactThumbUrl;
+    if (typeof compact === 'function') return compact(url);
+    return String(url || '');
+  }
+
   function giftThumbnailUrl(g) {
     const slug = g?.slug || giftSlugFor(g);
-    if (g?.thumbnailUrl) return String(g.thumbnailUrl);
-    return String(window.AP_GIFT_ANIMATION?.getThumbnailUrl?.(slug) || '');
+    if (g?.animationEmbedUrl && g?.thumbnailUrl) return compactGiftThumbUrl(g.thumbnailUrl);
+    const anim = window.AP_GIFT_ANIMATION?.getAnimatedGift?.(slug);
+    if (anim?.thumbnailUrl) return compactGiftThumbUrl(anim.thumbnailUrl);
+    return '';
   }
 
   function giftCardVisualHtml(g) {
     const thumb = giftThumbnailUrl(g);
     if (thumb) {
-      return `<img class="gift-thumb-img" src="${escapeAttr(thumb)}" alt="" loading="lazy" decoding="async">`;
+      return `<img class="gift-thumb-img" src="${escapeAttr(thumb)}" alt="" width="52" height="52" loading="lazy" decoding="async">`;
     }
     return `<span class="g">${g.emoji}</span>`;
   }
 
   function giftsForCategory(cat) {
     if (cat === 'animated') return giftsForAnimatedTab();
-    if (cat === 'recent') return capGiftList(readGiftMemory('recent'));
-    if (cat === 'favorites') return capGiftList(readGiftMemory('fav'));
+    if (cat === 'recent') return uniqueBySlug(capGiftList(readGiftMemory('recent')));
+    if (cat === 'favorites') return uniqueBySlug(capGiftList(readGiftMemory('fav')));
     if (cat === 'popular' || cat === 'gift' || cat === 'trending' || cat === 'new') {
-      /* Everyday gifts only — avoid rendering 90+ cards on Popular */
-      return capGiftList(sortGiftsCheapFirst(GIFT_CATALOG.gift || []));
+      return uniqueBySlug(capGiftList(sortGiftsCheapFirst(excludeAnimated(GIFT_CATALOG.gift || []))));
     }
     if (cat === 'premium') {
-      return capGiftList(
-        sortGiftsCheapFirst([
-        ...(GIFT_CATALOG.animated || []),
-        ...(GIFT_CATALOG.gift || []).filter((g) => Number(g.cost) >= 3000),
-        ...(GIFT_CATALOG.flowers || []).filter((g) => Number(g.cost) >= 3000),
-        ...(GIFT_CATALOG.lucky || []).filter((g) => Number(g.cost) >= 3000),
-        ...(GIFT_CATALOG.seasonal || []).filter((g) => {
-          const c = Number(g.cost) || 0;
-          return c >= 3000 && c < 1000000;
-        }),
-        ...(GIFT_CATALOG.jewelry || []).filter((g) => Number(g.cost) < 1000000),
-        ])
-      );
+      return giftsForAnimatedTab();
     }
     if (cat === 'vip' || cat === 'privilege') {
-      return capGiftList(
-        sortGiftsCheapFirst([
-        ...(GIFT_CATALOG.privilege || []),
-        ...(GIFT_CATALOG.jewelry || []).filter((g) => Number(g.cost) >= 100000),
-        ...(GIFT_CATALOG.cars || []),
-        ...(GIFT_CATALOG.fantasy || []),
-        ...(GIFT_CATALOG.cosmic || []),
-        ...(GIFT_CATALOG.lifestyle || []),
-        ])
+      return uniqueBySlug(
+        capGiftList(
+          sortGiftsCheapFirst(
+            excludeAnimated([...(GIFT_CATALOG.privilege || []), ...(GIFT_CATALOG.jewelry || [])])
+          )
+        )
       );
     }
-    if (cat === 'island') return capGiftList(sortGiftsCheapFirst(GIFT_CATALOG.lifestyle || GIFT_CATALOG.gift || []));
+    if (cat === 'flowers') {
+      return uniqueBySlug(capGiftList(sortGiftsCheapFirst(excludeAnimated(GIFT_CATALOG.flowers || []))));
+    }
+    if (cat === 'lucky') {
+      return uniqueBySlug(
+        capGiftList(
+          sortGiftsCheapFirst(excludeAnimated([...(GIFT_CATALOG.lucky || []), ...(GIFT_CATALOG.seasonal || [])]))
+        )
+      );
+    }
+    if (cat === 'island') {
+      return uniqueBySlug(capGiftList(sortGiftsCheapFirst(excludeAnimated(GIFT_CATALOG.lifestyle || GIFT_CATALOG.gift || []))));
+    }
     if (cat === 'cars') {
-      return capGiftList(
-        sortGiftsCheapFirst([
-        ...(GIFT_CATALOG.cars || []),
-        ...(GIFT_CATALOG.lifestyle || []),
-        ...(GIFT_CATALOG.animals || []),
-        ...(GIFT_CATALOG.fantasy || []),
-        ...(GIFT_CATALOG.cosmic || []),
-        ...(GIFT_CATALOG.jewelry || []),
-        ])
+      return uniqueBySlug(
+        capGiftList(
+          sortGiftsCheapFirst(
+            excludeAnimated([
+              ...(GIFT_CATALOG.cars || []),
+              ...(GIFT_CATALOG.lifestyle || []),
+              ...(GIFT_CATALOG.animals || []),
+              ...(GIFT_CATALOG.fantasy || []),
+              ...(GIFT_CATALOG.cosmic || []),
+            ])
+          )
+        )
       );
     }
-    return capGiftList(sortGiftsCheapFirst(GIFT_CATALOG[cat] || GIFT_CATALOG.gift || []));
+    return uniqueBySlug(capGiftList(sortGiftsCheapFirst(excludeAnimated(GIFT_CATALOG[cat] || GIFT_CATALOG.gift || []))));
   }
 
   let liveSocket = null;
@@ -369,6 +400,27 @@
     const now = Date.now();
     recentGiftFxKeys.set(key, now);
     if (soft) recentGiftFxKeys.set(soft, now);
+    return true;
+  }
+
+  function presentGiftLocally(giftEvt) {
+    if (!giftEvt) return false;
+    const isFresh = claimGiftPresentation(giftEvt);
+    if (!isFresh) return false;
+    const combo = window.SocialFX?.trackCombo?.(giftEvt.emoji || 'gift', giftEvt.qty || 1) || 1;
+    const hasAnimStream = window.GiftAnimationOverlay?.hasAnimationForGift?.(giftEvt);
+    if (hasAnimStream) {
+      try {
+        window.GiftAnimationOverlay?.onGiftReceived?.(giftEvt);
+      } catch (_e) { /* presentation only */ }
+    }
+    window.SocialFX?.playGift?.(giftEvt, {
+      combo,
+      skipActivity: true,
+      skipCinematic: hasAnimStream,
+      skipSound: hasAnimStream,
+    });
+    onGiftTeamProgress(giftEvt.amount || giftEvt.coins || 0);
     return true;
   }
 
@@ -4891,6 +4943,29 @@
     }
   }
 
+  function triggerEntryFrameForJoin(payload) {
+    if (!payload || payload.isHost || payload.silent) return;
+    const uid = String(payload.userId || '').trim();
+    const name = String(payload.name || 'Someone').slice(0, 40);
+    if (!uid && !payload.entryFrame) return;
+    const avatar = payload.profilePic
+      ? avatarUrl(name, payload.profilePic)
+      : uid
+        ? avatarUrl(name, getChatProfilePic({ userId: uid, user: name }))
+        : '';
+    const C = window.Cosmetics;
+    if (!C) return;
+    if (payload.entryFrame && uid) {
+      const cached = C.getCachedForUser(uid) || {};
+      C.setCachedForUser(uid, { ...cached, entryFrame: payload.entryFrame });
+      C.showEntryFrame(payload.entryFrame, { name, userId: uid, avatarUrl: avatar });
+      return;
+    }
+    if (uid) {
+      C.showEntryFrameForUser(uid, { name, avatarUrl: avatar }).catch(() => {});
+    }
+  }
+
   function liveProfilePic(userId, fallbackPic) {
     if (fallbackPic) return fallbackPic;
     const uid = String(userId || '');
@@ -6029,7 +6104,11 @@
         const em = extractEmojiReaction(msg?.text);
         if (em && msg?.userId) spawnSeatEmojiReaction(msg.userId, em);
         if (msg && /joined/i.test(msg.text || '') && msg.user) {
-          window.SocialFX?.showJoinBanner?.({ name: msg.user, avatar: avatarUrl(msg.user, getChatProfilePic(msg)) });
+          triggerEntryFrameForJoin?.({
+            userId: msg.userId,
+            name: msg.user,
+            profilePic: msg.profilePic || getChatProfilePic(msg),
+          });
         }
         renderChatFeed();
       });
@@ -6312,10 +6391,10 @@
               : String(lastViewerCount);
           }
         }
-        /* Join chat line comes from live:chat — avoid duplicate here */
+        /* Join chat line comes from live:chat — avoid duplicate banner here */
         if (!payload.isHost && !payload.silent && name) {
           try {
-            showJoinBanner?.(name);
+            triggerEntryFrameForJoin?.(payload);
           } catch (_e) { /* optional */ }
         }
         requestFreshRoomState();
@@ -6660,6 +6739,15 @@
                     : 'You are live — share so viewers can find you',
                   'success'
                 );
+              } else if (window.Cosmetics) {
+                window.Cosmetics.fetchEquipped()
+                  .then(() => {
+                    window.Cosmetics.showSelfEntryFrameOnJoin?.({
+                      name: displayName(user),
+                      avatarUrl: avatarUrl(displayName(user), me?.profile_pic || me?.profilePic),
+                    });
+                  })
+                  .catch(() => {});
               }
               resolve(liveSocket);
             } else {

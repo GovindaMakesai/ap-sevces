@@ -332,6 +332,8 @@
   <script src="cp-rings.js?v=20260814-ring3d"></script>
   <script src="cp-profile-card.js?v=20260816-cpfix"></script>
   <script src="profile-badges.js?v=20260817-profile-fix"></script>
+  <script src="cosmetics.js?v=20260819-cosmetics"></script>
+  <link rel="stylesheet" href="cosmetics.css?v=20260819-cosmetics">
   <script src="social-shell.js?v=20260730-fastnav4"></script>
   <script src="referral-hook.js?v=20260723-invite-on"></script>
   <script>
@@ -380,6 +382,22 @@
         const tag = document.getElementById('profileAdminTag');
         if (tag) tag.hidden = !isAdmin;
         document.getElementById('profileName')?.classList.toggle('is-admin-name', isAdmin);
+        if (window.Cosmetics) {
+          Cosmetics.fetchEquipped().then((c) => {
+            const wrap = document.getElementById('profileAvatarWrap');
+            if (wrap && c?.profileRing) Cosmetics.mountProfileRing(wrap, c.profileRing);
+            const nameEl = document.getElementById('profileName');
+            if (nameEl && c?.profileTag) {
+              const existing = nameEl.querySelector('.ap-cosmetic-profile-tag');
+              if (existing) existing.remove();
+              nameEl.insertAdjacentHTML('beforeend', Cosmetics.profileTagHtml(c.profileTag));
+            }
+            const uidEl = document.getElementById('profileUserId');
+            if (uidEl && c?.idEffect) {
+              uidEl.classList.add(...(c.idEffect.cssClass || '').split(/\s+/).filter(Boolean));
+            }
+          }).catch(() => {});
+        }
       }
 
       function paintAdminIdRow(user) {

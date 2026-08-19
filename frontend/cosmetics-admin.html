@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — Cosmetics</title>
+  <link rel="stylesheet" href="admin-shared.css">
+  <link rel="stylesheet" href="cosmetics.css?v=20260819-cosmetics">
+</head>
+<body class="admin-page">
+  <header style="padding:16px;display:flex;gap:12px;align-items:center">
+    <a href="/admin-dashboard.html">← Admin</a>
+    <h1 style="margin:0;font-size:18px">Cosmetics</h1>
+    <button type="button" id="newBtn" style="margin-left:auto">+ New</button>
+  </header>
+  <main style="padding:16px">
+    <div id="list"></div>
+    <div id="editor" style="margin-top:24px;padding:16px;border:1px solid #e5e7eb;border-radius:12px;display:none">
+      <h2>Edit cosmetic</h2>
+      <label>Name <input id="fName" style="width:100%;padding:8px"></label>
+      <label>Slug <input id="fSlug" style="width:100%;padding:8px"></label>
+      <label>Category
+        <select id="fCategory" style="width:100%;padding:8px">
+          <option>ENTRY_FRAME</option>
+          <option>CHAT_BUBBLE</option>
+          <option>PROFILE_TAG</option>
+          <option>ID_EFFECT</option>
+          <option>MIC_EFFECT</option>
+          <option>PROFILE_RING</option>
+        </select>
+      </label>
+      <label>Tag label <input id="fTag" style="width:100%;padding:8px"></label>
+      <label>CSS class <input id="fCss" style="width:100%;padding:8px"></label>
+      <label>Status
+        <select id="fStatus" style="width:100%;padding:8px"><option>ACTIVE</option><option>INACTIVE</option></select>
+      </label>
+      <label>Description <textarea id="fDesc" style="width:100%;padding:8px"></textarea></label>
+      <button type="button" id="saveBtn">Save</button>
+      <h3>Variants</h3>
+      <div id="variants"></div>
+      <button type="button" id="addVariantBtn">+ Add variant</button>
+    </div>
+  </main>
+  <script src="app.js"></script>
+  <script>
+    const token = localStorage.getItem('token');
+    let products = [];
+    let editingId = null;
+
+    async function api(path, opts = {}) {
+      const res = await fetch(joinApiUrl(path), {
+        ...opts,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          ...(opts.headers || {}),
+        },
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.message || 'Failed');
+      return json.data;
+    }
+
+    async function load() {
+      products = await api('/admin/cosmetics');
+      document.getElementById('list').innerHTML = products
+        .map((p) => `<div style="padding:12px;border:1px solid #eee;margin-bottom:8px;border-radius:8px">
+          <strong>${p.name}</strong> <small>${p.category}</small> <span>${p.status}</span>
+          <button type="button" data-edit="${p.id}">Edit</button>
+        </div>`)
+        .join('');
+      document.querySelectorAll('[data-edit]').forEach((btn) => {
+        btn.addEventListener('click', () => openEditor(btn.dataset.edit));
+      });
+    }
+
+    async function openEditor(id) {
+      editingId = id;
+      const p = id ? await api(`/admin/cosmetics/${id}`) : null;
+      document.getElementById('editor').style.display = 'block';
+      document.getElementById('fName').value = p?.name || '';
+      document.getElementById('fSlug').value = p?.slug || '';
+      document.getElementById('fCategory').value = p?.category || 'PROFILE_RING';
+      document.getElementById('fTag').value = p?.tagLabel || '';
+      document.getElementById('fCss').value = p?.cssClass || '';
+      document.getElementById('fStatus').value = p?.status || 'ACTIVE';
+      document.getElementById('fDesc').value = p?.description || '';
+      paintVariants(p?.variants || []);
+    }
+
+    function paintVariants(vars) {
+      document.getElementById('variants').innerHTML = vars
+        .map(
+          (v) =>
+            `<div style="margin:8px 0">${v.durationType}: ${v.priceCoins} coins (${v.active ? 'active' : 'off'})</div>`
+        )
+        .join('');
+    }
+
+    document.getElementById('newBtn').addEventListener('click', () => openEditor(null));
+    document.getElementById('saveBtn').addEventListener('click', async () => {
+      const body = {
+        name: document.getElementById('fName').value.trim(),
+        slug: document.getElementById('fSlug').value.trim(),
+        category: document.getElementById('fCategory').value,
+        tagLabel: document.getElementById('fTag').value.trim() || null,
+        cssClass: document.getElementById('fCss').value.trim() || null,
+        status: document.getElementById('fStatus').value,
+        description: document.getElementById('fDesc').value.trim(),
+      };
+      try {
+        if (editingId) await api(`/admin/cosmetics/${editingId}`, { method: 'PATCH', body: JSON.stringify(body) });
+        else {
+          const created = await api('/admin/cosmetics', { method: 'POST', body: JSON.stringify(body) });
+          editingId = created.id;
+        }
+        await load();
+        alert('Saved');
+      } catch (e) {
+        alert(e.message);
+      }
+    });
+
+    document.getElementById('addVariantBtn').addEventListener('click', async () => {
+      if (!editingId) return alert('Save product first');
+      const durationType = prompt('Duration: 1_DAY, 7_DAYS, 30_DAYS, 90_DAYS, PERMANENT');
+      const days = durationType === 'PERMANENT' ? null : Number(prompt('Duration days', '7'));
+      const priceCoins = Number(prompt('Price coins', '500'));
+      try {
+        await api(`/admin/cosmetics/${editingId}/variants`, {
+          method: 'POST',
+          body: JSON.stringify({ durationType, durationDays: days, priceCoins }),
+        });
+        await openEditor(editingId);
+      } catch (e) {
+        alert(e.message);
+      }
+    });
+
+    load().catch((e) => alert(e.message));
+  </script>
+</body>
+</html>

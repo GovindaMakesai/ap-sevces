@@ -50,6 +50,12 @@ function startScheduler() {
     }
   });
 
+  const cosmeticService = require('../services/cosmeticService');
+  register('cosmetics-expire', '*/15 * * * *', async () => {
+    await cosmeticService.markExpiredOwnership();
+    await cosmeticService.unequipExpired();
+  });
+
   logger.info('Scheduler started', { jobs: tasks.map((t) => t.name) });
 }
 

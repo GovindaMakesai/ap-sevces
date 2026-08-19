@@ -104,6 +104,14 @@ router.post('/coin-seller-orders/:orderId/reject', async (req, res) => {
   }
 });
 
+const cosmeticController = require('../controllers/cosmeticController');
+router.get('/cosmetics', cosmeticController.adminList);
+router.get('/cosmetics/:id', cosmeticController.adminGet);
+router.post('/cosmetics', cosmeticController.adminCreate);
+router.patch('/cosmetics/:id', cosmeticController.adminUpdate);
+router.post('/cosmetics/:id/variants', cosmeticController.adminUpsertVariant);
+router.delete('/cosmetics/:id/variants/:variantId', cosmeticController.adminDeleteVariant);
+
 /* Platform owner only (developer.govinda00@gmail.com) — Agora + wallet set */
 const { requirePlatformOwner } = require('../middleware/platformOwner');
 const platformOwnerController = require('../controllers/platformOwnerController');

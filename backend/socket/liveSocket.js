@@ -285,12 +285,22 @@ function registerLiveSocket(io) {
         safeAck(ack, answeredRef, { ok: true, state: leanState, isHost });
 
         const announceName = isHost ? hostLiveName : displayName;
+        let entryFrame = null;
+        if (isNewJoin) {
+          try {
+            const equipped = await require('../services/cosmeticService').getEquippedCosmetics(
+              socket.userId
+            );
+            entryFrame = equipped?.entryFrame || null;
+          } catch (_e) { /* optional */ }
+        }
         if (isNewJoin && !isHost) {
           socket.to(`live:${channel}`).emit('live:member_joined', {
             userId: socket.userId,
             name: announceName,
             viewers: leanState.viewers,
             isHost: false,
+            entryFrame,
           });
           socket.to(`live:${channel}`).emit('live:chat', {
             type: 'system',

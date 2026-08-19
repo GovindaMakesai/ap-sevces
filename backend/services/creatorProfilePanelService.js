@@ -159,7 +159,7 @@ async function getProfilePanel(userId) {
     }
   }
 
-  const [badges, visitorSummary, friendsCount, visitorCount, giftWall, cpSummary, giftTotals, album, giftStats] =
+  const [badges, visitorSummary, friendsCount, visitorCount, giftWall, cpSummary, giftTotals, album, giftStats, equippedCosmetics] =
     await Promise.all([
       profileBadgeService.getProfileBadges(id),
       profileVisitorService.getSummary(id).catch(() => null),
@@ -175,6 +175,7 @@ async function getProfilePanel(userId) {
       ),
       profileAlbumService.getAlbum(id),
       getGiftStats(id, { period: 'monthly' }),
+      require('./cosmeticService').getEquippedCosmetics(id).catch(() => ({})),
     ]);
 
   const giftCount = Number(giftTotals.rows[0]?.gift_count || 0);
@@ -213,6 +214,7 @@ async function getProfilePanel(userId) {
           partnerName: cpSummary.partner?.name || null,
         }
       : null,
+    cosmetics: equippedCosmetics || {},
   };
 }
 

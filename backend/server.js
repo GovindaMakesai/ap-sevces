@@ -32,6 +32,7 @@ const { ensurePartyModerationSchema } = require('./config/ensurePartyModerationS
 const { ensureWithdrawalQrSchema } = require('./config/ensureWithdrawalQrSchema');
 const { ensurePointsTransferSchema } = require('./config/ensurePointsTransferSchema');
 const { ensureCpSchema } = require('./config/ensureCpSchema');
+const { ensureCosmeticsSchema } = require('./config/ensureCosmeticsSchema');
 const { ensureGamesSchema } = require('./config/ensureGamesSchema');
 const referralModule = require('./modules/referral');
 const { applySecurityMiddleware, authLimiter, walletLimiter } = require('./middleware/security');
@@ -78,6 +79,7 @@ const trustRoutes = require('./routes/trust');
 const filesRoutes = require('./routes/files');
 const searchRoutes = require('./routes/search');
 const hierarchyRoutes = require('./routes/hierarchy');
+const cosmeticsRoutes = require('./routes/cosmetics');
 
 const app = express();
 const server = http.createServer(app);
@@ -199,6 +201,7 @@ app.use('/api/svip', svipRoutes);
 app.use('/api/wallet', walletLimiter, walletRoutes);
 app.use('/api/social', socialRoutes);
 app.use('/api/store', storeRoutes);
+app.use('/api/cosmetics', cosmeticsRoutes);
 app.use('/api/games', gamesRoutes);
 app.use('/api/trust', trustRoutes);
 app.use('/api/files', filesRoutes);
@@ -281,6 +284,7 @@ async function startServer() {
     await ensureWithdrawalQrSchema();
     await ensurePointsTransferSchema();
     await ensureCpSchema();
+    await ensureCosmeticsSchema();
     const { ensureSvipSchema } = require('./config/ensureSvipSchema');
     await ensureSvipSchema();
     const { ensureProfileVisitorsSchema } = require('./config/ensureProfileVisitorsSchema');
@@ -319,6 +323,7 @@ async function startServer() {
   try {
     await ensurePointsTransferSchema();
     await ensureCpSchema();
+    await ensureCosmeticsSchema();
     const { ensureSvipSchema } = require('./config/ensureSvipSchema');
     await ensureSvipSchema();
     const { ensureProfileVisitorsSchema } = require('./config/ensureProfileVisitorsSchema');

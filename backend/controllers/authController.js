@@ -624,11 +624,16 @@ const getMe = async (req, res) => {
             const profileBadgeService = require('../services/profileBadgeService');
             badges = await profileBadgeService.getProfileBadges(req.userId);
         } catch (_e) { /* non-fatal */ }
+        let cosmetics = null;
+        try {
+            cosmetics = await require('../services/cosmeticService').getEquippedCosmetics(req.userId);
+        } catch (_e) { /* non-fatal */ }
         res.json({
             success: true,
             data: {
-                user: { ...publicUser(user, { self: true }), badges },
+                user: { ...publicUser(user, { self: true }), badges, cosmetics },
                 badges,
+                cosmetics,
                 name_change,
             },
         });

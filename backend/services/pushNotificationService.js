@@ -317,8 +317,8 @@ async function sendViaLegacy(token, { title, body, data }) {
   if (!serverKey) return null;
   const axios = require('axios');
   const res = await axios.post(
-    'https://fcm.googleapis.com/fcm/send',
-    {
+        'https://fcm.googleapis.com/fcm/send',
+        {
       to: token,
       priority: 'high',
       notification: { title, body, sound: 'default', android_channel_id: 'default' },
@@ -393,7 +393,7 @@ async function deliverToToken(userId, tokenRow, payload) {
       success: true,
     });
     return { sent: true, ...result };
-  } catch (err) {
+    } catch (err) {
     await logDelivery({
       userId,
       deviceToken: token,
@@ -507,7 +507,7 @@ async function getAgencyMemberIds(hostUserId) {
        JOIN host_profiles hp2 ON hp2.agency_id = hp.agency_id AND hp2.status = 'active'
        WHERE hp.user_id = $1 AND hp.status = 'active' AND hp.agency_id IS NOT NULL
          AND hp2.user_id <> $1`,
-      [hostUserId]
+    [hostUserId]
     );
     return res.rows.map((r) => r.user_id);
   } catch (_e) {
