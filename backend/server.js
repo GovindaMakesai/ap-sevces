@@ -273,81 +273,98 @@ async function startServer() {
     process.env.SKIP_DB_SCHEMA_ENSURE === 'true' ||
     (process.env.NODE_ENV === 'production' && process.env.FORCE_SCHEMA_ENSURE !== 'true');
 
-  if (skipSchema) {
-    logger.info('Skipping schema ensure on boot (set FORCE_SCHEMA_ENSURE=true to run)');
-  } else {
-    await ensureBaseSchema();
-    await ensureChatSchema();
-    await ensurePaymentSchema();
-    await ensureFoundationSchema();
-    await ensurePhase2Schema();
-    await ensureWithdrawalQrSchema();
-    await ensurePointsTransferSchema();
-    await ensureCpSchema();
-    await ensureCosmeticsSchema();
-    const { ensureSvipSchema } = require('./config/ensureSvipSchema');
-    await ensureSvipSchema();
-    const { ensureProfileVisitorsSchema } = require('./config/ensureProfileVisitorsSchema');
-    await ensureProfileVisitorsSchema();
-    const { ensureProfileAlbumSchema } = require('./config/ensureProfileAlbumSchema');
-    await ensureProfileAlbumSchema();
-    await ensureSocialProductionSchema();
-    await ensureSecurityHardeningSchema();
-    await ensureProductionReadinessSchema();
-    await ensureRoleApplicationsSchema();
-    await ensurePaymentApprovalsSchema();
-    await ensureLiveHostStatsSchema();
-    await ensureLiveUserAnalyticsSchema();
-    await ensureLiveRoomsSchema();
-    await ensureSocialPostsSchema();
-    await ensureBdHierarchySchema();
-    await ensurePartyModerationSchema();
-    await ensureGamesSchema();
-    const { ensureDisplayIdSchema } = require('./config/ensureDisplayIdSchema');
-    await ensureDisplayIdSchema();
-    const { ensureNameChangeSchema } = require('./config/ensureNameChangeSchema');
-    await ensureNameChangeSchema();
-    const { ensureCreatorProfileSchema } = require('./config/ensureCreatorProfileSchema');
-    await ensureCreatorProfileSchema();
-    const { ensureClientMetricsSchema } = require('./config/ensureClientMetricsSchema');
-    await ensureClientMetricsSchema();
-  }
-
-  /* Lightweight idempotent migrations — always run (even when full schema ensure is skipped) */
-  try {
-    const { ensurePushNotificationsSchema } = require('./config/ensurePushNotificationsSchema');
-    await ensurePushNotificationsSchema();
-  } catch (err) {
-    logger.warn('Push schema ensure failed', { message: err.message });
-  }
-  try {
-    await ensurePointsTransferSchema();
-    await ensureCpSchema();
-    await ensureCosmeticsSchema();
-    const { ensureSvipSchema } = require('./config/ensureSvipSchema');
-    await ensureSvipSchema();
-    const { ensureProfileVisitorsSchema } = require('./config/ensureProfileVisitorsSchema');
-    await ensureProfileVisitorsSchema();
-    const { ensureProfileAlbumSchema } = require('./config/ensureProfileAlbumSchema');
-    await ensureProfileAlbumSchema();
-  } catch (err) {
-    logger.warn('Points transfer / CP / SVIP schema ensure failed', { message: err.message });
-  }
-
-  await referralModule.boot();
-  await attachSocketRedisAdapter();
-  startScheduler();
-
-  server.listen(PORT, '0.0.0.0', () => {
-    logger.info('Server started', { port: PORT, redis: redis.isEnabled(), skipSchema });
+  await new Promise((resolve, reject) => {
+    server.listen(PORT, '0.0.0.0', (err) => {
+      if (err) return reject(err);
+      logger.info('Server started', { port: PORT, redis: redis.isEnabled(), skipSchema });
+      resolve();
+    });
   });
 
-  /* After listen so Google login / live are not blocked by DB recovery. */
   setImmediate(() => {
-    Promise.resolve()
-      .then(() => platformService.getOrCreateTreasuryUserId())
-      .then(() => liveRoomService.recoverActiveRooms())
-      .catch((err) => logger.warn('Post-listen recovery failed', { message: err.message }));
+    (async () => {
+      if (skipSchema) {
+        logger.info('Skipping schema ensure on boot (set FORCE_SCHEMA_ENSURE=true to run)');
+      } else {
+        await ensureBaseSchema();
+        await ensureChatSchema();
+        await ensurePaymentSchema();
+        await ensureFoundationSchema();
+        await ensurePhase2Schema();
+        await ensureWithdrawalQrSchema();
+        await ensurePointsTransferSchema();
+        await ensureCpSchema();
+        await ensureCosmeticsSchema();
+        const { ensureSvipSchema } = require('./config/ensureSvipSchema');
+        await ensureSvipSchema();
+        const { ensureProfileVisitorsSchema } = require('./config/ensureProfileVisitorsSchema');
+        await ensureProfileVisitorsSchema();
+        const { ensureProfileAlbumSchema } = require('./config/ensureProfileAlbumSchema');
+        await ensureProfileAlbumSchema();
+        await ensureSocialProductionSchema();
+        await ensureSecurityHardeningSchema();
+        await ensureProductionReadinessSchema();
+        await ensureRoleApplicationsSchema();
+        await ensurePaymentApprovalsSchema();
+        await ensureLiveHostStatsSchema();
+        await ensureLiveUserAnalyticsSchema();
+        await ensureLiveRoomsSchema();
+        await ensureSocialPostsSchema();
+        await ensureBdHierarchySchema();
+        await ensurePartyModerationSchema();
+        await ensureGamesSchema();
+        const { ensureDisplayIdSchema } = require('./config/ensureDisplayIdSchema');
+        await ensureDisplayIdSchema();
+        const { ensureNameChangeSchema } = require('./config/ensureNameChangeSchema');
+        await ensureNameChangeSchema();
+        const { ensureCreatorProfileSchema } = require('./config/ensureCreatorProfileSchema');
+        await ensureCreatorProfileSchema();
+        const { ensureClientMetricsSchema } = require('./config/ensureClientMetricsSchema');
+        await ensureClientMetricsSchema();
+      }
+
+      try {
+        const { ensurePushNotificationsSchema } = require('./config/ensurePushNotificationsSchema');
+        await ensurePushNotificationsSchema();
+      } catch (err) {
+        logger.warn('Push schema ensure failed', { message: err.message });
+      }
+      try {
+        await ensurePointsTransferSchema();
+        await ensureCpSchema();
+        await ensureCosmeticsSchema();
+        const { ensureSvipSchema } = require('./config/ensureSvipSchema');
+        await ensureSvipSchema();
+        const { ensureProfileVisitorsSchema } = require('./config/ensureProfileVisitorsSchema');
+        await ensureProfileVisitorsSchema();
+        const { ensureProfileAlbumSchema } = require('./config/ensureProfileAlbumSchema');
+        await ensureProfileAlbumSchema();
+      } catch (err) {
+        logger.warn('Points transfer / CP / SVIP schema ensure failed', { message: err.message });
+      }
+
+      try {
+        await referralModule.boot();
+      } catch (err) {
+        logger.warn('Referral boot failed', { message: err.message });
+      }
+      try {
+        await attachSocketRedisAdapter();
+      } catch (err) {
+        logger.warn('Redis adapter attach failed', { message: err.message });
+      }
+      startScheduler();
+      try {
+        await platformService.getOrCreateTreasuryUserId();
+      } catch (err) {
+        logger.warn('Treasury ensure failed', { message: err.message });
+      }
+      try {
+        await liveRoomService.recoverActiveRooms();
+      } catch (err) {
+        logger.warn('Room recovery failed', { message: err.message });
+      }
+    })().catch((err) => logger.warn('Post-listen boot failed', { message: err.message }));
   });
 }
 
