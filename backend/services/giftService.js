@@ -6,6 +6,45 @@ const charityService = require('./charityService');
 const fraudService = require('./fraudService');
 const pkBattleService = require('./pkBattleService');
 
+const CATALOG_TTL_MS = 60000;
+let catalogMemo = { at: 0, rows: null };
+
+async function getActiveCatalog() {
+  if (catalogMemo.rows && Date.now() - catalogMemo.at < CATALOG_TTL_MS) {
+    return catalogMemo.rows;
+  }
+  const res = await db.query(
+    `SELECT slug, emoji, name, coin_cost, category, tier
+     FROM gift_catalog
+     WHERE is_active = TRUE
+     ORDER BY category, sort_order, coin_cost`
+  );
+  catalogMemo = { at: Date.now(), rows: res.rows };
+  return res.rows;
+}
+
+function findCatalogGift(rows, giftType, amount, quantity) {
+  const raw = String(giftType || '').trim();
+  const slug = raw
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, '_')
+    .replace(/_+/g, '_')
+    .slice(0, 64);
+  const lower = raw.toLowerCase();
+  let hit =
+    rows.find((r) => r.slug === slug) ||
+    rows.find((r) => String(r.name || '').toLowerCase() === lower) ||
+    rows.find((r) => r.emoji === raw);
+  if (!hit) hit = rows.find((r) => r.slug === `${slug}_${amount}`);
+  if (!hit) {
+    const unitGuess = Math.floor(amount / quantity);
+    if (unitGuess > 0 && amount % quantity === 0) {
+      hit = rows.find((r) => r.slug === `${slug}_${unitGuess}`);
+    }
+  }
+  return hit || null;
+}
+
 /**
  * Resolve chargeable gift total.
  * Catalog unit cost is authoritative; client may send total (unit * qty) or unit + qty.
@@ -16,72 +55,20 @@ async function resolveGiftAmount(giftType, coinAmount, qty = 1) {
   const quantity = Math.max(1, Math.min(10000, Math.floor(Number(qty) || 1)));
   if (!Number.isFinite(amount) || amount <= 0) throw new Error('Gift amount must be positive');
 
-  const raw = String(giftType || '').trim();
-  const slug = raw
-    .toLowerCase()
-    .replace(/[^a-z0-9_]/g, '_')
-    .replace(/_+/g, '_')
-    .slice(0, 64);
+  const rows = await getActiveCatalog();
+  const hit = findCatalogGift(rows, giftType, amount, quantity);
 
-  let res = await db.query(
-    `SELECT slug, coin_cost, emoji, name FROM gift_catalog
-     WHERE is_active = TRUE AND (
-       slug = $1 OR LOWER(name) = LOWER($2) OR emoji = $2
-     )
-     LIMIT 1`,
-    [slug, raw]
-  );
-
-  if (!res.rows[0]) {
-    /* Legacy slug forms like like_20 when client sent slug "like" + amount 20 */
-    const withCost = `${slug}_${amount}`;
-    res = await db.query(
-      `SELECT slug, coin_cost, emoji, name FROM gift_catalog
-       WHERE is_active = TRUE AND slug = $1
-       LIMIT 1`,
-      [withCost]
-    );
+  if (!hit) {
+    if (rows.some((r) => Number(r.coin_cost) === amount)) return amount;
+    throw new Error(`Unknown gift type "${String(giftType || '').trim() || giftType}". Try reloading the app.`);
   }
 
-  if (!res.rows[0]) {
-    const unitGuess = Math.floor(amount / quantity);
-    if (unitGuess > 0 && amount % quantity === 0) {
-      const withQtyUnit = `${slug}_${unitGuess}`;
-      res = await db.query(
-        `SELECT slug, coin_cost, emoji, name FROM gift_catalog
-         WHERE is_active = TRUE AND slug = $1
-         LIMIT 1`,
-        [withQtyUnit]
-      );
-    }
+  const unit = Number(hit.coin_cost);
+  if (!Number.isFinite(unit) || unit <= 0) {
+    throw new Error('Invalid gift catalog cost');
   }
-
-  if (!res.rows[0]) {
-    const byCost = await db.query(
-      `SELECT slug, coin_cost FROM gift_catalog
-       WHERE is_active = TRUE AND coin_cost = $1
-       ORDER BY sort_order ASC`,
-      [amount]
-    );
-    if (byCost.rows.length >= 1) {
-      return amount;
-    }
-  }
-
-  if (res.rows[0]) {
-    const unit = Number(res.rows[0].coin_cost);
-    if (!Number.isFinite(unit) || unit <= 0) {
-      throw new Error('Invalid gift catalog cost');
-    }
-    /* Client sent full total (qty * unit) — charge that */
-    if (amount >= unit && amount % unit === 0) {
-      return amount;
-    }
-    /* Client sent unit price (or odd amount) — charge unit * qty */
-    return unit * quantity;
-  }
-
-  throw new Error(`Unknown gift type "${raw || giftType}". Try reloading the app.`);
+  if (amount >= unit && amount % unit === 0) return amount;
+  return unit * quantity;
 }
 
 async function sendGift({
@@ -187,7 +174,6 @@ async function sendGift({
             qty: Math.max(1, Math.floor(Number(qty) || 1)),
             platform_fee: Number(platformShare),
             host_amount: Number(hostShare),
-            settlement,
           }),
         ]
       );
@@ -203,47 +189,54 @@ async function sendGift({
 
     await client.query('COMMIT');
 
-    try {
-      const cpService = require('./cpService');
-      const coinAmt = Number(amount);
-      if (coinAmt > 0) {
-        await cpService.addSupportPoints(senderId, receiverId, Math.floor(coinAmt / 10));
-      }
-    } catch (_cp) { /* non-fatal */ }
-
     const giftRow = {
       ...gift.rows[0],
       platform_fee: String(platformShare),
       creator_amount: String(hostShare),
     };
 
-    try {
-      const agencyShare = settlement.find((s) => s.role === 'agency');
-      if (agencyShare?.amount && agencyShare.userId) {
-        const { resolveGiftParties } = require('./hierarchyService');
-        const parties = await resolveGiftParties(receiverId);
-        if (parties.agencyId) {
-          const agencyPerformanceService = require('./agencyPerformanceService');
-          await agencyPerformanceService.recordGiftRevenue(parties.agencyId, Number(agencyShare.amount));
-        }
-      }
-    } catch (_e) {}
-
-    try {
-      const { recordGiftStats } = require('./liveUserAnalyticsService');
-      await recordGiftStats(senderId, receiverId, Number(amount), Number(hostShare));
-    } catch (_e) {}
-
-    await leaderboardService.ingestGiftLeaderboards(giftRow);
-    await charityService.allocateFromGift(Number(amount), giftRow.id);
-
+    /* Leaderboards, CP, charity, analytics, push — not needed to ack the send. */
     setImmediate(() => {
-      try {
-        const pushNotificationService = require('./pushNotificationService');
-        pushNotificationService
-          .notifyGiftReceived(receiverId, senderId, giftRow.id)
-          .catch((err) => console.warn('[gift] push failed', err.message));
-      } catch (_e) {}
+      (async () => {
+        try {
+          const cpService = require('./cpService');
+          const coinAmt = Number(amount);
+          if (coinAmt > 0) {
+            await cpService.addSupportPoints(senderId, receiverId, Math.floor(coinAmt / 10));
+          }
+        } catch (_cp) { /* non-fatal */ }
+        try {
+          const agencyShare = settlement.find((s) => s.role === 'agency');
+          if (agencyShare?.amount && agencyShare.userId) {
+            const { resolveGiftParties } = require('./hierarchyService');
+            const parties = await resolveGiftParties(receiverId);
+            if (parties.agencyId) {
+              const agencyPerformanceService = require('./agencyPerformanceService');
+              await agencyPerformanceService.recordGiftRevenue(parties.agencyId, Number(agencyShare.amount));
+            }
+          }
+        } catch (_e) {}
+        try {
+          const { recordGiftStats } = require('./liveUserAnalyticsService');
+          await recordGiftStats(senderId, receiverId, Number(amount), Number(hostShare));
+        } catch (_e) {}
+        try {
+          await leaderboardService.ingestGiftLeaderboards(giftRow);
+        } catch (err) {
+          console.warn('[gift] leaderboard', err.message);
+        }
+        try {
+          await charityService.allocateFromGift(Number(amount), giftRow.id);
+        } catch (err) {
+          console.warn('[gift] charity', err.message);
+        }
+        try {
+          const pushNotificationService = require('./pushNotificationService');
+          await pushNotificationService.notifyGiftReceived(receiverId, senderId, giftRow.id);
+        } catch (err) {
+          console.warn('[gift] push failed', err.message);
+        }
+      })().catch((err) => console.warn('[gift] post-settle', err.message));
     });
 
     const coinBal = Number(debitResult.balance);
@@ -276,4 +269,4 @@ async function sendGift({
   }
 }
 
-module.exports = { sendGift };
+module.exports = { sendGift, getActiveCatalog };

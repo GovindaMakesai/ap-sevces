@@ -48,6 +48,29 @@ const AGENCY_LATERAL = `
   ) ag ON TRUE
 `;
 
+const GIFT_STATS_JOIN_SCOPED = `
+  LEFT JOIN (
+    SELECT receiver_id,
+           COALESCE(SUM(creator_amount), 0)::float AS gift_earnings,
+           COUNT(*)::int AS gift_count
+    FROM gift_transactions
+    WHERE receiver_id = ANY($1::uuid[])
+      AND created_at >= CURRENT_TIMESTAMP - INTERVAL '90 days'
+    GROUP BY receiver_id
+  ) g ON g.receiver_id = u.id
+`;
+
+const GIFT_STATS_JOIN_RECENT = `
+  LEFT JOIN (
+    SELECT receiver_id,
+           COALESCE(SUM(creator_amount), 0)::float AS gift_earnings,
+           COUNT(*)::int AS gift_count
+    FROM gift_transactions
+    WHERE created_at >= CURRENT_TIMESTAMP - INTERVAL '90 days'
+    GROUP BY receiver_id
+  ) g ON g.receiver_id = u.id
+`;
+
 async function fetchCreatorRows(userIds) {
   if (!userIds.length) return [];
   try {
@@ -56,8 +79,8 @@ async function fetchCreatorRows(userIds) {
               u.is_verified, u.bio, u.social_links, u.featured_post_id,
               (SELECT COUNT(*)::int FROM user_follows WHERE following_id = u.id) AS followers,
               (SELECT COUNT(*)::int FROM user_follows WHERE follower_id = u.id) AS following,
-              (SELECT COALESCE(SUM(gt.creator_amount), 0)::float FROM gift_transactions gt WHERE gt.receiver_id = u.id) AS gift_earnings,
-              (SELECT COUNT(*)::int FROM gift_transactions gt WHERE gt.receiver_id = u.id) AS gift_count,
+              COALESCE(g.gift_earnings, 0) AS gift_earnings,
+              COALESCE(g.gift_count, 0) AS gift_count,
               (SELECT COUNT(*)::int FROM live_rooms lr WHERE lr.host_user_id = u.id) AS live_sessions,
               lr.channel AS live_channel,
               lr.viewer_count AS live_viewers,
@@ -71,6 +94,7 @@ async function fetchCreatorRows(userIds) {
        FROM users u
        ${LIVE_LATERAL}
        ${AGENCY_LATERAL}
+       ${GIFT_STATS_JOIN_SCOPED}
        LEFT JOIN vip_memberships vm ON vm.user_id = u.id
        LEFT JOIN vip_levels vl ON vl.id = vm.vip_level_id
        LEFT JOIN LATERAL (
@@ -87,8 +111,8 @@ async function fetchCreatorRows(userIds) {
       `SELECT u.id, u.first_name, u.last_name, u.profile_pic, u.role, u.display_id, u.updated_at,
               (SELECT COUNT(*)::int FROM user_follows WHERE following_id = u.id) AS followers,
               (SELECT COUNT(*)::int FROM user_follows WHERE follower_id = u.id) AS following,
-              (SELECT COALESCE(SUM(gt.creator_amount), 0)::float FROM gift_transactions gt WHERE gt.receiver_id = u.id) AS gift_earnings,
-              (SELECT COUNT(*)::int FROM gift_transactions gt WHERE gt.receiver_id = u.id) AS gift_count,
+              COALESCE(g.gift_earnings, 0) AS gift_earnings,
+              COALESCE(g.gift_count, 0) AS gift_count,
               (SELECT COUNT(*)::int FROM live_rooms lr WHERE lr.host_user_id = u.id) AS live_sessions,
               lr.channel AS live_channel,
               lr.viewer_count AS live_viewers,
@@ -98,6 +122,7 @@ async function fetchCreatorRows(userIds) {
        FROM users u
        ${LIVE_LATERAL}
        ${AGENCY_LATERAL}
+       ${GIFT_STATS_JOIN_SCOPED}
        WHERE u.id = ANY($1::uuid[]) AND u.is_active = TRUE`,
       [userIds]
     );
@@ -116,8 +141,8 @@ async function fetchFallbackCreators(limit, hiddenIds = []) {
     `SELECT u.id, u.first_name, u.last_name, u.profile_pic, u.role, u.display_id, u.updated_at,
             (SELECT COUNT(*)::int FROM user_follows WHERE following_id = u.id) AS followers,
             (SELECT COUNT(*)::int FROM user_follows WHERE follower_id = u.id) AS following,
-            COALESCE((SELECT SUM(gt.creator_amount) FROM gift_transactions gt WHERE gt.receiver_id = u.id), 0)::float AS gift_earnings,
-            (SELECT COUNT(*)::int FROM gift_transactions gt WHERE gt.receiver_id = u.id) AS gift_count,
+            COALESCE(g.gift_earnings, 0) AS gift_earnings,
+            COALESCE(g.gift_count, 0) AS gift_count,
             (SELECT COUNT(*)::int FROM live_rooms lr WHERE lr.host_user_id = u.id) AS live_sessions,
             lr.channel AS live_channel,
             lr.viewer_count AS live_viewers,
@@ -127,12 +152,13 @@ async function fetchFallbackCreators(limit, hiddenIds = []) {
      FROM users u
      ${LIVE_LATERAL}
      ${AGENCY_LATERAL}
+     ${GIFT_STATS_JOIN_RECENT}
      WHERE u.is_active = TRUE
        ${hiddenClause}
        AND (
          u.role IN ('worker', 'host', 'creator', 'coin_seller')
          OR EXISTS (SELECT 1 FROM live_rooms WHERE host_user_id = u.id)
-         OR EXISTS (SELECT 1 FROM gift_transactions WHERE receiver_id = u.id)
+         OR g.receiver_id IS NOT NULL
          OR (SELECT COUNT(*) FROM user_follows WHERE following_id = u.id) >= 3
        )
      ORDER BY gift_earnings DESC, followers DESC, u.created_at DESC

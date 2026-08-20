@@ -238,8 +238,15 @@ async function getAgencyTierSnapshot(agencyId) {
   };
 }
 
+const CHAIN_TTL_MS = 30000;
+const chainCache = new Map();
+
 /** Parent chain from direct agency up, each with live_pct */
 async function getAgencyCommissionChain(agencyId) {
+  const key = String(agencyId || '');
+  const hit = chainCache.get(key);
+  if (hit && Date.now() - hit.at < CHAIN_TTL_MS) return hit.chain;
+
   await ensureTierSchema();
   const chain = [];
   let id = agencyId;
@@ -266,6 +273,7 @@ async function getAgencyCommissionChain(agencyId) {
     });
     id = a.parent_agency_id;
   }
+  chainCache.set(key, { at: Date.now(), chain });
   return chain;
 }
 

@@ -84,12 +84,20 @@
     return cached;
   }
 
+  function applyServerBalance(data) {
+    if (!data || typeof data !== 'object') return cached;
+    cached = normalizeBalance(data, cached);
+    lastFetch = Date.now();
+    document.dispatchEvent(new CustomEvent('wallet:balance', { detail: cached }));
+    return cached;
+  }
+
   async function fetchBalance(force) {
     if (!window.API) return cached;
     if (window.Auth?.hasSession && !Auth.hasSession()) return cached;
     if (window.Auth?.ensureAccessToken) await Auth.ensureAccessToken();
     if (!Auth.getToken?.() && !localStorage.getItem('token')) return cached;
-    if (!force && Date.now() - lastFetch < 4000) return cached;
+    if (!force && Date.now() - lastFetch < 15000) return cached;
     try {
       const getter = force && API.getFresh ? API.getFresh.bind(API) : API.get.bind(API);
       const res = await getter('/wallet/balance');
@@ -172,9 +180,10 @@
    */
   async function ensureGiftableCoins(needed) {
     const need = Math.max(0, Math.floor(Number(needed) || 0));
-    let bal = await fetchBalance(true);
+    let bal = await fetchBalance(false);
     let gift = getGiftableCoins(bal);
     if (gift >= need) return bal;
+    bal = await fetchBalance(true);
     if (!bal.is_coin_seller || need <= 0) return bal;
     const shortfall = need - gift;
     const sellable = getSellableCoins(bal);
@@ -288,6 +297,7 @@
     fetchBalance,
     invalidateBalance,
     applyGameBalance,
+    applyServerBalance,
     getCachedBalance,
     getPointsBalance,
     getCoinsBalance,

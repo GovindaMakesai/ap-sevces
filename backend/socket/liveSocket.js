@@ -320,7 +320,7 @@ function registerLiveSocket(io) {
         }
 
         try {
-          const state = await liveRoomService.buildSnapshot(channel, { bypassCache: true });
+          const state = await liveRoomService.buildSnapshot(channel);
           if (state) {
             io.to(`live:${channel}`).emit('live:viewer_count', { viewers: state.viewers || 0 });
             /* Full state to joiner; room gets viewer count + join chat already */
@@ -1025,11 +1025,6 @@ function registerLiveSocket(io) {
         io.to(`live:${channel}`).emit('live:gift', gift);
 
         try {
-          const state = await liveRoomService.buildSnapshot(channel);
-          io.to(`live:${channel}`).emit('live:state', state);
-        } catch (_snapErr) {}
-
-        try {
           const pkBattleService = require('../services/pkBattleService');
           const battle = await pkBattleService.getActiveBattleByChannel(channel);
           if (battle?.status === 'active') {
@@ -1056,13 +1051,19 @@ function registerLiveSocket(io) {
         } catch (_pkErr) {}
 
         try {
-          await partyActivityService.recordActivity(socket.userId, 'send_gift', {
-            liveRoomId: room.id,
-            metadata: { receiverId, amount: charged },
-          });
-          await partyActivityService.recordActivity(receiverId, 'receive_gift', {
-            liveRoomId: room.id,
-            metadata: { senderId: socket.userId, amount: charged },
+          setImmediate(() => {
+            partyActivityService
+              .recordActivity(socket.userId, 'send_gift', {
+                liveRoomId: room.id,
+                metadata: { receiverId, amount: charged },
+              })
+              .catch(() => {});
+            partyActivityService
+              .recordActivity(receiverId, 'receive_gift', {
+                liveRoomId: room.id,
+                metadata: { senderId: socket.userId, amount: charged },
+              })
+              .catch(() => {});
           });
         } catch (_actErr) {}
       } catch (err) {

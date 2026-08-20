@@ -187,18 +187,21 @@ async function getCpPairsInRoom(userIds) {
   const res = await db.query(
     `SELECT r.user_a, r.user_b, r.ring_id,
             ua.first_name AS a_fn, ua.last_name AS a_ln, ua.profile_pic AS a_pic, ua.display_id AS a_did,
-            ub.first_name AS b_fn, ub.last_name AS b_ln, ub.profile_pic AS b_pic, ub.display_id AS b_did
+            ub.first_name AS b_fn, ub.last_name AS b_ln, ub.profile_pic AS b_pic, ub.display_id AS b_did,
+            COALESCE(s.points, 0)::int AS intimacy
      FROM cp_relationships r
      JOIN users ua ON ua.id = r.user_a
      JOIN users ub ON ub.id = r.user_b
+     LEFT JOIN user_cp_support s
+       ON (s.user_a = r.user_a AND s.user_b = r.user_b)
+       OR (s.user_a = r.user_b AND s.user_b = r.user_a)
      WHERE r.status = 'active'
        AND r.user_a::text = ANY($1::text[])
        AND r.user_b::text = ANY($1::text[])`,
     [ids]
   );
-  return Promise.all(
-    res.rows.map(async (row) => {
-      const intimacy = await getSupportPoints(row.user_a, row.user_b);
+  return res.rows.map((row) => {
+      const intimacy = Number(row.intimacy || 0);
       const levelProgress = cpLevelService.getLevelProgress(intimacy);
       return {
         userA: {
@@ -218,8 +221,7 @@ async function getCpPairsInRoom(userIds) {
         cpLevel: levelProgress.level,
         intimacy,
       };
-    })
-  );
+    });
 }
 
 async function sendInvite(fromUserId, toUserId, ringId) {

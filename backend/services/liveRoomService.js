@@ -89,8 +89,10 @@ const roomStyleByChannel = new Map();
 const snapshotCache = new Map();
 const heartbeatCreditAt = new Map();
 const ROOM_CACHE_TTL_MS = 15000;
-const SNAPSHOT_CACHE_TTL_MS = 2000;
+const SNAPSHOT_CACHE_TTL_MS = 8000;
 const HEARTBEAT_CREDIT_MIN_MS = 28000;
+const HEARTBEAT_SEEN_MIN_MS = 18000;
+const heartbeatSeenAt = new Map();
 
 function cacheRoom(channel, row) {
   if (channel && row) roomCache.set(channel, { row, at: Date.now() });
@@ -448,7 +450,8 @@ async function buildSnapshot(channel, { bypassCache = false } = {}) {
             toUserId: p.toUserId || p.receiver_id || null,
             emoji: p.emoji || '🎁',
             amount: coins,
-            ...p,
+            giftType: p.gift_type || p.giftType || null,
+            qty: Number(p.qty || 1),
           },
           at: e.created_at,
         };
@@ -482,7 +485,8 @@ async function buildSnapshot(channel, { bypassCache = false } = {}) {
         emoji: p.emoji || '🎁',
         amount: Number(p.amount || p.coin_amount || p.coins || 0),
         at: e.created_at,
-        ...p,
+        giftType: p.gift_type || p.giftType || null,
+        qty: Number(p.qty || 1),
       };
     });
 
@@ -1084,10 +1088,13 @@ async function touchHeartbeat(channel, userId) {
 
   const creditKey = `${room.id}:${userId}`;
   const now = Date.now();
+  const lastSeen = heartbeatSeenAt.get(creditKey) || 0;
+  if (now - lastSeen < HEARTBEAT_SEEN_MIN_MS) return;
+  heartbeatSeenAt.set(creditKey, now);
+
   const lastCredit = heartbeatCreditAt.get(creditKey) || 0;
   const shouldCredit = now - lastCredit >= HEARTBEAT_CREDIT_MIN_MS;
 
-  // Always refresh presence; credit watch-time less often to cut DB write load
   await db.query(
     `UPDATE live_room_members SET last_seen_at = CURRENT_TIMESTAMP
      WHERE live_room_id = $1 AND user_id = $2 AND left_at IS NULL`,
@@ -1156,8 +1163,6 @@ async function pruneStaleMembers(staleSeconds = 90) {
     for (const [channel, viewers] of touched.entries()) {
       try {
         liveIo.to(`live:${channel}`).emit('live:viewer_count', { viewers });
-        const state = await buildSnapshot(channel, { bypassCache: true });
-        if (state) liveIo.to(`live:${channel}`).emit('live:state', state);
       } catch (_e) { /* ignore emit failures */ }
     }
   }

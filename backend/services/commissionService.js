@@ -9,20 +9,28 @@ const agencyTierService = require('./agencyTierService');
  * Host share from commission_rules; agency share from Agent level tiers (D–S).
  */
 
+const RULES_TTL_MS = 60000;
+let rulesCache = { at: 0, rows: null };
+
 async function getActiveRules(client = db) {
+  if (client === db && rulesCache.rows && Date.now() - rulesCache.at < RULES_TTL_MS) {
+    return rulesCache.rows;
+  }
   const res = await client.query(
     `SELECT id, role, percentage, priority, active, metadata
      FROM commission_rules
      WHERE active = TRUE
      ORDER BY priority ASC, role ASC`
   );
-  if (res.rows.length) return res.rows;
-
-  return [
-    { role: 'host', percentage: 70, priority: 10, active: true },
-    { role: 'agency', percentage: 20, priority: 20, active: true },
-    { role: 'platform', percentage: 10, priority: 30, active: true },
-  ];
+  const rows = res.rows.length
+    ? res.rows
+    : [
+        { role: 'host', percentage: 70, priority: 10, active: true },
+        { role: 'agency', percentage: 20, priority: 20, active: true },
+        { role: 'platform', percentage: 10, priority: 30, active: true },
+      ];
+  if (client === db) rulesCache = { at: Date.now(), rows };
+  return rows;
 }
 
 async function getCommissionSettings() {

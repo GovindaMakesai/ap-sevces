@@ -528,6 +528,7 @@
 
   function onGiftReceived(gift) {
     if (!gift) return;
+    if (typeof document !== 'undefined' && document.hidden) return;
     const tx = transactionId(gift);
     const meta = resolveMeta(gift);
 

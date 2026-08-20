@@ -16977,7 +16977,7 @@
       }
     }, 7000);
 
-    const finishOk = async (chargedAmount) => {
+    const finishOk = async (chargedAmount, ackBalance) => {
       /* Do not pushRoomGift / chat here — live:gift owns the single history + chat line. */
       void chargedAmount;
       setGiftSendError('');
@@ -16990,7 +16990,13 @@
       sheet.style.opacity = '0';
       syncLiveOverlayClass();
       Promise.resolve()
-        .then(() => window.SocialWallet?.fetchBalance?.(true))
+        .then(() => {
+          if (ackBalance && window.SocialWallet?.applyServerBalance) {
+            SocialWallet.applyServerBalance(ackBalance);
+            return;
+          }
+          return window.SocialWallet?.fetchBalance?.();
+        })
         .then(() => refreshCoinDisplay())
         .then(() => renderRoomGiftPanels())
         .catch(() => { });
@@ -17070,6 +17076,7 @@
       (async () => {
         let sent = 0;
         let lastCharged = cost;
+        let lastAckBalance = null;
         let lastError = '';
         try {
           for (const target of targets) {
@@ -17095,10 +17102,11 @@
             }
             sent += 1;
             lastCharged = Number(res?.data?.gift?.amount || cost);
+            lastAckBalance = res?.data?.balance || lastAckBalance;
           }
           if (sent > 0) {
             releaseGiftSend();
-            await finishOk(lastCharged);
+            await finishOk(lastCharged, lastAckBalance);
             return;
           }
           /* Only fall back to REST when socket is down — not on timeout (avoids double charge) */
@@ -19803,7 +19811,7 @@
         if (document.hidden) return;
         if (!isPartyRoomPage() || !roomJoinCompleted || !isHost() || socketLeaveIntentional) return;
         requestFreshRoomState();
-      }, 45000);
+      }, 180000);
     }
   }
 

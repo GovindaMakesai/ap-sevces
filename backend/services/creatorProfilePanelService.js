@@ -32,6 +32,7 @@ async function getGiftWall(receiverId, { limit = 64 } = {}) {
             SUM(coin_amount)::bigint AS coins
      FROM gift_transactions
      WHERE receiver_id = $1
+       AND created_at >= CURRENT_TIMESTAMP - INTERVAL '90 days'
      GROUP BY gift_type
      ORDER BY count DESC, coins DESC
      LIMIT $2`,
@@ -137,9 +138,14 @@ function profileCompletionPct(user, links, albumCount = 0) {
   return Math.min(100, score);
 }
 
+const PANEL_TTL_MS = 20000;
+const panelCache = new Map();
+
 async function getProfilePanel(userId) {
   const id = String(userId || '').trim();
   if (!id) return null;
+  const hit = panelCache.get(id);
+  if (hit && Date.now() - hit.at < PANEL_TTL_MS) return hit.data;
 
   const userRes = await db.query(
     `SELECT id, first_name, last_name, profile_pic, bio, gender, role, display_id,
@@ -170,7 +176,9 @@ async function getProfilePanel(userId) {
       db.query(
         `SELECT COUNT(*)::int AS gift_count,
                 COALESCE(SUM(coin_amount), 0)::bigint AS gift_coins
-         FROM gift_transactions WHERE receiver_id = $1`,
+         FROM gift_transactions
+         WHERE receiver_id = $1
+           AND created_at >= CURRENT_TIMESTAMP - INTERVAL '90 days'`,
         [id]
       ),
       profileAlbumService.getAlbum(id),
@@ -182,7 +190,7 @@ async function getProfilePanel(userId) {
   const giftCoins = Number(giftTotals.rows[0]?.gift_coins || 0);
   const personalLevel = await cpService.getPersonalLevel(id).catch(() => ({ level: 1 }));
 
-  return {
+  const data = {
     userId: id,
     displayId: user.display_id != null ? String(user.display_id) : null,
     displayName: `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'User',
@@ -216,6 +224,8 @@ async function getProfilePanel(userId) {
       : null,
     cosmetics: equippedCosmetics || {},
   };
+  panelCache.set(id, { at: Date.now(), data });
+  return data;
 }
 
 module.exports = {

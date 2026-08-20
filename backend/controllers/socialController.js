@@ -229,11 +229,9 @@ async function creatorAnalytics(req, res) {
 }
 
 async function listGiftCatalog(_req, res) {
-  const res2 = await db.query(
-    `SELECT slug, emoji, name, coin_cost, category, tier FROM gift_catalog
-     WHERE is_active = TRUE ORDER BY category, sort_order, coin_cost`
-  );
-  res.json({ success: true, data: res2.rows });
+  const giftService = require('../services/giftService');
+  const rows = await giftService.getActiveCatalog();
+  res.json({ success: true, data: rows });
 }
 
 async function listCoinSellers(_req, res) {
