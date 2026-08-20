@@ -8,7 +8,8 @@ async function ensureSocialPostsSchema() {
     ALTER TABLE social_posts
       ADD COLUMN IF NOT EXISTS thumb_url TEXT,
       ADD COLUMN IF NOT EXISTS media_type VARCHAR(16) DEFAULT 'none',
-      ADD COLUMN IF NOT EXISTS visibility VARCHAR(16) DEFAULT 'public'
+      ADD COLUMN IF NOT EXISTS visibility VARCHAR(16) DEFAULT 'public',
+      ADD COLUMN IF NOT EXISTS aspect_ratio VARCHAR(16) DEFAULT 'original'
   `);
   /* Non-destructive indexes for creator profile + feed queries */
   await db.query(`

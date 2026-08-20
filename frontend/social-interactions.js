@@ -323,6 +323,7 @@
       visibility: p.visibility || 'public',
       fromApi: true,
       isVideo,
+      aspectRatio: p.aspect_ratio || p.aspectRatio || 'original',
       role: p.author?.role || null,
       isVerified: !!(p.author?.is_verified),
       agencyName: null,
@@ -609,7 +610,7 @@
     }
   }
 
-  async function createApiPost({ caption, visibility, mediaPath, thumbPath, mediaType }) {
+  async function createApiPost({ caption, visibility, mediaPath, thumbPath, mediaType, aspectRatio }) {
     if (!window.API?.post) throw new Error('Not connected — please log in again');
     const res = await API.post('/social/posts', {
       body: caption || '',
@@ -618,6 +619,7 @@
       thumbUrl: thumbPath || null,
       mediaType: mediaType || (mediaPath ? 'image' : 'none'),
       visibility: visibility === 'private' ? 'private' : 'public',
+      aspectRatio: aspectRatio || 'original',
     });
     if (!res?.success && !res?.data) {
       throw new Error(res?.message || 'Could not save post to server');
@@ -1481,6 +1483,7 @@
       mediaPath,
       thumbPath,
       mediaType,
+      aspectRatio: opts.aspectRatio || 'original',
     });
 
     const mediaUrl = resolveMediaUrl(apiPost.media_url || mediaPath);
@@ -1500,6 +1503,7 @@
       gifts: 0,
       shares: apiPost.share_count || 0,
       isVideo: mediaType === 'video' || isVideo,
+      aspectRatio: opts.aspectRatio || apiPost.aspect_ratio || 'original',
       mediaId: null,
       imageData: null,
       image: mediaUrl,
@@ -2404,6 +2408,7 @@
         gifts: p.gifts || 0,
         shares: p.shares || 0,
         isVideo: postIsVideo(p),
+        aspectRatio: p.aspectRatio || p.aspect_ratio || 'original',
         trimStart: p.trimStart,
         trimEnd: p.trimEnd,
         liked: isLiked(p.id, p),
@@ -2768,7 +2773,7 @@
         const media = item.isVideo
           ? `<video data-src="${item.mediaUrl || ''}" playsinline loop muted data-reel-video preload="none" poster="${item.thumb || ''}" class="social-reel-media"${item.trimStart != null ? ` data-trim-start="${item.trimStart}" data-trim-end="${item.trimEnd}"` : ''}></video>`
           : `<img src="${item.mediaUrl || item.thumb}" alt="" class="social-reel-media">`;
-        return `<section class="social-reel-slide" data-index="${i}" data-item-id="${item.id}">
+        return `<section class="social-reel-slide" data-index="${i}" data-item-id="${item.id}" data-fit="${item.aspectRatio || 'original'}">
           ${media}
           <div class="social-reel-buffer" hidden aria-hidden="true"></div>
           <div class="social-reel-gradient"></div>
@@ -2970,6 +2975,7 @@
         section.className = 'social-reel-slide';
         section.dataset.index = String(i);
         section.dataset.itemId = item.id;
+        section.dataset.fit = item.aspectRatio || 'original';
         const media = item.isVideo
           ? `<video data-src="${item.mediaUrl || ''}" playsinline loop muted data-reel-video preload="none" poster="${item.thumb || ''}" class="social-reel-media"${item.trimStart != null ? ` data-trim-start="${item.trimStart}" data-trim-end="${item.trimEnd}"` : ''}></video>`
           : `<img src="${item.mediaUrl || item.thumb}" alt="" class="social-reel-media">`;
@@ -3372,7 +3378,7 @@
         const when = relativeTime(p.createdAt || p.id);
         return `
       <article class="social-post-card" data-post-id="${p.id}"${openReel}>
-        <div class="social-post-media">${media}
+        <div class="social-post-media" data-fit="${p.aspectRatio || 'original'}">${media}
           ${hasMedia && postIsVideo(p) ? '<span class="play-badge play-badge--fullscreen"><i class="fas fa-expand"></i></span>' : ''}
           ${hasMedia && !postIsVideo(p) ? '<span class="play-badge play-badge--photo"><i class="fas fa-expand"></i></span>' : ''}
           ${p.visibility === 'private' ? '<span class="social-post-private-badge"><i class="fas fa-lock"></i> Private</span>' : ''}

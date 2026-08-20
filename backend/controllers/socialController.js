@@ -350,6 +350,7 @@ async function createPost(req, res) {
       thumbUrl: body.thumbUrl || body.thumb_url || null,
       mediaType: body.mediaType || body.media_type || null,
       visibility: body.visibility || 'public',
+      aspectRatio: body.aspectRatio || body.aspect_ratio || 'original',
     });
     res.status(201).json({ success: true, data: post });
   } catch (e) {

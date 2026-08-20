@@ -32,7 +32,7 @@ async function resolveMentionedUserIds(tokens) {
   return res.rows.map((r) => r.id);
 }
 
-async function createPost(userId, { body, mediaUrl, thumbUrl, mediaType, visibility, mediaItems } = {}) {
+async function createPost(userId, { body, mediaUrl, thumbUrl, mediaType, visibility, mediaItems, aspectRatio } = {}) {
   const text = String(body || '').trim();
   let media = mediaUrl ? String(mediaUrl).trim() : null;
   let thumb = thumbUrl ? String(thumbUrl).trim() : null;
@@ -51,11 +51,31 @@ async function createPost(userId, { body, mediaUrl, thumbUrl, mediaType, visibil
     type ||
     (media && /\.(mp4|webm|mov|m4v)(\?|$)/i.test(media) ? 'video' : media ? 'image' : 'none');
   const vis = visibility === 'private' ? 'private' : 'public';
-  const res = await db.query(
-    `INSERT INTO social_posts (user_id, body, media_url, thumb_url, media_type, visibility)
-     VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-    [userId, text || '', media, thumb || null, type, vis]
-  );
+  const fit = ['original', '9:16', '1:1', '4:5', '16:9'].includes(String(aspectRatio || ''))
+    ? String(aspectRatio)
+    : 'original';
+  if (!createPost._aspectReady) {
+    try {
+      await db.query(
+        `ALTER TABLE social_posts ADD COLUMN IF NOT EXISTS aspect_ratio VARCHAR(16) DEFAULT 'original'`
+      );
+    } catch (_e) { /* already present or skipped */ }
+    createPost._aspectReady = true;
+  }
+  let res;
+  try {
+    res = await db.query(
+      `INSERT INTO social_posts (user_id, body, media_url, thumb_url, media_type, visibility, aspect_ratio)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [userId, text || '', media, thumb || null, type, vis, fit]
+    );
+  } catch (_e) {
+    res = await db.query(
+      `INSERT INTO social_posts (user_id, body, media_url, thumb_url, media_type, visibility)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [userId, text || '', media, thumb || null, type, vis]
+    );
+  }
   const enriched = await enrichPosts([res.rows[0]], userId);
 
   if (vis === 'public') {

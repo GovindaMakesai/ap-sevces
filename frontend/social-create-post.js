@@ -5,7 +5,33 @@
   const MAX_VIDEO_SEC = 60;
   let pendingFile = null;
   let pendingTrim = null;
+  let pendingFit = 'original';
   let editorState = null;
+
+  function normalizeFit(value) {
+    const s = String(value || 'original').toLowerCase();
+    if (s === '9:16' || s === 'portrait') return '9:16';
+    if (s === '16:9' || s === 'landscape') return '16:9';
+    if (s === '1:1' || s === 'square') return '1:1';
+    if (s === '4:5') return '4:5';
+    return 'original';
+  }
+
+  function fitToRatio(fit) {
+    const f = normalizeFit(fit);
+    if (f === '9:16') return 9 / 16;
+    if (f === '1:1') return 1;
+    if (f === '4:5') return 0.8;
+    if (f === '16:9') return 16 / 9;
+    return 0;
+  }
+
+  function setFitButtons(fit) {
+    const wanted = normalizeFit(fit);
+    document.querySelectorAll('#socialCreateCropTools [data-fit]').forEach((b) => {
+      b.classList.toggle('active', b.dataset.fit === wanted);
+    });
+  }
 
   function ensureOverlay() {
     let el = document.getElementById('social-create-overlay');
@@ -42,10 +68,12 @@
             <p class="social-create-trim-hint" id="socialCreateTrimHint">Select up to 60 seconds</p>
           </div>
           <div class="social-create-crop-tools" id="socialCreateCropTools">
-            <button type="button" data-ratio="1">1:1</button>
-            <button type="button" data-ratio="0.8" class="active">4:5</button>
-            <button type="button" data-ratio="1.777">16:9</button>
-            <label class="social-create-zoom-label">Zoom
+            <button type="button" data-fit="original">Original</button>
+            <button type="button" data-fit="9:16">9:16</button>
+            <button type="button" data-fit="1:1">1:1</button>
+            <button type="button" data-fit="4:5">4:5</button>
+            <button type="button" data-fit="16:9">16:9</button>
+            <label class="social-create-zoom-label" id="socialCreateZoomLabel">Zoom
               <input type="range" id="socialCreateZoom" min="1" max="3" step="0.05" value="1">
             </label>
           </div>
@@ -108,12 +136,16 @@
     document.getElementById('socialCreateZoom')?.addEventListener('input', () => {
       if (editorState?.mode === 'image') drawCropPreview();
     });
-    document.querySelectorAll('#socialCreateCropTools [data-ratio]').forEach((btn) => {
+    document.querySelectorAll('#socialCreateCropTools [data-fit]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        document.querySelectorAll('#socialCreateCropTools [data-ratio]').forEach((b) => b.classList.remove('active'));
-        btn.classList.add('active');
+        const fit = normalizeFit(btn.dataset.fit);
+        setFitButtons(fit);
+        pendingFit = fit;
+        if (editorState) editorState.fit = fit;
+        const videoStage = document.getElementById('socialCreateVideoStage');
+        if (videoStage) videoStage.dataset.fit = fit;
         if (editorState?.mode === 'image') {
-          editorState.ratio = parseFloat(btn.dataset.ratio);
+          editorState.ratio = fitToRatio(fit);
           drawCropPreview();
         }
       });
@@ -165,17 +197,24 @@
     const cropStage = document.getElementById('socialCreateCropStage');
     const videoStage = document.getElementById('socialCreateVideoStage');
     const cropTools = document.getElementById('socialCreateCropTools');
+    const zoomLabel = document.getElementById('socialCreateZoomLabel');
     const label = document.getElementById('socialCreateEditorLabel');
     const preview = document.getElementById('socialCreatePreview');
     if (preview) preview.style.display = 'none';
     if (editor) editor.style.display = 'block';
 
     if (file.type.startsWith('video/')) {
-      editorState = { mode: 'video', file, trimStart: 0, trimEnd: MAX_VIDEO_SEC, duration: 0 };
+      editorState = { mode: 'video', file, fit: 'original', trimStart: 0, trimEnd: MAX_VIDEO_SEC, duration: 0 };
+      pendingFit = 'original';
+      setFitButtons('original');
       if (cropStage) cropStage.style.display = 'none';
-      if (cropTools) cropTools.style.display = 'none';
-      if (videoStage) videoStage.style.display = 'block';
-      if (label) label.textContent = 'Trim video (max 60s)';
+      if (cropTools) cropTools.style.display = 'flex';
+      if (zoomLabel) zoomLabel.style.display = 'none';
+      if (videoStage) {
+        videoStage.style.display = 'block';
+        videoStage.dataset.fit = 'original';
+      }
+      if (label) label.textContent = 'Trim & frame (max 60s)';
 
       const video = document.getElementById('socialCreateTrimVideo');
       const trimStart = document.getElementById('socialCreateTrimStart');
@@ -213,9 +252,12 @@
       return;
     }
 
-    editorState = { mode: 'image', file, ratio: 0.8, zoom: 1, offsetX: 0, offsetY: 0 };
+    editorState = { mode: 'image', file, fit: '4:5', ratio: 0.8, zoom: 1, offsetX: 0, offsetY: 0 };
+    pendingFit = '4:5';
+    setFitButtons('4:5');
     if (cropStage) cropStage.style.display = 'block';
     if (cropTools) cropTools.style.display = 'flex';
+    if (zoomLabel) zoomLabel.style.display = '';
     if (videoStage) videoStage.style.display = 'none';
     if (label) label.textContent = 'Crop photo';
 
@@ -242,8 +284,8 @@
     if (!canvas) return;
 
     const stageW = Math.min(360, window.innerWidth - 48);
-    const ratio = editorState.ratio || 0.8;
-    const stageH = Math.round(stageW / ratio);
+    const ratio = editorState.ratio || fitToRatio(editorState.fit);
+    const stageH = ratio > 0 ? Math.round(stageW / ratio) : Math.round(stageW * (editorState.naturalH / Math.max(1, editorState.naturalW)));
     canvas.width = stageW;
     canvas.height = stageH;
     canvas.style.width = stageW + 'px';
@@ -256,7 +298,10 @@
     ctx.fillRect(0, 0, stageW, stageH);
 
     const img = editorState.img;
-    const scale = Math.max(stageW / img.width, stageH / img.height) * zoom;
+    const cover = ratio > 0;
+    const scale = (cover
+      ? Math.max(stageW / img.width, stageH / img.height)
+      : Math.min(stageW / img.width, stageH / img.height)) * zoom;
     const dw = img.width * scale;
     const dh = img.height * scale;
     const dx = (stageW - dw) / 2 + (editorState.offsetX || 0);
@@ -289,9 +334,14 @@
 
     try {
       let out;
+      pendingFit = normalizeFit(editorState.fit || pendingFit);
       if (editorState.mode === 'image') {
-        const blob = await exportCroppedImage();
-        out = new File([blob], 'photo.jpg', { type: 'image/jpeg' });
+        if (pendingFit === 'original') {
+          out = editorState.file;
+        } else {
+          const blob = await exportCroppedImage();
+          out = new File([blob], 'photo.jpg', { type: 'image/jpeg' });
+        }
         pendingTrim = null;
       } else {
         const selLen = (editorState.trimEnd || 0) - (editorState.trimStart || 0);
@@ -335,6 +385,7 @@
   function clearPreview() {
     pendingFile = null;
     pendingTrim = null;
+    pendingFit = 'original';
     editorState = null;
     const prev = document.getElementById('socialCreatePreview');
     const editor = document.getElementById('socialCreateEditor');
@@ -362,6 +413,7 @@
     const el = ensureOverlay();
     pendingFile = null;
     pendingTrim = null;
+    pendingFit = 'original';
     editorState = null;
     document.getElementById('socialCreateCaption').value = '';
     document.getElementById('socialCreatePreview').style.display = 'none';
@@ -378,6 +430,7 @@
     document.getElementById('social-create-overlay')?.classList.remove('is-open');
     pendingFile = null;
     pendingTrim = null;
+    pendingFit = 'original';
     editorState = null;
   }
 
@@ -421,6 +474,7 @@
           skipCompress: true,
           trimStart: pendingTrim?.start,
           trimEnd: pendingTrim?.end,
+          aspectRatio: pendingFit,
         }),
         new Promise((_, rej) =>
           setTimeout(() => rej(new Error('Posting took too long. Try a shorter video.')), 18000)
