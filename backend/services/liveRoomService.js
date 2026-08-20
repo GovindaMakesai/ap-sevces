@@ -15,6 +15,7 @@ const redis = require('../lib/redis');
 
 const SEAT_REQUEST_TTL_SEC = 900;
 let liveIo = null;
+const listRoomsCache = new Map();
 
 function setLiveIo(io) {
   liveIo = io || null;
@@ -1008,6 +1009,10 @@ async function endOrphanRooms() {
 }
 
 async function listActiveRooms({ roomType, limit = 30, sort = 'trending' } = {}) {
+  const cacheKey = `${roomType || 'all'}:${sort}:${limit}`;
+  const hit = listRoomsCache.get(cacheKey);
+  if (hit && Date.now() - hit.at < 2500) return hit.rows;
+
   const params = [];
   // Only list rooms whose host is still heartbeating. Do NOT use room.updated_at
   // alone — viewers also touch that timestamp and kept empty Agora channels listed.
@@ -1043,6 +1048,7 @@ async function listActiveRooms({ roomType, limit = 30, sort = 'trending' } = {})
   sql += ` ORDER BY ${orderBy} LIMIT $${params.length}`;
   try {
     const res = await db.query(sql, params);
+    listRoomsCache.set(cacheKey, { at: Date.now(), rows: res.rows });
     return res.rows;
   } catch (err) {
     const msg = String(err.message || '');
@@ -1052,8 +1058,10 @@ async function listActiveRooms({ roomType, limit = 30, sort = 'trending' } = {})
         .replace(/,\s*u\.display_id AS host_display_id/, '')
         .replace(/,\s*lr\.stream_cover_url/, '');
       const res = await db.query(fallbackSql, params);
+      listRoomsCache.set(cacheKey, { at: Date.now(), rows: res.rows });
       return res.rows;
     }
+    if (hit?.rows) return hit.rows;
     throw err;
   }
 }

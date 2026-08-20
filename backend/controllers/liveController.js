@@ -22,7 +22,7 @@ exports.listActiveRooms = async (req, res) => {
     });
   } catch (error) {
     console.error('[live] list rooms', error);
-    res.status(500).json({ success: false, message: error.message || 'Could not list rooms' });
+    res.json({ success: true, data: [] });
   }
 };
 

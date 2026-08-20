@@ -33,41 +33,16 @@ const pool = new Pool({
 /* Leave a couple of pool slots for transactions / heartbeats so a profile
    Promise.all cannot occupy every connection. */
 const maxInflight = Math.max(4, Number(process.env.PG_QUERY_CONCURRENCY) || poolMax - 3);
-const waitTimeoutMs = Number(process.env.PG_WAIT_MS) || 4000;
 let inflight = 0;
 const waiters = [];
 
 function withQuerySlot(fn) {
   return new Promise((resolve, reject) => {
-    let settled = false;
-    const waitTimer = setTimeout(() => {
-      const idx = waiters.indexOf(start);
-      if (idx >= 0) waiters.splice(idx, 1);
-      if (settled) return;
-      settled = true;
-      reject(Object.assign(new Error('timeout exceeded when trying to connect'), { code: 'ETIMEDOUT' }));
-    }, waitTimeoutMs);
-
     const start = () => {
-      if (settled) return;
-      clearTimeout(waitTimer);
       inflight += 1;
       Promise.resolve()
         .then(fn)
-        .then(
-          (v) => {
-            if (!settled) {
-              settled = true;
-              resolve(v);
-            }
-          },
-          (err) => {
-            if (!settled) {
-              settled = true;
-              reject(err);
-            }
-          }
-        )
+        .then(resolve, reject)
         .finally(() => {
           inflight -= 1;
           const next = waiters.shift();
