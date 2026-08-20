@@ -16,9 +16,15 @@ const useSsl =
 const pool = new Pool({
   connectionString,
   ssl: useSsl ? { rejectUnauthorized: false } : false,
-  max: Number(process.env.PG_POOL_MAX) || 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000,
+  max: Number(process.env.PG_POOL_MAX) || 12,
+  idleTimeoutMillis: 10000,
+  connectionTimeoutMillis: 8000,
+  allowExitOnIdle: true,
+  application_name: 'ap-api',
+  /* Kill stuck queries so one slow gift/wallet lock cannot freeze live/explore. */
+  statement_timeout: 10000,
+  query_timeout: 12000,
+  idle_in_transaction_session_timeout: 15000,
 });
 
 async function safeRollback(client) {

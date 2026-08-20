@@ -146,12 +146,14 @@ class User {
     }
 
     static async ensureGoogleColumns() {
+        if (User._googleColsReady) return;
         await db.query(`
             ALTER TABLE users
             ADD COLUMN IF NOT EXISTS provider VARCHAR(50),
             ADD COLUMN IF NOT EXISTS provider_id VARCHAR(255),
             ADD COLUMN IF NOT EXISTS name VARCHAR(255)
         `);
+        User._googleColsReady = true;
     }
 
     static async setProvider(id, provider, providerId, name) {
