@@ -469,7 +469,8 @@ const API = {
         }
 
         const controller = new AbortController();
-        const timeoutMs = Number(options.timeout) || 20000;
+        const method = String(options.method || 'GET').toUpperCase();
+        const timeoutMs = Number(options.timeout) || (method === 'GET' ? 8000 : 20000);
         const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
         const priorSignal = options.signal;
 

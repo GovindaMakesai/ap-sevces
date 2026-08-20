@@ -209,24 +209,17 @@ app.use('/api/search', searchRoutes);
 app.use('/api/v1', platformRoutes);
 
 /* Health must stay above catch-all /api mounts (hierarchy verifies every /api/*). */
-app.get('/api/health', async (_req, res) => {
-  const health = { success: true, status: 'online', checks: {} };
-  try {
-    const dbResult = await Promise.race([
-      db.query('SELECT NOW() as time'),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('health db timeout')), 2500)
-      ),
-    ]);
-    health.checks.database = { ok: true, time: dbResult.rows[0].time };
-  } catch (_err) {
-    health.checks.database = { ok: false };
-    health.success = false;
-  }
-  health.checks.redis = { ok: redis.isEnabled(), mode: redis.isEnabled() ? 'redis' : 'memory' };
-  /* Always 200 when the process is listening. A slow DB must not make nginx/deploy
-     treat the API as dead and restart it in a loop. */
-  res.status(200).json(health);
+app.get('/api/health', (_req, res) => {
+  /* Instant liveness only. Querying Postgres here blocked the event loop when the
+     pool was exhausted, so the VPS watchdog treated a slow DB as a dead process
+     and restarted the API every 2 minutes. */
+  res.status(200).json({
+    success: true,
+    status: 'online',
+    checks: {
+      redis: { ok: redis.isEnabled(), mode: redis.isEnabled() ? 'redis' : 'memory' },
+    },
+  });
 });
 
 /* Specific /api/* modules before hierarchy catch-all (hierarchy uses verifyToken on all entries). */
