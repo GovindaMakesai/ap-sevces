@@ -331,34 +331,38 @@
 
 .social-reel-slide img,
 .social-reel-slide video {
-  width: 100%;
-  height: 100%;
+  width: auto !important;
+  height: auto !important;
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
+  object-position: center center;
   background: #000;
 }
 
 .social-reel-slide video.is-portrait,
-.social-reel-slide img.is-portrait {
-  object-fit: contain;
-  background: #000;
-}
-
-.social-reel-slide video.is-landscape {
+.social-reel-slide img.is-portrait,
+.social-reel-slide video.is-landscape,
+.social-reel-slide video.is-square,
+.social-reel-slide img.is-square {
   object-fit: contain;
   background: #000;
 }
 
 html.social-video-immersive .social-reel-slide video.is-portrait,
 html.social-video-immersive .social-reel-slide img.is-portrait,
-html.social-video-immersive .social-reel-slide video.is-landscape {
+html.social-video-immersive .social-reel-slide video.is-landscape,
+html.social-video-immersive .social-reel-slide video.is-square {
   object-fit: contain;
   background: #000;
 }
 
-.social-reel-slide[data-fit="9:16"] video,
-.social-reel-slide[data-fit="9:16"] img,
-html.social-video-immersive .social-reel-slide[data-fit="9:16"] video,
-html.social-video-immersive .social-reel-slide[data-fit="9:16"] img {
+/* Only crop-fill when the creator explicitly picked a different frame. */
+.social-reel-slide.is-crop video,
+.social-reel-slide.is-crop img,
+html.social-video-immersive .social-reel-slide.is-crop video {
+  width: 100% !important;
+  height: 100% !important;
   object-fit: cover;
 }
 
@@ -557,39 +561,32 @@ html.social-video-immersive .social-reels-wrap {
 
 .social-post-media {
   position: relative;
-  aspect-ratio: 4/5;
-  max-height: 420px;
-  background: #1a1a1a;
+  aspect-ratio: var(--media-ar, auto);
+  max-height: 70vh;
+  min-height: 160px;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.social-post-media[data-fit="original"]:has(video.is-landscape),
-.social-post-media[data-fit="16:9"] {
-  aspect-ratio: 16/9;
-}
-
-.social-post-media[data-fit="original"]:has(video.is-portrait),
-.social-post-media[data-fit="9:16"] {
-  aspect-ratio: 9/16;
-  max-height: 520px;
-}
-
-.social-post-media[data-fit="1:1"] {
-  aspect-ratio: 1;
-}
-
-.social-post-media video {
-  width: 100%;
-  height: 100%;
+.social-post-media video,
+.social-post-media img {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 70vh;
   object-fit: contain;
+  object-position: center center;
   background: #000;
 }
 
-.social-post-media[data-fit="9:16"] video,
-.social-post-media[data-fit="9:16"] img {
-  object-fit: cover;
+.social-post-media.is-crop {
+  aspect-ratio: 9/16;
 }
 
-.social-post-media img {
+.social-post-media.is-crop video,
+.social-post-media.is-crop img {
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -2444,28 +2441,21 @@ html.ap-expo-app .social-rank-page--gold .social-rank-sticky-top {
   max-width: 100%;
 }
 .social-create-video-stage video {
-  width: 100%;
+  width: auto;
+  max-width: 100%;
   max-height: 280px;
+  height: auto;
   display: block;
   margin: 0 auto;
   background: #000;
   object-fit: contain;
+  object-position: center center;
 }
-.social-create-video-stage[data-fit="9:16"] video {
-  aspect-ratio: 9/16;
-  width: auto;
-  max-width: 100%;
-  object-fit: cover;
-}
-.social-create-video-stage[data-fit="1:1"] video {
-  aspect-ratio: 1;
-  width: auto;
-  max-width: 100%;
-  object-fit: cover;
-}
+.social-create-video-stage[data-fit="9:16"] video,
+.social-create-video-stage[data-fit="1:1"] video,
+.social-create-video-stage[data-fit="4:5"] video,
 .social-create-video-stage[data-fit="16:9"] video {
-  aspect-ratio: 16/9;
-  object-fit: cover;
+  object-fit: contain;
 }
 .social-create-trim-bar {
   display: flex;

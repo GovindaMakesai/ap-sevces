@@ -17,6 +17,18 @@
     return 'original';
   }
 
+  function detectFitFromSize(w, h) {
+    const nw = Number(w) || 0;
+    const nh = Number(h) || 0;
+    if (!nw || !nh) return 'original';
+    const r = nw / nh;
+    if (Math.abs(r - 1) <= 0.08) return '1:1';
+    if (Math.abs(r - 16 / 9) <= 0.12) return '16:9';
+    if (Math.abs(r - 9 / 16) <= 0.08) return '9:16';
+    if (Math.abs(r - 4 / 5) <= 0.08) return '4:5';
+    return 'original';
+  }
+
   function fitToRatio(fit) {
     const f = normalizeFit(fit);
     if (f === '9:16') return 9 / 16;
@@ -82,7 +94,7 @@
           <button type="button" class="social-create-preview-clear" id="socialCreatePreviewClear" aria-label="Remove media"><i class="fas fa-times"></i></button>
           <button type="button" class="social-create-preview-edit" id="socialCreatePreviewEdit" aria-label="Edit media"><i class="fas fa-crop"></i> Edit</button>
           <img alt="" id="socialCreatePreviewImg">
-          <video id="socialCreatePreviewVideo" controls playsinline style="display:none;width:100%;max-height:200px;border-radius:12px"></video>
+          <video id="socialCreatePreviewVideo" controls playsinline style="display:none;width:auto;max-width:100%;max-height:240px;border-radius:12px;margin:0 auto;object-fit:contain;background:#000"></video>
           <p class="social-create-progress" id="socialCreateProgress" style="display:none">Uploading…</p>
         </div>
         <input type="file" id="socialCreateFile" accept="image/*,video/*" hidden>
@@ -238,6 +250,17 @@
         trimEnd.value = String(Math.min(dur, MAX_VIDEO_SEC));
         editorState.trimStart = 0;
         editorState.trimEnd = Math.min(dur, MAX_VIDEO_SEC);
+        const native = detectFitFromSize(video.videoWidth, video.videoHeight);
+        pendingFit = native;
+        editorState.fit = native;
+        setFitButtons(native);
+        if (videoStage) {
+          videoStage.dataset.fit = native;
+          videoStage.dataset.native = native;
+        }
+        if (video.videoWidth && video.videoHeight) {
+          video.style.aspectRatio = `${video.videoWidth} / ${video.videoHeight}`;
+        }
         onTrimChange();
       };
       video.onerror = () => {
@@ -375,6 +398,11 @@
       img.style.display = 'none';
       vid.style.display = 'block';
       vid.src = url;
+      vid.onloadedmetadata = () => {
+        if (vid.videoWidth && vid.videoHeight) {
+          vid.style.aspectRatio = `${vid.videoWidth} / ${vid.videoHeight}`;
+        }
+      };
     } else {
       vid.style.display = 'none';
       img.style.display = 'block';

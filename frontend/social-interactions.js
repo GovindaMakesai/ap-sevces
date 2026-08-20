@@ -457,21 +457,48 @@
     });
   }
 
+  function detectFitFromSize(w, h) {
+    const nw = Number(w) || 0;
+    const nh = Number(h) || 0;
+    if (!nw || !nh) return 'original';
+    const r = nw / nh;
+    if (Math.abs(r - 1) <= 0.08) return '1:1';
+    if (Math.abs(r - 16 / 9) <= 0.12) return '16:9';
+    if (Math.abs(r - 9 / 16) <= 0.08) return '9:16';
+    if (Math.abs(r - 4 / 5) <= 0.08) return '4:5';
+    return 'original';
+  }
+
   function markMediaOrientation(el) {
     if (!el) return;
     const apply = () => {
       if (!el.videoWidth && !el.naturalWidth) return;
       const w = el.videoWidth || el.naturalWidth;
       const h = el.videoHeight || el.naturalHeight;
-      el.classList.toggle('is-portrait', h > w * 1.05);
-      el.classList.toggle('is-landscape', w > h * 1.05);
-      el.dataset.aspect = w > h * 1.05 ? 'landscape' : h > w * 1.05 ? 'portrait' : 'square';
+      const native = detectFitFromSize(w, h);
+      el.classList.toggle('is-portrait', native === '9:16' || h > w * 1.05);
+      el.classList.toggle('is-landscape', native === '16:9' || w > h * 1.05);
+      el.classList.toggle('is-square', native === '1:1');
+      el.dataset.aspect = native === '16:9' ? 'landscape' : native === '9:16' ? 'portrait' : native === '1:1' ? 'square' : 'original';
+      el.style.aspectRatio = `${w} / ${h}`;
+      const wrap = el.closest('.social-post-media, .social-reel-slide');
+      if (!wrap) return;
+      wrap.style.setProperty('--media-ar', `${w} / ${h}`);
+      wrap.dataset.native = native;
+      const chosen = String(wrap.dataset.fit || 'original');
+      const crop = chosen !== 'original' && chosen !== native;
+      wrap.classList.toggle('is-crop', crop);
     };
-    if (el.tagName === 'VIDEO') {
-      el.addEventListener('loadedmetadata', apply);
-    } else {
-      el.addEventListener('load', apply);
+    if (!el._apOrientBound) {
+      el._apOrientBound = true;
+      if (el.tagName === 'VIDEO') {
+        el.addEventListener('loadedmetadata', apply);
+        el.addEventListener('loadeddata', apply);
+      } else {
+        el.addEventListener('load', apply);
+      }
     }
+    apply();
   }
 
   function isVideoMediaUrl(url) {
@@ -2443,6 +2470,7 @@
           try {
             vid.load();
           } catch (_e) { /* ignore */ }
+          markMediaOrientation(vid);
         }
         if (i === activeIndex) {
           vid.setAttribute('playsinline', '');
