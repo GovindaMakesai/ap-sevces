@@ -212,7 +212,12 @@ app.use('/api/v1', platformRoutes);
 app.get('/api/health', async (_req, res) => {
   const health = { success: true, status: 'online', checks: {} };
   try {
-    const dbResult = await db.query('SELECT NOW() as time');
+    const dbResult = await Promise.race([
+      db.query('SELECT NOW() as time'),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('health db timeout')), 2500)
+      ),
+    ]);
     health.checks.database = { ok: true, time: dbResult.rows[0].time };
   } catch (_err) {
     health.checks.database = { ok: false };
@@ -323,6 +328,7 @@ async function startServer() {
         await ensureClientMetricsSchema();
       }
 
+      if (!skipSchema) {
       try {
         const { ensurePushNotificationsSchema } = require('./config/ensurePushNotificationsSchema');
         await ensurePushNotificationsSchema();
@@ -342,6 +348,7 @@ async function startServer() {
       } catch (err) {
         logger.warn('Points transfer / CP / SVIP schema ensure failed', { message: err.message });
       }
+      }
 
       try {
         await referralModule.boot();
@@ -354,6 +361,10 @@ async function startServer() {
         logger.warn('Redis adapter attach failed', { message: err.message });
       }
       startScheduler();
+      if (skipSchema) {
+        logger.info('Skipping treasury/room recovery on boot');
+        return;
+      }
       try {
         await platformService.getOrCreateTreasuryUserId();
       } catch (err) {

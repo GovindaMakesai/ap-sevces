@@ -141,8 +141,8 @@ async function fetchFallbackCreators(limit, hiddenIds = []) {
     `SELECT u.id, u.first_name, u.last_name, u.profile_pic, u.role, u.display_id, u.updated_at,
             (SELECT COUNT(*)::int FROM user_follows WHERE following_id = u.id) AS followers,
             (SELECT COUNT(*)::int FROM user_follows WHERE follower_id = u.id) AS following,
-            COALESCE(g.gift_earnings, 0) AS gift_earnings,
-            COALESCE(g.gift_count, 0) AS gift_count,
+            COALESCE(0)::float AS gift_earnings,
+            COALESCE(0)::int AS gift_count,
             (SELECT COUNT(*)::int FROM live_rooms lr WHERE lr.host_user_id = u.id) AS live_sessions,
             lr.channel AS live_channel,
             lr.viewer_count AS live_viewers,
@@ -152,16 +152,14 @@ async function fetchFallbackCreators(limit, hiddenIds = []) {
      FROM users u
      ${LIVE_LATERAL}
      ${AGENCY_LATERAL}
-     ${GIFT_STATS_JOIN_RECENT}
      WHERE u.is_active = TRUE
        ${hiddenClause}
        AND (
          u.role IN ('worker', 'host', 'creator', 'coin_seller')
-         OR EXISTS (SELECT 1 FROM live_rooms WHERE host_user_id = u.id)
-         OR g.receiver_id IS NOT NULL
+         OR EXISTS (SELECT 1 FROM live_rooms WHERE host_user_id = u.id AND status = 'active')
          OR (SELECT COUNT(*) FROM user_follows WHERE following_id = u.id) >= 3
        )
-     ORDER BY gift_earnings DESC, followers DESC, u.created_at DESC
+     ORDER BY followers DESC, u.created_at DESC
      LIMIT $1`,
     params
   );
