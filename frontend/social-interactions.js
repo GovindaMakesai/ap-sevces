@@ -469,26 +469,70 @@
     return 'original';
   }
 
+  function fitRatioFromLabel(fit) {
+    if (fit === '9:16') return 9 / 16;
+    if (fit === '1:1') return 1;
+    if (fit === '4:5') return 4 / 5;
+    if (fit === '16:9') return 16 / 9;
+    return 0;
+  }
+
+  function ensureMediaFrame(el) {
+    if (!el || el.parentElement?.classList.contains('social-media-frame')) return el.parentElement;
+    const wrap = el.closest('.social-post-media, .social-reel-slide');
+    if (!wrap) return null;
+    const frame = document.createElement('div');
+    frame.className = 'social-media-frame';
+    el.parentNode.insertBefore(frame, el);
+    frame.appendChild(el);
+    return frame;
+  }
+
+  function sizeMediaFrame(el) {
+    const wrap = el?.closest('.social-post-media, .social-reel-slide');
+    if (!wrap) return;
+    const w = el.videoWidth || el.naturalWidth;
+    const h = el.videoHeight || el.naturalHeight;
+    if (!w || !h) return;
+    const frame = ensureMediaFrame(el);
+    if (!frame) return;
+    const native = detectFitFromSize(w, h);
+    const chosen = String(wrap.dataset.fit || 'original');
+    const crop = chosen !== 'original' && chosen !== native;
+    wrap.classList.toggle('is-crop', crop);
+    wrap.dataset.native = native;
+    wrap.style.setProperty('--media-ar', `${w} / ${h}`);
+    el.classList.toggle('is-portrait', native === '9:16' || h > w * 1.05);
+    el.classList.toggle('is-landscape', native === '16:9' || w > h * 1.05);
+    el.classList.toggle('is-square', native === '1:1');
+    el.dataset.aspect = native === '16:9' ? 'landscape' : native === '9:16' ? 'portrait' : native === '1:1' ? 'square' : 'original';
+
+    if (wrap.classList.contains('social-post-media')) {
+      frame.style.width = '100%';
+      frame.style.height = '100%';
+      return;
+    }
+
+    const boxW = wrap.clientWidth;
+    const boxH = wrap.clientHeight;
+    if (!boxW || !boxH) return;
+    let srcW = w;
+    let srcH = h;
+    if (crop) {
+      const r = fitRatioFromLabel(chosen);
+      if (r > 0) {
+        srcW = r;
+        srcH = 1;
+      }
+    }
+    const scale = Math.min(boxW / srcW, boxH / srcH);
+    frame.style.width = `${Math.max(1, Math.round(srcW * scale))}px`;
+    frame.style.height = `${Math.max(1, Math.round(srcH * scale))}px`;
+  }
+
   function markMediaOrientation(el) {
     if (!el) return;
-    const apply = () => {
-      if (!el.videoWidth && !el.naturalWidth) return;
-      const w = el.videoWidth || el.naturalWidth;
-      const h = el.videoHeight || el.naturalHeight;
-      const native = detectFitFromSize(w, h);
-      el.classList.toggle('is-portrait', native === '9:16' || h > w * 1.05);
-      el.classList.toggle('is-landscape', native === '16:9' || w > h * 1.05);
-      el.classList.toggle('is-square', native === '1:1');
-      el.dataset.aspect = native === '16:9' ? 'landscape' : native === '9:16' ? 'portrait' : native === '1:1' ? 'square' : 'original';
-      el.style.aspectRatio = `${w} / ${h}`;
-      const wrap = el.closest('.social-post-media, .social-reel-slide');
-      if (!wrap) return;
-      wrap.style.setProperty('--media-ar', `${w} / ${h}`);
-      wrap.dataset.native = native;
-      const chosen = String(wrap.dataset.fit || 'original');
-      const crop = chosen !== 'original' && chosen !== native;
-      wrap.classList.toggle('is-crop', crop);
-    };
+    const apply = () => sizeMediaFrame(el);
     if (!el._apOrientBound) {
       el._apOrientBound = true;
       if (el.tagName === 'VIDEO') {
@@ -499,6 +543,17 @@
       }
     }
     apply();
+  }
+
+  if (!window._apMediaFrameResizeBound) {
+    window._apMediaFrameResizeBound = true;
+    window.addEventListener(
+      'resize',
+      () => {
+        document.querySelectorAll('.social-reel-slide video, .social-reel-slide img').forEach((el) => sizeMediaFrame(el));
+      },
+      { passive: true }
+    );
   }
 
   function isVideoMediaUrl(url) {
@@ -2802,7 +2857,7 @@
           ? `<video data-src="${item.mediaUrl || ''}" playsinline loop muted data-reel-video preload="none" poster="${item.thumb || ''}" class="social-reel-media"${item.trimStart != null ? ` data-trim-start="${item.trimStart}" data-trim-end="${item.trimEnd}"` : ''}></video>`
           : `<img src="${item.mediaUrl || item.thumb}" alt="" class="social-reel-media">`;
         return `<section class="social-reel-slide" data-index="${i}" data-item-id="${item.id}" data-fit="${item.aspectRatio || 'original'}">
-          ${media}
+          <div class="social-media-frame">${media}</div>
           <div class="social-reel-buffer" hidden aria-hidden="true"></div>
           <div class="social-reel-gradient"></div>
         </section>`;
@@ -3007,7 +3062,7 @@
         const media = item.isVideo
           ? `<video data-src="${item.mediaUrl || ''}" playsinline loop muted data-reel-video preload="none" poster="${item.thumb || ''}" class="social-reel-media"${item.trimStart != null ? ` data-trim-start="${item.trimStart}" data-trim-end="${item.trimEnd}"` : ''}></video>`
           : `<img src="${item.mediaUrl || item.thumb}" alt="" class="social-reel-media">`;
-        section.innerHTML = `${media}<div class="social-reel-buffer" hidden aria-hidden="true"></div><div class="social-reel-gradient"></div>`;
+        section.innerHTML = `<div class="social-media-frame">${media}</div><div class="social-reel-buffer" hidden aria-hidden="true"></div><div class="social-reel-gradient"></div>`;
         frag.appendChild(section);
         observer.observe(section);
         section.querySelectorAll('video, img').forEach((el) => markMediaOrientation(el));
@@ -3406,7 +3461,7 @@
         const when = relativeTime(p.createdAt || p.id);
         return `
       <article class="social-post-card" data-post-id="${p.id}"${openReel}>
-        <div class="social-post-media" data-fit="${p.aspectRatio || 'original'}">${media}
+        <div class="social-post-media" data-fit="${p.aspectRatio || 'original'}"><div class="social-media-frame">${media}</div>
           ${hasMedia && postIsVideo(p) ? '<span class="play-badge play-badge--fullscreen"><i class="fas fa-expand"></i></span>' : ''}
           ${hasMedia && !postIsVideo(p) ? '<span class="play-badge play-badge--photo"><i class="fas fa-expand"></i></span>' : ''}
           ${p.visibility === 'private' ? '<span class="social-post-private-badge"><i class="fas fa-lock"></i> Private</span>' : ''}

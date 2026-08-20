@@ -329,41 +329,38 @@
   opacity: 1;
 }
 
-.social-reel-slide img,
-.social-reel-slide video {
-  width: auto !important;
-  height: auto !important;
+/* Frame is pixel-sized to the file's real ratio and centered. Video fills that
+   box only — Android WebView ignores object-fit when the <video> is 100% of the screen. */
+.social-media-frame {
+  position: relative;
+  flex: 0 0 auto;
+  overflow: hidden;
+  background: #000;
   max-width: 100%;
   max-height: 100%;
-  object-fit: contain;
+}
+
+.social-reel-slide .social-media-frame video,
+.social-reel-slide .social-media-frame img,
+.social-post-media .social-media-frame video,
+.social-post-media .social-media-frame img,
+.social-video-page .social-reel-slide video,
+.social-video-page .social-reel-slide img {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none;
+  max-height: none;
+  object-fit: contain !important;
   object-position: center center;
   background: #000;
 }
 
-.social-reel-slide video.is-portrait,
-.social-reel-slide img.is-portrait,
-.social-reel-slide video.is-landscape,
-.social-reel-slide video.is-square,
-.social-reel-slide img.is-square {
-  object-fit: contain;
-  background: #000;
-}
-
-html.social-video-immersive .social-reel-slide video.is-portrait,
-html.social-video-immersive .social-reel-slide img.is-portrait,
-html.social-video-immersive .social-reel-slide video.is-landscape,
-html.social-video-immersive .social-reel-slide video.is-square {
-  object-fit: contain;
-  background: #000;
-}
-
-/* Only crop-fill when the creator explicitly picked a different frame. */
-.social-reel-slide.is-crop video,
-.social-reel-slide.is-crop img,
-html.social-video-immersive .social-reel-slide.is-crop video {
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: cover;
+.social-reel-slide.is-crop .social-media-frame video,
+.social-reel-slide.is-crop .social-media-frame img,
+.social-post-media.is-crop .social-media-frame video,
+.social-post-media.is-crop .social-media-frame img {
+  object-fit: cover !important;
 }
 
 .social-reel-slide video.is-landscape.is-rotated {
@@ -570,26 +567,13 @@ html.social-video-immersive .social-reels-wrap {
   justify-content: center;
 }
 
-.social-post-media video,
-.social-post-media img {
-  width: auto;
-  height: auto;
-  max-width: 100%;
-  max-height: 70vh;
-  object-fit: contain;
-  object-position: center center;
-  background: #000;
+.social-post-media .social-media-frame {
+  width: 100%;
+  height: 100%;
 }
 
 .social-post-media.is-crop {
   aspect-ratio: 9/16;
-}
-
-.social-post-media.is-crop video,
-.social-post-media.is-crop img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
 }
 
 .social-post-delete {

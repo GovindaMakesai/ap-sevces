@@ -251,11 +251,11 @@
         editorState.trimStart = 0;
         editorState.trimEnd = Math.min(dur, MAX_VIDEO_SEC);
         const native = detectFitFromSize(video.videoWidth, video.videoHeight);
-        pendingFit = native;
-        editorState.fit = native;
-        setFitButtons(native);
+        pendingFit = 'original';
+        editorState.fit = 'original';
+        setFitButtons('original');
         if (videoStage) {
-          videoStage.dataset.fit = native;
+          videoStage.dataset.fit = 'original';
           videoStage.dataset.native = native;
         }
         if (video.videoWidth && video.videoHeight) {
