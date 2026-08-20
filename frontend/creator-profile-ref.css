@@ -56,11 +56,14 @@ body.creator-profile-ref #apPtrIndicator {
 
 .cp-ref-cover-zone {
   position: relative;
-  height: min(52vh, 420px);
-  min-height: 280px;
+  width: 100%;
+  height: 220px;
+  min-height: 140px;
+  max-height: 85vh;
   background: #050f0f;
   z-index: 1;
   isolation: isolate;
+  transition: height 0.18s ease;
 }
 
 .cp-ref-cover-zone::after {

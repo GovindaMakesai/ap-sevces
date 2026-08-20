@@ -273,7 +273,7 @@
         <div class="social-profile-album-section">
           <div class="social-profile-album-head">
             <span>Album <strong id="profileAlbumCount">0/6</strong></span>
-            <span class="social-profile-album-hint">Background photos on your profile</span>
+            <span class="social-profile-album-hint">Crop and set background photos for your profile</span>
           </div>
           <div class="social-profile-album-grid" id="profileAlbumGrid"></div>
           <input type="file" accept="image/*" id="profileAlbumInput" hidden>
@@ -334,6 +334,7 @@
   <script src="profile-badges.js?v=20260817-profile-fix"></script>
   <script src="cosmetics.js?v=20260819-cosmetics"></script>
   <link rel="stylesheet" href="cosmetics.css?v=20260819-cosmetics">
+  <script src="image-crop-sheet.js?v=20260820-cover-crop"></script>
   <script src="social-shell.js?v=20260730-fastnav4"></script>
   <script src="referral-hook.js?v=20260723-invite-on"></script>
   <script>
@@ -655,10 +656,16 @@
           SocialUI?.toast?.('Maximum 6 background photos', 'warning');
           return;
         }
+        let uploadFile = file;
+        if (window.ImageCropSheet?.open) {
+          const cropped = await window.ImageCropSheet.open(file, { title: 'Crop background' });
+          if (!cropped) return;
+          uploadFile = cropped;
+        }
         try {
           await Auth.ensureAccessToken?.();
           const fd = new FormData();
-          fd.append('photo', file);
+          fd.append('photo', uploadFile);
           const response = await API.upload('/auth/profile/album', fd);
           profileAlbum = response?.data?.album || profileAlbum;
           paintProfileAlbumGrid();

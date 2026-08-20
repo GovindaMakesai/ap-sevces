@@ -114,7 +114,7 @@
         '<div class="cp-ref-cover-track" id="cpRefCoverTrack"></div>' +
         '<div class="cp-ref-cover-dots" id="cpRefCoverDots" hidden></div>' +
         '<img class="cp-ref-cover-mini" id="cpRefCoverMini" alt="" hidden>' +
-        '<button type="button" class="cp-ref-cover-add" id="cpRefCoverAdd" hidden aria-label="Add background photo"><i class="fas fa-plus"></i></button>' +
+        '<button type="button" class="cp-ref-cover-add" id="cpRefCoverAdd" hidden aria-label="Add and crop background photo"><i class="fas fa-plus"></i></button>' +
         '<input type="file" accept="image/*" id="cpRefCoverInput" hidden>' +
         '</div>' +
         '<header class="cp-ref-header cp-ref-header--overlay">' +
@@ -372,6 +372,53 @@
       );
     },
 
+    coverZoneEl() {
+      return document.getElementById('cpRefCoverZone');
+    },
+
+    resetCoverHeight() {
+      const zone = this.coverZoneEl();
+      if (!zone) return;
+      zone.style.height = '';
+      zone.classList.remove('cp-ref-cover-zone--fitted');
+    },
+
+    fitCoverToActiveImage() {
+      const zone = this.coverZoneEl();
+      const track = document.getElementById('cpRefCoverTrack');
+      if (!zone || !track) return;
+      const imgs = track.querySelectorAll('.cp-ref-cover-slide img');
+      if (!imgs.length) {
+        this.resetCoverHeight();
+        return;
+      }
+      const width = zone.clientWidth || window.innerWidth || 1;
+      const idx = Math.max(0, Math.min(Math.round(track.scrollLeft / width), imgs.length - 1));
+      const img = imgs[idx];
+      const nw = img?.naturalWidth || 0;
+      const nh = img?.naturalHeight || 0;
+      if (!nw || !nh) return;
+      const minH = 140;
+      const maxH = Math.round(window.innerHeight * 0.85);
+      let h = Math.round(width * (nh / nw));
+      h = Math.max(minH, Math.min(maxH, h));
+      zone.style.height = h + 'px';
+      zone.classList.add('cp-ref-cover-zone--fitted');
+    },
+
+    bindCoverResize() {
+      if (this._coverResizeBound) return;
+      this._coverResizeBound = true;
+      window.addEventListener(
+        'resize',
+        () => {
+          clearTimeout(this._coverResizeTimer);
+          this._coverResizeTimer = setTimeout(() => this.fitCoverToActiveImage(), 80);
+        },
+        { passive: true }
+      );
+    },
+
     paintCover(panel) {
       const track = document.getElementById('cpRefCoverTrack');
       const dots = document.getElementById('cpRefCoverDots');
@@ -380,6 +427,7 @@
 
       const album = panel?.album || [];
       const cacheKey = panel?.profileUpdatedAt || this.state.userId;
+      this.bindCoverResize();
 
       if (!album.length) {
         track.innerHTML = '<div class="cp-ref-cover-slide cp-ref-cover-slide--empty"></div>';
@@ -388,6 +436,7 @@
           dots.innerHTML = '';
         }
         if (mini) mini.hidden = true;
+        this.resetCoverHeight();
         return;
       }
 
@@ -413,6 +462,8 @@
           img.onerror = null;
           img.src = window.SocialUI?.avatarUrl?.('Photo');
         };
+        if (img.complete && img.naturalWidth) this.fitCoverToActiveImage();
+        else img.addEventListener('load', () => this.fitCoverToActiveImage(), { once: true });
       });
 
       if (dots) {
@@ -442,6 +493,7 @@
           mini.src = activeImg.src;
           mini.hidden = album.length <= 1;
         }
+        this.fitCoverToActiveImage();
       };
 
       track.onscroll = () => {
@@ -485,11 +537,17 @@
           window.SocialUI?.toast?.('Please choose an image file', 'warning');
           return;
         }
+        let uploadFile = file;
+        if (window.ImageCropSheet?.open) {
+          const cropped = await window.ImageCropSheet.open(file, { title: 'Crop background' });
+          if (!cropped) return;
+          uploadFile = cropped;
+        }
         addBtn.disabled = true;
         try {
           await window.Auth?.ensureAccessToken?.();
           const fd = new FormData();
-          fd.append('photo', file);
+          fd.append('photo', uploadFile);
           const token = window.Auth?.getToken?.() || localStorage.getItem('token');
           const res = await fetch(apiRoot() + '/auth/profile/album', {
             method: 'POST',
