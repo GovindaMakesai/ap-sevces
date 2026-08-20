@@ -18,6 +18,11 @@
     return p.endsWith('/live-room.html') || p.endsWith('/party-room.html');
   }
 
+  function isImmersiveProfile() {
+    const p = (location.pathname || '').toLowerCase();
+    return p.endsWith('/creator-profile.html');
+  }
+
   function routeKey() {
     return (location.pathname || '') + (location.search || '');
   }
@@ -203,7 +208,7 @@
   }
 
   function initPullToRefresh(opts) {
-    if (ptrBound || isImmersiveLive()) return;
+    if (ptrBound || isImmersiveLive() || isImmersiveProfile()) return;
     if (opts?.disabled?.()) return;
     ptrBound = true;
     const threshold = opts?.threshold || 68;
@@ -317,7 +322,7 @@
     recordCurrentRoute();
     bindLinkTracking();
     bindBackButtons();
-    if (!isImmersiveLive()) {
+    if (!isImmersiveLive() && !isImmersiveProfile()) {
       initPullToRefresh();
     }
     window.addEventListener('popstate', () => {

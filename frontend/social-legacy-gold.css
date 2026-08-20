@@ -137,3 +137,11 @@ html.social-bridge-mode body {
   padding-top: 52px !important;
   padding-bottom: calc(72px + env(safe-area-inset-bottom)) !important;
 }
+
+html.social-bridge-mode body.creator-profile-ref {
+  padding-top: 0 !important;
+  padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)) !important;
+  background: #061a1a !important;
+  background-image: none !important;
+  color: #f8fafc !important;
+}

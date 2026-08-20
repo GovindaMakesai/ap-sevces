@@ -1980,6 +1980,10 @@ function isImmersiveLivePath() {
     return pathEnds('/live-room.html') || pathEnds('/party-room.html');
 }
 
+function isCreatorProfilePath() {
+    return pathEnds('/creator-profile.html');
+}
+
 function bootstrapNativeAppShell() {
     if (!isNativeAppContext()) return;
     window.__AP_NATIVE_APP__ = true;
@@ -1987,6 +1991,11 @@ function bootstrapNativeAppShell() {
     if (isImmersiveLivePath()) {
         document.documentElement.classList.add('ap-live-immersive');
         if (document.body) document.body.classList.add('ap-live-immersive');
+        return;
+    }
+    if (isCreatorProfilePath()) {
+        document.documentElement.classList.add('social-app', 'social-native');
+        document.documentElement.classList.remove('social-bridge-mode');
         return;
     }
     document.documentElement.classList.add('social-app', 'social-bridge-mode', 'social-native');

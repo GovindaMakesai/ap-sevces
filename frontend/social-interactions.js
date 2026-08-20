@@ -2368,15 +2368,21 @@
     const tMark = window.SocialCreatorTelemetry?.mark?.('feed_load_ms');
     const apiPosts = (
       await loadPosts({
-        feed: feedScope,
-        mediaType: videosOnly ? 'video' : 'all',
+        feed: opts.userId ? 'latest' : feedScope,
+        userId: opts.userId || null,
+        mediaType: videosOnly ? 'video' : opts.mediaType || 'all',
         limit: pageSize,
         offset,
       })
     ).filter(matchesFilter);
     tMark?.end?.({ feed: feedScope, surface: 'video', offset, count: apiPosts.length });
 
-    const userPosts = skipLocal ? [] : getPosts().filter(matchesFilter);
+    const userPosts = skipLocal
+      ? []
+      : getPosts().filter((p) => {
+          if (opts.userId && String(p.userId) !== String(opts.userId)) return false;
+          return matchesFilter(p);
+        });
     const merged = [];
     const seen = new Set(opts.excludeIds || []);
     [...apiPosts, ...userPosts].forEach((p) => {
@@ -2551,12 +2557,18 @@
     btn.style.display = '';
   }
 
-  function openReelViewer(postId) {
+  function openReelViewer(postId, extra) {
     if (!postId) return;
     sessionStorage.setItem('social_reel_start', String(postId));
     sessionStorage.setItem(REEL_SOUND_KEY, '1');
-    location.href =
-      '/video.html?post=' + encodeURIComponent(postId) + '&app=1&fullscreen=1';
+    const params = new URLSearchParams();
+    params.set('post', String(postId));
+    params.set('app', '1');
+    params.set('fullscreen', '1');
+    if (extra?.userId) params.set('userId', String(extra.userId));
+    if (extra?.media) params.set('media', String(extra.media));
+    else if (extra?.videosOnly === false) params.set('media', 'all');
+    location.href = '/video.html?' + params.toString();
   }
 
   function updateReelUI(item) {
@@ -2663,6 +2675,13 @@
     const startPost =
       qs.get('post') ||
       sessionStorage.getItem('social_reel_start');
+    const profileUserId = qs.get('userId') || pageOpts.userId || null;
+    const mediaMode = qs.get('media') || pageOpts.media || 'video';
+    const videosOnly = mediaMode !== 'all' && mediaMode !== 'photo' && mediaMode !== 'posts';
+    if (profileUserId) {
+      document.getElementById('videoFeedScope')?.setAttribute('hidden', '');
+      document.body.classList.add('social-video-profile-feed');
+    }
     if (shouldStartVideoImmersive()) setVideoImmersive(true);
     if (startPost) {
       ensureReelCloseButton(() => {
@@ -2678,15 +2697,19 @@
     const pageSize = 40;
     const feedScope = pageOpts.feed || currentFeedScope();
     reelItems = await buildReelItems([], {
-      videosOnly: true,
+      videosOnly,
       startPostId: startPost,
-      feed: feedScope,
+      feed: profileUserId ? 'latest' : feedScope,
+      userId: profileUserId,
+      mediaType: videosOnly ? 'video' : 'all',
       limit: pageSize,
       offset: 0,
     });
     wrap._reelOffset = reelItems.length;
     wrap._reelHasMore = reelItems.length >= pageSize;
-    wrap._reelFeed = feedScope;
+    wrap._reelFeed = profileUserId ? 'latest' : feedScope;
+    wrap._reelUserId = profileUserId;
+    wrap._reelVideosOnly = videosOnly;
     wrap._reelPageSize = pageSize;
     wrap._reelLoadingMore = false;
 
@@ -2910,8 +2933,10 @@
       const pageSize = wrap._reelPageSize || 40;
       const excludeIds = new Set(reelItems.map((x) => String(x.postId)));
       const more = await buildReelItems([], {
-        videosOnly: true,
+        videosOnly: wrap._reelVideosOnly !== false,
         feed: wrap._reelFeed || currentFeedScope(),
+        userId: wrap._reelUserId || null,
+        mediaType: wrap._reelVideosOnly === false ? 'all' : 'video',
         limit: pageSize,
         offset: Number(wrap._reelOffset || 0),
         skipLocal: true,
@@ -3151,6 +3176,85 @@
         },
       });
     }
+  }
+
+  async function renderProfileGrid(container, options) {
+    const opts = options || {};
+    const grid = typeof container === 'string' ? document.getElementById(container) : container;
+    if (!grid) return;
+    const userId = opts.userId;
+    const mediaType = opts.mediaType === 'video' ? 'video' : 'posts';
+    const videosOnly = mediaType === 'video';
+    grid.innerHTML =
+      '<div class="cp-ref-ig-skel" aria-hidden="true"></div>'.repeat(9);
+
+    let posts = [];
+    try {
+      posts = await loadPosts({
+        userId,
+        mediaType: videosOnly ? 'video' : 'image',
+        feed: 'latest',
+        limit: opts.limit || 60,
+        offset: 0,
+      });
+    } catch (_e) {
+      grid.innerHTML = '<div class="cp-ref-empty">Couldn’t load this gallery.</div>';
+      return;
+    }
+
+    posts = (posts || []).filter((p) => {
+      if (!canViewPost(p)) return false;
+      return videosOnly ? postIsVideo(p) : !postIsVideo(p);
+    });
+
+    if (!posts.length) {
+      const mine = !!(window.Auth?.getUser?.()?.id && String(window.Auth.getUser().id) === String(userId));
+      grid.innerHTML =
+        '<div class="cp-ref-empty">' +
+        (videosOnly
+          ? mine
+            ? 'No videos yet. Share a clip from the camera.'
+            : 'No videos yet.'
+          : mine
+            ? 'No posts yet. Share a photo from the camera.'
+            : 'No posts yet.') +
+        '</div>';
+      return;
+    }
+
+    const cells = await Promise.all(
+      posts.map(async (p) => {
+        const url = await getMediaUrl(p);
+        let thumb = !isPlaceholderThumb(p.thumb) ? p.thumb : '';
+        if (!thumb && !postIsVideo(p) && url && !isPlaceholderThumb(url)) thumb = url;
+        const video = postIsVideo(p);
+        const src = thumb || (!video ? url : '');
+        const img = src
+          ? `<img src="${escapeHtml(src)}" alt="" loading="lazy" decoding="async">`
+          : '<span class="cp-ref-ig-ph"><i class="fas fa-film"></i></span>';
+        return (
+          '<button type="button" class="cp-ref-ig-cell' +
+          (video ? ' is-video' : '') +
+          '" data-post-id="' +
+          escapeHtml(String(p.id)) +
+          '" aria-label="' +
+          (video ? 'Play video' : 'View post') +
+          '">' +
+          img +
+          (video ? '<span class="cp-ref-ig-play" aria-hidden="true"><i class="fas fa-play"></i></span>' : '') +
+          '</button>'
+        );
+      })
+    );
+    grid.innerHTML = cells.join('');
+    grid.querySelectorAll('.cp-ref-ig-cell').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        openReelViewer(btn.dataset.postId, {
+          userId,
+          media: videosOnly ? 'video' : 'all',
+        });
+      });
+    });
   }
 
   async function renderSquareFeed(container, options) {
@@ -3664,6 +3768,7 @@
     fetchApiPosts,
     savePostFromForm,
     renderSquareFeed,
+    renderProfileGrid,
     initVideoPage,
     renderTopics,
     initRankingsPage,

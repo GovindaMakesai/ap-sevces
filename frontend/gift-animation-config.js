@@ -3,9 +3,24 @@
  * Store cards use thumbnailUrl; live overlay uses animationEmbedUrl (never interchange).
  */
 (function (g) {
-  const DEFAULT_DURATION_MS = 15000;
-  const MAX_QUEUE_SIZE = 8;
-  const LOOP = '?loop=1';
+  const DEFAULT_DURATION_MS = 5000;
+  const MAX_QUEUE_SIZE = 4;
+  const LOOP = '';
+
+  function compactThumbUrl(url) {
+    const raw = String(url || '').trim();
+    if (!raw) return '';
+    try {
+      const u = new URL(raw);
+      if (/b-cdn\.net$|animstream/i.test(u.hostname)) {
+        u.searchParams.set('width', '96');
+        u.searchParams.set('quality', '55');
+      }
+      return u.href;
+    } catch (_e) {
+      return raw;
+    }
+  }
 
   function embedUrl(token) {
     return `https://animstream.com/embed/${token}${LOOP}`;
@@ -215,7 +230,7 @@
     GIFT_ANIMATION_MAP[gift.slug] = {
       animationUrl: animationEmbedUrl,
       animationEmbedUrl,
-      thumbnailUrl: gift.thumbnailUrl,
+      thumbnailUrl: compactThumbUrl(gift.thumbnailUrl),
       label: gift.name,
       giftName: gift.name,
       coinValue: gift.price,
@@ -232,13 +247,13 @@
       cost: gift.price,
       emoji: gift.emoji,
       tag: gift.tag,
-      thumbnailUrl: gift.thumbnailUrl,
+      thumbnailUrl: compactThumbUrl(gift.thumbnailUrl),
       animationEmbedUrl,
       category: gift.category,
       active: gift.active,
       sortOrder: gift.sortOrder,
     };
-    THUMBNAIL_BY_SLUG[gift.slug] = gift.thumbnailUrl;
+    THUMBNAIL_BY_SLUG[gift.slug] = compactThumbUrl(gift.thumbnailUrl);
     ANIM_URLS[`anim${i + 1}`] = animationEmbedUrl;
     GIFT_BINDINGS.push({
       slug: gift.slug,
@@ -278,33 +293,13 @@
         name: gift.name,
         cost: gift.price,
         tag: gift.tag,
-        thumbnailUrl: gift.thumbnailUrl,
+        thumbnailUrl: compactThumbUrl(gift.thumbnailUrl),
         animationEmbedUrl: embedUrl(gift.token),
         category: gift.category,
       });
     });
     cat.animated = animated;
-    ANIMATED_GIFTS.forEach((gift) => {
-      const patch = {
-        slug: gift.slug,
-        thumbnailUrl: gift.thumbnailUrl,
-        animationEmbedUrl: embedUrl(gift.token),
-      };
-      Object.keys(cat).forEach((key) => {
-        if (!Array.isArray(cat[key])) return;
-        cat[key].forEach((item) => {
-          const itemSlug =
-            item.slug ||
-            `${String(item.name || '')
-              .toLowerCase()
-              .replace(/[^a-z0-9]+/g, '_')
-              .replace(/^_|_$/g, '')}_${item.cost || 0}`;
-          if (itemSlug === gift.slug) {
-            Object.assign(item, patch);
-          }
-        });
-      });
-    });
+    /* Keep AnimStream thumbs on the animated tab only — do not copy them into every catalog. */
   }
 
   if (typeof window !== 'undefined') {
@@ -317,7 +312,7 @@
     cost: gift.price,
     emoji: gift.emoji,
     animationUrl: embedUrl(gift.token),
-    thumbnailUrl: gift.thumbnailUrl,
+    thumbnailUrl: compactThumbUrl(gift.thumbnailUrl),
     label: gift.name,
   }));
 
@@ -335,6 +330,7 @@
     getThumbnailUrl,
     getAnimationUrl,
     getAnimatedGift,
+    compactThumbUrl,
     mergeIntoLiveCatalog,
   };
 })(typeof window !== 'undefined' ? window : global);

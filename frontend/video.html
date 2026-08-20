@@ -31,13 +31,10 @@
       background: rgba(201, 162, 39, 0.15) !important;
       color: var(--gold-800, #6b4f10) !important;
     }
-    /* Hard hide any leftover discovery photo strip on Video */
-    #social-discover-rails,
-    .ap-discover-rails {
-      display: none !important;
-      height: 0 !important;
-      overflow: hidden !important;
-    }
+#videoFeedScope[hidden],
+body.social-video-profile-feed .social-feed-scope--video {
+  display: none !important;
+}
   </style>
 </head>
 <body class="social-video-page">
@@ -104,7 +101,7 @@
   <script src="social-creator-telemetry.js?v=20260730-stab1" defer></script>
   <script src="social-creator-polish.js?v=20260730-cx3" defer></script>
   <script src="social-creator-identity.js?v=20260730-cx2"></script>
-  <script src="social-interactions.js?v=20260802-post-delete"></script>
+  <script src="social-interactions.js?v=20260820-ig-grid"></script>
   <script src="social-create-post.js?v=20260802-video-60s" defer></script>
   <script src="ap-soft-nav.js?v=20260730-fastnav4"></script>
   <script src="social-shell.js?v=20260730-fastnav4"></script>

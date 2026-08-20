@@ -64,6 +64,9 @@
       following: false,
       isSelf: false,
       activeTab: 'gift',
+      mediaTab: 'posts',
+      postsLoaded: false,
+      videosLoaded: false,
       slugMap: buildGiftSlugMap(),
     },
 
@@ -164,7 +167,13 @@
         '<div class="cp-ref-panel" id="cpRefPanelData" hidden></div>' +
         '<div class="cp-ref-panel" id="cpRefPanelRel" hidden></div>' +
         '<div class="cp-ref-panel" id="cpRefPanelGift"></div>' +
-        '<div class="cp-ref-panel cp-ref-posts-wrap" id="cpRefPanelPosts" hidden><div class="social-post-feed" id="cpRefPostsFeed"></div></div>' +
+        '<div class="cp-ref-panel cp-ref-posts-wrap" id="cpRefPanelPosts" hidden>' +
+        '<div class="cp-ref-ig-tabs" id="cpRefIgTabs">' +
+        '<button type="button" class="cp-ref-ig-tab is-active" data-media="posts"><i class="fas fa-th"></i> Posts</button>' +
+        '<button type="button" class="cp-ref-ig-tab" data-media="videos"><i class="fas fa-clapperboard"></i> Videos</button>' +
+        '</div>' +
+        '<div class="cp-ref-ig-grid" id="cpRefPostsGrid"></div>' +
+        '</div>' +
         '<div class="cp-ref-mood" id="cpRefMood" hidden>What&apos;s your mood now? <span>🫘</span></div>' +
         '<button type="button" class="cp-ref-share" id="cpRefShare" hidden><i class="fas fa-paper-plane"></i> Share a Post</button>';
 
@@ -188,6 +197,11 @@
         const btn = e.target.closest('.cp-ref-tab');
         if (!btn) return;
         this.switchTab(btn.dataset.tab);
+      });
+      document.getElementById('cpRefIgTabs')?.addEventListener('click', (e) => {
+        const btn = e.target.closest('.cp-ref-ig-tab');
+        if (!btn) return;
+        this.switchMediaTab(btn.dataset.media);
       });
     },
 
@@ -385,7 +399,9 @@
             i +
             '"><img src="' +
             esc(src) +
-            '" alt="" loading="' +
+            '" alt="" decoding="async" fetchpriority="' +
+            (i === 0 ? 'high' : 'low') +
+            '" loading="' +
             (i === 0 ? 'eager' : 'lazy') +
             '"></div>'
           );
@@ -845,12 +861,16 @@
 
     updateTabCounts(panel, engagement) {
       const giftTotal = panel?.giftCount ?? engagement?.giftCount ?? 0;
-      const posts =
-        (engagement?.postsCount ?? 0) + (engagement?.videosCount ?? 0);
+      const posts = engagement?.postsCount ?? 0;
+      const videos = engagement?.videosCount ?? 0;
       const giftTab = document.querySelector('.cp-ref-tab[data-tab="gift"]');
       const postsTab = document.querySelector('.cp-ref-tab[data-tab="posts"]');
       if (giftTab) giftTab.textContent = 'Gift·' + fmt(giftTotal);
-      if (postsTab) postsTab.textContent = 'Posts·' + fmt(posts);
+      if (postsTab) postsTab.textContent = 'Posts·' + fmt((Number(posts) || 0) + (Number(videos) || 0));
+      const igPosts = document.querySelector('.cp-ref-ig-tab[data-media="posts"]');
+      const igVideos = document.querySelector('.cp-ref-ig-tab[data-media="videos"]');
+      if (igPosts) igPosts.innerHTML = '<i class="fas fa-th"></i> Posts';
+      if (igVideos) igVideos.innerHTML = '<i class="fas fa-clapperboard"></i> Videos';
     },
 
     syncFollowBtn() {
@@ -874,20 +894,33 @@
         this.state.cpMounted = true;
         this.paintRelTab();
       }
-      if (tab === 'posts' && !this.state.postsLoaded) {
-        this.loadPosts();
+      if (tab === 'posts') {
+        this.switchMediaTab(this.state.mediaTab || 'posts');
       }
     },
 
-    async loadPosts() {
-      this.state.postsLoaded = true;
-      const feed = document.getElementById('cpRefPostsFeed');
-      if (!feed || !this.state.userId || !window.SocialInteractions?.renderSquareFeed) return;
-      await SocialInteractions.renderSquareFeed(feed, {
-        userId: this.state.userId,
-        mediaType: 'all',
-        feed: 'latest',
+    switchMediaTab(kind) {
+      const media = kind === 'videos' ? 'videos' : 'posts';
+      this.state.mediaTab = media;
+      document.querySelectorAll('.cp-ref-ig-tab').forEach((b) => {
+        b.classList.toggle('is-active', b.dataset.media === media);
       });
+      this.loadMediaGrid(media);
+    },
+
+    async loadMediaGrid(kind) {
+      const grid = document.getElementById('cpRefPostsGrid');
+      if (!grid || !this.state.userId || !window.SocialInteractions?.renderProfileGrid) return;
+      const loadedKey = kind === 'videos' ? 'videosLoaded' : 'postsLoaded';
+      this.state[loadedKey] = true;
+      await SocialInteractions.renderProfileGrid(grid, {
+        userId: this.state.userId,
+        mediaType: kind === 'videos' ? 'video' : 'posts',
+      });
+    },
+
+    async loadPosts() {
+      this.switchMediaTab(this.state.mediaTab || 'posts');
     },
 
     showEmpty(msg) {

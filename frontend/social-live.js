@@ -6214,16 +6214,9 @@
           renderRoomGiftPanels();
           return;
         }
-        /* One chat line only — skip WIN banner / fly banner (duplicate "sent to" notices) */
         const combo = window.SocialFX?.trackCombo?.(normalized?.emoji || 'gift', normalized?.qty || 1) || 1;
         const hasAnimStream = window.GiftAnimationOverlay?.hasAnimationForGift?.(normalized);
         if (hasAnimStream) {
-          try {
-            console.log('[GiftAnimation DEBUG] social-live dispatching overlay', {
-              slug: normalized.giftSlug || normalized.giftType,
-              tx: normalized.gift_tx_id || normalized.id,
-            });
-          } catch (_lg) { /* */ }
           try {
             window.GiftAnimationOverlay?.onGiftReceived?.(normalized);
           } catch (_giftAnimErr) { /* presentation only */ }
@@ -16785,13 +16778,6 @@
 
   async function sendGiftViaApi(receiverId, cost, emoji, toName, giftSlug, giftName) {
     if (!window.SocialWallet) throw new Error('Wallet unavailable');
-    await SocialWallet.sendGift({
-      receiver_id: receiverId,
-      coin_amount: cost,
-      gift_type: giftSlug || emoji || 'gift',
-      live_room_id: roomState?.roomId || undefined,
-      qty: giftQty,
-    });
     const giftEvt = {
       from: displayName(currentUser()),
       fromUserId: currentUser()?.id || null,
@@ -16803,27 +16789,15 @@
       amount: cost,
       qty: giftQty,
     };
-    const isFresh = claimGiftPresentation(giftEvt);
+    presentGiftLocally(giftEvt);
+    await SocialWallet.sendGift({
+      receiver_id: receiverId,
+      coin_amount: cost,
+      gift_type: giftSlug || emoji || 'gift',
+      live_room_id: roomState?.roomId || undefined,
+      qty: giftQty,
+    });
     pushRoomGift(giftEvt);
-    if (isFresh) {
-      const combo = window.SocialFX?.trackCombo?.(emoji, giftQty) || 1;
-      const hasAnimStream = window.GiftAnimationOverlay?.hasAnimationForGift?.(giftEvt);
-      if (hasAnimStream) {
-        try {
-          window.GiftAnimationOverlay?.onGiftReceived?.(giftEvt);
-        } catch (_giftAnimErr) { /* */ }
-      }
-      window.SocialFX?.playGift?.(giftEvt, {
-        combo,
-        skipActivity: true,
-        skipCinematic: hasAnimStream,
-        skipSound: hasAnimStream,
-      });
-      onGiftTeamProgress(cost);
-      const sendBtn = document.getElementById('giftSendBtn');
-      const balEl = document.getElementById('giftCoinsBal');
-      if (sendBtn && balEl) window.SocialFX?.coinFly?.(sendBtn, balEl, cost);
-    }
     setGiftSendError('');
     toast('Gift sent!', 'success');
     document.getElementById('giftSheet')?.classList.remove('open');
@@ -16883,20 +16857,31 @@
     let balance = 0;
     let balanceFresh = false;
     try {
-      /* Sellers: auto-convert sell coins → gift coins so Send stays usable in live */
-      if (window.SocialWallet?.ensureGiftableCoins) {
-        await Promise.race([
-          SocialWallet.ensureGiftableCoins(totalCost),
-          new Promise((_, rej) => setTimeout(() => rej(new Error('exchange timeout')), 8000)),
-        ]).catch(() => null);
+      const cached = SocialWallet?.getCachedBalance?.() || {};
+      const cachedCoins = SocialWallet?.getGiftableCoins
+        ? SocialWallet.getGiftableCoins(cached)
+        : Number(cached.giftable_coins ?? cached.coin_balance ?? 0);
+      if (cachedCoins >= totalCost) {
+        balance = cachedCoins;
+        balanceFresh = true;
+        if (window.SocialWallet?.ensureGiftableCoins) {
+          SocialWallet.ensureGiftableCoins(totalCost).catch(() => {});
+        }
+      } else {
+        if (window.SocialWallet?.ensureGiftableCoins) {
+          await Promise.race([
+            SocialWallet.ensureGiftableCoins(totalCost),
+            new Promise((_, rej) => setTimeout(() => rej(new Error('exchange timeout')), 4000)),
+          ]).catch(() => null);
+        }
+        balance = await Promise.race([
+          getCoins(true).then((n) => {
+            balanceFresh = true;
+            return n;
+          }),
+          new Promise((_, rej) => setTimeout(() => rej(new Error('balance timeout')), 2500)),
+        ]);
       }
-      balance = await Promise.race([
-        getCoins(true).then((n) => {
-          balanceFresh = true;
-          return n;
-        }),
-        new Promise((_, rej) => setTimeout(() => rej(new Error('balance timeout')), 4000)),
-      ]);
     } catch (_e) {
       balance = 0;
       balanceFresh = false;
@@ -17004,12 +16989,21 @@
       sheet.style.background = 'transparent';
       sheet.style.opacity = '0';
       syncLiveOverlayClass();
-      /* Refresh balance AFTER unlock so a hang never freezes Send */
       Promise.resolve()
         .then(() => window.SocialWallet?.fetchBalance?.(true))
         .then(() => refreshCoinDisplay())
         .then(() => renderRoomGiftPanels())
         .catch(() => { });
+    };
+
+    const closeGiftSheetNow = () => {
+      sheet.classList.remove('open');
+      sheet.style.display = 'none';
+      sheet.style.pointerEvents = 'none';
+      sheet.style.visibility = 'hidden';
+      sheet.style.background = 'transparent';
+      sheet.style.opacity = '0';
+      syncLiveOverlayClass();
     };
 
     const handleGiftFail = (rawMsg) => {
@@ -17072,6 +17066,7 @@
       });
 
     if (liveSocket?.connected) {
+      closeGiftSheetNow();
       (async () => {
         let sent = 0;
         let lastCharged = cost;
@@ -17082,6 +17077,17 @@
               lastError = 'Receiver not found';
               continue;
             }
+            presentGiftLocally({
+              from: displayName(currentUser()),
+              fromUserId: currentUser()?.id || null,
+              to: target.name,
+              toUserId: String(target.id || ''),
+              emoji: g.emoji,
+              giftSlug: g.slug,
+              giftName: g.name,
+              amount: cost,
+              qty: giftQty,
+            });
             const res = await emitOneGift(target);
             if (!res?.ok) {
               lastError = res?.message || 'Gift failed for ' + (target.name || 'user');
@@ -17115,6 +17121,7 @@
       return;
     }
 
+    closeGiftSheetNow();
     await tryApi('Gift failed');
   }
 

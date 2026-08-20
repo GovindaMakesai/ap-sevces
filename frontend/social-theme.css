@@ -3133,6 +3133,16 @@ html.ap-expo-app:not(.social-bridge-mode) body:not([data-live-page]) {
   padding-top: 0 !important;
 }
 
+html.ap-expo-app body.creator-profile-ref,
+html.social-app body.creator-profile-ref,
+html.social-bridge-mode body.creator-profile-ref,
+html.social-bridge-mode:has(#ap-bridge-header) body.creator-profile-ref:not([data-live-page]) {
+  padding-top: 0 !important;
+  background: #061a1a !important;
+  background-image: none !important;
+  color: #f8fafc !important;
+}
+
 html.ap-expo-app {
   --social-safe-top: 0px;
 }

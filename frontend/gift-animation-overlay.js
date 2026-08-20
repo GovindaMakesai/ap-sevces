@@ -278,16 +278,32 @@
     return Boolean(lookupAnimation(slug, gift)?.animationUrl);
   }
 
+  function eventSoftKey(gift) {
+    const from = String(gift?.fromUserId || gift?.senderId || '');
+    const to = String(gift?.toUserId || gift?.receiver_id || gift?.recipientId || '');
+    const amt = Number(gift?.amount || gift?.coins || gift?.coin_amount || 0);
+    const qty = Number(gift?.qty || 1);
+    const slug = giftSlug(gift);
+    if (from && to && amt > 0) return `uid:${from}|${to}|${amt}|${qty}|${slug}`;
+    return '';
+  }
+
   function claimTransaction(gift) {
     if (isDebugMode()) return true;
     pruneProcessed();
     const tx = transactionId(gift);
-    if (!tx) return true;
-    if (processedGiftEvents.has(tx)) {
+    const soft = eventSoftKey(gift);
+    if (tx && processedGiftEvents.has(tx)) {
       log('duplicate ignored', { transactionId: tx });
       return false;
     }
-    processedGiftEvents.set(tx, Date.now());
+    if (soft && processedGiftEvents.has(soft)) {
+      log('duplicate ignored', { softKey: soft });
+      return false;
+    }
+    const now = Date.now();
+    if (tx) processedGiftEvents.set(tx, now);
+    if (soft) processedGiftEvents.set(soft, now);
     return true;
   }
 

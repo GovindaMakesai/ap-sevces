@@ -67,6 +67,11 @@ function isLiveCaptureUrl(url) {
   return false;
 }
 
+function isDarkShellUrl(url) {
+  const u = String(url || '');
+  return isLiveCaptureUrl(u) || /creator-profile\.html/i.test(u);
+}
+
 /** Same LAN IP as the Expo QR code (e.g. 192.168.1.9). */
 function getExpoLanHost() {
   const raw =
@@ -117,7 +122,7 @@ const AUTH_ORIGIN = apiConfig.BACKEND_URL.replace(/\/$/, '');
 /** Deep link the system OAuth browser closes on (apservices:// or exp:// in Expo Go). */
 const APP_RETURN_URL = Linking.createURL('oauth-complete');
 const MOBILE_INJECT_SCRIPT = getMobileDashboardInjectScript();
-const APP_WEB_BUILD = '20260816-502-fix';
+const APP_WEB_BUILD = '20260819-profile-gifts';
 const STATUS_BAR_INSET =
   Platform.OS === 'android'
     ? RNStatusBar.currentHeight || Constants.statusBarHeight || 28
@@ -328,6 +333,7 @@ function buildAppShellBootstrap(frontendBase) {
   return `(function(){try{
     var p=(location.pathname||'').toLowerCase();
     var immersive=p.endsWith('/live-room.html')||p.endsWith('/party-room.html');
+    var creatorProfile=p.endsWith('/creator-profile.html');
     window.__AP_NATIVE_APP__=true;
     window.__AP_API_URL__='${injectedApi}';
     window.__AP_SOCKET_URL__='${injectedSocket}';
@@ -344,6 +350,14 @@ function buildAppShellBootstrap(frontendBase) {
         document.body.classList.add('ap-live-immersive');
         document.body.style.background='#000';
       }
+    }else if(creatorProfile){
+      document.documentElement.classList.add('social-app','social-native');
+      document.documentElement.classList.remove('social-bridge-mode');
+      document.documentElement.style.background='#061a1a';
+      if(document.body){
+        document.body.style.background='#061a1a';
+        document.body.style.paddingTop='0px';
+      }
     }else{
       document.documentElement.classList.add('social-app','social-bridge-mode','social-native');
       document.documentElement.style.background='#faf6ee';
@@ -353,7 +367,7 @@ function buildAppShellBootstrap(frontendBase) {
     if(!s){
       s=document.createElement('style');
       s.id='ap-native-critical';
-      s.textContent='html.ap-expo-app .chat-tab.active{background:linear-gradient(135deg,#d4a84b,#9a7218)!important;color:#fff!important}html.ap-expo-app .message-wrapper.sent .message-content{background:linear-gradient(135deg,#d4a84b,#9a7218)!important;color:#fff!important}html.ap-live-immersive .social-bridge-header,html.ap-live-immersive #ap-bridge-header,html.ap-live-immersive .social-bottom-nav,html.ap-live-immersive #social-bottom-nav-mount,html.ap-live-immersive .navbar,html.ap-live-immersive footer.site-footer{display:none!important;height:0!important;visibility:hidden!important;pointer-events:none!important}html.ap-live-immersive body,html.ap-live-immersive.social-bridge-mode body{padding:0!important;margin:0!important;background:#000!important;overflow:hidden!important}';
+      s.textContent='html.ap-expo-app .chat-tab.active{background:linear-gradient(135deg,#d4a84b,#9a7218)!important;color:#fff!important}html.ap-expo-app .message-wrapper.sent .message-content{background:linear-gradient(135deg,#d4a84b,#9a7218)!important;color:#fff!important}html.ap-live-immersive .social-bridge-header,html.ap-live-immersive #ap-bridge-header,html.ap-live-immersive .social-bottom-nav,html.ap-live-immersive #social-bottom-nav-mount,html.ap-live-immersive .navbar,html.ap-live-immersive footer.site-footer{display:none!important;height:0!important;visibility:hidden!important;pointer-events:none!important}html.ap-live-immersive body,html.ap-live-immersive.social-bridge-mode body{padding:0!important;margin:0!important;background:#000!important;overflow:hidden!important}html.ap-expo-app body.creator-profile-ref{padding-top:0!important;background:#061a1a!important;color:#f8fafc!important}';
       (document.head||document.documentElement).appendChild(s);
     }
     function apHasSession(){try{return!!(localStorage.getItem('user')&&(localStorage.getItem('token')||localStorage.getItem('ap_refresh_token')));}catch(e){return false;}}
@@ -558,6 +572,7 @@ export default function App() {
   const [frontendBase, setFrontendBase] = useState(() => resolveFrontendBase());
   const [lanFallbackDone, setLanFallbackDone] = useState(false);
   const [bootLoading, setBootLoading] = useState(true);
+  const [darkShell, setDarkShell] = useState(false);
   const nativeSessionRef = useRef(null);
   const oauthCompleteRef = useRef(false);
   const screenCaptureBlockedRef = useRef(false);
@@ -1438,8 +1453,16 @@ export default function App() {
   }, [isDevLocal, lanFallbackDone, frontendBase]);
 
   return (
-    <View style={[styles.container, { paddingTop: STATUS_BAR_INSET }]}>
-      <StatusBar style="dark" />
+    <View
+      style={[
+        styles.container,
+        {
+          paddingTop: STATUS_BAR_INSET,
+          backgroundColor: darkShell ? '#061a1a' : '#fdf9f0',
+        },
+      ]}
+    >
+      <StatusBar style={darkShell ? 'light' : 'dark'} />
       {loadError ? (
         <View style={styles.errorBar}>
           <Text style={styles.errorText}>{loadError}</Text>
@@ -1451,7 +1474,7 @@ export default function App() {
       <WebView
         key={`${frontendBase}|${APP_WEB_BUILD}`}
         ref={webViewRef}
-        style={styles.webview}
+        style={[styles.webview, { backgroundColor: darkShell ? '#061a1a' : '#fdf9f0' }]}
         source={{ uri: webUri }}
         injectedJavaScriptBeforeContentLoaded={injectedBootstrap}
         startInLoadingState
@@ -1490,6 +1513,11 @@ export default function App() {
           setBootLoading(false);
           setLoadError('');
           const url = e?.nativeEvent?.url || '';
+          if (url) {
+            webViewCurrentUrlRef.current = url;
+            const nextDark = isDarkShellUrl(url);
+            setDarkShell((prev) => (prev === nextDark ? prev : nextDark));
+          }
           injectMobileLayout(url);
           syncScreenCaptureForUrl(url);
           /* Phase 2A: audience playback focus when entering live/party pages. */
@@ -1502,7 +1530,11 @@ export default function App() {
         onNavigationStateChange={(nav) => {
           const url = nav?.url || '';
           const prev = webViewCurrentUrlRef.current || '';
-          if (url) webViewCurrentUrlRef.current = url;
+          if (url) {
+            webViewCurrentUrlRef.current = url;
+            const nextDark = isDarkShellUrl(url);
+            setDarkShell((prev) => (prev === nextDark ? prev : nextDark));
+          }
           webViewCanGoBackRef.current = Boolean(nav?.canGoBack);
           syncScreenCaptureForUrl(url);
           const nowLive = isLiveCaptureUrl(url);
