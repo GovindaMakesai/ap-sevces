@@ -26,34 +26,9 @@ const pool = new Pool({
   application_name: 'ap-api',
   /* Server-side cancel only. Do not set query_timeout — it kills the TCP
      connection and crash-loops boot through the Supabase pooler. */
-  statement_timeout: 8000,
-  idle_in_transaction_session_timeout: 10000,
+  statement_timeout: 5000,
+  idle_in_transaction_session_timeout: 8000,
 });
-
-/* Leave a couple of pool slots for transactions / heartbeats so a profile
-   Promise.all cannot occupy every connection. */
-const maxInflight = Math.max(4, Number(process.env.PG_QUERY_CONCURRENCY) || poolMax - 3);
-let inflight = 0;
-const waiters = [];
-
-function withQuerySlot(fn) {
-  return new Promise((resolve, reject) => {
-    const start = () => {
-      inflight += 1;
-      Promise.resolve()
-        .then(fn)
-        .then(resolve, reject)
-        .finally(() => {
-          inflight -= 1;
-          const next = waiters.shift();
-          if (next) next();
-        });
-    };
-
-    if (inflight < maxInflight) start();
-    else waiters.push(start);
-  });
-}
 
 async function safeRollback(client) {
   if (!client || typeof client.query !== 'function') return;
@@ -75,7 +50,7 @@ const testConnection = async () => {
 };
 
 module.exports = {
-  query: (text, params) => withQuerySlot(() => pool.query(text, params)),
+  query: (text, params) => pool.query(text, params),
   pool,
   safeRollback,
   testConnection
