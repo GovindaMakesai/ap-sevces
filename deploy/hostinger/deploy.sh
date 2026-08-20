@@ -92,29 +92,15 @@ if [ "$needs_api_restart" = true ]; then
   fi
   pm2 save
 
-  echo "==> Ensure points_transfers schema"
-  node backend/scripts/ensure-points-transfer-schema.js || echo "WARN: points_transfers schema ensure failed"
-
-  echo "==> Ensure CP module schema"
-  node backend/scripts/ensure-cp-schema.js || echo "WARN: CP schema ensure failed"
-
-  echo "==> Ensure SVIP schema"
-  node -e "require('./backend/config/ensureSvipSchema').ensureSvipSchema().then(()=>process.exit(0)).catch(e=>{console.error(e);process.exit(1)})" || echo "WARN: SVIP schema ensure failed"
-
-  echo "==> Health check"
-  sleep 6
+  echo "==> Health check (process up — do not restart just because DB is slow)"
+  sleep 3
   health_ok=false
-  for i in 1 2 3 4 5 6 8; do
+  for i in 1 2 3 4 5 6; do
     if curl -sf "http://127.0.0.1:${PORT:-5000}/api/health" >/dev/null; then
       curl -sf "http://127.0.0.1:${PORT:-5000}/api/health"
       echo ""
       health_ok=true
       break
-    fi
-    if [ "$i" -eq 4 ]; then
-      echo "Health check still failing — hard restart ap-api"
-      pm2 restart ap-api --update-env || pm2 start ecosystem.config.js
-      sleep 8
     fi
     echo "Health check attempt $i failed — retrying in 3s..."
     sleep 3

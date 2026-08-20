@@ -224,7 +224,9 @@ app.get('/api/health', async (_req, res) => {
     health.success = false;
   }
   health.checks.redis = { ok: redis.isEnabled(), mode: redis.isEnabled() ? 'redis' : 'memory' };
-  res.status(health.success ? 200 : 503).json(health);
+  /* Always 200 when the process is listening. A slow DB must not make nginx/deploy
+     treat the API as dead and restart it in a loop. */
+  res.status(200).json(health);
 });
 
 /* Specific /api/* modules before hierarchy catch-all (hierarchy uses verifyToken on all entries). */
