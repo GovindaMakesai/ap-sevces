@@ -295,8 +295,8 @@ function forceLogoutDeactivated(message = ACCOUNT_DEACTIVATED_MSG) {
 // ==================== API SERVICE WITH FORMDATA SUPPORT ====================
 const _apiInflight = new Map();
 const _apiGetCache = new Map();
-const API_GET_CACHE_MS = 5000;
-const API_GET_CACHE_LONG_MS = 15000;
+const API_GET_CACHE_MS = 8000;
+const API_GET_CACHE_LONG_MS = 30000;
 
 function apiGetCacheTtl(endpoint) {
     const p = String(endpoint || '');

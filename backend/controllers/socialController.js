@@ -103,7 +103,7 @@ async function discoverCreators(req, res) {
         limit,
         viewerId: req.userId || null,
       }),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 12000)),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2500)),
     ]);
     res.json({ success: true, data });
   } catch (e) {

@@ -4,6 +4,9 @@ const vipService = require('./vipService');
 const coinSellerService = require('./coinSellerService');
 const db = require('../config/database');
 
+const BADGE_TTL_MS = 45000;
+const badgeCache = new Map();
+
 async function getProfileBadges(userId) {
   if (!userId) {
     return {
@@ -17,6 +20,10 @@ async function getProfileBadges(userId) {
       is_coin_seller: false,
     };
   }
+
+  const cacheKey = String(userId);
+  const hit = badgeCache.get(cacheKey);
+  if (hit && Date.now() - hit.at < BADGE_TTL_MS) return hit.data;
 
   const [levelRes, svipHome, vipMembership, userRow, sellerProfile] = await Promise.all([
     cpService.getPersonalLevel(userId).catch(() => ({ level: 1 })),
@@ -37,7 +44,7 @@ async function getProfileBadges(userId) {
     vipMembership?.level_name ||
     (vipLevel != null && vipLevel > 0 ? `VIP ${vipLevel}` : null);
 
-  return {
+  const data = {
     personalLevel: Number(levelRes.level) || 1,
     svipLevel,
     svipLabel: svipLevel > 0 ? svipHome.levelLabel || `SVIP ${svipLevel}` : null,
@@ -48,6 +55,8 @@ async function getProfileBadges(userId) {
     role,
     is_coin_seller: isCoinSeller,
   };
+  badgeCache.set(cacheKey, { at: Date.now(), data });
+  return data;
 }
 
 module.exports = { getProfileBadges };

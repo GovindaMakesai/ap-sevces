@@ -272,7 +272,7 @@ exports.getMessages = async (req, res) => {
         const meta = participates
             ? await enrichConversation(conversation, currentUserId)
             : await enrichConversation(conversation, conversation.user_high);
-        const quota = await chatService.getFemaleMessageQuota(currentUserId);
+        const quota = { limited: false, limit: null, used: 0, remaining: null };
 
         const io = req.app.get('io');
         if (io && participates) {

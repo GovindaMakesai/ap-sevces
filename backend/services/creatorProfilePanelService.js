@@ -32,7 +32,7 @@ async function getGiftWall(receiverId, { limit = 64 } = {}) {
             SUM(coin_amount)::bigint AS coins
      FROM gift_transactions
      WHERE receiver_id = $1
-       AND created_at >= CURRENT_TIMESTAMP - INTERVAL '90 days'
+       AND created_at >= CURRENT_TIMESTAMP - INTERVAL '30 days'
      GROUP BY gift_type
      ORDER BY count DESC, coins DESC
      LIMIT $2`,
@@ -54,35 +54,33 @@ async function getGiftStats(userId, { period = 'monthly' } = {}) {
   const periodLabel = monthStart.toLocaleString('en-US', { month: 'long', year: 'numeric' });
   const sinceIso = monthStart.toISOString();
 
-  const [receivedRes, sentRes, topSendersRes] = await Promise.all([
-    db.query(
-      `SELECT COUNT(*)::int AS gift_count,
-              COALESCE(SUM(coin_amount), 0)::bigint AS gift_coins
-       FROM gift_transactions
-       WHERE receiver_id = $1 AND created_at >= $2`,
-      [id, sinceIso]
-    ),
-    db.query(
-      `SELECT COUNT(*)::int AS gift_count,
-              COALESCE(SUM(coin_amount), 0)::bigint AS gift_coins
-       FROM gift_transactions
-       WHERE sender_id = $1 AND created_at >= $2`,
-      [id, sinceIso]
-    ),
-    db.query(
-      `SELECT gt.sender_id AS user_id,
-              COUNT(*)::int AS gift_count,
-              COALESCE(SUM(gt.coin_amount), 0)::bigint AS gift_coins,
-              u.first_name, u.last_name, u.profile_pic, u.display_id, u.updated_at
-       FROM gift_transactions gt
-       JOIN users u ON u.id = gt.sender_id AND u.is_active = TRUE
-       WHERE gt.receiver_id = $1 AND gt.created_at >= $2
-       GROUP BY gt.sender_id, u.first_name, u.last_name, u.profile_pic, u.display_id, u.updated_at
-       ORDER BY gift_coins DESC, gift_count DESC
-       LIMIT 15`,
-      [id, sinceIso]
-    ),
-  ]);
+  const receivedRes = await db.query(
+    `SELECT COUNT(*)::int AS gift_count,
+            COALESCE(SUM(coin_amount), 0)::bigint AS gift_coins
+     FROM gift_transactions
+     WHERE receiver_id = $1 AND created_at >= $2`,
+    [id, sinceIso]
+  );
+  const sentRes = await db.query(
+    `SELECT COUNT(*)::int AS gift_count,
+            COALESCE(SUM(coin_amount), 0)::bigint AS gift_coins
+     FROM gift_transactions
+     WHERE sender_id = $1 AND created_at >= $2`,
+    [id, sinceIso]
+  );
+  const topSendersRes = await db.query(
+    `SELECT gt.sender_id AS user_id,
+            COUNT(*)::int AS gift_count,
+            COALESCE(SUM(gt.coin_amount), 0)::bigint AS gift_coins,
+            u.first_name, u.last_name, u.profile_pic, u.display_id, u.updated_at
+     FROM gift_transactions gt
+     JOIN users u ON u.id = gt.sender_id AND u.is_active = TRUE
+     WHERE gt.receiver_id = $1 AND gt.created_at >= $2
+     GROUP BY gt.sender_id, u.first_name, u.last_name, u.profile_pic, u.display_id, u.updated_at
+     ORDER BY gift_coins DESC, gift_count DESC
+     LIMIT 15`,
+    [id, sinceIso]
+  );
 
   const buildName = (r) => `${r.first_name || ''} ${r.last_name || ''}`.trim() || 'User';
 
@@ -165,30 +163,40 @@ async function getProfilePanel(userId) {
     }
   }
 
+  const runBatch = async (fns) => {
+    const out = [];
+    const BATCH = 3;
+    for (let i = 0; i < fns.length; i += BATCH) {
+      const chunk = await Promise.all(fns.slice(i, i + BATCH).map((fn) => fn()));
+      out.push(...chunk);
+    }
+    return out;
+  };
+
   const [badges, visitorSummary, friendsCount, visitorCount, giftWall, cpSummary, giftTotals, album, giftStats, equippedCosmetics] =
-    await Promise.all([
-      profileBadgeService.getProfileBadges(id),
-      profileVisitorService.getSummary(id).catch(() => null),
-      countMutualFriends(id),
-      countProfileVisitors(id),
-      getGiftWall(id),
-      cpService.getCpProfilePublic?.(id).catch(() => null),
-      db.query(
+    await runBatch([
+      () => profileBadgeService.getProfileBadges(id),
+      () => profileVisitorService.getSummary(id).catch(() => null),
+      () => countMutualFriends(id),
+      () => countProfileVisitors(id),
+      () => getGiftWall(id),
+      () => cpService.getCpProfilePublic?.(id).catch(() => null),
+      () => db.query(
         `SELECT COUNT(*)::int AS gift_count,
                 COALESCE(SUM(coin_amount), 0)::bigint AS gift_coins
          FROM gift_transactions
          WHERE receiver_id = $1
-           AND created_at >= CURRENT_TIMESTAMP - INTERVAL '90 days'`,
+           AND created_at >= CURRENT_TIMESTAMP - INTERVAL '30 days'`,
         [id]
       ),
-      profileAlbumService.getAlbum(id),
-      getGiftStats(id, { period: 'monthly' }),
-      require('./cosmeticService').getEquippedCosmetics(id).catch(() => ({})),
+      () => profileAlbumService.getAlbum(id),
+      () => getGiftStats(id, { period: 'monthly' }),
+      () => require('./cosmeticService').getEquippedCosmetics(id).catch(() => ({})),
     ]);
 
   const giftCount = Number(giftTotals.rows[0]?.gift_count || 0);
   const giftCoins = Number(giftTotals.rows[0]?.gift_coins || 0);
-  const personalLevel = await cpService.getPersonalLevel(id).catch(() => ({ level: 1 }));
+  const personalLevel = { level: Number(badges?.personalLevel) || 1 };
 
   const data = {
     userId: id,
