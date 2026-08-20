@@ -336,12 +336,18 @@ async function startServer() {
 
   await referralModule.boot();
   await attachSocketRedisAdapter();
-  await platformService.getOrCreateTreasuryUserId();
-  await liveRoomService.recoverActiveRooms();
   startScheduler();
 
   server.listen(PORT, '0.0.0.0', () => {
     logger.info('Server started', { port: PORT, redis: redis.isEnabled(), skipSchema });
+  });
+
+  /* After listen so Google login / live are not blocked by DB recovery. */
+  setImmediate(() => {
+    Promise.resolve()
+      .then(() => platformService.getOrCreateTreasuryUserId())
+      .then(() => liveRoomService.recoverActiveRooms())
+      .catch((err) => logger.warn('Post-listen recovery failed', { message: err.message }));
   });
 }
 

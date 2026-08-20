@@ -962,9 +962,15 @@ async function endIdleRooms(maxIdleMinutes = 5) {
 }
 
 async function recoverActiveRooms() {
-  const res = await db.query(`SELECT channel FROM live_rooms WHERE status = 'active'`);
+  const res = await db.query(
+    `SELECT channel FROM live_rooms WHERE status = 'active' ORDER BY updated_at DESC LIMIT 25`
+  );
   for (const row of res.rows) {
-    await buildSnapshot(row.channel);
+    try {
+      await buildSnapshot(row.channel);
+    } catch (err) {
+      console.warn('[live] recover snapshot failed', row.channel, err.message);
+    }
   }
   console.log(`[live] Recovered ${res.rows.length} active room(s) from database`);
 }

@@ -18,12 +18,12 @@ const pool = new Pool({
   ssl: useSsl ? { rejectUnauthorized: false } : false,
   max: Number(process.env.PG_POOL_MAX) || 12,
   idleTimeoutMillis: 10000,
-  connectionTimeoutMillis: 8000,
+  connectionTimeoutMillis: 15000,
   allowExitOnIdle: true,
   application_name: 'ap-api',
-  /* Kill stuck queries so one slow gift/wallet lock cannot freeze live/explore. */
+  /* Server-side cancel only. Do not set query_timeout — it kills the TCP
+     connection and crash-loops boot through the Supabase pooler. */
   statement_timeout: 10000,
-  query_timeout: 12000,
   idle_in_transaction_session_timeout: 15000,
 });
 
