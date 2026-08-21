@@ -37,6 +37,10 @@
       "dest": "/frontend/login.html"
     },
     {
+      "src": "/oauth-app-return.html",
+      "dest": "/frontend/oauth-app-return.html"
+    },
+    {
       "src": "/login-success.html",
       "dest": "/frontend/login-success.html"
     },

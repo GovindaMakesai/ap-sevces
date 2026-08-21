@@ -120,9 +120,15 @@ const API_BASE_URL = apiConfig.API_URL;
 /** Native: API + OAuth start on VPS. Callback URLs stay HTTPS (Vercel) in provider consoles. */
 const AUTH_ORIGIN = apiConfig.BACKEND_URL.replace(/\/$/, '');
 /** Deep link the system OAuth browser closes on (apservices:// or exp:// in Expo Go). */
-const APP_RETURN_URL = Linking.createURL('oauth-complete');
+const APP_RETURN_URL = (() => {
+  try {
+    const u = String(Linking.createURL('oauth-complete') || '');
+    if (u && !u.includes('undefined') && /^(apservices|aplive|glowcast|exp):\/\//i.test(u)) return u;
+  } catch (_e) { /* ignore */ }
+  return 'apservices://oauth-complete';
+})();
 const MOBILE_INJECT_SCRIPT = getMobileDashboardInjectScript();
-const APP_WEB_BUILD = '20260819-profile-gifts';
+const APP_WEB_BUILD = '20260821-oauthfix';
 const STATUS_BAR_INSET =
   Platform.OS === 'android'
     ? RNStatusBar.currentHeight || Constants.statusBarHeight || 28
@@ -424,7 +430,14 @@ function switchToProductionFrontend(setFrontendBase, setLanFallbackDone, setLoad
 function isNativeOAuthReturnUrl(url) {
   if (!url) return false;
   const u = String(url);
-  return u.startsWith('apservices://oauth') || u.startsWith('exp://');
+  return (
+    u.startsWith('apservices://') ||
+    u.startsWith('aplive://') ||
+    u.startsWith('glowcast://') ||
+    u.startsWith('exp://') ||
+    u.startsWith('intent://') ||
+    /oauth-app-return\.html/i.test(u)
+  );
 }
 
 function isAppDeepLink(url) {
@@ -874,11 +887,18 @@ export default function App() {
       if (oauthBusyRef.current) return;
       oauthBusyRef.current = true;
 
-      const redirectTarget = appRedirect || APP_RETURN_URL;
-      const authUrl =
-        `${AUTH_ORIGIN}/auth/${provider}` +
+      const redirectTarget =
+        appRedirect && !String(appRedirect).includes('undefined')
+          ? appRedirect
+          : APP_RETURN_URL;
+      const makeAuthUrl = (origin) =>
+        `${String(origin).replace(/\/$/, '')}/auth/${provider}` +
         `?role=${encodeURIComponent(role)}` +
         `&app_redirect=${encodeURIComponent(redirectTarget)}`;
+
+      const origins = [AUTH_ORIGIN, FALLBACK_WEB].filter(
+        (o, i, arr) => o && String(o).startsWith('http') && arr.indexOf(o) === i
+      );
 
       try {
         if (Platform.OS === 'android') {
@@ -889,37 +909,59 @@ export default function App() {
           }
         }
 
-        const returnUrls = [redirectTarget, APP_RETURN_URL].filter(
-          (u, i, arr) => u && arr.indexOf(u) === i
-        );
-
+        const returnUrl = redirectTarget || APP_RETURN_URL || 'apservices://oauth-complete';
+        let authUrl = makeAuthUrl(origins[0] || AUTH_ORIGIN);
+        const startedAt = Date.now();
         let result = { type: 'cancel' };
-        for (const returnUrl of returnUrls) {
+        try {
           result = await WebBrowser.openAuthSessionAsync(authUrl, returnUrl, {
             showInRecents: true,
             preferEphemeralSession: false,
           });
-          if (result.type === 'success' && result.url) break;
+        } catch (_openErr) {
+          result = { type: 'cancel' };
+        }
+
+        let credential =
+          result.type === 'success' && result.url ? extractOAuthCredential(result.url) : null;
+        if (!credential) credential = await waitForPendingCredential(pendingTokenRef, 1200);
+
+        if (!credential && origins[1] && Date.now() - startedAt < 2800) {
+          authUrl = makeAuthUrl(origins[1]);
+          try {
+            result = await WebBrowser.openAuthSessionAsync(authUrl, returnUrl, {
+              showInRecents: true,
+              preferEphemeralSession: false,
+            });
+          } catch (_openErr2) {
+            result = { type: 'cancel' };
+          }
+          credential =
+            result.type === 'success' && result.url ? extractOAuthCredential(result.url) : null;
+          if (!credential) credential = await waitForPendingCredential(pendingTokenRef, 1200);
         }
 
         console.log('[ap-services-app] OAuth result:', result.type, result.url || '');
 
-        let credential =
-          result.type === 'success' && result.url ? extractOAuthCredential(result.url) : null;
-
-        if (!credential) {
-          credential = await waitForPendingCredential(pendingTokenRef);
-        }
-
         if (credential) {
           await applyOAuthCredential(credential);
           return;
+        }
+
+        const abortedFast = Date.now() - startedAt < 2800;
+        if (abortedFast) {
+          /* Custom Tabs aborted (ERR_CONNECTION_ABORTED on some Androids) — finish inside WebView. */
+          navigateWebViewTo(authUrl);
         }
       } catch (err) {
         console.warn('OAuth session failed', err);
         const credential = await waitForPendingCredential(pendingTokenRef, 1500);
         if (credential) {
           await applyOAuthCredential(credential);
+        } else {
+          try {
+            navigateWebViewTo(makeAuthUrl(origins[0] || AUTH_ORIGIN));
+          } catch (_navErr) { /* ignore */ }
         }
       } finally {
         oauthBusyRef.current = false;
@@ -937,7 +979,7 @@ export default function App() {
         }
       }
     },
-    [applyOAuthCredential]
+    [applyOAuthCredential, navigateWebViewTo]
   );
 
   useEffect(() => {
@@ -998,9 +1040,14 @@ export default function App() {
 
   const handleOAuthUrl = useCallback(
     (url) => {
-      const credential = extractOAuthCredential(url);
+      const raw = String(url || '');
+      if (!raw || raw === 'undefined' || raw.startsWith('undefined:') || /\/\/undefined\b/i.test(raw)) {
+        return true;
+      }
 
-      if (credential && (isNativeOAuthReturnUrl(url) || url.includes('login-success'))) {
+      const credential = extractOAuthCredential(raw);
+
+      if (credential && (isNativeOAuthReturnUrl(raw) || raw.includes('login-success') || raw.includes('oauth-app-return'))) {
         const credKey = `${credential.type}:${credential.value}`;
         if (handledTokenRef.current === credKey) return true;
         pendingTokenRef.current = credential;
@@ -1008,28 +1055,18 @@ export default function App() {
         return true;
       }
 
-      if (url.includes('login-success')) {
-        return false;
+      /* Custom-scheme hops must never load in WebView (Android Domain: undefined). */
+      if (isAppDeepLink(raw) || raw.startsWith('intent:') || raw.startsWith('exp://')) {
+        return true;
       }
 
-      const provider = parseAuthProvider(url);
-      if (
-        provider &&
-        (url.includes('62.72.56.74') || url.includes('ap-sevces.onrender.com') || url.includes(AUTH_ORIGIN) || url.includes('/auth/'))
-      ) {
-        let role = 'customer';
-        try {
-          role = new URL(url).searchParams.get('role') || 'customer';
-        } catch (_e) {
-          /* ignore */
-        }
-        startOAuthInBrowser(provider, role);
-        return true;
+      if (raw.includes('login-success') || raw.includes('oauth-app-return')) {
+        return false;
       }
 
       return false;
     },
-    [applyOAuthCredential, startOAuthInBrowser]
+    [applyOAuthCredential]
   );
 
   /* Screenshots allowed everywhere except live/party rooms */
@@ -1224,10 +1261,19 @@ export default function App() {
         }
         if (data.type === 'oauth' && data.provider) {
           const redirect =
-            typeof data.appRedirect === 'string' && data.appRedirect
+            typeof data.appRedirect === 'string' && data.appRedirect && !data.appRedirect.includes('undefined')
               ? data.appRedirect
               : APP_RETURN_URL;
           startOAuthInBrowser(data.provider, data.role || 'customer', redirect);
+          return;
+        }
+        if (data.type === 'oauth_code' && data.code) {
+          applyOAuthCredential({ type: 'code', value: String(data.code) });
+          return;
+        }
+        if (data.type === 'oauth_return' && data.url) {
+          const cred = extractOAuthCredential(data.url);
+          if (cred) applyOAuthCredential(cred);
           return;
         }
         if (data.type === 'login' && data.user) {
@@ -1407,39 +1453,27 @@ export default function App() {
         /* not our message */
       }
     },
-    [startOAuthInBrowser, frontendBase, clearNativeSession, lockLiveScreenCapture, unlockLiveScreenCapture, syncPushToken]
+    [startOAuthInBrowser, frontendBase, clearNativeSession, lockLiveScreenCapture, unlockLiveScreenCapture, syncPushToken, applyOAuthCredential]
   );
 
   const onShouldStartLoadWithRequest = (request) => {
     const url = request?.url || '';
-    if (handleOAuthUrl(url)) return false;
-
-    let hostname = '';
-    try {
-      hostname = new URL(url).hostname.toLowerCase();
-    } catch (_e) {
-      hostname = '';
-    }
-
-    const shouldOpenExternal =
-      !oauthBusyRef.current &&
-      (hostname === 'accounts.google.com' ||
-        hostname.endsWith('.google.com') ||
-        hostname === 'github.com' ||
-        hostname.endsWith('.github.com') ||
-        hostname === 'facebook.com' ||
-        hostname.endsWith('.facebook.com') ||
-        hostname === 'm.facebook.com');
-
-    if (shouldOpenExternal) {
-      Linking.openURL(url).catch(() => {});
+    if (!url || url === 'about:blank') return true;
+    if (url === 'undefined' || url.startsWith('undefined:') || /\/\/undefined\b/i.test(url)) {
       return false;
     }
-
+    if (handleOAuthUrl(url)) return false;
+    /* Keep Google/Facebook/GitHub in the same WebView. Opening Chrome separately
+       splits the OAuth session and some Androids show ERR_CONNECTION_ABORTED. */
     return true;
   };
 
-  const webUri = launchUrl;
+  const webUri =
+    launchUrl &&
+    /^https?:\/\//i.test(launchUrl) &&
+    !/undefined/i.test(launchUrl)
+      ? launchUrl
+      : `${PRODUCTION_WEB}/app-auth.html?app=1&source=expo-app`;
   // Session tokens live in WebView localStorage — do not re-inject on every page (breaks logout).
   const injectedBootstrap = appShellBootstrap;
 

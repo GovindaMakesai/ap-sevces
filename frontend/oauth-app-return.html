@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#fdf9f0">
+  <title>Opening AP Live…</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #fdf9f0; color: #3f2e0a; text-align: center; padding: 24px; }
+    a, button { display: inline-block; margin-top: 16px; padding: 12px 20px; border-radius: 999px; background: #c9a227; color: #1a1400; font-weight: 700; text-decoration: none; border: 0; cursor: pointer; }
+    p { max-width: 22rem; line-height: 1.45; }
+  </style>
+</head>
+<body>
+  <div>
+    <h1 style="font-size:1.15rem">Opening AP Live</h1>
+    <p id="msg">Finishing sign-in…</p>
+    <a id="openBtn" href="apservices://oauth-complete">Open the app</a>
+  </div>
+  <script>
+    (function () {
+      var params = new URLSearchParams(window.location.search || '');
+      var code = params.get('code') || '';
+      var err = params.get('error') || '';
+      var dest = params.get('app_redirect') || 'apservices://oauth-complete';
+      if (!/^(apservices|aplive|glowcast|exp):\/\//i.test(dest)) dest = 'apservices://oauth-complete';
+      var sep = dest.indexOf('?') >= 0 ? '&' : '?';
+      var target = dest;
+      if (code) target = dest + sep + 'code=' + encodeURIComponent(code);
+      else if (err) target = dest + sep + 'error=' + encodeURIComponent(err);
+
+      var msg = document.getElementById('msg');
+      var btn = document.getElementById('openBtn');
+      btn.href = target;
+      if (err) {
+        msg.textContent = err === 'account_deactivated'
+          ? 'This account is deactivated. Open the app to continue.'
+          : 'Sign-in did not finish. Open the app and try again.';
+      }
+
+      try {
+        if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+          window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: code ? 'oauth_code' : 'oauth_return',
+            code: code || null,
+            error: err || null,
+            url: target
+          }));
+        }
+      } catch (_e) {}
+
+      try { window.location.replace(target); } catch (_e2) {}
+
+      setTimeout(function () {
+        if (!code) return;
+        try {
+          window.location.replace(
+            'intent://oauth-complete?code=' + encodeURIComponent(code) +
+            '#Intent;scheme=apservices;package=com.apservices.app;end'
+          );
+        } catch (_e3) {}
+      }, 450);
+    })();
+  </script>
+</body>
+</html>

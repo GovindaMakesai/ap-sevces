@@ -160,12 +160,24 @@ const getFrontendBaseUrl = () =>
     process.env.OAUTH_CALLBACK_BASE ||
     'https://api.apservices.in';
 
-const isNativeAppRedirect = (value) => /^(exp|apservices|glowcast):\/\//i.test(String(value || '').trim());
+const isNativeAppRedirect = (value) => /^(exp|apservices|glowcast|aplive):\/\//i.test(String(value || '').trim());
+
+/** Chrome Custom Tabs abort 302 → custom-scheme on some Androids (ERR_CONNECTION_ABORTED / Domain: undefined). */
+const nativeOAuthHopUrl = (appRedirect, extra = {}) => {
+    const hop = `${String(getFrontendBaseUrl() || 'https://api.apservices.in').replace(/\/$/, '')}/oauth-app-return.html`;
+    const q = new URLSearchParams();
+    const dest = String(appRedirect || '').trim();
+    if (dest) q.set('app_redirect', dest);
+    Object.entries(extra || {}).forEach(([k, v]) => {
+        if (v != null && v !== '') q.set(k, String(v));
+    });
+    return `${hop}?${q.toString()}`;
+};
 
 const buildOAuthSuccessUrl = (_token, appRedirect = '') => {
     const safeRedirect = String(appRedirect || '').trim();
     if (safeRedirect && isNativeAppRedirect(safeRedirect)) {
-        return safeRedirect;
+        return nativeOAuthHopUrl(safeRedirect);
     }
     const absoluteSuccessUrl = process.env.OAUTH_SUCCESS_URL;
     const successPath = process.env.OAUTH_SUCCESS_PATH || '/login-success.html';
@@ -187,9 +199,7 @@ const ACCOUNT_DEACTIVATED_MSG = 'Your account has been deactivated';
 function redirectDeactivatedAccount(res, appRedirect) {
     const errParam = 'error=account_deactivated';
     if (isNativeAppRedirect(appRedirect)) {
-        const base = String(appRedirect).trim();
-        const sep = base.includes('?') ? '&' : '?';
-        return res.redirect(`${base}${sep}${errParam}`);
+        return res.redirect(nativeOAuthHopUrl(appRedirect, { error: 'account_deactivated' }));
     }
     return res.redirect(`${getFrontendBaseUrl()}/login.html?${errParam}`);
 }
@@ -202,9 +212,7 @@ async function finishOAuthLogin(req, res, user, appRedirect) {
     const { publicUser } = require('../lib/userDto');
     if (isNativeAppRedirect(appRedirect)) {
         const code = await createOAuthExchangeCode(user.id);
-        const base = String(appRedirect).trim();
-        const sep = base.includes('?') ? '&' : '?';
-        return res.redirect(`${base}${sep}code=${encodeURIComponent(code)}`);
+        return res.redirect(nativeOAuthHopUrl(appRedirect, { code }));
     }
     await createSession(user, res, meta);
     const url = buildOAuthSuccessUrl(null, appRedirect);

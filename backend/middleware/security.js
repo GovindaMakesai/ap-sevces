@@ -66,6 +66,10 @@ function applySecurityMiddleware(app) {
     helmet({
       contentSecurityPolicy: false,
       crossOriginEmbedderPolicy: false,
+      /* COOP/CORP same-origin aborts Google OAuth in Chrome Custom Tabs on some Androids
+         (ERR_CONNECTION_ABORTED on /auth/google). */
+      crossOriginOpenerPolicy: false,
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
     })
   );
   app.use(globalLimiter);
