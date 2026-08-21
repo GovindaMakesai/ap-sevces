@@ -1013,7 +1013,13 @@ async function ensureAgencyForOwner(ownerUserId, { name } = {}) {
   const user = u.rows[0];
   if (!user) throw new Error('User not found');
   const role = String(user.role || '').toLowerCase();
-  if (!['agency', 'admin', 'super_admin', 'founder', 'ceo'].includes(role)) {
+  let extraAgency = false;
+  try {
+    extraAgency = await permissionService.userHasRole(ownerUserId, 'agency');
+  } catch (_e) {
+    extraAgency = false;
+  }
+  if (!['agency', 'admin', 'super_admin', 'founder', 'ceo'].includes(role) && !extraAgency) {
     throw new Error('Agency not found for this user');
   }
 

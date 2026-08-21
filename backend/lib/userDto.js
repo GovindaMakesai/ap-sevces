@@ -7,7 +7,12 @@ function publicUser(user, { self = false } = {}) {
   if (!user) return null;
   const displayId = formatDisplayId(user.display_id);
   const role = String(user.role || '').toLowerCase();
-  const isAdmin = ['admin', 'super_admin', 'founder', 'ceo'].includes(role);
+  const roles = Array.isArray(user.roles)
+    ? user.roles.map((s) => String(s || '').toLowerCase()).filter(Boolean)
+    : [role].filter(Boolean);
+  const isAdmin = ['admin', 'super_admin', 'founder', 'ceo'].includes(role) || roles.some((s) => ['admin', 'super_admin', 'founder', 'ceo'].includes(s));
+  const isAgency = Boolean(user.is_agency) || role === 'agency' || roles.includes('agency');
+  const isCoinSeller = Boolean(user.is_coin_seller) || role === 'coin_seller' || roles.includes('coin_seller');
   const base = {
     first_name: user.first_name,
     last_name: user.last_name,
@@ -25,6 +30,9 @@ function publicUser(user, { self = false } = {}) {
       email: user.email,
       phone: user.phone,
       role: user.role,
+      roles,
+      is_agency: isAgency,
+      is_coin_seller: isCoinSeller,
       gender: user.gender || null,
       created_at: user.created_at,
       updated_at: user.updated_at || null,

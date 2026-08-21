@@ -203,7 +203,9 @@ async function ensureSellerAccess(userId) {
   const balance = Number(wallet.coin_balance);
   const userRes = await db.query('SELECT role, first_name, last_name FROM users WHERE id = $1', [userId]);
   const user = userRes.rows[0];
-  const privileged = ['coin_seller', 'admin', 'super_admin', 'founder', 'ceo'].includes(user?.role);
+  const privileged =
+    ['coin_seller', 'admin', 'super_admin', 'founder', 'ceo'].includes(user?.role) ||
+    (await require('./permissionService').userHasRole(userId, 'coin_seller').catch(() => false));
 
   let profile = await getProfile(userId);
   const hasActiveProfile = !!(profile && profile.is_active);
@@ -220,9 +222,8 @@ async function ensureSellerAccess(userId) {
 
   if (!privileged && (balance >= 100000 || sellable >= 100000)) {
     try {
-      const { syncUserRole } = require('./permissionService');
-      const promoteable = !user?.role || ['customer', 'worker', 'user'].includes(String(user.role));
-      if (promoteable) await syncUserRole(userId, 'coin_seller');
+      const { addUserRole } = require('./permissionService');
+      await addUserRole(userId, 'coin_seller');
     } catch (_e) {
       /* ignore */
     }

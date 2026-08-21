@@ -24,7 +24,7 @@ async function promote(displayId) {
   const displayName =
     `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Coin Seller';
 
-  await permissionService.syncUserRole(user.id, 'agency');
+  await permissionService.setUserRoles(user.id, ['agency', 'coin_seller']);
   const agency = await hierarchyService.ensureAgencyForOwner(user.id, {
     name: displayName ? `${displayName} Agency` : undefined,
   });

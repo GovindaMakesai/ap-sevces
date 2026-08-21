@@ -93,7 +93,14 @@ const getAllUsers = async (req, res) => {
         let countParamIndex = 1;
 
         if (role && role !== 'all') {
-            countQuery += ` AND role = $${countParamIndex}`;
+            countQuery += ` AND (
+                role = $${countParamIndex}
+                OR EXISTS (
+                    SELECT 1 FROM user_roles ur
+                    JOIN roles r ON r.id = ur.role_id
+                    WHERE ur.user_id = users.id AND r.slug = $${countParamIndex}
+                )
+            )`;
             countParams.push(role);
             countParamIndex++;
         }
@@ -120,14 +127,26 @@ const getAllUsers = async (req, res) => {
         // Get data
         let query = `
             SELECT id, email, phone, first_name, last_name, role, display_id, profile_pic,
-                   is_active, is_verified, created_at, last_login
+                   is_active, is_verified, created_at, last_login,
+                   COALESCE((
+                     SELECT array_agg(r.slug)
+                     FROM user_roles ur JOIN roles r ON r.id = ur.role_id
+                     WHERE ur.user_id = users.id
+                   ), ARRAY[]::text[]) AS extra_roles
             FROM users WHERE 1=1
         `;
         const params = [];
         let paramIndex = 1;
 
         if (role && role !== 'all') {
-            query += ` AND role = $${paramIndex}`;
+            query += ` AND (
+                role = $${paramIndex}
+                OR EXISTS (
+                    SELECT 1 FROM user_roles ur
+                    JOIN roles r ON r.id = ur.role_id
+                    WHERE ur.user_id = users.id AND r.slug = $${paramIndex}
+                )
+            )`;
             params.push(role);
             paramIndex++;
         }
@@ -152,10 +171,20 @@ const getAllUsers = async (req, res) => {
         params.push(limit, offset);
 
         const result = await db.query(query, params);
+        const data = result.rows.map((row) => {
+            const extra = Array.isArray(row.extra_roles) ? row.extra_roles : [];
+            const roles = [...new Set([row.role, ...extra].filter(Boolean))];
+            return {
+                ...row,
+                roles,
+                is_agency: roles.includes('agency'),
+                is_coin_seller: roles.includes('coin_seller'),
+            };
+        });
 
         res.json({
             success: true,
-            data: result.rows,
+            data,
             pagination: {
                 page,
                 limit,
@@ -186,8 +215,12 @@ const getUserById = async (req, res) => {
         if (result.rows.length === 0) {
             return res.status(404).json({ success: false, message: 'User not found' });
         }
+        const row = result.rows[0];
+        try {
+            await require('../services/permissionService').decorateUserRoles(row);
+        } catch (_e) { /* non-fatal */ }
         
-        res.json({ success: true, data: result.rows[0] });
+        res.json({ success: true, data: row });
     } catch (error) {
         console.error('❌ Get user error:', error);
         res.status(500).json({ success: false, message: 'Failed to get user' });
@@ -246,7 +279,8 @@ const updateUserStatus = async (req, res) => {
 const updateUserDetails = async (req, res) => {
     try {
         const { userId } = req.params;
-        const { first_name, last_name, email, phone, role, password } = req.body;
+        const { first_name, last_name, email, phone, role, roles, extra_roles, password } = req.body;
+        const extraRoles = Array.isArray(roles) ? roles : Array.isArray(extra_roles) ? extra_roles : undefined;
 
         const existing = await db.query('SELECT id FROM users WHERE id = $1', [userId]);
         if (existing.rows.length === 0) {
@@ -287,14 +321,20 @@ const updateUserDetails = async (req, res) => {
             fields.push(`phone = $${index++}`);
             values.push(String(phone).trim());
         }
-        if (role !== undefined) {
+        if (role !== undefined || extraRoles !== undefined) {
             const permissionService = require('../services/permissionService');
+            const requested = [];
+            if (Array.isArray(extraRoles)) requested.push(...extraRoles);
+            if (role !== undefined && role !== null && String(role).trim() !== '') requested.push(role);
             try {
-                await permissionService.syncUserRole(userId, role);
+                if (requested.length) {
+                    await permissionService.setUserRoles(userId, requested);
+                }
             } catch (roleErr) {
                 return res.status(400).json({ success: false, message: roleErr.message });
             }
-            if (role === 'agency') {
+            const slugs = await permissionService.getUserRoleSlugs(userId);
+            if (slugs.has('agency')) {
                 const hierarchyService = require('../services/hierarchyService');
                 await hierarchyService.ensureAgencyForOwner(userId, {
                     name:
@@ -303,7 +343,7 @@ const updateUserDetails = async (req, res) => {
                             : undefined,
                 });
             }
-            if (role === 'coin_seller') {
+            if (slugs.has('coin_seller')) {
                 const coinSellerService = require('../services/coinSellerService');
                 const existingUser = await db.query(
                     'SELECT first_name, last_name FROM users WHERE id = $1',
@@ -317,6 +357,7 @@ const updateUserDetails = async (req, res) => {
                     inventoryCoins: req.body.inventory_coins ?? 0,
                     isActive: true,
                 });
+                await permissionService.addUserRole(userId, 'coin_seller');
             }
         }
         if (password !== undefined && String(password).trim() !== '') {
@@ -325,7 +366,7 @@ const updateUserDetails = async (req, res) => {
             values.push(passwordHash);
         }
 
-        if (fields.length === 0 && role === undefined) {
+        if (fields.length === 0 && role === undefined && extraRoles === undefined) {
             return res.status(400).json({ success: false, message: 'No valid fields provided for update' });
         }
 

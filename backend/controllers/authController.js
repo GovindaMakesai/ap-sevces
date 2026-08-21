@@ -222,6 +222,9 @@ async function finishOAuthLogin(req, res, user, appRedirect) {
 
 async function respondAuthedJson(res, user, message, accessToken = null, refreshToken = null) {
     const { publicUser } = require('../lib/userDto');
+    try {
+      await require('../services/permissionService').decorateUserRoles(user);
+    } catch (_e) { /* non-fatal */ }
     const payload = { user: publicUser(user, { self: true }) };
     if (accessToken) payload.accessToken = accessToken;
     if (refreshToken) payload.refreshToken = refreshToken;
@@ -487,6 +490,9 @@ const updateProfile = async (req, res) => {
             return res.status(404).json({ success: false, message: 'User not found' });
         }
         const { publicUser } = require('../lib/userDto');
+        try {
+            await require('../services/permissionService').decorateUserRoles(user);
+        } catch (_e) { /* non-fatal */ }
         const nameChangeService = require('../services/nameChangeService');
         const quota = nameChange?.quota || (await nameChangeService.getNameChangeQuota(req.userId));
         res.json({
@@ -523,6 +529,9 @@ const uploadProfilePhoto = async (req, res) => {
             [profilePic, req.userId]
         );
         const { publicUser } = require('../lib/userDto');
+        try {
+            await require('../services/permissionService').decorateUserRoles(user);
+        } catch (_e) { /* non-fatal */ }
         res.json({
             success: true,
             data: { user: publicUser(user, { self: true }) },
@@ -622,6 +631,9 @@ const getMe = async (req, res) => {
             user = await User.findById(req.userId);
         }
         const { publicUser } = require('../lib/userDto');
+        try {
+            await require('../services/permissionService').decorateUserRoles(user);
+        } catch (_e) { /* non-fatal */ }
         let name_change = null;
         try {
             const nameChangeService = require('../services/nameChangeService');
@@ -881,6 +893,9 @@ const session = async (req, res) => {
         const user = await User.findById(req.userId);
         if (!user) return res.json({ success: true, data: { authenticated: false } });
         const { publicUser } = require('../lib/userDto');
+        try {
+            await require('../services/permissionService').decorateUserRoles(user);
+        } catch (_e) { /* non-fatal */ }
         return res.json({
             success: true,
             data: { authenticated: true, user: publicUser(user, { self: true }) },

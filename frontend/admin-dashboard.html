@@ -2285,16 +2285,30 @@
                         <input type="tel" class="form-control" id="newUserPhone" placeholder="Enter phone number" required>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">User Type</label>
+                        <label class="form-label">Primary role</label>
                         <select class="form-control" id="newUserRole">
                             <option value="customer">Customer</option>
                             <option value="worker">Worker</option>
                             <option value="coin_seller">Coin Seller</option>
                             <option value="creator">Host / Creator</option>
                             <option value="agency">Agency</option>
+                            <option value="bdm">Business Development</option>
                             <option value="admin">Admin</option>
                             <option value="super_admin">Super Admin</option>
                         </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Also assign (multiple allowed)</label>
+                        <p style="font-size:12px;color:#6b7280;margin:0 0 8px">Use this to give Agency and Coin Seller together. Primary role stays as selected above.</p>
+                        <label style="display:flex;align-items:center;gap:8px;margin:6px 0;font-weight:600">
+                            <input type="checkbox" id="extraRoleAgency" value="agency"> Agency
+                        </label>
+                        <label style="display:flex;align-items:center;gap:8px;margin:6px 0;font-weight:600">
+                            <input type="checkbox" id="extraRoleCoinSeller" value="coin_seller"> Coin Seller
+                        </label>
+                        <label style="display:flex;align-items:center;gap:8px;margin:6px 0;font-weight:600">
+                            <input type="checkbox" id="extraRoleCreator" value="creator"> Host / Creator
+                        </label>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Password</label>
@@ -2428,7 +2442,7 @@
     <!-- Toast Container -->
     <div id="toast" class="toast"></div>
 
-    <script src="app.js"></script>
+    <script src="app.js?v=20260821-multirole"></script>
     
     <script>
         // ==================== GLOBAL STATE ====================
@@ -3680,6 +3694,10 @@
             document.getElementById('userModalSaveBtn').textContent = 'Create User';
             document.getElementById('addUserForm').reset();
             document.getElementById('newUserPassword').value = 'Welcome@123';
+            ['extraRoleAgency', 'extraRoleCoinSeller', 'extraRoleCreator'].forEach((id) => {
+                const el = document.getElementById(id);
+                if (el) el.checked = false;
+            });
             const walletBox = document.getElementById('platformWalletFields');
             if (walletBox) walletBox.style.display = 'none';
             document.getElementById('addUserModal').classList.add('show');
@@ -3715,6 +3733,14 @@
                 document.getElementById('newUserEmail').value = user.email || '';
                 document.getElementById('newUserPhone').value = user.phone || '';
                 document.getElementById('newUserRole').value = user.role || 'customer';
+                const extras = new Set([...(user.roles || []), ...(user.extra_roles || [])].map((s) => String(s || '').toLowerCase()));
+                extras.add(String(user.role || '').toLowerCase());
+                const agencyBox = document.getElementById('extraRoleAgency');
+                const sellerBox = document.getElementById('extraRoleCoinSeller');
+                const creatorBox = document.getElementById('extraRoleCreator');
+                if (agencyBox) agencyBox.checked = extras.has('agency') || user.is_agency;
+                if (sellerBox) sellerBox.checked = extras.has('coin_seller') || user.is_coin_seller;
+                if (creatorBox) creatorBox.checked = extras.has('creator');
                 document.getElementById('newUserPassword').value = '';
                 const walletBox = document.getElementById('platformWalletFields');
                 if (walletBox) {
@@ -3739,12 +3765,17 @@
                 return;
             }
 
+            const extras = [];
+            if (document.getElementById('extraRoleAgency')?.checked) extras.push('agency');
+            if (document.getElementById('extraRoleCoinSeller')?.checked) extras.push('coin_seller');
+            if (document.getElementById('extraRoleCreator')?.checked) extras.push('creator');
             const userData = {
                 first_name: firstName,
                 last_name: lastName,
                 email: document.getElementById('newUserEmail').value,
                 phone: document.getElementById('newUserPhone').value,
-                role: document.getElementById('newUserRole').value
+                role: document.getElementById('newUserRole').value,
+                roles: [document.getElementById('newUserRole').value, ...extras]
             };
             const passwordValue = (document.getElementById('newUserPassword').value || '').trim();
             if (passwordValue) {

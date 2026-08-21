@@ -324,7 +324,7 @@
   <div id="social-bottom-nav-mount"></div>
 
   <script src="ap-config.js"></script>
-  <script src="app.js?v=20260820-slowfix"></script>
+  <script src="app.js?v=20260821-multirole"></script>
   <script src="social-wallet.js?v=20260715-wallet-fix"></script>
   <script src="social-ui.js?v=20260624-profile-url-fix"></script>
   <script src="social-interactions.js?v=20260821-letterbox"></script>
@@ -935,10 +935,23 @@
           }
         }
         const role = String(user.role || '').toLowerCase();
+        const hasRole = (slug) => {
+          const s = String(slug || '').toLowerCase();
+          if (role === s) return true;
+          if (s === 'agency' && user.is_agency) return true;
+          if ((s === 'coin_seller' || s === 'seller') && user.is_coin_seller) return true;
+          if (Array.isArray(user.roles) && user.roles.some((x) => String(x).toLowerCase() === s)) return true;
+          try {
+            if (typeof Auth !== 'undefined' && Auth.hasRole && String(Auth.getUser?.()?.id || '') === String(user.id || '')) {
+              return Auth.hasRole(s);
+            }
+          } catch (_e) {}
+          return false;
+        };
         const coinSellerLink = document.getElementById('coinSellerLink');
         if (coinSellerLink) {
           coinSellerLink.href = '/coin-seller-center.html?app=1';
-          coinSellerLink.style.display = role === 'coin_seller' ? 'flex' : 'none';
+          coinSellerLink.style.display = hasRole('coin_seller') ? 'flex' : 'none';
         }
         const hostCenterLink = document.getElementById('hostCenterLink');
         if (hostCenterLink) {
@@ -963,7 +976,11 @@
         }
         const roleApply = document.getElementById('roleApplyLink');
         if (roleApply) {
-          const hideApply = ['agency', 'creator', 'coin_seller', 'bdm', 'admin', 'super_admin', 'founder', 'ceo'].includes(role);
+          const hideApply =
+            ['agency', 'creator', 'coin_seller', 'bdm', 'admin', 'super_admin', 'founder', 'ceo'].includes(role) ||
+            hasRole('agency') ||
+            hasRole('coin_seller') ||
+            hasRole('creator');
           roleApply.style.display = hideApply ? 'none' : 'flex';
         }
         const myAgencyLink = document.getElementById('myAgencyLink');
@@ -977,7 +994,7 @@
           }
         }
         const agencyLink = document.getElementById('agencyLink');
-        if (['agency', 'admin', 'super_admin'].includes(role) && agencyLink) {
+        if ((hasRole('agency') || ['admin', 'super_admin'].includes(role)) && agencyLink) {
           agencyLink.style.display = 'flex';
           agencyLink.href = '/agency-center.html?app=1';
         }
@@ -1035,7 +1052,11 @@
             const giftLink = document.getElementById('statGiftCoinsLink');
             const liveRole = String(Auth.getUser?.()?.role || user.role || '').toLowerCase();
             const sellerRoles = ['coin_seller', 'admin', 'super_admin', 'founder', 'ceo'];
-            const isCoinSeller = liveRole === 'coin_seller' || !!b.is_coin_seller;
+            const isCoinSeller =
+              liveRole === 'coin_seller' ||
+              !!b.is_coin_seller ||
+              !!user.is_coin_seller ||
+              (typeof Auth !== 'undefined' && Auth.hasRole?.('coin_seller'));
             const showGiftCoins = sellerRoles.includes(liveRole) || !!b.is_coin_seller;
             const sellStock = Number(b.sell_inventory_coins ?? b.inventory_coins ?? 0);
             const walletCoins = Number(b.coin_balance || 0);

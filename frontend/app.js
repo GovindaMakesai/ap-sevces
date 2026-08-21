@@ -1233,6 +1233,20 @@ const Auth = {
         localStorage.removeItem('user');
     },
 
+    hasRole(slug) {
+        const s = String(slug || '').toLowerCase();
+        const user = this.getUser();
+        if (!user || !s) return false;
+        if (String(user.role || '').toLowerCase() === s) return true;
+        if (s === 'agency' && user.is_agency) return true;
+        if ((s === 'coin_seller' || s === 'seller') && user.is_coin_seller) return true;
+        const roles = Array.isArray(user.roles) ? user.roles : [];
+        return roles.some((r) => {
+            const x = String(r || '').toLowerCase();
+            return x === s || (s === 'seller' && x === 'coin_seller') || (s === 'host' && x === 'creator');
+        });
+    },
+
     // Check if current user is admin
     isAdmin() {
         return this.getUser()?.role === 'admin';
@@ -2253,10 +2267,12 @@ function formatProfileRoleBadgesHtml(user, { withEmoji = true, skipAdmin = false
     };
     if (!skipAdmin && window.isPlatformAdminUser?.(user)) push('admin');
     const r = String(user.role || '').toLowerCase();
-    if (r === 'bdm' || r === 'bd') push('bd');
-    if (r === 'agency') push('agency');
-    if (r === 'creator' || r === 'host') push('host');
-    if (r === 'coin_seller' || r === 'seller' || user.is_coin_seller === true) push('seller');
+    const extras = Array.isArray(user.roles) ? user.roles.map((x) => String(x || '').toLowerCase()) : [];
+    const has = (slug) => r === slug || extras.includes(slug);
+    if (r === 'bdm' || r === 'bd' || has('bdm')) push('bd');
+    if (r === 'agency' || user.is_agency === true || has('agency')) push('agency');
+    if (r === 'creator' || r === 'host' || has('creator')) push('host');
+    if (r === 'coin_seller' || r === 'seller' || user.is_coin_seller === true || has('coin_seller')) push('seller');
     if (!skipAdmin && ['admin', 'super_admin', 'founder', 'ceo'].includes(r)) push('admin');
     /* Self profile only — viewer wallet must not add seller chip on other users */
     try {
