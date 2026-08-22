@@ -1266,15 +1266,42 @@ body[data-live-page='party-room'] #partyBottomBar > .live-chat-compose {
   flex-shrink: 1 !important;
 }
 
-body[data-live-page='party-room'] #partyRefGamesBtn {
+body[data-live-page='party-room'] #partyRefGamesBtn,
+body[data-live-page='party-room'] .party-ref-games-btn {
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  width: 40px !important;
+  height: 40px !important;
+  min-width: 40px !important;
   background: linear-gradient(135deg, #f59e0b, #ea580c) !important;
   color: #fff !important;
 }
 
-@media (max-width: 400px) {
+body[data-live-page='party-room'] .ap-party-settings-game-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 14px 0 4px;
+}
+
+body[data-live-page='party-room'] .ap-party-settings-game-row .ap-tool-game {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 6px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+@media (max-width: 420px) {
   body[data-live-page='party-room'] #partyRefPromoBtn {
     display: none !important;
   }

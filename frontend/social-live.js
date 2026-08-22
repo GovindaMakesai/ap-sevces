@@ -17619,6 +17619,8 @@
           sheet.style.pointerEvents = 'none';
           sheet.style.display = 'none';
         }
+        document.getElementById('apPartyRoomSettings')?.classList.remove('open');
+        closePartyGamePicker();
         syncLiveOverlayClass();
       });
     });
@@ -19607,6 +19609,10 @@
       location.href = '/coins-recharge.html?app=1';
     });
     document.getElementById('partyRefGamesBtn')?.addEventListener('click', () => {
+      openPartyGamePicker();
+    });
+    document.getElementById('partySettingGames')?.addEventListener('click', () => {
+      closePartyRefModals();
       openPartyGamePicker();
     });
 

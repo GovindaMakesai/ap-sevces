@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" media="print" onload="this.media='all'">
   <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"></noscript>
   <link rel="stylesheet" href="social-theme.css?v=20260729-instant">
-  <link rel="stylesheet" href="social-features.css?v=20260816-rank-nav">
+  <link rel="stylesheet" href="social-features.css?v=20260822-gamerank">
   <link rel="stylesheet" href="social-fx.css?v=20260816-rank-nav">
   <style>
     @keyframes rankSkel { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
@@ -23,6 +23,7 @@
         <a href="#" class="social-rank-main-tab" data-tab="rich">Rich</a>
         <a href="#" class="social-rank-main-tab" data-tab="gift">Gift</a>
         <a href="#" class="social-rank-main-tab" data-tab="video">Video</a>
+        <a href="#" class="social-rank-main-tab" data-tab="game">Game</a>
         <a href="/cp-rankings.html?app=1" class="social-rank-main-tab social-rank-main-tab--cp" data-external-rank="cp">CP</a>
       </nav>
       <a href="/help.html?app=1" class="social-rank-back"><i class="fas fa-question-circle"></i></a>
@@ -63,6 +64,13 @@
     </div>
     <div class="social-rank-list" id="rankListVideo"></div>
   </div>
+  <div data-rank-panel="game" style="display:none">
+    <div class="social-rank-promo" id="rankPromoGame">
+      <span class="flags">🎮 Game Rank</span>
+      <p>Top players by coins won in party games</p>
+    </div>
+    <div class="social-rank-list" id="rankListGame"></div>
+  </div>
 
   <div id="social-bottom-nav-mount"></div>
 
@@ -74,7 +82,7 @@
   <script src="social-nav.js"></script>
   <script defer src="social-fx.js"></script>
   <script>
-    const TAB_CATEGORY = { host: 'creators', rich: 'gifters', gift: 'gifters', video: 'video' };
+    const TAB_CATEGORY = { host: 'creators', rich: 'gifters', gift: 'gifters', video: 'video', game: 'games' };
     const TAB_MODE = { host: '', rich: '', gift: 'count', video: '' };
     const API_ROOT = (window.AP_SERVICES_API_ROOT || 'https://api.apservices.in/api').replace(/\/+$/, '');
     const urlParams = new URLSearchParams(location.search);
@@ -176,7 +184,7 @@
 
     function formatScore(score, tab) {
       const n = Number(score || 0);
-      const suffix = tab === 'gift' ? ' gifts' : '';
+      const suffix = tab === 'gift' ? ' gifts' : tab === 'game' ? ' coins' : '';
       if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M' + suffix;
       if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K' + suffix;
       return String(Math.round(n)) + suffix;
@@ -283,7 +291,7 @@
       el.innerHTML = `<div class="social-rank-empty" style="text-align:center;padding:32px 20px;color:#8b6914">
         <div style="font-size:40px;margin-bottom:12px">🏆</div>
         <p style="font-weight:700;margin:0 0 6px">No rankings yet ${periodLabel(currentPeriod)}</p>
-        <p style="font-size:13px;margin:0;opacity:0.85">Go live, send gifts, or post videos to appear here.</p>
+        <p style="font-size:13px;margin:0;opacity:0.85">Go live, send gifts, play games, or post videos to appear here.</p>
       </div>`;
     }
 

@@ -2018,13 +2018,26 @@ html.ap-expo-app .social-rank-page--gold .social-rank-sticky-top {
   padding-top: max(8px, env(safe-area-inset-top, 0px));
 }
 .social-rank-back { color: var(--gold-800); font-size: 18px; text-decoration: none; width: 32px; }
-.social-rank-main-tabs { display: flex; flex: 1; justify-content: center; gap: 12px; }
+.social-rank-main-tabs {
+  display: flex;
+  flex: 1;
+  justify-content: flex-start;
+  gap: 12px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  flex-wrap: nowrap;
+  max-width: calc(100vw - 88px);
+  scrollbar-width: none;
+}
+.social-rank-main-tabs::-webkit-scrollbar { display: none; }
 .social-rank-main-tab {
   color: var(--gold-600);
   text-decoration: none;
   font-weight: 600;
   font-size: 14px;
   padding-bottom: 4px;
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 .social-rank-main-tab.active { color: var(--gold-800); border-bottom: 2px solid var(--gold-600); }
 .social-rank-main-tab--cp {

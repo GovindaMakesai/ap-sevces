@@ -28,7 +28,7 @@
 
   <link rel="stylesheet" href="social-live-ref-ui.css?v=20260815-gift-all">
 
-  <link rel="stylesheet" href="social-party-ref.css?v=20260822-games">
+  <link rel="stylesheet" href="social-party-ref.css?v=20260822-games2">
   <link rel="stylesheet" href="profile-badges.css?v=20260816-badge-cache">
   <link rel="stylesheet" href="cp-profile-card.css?v=20260814-cpprofile2">
 
@@ -313,9 +313,9 @@
 
     <div class="party-ref-bottom-right">
 
-      <button type="button" id="partyBtnTools" class="party-ref-bar-btn ap-btn-grid" aria-label="Room settings"><i class="fas fa-th"></i><span class="ap-notify-dot" id="apToolsNotifyDot" hidden></span></button>
+      <button type="button" class="party-ref-bar-btn party-ref-games-btn" id="partyRefGamesBtn" aria-label="Games"><i class="fas fa-gamepad"></i></button>
 
-      <button type="button" class="party-ref-bar-btn" id="partyRefGamesBtn" aria-label="Games"><i class="fas fa-gamepad"></i></button>
+      <button type="button" id="partyBtnTools" class="party-ref-bar-btn ap-btn-grid" aria-label="Room settings"><i class="fas fa-th"></i><span class="ap-notify-dot" id="apToolsNotifyDot" hidden></span></button>
 
       <button type="button" class="party-ref-promo-badge" id="partyRefPromoBtn" aria-label="Recharge offer">70%<br>OFF</button>
 
@@ -363,6 +363,14 @@
 
         <button type="button" id="partySettingMusic"><span class="ico"><i class="fas fa-music"></i></span>Music</button>
 
+        <button type="button" id="partySettingGames"><span class="ico"><i class="fas fa-gamepad"></i></span>Games</button>
+
+      </div>
+
+      <div class="ap-party-settings-game-row" id="partySettingsGameRow">
+        <button type="button" class="ap-tool-game" data-game="/games/crazy-fruit.html"><span class="game-ico">🍒</span>Crazy Fruit</button>
+        <button type="button" class="ap-tool-game" data-game="/games/greedy.html"><span class="game-ico">💎</span>Khazana</button>
+        <button type="button" class="ap-tool-game" data-game="/games/teen-patti.html"><span class="game-ico">🃏</span>Teen Patti</button>
       </div>
 
       <button type="button" class="ap-tool-close-fab" id="apPartySettingsClose" aria-label="Close"><i class="fas fa-times"></i></button>
@@ -587,7 +595,17 @@
 
   <div class="party-tools-sheet" id="partyToolsSheet" hidden aria-hidden="true">
 
-    <div class="party-tools-panel"><button type="button" id="partyToolsClose"></button></div>
+    <div class="party-tools-panel">
+      <button type="button" id="partyToolsClose" aria-label="Close"></button>
+      <section data-tools-section="games">
+        <h3 class="party-tools-title party-tools-title--games">Games</h3>
+        <div class="party-tools-grid party-tools-grid-4">
+          <button type="button" class="ap-tool-game" data-game="/games/crazy-fruit.html"><span class="ico" style="background:linear-gradient(135deg,#f59e0b,#b45309)">🍒</span>Crazy Fruit</button>
+          <button type="button" class="ap-tool-game" data-game="/games/greedy.html"><span class="ico" style="background:linear-gradient(135deg,#7c3aed,#4c1d95)">💎</span>Krazy Khazana</button>
+          <button type="button" class="ap-tool-game" data-game="/games/teen-patti.html"><span class="ico" style="background:linear-gradient(135deg,#8b5cf6,#4c1d95)">🃏</span>Teen Patti</button>
+        </div>
+      </section>
+    </div>
 
   </div>
 
@@ -653,7 +671,7 @@
   <script src="profile-badges.js?v=20260816-admin-dedupe"></script>
   <link rel="stylesheet" href="cosmetics.css?v=20260819-entry-dm">
   <script src="cosmetics.js?v=20260819-entry-dm"></script>
-  <script src="social-live.js?v=20260822-games"></script>
+  <script src="social-live.js?v=20260822-games2"></script>
 
   <script src="social-nav.js?v=20260720-back-fix"></script>
 

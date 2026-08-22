@@ -152,6 +152,22 @@ async function computeEngagementLeaderboard(periodType, category, limit = 50, op
        LIMIT $2`,
       [since, lim]
     );
+  } else if (category === 'games') {
+    res = await db.query(
+      `SELECT gr.user_id AS entity_id,
+              COALESCE(SUM(gr.payout_amount), 0)::bigint AS score,
+              TRIM(CONCAT(u.first_name, ' ', u.last_name)) AS entity_label,
+              u.profile_pic
+       FROM game_rounds gr
+       JOIN users u ON u.id = gr.user_id AND u.is_active = TRUE
+       WHERE gr.payout_amount > 0
+         AND gr.created_at >= $1
+       GROUP BY gr.user_id, u.first_name, u.last_name, u.profile_pic
+       HAVING COALESCE(SUM(gr.payout_amount), 0) > 0
+       ORDER BY score DESC, entity_label ASC
+       LIMIT $2`,
+      [since, lim]
+    );
   } else {
     return [];
   }
@@ -209,7 +225,7 @@ async function getLeaderboard(periodType, category, limit = 50, opts = {}) {
   }
 
   let rows = [];
-  const forceLive = category === 'video' || opts.mode === 'count';
+  const forceLive = category === 'video' || category === 'games' || opts.mode === 'count';
 
   if (!forceLive) {
     const res = await db.query(
