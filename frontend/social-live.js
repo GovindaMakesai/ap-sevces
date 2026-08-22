@@ -17880,6 +17880,8 @@
       window.SocialWallet?.invalidateBalance?.();
       refreshCoinDisplay().catch(() => { });
     }
+    window.openGameOverlay = openGameOverlay;
+    window.closeGameOverlay = closeGameOverlay;
     document.getElementById('partyToolsSheet')?.addEventListener('click', (e) => {
       if (e.target.id !== 'partyToolsSheet') return;
       /* Ignore the same tap that opened the sheet (lands on backdrop) */
@@ -19504,6 +19506,49 @@
     );
   }
 
+  function playablePartyGames() {
+    return PARTY_GAME_TYPES.filter((g) => g.game);
+  }
+
+  function closePartyGamePicker() {
+    document.getElementById('apPartyGamePicker')?.remove();
+  }
+
+  function openPartyGamePicker() {
+    closePartyGamePicker();
+    const selected = roomState?.roomStyle?.gameType || '';
+    const wrap = document.createElement('div');
+    wrap.id = 'apPartyGamePicker';
+    wrap.className = 'ap-party-game-picker';
+    wrap.innerHTML =
+      `<div class="ap-party-game-picker-sheet" role="dialog" aria-label="Games">
+        <div class="ap-party-game-picker-handle"></div>
+        <h3>Games</h3>
+        <div class="ap-party-game-picker-grid">
+          ${playablePartyGames()
+            .map(
+              (g) =>
+                `<button type="button" class="${g.id === selected ? 'is-selected' : ''}" data-game-id="${g.id}" data-game-url="${g.game}"><span class="game-ico">${g.emoji}</span><span>${escapeHtml(g.label)}</span></button>`
+            )
+            .join('')}
+        </div>
+        <button type="button" class="ap-party-game-picker-close" id="apPartyGamePickerClose">Close</button>
+      </div>`;
+    document.body.appendChild(wrap);
+    requestAnimationFrame(() => wrap.classList.add('is-open'));
+    wrap.addEventListener('click', (e) => {
+      if (e.target === wrap) closePartyGamePicker();
+    });
+    wrap.querySelector('#apPartyGamePickerClose')?.addEventListener('click', closePartyGamePicker);
+    wrap.querySelectorAll('[data-game-url]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const url = btn.getAttribute('data-game-url');
+        closePartyGamePicker();
+        if (url && typeof window.openGameOverlay === 'function') window.openGameOverlay(url);
+      });
+    });
+  }
+
   function paintPartyGameTypeGrid() {
     const grid = document.getElementById('partyGameTypeGrid');
     if (!grid) return;
@@ -19562,9 +19607,7 @@
       location.href = '/coins-recharge.html?app=1';
     });
     document.getElementById('partyRefGamesBtn')?.addEventListener('click', () => {
-      const gt = PARTY_GAME_TYPES.find((g) => g.id === (roomState?.roomStyle?.gameType || 'none'));
-      if (gt?.game) openGameOverlay(gt.game);
-      else toast('Select a game in Settings → Setting', 'info');
+      openPartyGamePicker();
     });
 
     document.getElementById('partyRefChatBtn')?.addEventListener('click', () => {

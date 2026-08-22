@@ -58,8 +58,11 @@
       'html.ap-expo-app .chat-item.active{background:rgba(201,162,39,.12)!important;border-left-color:#c9a227!important}',
       'html.ap-expo-app .message-wrapper.sent .message-content{background:linear-gradient(135deg,#d4a84b,#9a7218)!important;color:#fff!important}',
       'html.ap-expo-app .message-wrapper.received .message-content{background:#fff!important;color:#1f2937!important}',
+      'html.ap-expo-app .chat-input-wrapper{width:100%!important;max-width:100%!important;min-width:0!important;box-sizing:border-box!important;gap:4px!important}',
+      'html.ap-expo-app .chat-input-wrapper textarea,#messageInput{flex:1 1 0%!important;min-width:0!important;width:auto!important}',
       'html.ap-expo-app .chat-input-wrapper:focus-within{border-color:#c9a227!important;box-shadow:0 0 0 3px rgba(201,162,39,.2)!important}',
-      'html.ap-expo-app .send-btn,html.ap-expo-app .chat-input-action.send-btn{background:linear-gradient(135deg,#ff8c42,#f59e0b)!important;color:#fff!important}',
+      'html.ap-expo-app .send-btn,html.ap-expo-app .chat-input-action.send-btn,#sendBtn{display:inline-flex!important;flex:0 0 40px!important;width:40px!important;min-width:40px!important;height:40px!important;background:linear-gradient(135deg,#ff8c42,#f59e0b)!important;color:#fff!important}',
+      '@media (max-width:420px){html.ap-expo-app .chat-input-action.attach-btn--video{display:none!important}}',
       'html.ap-expo-app .unread-badge{background:#f59e0b!important}',
     ].join('');
     (document.head || html).appendChild(style);

@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
     <title>Message - AP Services</title>
     <meta name="theme-color" content="#fff9f0">
-    <script src="/ap-native-boot.js"></script>
+    <script src="/ap-native-boot.js?v=20260822-sendfix"></script>
     <link rel="stylesheet" href="/social-theme.css?v=20260729-perf2">
-    <link rel="stylesheet" href="/social-chat.css?v=20260815-chatfix">
+    <link rel="stylesheet" href="/social-chat.css?v=20260822-sendfix">
     <link rel="stylesheet" href="/cosmetics.css?v=20260819-entry-dm">
     <link rel="stylesheet" href="/cp-chat-cards.css?v=20260815-cpmsg">
     
@@ -1229,12 +1229,40 @@
 
             .chat-input-wrapper {
                 padding: 0.25rem;
+                width: 100%;
+                max-width: 100%;
+                min-width: 0;
+                box-sizing: border-box;
+                gap: 4px;
+            }
+
+            .chat-input-wrapper textarea,
+            #messageInput {
+                flex: 1 1 0%;
+                min-width: 0;
+                width: auto;
             }
 
             .chat-input-action {
-                width: 35px;
-                height: 35px;
+                width: 32px;
+                height: 32px;
                 font-size: 1rem;
+                flex-shrink: 0;
+            }
+
+            .chat-input-action.send-btn,
+            #sendBtn {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 38px;
+                min-width: 38px;
+                height: 38px;
+                flex: 0 0 38px;
+            }
+
+            .chat-input-action.attach-btn--video {
+                display: none;
             }
         }
 

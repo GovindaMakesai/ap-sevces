@@ -1054,12 +1054,15 @@ html.ap-expo-app .chat-input-wrapper {
   padding: 6px 10px;
 }
 
-html.ap-expo-app .chat-input-wrapper textarea {
+html.ap-expo-app .chat-input-wrapper textarea,
+.chat-input-wrapper textarea {
   border: none;
   background: transparent;
-  flex: 1;
+  flex: 1 1 0%;
+  min-width: 0;
+  width: 0;
   resize: none;
-  font-size: 14px;
+  font-size: 16px;
   min-height: 24px;
   max-height: 80px;
 }
@@ -1328,5 +1331,79 @@ html.social-app .chat-gift-send {
 @media (min-width: 769px) {
   html:not(.ap-expo-app):not(.social-app) .ap-msg-quick-row {
     display: none;
+  }
+}
+
+/* Keep Send on-screen: left icons + textarea min-width were shoving it off narrow phones. */
+.chat-input-container,
+body.chat-active .chat-input-container {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.chat-input-wrapper,
+html.ap-expo-app .chat-input-wrapper,
+body.chat-active .chat-input-wrapper {
+  display: flex !important;
+  align-items: center !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+  gap: 4px !important;
+}
+
+.chat-input-actions,
+.emoji-picker-container {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.chat-input-wrapper textarea,
+html.ap-expo-app .chat-input-wrapper textarea,
+#messageInput {
+  flex: 1 1 0% !important;
+  min-width: 0 !important;
+  width: auto !important;
+  max-width: 100%;
+}
+
+.chat-input-action.send-btn,
+html.ap-expo-app .chat-input-action.send-btn,
+#sendBtn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex: 0 0 40px !important;
+  width: 40px !important;
+  min-width: 40px !important;
+  height: 40px !important;
+  margin-left: 2px !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  position: relative !important;
+  z-index: 3 !important;
+}
+
+@media (max-width: 420px) {
+  .chat-input-action.attach-btn--video {
+    display: none !important;
+  }
+  .chat-input-action {
+    width: 32px !important;
+    height: 32px !important;
+    min-width: 32px !important;
+    font-size: 0.95rem !important;
+  }
+  .chat-input-action.send-btn,
+  #sendBtn {
+    flex-basis: 38px !important;
+    width: 38px !important;
+    min-width: 38px !important;
+    height: 38px !important;
   }
 }
