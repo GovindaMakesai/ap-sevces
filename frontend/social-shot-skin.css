@@ -1,0 +1,462 @@
+/* Screenshot replica skin — visual only. Do not hide existing actions. */
+
+body.social-explore-page {
+  background: #faf6ee;
+}
+
+body.social-explore-page .social-top {
+  background:
+    radial-gradient(120% 80% at 50% -20%, rgba(232, 197, 120, 0.28), transparent 55%),
+    #fdf8ee;
+  padding-top: max(8px, env(safe-area-inset-top, 0px));
+  padding-bottom: 8px;
+}
+
+body.social-explore-page .social-explore-tabs-wrap {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin: 0;
+  padding: 2px 10px 0;
+  overflow: visible;
+}
+
+body.social-explore-page .social-explore-tabs {
+  flex: 1;
+  min-width: 0;
+  gap: 14px;
+  padding: 6px 0 8px;
+}
+
+body.social-explore-page .social-explore-tabs button {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  padding: 4px 0 8px !important;
+  color: #c4a46a !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  transform: none !important;
+}
+
+body.social-explore-page .social-explore-tabs button.active {
+  color: #8a5a12 !important;
+  font-size: 20px !important;
+  font-weight: 800 !important;
+}
+
+body.social-explore-page .social-explore-tabs button::after {
+  display: block !important;
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 18px;
+  height: 3px;
+  margin-left: -9px;
+  border-radius: 99px;
+  background: transparent;
+}
+
+body.social-explore-page .social-explore-tabs button.active::after {
+  background: #c9a227;
+}
+
+body.social-explore-page .social-explore-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 8px;
+}
+
+body.social-explore-page .social-icon-btn {
+  background: transparent;
+  color: #c9a227;
+  font-size: 18px;
+  width: 34px;
+  height: 34px;
+}
+
+body.social-explore-page .social-global-pill {
+  background: transparent;
+  border: none;
+  color: #8a5a12;
+  font-weight: 700;
+  gap: 4px;
+  padding: 0 2px;
+}
+
+body.social-explore-page .social-explore-search-row {
+  margin: 4px 12px 8px;
+}
+
+body.social-explore-page .social-search {
+  background: #f4ead6;
+  border: 1px solid rgba(201, 162, 39, 0.22);
+  border-radius: 999px;
+  height: 40px;
+  padding: 0 14px;
+}
+
+body.social-explore-page .social-search i {
+  color: #c9a227;
+}
+
+body.social-explore-page .social-search input {
+  background: transparent;
+  color: #6b4f10;
+}
+
+body.social-explore-page #social-banner-slider {
+  display: block;
+  margin: 0 12px 10px;
+}
+
+body.social-explore-page .social-banner-slide {
+  min-height: 112px;
+}
+
+body.social-explore-page .social-banner,
+.shot-banner {
+  position: relative;
+  overflow: hidden;
+  min-height: 112px;
+  border-radius: 14px;
+  padding: 12px 16px 16px;
+  color: #fff;
+}
+
+body.social-explore-page .shot-banner .social-banner-content,
+.shot-banner .social-banner-content {
+  position: relative;
+  inset: auto;
+  padding: 0;
+  background: none;
+  justify-content: flex-start;
+  min-height: 88px;
+}
+
+.shot-banner h2 {
+  margin: 2px 0 6px;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #ffe9a8 !important;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.shot-banner-dates {
+  margin: 0;
+  font-size: 11px;
+  opacity: 0.92;
+}
+
+.shot-banner-prizes {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.shot-banner-prizes span {
+  color: #ffe08a;
+}
+
+.shot-banner-art {
+  position: absolute;
+  right: 14px;
+  bottom: 6px;
+  font-size: 46px;
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.35));
+}
+
+.shot-banner--lucky {
+  background:
+    radial-gradient(circle at 82% 70%, rgba(255, 220, 120, 0.45), transparent 42%),
+    linear-gradient(120deg, #5a320c 0%, #b45309 48%, #7c2d12 100%);
+}
+
+.shot-banner--pk {
+  background:
+    radial-gradient(circle at 50% 40%, rgba(168, 85, 247, 0.45), transparent 46%),
+    linear-gradient(120deg, #1e1b4b 0%, #6d28d9 50%, #b45309 100%);
+}
+
+.shot-banner--host {
+  background: linear-gradient(120deg, #7c3aed, #db2777 55%, #f59e0b);
+}
+
+body.social-explore-page .social-banner-dots {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 8px;
+  padding: 0;
+  z-index: 2;
+}
+
+body.social-explore-page .social-banner-slider {
+  position: relative;
+}
+
+body.social-explore-page .social-banner-dots button {
+  background: rgba(255, 255, 255, 0.55);
+}
+
+body.social-explore-page .social-banner-dots button.active {
+  background: #fff;
+}
+
+body.social-explore-page .social-explore-feed-head {
+  display: none;
+}
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+body.social-explore-page .social-live-card .live-type-badge {
+  top: 8px;
+  right: 8px;
+  left: auto;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  border: none;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
+body.social-explore-page .social-live-card .live-host-avatar,
+body.social-explore-page .social-live-card .live-host-sub,
+body.social-explore-page .social-live-card .live-age {
+  display: none;
+}
+
+body.social-explore-page .social-live-card .bottom {
+  background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.72));
+  padding: 28px 8px 8px;
+}
+
+body.social-explore-page .social-live-card .name {
+  max-width: 70%;
+  color: #fff;
+  font-size: 12px;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+
+body.social-explore-page .social-live-card .live-viewer-badge {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  top: auto;
+  left: auto;
+  background: transparent;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 0;
+}
+
+body.social-explore-page .social-start-live,
+body.social-explore-page .social-start-party {
+  left: auto !important;
+  right: 14px !important;
+  bottom: calc(var(--social-bottom-nav-h) + var(--social-safe-bottom) + 18px) !important;
+  min-height: 44px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ff8c42, #f59e0b) !important;
+  box-shadow: 0 6px 18px rgba(245, 158, 11, 0.45);
+}
+
+body.social-explore-page .ap-tap-for-sound {
+  animation: none;
+}
+
+/* Rankings skins */
+body.social-rank-page.rank-skin-host {
+  background: #ff2d8a;
+}
+body.social-rank-page.rank-skin-host .social-rank-sticky-top {
+  background: linear-gradient(180deg, #ff4da6 0%, #ff2d8a 100%);
+  color: #fff;
+}
+body.social-rank-page.rank-skin-rich {
+  background: #0b1020;
+}
+body.social-rank-page.rank-skin-rich .social-rank-sticky-top {
+  background:
+    radial-gradient(circle at 20% 0%, rgba(255, 255, 255, 0.16), transparent 36%),
+    linear-gradient(180deg, #141a33, #0b1020);
+  color: #fff;
+}
+body.social-rank-page.rank-skin-gift {
+  background: #1d4ed8;
+}
+body.social-rank-page.rank-skin-gift .social-rank-sticky-top {
+  background: linear-gradient(180deg, #2563eb, #1d4ed8);
+  color: #fff;
+}
+body.social-rank-page.rank-skin-video {
+  background: #4c0519;
+}
+body.social-rank-page.rank-skin-video .social-rank-sticky-top {
+  background: linear-gradient(180deg, #7f1d5a, #4c0519);
+  color: #fff;
+}
+body.social-rank-page.rank-skin-game {
+  background: #3b0764;
+}
+body.social-rank-page.rank-skin-game .social-rank-sticky-top {
+  background: linear-gradient(180deg, #6d28d9, #3b0764);
+  color: #fff;
+}
+
+body.social-rank-page.rank-skin .social-rank-back,
+body.social-rank-page.rank-skin .social-rank-main-tab {
+  color: rgba(255, 255, 255, 0.78) !important;
+}
+body.social-rank-page.rank-skin .social-rank-main-tab.active {
+  color: #fff !important;
+  border-bottom-color: #fff !important;
+}
+body.social-rank-page.rank-skin .social-rank-sub-tab {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  padding: 6px 14px;
+}
+body.social-rank-page.rank-skin .social-rank-sub-tab.active {
+  background: #fff;
+  color: #111;
+}
+body.social-rank-page.rank-skin .social-rank-promo {
+  margin: 8px 12px 0;
+  border-radius: 16px;
+  color: #fff;
+  background: linear-gradient(90deg, #ff8a00, #ffc107);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+}
+body.social-rank-page.rank-skin-rich .social-rank-promo,
+body.social-rank-page.rank-skin-video .social-rank-promo,
+body.social-rank-page.rank-skin-game .social-rank-promo {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04));
+}
+body.social-rank-page.rank-skin .social-rank-list {
+  background: #fff;
+  margin-top: 12px;
+  border-radius: 22px 22px 0 0;
+  min-height: 55vh;
+  padding: 8px 0 24px;
+}
+
+/* Messages list */
+html.ap-expo-app .ap-msg-top,
+.ap-msg-top {
+  background: linear-gradient(180deg, #fde9c8 0%, #fff9f0 70%);
+}
+.ap-msg-top-row h1 {
+  font-size: 26px;
+  font-weight: 800;
+}
+.ap-msg-filters {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 8px 0 4px;
+  scrollbar-width: none;
+}
+.ap-msg-filter {
+  flex: 0 0 auto;
+  border: none;
+  border-radius: 999px;
+  padding: 7px 14px;
+  background: #f6e4cc;
+  color: #8b5a12;
+  font-weight: 700;
+  font-size: 13px;
+}
+.ap-msg-filter.active {
+  background: linear-gradient(135deg, #ff8c42, #f59e0b);
+  color: #fff;
+}
+.ap-msg-filter .pill-badge:empty {
+  display: none;
+}
+.ap-msg-filter .pill-badge:not(:empty) {
+  display: inline-flex;
+  min-width: 16px;
+  height: 16px;
+  margin-left: 4px;
+  padding: 0 4px;
+  border-radius: 99px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 10px;
+  align-items: center;
+  justify-content: center;
+}
+
+.shot-region-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: flex-end;
+}
+.shot-region-sheet[hidden] {
+  display: none !important;
+}
+.shot-region-panel {
+  width: 100%;
+  max-height: 78vh;
+  overflow: auto;
+  background: #fff;
+  border-radius: 20px 20px 0 0;
+  padding: 16px 16px calc(18px + env(safe-area-inset-bottom, 0));
+  color: #8a5a12;
+}
+.shot-region-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.shot-region-head button {
+  border: none;
+  background: transparent;
+  color: #8a5a12;
+  font-weight: 700;
+}
+.shot-region-label {
+  margin: 14px 0 8px;
+  font-weight: 800;
+}
+.shot-region-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.shot-region-pills button {
+  border: 1px solid #e4c98a;
+  background: #fff;
+  color: #8a5a12;
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-weight: 700;
+}
+.shot-region-pills button.is-on {
+  background: #8a5a12;
+  color: #fff;
+  border-color: #8a5a12;
+}
+.shot-region-market {
+  display: block;
+  margin-top: 16px;
+  text-align: center;
+  color: #b45309;
+  font-weight: 800;
+}

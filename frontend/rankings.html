@@ -9,12 +9,12 @@
   <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"></noscript>
   <link rel="stylesheet" href="social-theme.css?v=20260729-instant">
   <link rel="stylesheet" href="social-features.css?v=20260822-gamerank">
-  <link rel="stylesheet" href="social-fx.css?v=20260816-rank-nav">
+  <link rel="stylesheet" href="social-shot-skin.css?v=20260823-shot">
   <style>
     @keyframes rankSkel { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
   </style>
 </head>
-<body class="social-rank-page social-rank-page--gold">
+<body class="social-rank-page social-rank-page--gold rank-skin rank-skin-host">
   <div class="social-rank-sticky-top">
     <header class="social-rank-header">
       <a href="/explore.html?app=1" class="social-rank-back" data-ap-back aria-label="Back"><i class="fas fa-arrow-left"></i></a>
@@ -402,6 +402,13 @@
       refreshRanks();
     }
 
+    function syncRankSkin() {
+      ['host', 'rich', 'gift', 'video', 'game'].forEach((tab) => {
+        document.body.classList.toggle('rank-skin-' + tab, currentTab === tab);
+      });
+      document.body.classList.add('rank-skin');
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
       SocialShell.initPage({ activeNav: 'rankings' });
       if (window.SocialInteractions?.refreshSocialCaches) {
@@ -422,6 +429,7 @@
           p.set('tab', currentTab);
           p.set('app', '1');
           history.replaceState(null, '', '/rankings.html?' + p.toString());
+          syncRankSkin();
           refreshRanks();
         });
       });
@@ -431,6 +439,7 @@
       document.querySelectorAll('.social-rank-sub-tab').forEach((t) => {
         t.classList.toggle('active', t.dataset.period === currentPeriod);
       });
+      syncRankSkin();
       refreshRanks();
       window.refreshRanks = refreshRanks;
       if (window.SocialNav) {

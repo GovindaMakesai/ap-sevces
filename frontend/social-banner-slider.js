@@ -4,24 +4,20 @@
 (function () {
   const DEFAULT_BANNERS = [
     {
-      className: 'social-banner--invite',
-      title: 'Invite Friends',
-      href: '/referral.html?app=1',
-      html: '<p>Invite friends &amp; grow your network</p>',
-      center: true,
-    },
-    {
-      className: 'social-banner--party',
-      title: 'Lucky Gifts Party',
+      className: 'shot-banner shot-banner--lucky',
+      title: '',
       href: '/lucky-gifts.html?app=1',
-      html: '<p>Enjoy the Event and win big coin prizes</p>',
+      html: '<p class="shot-banner-dates">17/08/2026 - 24/08/2026 (UTC+8)</p><h2>Lucky Gift Ranking</h2><p class="shot-banner-prizes">Daily Top1 <span>30,000,000</span> &nbsp; 3-Day Top1 <span>100,000,000</span></p><div class="shot-banner-art" aria-hidden="true">👑</div>',
     },
     {
-      className: 'social-banner--host',
-      title: 'Host earning policies',
+      className: 'shot-banner shot-banner--pk',
+      href: '/rankings.html?app=1',
+      html: '<p class="shot-banner-dates">25/08/2026 - 31/08/2026 (UTC+8)</p><h2>PK Combat Points Ranking</h2><p class="shot-banner-prizes">Enjoy the Event and Split <span>112,770,000</span></p>',
+    },
+    {
+      className: 'shot-banner shot-banner--host',
       href: '/host-policies.html?app=1',
-      html: '<p>Star Host &amp; Normal Host rewards — tap to open</p>',
-      center: true,
+      html: '<p class="shot-banner-dates">Star Host &amp; Normal Host</p><h2>Host earning policies</h2><p class="shot-banner-prizes">Weekly rewards for top live hosts</p>',
     },
   ];
 
@@ -51,11 +47,12 @@
       </div>`;
     }
     const center = b.center ? ' social-banner-content--center' : '';
+    const heading = b.title ? `<h2>${b.title}</h2>` : '';
     return `
       <div class="social-banner-slide" data-index="${i}"${hrefAttr}>
         <div class="social-banner ${b.className || ''}">
           <div class="social-banner-content${center}">
-            <h2>${b.title || ''}</h2>
+            ${heading}
             ${b.html || ''}
           </div>
         </div>
@@ -149,8 +146,10 @@
     container.addEventListener('touchstart', stop, { passive: true });
     container.addEventListener('touchend', () => setTimeout(start, 3000), { passive: true });
 
-    /* Full uncropped posters sit below the slider (not inside the carousel) */
-    mountPolicyPosters(container);
+    /* Full uncropped posters sit below the slider on non-explore pages */
+    if (!document.body.classList.contains('social-explore-page')) {
+      mountPolicyPosters(container);
+    }
 
     return { go, next, start, stop };
   }

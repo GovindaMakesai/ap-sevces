@@ -7,44 +7,70 @@
   <title>Explore - AP Services</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" media="print" onload="this.media='all'">
   <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"></noscript>
-  <link rel="stylesheet" href="social-theme.css?v=20260821-letterbox">
-  <link rel="stylesheet" href="social-features.css?v=20260821-letterbox">
+  <link rel="stylesheet" href="social-theme.css?v=20260823-shot">
+  <link rel="stylesheet" href="social-features.css?v=20260823-shot">
+  <link rel="stylesheet" href="social-shot-skin.css?v=20260823-shot">
   <script src="native-session-restore.js?v=20260811-boot"></script>
   <script src="ap-config.js"></script>
   <script src="ap-native-boot.js?v=20260811-boot"></script>
 </head>
 <body class="social-tabs-page social-explore-page explore-empty-state explore-tab-live">
   <header class="social-top">
-    <div class="social-explore-search-row">
-      <div class="social-search">
-        <i class="fas fa-search"></i>
-        <input type="search" data-social-search placeholder="Nickname or ID number" autocomplete="off">
+    <div class="social-explore-tabs-wrap">
+      <div class="social-main-tabs social-explore-tabs" id="exploreTabs" role="tablist" aria-label="Live sections">
+        <button type="button" role="tab" data-tab="following">Following</button>
+        <button type="button" role="tab" data-tab="explore" class="active">Explore</button>
+        <button type="button" role="tab" data-tab="new">New</button>
+        <button type="button" role="tab" data-tab="nearby">Nearby</button>
+        <button type="button" role="tab" data-tab="party">Party</button>
       </div>
       <div class="social-top-actions social-explore-actions">
         <a href="/rankings.html?app=1" class="social-icon-btn" aria-label="Rankings"><i class="fas fa-trophy"></i></a>
         <button type="button" class="social-global-pill" id="globalChip" aria-label="Global marketplace"><i class="fas fa-globe-asia"></i><span class="social-global-pill-text">Global</span></button>
       </div>
     </div>
-    <div class="social-explore-tabs-wrap">
-      <div class="social-main-tabs social-explore-tabs" id="exploreTabs" role="tablist" aria-label="Live sections">
-        <button type="button" role="tab" data-tab="following">Following</button>
-        <button type="button" role="tab" data-tab="explore" class="active">Live</button>
-        <button type="button" role="tab" data-tab="party">Party</button>
-        <button type="button" role="tab" data-tab="new">New</button>
-        <button type="button" role="tab" data-tab="nearby">Nearby</button>
+    <div class="social-explore-search-row">
+      <div class="social-search">
+        <i class="fas fa-search"></i>
+        <input type="search" data-social-search placeholder="Nickname or ID number" autocomplete="off">
       </div>
     </div>
   </header>
   <div class="social-tabs-spacer" aria-hidden="true"></div>
+  <div id="social-banner-slider"></div>
 
   <div id="exploreContent">
     <div class="social-explore-mount" id="exploreGrid"></div>
   </div>
   <div id="exploreEmpty" style="display:none"></div>
 
-  <button type="button" class="social-start-party" id="social-start-party" hidden style="display:none"><i class="fas fa-users"></i> Party</button>
-  <button type="button" class="social-start-live" id="social-start-live"><i class="fas fa-video"></i> Go Live</button>
+  <button type="button" class="social-start-party" id="social-start-party" hidden style="display:none"><i class="fas fa-video"></i> PARTY</button>
+  <button type="button" class="social-start-live" id="social-start-live"><i class="fas fa-video"></i> Start Live</button>
   <div id="social-bottom-nav-mount"></div>
+  <div class="shot-region-sheet" id="shotRegionSheet" hidden>
+    <div class="shot-region-panel">
+      <div class="shot-region-head">
+        <strong>HOT</strong>
+        <button type="button" id="shotRegionClose">Global <i class="fas fa-chevron-up"></i></button>
+      </div>
+      <div class="shot-region-pills">
+        <button type="button" class="is-on" data-region="Popular">Popular</button>
+        <button type="button" data-region="India">🇮🇳 India</button>
+        <button type="button" data-region="Nepal">🇳🇵 Nepal</button>
+        <button type="button" data-region="Pakistan">🇵🇰 Pakistan</button>
+        <button type="button" data-region="Bangladesh">🇧🇩 Bangladesh</button>
+        <button type="button" data-region="Philippines">🇵🇭 Philippines</button>
+      </div>
+      <p class="shot-region-label">Country/Region</p>
+      <div class="shot-region-pills">
+        <button type="button" data-region="Vietnam">🇻🇳 Vietnam</button>
+        <button type="button" data-region="Nigeria">🇳🇬 Nigeria</button>
+        <button type="button" data-region="Brazil">🇧🇷 Brazil</button>
+        <button type="button" data-region="Egypt">🇪🇬 Egypt</button>
+      </div>
+      <a class="shot-region-market" href="/services.html?app=1">Open marketplace</a>
+    </div>
+  </div>
 
   <script src="app.js?v=20260820-slowfix"></script>
   <script src="social-ui.js"></script>
@@ -55,7 +81,8 @@
   <script src="auth-guard.js?v=20260811-boot"></script>
   <script src="social-create-post.js?v=20260821-letterbox" defer></script>
   <script src="ap-soft-nav.js?v=20260730-fastnav4"></script>
-  <script src="social-shell.js?v=20260730-fastnav4"></script>
+  <script src="social-banner-slider.js?v=20260823-shot"></script>
+  <script src="social-shell.js?v=20260823-shot"></script>
   <script src="social-nav.js?v=20260720-back-fix"></script>
   <script>
     document.addEventListener('DOMContentLoaded', () => {
@@ -166,6 +193,9 @@
       }
 
       SocialShell.initPage({ activeNav: 'explore' });
+      if (window.SocialBannerSlider) {
+        window.SocialBannerSlider.mount(document.getElementById('social-banner-slider'));
+      }
       if (window.SocialShell?.syncExploreFloatingActions) {
         SocialShell.syncExploreFloatingActions(false, { party: currentTab === 'party' });
       }
@@ -188,8 +218,29 @@
       })());
 
       document.getElementById('globalChip')?.addEventListener('click', () => {
+        const sheet = document.getElementById('shotRegionSheet');
+        if (sheet) {
+          sheet.hidden = false;
+          return;
+        }
         const native = new URLSearchParams(location.search).get('app') === '1';
         window.location.href = native ? '/services.html?app=1' : '/services.html';
+      });
+      document.getElementById('shotRegionClose')?.addEventListener('click', () => {
+        const sheet = document.getElementById('shotRegionSheet');
+        if (sheet) sheet.hidden = true;
+      });
+      document.getElementById('shotRegionSheet')?.addEventListener('click', (e) => {
+        if (e.target.id === 'shotRegionSheet') e.currentTarget.hidden = true;
+      });
+      document.querySelectorAll('#shotRegionSheet [data-region]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('#shotRegionSheet [data-region]').forEach((b) => b.classList.remove('is-on'));
+          btn.classList.add('is-on');
+          const label = document.querySelector('#globalChip .social-global-pill-text');
+          if (label) label.textContent = btn.dataset.region || 'Global';
+          document.getElementById('shotRegionSheet').hidden = true;
+        });
       });
 
       loadTab(currentTab);

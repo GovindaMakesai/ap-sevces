@@ -530,9 +530,9 @@
       ? `/party-room.html?channel=${ch}${extra}&app=1`
       : `/live-room.html?channel=${ch}&feed=1${extra}&app=1`;
     const typeBadge = party
-      ? '<span class="live-type-badge live-type-badge--party"><i class="fas fa-microphone-lines"></i> PARTY</span>'
-      : '<span class="live-type-badge live-type-badge--live"><i class="fas fa-video"></i> LIVE</span>';
-    const viewerBadge = `<span class="live-viewer-badge"><i class="fas fa-users"></i> ${formatViewers(viewers)}</span>`;
+      ? '<span class="live-type-badge live-type-badge--party">Make Friends</span>'
+      : '<span class="live-type-badge live-type-badge--live">Live</span>';
+    const viewerBadge = `<span class="live-viewer-badge"><i class="fas fa-signal"></i> ${formatViewers(viewers)}</span>`;
     const initials = escapeHtml(hostInitials(name));
     const ageLabel = age ? `<span class="live-age">${escapeHtml(age)}</span>` : '';
 

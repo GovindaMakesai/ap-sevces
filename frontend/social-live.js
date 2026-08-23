@@ -8065,9 +8065,6 @@
       if (!shouldHearRemoteAudio()) return;
       if (!isRemoteAudioAudibleNow()) {
         forceRemoteAudio('onRoomReady_silent');
-        try {
-          showTapForSoundHint?.();
-        } catch (_h) {}
       }
     }, 2800);
     if (!isHost() && isLiveRoomPage()) {
@@ -15164,12 +15161,11 @@
       forceRemoteAudio('tap_for_sound');
       await ensureRemoteAudioPlaying();
       boostRemoteAudioVolumes();
-      toast('Sound unlocked — you should hear the live now', 'success');
+      toast('Sound on', 'success');
       hideTapForSoundHint();
-      /* If still quiet after a beat, keep button available */
-      setTimeout(() => {
-        if (!isRemoteAudioAudibleNow()) showTapForSoundHint();
-      }, 2500);
+      try {
+        sessionStorage.setItem('ap_sound_unlocked', '1');
+      } catch (_e) { /* ignore */ }
     });
     document.body.appendChild(el);
     return el;
@@ -15199,11 +15195,17 @@
     return false;
   }
 
+  function soundHintWasDismissed() {
+    try {
+      return sessionStorage.getItem('ap_sound_unlocked') === '1';
+    } catch (_e) {
+      return false;
+    }
+  }
+
   function showTapForSoundHint() {
     if (isPartyRoomPage()) return;
-    if (isHost() && !hasSpeakerSeat) {
-      /* Hosts publishing usually don't need this; still allow if they want guest audio */
-    }
+    if (audioUnlocked || soundHintWasDismissed()) return;
     if (!shouldHearRemoteAudio()) return;
     const el = ensureTapForSoundEl();
     el.classList.add('is-visible');
@@ -15219,6 +15221,7 @@
   }
 
   function scheduleSilentAudioPrompt() {
+    if (audioUnlocked || soundHintWasDismissed()) return;
     if (window.__apSilentAudioPromptTimer) clearTimeout(window.__apSilentAudioPromptTimer);
     window.__apSilentAudioPromptTimer = setTimeout(() => {
       try {
@@ -15226,12 +15229,12 @@
         if (!agoraClient || !shouldHearRemoteAudio()) return;
         const hasRemoteAudio = (agoraClient.remoteUsers || []).some((u) => u.hasAudio || u.audioTrack);
         if (!hasRemoteAudio) return;
-        if (isRemoteAudioAudibleNow()) {
+        if (isRemoteAudioAudibleNow() || audioUnlocked || soundHintWasDismissed()) {
           hideTapForSoundHint();
           return;
         }
-        showTapForSoundHint();
         forceRemoteAudio('silent_prompt');
+        showTapForSoundHint();
       } catch (_e) { /* ignore */ }
     }, 2200);
   }
@@ -15265,7 +15268,6 @@
       unlock();
     }
     scheduleSilentAudioPrompt();
-    setTimeout(scheduleSilentAudioPrompt, 5000);
   }
 
   function ensureHostVideoVisible() {
@@ -17620,7 +17622,7 @@
           sheet.style.display = 'none';
         }
         document.getElementById('apPartyRoomSettings')?.classList.remove('open');
-        closePartyGamePicker();
+        if (typeof closePartyGamePicker === 'function') closePartyGamePicker();
         syncLiveOverlayClass();
       });
     });
