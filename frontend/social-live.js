@@ -10466,7 +10466,14 @@
       pop = document.createElement('div');
       pop.id = 'apEmojiPopover';
       pop.className = 'ap-emoji-popover';
-      pop.innerHTML = EMOJI_PICKS.map((e) => `<button type="button" data-emo="${e}">${e}</button>`).join('');
+      pop.innerHTML = EMOJI_PICKS.map((e) => {
+        const cp = Array.from(e)
+          .map((ch) => ch.codePointAt(0).toString(16))
+          .filter((h) => h !== 'fe0f')
+          .join('-');
+        const src = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/' + cp + '.png';
+        return `<button type="button" data-emo="${e}" aria-label="${e}"><img src="${src}" alt="${e}" width="36" height="36"></button>`;
+      }).join('');
       document.body.appendChild(pop);
       pop.querySelectorAll('[data-emo]').forEach((b) => {
         b.addEventListener('click', () => {

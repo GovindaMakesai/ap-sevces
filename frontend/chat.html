@@ -8,6 +8,7 @@
     <script src="/ap-native-boot.js?v=20260822-sendfix"></script>
     <link rel="stylesheet" href="/social-theme.css?v=20260729-perf2">
     <link rel="stylesheet" href="/social-shot-skin.css?v=20260823-shot">
+    <link rel="stylesheet" href="/social-ui-fix.css?v=20260823-uifix">
     <link rel="stylesheet" href="/cosmetics.css?v=20260819-entry-dm">
     <link rel="stylesheet" href="/cp-chat-cards.css?v=20260815-cpmsg">
     
@@ -3960,7 +3961,20 @@
                 } else if (roomInvite) {
                     content.appendChild(buildRoomInviteCard(roomInvite));
                 } else if (bodyText) {
-                    content.textContent = bodyText;
+                    if (/^🎁\s*Sent\s+/i.test(bodyText) || /sent you a gift/i.test(bodyText)) {
+                        const card = document.createElement('div');
+                        card.className = 'dm-gift-card';
+                        const icon = document.createElement('span');
+                        icon.className = 'g';
+                        icon.textContent = '🎁';
+                        const label = document.createElement('span');
+                        label.textContent = bodyText.replace(/^🎁\s*/, '');
+                        card.appendChild(icon);
+                        card.appendChild(label);
+                        content.appendChild(card);
+                    } else {
+                        content.textContent = bodyText;
+                    }
                 } else if (!msg.image && !msg.video) {
                     const ph = document.createElement('span');
                     ph.className = 'msg-empty-placeholder';

@@ -1,0 +1,228 @@
+﻿/* Screenshot alignment — load last */
+
+body.social-explore-page .social-mega-offer-poster,
+body.social-square-page .social-mega-offer-poster,
+body.social-explore-page .social-mega-offer-poster,
+body.social-square-page .social-mega-offer-poster {
+  display: none !important;
+}
+
+.social-banner-slide--image .social-banner-img,
+.social-banner--image .social-banner-img,
+.social-banner-slide--image .social-banner-img,
+.social-banner--image .social-banner-img {
+  width: 100%;
+  height: 118px;
+  object-fit: cover;
+  display: block;
+  border-radius: 14px;
+}
+
+body.social-explore-page .social-live-card {
+  aspect-ratio: 3 / 4.05;
+  border-radius: 12px;
+}
+body.social-explore-page .social-live-card .live-type-badge {
+  top: 8px !important;
+  right: 8px !important;
+  left: auto !important;
+}
+body.social-explore-page .social-live-card .live-host-row,
+body.social-explore-page .social-live-card .live-host-avatar,
+body.social-explore-page .social-live-card .live-host-sub,
+body.social-explore-page .social-live-card .live-age {
+  display: none !important;
+}
+
+body.social-rank-page .social-rank-podium img,
+body.social-rank-page img.podium-av {
+  width: 56px !important;
+  height: 56px !important;
+  object-fit: cover !important;
+  border-radius: 50% !important;
+}
+body.social-rank-page .social-rank-podium-item.rank-1 img {
+  width: 68px !important;
+  height: 68px !important;
+}
+body.social-rank-page .social-rank-row img {
+  width: 40px !important;
+  height: 40px !important;
+  object-fit: cover !important;
+  border-radius: 50% !important;
+}
+
+body.chat-active {
+  zoom: 1 !important;
+  font-size: 16px !important;
+}
+.message-wrapper,
+.message-bubble {
+  max-width: min(78vw, 300px) !important;
+  overflow: visible !important;
+  transform: none !important;
+}
+.message-content,
+.message-text {
+  overflow: visible !important;
+  font-size: 15px !important;
+  line-height: 1.4 !important;
+  padding: 8px 12px !important;
+  white-space: pre-wrap !important;
+  overflow-wrap: anywhere !important;
+}
+
+body[data-live-page='party-room'] .party-ref-event,
+body[data-live-page='live-room'] .party-invite-pill,
+body[data-live-page='live-room'] #partyInvitePill {
+  display: none !important;
+}
+
+body[data-live-page='party-room'] .party-host,
+body[data-live-page='live-room'] .party-host {
+  display: inline-flex !important;
+  align-items: center;
+  height: 36px;
+  max-width: min(48vw, 210px);
+  padding: 3px 8px 3px 3px !important;
+  border-radius: 999px !important;
+  background: rgba(8, 8, 12, 0.55) !important;
+  overflow: hidden;
+}
+body[data-live-page='party-room'] .party-host > img,
+body[data-live-page='live-room'] .party-host > img {
+  width: 30px !important;
+  height: 30px !important;
+  border-radius: 50% !important;
+}
+body[data-live-page='party-room'] .party-host-meta .sub,
+body[data-live-page='live-room'] .party-host-meta .sub,
+body[data-live-page='live-room'] .live-room-id-line,
+body[data-live-page='party-room'] .party-host-badges,
+body[data-live-page='live-room'] .party-host-badges,
+body[data-live-page='live-room'] .live-edit-presentation-btn,
+body[data-live-page='party-room'] .party-ref-heart,
+body[data-live-page='live-room'] .live-mode-badge,
+body[data-live-page='live-room'] .party-meta-row--live {
+  display: none !important;
+}
+
+body[data-live-page='party-room'] .party-seats-ref {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 10px 8px !important;
+  max-width: 420px;
+  margin: 8px auto 0;
+  padding: 0 12px;
+}
+body[data-live-page='party-room'] .party-seats-ref .party-seat-row {
+  display: contents !important;
+}
+body[data-live-page='party-room'] .party-seats-ref .party-seat {
+  aspect-ratio: auto !important;
+  background: transparent !important;
+  border: none !important;
+  padding: 4px 2px !important;
+}
+body[data-live-page='party-room'] .party-seats-ref .seat-avatar,
+body[data-live-page='party-room'] .party-seats-ref .party-seat.is-host .seat-avatar {
+  width: 72px !important;
+  height: 72px !important;
+  border-radius: 50% !important;
+}
+body[data-live-page='party-room'] .party-seat.is-empty .seat-avatar--empty {
+  background: url('/assets/seats/gold-chair.svg') center 58% / 78% no-repeat !important;
+  border: none !important;
+}
+body[data-live-page='party-room'] .party-seat.is-empty .seat-avatar--empty::before {
+  content: none !important;
+}
+
+.party-chat-msg--gift {
+  min-height: 36px;
+  padding: 7px 10px !important;
+  border-radius: 999px !important;
+  background: linear-gradient(90deg, #fbbf24, #f472b6) !important;
+  color: #1a0a08 !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+}
+
+.ap-emoji-popover button {
+  width: 48px !important;
+  height: 48px !important;
+  font-size: 28px !important;
+}
+
+.gift-sheet-panel .gift-grid button,
+.gift-grid button.gift-card--alive {
+  overflow: hidden !important;
+  min-height: 96px;
+  max-height: 118px;
+}
+.gift-grid .gift-thumb-img {
+  width: 48px !important;
+  height: 48px !important;
+  object-fit: contain !important;
+}
+.gift-card--alive .g {
+  font-size: 28px !important;
+  animation: none !important;
+}
+
+/* Open thread: stop cut / zoomed bubbles from marketplace CSS */
+body.chat-active .message-wrapper,
+body.chat-active .message-bubble,
+html.ap-expo-app .message-wrapper,
+html.ap-expo-app .message-bubble {
+  max-width: min(78vw, 300px) !important;
+  overflow: visible !important;
+  transform: none !important;
+  zoom: 1 !important;
+}
+body.chat-active .message-content,
+html.ap-expo-app .message-content {
+  overflow: visible !important;
+  font-size: 15px !important;
+  line-height: 1.45 !important;
+  padding: 8px 12px !important;
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+}
+body.chat-active .message-image,
+html.ap-expo-app .message-image {
+  max-width: min(220px, 70vw) !important;
+  height: auto !important;
+  border-radius: 12px;
+}
+body.chat-active .chat-item,
+html.ap-expo-app .chat-item {
+  min-height: 64px;
+  align-items: center;
+}
+body.chat-active .chat-item img,
+html.ap-expo-app .chat-item img {
+  width: 44px !important;
+  height: 44px !important;
+  object-fit: cover !important;
+  border-radius: 50% !important;
+}
+.dm-gift-card {
+  display: flex !important;
+  align-items: center;
+  gap: 10px;
+  min-width: 168px;
+  padding: 10px 12px !important;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #fff7ed, #ffedd5);
+  color: #9a3412;
+  font-weight: 800;
+  font-size: 14px !important;
+}
+.dm-gift-card .g { font-size: 28px !important; line-height: 1; }
+.ap-emoji-popover button img {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  display: block;
+}

@@ -4,25 +4,29 @@
 (function () {
   const DEFAULT_BANNERS = [
     {
-      className: 'shot-banner shot-banner--mega',
       href: '/coin-seller-offer.html?app=1',
-      html: '<p class="shot-banner-dates">AP live Service</p><h2>BIG MEGA OFFER</h2><p class="shot-banner-prizes">Coin Seller 75% OFF &nbsp; Super $500 · Senior $375 · Diamond $250</p>',
+      image: '/assets/promos/mega-offer-coin-seller.png',
+      alt: 'BIG MEGA OFFER — Coin Seller 75% off',
     },
     {
-      className: 'shot-banner shot-banner--lucky',
-      title: '',
       href: '/lucky-gifts.html?app=1',
-      html: '<p class="shot-banner-dates">17/08/2026 - 24/08/2026 (UTC+8)</p><h2>Lucky Gift Ranking</h2><p class="shot-banner-prizes">Daily Top1 <span>30,000,000</span> &nbsp; 3-Day Top1 <span>100,000,000</span></p><div class="shot-banner-art" aria-hidden="true">👑</div>',
+      image: '/assets/promos/lucky-gift-rank.svg',
+      alt: 'Lucky Gift Ranking',
     },
     {
-      className: 'shot-banner shot-banner--pk',
       href: '/rankings.html?app=1',
-      html: '<p class="shot-banner-dates">25/08/2026 - 31/08/2026 (UTC+8)</p><h2>PK Combat Points Ranking</h2><p class="shot-banner-prizes">Enjoy the Event and Split <span>112,770,000</span></p>',
+      image: '/assets/promos/pk-combat-rank.svg',
+      alt: 'PK Combat Ranking',
     },
     {
-      className: 'shot-banner shot-banner--host',
       href: '/host-policies.html?app=1',
-      html: '<p class="shot-banner-dates">Star Host &amp; Normal Host</p><h2>Host earning policies</h2><p class="shot-banner-prizes">Weekly rewards for top live hosts</p>',
+      image: '/assets/promos/host-earn.svg',
+      alt: 'Host earning policies',
+    },
+    {
+      href: '/host-policies.html?policy=star&app=1',
+      image: '/assets/promos/star-host-policy.png',
+      alt: 'Star Host Policy',
     },
   ];
 
@@ -164,8 +168,10 @@
     container.addEventListener('touchstart', stop, { passive: true });
     container.addEventListener('touchend', () => setTimeout(start, 3000), { passive: true });
 
-    /* Mega offer poster — Explore and Square */
-    mountMegaOfferPoster(container);
+    /* Mega offer full poster stays on Me only — rooms and Explore use slider images */
+    if (document.body.classList.contains('social-profile-page')) {
+      mountMegaOfferPoster(container);
+    }
     /* Full uncropped host-policy posters on non-explore pages */
     if (!document.body.classList.contains('social-explore-page')) {
       mountPolicyPosters(container);
