@@ -25,6 +25,14 @@ html.social-bridge-mode body {
   color: #5c4210 !important;
 }
 
+html.social-app body.mega-offer-page {
+  background: #07153f !important;
+  background-image:
+    radial-gradient(circle at 12% 8%, rgba(96, 165, 250, 0.28), transparent 42%),
+    radial-gradient(circle at 88% 92%, rgba(124, 58, 237, 0.35), transparent 48%) !important;
+  color: #fff !important;
+}
+
 html.social-app .btn-primary,
 html.social-app .login-btn,
 html.social-app button.primary,

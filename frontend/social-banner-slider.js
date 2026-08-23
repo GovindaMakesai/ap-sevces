@@ -4,6 +4,11 @@
 (function () {
   const DEFAULT_BANNERS = [
     {
+      className: 'shot-banner shot-banner--mega',
+      href: '/coin-seller-offer.html?app=1',
+      html: '<p class="shot-banner-dates">AP live Service</p><h2>BIG MEGA OFFER</h2><p class="shot-banner-prizes">Coin Seller 75% OFF &nbsp; Super $500 · Senior $375 · Diamond $250</p>',
+    },
+    {
       className: 'shot-banner shot-banner--lucky',
       title: '',
       href: '/lucky-gifts.html?app=1',
@@ -57,6 +62,19 @@
           </div>
         </div>
       </div>`;
+  }
+
+  function mountMegaOfferPoster(afterEl) {
+    if (!afterEl || document.getElementById('socialMegaOfferPoster')) return;
+    const wrap = document.createElement('section');
+    wrap.id = 'socialMegaOfferPoster';
+    wrap.className = 'social-mega-offer-poster';
+    wrap.innerHTML = `
+      <a href="/coin-seller-offer.html?app=1">
+        <img src="/assets/promos/mega-offer-coin-seller.png" alt="BIG MEGA OFFER — Coin Seller Super, Senior and Diamond plans" loading="lazy">
+        <span>Coin Seller · 75% OFF — tap to select a plan</span>
+      </a>`;
+    afterEl.insertAdjacentElement('afterend', wrap);
   }
 
   function mountPolicyPosters(afterEl) {
@@ -146,7 +164,9 @@
     container.addEventListener('touchstart', stop, { passive: true });
     container.addEventListener('touchend', () => setTimeout(start, 3000), { passive: true });
 
-    /* Full uncropped posters sit below the slider on non-explore pages */
+    /* Mega offer poster — Explore and Square */
+    mountMegaOfferPoster(container);
+    /* Full uncropped host-policy posters on non-explore pages */
     if (!document.body.classList.contains('social-explore-page')) {
       mountPolicyPosters(container);
     }

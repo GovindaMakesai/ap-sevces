@@ -117,6 +117,35 @@
   background: #fffdf8;
 }
 
+.social-mega-offer-poster {
+  margin: 0 12px 14px;
+}
+.social-mega-offer-poster a {
+  display: block;
+  text-decoration: none;
+  color: #0b1b4a;
+  background: #07153f;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(11, 27, 74, 0.2);
+}
+.social-mega-offer-poster img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 520px;
+  object-fit: contain;
+  background: #07153f;
+}
+.social-mega-offer-poster span {
+  display: block;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: center;
+  background: #fff;
+}
+
 .social-banner--host {
   background: linear-gradient(135deg, #7c3aed, #db2777 55%, #f59e0b);
   color: #fff;

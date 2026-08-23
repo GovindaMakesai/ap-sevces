@@ -28,7 +28,7 @@
 
   <link rel="stylesheet" href="social-live-ref-ui.css?v=20260815-gift-all">
 
-  <link rel="stylesheet" href="social-party-ref.css?v=20260822-games2">
+  <link rel="stylesheet" href="social-party-ref.css?v=20260823-shotroom">
   <link rel="stylesheet" href="profile-badges.css?v=20260816-badge-cache">
   <link rel="stylesheet" href="cp-profile-card.css?v=20260814-cpprofile2">
 
@@ -146,13 +146,10 @@
           <div class="party-host-name-row">
 
             <div class="name" id="partyHostName">Host</div>
-
+            <button type="button" class="party-follow-btn party-host-plus" id="partyHostFollow" aria-label="Follow host">+</button>
             <div class="party-host-badges" id="partyHostBadges" hidden aria-label="Host level and VIP"></div>
-
             <button type="button" class="live-edit-presentation-btn host-only-tool" id="liveEditPresentationBtn" hidden title="Edit room info">
-
               <i class="fas fa-pen"></i>
-
             </button>
 
           </div>
@@ -195,33 +192,18 @@
 
 
 
-    <!-- Legacy elements kept for JS compatibility (hidden by ref CSS) -->
-
-    <div class="party-stats-bar" aria-hidden="true">
-
-      <span class="party-stat"><strong id="partyHourNo">No.50</strong></span>
-
-      <span class="party-stat party-music-bar"><strong id="partyMusicScore">0</strong> <span id="partyPopPct">0%</span></span>
-
-      <button type="button" id="partyRuleBtn" hidden></button>
-
+    <div class="party-ref-stats" id="partyRefStats">
+      <span class="party-ref-chip party-ref-chip-pop"><i class="fas fa-fire"></i> <strong id="partyHourNo">No.50</strong></span>
+      <button type="button" class="party-ref-chip party-ref-rule" id="partyRuleBtn">Rule</button>
+      <span class="party-ref-chip party-ref-pct" id="partyPopPct">0%</span>
+      <span class="party-ref-chip party-ref-wish" title="Wish progress"><i class="fas fa-star"></i> Wish <strong id="partyTeamProgress">0/15</strong><i id="partyTeamBar" hidden></i></span>
+      <span class="party-ref-chest" id="partyChestTimer">04:36</span>
+      <a class="party-ref-event" href="/coin-seller-offer.html?app=1">MEGA OFFER</a>
+      <span class="party-stat party-music-bar" hidden><strong id="partyMusicScore">0</strong></span>
     </div>
-
-    <div class="party-widgets" aria-hidden="true">
-
-      <div class="party-widget"><strong id="partyTeamProgress">0/11</strong><i id="partyTeamBar"></i></div>
-
-      <span id="partyChestTimer" hidden></span>
-
-    </div>
-
     <div class="party-host-bar" id="partyHostBar" hidden></div>
-
     <div class="party-invite-row" aria-hidden="true"><button type="button" id="partyInvitePill" hidden></button></div>
-
     <div class="party-win-banner" id="partyWinBanner" hidden></div>
-
-    <button type="button" class="party-follow-btn" id="partyHostFollow" hidden></button>
 
 
 
@@ -594,9 +576,67 @@
 
 
   <div class="party-tools-sheet" id="partyToolsSheet" hidden aria-hidden="true">
+    <div class="party-tools-panel party-tools-panel-ref party-host-tools-panel">
+      <button type="button" id="partyToolsClose" class="ap-tool-close-fab" aria-label="Close tools"><i class="fas fa-times"></i></button>
 
-    <div class="party-tools-panel">
-      <button type="button" id="partyToolsClose" aria-label="Close"></button>
+      <section class="host-only-tools-section host-only-tool" id="hostToolsSection" data-tools-section="host">
+        <h3 class="party-tools-title">Host Tools</h3>
+        <div class="party-tools-grid party-tools-grid-4">
+          <button type="button" id="hostToolAdmins" class="host-tool-btn"><span class="ico admins"><i class="fas fa-user-shield"></i></span>Admins</button>
+          <button type="button" id="hostToolMyTheme" class="host-tool-btn"><span class="ico bg"><i class="fas fa-tshirt"></i></span>My theme</button>
+          <button type="button" id="hostToolTextBubble" class="host-tool-btn"><span class="ico bubble"><i class="fas fa-comment-dots"></i></span>Text Bubble</button>
+          <button type="button" id="hostToolFanClub" class="host-tool-btn"><span class="ico fan"><i class="fas fa-heart"></i></span>Fan Club</button>
+          <button type="button" id="hostToolLiveData" class="host-tool-btn"><span class="ico livedata"><i class="fas fa-chart-line"></i></span>Live Data</button>
+          <button type="button" id="hostToolLiveMgmt" class="host-tool-btn"><span class="ico management"><i class="fas fa-cog"></i></span>Live Management</button>
+          <button type="button" id="hostToolRoomSettings" class="host-tool-btn"><span class="ico management"><i class="fas fa-sliders-h"></i></span>Setting</button>
+          <button type="button" id="hostToolAmbient" class="host-tool-btn"><span class="ico ambient"><i class="fas fa-music"></i></span>Ambient Sound</button>
+          <button type="button" id="hostToolScreenRec" class="host-tool-btn"><span class="ico record"><i class="fas fa-record-vinyl"></i><span class="ap-tool-badge ap-tool-badge--off" id="hostScreenRecBadge">Off</span></span>Screen recording</button>
+          <button type="button" id="hostToolIntro" class="host-tool-btn"><span class="ico intro"><i class="fas fa-id-card"></i></span>Live Stream Introduction</button>
+        </div>
+      </section>
+
+      <section data-tools-section="room-play" class="host-only-tool">
+        <h3 class="party-tools-title party-tools-title--room-play">Room Play</h3>
+        <div class="party-tools-grid party-tools-grid-4">
+          <button type="button" id="liveBtnPk" class="host-tool-btn host-only-tool"><span class="ico pk"><span class="ap-pk-ico-mark" aria-hidden="true"><b>P</b><i>K</i></span></span><span class="ap-pk-tool-label">Room PK</span></button>
+          <button type="button" id="partyBtnLuckyBox" class="host-tool-btn"><span class="ico lucky"><i class="fas fa-box-open"></i></span>Lucky Packet</button>
+          <button type="button" class="ap-tool-game host-tool-btn" data-game="/games/greedy.html"><span class="ico games"><i class="fas fa-gamepad"></i></span>Game PK</button>
+          <button type="button" id="partyBtnGiftCenter" class="host-tool-btn"><span class="ico giftc"><i class="fas fa-gift"></i></span>Gift Center</button>
+        </div>
+      </section>
+
+      <section data-tools-section="basic">
+        <h3 class="party-tools-title">Basic Tools</h3>
+        <div class="party-tools-grid party-tools-grid-4">
+          <button type="button" id="partyBtnToolsMessage" class="ap-tool-msg host-tool-btn"><span class="ico msg"><i class="fas fa-envelope"></i><span class="ap-notify-dot" id="apToolsMsgDot" hidden></span></span>Message</button>
+          <button type="button" id="partyToolsSoundBtn"><span class="ico sound"><i class="fas fa-volume-up"></i></span>Sound</button>
+          <button type="button" id="partyToolsShareBtn" class="host-tool-btn"><span class="ico share"><i class="fas fa-share"></i></span>Share</button>
+          <button type="button" id="partyBtnReport" class="ap-tool-end"><span class="ico report"><i class="fas fa-exclamation-circle"></i></span>Report</button>
+          <button type="button" id="partyBtnEffects" class="host-tool-btn"><span class="ico effects"><i class="fas fa-sliders-h"></i></span>Effect &amp; Msg</button>
+          <button type="button" id="partyBtnMinimize"><span class="ico minimize"><i class="fas fa-compress"></i></span>Minimize</button>
+          <button type="button" id="hostToolNoise" class="host-only-tool host-tool-btn"><span class="ico noise"><i class="fas fa-wave-square"></i><span class="ap-tool-badge ap-tool-badge--off" id="hostNoiseBadge">Off</span></span>Noise Reduction (3A)</button>
+          <button type="button" id="partyBtnMusic"><span class="ico music"><i class="fas fa-music"></i></span>Music</button>
+          <button type="button" id="partyBtnBackground" class="host-only-tool"><span class="ico bg"><i class="fas fa-image"></i></span>Background</button>
+          <button type="button" id="partyToolsMuteAllChat" class="mod-only-tool"><span class="ico"><i class="fas fa-comment-slash"></i></span>Mute all chat</button>
+          <button type="button" id="partyToolsClearChat" class="mod-only-tool"><span class="ico"><i class="fas fa-eraser"></i></span>Clear chat</button>
+        </div>
+      </section>
+
+      <section data-tools-section="features">
+        <h3 class="party-tools-title party-tools-title--features">Features Center</h3>
+        <div class="party-tools-grid party-tools-grid-4">
+          <a href="/rankings.html?app=1" class="host-tool-link"><span class="ico rank"><i class="fas fa-trophy"></i></span>Rank</a>
+          <a href="/coins-recharge.html?app=1" class="host-tool-link"><span class="ico coins"><i class="fas fa-coins"></i></span>Rewards</a>
+          <a href="/store.html?app=1" class="host-tool-link"><span class="ico store"><i class="fas fa-shopping-bag"></i></span>Store</a>
+          <a href="/vip.html?app=1" class="host-tool-link"><span class="ico vip"><i class="fas fa-gem"></i></span>VIP</a>
+          <button type="button" id="partyBtnBackpack" class="host-tool-btn"><span class="ico backpack"><i class="fas fa-shopping-bag"></i></span>Backpack</button>
+          <button type="button" id="partyBtnGiftTools" class="host-tool-btn"><span class="ico gallery"><i class="fas fa-gift"></i></span>Gift Gallery</button>
+          <button type="button" id="partyBtnGiftCollection" class="host-tool-btn"><span class="ico collection"><i class="fas fa-book-open"></i></span>Gift Collection</button>
+          <button type="button" id="partyBtnCoinsTrading" class="host-tool-btn"><span class="ico trade"><i class="fas fa-exchange-alt"></i></span>Coins Trading</button>
+          <button type="button" id="partyBtnGiftWish" class="host-tool-btn"><span class="ico wish"><i class="fas fa-star"></i></span>Gift Wish</button>
+        </div>
+      </section>
+
       <section data-tools-section="games">
         <h3 class="party-tools-title party-tools-title--games">Games</h3>
         <div class="party-tools-grid party-tools-grid-4">
@@ -606,7 +646,6 @@
         </div>
       </section>
     </div>
-
   </div>
 
 
@@ -632,11 +671,6 @@
 
 
   <button type="button" id="partyBtnLock" hidden aria-hidden="true"></button>
-  <button type="button" id="partyBtnMusic" hidden aria-hidden="true"></button>
-  <button type="button" id="partyBtnBackground" hidden aria-hidden="true"></button>
-  <button type="button" id="partyBtnReport" hidden aria-hidden="true"></button>
-  <button type="button" id="partyBtnEffects" hidden aria-hidden="true"></button>
-  <button type="button" id="partyBtnMinimize" hidden aria-hidden="true"></button>
 
   <script src="/socket.io/socket.io.js"></script>
 
@@ -671,8 +705,7 @@
   <script src="profile-badges.js?v=20260816-admin-dedupe"></script>
   <link rel="stylesheet" href="cosmetics.css?v=20260819-entry-dm">
   <script src="cosmetics.js?v=20260819-entry-dm"></script>
-  <script src="social-live.js?v=20260823-nosoundnag"></script>
-
+  <script src="social-live.js?v=20260823-party-shot"></script>
   <script src="social-nav.js?v=20260720-back-fix"></script>
 
 </body>

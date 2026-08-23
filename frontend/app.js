@@ -2052,7 +2052,7 @@ function loadSocialShellIfNeeded() {
         '/explore.html', '/party.html', '/video.html', '/square.html', '/topics.html',
         '/store.html', '/vip.html', '/svip.html', '/svip-intro.html', '/svip-settings.html', '/visitors.html',
         '/rankings.html', '/cp-rankings.html', '/cp-home.html', '/cp-tips.html', '/cp-rules.html', '/cp-full-guide.html',
-        '/profile-tab.html', '/privileges.html',
+        '/profile-tab.html', '/privileges.html', '/coin-seller-offer.html',
         '/points.html', '/withdraw.html', '/withdraw-details.html', '/withdraw-notices.html',
         '/chat.html',
     ];

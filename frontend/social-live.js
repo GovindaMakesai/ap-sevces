@@ -2587,7 +2587,8 @@
   /** null = auto (front = mirror on); true/false = host override from tools */
   let hostMirrorOverride = null;
   /** Display state — ANS/AEC applied at mic create; in-room toggling doesn't rebuild tracks */
-  let noiseReductionUiOn = true;
+  /* Samsung/OEM 3A (AGC+ANS) ducks and delays uplink — default off, host can turn on */
+  let noiseReductionUiOn = !/Android/i.test(String(typeof navigator !== 'undefined' ? navigator.userAgent : ''));
   let videoFilterId = 'none';
   try {
     // One-time: older builds defaulted to "natural" without the user picking a look.
@@ -9800,6 +9801,8 @@
     '42a3da61-ae9f-473f-8faf-1fbef5e9dd10',
     'db419b3a-a715-4d08-830c-b30592ae1b89',
   ]);
+  const OEM_PUBLISHER_SEND_VOLUME = 220;
+  const QUIET_NAME_RE = /^(mini|minal|meenal|minall|veena)$/i;
   /* Send level when THIS device account is publishing (host or seat) */
   const QUIET_DEVICE_SEND_VOLUME = 320;
   /* How loud others hear a quiet-device publisher (host or seat remote track) */
@@ -9835,11 +9838,25 @@
     return QUIET_DEVICE_ACCOUNTS.has(String(idOrDisplay).trim());
   }
 
-  /** True only when the logged-in user is Minal/Veena (local device path). */
+  function nameLooksQuietReported(name) {
+    const n = String(name || '')
+      .trim()
+      .split(/\s+/)[0];
+    return Boolean(n) && QUIET_NAME_RE.test(n);
+  }
+
+  /** True when this device is a known quiet Samsung publisher (Mini / Minal / Veena). */
   function isQuietDevicePublisherMe() {
     try {
       const { id, displayId } = currentUserIds();
-      return accountKeyMatchesQuiet(displayId) || accountKeyMatchesQuiet(id);
+      if (accountKeyMatchesQuiet(displayId) || accountKeyMatchesQuiet(id)) return true;
+      const me = currentUser();
+      return (
+        nameLooksQuietReported(me?.username) ||
+        nameLooksQuietReported(me?.name) ||
+        nameLooksQuietReported(me?.first_name) ||
+        nameLooksQuietReported(me?.displayName)
+      );
     } catch (_e) {
       return false;
     }
@@ -9887,7 +9904,8 @@
     if (!m || typeof m !== 'object') return false;
     return (
       accountKeyMatchesQuiet(m.userId || m.user_id || m.id) ||
-      accountKeyMatchesQuiet(m.display_id || m.displayId || m.displayid)
+      accountKeyMatchesQuiet(m.display_id || m.displayId || m.displayid) ||
+      nameLooksQuietReported(m.name || m.username || m.displayName || m.nick)
     );
   }
 
@@ -9934,6 +9952,7 @@
     if (isQuietDevicePublisherMe() && (isHost() || hasSpeakerSeat)) {
       return QUIET_DEVICE_SEND_VOLUME;
     }
+    if ((isHost() || hasSpeakerSeat) && isOemHostMicRisk()) return OEM_PUBLISHER_SEND_VOLUME;
     if (isHost() || hasSpeakerSeat) return LIVE_PUBLISHER_SEND_VOLUME;
     return LIVE_TRACK_VOLUME;
   }
@@ -10088,14 +10107,16 @@
 
     disposeHostMicBoostGraph();
     /*
-     * Default path for everyone. Minal/Veena only: turn AGC on so quiet hardware
-     * uplink is more audible when they host or sit on a seat — never for other users.
+     * 3A = AGC + ANS. Samsung/OEM HW already runs AEC in the capture path;
+     * extra AGC/ANS makes some hosts (Mini) sound delayed / “slow”.
+     * Quiet-device publishers keep AGC on so others can hear them.
      */
     const quietPub = isQuietDevicePublisherMe();
+    const threeA = Boolean(noiseReductionUiOn);
     const opts = {
       AEC: true,
-      ANS: quietPub,
-      AGC: quietPub,
+      ANS: threeA && !oem,
+      AGC: quietPub || (threeA && !oem),
       encoderConfig: 'speech_standard',
     };
 
@@ -10111,8 +10132,8 @@
       audioTrack = await withTimeout(
         rtc.createMicrophoneAudioTrack({
           AEC: true,
-          ANS: quietPub,
-          AGC: quietPub,
+          ANS: threeA && !oem,
+          AGC: quietPub || (threeA && !oem),
         }),
         25000,
         'Microphone access'
@@ -14560,6 +14581,43 @@
     }
   }
 
+  async function republishLocalMicForNoisePolicy() {
+    if (!agoraClient || !publishSucceeded || !liveDebugState.agoraJoined) return;
+    if (!isHost() && !hasSpeakerSeat) return;
+    const AgoraRTC = window.AgoraRTC || (await loadAgoraScript());
+    try {
+      const staleAudio = (agoraClient.localTracks || []).filter((t) => {
+        const type = t.getTrackType?.() || t.trackMediaType;
+        return type === 'audio';
+      });
+      if (staleAudio.length) {
+        try {
+          await lifeUnpublish(staleAudio);
+        } catch (_e) { }
+        staleAudio.forEach((t) => {
+          try {
+            t.stop?.();
+            t.close?.();
+          } catch (_e2) { }
+        });
+      }
+      localTracks = localTracks.filter((t) => {
+        const type = t.getTrackType?.() || t.trackMediaType;
+        return type !== 'audio';
+      });
+      const audioTrack = await createRoomMicrophoneTrack(AgoraRTC);
+      await lifePublish(audioTrack);
+      const video = getLocalVideoTrack() || rawCameraTrack;
+      localTracks = video ? [audioTrack, video] : [audioTrack];
+      await applyLocalMicMuteState();
+      syncMicButtonUi();
+      liveDebugLog(`mic republished 3A=${noiseReductionUiOn}`);
+    } catch (e) {
+      liveDebugLog(`mic 3A republish failed: ${e?.message || e}`);
+      toast('Could not recapture microphone', 'warning');
+    }
+  }
+
   async function unlockBrowserAudio() {
     try {
       const Ctx = window.AudioContext || window.webkitAudioContext;
@@ -16144,10 +16202,6 @@
     e?.preventDefault?.();
     e?.stopPropagation?.();
     if (typeof e?.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
-    if (isPartyRoomPage() && document.getElementById('apPartyRoomSettings')) {
-      openPartyRoomSettings();
-      return;
-    }
     const now = Date.now();
     if (now < (Number(window.__apToolsOpenBusyUntil) || 0)) return;
     window.__apToolsOpenBusyUntil = now + 700;
@@ -16281,6 +16335,12 @@
   function bindHostToolsPanel() {
     if (window.__apHostToolsBound) return;
     window.__apHostToolsBound = true;
+    const noiseBadge = document.getElementById('hostNoiseBadge');
+    if (noiseBadge) {
+      noiseBadge.textContent = noiseReductionUiOn ? 'On' : 'Off';
+      noiseBadge.classList.toggle('ap-tool-badge--on', noiseReductionUiOn);
+      noiseBadge.classList.toggle('ap-tool-badge--off', !noiseReductionUiOn);
+    }
 
     const closeThen = (fn) => () => {
       closeToolsSheetOnly();
@@ -16347,6 +16407,30 @@
         openEditLivePresentation();
       })
     );
+    document.getElementById('hostToolMyTheme')?.addEventListener(
+      'click',
+      closeThen(() => {
+        openRoomBackgroundPicker();
+      })
+    );
+    document.getElementById('hostToolRoomSettings')?.addEventListener(
+      'click',
+      closeThen(() => {
+        openPartyRoomSettings();
+      })
+    );
+    document.getElementById('partyToolsShareBtn')?.addEventListener(
+      'click',
+      closeThen(() => {
+        document.getElementById('partyBtnShare')?.click();
+      })
+    );
+    document.getElementById('partyToolsSoundBtn')?.addEventListener(
+      'click',
+      closeThen(() => {
+        document.getElementById('partyBtnSound')?.click();
+      })
+    );
     document.getElementById('partyBtnToolsMessage')?.addEventListener(
       'click',
       closeThen(() => {
@@ -16372,10 +16456,11 @@
         }
         toast(
           noiseReductionUiOn
-            ? 'Noise reduction (ANS/AEC) stays active for this publish. Restart stream to re-apply device processing.'
-            : 'Noise reduction marked off (current track unchanged until you restart mic publish).',
+            ? 'Noise reduction (3A) on — recapturing mic. On Samsung this can make voice quieter or delayed.'
+            : 'Noise reduction off — recapturing mic for clearer host voice.',
           'info'
         );
+        republishLocalMicForNoisePolicy().catch(() => {});
       })
     );
     document.getElementById('partyBtnGiftCenter')?.addEventListener(
@@ -17578,7 +17663,7 @@
 
     try {
       if (isPartyRoomPage()) {
-        setLiveChatHidden(true);
+        setLiveChatHidden(localStorage.getItem('ap_live_chat_hidden') === '1');
       } else if (localStorage.getItem('ap_live_chat_hidden') === '1') setLiveChatHidden(true);
       else setLiveChatHidden(false);
     } catch (_e) {

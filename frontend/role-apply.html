@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="social-theme.css">
   <link rel="stylesheet" href="mobile-app.css">
+  <link rel="stylesheet" href="social-shot-skin.css?v=20260823-mega">
 </head>
 <body class="mobile-app-page">
   <header class="mobile-app-header">
@@ -17,6 +18,9 @@
   </header>
 
   <div class="mobile-app-body">
+    <a href="/coin-seller-offer.html?app=1" class="social-mega-offer-link" aria-label="BIG MEGA OFFER Coin Seller">
+      <img src="/assets/promos/mega-offer-coin-seller.png" alt="BIG MEGA OFFER Coin Seller 75% off">
+    </a>
     <div class="ap-role-tabs" id="roleTabs">
       <button type="button" class="ap-role-tab active" data-role="creator">
         <i class="fas fa-video"></i> Host
@@ -122,6 +126,7 @@
         title: 'Become a Coin Seller',
         icon: 'fa-coins',
         benefits: [
+          'BIG MEGA OFFER: Super $500 · Senior $375 · Diamond $250 (75% off)',
           'Stock coins and transfer to buyers',
           'Earn from coin sales to users',
           'Level up for better exchange rates',
@@ -288,6 +293,14 @@
           document.querySelectorAll('.ap-role-tab').forEach((t) => {
             t.classList.toggle('active', t.dataset.role === urlRole);
           });
+        }
+        const plan = String(params.get('plan') || '').toLowerCase();
+        const planLabel = { super: 'SUPER ($500)', senior: 'SENIOR ($375)', diamond: 'DIAMOND ($250)' }[plan];
+        if (planLabel && document.getElementById('applyMessage')) {
+          const box = document.getElementById('applyMessage');
+          if (!box.value.trim()) {
+            box.value = 'BIG MEGA OFFER — I want the ' + planLabel + ' Coin Seller plan.';
+          }
         }
         const promo = params.get('promo') || params.get('code') || params.get('bd') || params.get('bd_code');
         const agencyCode =

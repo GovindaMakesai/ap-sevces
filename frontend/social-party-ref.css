@@ -28,9 +28,7 @@ body[data-live-page='party-room'] .party-room > *:not(.party-ref-bg) {
   z-index: 1;
 }
 
-/* Hide legacy chrome in ref mode */
-body[data-live-page='party-room'] .party-stats-bar,
-body[data-live-page='party-room'] .party-widgets,
+/* Hide leftover widgets only — stats row is visible in shot layout */
 body[data-live-page='party-room'] .party-invite-row,
 body[data-live-page='party-room'] .party-host-bar,
 body[data-live-page='party-room'] .party-header-center,
@@ -118,7 +116,9 @@ body[data-live-page='party-room'] .party-close {
 }
 
 body[data-live-page='party-room'] .party-viewers {
-  display: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .party-seat-move-banner[hidden] {
@@ -1622,4 +1622,275 @@ body[data-live-page='party-room'] .party-chat-msg {
 
 body[data-live-page='party-room'] .party-chat-msg .party-chat-text {
   font-size: 12px;
+}
+
+/* —— Screenshot party layout: 3x3 seats, stats chips, tools drawer —— */
+body[data-live-page='party-room'] .party-host-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+body[data-live-page='party-room'] #partyHostFollow.party-host-plus,
+body[data-live-page='party-room'] .party-host-plus.party-follow-btn {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #fb923c, #ea580c);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1;
+  visibility: visible !important;
+  pointer-events: auto !important;
+}
+
+body[data-live-page='party-room'].ap-is-host #partyHostFollow.party-host-plus {
+  display: none !important;
+}
+
+body[data-live-page='party-room'] .party-ref-stats {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  position: relative;
+  z-index: 6;
+}
+body[data-live-page='party-room'] .party-ref-stats::-webkit-scrollbar {
+  display: none;
+}
+
+body[data-live-page='party-room'] .party-ref-chip,
+body[data-live-page='party-room'] .party-ref-chest,
+body[data-live-page='party-room'] .party-ref-event {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  text-decoration: none;
+}
+body[data-live-page='party-room'] .party-ref-chip-pop i,
+body[data-live-page='party-room'] .party-ref-wish i {
+  color: #fb923c;
+  font-size: 10px;
+}
+body[data-live-page='party-room'] .party-ref-rule {
+  cursor: pointer;
+}
+body[data-live-page='party-room'] .party-ref-chest {
+  background: linear-gradient(135deg, #b45309, #f59e0b);
+  font-variant-numeric: tabular-nums;
+}
+body[data-live-page='party-room'] .party-ref-chest::before {
+  content: '\f51e';
+  font-family: 'Font Awesome 6 Free';
+  font-weight: 900;
+  font-size: 11px;
+}
+body[data-live-page='party-room'] .party-ref-event {
+  background: linear-gradient(90deg, #7c3aed, #db2777);
+  letter-spacing: 0.04em;
+}
+body[data-live-page='party-room'] .party-music-bar {
+  display: none !important;
+}
+
+body[data-live-page='party-room'] .party-seats-wrap {
+  padding-bottom: calc(56px + env(safe-area-inset-bottom, 0));
+}
+
+body[data-live-page='party-room'] .party-seats-ref {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px 4px;
+  width: 100%;
+  max-width: 430px;
+  margin: 0 auto;
+  padding: 0 8px;
+}
+
+body[data-live-page='party-room'] .party-seats-ref .party-seat-row {
+  display: contents;
+}
+
+body[data-live-page='party-room'] .party-seats-ref .party-seat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: rgba(12, 18, 40, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 8px 4px 6px;
+  min-height: 0;
+  aspect-ratio: 1 / 1.05;
+  justify-content: center;
+}
+
+body[data-live-page='party-room'] .party-seats-ref .seat-avatar,
+body[data-live-page='party-room'] .party-seats-ref .seat-tier-lg .seat-avatar,
+body[data-live-page='party-room'] .party-seats-ref .seat-tier-md .seat-avatar,
+body[data-live-page='party-room'] .party-seats-ref .seat-tier-sm .seat-avatar,
+body[data-live-page='party-room'] .party-seats-ref .party-seat.is-host .seat-avatar {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+}
+
+@media (max-width: 360px) {
+  body[data-live-page='party-room'] .party-seats-ref .seat-avatar,
+  body[data-live-page='party-room'] .party-seats-ref .seat-tier-lg .seat-avatar,
+  body[data-live-page='party-room'] .party-seats-ref .seat-tier-md .seat-avatar,
+  body[data-live-page='party-room'] .party-seats-ref .seat-tier-sm .seat-avatar,
+  body[data-live-page='party-room'] .party-seats-ref .party-seat.is-host .seat-avatar {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+@media (min-width: 400px) {
+  body[data-live-page='party-room'] .party-seats-ref .seat-avatar,
+  body[data-live-page='party-room'] .party-seats-ref .seat-tier-lg .seat-avatar,
+  body[data-live-page='party-room'] .party-seats-ref .seat-tier-md .seat-avatar,
+  body[data-live-page='party-room'] .party-seats-ref .seat-tier-sm .seat-avatar,
+  body[data-live-page='party-room'] .party-seats-ref .party-seat.is-host .seat-avatar {
+    width: 62px;
+    height: 62px;
+  }
+}
+
+body[data-live-page='party-room'] .party-seat.is-empty .seat-avatar--empty {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+body[data-live-page='party-room'] .party-seat.is-empty .seat-avatar--empty::before {
+  content: '\f6c0';
+  font-family: 'Font Awesome 6 Free';
+  font-weight: 900;
+  font-size: 28px;
+  color: #e8c56a;
+  opacity: 0.95;
+  filter: drop-shadow(0 2px 6px rgba(232, 197, 106, 0.45));
+}
+
+body[data-live-page='party-room'] .party-seat .seat-num {
+  position: absolute;
+  top: 4px;
+  left: 6px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.55);
+  font-weight: 700;
+  z-index: 2;
+}
+
+body[data-live-page='party-room'] .party-seat.is-speaking .seat-avatar,
+body[data-live-page='party-room'] .party-seat.is-speaking {
+  box-shadow: 0 0 0 2px #ff4fd8, 0 0 18px rgba(255, 79, 216, 0.55);
+}
+
+body[data-live-page='party-room'] .party-seat.is-host {
+  background: rgba(20, 16, 8, 0.55);
+}
+
+body[data-live-page='party-room'] .party-seat.is-host .seat-crown {
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 16px;
+  z-index: 3;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6));
+}
+
+body[data-live-page='party-room'] .party-chat-row {
+  width: min(72vw, 280px);
+  bottom: calc(118px + env(safe-area-inset-bottom, 0));
+  max-height: min(28vh, 220px);
+}
+
+body[data-live-page='party-room'] .party-chat-feed {
+  max-height: 28vh;
+}
+
+body[data-live-page='party-room'] .party-tools-sheet .party-tools-panel {
+  width: min(100%, 430px);
+  max-height: min(82dvh, 720px);
+  background: rgba(8, 8, 12, 0.97);
+  padding-top: 18px;
+}
+
+body[data-live-page='party-room'] .party-tools-title {
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+body[data-live-page='party-room'] .party-tools-grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px 8px;
+}
+
+body[data-live-page='party-room'] .party-tools-grid a,
+body[data-live-page='party-room'] .party-tools-grid button {
+  color: #fff;
+  font-size: 11px;
+}
+
+body[data-live-page='party-room'] .party-ref-bar-btn.party-btn-gift,
+body[data-live-page='party-room'] #partyBtnGift {
+  width: 44px;
+  height: 44px;
+  flex-basis: 44px;
+  background: radial-gradient(circle at 30% 25%, #ffe08a, #f59e0b 42%, #b45309);
+  color: #3d2e08;
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.45);
+}
+
+body[data-live-page='party-room'] .party-viewer-count {
+  min-width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+@media (max-height: 640px) {
+  body[data-live-page='party-room'] .party-seats-ref .party-seat {
+    aspect-ratio: 1 / 0.92;
+    padding: 4px 2px;
+  }
+  body[data-live-page='party-room'] .party-chat-row {
+    max-height: min(22vh, 140px);
+  }
 }

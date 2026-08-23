@@ -109,8 +109,11 @@ body.social-explore-page .social-search input {
 }
 
 body.social-explore-page #social-banner-slider {
-  display: block;
-  margin: 0 12px 10px;
+  display: block !important;
+  height: auto !important;
+  overflow: visible;
+  padding: 0 !important;
+  margin: 0 12px 10px !important;
 }
 
 body.social-explore-page .social-banner-slide {
@@ -210,6 +213,8 @@ body.social-explore-page .social-banner-dots button.active {
 body.social-explore-page .social-explore-feed-head {
   display: none;
 }
+
+body.social-explore-page .social-live-card {
   border-radius: 14px;
   overflow: hidden;
 }
@@ -459,4 +464,214 @@ html.ap-expo-app .ap-msg-top,
   text-align: center;
   color: #b45309;
   font-weight: 800;
+}
+
+.shot-banner--mega {
+  background:
+    radial-gradient(circle at 80% 20%, rgba(96, 165, 250, 0.35), transparent 40%),
+    linear-gradient(160deg, #07153f 0%, #123a8a 55%, #7c3aed 100%);
+}
+.shot-banner--mega h2 {
+  color: #fff !important;
+}
+
+.social-mega-offer-poster {
+  margin: 0 12px 14px;
+}
+.social-mega-offer-poster a {
+  display: block;
+  text-decoration: none;
+  color: #0b1b4a;
+  background: #07153f;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(11, 27, 74, 0.2);
+}
+.social-mega-offer-poster img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 520px;
+  object-fit: contain;
+  background: #07153f;
+}
+.social-mega-offer-poster span {
+  display: block;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: center;
+  background: #fff;
+}
+
+.social-mega-offer-link {
+  display: block;
+  margin: 0 12px 12px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #07153f;
+}
+.social-mega-offer-link img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 280px;
+  object-fit: contain;
+}
+
+.rc-mega-offer {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 12px 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  text-decoration: none;
+  color: #fff;
+  background: linear-gradient(120deg, #07153f, #5b21b6 60%, #ea580c);
+}
+.rc-mega-offer strong {
+  font-size: 16px;
+}
+.rc-mega-offer span {
+  font-size: 12px;
+  opacity: 0.95;
+}
+
+html.social-app body.mega-offer-page,
+body.mega-offer-page {
+  background: #07153f !important;
+  background-image:
+    radial-gradient(circle at 12% 8%, rgba(96, 165, 250, 0.28), transparent 42%),
+    radial-gradient(circle at 88% 92%, rgba(124, 58, 237, 0.35), transparent 48%) !important;
+  color: #fff !important;
+  min-height: 100dvh;
+  padding-bottom: calc(var(--social-bottom-nav-h, 62px) + 24px);
+}
+body.mega-offer-page .mega-offer-top a,
+body.mega-offer-page .mega-offer-top p,
+body.mega-offer-page .mega-offer-top h1,
+body.mega-offer-page .mega-offer-sub,
+body.mega-offer-page .mega-offer-url {
+  color: #fff !important;
+}
+body.mega-offer-page .mega-plan-btn {
+  background: #fff !important;
+}
+html.social-app body.mega-offer-page .mega-plan--super .mega-plan-btn { color: #6d28d9 !important; }
+html.social-app body.mega-offer-page .mega-plan--senior .mega-plan-btn { color: #0f766e !important; }
+html.social-app body.mega-offer-page .mega-plan--diamond .mega-plan-btn { color: #ea580c !important; }
+.mega-offer-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  padding-top: max(12px, env(safe-area-inset-top));
+}
+.mega-offer-top a {
+  color: #fff;
+  font-size: 18px;
+  width: 36px;
+}
+.mega-offer-top p {
+  margin: 0;
+  font-size: 12px;
+  opacity: 0.85;
+}
+.mega-offer-top h1 {
+  margin: 0;
+  font-size: 20px;
+  letter-spacing: 0.04em;
+}
+.mega-offer-sub {
+  text-align: center;
+  margin: 0 12px 14px;
+  font-weight: 700;
+}
+.mega-offer-grid {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 0 12px 16px;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+.mega-plan {
+  flex: 0 0 min(78vw, 280px);
+  scroll-snap-align: center;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #fff;
+  color: #111;
+}
+.mega-plan-top {
+  padding: 14px 12px 10px;
+  text-align: center;
+}
+.mega-plan-top h2 {
+  margin: 0;
+  font-size: 22px;
+}
+.mega-plan-role {
+  margin: 2px 0 8px;
+  font-weight: 800;
+}
+.mega-plan--super .mega-plan-role,
+.mega-plan--super .mega-plan-old { color: #6d28d9; }
+.mega-plan--senior .mega-plan-role,
+.mega-plan--senior .mega-plan-old { color: #0f766e; }
+.mega-plan--diamond .mega-plan-role,
+.mega-plan--diamond .mega-plan-old { color: #ea580c; }
+.mega-plan-old,
+.mega-plan-inr {
+  margin: 0;
+  font-size: 11px;
+}
+.mega-plan-price {
+  margin: 6px 0 0;
+  font-size: 32px;
+  font-weight: 900;
+}
+.mega-plan-body {
+  padding: 12px 12px 16px;
+  color: #fff;
+  text-align: center;
+}
+.mega-plan--super .mega-plan-body { background: linear-gradient(180deg, #7c3aed, #4c1d95); }
+.mega-plan--senior .mega-plan-body { background: linear-gradient(180deg, #14b8a6, #0f766e); }
+.mega-plan--diamond .mega-plan-body { background: linear-gradient(180deg, #fb923c, #c2410c); }
+.mega-plan-off {
+  margin: 0 0 8px;
+  font-size: 22px;
+  font-weight: 900;
+  color: #111;
+}
+.mega-plan-body ul {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+}
+.mega-plan-body li {
+  padding: 8px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.28);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+.mega-plan-btn {
+  display: inline-block;
+  background: #fff;
+  border-radius: 999px;
+  padding: 10px 18px;
+  font-weight: 800;
+  text-decoration: none;
+}
+.mega-plan--super .mega-plan-btn { color: #6d28d9; }
+.mega-plan--senior .mega-plan-btn { color: #0f766e; }
+.mega-plan--diamond .mega-plan-btn { color: #ea580c; }
+.mega-offer-url {
+  text-align: center;
+  opacity: 0.8;
+  font-size: 13px;
 }
