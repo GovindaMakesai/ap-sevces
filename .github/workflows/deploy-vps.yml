@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'backend/**'
+      - 'frontend/**'
       - 'config/**'
       - 'package.json'
       - 'package-lock.json'
