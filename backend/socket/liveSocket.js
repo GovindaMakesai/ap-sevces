@@ -1011,11 +1011,12 @@ function registerLiveSocket(io) {
         });
 
         const charged = Number(result.gift?.coin_amount || coinAmount);
+        const secretSender = !!result.secretSender;
         const gift = {
           id: result.gift.id,
           gift_tx_id: result.gift.id,
-          from: fromName,
-          fromUserId: socket.userId,
+          from: secretSender ? 'Secret Fan' : fromName,
+          fromUserId: secretSender ? null : socket.userId,
           to: toName,
           toUserId: receiverId,
           emoji: giftEmoji,

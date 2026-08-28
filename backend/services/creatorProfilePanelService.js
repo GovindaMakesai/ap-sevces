@@ -3,6 +3,7 @@ const profileVisitorService = require('./profileVisitorService');
 const profileBadgeService = require('./profileBadgeService');
 const cpService = require('./cpService');
 const profileAlbumService = require('./profileAlbumService');
+const { sqlExcludeSecretSenders } = require('../lib/secretGiftSender');
 
 async function countMutualFriends(userId) {
   const res = await db.query(
@@ -68,6 +69,7 @@ async function getGiftStats(userId, { period = 'monthly' } = {}) {
      WHERE sender_id = $1 AND created_at >= $2`,
     [id, sinceIso]
   );
+  const secret = sqlExcludeSecretSenders({ startParam: 3 });
   const topSendersRes = await db.query(
     `SELECT gt.sender_id AS user_id,
             COUNT(*)::int AS gift_count,
@@ -75,11 +77,13 @@ async function getGiftStats(userId, { period = 'monthly' } = {}) {
             u.first_name, u.last_name, u.profile_pic, u.display_id, u.updated_at
      FROM gift_transactions gt
      JOIN users u ON u.id = gt.sender_id AND u.is_active = TRUE
-     WHERE gt.receiver_id = $1 AND gt.created_at >= $2
+     WHERE gt.receiver_id = $1 AND gt.created_at >= $2 AND gt.coin_amount::numeric > 0
+       AND gt.gift_type NOT LIKE '%\\_reversed' ESCAPE '\\'
+       ${secret.sql}
      GROUP BY gt.sender_id, u.first_name, u.last_name, u.profile_pic, u.display_id, u.updated_at
      ORDER BY gift_coins DESC, gift_count DESC
      LIMIT 15`,
-    [id, sinceIso]
+    [id, sinceIso, ...secret.params]
   );
 
   const buildName = (r) => `${r.first_name || ''} ${r.last_name || ''}`.trim() || 'User';

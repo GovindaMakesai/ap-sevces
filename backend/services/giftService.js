@@ -5,6 +5,7 @@ const leaderboardService = require('./leaderboardService');
 const charityService = require('./charityService');
 const fraudService = require('./fraudService');
 const pkBattleService = require('./pkBattleService');
+const { isSecretGiftSender } = require('../lib/secretGiftSender');
 const { toJsonb } = require('../lib/pgJsonb');
 
 const CATALOG_TTL_MS = 60000;
@@ -90,6 +91,8 @@ async function sendGift({
   if (String(senderId) === String(receiverId)) throw new Error('Cannot gift yourself');
 
   await fraudService.checkGiftAbuse(senderId, Number(amount));
+  const secretSender = await isSecretGiftSender(senderId, db);
+  const publicFromName = secretSender ? 'Secret Fan' : fromName;
 
   const client = await db.pool.connect();
   try {
@@ -163,18 +166,19 @@ async function sendGift({
           senderId,
           toJsonb({
             gift_tx_id: gift.rows[0].id,
-            fromUserId: senderId,
+            fromUserId: secretSender ? null : senderId,
             toUserId: receiverId,
             receiver_id: receiverId,
             gift_type: giftType,
             emoji: emoji || giftType,
-            from: fromName || null,
+            from: publicFromName || null,
             to: toName || null,
             amount: Number(amount),
             coin_amount: Number(amount),
             qty: Math.max(1, Math.floor(Number(qty) || 1)),
             platform_fee: Number(platformShare),
             host_amount: Number(hostShare),
+            secret: secretSender || undefined,
           }),
         ]
       );
@@ -202,7 +206,7 @@ async function sendGift({
         try {
           const cpService = require('./cpService');
           const coinAmt = Number(amount);
-          if (coinAmt > 0) {
+          if (coinAmt > 0 && !secretSender) {
             await cpService.addSupportPoints(senderId, receiverId, Math.floor(coinAmt / 10));
           }
         } catch (_cp) { /* non-fatal */ }
@@ -219,10 +223,16 @@ async function sendGift({
         } catch (_e) {}
         try {
           const { recordGiftStats } = require('./liveUserAnalyticsService');
-          await recordGiftStats(senderId, receiverId, Number(amount), Number(hostShare));
+          await recordGiftStats(senderId, receiverId, Number(amount), Number(hostShare), {
+            skipSender: secretSender,
+          });
         } catch (_e) {}
         try {
-          await leaderboardService.ingestGiftLeaderboards(giftRow);
+          if (!secretSender) {
+            await leaderboardService.ingestGiftLeaderboards(giftRow);
+          } else {
+            await leaderboardService.ingestGiftLeaderboardsReceiverOnly(giftRow);
+          }
         } catch (err) {
           console.warn('[gift] leaderboard', err.message);
         }
@@ -249,6 +259,7 @@ async function sendGift({
       platform_fee: Number(platformShare),
       creator_amount: Number(hostShare),
       settlement,
+      secretSender,
       sender_balance: {
         coin_balance: coinBal,
         gift_inventory_coins: giftInv,

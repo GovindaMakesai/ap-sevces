@@ -81,11 +81,11 @@ async function flushMemberSessionStats(room, userId) {
   );
 }
 
-async function recordGiftStats(senderId, receiverId, coinAmount, creatorAmount) {
+async function recordGiftStats(senderId, receiverId, coinAmount, creatorAmount, opts = {}) {
   const statDate = new Date().toISOString().slice(0, 10);
   const sent = Number(coinAmount) || 0;
   const received = Number(creatorAmount) || 0;
-  if (sent > 0) await upsertDailyStats(senderId, statDate, { gifts_sent_coins: sent });
+  if (sent > 0 && !opts.skipSender) await upsertDailyStats(senderId, statDate, { gifts_sent_coins: sent });
   if (received > 0) await upsertDailyStats(receiverId, statDate, { gifts_received_coins: received });
 }
 

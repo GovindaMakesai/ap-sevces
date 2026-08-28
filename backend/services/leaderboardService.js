@@ -1,8 +1,8 @@
 const db = require('../config/database');
 const redis = require('../lib/redis');
+const { sqlExcludeSecretSenders, loadSecretSenderIds } = require('../lib/secretGiftSender');
 
-/* Temporary leaderboard hiding for gifting/fraud prevention during heavy gifting.
-   Works for the “Gift Rank” tab (category = gifters). */
+/* Legacy display_id hide list — kept for backwards compatibility */
 const HIDDEN_LEADERBOARD_DISPLAY_IDS = ['4830223'];
 
 const CACHE_TTL = 300;
@@ -94,7 +94,12 @@ async function enrichLeaderboardRows(rows) {
 }
 
 async function filterHiddenLeaderboardRows(rows) {
-  if (!rows.length || !HIDDEN_LEADERBOARD_DISPLAY_IDS.length) return rows;
+  if (!rows.length) return rows;
+  const secretIds = await loadSecretSenderIds(db);
+  if (secretIds.size) {
+    rows = rows.filter((r) => !secretIds.has(String(r.entity_id)));
+  }
+  if (!HIDDEN_LEADERBOARD_DISPLAY_IDS.length) return rows;
   const ids = [...new Set(rows.map((r) => String(r.entity_id)).filter(Boolean))];
   if (!ids.length) return rows;
   const users = await db.query(
@@ -136,6 +141,7 @@ async function computeEngagementLeaderboard(periodType, category, limit = 50, op
     );
   } else if (category === 'gifters') {
     const scoreExpr = opts.mode === 'count' ? 'COUNT(*)::bigint' : 'COALESCE(SUM(gt.coin_amount), 0)::bigint';
+    const secret = sqlExcludeSecretSenders({ emailAlias: 'u.email', displayIdAlias: 'u.display_id', startParam: 4 });
     res = await db.query(
       `SELECT gt.sender_id AS entity_id,
               ${scoreExpr} AS score,
@@ -144,12 +150,15 @@ async function computeEngagementLeaderboard(periodType, category, limit = 50, op
        FROM gift_transactions gt
        JOIN users u ON u.id = gt.sender_id AND u.is_active = TRUE
        WHERE gt.created_at >= $1
+         AND gt.coin_amount::numeric > 0
+         AND gt.gift_type NOT LIKE '%\\_reversed' ESCAPE '\\'
          AND u.display_id::text <> ALL($3::text[])
+         ${secret.sql}
        GROUP BY gt.sender_id, u.first_name, u.last_name, u.profile_pic
        HAVING ${opts.mode === 'count' ? 'COUNT(*) > 0' : 'COALESCE(SUM(gt.coin_amount), 0) > 0'}
        ORDER BY score DESC, entity_label ASC
        LIMIT $2`,
-      [since, lim, HIDDEN_LEADERBOARD_DISPLAY_IDS]
+      [since, lim, HIDDEN_LEADERBOARD_DISPLAY_IDS, ...secret.params]
     );
   } else if (category === 'creators' || category === 'earners') {
     res = await db.query(
@@ -340,6 +349,16 @@ async function refreshAll() {
   }
 }
 
+async function ingestGiftLeaderboardsReceiverOnly(gift) {
+  const amount = Number(gift.coin_amount || 0);
+  if (amount <= 0) return;
+  const periods = ['daily', 'weekly', 'monthly'];
+  for (const p of periods) {
+    await upsertScore({ periodType: p, category: 'creators', entityId: gift.receiver_id, delta: Number(gift.creator_amount || amount) });
+    await upsertScore({ periodType: p, category: 'earners', entityId: gift.receiver_id, delta: Number(gift.creator_amount || amount) });
+  }
+}
+
 async function ingestGiftLeaderboards(gift) {
   const amount = Number(gift.coin_amount || 0);
   if (amount <= 0) return;
@@ -351,6 +370,24 @@ async function ingestGiftLeaderboards(gift) {
   }
 }
 
+async function purgeSecretSenderLeaderboards() {
+  const secretIds = await loadSecretSenderIds(db);
+  if (!secretIds.size) return 0;
+  const ids = Array.from(secretIds);
+  const res = await db.query(
+    `DELETE FROM leaderboard_entries
+     WHERE category = 'gifters' AND entity_id = ANY($1::uuid[])`,
+    [ids]
+  );
+  const periods = ['daily', 'weekly', 'monthly'];
+  for (const p of periods) {
+    for (const c of ['gifters']) {
+      await invalidateLeaderboardCache(p, c);
+    }
+  }
+  return res.rowCount || 0;
+}
+
 module.exports = {
   periodKey,
   periodSince,
@@ -360,4 +397,6 @@ module.exports = {
   computeEngagementLeaderboard,
   refreshAll,
   ingestGiftLeaderboards,
+  ingestGiftLeaderboardsReceiverOnly,
+  purgeSecretSenderLeaderboards,
 };
