@@ -1,8 +1,9 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, StyleSheet, Text, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import MatchCallBridge from './src/navigation/MatchCallBridge';
+import PromoLaunchOverlay from './src/components/PromoLaunchOverlay';
 import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
 import { clearLiveSecure } from './src/lib/liveSecure';
@@ -225,12 +226,15 @@ function Root() {
 }
 
 export default function App() {
+  const [promoDone, setPromoDone] = useState(false);
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <AuthProvider>
           <SocketProvider>
             <Root />
+            {!promoDone ? <PromoLaunchOverlay onDone={() => setPromoDone(true)} /> : null}
           </SocketProvider>
         </AuthProvider>
       </SafeAreaProvider>

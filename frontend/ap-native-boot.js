@@ -128,4 +128,18 @@
     guideFix.href = '/cp-guide-readability.css?v=20260815-cpguide';
     (document.head || html).appendChild(guideFix);
   }
+
+  /* Launch promo splash — once per session in native WebView */
+  try {
+    if (!sessionStorage.getItem('ap_reality_splash_done_v1')) {
+      var splashCss = document.createElement('link');
+      splashCss.rel = 'stylesheet';
+      splashCss.href = '/ap-launch-splash.css?v=20260901';
+      (document.head || html).appendChild(splashCss);
+      var splashJs = document.createElement('script');
+      splashJs.src = '/ap-launch-splash.js?v=20260901';
+      splashJs.defer = true;
+      (document.head || html).appendChild(splashJs);
+    }
+  } catch (_splashErr) {}
 })();
