@@ -1,4 +1,5 @@
 const db = require('../config/database');
+const { toJsonb } = require('../lib/pgJsonb');
 
 const DEFAULT_SETTINGS = {
   min_withdrawal_usd: 10,
@@ -136,21 +137,11 @@ async function getOrCreateWallet(userId, client = db) {
 }
 
 async function getBalance(userId) {
-  const client = await db.pool.connect();
-  try {
-    await client.query('BEGIN');
-    const wallet = await getOrCreateWallet(userId, client);
-    await client.query('COMMIT');
-    return {
-      coin_balance: Number(wallet.coin_balance),
-      star_balance: Number(wallet.star_balance),
-    };
-  } catch (e) {
-    await db.safeRollback(client);
-    throw e;
-  } finally {
-    client.release();
-  }
+  const wallet = await getOrCreateWallet(userId);
+  return {
+    coin_balance: Number(wallet.coin_balance),
+    star_balance: Number(wallet.star_balance),
+  };
 }
 
 async function creditCoins(userId, amount, meta = {}, client) {
@@ -166,14 +157,14 @@ async function creditCoins(userId, amount, meta = {}, client) {
     );
     const tx = await c.query(
       `INSERT INTO wallet_transactions (user_id, type, amount, currency_type, reference_type, reference_id, status, metadata)
-       VALUES ($1, $2, $3, 'coin', $4, $5, 'completed', $6) RETURNING *`,
+       VALUES ($1, $2, $3, 'coin', $4, $5, 'completed', $6::jsonb) RETURNING *`,
       [
         userId,
         meta.type || 'credit',
         amt.toString(),
         meta.reference_type || null,
         meta.reference_id || null,
-        JSON.stringify(meta.metadata || {}),
+        toJsonb(meta.metadata || {}),
       ]
     );
     return { balance: Number(newBal), transaction: tx.rows[0] };
@@ -215,14 +206,14 @@ async function debitCoins(userId, amount, meta = {}, client) {
     );
     const tx = await c.query(
       `INSERT INTO wallet_transactions (user_id, type, amount, currency_type, reference_type, reference_id, status, metadata)
-       VALUES ($1, $2, $3, 'coin', $4, $5, 'completed', $6) RETURNING *`,
+       VALUES ($1, $2, $3, 'coin', $4, $5, 'completed', $6::jsonb) RETURNING *`,
       [
         userId,
         meta.type || 'debit',
         (-Number(amt)).toString(),
         meta.reference_type || null,
         meta.reference_id || null,
-        JSON.stringify(meta.metadata || {}),
+        toJsonb(meta.metadata || {}),
       ]
     );
     return { balance: Number(newBal), transaction: tx.rows[0] };
@@ -256,14 +247,14 @@ async function creditStars(userId, amount, meta = {}, client) {
     );
     const tx = await c.query(
       `INSERT INTO wallet_transactions (user_id, type, amount, currency_type, reference_type, reference_id, status, metadata)
-       VALUES ($1, $2, $3, 'star', $4, $5, 'completed', $6) RETURNING *`,
+       VALUES ($1, $2, $3, 'star', $4, $5, 'completed', $6::jsonb) RETURNING *`,
       [
         userId,
         meta.type || 'credit',
         amt.toString(),
         meta.reference_type || null,
         meta.reference_id || null,
-        JSON.stringify(meta.metadata || {}),
+        toJsonb(meta.metadata || {}),
       ]
     );
     return { star_balance: Number(newBal), transaction: tx.rows[0] };
@@ -303,14 +294,14 @@ async function debitStars(userId, amount, meta = {}, client) {
     );
     const tx = await c.query(
       `INSERT INTO wallet_transactions (user_id, type, amount, currency_type, reference_type, reference_id, status, metadata)
-       VALUES ($1, $2, $3, 'star', $4, $5, 'completed', $6) RETURNING *`,
+       VALUES ($1, $2, $3, 'star', $4, $5, 'completed', $6::jsonb) RETURNING *`,
       [
         userId,
         meta.type || 'debit',
         (-Number(amt)).toString(),
         meta.reference_type || null,
         meta.reference_id || null,
-        JSON.stringify(meta.metadata || {}),
+        toJsonb(meta.metadata || {}),
       ]
     );
     return { star_balance: Number(newBal), transaction: tx.rows[0] };
@@ -512,10 +503,13 @@ async function transferPointsToRecipient(senderId, { recipientId, points: points
       `INSERT INTO coin_seller_profiles (user_id, display_name, inventory_coins, is_active)
        VALUES (
          $1,
-         COALESCE(
-           (SELECT NULLIF(TRIM(CONCAT(COALESCE(first_name, ''), ' ', COALESCE(last_name, ''))), '')
-            FROM users WHERE id = $1),
-           'Coin Seller'
+         LEFT(
+           COALESCE(
+             (SELECT NULLIF(TRIM(CONCAT(COALESCE(first_name, ''), ' ', COALESCE(last_name, ''))), '')
+              FROM users WHERE id = $1),
+             'Coin Seller'
+           ),
+           255
          ),
          0,
          TRUE

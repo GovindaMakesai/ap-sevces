@@ -32,8 +32,8 @@ const generateToken = (userId, role, profile = {}) => {
         {
             userId,
             role,
-            first_name: profile.first_name || profile.firstName || null,
-            name: profile.first_name || profile.firstName || null,
+            first_name: require('../lib/pgJsonb').safeDisplayName(profile.first_name || profile.firstName || 'User', 32),
+            name: require('../lib/pgJsonb').safeDisplayName(profile.first_name || profile.firstName || 'User', 32),
         },
         secret,
         { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
@@ -222,6 +222,9 @@ async function finishOAuthLogin(req, res, user, appRedirect) {
 
 async function respondAuthedJson(res, user, message, accessToken = null, refreshToken = null) {
     const { publicUser } = require('../lib/userDto');
+    try {
+      await require('../lib/displayId').ensureUserHasDisplayId(user);
+    } catch (_e) { /* non-fatal */ }
     try {
       await require('../services/permissionService').decorateUserRoles(user);
     } catch (_e) { /* non-fatal */ }
@@ -613,26 +616,18 @@ const getMe = async (req, res) => {
                 message: 'User not found'
             });
         }
-        if (user.display_id == null) {
-            const { allocateDisplayId } = require('../lib/displayId');
-            const db = require('../config/database');
-            for (let i = 0; i < 20; i++) {
-                const displayId = await allocateDisplayId();
-                try {
-                    await db.query(
-                        `UPDATE users SET display_id = $1 WHERE id = $2 AND display_id IS NULL`,
-                        [displayId, user.id]
-                    );
-                    break;
-                } catch (err) {
-                    if (err.code !== '23505') throw err;
-                }
-            }
-            user = await User.findById(req.userId);
-        }
+        try {
+            user = await require('../lib/displayId').ensureUserHasDisplayId(user);
+        } catch (_e) { /* non-fatal */ }
         const { publicUser } = require('../lib/userDto');
         try {
             await require('../services/permissionService').decorateUserRoles(user);
+        } catch (_e) { /* non-fatal */ }
+        try {
+            const { loadAdminCaps, isStaffRole } = require('../middleware/adminAccess');
+            if (isStaffRole(user.role)) {
+                user.admin_caps = await loadAdminCaps(user.id, user.role);
+            }
         } catch (_e) { /* non-fatal */ }
         let name_change = null;
         try {

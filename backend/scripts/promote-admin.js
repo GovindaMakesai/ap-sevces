@@ -1,14 +1,22 @@
 #!/usr/bin/env node
-/** Promote user to admin by email (role only, no password change). */
+/** Promote user by email (role only, no password change).
+ * Usage: node backend/scripts/promote-admin.js <email> [role]
+ * role defaults to admin; use super_admin for full Super Admin.
+ */
 require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
 const db = require('../config/database');
-const { syncUserRole } = require('../services/permissionService');
+const { syncUserRole, ALLOWED_ROLES } = require('../services/permissionService');
 
 const EMAIL = process.argv[2];
+const ROLE = String(process.argv[3] || 'admin').toLowerCase().trim();
 
 async function main() {
   if (!EMAIL) {
-    console.error('Usage: node backend/scripts/promote-admin.js <email>');
+    console.error('Usage: node backend/scripts/promote-admin.js <email> [role]');
+    process.exit(1);
+  }
+  if (!ALLOWED_ROLES.has(ROLE)) {
+    console.error('Invalid role:', ROLE, 'Allowed:', [...ALLOWED_ROLES].join(', '));
     process.exit(1);
   }
   const userRes = await db.query(
@@ -20,7 +28,7 @@ async function main() {
     console.error('User not found:', EMAIL);
     process.exit(1);
   }
-  const role = await syncUserRole(user.id, 'admin');
+  const role = await syncUserRole(user.id, ROLE);
   await db.query(
     `UPDATE users SET is_active = TRUE, is_verified = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
     [user.id]

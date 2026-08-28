@@ -1,0 +1,39 @@
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+
+buildscript {
+  repositories {
+    google()
+    mavenCentral()
+  }
+  dependencies {
+        classpath 'com.google.gms:google-services:4.4.1'
+    classpath('com.android.tools.build:gradle')
+    classpath('com.facebook.react:react-native-gradle-plugin')
+    classpath('org.jetbrains.kotlin:kotlin-gradle-plugin')
+  }
+}
+
+allprojects {
+  repositories {
+    google()
+    mavenCentral()
+    maven { url 'https://www.jitpack.io' }
+  }
+}
+
+apply plugin: "expo-root-project"
+apply plugin: "com.facebook.react.rootproject"
+
+// OneDrive restamps ninja files under Desktop and makes CMake loop forever.
+gradle.afterProject { sub ->
+  if (sub == rootProject) return
+  def androidExt = sub.extensions.findByName("android")
+  if (androidExt == null) return
+  try {
+    def cmake = androidExt.externalNativeBuild.cmake
+    if (cmake?.path == null) return
+    def staging = new File(System.getProperty("user.home"), "AppData/Local/ap-native-cxx/staging/${sub.name}")
+    staging.mkdirs()
+    cmake.buildStagingDirectory = staging
+  } catch (Throwable ignored) {}
+}

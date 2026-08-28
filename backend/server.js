@@ -35,11 +35,14 @@ const { ensureCpSchema } = require('./config/ensureCpSchema');
 const { ensureCosmeticsSchema } = require('./config/ensureCosmeticsSchema');
 const { ensureGamesSchema } = require('./config/ensureGamesSchema');
 const referralModule = require('./modules/referral');
-const { applySecurityMiddleware, authLimiter, walletLimiter } = require('./middleware/security');
+const { applySecurityMiddleware, authLimiter, walletLimiter, oauthLimiter, matchLimiter } = require('./middleware/security');
+const { performanceMiddleware } = require('./middleware/performance');
+const requestMetrics = require('./lib/requestMetrics');
 const webhookRoutes = require('./routes/webhooks');
 const { registerChatSocket } = require('./socket/chatSocket');
 const { registerLiveSocket } = require('./socket/liveSocket');
 const { registerPkSocket } = require('./socket/pkSocket');
+const { registerMatchCallSocket } = require('./socket/matchCallSocket');
 const { startScheduler, stopScheduler } = require('./lib/scheduler');
 const redis = require('./lib/redis');
 const logger = require('./lib/logger');
@@ -78,12 +81,20 @@ const gamesRoutes = require('./routes/games');
 const trustRoutes = require('./routes/trust');
 const filesRoutes = require('./routes/files');
 const searchRoutes = require('./routes/search');
+const matchRoutes = require('./routes/match');
 const hierarchyRoutes = require('./routes/hierarchy');
 const cosmeticsRoutes = require('./routes/cosmetics');
 
 const app = express();
 const server = http.createServer(app);
 const PORT = process.env.PORT || 5000;
+
+/* Prevent slow clients from holding connections open indefinitely */
+server.keepAliveTimeout = Number(process.env.HTTP_KEEPALIVE_MS) || 65_000;
+server.headersTimeout = Number(process.env.HTTP_HEADERS_TIMEOUT_MS) || 66_000;
+if (typeof server.requestTimeout === 'number') {
+  server.requestTimeout = Number(process.env.HTTP_REQUEST_TIMEOUT_MS) || 30_000;
+}
 
 // Nginx terminates HTTPS and forwards X-Forwarded-* — required for rate-limit + client IP.
 if (process.env.TRUST_PROXY === 'true' || process.env.NODE_ENV === 'production') {
@@ -133,6 +144,7 @@ function isAllowedCorsOrigin(origin) {
 }
 
 applySecurityMiddleware(app);
+app.use(performanceMiddleware);
 
 /* Shrink JSON/API payloads — major win on Hostinger KVM + mobile networks */
 app.use(compression({ threshold: 512 }));
@@ -206,6 +218,7 @@ app.use('/api/games', gamesRoutes);
 app.use('/api/trust', trustRoutes);
 app.use('/api/files', filesRoutes);
 app.use('/api/search', searchRoutes);
+app.use('/api/match', matchLimiter, matchRoutes);
 app.use('/api/v1', platformRoutes);
 
 /* Health must stay above catch-all /api mounts (hierarchy verifies every /api/*). */
@@ -218,6 +231,46 @@ app.get('/api/health', (_req, res) => {
     status: 'online',
     checks: {
       redis: { ok: redis.isEnabled(), mode: redis.isEnabled() ? 'redis' : 'memory' },
+    },
+  });
+});
+
+/* Readiness: cheap DB ping for load balancers / ops (not used by VPS liveness watchdog). */
+app.get('/api/health/ready', async (_req, res) => {
+  const started = Date.now();
+  try {
+    await db.query('SELECT 1');
+    res.status(200).json({
+      success: true,
+      status: 'ready',
+      dbMs: Date.now() - started,
+      pool: db.poolStats(),
+      redis: { ok: redis.isEnabled() },
+    });
+  } catch (err) {
+    res.status(503).json({
+      success: false,
+      status: 'not_ready',
+      message: 'Database unavailable',
+      dbMs: Date.now() - started,
+      pool: db.poolStats(),
+    });
+  }
+});
+
+/* Internal metrics — protect in production via admin token or disable. */
+app.get('/api/health/metrics', (req, res) => {
+  const key = process.env.METRICS_KEY;
+  if (key && req.headers['x-metrics-key'] !== key) {
+    return res.status(403).json({ success: false, message: 'Forbidden' });
+  }
+  res.json({
+    success: true,
+    data: {
+      ...requestMetrics.snapshot(),
+      pool: db.poolStats(),
+      redis: { enabled: redis.isEnabled() },
+      memory: process.memoryUsage(),
     },
   });
 });
@@ -265,6 +318,7 @@ async function attachSocketRedisAdapter() {
 registerChatSocket(io);
 registerLiveSocket(io);
 registerPkSocket(io);
+registerMatchCallSocket(io);
 
 connectMongo();
 
@@ -313,6 +367,10 @@ async function startServer() {
         await ensureBdHierarchySchema();
         await ensurePartyModerationSchema();
         await ensureGamesSchema();
+        const { ensureMatchCallSchema } = require('./config/ensureMatchCallSchema');
+        await ensureMatchCallSchema();
+        const { ensurePerformanceIndexes } = require('./config/ensurePerformanceIndexes');
+        await ensurePerformanceIndexes();
         const { ensureDisplayIdSchema } = require('./config/ensureDisplayIdSchema');
         await ensureDisplayIdSchema();
         const { ensureNameChangeSchema } = require('./config/ensureNameChangeSchema');
@@ -379,6 +437,9 @@ async function shutdown(signal) {
   stopScheduler();
   try {
     referralModule.shutdown();
+  } catch (_e) {}
+  try {
+    io.close();
   } catch (_e) {}
   server.close(async () => {
     await redis.disconnect();

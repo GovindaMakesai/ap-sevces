@@ -7,6 +7,8 @@ const chatModerationService = require('../services/chatModerationService');
 const followService = require('../services/followService');
 const gameRoomService = require('../services/gameRoomService');
 const db = require('../config/database');
+const { safeDisplayName } = require('../lib/pgJsonb');
+const { sanitizePublicText } = require('../lib/safeText');
 
 const RATE_WINDOW_MS = 10_000;
 const MAX_CHAT_PER_WINDOW = 20;
@@ -76,8 +78,7 @@ function registerLiveSocket(io) {
       }
       socket.userId = String(decoded.userId);
       socket.userRole = decoded.role || null;
-      socket.data.displayName =
-        String(decoded.first_name || decoded.name || 'User').trim().slice(0, 32) || 'User';
+      socket.data.displayName = safeDisplayName(decoded.first_name || decoded.name || 'User', 32);
       return next();
     } catch (_err) {
       return next(new Error('Invalid token'));
@@ -107,11 +108,23 @@ function registerLiveSocket(io) {
           return;
         }
 
-        const displayName =
-          String(socket.data.displayName || 'User').trim().slice(0, 32) || 'User';
-        const streamTitle = String(payload?.streamTitle || payload?.liveName || '')
-          .trim()
-          .slice(0, 48);
+        try {
+          const userBusyService = require('../services/userBusyService');
+          await userBusyService.assertCanJoinLive(socket.userId);
+        } catch (busyErr) {
+          safeAck(ack, answeredRef, {
+            ok: false,
+            code: busyErr.code || 'IN_MATCH_CALL',
+            message: busyErr.message || 'End your match call before joining live',
+          });
+          return;
+        }
+
+        const displayName = safeDisplayName(
+          payload?.displayName || socket.data.displayName || 'User',
+          32
+        );
+        const streamTitle = sanitizePublicText(payload?.streamTitle || payload?.liveName || '', 48);
         const streamCoverUrl =
           String(payload?.streamCoverUrl || payload?.coverUrl || '').trim().slice(0, 700) || null;
         const hostLiveName = streamTitle || displayName;
@@ -273,7 +286,10 @@ function registerLiveSocket(io) {
           channel,
           type: joinedRoom?.room_type || roomType,
           hostId: isHost ? String(socket.userId) : String(joinedRoom?.host_user_id || ''),
-          hostName: joinedRoom?.host_display_name || (isHost ? hostLiveName : displayName),
+          hostName: safeDisplayName(
+            joinedRoom?.host_display_name || (isHost ? hostLiveName : displayName),
+            48
+          ),
           hostProfilePic: null,
           hostStreamCover: joinedRoom?.stream_cover_url || null,
           viewers: Number(joinedRoom?.viewer_count) || 1,
@@ -349,17 +365,24 @@ function registerLiveSocket(io) {
           }
         } catch (_actErr) {}
       } catch (err) {
-        console.error('live:join', err.message);
-        safeAck(ack, answeredRef, { ok: false, message: err.message || 'Room join failed' });
+        console.error('live:join', err.message, err.detail || '', err.code || '');
+        const publicMsg = /invalid input syntax for type json|22P02/i.test(String(err.message || ''))
+          ? 'Could not join this live. Close the app and try again.'
+          : err.message || 'Room join failed';
+        safeAck(ack, answeredRef, { ok: false, message: publicMsg });
       } finally {
         clearTimeout(joinTimer);
       }
     });
 
     socket.on('live:heartbeat', async (payload) => {
-      const channel = sanitizeChannel(payload?.channel || currentChannel);
-      if (!channel) return;
-      await liveRoomService.touchHeartbeat(channel, socket.userId);
+      try {
+        const channel = sanitizeChannel(payload?.channel || currentChannel);
+        if (!channel) return;
+        await liveRoomService.touchHeartbeat(channel, socket.userId);
+      } catch (_e) {
+        /* Pool busy / timeout — skip; next beat will retry. Never crash the socket. */
+      }
     });
 
     socket.on('live:update_presentation', async (payload, ack) => {
@@ -586,17 +609,14 @@ function registerLiveSocket(io) {
           return;
         }
 
-        const text = String(payload?.text || '')
-          .replace(/<[^>]*>/g, '')
-          .trim()
-          .slice(0, 280);
+        const text = sanitizePublicText(String(payload?.text || '').replace(/<[^>]*>/g, ''), 280);
         const imageUrl = sanitizeChatMediaUrl(payload?.imageUrl);
         if (!text && !imageUrl) {
           if (ack) ack({ ok: false, message: 'Empty message' });
           return;
         }
 
-        const displayName = socket.data.liveDisplayName || 'User';
+        const displayName = safeDisplayName(socket.data.liveDisplayName || 'User', 32);
         const isMod = await isRoomModerator(socket, channel);
 
         /* Auto-moderate abusive / sexual language — applies to everyone including hosts */
@@ -1029,16 +1049,23 @@ function registerLiveSocket(io) {
           const battle = await pkBattleService.getActiveBattleByChannel(channel);
           if (battle?.status === 'active') {
             const pkSnapshot = await pkBattleService.getBattleSnapshot(battle.id);
-            const channels = new Set([
-              channel,
-              battle.channel,
-              ...(pkBattleService.listChannelsForBattle?.(battle.id) || []),
-            ]);
-            for (const ch of channels) {
-              const dest = sanitizeChannel(ch);
-              if (!dest) continue;
+            const extras = pkBattleService.getBattleExtras(battle.id) || {};
+            const channels = new Set(
+              [
+                channel,
+                battle.channel,
+                extras.challengerChannel,
+                extras.rivalChannel,
+                pkSnapshot?.challengerChannel,
+                pkSnapshot?.rivalChannel,
+                ...(Array.isArray(pkSnapshot?.linkedChannels) ? pkSnapshot.linkedChannels : []),
+                ...(pkBattleService.listChannelsForBattle(battle.id) || []),
+              ]
+                .map((ch) => sanitizeChannel(ch))
+                .filter(Boolean)
+            );
+            for (const dest of channels) {
               if (dest !== channel) {
-                /* Mutual PK: show gifts on the other host's room too */
                 io.to(`live:${dest}`).emit('live:gift', {
                   ...gift,
                   pkBridge: true,
@@ -1081,20 +1108,31 @@ function registerLiveSocket(io) {
       }
     });
 
-    socket.on('live:mute', async (payload) => {
-      const channel = sanitizeChannel(payload?.channel || currentChannel);
-      const room = await liveRoomService.findByChannel(channel);
-      if (!room) return;
-      const targetUserId = String(payload?.userId || socket.userId);
-      if (targetUserId !== socket.userId && !(await isRoomModerator(socket, channel))) return;
-      const muted = payload?.muted !== false;
-      await liveRoomService.setMemberMuted(room.id, targetUserId, muted);
-      io.to(`live:${channel}`).emit('live:member_mute', {
-        channel,
-        userId: targetUserId,
-        muted,
-        at: Date.now(),
-      });
+    socket.on('live:mute', async (payload, ack) => {
+      try {
+        const channel = sanitizeChannel(payload?.channel || currentChannel);
+        const room = await liveRoomService.findByChannel(channel);
+        if (!room) {
+          if (ack) ack({ ok: false, message: 'Room not found' });
+          return;
+        }
+        const targetUserId = String(payload?.userId || socket.userId);
+        if (targetUserId !== socket.userId && !(await isRoomModerator(socket, channel))) {
+          if (ack) ack({ ok: false, message: 'Only host or admin can mute' });
+          return;
+        }
+        const muted = payload?.muted !== false;
+        await liveRoomService.setMemberMuted(room.id, targetUserId, muted);
+        io.to(`live:${channel}`).emit('live:member_mute', {
+          channel,
+          userId: targetUserId,
+          muted,
+          at: Date.now(),
+        });
+        if (ack) ack({ ok: true, muted });
+      } catch (err) {
+        if (ack) ack({ ok: false, message: err.message || 'Could not mute' });
+      }
     });
 
     socket.on('live:seat_request', async (payload) => {
@@ -1201,6 +1239,9 @@ function registerLiveSocket(io) {
         io.to(`live:${channel}`).emit('live:guest_mic_ready', {
           userId: payload?.userId != null ? String(payload.userId) : '',
           agoraUid: payload?.agoraUid,
+          quietDevice: Boolean(payload?.quietDevice),
+          displayId: payload?.displayId != null ? String(payload.displayId).slice(0, 16) : '',
+          name: payload?.name ? String(payload.name).slice(0, 64) : '',
           at: Date.now(),
         });
       } catch (err) {

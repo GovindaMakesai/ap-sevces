@@ -115,8 +115,8 @@ function registerPkSocket(io) {
         }
 
         let format = payload?.format || '1v1';
-        if (mode === 'team' && (!payload?.format || payload.format === '1v1')) {
-          format = '1v2';
+        if (mode === 'team' && (!payload?.format || payload.format === '1v1' || payload.format === '1v2')) {
+          format = '1v4';
         }
         if (!['1v1', '1v2', '1v4', '1v8'].includes(format)) format = '1v1';
 
@@ -143,13 +143,36 @@ function registerPkSocket(io) {
           opponentUserId: payload?.opponentUserId || null,
           opponentName: payload?.opponentName || 'Rival',
           teammateUserIds: payload?.teammateUserIds || [],
+          extraOpponents: payload?.extraOpponents || payload?.extraOpponentUserIds || [],
         });
 
         const started = await pkBattleService.startBattle(battle.id);
         pkBattleService.linkChannelToBattle(channel, started.id);
+        const fighters = Array.isArray(payload?.fighters) ? payload.fighters : [];
+        const extraChannels = [];
+        fighters.forEach((f) => {
+          const ch = sanitizeChannel(f?.channel);
+          if (ch && ch !== channel) extraChannels.push(ch);
+        });
+        extraChannels.forEach((ch) => pkBattleService.linkChannelToBattle(ch, started.id));
+        pkBattleService.setBattleExtras(started.id, {
+          mode,
+          hostName,
+          rivalName: payload?.opponentName || fighters[0]?.name || 'Rival',
+          opponentName: payload?.opponentName || fighters[0]?.name || 'Rival',
+          challengerUserId: String(socket.userId),
+          rivalUserId: payload?.opponentUserId || fighters[0]?.userId || null,
+          challengerChannel: channel,
+          rivalChannel: extraChannels[0] || null,
+          mutual: extraChannels.length > 0,
+          fighters,
+        });
+        if (extraChannels.length) {
+          await pkBattleService.setChannelsPkStatus([channel, ...extraChannels], 'active');
+        }
         const snapshot = await pkBattleService.getBattleSnapshot(started.id);
         if (snapshot) snapshot.mode = mode;
-        io.to(`live:${channel}`).emit('pk:start', snapshot);
+        broadcastPkToLinked(io, snapshot, snapshot?.linkedChannels || [channel], 'pk:start');
         ack?.({ ok: true, battle: snapshot });
       } catch (err) {
         ack?.({ ok: false, message: err.message });
@@ -204,7 +227,7 @@ function registerPkSocket(io) {
           targetChannel: targetChannel || '',
           opponentName,
           mode,
-          format: mode === 'team' ? payload?.format || '1v2' : '1v1',
+          format: mode === 'team' ? payload?.format || '1v4' : '1v1',
           durationSeconds: payload?.durationSeconds || 300,
           createdAt: Date.now(),
         };

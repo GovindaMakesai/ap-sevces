@@ -167,19 +167,29 @@ async function totalUnreadForUser(userId) {
     return Number(r.rows[0]?.c) || 0;
 }
 
-async function listMessages(conversationId, { limit = 150 } = {}) {
-    const lim = Math.min(Math.max(Number(limit) || 150, 1), 500);
+async function listMessages(conversationId, { limit = 80, before } = {}) {
+    const lim = Math.min(Math.max(Number(limit) || 80, 1), 200);
+    const params = [conversationId];
+    let extra = '';
+    if (before) {
+        const at = new Date(before);
+        if (!Number.isNaN(at.getTime())) {
+            params.push(at.toISOString());
+            extra = ' AND created_at < $2';
+        }
+    }
+    params.push(lim);
     const r = await db.query(
         `SELECT id, conversation_id, sender_id, receiver_id, body, created_at
          FROM (
            SELECT id, conversation_id, sender_id, receiver_id, body, created_at
            FROM chat_messages
-           WHERE conversation_id = $1
+           WHERE conversation_id = $1${extra}
            ORDER BY created_at DESC
-           LIMIT $2
+           LIMIT $${params.length}
          ) recent
          ORDER BY created_at ASC`,
-        [conversationId, lim]
+        params
     );
     return r.rows;
 }
@@ -219,10 +229,15 @@ async function appendMessage(conversationId, senderId, receiverId, text) {
     if (!raw) throw new Error('Empty message');
     let body = raw;
     if (body.length > 2000) body = body.slice(0, 2000);
-    if (body.startsWith('__IMG__:') || body.startsWith('__VID__:')) {
+    if (body.startsWith('__IMG__:') || body.startsWith('__VID__:') || body.startsWith('__AUD__:')) {
         const mediaPath = body.slice(8);
         if (!/^\/uploads\/chat\/[\w.-]+$/i.test(mediaPath)) {
             throw new Error('Invalid media attachment');
+        }
+    } else if (body.startsWith('__STK__:')) {
+        const stickerUrl = body.slice(8);
+        if (!/^https:\/\/fonts\.gstatic\.com\/s\/e\/notoemoji\//i.test(stickerUrl)) {
+            throw new Error('Invalid sticker');
         }
     } else {
         body = body.replace(/<[^>]*>/g, '');
@@ -237,7 +252,11 @@ async function appendMessage(conversationId, senderId, receiverId, text) {
         ? '📷 Photo'
         : body.startsWith('__VID__:')
           ? '🎬 Video'
-          : body;
+          : body.startsWith('__AUD__:')
+            ? '🎤 Voice message'
+            : body.startsWith('__STK__:')
+              ? '🎨 Sticker'
+              : body;
     await db.query(
         `UPDATE conversations
          SET last_message_text = $1, last_message_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP

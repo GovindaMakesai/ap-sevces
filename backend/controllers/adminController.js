@@ -2,6 +2,7 @@
 const db = require('../config/database');
 const bcrypt = require('bcryptjs');
 const auditLogService = require('../services/auditLogService');
+const { clampLimit } = require('../lib/pagination');
 const { revokeAllForUser } = require('../services/authTokenService');
 
 const ACCOUNT_DEACTIVATED_MSG = 'Your account has been deactivated';
@@ -68,7 +69,7 @@ const getDashboardStats = async (req, res) => {
 const listAuditLogs = async (req, res) => {
     try {
         const rows = await auditLogService.listRecent({
-            limit: req.query.limit,
+            limit: clampLimit(req.query.limit, { fallback: 50, max: 100 }),
             actionPrefix: req.query.prefix || 'admin.',
             actorUserId: req.query.actor || undefined,
         });
@@ -84,7 +85,7 @@ const getAllUsers = async (req, res) => {
     try {
         const { role, search, status } = req.query;
         const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
+        const limit = clampLimit(req.query.limit, { fallback: 20, max: 100 });
         const offset = (page - 1) * limit;
 
         // Get total count
@@ -204,6 +205,7 @@ const getUserById = async (req, res) => {
         const result = await db.query(
             `SELECT u.id, u.email, u.phone, u.first_name, u.last_name, u.role, u.display_id,
                     u.profile_pic, u.gender, u.is_active, u.is_verified, u.created_at, u.last_login, u.updated_at,
+                    COALESCE(u.last_login, u.updated_at, u.created_at) AS last_seen_at,
                     COALESCE(w.coin_balance, 0)::bigint AS coin_balance,
                     COALESCE(w.star_balance, 0)::bigint AS star_balance
              FROM users u
@@ -306,12 +308,15 @@ const updateUserDetails = async (req, res) => {
         let index = 1;
 
         if (first_name !== undefined) {
-            fields.push(`first_name = $${index++}`);
-            values.push(first_name);
+            const nextFirst = String(first_name ?? '').trim();
+            if (nextFirst) {
+                fields.push(`first_name = $${index++}`);
+                values.push(nextFirst);
+            }
         }
         if (last_name !== undefined) {
             fields.push(`last_name = $${index++}`);
-            values.push(last_name);
+            values.push(String(last_name ?? '').trim());
         }
         if (email !== undefined) {
             fields.push(`email = $${index++}`);
@@ -328,7 +333,9 @@ const updateUserDetails = async (req, res) => {
             if (role !== undefined && role !== null && String(role).trim() !== '') requested.push(role);
             try {
                 if (requested.length) {
-                    await permissionService.setUserRoles(userId, requested);
+                    await permissionService.setUserRoles(userId, requested, {
+                        primary: role !== undefined && role !== null && String(role).trim() !== '' ? role : undefined,
+                    });
                 }
             } catch (roleErr) {
                 return res.status(400).json({ success: false, message: roleErr.message });
@@ -578,7 +585,7 @@ const approveWorker = async (req, res) => {
 // ==================== SERVICE MANAGEMENT ====================
 const getAllServices = async (req, res) => {
     try {
-        const { limit } = req.query;
+        const limit = clampLimit(req.query.limit, { fallback: 100, max: 100 });
         let query = `
             SELECT s.*, 
                    COUNT(DISTINCT ws.worker_id) as worker_count
@@ -588,11 +595,9 @@ const getAllServices = async (req, res) => {
             ORDER BY s.category, s.name
         `;
         
-        if (limit) {
-            query += ` LIMIT ${parseInt(limit)}`;
-        }
+        query += ` LIMIT $1`;
         
-        const result = await db.query(query);
+        const result = await db.query(query, [limit]);
         
         res.json({
             success: true,
@@ -1037,31 +1042,94 @@ const getAnalytics = async (req, res) => {
         else if (period === 'month') interval = '1 month';
         else interval = '1 year';
 
-        const revenueOverTime = await db.query(`
-            SELECT DATE_TRUNC('day', created_at) as date,
-                   COUNT(*) as bookings,
-                   SUM(final_amount) as revenue
-            FROM bookings
-            WHERE created_at > NOW() - INTERVAL '${interval}'
-            GROUP BY DATE_TRUNC('day', created_at)
-            ORDER BY date DESC
-        `);
+        const [revenueOverTime, popularServices, snapshot, liveNow, giftsToday, giftsPeriod, moneyPending] = await Promise.all([
+            db.query(`
+                SELECT DATE_TRUNC('day', created_at) as date,
+                       COUNT(*) as bookings,
+                       COALESCE(SUM(final_amount), 0) as revenue
+                FROM bookings
+                WHERE created_at > NOW() - INTERVAL '${interval}'
+                GROUP BY DATE_TRUNC('day', created_at)
+                ORDER BY date ASC
+            `).catch(() => ({ rows: [] })),
+            db.query(`
+                SELECT s.name, COUNT(b.id) as booking_count
+                FROM services s
+                LEFT JOIN bookings b ON s.id = b.service_id
+                  AND b.created_at > NOW() - INTERVAL '${interval}'
+                GROUP BY s.id
+                ORDER BY booking_count DESC
+                LIMIT 5
+            `).catch(() => ({ rows: [] })),
+            db.query(`
+                SELECT
+                  (SELECT COUNT(*) FROM users) AS total_users,
+                  (SELECT COUNT(*) FROM users WHERE created_at > NOW() - INTERVAL '7 days') AS new_users_week,
+                  (SELECT COUNT(*) FROM users WHERE created_at > NOW() - INTERVAL '1 day') AS new_users_today,
+                  (SELECT COUNT(*) FROM users WHERE last_login > NOW() - INTERVAL '1 day') AS active_users_day,
+                  (SELECT COUNT(*) FROM users WHERE LOWER(COALESCE(role,'')) IN ('host','worker')) AS hosts,
+                  (SELECT COUNT(*) FROM users WHERE LOWER(COALESCE(role,'')) = 'agency') AS agencies,
+                  (SELECT COUNT(*) FROM users WHERE LOWER(COALESCE(role,'')) IN ('bdm','bd')) AS bds,
+                  (SELECT COUNT(*) FROM users WHERE LOWER(COALESCE(role,'')) IN ('coin_seller','seller')) AS sellers,
+                  (SELECT COUNT(*) FROM bookings WHERE status = 'completed') AS completed_bookings,
+                  (SELECT COUNT(*) FROM bookings WHERE status = 'pending') AS pending_bookings,
+                  (SELECT COALESCE(SUM(final_amount), 0) FROM bookings WHERE status = 'completed') AS total_revenue,
+                  (SELECT COALESCE(SUM(platform_fee), 0) FROM bookings WHERE status = 'completed') AS platform_fees
+            `).catch(() => ({ rows: [{}] })),
+            db.query(`
+                SELECT COUNT(*)::int AS live_rooms
+                FROM live_rooms
+                WHERE ended_at IS NULL AND is_active = TRUE
+            `).catch(() => ({ rows: [{ live_rooms: 0 }] })),
+            db.query(`
+                SELECT COUNT(*)::int AS gifts_today,
+                       COALESCE(SUM(coin_amount), 0)::bigint AS coins_today
+                FROM gift_transactions
+                WHERE created_at::date = CURRENT_DATE
+            `).catch(() => ({ rows: [{ gifts_today: 0, coins_today: 0 }] })),
+            db.query(`
+                SELECT COUNT(*)::int AS gifts_period,
+                       COALESCE(SUM(coin_amount), 0)::bigint AS coins_period
+                FROM gift_transactions
+                WHERE created_at > NOW() - INTERVAL '${interval}'
+            `).catch(() => ({ rows: [{ gifts_period: 0, coins_period: 0 }] })),
+            db.query(`
+                SELECT
+                  (SELECT COUNT(*)::int FROM recharges WHERE status IN ('pending','submitted','awaiting') ) AS pending_recharges,
+                  (SELECT COUNT(*)::int FROM withdrawals WHERE status IN ('pending','processing') ) AS pending_withdrawals
+            `).catch(() => ({ rows: [{ pending_recharges: 0, pending_withdrawals: 0 }] })),
+        ]);
 
-        const popularServices = await db.query(`
-            SELECT s.name, COUNT(b.id) as booking_count
-            FROM services s
-            LEFT JOIN bookings b ON s.id = b.service_id
-            WHERE b.created_at > NOW() - INTERVAL '${interval}'
-            GROUP BY s.id
-            ORDER BY booking_count DESC
-            LIMIT 5
-        `);
-
+        const snap = snapshot.rows[0] || {};
+        const pend = moneyPending.rows[0] || {};
+        const gToday = giftsToday.rows[0] || {};
+        const gPeriod = giftsPeriod.rows[0] || {};
         res.json({
             success: true,
             data: {
+                period,
                 revenueOverTime: revenueOverTime.rows,
-                popularServices: popularServices.rows
+                popularServices: popularServices.rows,
+                users: Number(snap.total_users || 0),
+                totalUsers: Number(snap.total_users || 0),
+                newUsersWeek: Number(snap.new_users_week || 0),
+                newUsersToday: Number(snap.new_users_today || 0),
+                activeUsersDay: Number(snap.active_users_day || 0),
+                hosts: Number(snap.hosts || 0),
+                agencies: Number(snap.agencies || 0),
+                bds: Number(snap.bds || 0),
+                sellers: Number(snap.sellers || 0),
+                liveRooms: Number(liveNow.rows[0]?.live_rooms || 0),
+                giftsToday: Number(gToday.gifts_today || 0),
+                coinsMoved: Number(gToday.coins_today || 0),
+                giftsPeriod: Number(gPeriod.gifts_period || 0),
+                coinsPeriod: Number(gPeriod.coins_period || 0),
+                completedBookings: Number(snap.completed_bookings || 0),
+                pendingBookings: Number(snap.pending_bookings || 0),
+                pendingRecharges: Number(pend.pending_recharges || 0),
+                pendingWithdrawals: Number(pend.pending_withdrawals || 0),
+                totalRevenue: Number(snap.total_revenue || 0),
+                platformFees: Number(snap.platform_fees || 0),
             }
         });
     } catch (error) {

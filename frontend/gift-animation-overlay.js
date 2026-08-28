@@ -8,8 +8,10 @@
   const cfg = window.AP_GIFT_ANIMATION || {};
   const MAP = cfg.GIFT_ANIMATION_MAP || {};
   const CATALOG = cfg.CATALOG_BY_SLUG || {};
-  const DEFAULT_DURATION = Number(cfg.DEFAULT_DURATION_MS || 15000);
+  const DEFAULT_DURATION = Math.max(16000, Number(cfg.DEFAULT_DURATION_MS || 16000));
   const MAX_QUEUE = Number(cfg.MAX_QUEUE_SIZE || 8);
+  const MIN_PLAY_MS = 14000;
+  const LOAD_FALLBACK_MS = 4000;
   const ANIM1_URL =
     cfg.ANIM1_TEST_URL ||
     cfg.ANIM_URLS?.anim1 ||
@@ -29,6 +31,7 @@
   let debugPanelEl = null;
   let playing = false;
   let hideTimer = null;
+  let loadWatchdog = null;
   let resizeBound = false;
   const queue = [];
   const debugState = {
@@ -268,7 +271,7 @@
       charged,
       animationUrl: mapped?.animationEmbedUrl || mapped?.animationUrl || '',
       thumbnailUrl,
-      durationMs: Number(mapped?.durationMs || DEFAULT_DURATION),
+      durationMs: Math.max(MIN_PLAY_MS, Number(mapped?.durationMs || DEFAULT_DURATION)),
       label: mapped?.label || '',
     };
   }
@@ -341,6 +344,10 @@
     if (hideTimer) {
       clearTimeout(hideTimer);
       hideTimer = null;
+    }
+    if (loadWatchdog) {
+      clearTimeout(loadWatchdog);
+      loadWatchdog = null;
     }
     if (notifyTimer) {
       clearTimeout(notifyTimer);
@@ -435,6 +442,7 @@
     }
 
     ensureAnimRoot();
+    rootEl.classList.remove('is-pk-clip');
     rootEl.textContent = '';
     playing = true;
     debugState.url = url;
@@ -460,23 +468,38 @@
       'allow',
       'autoplay; fullscreen; encrypted-media; picture-in-picture; web-share'
     );
-    frameEl.setAttribute('referrerpolicy', 'no-referrer');
+    frameEl.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
     frameEl.setAttribute('scrolling', 'no');
     frameEl.setAttribute('frameborder', '0');
     frameEl.setAttribute('allowfullscreen', 'true');
     frameEl.setAttribute('allowtransparency', 'true');
     frameEl.style.background = 'transparent';
 
+    const playMs = Math.max(MIN_PLAY_MS, Number(meta.durationMs || DEFAULT_DURATION));
+    let hideArmed = false;
+    const armHideTimer = (reason) => {
+      if (hideArmed || isDebugMode() || opts?.keepVisible) return;
+      hideArmed = true;
+      if (loadWatchdog) {
+        clearTimeout(loadWatchdog);
+        loadWatchdog = null;
+      }
+      animLog('play timer armed', { reason, playMs });
+      hideTimer = setTimeout(() => finishCurrent('duration'), playMs);
+    };
+
     frameEl.addEventListener('load', () => {
+      const src = String(frameEl?.src || '');
+      if (!/animstream\.com\/embed\//i.test(src)) return;
       debugState.webViewLoaded = true;
       debugState.visualDetected = true;
       animLog('loaded');
       syncOverlayViewport();
       updateDebugPanel();
+      armHideTimer('iframe-load');
     });
     frameEl.addEventListener('error', () => {
-      animLog('load error');
-      if (!isDebugMode()) finishCurrent('iframe-error');
+      animLog('load error (ignored — WebView often fires this spuriously)');
     });
 
     frameWrap.appendChild(frameEl);
@@ -497,7 +520,7 @@
     }
 
     if (!isDebugMode() && !opts?.keepVisible) {
-      hideTimer = setTimeout(() => finishCurrent('duration'), meta.durationMs);
+      loadWatchdog = setTimeout(() => armHideTimer('load-fallback'), LOAD_FALLBACK_MS);
     }
   }
 
@@ -528,7 +551,7 @@
 
   function onGiftReceived(gift) {
     if (!gift) return;
-    if (typeof document !== 'undefined' && document.hidden) return;
+    /* Still play when the WebView is in the background of a PK room switch */
     const tx = transactionId(gift);
     const meta = resolveMeta(gift);
 
@@ -559,7 +582,7 @@
       charged: MAP[key].coinValue || 0,
       animationUrl: MAP[key].animationEmbedUrl || MAP[key].animationUrl,
       thumbnailUrl: MAP[key].thumbnailUrl || '',
-      durationMs: Number(MAP[key].durationMs || DEFAULT_DURATION),
+      durationMs: Math.max(MIN_PLAY_MS, Number(MAP[key].durationMs || DEFAULT_DURATION)),
     };
     const gift = { from: 'Preview', giftSlug: key, giftName: meta.name, amount: meta.charged, emoji: meta.emoji };
     queue.length = 0;

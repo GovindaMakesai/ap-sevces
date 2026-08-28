@@ -66,10 +66,16 @@ router.post('/posts', social.createPost);
 router.post(
   '/posts/media',
   (req, res, next) => {
-    socialMediaUpload.single('media')(req, res, (err) => {
+    /* Accept either `media` (preferred) or legacy `file` from older clients */
+    socialMediaUpload.fields([
+      { name: 'media', maxCount: 1 },
+      { name: 'file', maxCount: 1 },
+    ])(req, res, (err) => {
       if (err) {
         return res.status(400).json({ success: false, message: err.message || 'Upload failed' });
       }
+      const f = req.files?.media?.[0] || req.files?.file?.[0] || null;
+      if (f) req.file = f;
       return next();
     });
   },

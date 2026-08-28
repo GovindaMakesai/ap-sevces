@@ -28,7 +28,7 @@ export async function hasBluetoothAudio() {
   }
 }
 
-/** Audience / playback — keep A2DP, do not force phone speaker. */
+/** Audience / playback — SCO/HFP when a headset is connected (A2DP is dropped in WebRTC call mode). */
 export async function preferBluetoothPlayback() {
   try {
     return await Native.preferBluetoothPlayback();

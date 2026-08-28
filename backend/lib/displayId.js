@@ -29,10 +29,37 @@ function formatDisplayId(value) {
   return String(Math.floor(n));
 }
 
+async function ensureUserHasDisplayId(user) {
+  if (!user || !user.id) return user;
+  if (formatDisplayId(user.display_id)) return user;
+  for (let i = 0; i < 20; i++) {
+    const displayId = await allocateDisplayId();
+    try {
+      const updated = await db.query(
+        `UPDATE users SET display_id = $1 WHERE id = $2 AND display_id IS NULL RETURNING display_id`,
+        [displayId, user.id]
+      );
+      if (updated.rows[0]) {
+        user.display_id = updated.rows[0].display_id;
+        return user;
+      }
+      const existing = await db.query(`SELECT display_id FROM users WHERE id = $1`, [user.id]);
+      if (formatDisplayId(existing.rows[0]?.display_id)) {
+        user.display_id = existing.rows[0].display_id;
+        return user;
+      }
+    } catch (err) {
+      if (err.code !== '23505') throw err;
+    }
+  }
+  return user;
+}
+
 module.exports = {
   MIN,
   MAX,
   randomDisplayId,
   allocateDisplayId,
   formatDisplayId,
+  ensureUserHasDisplayId,
 };

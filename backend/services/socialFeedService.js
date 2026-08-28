@@ -262,7 +262,7 @@ async function getCreatorPostCounts(userId, viewerId = null) {
  * @param {number} [opts.offset]
  */
 async function listFeed(viewerId, opts = {}) {
-  const limit = Math.min(Math.max(parseInt(opts.limit, 10) || 30, 1), 50);
+  const limit = Math.min(Math.max(parseInt(opts.limit, 10) || 30, 1), 100);
   const offset = Math.max(parseInt(opts.offset, 10) || 0, 0);
   const creatorId = opts.userId ? String(opts.userId).trim() : null;
   const mediaType = String(opts.mediaType || opts.media_type || 'all').toLowerCase();
@@ -316,6 +316,7 @@ async function listFeed(viewerId, opts = {}) {
 
   let orderSql = 'ORDER BY p.created_at DESC';
   if (feed === 'for_you' && !creatorId) {
+    /* Engagement × recency, plus light jitter so flat catalogs do not mirror Latest */
     orderSql = `ORDER BY (
       (${base}::float
         + COALESCE(lc.c, 0) * ${likeW}
@@ -323,8 +324,10 @@ async function listFeed(viewerId, opts = {}) {
         + COALESCE(p.share_count, 0) * ${shareW}
       ) * EXP(
         -GREATEST(EXTRACT(EPOCH FROM (NOW() - p.created_at)), 0) / 3600.0 / ${halfLife}
-      )
+      ) * (0.88 + random() * 0.24)
     ) DESC, p.created_at DESC`;
+  } else if (feed === 'following') {
+    orderSql = 'ORDER BY p.created_at DESC';
   }
 
   params.push(limit);

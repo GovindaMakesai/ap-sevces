@@ -5,8 +5,10 @@ const { ensureNameChangeSchema } = require('../config/ensureNameChangeSchema');
 const FREE_NAME_CHANGES_PER_MONTH = 2;
 const NAME_CHANGE_FEE_COINS = 10000;
 
+const { sanitizePublicText } = require('../lib/safeText');
+
 function normalizeDisplayName(first, last) {
-  return `${String(first || '').trim()} ${String(last || '').trim()}`.trim().replace(/\s+/g, ' ');
+  return sanitizePublicText(`${String(first || '').trim()} ${String(last || '').trim()}`, 80);
 }
 
 async function countNameChangesThisMonth(userId, client) {

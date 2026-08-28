@@ -298,7 +298,8 @@
       </span>
       <i class="fas fa-chevron-right chevron"></i>
     </a>
-    <a href="/host-policies.html?app=1" class="social-menu-item"><i class="fas fa-star"></i><span>Host earning policies</span><i class="fas fa-chevron-right chevron"></i></a>
+    <a href="/host-policies.html?policy=guidelines&amp;app=1" class="social-menu-item"><i class="fas fa-scroll"></i><span>Host Policy &amp; Guidelines</span><i class="fas fa-chevron-right chevron"></i></a>
+    <a href="/host-policies.html?policy=star&amp;app=1" class="social-menu-item"><i class="fas fa-star"></i><span>Host earning policies</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/role-apply.html?app=1" class="social-menu-item" id="roleApplyLink"><i class="fas fa-user-plus"></i><span>Apply for Host / Agency / Seller</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/coin-seller-center.html?app=1" class="social-menu-item" id="coinSellerLink" style="display:none"><i class="fas fa-coins"></i><span>Coin Seller Center</span><i class="fas fa-chevron-right chevron"></i></a>
     <a href="/streamer-center.html?app=1" class="social-menu-item" id="hostCenterLink"><i class="fas fa-video"></i><span>Host / Streamer Center</span><i class="fas fa-chevron-right chevron"></i></a>
@@ -328,9 +329,9 @@
   <div id="social-bottom-nav-mount"></div>
 
   <script src="ap-config.js"></script>
-  <script src="app.js?v=20260821-multirole"></script>
+  <script src="app.js?v=20260825-bidi"></script>
   <script src="social-wallet.js?v=20260715-wallet-fix"></script>
-  <script src="social-ui.js?v=20260624-profile-url-fix"></script>
+  <script src="social-ui.js?v=20260825-bidi"></script>
   <script src="social-interactions.js?v=20260821-letterbox"></script>
   <script src="ap-soft-nav.js?v=20260730-fastnav4"></script>
   <script src="cp-rings.js?v=20260814-ring3d"></script>
@@ -367,7 +368,8 @@
         if (!user) return;
         const img = document.getElementById('profileAvatar');
         if (!img) return;
-        const name = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email || 'User';
+        const rawName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email || 'User';
+        const name = window.SocialUI?.sanitizePublicText?.(rawName, 80) || rawName;
         img.alt = name;
         img.dataset.name = name;
         const fallback = () => {
@@ -409,7 +411,10 @@
         const uidRow = document.getElementById('profileUidRow');
         const uidLabel = document.getElementById('profileUidLabel');
         const uidEl = document.getElementById('profileUserId');
-        const publicId = window.formatUserDisplayId?.(user) || '';
+        const publicId =
+          window.formatUserDisplayId?.(user) ||
+          String(user?.display_id || user?.displayId || '').replace(/\D/g, '') ||
+          '';
         const isAdmin = window.isPlatformAdminUser?.(user) || user?.is_admin === true;
         if (uidLabel) {
           if (isAdmin && publicId) {
@@ -496,7 +501,8 @@
 
       function paintProfileHeader(user) {
         if (!user) return;
-        const name = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email || 'User';
+        const rawName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email || 'User';
+        const name = window.SocialUI?.sanitizePublicText?.(rawName, 80) || rawName;
         document.getElementById('profileName').textContent = name;
         loadProfileStatus(user);
         paintProfileAvatar(user);

@@ -35,7 +35,7 @@ CREATE INDEX IF NOT EXISTS idx_gift_catalog_category ON gift_catalog(category, s
 
 CREATE TABLE IF NOT EXISTS coin_seller_profiles (
   user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-  display_name VARCHAR(64) NOT NULL,
+  display_name VARCHAR(255) NOT NULL,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   inventory_coins BIGINT NOT NULL DEFAULT 0 CHECK (inventory_coins >= 0),
   total_sold BIGINT NOT NULL DEFAULT 0,

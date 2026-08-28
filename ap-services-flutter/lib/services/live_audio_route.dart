@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 /// Port of ap-services-app/liveAudioRoute.js + modules/ap-live-audio.
 enum LiveAudioState { idle, livePlay, liveTalk, teardown }
@@ -30,8 +31,19 @@ class LiveAudioRoute {
     return DateTime.now().difference(_lastAppliedAt!).inMilliseconds < _cooldownMs;
   }
 
+  static Future<void> _ensureBluetoothPermission() async {
+    if (!Platform.isAndroid) return;
+    try {
+      final status = await Permission.bluetoothConnect.status;
+      if (!status.isGranted) {
+        await Permission.bluetoothConnect.request();
+      }
+    } catch (_) {}
+  }
+
   static Future<void> enterPlayback([String reason = 'enterPlayback']) {
     return _run(() async {
+      await _ensureBluetoothPermission();
       final force = RegExp(r'force|foreground|nav_enter|bluetooth|device', caseSensitive: false)
           .hasMatch(reason);
       if (_state == LiveAudioState.livePlay && !force && _recentlyApplied('livePlay')) {
@@ -45,6 +57,7 @@ class LiveAudioRoute {
 
   static Future<void> enterTalk({bool bluetoothSafe = true, String reason = 'enterTalk'}) {
     return _run(() async {
+      await _ensureBluetoothPermission();
       if (_state == LiveAudioState.liveTalk && _recentlyApplied('liveTalk')) {
         if (bluetoothSafe) await _applyBluetoothRoute('talk');
         return;

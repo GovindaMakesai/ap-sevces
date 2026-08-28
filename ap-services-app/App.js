@@ -261,11 +261,24 @@ async function requestAndroidBluetoothConnect() {
       ok:
         result === PermissionsAndroid.RESULTS.GRANTED ||
         result === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN,
+      granted: result === PermissionsAndroid.RESULTS.GRANTED,
       result,
     };
   } catch (err) {
     return { ok: false, error: err?.message || String(err) };
   }
+}
+
+/** Viewers never grant mic, so BLUETOOTH_CONNECT must be requested on room enter. */
+function withBluetoothThen(fn) {
+  if (typeof fn !== 'function') return;
+  if (Platform.OS !== 'android') {
+    fn();
+    return;
+  }
+  requestAndroidBluetoothConnect()
+    .then(() => fn())
+    .catch(() => fn());
 }
 
 async function requestAndroidMediaPermissions(opts = {}) {
@@ -1152,7 +1165,9 @@ export default function App() {
         const url = webViewCurrentUrlRef.current || '';
         /* Phase 2A: re-apply native live route on foreground (speaker/BT). */
         if (isLiveCaptureUrl(url)) {
-          LiveAudioRoute.onAppForeground().catch(() => {});
+          withBluetoothThen(() => {
+            LiveAudioRoute.onAppForeground().catch(() => {});
+          });
           lockLiveScreenCapture(true);
         }
         webViewRef.current.injectJavaScript(LIVE_APP_FOREGROUND_INJECT);
@@ -1314,22 +1329,34 @@ export default function App() {
           console.warn('[TEMP-VOICE-ROUTE:wv]', data.entry?.type, data.entry || data);
           return;
         }
+        if (data.type === 'request_bluetooth_audio') {
+          withBluetoothThen(() => {
+            LiveAudioRoute.reevaluate(data.reason || 'bluetooth_permission').catch(() => {});
+          });
+          return;
+        }
         if (data.type === 'live_audio_route') {
           const action = String(data.action || '');
           const reason = data.reason || action;
           if (action === 'enterPlayback') {
-            LiveAudioRoute.enterPlayback(reason).catch(() => {});
+            withBluetoothThen(() => {
+              LiveAudioRoute.enterPlayback(reason).catch(() => {});
+            });
           } else if (action === 'enterTalk') {
-            LiveAudioRoute.enterTalk({
-              bluetoothSafe: data.bluetoothSafe !== false,
-              reason,
-            }).catch(() => {});
+            withBluetoothThen(() => {
+              LiveAudioRoute.enterTalk({
+                bluetoothSafe: data.bluetoothSafe !== false,
+                reason,
+              }).catch(() => {});
+            });
           } else if (action === 'exitTalk') {
             LiveAudioRoute.exitTalk(reason).catch(() => {});
           } else if (action === 'leaveLive') {
             LiveAudioRoute.leaveLive(reason).catch(() => {});
           } else if (action === 'reevaluate') {
-            LiveAudioRoute.reevaluate(reason).catch(() => {});
+            withBluetoothThen(() => {
+              LiveAudioRoute.reevaluate(reason).catch(() => {});
+            });
           } else if (action === 'debug') {
             LiveAudioRoute.setDebug(data.enabled !== false);
           }
@@ -1344,16 +1371,22 @@ export default function App() {
             (!wantTalk && snap.state === 'livePlay');
           if (already && snap.lastAppliedAt && Date.now() - snap.lastAppliedAt < 2000) {
             /* Still re-apply BT route — speakerphone steal can happen without a mode change */
-            LiveAudioRoute.reevaluate('force_speaker_bt_keep').catch(() => {});
+            withBluetoothThen(() => {
+              LiveAudioRoute.reevaluate('force_speaker_bt_keep').catch(() => {});
+            });
             return;
           }
           if (wantTalk) {
-            LiveAudioRoute.enterTalk({
-              bluetoothSafe: data.bluetoothSafe !== false,
-              reason: 'force_speaker_audio',
-            }).catch(() => {});
+            withBluetoothThen(() => {
+              LiveAudioRoute.enterTalk({
+                bluetoothSafe: data.bluetoothSafe !== false,
+                reason: 'force_speaker_audio',
+              }).catch(() => {});
+            });
           } else if (isLiveCaptureUrl(webViewCurrentUrlRef.current || '')) {
-            LiveAudioRoute.enterPlayback('force_speaker_audio').catch(() => {});
+            withBluetoothThen(() => {
+              LiveAudioRoute.enterPlayback('force_speaker_audio').catch(() => {});
+            });
           }
           return;
         }
@@ -1554,9 +1587,11 @@ export default function App() {
           }
           injectMobileLayout(url);
           syncScreenCaptureForUrl(url);
-          /* Phase 2A: audience playback focus when entering live/party pages. */
+          /* Audience playback + Bluetooth permission when entering live/party pages. */
           if (isLiveCaptureUrl(url)) {
-            LiveAudioRoute.enterPlayback('webview_load').catch(() => {});
+            withBluetoothThen(() => {
+              LiveAudioRoute.enterPlayback('webview_load').catch(() => {});
+            });
           } else {
             LiveAudioRoute.leaveLive('webview_load_non_live').catch(() => {});
           }
@@ -1574,7 +1609,9 @@ export default function App() {
           const nowLive = isLiveCaptureUrl(url);
           const wasLive = isLiveCaptureUrl(prev);
           if (nowLive && !wasLive) {
-            LiveAudioRoute.enterPlayback('nav_enter_live').catch(() => {});
+            withBluetoothThen(() => {
+              LiveAudioRoute.enterPlayback('nav_enter_live').catch(() => {});
+            });
           } else if (!nowLive && wasLive) {
             LiveAudioRoute.leaveLive('nav_leave_live').catch(() => {});
           } else if (nowLive) {

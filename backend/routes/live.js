@@ -53,9 +53,13 @@ router.post('/party-music', verifyToken, partyMusicUpload.single('music'), liveC
 function liveChatUploadMiddleware(req, res, next) {
   chatImageUpload.single('image')(req, res, (err) => {
     if (err) {
+      const message =
+        err.code === 'LIMIT_UNEXPECTED_FILE'
+          ? 'Upload field must be named "image" with a photo file'
+          : err.message || 'Photo upload failed';
       return res.status(400).json({
         success: false,
-        message: err.message || 'Photo upload failed',
+        message,
       });
     }
     next();

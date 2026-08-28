@@ -459,6 +459,7 @@
       viewers: r.viewers || r.viewer_count || 0,
       startedAt: r.startedAt || r.started_at,
       updatedAt: r.updatedAt || r.updated_at,
+      previewPics: r.previewPics || r.preview_pics || [],
       tag: isParty ? 'Party' : 'Live',
       live: true,
     };
@@ -529,27 +530,58 @@
     const href = party
       ? `/party-room.html?channel=${ch}${extra}&app=1`
       : `/live-room.html?channel=${ch}&feed=1${extra}&app=1`;
-    const typeBadge = party
-      ? '<span class="live-type-badge live-type-badge--party">Make Friends</span>'
-      : '<span class="live-type-badge live-type-badge--live">Live</span>';
-    const viewerBadge = `<span class="live-viewer-badge"><i class="fas fa-signal"></i> ${formatViewers(viewers)}</span>`;
-    const initials = escapeHtml(hostInitials(name));
-    const ageLabel = age ? `<span class="live-age">${escapeHtml(age)}</span>` : '';
+    const liveTags = ['Make Friends', 'Chatting', 'Music'];
+    const partyTags = ['❤ Special one is here', 'Esports', 'Make Friends', 'Singing'];
+    let tagHash = 0;
+    const tagSeed = String(channel || name);
+    for (let i = 0; i < tagSeed.length; i++) tagHash = (tagHash * 31 + tagSeed.charCodeAt(i)) >>> 0;
+    const tags = party ? partyTags : liveTags;
+    const typeBadge = `<span class="live-type-badge ${party ? 'live-type-badge--party' : 'live-type-badge--live'}">${tags[tagHash % tags.length]}</span>`;
+    const top10Badge =
+      !party && (index === 0 || viewers >= 400)
+        ? '<span class="tag tag-top10">🔥 TOP10 Hourly</span>'
+        : '';
+    const viewerBadge = `<span class="live-viewer-badge"><span class="live-eq" aria-hidden="true"><i></i><i></i><i></i></span>${formatViewers(viewers)}</span>`;
+    const face = hostCardImage(name, pro.hostProfilePic, pro.hostUpdatedAt || pro.updatedAt, false);
+    const extraFaces = [];
+    const rawFaces = []
+      .concat(pro.previewPics || pro.preview_pics || pro.speakerPics || [])
+      .map((p) => {
+        if (p && typeof p === 'object') {
+          return {
+            pic: p.profilePic || p.profile_pic || p.pic || null,
+            name: p.name || name,
+          };
+        }
+        return { pic: p, name };
+      })
+      .filter((p) => p.pic || p.name);
+    rawFaces.forEach((p) => {
+      const url = hostCardImage(p.name || name, p.pic, pro.hostUpdatedAt, false);
+      if (url && url !== face && !extraFaces.includes(url) && extraFaces.length < 2) extraFaces.push(url);
+    });
+    const stackFaces = [face, ...extraFaces].filter(Boolean).slice(0, 3);
+
+    let facesHtml = '<div class="card-faces" aria-hidden="true">';
+    stackFaces.forEach((src, i) => {
+      facesHtml += `<img class="card-face" src="${escapeAttr(src)}" alt="" loading="lazy" style="z-index:${3 - i}">`;
+    });
+    if (viewers > stackFaces.length) {
+      facesHtml += `<span class="card-face-count">${viewers > 99 ? '99+' : viewers}</span>`;
+    }
+    facesHtml += '</div>';
 
     return `
       <article class="social-live-card${party ? ' is-party' : ' is-live'}" data-href="${href}" data-room-type="${party ? 'party' : 'live'}" role="button" tabindex="0">
         <img src="${imgAttr}" alt="${nameAttr}" data-name="${nameAttr}" loading="${index < 4 ? 'eager' : 'lazy'}"${index < 2 ? ' fetchpriority="high"' : ''} decoding="async" onerror="this.onerror=null;this.src='${fallbackAttr}'">
+        ${top10Badge}
         ${typeBadge}
-        ${viewerBadge}
         <div class="bottom">
-          <div class="live-host-row">
-            <span class="live-host-avatar" aria-hidden="true">${initials}</span>
-            <div class="live-host-meta">
-              <span class="name social-card-name">${escapeHtml(name)}</span>
-              <span class="live-host-sub">${party ? 'Voice party · Tap to join' : 'Broadcasting · Tap to watch'}</span>
-            </div>
+          ${facesHtml}
+          <div class="bottom-row">
+            <span class="name social-card-name">${escapeHtml(name)} <span class="card-flag">🇮🇳</span></span>
+            ${viewerBadge}
           </div>
-          ${ageLabel}
         </div>
       </article>`;
   }
@@ -1563,9 +1595,10 @@
           channel: live.channel,
           userId: uid,
           name,
-          hostProfilePic: u.profile_pic || null,
+          hostProfilePic: u.profile_pic || live.hostProfilePic || null,
           image: photo,
-          viewers: live.viewer_count || 0,
+          viewers: live.viewer_count || live.viewers || 0,
+          previewPics: live.previewPics || live.preview_pics || [],
           tag: isParty ? 'Party' : 'Live',
           party: isParty,
           live: true,

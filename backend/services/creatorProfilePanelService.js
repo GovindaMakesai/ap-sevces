@@ -228,6 +228,11 @@ async function getProfilePanel(userId) {
           hasCp: Boolean(cpSummary.partner || cpSummary.cpLevel),
           cpLevel: cpSummary.cpLevel || cpSummary.level || 0,
           partnerName: cpSummary.partner?.name || null,
+          partnerPic: cpSummary.partner?.profilePic || null,
+          partnerId: cpSummary.partner?.userId || null,
+          ringId: cpSummary.ringId || cpSummary.ring?.id || null,
+          ring: cpSummary.ring || null,
+          daysTogether: cpSummary.daysTogether || 0,
         }
       : null,
     cosmetics: equippedCosmetics || {},

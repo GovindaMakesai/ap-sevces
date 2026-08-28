@@ -38,12 +38,46 @@ function displayName(user) {
   return name || null;
 }
 
+const PHONE_COUNTRY = {
+  IN: ['+91', '91'],
+  NP: ['+977', '977'],
+  BD: ['+880', '880'],
+  PK: ['+92', '92'],
+  PH: ['+63', '63'],
+  ID: ['+62', '62'],
+  MY: ['+60', '60'],
+  VN: ['+84', '84'],
+  NG: ['+234', '234'],
+  BR: ['+55', '55'],
+  EG: ['+20', '20'],
+};
+
+function countryFromPhone(phone) {
+  const raw = String(phone || '').replace(/[^\d+]/g, '');
+  if (!raw) return null;
+  for (const [code, prefixes] of Object.entries(PHONE_COUNTRY)) {
+    if (prefixes.some((p) => raw.startsWith(p) || raw.startsWith(`+${p.replace('+', '')}`))) return code;
+  }
+  return null;
+}
+
+function countryFilterSql(country, startIndex) {
+  const code = String(country || '').toUpperCase();
+  const prefixes = PHONE_COUNTRY[code];
+  if (!prefixes?.length) return { sql: '', params: [] };
+  const clauses = prefixes.map((_, i) => `REPLACE(COALESCE(u.phone,''), ' ', '') LIKE $${startIndex + i}`);
+  return {
+    sql: ` AND (${clauses.join(' OR ')})`,
+    params: prefixes.map((p) => `${p.replace(/^\+/, '')}%`),
+  };
+}
+
 async function enrichLeaderboardRows(rows) {
   if (!rows.length) return rows;
   const ids = [...new Set(rows.map((r) => String(r.entity_id)).filter(Boolean))];
   if (!ids.length) return rows;
   const users = await db.query(
-    `SELECT id, first_name, last_name, profile_pic FROM users WHERE id = ANY($1::uuid[]) AND is_active = TRUE`,
+    `SELECT id, first_name, last_name, profile_pic, phone FROM users WHERE id = ANY($1::uuid[]) AND is_active = TRUE`,
     [ids]
   );
   const map = new Map(users.rows.map((u) => [String(u.id), u]));
@@ -53,6 +87,7 @@ async function enrichLeaderboardRows(rows) {
       ...row,
       entity_label: displayName(user) || row.entity_label || 'User',
       profile_pic: user?.profile_pic || row.profile_pic || null,
+      country: countryFromPhone(user?.phone) || row.country || null,
       rank: row.rank || i + 1,
     };
   });
@@ -168,6 +203,24 @@ async function computeEngagementLeaderboard(periodType, category, limit = 50, op
        LIMIT $2`,
       [since, lim]
     );
+  } else if (category === 'pk' || category === 'pk_combat') {
+    res = await db.query(
+      `SELECT p.user_id AS entity_id,
+              COALESCE(SUM(s.score), 0)::bigint AS score,
+              TRIM(CONCAT(u.first_name, ' ', u.last_name)) AS entity_label,
+              u.profile_pic
+       FROM pk_scores s
+       JOIN pk_participants p ON p.battle_id = s.battle_id AND p.user_id = s.user_id
+       JOIN pk_battles b ON b.id = s.battle_id
+       JOIN users u ON u.id = p.user_id AND u.is_active = TRUE
+       WHERE COALESCE(b.ended_at, b.started_at, b.created_at) >= $1
+         AND COALESCE(s.score, 0) > 0
+       GROUP BY p.user_id, u.first_name, u.last_name, u.profile_pic
+       HAVING COALESCE(SUM(s.score), 0) > 0
+       ORDER BY score DESC, entity_label ASC
+       LIMIT $2`,
+      [since, lim]
+    );
   } else {
     return [];
   }
@@ -214,7 +267,8 @@ async function refreshRanks(periodType, category) {
 async function getLeaderboard(periodType, category, limit = 50, opts = {}) {
   const key = periodKey(periodType);
   const modeKey = opts.mode || 'default';
-  const cacheKey = `lb:${periodType}:${key}:${category}:${modeKey}`;
+  const regionKey = String(opts.country || 'all').toUpperCase();
+  const cacheKey = `lb:${periodType}:${key}:${category}:${modeKey}:${regionKey}`;
   if (!opts.viewerId) {
     try {
       const cached = await redis.get(cacheKey);
@@ -225,7 +279,7 @@ async function getLeaderboard(periodType, category, limit = 50, opts = {}) {
   }
 
   let rows = [];
-  const forceLive = category === 'video' || category === 'games' || opts.mode === 'count';
+  const forceLive = category === 'video' || category === 'games' || category === 'pk' || category === 'pk_combat' || opts.mode === 'count';
 
   if (!forceLive) {
     const res = await db.query(
@@ -251,6 +305,12 @@ async function getLeaderboard(periodType, category, limit = 50, opts = {}) {
   try {
     rows = await filterHiddenLeaderboardRows(rows);
     rows = await enrichLeaderboardRows(rows);
+    const wantCountry = String(opts.country || '').toUpperCase();
+    if (wantCountry && wantCountry !== 'ALL' && wantCountry !== 'GL') {
+      rows = rows
+        .filter((r) => String(r.country || '').toUpperCase() === wantCountry)
+        .map((r, i) => ({ ...r, rank: i + 1 }));
+    }
     if (opts.viewerId) {
       const followService = require('./followService');
       const hidden = await followService.getHiddenUserIdSet(opts.viewerId);

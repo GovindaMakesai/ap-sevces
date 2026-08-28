@@ -3,6 +3,7 @@ const walletService = require('./walletService');
 const { uidFromUserId } = require('../lib/agoraUid');
 
 const FORMAT_TEAM_SIZE = { '1v1': 1, '1v2': 2, '1v4': 4, '1v8': 8 };
+const MAX_PK_FIGHTERS = 6;
 
 /** In-memory map so gifts on either host stream score the shared PK battle. */
 const channelBattleLinks = new Map();
@@ -114,25 +115,39 @@ async function seedBattleSides(
     opponentUserId = null,
     opponentName = 'Rival',
     teammateUserIds = [],
+    extraOpponents = [],
   } = {}
 ) {
   if (!hostUserId) throw new Error('Host required for PK');
   await joinBattle(battleId, hostUserId, 1, hostName);
 
-  const mates = Array.isArray(teammateUserIds) ? teammateUserIds : [];
-  for (const mate of mates) {
-    const uid = mate?.userId || mate?.id || mate;
-    if (!uid || String(uid) === String(hostUserId)) continue;
-    const name = mate?.name || mate?.displayName || 'Teammate';
-    try {
-      await joinBattle(battleId, uid, 1, name);
-    } catch (_e) {
-      /* team full */
-    }
-  }
+  const others = [];
+  const seen = new Set([String(hostUserId)]);
+  const pushOther = (raw, fallbackName) => {
+    const uid = String(raw?.userId || raw?.id || raw || '').trim();
+    if (!uid || seen.has(uid)) return;
+    seen.add(uid);
+    others.push({
+      userId: uid,
+      name: raw?.name || raw?.displayName || fallbackName || 'Player',
+    });
+  };
+  pushOther({ userId: opponentUserId, name: opponentName }, 'Rival');
+  (Array.isArray(extraOpponents) ? extraOpponents : []).forEach((o) => pushOther(o, 'Rival'));
+  (Array.isArray(teammateUserIds) ? teammateUserIds : []).forEach((m) => pushOther(m, 'Teammate'));
 
-  if (opponentUserId && String(opponentUserId) !== String(hostUserId)) {
-    await joinBattle(battleId, opponentUserId, 2, opponentName || 'Rival');
+  /* Fill team 2 first (up to 3), then team 1 mates — 3v3 / 6 people max */
+  const team2 = others.slice(0, 3);
+  const team1Mates = others.slice(3, MAX_PK_FIGHTERS - 1);
+  for (const p of team2) {
+    try {
+      await joinBattle(battleId, p.userId, 2, p.name);
+    } catch (_e) { /* team full */ }
+  }
+  for (const p of team1Mates) {
+    try {
+      await joinBattle(battleId, p.userId, 1, p.name);
+    } catch (_e) { /* team full */ }
   }
 
   return getBattleSnapshot(battleId);
@@ -384,6 +399,7 @@ async function getBattleSnapshot(battleId) {
     mutual: Boolean(extras.mutual || (linked && linked.length > 1)),
     challengerAgoraUid: null,
     rivalAgoraUid: null,
+    fighters: Array.isArray(extras.fighters) ? extras.fighters : [],
   };
   const cUid = snapshot.challengerUserId;
   const rUid = snapshot.rivalUserId;

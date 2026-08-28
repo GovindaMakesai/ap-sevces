@@ -8,12 +8,14 @@
     <script src="/ap-native-boot.js?v=20260822-sendfix"></script>
     <link rel="stylesheet" href="/social-theme.css?v=20260729-perf2">
     <link rel="stylesheet" href="/social-shot-skin.css?v=20260823-shot">
-    <link rel="stylesheet" href="/social-ui-fix.css?v=20260823-uifix">
+    <link rel="stylesheet" href="/social-ui-fix.css?v=20260823-stickers">
+    <link rel="stylesheet" href="/social-chat.css?v=20260823-stickers">
+    <link rel="stylesheet" href="/ap-stickers.css?v=20260823-stickers">
     <link rel="stylesheet" href="/cosmetics.css?v=20260819-entry-dm">
     <link rel="stylesheet" href="/cp-chat-cards.css?v=20260815-cpmsg">
     
     <!-- Font Awesome — non-blocking -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" media="print" onload="this.media='all'">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     
     <!-- Custom Styles -->
     <!-- Legacy marketplace CSS — non-blocking so chat theme paints first -->
@@ -325,6 +327,15 @@
             display: flex;
             align-items: center;
             gap: 4px;
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        .chat-name-text {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .chat-info h4 i {
@@ -397,12 +408,19 @@
             min-width: 0;
         }
 
+        .chat-user-details {
+            min-width: 0;
+            flex: 1;
+            overflow: hidden;
+        }
+
         .chat-user-details h3 {
             font-size: 1.1rem;
             margin-bottom: 2px;
-            display: flex;
-            align-items: center;
-            gap: 4px;
+            display: block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .chat-user-details h3 i {
@@ -1353,9 +1371,18 @@
                         <div class="ap-msg-top-row">
                             <h1>Message</h1>
                             <div class="ap-msg-top-actions">
-                                <button type="button" aria-label="More"><i class="fas fa-ellipsis-h"></i></button>
-                                <button type="button" aria-label="Search" onclick="document.getElementById('chatSearch')?.focus()"><i class="fas fa-search"></i></button>
+                                <button type="button" aria-label="New chat" class="ap-msg-icon-btn" id="apMsgNewBtn">
+                                  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+                                </button>
+                                <button type="button" aria-label="Search" class="ap-msg-icon-btn" id="apMsgSearchBtn">
+                                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+                                </button>
                             </div>
+                        </div>
+                        <div class="ap-msg-notif-banner" id="apMsgNotifBanner">
+                            <span>Enable system notification permissions</span>
+                            <button type="button" class="ap-msg-notif-open" id="apMsgNotifOpen">Open</button>
+                            <button type="button" class="ap-msg-notif-x" id="apMsgNotifClose" aria-label="Dismiss">×</button>
                         </div>
 
                         <div class="ap-msg-filters" id="apMsgFilters">
@@ -1365,8 +1392,8 @@
                             <button type="button" class="ap-msg-filter" data-filter="group">Group chat</button>
                             <button type="button" class="ap-msg-filter" data-filter="online">Online</button>
                         </div>
-                        <div class="chat-search ap-msg-search">
-                            <i class="fas fa-search"></i>
+                        <div class="chat-search ap-msg-search is-collapsed" id="apMsgSearchRow">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
                             <input type="search" placeholder="Search name or user ID…" id="chatSearch" autocomplete="off" enterkeyhint="search">
                         </div>
                     </div>
@@ -1434,7 +1461,7 @@
                                 </button>
                                 <div class="chat-header-more-wrap" id="chatHeaderMoreWrap" hidden>
                                     <button type="button" class="chat-action-btn" id="chatHeaderMoreBtn" title="More options" aria-label="More options">
-                                        <i class="fas fa-ellipsis-v"></i>
+                                        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="5" r="1.8" fill="currentColor"/><circle cx="12" cy="12" r="1.8" fill="currentColor"/><circle cx="12" cy="19" r="1.8" fill="currentColor"/></svg>
                                     </button>
                                     <div class="chat-header-more-menu" id="chatHeaderMoreMenu">
                                         <button type="button" data-act="follow" id="chatMenuFollow">Follow</button>
@@ -1465,39 +1492,39 @@
                         </div>
 
                         <!-- Chat Input -->
-                        <div class="ap-msg-quick-row" id="apMsgQuickRow">
-                            <button type="button" class="ap-msg-quick" data-quick="Hi">Hi</button>
-                            <button type="button" class="ap-msg-quick" data-quick="❤️ Love">Love</button>
-                            <button type="button" class="ap-msg-quick" data-quick="For you 💙">For you</button>
-                            <button type="button" class="ap-msg-quick gift" data-quick-gift="1"><i class="fas fa-gift"></i> Gift</button>
-                        </div>
-                        <div class="chat-input-container">
-                            <div class="chat-input-wrapper">
-                                <div class="chat-input-actions">
-                                    <div class="emoji-picker-container">
-                                        <button type="button" class="chat-input-action emoji-btn" onclick="toggleEmojiPicker(event)">
-                                            <i class="far fa-smile"></i>
-                                        </button>
-                                        <div class="emoji-picker" id="emojiPicker"></div>
-                                    </div>
-                                    <button type="button" class="chat-input-action attach-btn attach-btn--photo" onclick="triggerFileUpload('image/*,video/*,.heic,.heif')" title="Send photo or video" aria-label="Send photo or video">
-                                        <i class="fas fa-image"></i>
-                                    </button>
-                                    <button type="button" class="chat-input-action attach-btn attach-btn--video" onclick="triggerFileUpload('video/*')" title="Send video" aria-label="Send video">
-                                        <i class="fas fa-video"></i>
-                                    </button>
-                                    <input type="file" id="fileUpload" accept="image/*,video/*,.heic,.heif" style="display: none;" multiple onchange="handleFileUpload(this)">
-                                </div>
+                        <div class="ap-sticker-bar" id="apMsgQuickRow"></div>
+                        <div class="chat-input-container ap-chat-compose">
+                            <button type="button" class="ap-chat-round-btn" id="apChatWaveBtn" aria-label="Voice">
+                                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 12h2l2-6 3 12 3-8 2 4h6"/></svg>
+                            </button>
+                            <div class="ap-chat-speak-pill">
                                 <textarea 
                                     id="messageInput" 
-                                    placeholder="Say something" 
+                                    placeholder="Speak to text..." 
                                     rows="1"
                                     onkeydown="handleKeyPress(event)"
                                 ></textarea>
-                                <button class="chat-input-action send-btn" onclick="sendMessage()" id="sendBtn">
-                                    <i class="fas fa-paper-plane"></i>
+                                <button type="button" class="ap-chat-mic-btn" id="apChatMicBtn" aria-label="Speak to text">
+                                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
                                 </button>
                             </div>
+                            <div class="emoji-picker-container">
+                                <button type="button" class="ap-chat-round-btn emoji-btn" onclick="toggleEmojiPicker(event)" aria-label="Emoji">
+                                    <i class="far fa-smile"></i>
+                                </button>
+                                <div class="emoji-picker" id="emojiPicker"></div>
+                            </div>
+                            <button type="button" class="ap-chat-round-btn" id="apChatPlusBtn" aria-label="More">
+                                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+                            </button>
+                            <div class="ap-chat-plus-menu" id="apChatPlusMenu" hidden>
+                                <button type="button" onclick="triggerFileUpload('image/*,video/*,.heic,.heif')">Photo</button>
+                                <button type="button" onclick="triggerFileUpload('video/*')">Video</button>
+                            </div>
+                            <input type="file" id="fileUpload" accept="image/*,video/*,.heic,.heif" style="display: none;" multiple onchange="handleFileUpload(this)">
+                            <button class="chat-input-action send-btn" onclick="sendMessage()" id="sendBtn" hidden>
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
                         </div>
                     </div>
                 </main>
@@ -1581,6 +1608,7 @@
     <div id="toast" class="toast"></div>
 
     <!-- Socket.io loaded async after chat boot (sync CDN was blocking Messages on slow networks) -->
+    <script src="/ap-stickers.js?v=20260823-stickers"></script>
     <script src="app.js?v=20260820-slowfix"></script>
     <script src="auth-guard.js"></script>
     <script src="social-ui.js?v=20260702-follow-fix"></script>
@@ -1683,11 +1711,18 @@
                 bindChatSocialActions();
                 setupChatListPullRefresh();
                 setupMessageActions();
-                document.querySelector('.ap-msg-top-actions button[aria-label="More"]')?.addEventListener('click', (e) => {
+                document.getElementById('apMsgNewBtn')?.addEventListener('click', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     openChatListMenu();
                 });
+                document.getElementById('apMsgSearchBtn')?.addEventListener('click', () => {
+                    const row = document.getElementById('apMsgSearchRow');
+                    if (!row) return;
+                    row.classList.toggle('is-collapsed');
+                    if (!row.classList.contains('is-collapsed')) document.getElementById('chatSearch')?.focus();
+                });
+                setupApChatExtras();
                 window.addEventListener('ap-user-blocked', (ev) => {
                     const uid = String(ev?.detail?.userId || '');
                     try {
@@ -1923,7 +1958,7 @@
                 bookingId: null,
                 category: ou.role || 'customer',
                 lastMessage: formatListPreview(lastMessageText),
-                time: formatTime(lastMessageAt),
+                time: formatListDate(lastMessageAt),
                 otherUserId: String(ou.id || '')
             };
         }
@@ -2242,6 +2277,7 @@
         function formatListPreview(text) {
             const raw = String(text || '').trim();
             if (!raw) return 'No messages yet';
+            if (window.APStickers?.isStickerText?.(raw) || /^\[sticker:/i.test(raw)) return '[Sticker]';
             if (raw.startsWith('__IMG__:')) return '📷 Photo';
             if (raw.startsWith('__VID__:')) return '🎬 Video';
             if (raw.includes('__AGENCY_HOST_INVITE__:')) return 'Agency host invite';
@@ -2941,6 +2977,43 @@
             return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         }
 
+        function pad2(n) {
+            return String(n).padStart(2, '0');
+        }
+
+        function formatListDate(dateValue) {
+            if (!dateValue) return '';
+            const date = new Date(dateValue);
+            if (Number.isNaN(date.getTime())) return '';
+            const now = new Date();
+            if (date.toDateString() === now.toDateString()) {
+                return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            }
+            return pad2(date.getMonth() + 1) + '/' + pad2(date.getDate());
+        }
+
+        function formatThreadStamp(dateValue) {
+            const date = new Date(dateValue || Date.now());
+            if (Number.isNaN(date.getTime())) return '';
+            return pad2(date.getMonth() + 1) + '/' + pad2(date.getDate()) + ' ' + pad2(date.getHours()) + ':' + pad2(date.getMinutes());
+        }
+
+        function currentUserAvatarHtml() {
+            const u = (typeof Auth !== 'undefined' && Auth.getUser?.()) || {};
+            const name = [u.first_name, u.last_name].filter(Boolean).join(' ') || u.displayName || u.name || 'Me';
+            const pic = u.profile_pic || u.profilePic || null;
+            const initials = initialsFromName(u.first_name, u.last_name) || 'Me';
+            if (pic) {
+                const src = chatProfilePhotoUrl(name, pic);
+                return `<img class="message-avatar message-avatar--self" src="${escapeAttr(src || '')}" alt="" data-name="${escapeAttr(name)}" loading="lazy">`;
+            }
+            return `<div class="message-avatar message-avatar--self message-avatar--placeholder">${escapeHtml(initials)}</div>`;
+        }
+
+        function appendSelfAvatar(wrapper) {
+            wrapper.insertAdjacentHTML('beforeend', currentUserAvatarHtml());
+        }
+
         function absoluteUploadUrl(relPath) {
             if (relPath == null || relPath === '') return null;
             const p = String(relPath);
@@ -3291,18 +3364,70 @@
         }
 
         function setupMsgQuickChips() {
-            document.querySelectorAll('.ap-msg-quick[data-quick]').forEach((btn) => {
-                btn.addEventListener('click', () => {
-                    const input = document.getElementById('messageInput');
-                    if (input) {
-                        input.value = btn.dataset.quick || '';
-                        sendMessage();
-                    }
+            const host = document.getElementById('apMsgQuickRow');
+            if (!host || !window.APStickers?.mountBar || host.dataset.bound === '1') return;
+            host.dataset.bound = '1';
+            APStickers.mountBar(host, (id) => {
+                if (id === 'gift') {
+                    openChatGiftSheet();
+                    return;
+                }
+                const input = document.getElementById('messageInput');
+                if (input) {
+                    input.value = APStickers.token(id);
+                    sendMessage();
+                }
+            });
+        }
+
+        function setupApChatExtras() {
+            setupMsgQuickChips();
+            const banner = document.getElementById('apMsgNotifBanner');
+            if (banner) {
+                try {
+                    if (localStorage.getItem('ap_msg_notif_dismissed') === '1') banner.hidden = true;
+                } catch (_e) {}
+                document.getElementById('apMsgNotifClose')?.addEventListener('click', () => {
+                    banner.hidden = true;
+                    try { localStorage.setItem('ap_msg_notif_dismissed', '1'); } catch (_e) {}
                 });
+                document.getElementById('apMsgNotifOpen')?.addEventListener('click', async () => {
+                    try {
+                        if (window.APNative?.openNotificationSettings) {
+                            APNative.openNotificationSettings();
+                        } else if (window.Notification?.requestPermission) {
+                            await Notification.requestPermission();
+                        }
+                    } catch (_e) {}
+                });
+            }
+            const plusBtn = document.getElementById('apChatPlusBtn');
+            const plusMenu = document.getElementById('apChatPlusMenu');
+            plusBtn?.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (plusMenu) plusMenu.hidden = !plusMenu.hidden;
             });
-            document.querySelector('.ap-msg-quick[data-quick-gift]')?.addEventListener('click', () => {
-                openChatGiftSheet();
+            document.addEventListener('click', () => {
+                if (plusMenu) plusMenu.hidden = true;
             });
+            plusMenu?.addEventListener('click', (e) => e.stopPropagation());
+            const startSpeech = () => {
+                const input = document.getElementById('messageInput');
+                const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (!Rec || !input) {
+                    input?.focus();
+                    return;
+                }
+                const rec = new Rec();
+                rec.lang = 'en-IN';
+                rec.interimResults = true;
+                rec.onresult = (ev) => {
+                    input.value = Array.from(ev.results).map((r) => r[0].transcript).join('');
+                };
+                rec.start();
+            };
+            document.getElementById('apChatMicBtn')?.addEventListener('click', startSpeech);
+            document.getElementById('apChatWaveBtn')?.addEventListener('click', startSpeech);
         }
 
         function setupChatSearch() {
@@ -3591,7 +3716,7 @@
                             bookingId: null,
                             category: conv.otherUser?.role || 'customer',
                             lastMessage: formatListPreview(conv.lastMessageText || conv.lastMessage || conv.body),
-                            time: formatTime(conv.lastMessageAt),
+                            time: formatListDate(conv.lastMessageAt),
                             otherUserId: String(conv.otherUser?.id || '')
                         }));
                         const totalUnread = Number(root?.data?.totalUnread ?? root?.totalUnread);
@@ -3899,12 +4024,16 @@
             }
             let lastDate = '';
             const frag = document.createDocumentFragment();
+            const starTip = document.createElement('div');
+            starTip.className = 'ap-starlink-tip';
+            starTip.textContent = 'Chat 3 days in a row to light up your Starlink 🌟';
+            frag.appendChild(starTip);
             messages.forEach((msg) => {
                 const currentDate = new Date(msg.createdAt || Date.now()).toDateString();
                 if (currentDate !== lastDate) {
                     const divider = document.createElement('div');
                     divider.className = 'message-date-divider';
-                    divider.innerHTML = '<span class="date-text">' + escapeHtml(new Date(msg.createdAt || Date.now()).toLocaleDateString()) + '</span>';
+                    divider.innerHTML = '<span class="date-text">' + escapeHtml(formatThreadStamp(msg.createdAt || Date.now())) + '</span>';
                     frag.appendChild(divider);
                     lastDate = currentDate;
                 }
@@ -3961,7 +4090,11 @@
                 } else if (roomInvite) {
                     content.appendChild(buildRoomInviteCard(roomInvite));
                 } else if (bodyText) {
-                    if (/^🎁\s*Sent\s+/i.test(bodyText) || /sent you a gift/i.test(bodyText)) {
+                    const stickerId = window.APStickers?.parse?.(bodyText);
+                    if (stickerId) {
+                        wrapper.classList.add('is-sticker');
+                        content.innerHTML = APStickers.render(stickerId, 128);
+                    } else if (/^🎁\s*Sent\s+/i.test(bodyText) || /sent you a gift/i.test(bodyText)) {
                         const card = document.createElement('div');
                         card.className = 'dm-gift-card';
                         const icon = document.createElement('span');
@@ -4004,13 +4137,14 @@
                 moreBtn.type = 'button';
                 moreBtn.className = 'message-more-btn';
                 moreBtn.setAttribute('aria-label', 'Message options');
-                moreBtn.innerHTML = '<i class="fas fa-ellipsis-v" aria-hidden="true"></i>';
+                moreBtn.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="5" r="1.8" fill="currentColor"/><circle cx="12" cy="12" r="1.8" fill="currentColor"/><circle cx="12" cy="19" r="1.8" fill="currentColor"/></svg>';
                 bubble.appendChild(moreBtn);
                 const timeRow = document.createElement('div');
                 timeRow.className = 'message-time';
                 timeRow.innerHTML = '<span>' + escapeHtml(msg.time || '') + '</span><span class="message-status">' + renderMessageStatusIcon(msg) + '</span>';
                 bubble.appendChild(timeRow);
                 wrapper.appendChild(bubble);
+                if (bubbleType === 'sent') appendSelfAvatar(wrapper);
                 frag.appendChild(wrapper);
             });
             const stack = document.createElement('div');
@@ -4033,7 +4167,7 @@
                 if (currentDate !== lastDate) {
                     html += `
                         <div class="message-date-divider">
-                            <span class="date-text">${new Date(msg.createdAt || Date.now()).toLocaleDateString()}</span>
+                            <span class="date-text">${escapeHtml(formatThreadStamp(msg.createdAt || Date.now()))}</span>
                         </div>
                     `;
                     lastDate = currentDate;
@@ -4122,9 +4256,14 @@
                         <div class="room-invite-card-sub">${escapeHtml(roomInvite.preview || 'Tap to join in the app')}</div>
                         <button type="button" class="room-invite-join-btn" data-room-invite-path="${escapeAttr(roomInvite.path)}">Join now</button>
                       </div>`
-                    : bodyText
+                    : (() => {
+                        const stickerId = window.APStickers?.parse?.(bodyText);
+                        if (stickerId) return APStickers.render(stickerId, 128);
+                        return bodyText
                     ? escapeHtml(bodyText)
                     : (msg.image || msg.video ? '' : '<span class="msg-empty-placeholder">Message unavailable</span>');
+                      })();
+                const stickerId = window.APStickers?.parse?.(String(msg.text || '').trim());
                 const bubbleType = msg.type === 'sent' ? 'sent' : 'received';
                 const bubbleExtra = dmChatBubbleExtraClass(msg);
                 const peerName = currentChatPeer?.name || 'User';
@@ -4136,7 +4275,7 @@
                             : `<div class="message-avatar message-avatar--placeholder">${escapeHtml(peerInitials)}</div>`
                         : '';
                 html += `
-                    <div class="message-wrapper ${bubbleType}" data-msg-id="${escapeAttr(String(msg.id || ''))}">
+                    <div class="message-wrapper ${bubbleType}${stickerId ? ' is-sticker' : ''}" data-msg-id="${escapeAttr(String(msg.id || ''))}">
                         ${peerAvatar}
                         <div class="message-bubble ${bubbleType}${bubbleExtra}">
                             <div class="message-content">
@@ -4144,7 +4283,7 @@
                                 ${msg.image ? `<img src="${escapeAttr(msg.image)}" class="message-image" alt="Photo" loading="lazy" onclick='openImageModal(${JSON.stringify(msg.image)})'>` : ''}
                                 ${msg.video ? `<video src="${escapeAttr(msg.video)}" class="message-video" controls playsinline preload="metadata"></video>` : ''}
                             </div>
-                            <button type="button" class="message-more-btn" aria-label="Message options"><i class="fas fa-ellipsis-v" aria-hidden="true"></i></button>
+                            <button type="button" class="message-more-btn" aria-label="Message options"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="12" cy="5" r="1.8" fill="currentColor"/><circle cx="12" cy="12" r="1.8" fill="currentColor"/><circle cx="12" cy="19" r="1.8" fill="currentColor"/></svg></button>
                             <div class="message-time">
                                 <span>${msg.time}</span>
                                 <span class="message-status">
@@ -4152,6 +4291,7 @@
                                 </span>
                             </div>
                         </div>
+                        ${bubbleType === 'sent' ? currentUserAvatarHtml() : ''}
                     </div>
                 `;
             });

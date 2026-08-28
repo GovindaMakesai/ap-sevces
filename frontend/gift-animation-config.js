@@ -3,8 +3,9 @@
  * Store cards use thumbnailUrl; live overlay uses animationEmbedUrl (never interchange).
  */
 (function (g) {
-  const DEFAULT_DURATION_MS = 5000;
-  const MAX_QUEUE_SIZE = 4;
+  /* AnimStream clips are typically 8–15s; 5s was tearing them down mid-play. */
+  const DEFAULT_DURATION_MS = 16000;
+  const MAX_QUEUE_SIZE = 8;
   const LOOP = '';
 
   function compactThumbUrl(url) {
@@ -12,9 +13,9 @@
     if (!raw) return '';
     try {
       const u = new URL(raw);
+      /* Bunny Optimizer query params broke posters in the app WebView. Use the file as-is. */
       if (/b-cdn\.net$|animstream/i.test(u.hostname)) {
-        u.searchParams.set('width', '96');
-        u.searchParams.set('quality', '55');
+        u.search = '';
       }
       return u.href;
     } catch (_e) {

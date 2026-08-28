@@ -4,11 +4,6 @@
 (function () {
   const DEFAULT_BANNERS = [
     {
-      href: '/coin-seller-offer.html?app=1',
-      image: '/assets/promos/mega-offer-coin-seller.png',
-      alt: 'BIG MEGA OFFER — Coin Seller 75% off',
-    },
-    {
       href: '/lucky-gifts.html?app=1',
       image: '/assets/promos/lucky-gift-rank.svg',
       alt: 'Lucky Gift Ranking',
@@ -19,14 +14,9 @@
       alt: 'PK Combat Ranking',
     },
     {
-      href: '/host-policies.html?app=1',
+      href: '/host-policies.html?policy=guidelines&app=1',
       image: '/assets/promos/host-earn.svg',
-      alt: 'Host earning policies',
-    },
-    {
-      href: '/host-policies.html?policy=star&app=1',
-      image: '/assets/promos/star-host-policy.png',
-      alt: 'Star Host Policy',
+      alt: 'Host Policy & Guidelines',
     },
   ];
 
@@ -106,45 +96,98 @@
 
   function mount(container, banners, intervalMs) {
     if (!container) return null;
-    const items = banners && banners.length ? banners : DEFAULT_BANNERS;
+    const items = (banners && banners.length ? banners : DEFAULT_BANNERS).filter((b) => b && b.image);
+    if (!items.length) {
+      container.hidden = true;
+      container.innerHTML = '';
+      return null;
+    }
+    container.hidden = false;
     const ms = intervalMs || 4500;
     let index = 0;
     let timer = null;
+    let interacting = false;
+    let suppressClick = false;
+    let pointerStartX = 0;
 
     container.classList.add('social-banner-slider');
     container.innerHTML = `
-      <div class="social-banner-track">
-        ${items.map((b, i) => renderSlide(b, i)).join('')}
+      <div class="social-banner-scroller">
+        <div class="social-banner-track">
+          ${items.map((b, i) => renderSlide(b, i)).join('')}
+        </div>
       </div>
       <div class="social-banner-dots" role="tablist"></div>
     `;
 
-    const track = container.querySelector('.social-banner-track');
+    const scroller = container.querySelector('.social-banner-scroller');
     const dotsWrap = container.querySelector('.social-banner-dots');
 
-    items.forEach((_, i) => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.setAttribute('aria-label', 'Banner ' + (i + 1));
-      if (i === 0) btn.classList.add('active');
-      btn.addEventListener('click', () => go(i));
-      dotsWrap.appendChild(btn);
-    });
+    function slides() {
+      return [...container.querySelectorAll('.social-banner-slide')];
+    }
 
-    function go(i) {
-      index = ((i % items.length) + items.length) % items.length;
-      track.style.transform = `translateX(-${index * 100}%)`;
+    function slideWidth() {
+      return Math.max(1, scroller.clientWidth || container.clientWidth);
+    }
+
+    function sizeSlides() {
+      const w = slideWidth();
+      container.style.setProperty('--banner-slide-w', w + 'px');
+      scroller.style.setProperty('--banner-slide-w', w + 'px');
+      slides().forEach((s) => {
+        s.style.flex = '0 0 ' + w + 'px';
+        s.style.width = w + 'px';
+        s.style.minWidth = w + 'px';
+      });
+    }
+
+    function rebuildDots() {
+      dotsWrap.innerHTML = '';
+      slides().forEach((_, i) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.setAttribute('aria-label', 'Banner ' + (i + 1));
+        if (i === index) btn.classList.add('active');
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          go(i);
+        });
+        dotsWrap.appendChild(btn);
+      });
+    }
+
+    function syncDots() {
+      const n = slides().length;
+      if (!n) return;
+      const nextIndex = Math.round(scroller.scrollLeft / slideWidth());
+      index = Math.max(0, Math.min(n - 1, nextIndex));
       dotsWrap.querySelectorAll('button').forEach((d, j) => {
         d.classList.toggle('active', j === index);
       });
     }
 
+    function go(i, instant) {
+      const n = slides().length;
+      if (!n) return;
+      index = ((i % n) + n) % n;
+      sizeSlides();
+      scroller.scrollTo({
+        left: index * slideWidth(),
+        behavior: instant ? 'auto' : 'smooth',
+      });
+      syncDots();
+    }
+
     function next() {
+      const n = slides().length;
+      if (n < 2) return;
       go(index + 1);
     }
 
     function start() {
       stop();
+      if (slides().length < 2 || interacting) return;
       timer = setInterval(next, ms);
     }
 
@@ -153,30 +196,93 @@
       timer = null;
     }
 
+    sizeSlides();
+    rebuildDots();
+
     container.querySelectorAll('.social-banner-slide[data-href]').forEach((slide) => {
-      const open = () => {
+      slide.style.cursor = 'pointer';
+      slide.addEventListener('click', (e) => {
+        if (suppressClick) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
         const h = slide.dataset.href;
         if (h) window.location.href = h;
-      };
-      slide.addEventListener('click', open);
-      slide.style.cursor = 'pointer';
+      });
     });
 
-    start();
-    container.addEventListener('mouseenter', stop);
-    container.addEventListener('mouseleave', start);
-    container.addEventListener('touchstart', stop, { passive: true });
-    container.addEventListener('touchend', () => setTimeout(start, 3000), { passive: true });
+    container.querySelectorAll('.social-banner-img').forEach((img) => {
+      img.addEventListener('error', () => {
+        const slide = img.closest('.social-banner-slide');
+        if (slide) slide.remove();
+        if (!slides().length) {
+          container.hidden = true;
+          stop();
+          return;
+        }
+        sizeSlides();
+        rebuildDots();
+        go(0, true);
+      });
+    });
 
-    /* Mega offer full poster stays on Me only — rooms and Explore use slider images */
-    if (document.body.classList.contains('social-profile-page')) {
+    scroller.addEventListener(
+      'scroll',
+      () => {
+        syncDots();
+      },
+      { passive: true }
+    );
+
+    scroller.addEventListener(
+      'pointerdown',
+      (e) => {
+        interacting = true;
+        suppressClick = false;
+        pointerStartX = e.clientX;
+        stop();
+      },
+      { passive: true }
+    );
+    const endPointer = (e) => {
+      if (typeof e.clientX === 'number' && Math.abs(e.clientX - pointerStartX) > 14) {
+        suppressClick = true;
+        setTimeout(() => {
+          suppressClick = false;
+        }, 280);
+      }
+      interacting = false;
+      syncDots();
+      setTimeout(start, 2800);
+    };
+    scroller.addEventListener('pointerup', endPointer, { passive: true });
+    scroller.addEventListener('pointercancel', endPointer, { passive: true });
+    scroller.addEventListener('mouseenter', stop);
+    scroller.addEventListener('mouseleave', () => {
+      interacting = false;
+      start();
+    });
+
+    window.addEventListener(
+      'resize',
+      () => {
+        sizeSlides();
+        go(index, true);
+      },
+      { passive: true }
+    );
+
+    /* Explore / Party keep the image slider only — no extra posters */
+    const exploreOnlySlider = document.body.classList.contains('social-explore-page');
+    if (!exploreOnlySlider && document.body.classList.contains('social-profile-page')) {
       mountMegaOfferPoster(container);
     }
-    /* Full uncropped host-policy posters on non-explore pages */
-    if (!document.body.classList.contains('social-explore-page')) {
+    if (!exploreOnlySlider) {
       mountPolicyPosters(container);
     }
 
+    start();
     return { go, next, start, stop };
   }
 

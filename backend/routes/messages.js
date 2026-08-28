@@ -16,13 +16,17 @@ router.get('/unread-count', verifyToken, getUnreadCount);
 router.post('/conversations', verifyToken, getOrCreateConversation);
 
 function sendUploadMiddleware(req, res, next) {
-    chatUpload.single('image')(req, res, (err) => {
+    chatUpload.any()(req, res, (err) => {
         if (err) {
             return res.status(400).json({
                 success: false,
                 message: err.message || 'Media upload failed'
             });
         }
+        const files = Array.isArray(req.files)
+            ? req.files
+            : Object.values(req.files || {}).flat();
+        req.file = files[0] || null;
         next();
     });
 }

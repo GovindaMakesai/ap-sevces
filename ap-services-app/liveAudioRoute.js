@@ -1,9 +1,10 @@
 /**
  * LiveAudioRoute — native Android/iOS audio routing owner.
  *
- * Bluetooth: expo-av playThroughEarpieceAndroid:false forces speakerphone ON,
- * which silences A2DP. When BT is connected we set playThroughEarpieceAndroid
- * true (speakerphone off) and ApLiveAudio clears any speaker steal.
+ * Bluetooth listen: WebRTC uses MODE_IN_COMMUNICATION, which drops A2DP.
+ * Stopping SCO in that mode silences earbuds. Listeners with a headset keep
+ * speakerphone OFF and native ApLiveAudio starts SCO/HFP so remote voice is
+ * audible. Phone speaker is used only when no Bluetooth output exists.
  */
 import { AppState, Platform } from 'react-native';
 import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
@@ -123,8 +124,8 @@ async function applyLivePlay({ force = false } = {}) {
   const hasBt = await detectBluetooth();
   /*
    * playThroughEarpieceAndroid:
-   *   false → expo-av setSpeakerphoneOn(true)  — correct for phone speaker
-   *   true  → speakerphone OFF — required so Bluetooth A2DP can carry WebView voice
+   *   false → expo-av setSpeakerphoneOn(true)  — phone speaker
+   *   true  → speakerphone OFF — required so Bluetooth SCO/HFP can carry live voice
    */
   await Audio.setAudioModeAsync({
     allowsRecordingIOS: false,

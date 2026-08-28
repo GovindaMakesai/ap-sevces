@@ -96,7 +96,11 @@ class _LiveRoomScreenState extends State<LiveRoomScreen> {
         return;
       }
 
-      await [Permission.microphone, Permission.camera].request();
+      await [
+        Permission.microphone,
+        Permission.camera,
+        Permission.bluetoothConnect,
+      ].request();
 
       final agoraToken = await live.getAgoraToken(channel: widget.room.channel);
       final rtcToken = agoraToken['token']?.toString() ?? '';
@@ -143,10 +147,24 @@ class _LiveRoomScreenState extends State<LiveRoomScreen> {
 
   void _appendChat(Map data) {
     final msg = _LiveChatMessage(
-      user: data['displayName']?.toString() ?? data['user']?.toString() ?? 'User',
-      text: data['message']?.toString() ?? data['text']?.toString() ?? '',
+      user: _sanitizePublicText(data['displayName']?.toString() ?? data['user']?.toString() ?? 'User', 32),
+      text: _sanitizePublicText(data['message']?.toString() ?? data['text']?.toString() ?? '', 280),
     );
     if (mounted) setState(() => _chatMessages.add(msg));
+  }
+
+  String _sanitizePublicText(String? raw, [int max = 80]) {
+    final stripped = (raw ?? '')
+        .replaceAll(
+          RegExp(
+            r'[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\u061C\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]',
+          ),
+          '',
+        )
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    if (stripped.isEmpty) return max >= 32 ? 'User' : '';
+    return stripped.length <= max ? stripped : stripped.substring(0, max);
   }
 
   Future<void> _leaveRoom() async {
@@ -309,6 +327,7 @@ class _LiveRoomScreenState extends State<LiveRoomScreen> {
           return Padding(
             padding: const EdgeInsets.only(bottom: 6),
             child: RichText(
+              textDirection: TextDirection.ltr,
               text: TextSpan(
                 children: [
                   TextSpan(

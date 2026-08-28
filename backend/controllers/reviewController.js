@@ -1,5 +1,6 @@
 // backend/controllers/reviewController.js
 const Review = require('../models/Review');
+const { clampLimit, pageToOffset } = require('../lib/pagination');
 const Booking = require('../models/Booking');
 const { validationResult } = require('express-validator');
 
@@ -82,11 +83,11 @@ exports.createReview = async (req, res) => {
 exports.getWorkerReviews = async (req, res) => {
     try {
         const { workerId } = req.params;
-        const { limit = 10, page = 1 } = req.query;
+        const { page = 1 } = req.query;
+        const limit = clampLimit(req.query.limit, { fallback: 10, max: 50 });
+        const offset = pageToOffset(page, limit);
         
-        const offset = (page - 1) * limit;
-        
-        const reviews = await Review.getByWorker(workerId, parseInt(limit), parseInt(offset));
+        const reviews = await Review.getByWorker(workerId, limit, offset);
         const summary = await Review.getWorkerRatingSummary(workerId);
 
         res.json({
@@ -96,7 +97,7 @@ exports.getWorkerReviews = async (req, res) => {
                 summary,
                 pagination: {
                     page: parseInt(page),
-                    limit: parseInt(limit),
+                    limit,
                     total: summary.total_reviews
                 }
             }
@@ -226,9 +227,9 @@ exports.markHelpful = async (req, res) => {
 // @access  Public
 exports.getRecentReviews = async (req, res) => {
     try {
-        const { limit = 6 } = req.query;
+        const limit = clampLimit(req.query.limit, { fallback: 6, max: 20 });
         
-        const reviews = await Review.getRecent(parseInt(limit));
+        const reviews = await Review.getRecent(limit);
 
         res.json({
             success: true,

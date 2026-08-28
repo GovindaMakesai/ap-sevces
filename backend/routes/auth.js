@@ -1,4 +1,5 @@
-// backend/routes/auth.js
+const logger = require('../lib/logger');
+const { oauthLimiter } = require('../middleware/security');
 const express = require('express');
 const router = express.Router();
 const passport = require('passport');
@@ -30,17 +31,22 @@ const githubCallbackURL =
 const facebookCallbackURL =
     process.env.FACEBOOK_CALLBACK_URL || `${oauthCallbackBase}/auth/facebook/callback`;
 
-console.log('[auth] OAuth callbacks:', {
+logger.info('[auth] OAuth callbacks configured', {
     google: googleCallbackURL,
     github: githubCallbackURL,
     facebook: facebookCallbackURL,
 });
 
 router.use((req, res, next) => {
-    if (req.path.includes('google') || req.path.includes('callback') || req.path === '/oauth-debug') {
-        console.log('[auth] request', req.method, req.originalUrl || req.url, {
-            host: req.get('host'),
-            hasCode: Boolean(req.query?.code),
+    if (
+      process.env.OAUTH_DEBUG === 'true' &&
+      (req.path.includes('google') || req.path.includes('callback') || req.path === '/oauth-debug')
+    ) {
+        logger.debug('[auth] OAuth request', {
+          method: req.method,
+          path: req.originalUrl || req.url,
+          host: req.get('host'),
+          hasCode: Boolean(req.query?.code),
         });
     }
     next();
@@ -176,7 +182,7 @@ router.post('/register', validateRegistration, checkValidation, authController.r
 router.post('/login', validateLogin, checkValidation, authController.login);
 router.post('/refresh', authController.refresh);
 router.post('/logout', authController.logout);
-router.post('/exchange-code', authController.exchangeCode);
+router.post('/exchange-code', oauthLimiter, authController.exchangeCode);
 router.get('/ws-token', verifyToken, authController.wsToken);
 router.get('/session', require('../middleware/auth').optionalAuth, authController.session);
 router.get('/me', verifyToken, authController.getMe);
@@ -192,7 +198,7 @@ router.post(
 );
 router.delete('/profile/album/:photoId', verifyToken, authController.deleteProfileAlbumPhoto);
 if (isGoogleConfigured) {
-    router.get('/google', (req, res, next) => {
+    router.get('/google', oauthLimiter, (req, res, next) => {
         passport.authenticate('google', {
             scope: ['profile', 'email'],
             session: false,
@@ -201,12 +207,14 @@ if (isGoogleConfigured) {
     });
     router.get(
         '/google/callback',
+        oauthLimiter,
         ensureGoogleCode,
         passport.authenticate('google', { session: false, failureRedirect: oauthFailureRedirect }),
         authController.googleCallback
     );
     router.get(
         '/api/google/callback',
+        oauthLimiter,
         ensureGoogleCode,
         passport.authenticate('google', { session: false, failureRedirect: oauthFailureRedirect }),
         authController.googleCallback

@@ -1,13 +1,15 @@
 const liveRoomService = require('../services/liveRoomService');
 const agoraTokenService = require('../services/agoraTokenService');
 const followService = require('../services/followService');
+const matchCallService = require('../services/matchCallService');
+const { clampLimit } = require('../lib/pagination');
 
 exports.listActiveRooms = async (req, res) => {
   try {
     const roomType = req.query.type === 'party' ? 'party' : req.query.type === 'live' ? 'live' : null;
     let rows = await liveRoomService.listActiveRooms({
       roomType,
-      limit: req.query.limit,
+      limit: clampLimit(req.query.limit, { max: 50, fallback: 30 }),
       sort: req.query.sort || 'trending',
     });
     const viewerId = req.userId || req.user?.id;
@@ -49,12 +51,23 @@ exports.agoraToken = async (req, res) => {
     }
 
     if (wantsPublisher) {
-      const canPublish = await liveRoomService.canPublishInRoom(channel, req.userId);
-      if (!canPublish) {
-        return res.status(403).json({
-          success: false,
-          message: 'Publisher token requires host or an approved on-seat speaker',
-        });
+      const matchChannel = matchCallService.isMatchChannel(channel);
+      if (matchChannel) {
+        const inMatch = await matchCallService.userInActiveMatchByChannel(req.userId, channel);
+        if (!inMatch) {
+          return res.status(403).json({
+            success: false,
+            message: 'Publisher token requires an active voice/video match on this channel',
+          });
+        }
+      } else {
+        const canPublish = await liveRoomService.canPublishInRoom(channel, req.userId);
+        if (!canPublish) {
+          return res.status(403).json({
+            success: false,
+            message: 'Publisher token requires host or an approved on-seat speaker',
+          });
+        }
       }
     }
 

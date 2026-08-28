@@ -9,6 +9,7 @@ const charityService = require('../services/charityService');
 const paymentService = require('../services/paymentService');
 const fraudService = require('../services/fraudService');
 const commissionService = require('../services/commissionService');
+const { clampLimit, clampOffset } = require('../lib/pagination');
 
 async function createAgency(req, res) {
   try {
@@ -58,19 +59,20 @@ async function getAgencyAnalytics(req, res) {
 
 async function listAgencies(req, res) {
   const data = await agencyService.listAgencies({
-    limit: parseInt(req.query.limit, 10) || 50,
-    offset: parseInt(req.query.offset, 10) || 0,
+    limit: clampLimit(req.query.limit, { fallback: 50 }),
+    offset: clampOffset(req.query.offset),
   });
   res.json({ success: true, data });
 }
 
 async function getLeaderboard(req, res) {
-  const { period = 'daily', category = 'creators', mode } = req.query;
+  const { period = 'daily', category = 'creators', mode, country } = req.query;
   const data = await leaderboardService.getLeaderboard(period, category, 50, {
     mode,
+    country,
     viewerId: req.userId || null,
   });
-  res.json({ success: true, data, period, category });
+  res.json({ success: true, data, period, category, country: country || 'all' });
 }
 
 async function listContests(req, res) {

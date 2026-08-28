@@ -1,4 +1,5 @@
 const db = require('../config/database');
+const { toJsonb } = require('../lib/pgJsonb');
 
 const DAILY_CAPS = {
   join_room: { coins: 50, max: 5 },
@@ -38,8 +39,8 @@ async function recordActivity(userId, activityType, { liveRoomId = null, metadat
   const xp = reward.xp || 0;
   const res = await db.query(
     `INSERT INTO party_activity_log (user_id, live_room_id, activity_type, coins_awarded, xp_awarded, metadata)
-     VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-    [userId, liveRoomId, activityType, coins, xp, JSON.stringify(metadata || {})]
+     VALUES ($1, $2, $3, $4, $5, $6::jsonb) RETURNING *`,
+    [userId, liveRoomId, activityType, coins, xp, toJsonb(metadata || {})]
   );
   if (coins > 0) {
     try {

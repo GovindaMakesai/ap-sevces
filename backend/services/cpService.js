@@ -16,10 +16,14 @@ const CP_INACTIVE_DAYS = 30;
 const CP_ACTION_TTL_MS = 48 * 60 * 60 * 1000;
 
 const CP_RINGS = [
-  { id: 'ruby', name: 'Ruby Ring', price: 45000, emoji: '💎', color: '#f472b6' },
+  { id: 'pearl', name: 'Pearl Halo', price: 30000, emoji: '🤍', color: '#f8fafc' },
+  { id: 'ruby', name: 'Ruby Solitaire', price: 45000, emoji: '💎', color: '#f472b6' },
+  { id: 'gold', name: 'Royal Gold', price: 150000, emoji: '💛', color: '#f59e0b' },
   { id: 'wings', name: 'Wings of love', price: 150000, emoji: '👑', color: '#34d399' },
-  { id: 'cp', name: 'CP Ring', price: 360000, emoji: '💍', color: '#22d3ee' },
+  { id: 'rose', name: 'Rose Infinity', price: 220000, emoji: '🌹', color: '#fb7185' },
   { id: 'celeste', name: 'Celeste', price: 240000, emoji: '🌙', color: '#2dd4bf' },
+  { id: 'diamond', name: 'Eternal Diamond', price: 300000, emoji: '💍', color: '#e2e8f0' },
+  { id: 'cp', name: 'CP Ring', price: 360000, emoji: '💍', color: '#22d3ee' },
   { id: 'mystique', name: 'Mystique', price: 540000, emoji: '🦋', color: '#f472b6' },
   { id: 'aura', name: 'Aura', price: 1800000, emoji: '✨', color: '#60a5fa' },
 ];
@@ -912,7 +916,7 @@ function mapCpRankRow(row, rank) {
 
 async function getCpRankings(viewerUserId, period = 'week', limit = 50) {
   const lim = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 100);
-  const isWeek = period === 'week';
+  const isWeek = period === 'week' || period === 'weekly' || period === 'daily';
   let rows;
 
   if (isWeek) {

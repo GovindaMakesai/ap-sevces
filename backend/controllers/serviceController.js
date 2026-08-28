@@ -1,6 +1,7 @@
 // backend/controllers/serviceController.js
 const Service = require('../models/Service');
 const db = require('../config/database');
+const { clampLimit } = require('../lib/pagination');
 
 // ==================== WORKERS FOR SERVICE ====================
 // @desc    Get workers for a specific service
@@ -263,9 +264,9 @@ exports.searchServices = async (req, res) => {
 // @access  Public
 exports.getPopularServices = async (req, res) => {
     try {
-        const { limit = 10 } = req.query;
+        const limit = clampLimit(req.query.limit, { fallback: 10, max: 50 });
         
-        const services = await Service.getPopular(parseInt(limit));
+        const services = await Service.getPopular(limit);
         
         res.json({
             success: true,

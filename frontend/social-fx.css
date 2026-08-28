@@ -628,14 +628,14 @@ body.ap-screen-shake {
   width: 72px;
   height: 72px;
   border-color: #fbbf24;
-  box-shadow: 0 0 24px rgba(251, 191, 36, 0.5);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.14);
 }
 
 .social-rank-podium-item .podium-crown {
   font-size: 20px;
   display: block;
   margin-bottom: 2px;
-  animation: ap-crown-bob 2s ease-in-out infinite;
+  animation: none;
 }
 
 .social-rank-podium-item[data-rank-profile] {

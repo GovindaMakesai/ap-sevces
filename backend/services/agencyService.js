@@ -98,20 +98,26 @@ async function getUserAgencyChain(userId) {
     [userId]
   );
   const agencies = res.rows;
-  const chain = [];
-  for (const agency of agencies) {
-    chain.push(agency);
-    if (agency.parent_agency_id) {
-      let parentId = agency.parent_agency_id;
-      while (parentId) {
-        const p = await db.query(`SELECT * FROM agencies WHERE id = $1`, [parentId]);
-        if (!p.rows.length) break;
-        if (!chain.find((c) => c.id === p.rows[0].id)) chain.push(p.rows[0]);
-        parentId = p.rows[0].parent_agency_id;
-      }
-    }
+  if (!agencies.length) return [];
+
+  const rootIds = agencies.map((a) => a.id);
+  const ancestors = await db.query(
+    `WITH RECURSIVE anc AS (
+       SELECT * FROM agencies WHERE id = ANY($1::uuid[])
+       UNION
+       SELECT p.* FROM agencies p
+       JOIN anc c ON p.id = c.parent_agency_id
+       WHERE p.status = 'active'
+     )
+     SELECT DISTINCT ON (id) * FROM anc`,
+    [rootIds]
+  );
+
+  const byId = new Map();
+  for (const a of [...agencies, ...ancestors.rows]) {
+    if (!byId.has(a.id)) byId.set(a.id, a);
   }
-  return chain.sort((a, b) => a.level - b.level);
+  return [...byId.values()].sort((a, b) => (a.level || 0) - (b.level || 0));
 }
 
 async function getAgencyAnalytics(agencyId) {
@@ -152,12 +158,15 @@ async function getAgencyAnalytics(agencyId) {
 }
 
 async function listAgencies({ limit = 50, offset = 0, status = 'active' } = {}) {
+  const { clampLimit, clampOffset } = require('../lib/pagination');
+  const lim = clampLimit(limit, { fallback: 50 });
+  const off = clampOffset(offset);
   const res = await db.query(
     `SELECT a.*, u.first_name AS owner_first_name, u.last_name AS owner_last_name
      FROM agencies a JOIN users u ON u.id = a.owner_user_id
      WHERE ($3::text IS NULL OR a.status = $3)
      ORDER BY a.created_at DESC LIMIT $1 OFFSET $2`,
-    [limit, offset, status || null]
+    [lim, off, status || null]
   );
   return res.rows;
 }

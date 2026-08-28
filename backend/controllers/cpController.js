@@ -1,4 +1,5 @@
 const cpService = require('../services/cpService');
+const { clampLimit } = require('../lib/pagination');
 
 exports.getHome = async (req, res) => {
   try {
@@ -73,7 +74,11 @@ exports.purchaseRing = async (req, res) => {
 
 exports.sendInvite = async (req, res) => {
   try {
-    const inv = await cpService.sendInvite(req.userId, req.body?.toUserId, req.body?.ringId);
+    const inv = await cpService.sendInvite(
+      req.userId,
+      req.body?.toUserId || req.body?.targetUserId || req.body?.userId,
+      req.body?.ringId
+    );
     res.json({ success: true, data: inv });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
@@ -205,8 +210,10 @@ exports.getRules = async (_req, res) => {
 
 exports.getRankings = async (req, res) => {
   try {
-    const period = req.query.period === 'total' ? 'total' : 'week';
-    const limit = req.query.limit;
+    const period = ['total', 'all'].includes(String(req.query.period || '').toLowerCase())
+      ? 'total'
+      : 'week';
+    const limit = clampLimit(req.query.limit, { fallback: 50, max: 100 });
     const data = await cpService.getCpRankings(req.userId, period, limit);
     res.json({ success: true, data });
   } catch (err) {

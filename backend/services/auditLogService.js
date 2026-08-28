@@ -1,4 +1,5 @@
 const db = require('../config/database');
+const { toJsonb } = require('../lib/pgJsonb');
 
 function asUuidOrNull(value) {
   const s = String(value || '').trim();
@@ -12,14 +13,14 @@ function asUuidOrNull(value) {
 async function log(actorUserId, action, { entity_type, entity_id, ip_address, metadata } = {}) {
   await db.query(
     `INSERT INTO audit_logs (actor_user_id, action, entity_type, entity_id, ip_address, metadata)
-     VALUES ($1, $2, $3, $4, $5, $6)`,
+     VALUES ($1, $2, $3, $4, $5, $6::jsonb)`,
     [
       actorUserId || null,
       action,
       entity_type || null,
       asUuidOrNull(entity_id),
       ip_address || null,
-      JSON.stringify(metadata || {}),
+      toJsonb(metadata || {}),
     ]
   );
 }

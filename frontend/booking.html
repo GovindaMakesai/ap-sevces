@@ -1,8 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="social-app">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#fdf9f0">
     <title>Book Service - AP Services</title>
     
     <!-- Font Awesome 6 -->
@@ -16,6 +17,8 @@
     
     <!-- Custom Styles -->
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="social-theme.css?v=20260823-market">
+    <link rel="stylesheet" href="social-ui-fix.css?v=20260823-market">
     
     <!-- Booking Page Specific Styles -->
     <style>
@@ -862,7 +865,12 @@
         }
     </style>
 </head>
-<body>
+<body class="social-booking-page">
+    <header class="svc-book-top">
+        <a href="/services.html?app=1" class="social-icon-btn" data-ap-back aria-label="Back"><i class="fas fa-arrow-left"></i></a>
+        <h1>Book service</h1>
+        <span class="social-icon-btn" aria-hidden="true" style="visibility:hidden"></span>
+    </header>
     <!-- Navbar -->
     <nav class="navbar">
         <div class="container">
@@ -887,7 +895,7 @@
             <div class="booking-breadcrumb">
                 <a href="/">Home</a>
                 <i class="fas fa-chevron-right"></i>
-                <a href="/services.html">Services</a>
+                <a href="/services.html?app=1">Services</a>
                 <i class="fas fa-chevron-right"></i>
                 <a href="/worker-profile.html" id="workerProfileLink">Professional</a>
                 <i class="fas fa-chevron-right"></i>
@@ -1233,19 +1241,21 @@
 
     <!-- Toast Container -->
     <div id="toast" class="toast"></div>
+    <div id="social-bottom-nav-mount"></div>
 
 <!-- Flatpickr Calendar JS -->
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-<script src="app.js"></script>
+<script src="app.js?v=20260823-market"></script>
+<script src="social-shell.js?v=20260823-market"></script>
 
 <script>
     // ==================== BOOKING PAGE JAVASCRIPT ====================
     // Configuration
-    const API_BASE_URL = window.CONFIG?.API_URL || 'https://ap-sevces.onrender.com/api';
-    const BACKEND_URL = window.CONFIG?.BACKEND_URL || 'https://ap-sevces.onrender.com';
+    const API_BASE_URL = window.CONFIG?.API_URL || window.AP_SERVICES_API_ROOT || 'https://api.apservices.in/api';
+    const BACKEND_URL = window.CONFIG?.BACKEND_URL || 'https://api.apservices.in';
 
-    // Helper function for image URLs
     function getImageUrl(path) {
+        if (window.SocialShell?.getImageUrl) return SocialShell.getImageUrl(path);
         if (!path) return null;
         if (path.startsWith('http')) return path;
         const cleanPath = path.startsWith('/') ? path : `/${path}`;
@@ -2061,6 +2071,7 @@
 
         // Initialize
         init();
+        if (window.SocialShell?.initPage) SocialShell.initPage({ activeNav: 'explore' });
     });
 </script>
 </body>

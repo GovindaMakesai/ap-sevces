@@ -2,6 +2,7 @@
 const Notification = require('../models/Notification');
 const User = require('../models/User');
 const { ADMIN_ROLES } = require('../middleware/permissions');
+const { clampLimit, pageToOffset } = require('../lib/pagination');
 
 const PERSONAL_CHAT_TYPES = ['chat_message', 'message', 'direct_message', 'dm'];
 
@@ -37,12 +38,13 @@ exports.getUnreadCount = async (req, res) => {
 exports.getNotifications = async (req, res) => {
     try {
         const userId = req.userId;
-        const { limit = 20, page = 1, unread_only = false } = req.query;
-        const offset = (page - 1) * limit;
+        const { page = 1, unread_only = false } = req.query;
+        const limit = clampLimit(req.query.limit, { fallback: 20, max: 100 });
+        const offset = pageToOffset(page, limit);
         const excludeTypes = isAdminUser(req) ? PERSONAL_CHAT_TYPES : [];
         
         const notifications = await Notification.getUserNotifications(
-            userId, parseInt(limit), parseInt(offset), unread_only === 'true', { excludeTypes }
+            userId, limit, offset, unread_only === 'true', { excludeTypes }
         );
         const unreadCount = await Notification.getUnreadCount(userId, { excludeTypes });
         
@@ -51,8 +53,8 @@ exports.getNotifications = async (req, res) => {
             data: notifications,
             unreadCount,
             pagination: {
-                page: parseInt(page),
-                limit: parseInt(limit)
+                page: Math.max(1, Math.floor(Number(page) || 1)),
+                limit
             }
         });
     } catch (error) {

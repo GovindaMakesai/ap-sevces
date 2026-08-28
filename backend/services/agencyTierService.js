@@ -88,18 +88,27 @@ function nextTier(currentCode, tiers) {
   return tiers[idx + 1];
 }
 
+async function batchAgencyOwnerEligible(ownerUserIds, inactiveDays = INACTIVE_DAYS) {
+  const ids = [...new Set((ownerUserIds || []).filter(Boolean).map(String))];
+  const map = new Map();
+  if (!ids.length) return map;
+  const res = await db.query(
+    `SELECT id, is_active, COALESCE(last_login, created_at) AS last_active
+     FROM users WHERE id = ANY($1::uuid[])`,
+    [ids]
+  );
+  const cutoff = Date.now() - inactiveDays * 24 * 60 * 60 * 1000;
+  for (const row of res.rows) {
+    const last = row.last_active ? new Date(row.last_active).getTime() : 0;
+    map.set(String(row.id), row.is_active !== false && last >= cutoff);
+  }
+  return map;
+}
+
 async function isAgencyOwnerEligible(ownerUserId, inactiveDays = INACTIVE_DAYS) {
   if (!ownerUserId) return false;
-  const u = await db.query(
-    `SELECT is_active, COALESCE(last_login, created_at) AS last_active
-     FROM users WHERE id = $1`,
-    [ownerUserId]
-  );
-  const row = u.rows[0];
-  if (!row || row.is_active === false) return false;
-  const last = row.last_active ? new Date(row.last_active).getTime() : 0;
-  const cutoff = Date.now() - inactiveDays * 24 * 60 * 60 * 1000;
-  return last >= cutoff;
+  const map = await batchAgencyOwnerEligible([ownerUserId], inactiveDays);
+  return map.get(String(ownerUserId)) || false;
 }
 
 /**
@@ -125,18 +134,24 @@ async function computeAgencyEarnings30d(agencyId, { windowDays = 30, inactiveDay
   );
 
   let invited = 0;
-  for (const child of children.rows) {
-    const ok = await isAgencyOwnerEligible(child.owner_user_id, inactiveDays);
-    if (!ok) continue;
+  if (children.rows.length) {
+    const childIds = children.rows.map((c) => c.id);
+    const ownerIds = children.rows.map((c) => c.owner_user_id);
+    const eligibleMap = await batchAgencyOwnerEligible(ownerIds, inactiveDays);
     const sub = await db.query(
-      `SELECT COALESCE(SUM(gt.creator_amount), 0)::bigint AS coins
+      `SELECT hp.agency_id, COALESCE(SUM(gt.creator_amount), 0)::bigint AS coins
        FROM gift_transactions gt
        JOIN host_profiles hp ON hp.user_id = gt.receiver_id AND hp.status = 'active'
-       WHERE hp.agency_id = $1
-         AND gt.created_at >= CURRENT_TIMESTAMP - ($2::text || ' days')::interval`,
-      [child.id, String(windowDays)]
+       WHERE hp.agency_id = ANY($1::uuid[])
+         AND gt.created_at >= CURRENT_TIMESTAMP - ($2::text || ' days')::interval
+       GROUP BY hp.agency_id`,
+      [childIds, String(windowDays)]
     );
-    invited += Number(sub.rows[0]?.coins || 0);
+    const coinsByAgency = new Map(sub.rows.map((r) => [String(r.agency_id), Number(r.coins || 0)]));
+    for (const child of children.rows) {
+      if (!eligibleMap.get(String(child.owner_user_id))) continue;
+      invited += coinsByAgency.get(String(child.id)) || 0;
+    }
   }
 
   const hostIncome = Number(hosts.rows[0]?.coins || 0);
@@ -248,20 +263,24 @@ async function getAgencyCommissionChain(agencyId) {
   if (hit && Date.now() - hit.at < CHAIN_TTL_MS) return hit.chain;
 
   await ensureTierSchema();
-  const chain = [];
-  let id = agencyId;
-  const seen = new Set();
-  while (id && !seen.has(id)) {
-    seen.add(id);
-    const r = await db.query(
-      `SELECT id, parent_agency_id, owner_user_id, status, tier_code,
-              commission_percent, match_chat_commission_pct
-       FROM agencies WHERE id = $1`,
-      [id]
-    );
-    const a = r.rows[0];
-    if (!a || a.status !== 'active') break;
-    chain.push({
+  const res = await db.query(
+    `WITH RECURSIVE chain AS (
+       SELECT id, parent_agency_id, owner_user_id, status, tier_code,
+              commission_percent, match_chat_commission_pct, 0 AS depth
+       FROM agencies WHERE id = $1
+       UNION ALL
+       SELECT a.id, a.parent_agency_id, a.owner_user_id, a.status, a.tier_code,
+              a.commission_percent, a.match_chat_commission_pct, c.depth + 1
+       FROM agencies a
+       JOIN chain c ON a.id = c.parent_agency_id
+       WHERE a.status = 'active' AND c.depth < 20
+     )
+     SELECT * FROM chain ORDER BY depth`,
+    [agencyId]
+  );
+  const chain = res.rows
+    .filter((a) => a.status === 'active')
+    .map((a) => ({
       agency_id: a.id,
       owner_user_id: a.owner_user_id,
       parent_agency_id: a.parent_agency_id,
@@ -270,9 +289,7 @@ async function getAgencyCommissionChain(agencyId) {
       match_chat_pct: Number(
         a.match_chat_commission_pct != null ? a.match_chat_commission_pct : a.commission_percent || 4
       ),
-    });
-    id = a.parent_agency_id;
-  }
+    }));
   chainCache.set(key, { at: Date.now(), chain });
   return chain;
 }
@@ -288,4 +305,5 @@ module.exports = {
   getAgencyTierSnapshot,
   getAgencyCommissionChain,
   isAgencyOwnerEligible,
+  batchAgencyOwnerEligible,
 };

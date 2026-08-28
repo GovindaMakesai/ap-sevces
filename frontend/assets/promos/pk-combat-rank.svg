@@ -1,4 +1,4 @@
-﻿<svg xmlns="http://www.w3.org/2000/svg" width="720" height="220" viewBox="0 0 720 220">
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="220" viewBox="0 0 720 220">
   <defs>
     <linearGradient id="pk" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#1e1b4b"/>
@@ -6,7 +6,7 @@
       <stop offset="1" stop-color="#b45309"/>
     </linearGradient>
   </defs>
-  <rect width="720" height="220" rx="24" fill="url(#pk)"/>
+  <rect width="720" height="220" fill="url(#pk)"/>
   <text x="28" y="42" fill="#fde68a" font-size="16" font-family="Arial,sans-serif">25/08/2026 - 31/08/2026 (UTC+8)</text>
   <text x="28" y="96" fill="#ffffff" font-size="34" font-weight="800" font-family="Arial,sans-serif">PK Combat Ranking</text>
   <text x="28" y="142" fill="#fde68a" font-size="20" font-family="Arial,sans-serif">Enjoy the event and split 112,770,000</text>

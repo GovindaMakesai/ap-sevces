@@ -1,8 +1,7 @@
 const User = require('../models/User');
 const chatService = require('../services/chatService');
 const { splitMessageBody, normalizeOutgoingChatMessage } = require('../utils/chatMessageFormat');
-
-const OFFICIAL_DISPLAY_ROLES = new Set(['admin', 'super_admin', 'founder', 'ceo']);
+const { parsePageQuery } = require('../lib/pagination');
 
 async function enrichConversation(conversation, currentUserId) {
     const otherId = chatService.otherParticipantId(conversation, currentUserId);
@@ -17,9 +16,9 @@ async function enrichConversation(conversation, currentUserId) {
     const unreadCount = await chatService.unreadCountForConversation(conversation, currentUserId);
     const role = otherUser?.role || 'customer';
     const { isOfficialRole } = require('../services/systemMessageService');
-    const isOfficial = isOfficialRole(role) || role === 'worker';
-    const displayName = isOfficial && OFFICIAL_DISPLAY_ROLES.has(role)
-      ? 'Glowcast'
+    const isOfficial = isOfficialRole(role);
+    const displayName = isOfficial
+      ? 'AP Live'
       : `${otherUser?.first_name || 'User'} ${otherUser?.last_name || ''}`.trim();
 
     return {
@@ -75,10 +74,10 @@ exports.listConversations = async (req, res) => {
             const otherId = chatService.otherParticipantId(conv, currentUserId);
             const otherUser = otherId ? usersById.get(String(otherId)) : null;
             const role = otherUser?.role || 'customer';
-            const isOfficial = isOfficialRole(role) || role === 'worker';
-            const displayName =
-                isOfficial && OFFICIAL_DISPLAY_ROLES.has(role)
-                    ? 'Glowcast'
+            const isOfficial = isOfficialRole(role);
+              const displayName =
+                isOfficial
+                    ? 'AP Live'
                     : `${otherUser?.first_name || 'User'} ${otherUser?.last_name || ''}`.trim();
             return {
                 id: String(conv.id),
@@ -186,8 +185,11 @@ exports.sendMessage = async (req, res) => {
         let text = typeof req.body.text === 'string' ? req.body.text : '';
 
         if (req.file) {
-            const prefix =
-                req.file.mimetype && req.file.mimetype.startsWith('video/') ? '__VID__:' : '__IMG__:';
+            const mime = String(req.file.mimetype || '').toLowerCase();
+            const name = `${req.file.originalname || ''} ${req.file.filename || ''}`;
+            const audio = mime.startsWith('audio/') || /\.(m4a|aac|mp3|wav|caf|ogg)$/i.test(name);
+            const video = !audio && (mime.startsWith('video/') || /\.(mp4|mov|webm|m4v|3gp)$/i.test(name));
+            const prefix = audio ? '__AUD__:' : video ? '__VID__:' : '__IMG__:';
             text = `${prefix}/uploads/chat/${req.file.filename}`;
         }
 
@@ -265,7 +267,11 @@ exports.getMessages = async (req, res) => {
             });
         }
 
-        const messages = await chatService.listMessages(conversationId);
+        const { limit, before } = parsePageQuery(req, { max: 100, fallback: 80 });
+        const messages = await chatService.listMessages(conversationId, {
+            limit,
+            before: before || req.query.before,
+        });
         if (participates) {
             await chatService.markConversationRead(conversationId, currentUserId);
         }
@@ -304,7 +310,8 @@ exports.getMessages = async (req, res) => {
                 otherLastReadAt: otherReadAt,
                 messages: messages.map((msg) => {
                     const bodyStr = msg.body != null ? String(msg.body) : '';
-                    const { text, imageUrl, videoUrl, mediaType } = splitMessageBody(bodyStr);
+                    const { text, imageUrl, videoUrl, audioUrl, stickerUrl, mediaType } =
+                        splitMessageBody(bodyStr);
                     return {
                         id: String(msg.id),
                         conversationId: String(msg.conversation_id),
@@ -314,6 +321,8 @@ exports.getMessages = async (req, res) => {
                         body: bodyStr,
                         imageUrl,
                         videoUrl,
+                        audioUrl,
+                        stickerUrl,
                         mediaType,
                         createdAt: msg.created_at
                     };

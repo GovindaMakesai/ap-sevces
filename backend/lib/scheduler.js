@@ -47,8 +47,8 @@ function startScheduler() {
   register('contest-expire', '4,14,24,34,44,54 * * * *', () => contestService.expireEndedContests());
   register('reward-hourly', '8 * * * *', () => rewardEngineService.processHourlyRewards());
   register('live-idle-cleanup', '3,13,23,33,43,53 * * * *', () => liveRoomService.endIdleRooms(10));
-  register('live-orphan-cleanup', '1,5,9,13,17,21,25,29,33,37,41,45,49,53,57 * * * *', () => liveRoomService.endOrphanRooms());
-  register('live-presence-prune', '1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39,41,43,45,47,49,51,53,55,57 * * * *', () => liveRoomService.pruneStaleMembers(60));
+  register('live-orphan-cleanup', '1,16,31,46 * * * *', () => liveRoomService.endOrphanRooms());
+  register('live-presence-prune', '*/5 * * * *', () => liveRoomService.pruneStaleMembers(60));
   register('pk-expire', '*/2 * * * *', async () => {
     const res = await db.query(
       `SELECT id FROM pk_battles WHERE status = 'active' AND ends_at <= CURRENT_TIMESTAMP`

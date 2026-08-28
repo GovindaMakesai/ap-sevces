@@ -1,6 +1,13 @@
 const db = require('../config/database');
 const walletService = require('./walletService');
 const auditLogService = require('./auditLogService');
+const { toJsonb, safeDisplayName } = require('../lib/pgJsonb');
+
+const SELLER_DISPLAY_NAME_MAX = 255;
+
+function sellerDisplayName(firstName, lastName, fallback = 'Coin Seller') {
+  return safeDisplayName(`${firstName || ''} ${lastName || ''}`.trim() || fallback, SELLER_DISPLAY_NAME_MAX);
+}
 
 async function getProfile(userId) {
   const res = await db.query(`SELECT * FROM coin_seller_profiles WHERE user_id = $1`, [userId]);
@@ -21,6 +28,7 @@ async function listActiveSellers(limit = 30) {
 }
 
 async function upsertProfile(userId, { displayName, inventoryCoins, isActive = true }) {
+  const safeName = sellerDisplayName(displayName, '', 'Coin Seller');
   const res = await db.query(
     `INSERT INTO coin_seller_profiles (user_id, display_name, inventory_coins, is_active)
      VALUES ($1, $2, $3, $4)
@@ -30,7 +38,7 @@ async function upsertProfile(userId, { displayName, inventoryCoins, isActive = t
        is_active = COALESCE(EXCLUDED.is_active, coin_seller_profiles.is_active),
        updated_at = CURRENT_TIMESTAMP
      RETURNING *`,
-    [userId, displayName || 'Coin Seller', inventoryCoins ?? 0, isActive]
+    [userId, safeName, inventoryCoins ?? 0, isActive]
   );
   return res.rows[0];
 }
@@ -213,11 +221,18 @@ async function ensureSellerAccess(userId) {
   const allowed = privileged || balance >= 100000 || hasActiveProfile || sellable >= 100000;
   if (!allowed) return null;
 
-  const name = `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || 'Coin Seller';
+  const name = sellerDisplayName(user?.first_name, user?.last_name);
   if (!profile) {
     profile = await upsertProfile(userId, { displayName: name, inventoryCoins: 0, isActive: true });
   } else if (!profile.is_active) {
-    profile = await upsertProfile(userId, { displayName: profile.display_name || name, isActive: true });
+    const reactivated = await db.query(
+      `UPDATE coin_seller_profiles
+       SET is_active = TRUE, updated_at = CURRENT_TIMESTAMP
+       WHERE user_id = $1
+       RETURNING *`,
+      [userId]
+    );
+    profile = reactivated.rows[0] || profile;
   }
 
   if (!privileged && (balance >= 100000 || sellable >= 100000)) {
@@ -379,8 +394,7 @@ async function transferCoins(sellerId, { recipientId, coins, transferType = 'use
     );
     if (!seller) {
       if (!privileged) throw new Error('Seller profile not found');
-      const displayName =
-        `${sellerUser?.first_name || ''} ${sellerUser?.last_name || ''}`.trim() || 'Coin Seller';
+      const displayName = sellerDisplayName(sellerUser?.first_name, sellerUser?.last_name);
       await client.query(
         `INSERT INTO coin_seller_profiles (user_id, display_name, inventory_coins, gift_inventory_coins, is_active)
          VALUES ($1, $2, 0, 0, TRUE)
@@ -693,7 +707,7 @@ async function debitGiftSpend(userId, amount, meta = {}, client) {
       );
       const tx = await c.query(
         `INSERT INTO wallet_transactions (user_id, type, amount, currency_type, reference_type, reference_id, status, metadata)
-         VALUES ($1, $2, $3, 'coin', $4, $5, 'completed', $6)
+         VALUES ($1, $2, $3, 'coin', $4, $5, 'completed', $6::jsonb)
          RETURNING id`,
         [
           userId,
@@ -701,7 +715,7 @@ async function debitGiftSpend(userId, amount, meta = {}, client) {
           (-amt).toString(),
           meta.reference_type || 'gift',
           meta.reference_id || null,
-          JSON.stringify({
+          toJsonb({
             ...(meta.metadata || {}),
             from_gift_inventory: amt,
             from_wallet: 0,
@@ -826,7 +840,7 @@ async function creditGameWin(userId, amount, source, meta = {}, client) {
       );
       const tx = await c.query(
         `INSERT INTO wallet_transactions (user_id, type, amount, currency_type, reference_type, reference_id, status, metadata)
-         VALUES ($1, $2, $3, 'coin', $4, $5, 'completed', $6)
+         VALUES ($1, $2, $3, 'coin', $4, $5, 'completed', $6::jsonb)
          RETURNING id`,
         [
           userId,
@@ -834,7 +848,7 @@ async function creditGameWin(userId, amount, source, meta = {}, client) {
           amt.toString(),
           meta.reference_type || 'game_round',
           meta.reference_id || null,
-          JSON.stringify({
+          toJsonb({
             ...(meta.metadata || {}),
             to_gift_inventory: amt,
             to_wallet: 0,
@@ -1012,8 +1026,7 @@ async function approveSellerRecharge(rechargeId, adminUserId, notes) {
         [row.seller_id]
       );
       const user = userRes.rows[0];
-      const displayName =
-        `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || 'Coin Seller';
+      const displayName = sellerDisplayName(user?.first_name, user?.last_name);
       await client.query(
         `INSERT INTO coin_seller_profiles (user_id, display_name, inventory_coins, is_active)
          VALUES ($1, $2, 0, TRUE)

@@ -238,7 +238,7 @@
       }
       const user = Auth.getUser();
       const role = String(user?.role || '').toLowerCase();
-      if (!['bdm', 'admin', 'super_admin', 'founder', 'ceo'].includes(role)) {
+      if (!['bdm', 'bd', 'admin', 'super_admin', 'founder', 'ceo'].includes(role)) {
         alert('BD access required');
         location.href = '/profile-tab.html?app=1';
         return;

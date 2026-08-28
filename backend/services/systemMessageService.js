@@ -544,7 +544,7 @@ async function notifyCpRingPurchased({ userId, ringId }) {
 
   await sendSystemChatMessage(
     userId,
-    `💍 Ring purchased\n\n${ring} was added to your bag.\n\nOpen CP House → Send CP Invitation when you're ready to propose.`,
+    `💍 You purchased a ring\n\n${ring} is now in your bag.\n\nOpen CP House → Send CP Invitation when you're ready to propose.`,
     { skipPush: true }
   );
 

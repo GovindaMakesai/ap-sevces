@@ -50,6 +50,9 @@ async function ensureSocialProductionSchema() {
   if (fs.existsSync(searchIdxPath)) {
     await db.query(fs.readFileSync(searchIdxPath, 'utf8'));
   }
+  await db.query(
+    `ALTER TABLE coin_seller_profiles ALTER COLUMN display_name TYPE VARCHAR(255)`
+  );
   await seedGiftCatalog();
   console.log('✅ Social production schema ready (follows, gift catalog, coin sellers, moderation)');
 }

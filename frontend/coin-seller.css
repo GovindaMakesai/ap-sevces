@@ -67,6 +67,11 @@ body.cs-page {
   flex-wrap: nowrap;
 }
 
+.cs-notice[hidden],
+.cs-apply-panel[hidden] {
+  display: none !important;
+}
+
 .cs-notice > i {
   flex-shrink: 0;
 }

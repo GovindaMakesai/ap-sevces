@@ -5,6 +5,7 @@ const leaderboardService = require('./leaderboardService');
 const charityService = require('./charityService');
 const fraudService = require('./fraudService');
 const pkBattleService = require('./pkBattleService');
+const { toJsonb } = require('../lib/pgJsonb');
 
 const CATALOG_TTL_MS = 60000;
 let catalogMemo = { at: 0, rows: null };
@@ -156,11 +157,11 @@ async function sendGift({
       );
       await client.query(
         `INSERT INTO live_room_events (live_room_id, user_id, event_type, payload)
-         VALUES ($1, $2, 'gift', $3)`,
+         VALUES ($1, $2, 'gift', $3::jsonb)`,
         [
           liveRoomId,
           senderId,
-          JSON.stringify({
+          toJsonb({
             gift_tx_id: gift.rows[0].id,
             fromUserId: senderId,
             toUserId: receiverId,

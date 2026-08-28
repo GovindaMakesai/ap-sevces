@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0b0614">
   <title>Host Policies - AP Live Service</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="social-theme.css?v=20260723-promo-full">
+  <link rel="stylesheet" href="social-theme.css?v=20260825-host-guidelines">
   <style>
     body.host-policy-page {
       margin: 0;
@@ -14,6 +14,10 @@
       color: #fff;
       min-height: 100dvh;
       font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+    }
+    body.host-policy-page.is-guidelines {
+      background: #f7f4ee;
+      color: #111;
     }
     .hp-top {
       position: sticky;
@@ -27,20 +31,33 @@
       backdrop-filter: blur(10px);
       border-bottom: 1px solid rgba(255,255,255,0.08);
     }
+    body.is-guidelines .hp-top {
+      background: rgba(247, 244, 238, 0.96);
+      border-bottom-color: rgba(0,0,0,0.08);
+    }
     .hp-top .back {
       width: 36px; height: 36px; border-radius: 50%;
       border: none; background: rgba(255,255,255,0.1); color: #fff;
       display: grid; place-items: center; cursor: pointer;
     }
+    body.is-guidelines .hp-top .back {
+      background: rgba(0,0,0,0.06); color: #111;
+    }
     .hp-top h1 { margin: 0; font-size: 17px; font-weight: 800; }
+    body.is-guidelines .hp-top h1 { color: #111; }
     .hp-tabs {
       display: flex; gap: 8px; padding: 12px 14px 4px;
     }
     .hp-tabs button {
       flex: 1; border: 1px solid rgba(255,255,255,0.15);
       background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.75);
-      border-radius: 999px; padding: 10px 12px; font-weight: 700; font-size: 13px;
+      border-radius: 999px; padding: 10px 8px; font-weight: 700; font-size: 12px;
       cursor: pointer;
+    }
+    body.is-guidelines .hp-tabs button {
+      border-color: rgba(0,0,0,0.12);
+      background: #fff;
+      color: #6b5344;
     }
     .hp-tabs button.active {
       background: linear-gradient(135deg, #f472b6, #a855f7);
@@ -48,7 +65,7 @@
     }
     .hp-panel { padding: 10px 12px 28px; display: none; }
     .hp-panel.active { display: block; }
-    .hp-panel img {
+    .hp-panel img.hp-poster {
       width: 100%;
       height: auto;
       max-width: 100%;
@@ -59,11 +76,64 @@
       box-shadow: 0 12px 40px rgba(0,0,0,0.45);
     }
     .hp-cta {
-      margin: 16px 12px 32px;
+      margin: 16px 12px 16px;
       display: block; text-align: center; text-decoration: none;
       padding: 14px 16px; border-radius: 999px; font-weight: 800;
       background: linear-gradient(135deg, #fbbf24, #f59e0b);
       color: #3d2e08;
+    }
+    .hp-doc {
+      background: #fff;
+      color: #111;
+      border-radius: 16px;
+      padding: 22px 18px 28px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+    }
+    .hp-doc-brand {
+      text-align: center;
+      letter-spacing: 0.14em;
+      font-size: 12px;
+      font-weight: 800;
+      color: #6b5344;
+    }
+    .hp-doc h2 {
+      margin: 6px 0 4px;
+      text-align: center;
+      font-size: 20px;
+      font-weight: 900;
+      color: #1a1a1a;
+    }
+    .hp-doc .hp-doc-sub {
+      text-align: center;
+      color: #6b7280;
+      font-size: 13px;
+      margin: 0 0 18px;
+    }
+    .hp-doc h3 {
+      margin: 18px 0 8px;
+      font-size: 15px;
+      font-weight: 800;
+    }
+    .hp-doc ul {
+      margin: 0;
+      padding-left: 18px;
+    }
+    .hp-doc li {
+      margin: 6px 0;
+      line-height: 1.45;
+      font-size: 14px;
+      color: #222;
+    }
+    .hp-doc .warn {
+      font-weight: 800;
+    }
+    .hp-doc-foot {
+      margin-top: 22px;
+      padding-top: 14px;
+      border-top: 1px solid #eee;
+      font-size: 12px;
+      color: #6b7280;
+      line-height: 1.5;
     }
   </style>
   <script src="native-session-restore.js"></script>
@@ -73,41 +143,156 @@
 <body class="host-policy-page">
   <header class="hp-top">
     <button type="button" class="back" data-ap-back aria-label="Back"><i class="fas fa-arrow-left"></i></button>
-    <h1>Host earning policies</h1>
+    <h1>Host policies</h1>
   </header>
 
   <div class="hp-tabs" role="tablist">
-    <button type="button" class="active" data-policy="star" role="tab">Star Host</button>
+    <button type="button" class="active" data-policy="guidelines" role="tab">Guidelines</button>
+    <button type="button" data-policy="star" role="tab">Star Host</button>
     <button type="button" data-policy="normal" role="tab">Normal Host</button>
   </div>
 
-  <section class="hp-panel active" id="panel-star" data-panel="star">
-    <img src="/assets/promos/star-host-policy.png" alt="Star Host Policy — weekly $7 rewards for 14 hours live">
+  <section class="hp-panel active" id="panel-guidelines" data-panel="guidelines">
+    <article class="hp-doc">
+      <p class="hp-doc-brand">AP LIVE SERVICE</p>
+      <h2>Host Policy &amp; Guidelines</h2>
+      <p class="hp-doc-sub">Official Host Policy and Live Streaming Guidelines</p>
+
+      <h3>1. Host Eligibility</h3>
+      <ul>
+        <li>All Hosts must be <strong>18 years of age or above</strong>.</li>
+        <li>Hosts must provide accurate personal information and complete the required verification process.</li>
+        <li>Using another person's identity, name, photograph, or account without authorization is strictly prohibited.</li>
+      </ul>
+
+      <h3>2. Live Streaming Guidelines</h3>
+      <ul>
+        <li>Hosts must maintain respectful, professional, and decent behavior during every live session.</li>
+        <li>Abusive language, harassment, bullying, threats, hate speech, or intentionally disturbing users is prohibited.</li>
+        <li>Nudity, sexually explicit content, or inappropriate activities are strictly prohibited.</li>
+        <li>Promoting or displaying violence, illegal activities, dangerous acts, or harmful behavior is not allowed.</li>
+      </ul>
+
+      <h3>3. Live Hours &amp; Host Performance</h3>
+      <ul>
+        <li>Hosts are expected to complete their assigned or agreed live-streaming hours regularly.</li>
+        <li>Hosts should actively interact with viewers and provide quality entertainment.</li>
+        <li>Repeatedly leaving live sessions without a valid reason or failing to complete required hours may affect incentives, performance status, or Host eligibility.</li>
+      </ul>
+
+      <h3>4. Gifts, Coins &amp; Rewards</h3>
+      <ul>
+        <li>Hosts must never force, pressure, threaten, or manipulate users into sending gifts or purchasing coins.</li>
+        <li>Hosts must not use their own or related accounts to create fake gifts, coins, viewers, or engagement.</li>
+        <li>Any attempt to manipulate the reward system may lead to an account review, suspension, or termination.</li>
+      </ul>
+
+      <h3>5. Fraud &amp; Misconduct</h3>
+      <ul>
+        <li>Fake viewers, bots, fake engagement, scams, or any artificial activity are strictly prohibited.</li>
+        <li>Hosts must not make false financial promises or deceive users for personal benefit.</li>
+        <li>Any suspicious financial activity or misuse of the platform may result in an investigation.</li>
+      </ul>
+
+      <h3>6. User Privacy &amp; Safety</h3>
+      <ul>
+        <li>Hosts must respect the privacy and safety of all users.</li>
+        <li>Sharing a user's personal information without permission is prohibited.</li>
+        <li>Hosts must not request or misuse passwords, OTPs, bank details, addresses, private photographs, or other sensitive information.</li>
+        <li>Hosts should not encourage users to move to external platforms for suspicious or unauthorized activities.</li>
+      </ul>
+
+      <h3>7. Account Security &amp; Multiple Accounts</h3>
+      <ul>
+        <li>Hosts must keep their login credentials secure and must not share their account with another person.</li>
+        <li>Creating multiple fake accounts to obtain additional benefits is prohibited.</li>
+        <li>Allowing another person to operate a Host account may result in suspension or termination.</li>
+      </ul>
+
+      <h3>8. Professional Conduct</h3>
+      <ul>
+        <li>Hosts must treat viewers, other Hosts, agencies, and AP Live Service team members with respect.</li>
+        <li>Hosts must follow official instructions issued by AP Live Service or its authorized representatives.</li>
+        <li>Disputes should be resolved through official support channels and not through threats, abuse, or harassment.</li>
+      </ul>
+
+      <h3>9. Disciplinary Actions</h3>
+      <ul>
+        <li>Official Warning</li>
+        <li>Temporary Suspension</li>
+        <li>Live Streaming Restriction</li>
+        <li>Bonus or Incentive Reduction</li>
+        <li>Earnings Review or Temporary Hold</li>
+        <li>Host Account Suspension</li>
+        <li>Permanent Account Termination</li>
+        <li>The action taken will depend on the seriousness and frequency of the violation.</li>
+      </ul>
+
+      <h3>10. Zero-Tolerance Violations</h3>
+      <ul>
+        <li>Sexual or explicit content</li>
+        <li>Any violation involving child safety</li>
+        <li>Serious harassment, threats, or abusive behavior</li>
+        <li>Fraud, scams, or financial deception</li>
+        <li>Fake engagement or system manipulation</li>
+        <li>Illegal activities</li>
+        <li>Unauthorized misuse or sharing of private information</li>
+        <li>Attempts to compromise, attack, or damage AP Live Service systems</li>
+      </ul>
+
+      <h3>11. Investigation &amp; Enforcement</h3>
+      <ul>
+        <li>AP Live Service reserves the right to review and investigate suspected violations of this policy.</li>
+        <li>During an investigation, AP Live Service may temporarily restrict a Host account, live access, bonuses, rewards, or earnings where appropriate.</li>
+        <li>Hosts may be required to cooperate with reasonable verification or investigation requests.</li>
+      </ul>
+
+      <h3>12. Policy Updates</h3>
+      <ul>
+        <li>AP Live Service may update, modify, or introduce new policies when required for platform safety, compliance, or service improvement.</li>
+        <li>Hosts are responsible for staying informed about the latest applicable rules.</li>
+      </ul>
+
+      <h3>13. Policy Acceptance</h3>
+      <ul>
+        <li>By joining and operating as a Host on AP Live Service, the Host confirms that they have read, understood, and agreed to follow this Host Policy and Guidelines.</li>
+        <li class="warn">Failure to comply with AP Live Service policies may result in warnings, restrictions, suspension, or permanent termination of the Host account.</li>
+      </ul>
+
+      <p class="hp-doc-foot">AP Live Service – Host Policy &amp; Guidelines. This document may be updated by AP Live Service from time to time to maintain platform safety, compliance, and service quality.</p>
+    </article>
+  </section>
+
+  <section class="hp-panel" id="panel-star" data-panel="star">
+    <img class="hp-poster" src="/assets/promos/star-host-policy.png" alt="Star Host Policy — weekly $7 rewards for 14 hours live">
   </section>
   <section class="hp-panel" id="panel-normal" data-panel="normal">
-    <img src="/assets/promos/normal-host-policy.png" alt="Normal Host Policy — hourly beans bonus for new hosts">
+    <img class="hp-poster" src="/assets/promos/normal-host-policy.png" alt="Normal Host Policy — hourly beans bonus for new hosts">
   </section>
 
   <a class="hp-cta" href="/streamer-center.html?app=1">Open Streamer Center</a>
-  <a class="hp-cta" href="/role-apply.html?app=1" style="margin-top:-16px;background:linear-gradient(135deg,#f472b6,#db2777);color:#fff">Apply to become a Host</a>
+  <a class="hp-cta" href="/role-apply.html?app=1" style="margin-top:0;margin-bottom:32px;background:linear-gradient(135deg,#f472b6,#db2777);color:#fff">Apply to become a Host</a>
 
   <script src="social-nav.js?v=20260720-back-fix"></script>
   <script>
     (function () {
-      const q = new URLSearchParams(location.search).get('policy') || 'star';
+      const allowed = { guidelines: 1, star: 1, normal: 1 };
+      const q = new URLSearchParams(location.search).get('policy') || 'guidelines';
       function show(policy) {
+        const next = allowed[policy] ? policy : 'guidelines';
+        document.body.classList.toggle('is-guidelines', next === 'guidelines');
         document.querySelectorAll('.hp-tabs button').forEach((b) => {
-          b.classList.toggle('active', b.dataset.policy === policy);
+          b.classList.toggle('active', b.dataset.policy === next);
         });
         document.querySelectorAll('.hp-panel').forEach((p) => {
-          p.classList.toggle('active', p.dataset.panel === policy);
+          p.classList.toggle('active', p.dataset.panel === next);
         });
         const url = new URL(location.href);
-        url.searchParams.set('policy', policy);
+        url.searchParams.set('policy', next);
         url.searchParams.set('app', '1');
         history.replaceState(null, '', url.pathname + '?' + url.searchParams.toString());
       }
-      show(q === 'normal' ? 'normal' : 'star');
+      show(q);
       document.querySelectorAll('.hp-tabs button').forEach((b) => {
         b.addEventListener('click', () => show(b.dataset.policy));
       });

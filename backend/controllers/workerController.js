@@ -83,8 +83,9 @@ exports.registerAsWorker = async (req, res) => {
 // @access  Public
 exports.getAllWorkers = async (req, res) => {
     try {
-        const { category, limit = 10, page = 1 } = req.query;
-        const offset = (page - 1) * limit;
+        const { clampLimit, pageToOffset } = require('../lib/pagination');
+        const limit = clampLimit(req.query.limit, { max: 50, fallback: 10 });
+        const offset = pageToOffset(req.query.page, limit);
         
         let query = `
             SELECT w.*, u.first_name, u.last_name, u.email, u.phone, u.profile_pic

@@ -4,7 +4,7 @@
 .party-room-ref > #apGiftAnimOverlay {
   position: absolute !important;
   inset: 0 !important;
-  z-index: 11 !important;
+  z-index: 13 !important;
   pointer-events: none !important;
   opacity: 0;
   visibility: hidden;
@@ -34,6 +34,16 @@ body > #apGiftAnimOverlay {
 #apGiftAnimOverlay.is-visible {
   opacity: 1;
   visibility: visible;
+}
+
+/* PK: full-screen over both host videos (chat/header stay above) */
+body.is-pk-mode .live-room > #apGiftAnimOverlay,
+body.is-pk-mode .party-room > #apGiftAnimOverlay,
+body.is-pk-mode .party-room-ref > #apGiftAnimOverlay,
+#apGiftAnimOverlay.is-pk-clip {
+  inset: 0 !important;
+  height: auto !important;
+  z-index: 32 !important;
 }
 
 #apGiftAnimOverlay.is-debug {

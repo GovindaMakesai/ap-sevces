@@ -277,11 +277,21 @@ async function listBds() {
      WHERE b.status = 'active'
      ORDER BY b.created_at DESC`
   );
-  // Ensure every BD has a promo code (backfill if missing)
-  for (const row of res.rows) {
-    if (!row.promo_code) {
-      const promo = await ensureBdPromoCode(row.user_id);
-      row.promo_code = promo.code;
+  const missingPromo = res.rows.filter((row) => !row.promo_code);
+  if (missingPromo.length) {
+    await Promise.all(
+      missingPromo.slice(0, 20).map((row) =>
+        ensureBdPromoCode(row.user_id).catch(() => null)
+      )
+    );
+    const refill = await db.query(
+      `SELECT bd_user_id, code FROM bd_promo_codes
+       WHERE bd_user_id = ANY($1::uuid[]) AND active = TRUE`,
+      [missingPromo.map((r) => r.user_id)]
+    );
+    const promoMap = new Map(refill.rows.map((r) => [String(r.bd_user_id), r.code]));
+    for (const row of res.rows) {
+      if (!row.promo_code) row.promo_code = promoMap.get(String(row.user_id)) || row.promo_code;
     }
   }
   return res.rows;
@@ -627,6 +637,7 @@ async function resolveGiftParties(hostUserId) {
 }
 
 async function getHierarchyTree({ bdUserId = null, limitAgencies = 50 } = {}) {
+  const agencyCap = Math.min(Math.max(Number(limitAgencies) || 50, 1), 100);
   const params = [];
   let where = `b.status = 'active'`;
   if (bdUserId) {
@@ -644,31 +655,55 @@ async function getHierarchyTree({ bdUserId = null, limitAgencies = 50 } = {}) {
     params
   );
 
+  if (!bds.rows.length) return [];
+
+  const bdIds = bds.rows.map((r) => r.user_id);
+  const agenciesRes = await db.query(
+    `SELECT a.id, a.name, a.status, a.total_income, a.owner_user_id, a.bd_user_id,
+            u.first_name, u.last_name, u.display_id, u.profile_pic
+     FROM agencies a
+     JOIN users u ON u.id = a.owner_user_id
+     WHERE a.bd_user_id = ANY($1::uuid[]) AND a.status = 'active'
+     ORDER BY a.bd_user_id, a.created_at ASC`,
+    [bdIds]
+  );
+
+  const agenciesByBd = new Map();
+  const agencyIds = [];
+  for (const agency of agenciesRes.rows) {
+    const list = agenciesByBd.get(agency.bd_user_id) || [];
+    if (list.length < agencyCap) {
+      list.push(agency);
+      agenciesByBd.set(agency.bd_user_id, list);
+      agencyIds.push(agency.id);
+    }
+  }
+
+  const hostsByAgency = new Map();
+  if (agencyIds.length) {
+    const hostsRes = await db.query(
+      `SELECT hp.agency_id, hp.user_id, u.first_name, u.last_name, u.display_id, u.profile_pic, u.role
+       FROM host_profiles hp
+       JOIN users u ON u.id = hp.user_id
+       WHERE hp.agency_id = ANY($1::uuid[]) AND hp.status = 'active'
+       ORDER BY hp.agency_id, hp.assigned_at ASC`,
+      [agencyIds]
+    );
+    for (const h of hostsRes.rows) {
+      const list = hostsByAgency.get(h.agency_id) || [];
+      if (list.length < 100) {
+        list.push(h);
+        hostsByAgency.set(h.agency_id, list);
+      }
+    }
+  }
+
   const tree = [];
   for (const bd of bds.rows) {
-    const agencies = await db.query(
-      `SELECT a.id, a.name, a.status, a.total_income, a.owner_user_id,
-              u.first_name, u.last_name, u.display_id, u.profile_pic
-       FROM agencies a
-       JOIN users u ON u.id = a.owner_user_id
-       WHERE a.bd_user_id = $1 AND a.status = 'active'
-       ORDER BY a.created_at ASC
-       LIMIT $2`,
-      [bd.user_id, limitAgencies]
-    );
-
-    const agencyNodes = [];
-    for (const agency of agencies.rows) {
-      const hosts = await db.query(
-        `SELECT hp.user_id, u.first_name, u.last_name, u.display_id, u.profile_pic, u.role
-         FROM host_profiles hp
-         JOIN users u ON u.id = hp.user_id
-         WHERE hp.agency_id = $1 AND hp.status = 'active'
-         ORDER BY hp.assigned_at ASC
-         LIMIT 100`,
-        [agency.id]
-      );
-      agencyNodes.push({
+    const agencies = agenciesByBd.get(bd.user_id) || [];
+    const agencyNodes = agencies.map((agency) => {
+      const hosts = hostsByAgency.get(agency.id) || [];
+      return {
         id: agency.id,
         type: 'agency',
         name: agency.name,
@@ -679,7 +714,7 @@ async function getHierarchyTree({ bdUserId = null, limitAgencies = 50 } = {}) {
           displayId: agency.display_id,
           profilePic: agency.profile_pic,
         },
-        children: hosts.rows.map((h) => ({
+        children: hosts.map((h) => ({
           id: h.user_id,
           type: 'host',
           badge: 'host',
@@ -688,8 +723,8 @@ async function getHierarchyTree({ bdUserId = null, limitAgencies = 50 } = {}) {
           profilePic: h.profile_pic,
           children: [],
         })),
-      });
-    }
+      };
+    });
 
     tree.push({
       id: bd.user_id,

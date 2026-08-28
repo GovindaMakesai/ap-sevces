@@ -4,6 +4,7 @@ const socialFeedService = require('../services/socialFeedService');
 const discoverCreatorService = require('../services/discoverCreatorService');
 const fileAssetService = require('../services/fileAssetService');
 const db = require('../config/database');
+const { clampLimit, clampOffset, parsePageQuery } = require('../lib/pagination');
 
 function uid(req) {
   return req.userId;
@@ -56,24 +57,24 @@ async function blockStatus(req, res) {
 }
 
 async function myBlocked(req, res) {
-  const data = await followService.getBlockedUsers(uid(req), parseInt(req.query.limit, 10) || 50);
+  const data = await followService.getBlockedUsers(uid(req), clampLimit(req.query.limit, { fallback: 50 }));
   res.json({ success: true, data });
 }
 
 async function myFollowing(req, res) {
-  const data = await followService.getFollowing(uid(req), parseInt(req.query.limit, 10) || 50);
+  const data = await followService.getFollowing(uid(req), clampLimit(req.query.limit, { fallback: 50 }));
   res.json({ success: true, data });
 }
 
 async function userFollowing(req, res) {
   const userId = req.params.userId || uid(req);
-  const data = await followService.getFollowing(userId, parseInt(req.query.limit, 10) || 50);
+  const data = await followService.getFollowing(userId, clampLimit(req.query.limit, { fallback: 50 }));
   res.json({ success: true, data });
 }
 
 async function userFollowers(req, res) {
   const userId = req.params.userId || uid(req);
-  const data = await followService.getFollowers(userId, parseInt(req.query.limit, 10) || 50);
+  const data = await followService.getFollowers(userId, clampLimit(req.query.limit, { fallback: 50 }));
   res.json({ success: true, data });
 }
 
@@ -96,7 +97,7 @@ async function discoverCreators(req, res) {
     const period = ['daily', 'weekly', 'monthly'].includes(req.query.period)
       ? req.query.period
       : 'weekly';
-    const limit = parseInt(req.query.limit, 10) || 30;
+    const limit = clampLimit(req.query.limit, { fallback: 30 });
     const data = await Promise.race([
       discoverCreatorService.discoverTopCreators({
         period,
@@ -109,7 +110,7 @@ async function discoverCreators(req, res) {
   } catch (e) {
     console.warn('discoverCreators fallback:', e.message);
     try {
-      const limit = parseInt(req.query.limit, 10) || 30;
+      const limit = clampLimit(req.query.limit, { fallback: 30 });
       const data = await discoverCreatorService.discoverCreatorsFast({
         limit,
         viewerId: req.userId || null,
@@ -157,8 +158,13 @@ async function creatorSupporters(req, res) {
     const supporterService = require('../services/supporterService');
     const period = req.query.period || 'monthly';
     const [top, recent] = await Promise.all([
-      supporterService.getTopSupporters(req.params.userId, { period, limit: req.query.limit }),
-      supporterService.getRecentGifts(req.params.userId, { limit: req.query.recentLimit || 30 }),
+      supporterService.getTopSupporters(req.params.userId, {
+        period,
+        limit: clampLimit(req.query.limit, { fallback: 30 }),
+      }),
+      supporterService.getRecentGifts(req.params.userId, {
+        limit: clampLimit(req.query.recentLimit, { fallback: 30 }),
+      }),
     ]);
     res.json({
       success: true,
@@ -185,7 +191,7 @@ async function discoverRails(req, res) {
   try {
     const creatorDiscoveryService = require('../services/creatorDiscoveryService');
     const data = await creatorDiscoveryService.getDiscoveryRails(req.userId || null, {
-      limit: parseInt(req.query.limit, 10) || 12,
+      limit: clampLimit(req.query.limit, { fallback: 12 }),
     });
     res.json({ success: true, data });
   } catch (e) {
@@ -307,8 +313,8 @@ async function listPosts(req, res) {
   try {
     const viewerId = req.userId || uid(req) || null;
     const data = await socialFeedService.listFeed(viewerId, {
-      limit: parseInt(req.query.limit, 10) || 30,
-      offset: parseInt(req.query.offset, 10) || 0,
+      limit: clampLimit(req.query.limit, { fallback: 30 }),
+      offset: clampOffset(req.query.offset),
       userId: req.query.userId || req.query.user_id || null,
       feed: req.query.feed || req.query.scope || null,
       mediaType: req.query.mediaType || req.query.media_type || 'all',
@@ -393,8 +399,8 @@ async function likePost(req, res) {
 async function getPostLikes(req, res) {
   try {
     const data = await socialFeedService.listPostLikers(req.params.postId, {
-      limit: parseInt(req.query.limit, 10) || 50,
-      offset: parseInt(req.query.offset, 10) || 0,
+      limit: clampLimit(req.query.limit, { fallback: 50 }),
+      offset: clampOffset(req.query.offset),
     });
     res.json({ success: true, data });
   } catch (e) {
@@ -415,8 +421,8 @@ async function commentPost(req, res) {
 
 async function getComments(req, res) {
   const data = await socialFeedService.listComments(req.params.postId, {
-    limit: parseInt(req.query.limit, 10) || 50,
-    offset: parseInt(req.query.offset, 10) || 0,
+    limit: clampLimit(req.query.limit, { fallback: 50 }),
+    offset: clampOffset(req.query.offset),
     viewerId: uid(req),
   });
   res.json({ success: true, data });
@@ -473,6 +479,14 @@ async function reportUser(req, res) {
   }
 }
 
+function publicCoinSellerError(e) {
+  const msg = String(e?.message || '');
+  if (e?.code === '22001' || /value too long for type character varying/i.test(msg)) {
+    return 'Could not load Coin Seller Center. Please retry.';
+  }
+  return msg || 'Request failed';
+}
+
 async function requireCoinSeller(req, res) {
   const id = uid(req);
   const profile = await coinSellerService.ensureSellerAccess(id);
@@ -489,7 +503,7 @@ async function coinSellerDashboard(req, res) {
     const data = await coinSellerService.getDashboard(uid(req));
     res.json({ success: true, data });
   } catch (e) {
-    res.status(400).json({ success: false, message: e.message });
+    res.status(400).json({ success: false, message: publicCoinSellerError(e) });
   }
 }
 
@@ -567,7 +581,7 @@ async function coinSellerRechargeHistory(req, res) {
   try {
     if (!(await requireCoinSeller(req, res))) return;
     const data = await coinSellerService.listSellerRecharges(uid(req), {
-      limit: parseInt(req.query.limit, 10) || 20,
+      limit: clampLimit(req.query.limit, { fallback: 20 }),
     });
     res.json({ success: true, data });
   } catch (e) {
@@ -579,7 +593,7 @@ async function coinSellerTransfers(req, res) {
   try {
     if (!(await requireCoinSeller(req, res))) return;
     const data = await coinSellerService.listTransfers(uid(req), {
-      limit: parseInt(req.query.limit, 10) || 30,
+      limit: clampLimit(req.query.limit, { fallback: 30 }),
     });
     res.json({ success: true, data });
   } catch (e) {

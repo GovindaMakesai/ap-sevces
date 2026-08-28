@@ -217,6 +217,8 @@ const TEMPLATES = {
     if (!body) body = 'Sent you a message';
     if (body.startsWith('__IMG__:')) body = '📷 Sent a photo';
     if (body.startsWith('__VID__:')) body = '🎬 Sent a video';
+    if (body.startsWith('__AUD__:')) body = '🎤 Sent a voice message';
+    if (body.startsWith('__STK__:')) body = '🎨 Sent a sticker';
     if (body.length > 100) body = `${body.slice(0, 97)}…`;
     return {
       type: 'new_message',
@@ -425,8 +427,8 @@ const TEMPLATES = {
     const ring = ringLabel || 'a ring';
     return {
       type: 'cp_ring_purchased',
-      title: 'Ring purchased',
-      body: `${ring} was added to your bag. Send a CP invitation from CP House.`,
+      title: 'You purchased a ring',
+      body: `${ring} is now in your bag. Send a CP invitation from CP House.`,
       data: {
         type: 'cp_ring_purchased',
         deepLink: storeRingsDeepLink(),

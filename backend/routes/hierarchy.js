@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const hierarchyController = require('../controllers/hierarchyController');
 const { verifyToken, authorizeRoles } = require('../middleware/auth');
+const { requireAdminCapability } = require('../middleware/adminAccess');
 
 router.use(verifyToken);
 
@@ -58,21 +59,21 @@ router.get('/hierarchy', authorizeRoles('bdm', 'admin'), hierarchyController.get
 router.get('/hierarchy/bd/:id', authorizeRoles('bdm', 'admin'), hierarchyController.getHierarchyBd);
 router.get('/hierarchy/agency/:id', authorizeRoles('agency', 'bdm', 'admin'), hierarchyController.getHierarchyAgency);
 
-// Admin BD / assignment
-router.post('/admin/bd/assign', authorizeRoles('admin'), hierarchyController.assignBd);
-router.delete('/admin/bd/:id', authorizeRoles('admin'), hierarchyController.removeBd);
-router.get('/admin/bd', authorizeRoles('admin'), hierarchyController.listBds);
+// Admin BD / assignment — Super Admin or Admin with network power
+router.post('/admin/bd/assign', authorizeRoles('admin'), requireAdminCapability('network'), hierarchyController.assignBd);
+router.delete('/admin/bd/:id', authorizeRoles('admin'), requireAdminCapability('network'), hierarchyController.removeBd);
+router.get('/admin/bd', authorizeRoles('admin'), requireAdminCapability('network'), hierarchyController.listBds);
 
-router.patch('/admin/agency/approve', authorizeRoles('admin'), hierarchyController.approveAgency);
-router.patch('/admin/agency/reject', authorizeRoles('admin'), hierarchyController.rejectAgency);
-router.patch('/admin/agency/assign-bd', authorizeRoles('admin'), hierarchyController.assignAgencyBd);
-router.get('/admin/agencies', authorizeRoles('admin'), hierarchyController.listAgenciesAdmin);
+router.patch('/admin/agency/approve', authorizeRoles('admin'), requireAdminCapability('network'), hierarchyController.approveAgency);
+router.patch('/admin/agency/reject', authorizeRoles('admin'), requireAdminCapability('network'), hierarchyController.rejectAgency);
+router.patch('/admin/agency/assign-bd', authorizeRoles('admin'), requireAdminCapability('network'), hierarchyController.assignAgencyBd);
+router.get('/admin/agencies', authorizeRoles('admin'), requireAdminCapability('network'), hierarchyController.listAgenciesAdmin);
 
-router.patch('/admin/host/approve', authorizeRoles('admin'), hierarchyController.approveHost);
-router.patch('/admin/host/reject', authorizeRoles('admin'), hierarchyController.rejectHost);
-router.patch('/admin/host/assign-agency', authorizeRoles('admin'), hierarchyController.assignHostAgency);
+router.patch('/admin/host/approve', authorizeRoles('admin'), requireAdminCapability('network'), hierarchyController.approveHost);
+router.patch('/admin/host/reject', authorizeRoles('admin'), requireAdminCapability('network'), hierarchyController.rejectHost);
+router.patch('/admin/host/assign-agency', authorizeRoles('admin'), requireAdminCapability('network'), hierarchyController.assignHostAgency);
 
-router.get('/admin/commission-rules', authorizeRoles('admin'), hierarchyController.getCommissionRules);
-router.put('/admin/commission-rules', authorizeRoles('admin'), hierarchyController.upsertCommissionRule);
+router.get('/admin/commission-rules', authorizeRoles('admin'), requireAdminCapability('network'), hierarchyController.getCommissionRules);
+router.put('/admin/commission-rules', authorizeRoles('admin'), requireAdminCapability('network'), hierarchyController.upsertCommissionRule);
 
 module.exports = router;

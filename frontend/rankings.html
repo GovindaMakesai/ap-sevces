@@ -8,9 +8,10 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" media="print" onload="this.media='all'">
   <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"></noscript>
   <link rel="stylesheet" href="social-theme.css?v=20260729-instant">
-  <link rel="stylesheet" href="social-features.css?v=20260822-gamerank">
-  <link rel="stylesheet" href="social-shot-skin.css?v=20260823-shot">
-  <link rel="stylesheet" href="social-ui-fix.css?v=20260823-uifix">
+  <link rel="stylesheet" href="social-features.css?v=20260823-corners">
+  <link rel="stylesheet" href="social-shot-skin.css?v=20260823-corners2">
+  <link rel="stylesheet" href="social-ui-fix.css?v=20260823-corners2">
+  <link rel="stylesheet" href="social-alive.css?v=20260823-nospark">
   <style>
     @keyframes rankSkel { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
   </style>
@@ -23,6 +24,7 @@
         <a href="#" class="social-rank-main-tab active" data-tab="host">Host</a>
         <a href="#" class="social-rank-main-tab" data-tab="rich">Rich</a>
         <a href="#" class="social-rank-main-tab" data-tab="gift">Gift</a>
+        <a href="#" class="social-rank-main-tab" data-tab="pk">PK</a>
         <a href="#" class="social-rank-main-tab" data-tab="video">Video</a>
         <a href="#" class="social-rank-main-tab" data-tab="game">Game</a>
         <a href="/cp-rankings.html?app=1" class="social-rank-main-tab social-rank-main-tab--cp" data-external-rank="cp">CP</a>
@@ -76,15 +78,15 @@
   <div id="social-bottom-nav-mount"></div>
 
   <script src="app.js?v=20260729-perf2"></script>
-  <script src="social-ui.js?v=20260802-rank-avatars"></script>
+  <script src="social-ui.js?v=20260823-phone2"></script>
   <script src="social-interactions.js?v=20260717-block-hide"></script>
   <script src="ap-soft-nav.js?v=20260730-fastnav4"></script>
   <script src="social-shell.js?v=20260802-rank-avatars"></script>
   <script src="social-nav.js"></script>
   <script defer src="social-fx.js"></script>
   <script>
-    const TAB_CATEGORY = { host: 'creators', rich: 'gifters', gift: 'gifters', video: 'video', game: 'games' };
-    const TAB_MODE = { host: '', rich: '', gift: 'count', video: '' };
+    const TAB_CATEGORY = { host: 'creators', rich: 'gifters', gift: 'gifters', pk: 'pk', video: 'video', game: 'games' };
+    const TAB_MODE = { host: '', rich: '', gift: 'count', pk: '', video: '' };
     const API_ROOT = (window.AP_SERVICES_API_ROOT || 'https://api.apservices.in/api').replace(/\/+$/, '');
     const urlParams = new URLSearchParams(location.search);
     let currentPeriod = ['daily', 'weekly', 'monthly'].includes(urlParams.get('period'))
@@ -185,7 +187,7 @@
 
     function formatScore(score, tab) {
       const n = Number(score || 0);
-      const suffix = tab === 'gift' ? ' gifts' : tab === 'game' ? ' coins' : '';
+      const suffix = tab === 'gift' ? ' gifts' : tab === 'game' ? ' coins' : tab === 'pk' ? ' pts' : '';
       if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M' + suffix;
       if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K' + suffix;
       return String(Math.round(n)) + suffix;
@@ -313,9 +315,11 @@
           '" decoding="async">' +
           '<strong>' +
           escapeHtml(r.n) +
-          '</strong><br><small>' +
+          '</strong><small>' +
           escapeHtml(r.s) +
-          '</small>';
+          '</small><div class="podium-stand">' +
+          ranks[i] +
+          '</div>';
         return href
           ? '<div class="' + cls + '" data-rank-profile data-href="' + escapeAttr(href) + '" role="link" tabindex="0">' + inner + '</div>'
           : '<div class="' + cls + '">' + inner + '</div>';
@@ -404,7 +408,7 @@
     }
 
     function syncRankSkin() {
-      ['host', 'rich', 'gift', 'video', 'game'].forEach((tab) => {
+      ['host', 'rich', 'gift', 'pk', 'video', 'game'].forEach((tab) => {
         document.body.classList.toggle('rank-skin-' + tab, currentTab === tab);
       });
       document.body.classList.add('rank-skin');

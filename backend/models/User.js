@@ -2,6 +2,7 @@
 const db = require('../config/database');
 const bcrypt = require('bcryptjs');
 const { allocateDisplayId } = require('../lib/displayId');
+const { sanitizePublicText } = require('../lib/safeText');
 
 class User {
     // Create a new user
@@ -20,7 +21,9 @@ class User {
             RETURNING id, email, phone, first_name, last_name, role, gender, display_id, created_at
         `;
         
-        const values = [email, phone, password_hash, first_name, last_name, role, normalizedGender, display_id];
+        const safeFirst = sanitizePublicText(first_name, 80) || 'User';
+        const safeLast = sanitizePublicText(last_name, 80);
+        const values = [email, phone, password_hash, safeFirst, safeLast, role, normalizedGender, display_id];
         
         try {
             const result = await db.query(query, values);
@@ -33,7 +36,7 @@ class User {
                     `INSERT INTO users (email, phone, password_hash, first_name, last_name, role, gender, display_id)
                      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                      RETURNING id, email, phone, first_name, last_name, role, gender, display_id, created_at`,
-                    [email, phone, password_hash, first_name, last_name, role, normalizedGender, retryId]
+                    [email, phone, password_hash, safeFirst, safeLast, role, normalizedGender, retryId]
                 );
                 return retry.rows[0];
             }
@@ -83,12 +86,12 @@ class User {
         const { sanitizeBio, sanitizeSocialLinks } = require('../services/creatorProfileSanitize');
         const allowed = {};
         if (fields.first_name !== undefined) {
-            const v = String(fields.first_name || '').trim().slice(0, 100);
+            const v = sanitizePublicText(fields.first_name, 80);
             if (v) allowed.first_name = v;
         }
         if (fields.last_name !== undefined) {
             /* Allow clearing last name (empty string) — previously skipped empty values so last name could never be removed/replaced when the client sent "". */
-            allowed.last_name = String(fields.last_name || '').trim().slice(0, 100);
+            allowed.last_name = sanitizePublicText(fields.last_name, 80);
         }
         if (fields.phone !== undefined) {
             const digits = String(fields.phone || '').replace(/\D/g, '');

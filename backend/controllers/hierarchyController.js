@@ -1,6 +1,7 @@
 const hierarchyService = require('../services/hierarchyService');
 const commissionService = require('../services/commissionService');
 const agencyService = require('../services/agencyService');
+const { clampLimit, clampOffset } = require('../lib/pagination');
 const STAFF = new Set(['admin', 'super_admin', 'founder', 'ceo']);
 
 function assertStaff(req) {
@@ -298,7 +299,7 @@ exports.getHierarchy = async (req, res) => {
     const q = String(req.query.q || req.query.search || '').trim().toLowerCase();
     let data = await hierarchyService.getHierarchyTree({
       bdUserId,
-      limitAgencies: Number(req.query.limit) || 50,
+      limitAgencies: clampLimit(req.query.limit, { max: 100, fallback: 50 }),
     });
     if (q) {
       data = data
@@ -365,7 +366,8 @@ exports.listAgenciesAdmin = async (req, res) => {
     assertStaff(req);
     const data = await agencyService.listAgencies({
       status: req.query.status || 'active',
-      limit: Number(req.query.limit) || 100,
+      limit: clampLimit(req.query.limit, { max: 100, fallback: 50 }),
+      offset: clampOffset(req.query.offset),
     });
     res.json({ success: true, data });
   } catch (e) {

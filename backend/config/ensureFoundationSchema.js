@@ -1,4 +1,4 @@
-﻿const fs = require('fs');
+const fs = require('fs');
 const path = require('path');
 const db = require('./database');
 
@@ -88,7 +88,7 @@ async function seedRolesAndPermissions(client) {
     customer: ['wallet.read', 'wallet.recharge', 'wallet.withdraw', 'wallet.gift', 'live.join', 'live.host'],
     worker: ['wallet.read', 'wallet.recharge', 'wallet.withdraw', 'wallet.gift', 'live.join', 'live.host'],
     creator: ['wallet.read', 'wallet.recharge', 'wallet.withdraw', 'wallet.gift', 'live.join', 'live.host'],
-    admin: ['wallet.read', 'wallet.recharge', 'wallet.withdraw', 'wallet.gift', 'live.join', 'live.host', 'admin.wallet', 'admin.withdrawals', 'admin.recharges', 'admin.users'],
+    admin: ['wallet.read', 'wallet.recharge', 'wallet.withdraw', 'wallet.gift', 'live.join', 'live.host', 'admin.wallet', 'admin.withdrawals', 'admin.recharges'],
     super_admin: ['wallet.read', 'wallet.recharge', 'wallet.withdraw', 'wallet.gift', 'live.join', 'live.host', 'admin.wallet', 'admin.withdrawals', 'admin.recharges', 'admin.users'],
     founder: ['wallet.read', 'wallet.recharge', 'wallet.withdraw', 'wallet.gift', 'live.join', 'live.host', 'admin.wallet', 'admin.withdrawals', 'admin.recharges', 'admin.users'],
     ceo: ['wallet.read', 'wallet.recharge', 'wallet.withdraw', 'wallet.gift', 'live.join', 'live.host', 'admin.wallet', 'admin.withdrawals', 'admin.recharges', 'admin.users'],
@@ -111,6 +111,14 @@ async function seedRolesAndPermissions(client) {
       );
     }
   }
+
+  /* Ops Admin must not keep user-management RBAC — Super Admin only */
+  await client.query(
+    `DELETE FROM role_permissions rp
+     USING roles r, permissions p
+     WHERE rp.role_id = r.id AND rp.permission_id = p.id
+       AND r.slug = 'admin' AND p.slug = 'admin.users'`
+  );
 
   await grantLivePermissionsToAllRoles(client);
 }

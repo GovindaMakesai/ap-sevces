@@ -1,20 +1,40 @@
-/* Banners auto-slider */
+/* Banners auto-slider — native finger swipe */
 .social-banner-slider {
   position: relative;
   overflow: hidden;
   border-radius: 16px;
   margin: 0 12px 12px;
 }
+.social-banner-scroller {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+.social-banner-scroller::-webkit-scrollbar {
+  display: none;
+}
 
 .social-banner-track {
   display: flex;
-  transition: transform 0.45s ease;
-  will-change: transform;
+  flex-wrap: nowrap;
+  overflow: visible;
+  width: max-content;
+  min-width: 100%;
+  transform: none;
 }
 
 .social-banner-slide {
-  flex: 0 0 100%;
+  flex: 0 0 var(--banner-slide-w, 100%);
+  width: var(--banner-slide-w, 100%);
+  min-width: var(--banner-slide-w, 100%);
   min-height: 118px;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
 }
 
 .social-banner-slide--image {
@@ -26,8 +46,8 @@
 .social-banner--image {
   min-height: 0;
   width: 100%;
-  background: #0b0614;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+  background: transparent;
+  box-shadow: none;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -38,17 +58,23 @@
   width: 100%;
   height: auto;
   max-height: none;
-  object-fit: contain;
+  object-fit: cover;
   object-position: center center;
   vertical-align: middle;
-  background: #0b0614;
+  background: transparent;
 }
 
 .social-banner-dots {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 8px;
+  z-index: 3;
   display: flex;
   justify-content: center;
   gap: 6px;
-  padding: 8px 0 4px;
+  padding: 0;
+  pointer-events: none;
 }
 
 .social-banner-dots button {
@@ -59,6 +85,7 @@
   padding: 0;
   background: rgba(201, 162, 39, 0.35);
   cursor: pointer;
+  pointer-events: auto;
 }
 
 .social-banner-dots button.active {
@@ -96,9 +123,9 @@
   color: #3d2e08;
   border-radius: 16px;
   overflow: hidden;
-  background: #0b0614;
+  background: #fffdf8;
   border: 1px solid rgba(201, 162, 39, 0.28);
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  box-shadow: 0 8px 24px rgba(201, 162, 39, 0.12);
 }
 .social-host-policy-card img {
   display: block;
@@ -106,7 +133,7 @@
   height: auto;
   max-width: 100%;
   object-fit: contain;
-  background: #0b0614;
+  background: #fffdf8;
 }
 .social-host-policy-card span {
   display: block;

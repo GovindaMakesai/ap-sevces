@@ -1,4 +1,5 @@
 const walletService = require('../services/walletService');
+const { clampLimit, pageToOffset } = require('../lib/pagination');
 const transactionService = require('../services/transactionService');
 const giftService = require('../services/giftService');
 const auditLogService = require('../services/auditLogService');
@@ -66,7 +67,7 @@ exports.getWalletSettings = async (_req, res) => {
 
 exports.getTransactions = async (req, res) => {
   try {
-    const limit = Math.min(parseInt(req.query.limit, 10) || 30, 100);
+    const limit = clampLimit(req.query.limit, { fallback: 30, max: 100 });
     const offset = parseInt(req.query.offset, 10) || 0;
     const rows = await transactionService.listTransactions(req.userId, { limit, offset });
     res.json({ success: true, data: rows });
@@ -77,7 +78,7 @@ exports.getTransactions = async (req, res) => {
 
 exports.getRecharges = async (req, res) => {
   try {
-    const limit = Math.min(parseInt(req.query.limit, 10) || 30, 100);
+    const limit = clampLimit(req.query.limit, { fallback: 30, max: 100 });
     const rows = await transactionService.listUserRecharges(req.userId, { limit });
     const settings = await walletService.getWalletSettings();
     const rate = settings.coins_per_inr || 10;
@@ -213,7 +214,7 @@ exports.listPointsTransfers = async (req, res) => {
   try {
     const { ensurePointsTransferSchema } = require('../config/ensurePointsTransferSchema');
     await ensurePointsTransferSchema();
-    const limit = Math.min(parseInt(req.query.limit, 10) || 30, 100);
+    const limit = clampLimit(req.query.limit, { fallback: 30, max: 100 });
     const rows = await walletService.listPointsTransfers(req.userId, { limit });
     const settings = await walletService.getWalletSettings();
     const usedToday = await walletService.countPointsTransfersToday(req.userId);

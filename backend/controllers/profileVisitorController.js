@@ -1,4 +1,5 @@
 const profileVisitorService = require('../services/profileVisitorService');
+const { clampLimit, clampOffset } = require('../lib/pagination');
 
 exports.recordVisit = async (req, res) => {
   try {
@@ -24,14 +25,14 @@ exports.listMine = async (req, res) => {
     const direction = String(req.query.direction || req.query.view || '').toLowerCase();
     if (direction === 'visited' || direction === 'outgoing') {
       const data = await profileVisitorService.listVisitedByMe(req.userId, {
-        limit: req.query.limit,
-        offset: req.query.offset,
+        limit: clampLimit(req.query.limit, { fallback: 30 }),
+        offset: clampOffset(req.query.offset),
       });
       return res.json({ success: true, data });
     }
     const data = await profileVisitorService.listVisitors(req.userId, {
-      limit: req.query.limit,
-      offset: req.query.offset,
+      limit: clampLimit(req.query.limit, { fallback: 30 }),
+      offset: clampOffset(req.query.offset),
     });
     res.json({ success: true, data });
   } catch (err) {
@@ -42,8 +43,8 @@ exports.listMine = async (req, res) => {
 exports.listVisited = async (req, res) => {
   try {
     const data = await profileVisitorService.listVisitedByMe(req.userId, {
-      limit: req.query.limit,
-      offset: req.query.offset,
+      limit: clampLimit(req.query.limit, { fallback: 30 }),
+      offset: clampOffset(req.query.offset),
     });
     res.json({ success: true, data });
   } catch (err) {

@@ -2,8 +2,11 @@ const db = require('../config/database');
 
 /** Maps legacy users.role to RBAC role slug */
 function legacyRoleToSlug(role) {
-  if (role === 'admin') return 'super_admin';
-  return role || 'customer';
+  const r = String(role || 'customer').toLowerCase();
+  if (r === 'host') return 'creator';
+  if (r === 'seller') return 'coin_seller';
+  if (r === 'bd') return 'bdm';
+  return r || 'customer';
 }
 
 /** Short TTL cache — live join hits this on every connection */
@@ -142,12 +145,14 @@ async function addUserRole(userId, roleSlug) {
   return slug;
 }
 
-async function setUserRoles(userId, roleSlugs) {
+async function setUserRoles(userId, roleSlugs, opts = {}) {
   const unique = [
     ...new Set((Array.isArray(roleSlugs) ? roleSlugs : [roleSlugs]).map(normalizeRoleSlug).filter((s) => ALLOWED_ROLES.has(s))),
   ];
   if (!unique.length) unique.push('customer');
-  const primary = pickPrimaryRole(unique);
+  const requestedPrimary = opts.primary ? normalizeRoleSlug(opts.primary) : null;
+  const primary =
+    requestedPrimary && unique.includes(requestedPrimary) ? requestedPrimary : pickPrimaryRole(unique);
   await db.query(`UPDATE users SET role = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`, [primary, userId]);
   await db.query(`DELETE FROM user_roles WHERE user_id = $1`, [userId]);
   for (const slug of unique) {

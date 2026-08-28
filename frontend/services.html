@@ -1,479 +1,285 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="social-app social-native">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#fdf9f0">
     <title>Services - AP Services</title>
-    
-    <!-- Font Awesome 6 -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    
-    <!-- Google Fonts - Inter -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    
-    <!-- Custom Styles -->
-    <link rel="stylesheet" href="styles.css">
-    
-    <style>
-        /* Copy all your existing CSS here - keep it exactly the same */
-        /* ==================== SERVICES PAGE STYLES ==================== */
-        .services-page {
-            background: var(--gray-50);
-            min-height: calc(100vh - var(--header-height) - var(--footer-height));
-            padding: var(--spacing-xl) 0;
-        }
-
-        .page-header {
-            background: linear-gradient(135deg, var(--primary-600), var(--primary-800));
-            color: white;
-            padding: var(--spacing-2xl) 0;
-            margin-bottom: var(--spacing-xl);
-            border-radius: 0 0 var(--radius-2xl) var(--radius-2xl);
-        }
-
-        .services-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: var(--spacing-lg);
-            margin-top: var(--spacing-xl);
-        }
-
-        .service-card {
-            background: white;
-            border-radius: var(--radius-xl);
-            overflow: hidden;
-            box-shadow: var(--shadow-md);
-            border: 1px solid var(--gray-200);
-            transition: all var(--transition-base);
-            cursor: pointer;
-        }
-
-        .service-card:hover {
-            transform: translateY(-4px);
-            box-shadow: var(--shadow-xl);
-            border-color: var(--primary-200);
-        }
-
-        .service-image {
-            height: 160px;
-            background: var(--gray-200);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--gray-500);
-            font-size: 3rem;
-        }
-
-        .service-content {
-            padding: var(--spacing-lg);
-        }
-
-        .service-category {
-            color: var(--primary-600);
-            font-weight: 600;
-            font-size: var(--font-size-xs);
-            text-transform: uppercase;
-            margin-bottom: var(--spacing-xs);
-        }
-
-        .service-content h3 {
-            font-size: 1.2rem;
-            margin-bottom: var(--spacing-xs);
-        }
-
-        .service-description {
-            color: var(--gray-600);
-            font-size: var(--font-size-sm);
-            margin-bottom: var(--spacing-sm);
-            line-height: 1.5;
-        }
-
-        .service-meta {
-            display: flex;
-            align-items: center;
-            gap: var(--spacing-sm);
-            margin-bottom: var(--spacing-sm);
-        }
-
-        .service-rating {
-            background: #fef3c7;
-            padding: 4px 8px;
-            border-radius: var(--radius-full);
-            color: #92400e;
-            font-weight: 600;
-            font-size: var(--font-size-xs);
-        }
-
-        .service-rating i {
-            color: #fbbf24;
-        }
-
-        .service-bookings {
-            color: var(--gray-500);
-            font-size: var(--font-size-xs);
-        }
-
-        .service-price {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: var(--primary-600);
-            margin: var(--spacing-sm) 0;
-        }
-
-        .price-unit {
-            font-size: var(--font-size-sm);
-            font-weight: 400;
-            color: var(--gray-600);
-        }
-
-        .service-footer {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-top: 1px solid var(--gray-200);
-            padding-top: var(--spacing-md);
-        }
-
-        .provider-info {
-            display: flex;
-            align-items: center;
-            gap: var(--spacing-xs);
-        }
-
-        .provider-avatar {
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            background: var(--primary-100);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--primary-700);
-            font-weight: 700;
-            font-size: var(--font-size-xs);
-        }
-
-        .provider-name {
-            font-weight: 600;
-            font-size: var(--font-size-sm);
-            color: var(--gray-700);
-        }
-
-        .verified-badge {
-            color: var(--success);
-            font-size: var(--font-size-xs);
-        }
-
-        .book-btn {
-            padding: 0.5rem 1.5rem;
-            background: var(--primary-600);
-            color: white;
-            border: none;
-            border-radius: var(--radius-lg);
-            font-weight: 600;
-            font-size: var(--font-size-sm);
-            cursor: pointer;
-            transition: all var(--transition-fast);
-        }
-
-        .book-btn:hover {
-            background: var(--primary-700);
-        }
-
-        /* Loading and Empty States */
-        .loading-spinner {
-            text-align: center;
-            padding: 3rem;
-            color: var(--gray-500);
-        }
-
-        .loading-spinner i {
-            font-size: 3rem;
-            margin-bottom: 1rem;
-        }
-
-        .error-message {
-            text-align: center;
-            padding: 3rem;
-            color: var(--error);
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 3rem;
-            color: var(--gray-600);
-        }
-
-        .empty-state i {
-            font-size: 4rem;
-            color: var(--gray-300);
-            margin-bottom: 1rem;
-        }
-
-        .container {
-            max-width: 1280px;
-            margin: 0 auto;
-            padding: 0 1rem;
-        }
-
-        .results-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin: 2rem 0;
-        }
-
-        .results-count strong {
-            font-size: 1.2rem;
-            color: var(--gray-900);
-        }
-    </style>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" media="print" onload="this.media='all'">
+  <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"></noscript>
+  <link rel="stylesheet" href="social-theme.css?v=20260823-market">
+  <link rel="stylesheet" href="social-features.css?v=20260823-market">
+  <link rel="stylesheet" href="social-shot-skin.css?v=20260823-market">
+  <link rel="stylesheet" href="social-ui-fix.css?v=20260823-market">
+  <script src="native-session-restore.js?v=20260811-boot"></script>
+  <script src="ap-config.js"></script>
+  <script src="ap-native-boot.js?v=20260811-boot"></script>
 </head>
-<body>
-    <!-- Navbar -->
-    <nav class="navbar">
-        <div class="container">
-            <div class="nav-content">
-                <a href="/" class="logo logo--img" aria-label="AP Services"><img src="/ap-logo.png" alt="AP Services" width="40" height="40"></a>
-                <div class="nav-links"></div>
-                <button class="mobile-menu-btn"><i class="fas fa-bars"></i></button>
-            </div>
-        </div>
-    </nav>
+<body class="social-services-page">
+  <header class="svc-top">
+    <a href="/explore.html?app=1" class="social-icon-btn" data-ap-back aria-label="Back"><i class="fas fa-arrow-left"></i></a>
+    <h1>Services</h1>
+    <a href="/customer-dashboard.html?app=1" class="social-icon-btn" aria-label="My bookings"><i class="fas fa-clipboard-list"></i></a>
+  </header>
 
-    <!-- Page Header -->
-    <section class="page-header">
-        <div class="container">
-            <h1>Professional Services</h1>
-            <p>Find trusted professionals for all your needs</p>
-        </div>
-    </section>
+  <div class="social-search svc-search">
+    <i class="fas fa-search"></i>
+    <input type="search" id="svcSearch" placeholder="Plumber, beauty, AC repair…" autocomplete="off">
+  </div>
 
-    <!-- Services Section -->
-    <section class="services-page">
-        <div class="container">
-            <!-- Results Header -->
-            <div class="results-header">
-                <div class="results-count">
-                    <strong id="totalCount">0</strong> services found
-                </div>
-            </div>
+  <div class="svc-chips" id="svcChips" role="tablist" aria-label="Service categories"></div>
 
-            <!-- Services Grid -->
-            <div id="servicesGrid" class="services-grid">
-                <div class="loading-spinner">
-                    <i class="fas fa-spinner fa-spin"></i>
-                    <p>Loading services...</p>
-                </div>
-            </div>
-        </div>
-    </section>
+  <section class="svc-hero" id="svcHero">
+    <div class="svc-hero-copy">
+      <p class="svc-hero-kicker">At your door</p>
+      <h2>Book a trusted pro in minutes</h2>
+      <p>Plumbing, electrical, cleaning, beauty — same cream-gold flow as the rest of AP.</p>
+    </div>
+    <button type="button" class="svc-hero-cta" id="svcHeroCta">Browse pros</button>
+  </section>
 
-    <!-- Footer -->
-    <footer class="footer">
-        <div class="container">
-            <div class="footer-grid">
-                <div class="footer-col">
-                    <h3>AP<span style="color: var(--primary-500);">Services</span></h3>
-                    <p>Your trusted platform for booking professional home services.</p>
-                    <div class="social-links">
-                        <a href="#"><i class="fab fa-facebook-f"></i></a>
-                        <a href="#"><i class="fab fa-instagram"></i></a>
-                        <a href="#"><i class="fab fa-twitter"></i></a>
-                        <a href="#"><i class="fab fa-linkedin-in"></i></a>
-                    </div>
-                </div>
-                <div class="footer-col">
-                    <h4>Quick Links</h4>
-                    <ul>
-                        <li><a href="/about.html">About Us</a></li>
-                        <li><a href="/contact.html">Contact</a></li>
-                        <li><a href="/privacy.html">Privacy Policy</a></li>
-                        <li><a href="/terms.html">Terms of Service</a></li>
-                    </ul>
-                </div>
-                <div class="footer-col">
-                    <h4>Services</h4>
-                    <ul>
-                        <li><a href="/services/plumbing.html">Plumbing</a></li>
-                        <li><a href="/services/electrical.html">Electrical</a></li>
-                        <li><a href="/services/cleaning.html">Cleaning</a></li>
-                        <li><a href="/services/beauty.html">Beauty</a></li>
-                    </ul>
-                </div>
-                <div class="footer-col">
-                    <h4>Support</h4>
-                    <ul>
-                        <li><a href="/help.html">Help Center</a></li>
-                        <li><a href="/faq.html">FAQ</a></li>
-                        <li><a href="/contact.html">Contact Us</a></li>
-                    </ul>
-                </div>
-            </div>
-            <div class="footer-bottom">
-                <p>&copy; 2024 AP Services. All rights reserved.</p>
-            </div>
-        </div>
-    </footer>
+  <div class="svc-steps" aria-hidden="true">
+    <div><span>1</span>Pick</div>
+    <div><span>2</span>Schedule</div>
+    <div><span>3</span>Done</div>
+  </div>
 
-    <!-- Toast Container -->
-    <div id="toast" class="toast"></div>
+  <div class="svc-section-row">
+    <h3 id="svcHeading">For you</h3>
+    <span id="svcCount"></span>
+  </div>
 
-    <!-- Load app.js -->
-    <script src="app.js"></script>
-    
-    <script>
-// Add this at the beginning of your services.html script
-const BACKEND_URL = 'https://ap-sevces.onrender.com';
+  <div id="svcGrid" class="svc-grid" aria-live="polite"></div>
+  <div id="social-bottom-nav-mount"></div>
+  <div id="toast" class="toast"></div>
 
-function getImageUrl(path) {
-    if (!path) return null;
-    if (path.startsWith('http')) return path;
-    const cleanPath = path.startsWith('/') ? path : `/${path}`;
-    return `${BACKEND_URL}${cleanPath}`;
-}
-        // ==================== SERVICES PAGE - REAL API INTEGRATION ====================
-        
-        document.addEventListener('DOMContentLoaded', function() {
-            loadServices();
+  <script src="app.js?v=20260823-market"></script>
+  <script src="social-ui.js?v=20260823-market"></script>
+  <script src="social-shell.js?v=20260823-market"></script>
+  <script src="social-nav.js"></script>
+  <script>
+    const CATS = [
+      { id: '', label: 'All', icon: 'fa-layer-group' },
+      { id: 'plumbing', label: 'Plumbing', icon: 'fa-faucet' },
+      { id: 'electrical', label: 'Electrical', icon: 'fa-bolt' },
+      { id: 'cleaning', label: 'Cleaning', icon: 'fa-broom' },
+      { id: 'beauty', label: 'Beauty', icon: 'fa-spa' },
+      { id: 'painting', label: 'Painting', icon: 'fa-paint-roller' },
+      { id: 'ac-repair', label: 'AC Repair', icon: 'fa-snowflake' },
+      { id: 'carpentry', label: 'Carpentry', icon: 'fa-hammer' },
+      { id: 'appliance', label: 'Appliances', icon: 'fa-plug' },
+    ];
+    const CAT_ICONS = {
+      plumbing: 'fa-faucet', electrical: 'fa-bolt', cleaning: 'fa-broom', beauty: 'fa-spa',
+      beautician: 'fa-spa', barber: 'fa-scissors', painting: 'fa-paint-roller',
+      'ac-repair': 'fa-snowflake', ac: 'fa-snowflake', carpentry: 'fa-hammer',
+      appliance: 'fa-plug', appliances: 'fa-plug', gardening: 'fa-leaf', pest: 'fa-bug',
+    };
+
+    const params = new URLSearchParams(location.search);
+    let activeCat = String(params.get('category') || '').toLowerCase();
+    let query = String(params.get('search') || params.get('q') || '').trim();
+
+    function escapeHtml(s) {
+      return String(s || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+    function appHref(path) {
+      const u = new URL(path, location.origin);
+      u.searchParams.set('app', '1');
+      return u.pathname + u.search;
+    }
+    function mediaUrl(path) {
+      if (window.SocialShell?.getImageUrl) return SocialShell.getImageUrl(path);
+      if (!path) return null;
+      if (/^https?:\/\//i.test(path)) return path;
+      if (typeof window.joinApiUrl === 'function') {
+        const base = String(window.AP_SERVICES_API_ROOT || '').replace(/\/api\/?$/, '');
+        return (base || '') + (path.startsWith('/') ? path : '/' + path);
+      }
+      return path.startsWith('/') ? path : '/' + path;
+    }
+    function catIcon(cat) {
+      const key = String(cat || '').toLowerCase().replace(/\s+/g, '-');
+      return CAT_ICONS[key] || 'fa-screwdriver-wrench';
+    }
+    function formatPrice(n) {
+      const v = Number(n);
+      if (!Number.isFinite(v) || v <= 0) return 'Ask';
+      return '₹' + v.toLocaleString('en-IN');
+    }
+    function ratingHtml(svc) {
+      const r = Number(svc.rating || svc.avg_rating || 0);
+      const n = Number(svc.worker_count || svc.worker_count || 0);
+      if (r) return `<span class="svc-rating"><i class="fas fa-star"></i>${r.toFixed(1)}</span>`;
+      if (n > 0) return `<span class="svc-rating">${n} pro${n === 1 ? '' : 's'}</span>`;
+      return '';
+    }
+    function matchesCat(svc, cat) {
+      if (!cat) return true;
+      const raw = String(svc.category || '').toLowerCase();
+      const slug = raw.replace(/\s+/g, '-');
+      if (slug === cat || raw === cat) return true;
+      if (cat === 'ac-repair') return /ac|air.?cond/i.test(raw);
+      if (cat === 'appliance') return /appliance|repair/i.test(raw);
+      if (cat === 'beauty') return /beaut|barber|salon|spa/i.test(raw);
+      if (cat === 'cleaning') return /clean/i.test(raw);
+      if (cat === 'electrical') return /electric/i.test(raw);
+      if (cat === 'plumbing') return /plumb/i.test(raw);
+      if (cat === 'painting') return /paint/i.test(raw);
+      if (cat === 'carpentry') return /carpent|furniture|wood/i.test(raw);
+      return raw.includes(cat.replace(/-/g, ' '));
+    }
+    function dedupeServices(rows) {
+      const map = new Map();
+      for (const s of rows) {
+        const key = String(s.name || s.id).toLowerCase().trim();
+        const score = Number(s.worker_count || s.worker_count || 0);
+        const prev = map.get(key);
+        if (!prev || score > Number(prev.worker_count || prev.worker_count || 0)) map.set(key, s);
+      }
+      return [...map.values()];
+    }
+
+    function renderChips() {
+      const el = document.getElementById('svcChips');
+      el.innerHTML = CATS.map((c) => {
+        const on = (c.id || '') === (activeCat || '');
+        return `<button type="button" class="${on ? 'is-on' : ''}" data-cat="${escapeHtml(c.id)}" role="tab" aria-selected="${on}">
+          <i class="fas ${c.icon}"></i>${escapeHtml(c.label)}
+        </button>`;
+      }).join('');
+      el.querySelectorAll('button').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          activeCat = btn.dataset.cat || '';
+          renderChips();
+          loadServices();
         });
+      });
+    }
 
-        // Load services from API
-        async function loadServices() {
-            const servicesGrid = document.getElementById('servicesGrid');
-            const totalCount = document.getElementById('totalCount');
-            
-            try {
-                // Get URL parameters for filtering
-                const urlParams = new URLSearchParams(window.location.search);
-                const category = urlParams.get('category');
-                const search = urlParams.get('q');
-                
-                // Build API URL with filters
-                let url = '/services';
-                const params = new URLSearchParams();
-                if (category) params.append('category', category);
-                if (search) params.append('search', search);
-                if (params.toString()) url += '?' + params.toString();
-                
-                console.log('📡 Fetching services from:', url);
-                
-                // Call the API
-                const response = await API.get(url);
-                console.log('✅ API Response:', response);
-                
-                const services = response.data || [];
-                totalCount.textContent = services.length;
-                
-                if (services.length === 0) {
-                    showEmptyState(servicesGrid, 'No services found');
-                    return;
-                }
-                
-                renderServices(services);
-                
-            } catch (error) {
-                console.error('❌ Failed to load services:', error);
-                showError(servicesGrid, error.message);
-            }
-        }
+    function skeleton() {
+      return Array.from({ length: 6 }, () => '<div class="svc-card svc-skel"></div>').join('');
+    }
 
-        // Render services in grid
-      function renderServices(services) {
-    const servicesGrid = document.getElementById('servicesGrid');
-    
-    servicesGrid.innerHTML = services.map(service => {
-        const imageUrl = getImageUrl(service.image_url);
-        
-        return `
-            <div class="service-card" onclick="viewService('${service.id}')">
-                <div class="service-image">
-                    ${imageUrl ? 
-                        `<img src="${imageUrl}" alt="${service.name}">` : 
-                        `<i class="fas fa-${service.icon || 'tools'}"></i>`
-                    }
-                </div>
-                <div class="service-content">
-                    <div class="service-category">${service.category}</div>
-                    <h3>${service.name}</h3>
-                    <p class="service-description">${service.description || ''}</p>
-                    <div class="service-price">₹${service.base_price}</div>
-                    <button class="book-btn" onclick="event.stopPropagation(); bookService('${service.id}')">
-                        Book Now
-                    </button>
-                </div>
+    function emptyHtml(msg) {
+      return `<div class="svc-empty">
+        <div class="svc-empty-icon"><i class="fas fa-house-chimney"></i></div>
+        <h3>${escapeHtml(msg)}</h3>
+        <p>Pros in your city show up here. Try another category, or check back soon.</p>
+      </div>`;
+    }
+
+    function cardHtml(svc) {
+      const img = mediaUrl(svc.image_url || svc.image || svc.cover_url);
+      const name = escapeHtml(svc.name || 'Service');
+      const cat = escapeHtml(svc.category || 'Home');
+      const desc = escapeHtml(String(svc.description || '').slice(0, 72));
+      const id = encodeURIComponent(svc.id);
+      const icon = catIcon(svc.category);
+      const cover = img
+        ? `<img src="${escapeHtml(img)}" alt="" loading="lazy">`
+        : `<i class="fas ${icon}"></i>`;
+      return `<article class="svc-card" data-id="${id}">
+        <div class="svc-cover">${cover}<span class="svc-pill">${cat}</span></div>
+        <div class="svc-body">
+          <h4>${name}</h4>
+          ${desc ? `<p>${desc}</p>` : ''}
+          <div class="svc-meta">
+            ${ratingHtml(svc)}
+            <strong>${formatPrice(svc.base_price || svc.price)}${String(svc.price_type || '').toLowerCase() === 'hourly' ? '/hr' : ''}</strong>
             </div>
-        `;
-    }).join('');
-}
-        // Show loading state
-        function showLoading(container) {
-            container.innerHTML = `
-                <div class="loading-spinner">
-                    <i class="fas fa-spinner fa-spin"></i>
-                    <p>Loading services...</p>
-                </div>
-            `;
+          <button type="button" class="svc-book" data-book="${id}">Book</button>
+        </div>
+      </article>`;
+    }
+
+        async function loadServices() {
+      const grid = document.getElementById('svcGrid');
+      const countEl = document.getElementById('svcCount');
+      const heading = document.getElementById('svcHeading');
+      grid.classList.remove('is-empty');
+      grid.innerHTML = skeleton();
+      heading.textContent = activeCat
+        ? (CATS.find((c) => c.id === activeCat)?.label || activeCat) + ' near you'
+        : (query ? 'Results' : 'For you');
+      try {
+        const res = await API.get('/services');
+        let rows = res?.data || res?.services || [];
+        if (!Array.isArray(rows)) rows = [];
+        rows = dedupeServices(rows);
+        if (activeCat) rows = rows.filter((s) => matchesCat(s, activeCat));
+        if (query) {
+          const ql = query.toLowerCase();
+          rows = rows.filter((s) =>
+            [s.name, s.category, s.description].join(' ').toLowerCase().includes(ql)
+          );
         }
-
-        // Show empty state
-        function showEmptyState(container, message) {
-            container.innerHTML = `
-                <div class="empty-state">
-                    <i class="fas fa-search"></i>
-                    <h3>${message}</h3>
-                    <p>Try adjusting your search or check back later</p>
-                </div>
-            `;
+        countEl.textContent = rows.length ? rows.length + ' available' : '';
+        if (!rows.length) {
+          grid.classList.add('is-empty');
+          grid.innerHTML = emptyHtml(query || activeCat ? 'No matches yet' : 'Pros coming soon');
+          return;
         }
+        grid.innerHTML = rows.map(cardHtml).join('');
+        grid.querySelectorAll('.svc-card').forEach((card) => {
+          card.addEventListener('click', (e) => {
+            if (e.target.closest('[data-book]')) return;
+            goBook(card.dataset.id);
+          });
+        });
+        grid.querySelectorAll('[data-book]').forEach((btn) => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            goBook(btn.dataset.book);
+          });
+        });
+      } catch (err) {
+        grid.classList.add('is-empty');
+        grid.innerHTML = emptyHtml(err.message || 'Could not load services');
+        countEl.textContent = '';
+      }
+    }
 
-        // Show error state
-        function showError(container, message) {
-            container.innerHTML = `
-                <div class="error-message">
-                    <i class="fas fa-exclamation-triangle"></i>
-                    <h3>Failed to load services</h3>
-                    <p>${message}</p>
-                    <button class="book-btn" onclick="location.reload()" style="margin-top: 1rem;">
-                        Try Again
-                    </button>
-                </div>
-            `;
-        }
-
-        // View service details
-        window.viewService = function(serviceId) {
-            window.location.href = `/booking.html?service=${encodeURIComponent(serviceId)}`;
-        };
-
-        // Book service
-        window.bookService = function(serviceId) {
-            const user = Auth?.getUser();
-            
+    function goBook(id) {
+      if (!id) return;
+      const user = window.Auth?.getUser?.();
+      const dest = appHref('/booking.html?service=' + id);
             if (!user) {
-                Toast.show('Please login to book a service', 'warning');
-                window.location.href = `/login.html?redirect=${encodeURIComponent(window.location.href)}`;
+        if (window.Toast?.show) Toast.show('Please login to book a service', 'warning');
+        location.href = '/login.html?redirect=' + encodeURIComponent(dest);
                 return;
             }
-            
-            window.location.href = `/booking.html?service=${serviceId}`;
-        };
+      location.href = dest;
+    }
 
-        // Handle URL parameters on page load
-        function handleUrlParams() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const category = urlParams.get('category');
-            const search = urlParams.get('q');
-            
-            if (category || search) {
-                // Update page title to reflect filter
-                document.querySelector('.page-header h1').textContent = 
-                    category ? `${category} Services` : 'Search Results';
-            }
-        }
-
-        // Initialize
-        handleUrlParams();
+    document.addEventListener('DOMContentLoaded', () => {
+      SocialShell?.initPage?.({ activeNav: 'explore' });
+      renderChips();
+      const input = document.getElementById('svcSearch');
+      if (query) input.value = query;
+      let t;
+      input.addEventListener('input', () => {
+        clearTimeout(t);
+        t = setTimeout(() => {
+          query = input.value.trim();
+          loadServices();
+        }, 280);
+      });
+      input.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        query = input.value.trim();
+        loadServices();
+      });
+      document.getElementById('svcHeroCta').addEventListener('click', () => {
+        document.getElementById('svcGrid').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+      loadServices();
+    });
     </script>
 </body>
 </html>

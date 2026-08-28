@@ -3,6 +3,7 @@ const referralEngine = require('../services/referralEngine');
 const rewardEngine = require('../services/rewardEngine');
 const missionEngine = require('../services/missionEngine');
 const broadcastTracker = require('../services/broadcastTracker');
+const { clampLimit, clampOffset } = require('../../../lib/pagination');
 const leaderboardService = require('../services/leaderboardService');
 const analyticsService = require('../services/analyticsService');
 const fraudService = require('../services/fraudService');
@@ -94,8 +95,8 @@ exports.dashboard = async (req, res) => {
 
 exports.history = async (req, res) => {
   try {
-    const limit = Math.min(100, Number(req.query.limit) || 50);
-    const offset = Number(req.query.offset) || 0;
+    const limit = clampLimit(req.query.limit, { fallback: 50, max: 100 });
+    const offset = clampOffset(req.query.offset);
     return ok(res, await referralEngine.getHistory(req.userId, { limit, offset }));
   } catch (e) {
     return fail(res, e, 500);
@@ -196,12 +197,12 @@ exports.leaderboard = async (req, res) => {
       type === 'income'
         ? await leaderboardService.incomeLeaderboard({
             period,
-            limit: Number(req.query.limit) || 50,
+            limit: clampLimit(req.query.limit, { fallback: 50, max: 100 }),
             viewerId: req.userId || null,
           })
         : await leaderboardService.referralLeaderboard({
             period,
-            limit: Number(req.query.limit) || 50,
+            limit: clampLimit(req.query.limit, { fallback: 50, max: 100 }),
             viewerId: req.userId || null,
           });
     return ok(res, data);

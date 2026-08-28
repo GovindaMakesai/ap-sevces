@@ -12,6 +12,7 @@ const {
   flushMemberSessionStats,
 } = require('./liveUserAnalyticsService');
 const redis = require('../lib/redis');
+const { toJsonb, safeDisplayName } = require('../lib/pgJsonb');
 
 const SEAT_REQUEST_TTL_SEC = 900;
 let liveIo = null;
@@ -19,6 +20,24 @@ const listRoomsCache = new Map();
 
 function setLiveIo(io) {
   liveIo = io || null;
+}
+
+function notifyUserEnteredLive(userId) {
+  if (!userId) return;
+  setImmediate(() => {
+    try {
+      require('./userBusyService').onUserEnteredLive(userId).catch(() => {});
+    } catch (_e) {}
+  });
+}
+
+function notifyUserLeftLive(userId) {
+  if (!userId) return;
+  setImmediate(() => {
+    try {
+      require('./userBusyService').onUserLeftLive(userId).catch(() => {});
+    } catch (_e) {}
+  });
 }
 
 function seatRequestStoreKey(channel) {
@@ -89,10 +108,10 @@ const roomCache = new Map();
 const roomStyleByChannel = new Map();
 const snapshotCache = new Map();
 const heartbeatCreditAt = new Map();
-const ROOM_CACHE_TTL_MS = 15000;
+const ROOM_CACHE_TTL_MS = 30000;
 const SNAPSHOT_CACHE_TTL_MS = 8000;
-const HEARTBEAT_CREDIT_MIN_MS = 28000;
-const HEARTBEAT_SEEN_MIN_MS = 18000;
+const HEARTBEAT_CREDIT_MIN_MS = 45000;
+const HEARTBEAT_SEEN_MIN_MS = 30000;
 const heartbeatSeenAt = new Map();
 
 function cacheRoom(channel, row) {
@@ -140,6 +159,18 @@ function parsePayload(raw) {
   }
 }
 
+async function insertRoomEvent(queryable, { liveRoomId, userId = null, eventType, payload }) {
+  try {
+    await queryable.query(
+      `INSERT INTO live_room_events (live_room_id, user_id, event_type, payload)
+       VALUES ($1, $2, $3, $4::jsonb)`,
+      [liveRoomId, userId, eventType, toJsonb(payload || {})]
+    );
+  } catch (e) {
+    console.warn('[live] event insert skipped', eventType, e.message);
+  }
+}
+
 async function findByChannel(channel) {
   const cached = getCachedRoom(channel);
   if (cached) return cached;
@@ -166,14 +197,14 @@ async function hostRoom({ channel, roomType, hostUserId, hostDisplayName, stream
          viewer_count = GREATEST(viewer_count, 1),
          stream_cover_url = COALESCE($5, stream_cover_url),
          updated_at = CURRENT_TIMESTAMP WHERE channel = $4`,
-        [hostUserId, hostDisplayName, roomType, channel, streamCoverUrl || null]
+        [hostUserId, safeDisplayName(hostDisplayName), roomType, channel, streamCoverUrl || null]
       );
       room = await client.query(`SELECT * FROM live_rooms WHERE channel = $1`, [channel]);
     } else {
       room = await client.query(
         `INSERT INTO live_rooms (channel, room_type, host_user_id, host_display_name, status, viewer_count, stream_cover_url)
          VALUES ($1, $2, $3, $4, 'active', 1, $5) RETURNING *`,
-        [channel, roomType, hostUserId, hostDisplayName, streamCoverUrl || null]
+        [channel, roomType, hostUserId, safeDisplayName(hostDisplayName), streamCoverUrl || null]
       );
     }
     const liveRoom = room.rows[0];
@@ -189,7 +220,7 @@ async function hostRoom({ channel, roomType, hostUserId, hostDisplayName, stream
       `INSERT INTO live_room_members (live_room_id, user_id, display_name, role, left_at, last_seen_at)
        VALUES ($1, $2, $3, 'host', NULL, CURRENT_TIMESTAMP)
        ON CONFLICT (live_room_id, user_id) DO UPDATE SET display_name = EXCLUDED.display_name, role = 'host', left_at = NULL, joined_at = CURRENT_TIMESTAMP, last_seen_at = CURRENT_TIMESTAMP, active_seconds = 0`,
-      [liveRoom.id, hostUserId, hostDisplayName]
+      [liveRoom.id, hostUserId, safeDisplayName(hostDisplayName)]
     );
 
     const countRes = await client.query(
@@ -201,11 +232,12 @@ async function hostRoom({ channel, roomType, hostUserId, hostDisplayName, stream
       [countRes.rows[0].c, liveRoom.id]
     );
 
-    await client.query(
-      `INSERT INTO live_room_events (live_room_id, user_id, event_type, payload)
-       VALUES ($1, $2, 'room_started', $3)`,
-      [liveRoom.id, hostUserId, JSON.stringify({ channel, room_type: roomType })]
-    );
+    await insertRoomEvent(client, {
+      liveRoomId: liveRoom.id,
+      userId: hostUserId,
+      eventType: 'room_started',
+      payload: { channel, room_type: roomType },
+    });
 
     await client.query('COMMIT');
     room = await client.query(`SELECT * FROM live_rooms WHERE channel = $1`, [channel]);
@@ -227,6 +259,7 @@ async function hostRoom({ channel, roomType, hostUserId, hostDisplayName, stream
       }
     });
 
+    notifyUserEnteredLive(hostUserId);
     return liveRoomFresh;
   } catch (e) {
     await client.query('ROLLBACK');
@@ -271,7 +304,7 @@ async function joinRoom({ channel, userId, displayName, asHost = false }) {
          joined_at = CURRENT_TIMESTAMP,
          last_seen_at = CURRENT_TIMESTAMP,
          active_seconds = 0`,
-      [room.id, userId, displayName, asHost ? 'host' : 'viewer', asHost ? 1 : null]
+      [room.id, userId, safeDisplayName(displayName), asHost ? 'host' : 'viewer', asHost ? 1 : null]
     );
 
     const countRes = await client.query(
@@ -285,10 +318,12 @@ async function joinRoom({ channel, userId, displayName, asHost = false }) {
     );
 
     if (!wasAlreadyInRoom) {
-      await client.query(
-        `INSERT INTO live_room_events (live_room_id, user_id, event_type, payload) VALUES ($1, $2, 'join', $3)`,
-        [room.id, userId, JSON.stringify({ display_name: displayName })]
-      );
+      await insertRoomEvent(client, {
+        liveRoomId: room.id,
+        userId,
+        eventType: 'join',
+        payload: { display_name: safeDisplayName(displayName) },
+      });
       try {
         await recordRoomJoin(userId, room.room_type);
       } catch (_e) {}
@@ -297,6 +332,7 @@ async function joinRoom({ channel, userId, displayName, asHost = false }) {
     room = (await client.query(`SELECT * FROM live_rooms WHERE id = $1`, [room.id])).rows[0];
     await client.query('COMMIT');
     cacheRoom(channel, room);
+    notifyUserEnteredLive(userId);
     return { ...room, isNewJoin: !wasAlreadyInRoom };
   } catch (e) {
     await client.query('ROLLBACK');
@@ -342,11 +378,14 @@ async function leaveRoom({ channel, userId }) {
     [room.id, userId]
   );
   const leaveName = memberRow.rows[0]?.display_name || 'Someone';
-  await db.query(
-    `INSERT INTO live_room_events (live_room_id, user_id, event_type, payload) VALUES ($1, $2, 'leave', $3)`,
-    [room.id, userId, JSON.stringify({ display_name: leaveName })]
-  );
+  await insertRoomEvent(db, {
+    liveRoomId: room.id,
+    userId,
+    eventType: 'leave',
+    payload: { display_name: safeDisplayName(leaveName) },
+  });
 
+  notifyUserLeftLive(userId);
   return { ...room, viewer_count: viewers };
 }
 
@@ -507,7 +546,7 @@ async function buildSnapshot(channel, { bypassCache = false } = {}) {
     .map((m) => ({
       userId: m.user_id,
       displayId: m.display_id != null ? String(m.display_id) : null,
-      name: m.display_name,
+      name: safeDisplayName(m.display_name, 32),
       profilePic: m.profile_pic || null,
       muted: m.is_muted,
       chatMuted: Boolean(m.is_chat_muted),
@@ -524,7 +563,7 @@ async function buildSnapshot(channel, { bypassCache = false } = {}) {
   const onlineMembers = members.map((m) => ({
     userId: m.user_id,
     displayId: m.display_id != null ? String(m.display_id) : null,
-    name: m.display_name,
+    name: safeDisplayName(m.display_name, 32),
     role: m.role,
     userRole: m.user_role || null,
     profilePic: m.profile_pic || null,
@@ -610,9 +649,9 @@ async function buildSnapshot(channel, { bypassCache = false } = {}) {
 
 async function logChatEvent(liveRoomId, userId, payload) {
   const res = await db.query(
-    `INSERT INTO live_room_events (live_room_id, user_id, event_type, payload) VALUES ($1, $2, 'chat', $3)
+    `INSERT INTO live_room_events (live_room_id, user_id, event_type, payload) VALUES ($1, $2, 'chat', $3::jsonb)
      RETURNING id`,
-    [liveRoomId, userId, JSON.stringify(payload)]
+    [liveRoomId, userId, toJsonb(payload)]
   );
   return res.rows[0]?.id;
 }
@@ -660,7 +699,7 @@ async function softDeleteChatEvent({ liveRoomId, messageId, deletedBy }) {
     [
       eventId,
       liveRoomId,
-      JSON.stringify({
+      toJsonb({
         deleted: true,
         deleted_by: deletedBy || null,
         deleted_at: new Date().toISOString(),
@@ -686,7 +725,7 @@ async function setRoomChatLocked({ channel, locked }) {
 }
 
 async function clearRoomChat({ liveRoomId, clearedBy }) {
-  const meta = JSON.stringify({
+  const meta = toJsonb({
     deleted: true,
     cleared: true,
     deleted_by: clearedBy || null,
@@ -830,13 +869,16 @@ async function promoteToSpeaker({ channel, userId, displayName, seatIndex = null
       }
     }
 
-    await client.query(
-      `INSERT INTO live_room_events (live_room_id, user_id, event_type, payload) VALUES ($1, $2, 'seat_join', $3)`,
-      [room.id, userId, JSON.stringify({ display_name: name, seat_index: updated.rows[0].seat_index })]
-    );
+    await insertRoomEvent(client, {
+      liveRoomId: room.id,
+      userId,
+      eventType: 'seat_join',
+      payload: { display_name: safeDisplayName(name), seat_index: updated.rows[0].seat_index },
+    });
 
     await client.query('COMMIT');
     invalidateRoomCache(channel);
+    notifyUserEnteredLive(userId);
     return { room, member: updated.rows[0] };
   } catch (e) {
     await db.safeRollback(client);
@@ -894,7 +936,7 @@ async function updateStreamPresentation({ channel, userId, displayName, coverUrl
     throw new Error('Only the host can update live title and picture');
   }
   const name =
-    displayName != null ? String(displayName).trim().slice(0, 48) : null;
+    displayName != null ? safeDisplayName(displayName, 48) : null;
   const cover =
     coverUrl === undefined
       ? undefined
@@ -936,8 +978,8 @@ async function endRoom(channel, reason = 'host_ended') {
     [room.id]
   );
   await db.query(
-    `INSERT INTO live_room_events (live_room_id, event_type, payload) VALUES ($1, 'room_ended', $2)`,
-    [room.id, JSON.stringify({ reason })]
+    `INSERT INTO live_room_events (live_room_id, event_type, payload) VALUES ($1, 'room_ended', $2::jsonb)`,
+    [room.id, toJsonb({ reason })]
   );
   const endedRow = (
     await db.query(`SELECT * FROM live_rooms WHERE id = $1`, [room.id])
@@ -1008,6 +1050,46 @@ async function endOrphanRooms() {
   return res.rows.length;
 }
 
+async function attachPreviewPics(rows) {
+  if (!Array.isArray(rows) || !rows.length) return rows || [];
+  const channels = rows.map((r) => r.channel).filter(Boolean);
+  if (!channels.length) return rows;
+  try {
+    const picsRes = await db.query(
+      `SELECT lr.channel, m.user_id,
+              COALESCE(u.profile_pic, w.profile_photo_url) AS pic,
+              NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), '') AS name,
+              CASE WHEN m.user_id = lr.host_user_id THEN 0 ELSE 1 END AS rank
+       FROM live_rooms lr
+       JOIN live_room_members m ON m.live_room_id = lr.id AND m.left_at IS NULL
+       LEFT JOIN users u ON u.id = m.user_id
+       LEFT JOIN workers w ON w.user_id = u.id
+       WHERE lr.channel = ANY($1::text[])
+       ORDER BY lr.channel, rank, m.last_seen_at DESC NULLS LAST`,
+      [channels]
+    );
+    const byChannel = new Map();
+    picsRes.rows.forEach((row) => {
+      const list = byChannel.get(row.channel) || [];
+      if (list.length >= 4) return;
+      if (list.some((x) => String(x.userId) === String(row.user_id))) return;
+      list.push({
+        pic: String(row.pic || '').trim() || null,
+        name: String(row.name || '').trim() || 'Guest',
+        userId: row.user_id,
+      });
+      byChannel.set(row.channel, list);
+    });
+    return rows.map((r) => ({
+      ...r,
+      preview_pics: byChannel.get(r.channel) || [],
+    }));
+  } catch (err) {
+    console.warn('[live] preview pics', err.message);
+    return rows.map((r) => ({ ...r, preview_pics: r.preview_pics || [] }));
+  }
+}
+
 async function listActiveRooms({ roomType, limit = 30, sort = 'trending' } = {}) {
   const cacheKey = `${roomType || 'all'}:${sort}:${limit}`;
   const hit = listRoomsCache.get(cacheKey);
@@ -1048,8 +1130,9 @@ async function listActiveRooms({ roomType, limit = 30, sort = 'trending' } = {})
   sql += ` ORDER BY ${orderBy} LIMIT $${params.length}`;
   try {
     const res = await db.query(sql, params);
-    listRoomsCache.set(cacheKey, { at: Date.now(), rows: res.rows });
-    return res.rows;
+    const rows = await attachPreviewPics(res.rows);
+    listRoomsCache.set(cacheKey, { at: Date.now(), rows });
+    return rows;
   } catch (err) {
     const msg = String(err.message || '');
     // Older DBs without users.display_id or stream_cover_url — retry without those columns
@@ -1058,8 +1141,9 @@ async function listActiveRooms({ roomType, limit = 30, sort = 'trending' } = {})
         .replace(/,\s*u\.display_id AS host_display_id/, '')
         .replace(/,\s*lr\.stream_cover_url/, '');
       const res = await db.query(fallbackSql, params);
-      listRoomsCache.set(cacheKey, { at: Date.now(), rows: res.rows });
-      return res.rows;
+      const rows = await attachPreviewPics(res.rows);
+      listRoomsCache.set(cacheKey, { at: Date.now(), rows });
+      return rows;
     }
     if (hit?.rows) return hit.rows;
     throw err;
@@ -1097,49 +1181,62 @@ async function isMemberOnStage(channel, userId) {
 }
 
 async function touchHeartbeat(channel, userId) {
-  const room = await findByChannel(channel);
-  if (!room || room.status !== 'active') return;
+  try {
+    if (!channel || !userId) return;
+    const creditKey = `${channel}:${userId}`;
+    const now = Date.now();
+    const lastSeen = heartbeatSeenAt.get(creditKey) || 0;
+    if (now - lastSeen < HEARTBEAT_SEEN_MIN_MS) return;
+    if (db.isPoolBusy && db.isPoolBusy()) return;
+    heartbeatSeenAt.set(creditKey, now);
 
-  const creditKey = `${room.id}:${userId}`;
-  const now = Date.now();
-  const lastSeen = heartbeatSeenAt.get(creditKey) || 0;
-  if (now - lastSeen < HEARTBEAT_SEEN_MIN_MS) return;
-  heartbeatSeenAt.set(creditKey, now);
+    const room = await findByChannel(channel);
+    if (!room || room.status !== 'active') return;
 
-  const lastCredit = heartbeatCreditAt.get(creditKey) || 0;
-  const shouldCredit = now - lastCredit >= HEARTBEAT_CREDIT_MIN_MS;
+    const lastCredit = heartbeatCreditAt.get(creditKey) || 0;
+    const shouldCredit = now - lastCredit >= HEARTBEAT_CREDIT_MIN_MS;
 
-  await db.query(
-    `UPDATE live_room_members SET last_seen_at = CURRENT_TIMESTAMP
-     WHERE live_room_id = $1 AND user_id = $2 AND left_at IS NULL`,
-    [room.id, userId]
-  );
-
-  if (!shouldCredit) return;
-  heartbeatCreditAt.set(creditKey, now);
-
-  let addSec = HEARTBEAT_SECONDS;
-  if (room.updated_at) {
-    const gap = Math.floor((now - new Date(room.updated_at).getTime()) / 1000);
-    if (Number.isFinite(gap) && gap > 0) addSec = Math.min(60, Math.max(1, gap));
-  }
-  await accumulateMemberWatchTime(room, userId, addSec);
-
-  const isHost = String(room.host_user_id) === String(userId);
-  if (isHost) {
-    await accumulateHostHeartbeat(room, userId, addSec);
-    const countRes = await db.query(
-      `SELECT COUNT(*)::int AS c FROM live_room_members WHERE live_room_id = $1 AND left_at IS NULL`,
-      [room.id]
-    );
-    const viewers = countRes.rows[0]?.c || room.viewer_count || 0;
     await db.query(
-      `UPDATE live_rooms SET updated_at = CURRENT_TIMESTAMP, viewer_count = $2,
-       peak_viewer_count = GREATEST(COALESCE(peak_viewer_count, 0), $2)
-       WHERE id = $1`,
-      [room.id, viewers]
+      `UPDATE live_room_members SET last_seen_at = CURRENT_TIMESTAMP
+       WHERE live_room_id = $1 AND user_id = $2 AND left_at IS NULL`,
+      [room.id, userId]
     );
-    invalidateRoomCache(channel);
+
+    if (!shouldCredit) return;
+    heartbeatCreditAt.set(creditKey, now);
+
+    let addSec = HEARTBEAT_SECONDS;
+    if (room.updated_at) {
+      const gap = Math.floor((now - new Date(room.updated_at).getTime()) / 1000);
+      if (Number.isFinite(gap) && gap > 0) addSec = Math.min(60, Math.max(1, gap));
+    }
+    await accumulateMemberWatchTime(room, userId, addSec);
+
+    const isHost = String(room.host_user_id) === String(userId);
+    if (isHost) {
+      await accumulateHostHeartbeat(room, userId, addSec);
+      const countRes = await db.query(
+        `SELECT COUNT(*)::int AS c FROM live_room_members WHERE live_room_id = $1 AND left_at IS NULL`,
+        [room.id]
+      );
+      const viewers = countRes.rows[0]?.c || room.viewer_count || 0;
+      await db.query(
+        `UPDATE live_rooms SET updated_at = CURRENT_TIMESTAMP, viewer_count = $2,
+         peak_viewer_count = GREATEST(COALESCE(peak_viewer_count, 0), $2)
+         WHERE id = $1`,
+        [room.id, viewers]
+      );
+      const cached = roomCache.get(channel);
+      if (cached?.row) {
+        cached.row.updated_at = new Date().toISOString();
+        cached.row.viewer_count = viewers;
+        cached.at = Date.now();
+      } else {
+        cacheRoom(channel, { ...room, updated_at: new Date().toISOString(), viewer_count: viewers });
+      }
+    }
+  } catch (_err) {
+    /* Pool timeout must not become an unhandled rejection and stall live. */
   }
 }
 
@@ -1563,8 +1660,8 @@ async function setRoomStyle(
   if (room) {
     try {
       await db.query(
-        `INSERT INTO live_room_events (live_room_id, event_type, payload) VALUES ($1, 'room_style', $2)`,
-        [room.id, JSON.stringify(style)]
+        `INSERT INTO live_room_events (live_room_id, event_type, payload) VALUES ($1, 'room_style', $2::jsonb)`,
+        [room.id, toJsonb(style)]
       );
     } catch (_e) {}
   }

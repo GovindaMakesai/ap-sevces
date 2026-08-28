@@ -6,7 +6,7 @@
     <title>Admin Dashboard - AP Services</title>
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
-    <!-- build: 20260804-agora-nav -->
+    <!-- build: 20260825-role-save -->
     
     <!-- Font Awesome 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -2273,8 +2273,8 @@
             <div class="modal-body">
                 <form id="addUserForm">
                     <div class="form-group">
-                        <label class="form-label">Full Name</label>
-                        <input type="text" class="form-control" id="newUserName" placeholder="Enter full name" required>
+                        <label class="form-label">Name</label>
+                        <input type="text" class="form-control" id="newUserName" placeholder="Name already on the account is enough" autocomplete="name">
                     </div>
                     <div class="form-group">
                         <label class="form-label">Email Address</label>
@@ -2331,7 +2331,7 @@
             </div>
             <div class="modal-footer">
                 <button class="btn-outline" onclick="closeModal('addUserModal')">Cancel</button>
-                <button class="btn-primary" id="userModalSaveBtn" onclick="saveUser()">Create User</button>
+                <button type="button" class="btn-primary" id="userModalSaveBtn" onclick="saveUser()">Create User</button>
             </div>
         </div>
     </div>
@@ -3757,11 +3757,18 @@
         };
 
         window.saveUser = async function() {
-            const fullName = (document.getElementById('newUserName').value || '').trim();
-            const [firstName, ...restName] = fullName.split(' ').filter(Boolean);
-            const lastName = restName.join(' ');
-            if (!firstName || !lastName) {
-                Toast.show('Please enter full name (first and last name)', 'warning');
+            const fullName = (document.getElementById('newUserName').value || '').trim().replace(/\s+/g, ' ');
+            const parts = fullName.split(' ').filter(Boolean);
+            const firstName = parts[0] || '';
+            const lastName = parts.slice(1).join(' ');
+            if (!firstName) {
+                Toast.show('Please enter a name', 'warning');
+                return;
+            }
+            /* Existing users often have only first_name (OAuth / single given name).
+               Do not block role saves that used to work before extra-role checkboxes. */
+            if (!editingUserId && !lastName) {
+                Toast.show('New users need a first and last name', 'warning');
                 return;
             }
 
@@ -3769,13 +3776,14 @@
             if (document.getElementById('extraRoleAgency')?.checked) extras.push('agency');
             if (document.getElementById('extraRoleCoinSeller')?.checked) extras.push('coin_seller');
             if (document.getElementById('extraRoleCreator')?.checked) extras.push('creator');
+            const primaryRole = document.getElementById('newUserRole').value;
             const userData = {
                 first_name: firstName,
                 last_name: lastName,
                 email: document.getElementById('newUserEmail').value,
                 phone: document.getElementById('newUserPhone').value,
-                role: document.getElementById('newUserRole').value,
-                roles: [document.getElementById('newUserRole').value, ...extras]
+                role: primaryRole,
+                roles: [primaryRole, ...extras]
             };
             const passwordValue = (document.getElementById('newUserPassword').value || '').trim();
             if (passwordValue) {

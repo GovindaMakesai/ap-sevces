@@ -262,13 +262,15 @@ async function settleGift({ giftId, hostUserId, grossCoins, senderId, giftType, 
 
   if (parties.agencyId && hostPerformance > 0) {
     const chain = await agencyTierService.getAgencyCommissionChain(parties.agencyId);
+    const ownerIds = chain.map((n) => n.owner_user_id);
+    const eligibleMap = await agencyTierService.batchAgencyOwnerEligible(
+      ownerIds,
+      cfg.inactive_days
+    );
     let childPct = 0;
     for (let i = 0; i < chain.length; i += 1) {
       const node = chain[i];
-      const eligible = await agencyTierService.isAgencyOwnerEligible(
-        node.owner_user_id,
-        cfg.inactive_days
-      );
+      const eligible = eligibleMap.get(String(node.owner_user_id));
       if (!eligible) {
         childPct = Math.max(childPct, Number(node.live_pct || 0));
         continue;

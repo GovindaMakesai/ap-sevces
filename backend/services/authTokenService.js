@@ -64,7 +64,7 @@ function signAccessToken(user) {
     {
       userId: user.id,
       role: user.role,
-      first_name: user.first_name,
+      first_name: require('../lib/pgJsonb').safeDisplayName(user.first_name || user.name || 'User', 32),
       type: 'access',
     },
     secret,
@@ -194,24 +194,45 @@ async function createOAuthExchangeCode(userId) {
 
 async function exchangeOAuthCode(code, res, meta = {}) {
   const codeHash = hashToken(code);
-  const row = await db.query(
-    `SELECT * FROM oauth_exchange_codes WHERE code_hash = $1 AND used_at IS NULL`,
-    [codeHash]
-  );
-  const rec = row.rows[0];
-  if (!rec) throw new Error('Invalid or used exchange code');
-  if (new Date(rec.expires_at) < new Date()) throw new Error('Exchange code expired');
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+    const row = await client.query(
+      `SELECT * FROM oauth_exchange_codes
+       WHERE code_hash = $1 AND used_at IS NULL
+       FOR UPDATE`,
+      [codeHash]
+    );
+    const rec = row.rows[0];
+    if (!rec) {
+      await client.query('ROLLBACK');
+      throw new Error('Invalid or used exchange code');
+    }
+    if (new Date(rec.expires_at) < new Date()) {
+      await client.query('ROLLBACK');
+      throw new Error('Exchange code expired');
+    }
 
-  await db.query(`UPDATE oauth_exchange_codes SET used_at = CURRENT_TIMESTAMP WHERE id = $1`, [rec.id]);
+    await client.query(`UPDATE oauth_exchange_codes SET used_at = CURRENT_TIMESTAMP WHERE id = $1`, [rec.id]);
 
-  const userRes = await db.query(
-    `SELECT id, role, first_name, last_name, email, is_active FROM users WHERE id = $1`,
-    [rec.user_id]
-  );
-  const user = userRes.rows[0];
-  if (!user || user.is_active === false) throw new Error('Your account has been deactivated');
+    const userRes = await client.query(
+      `SELECT id, role, first_name, last_name, email, is_active FROM users WHERE id = $1`,
+      [rec.user_id]
+    );
+    const user = userRes.rows[0];
+    if (!user || user.is_active === false) {
+      await client.query('ROLLBACK');
+      throw new Error('Your account has been deactivated');
+    }
 
-  return createSession(user, res, meta);
+    await client.query('COMMIT');
+    return createSession(user, res, meta);
+  } catch (e) {
+    await db.safeRollback(client);
+    throw e;
+  } finally {
+    client.release();
+  }
 }
 
 function parseCookies(req) {

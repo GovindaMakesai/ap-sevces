@@ -61,6 +61,23 @@ const walletLimiter = rateLimit({
     req.method === 'OPTIONS' || /\/wallet\/gifts(?:\?|$)/.test(String(req.originalUrl || req.url || '')),
 });
 
+const oauthLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: Number(process.env.OAUTH_RATE_LIMIT_MAX) || (isProduction ? 120 : 300),
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  message: { success: false, message: 'Too many sign-in attempts. Please wait and try again.' },
+});
+
+const matchLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: Number(process.env.MATCH_RATE_LIMIT_MAX) || (isProduction ? 30 : 80),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many match requests. Please slow down.' },
+});
+
 function applySecurityMiddleware(app) {
   app.use(
     helmet({
@@ -75,4 +92,4 @@ function applySecurityMiddleware(app) {
   app.use(globalLimiter);
 }
 
-module.exports = { applySecurityMiddleware, authLimiter, walletLimiter, globalLimiter };
+module.exports = { applySecurityMiddleware, authLimiter, walletLimiter, globalLimiter, oauthLimiter, matchLimiter };

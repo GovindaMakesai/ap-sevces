@@ -318,7 +318,7 @@ async function listUserRecharges(userId, { limit = 30 } = {}) {
 
 async function listPendingWithdrawals(limit = 50) {
   const res = await db.query(
-    `SELECT w.*, u.email, u.first_name, u.last_name
+    `SELECT w.*, u.email, u.first_name, u.last_name, u.profile_pic, u.phone, u.display_id
      FROM withdrawals w JOIN users u ON u.id = w.user_id
      WHERE w.status = 'pending' ORDER BY w.created_at ASC LIMIT $1`,
     [limit]

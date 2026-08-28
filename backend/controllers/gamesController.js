@@ -1,5 +1,6 @@
 const gameService = require('../services/gameService');
 const gameRoomService = require('../services/gameRoomService');
+const { clampLimit } = require('../lib/pagination');
 
 async function listCatalog(_req, res) {
   const data = await gameService.listCatalog({ activeOnly: true });
@@ -22,15 +23,15 @@ async function history(req, res) {
   try {
     const scope = String(req.query.scope || 'mine').toLowerCase();
     if (scope === 'wins' || scope === 'public') {
-      const data = await gameRoomService.recentGlobalHistory(Number(req.query.limit || 20));
+      const data = await gameRoomService.recentGlobalHistory(clampLimit(req.query.limit, { max: 50, fallback: 20 }));
       return res.json({ success: true, data });
     }
     if (scope === 'outcomes') {
-      const data = await gameRoomService.recentOutcomes(Number(req.query.limit || 24));
+      const data = await gameRoomService.recentOutcomes(clampLimit(req.query.limit, { max: 50, fallback: 24 }));
       return res.json({ success: true, data });
     }
     const data = await gameService.listHistory(req.userId, req.params.slug, {
-      limit: Number(req.query.limit || 20),
+      limit: clampLimit(req.query.limit, { max: 50, fallback: 20 }),
     });
     res.json({ success: true, data });
   } catch (e) {
@@ -41,7 +42,7 @@ async function history(req, res) {
 async function leaderboard(req, res) {
   try {
     const data = await gameService.getLeaderboard(req.params.slug, {
-      limit: Number(req.query.limit || 10),
+      limit: clampLimit(req.query.limit, { max: 50, fallback: 10 }),
       lookbackDays: Number(req.query.days || 7),
       mode: String(req.query.mode || 'players').toLowerCase() === 'rounds' ? 'rounds' : 'players',
     });

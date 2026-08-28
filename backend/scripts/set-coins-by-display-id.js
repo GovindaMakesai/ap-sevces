@@ -52,7 +52,7 @@ async function main() {
         `INSERT INTO coin_seller_profiles (user_id, display_name, inventory_coins, gift_inventory_coins, is_active)
          VALUES ($1, $2, 0, 0, TRUE)
          ON CONFLICT (user_id) DO UPDATE SET is_active = TRUE`,
-        [user.id, `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Coin Seller']
+        [user.id, (`${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Coin Seller').slice(0, 255)]
       );
       inv = 0;
     }
