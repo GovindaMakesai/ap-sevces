@@ -2,6 +2,7 @@ const liveRoomService = require('../services/liveRoomService');
 const agoraTokenService = require('../services/agoraTokenService');
 const followService = require('../services/followService');
 const matchCallService = require('../services/matchCallService');
+const { isMatchCallEnabled } = require('../lib/matchCallFeature');
 const { clampLimit } = require('../lib/pagination');
 
 exports.listActiveRooms = async (req, res) => {
@@ -51,7 +52,7 @@ exports.agoraToken = async (req, res) => {
     }
 
     if (wantsPublisher) {
-      const matchChannel = matchCallService.isMatchChannel(channel);
+      const matchChannel = isMatchCallEnabled() && matchCallService.isMatchChannel(channel);
       if (matchChannel) {
         const inMatch = await matchCallService.userInActiveMatchByChannel(req.userId, channel);
         if (!inMatch) {

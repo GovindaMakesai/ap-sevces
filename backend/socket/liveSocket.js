@@ -110,14 +110,23 @@ function registerLiveSocket(io) {
 
         try {
           const userBusyService = require('../services/userBusyService');
-          await userBusyService.assertCanJoinLive(socket.userId);
+          const { isMatchCallEnabled, isMissingRelationError } = require('../lib/matchCallFeature');
+          if (isMatchCallEnabled()) {
+            await userBusyService.assertCanJoinLive(socket.userId);
+          }
         } catch (busyErr) {
-          safeAck(ack, answeredRef, {
-            ok: false,
-            code: busyErr.code || 'IN_MATCH_CALL',
-            message: busyErr.message || 'End your match call before joining live',
-          });
-          return;
+          if (busyErr?.code === 'IN_MATCH_CALL') {
+            safeAck(ack, answeredRef, {
+              ok: false,
+              code: busyErr.code,
+              message: busyErr.message || 'End your match call before joining live',
+            });
+            return;
+          }
+          const { isMissingRelationError: missingRel } = require('../lib/matchCallFeature');
+          if (!missingRel(busyErr)) {
+            console.warn('[live] busy check skipped:', busyErr.message);
+          }
         }
 
         const displayName = safeDisplayName(

@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const db = require('../config/database');
 const walletService = require('./walletService');
 const matchQueueStore = require('./matchQueueStore');
+const { isMatchCallEnabled, isMissingRelationError } = require('../lib/matchCallFeature');
 const { uidFromUserId } = require('../lib/agoraUid');
 
 function busyService() {
@@ -112,26 +113,38 @@ async function popAvailablePartner(mode, selfId) {
 }
 
 async function activeMatchFor(userId) {
-  const res = await db.query(
-    `SELECT * FROM match_calls
-     WHERE (user_a = $1 OR user_b = $1)
-       AND status IN ('matched', 'connecting', 'connected')
-     ORDER BY created_at DESC LIMIT 1`,
-    [userId]
-  );
-  return res.rows[0] || null;
+  if (!isMatchCallEnabled()) return null;
+  try {
+    const res = await db.query(
+      `SELECT * FROM match_calls
+       WHERE (user_a = $1 OR user_b = $1)
+         AND status IN ('matched', 'connecting', 'connected')
+       ORDER BY created_at DESC LIMIT 1`,
+      [userId]
+    );
+    return res.rows[0] || null;
+  } catch (err) {
+    if (isMissingRelationError(err)) return null;
+    throw err;
+  }
 }
 
 async function userInActiveMatchByChannel(userId, channel) {
-  const res = await db.query(
-    `SELECT id FROM match_calls
-     WHERE channel = $1
-       AND (user_a = $2 OR user_b = $2)
-       AND status IN ('matched', 'connecting', 'connected')
-     LIMIT 1`,
-    [channel, userId]
-  );
-  return Boolean(res.rows[0]);
+  if (!isMatchCallEnabled()) return false;
+  try {
+    const res = await db.query(
+      `SELECT id FROM match_calls
+       WHERE channel = $1
+         AND (user_a = $2 OR user_b = $2)
+         AND status IN ('matched', 'connecting', 'connected')
+       LIMIT 1`,
+      [channel, userId]
+    );
+    return Boolean(res.rows[0]);
+  } catch (err) {
+    if (isMissingRelationError(err)) return false;
+    throw err;
+  }
 }
 
 function isMatchChannel(channel) {

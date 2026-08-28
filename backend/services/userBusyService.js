@@ -3,6 +3,7 @@
  * Uses DB state (live rooms, PK, active match calls) — not client UI state.
  */
 const db = require('../config/database');
+const { isMatchCallEnabled, isMissingRelationError } = require('../lib/matchCallFeature');
 
 const BUSY_CODES = {
   MATCH_ACTIVE: 'match_active',
@@ -95,16 +96,22 @@ async function queryActivePk(userId, client = db) {
 }
 
 async function queryActiveMatch(userId, client = db) {
-  const res = await client.query(
-    `SELECT id, channel, mode, status
-     FROM match_calls
-     WHERE (user_a = $1 OR user_b = $1)
-       AND status IN ('matched', 'connecting', 'connected')
-     ORDER BY created_at DESC
-     LIMIT 1`,
-    [userId]
-  );
-  return res.rows[0] || null;
+  if (!isMatchCallEnabled()) return null;
+  try {
+    const res = await client.query(
+      `SELECT id, channel, mode, status
+       FROM match_calls
+       WHERE (user_a = $1 OR user_b = $1)
+         AND status IN ('matched', 'connecting', 'connected')
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [userId]
+    );
+    return res.rows[0] || null;
+  } catch (err) {
+    if (isMissingRelationError(err)) return null;
+    throw err;
+  }
 }
 
 function livePresenceToBusy(live, userId) {
@@ -183,14 +190,14 @@ async function getBusyState(userId, opts = {}) {
     };
   }
 
-  if (!opts.skipQueue) {
+  if (!opts.skipQueue && isMatchCallEnabled()) {
     try {
       const matchCallService = require('./matchCallService');
       if (await matchCallService.isUserInQueue(uid)) {
         return { busy: true, reason: BUSY_CODES.MATCH_QUEUE };
       }
     } catch (_e) {
-      /* ignore circular init */
+      /* ignore — match feature optional */
     }
   }
 
@@ -211,6 +218,7 @@ async function isAvailableForMatch(userId) {
 
 /** Called when user enters a live/party room or takes a seat — evict from match queue/call. */
 async function onUserEnteredLive(userId) {
+  if (!isMatchCallEnabled()) return;
   try {
     const matchCallService = require('./matchCallService');
     await matchCallService.evictUserFromMatch(userId, 'busy_live');
@@ -224,16 +232,22 @@ async function onUserLeftLive(_userId) {
   return { ok: true };
 }
 
-/** Block live join while in an active match call. */
+/** Block live join while in an active match call (RN match only — skipped when disabled). */
 async function assertCanJoinLive(userId) {
-  const state = await getBusyState(userId, { skipQueue: true });
-  if (state.busy && state.reason === BUSY_CODES.MATCH_ACTIVE) {
-    throw httpError(
-      409,
-      'End your match call before joining a live room',
-      'IN_MATCH_CALL',
-      state
-    );
+  if (!isMatchCallEnabled()) return true;
+  try {
+    const state = await getBusyState(userId, { skipQueue: true });
+    if (state.busy && state.reason === BUSY_CODES.MATCH_ACTIVE) {
+      throw httpError(
+        409,
+        'End your match call before joining a live room',
+        'IN_MATCH_CALL',
+        state
+      );
+    }
+  } catch (err) {
+    if (isMissingRelationError(err)) return true;
+    throw err;
   }
   return true;
 }
