@@ -1,0 +1,147 @@
+/* Living motion — rankings / store / gifts. Not live-grid equalizers. */
+@media (prefers-reduced-motion: reduce) {
+  .social-rank-page *,
+  .social-store-page *,
+  .gift-grid button {
+    animation: none !important;
+  }
+}
+
+/* ===== Rankings: no sparkles / glow / shimmer ===== */
+.social-rank-podium {
+  position: relative;
+  overflow: visible;
+}
+.social-rank-podium::before,
+.social-rank-podium::after,
+.social-rank-promo::after,
+.podium-stand::after {
+  content: none !important;
+  display: none !important;
+  animation: none !important;
+}
+.social-rank-podium-item.rank-1 .podium-av,
+.social-rank-podium-item.rank-1 img.podium-av,
+.social-rank-podium-item.rank-2 .podium-av,
+.social-rank-podium-item.rank-3 .podium-av {
+  animation: none !important;
+  filter: none !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12) !important;
+}
+.podium-crown,
+.social-rank-row .rank-num,
+.social-rank-row .rank-info small,
+.social-rank-row img {
+  animation: none !important;
+  text-shadow: none !important;
+  filter: none !important;
+}
+
+/* ===== Store: float goods, coin twinkle, card sheen ===== */
+.social-store-item {
+  position: relative;
+  overflow: hidden;
+}
+.social-store-item::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -60%;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.45), transparent);
+  animation: ap-alive-card-sheen 3.8s ease-in-out infinite;
+  pointer-events: none;
+}
+.social-store-item:nth-child(3n)::after { animation-delay: 0.7s; }
+.social-store-item:nth-child(3n+1)::after { animation-delay: 1.4s; }
+@keyframes ap-alive-card-sheen {
+  0% { transform: translateX(0); opacity: 0; }
+  12% { opacity: 1; }
+  40%, 100% { transform: translateX(420%); opacity: 0; }
+}
+
+.social-store-item .img {
+  animation: ap-alive-float 3.1s ease-in-out infinite;
+}
+.social-store-item:nth-child(2n) .img { animation-delay: 0.45s; }
+.social-store-item:nth-child(3n) .img { animation-delay: 0.9s; }
+@keyframes ap-alive-float {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-5px) rotate(2deg); }
+}
+
+.social-store-item .price {
+  animation: ap-alive-coin 2.4s ease-in-out infinite;
+}
+.social-store-item:nth-child(2n) .price { animation-delay: 0.35s; }
+@keyframes ap-alive-coin {
+  0%, 100% { filter: brightness(1); transform: scale(1); }
+  50% { filter: brightness(1.25); transform: scale(1.06); }
+}
+
+.social-cat-item .icon-wrap {
+  animation: ap-alive-icon 2.8s ease-in-out infinite;
+}
+.social-cat-item:nth-child(2n) .icon-wrap { animation-delay: 0.3s; }
+.social-cat-item:nth-child(3n) .icon-wrap { animation-delay: 0.6s; }
+@keyframes ap-alive-icon {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+.social-mega-offer-link img,
+.social-store-page .social-banner {
+  animation: ap-alive-banner 3.6s ease-in-out infinite;
+}
+@keyframes ap-alive-banner {
+  0%, 100% { filter: brightness(1) saturate(1); }
+  50% { filter: brightness(1.08) saturate(1.12); }
+}
+
+/* ===== Gift sheet: sparkle / breathe / bob — not eq bars ===== */
+.gift-grid button,
+.gift-card {
+  position: relative;
+  animation: ap-alive-gift-breathe 2.8s ease-in-out infinite;
+}
+.gift-grid button:nth-child(3n) { animation-delay: 0.35s; }
+.gift-grid button:nth-child(3n+1) { animation-delay: 0.7s; }
+.gift-grid button:nth-child(3n+2) { animation-delay: 1.05s; }
+@keyframes ap-alive-gift-breathe {
+  0%, 100% { filter: brightness(1); box-shadow: 0 0 0 rgba(251, 191, 36, 0); }
+  50% { filter: brightness(1.1); box-shadow: 0 0 12px rgba(251, 191, 36, 0.28); }
+}
+
+.gift-grid .g,
+.gift-card .g {
+  animation: ap-alive-gift-bob 2.5s ease-in-out infinite;
+}
+.gift-grid .gift-thumb-img,
+.gift-card img.gift-thumb-img {
+  animation: none !important;
+  transform: none !important;
+}
+.gift-grid button:nth-child(2n) .g {
+  animation-delay: 0.4s;
+}
+@keyframes ap-alive-gift-bob {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-4px) scale(1.05); }
+}
+
+.gift-grid button.is-on,
+.gift-card.is-selected,
+.gift-card.selected {
+  animation: ap-alive-gift-pick 1.4s ease-in-out infinite;
+}
+@keyframes ap-alive-gift-pick {
+  0%, 100% { box-shadow: 0 0 0 2px #fbbf24, 0 0 8px rgba(251, 191, 36, 0.35); }
+  50% { box-shadow: 0 0 0 3px #fde68a, 0 0 18px rgba(251, 191, 36, 0.7); }
+}
+
+.gift-grid.is-scrolling button,
+.gift-grid.is-scrolling .g,
+.gift-grid.is-scrolling img {
+  animation-play-state: paused;
+}

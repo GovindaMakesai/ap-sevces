@@ -1,0 +1,321 @@
+/* AP hippo stickers + reference chat / party chrome */
+
+.ap-sticker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 120px;
+  height: 120px;
+  vertical-align: bottom;
+  pointer-events: none;
+  overflow: visible;
+}
+.ap-sticker svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  display: block;
+}
+.ap-sticker-body {
+  transform-origin: 90px 150px;
+  animation: ap-sticker-bounce 1.6s ease-in-out infinite;
+}
+.ap-sticker-wave {
+  transform-origin: 142px 78px;
+  animation: ap-sticker-wave 0.7s ease-in-out infinite;
+}
+.ap-sticker-bubble {
+  transform-origin: 144px 32px;
+  animation: ap-sticker-pop 1.8s ease-in-out infinite;
+}
+.ap-sticker-spark {
+  animation: ap-sticker-sparkle 1.2s ease-in-out infinite;
+}
+@keyframes ap-sticker-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+@keyframes ap-sticker-wave {
+  0%, 100% { transform: rotate(-12deg); }
+  50% { transform: rotate(28deg); }
+}
+@keyframes ap-sticker-pop {
+  0%, 70%, 100% { transform: scale(1); }
+  80% { transform: scale(1.12); }
+}
+@keyframes ap-sticker-sparkle {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.86) rotate(12deg); }
+}
+
+.ap-sticker-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  background: #fff;
+}
+.ap-sticker-bar::-webkit-scrollbar { display: none; }
+.ap-sticker-chip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #ece7df;
+  background: #fff;
+  border-radius: 999px;
+  padding: 4px 12px 4px 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1f2937;
+  white-space: nowrap;
+}
+.ap-sticker-chip .ap-sticker {
+  width: 32px;
+  height: 32px;
+}
+.ap-sticker-chip--star {
+  width: 36px;
+  height: 36px;
+  padding: 2px;
+  justify-content: center;
+  border-radius: 50%;
+}
+.ap-sticker-chip--gift {
+  background: linear-gradient(135deg, #fb7185, #ec4899);
+  border: none;
+  color: #fff;
+  padding: 7px 14px;
+}
+.ap-sticker-gift-ico { font-size: 15px; }
+
+/* Live/party: stickers sit above the full emoji grid */
+.ap-emoji-popover.ap-emoji-popover--full,
+.ap-emoji-popover.ap-sticker-popover {
+  max-height: min(420px, 52vh);
+  align-items: stretch;
+  gap: 8px;
+}
+.ap-emoji-popover .ap-emoji-sticker-cell {
+  width: 64px !important;
+  min-width: 64px !important;
+  height: 76px !important;
+  padding: 4px !important;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 10px !important;
+  font-weight: 700;
+  color: #fff !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+.ap-emoji-popover .ap-emoji-sticker-cell .ap-sticker {
+  width: 48px;
+  height: 48px;
+}
+.party-chat-sticker,
+.party-chat-text:has(.ap-sticker) {
+  background: transparent !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+}
+.party-chat-sticker .ap-sticker {
+  width: 72px;
+  height: 72px;
+}
+
+.message-wrapper.is-sticker .message-bubble {
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  border: none !important;
+}
+.message-wrapper.is-sticker .message-content {
+  padding: 0 !important;
+  background: transparent !important;
+}
+.message-wrapper.is-sticker .message-more-btn,
+.message-wrapper.is-sticker .message-time {
+  display: none;
+}
+.message-wrapper.is-sticker .ap-sticker {
+  width: 132px;
+  height: 132px;
+}
+
+.message-wrapper.sent {
+  flex-direction: row;
+  justify-content: flex-end;
+}
+.message-avatar--self {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  margin-left: 6px;
+}
+
+.ap-msg-notif-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 12px 10px;
+  padding: 8px 10px 8px 12px;
+  background: #ffd9b3;
+  border-radius: 10px;
+  color: #7a4a12;
+  font-size: 13px;
+  font-weight: 600;
+}
+.ap-msg-notif-banner[hidden] { display: none !important; }
+.ap-msg-notif-banner span { flex: 1; min-width: 0; }
+.ap-msg-notif-open {
+  border: none;
+  background: #f5a524;
+  color: #fff;
+  font-weight: 800;
+  border-radius: 8px;
+  padding: 6px 14px;
+}
+.ap-msg-notif-x {
+  border: none;
+  background: transparent;
+  color: #8b6914;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0 4px;
+}
+
+.ap-starlink-tip {
+  align-self: center;
+  margin: 10px auto 14px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: #eceff3;
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  max-width: 86%;
+}
+
+.ap-chat-compose {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px calc(8px + env(safe-area-inset-bottom, 0px));
+  background: #fff;
+}
+.ap-chat-round-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: #f3f4f6;
+  color: #6b7280;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.ap-chat-speak-pill {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  background: #f3f4f6;
+  border-radius: 999px;
+  padding: 4px 8px 4px 14px;
+}
+.ap-chat-speak-pill textarea {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  resize: none;
+  font-size: 15px;
+  min-height: 28px;
+  max-height: 72px;
+  padding: 6px 0;
+}
+.ap-chat-mic-btn {
+  width: 34px;
+  height: 34px;
+  border: none;
+  background: transparent;
+  color: #9ca3af;
+  flex-shrink: 0;
+}
+.ap-chat-plus-menu {
+  position: absolute;
+  right: 12px;
+  bottom: 58px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.16);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 40;
+}
+.ap-chat-plus-menu[hidden] { display: none !important; }
+.ap-chat-plus-menu button {
+  border: none;
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-weight: 700;
+  text-align: left;
+  color: #1f2937;
+}
+
+html.ap-expo-app .chat-action-btn#chatHeaderGiftBtn,
+html.social-app .chat-action-btn#chatHeaderGiftBtn,
+html.ap-expo-app .chat-actions > .chat-action-btn[onclick="showUserInfo()"],
+html.social-app .chat-actions > .chat-action-btn[onclick="showUserInfo()"],
+html.ap-expo-app .chat-user-status,
+html.social-app .chat-user-status,
+html.ap-expo-app .sidebar-header--legacy,
+html.social-app .sidebar-header--legacy,
+.ap-msg-search.is-collapsed {
+  display: none !important;
+}
+
+.ap-chat-compose {
+  position: relative;
+}
+
+.ap-msg-notif-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 12px 10px;
+  padding: 8px 10px 8px 12px;
+  background: #ffd9b3;
+  border-radius: 10px;
+  color: #7a4a12;
+  font-size: 13px;
+  font-weight: 600;
+}
+.ap-msg-notif-open {
+  border: none;
+  background: #f5a524;
+  color: #fff;
+  font-weight: 800;
+  border-radius: 8px;
+  padding: 6px 14px;
+}
+.ap-msg-notif-x {
+  border: none;
+  background: transparent;
+  color: #8b6914;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0 4px;
+}
+.ap-msg-search.is-collapsed {
+  display: none !important;
+}

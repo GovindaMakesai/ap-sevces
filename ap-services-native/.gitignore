@@ -18,3 +18,5 @@ web-build/
 npm-debug.*
 .DS_Store
 apk/
+modules/**/android/build/
+modules/**/build/
