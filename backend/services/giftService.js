@@ -251,18 +251,21 @@ async function sendGiftOnce({
     await client.query('BEGIN');
 
     if (requestId) {
+      await client.query('SAVEPOINT gift_idem');
       try {
         const existing = await client.query(
           `SELECT * FROM gift_transactions WHERE sender_id = $1 AND client_request_id = $2 LIMIT 1`,
           [senderId, requestId]
         );
+        await client.query('RELEASE SAVEPOINT gift_idem');
         if (existing.rows[0]) {
           const packed = await packGiftResult(client, existing.rows[0], senderId);
           await client.query('COMMIT');
           return packed;
         }
       } catch (_colMissing) {
-        /* client_request_id column not ready yet */
+        /* client_request_id missing — clear aborted state and continue without idempotency */
+        await client.query('ROLLBACK TO SAVEPOINT gift_idem').catch(() => {});
       }
     }
 
@@ -402,16 +405,23 @@ async function sendGiftOnce({
 
     let lucky = null;
     if (luckyGiftService.isLuckyCatalogGift(catalogHit)) {
-      lucky = await luckyGiftService.settleInTransaction({
-        client,
-        senderId,
-        receiverId,
-        liveRoomId,
-        giftTxId: gift.rows[0].id,
-        hit: catalogHit,
-        qty: quantity,
-        totalCost: Number(amount),
-      });
+      await client.query('SAVEPOINT lucky_settle');
+      try {
+        lucky = await luckyGiftService.settleInTransaction({
+          client,
+          senderId,
+          receiverId,
+          liveRoomId,
+          giftTxId: gift.rows[0].id,
+          hit: catalogHit,
+          qty: quantity,
+          totalCost: Number(amount),
+        });
+        await client.query('RELEASE SAVEPOINT lucky_settle');
+      } catch (luckyErr) {
+        await client.query('ROLLBACK TO SAVEPOINT lucky_settle').catch(() => {});
+        console.error('lucky gift settle skipped:', luckyErr.message);
+      }
     }
 
     await client.query('COMMIT');
